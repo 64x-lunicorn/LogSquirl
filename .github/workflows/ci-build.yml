@@ -70,7 +70,7 @@ jobs:
             package_suffix: rpm
             check_container: oraclelinux:10
             container_root: docker/oracle10
-            container: variar/klogg_oracle10
+            container: logsquirl/oracle10
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
           - os: ubuntu_jammy
@@ -82,7 +82,7 @@ jobs:
             package_suffix: deb
             check_container: ubuntu:22.04
             container_root: docker/ubuntu22.04
-            container: variar/klogg_ubuntu22.04
+            container: logsquirl/ubuntu22.04
             cmake_opts:
 
           - os: ubuntu_noble
@@ -94,7 +94,7 @@ jobs:
             package_suffix: deb
             check_container: ubuntu:24.04
             container_root: docker/ubuntu24.04
-            container: variar/klogg_ubuntu24.04
+            container: logsquirl/ubuntu24.04
             cmake_opts:
 
           - os: ubuntu_appimage
@@ -103,7 +103,7 @@ jobs:
             artifacts_id: appimage
             package_suffix: AppImage
             container_root: docker/ubuntu22.04
-            container: variar/klogg_ubuntu22.04
+            container: logsquirl/ubuntu22.04
             cmake_opts:
 
           - os: fedora
@@ -115,7 +115,7 @@ jobs:
             package_suffix: rpm
             check_container: fedora:43
             container_root: docker/fedora43
-            container: variar/klogg_fedora43
+            container: logsquirl/fedora43
             cmake_opts:
 
 
