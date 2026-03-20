@@ -1460,6 +1460,26 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
         codec = QTextCodec::codecForName( "utf-8" );
     }
 
+    // Write BOM (Byte Order Mark) for Unicode encodings so other applications
+    // can detect the encoding when reopening the saved file.
+    const int mib = codec->mibEnum();
+    static constexpr int Utf8Mib = 106;
+    static constexpr int Utf16Mib = 1015;
+    static constexpr int Utf16BEMib = 1013;
+    static constexpr int Utf16LEMib = 1014;
+    if ( mib == Utf16LEMib || mib == Utf16Mib ) {
+        // UTF-16 LE BOM: FF FE
+        saveFile.write( "\xFF\xFE", 2 );
+    }
+    else if ( mib == Utf16BEMib ) {
+        // UTF-16 BE BOM: FE FF
+        saveFile.write( "\xFE\xFF", 2 );
+    }
+    else if ( mib == Utf8Mib ) {
+        // UTF-8 BOM: EF BB BF
+        saveFile.write( "\xEF\xBB\xBF", 3 );
+    }
+
     AtomicFlag interruptRequest;
 
     progressDialog.setRange( 0, 1000 );
@@ -1512,8 +1532,11 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
             }
 
             for ( const auto& l : lines.first ) {
-
-                const auto encodedLine = codec->fromUnicode( l );
+                // Use IgnoreHeader to prevent codec from inserting its own BOM
+                // per line — we already wrote the BOM once at the start of the file.
+                QTextCodec::ConverterState state( QTextCodec::IgnoreHeader );
+                const auto encodedLine = codec->fromUnicode(
+                    l.constData(), static_cast<int>( l.length() ), &state );
                 const auto written = saveFile.write( encodedLine );
 
                 if ( written != encodedLine.size() ) {
