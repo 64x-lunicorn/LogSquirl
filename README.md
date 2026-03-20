@@ -38,6 +38,8 @@ LogSquirl is a fork of [klogg](https://github.com/variar/klogg), which itself st
 Since the original klogg project is no longer actively maintained, LogSquirl continues
 development under a new name, building on the excellent foundation laid by both glogg and klogg.
 
+LogSquirl is standing on the shoulders of giants.
+
 ## Features
 
 * Runs on Linux, Windows, and macOS thanks to Qt

@@ -31,7 +31,7 @@
         <string/>
        </property>
        <property name="icon">
-        <iconset resource="../../app/klogg.qrc">
+        <iconset resource="../../app/logsquirl.qrc">
          <normaloff>:/images/icons8-plus-16.png</normaloff>:/images/icons8-plus-16.png</iconset>
        </property>
       </widget>
@@ -45,7 +45,7 @@
         <string/>
        </property>
        <property name="icon">
-        <iconset resource="../../app/klogg.qrc">
+        <iconset resource="../../app/logsquirl.qrc">
          <normaloff>:/images/icons8-minus-16.png</normaloff>:/images/icons8-minus-16.png</iconset>
        </property>
       </widget>
@@ -102,7 +102,7 @@
         <string/>
        </property>
        <property name="icon">
-        <iconset resource="../../app/klogg.qrc">
+        <iconset resource="../../app/logsquirl.qrc">
          <normaloff>:/images/icons8-up-16.png</normaloff>:/images/icons8-up-16.png</iconset>
        </property>
       </widget>
@@ -113,7 +113,7 @@
         <string/>
        </property>
        <property name="icon">
-        <iconset resource="../../app/klogg.qrc">
+        <iconset resource="../../app/logsquirl.qrc">
          <normaloff>:/images/icons8-down-arrow-16.png</normaloff>:/images/icons8-down-arrow-16.png</iconset>
        </property>
       </widget>
@@ -136,8 +136,8 @@
   </layout>
  </widget>
  <resources>
-  <include location="../../app/klogg.qrc"/>
-  <include location="../../app/klogg.qrc"/>
+  <include location="../../app/logsquirl.qrc"/>
+  <include location="../../app/logsquirl.qrc"/>
  </resources>
  <connections/>
 </ui>

@@ -58,7 +58,7 @@ jobs:
           #  package_suffix: rpm
           #  check_container: oraclelinux:7
           #  container_root: docker/oracle7
-          #  container: variar/klogg_oracle7
+          #  container: logsquirl_oracle7
           #  cmake_opts: -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF -DLOGSQUIRL_USE_HYPERSCAN=OFF
 
           - os: oraclelinux
@@ -157,7 +157,7 @@ jobs:
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: x64
-            artifacts_id: macos-intel-qt6
+            artifacts_id: mac-x64
             cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
           - os: macos
             runner: macos-26
@@ -165,7 +165,7 @@ jobs:
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: arm64
-            artifacts_id: macos-arm-qt6
+            artifacts_id: mac-arm64
             cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
 
     runs-on: ${{ matrix.config.runner }}
@@ -216,7 +216,7 @@ jobs:
             arch: x64
             ssl_arch: -x64
             cmake_opts: 
-            artifacts_id: windows-x64-qt6
+            artifacts_id: windows-x64
 
     runs-on: ${{ matrix.config.runner }}
     steps:

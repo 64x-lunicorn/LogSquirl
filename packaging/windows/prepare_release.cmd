@@ -60,7 +60,7 @@ xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\logsquirl.nsi  /y
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\FileAssociation.nsh  /y
 
 echo "Making portable archive..."
-7z a -r %LOGSQUIRL_WORKSPACE%\logsquirl-%LOGSQUIRL_VERSION%-%LOGSQUIRL_ARCH%-%LOGSQUIRL_QT%-portable.zip @%LOGSQUIRL_WORKSPACE%\packaging\windows\7z_logsquirl_listfile.txt
-7z a %LOGSQUIRL_WORKSPACE%\logsquirl-%LOGSQUIRL_VERSION%-%LOGSQUIRL_ARCH%-%LOGSQUIRL_QT%-pdb.zip @%LOGSQUIRL_WORKSPACE%\packaging\windows\7z_pdb_listfile.txt
+7z a -r %LOGSQUIRL_WORKSPACE%\logsquirl-win-%LOGSQUIRL_ARCH%-portable.zip @%LOGSQUIRL_WORKSPACE%\packaging\windows\7z_logsquirl_listfile.txt
+7z a %LOGSQUIRL_WORKSPACE%\logsquirl-win-%LOGSQUIRL_ARCH%-pdb.zip @%LOGSQUIRL_WORKSPACE%\packaging\windows\7z_pdb_listfile.txt
 
 echo "Done!"

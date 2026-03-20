@@ -170,8 +170,8 @@
     <name>CrawlerWidget</name>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="425"/>
-        <source>klogg</source>
-        <translation>klogg</translation>
+        <source>logsquirl</source>
+        <translation>logsquirl</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="426"/>
@@ -473,8 +473,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="196"/>
-        <source>klogg - scratchpad</source>
-        <translation>klogg - scratchpad</translation>
+        <source>logsquirl - scratchpad</source>
+        <translation>logsquirl - scratchpad</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="740"/>
@@ -505,8 +505,8 @@
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="966"/>
         <location filename="../../ui/src/mainwindow.cpp" line="970"/>
-        <source>Klogg - File download</source>
-        <translation>Klogg - File download</translation>
+        <source>LogSquirl - File download</source>
+        <translation>LogSquirl - File download</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="971"/>
@@ -515,8 +515,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="996"/>
-        <source>klogg - remove from recent</source>
-        <translation>klogg - remove from recent</translation>
+        <source>logsquirl - remove from recent</source>
+        <translation>logsquirl - remove from recent</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="997"/>
@@ -525,8 +525,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1018"/>
-        <source>klogg - remove from favorites</source>
-        <translation>klogg - remove from favorites</translation>
+        <source>logsquirl - remove from favorites</source>
+        <translation>logsquirl - remove from favorites</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1019"/>
@@ -535,8 +535,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1093"/>
-        <source>klogg - clear file</source>
-        <translation>klogg - clear file</translation>
+        <source>logsquirl - clear file</source>
+        <translation>logsquirl - clear file</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1094"/>
@@ -550,13 +550,13 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1205"/>
-        <source>About klogg</source>
-        <translation>About klogg</translation>
+        <source>About LogSquirl</source>
+        <translation>About LogSquirl</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1206"/>
-        <source>&lt;h2&gt;klogg %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;https://github.com/variar/klogg&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is fork of glogg&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;http://glogg.bonnefon.org/&quot;&gt;http://glogg.bonnefon.org/&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
-        <translation>&lt;h2&gt;klogg %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;https://github.com/variar/klogg&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is fork of glogg&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;http://glogg.bonnefon.org/&quot;&gt;http://glogg.bonnefon.org/&lt;/a&gt;&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</translation>
+        <source>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</source>
+        <translation>&lt;h2&gt;LogSquirl %1&lt;/h2&gt;&lt;p&gt;A fast, advanced log explorer.&lt;/p&gt;&lt;p&gt;Built %2 from %3&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;https://github.com/64x-lunicorn/LogSquirl&quot;&gt;https://github.com/64x-lunicorn/LogSquirl&lt;/a&gt;&lt;/p&gt;&lt;p&gt;This is a fork of &lt;a href=&quot;https://github.com/variar/klogg&quot;&gt;klogg&lt;/a&gt; by Anton Filimonov, which is a fork of &lt;a href=&quot;https://github.com/nickbnf/glogg&quot;&gt;glogg&lt;/a&gt; by Nicolas Bonnefon.&lt;/p&gt;&lt;p&gt;Using icons from &lt;a href=&quot;https://icons8.com&quot;&gt;icons8.com&lt;/a&gt; project&lt;/p&gt;&lt;p&gt;Copyright &amp;copy; 2020 Nicolas Bonnefon, Anton Filimonov and other contributors&lt;/p&gt;&lt;p&gt;You may modify and redistribute the program under the terms of the GPL (version 3 or later).&lt;/p&gt;</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1221"/>
@@ -565,8 +565,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1234"/>
-        <source>klogg documentation</source>
-        <translation>klogg documentation</translation>
+        <source>logsquirl documentation</source>
+        <translation>logsquirl documentation</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1328"/>
@@ -603,8 +603,8 @@
         <location filename="../../ui/src/mainwindow.cpp" line="1680"/>
         <location filename="../../ui/src/mainwindow.cpp" line="1705"/>
         <location filename="../../ui/src/mainwindow.cpp" line="1828"/>
-        <source>klogg</source>
-        <translation>klogg</translation>
+        <source>logsquirl</source>
+        <translation>logsquirl</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1641"/>
@@ -668,26 +668,26 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="2117"/>
-        <source>klogg -- switch to file</source>
-        <translation>klogg -- switch to file</translation>
+        <source>logsquirl -- switch to file</source>
+        <translation>logsquirl -- switch to file</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="2269"/>
-        <source>klogg - generate crash dump</source>
-        <translation>klogg - generate crash dump</translation>
+        <source>logsquirl - generate crash dump</source>
+        <translation>logsquirl - generate crash dump</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="2270"/>
-        <source>This will shutdown klogg and generate diagnostic crash dump. Continue?</source>
-        <translation>This will shutdown klogg and generate diagnostic crash dump. Continue?</translation>
+        <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
+        <translation>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</translation>
     </message>
 </context>
 <context>
     <name>OptionsDialog</name>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="20"/>
-        <source>Klogg preferences</source>
-        <translation>Klogg preferences</translation>
+        <source>LogSquirl preferences</source>
+        <translation>LogSquirl preferences</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="33"/>
@@ -1046,8 +1046,8 @@
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="574"/>
-        <source>Klogg needs to be restarted to apply some changes. </source>
-        <translation>Klogg needs to be restarted to apply some changes. </translation>
+        <source>LogSquirl needs to be restarted to apply some changes. </source>
+        <translation>LogSquirl needs to be restarted to apply some changes. </translation>
     </message>
     <message>
         <location filename="../../ui/src/optionsdialog.cpp" line="687"/>
@@ -1644,7 +1644,7 @@
     </message>
 </context>
 <context>
-    <name>klogg::mainwindow::action</name>
+    <name>logsquirl::mainwindow::action</name>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="29"/>
         <source>&amp;New window</source>
@@ -1652,8 +1652,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="30"/>
-        <source>Create new klogg window</source>
-        <translation>Create new klogg window</translation>
+        <source>Create new logsquirl window</source>
+        <translation>Create new logsquirl window</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="31"/>
@@ -1902,8 +1902,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="85"/>
-        <source>Join Klogg development community at Discord</source>
-        <translation>Join Klogg development community at Discord</translation>
+        <source>Join LogSquirl development community at Discord</source>
+        <translation>Join LogSquirl development community at Discord</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="86"/>
@@ -1912,8 +1912,8 @@
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="88"/>
-        <source>Join Klogg development community at Telegram</source>
-        <translation>Join Klogg development community at Telegram</translation>
+        <source>Join LogSquirl development community at Telegram</source>
+        <translation>Join LogSquirl development community at Telegram</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="89"/>
@@ -1972,7 +1972,7 @@
     </message>
 </context>
 <context>
-    <name>klogg::mainwindow::menu</name>
+    <name>logsquirl::mainwindow::menu</name>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="12"/>
         <source>&amp;File</source>
@@ -2020,7 +2020,7 @@
     </message>
 </context>
 <context>
-    <name>klogg::mainwindow::toolbar</name>
+    <name>logsquirl::mainwindow::toolbar</name>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="23"/>
         <source>&amp;Toolbar</source>
@@ -2028,11 +2028,11 @@
     </message>
 </context>
 <context>
-    <name>klogg::mainwindow::trayicon</name>
+    <name>logsquirl::mainwindow::trayicon</name>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="26"/>
-        <source>klogg log viewer</source>
-        <translation>klogg log viewer</translation>
+        <source>logsquirl log viewer</source>
+        <translation>logsquirl log viewer</translation>
     </message>
 </context>
 </TS>

@@ -255,7 +255,6 @@ if(UNIX)
     set(CPACK_DMG_FORMAT "UDBZ")
     set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
     set(CPACK_SYSTEM_NAME "OSX")
-    set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/osx/dmg_background.tif")
     set(CPACK_DMG_DS_STORE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/osx/DS_Store")
 
   else()
