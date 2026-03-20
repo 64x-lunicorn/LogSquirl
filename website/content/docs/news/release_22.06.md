@@ -53,4 +53,4 @@ On some Windows 11 systems logsquirl crashes when trying to show an open file di
 
 Big thanks for everyone who provided feedback and feature requests!
 
-Download on Github: [logsquirl 22.06](https://github.com/variar/logsquirl/releases/tag/v22.06)
+Download on Github: [logsquirl 22.06](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v22.06)

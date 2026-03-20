@@ -1,37 +1,31 @@
-# Copyright 1999-2021 Gentoo Authors
+# Copyright 1999-2025 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
-EAPI=7
+EAPI=8
 
 inherit xdg cmake
 
 DESCRIPTION="A GUI application to browse and search through long and complex log files"
-HOMEPAGE="https://logsquirl.filimonov.dev"
-MAJOR_VERSION=22.06
+HOMEPAGE="https://github.com/64x-lunicorn/LogSquirl"
+MAJOR_VERSION=26.03
 SRC_URI="
-	https://github.com/variar/logsquirl/archive/refs/tags/v${MAJOR_VERSION}.tar.gz -> ${P}.tar.gz
-	https://github.com/variar/logsquirl/releases/download/v${MAJOR_VERSION}/${P}.deps.tar.gz
+	https://github.com/64x-lunicorn/LogSquirl/archive/refs/tags/v${MAJOR_VERSION}.tar.gz -> ${P}.tar.gz
 	"
 
 LICENSE="GPL-3+"
 SLOT="0"
-KEYWORDS="~amd64 ~x86"
+KEYWORDS="~amd64"
 
 IUSE="lto test kde"
 RESTRICT="!test? ( test )"
 
 DEPEND="
-	dev-qt/qtcore:5
-	dev-qt/qtgui:5
-	dev-qt/qtwidgets:5
-	dev-qt/qtnetwork:5
-	dev-qt/qtxml:5
-	dev-qt/qtconcurrent:5
+	dev-qt/qtbase:6
 	>=dev-libs/hyperscan-5.4.0
 	>=dev-libs/xxhash-0.8.0
 	>=app-i18n/uchardet-0.0.7
 	>=dev-cpp/tbb-2021.5
-	kde? ( kde-frameworks/karchive:5 )
+	kde? ( kde-frameworks/karchive:6 )
 "
 RDEPEND="
 	${DEPEND}
@@ -39,7 +33,7 @@ RDEPEND="
 "
 BDEPEND="
 	>=dev-cpp/robin-hood-hashing-3.11.5
-	test? ( dev-qt/qttest:5 >=dev-cpp/catch-2.13.8 )
+	test? ( dev-qt/qtbase:6[test] >=dev-cpp/catch-2.13.8 )
 "
 
 src_unpack() {

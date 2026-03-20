@@ -1,0 +1,6 @@
+[ol10_codeready_builder]
+name=Oracle Linux 10 CodeReady Builder ($basearch)
+baseurl=https://yum.oracle.com/repo/OracleLinux/OL10/codeready/builder/$basearch
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
+gpgcheck=1
+enabled=1

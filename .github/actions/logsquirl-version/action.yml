@@ -6,4 +6,4 @@ runs:
     - name: Set logsquirl version
       shell: sh
       run: |
-        echo "LOGSQUIRL_VERSION=24.11.0.$((${{ github.run_number }} + 717))" >> $GITHUB_ENV 
+        echo "LOGSQUIRL_VERSION=26.03.0.$((${{ github.run_number }} + 717))" >> $GITHUB_ENV 

@@ -107,20 +107,28 @@ else()
   target_include_directories(logsquirl_uchardet_wrapper INTERFACE ${UCHARDET_INCLUDE_DIR})
 endif()
 
-# KArchive: Qt6 uses system KF6Archive, Qt5 uses CPM-fetched klogg_karchive fork
+# KArchive: try system package first, fall back to CPM-fetched klogg_karchive fork
 add_library(logsquirl_karchive INTERFACE)
+set(_KARCHIVE_FOUND OFF)
 if(${QT_VERSION_MAJOR} EQUAL 6)
   find_package(KF6Archive QUIET)
   if(KF6Archive_FOUND)
     target_link_libraries(logsquirl_karchive INTERFACE KF6::Archive)
-  else()
-    message(WARNING "KF6Archive not found — install karchive (e.g., brew install karchive)")
+    set(_KARCHIVE_FOUND ON)
   endif()
 else()
+  find_package(KF5Archive QUIET)
+  if(KF5Archive_FOUND)
+    target_link_libraries(logsquirl_karchive INTERFACE KF5::Archive)
+    set(_KARCHIVE_FOUND ON)
+  endif()
+endif()
+
+if(NOT _KARCHIVE_FOUND)
   set(CPM_USE_LOCAL_PACKAGES OFF)
   cpmaddpackage(
     NAME
-    KF5Archive
+    Klogg_KArchive
     GITHUB_REPOSITORY
     variar/klogg_karchive
     GIT_TAG
@@ -128,15 +136,28 @@ else()
     EXCLUDE_FROM_ALL
     YES
   )
-  if(KF5Archive_ADDED)
+  if(Klogg_KArchive_ADDED)
+    # Qt 6.10 no longer allows QFlags to be passed to QString::arg() directly.
+    # Patch the klogg_karchive source to cast to int.
+    foreach(_karchive_src
+      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/karchive.cpp"
+      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/kar.cpp"
+      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/krcc.cpp"
+    )
+      if(EXISTS "${_karchive_src}")
+        file(READ "${_karchive_src}" _karchive_content)
+        string(REPLACE ".arg(mode)" ".arg(static_cast<int>(mode))" _karchive_content "${_karchive_content}")
+        string(REPLACE ".arg(d->mode)" ".arg(static_cast<int>(d->mode))" _karchive_content "${_karchive_content}")
+        file(WRITE "${_karchive_src}" "${_karchive_content}")
+      endif()
+    endforeach()
     target_link_libraries(logsquirl_karchive INTERFACE klogg_karchive)
   else()
-    find_package(KF5Archive)
-    target_link_libraries(logsquirl_karchive INTERFACE KF5::Archive)
+    message(WARNING "KArchive not found and CPM fetch failed")
   endif()
 endif()
 
-if(NOT ${QT_VERSION_MAJOR} EQUAL 6)
+if(NOT _KARCHIVE_FOUND)
   message("Resetting CPM_USE_LOCAL_PACKAGES to ${_TMP_CPM_USE_LOCAL_PACKAGES}")
   set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
 endif()
@@ -147,10 +168,43 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   martinus/robin-hood-hashing
   GIT_TAG
-  3.11.2
+  3.11.5
   EXCLUDE_FROM_ALL
   YES
 )
+# GCC 14 compatibility: robin_hood 3.11.x has two issues:
+# 1. Missing <cstdint> include for UINT64_C macro
+# 2. Brace-init of Iter{} fails stricter overload resolution
+if(robin_hood_ADDED)
+  set(_rh_header "${robin_hood_SOURCE_DIR}/src/include/robin_hood.h")
+  if(EXISTS "${_rh_header}")
+    file(READ "${_rh_header}" _rh_content)
+    # Add missing <cstdint> include
+    string(REPLACE "#include <cstdlib>" "#include <cstdint>\n#include <cstdlib>" _rh_content "${_rh_content}")
+    # Replace brace-init with parenthesized init for Iter construction (GCC 14 compat)
+    string(REPLACE
+      "iterator{mKeyVals + idx, mInfo + idx}"
+      "iterator(mKeyVals + idx, mInfo + idx)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "const_iterator{mKeyVals + idx, mInfo + idx}"
+      "const_iterator(mKeyVals + idx, mInfo + idx)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "iterator{reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr}"
+      "iterator(reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "const_iterator{reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr}"
+      "const_iterator(reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "erase(iterator{const_cast<Node*>(pos.mKeyVals), const_cast<uint8_t*>(pos.mInfo)})"
+      "erase(iterator(const_cast<Node*>(pos.mKeyVals), const_cast<uint8_t*>(pos.mInfo)))"
+      _rh_content "${_rh_content}")
+    file(WRITE "${_rh_header}" "${_rh_content}")
+  endif()
+endif()
 if(NOT TARGET robin_hood)
   message("Adding imported target for robin_hood")
   add_library(robin_hood INTERFACE)
@@ -370,6 +424,17 @@ if(LOGSQUIRL_USE_SENTRY)
      CACHE INTERNAL "" FORCE
   )
 
+  # Crashpad requires CMAKE_OSX_SYSROOT to locate mach/*.defs files.
+  # With Makefile/Ninja generators CMake may leave this empty; detect it.
+  if(APPLE AND NOT CMAKE_OSX_SYSROOT)
+    execute_process(
+      COMMAND xcrun --show-sdk-path
+      OUTPUT_VARIABLE _osx_sdk_path
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    set(CMAKE_OSX_SYSROOT "${_osx_sdk_path}" CACHE STRING "" FORCE)
+  endif()
+
   cpmaddpackage(
     NAME
     sentry
@@ -380,6 +445,30 @@ if(LOGSQUIRL_USE_SENTRY)
     EXCLUDE_FROM_ALL
     YES
   )
+
+  # GCC 15 / Clang 17+ no longer transitively include <cstdint> from standard
+  # headers.  The pinned crashpad revision uses uint64_t etc. without including
+  # <cstdint> in several files.  Force-include the header for all crashpad targets.
+  # Use a generator expression so the C++ header is only applied to CXX sources
+  # (crashpad_util also compiles MIG-generated .c files).
+  if(MSVC)
+    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:/FIcstdint>")
+  else()
+    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include cstdint>")
+  endif()
+  set(_sentry_cstdint_targets
+      sentry crashpad_client crashpad_compat crashpad_util crashpad_handler
+      crashpad_minidump crashpad_snapshot crashpad_tools mini_chromium)
+  foreach(_t ${_sentry_cstdint_targets})
+    if(TARGET ${_t})
+      get_target_property(_t_type ${_t} TYPE)
+      if(_t_type STREQUAL "INTERFACE_LIBRARY")
+        target_compile_options(${_t} INTERFACE ${_sentry_cstdint_flag})
+      else()
+        target_compile_options(${_t} PRIVATE ${_sentry_cstdint_flag})
+      endif()
+    endif()
+  endforeach()
 
   if(WIN32)
     set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "logsquirl_crashpad_handler.exe")

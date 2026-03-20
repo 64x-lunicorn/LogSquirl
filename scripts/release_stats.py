@@ -51,7 +51,7 @@ elif args.graph:
             print(f" - {release_date} - {count}")
 
 else:
-    url = 'https://api.github.com/repos/variar/logsquirl/releases'
+    url = 'https://api.github.com/repos/64x-lunicorn/LogSquirl/releases'
     f = urllib.request.urlopen(url)
     release_data = json.loads(f.read())
 

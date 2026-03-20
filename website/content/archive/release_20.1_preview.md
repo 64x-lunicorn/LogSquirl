@@ -15,9 +15,9 @@ I've decided to postpone next release to January 2020. Mainly because I like
 
 Preview builds can be downloaded from Github: 
 
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
 
 Feedback is very welcome.
 

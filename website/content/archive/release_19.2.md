@@ -29,6 +29,6 @@ This release has following changes:
  - add checking for new version on Windows (new version info file is downloaded directly from GitHub)
  - updated 3rdparty libraries to latest versions
   
-Download on Github: [logsquirl 19.2](https://github.com/variar/logsquirl/releases/tag/v19.2)
+Download on Github: [logsquirl 19.2](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v19.2)
 <!--more--> 
 

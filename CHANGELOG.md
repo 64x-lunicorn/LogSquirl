@@ -1,3 +1,36 @@
+# 26.03.0 (2025-06):
+
+This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github.com/variar/klogg).
+
+## New features:
+ - Rebranded project from klogg to LogSquirl with new bundle identifier `io.github.logsquirl`
+
+## Bug fixes:
+ - Fixed crash on shutdown with Qt 6.10 on Windows (QThreadPool::waitForDone SEGFAULT)
+ - Fixed BOM not written when saving search results to file for UTF-16 encoded logs
+ - Fixed OpenSSL upgraded from 1.1.x to 3.x (CVE-2022-1292)
+
+## Build system:
+ - Upgraded to Qt 6.10.3 as primary build target (Qt 5 still supported)
+ - Bumped minimum CMake version guidance; added CPM dependency management
+ - Added Fedora 43 and Oracle Linux 10 build targets
+ - Upgraded robin_hood to 3.11.5 with GCC 14 compatibility patch
+ - Patched KArchive for Qt 6.10 `.arg()` compatibility
+ - Replaced unreliable AppleScript DMG layout with pre-built DS_Store file
+ - Fixed ragel being shadowed by CI workspace mount on Oracle Linux 10
+
+## Continuous integration:
+ - Upgraded deprecated GitHub Actions to latest versions (actions/checkout v4, etc.)
+ - Upgraded CodeQL to v4
+ - Upgraded CI runners: macOS 15 (ARM + Intel), Windows 2025, Ubuntu 24.04
+ - Fixed Windows packaging: removed stale Qt/TBB DLLs, updated NSIS installer
+ - Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` to suppress Node.js 20 deprecation warnings
+
+## Tests:
+ - Added unit tests for regex, encoding, line types, and configuration modules
+
+---
+
 # 2022-06:
 ## Documentation:
  - [d711ddeb](https://github.com/variar/klogg/commit/d711ddeb): update build documentation [skip ci] (Anton Filimonov)

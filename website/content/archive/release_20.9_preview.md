@@ -15,9 +15,9 @@ and I was able to do some bugfix and new feature development.
 
 Preview builds can be downloaded from Github: 
 
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
 
 Feedback is very welcome.
 

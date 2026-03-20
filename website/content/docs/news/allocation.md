@@ -126,7 +126,7 @@ memory allocator on MacOS. LogSquirl crashes with segmentation fault right at th
 on MacOS the default system memory allocator is used.
 
 Tweaking encoding conversion algorithm is a big change, so several next CI releases might be less
-stable than usual. Please report any bugs and crashes either on [GitHub](https://github.com/variar/logsquirl/issues)
+stable than usual. Please report any bugs and crashes either on [GitHub](https://github.com/64x-lunicorn/LogSquirl/issues)
 or in [Discord](https://discord.gg/DruNyQftzB).
 
 

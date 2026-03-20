@@ -19,8 +19,8 @@ git clone https://github.com/64x-lunicorn/LogSquirl
 To build LogSquirl:
 
 - cmake 3.12 or later to generate build files
-- C++ compiler with decent C++17 support (at least gcc 7.5, clang 7, msvc 19.14)
-- Qt libraries 5.9 or later (CI builds use Qt 5.9.5/5.12.5/5.15.2):
+- C++ compiler with C++17 support (at least gcc 10, clang 14, msvc 19.30)
+- Qt 6.5 or later (CI builds use Qt 6.10.3). Qt 5.15 is still supported but not the primary target:
   - QtCore
   - QtGui
   - QtWidgets
@@ -28,6 +28,7 @@ To build LogSquirl:
   - QtNetwork
   - QtXml
   - QtTools
+  - Qt5Compat (Qt 6 only)
 
 To build Hyperscan regular expressions backend (default):
 
@@ -64,12 +65,12 @@ Memory allocator override can be turned off by passing `-DLOGSQUIRL_OVERRIDE_MAL
 
 ### Building on Linux
 
-Here is how to build logsquirl on Ubuntu 18.04.
+Here is how to build logsquirl on Ubuntu 24.04.
 
 Install dependencies:
 
 ```
-sudo apt-get install build-essential cmake qtbase5-dev libboost-all-dev ragel
+sudo apt-get install build-essential cmake qt6-base-dev qt6-tools-dev qt6-5compat-dev libboost-all-dev ragel
 ```
 
 Configure and build logsquirl:
@@ -82,11 +83,7 @@ cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 cmake --build .
 ```
 
-**_If cmake gives error about missing "Qt5LinguistTools" configuration files, try running:_**
-
-```bash
-sudo apt-get install qttools5-dev
-```
+**_For Qt 5 builds, replace the qt6 packages above with `qtbase5-dev qttools5-dev`._**
 
 Binaries are placed into `build_root/output`.
 
@@ -94,11 +91,11 @@ See `.github/workflows/ci-build.yml` for more information on build process.
 
 ### Building on Windows
 
-Install Microsoft Visual Studio 2017 or 2019 with C++ support.
+Install Microsoft Visual Studio 2022 with C++ support.
 Community edition can be downloaded from [Microsoft](https://visualstudio.microsoft.com/vs/).
 
-Intall latest Qt version using [online installer](https://www.qt.io/download-qt-installer).
-Make sure to select version matching Visual Studio installation. 64-bit libraries are recommended.
+Install latest Qt 6 version using [online installer](https://www.qt.io/download-qt-installer).
+Make sure to select the MSVC 2022 64-bit component.
 
 Install CMake from [Kitware](https://cmake.org/download/).
 Use version 3.14 or later for Visual Studio 2019 support.
@@ -107,16 +104,10 @@ Download the Boost source code from http://www.boost.org/users/download/.
 Extract to some folder. Directory structure should be something like `C:\Boost\boost_1_63_0`.
 Then add `BOOST_ROOT` environment variable pointing to main directory of Boost sources so CMake is able to fine it.
 
-Prepare build environment for CMake. Open command prompt window and depending on version of Visual Studio run either
+Prepare build environment for CMake. Open command prompt window and run:
 
 ```
-call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Community\Common7\Tools\vsdevcmd" -arch=x64
-```
-
-or
-
-```
-call "%ProgramFiles(x86)%\Microsoft Visual Studio\2017\Community\Common7\Tools\vsdevcmd" -arch=x64
+call "%ProgramFiles%\Microsoft Visual Studio\2022\Community\Common7\Tools\vsdevcmd" -arch=x64
 ```
 
 Next setup Qt paths:
@@ -131,13 +122,13 @@ Then add CMake to PATH:
 set PATH=<path_to_cmake_bin>:$PATH
 ```
 
-Configure logsquirl solution (use CMake generator matching Visual Studio version):
+Configure logsquirl solution:
 
 ```
 cd <path_to_project_root>
 md build_root
 cd build_root
-cmake -G "Visual Studio 16 2019 Win64" -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+cmake -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 ```
 
 CMake should generate `logsquirl.sln` file in `<path_to_project_root>\build_root` directory. Open solution and build it.
@@ -165,7 +156,7 @@ Download and install build dependencies:
 brew install cmake ninja qt boost ragel
 ```
 
-Usually path to qt installation looks like `/usr/local/Cellar/qt/5.14.0/lib/cmake/Qt5`
+Usually path to qt installation looks like `/opt/homebrew/opt/qt/lib/cmake/Qt6` (Apple Silicon) or `/usr/local/opt/qt/lib/cmake/Qt6` (Intel).
 
 Configure and build logsquirl:
 
@@ -173,7 +164,7 @@ Configure and build logsquirl:
 cd <path_to_logsquirl_repository_clone>
 mkdir build_root
 cd build_root
-cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DQt5_DIR=<path_to_qt_install> ..
+cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DQt6_DIR=<path_to_qt_install> ..
 cmake --build .
 ```
 
@@ -185,8 +176,8 @@ To override default cmake value pass an option `-DLOGSQUIRL_OSX_DEPLOYMENT_TARGE
 
 ## Running tests
 
-Tests are built by default. To turn them off pass `-DBUILD_TESTS:BOOL=OFF` to cmake.
-Tests use catch2 (bundled with logsquirl sources) and require Qt5Test module. Tests can be run using ctest tool provider by CMake:
+Tests are built by default. To turn them off pass `-DLOGSQUIRL_BUILD_TESTS=OFF` to cmake.
+Tests use Catch2 (bundled with logsquirl sources) and require QtTest module. Tests can be run using ctest tool provided by CMake:
 
 ```
 cd <path_to_logsquirl_repository_clone>

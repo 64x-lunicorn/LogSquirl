@@ -23,18 +23,21 @@ on:
       - .gitignore
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   SaveVersion:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/logsquirl-version
 
       - name: Save version 
         run: echo $LOGSQUIRL_VERSION > logsquirl_version.txt
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: logsquirl_version
           path: 'logsquirl_version.txt'
@@ -59,29 +62,17 @@ jobs:
           #  cmake_opts: -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF -DLOGSQUIRL_USE_HYPERSCAN=OFF
 
           - os: oraclelinux
-            os_version: 8
+            os_version: 10
             arch: x64
-            check_command: yum install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
+            check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
             cpack_gen: RPM
             artifacts_id: oracle
             package_suffix: rpm
-            check_container: oraclelinux:8
-            container_root: docker/oracle8
-            container: variar/klogg_oracle8
+            check_container: oraclelinux:10
+            container_root: docker/oracle10
+            container: logsquirl/oracle10
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
-          - os: ubuntu_focal
-            os_version: 20.04
-            arch: x64
-            check_command: apt-get update && apt install --dry-run /usr/local/logsquirl*.deb
-            cpack_gen: DEB
-            artifacts_id: focal
-            package_suffix: deb
-            check_container: ubuntu:20.04
-            container_root: docker/ubuntu20.04
-            container: variar/klogg_ubuntu20.04
-            cmake_opts:
-          
           - os: ubuntu_jammy
             os_version: 22.04
             arch: x64
@@ -91,7 +82,7 @@ jobs:
             package_suffix: deb
             check_container: ubuntu:22.04
             container_root: docker/ubuntu22.04
-            container: variar/klogg_ubuntu22.04
+            container: logsquirl/ubuntu22.04
             cmake_opts:
 
           - os: ubuntu_noble
@@ -103,22 +94,34 @@ jobs:
             package_suffix: deb
             check_container: ubuntu:24.04
             container_root: docker/ubuntu24.04
-            container: variar/klogg_ubuntu24.04
+            container: logsquirl/ubuntu24.04
             cmake_opts:
 
           - os: ubuntu_appimage
-            os_version: 20.04
+            os_version: 22.04
             arch: x64
             artifacts_id: appimage
             package_suffix: AppImage
-            container_root: docker/ubuntu20.04
-            container: variar/klogg_ubuntu20.04
+            container_root: docker/ubuntu22.04
+            container: logsquirl/ubuntu22.04
+            cmake_opts:
+
+          - os: fedora
+            os_version: 43
+            arch: x64
+            check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
+            cpack_gen: RPM
+            artifacts_id: fedora
+            package_suffix: rpm
+            check_container: fedora:43
+            container_root: docker/fedora43
+            container: logsquirl/fedora43
             cmake_opts:
 
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       #- uses: satackey/action-docker-layer-caching@v0.0.11
       #  # Ignore the failure of a step and avoid terminating the job.
@@ -136,7 +139,7 @@ jobs:
       - uses: ./.github/actions/docker-package
           
 # Final upload of all packages
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -149,29 +152,25 @@ jobs:
       matrix:
         config:
           - os: macos
-            os_version: 13
-            qt_version: 6.7.3
+            runner: macos-26-intel
+            qt_version: 6.10.3
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: x64
             artifacts_id: macos-intel-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=13.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
           - os: macos
-            os_version: 14
-            qt_version: 6.7.3
+            runner: macos-26
+            qt_version: 6.10.3
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: arm64
             artifacts_id: macos-arm-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=14.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
 
-    runs-on: ${{ matrix.config.os }}-${{ matrix.config.os_version }}
+    runs-on: ${{ matrix.config.runner }}
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Setup Xcode
-        shell: sh
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app
+      - uses: actions/checkout@v4
 
 #Install build deps
       - name: Set brew env
@@ -191,13 +190,13 @@ jobs:
       - uses: ./.github/actions/agent-run-tests
       - uses: ./.github/actions/agent-package-mac
         with:
-          p12-file-base64: ${{ secrets.CODESIGN_BASE64 }}
-          p12-password: ${{ secrets.CODESIGN_PASSWORD }}
-          notarization-username: ${{ secrets.NOTARIZATION_USERNAME }}
-          notarization-team: ${{ secrets.NOTARIZATION_TEAM }}
-          notarization-password: ${{ secrets.NOTARIZATION_PASSWORD }}
+          p12-file-base64: ${{ secrets.MACOS_P12_FILE }}
+          p12-password: ${{ secrets.MACOS_P12_PASSWORD }}
+          notarization-username: ${{ secrets.APPLE_ID }}
+          notarization-team: ${{ secrets.APPLE_TEAM_ID }}
+          notarization-password: ${{ secrets.APPLE_PASSWORD }}
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*' 
@@ -210,39 +209,35 @@ jobs:
       matrix:
         config:
           - os: windows
-            os_version: 2022
-            qt_version: 6.7.3
+            runner: windows-2025
+            qt_version: 6.10.3
             qt_modules: qt5compat
-            qt_arch: win64_msvc2019_64
+            qt_arch: win64_msvc2022_64
             arch: x64
             ssl_arch: -x64
-            cmake_opts:
+            cmake_opts: 
             artifacts_id: windows-x64-qt6
 
-          - os: windows
-            os_version: 2022
-            qt_version: 5.15.2
-            qt_arch: win32_msvc2019
-            arch: x86
-            cmake_opts:
-            artifacts_id: windows-x86-qt5
-
-    runs-on: ${{ matrix.config.os }}-${{ matrix.config.os_version }}
+    runs-on: ${{ matrix.config.runner }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Cache openssl
         id: cache-openssl
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}\openssl-3
-          key: OpensslCache-3-5-0
+          key: OpensslCache-3-choco-x64
 
-      - name: Download openssl
+      - name: Install openssl
         if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }} 
         run: |
-          Invoke-WebRequest -Uri "https://www.firedaemon.com/download-firedaemon-openssl-3-zip" -OutFile openssl.zip
-          7z x openssl.zip 
+          choco install openssl --no-progress -y
+          $sslDir = (Get-ChildItem 'C:\Program Files\OpenSSL*' -Directory -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $sslDir) { $sslDir = (Get-ChildItem 'C:\' -Directory -Filter 'OpenSSL*' -Recurse -Depth 1 -ErrorAction SilentlyContinue | Where-Object { Test-Path "$($_.FullName)\bin" } | Select-Object -First 1).FullName }
+          Write-Host "Found OpenSSL at: $sslDir"
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\openssl-3\x64\bin"
+          Copy-Item "$sslDir\bin\*.dll" "${{ github.workspace }}\openssl-3\x64\bin\"
 
       - name: Set openssl paths
         shell: sh
@@ -268,7 +263,7 @@ jobs:
           s3-bucket: ${{ secrets.WIN_CS_BUCKET }}
      
 # Final upload of all packages
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'

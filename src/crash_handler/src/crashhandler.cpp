@@ -57,7 +57,7 @@
 namespace {
 
 constexpr const char* DSN
-    = "https://aad3b270e5ba4ec2915eb5caf6e6d929@o453796.ingest.sentry.io/5442855";
+    = "https://d69acc4cb51cf449be540dcee6804f5d@o4511077090459648.ingest.de.sentry.io/4511077093474384";
 
 QString sentryDatabasePath()
 {
@@ -120,7 +120,7 @@ QDialog::DialogCode askUserConfirmation( const QString& formattedReport, const Q
 
     auto privacyPolicy = std::make_unique<QLabel>();
     privacyPolicy->setText(
-        "<a href=\"https://klogg.filimonov.dev/docs/privacy_policy\">Privacy policy</a>" );
+        "<a href=\"https://github.com/64x-lunicorn/LogSquirl/blob/master/SECURITY.md\">Privacy policy</a>" );
 
     privacyPolicy->setTextFormat( Qt::RichText );
     privacyPolicy->setTextInteractionFlags( Qt::TextBrowserInteraction );

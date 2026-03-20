@@ -82,7 +82,12 @@ class WriteFileThread : public QThread {
     int result_{};
 };
 
+} // namespace
+
+// Include MOC outside anonymous namespace to avoid Qt 6.10 q20::identity resolution conflict
 #include "logdata_test.moc"
+
+namespace {
 
 #ifdef _WIN32
 void writeDataToFileBackground( QFile& file, int numberOfLines = 200,

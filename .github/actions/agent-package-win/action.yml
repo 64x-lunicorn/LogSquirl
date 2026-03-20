@@ -35,11 +35,15 @@ runs:
       run: |
         packaging\windows\prepare_release.cmd
 
+    - name: Install NSIS
+      shell: cmd
+      run: choco install nsis -y --no-progress
+
     - name: Win installer
-      uses: joncloud/makensis-action@v3.3
-      with:
-        script-file: logsquirl.nsi
-        arguments: "-DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT%" 
+      shell: cmd
+      run: |
+        set "PATH=%PATH%;C:\Program Files (x86)\NSIS"
+        makensis -V2 -DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT% logsquirl.nsi
     
     - name: Win package
       shell: cmd

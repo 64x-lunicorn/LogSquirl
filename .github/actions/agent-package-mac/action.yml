@@ -18,7 +18,7 @@ runs:
     - name: Mac prepare codesign
       id: prepare-codesign
       if: ${{ github.event_name != 'pull_request' }} 
-      uses: apple-actions/import-codesign-certs@v1
+      uses: apple-actions/import-codesign-certs@v3
       with: 
         p12-file-base64: ${{ inputs.p12-file-base64 }}
         p12-password: ${{ inputs.p12-password }}
@@ -30,22 +30,17 @@ runs:
         macdeployqt ./output/logsquirl.app -always-overwrite -verbose=2
 
     - name: Mac deploy Qt fixing
-      if: "startsWith(matrix.config.qt_version, '5')"
       shell: sh
       run: |
-        python3 $LOGSQUIRL_BUILD_ROOT/macdeployqtfix.py $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/MacOS/logsquirl $Qt5_DIR
-
-    - name: Mac deploy Qt fixing
-      if: "startsWith(matrix.config.qt_version, '6')"
-      shell: sh
-      run: |
-        python3 $LOGSQUIRL_BUILD_ROOT/macdeployqtfix.py $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/MacOS/logsquirl $Qt6_DIR
+        python3 $LOGSQUIRL_BUILD_ROOT/macdeployqtfix.py $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/MacOS/logsquirl $LOGSQUIRL_QT_DIR
     
     - name: Set packaging env
       shell: sh
       run: |
-        echo "LOGSQUIRL_CODESIGN=Developer ID Application: Anton Filimonov (GAW773U324)" >> $GITHUB_ENV
-        echo "LOGSQUIRL_INSTALLERSIGN=Developer ID Installer: Anton Filimonov (GAW773U324)" >> $GITHUB_ENV
+        CODESIGN_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')
+        INSTALLER_ID=$(security find-identity -v | grep "Developer ID Installer" | head -1 | sed 's/.*"\(.*\)"/\1/')
+        echo "LOGSQUIRL_CODESIGN=${CODESIGN_ID}" >> $GITHUB_ENV
+        echo "LOGSQUIRL_INSTALLERSIGN=${INSTALLER_ID:-$CODESIGN_ID}" >> $GITHUB_ENV
         echo "LOGSQUIRL_DMG=logsquirl-${{ env.LOGSQUIRL_VERSION }}-mac-${{ env.LOGSQUIRL_ARCH }}.dmg" >> $GITHUB_ENV
         echo "LOGSQUIRL_PKG=logsquirl-${{ env.LOGSQUIRL_VERSION }}-mac-${{ env.LOGSQUIRL_ARCH }}.pkg" >> $GITHUB_ENV
 

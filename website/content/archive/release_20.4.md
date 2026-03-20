@@ -44,4 +44,4 @@ Several usability improvements for all versions:
 
 As usual 3rdparty libraries were updated, some bugs were fixed, and some more were introduced.
 
-Download on Github: [logsquirl 20.4](https://github.com/variar/logsquirl/releases/tag/v20.4)
+Download on Github: [logsquirl 20.4](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v20.4)

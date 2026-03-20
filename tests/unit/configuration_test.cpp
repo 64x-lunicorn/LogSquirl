@@ -21,8 +21,9 @@
 
 #include "configuration.h"
 
+#include <QDir>
 #include <QSettings>
-#include <QTemporaryFile>
+#include <QTemporaryDir>
 
 SCENARIO( "Configuration default values", "[configuration]" )
 {
@@ -266,11 +267,11 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
 
         WHEN( "Saved to QSettings and restored" )
         {
-            // Use a temporary file for settings to avoid polluting real config
-            QTemporaryFile tmpFile;
-            REQUIRE( tmpFile.open() );
-            QString tmpPath = tmpFile.fileName();
-            tmpFile.close();
+            // Use a temporary directory so QSettings can freely create and write
+            // its own file — avoids file-locking issues on Windows.
+            QTemporaryDir tmpDir;
+            REQUIRE( tmpDir.isValid() );
+            QString tmpPath = tmpDir.path() + QDir::separator() + "test_config.ini";
 
             {
                 QSettings settings( tmpPath, QSettings::IniFormat );

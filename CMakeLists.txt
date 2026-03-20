@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(
   logsquirl
-  VERSION 24.11.0
+  VERSION 26.03.0
   DESCRIPTION "logsquirl log viewer"
   LANGUAGES C CXX ASM
 )
@@ -256,7 +256,7 @@ if(UNIX)
     set(CPACK_DMG_VOLUME_NAME "${PROJECT_NAME}")
     set(CPACK_SYSTEM_NAME "OSX")
     set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/osx/dmg_background.tif")
-    set(CPACK_DMG_DS_STORE_SETUP_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/packaging/osx/dmg_setup.scpt")
+    set(CPACK_DMG_DS_STORE "${CMAKE_CURRENT_SOURCE_DIR}/packaging/osx/DS_Store")
 
   else()
     install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/16x16/logsquirl.png

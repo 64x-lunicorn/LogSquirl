@@ -4,6 +4,7 @@
 
 # ── Build outputs ──────────────────────────────────────────────────────────
 build/
+build_release/
 build_root/
 build_root_clang/
 build_root_gcc/
@@ -120,3 +121,4 @@ doc/*.html
 website/public/
 website/hugo
 website/resources/
+build_test_cpp23/

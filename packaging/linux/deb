@@ -1,8 +1,8 @@
 https://pmateusz.github.io/linux/2017/06/30/linux-secure-apt-repository.html
 
 gpg --output private.pgp --armor --export-secret-subkey B8A34571
-podman --rm --ti -v .:/klogg docker.io/ubuntu:jammy
+podman --rm --ti -v .:/logsquirl docker.io/ubuntu:noble
 
 apt install reprepro
 gpg --import private.pgp
-reprepro --basedir /klogg/website/public/deb/focal/ includedeb focal klogg-22.06.0.1289-Linux-amd64-focal.deb
+reprepro --basedir /logsquirl/website/public/deb/noble/ includedeb noble logsquirl-26.03.0-Linux-amd64-noble.deb
