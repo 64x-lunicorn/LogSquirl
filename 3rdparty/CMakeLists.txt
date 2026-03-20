@@ -128,7 +128,7 @@ if(NOT _KARCHIVE_FOUND)
   set(CPM_USE_LOCAL_PACKAGES OFF)
   cpmaddpackage(
     NAME
-    KF5Archive
+    Klogg_KArchive
     GITHUB_REPOSITORY
     variar/klogg_karchive
     GIT_TAG
@@ -136,7 +136,7 @@ if(NOT _KARCHIVE_FOUND)
     EXCLUDE_FROM_ALL
     YES
   )
-  if(KF5Archive_ADDED)
+  if(Klogg_KArchive_ADDED)
     target_link_libraries(logsquirl_karchive INTERFACE klogg_karchive)
   else()
     message(WARNING "KArchive not found and CPM fetch failed")
