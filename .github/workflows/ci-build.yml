@@ -218,8 +218,11 @@ jobs:
         if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }} 
         run: |
           choco install openssl --no-progress -y
+          $sslDir = (Get-ChildItem 'C:\Program Files\OpenSSL*' -Directory -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $sslDir) { $sslDir = (Get-ChildItem 'C:\' -Directory -Filter 'OpenSSL*' -Recurse -Depth 1 -ErrorAction SilentlyContinue | Where-Object { Test-Path "$($_.FullName)\bin" } | Select-Object -First 1).FullName }
+          Write-Host "Found OpenSSL at: $sslDir"
           New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\openssl-3\x64\bin"
-          Copy-Item "C:\Program Files\OpenSSL-Win64\bin\*.dll" "${{ github.workspace }}\openssl-3\x64\bin\"
+          Copy-Item "$sslDir\bin\*.dll" "${{ github.workspace }}\openssl-3\x64\bin\"
 
       - name: Set openssl paths
         shell: sh

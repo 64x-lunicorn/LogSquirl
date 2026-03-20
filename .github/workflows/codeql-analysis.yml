@@ -63,7 +63,7 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_VECTORSCAN=OFF ..
+        cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_VECTORSCAN=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
 
     - name: build
       run: |

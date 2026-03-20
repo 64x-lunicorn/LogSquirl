@@ -9,7 +9,7 @@ runs:
         echo "LOGSQUIRL_WORKSPACE=${{ github.workspace }}" >> $GITHUB_ENV 
         echo "LOGSQUIRL_BUILD_ROOT=build_root" >> $GITHUB_ENV 
         echo "LOGSQUIRL_ARCH=${{ matrix.config.arch }}" >> $GITHUB_ENV 
-        echo "LOGSQUIRL_CMAKE_OPTS=-G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=ON -DCMAKE_INSTALL_PREFIX=/usr ${{ matrix.config.cmake_opts }}" >> $GITHUB_ENV
+        echo "LOGSQUIRL_CMAKE_OPTS=-G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ${{ matrix.config.cmake_opts }}" >> $GITHUB_ENV
 
     - name: Set qt env var
       if: "startsWith(matrix.config.qt_version, '5')"
