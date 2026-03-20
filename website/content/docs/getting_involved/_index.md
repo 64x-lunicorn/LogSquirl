@@ -5,7 +5,7 @@ bookFlatSection: true
 
 ## Github
 
-Feel free to submit bug reports, feature requests, questions and pull requests on [Github project](https://github.com/variar/logsquirl).
+Feel free to submit bug reports, feature requests, questions and pull requests on [Github project](https://github.com/64x-lunicorn/LogSquirl).
 
 ## Chats with developers
 There is a [Discord server](https://discord.gg/DruNyQftzB), [Telegram group](https://t.me/joinchat/JeIBxstIfp4xZTk6) 

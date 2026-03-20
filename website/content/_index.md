@@ -53,14 +53,14 @@ _logsquirl_ improves and brings more
 
 Latest stable version:
 
-[ ![GitHub Release](https://img.shields.io/github/v/release/variar/logsquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/variar/logsquirl/releases/latest)
+[ ![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
 [ ![Chocolatey](https://img.shields.io/chocolatey/v/logsquirl?style=for-the-badge)](https://chocolatey.org/packages/logsquirl)
 [ ![Homebrew](https://img.shields.io/homebrew/cask/v/logsquirl?style=for-the-badge)](https://formulae.brew.sh/cask/logsquirl)
 
 
 Latest development builds can be downloaded from releases on Github: 
 
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
-{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
+{{< button href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
 

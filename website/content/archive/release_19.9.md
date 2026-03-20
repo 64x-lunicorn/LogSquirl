@@ -31,5 +31,5 @@ This release has following changes:
  - 3rdparty libraries updates
 
 
-Download on Github: [logsquirl 19.9](https://github.com/variar/logsquirl/releases/tag/v19.9)
+Download on Github: [logsquirl 19.9](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v19.9)
 

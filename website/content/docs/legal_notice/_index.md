@@ -11,4 +11,4 @@ This program is distributed in the hope that it will be useful, but WITHOUT ANY 
 
 ## External libraries
 
-It is built using many great open source libraries. You can see them in [notice file](https://raw.githubusercontent.com/variar/logsquirl/master/NOTICE).
+It is built using many great open source libraries. You can see them in [notice file](https://raw.githubusercontent.com/64x-lunicorn/LogSquirl/master/NOTICE).

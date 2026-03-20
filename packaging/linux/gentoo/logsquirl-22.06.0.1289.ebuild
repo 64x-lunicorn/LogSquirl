@@ -6,11 +6,10 @@ EAPI=7
 inherit xdg cmake
 
 DESCRIPTION="A GUI application to browse and search through long and complex log files"
-HOMEPAGE="https://logsquirl.filimonov.dev"
-MAJOR_VERSION=22.06
+HOMEPAGE="https://github.com/64x-lunicorn/LogSquirl"
+MAJOR_VERSION=26.03
 SRC_URI="
-	https://github.com/variar/logsquirl/archive/refs/tags/v${MAJOR_VERSION}.tar.gz -> ${P}.tar.gz
-	https://github.com/variar/logsquirl/releases/download/v${MAJOR_VERSION}/${P}.deps.tar.gz
+	https://github.com/64x-lunicorn/LogSquirl/archive/refs/tags/v${MAJOR_VERSION}.tar.gz -> ${P}.tar.gz
 	"
 
 LICENSE="GPL-3+"

@@ -35,4 +35,4 @@ Bugixes and minor improvements
  - Use DejaVu fonts by default
  - Updated 3rdparty libraries
 
-Download on Github: [logsquirl 20.12](https://github.com/variar/logsquirl/releases/tag/v20.12)
+Download on Github: [logsquirl 20.12](https://github.com/64x-lunicorn/LogSquirl/releases/tag/v20.12)
