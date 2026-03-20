@@ -144,8 +144,8 @@ CMake should generate `logsquirl.sln` file in `<path_to_project_root>\build_root
 
 Binaries are placed into `build_root/output`.
 
-For https network urls support download precompiled openssl library https://mirror.firedaemon.com/OpenSSL/openssl-1.1.1l-dev.zip.
-Put libcrypto-1_1 and libssl-1_1 for desired architecture near logsquirl binaries.
+For https network urls support download precompiled OpenSSL 3.x library from https://www.firedaemon.com/firedaemon-openssl.
+Put libcrypto-3 and libssl-3 for desired architecture near logsquirl binaries.
 
 ### Building on Mac OS
 

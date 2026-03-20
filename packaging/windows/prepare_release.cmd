@@ -36,8 +36,8 @@ xcopy "%VCToolsRedistDir%%platform%\Microsoft.VC143.CRT\vcruntime140.dll" %LOGSQ
 xcopy "%VCToolsRedistDir%%platform%\Microsoft.VC143.CRT\vcruntime140_1.dll" %LOGSQUIRL_WORKSPACE%\release\ /y
 
 echo "Copying ssl..."
-xcopy %SSL_DIR%\libcrypto-1_1%SSL_ARCH%.dll %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %SSL_DIR%\libssl-1_1%SSL_ARCH%.dll %LOGSQUIRL_WORKSPACE%\release\ /y
+xcopy %SSL_DIR%\libcrypto-3%SSL_ARCH%.dll %LOGSQUIRL_WORKSPACE%\release\ /y
+xcopy %SSL_DIR%\libssl-3%SSL_ARCH%.dll %LOGSQUIRL_WORKSPACE%\release\ /y
 
 echo "Copying Qt..."
 set "QTDIR=%LOGSQUIRL_QT_DIR:/=\%"
