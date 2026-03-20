@@ -190,11 +190,11 @@ jobs:
       - uses: ./.github/actions/agent-run-tests
       - uses: ./.github/actions/agent-package-mac
         with:
-          p12-file-base64: ${{ secrets.CODESIGN_BASE64 }}
-          p12-password: ${{ secrets.CODESIGN_PASSWORD }}
-          notarization-username: ${{ secrets.NOTARIZATION_USERNAME }}
-          notarization-team: ${{ secrets.NOTARIZATION_TEAM }}
-          notarization-password: ${{ secrets.NOTARIZATION_PASSWORD }}
+          p12-file-base64: ${{ secrets.MACOS_P12_FILE }}
+          p12-password: ${{ secrets.MACOS_P12_PASSWORD }}
+          notarization-username: ${{ secrets.APPLE_ID }}
+          notarization-team: ${{ secrets.APPLE_TEAM_ID }}
+          notarization-password: ${{ secrets.APPLE_PASSWORD }}
 
       - uses: actions/upload-artifact@v4
         with:
