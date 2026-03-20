@@ -36,7 +36,7 @@ cpmaddpackage(
   YES
 )
 
-if(KLOGG_USE_HYPERSCAN)
+if(LOGSQUIRL_USE_HYPERSCAN)
   cpmaddpackage(
     NAME
     hyperscan
@@ -48,10 +48,10 @@ if(KLOGG_USE_HYPERSCAN)
     YES
   )
   message("Adding alias for hyperscan")
-  add_library(klogg_hyperscan INTERFACE)
-  target_link_libraries(klogg_hyperscan INTERFACE hs)
-  target_include_directories(klogg_hyperscan INTERFACE ${hyperscan_SOURCE_DIR}/src)
-elseif(KLOGG_USE_VECTORSCAN)
+  add_library(logsquirl_hyperscan INTERFACE)
+  target_link_libraries(logsquirl_hyperscan INTERFACE hs)
+  target_include_directories(logsquirl_hyperscan INTERFACE ${hyperscan_SOURCE_DIR}/src)
+elseif(LOGSQUIRL_USE_VECTORSCAN)
   cpmaddpackage(
     NAME
     vectorscan
@@ -76,9 +76,9 @@ elseif(KLOGG_USE_VECTORSCAN)
   )
  
   message("Adding alias for vectorscan")
-  add_library(klogg_vectorscan INTERFACE)
-  target_link_libraries(klogg_vectorscan INTERFACE hs)
-  target_include_directories(klogg_vectorscan INTERFACE 
+  add_library(logsquirl_vectorscan INTERFACE)
+  target_link_libraries(logsquirl_vectorscan INTERFACE hs)
+  target_include_directories(logsquirl_vectorscan INTERFACE 
     ${vectorscan_SOURCE_DIR}/src
     ${vectorscan_BINARY_DIR}
   )
@@ -98,38 +98,47 @@ cpmaddpackage(
 )
 if(Uchardet_ADDED)
   message("Adding alias for uchardet")
-  add_library(klogg_uchardet_wrapper INTERFACE)
-  target_link_libraries(klogg_uchardet_wrapper INTERFACE libuchardet)
-  target_include_directories(klogg_uchardet_wrapper INTERFACE ${Uchardet_SOURCE_DIR}/src)
+  add_library(logsquirl_uchardet_wrapper INTERFACE)
+  target_link_libraries(logsquirl_uchardet_wrapper INTERFACE libuchardet)
+  target_include_directories(logsquirl_uchardet_wrapper INTERFACE ${Uchardet_SOURCE_DIR}/src)
 else()
-  add_library(klogg_uchardet_wrapper INTERFACE)
-  target_link_libraries(klogg_uchardet_wrapper INTERFACE ${UCHARDET_LIBRARY})
-  target_include_directories(klogg_uchardet_wrapper INTERFACE ${UCHARDET_INCLUDE_DIR})
+  add_library(logsquirl_uchardet_wrapper INTERFACE)
+  target_link_libraries(logsquirl_uchardet_wrapper INTERFACE ${UCHARDET_LIBRARY})
+  target_include_directories(logsquirl_uchardet_wrapper INTERFACE ${UCHARDET_INCLUDE_DIR})
 endif()
 
-if(${QT_VERSION_MAJOR} EQUAL 6) 
-set(CPM_USE_LOCAL_PACKAGES OFF)
-endif()
-
-cpmaddpackage(
-  NAME
-  KF5Archive
-  GITHUB_REPOSITORY
-  variar/klogg_karchive
-  GIT_TAG
-  f546bf6ae66a8d34b43da5a41afcfbf4e1a47906
-  EXCLUDE_FROM_ALL
-  YES
-)
-if(NOT KF5Archive_ADDED)
-  find_package(KF5Archive)
-  add_library(klogg_karchive INTERFACE)
-  target_link_libraries(klogg_karchive INTERFACE KF5::Archive)
-endif()
-
+# KArchive: Qt6 uses system KF6Archive, Qt5 uses CPM-fetched klogg_karchive fork
+add_library(logsquirl_karchive INTERFACE)
 if(${QT_VERSION_MAJOR} EQUAL 6)
-message("Resetting CPM_USE_LOCAL_PACKAGES to ${_TMP_CPM_USE_LOCAL_PACKAGES}")
-set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
+  find_package(KF6Archive QUIET)
+  if(KF6Archive_FOUND)
+    target_link_libraries(logsquirl_karchive INTERFACE KF6::Archive)
+  else()
+    message(WARNING "KF6Archive not found — install karchive (e.g., brew install karchive)")
+  endif()
+else()
+  set(CPM_USE_LOCAL_PACKAGES OFF)
+  cpmaddpackage(
+    NAME
+    KF5Archive
+    GITHUB_REPOSITORY
+    variar/klogg_karchive
+    GIT_TAG
+    f546bf6ae66a8d34b43da5a41afcfbf4e1a47906
+    EXCLUDE_FROM_ALL
+    YES
+  )
+  if(KF5Archive_ADDED)
+    target_link_libraries(logsquirl_karchive INTERFACE klogg_karchive)
+  else()
+    find_package(KF5Archive)
+    target_link_libraries(logsquirl_karchive INTERFACE KF5::Archive)
+  endif()
+endif()
+
+if(NOT ${QT_VERSION_MAJOR} EQUAL 6)
+  message("Resetting CPM_USE_LOCAL_PACKAGES to ${_TMP_CPM_USE_LOCAL_PACKAGES}")
+  set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
 endif()
 
 cpmaddpackage(
@@ -148,7 +157,7 @@ if(NOT TARGET robin_hood)
   target_include_directories(robin_hood INTERFACE ${ROBIN_HOOD_INCLUDE_DIRS})
 endif(NOT TARGET robin_hood)
 
-if(KLOGG_BUILD_TESTS)
+if(LOGSQUIRL_BUILD_TESTS)
   cpmaddpackage("gh:bombela/backward-cpp@1.6")
   cpmaddpackage(
     NAME
@@ -328,18 +337,18 @@ cpmaddpackage(
 )
 if(mimalloc_ADDED)
   message("Adding alias for mimalloc")
-  add_library(klogg_mimalloc_wrapper INTERFACE)
-  target_link_libraries(klogg_mimalloc_wrapper INTERFACE mimalloc-static)
-  target_include_directories(klogg_mimalloc_wrapper INTERFACE ${mimalloc_SOURCE_DIR}/include)
+  add_library(logsquirl_mimalloc_wrapper INTERFACE)
+  target_link_libraries(logsquirl_mimalloc_wrapper INTERFACE mimalloc-static)
+  target_include_directories(logsquirl_mimalloc_wrapper INTERFACE ${mimalloc_SOURCE_DIR}/include)
 else()
-  add_library(klogg_mimalloc_wrapper INTERFACE)
-  target_link_libraries(klogg_mimalloc_wrapper INTERFACE ${MIMALLOC_LIBRARY})
-  target_include_directories(klogg_mimalloc_wrapper INTERFACE ${MIMALLOC_INCLUDE_DIR})
+  add_library(logsquirl_mimalloc_wrapper INTERFACE)
+  target_link_libraries(logsquirl_mimalloc_wrapper INTERFACE ${MIMALLOC_LIBRARY})
+  target_include_directories(logsquirl_mimalloc_wrapper INTERFACE ${MIMALLOC_INCLUDE_DIR})
 endif()
 
 set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
 
-if(KLOGG_USE_SENTRY)
+if(LOGSQUIRL_USE_SENTRY)
   set(SENTRY_BACKEND
      "crashpad"
      CACHE INTERNAL "" FORCE
@@ -373,13 +382,13 @@ if(KLOGG_USE_SENTRY)
   )
 
   if(WIN32)
-    set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "klogg_crashpad_handler.exe")
+    set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "logsquirl_crashpad_handler.exe")
   else()
-    set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "klogg_crashpad_handler")
+    set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "logsquirl_crashpad_handler")
   endif()
-endif(KLOGG_USE_SENTRY)
+endif(LOGSQUIRL_USE_SENTRY)
 
-set(klogg_cpm_targets
+set(logsquirl_cpm_targets
     xxhash
     Catch2
     roaring
@@ -403,7 +412,7 @@ set(klogg_cpm_targets
     streamvbyte
     FastPFor
 )
-foreach(target ${klogg_cpm_targets})
+foreach(target ${logsquirl_cpm_targets})
   if(TARGET ${target})
     get_property(
       ${target}_include_dirs
