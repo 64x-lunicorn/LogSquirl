@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef LOGDATAWORKERTHREAD_H
@@ -114,7 +114,7 @@ public:
         return data_->getEndOfLineOffset( line );
     }
 
-    klogg::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const
+    logsquirl::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const
     {
       return data_->getEndOfLineOffsets(line, count);
     }
@@ -140,7 +140,7 @@ public:
 
     // Atomically add to all the existing
     // indexing data.
-    void addAll( const klogg::vector<char>& block, LineLength length,
+    void addAll( const logsquirl::vector<char>& block, LineLength length,
                  const FastLinePositionArray& linePosition, QTextCodec* encoding )
     {
         data_->addAll( block, length, linePosition, encoding );
@@ -205,7 +205,7 @@ private:
     // Get the position (in byte from the beginning of the file)
     // of the end of the passed line.
     OffsetInFile getEndOfLineOffset( LineNumber line ) const;
-    klogg::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const;
+    logsquirl::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const;
 
     // Get the guessed encoding for the content.
     QTextCodec* getEncodingGuess() const;
@@ -216,7 +216,7 @@ private:
 
     // Atomically add to all the existing
     // indexing data.
-    void addAll( const klogg::vector<char>& block, LineLength length,
+    void addAll( const logsquirl::vector<char>& block, LineLength length,
                  const FastLinePositionArray& linePosition, QTextCodec* encoding );
 
     // Completely clear the indexing data.
@@ -285,7 +285,7 @@ Q_SIGNALS:
     void fileCheckFinished( MonitoredFileStatus );
 
 protected:
-    using BlockBuffer = klogg::vector<char>;
+    using BlockBuffer = logsquirl::vector<char>;
     using BlockData = std::pair<OffsetInFile::UnderlyingType, BlockBuffer*>;
     using BlockPrefetcher = tbb::flow::limiter_node<BlockData>;
 

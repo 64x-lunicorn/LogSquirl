@@ -19,5 +19,5 @@ Changes:
  - Cache some search results in memory
  - Use several cores during search
 
-Download on Github: [klogg 1.1.3-r1](https://github.com/variar/klogg/releases/tag/v1.1.3_r1)
+Download on Github: [logsquirl 1.1.3-r1](https://github.com/variar/logsquirl/releases/tag/v1.1.3_r1)
 <!--more--> 

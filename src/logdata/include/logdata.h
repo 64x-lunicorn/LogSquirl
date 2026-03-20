@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef LOGDATA_H
@@ -107,19 +107,19 @@ class LogData : public AbstractLogData {
     struct RawLines {
         LineNumber startLine;
 
-        klogg::vector<char> buffer;
-        klogg::vector<qint64> endOfLines;
+        logsquirl::vector<char> buffer;
+        logsquirl::vector<qint64> endOfLines;
 
         TextDecoder textDecoder;
 
         QRegularExpression prefilterPattern;
 
       public:
-        klogg::vector<QString> decodeLines() const;
-        klogg::vector<std::string_view> buildUtf8View() const;
+        logsquirl::vector<QString> decodeLines() const;
+        logsquirl::vector<std::string_view> buildUtf8View() const;
 
       private:
-        mutable klogg::vector<char> utf8Data_;
+        mutable logsquirl::vector<char> utf8Data_;
     };
 
     RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
@@ -146,8 +146,8 @@ class LogData : public AbstractLogData {
     // Implementation of virtual functions
     QString doGetLineString( LineNumber line ) const override;
     QString doGetExpandedLineString( LineNumber line ) const override;
-    klogg::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
-    klogg::vector<QString> doGetExpandedLines( LineNumber first, LinesCount number ) const override;
+    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
+    logsquirl::vector<QString> doGetExpandedLines( LineNumber first, LinesCount number ) const override;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
@@ -159,7 +159,7 @@ class LogData : public AbstractLogData {
 
     void reOpenFile() const;
 
-    klogg::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
+    logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                            QString ( *processLine )( QString&& ) ) const;
 
   private:

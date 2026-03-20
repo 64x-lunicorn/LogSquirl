@@ -1,4 +1,4 @@
-# How to Build Klogg
+# How to Build LogSquirl
 
 ## Overview
 
@@ -8,15 +8,15 @@ will be enabled if available on build machine.
 
 ## Getting the Source
 
-This project is [hosted on GitHub](https://github.com/variar/klogg). You can clone this project directly using this command:
+This project is [hosted on GitHub](https://github.com/64x-lunicorn/LogSquirl). You can clone this project directly using this command:
 
 ```
-git clone https://github.com/variar/klogg
+git clone https://github.com/64x-lunicorn/LogSquirl
 ```
 
 ## Dependencies
 
-To build Klogg:
+To build LogSquirl:
 
 - cmake 3.12 or later to generate build files
 - C++ compiler with decent C++17 support (at least gcc 7.5, clang 7, msvc 19.14)
@@ -53,18 +53,18 @@ If a library can't be found, the one provided by CPM will be used.
 
 ### Configuration options
 
-By default Klogg is built without support for reporting crash dumps. This can be enabled via cmake option `-DKLOGG_USE_SENTRY=ON`.
+By default LogSquirl is built without support for reporting crash dumps. This can be enabled via cmake option `-DLOGSQUIRL_USE_SENTRY=ON`.
 
-Klogg uses Hyperscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
-Klogg can be built with only Qt reqular expressions backend by passing `-DKLOGG_USE_HYPERSCAN=OFF` to cmake.
+LogSquirl uses Hyperscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
+LogSquirl can be built with only Qt reqular expressions backend by passing `-DLOGSQUIRL_USE_HYPERSCAN=OFF` to cmake.
 
-Klogg can use custom memory allocator. By default it uses TBB memory allocator for Windows, mimalloc on Linux and default system allocator on MacOS.
-Memory allocator override can be turned off by passing `-DKLOGG_OVERRIDE_MALLOC`. If you want to use TBB allocator on Linux then pass
-`-DKLOGG_USE_MIMALLOC=OFF`.
+LogSquirl can use custom memory allocator. By default it uses TBB memory allocator for Windows, mimalloc on Linux and default system allocator on MacOS.
+Memory allocator override can be turned off by passing `-DLOGSQUIRL_OVERRIDE_MALLOC`. If you want to use TBB allocator on Linux then pass
+`-DLOGSQUIRL_USE_MIMALLOC=OFF`.
 
 ### Building on Linux
 
-Here is how to build klogg on Ubuntu 18.04.
+Here is how to build logsquirl on Ubuntu 18.04.
 
 Install dependencies:
 
@@ -72,10 +72,10 @@ Install dependencies:
 sudo apt-get install build-essential cmake qtbase5-dev libboost-all-dev ragel
 ```
 
-Configure and build klogg:
+Configure and build logsquirl:
 
 ```
-cd <path_to_klogg_repository_clone>
+cd <path_to_logsquirl_repository_clone>
 mkdir build_root
 cd build_root
 cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
@@ -131,7 +131,7 @@ Then add CMake to PATH:
 set PATH=<path_to_cmake_bin>:$PATH
 ```
 
-Configure klogg solution (use CMake generator matching Visual Studio version):
+Configure logsquirl solution (use CMake generator matching Visual Studio version):
 
 ```
 cd <path_to_project_root>
@@ -140,16 +140,16 @@ cd build_root
 cmake -G "Visual Studio 16 2019 Win64" -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 ```
 
-CMake should generate `klogg.sln` file in `<path_to_project_root>\build_root` directory. Open solution and build it.
+CMake should generate `logsquirl.sln` file in `<path_to_project_root>\build_root` directory. Open solution and build it.
 
 Binaries are placed into `build_root/output`.
 
 For https network urls support download precompiled openssl library https://mirror.firedaemon.com/OpenSSL/openssl-1.1.1l-dev.zip.
-Put libcrypto-1_1 and libssl-1_1 for desired architecture near klogg binaries.
+Put libcrypto-1_1 and libssl-1_1 for desired architecture near logsquirl binaries.
 
 ### Building on Mac OS
 
-Klogg requires macOS High Sierra (10.13) or higher.
+LogSquirl requires macOS High Sierra (10.13) or higher.
 
 Install [Homebrew](https://brew.sh/) using terminal:
 
@@ -167,10 +167,10 @@ brew install cmake ninja qt boost ragel
 
 Usually path to qt installation looks like `/usr/local/Cellar/qt/5.14.0/lib/cmake/Qt5`
 
-Configure and build klogg:
+Configure and build logsquirl:
 
 ```
-cd <path_to_klogg_repository_clone>
+cd <path_to_logsquirl_repository_clone>
 mkdir build_root
 cd build_root
 cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DQt5_DIR=<path_to_qt_install> ..
@@ -179,17 +179,17 @@ cmake --build .
 
 Binaries are placed into `build_root/output`.
 
-By default, klogg will rely on cmake to figure out target MacOS version. Usually it uses build host version.
-To override default cmake value pass an option `-DKLOGG_OSX_DEPLOYMENT_TARGET=<target>` to cmake during configuration step,
-`<target>` is one of `10.14`, `10.15`, `11`, `12`. Klogg's traget must be greater or equal to target used by Qt libraries.
+By default, logsquirl will rely on cmake to figure out target MacOS version. Usually it uses build host version.
+To override default cmake value pass an option `-DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=<target>` to cmake during configuration step,
+`<target>` is one of `10.14`, `10.15`, `11`, `12`. LogSquirl's traget must be greater or equal to target used by Qt libraries.
 
 ## Running tests
 
 Tests are built by default. To turn them off pass `-DBUILD_TESTS:BOOL=OFF` to cmake.
-Tests use catch2 (bundled with klogg sources) and require Qt5Test module. Tests can be run using ctest tool provider by CMake:
+Tests use catch2 (bundled with logsquirl sources) and require Qt5Test module. Tests can be run using ctest tool provider by CMake:
 
 ```
-cd <path_to_klogg_repository_clone>
+cd <path_to_logsquirl_repository_clone>
 cd build_root
 ctest --build-config RelWithDebInfo --verbose
 ```

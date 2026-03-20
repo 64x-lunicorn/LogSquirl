@@ -11,8 +11,8 @@
     COPYING included with this distribution for more information.
 */
 
-#ifndef KLOGG_ICONLOADER_H
-#define KLOGG_ICONLOADER_H
+#ifndef LOGSQUIRL_ICONLOADER_H
+#define LOGSQUIRL_ICONLOADER_H
 
 #include <QIcon>
 
@@ -37,4 +37,4 @@ class IconLoader {
     QWidget* widget_;
 };
 
-#endif // KLOGG_ICONLOADER_H
+#endif // LOGSQUIRL_ICONLOADER_H

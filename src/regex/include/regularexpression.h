@@ -1,24 +1,24 @@
 /*
  * Copyright (C) 2021 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KLOGG_PATTERN_MATHCHER_H
-#define KLOGG_PATTERN_MATHCHER_H
+#ifndef LOGSQUIRL_PATTERN_MATHCHER_H
+#define LOGSQUIRL_PATTERN_MATHCHER_H
 
 #include <memory>
 #include <qchar.h>
@@ -51,7 +51,7 @@ class RegularExpression {
     bool isBooleanCombination_ = false;
 
     QString expression_;
-    klogg::vector<RegularExpressionPattern> subPatterns_;
+    logsquirl::vector<RegularExpressionPattern> subPatterns_;
 
     bool isValid_ = false;
     QString errorString_;
@@ -84,7 +84,7 @@ class PatternMatcher {
 
 class MultiRegularExpression {
   public:
-    explicit MultiRegularExpression( const klogg::vector<RegularExpressionPattern>& patterns );
+    explicit MultiRegularExpression( const logsquirl::vector<RegularExpressionPattern>& patterns );
 
     std::unique_ptr<MultiPatternMatcher> createMatcher() const;
 
@@ -92,7 +92,7 @@ class MultiRegularExpression {
     QString errorString() const;
 
   private:
-    klogg::vector<RegularExpressionPattern> patterns_;
+    logsquirl::vector<RegularExpressionPattern> patterns_;
 
     bool isValid_ = false;
     QString errorString_;
@@ -107,11 +107,11 @@ class MultiPatternMatcher {
     explicit MultiPatternMatcher( const MultiRegularExpression& expression );
     ~MultiPatternMatcher();
 
-    klogg::vector<std::pair<RegularExpressionPattern, bool>> match( std::string_view line ) const;
+    logsquirl::vector<std::pair<RegularExpressionPattern, bool>> match( std::string_view line ) const;
 
   private:
     MatcherVariant matcher_;
-    klogg::vector<RegularExpressionPattern> patterns_;
+    logsquirl::vector<RegularExpressionPattern> patterns_;
 };
 
 #endif

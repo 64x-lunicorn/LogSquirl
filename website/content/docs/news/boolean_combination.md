@@ -78,7 +78,7 @@ After some more research I found [The Great C++ Mathematical Expression Parser B
 choice. And indeed for my task it performed much better than general purpose embedded
 scripting engines. 
 
-However, for some reason it felt that search speed could be improved. I enjoy making _Klogg_ 
+However, for some reason it felt that search speed could be improved. I enjoy making _LogSquirl_ 
 as fast as possible, so I looked at reports of `perf` tool. First thing that
 caught my attention was a lot of calls to `tolower` function. Exprtk is case-insensitive
 by default and uses several maps and sets for its internal state. Switching to 
@@ -90,7 +90,7 @@ So next natural thing to try was switching to some faster hash table implementat
 I tried [robin_hood unordered map](https://github.com/martinus/robin-hood-hashing)
 and was quite impressed by it. That was the final step of performance tuning.
 
-So now _Klogg_ has quite fast boolean expression combination mode!
+So now _LogSquirl_ has quite fast boolean expression combination mode!
 
 
 

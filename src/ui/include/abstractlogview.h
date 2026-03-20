@@ -21,20 +21,20 @@
 /*
  * Copyright (C) 2016 -- 2021 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifndef ABSTRACTLOGVIEW_H
@@ -210,7 +210,7 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     void clearQuickFindNotification();
     // Sent when the view ask for a line to be marked
     // (click in the left margin).
-    void markLines( const klogg::vector<LineNumber>& lines );
+    void markLines( const logsquirl::vector<LineNumber>& lines );
     // Sent up when the user wants to add the selection to the search
     void addToSearch( const QString& selection );
     // Sent up when the user wants to replace the search with the selection
@@ -374,7 +374,7 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
       size_t wrappedLineIndex;
       WrappedString wrappedString;
     };
-    klogg::vector<WrappedLineData> wrappedLinesInfo_;
+    logsquirl::vector<WrappedLineData> wrappedLinesInfo_;
 
     LineNumber searchStart_;
     LineNumber searchEnd_;
@@ -464,7 +464,7 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
 
     void considerMouseHovering( int xPos, int yPos );
 
-    LineLength maxLineLength( const klogg::vector<LineNumber>& lines ) const;
+    LineLength maxLineLength( const logsquirl::vector<LineNumber>& lines ) const;
 
     // Save specified lines in range [begin, end) to a file
     void saveLinesToFile( LineNumber begin, LineNumber end );

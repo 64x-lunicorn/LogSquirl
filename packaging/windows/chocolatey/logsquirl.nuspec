@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata>
+    <id>logsquirl</id>
+    <version>1.0.0</version>
+    <owners>Anton Filimonov</owners>
+    <title>LogSquirl - the fast, smart log explorer</title>
+    <authors>Nicolas Bonnefon, Anton Filimonov, LogSquirl Contributors</authors>
+    <projectUrl>https://github.com/64x-lunicorn/LogSquirl</projectUrl>
+    <iconUrl>https://github.com/64x-lunicorn/LogSquirl/raw/master/website/static/logsquirl.png</iconUrl>
+    <docsUrl>https://github.com/64x-lunicorn/LogSquirl/blob/v22.06/README.md</docsUrl>
+    <bugTrackerUrl>https://github.com/64x-lunicorn/LogSquirl/issues</bugTrackerUrl>
+    <copyright>Copyright © 2022 Nicolas Bonnefon, Anton Filimonov</copyright>
+    <licenseUrl>https://github.com/64x-lunicorn/LogSquirl/blob/v22.06/COPYING</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <tags>log tail grep glogg logsquirl admin</tags>
+    <summary>The fast, smart log explorer</summary>
+    <description>LogSquirl is a multi-platform GUI application that helps browse and search
+      through long and complex log files. It is designed with programmers and
+      system administrators in mind and can be seen as a graphical, interactive
+      combination of grep, less, and tail.</description>
+    <releaseNotes>https://github.com/64x-lunicorn/LogSquirl/releases/tag/v22.06</releaseNotes>
+    <packageSourceUrl>https://github.com/64x-lunicorn/LogSquirl/blob/master/packaging/windows</packageSourceUrl>
+  </metadata>
+  <files>
+    <file src="tools/**" target="tools" />
+  </files>
+</package>

@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 // This file implements LogFilteredData
@@ -496,28 +496,28 @@ QString LogFilteredData::doGetExpandedLineString( LineNumber index ) const
 }
 
 // Implementation of the virtual function.
-klogg::vector<QString> LogFilteredData::doGetLines( LineNumber first_line, LinesCount number ) const
+logsquirl::vector<QString> LogFilteredData::doGetLines( LineNumber first_line, LinesCount number ) const
 {
     return doGetLines( first_line, number,
                        [ this ]( const auto& line ) { return doGetLineString( line ); } );
 }
 
 // Implementation of the virtual function.
-klogg::vector<QString> LogFilteredData::doGetExpandedLines( LineNumber first_line,
+logsquirl::vector<QString> LogFilteredData::doGetExpandedLines( LineNumber first_line,
                                                           LinesCount number ) const
 {
     return doGetLines( first_line, number,
                        [ this ]( const auto& line ) { return doGetExpandedLineString( line ); } );
 }
 
-klogg::vector<QString>
+logsquirl::vector<QString>
 LogFilteredData::doGetLines( LineNumber first_line, LinesCount number,
                              const std::function<QString( LineNumber )>& lineGetter ) const
 {
-    klogg::vector<LineNumber::UnderlyingType> lineNumbers( number.get() );
+    logsquirl::vector<LineNumber::UnderlyingType> lineNumbers( number.get() );
     std::iota( lineNumbers.begin(), lineNumbers.end(), first_line.get() );
 
-    klogg::vector<QString> lines( number.get() );
+    logsquirl::vector<QString> lines( number.get() );
     std::transform(
         lineNumbers.cbegin(), lineNumbers.cend(), lines.begin(),
         [ &lineGetter ]( const auto& line ) { return lineGetter( LineNumber( line ) ); } );

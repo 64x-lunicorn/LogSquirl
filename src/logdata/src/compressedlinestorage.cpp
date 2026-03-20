@@ -1,20 +1,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <QtEndian>
@@ -132,7 +132,7 @@ OffsetInFile CompressedLinePositionStorage::at( LineNumber index ) const
     return block.firstLineOffset + OffsetInFile( unpackedBlock[ indexInBlock ] );
 }
 
-void CompressedLinePositionStorage::append_list( const klogg::vector<OffsetInFile>& positions )
+void CompressedLinePositionStorage::append_list( const logsquirl::vector<OffsetInFile>& positions )
 {
     // This is not very clever, but caching should make it
     // reasonably fast.
@@ -184,7 +184,7 @@ size_t CompressedLinePositionStorage::allocatedSize() const
     return packedLinesStorage_.size() + blocks_.size() * sizeof( BlockMetadata );
 }
 
-klogg::vector<OffsetInFile> CompressedLinePositionStorage::range( LineNumber firstLine,
+logsquirl::vector<OffsetInFile> CompressedLinePositionStorage::range( LineNumber firstLine,
                                                                   LinesCount count ) const
 {
     const size_t firstBlockIndex = firstLine.get() / SimdIndexBlockSize;
@@ -194,7 +194,7 @@ klogg::vector<OffsetInFile> CompressedLinePositionStorage::range( LineNumber fir
     const size_t lastBlockIndex = lastLine.get() / SimdIndexBlockSize;
     const size_t indexInLastBlock = lastLine.get() % SimdIndexBlockSize;
 
-    klogg::vector<OffsetInFile> result;
+    logsquirl::vector<OffsetInFile> result;
     result.reserve( count.get() );
 
     if ( firstBlockIndex == blocks_.size() ) {

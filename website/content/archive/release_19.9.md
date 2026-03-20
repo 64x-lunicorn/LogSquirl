@@ -16,9 +16,9 @@ and a few minor features sneaked in. And new icons by wiz0u.
 
 Configuration file is now split in two parts:
 
- - user settings (they can be changed through UI and _klogg_ does not edit them)
+ - user settings (they can be changed through UI and _logsquirl_ does not edit them)
  - application settings (history of opened files, search patterns, etc.,
- these are changed automatically by _klogg_)
+ these are changed automatically by _logsquirl_)
 
 This release has following changes:
 
@@ -31,5 +31,5 @@ This release has following changes:
  - 3rdparty libraries updates
 
 
-Download on Github: [klogg 19.9](https://github.com/variar/klogg/releases/tag/v19.9)
+Download on Github: [logsquirl 19.9](https://github.com/variar/logsquirl/releases/tag/v19.9)
 

@@ -29,15 +29,15 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
-      - uses: ./.github/actions/klogg-version
+      - uses: ./.github/actions/logsquirl-version
 
       - name: Save version 
-        run: echo $KLOGG_VERSION > klogg_version.txt
+        run: echo $LOGSQUIRL_VERSION > logsquirl_version.txt
 
       - uses: actions/upload-artifact@v3
         with:
-          name: klogg_version
-          path: 'klogg_version.txt'
+          name: logsquirl_version
+          path: 'logsquirl_version.txt'
           if-no-files-found: error
 
   Linux:
@@ -49,31 +49,31 @@ jobs:
           #- os: oraclelinux
           #  os_version: 7
           #  arch: x64
-          #  check_command: yum install -y --setopt tsflags=test /usr/local/klogg*.rpm
+          #  check_command: yum install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
           #  cpack_gen: RPM
           #  artifacts_id: oracle7
           #  package_suffix: rpm
           #  check_container: oraclelinux:7
           #  container_root: docker/oracle7
           #  container: variar/klogg_oracle7
-          #  cmake_opts: -DKLOGG_USE_SENTRY=OFF -DKLOGG_USE_LTO=OFF -DKLOGG_USE_HYPERSCAN=OFF
+          #  cmake_opts: -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF -DLOGSQUIRL_USE_HYPERSCAN=OFF
 
           - os: oraclelinux
             os_version: 8
             arch: x64
-            check_command: yum install -y --setopt tsflags=test /usr/local/klogg*.rpm
+            check_command: yum install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
             cpack_gen: RPM
             artifacts_id: oracle
             package_suffix: rpm
             check_container: oraclelinux:8
             container_root: docker/oracle8
             container: variar/klogg_oracle8
-            cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DKLOGG_USE_VECTORSCAN=OFF -DKLOGG_USE_HYPERSCAN=ON
+            cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
           - os: ubuntu_focal
             os_version: 20.04
             arch: x64
-            check_command: apt-get update && apt install --dry-run /usr/local/klogg*.deb
+            check_command: apt-get update && apt install --dry-run /usr/local/logsquirl*.deb
             cpack_gen: DEB
             artifacts_id: focal
             package_suffix: deb
@@ -85,7 +85,7 @@ jobs:
           - os: ubuntu_jammy
             os_version: 22.04
             arch: x64
-            check_command: apt-get update && apt install --dry-run /usr/local/klogg*.deb
+            check_command: apt-get update && apt install --dry-run /usr/local/logsquirl*.deb
             cpack_gen: DEB
             artifacts_id: jammy
             package_suffix: deb
@@ -97,7 +97,7 @@ jobs:
           - os: ubuntu_noble
             os_version: 24.04
             arch: x64
-            check_command: apt-get update && apt install --dry-run /usr/local/klogg*.deb
+            check_command: apt-get update && apt install --dry-run /usr/local/logsquirl*.deb
             cpack_gen: DEB
             artifacts_id: noble
             package_suffix: deb
@@ -129,7 +129,7 @@ jobs:
           cd ${{ matrix.config.container_root }}
           docker build -t ${{ matrix.config.container }} .
 
-      - uses: ./.github/actions/klogg-version
+      - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
       - uses: ./.github/actions/docker-run-tests
@@ -139,7 +139,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: packages-${{ matrix.config.artifacts_id }}
-          path: '${{ env.KLOGG_BUILD_ROOT }}/packages/*'
+          path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error      
 
   Mac:
@@ -155,7 +155,7 @@ jobs:
             qt_modules: qt5compat
             arch: x64
             artifacts_id: macos-intel-qt6
-            cmake_opts: -DKLOGG_OSX_DEPLOYMENT_TARGET=13.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=13.0
           - os: macos
             os_version: 14
             qt_version: 6.7.3
@@ -163,7 +163,7 @@ jobs:
             qt_modules: qt5compat
             arch: arm64
             artifacts_id: macos-arm-qt6
-            cmake_opts: -DKLOGG_OSX_DEPLOYMENT_TARGET=14.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=14.0
 
     runs-on: ${{ matrix.config.os }}-${{ matrix.config.os_version }}
     steps:
@@ -185,7 +185,7 @@ jobs:
           brew install ragel
 
       - uses: ./.github/actions/agent-setup
-      - uses: ./.github/actions/klogg-version
+      - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
@@ -200,7 +200,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: packages-${{ matrix.config.artifacts_id }}
-          path: '${{ env.KLOGG_BUILD_ROOT }}/packages/*' 
+          path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*' 
           if-no-files-found: error
 
   Windows:
@@ -251,7 +251,7 @@ jobs:
           echo "SSL_ARCH=${{ matrix.config.ssl_arch }}" >> $GITHUB_ENV 
 
       - uses: ./.github/actions/agent-setup
-      - uses: ./.github/actions/klogg-version
+      - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
       
       - name: Prepare dev cmd
@@ -271,5 +271,5 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: packages-${{ matrix.config.artifacts_id }}
-          path: '${{ env.KLOGG_BUILD_ROOT }}/packages/*'
+          path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error

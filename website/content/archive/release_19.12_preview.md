@@ -24,7 +24,7 @@ These transformations I use the most. Any suggestions are welcome.
 
 Another big feature is new multi-window mode. It is experimental and 
 you have to enable it in settings dialog. When enabled a new menu
-item in File menu is added that allows to open more windows of klogg.
+item in File menu is added that allows to open more windows of logsquirl.
 Can be used to monitor several changing files on one screen.
 
 Tabs now have a menu item to open containing folder.
@@ -37,7 +37,7 @@ either by double click or from context menu proved to be broken for several rele
 Search bar redesign also resulted in ugly UI.
 
 After obtaining new MacOS VM I've been able to fix all these issues as well as 
-improve dmg generation to allow klogg to easily be copied to Applications.
+improve dmg generation to allow logsquirl to easily be copied to Applications.
 
 ### Internal changes
 After attending ACCU Autumn C++ conference in Belfast I felt very inspired 
@@ -55,6 +55,6 @@ for cache utilization improvements.
 
 Preview builds can be downloaded from Github: 
 
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-win" >}}Windows{{< /button >}}
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-linux" >}}Linux{{< /button >}}
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-osx" >}}Mac{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}

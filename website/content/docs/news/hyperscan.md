@@ -9,7 +9,7 @@ weight: 29
 
 ### Performance testing
 
-For years Klogg has been using regular expression engine provided by Qt library.
+For years LogSquirl has been using regular expression engine provided by Qt library.
 It is based on PCRE2 with JIT compilation. However, recent performance tests have proved
 that regular expression matching is a bottleneck. For example, this is a report from `perf` tool
 after running a simple string search in 1Gb text file:
@@ -19,13 +19,13 @@ after running a simple string search in 1Gb text file:
      7.29%  Thread (pooled)  libpcre2-16.so.0.10.0          [.] 0x000000000005956c
      6.95%  Thread (pooled)  libpcre2-16.so.0.10.0          [.] 0x0000000000059560
      2.89%  Thread (pooled)  libQt5Core.so.5.15.2           [.] 0x0000000000167498
-     2.48%  Thread (pooled)  libklogg_tbbmalloc.so          [.] rml::internal::internalPoolMalloc
-     2.06%  Thread (pooled)  libklogg_tbbmalloc.so          [.] __TBB_malloc_safer_free
-     2.01%  Thread (pooled)  klogg_portable_pcre            [.] std::vector<QString, std::allocator<QString> >::~vector
+     2.48%  Thread (pooled)  liblogsquirl_tbbmalloc.so          [.] rml::internal::internalPoolMalloc
+     2.06%  Thread (pooled)  liblogsquirl_tbbmalloc.so          [.] __TBB_malloc_safer_free
+     2.01%  Thread (pooled)  logsquirl_portable_pcre            [.] std::vector<QString, std::allocator<QString> >::~vector
      1.80%  Thread (pooled)  libpcre2-16.so.0.10.0          [.] pcre2_match_16
      1.70%  Thread (pooled)  libQt5Core.so.5.15.2           [.] QMutex::lock
      1.47%  Thread (pooled)  libQt5Core.so.5.15.2           [.] QRegularExpression::QRegularExpression
-     1.39%  klogg_portable_  libc-2.32.so                   [.] 0x000000000015e01f
+     1.39%  logsquirl_portable_  libc-2.32.so                   [.] 0x000000000015e01f
      1.37%  Thread (pooled)  libQt5Core.so.5.15.2           [.] QMutex::unlock
      1.34%  Thread (pooled)  libpcre2-16.so.0.10.0          [.] pcre2_jit_match_16
      1.13%  Thread (pooled)  libQt5Core.so.5.15.2           [.] QThreadStorageData::get
@@ -33,9 +33,9 @@ after running a simple string search in 1Gb text file:
 ```
 
 Most time is spent inside PCRE2 library. Moreover, there is a noticeable impact of QMutex.
-Klogg does not use QMutex, so this must be from  QRegularExpression implementation details.
+LogSquirl does not use QMutex, so this must be from  QRegularExpression implementation details.
 
-On my development PC the above search takes about 3.5 seconds. From Klogg own logs:
+On my development PC the above search takes about 3.5 seconds. From LogSquirl own logs:
 ```
 Searching done, overall duration 3570.39 ms
 Line reading took 814.359 ms
@@ -53,7 +53,7 @@ Searching io perf 251.642 MiB/s
 
 I've done some research about existing regular expressions libraries. 
 It seems like PCRE2 is the only one that can do matching directly on UTF-16 encoded strings.
-This is important because Klogg uses Qt for text encoding conversions, and QTextCodec can 
+This is important because LogSquirl uses Qt for text encoding conversions, and QTextCodec can 
 only convert input data to UTF-16. In order to use other libraries UTF-16 strings have to
 be encoded to UTF-8. That additional overhead has to be taken into account when evaluating
 other regular expression engines.
@@ -82,21 +82,21 @@ Searching io perf 497.81 MiB/s
 And perf report:
 ```
 # Overhead  Command          Shared Object                  Symbol  
-     4.84%  Thread (pooled)  klogg_portable                 [.] std::vector<QString, std::allocator<QString> >::~vector
-     3.83%  Thread (pooled)  libklogg_tbbmalloc.so          [.] rml::internal::internalPoolMalloc
-     3.15%  Thread (pooled)  klogg_portable                 [.] noodExec
-     2.97%  klogg_portable   libc-2.32.so                   [.] 0x000000000015e01f
-     2.92%  Thread (pooled)  klogg_portable                 [.] hs_scan
+     4.84%  Thread (pooled)  logsquirl_portable                 [.] std::vector<QString, std::allocator<QString> >::~vector
+     3.83%  Thread (pooled)  liblogsquirl_tbbmalloc.so          [.] rml::internal::internalPoolMalloc
+     3.15%  Thread (pooled)  logsquirl_portable                 [.] noodExec
+     2.97%  logsquirl_portable   libc-2.32.so                   [.] 0x000000000015e01f
+     2.92%  Thread (pooled)  logsquirl_portable                 [.] hs_scan
      2.78%  Thread (pooled)  libQt5Core.so.5.15.2           [.] QString::toUtf8_helper
-     2.37%  Thread (pooled)  klogg_portable                 [.] HsMatcher::hasMatch
-     2.07%  Thread (pooled)  libklogg_tbbmalloc.so          [.] __TBB_malloc_safer_free
-     2.05%  Thread (pooled)  klogg_portable                 [.] CompressedLinePositionStorage::at
-     1.91%  Thread (pooled)  klogg_portable                 [.] IndexOperation::parseDataBlock
+     2.37%  Thread (pooled)  logsquirl_portable                 [.] HsMatcher::hasMatch
+     2.07%  Thread (pooled)  liblogsquirl_tbbmalloc.so          [.] __TBB_malloc_safer_free
+     2.05%  Thread (pooled)  logsquirl_portable                 [.] CompressedLinePositionStorage::at
+     1.91%  Thread (pooled)  logsquirl_portable                 [.] IndexOperation::parseDataBlock
      1.71%  Thread (pooled)  libicuuc.so.68.2               [.] 0x00000000000e86b8
      1.59%  Thread (pooled)  libQt5Core.so.5.15.2           [.] 0x00000000002d8920
      1.49%  Thread (pooled)  libQt5Core.so.5.15.2           [.] QArrayData::allocate
      1.48%  Thread (pooled)  libicuuc.so.68.2               [.] ucnv_toUnicode
-     1.26%  Thread (pooled)  klogg_portable                 [.] LogData::decodeLines
+     1.26%  Thread (pooled)  logsquirl_portable                 [.] LogData::decodeLines
 
 ```
 

@@ -17,8 +17,8 @@
  * along with glogg.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KLOGG_PERFCOUNTER_H
-#define KLOGG_PERFCOUNTER_H
+#ifndef LOGSQUIRL_PERFCOUNTER_H
+#define LOGSQUIRL_PERFCOUNTER_H
 
 #include <chrono>
 

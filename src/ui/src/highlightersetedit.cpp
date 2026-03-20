@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <QColorDialog>
@@ -282,7 +282,7 @@ void HighlighterSetEdit::updateHighlighterProperties()
 void HighlighterSetEdit::populateHighlighterList()
 {
     highlighterListWidget->clear();
-    for ( const Highlighter& highlighter : klogg::as_const( highlighterSet_.highlighterList_ ) ) {
+    for ( const Highlighter& highlighter : logsquirl::as_const( highlighterSet_.highlighterList_ ) ) {
         auto* new_item = new QListWidgetItem( highlighter.pattern() );
         // new_item->setFlags( Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsEnabled );
         new_item->setForeground( QBrush( highlighter.foreColor() ) );

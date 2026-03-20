@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 // This file implements the CrawlerWidget class.
@@ -444,7 +444,7 @@ void CrawlerWidget::editSearchHistory()
 
     auto history = savedSearches_->recentSearches().join( QChar::LineFeed );
     bool ok;
-    QString newHistory = QInputDialog::getMultiLineText( this, tr( "klogg" ),
+    QString newHistory = QInputDialog::getMultiLineText( this, tr( "logsquirl" ),
                                                          tr( "Search history:" ), history, &ok );
 
     if ( ok ) {
@@ -559,9 +559,9 @@ void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
     Q_EMIT newSelection( line, nLines, startCol, nSymbols );
 }
 
-void CrawlerWidget::markLinesFromMain( const klogg::vector<LineNumber>& lines )
+void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& lines )
 {
-    klogg::vector<LineNumber> alreadyMarkedLines;
+    logsquirl::vector<LineNumber> alreadyMarkedLines;
     alreadyMarkedLines.reserve( lines.size() );
 
     bool markAdded = false;
@@ -597,9 +597,9 @@ void CrawlerWidget::markLinesFromMain( const klogg::vector<LineNumber>& lines )
     update();
 }
 
-void CrawlerWidget::markLinesFromFiltered( const klogg::vector<LineNumber>& lines )
+void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines )
 {
-    klogg::vector<LineNumber> linesInMain( lines.size() );
+    logsquirl::vector<LineNumber> linesInMain( lines.size() );
     std::transform( lines.cbegin(), lines.cend(), linesInMain.begin(),
                     [ this ]( const auto& filteredLine ) {
                         if ( filteredLine < logData_->getNbLine() ) {

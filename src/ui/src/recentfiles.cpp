@@ -59,7 +59,7 @@ void RecentFiles::addRecent( const QString& text )
 
 int RecentFiles::getNumberItemsToShow() const
 {
-    return std::min( klogg::isize( recentFiles_ ), filesHistoryMaxItemsToShow_ );
+    return std::min( logsquirl::isize( recentFiles_ ), filesHistoryMaxItemsToShow_ );
 }
 
 int RecentFiles::filesHistoryMaxItems() const

@@ -15,12 +15,12 @@ has become more flexible. It is possible to colorize only matching part of line 
 support for regex capture groups if present). And finally, highlighters configuration can be
 exported to a file and shared with collaborators.
 
-Another big feature is support for different window styles. Klogg can be configured to use
-one of the default styles provided by Qt or use a separate dark theme base on [QDarkStyleSheet](https://github.com/ColinDuquesnoy/QDarkStyleSheet). If default styles are used then Klogg will adjust its palette
+Another big feature is support for different window styles. LogSquirl can be configured to use
+one of the default styles provided by Qt or use a separate dark theme base on [QDarkStyleSheet](https://github.com/ColinDuquesnoy/QDarkStyleSheet). If default styles are used then LogSquirl will adjust its palette
 to current OS theme.
 
 This release also introduces new error reporting features to help with bugfix. Using service
-and SDK provided by [Sentry](https://sentry.io) Klogg will now collect minidumps when 
+and SDK provided by [Sentry](https://sentry.io) LogSquirl will now collect minidumps when 
 something crashes and send them to developers after asking user to review crash report. More
 about this is covert in [crash reporting](/docs/news/crash_reporting).
 
@@ -35,4 +35,4 @@ Bugixes and minor improvements
  - Use DejaVu fonts by default
  - Updated 3rdparty libraries
 
-Download on Github: [klogg 20.12](https://github.com/variar/klogg/releases/tag/v20.12)
+Download on Github: [logsquirl 20.12](https://github.com/variar/logsquirl/releases/tag/v20.12)

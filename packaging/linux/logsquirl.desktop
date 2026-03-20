@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=klogg
+Name=LogSquirl
 GenericName=Log file viewer
-Exec=klogg %F
-Icon=klogg
+Exec=logsquirl %F
+Icon=logsquirl
 Type=Application
 Comment=A smart interactive log explorer.
 Terminal=false
@@ -11,9 +11,9 @@ MimeType=text/plain;
 Actions=Session;NewInstance;
 
 [Desktop Action Session]
-Exec=klogg --load-session %F
+Exec=logsquirl --load-session %F
 Name=Open With Previous Session
 
 [Desktop Action NewInstance]
-Exec=klogg --multi %F
-Name=Open In A New klogg Window
+Exec=logsquirl --multi %F
+Name=Open In A New LogSquirl Window

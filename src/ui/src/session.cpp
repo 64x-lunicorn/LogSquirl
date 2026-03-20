@@ -198,7 +198,7 @@ WindowSession::restore( const std::function<ViewInterface*()>& view_factory,
         openedFiles_.emplace_back( file.fileName );
     }
 
-    *current_file_index = klogg::isize( result ) - 1;
+    *current_file_index = logsquirl::isize( result ) - 1;
 
     return result;
 }

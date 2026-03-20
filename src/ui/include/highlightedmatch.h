@@ -1,24 +1,24 @@
 /*
  * Copyright (C) 2020 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KLOGG_HIGHLIGHTEDMATCH_H
-#define KLOGG_HIGHLIGHTEDMATCH_H
+#ifndef LOGSQUIRL_HIGHLIGHTEDMATCH_H
+#define LOGSQUIRL_HIGHLIGHTEDMATCH_H
 
 #include "containers.h"
 #include "linetypes.h"
@@ -74,12 +74,12 @@ class HighlightedMatchRanges {
 
 public:
     HighlightedMatchRanges() = default;
-    explicit HighlightedMatchRanges( klogg::vector<HighlightedMatch> matches )
+    explicit HighlightedMatchRanges( logsquirl::vector<HighlightedMatch> matches )
         : matches_( std::move( matches ) )
     {
     }
 
-    klogg::vector<HighlightedMatch> matches() const
+    logsquirl::vector<HighlightedMatch> matches() const
     {
         return matches_;
     }
@@ -130,7 +130,7 @@ public:
             matches_.end() );
     }
 
-    void addMatches( const klogg::vector<HighlightedMatch>& patternMatches )
+    void addMatches( const logsquirl::vector<HighlightedMatch>& patternMatches )
     {
         for ( HighlightedMatch m : patternMatches ) {
             addMatch( m );
@@ -189,7 +189,7 @@ public:
     }
 
 private:
-    klogg::vector<HighlightedMatch> matches_;
+    logsquirl::vector<HighlightedMatch> matches_;
 };
 
-#endif // KLOGG_HIGHLIGHTEDMATCH_H
+#endif // LOGSQUIRL_HIGHLIGHTEDMATCH_H

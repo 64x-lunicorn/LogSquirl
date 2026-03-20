@@ -4,11 +4,11 @@ AppDir:
   path: AppDir
 
   app_info:
-    id: klogg
-    name: klogg
-    icon: klogg
+    id: logsquirl
+    name: LogSquirl
+    icon: logsquirl
     version: latest
-    exec: usr/bin/klogg
+    exec: usr/bin/logsquirl
     exec_args: $@
 
   runtime:

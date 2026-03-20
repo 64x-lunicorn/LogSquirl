@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2021 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "log.h"
@@ -49,7 +49,7 @@
 #include <mimalloc.h>
 #include <roaring.hh>
 
-#ifdef KLOGG_HAS_HS
+#ifdef LOGSQUIRL_HAS_HS
 #include <hs.h>
 #endif
 
@@ -61,9 +61,9 @@
 #include "styles.h"
 
 #include "cli.h"
-#include "kloggapp.h"
+#include "logsquirlapp.h"
 
-#ifdef KLOGG_PORTABLE
+#ifdef LOGSQUIRL_PORTABLE
 const bool PersistentInfo::ForcePortable = true;
 #else
 const bool PersistentInfo::ForcePortable = false;
@@ -115,14 +115,14 @@ void setApplicationAttributes( bool enableQtHdpi, int scaleFactorRounding )
 
 int main( int argc, char* argv[] )
 {
-#ifdef KLOGG_USE_MIMALLOC
+#ifdef LOGSQUIRL_USE_MIMALLOC
     mi_process_init();
 #endif
 
     const auto& config = Configuration::getSynced();
     setApplicationAttributes( config.enableQtHighDpi(), config.scaleFactorRounding() );
 
-    KloggApp app( argc, argv );
+    LogSquirlApp app( argc, argv );
 
 
     MainWindow::installLanguage( config.language() );
@@ -138,7 +138,7 @@ int main( int argc, char* argv[] )
     auto maxConcurrency
         = tbb::global_control::active_value( tbb::global_control::max_allowed_parallelism );
 
-    LOG_INFO << "Klogg instance"
+    LOG_INFO << "LogSquirl instance"
              << ", mimalloc v" << mi_version()
              << ", default concurrency " << maxConcurrency;
 
@@ -152,7 +152,7 @@ int main( int argc, char* argv[] )
     roaring_memory_allocators.aligned_free = mi_free;
     roaring_init_memory_hook(roaring_memory_allocators);
 
-#ifdef KLOGG_HAS_HS
+#ifdef LOGSQUIRL_HAS_HS
     hs_set_allocator(mi_malloc, mi_free);
 #endif
 
@@ -165,7 +165,7 @@ int main( int argc, char* argv[] )
     }
 
     if ( !parameters.multi_instance && app.isSecondary() ) {
-        LOG_INFO << "Found another klogg, pid " << app.primaryPid();
+        LOG_INFO << "Found another logsquirl, pid " << app.primaryPid();
         app.sendFilesToPrimaryInstance( parameters.filenames );
     }
     else {

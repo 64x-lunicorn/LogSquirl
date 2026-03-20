@@ -36,65 +36,65 @@ add_custom_target(lupdate
 )
 
 include(TranslationUtils)
-add_app_translations_resource(KLOGG_I18N_RES ${QM_FILES})
-add_qt_translations_resource(KLOGG_QT_TRANSLATION_RES zh_CN)
+add_app_translations_resource(LOGSQUIRL_I18N_RES ${QM_FILES})
+add_qt_translations_resource(LOGSQUIRL_QT_TRANSLATION_RES zh_CN)
 
 set(MAIN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cli.h
-                 ${CMAKE_CURRENT_SOURCE_DIR}/klogg.qrc 
-                 ${KLOGG_I18N_RES}
-                 ${KLOGG_QT_TRANSLATION_RES})
+                 ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl.qrc 
+                 ${LOGSQUIRL_I18N_RES}
+                 ${LOGSQUIRL_QT_TRANSLATION_RES})
 
-set(KLOGG_UI_SOURCES
+set(LOGSQUIRL_UI_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/messagereceiver.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/kloggapp.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/logsquirlapp.h
     ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
     ${DOCUMENTATION_RESOURCE}
     ${ICON_FILE}
 )
 
-set(KLOGG_GREP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/klogg_grep.cpp)
+set(LOGSQUIRL_GREP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl_grep.cpp)
 
 set(MAIN_LIBS
-    klogg_logdata
-    klogg_crash_handler
+    logsquirl_logdata
+    logsquirl_crash_handler
     roaring
     kdsingleapp
 )
 
-add_executable(klogg ${OS_BUNDLE} ${MAIN_SOURCES} ${KLOGG_UI_SOURCES})
-add_executable(klogg_portable ${OS_BUNDLE} ${MAIN_SOURCES} ${KLOGG_UI_SOURCES})
-add_executable(klogg_grep ${MAIN_SOURCES} ${KLOGG_GREP_SOURCES})
+add_executable(logsquirl ${OS_BUNDLE} ${MAIN_SOURCES} ${LOGSQUIRL_UI_SOURCES})
+add_executable(logsquirl_portable ${OS_BUNDLE} ${MAIN_SOURCES} ${LOGSQUIRL_UI_SOURCES})
+add_executable(logsquirl_grep ${MAIN_SOURCES} ${LOGSQUIRL_GREP_SOURCES})
 
-add_dependencies(ci_build klogg klogg_grep)
-
-if(WIN32)
-  add_dependencies(ci_build klogg_portable)
-endif()
-
-set_target_properties(klogg PROPERTIES AUTORCC ON)
-set_target_properties(klogg PROPERTIES AUTOMOC ON)
-set_target_properties(klogg_portable PROPERTIES AUTORCC ON)
-set_target_properties(klogg_portable PROPERTIES AUTOMOC ON)
-set_target_properties(klogg_grep PROPERTIES AUTORCC ON)
-set_target_properties(klogg_grep PROPERTIES AUTOMOC ON)
-
-if(KLOGG_USE_LTO)
-  set_property(TARGET klogg PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  set_property(TARGET klogg_portable PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  set_property(TARGET klogg_grep PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
-
-target_link_libraries(klogg PUBLIC ${MAIN_LIBS} klogg_ui)
-target_link_libraries(klogg_portable PUBLIC ${MAIN_LIBS} klogg_ui)
-target_link_libraries(klogg_grep PUBLIC ${MAIN_LIBS})
-
-target_compile_definitions(klogg_portable PUBLIC -DKLOGG_PORTABLE)
+add_dependencies(ci_build logsquirl logsquirl_grep)
 
 if(WIN32)
+  add_dependencies(ci_build logsquirl_portable)
+endif()
 
-  target_sources(klogg PRIVATE ${ProductVersionResourceFiles})
-  target_sources(klogg_portable PRIVATE ${ProductVersionResourceFiles})
-  target_sources(klogg_grep PRIVATE ${ProductVersionResourceFiles})
+set_target_properties(logsquirl PROPERTIES AUTORCC ON)
+set_target_properties(logsquirl PROPERTIES AUTOMOC ON)
+set_target_properties(logsquirl_portable PROPERTIES AUTORCC ON)
+set_target_properties(logsquirl_portable PROPERTIES AUTOMOC ON)
+set_target_properties(logsquirl_grep PROPERTIES AUTORCC ON)
+set_target_properties(logsquirl_grep PROPERTIES AUTOMOC ON)
+
+if(LOGSQUIRL_USE_LTO)
+  set_property(TARGET logsquirl PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  set_property(TARGET logsquirl_portable PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+  set_property(TARGET logsquirl_grep PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
+
+target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui)
+target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui)
+target_link_libraries(logsquirl_grep PUBLIC ${MAIN_LIBS})
+
+target_compile_definitions(logsquirl_portable PUBLIC -DLOGSQUIRL_PORTABLE)
+
+if(WIN32)
+
+  target_sources(logsquirl PRIVATE ${ProductVersionResourceFiles})
+  target_sources(logsquirl_portable PRIVATE ${ProductVersionResourceFiles})
+  target_sources(logsquirl_grep PRIVATE ${ProductVersionResourceFiles})
 
 elseif(APPLE)
   set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
@@ -117,7 +117,7 @@ elseif(APPLE)
 endif()
 
 install(
-  TARGETS klogg
+  TARGETS logsquirl
   DESTINATION ${CMAKE_INSTALL_BINDIR}
   BUNDLE DESTINATION .
 )
@@ -125,137 +125,137 @@ install(
 if(WIN32)
   if(TARGET tbb)
     add_custom_command(
-      TARGET klogg
+      TARGET logsquirl
       POST_BUILD
-      COMMAND cmake -E copy $<TARGET_FILE:tbb> $<TARGET_FILE_DIR:klogg>
+      COMMAND cmake -E copy $<TARGET_FILE:tbb> $<TARGET_FILE_DIR:logsquirl>
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy tbb"
     )
   endif()
   if(TARGET tbbmalloc_proxy)
     add_custom_command(
-      TARGET klogg
+      TARGET logsquirl
       POST_BUILD
-      COMMAND cmake -E copy $<TARGET_FILE:tbbmalloc> $<TARGET_FILE_DIR:klogg>
+      COMMAND cmake -E copy $<TARGET_FILE:tbbmalloc> $<TARGET_FILE_DIR:logsquirl>
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy tbbmalloc"
     )
     add_custom_command(
-      TARGET klogg
+      TARGET logsquirl
       POST_BUILD
-      COMMAND cmake -E copy $<TARGET_FILE:tbbmalloc_proxy> $<TARGET_FILE_DIR:klogg>
+      COMMAND cmake -E copy $<TARGET_FILE:tbbmalloc_proxy> $<TARGET_FILE_DIR:logsquirl>
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy tbbmalloc_proxy"
     )
   endif()
 endif()
 
-if(KLOGG_USE_SENTRY)
+if(LOGSQUIRL_USE_SENTRY)
   if(NOT WIN32)
     if(APPLE)
       find_program(DSYMUTIL dsymutil)
       add_custom_command(
-        TARGET klogg
+        TARGET logsquirl
         POST_BUILD
-        COMMAND ${DSYMUTIL} --out=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/klogg.dSym $<TARGET_FILE:klogg>
+        COMMAND ${DSYMUTIL} --out=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl.dSym $<TARGET_FILE:logsquirl>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating symbols for $<TARGET_FILE:klogg>"
+        COMMENT "Generating symbols for $<TARGET_FILE:logsquirl>"
       )
 
       add_custom_command(
-        TARGET klogg_portable
+        TARGET logsquirl_portable
         POST_BUILD
-        COMMAND ${DSYMUTIL} --out=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/klogg_portable.dSym $<TARGET_FILE:klogg_portable>
+        COMMAND ${DSYMUTIL} --out=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl_portable.dSym $<TARGET_FILE:logsquirl_portable>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating symbols for $<TARGET_FILE:klogg_portable>"
+        COMMENT "Generating symbols for $<TARGET_FILE:logsquirl_portable>"
       )
     else()
       find_program(OBJCOPY objcopy)
       add_custom_command(
-        TARGET klogg
+        TARGET logsquirl
         POST_BUILD
-        COMMAND ${OBJCOPY} --only-keep-debug --compress-debug-sections=zlib $<TARGET_FILE:klogg>
-                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/klogg.debug
+        COMMAND ${OBJCOPY} --only-keep-debug --compress-debug-sections=zlib $<TARGET_FILE:logsquirl>
+                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl.debug
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating symbols for $<TARGET_FILE:klogg>"
+        COMMENT "Generating symbols for $<TARGET_FILE:logsquirl>"
       )
       add_custom_command(
-        TARGET klogg
+        TARGET logsquirl
         POST_BUILD
-        COMMAND ${OBJCOPY} --strip-debug --strip-unneeded $<TARGET_FILE:klogg>
+        COMMAND ${OBJCOPY} --strip-debug --strip-unneeded $<TARGET_FILE:logsquirl>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Stripping $<TARGET_FILE:klogg>"
+        COMMENT "Stripping $<TARGET_FILE:logsquirl>"
       )
       add_custom_command(
-        TARGET klogg
+        TARGET logsquirl
         POST_BUILD
-        COMMAND ${OBJCOPY} --add-gnu-debuglink=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/klogg.debug $<TARGET_FILE:klogg>
+        COMMAND ${OBJCOPY} --add-gnu-debuglink=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl.debug $<TARGET_FILE:logsquirl>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Linking symbols for $<TARGET_FILE:klogg>"
+        COMMENT "Linking symbols for $<TARGET_FILE:logsquirl>"
       )
 
       add_custom_command(
-        TARGET klogg_portable
+        TARGET logsquirl_portable
         POST_BUILD
-        COMMAND ${OBJCOPY} --only-keep-debug $<TARGET_FILE:klogg_portable>
-                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/klogg_portable.debug
+        COMMAND ${OBJCOPY} --only-keep-debug $<TARGET_FILE:logsquirl_portable>
+                ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl_portable.debug
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Generating symbols for $<TARGET_FILE:klogg>"
+        COMMENT "Generating symbols for $<TARGET_FILE:logsquirl>"
       )
       add_custom_command(
-        TARGET klogg_portable
+        TARGET logsquirl_portable
         POST_BUILD
-        COMMAND ${OBJCOPY} --strip-debug --strip-unneeded $<TARGET_FILE:klogg_portable>
+        COMMAND ${OBJCOPY} --strip-debug --strip-unneeded $<TARGET_FILE:logsquirl_portable>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Stripping $<TARGET_FILE:klogg_portable>"
+        COMMENT "Stripping $<TARGET_FILE:logsquirl_portable>"
       )
       add_custom_command(
-        TARGET klogg_portable
+        TARGET logsquirl_portable
         POST_BUILD
-        COMMAND ${OBJCOPY} --add-gnu-debuglink=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/klogg_portable.debug
-                $<TARGET_FILE:klogg_portable>
+        COMMAND ${OBJCOPY} --add-gnu-debuglink=${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/logsquirl_portable.debug
+                $<TARGET_FILE:logsquirl_portable>
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Linking symbols for $<TARGET_FILE:klogg_portable>"
+        COMMENT "Linking symbols for $<TARGET_FILE:logsquirl_portable>"
       )
     endif()
 
     add_custom_command(
-      TARGET klogg
+      TARGET logsquirl
       POST_BUILD
-      COMMAND cmake -E copy $<TARGET_FILE:crashpad_handler> $<TARGET_FILE_DIR:klogg>/klogg_crashpad_handler
+      COMMAND cmake -E copy $<TARGET_FILE:crashpad_handler> $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy crash_handler"
     )
 
     add_custom_command(
-      TARGET klogg
+      TARGET logsquirl
       POST_BUILD
-      COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump $<TARGET_FILE_DIR:klogg>/klogg_minidump_dump
+      COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy stackwalk"
     )
   else()
     add_custom_command(
-      TARGET klogg
+      TARGET logsquirl
       POST_BUILD
-      COMMAND cmake -E copy $<TARGET_FILE:crashpad_handler> $<TARGET_FILE_DIR:klogg>/klogg_crashpad_handler.exe
+      COMMAND cmake -E copy $<TARGET_FILE:crashpad_handler> $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler.exe
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy crash_handler"
     )
 
     if(CMAKE_SIZEOF_VOID_P EQUAL 8)
       add_custom_command(
-        TARGET klogg
+        TARGET logsquirl
         POST_BUILD
-        COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump_x64.exe $<TARGET_FILE_DIR:klogg>/klogg_minidump_dump.exe
+        COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump_x64.exe $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump.exe
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Copy stackwalk"
       )
     else()
       add_custom_command(
-        TARGET klogg
+        TARGET logsquirl
         POST_BUILD
-        COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump_x86.exe $<TARGET_FILE_DIR:klogg>/klogg_minidump_dump.exe
+        COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump_x86.exe $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump.exe
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         COMMENT "Copy stackwalk"
       )
@@ -263,12 +263,12 @@ if(KLOGG_USE_SENTRY)
   endif()
 
   if(APPLE)
-    install(PROGRAMS $<TARGET_FILE_DIR:klogg>/klogg_minidump_dump $<TARGET_FILE_DIR:klogg>/klogg_crashpad_handler
-            DESTINATION $<TARGET_BUNDLE_CONTENT_DIR:klogg>/MacOS
+    install(PROGRAMS $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler
+            DESTINATION $<TARGET_BUNDLE_CONTENT_DIR:logsquirl>/MacOS
     )
   elseif(NOT WIN32)
-    install(PROGRAMS $<TARGET_FILE_DIR:klogg>/klogg_minidump_dump $<TARGET_FILE_DIR:klogg>/klogg_crashpad_handler
+    install(PROGRAMS $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler
             DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
   endif()
-endif(KLOGG_USE_SENTRY)
+endif(LOGSQUIRL_USE_SENTRY)

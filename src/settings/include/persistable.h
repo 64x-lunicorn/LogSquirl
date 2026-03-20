@@ -17,8 +17,8 @@
  * along with glogg.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KLOGG_PERSISTABLE_H
-#define KLOGG_PERSISTABLE_H
+#ifndef LOGSQUIRL_PERSISTABLE_H
+#define LOGSQUIRL_PERSISTABLE_H
 
 #include <type_traits>
 #include <stdexcept>

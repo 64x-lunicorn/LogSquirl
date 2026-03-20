@@ -10,14 +10,14 @@ aliases:
 
 ## Version 20.9
 
-As expected I didn't have much time to work on klogg this summer. However, there were several free weekends,
+As expected I didn't have much time to work on logsquirl this summer. However, there were several free weekends,
 and I was able to do some bugfix and new feature development.
 
 Preview builds can be downloaded from Github: 
 
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-win" >}}Windows{{< /button >}}
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-linux" >}}Linux{{< /button >}}
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-osx" >}}Mac{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
 
 Feedback is very welcome.
 

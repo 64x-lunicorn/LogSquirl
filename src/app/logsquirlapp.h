@@ -1,24 +1,24 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KLOGG_KLOGGAPP_H
-#define KLOGG_KLOGGAPP_H
+#ifndef LOGSQUIRL_LOGSQUIRLAPP_H
+#define LOGSQUIRL_LOGSQUIRLAPP_H
 
 #include <algorithm>
 #include <cstddef>
@@ -44,7 +44,7 @@
 
 #include "configuration.h"
 #include "crashhandler.h"
-#include "klogg_version.h"
+#include "logsquirl_version.h"
 #include "log.h"
 #include "session.h"
 #include "uuid.h"
@@ -55,12 +55,12 @@
 #include "messagereceiver.h"
 #include "versionchecker.h"
 
-class KloggApp : public QApplication {
+class LogSquirlApp : public QApplication {
 
     Q_OBJECT
 
   public:
-    KloggApp( int& argc, char* argv[] )
+    LogSquirlApp( int& argc, char* argv[] )
         : QApplication( argc, argv)
     {
         QFontDatabase::addApplicationFont( ":/fonts/DejaVuSansMono.ttf" );
@@ -71,7 +71,7 @@ class KloggApp : public QApplication {
         qRegisterMetaType<LinesCount>( "LinesCount" );
         qRegisterMetaType<LineNumber>( "LineNumber" );
         qRegisterMetaType<std::vector<LineNumber>>( "std::vector<LineNumber>" );
-        qRegisterMetaType<klogg::vector<LineNumber>>( "klogg::vector<LineNumber>" );
+        qRegisterMetaType<logsquirl::vector<LineNumber>>( "logsquirl::vector<LineNumber>" );
         qRegisterMetaType<LineLength>( "LineLength" );
         qRegisterMetaType<Portion>( "Portion" );
         qRegisterMetaType<Selection>( "Selection" );
@@ -88,7 +88,7 @@ class KloggApp : public QApplication {
                               &MessageReceiver::receiveMessage, Qt::QueuedConnection );
 
             QObject::connect( &messageReceiver_, &MessageReceiver::loadFile, this,
-                              &KloggApp::loadFileNonInteractive );
+                              &LogSquirlApp::loadFileNonInteractive );
 
             // Version checker notification
             connect( &versionChecker_, &VersionChecker::newVersionFound,
@@ -119,7 +119,7 @@ class KloggApp : public QApplication {
             std::copy( files.cbegin(), files.cend(), std::back_inserter( filesToOpen ) );
 
             QVariantMap data;
-            data.insert( "version", kloggVersion() );
+            data.insert( "version", logsquirlVersion() );
             data.insert( "files", QVariant{ filesToOpen } );
 
             auto cbor = QCborValue::fromVariant( data );
@@ -289,7 +289,7 @@ class KloggApp : public QApplication {
     {
         LOG_DEBUG << "newVersionNotification( " << new_version << " from " << url << " )";
 
-        QString message = QString( "<p> A new version of klogg (%1) is available for download </p>"
+        QString message = QString( "<p> A new version of logsquirl (%1) is available for download </p>"
                                    "<a href=\"%2\">%2</a>" )
                               .arg( new_version, url );
 
@@ -334,4 +334,4 @@ class KloggApp : public QApplication {
     VersionChecker versionChecker_;
 };
 
-#endif // KLOGG_KLOGGAPP_H
+#endif // LOGSQUIRL_LOGSQUIRLAPP_H

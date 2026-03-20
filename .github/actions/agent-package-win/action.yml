@@ -22,13 +22,13 @@ runs:
     #  if: ${{ github.event_name != 'pull_request' }}
     #  shell: cmd
     #  run: |
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\output\klogg.exe
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\output\klogg_portable.exe
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\output\klogg_crashpad_handler.exe
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\output\klogg_minidump_dump.exe
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\output\tbb12.dll
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\output\tbbmalloc.dll
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\output\tbbmalloc_proxy.dll
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl.exe
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl_portable.exe
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl_crashpad_handler.exe
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl_minidump_dump.exe
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\tbb12.dll
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\tbbmalloc.dll
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\tbbmalloc_proxy.dll
     
     - name: Win portable
       shell: cmd
@@ -38,20 +38,20 @@ runs:
     - name: Win installer
       uses: joncloud/makensis-action@v3.3
       with:
-        script-file: klogg.nsi
-        arguments: "-DVERSION=%KLOGG_VERSION% -DPLATFORM=%KLOGG_ARCH% -DQT_MAJOR=%KLOGG_QT%" 
+        script-file: logsquirl.nsi
+        arguments: "-DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT%" 
     
     - name: Win package
       shell: cmd
       run: |
-        md %KLOGG_BUILD_ROOT%\packages
-        xcopy klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-portable.zip %KLOGG_BUILD_ROOT%\packages /y
-        xcopy klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-pdb.zip %KLOGG_BUILD_ROOT%\packages /y
-        xcopy klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-setup.exe %KLOGG_BUILD_ROOT%\packages /y
+        md %LOGSQUIRL_BUILD_ROOT%\packages
+        xcopy logsquirl-%LOGSQUIRL_VERSION%-%LOGSQUIRL_ARCH%-%LOGSQUIRL_QT%-portable.zip %LOGSQUIRL_BUILD_ROOT%\packages /y
+        xcopy logsquirl-%LOGSQUIRL_VERSION%-%LOGSQUIRL_ARCH%-%LOGSQUIRL_QT%-pdb.zip %LOGSQUIRL_BUILD_ROOT%\packages /y
+        xcopy logsquirl-%LOGSQUIRL_VERSION%-%LOGSQUIRL_ARCH%-%LOGSQUIRL_QT%-setup.exe %LOGSQUIRL_BUILD_ROOT%\packages /y
 
     #- name: Win codesign installer
     #  if: ${{ github.event_name != 'pull_request' }}
     #  shell: cmd
     #  run: |
-    #    packaging\windows\codesign_client.exe --debug %KLOGG_BUILD_ROOT%\packages\klogg-%KLOGG_VERSION%-%KLOGG_ARCH%-%KLOGG_QT%-setup.exe
+    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\packages\logsquirl-%LOGSQUIRL_VERSION%-%LOGSQUIRL_ARCH%-%LOGSQUIRL_QT%-setup.exe
       

@@ -15,9 +15,9 @@ I've decided to postpone next release to January 2020. Mainly because I like
 
 Preview builds can be downloaded from Github: 
 
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-win" >}}Windows{{< /button >}}
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-linux" >}}Linux{{< /button >}}
-{{< button href="https://github.com/variar/klogg/releases/tag/continuous-osx" >}}Mac{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-win" >}}Windows{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-linux" >}}Linux{{< /button >}}
+{{< button href="https://github.com/variar/logsquirl/releases/tag/continuous-osx" >}}Mac{{< /button >}}
 
 Feedback is very welcome.
 
@@ -29,7 +29,7 @@ files history.
 Opening archives (zip, 7z, tar) and compressed files (gzip, bzip2, xz, lzma). Files 
 are extracted to temporary location and opened from there.
 
-Opening files from network locations. Klogg will download file to temporary location
+Opening files from network locations. LogSquirl will download file to temporary location
 and open it.
 
 Renaming tabs for opened files.

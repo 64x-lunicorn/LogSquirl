@@ -1,20 +1,20 @@
 /*
  * Copyright (C) 2021 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "containers.h"
@@ -25,7 +25,7 @@
 #include <qregularexpression.h>
 #include <string_view>
 
-#ifdef KLOGG_HAS_HS
+#ifdef LOGSQUIRL_HAS_HS
 #include "hsregularexpression.h"
 
 #include "cpu_info.h"
@@ -116,7 +116,7 @@ MatchedPatterns HsNoopMatcher::match( const std::string_view& ) const
     return {};
 }
 
-HsPrefilterMatcher::HsPrefilterMatcher( const klogg::vector<RegularExpressionPattern>& patterns,
+HsPrefilterMatcher::HsPrefilterMatcher( const logsquirl::vector<RegularExpressionPattern>& patterns,
                                         HsMultiMatcher&& hsMatcher )
     : patterns_( patterns )
     , hsMatcher_( std::move( hsMatcher ) )
@@ -132,7 +132,7 @@ MatchedPatterns HsPrefilterMatcher::match( const std::string_view& utf8Data ) co
         if ( matchingPatterns[ i ] ) {
             matchingPatterns[ i ]
                 = static_cast<QRegularExpression>( patterns_[ i ] )
-                      .match( QString::fromUtf8( utf8Data.data(), klogg::isize( utf8Data ) ) )
+                      .match( QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) ) )
                       .hasMatch();
         }
     }
@@ -141,23 +141,23 @@ MatchedPatterns HsPrefilterMatcher::match( const std::string_view& utf8Data ) co
 }
 
 HsRegularExpression::HsRegularExpression( const RegularExpressionPattern& pattern )
-    : HsRegularExpression( klogg::vector<RegularExpressionPattern>{ pattern } )
+    : HsRegularExpression( logsquirl::vector<RegularExpressionPattern>{ pattern } )
 {
 }
 
-HsRegularExpression::HsRegularExpression( const klogg::vector<RegularExpressionPattern>& patterns )
+HsRegularExpression::HsRegularExpression( const logsquirl::vector<RegularExpressionPattern>& patterns )
     : patterns_( patterns )
 {
     auto requiredInstructuins = CpuInstructions::SSE2;
     requiredInstructuins |= CpuInstructions::SSSE3;
 
     if ( hasRequiredInstructions( supportedCpuInstructions(), requiredInstructuins ) ) {
-        auto compileHsDatabase = []( const klogg::vector<RegularExpressionPattern>& expressions,
+        auto compileHsDatabase = []( const logsquirl::vector<RegularExpressionPattern>& expressions,
                                      QString& errorMessage, bool isPrefilter ) -> hs_database_t* {
             hs_database_t* db = nullptr;
             hs_compile_error_t* error = nullptr;
 
-            klogg::vector<unsigned> flags( expressions.size() );
+            logsquirl::vector<unsigned> flags( expressions.size() );
             std::transform( expressions.cbegin(), expressions.cend(), flags.begin(),
                             [ isPrefilter ]( const auto& expression ) {
                                 auto expressionFlags
@@ -171,7 +171,7 @@ HsRegularExpression::HsRegularExpression( const klogg::vector<RegularExpressionP
                                 return expressionFlags;
                             } );
 
-            klogg::vector<QByteArray> utf8Patterns( expressions.size() );
+            logsquirl::vector<QByteArray> utf8Patterns( expressions.size() );
             std::transform( expressions.cbegin(), expressions.cend(), utf8Patterns.begin(),
                             []( const auto& expression ) {
                                 auto p = expression.pattern;
@@ -181,11 +181,11 @@ HsRegularExpression::HsRegularExpression( const klogg::vector<RegularExpressionP
                                 return p.toUtf8();
                             } );
 
-            klogg::vector<const char*> patternPointers( utf8Patterns.size() );
+            logsquirl::vector<const char*> patternPointers( utf8Patterns.size() );
             std::transform( utf8Patterns.cbegin(), utf8Patterns.cend(), patternPointers.begin(),
                             []( const auto& utf8Pattern ) { return utf8Pattern.data(); } );
 
-            klogg::vector<unsigned> expressionIds( expressions.size() );
+            logsquirl::vector<unsigned> expressionIds( expressions.size() );
             std::iota( expressionIds.begin(), expressionIds.end(), 0u );
 
             const auto compileResult = hs_compile_multi(
@@ -203,7 +203,7 @@ HsRegularExpression::HsRegularExpression( const klogg::vector<RegularExpressionP
         };
 
         database_ = HsDatabase{ makeUniqueResource<hs_database_t, hs_free_database>(
-            [ &compileHsDatabase ]( const klogg::vector<RegularExpressionPattern>& expressions,
+            [ &compileHsDatabase ]( const logsquirl::vector<RegularExpressionPattern>& expressions,
                                     QString& errorMessage ) -> hs_database_t* {
                 return compileHsDatabase( expressions, errorMessage, false );
             },
@@ -213,7 +213,7 @@ HsRegularExpression::HsRegularExpression( const klogg::vector<RegularExpressionP
             QString preFilterErrorMessage;
             isPrefilter_ = true;
             database_ = HsDatabase{ makeUniqueResource<hs_database_t, hs_free_database>(
-                [ &compileHsDatabase ]( const klogg::vector<RegularExpressionPattern>& expressions,
+                [ &compileHsDatabase ]( const logsquirl::vector<RegularExpressionPattern>& expressions,
                                         QString& errorMessage ) -> hs_database_t* {
                     return compileHsDatabase( expressions, errorMessage, true );
                 },

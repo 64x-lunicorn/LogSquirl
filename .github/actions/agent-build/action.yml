@@ -13,11 +13,11 @@ runs:
     - name: configure
       shell: sh
       run: |
-        mkdir $KLOGG_BUILD_ROOT
-        cd $KLOGG_BUILD_ROOT
-        cmake $KLOGG_CMAKE_OPTS -DCPM_SOURCE_CACHE=$KLOGG_WORKSPACE/cpm_cache -DKLOGG_OVERRIDE_MALLOC=OFF $KLOGG_WORKSPACE
+        mkdir $LOGSQUIRL_BUILD_ROOT
+        cd $LOGSQUIRL_BUILD_ROOT
+        cmake $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=$LOGSQUIRL_WORKSPACE/cpm_cache -DLOGSQUIRL_OVERRIDE_MALLOC=OFF $LOGSQUIRL_WORKSPACE
 
     - name: build
       shell: sh
       run: |
-        cmake --build $KLOGG_BUILD_ROOT -t ci_build
+        cmake --build $LOGSQUIRL_BUILD_ROOT -t ci_build

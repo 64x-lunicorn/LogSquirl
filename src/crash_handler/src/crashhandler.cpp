@@ -1,20 +1,20 @@
 /*
  * Copyright (C) 2020, 2021 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "crashhandler.h"
@@ -40,7 +40,7 @@
 #include <qthreadpool.h>
 #include <string_view>
 
-#ifdef KLOGG_USE_MIMALLOC
+#ifdef LOGSQUIRL_USE_MIMALLOC
 #include <mimalloc.h>
 #endif
 
@@ -49,7 +49,7 @@
 
 #include "cpu_info.h"
 #include "issuereporter.h"
-#include "klogg_version.h"
+#include "logsquirl_version.h"
 #include "log.h"
 #include "memory_info.h"
 #include "openfilehelper.h"
@@ -61,13 +61,13 @@ constexpr const char* DSN
 
 QString sentryDatabasePath()
 {
-#ifdef KLOGG_PORTABLE
+#ifdef LOGSQUIRL_PORTABLE
     auto basePath = QCoreApplication::applicationDirPath();
 #else
     auto basePath = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
 #endif
 
-    return basePath.append( "/klogg_dump" );
+    return basePath.append( "/logsquirl_dump" );
 }
 
 void logSentry( sentry_level_t level, const char* message, va_list args, void* userdata )
@@ -181,9 +181,9 @@ bool checkCrashpadReports( const QString& databasePath )
     LOG_INFO << "Pending reports " << pendingReports.size();
 
 #ifdef Q_OS_WIN
-    const auto stackwalker = QCoreApplication::applicationDirPath() + "/klogg_minidump_dump.exe";
+    const auto stackwalker = QCoreApplication::applicationDirPath() + "/logsquirl_minidump_dump.exe";
 #else
-    const auto stackwalker = QCoreApplication::applicationDirPath() + "/klogg_minidump_dump";
+    const auto stackwalker = QCoreApplication::applicationDirPath() + "/logsquirl_minidump_dump";
 #endif
 
     for ( const auto& report : pendingReports ) {
@@ -233,18 +233,18 @@ CrashHandler::CrashHandler()
     sentry_options_set_debug( sentryOptions, 1 );
 
 #ifdef Q_OS_WIN
-    const auto handlerPath = QCoreApplication::applicationDirPath() + "/klogg_crashpad_handler.exe";
+    const auto handlerPath = QCoreApplication::applicationDirPath() + "/logsquirl_crashpad_handler.exe";
     sentry_options_set_database_pathw( sentryOptions, dumpPath.toStdWString().c_str() );
     sentry_options_set_handler_pathw( sentryOptions, handlerPath.toStdWString().c_str() );
 #else
-    const auto handlerPath = QCoreApplication::applicationDirPath() + "/klogg_crashpad_handler";
+    const auto handlerPath = QCoreApplication::applicationDirPath() + "/logsquirl_crashpad_handler";
     sentry_options_set_database_path( sentryOptions, dumpPath.toStdString().c_str() );
     sentry_options_set_handler_path( sentryOptions, handlerPath.toStdString().c_str() );
 #endif
 
     sentry_options_set_dsn( sentryOptions, DSN );
 
-    // klogg asks confirmation and sends reports using crashpad
+    // logsquirl asks confirmation and sends reports using crashpad
     sentry_options_set_require_user_consent( sentryOptions, true );
 
     sentry_options_set_auto_session_tracking( sentryOptions, false );
@@ -252,11 +252,11 @@ CrashHandler::CrashHandler()
     sentry_options_set_symbolize_stacktraces( sentryOptions, true );
 
     sentry_options_set_environment( sentryOptions, "development" );
-    sentry_options_set_release( sentryOptions, kloggVersion().data() );
+    sentry_options_set_release( sentryOptions, logsquirlVersion().data() );
 
     sentry_init( sentryOptions );
 
-    sentry_set_tag( "commit", kloggCommit().data() );
+    sentry_set_tag( "commit", logsquirlCommit().data() );
     sentry_set_tag( "qt", qVersion() );
     sentry_set_tag( "build_arch", QSysInfo::buildCpuArchitecture().toLatin1().data() );
 
@@ -275,7 +275,7 @@ CrashHandler::CrashHandler()
         const auto vmUsed = usedMemory();
         addExtra( "vm_used", vmUsed );
 
-#ifdef KLOGG_USE_MIMALLOC
+#ifdef LOGSQUIRL_USE_MIMALLOC
         size_t elapsedMsecs, userMsecs, systemMsecs, currentRss, peakRss, currentCommit, peakCommit,
             pageFaults;
 

@@ -1,20 +1,20 @@
 /*
  * Copyright (C) 2023 -- 2024 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <QString>
@@ -69,13 +69,13 @@ public:
         return wrappedLines_.size();
     }
 
-    klogg::vector<WrappedStringPart> mid( LineColumn start, LineLength length ) const
+    logsquirl::vector<WrappedStringPart> mid( LineColumn start, LineLength length ) const
     {
         auto getLength = []( const auto& view ) -> LineLength::UnderlyingType {
             return type_safe::narrow_cast<LineLength::UnderlyingType>( view.size() );
         };
 
-        klogg::vector<WrappedStringPart> resultChunks;
+        logsquirl::vector<WrappedStringPart> resultChunks;
         if ( wrappedLines_.size() == 1 ) {
             auto& wrappedLine = wrappedLines_.front();
             auto len = std::min( length.get(), getLength( wrappedLine ) - start.get() );
@@ -130,6 +130,6 @@ public:
     }
 
 private:
-    klogg::vector<WrappedStringPart> wrappedLines_;
+    logsquirl::vector<WrappedStringPart> wrappedLines_;
     QString unwrappedLine_;
 };

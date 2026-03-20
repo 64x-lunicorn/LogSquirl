@@ -1,24 +1,24 @@
 /*
  * Copyright (C) 2021 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KLOGG_CLI_H
-#define KLOGG_CLI_H
+#ifndef LOGSQUIRL_CLI_H
+#define LOGSQUIRL_CLI_H
 
 #include <cstdint>
 #include <iostream>
@@ -29,7 +29,7 @@
 #include <QFileInfo>
 #include <QString>
 
-#include "klogg_version.h"
+#include "logsquirl_version.h"
 #include "log.h"
 
 struct CliParameters {
@@ -52,14 +52,14 @@ struct CliParameters {
     CliParameters( QCoreApplication& app, bool console = false )
     {
         QCommandLineParser parser;
-        parser.setApplicationDescription( "Klogg log viewer" );
+        parser.setApplicationDescription( "LogSquirl log viewer" );
         const auto helpOption = parser.addHelpOption();
         const auto versionOption = parser.addVersionOption();
 
         const QCommandLineOption multiInstanceOption(
             QStringList() << "m"
                           << "multi",
-            "allow multiple instance of klogg to run simultaneously (use together with -s)" );
+            "allow multiple instance of logsquirl to run simultaneously (use together with -s)" );
 
         const QCommandLineOption loadSessionOption(
             QStringList() << "s"
@@ -160,9 +160,9 @@ struct CliParameters {
 
     static void print_version()
     {
-        std::cout << "klogg " << kloggVersion().data() << "\n";
-        std::cout << "Built " << kloggBuildDate().data() << " from " << kloggCommit().data() << "("
-                  << kloggGitVersion().data() << ")\n";
+        std::cout << "logsquirl " << logsquirlVersion().data() << "\n";
+        std::cout << "Built " << logsquirlBuildDate().data() << " from " << logsquirlCommit().data() << "("
+                  << logsquirlGitVersion().data() << ")\n";
 
         std::cout
             << "Copyright (C) 2020 Nicolas Bonnefon, Anton Filimonov and other contributors\n";

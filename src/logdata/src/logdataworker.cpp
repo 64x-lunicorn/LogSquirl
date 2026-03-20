@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <chrono>
@@ -96,7 +96,7 @@ OffsetInFile IndexingData::getEndOfLineOffset( LineNumber line ) const
         linePosition_ );
 }
 
-klogg::vector<OffsetInFile> IndexingData::getEndOfLineOffsets( LineNumber line,
+logsquirl::vector<OffsetInFile> IndexingData::getEndOfLineOffsets( LineNumber line,
                                                                LinesCount count ) const
 {
     return std::visit(
@@ -124,7 +124,7 @@ QTextCodec* IndexingData::getForcedEncoding() const
     return encodingForced_;
 }
 
-void IndexingData::addAll( const klogg::vector<char>& block, LineLength length,
+void IndexingData::addAll( const logsquirl::vector<char>& block, LineLength length,
                            const FastLinePositionArray& newLinePosition, QTextCodec* encoding )
 
 {
@@ -134,7 +134,7 @@ void IndexingData::addAll( const klogg::vector<char>& block, LineLength length,
         linePosition_ );
 
     if ( !block.empty() ) {
-        hash_.size += klogg::ssize( block );
+        hash_.size += logsquirl::ssize( block );
 
         if ( !useFastModificationDetection_ ) {
             hashBuilder_.addData( block.data(), block.size() );
@@ -372,7 +372,7 @@ using FindDelimeter = std::string_view::size_type ( * )( EncodingParameters enco
                                                          std::string_view, char );
 
 LineLength::UnderlyingType
-expandTabsInLine( const klogg::vector<char>& block, std::string_view blockToExpand,
+expandTabsInLine( const logsquirl::vector<char>& block, std::string_view blockToExpand,
                   int posWithinBlock, EncodingParameters encodingParams,
                   FindDelimeter findNextDelimeter,
                   LineLength::UnderlyingType initialAdditionalSpaces = 0 )
@@ -403,11 +403,11 @@ expandTabsInLine( const klogg::vector<char>& block, std::string_view blockToExpa
 }
 
 std::tuple<bool, int, LineLength::UnderlyingType>
-findNextLineFeed( const klogg::vector<char>& block, int posWithinBlock, const IndexingState& state,
+findNextLineFeed( const logsquirl::vector<char>& block, int posWithinBlock, const IndexingState& state,
                   FindDelimeter findNextDelimeter )
 {
     const auto searchStart = block.data() + posWithinBlock;
-    const auto searchLineSize = static_cast<size_t>( klogg::ssize( block ) - posWithinBlock );
+    const auto searchLineSize = static_cast<size_t>( logsquirl::ssize( block ) - posWithinBlock );
 
     const auto blockView = std::string_view( searchStart, searchLineSize );
     const auto nextLineFeed = findNextDelimeter( state.encodingParams, blockView, '\n' );
@@ -427,7 +427,7 @@ findNextLineFeed( const klogg::vector<char>& block, int posWithinBlock, const In
 } // namespace parse_data_block
 
 FastLinePositionArray IndexOperation::parseDataBlock( OffsetInFile::UnderlyingType blockBeginning,
-                                                      const klogg::vector<char>& block,
+                                                      const logsquirl::vector<char>& block,
                                                       IndexingState& state ) const
 {
     using namespace parse_data_block;
@@ -444,7 +444,7 @@ FastLinePositionArray IndexOperation::parseDataBlock( OffsetInFile::UnderlyingTy
     FastLinePositionArray linePositions;
 
     while ( !isEndOfBlock ) {
-        if ( state.pos > blockBeginning + klogg::ssize( block ) ) {
+        if ( state.pos > blockBeginning + logsquirl::ssize( block ) ) {
             LOG_ERROR << "Trying to parse out of block: " << state.pos << " " << blockBeginning
                       << " " << block.size();
             break;
@@ -453,7 +453,7 @@ FastLinePositionArray IndexOperation::parseDataBlock( OffsetInFile::UnderlyingTy
         auto posWithinBlock = type_safe::narrow_cast<int>(
             state.pos >= blockBeginning ? ( state.pos - blockBeginning ) : 0 );
 
-        isEndOfBlock = posWithinBlock == klogg::ssize( block );
+        isEndOfBlock = posWithinBlock == logsquirl::ssize( block );
 
         if ( !isEndOfBlock ) {
             std::tie( isEndOfBlock, posWithinBlock, state.additional_spaces )
@@ -480,7 +480,7 @@ FastLinePositionArray IndexOperation::parseDataBlock( OffsetInFile::UnderlyingTy
     return linePositions;
 }
 
-void IndexOperation::guessEncoding( const klogg::vector<char>& block,
+void IndexOperation::guessEncoding( const logsquirl::vector<char>& block,
                                     IndexingData::MutateAccessor& scopedAccessor,
                                     IndexingState& state ) const
 {
@@ -524,18 +524,18 @@ std::chrono::microseconds IndexOperation::readFileInBlocks( QFile& file,
             break;
         }
 
-        BlockData blockData{ file.pos(), new klogg::vector<char>( IndexingBlockSize ) };
+        BlockData blockData{ file.pos(), new logsquirl::vector<char>( IndexingBlockSize ) };
 
         clock::time_point ioT1 = clock::now();
         const auto readBytes
-            = file.read( blockData.second->data(), klogg::ssize( *blockData.second ) );
+            = file.read( blockData.second->data(), logsquirl::ssize( *blockData.second ) );
 
         if ( readBytes < 0 ) {
             LOG_ERROR << "Reading past the end of file";
             break;
         }
 
-        if ( readBytes < klogg::ssize( *blockData.second ) ) {
+        if ( readBytes < logsquirl::ssize( *blockData.second ) ) {
             blockData.second->resize( static_cast<size_t>( readBytes ) );
         }
 
@@ -553,7 +553,7 @@ std::chrono::microseconds IndexOperation::readFileInBlocks( QFile& file,
         sentBlocksCount++;
     }
 
-    auto lastBlock = std::make_pair( -1, new klogg::vector<char>{} );
+    auto lastBlock = std::make_pair( -1, new logsquirl::vector<char>{} );
     while ( !blockPrefetcher.try_put( lastBlock ) && !interruptRequest_ ) {
         std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
     }
@@ -734,7 +734,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     if ( scopedAccessor.getMaxLength().get()
          == std::numeric_limits<LineLength::UnderlyingType>::max() ) {
         dispatchToMainThread( [] {
-            QMessageBox::critical( nullptr, "Klogg", "Can't index file: some lines are too long",
+            QMessageBox::critical( nullptr, "LogSquirl", "Can't index file: some lines are too long",
                                    QMessageBox::Close );
         } );
 

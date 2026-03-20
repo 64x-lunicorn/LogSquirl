@@ -25,5 +25,5 @@ Changes:
  - Separate portable build
  - Some quick find hotkeys changed
   
-Download on Github: [klogg 17.12](https://github.com/variar/klogg/releases/tag/17.12.0)
+Download on Github: [logsquirl 17.12](https://github.com/variar/logsquirl/releases/tag/17.12.0)
 <!--more--> 

@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <QColorDialog>
@@ -118,7 +118,7 @@ void OptionsDialog::setupTabs()
     minimizeToTrayCheckBox->setVisible( false );
 #endif
 
-#ifndef KLOGG_HAS_HS
+#ifndef LOGSQUIRL_HAS_HS
     regexpEngineLabel->setVisible( false );
     regexpEngineComboBox->setVisible( false );
 #endif
@@ -588,9 +588,9 @@ void OptionsDialog::updateConfigFromDialog()
 
     if ( restartAppMessage ) {
         QMessageBox::warning(
-            this, "klogg",
+            this, "logsquirl",
             QApplication::translate( "OptionsDialog",
-                                     "Klogg needs to be restarted to apply some changes. " ) );
+                                     "LogSquirl needs to be restarted to apply some changes. " ) );
     }
 
     Q_EMIT optionsChanged();

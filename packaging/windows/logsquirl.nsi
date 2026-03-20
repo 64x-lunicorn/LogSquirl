@@ -1,4 +1,4 @@
-# NSIS script creating the Windows installer for klogg
+# NSIS script creating the Windows installer for logsquirl
 
 # Is passed to the script using -DVERSION=$(git describe) on the command line
 !ifndef VERSION
@@ -18,7 +18,7 @@
 !include "FileAssociation.nsh"
 
 # General
-OutFile "klogg-${VERSION}-${PLATFORM}-${QT_MAJOR}-setup.exe"
+OutFile "logsquirl-${VERSION}-${PLATFORM}-${QT_MAJOR}-setup.exe"
 
 XpStyle on
 
@@ -26,25 +26,25 @@ SetCompressor /SOLID lzma
 
 ; Registry key to keep track of the directory we are installed in
 !ifdef ARCH32
-  InstallDir "$PROGRAMFILES\klogg"
+  InstallDir "$PROGRAMFILES\logsquirl"
 !else
-  InstallDir "$PROGRAMFILES64\klogg"
+  InstallDir "$PROGRAMFILES64\logsquirl"
 !endif
-InstallDirRegKey HKLM Software\klogg ""
+InstallDirRegKey HKLM Software\logsquirl ""
 
-; klogg icon
-; !define MUI_ICON klogg.ico
+; logsquirl icon
+; !define MUI_ICON logsquirl.ico
 
 RequestExecutionLevel admin
 
-Name "klogg"
-Caption "klogg ${VERSION} Setup"
+Name "LogSquirl"
+Caption "LogSquirl ${VERSION} Setup"
 
 # Pages
-!define MUI_WELCOMEPAGE_TITLE "Welcome to the klogg ${VERSION} Setup Wizard"
-!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of klogg\
+!define MUI_WELCOMEPAGE_TITLE "Welcome to the LogSquirl ${VERSION} Setup Wizard"
+!define MUI_WELCOMEPAGE_TEXT "This wizard will guide you through the installation of LogSquirl\
 , a fast, advanced log explorer.$\r$\n$\r$\n\
-klogg and the Qt libraries are released under the GPL, see \
+logsquirl and the Qt libraries are released under the GPL, see \
 the COPYING and NOTICE files.$\r$\n$\r$\n$_CLICK"
 ;MUI_FINISHPAGE_LINK_LOCATION "https://klogg.filimonov.dev/"
 
@@ -65,14 +65,14 @@ the COPYING and NOTICE files.$\r$\n$\r$\n$_CLICK"
 !insertmacro MUI_LANGUAGE "English"
 
 # Installer sections
-Section "klogg" klogg
+Section "logsquirl" logsquirl
     ; Prevent this section from being unselected
     SectionIn RO
 
     SetOutPath $INSTDIR
-    File release\klogg.exe
-    File release\klogg_crashpad_handler.exe
-    File release\klogg_minidump_dump.exe
+    File release\logsquirl.exe
+    File release\logsquirl_crashpad_handler.exe
+    File release\logsquirl_minidump_dump.exe
     File release\tbb12.dll
 
     File COPYING
@@ -82,27 +82,27 @@ Section "klogg" klogg
     File release\documentation.html
 
     ; Create the 'sendto' link
-    CreateShortCut "$SENDTO\klogg.lnk" "$INSTDIR\klogg.exe" "" "$INSTDIR\klogg.exe" 0
+    CreateShortCut "$SENDTO\logsquirl.lnk" "$INSTDIR\logsquirl.exe" "" "$INSTDIR\logsquirl.exe" 0
 
     ; Register as an otion (but not main handler) for some files (.txt, .Log, .cap)
-    WriteRegStr HKCR "Applications\klogg.exe" "" ""
-    WriteRegStr HKCR "Applications\klogg.exe\shell" "" "open"
-    WriteRegStr HKCR "Applications\klogg.exe\shell\open" "Klogg log viewer" "klogg"
-    WriteRegStr HKCR "Applications\klogg.exe\shell\open\command" "" '"$INSTDIR\klogg.exe" "%1"'
-    WriteRegStr HKCR "*\OpenWithList\klogg.exe" "" ""
-    WriteRegStr HKCR ".txt\OpenWithList\klogg.exe" "" ""
-    WriteRegStr HKCR ".Log\OpenWithList\klogg.exe" "" ""
-    WriteRegStr HKCR ".cap\OpenWithList\klogg.exe" "" ""
+    WriteRegStr HKCR "Applications\logsquirl.exe" "" ""
+    WriteRegStr HKCR "Applications\logsquirl.exe\shell" "" "open"
+    WriteRegStr HKCR "Applications\logsquirl.exe\shell\open" "LogSquirl log viewer" "logsquirl"
+    WriteRegStr HKCR "Applications\logsquirl.exe\shell\open\command" "" '"$INSTDIR\logsquirl.exe" "%1"'
+    WriteRegStr HKCR "*\OpenWithList\logsquirl.exe" "" ""
+    WriteRegStr HKCR ".txt\OpenWithList\logsquirl.exe" "" ""
+    WriteRegStr HKCR ".Log\OpenWithList\logsquirl.exe" "" ""
+    WriteRegStr HKCR ".cap\OpenWithList\logsquirl.exe" "" ""
 
     ; Register uninstaller
-    WriteRegExpandStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\klogg"\
+    WriteRegExpandStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl"\
 "UninstallString" '"$INSTDIR\Uninstall.exe"'
-    WriteRegExpandStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\klogg"\
+    WriteRegExpandStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl"\
 "InstallLocation" "$INSTDIR"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\klogg" "DisplayName" "klogg"
-    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\klogg" "DisplayVersion" "${VERSION}"
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\klogg" "NoModify" "1"
-    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\klogg" "NoRepair" "1"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl" "DisplayName" "LogSquirl"
+    WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl" "DisplayVersion" "${VERSION}"
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl" "NoModify" "1"
+    WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl" "NoRepair" "1"
 
     ; Create uninstaller
     WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -151,31 +151,31 @@ SectionEnd
 
 Section "Create Start menu shortcut" shortcut
     SetShellVarContext all
-    CreateShortCut "$SMPROGRAMS\klogg.lnk" "$INSTDIR\klogg.exe" "" "$INSTDIR\klogg.exe" 0
+    CreateShortCut "$SMPROGRAMS\logsquirl.lnk" "$INSTDIR\logsquirl.exe" "" "$INSTDIR\logsquirl.exe" 0
 SectionEnd
 
 Section /o "Associate with .log files" associate
-    ${registerExtension} "$INSTDIR\klogg.exe" ".log" "Log file"
+    ${registerExtension} "$INSTDIR\logsquirl.exe" ".log" "Log file"
 SectionEnd
 
 # Descriptions
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-    !insertmacro MUI_DESCRIPTION_TEXT ${klogg} "The core files required to use klogg."
-    !insertmacro MUI_DESCRIPTION_TEXT ${qtlibs} "Needed by klogg, you have to install these unless \
+    !insertmacro MUI_DESCRIPTION_TEXT ${logsquirl} "The core files required to use logsquirl."
+    !insertmacro MUI_DESCRIPTION_TEXT ${qtlibs} "Needed by logsquirl, you have to install these unless \
 you already have the Qt development kit installed."
-    !insertmacro MUI_DESCRIPTION_TEXT ${vcruntime} "Needed by klogg, you have to install these unless \
+    !insertmacro MUI_DESCRIPTION_TEXT ${vcruntime} "Needed by logsquirl, you have to install these unless \
 you already have the Microsoft Visual C++ 2017 Redistributable installed."
-    !insertmacro MUI_DESCRIPTION_TEXT ${shortcut} "Create a shortcut in the Start menu for klogg."
-    !insertmacro MUI_DESCRIPTION_TEXT ${associate} "Make klogg the default viewer for .log files."
+    !insertmacro MUI_DESCRIPTION_TEXT ${shortcut} "Create a shortcut in the Start menu for logsquirl."
+    !insertmacro MUI_DESCRIPTION_TEXT ${associate} "Make logsquirl the default viewer for .log files."
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 # Uninstaller
 Section "Uninstall"
     Delete "$INSTDIR\Uninstall.exe"
 
-    Delete "$INSTDIR\klogg.exe"
-    Delete "$INSTDIR\klogg_crashpad_handler.exe"
-    Delete "$INSTDIR\klogg_minidump_dump.exe"
+    Delete "$INSTDIR\logsquirl.exe"
+    Delete "$INSTDIR\logsquirl_crashpad_handler.exe"
+    Delete "$INSTDIR\logsquirl_minidump_dump.exe"
     Delete "$INSTDIR\README.md"
     Delete "$INSTDIR\COPYING"
     Delete "$INSTDIR\NOTICE"
@@ -208,8 +208,8 @@ Section "Uninstall"
     Delete "$INSTDIR\tbb12.dll"
     Delete "$INSTDIR\tbbmalloc.dll"
     Delete "$INSTDIR\tbbmalloc_proxy.dll"
-    Delete "$INSTDIR\klogg_tbbmalloc.dll"
-    Delete "$INSTDIR\klogg_tbbmalloc_proxy.dll"
+    Delete "$INSTDIR\logsquirl_tbbmalloc.dll"
+    Delete "$INSTDIR\logsquirl_tbbmalloc_proxy.dll"
     Delete "$INSTDIR\libcrypto-1_1-x64.dll"
     Delete "$INSTDIR\libssl-1_1-x64.dll"
     Delete "$INSTDIR\libcrypto-1_1.dll"
@@ -223,26 +223,26 @@ Section "Uninstall"
     RMDir "$INSTDIR"
 
     ; Remove settings in %appdata%
-    Delete "$APPDATA\klogg\klogg.ini"
-    RMDir "$APPDATA\klogg"
+    Delete "$APPDATA\logsquirl\logsquirl.ini"
+    RMDir "$APPDATA\logsquirl"
 
-    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\klogg"
+    DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl"
 
     ; Remove the file associations
     ${unregisterExtension} ".log" "Log file"
 
-    DeleteRegKey HKCR "*\OpenWithList\klogg.exe"
-    DeleteRegKey HKCR ".txt\OpenWithList\klogg.exe"
-    DeleteRegKey HKCR ".Log\OpenWithList\klogg.exe"
-    DeleteRegKey HKCR ".cap\OpenWithList\klogg.exe"
-    DeleteRegKey HKCR "Applications\klogg.exe\shell\open\command"
-    DeleteRegKey HKCR "Applications\klogg.exe\shell\open"
-    DeleteRegKey HKCR "Applications\klogg.exe\shell"
-    DeleteRegKey HKCR "Applications\klogg.exe"
+    DeleteRegKey HKCR "*\OpenWithList\logsquirl.exe"
+    DeleteRegKey HKCR ".txt\OpenWithList\logsquirl.exe"
+    DeleteRegKey HKCR ".Log\OpenWithList\logsquirl.exe"
+    DeleteRegKey HKCR ".cap\OpenWithList\logsquirl.exe"
+    DeleteRegKey HKCR "Applications\logsquirl.exe\shell\open\command"
+    DeleteRegKey HKCR "Applications\logsquirl.exe\shell\open"
+    DeleteRegKey HKCR "Applications\logsquirl.exe\shell"
+    DeleteRegKey HKCR "Applications\logsquirl.exe"
 
     ; Remove the shortcut, if any
     SetShellVarContext all
-    Delete "$SMPROGRAMS\klogg.lnk"
+    Delete "$SMPROGRAMS\logsquirl.lnk"
 SectionEnd
 
 ;!uninstfinalize 'packaging\windows\codesign_client.exe --debug "%1"'

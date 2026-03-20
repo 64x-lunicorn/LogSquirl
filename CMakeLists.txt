@@ -1,47 +1,47 @@
 cmake_minimum_required(VERSION 3.12)
 
 project(
-  klogg
+  logsquirl
   VERSION 24.11.0
-  DESCRIPTION "klogg log viewer"
+  DESCRIPTION "logsquirl log viewer"
   LANGUAGES C CXX ASM
 )
 
-set(PROJECT_HOMEPAGE_URL "https://github.com/variar/klogg")
+set(PROJECT_HOMEPAGE_URL "https://github.com/64x-lunicorn/LogSquirl")
 
 string(TIMESTAMP PRODUCT_CURRENT_YEAR "%Y")
-set(COMPANY "Anton Filimonov")
-set(COPYRIGHT "Copyright (c) ${PRODUCT_CURRENT_YEAR} Nicolas Bonnefon, Anton Filimonov and other contributors.")
-set(IDENTIFIER "com.github.variar.klogg")
+set(COMPANY "LogSquirl Contributors")
+set(COPYRIGHT "Copyright (c) ${PRODUCT_CURRENT_YEAR} LogSquirl Contributors. Based on klogg by Anton Filimonov and glogg by Nicolas Bonnefon.")
+set(IDENTIFIER "io.github.logsquirl")
 set(PROJECT_DESCRIPTION "${PROJECT_NAME} log viewer")
 
-option(KLOGG_BUILD_TESTS "Build tests" ON)
-option(KLOGG_USE_LTO "Use link time optimization" ON)
-option(KLOGG_USE_SENTRY "Use Sentry" OFF)
-option(KLOGG_GENERIC_CPU "Build for generic CPU" OFF)
-option(KLOGG_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
+option(LOGSQUIRL_BUILD_TESTS "Build tests" ON)
+option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
+option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
+option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
+option(LOGSQUIRL_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
-  set(KLOGG_ARCH 32)
+  set(LOGSQUIRL_ARCH 32)
 else()
-  set(KLOGG_ARCH 64)
+  set(LOGSQUIRL_ARCH 64)
 endif()
 
 if(WIN32)
-  if(KLOGG_ARCH EQUAL 64)
-    option(KLOGG_USE_HYPERSCAN "Use Hyperscan" ON)
-    option(KLOGG_USE_VECTORSCAN "Use Vectorscan" OFF)
+  if(LOGSQUIRL_ARCH EQUAL 64)
+    option(LOGSQUIRL_USE_HYPERSCAN "Use Hyperscan" ON)
+    option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" OFF)
   else()
-    option(KLOGG_USE_HYPERSCAN "Use Hyperscan" OFF)
-    option(KLOGG_USE_VECTORSCAN "Use Vectorscan" OFF)
+    option(LOGSQUIRL_USE_HYPERSCAN "Use Hyperscan" OFF)
+    option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" OFF)
   endif()
 else()
-    option(KLOGG_USE_HYPERSCAN "Use Hyperscan" OFF)
-    option(KLOGG_USE_VECTORSCAN "Use Vectorscan" ON)
+    option(LOGSQUIRL_USE_HYPERSCAN "Use Hyperscan" OFF)
+    option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" ON)
 endif()
 
 set(BUILD_VERSION
-    $ENV{KLOGG_VERSION}
+    $ENV{LOGSQUIRL_VERSION}
     CACHE STRING "build version"
 )
 set(BUILD_NUMBER
@@ -59,9 +59,9 @@ set(DOCUMENTATION_HTML ${CMAKE_BINARY_DIR}/generated/documentation.html)
 set(DOCUMENTATION_RESOURCE ${CMAKE_BINARY_DIR}/generated/documentation.qrc)
 
 if(WIN32)
-  set(ICON_NAME klogg.ico)
+  set(ICON_NAME logsquirl.ico)
 elseif(APPLE)
-  set(ICON_NAME klogg.icns)
+  set(ICON_NAME logsquirl.icns)
 endif()
 
 if(NOT
@@ -130,7 +130,7 @@ else()
     ucm_add_flags(C CXX "-march=native -mtune=generic")
   else()
     ucm_add_flags(C CXX "-mmmx -msse -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mpopcnt")
-    if(KLOGG_GENERIC_CPU)
+    if(LOGSQUIRL_GENERIC_CPU)
       ucm_add_flags(C CXX "-march=x86-64 -mtune=generic")
     else()
       ucm_add_flags(C CXX "-march=native -mtune=generic")
@@ -201,14 +201,14 @@ find_package(
   REQUIRED
 )
 
-set(KLOGG_QT_VERSION ${Qt${QT_VERSION_MAJOR}Core_VERSION})
+set(LOGSQUIRL_QT_VERSION ${Qt${QT_VERSION_MAJOR}Core_VERSION})
 
-message("Qt version ${KLOGG_QT_VERSION}")
-message("LTO ${KLOGG_USE_LTO}")
+message("Qt version ${LOGSQUIRL_QT_VERSION}")
+message("LTO ${LOGSQUIRL_USE_LTO}")
 
 if(APPLE)
-  if(${KLOGG_OSX_DEPLOYMENT_TARGET})
-    set(CMAKE_OSX_DEPLOYMENT_TARGET ${KLOGG_OSX_DEPLOYMENT_TARGET})
+  if(${LOGSQUIRL_OSX_DEPLOYMENT_TARGET})
+    set(CMAKE_OSX_DEPLOYMENT_TARGET ${LOGSQUIRL_OSX_DEPLOYMENT_TARGET})
     message("OSX target ${CMAKE_OSX_DEPLOYMENT_TARGET}")
   endif()
 endif()
@@ -224,9 +224,9 @@ add_subdirectory(src)
 add_subdirectory(website)
 
 enable_testing()
-add_test(NAME klogg_smoke COMMAND klogg -platform offscreen -v)
+add_test(NAME logsquirl_smoke COMMAND logsquirl -platform offscreen -v)
 
-if(${KLOGG_BUILD_TESTS})
+if(${LOGSQUIRL_BUILD_TESTS})
   add_subdirectory(tests)
 endif()
 
@@ -248,7 +248,7 @@ set(CPACK_PACKAGE_ICON "${ICON_FILE}")
 if(UNIX)
   include(InstallRequiredSystemLibraries)
 
-  set(CPACK_STRIP_FILES "bin/klogg")
+  set(CPACK_STRIP_FILES "bin/logsquirl")
 
   if(APPLE)
     set(CPACK_GENERATOR "DragNDrop")
@@ -259,19 +259,19 @@ if(UNIX)
     set(CPACK_DMG_DS_STORE_SETUP_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/packaging/osx/dmg_setup.scpt")
 
   else()
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/16x16/klogg.png
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/16x16/logsquirl.png
             DESTINATION share/icons/hicolor/16x16/apps
     )
 
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/32x32/klogg.png
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/32x32/logsquirl.png
             DESTINATION share/icons/hicolor/32x32/apps
     )
 
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/48x48/klogg.png
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/48x48/logsquirl.png
             DESTINATION share/icons/hicolor/48x48/apps
     )
 
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/scalable/klogg.svg
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/app/images/hicolor/scalable/logsquirl.svg
             DESTINATION share/icons/hicolor/scalable/apps
     )
 
@@ -284,23 +284,23 @@ if(UNIX)
       DESTINATION ${CMAKE_INSTALL_DOCDIR}
     )
 
-    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/klogg.desktop DESTINATION share/applications)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/logsquirl.desktop DESTINATION share/applications)
 
     set(CPACK_GENERATOR DEB)
 
     #deb
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
     set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
-    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "http://github.com/variar/klogg")
-    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Anton Filimonov <${CPACK_PACKAGE_CONTACT}>")
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/64x-lunicorn/LogSquirl")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "LogSquirl Contributors <${CPACK_PACKAGE_CONTACT}>")
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS YES)
 
     #RPM
     set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
     set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
     set(CPACK_RPM_PACKAGE_AUTOREQ YES)
-    #set(CPACK_RPM_PACKAGE_REQUIRES "qt5-qtbase >= ${KLOGG_QT_VERSION}")
-    set(CPACK_RPM_PACKAGE_URL "http://github.com/variar/klogg")
+    #set(CPACK_RPM_PACKAGE_REQUIRES "qt5-qtbase >= ${LOGSQUIRL_QT_VERSION}")
+    set(CPACK_RPM_PACKAGE_URL "https://github.com/64x-lunicorn/LogSquirl")
     set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
         /usr/share/applications
         /usr/share/icons
@@ -319,17 +319,17 @@ endif()
 # for IDE grouping
 add_custom_target(
   installation
-  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/klogg.nsi
-          ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/klogg.desktop
+  SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/packaging/windows/logsquirl.nsi
+          ${CMAKE_CURRENT_SOURCE_DIR}/packaging/linux/logsquirl.desktop
           ${CMAKE_CURRENT_SOURCE_DIR}/cmake/MacOSXBundleInfo.plist.in
 )
 
 add_custom_target(
-  klogg_docs
+  logsquirl_docs
   SOURCES ${README_FILE}
           ${COPYING_FILE}
           ${NOTICE_FILE}
           ${DOCUMENTATION_FILE}
 )
 
-add_custom_target(klogg_stuff SOURCES .clang-format .clang-tidy .cmake-format)
+add_custom_target(logsquirl_stuff SOURCES .clang-format .clang-tidy .cmake-format)

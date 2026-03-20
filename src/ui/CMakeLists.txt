@@ -1,5 +1,5 @@
 add_library(
-  klogg_ui STATIC
+  logsquirl_ui STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/abstractlogview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/crawlerwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filteredview.h
@@ -94,31 +94,31 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
 )
 
-set_target_properties(klogg_ui PROPERTIES AUTOUIC ON)
-set_target_properties(klogg_ui PROPERTIES AUTOMOC ON)
+set_target_properties(logsquirl_ui PROPERTIES AUTOUIC ON)
+set_target_properties(logsquirl_ui PROPERTIES AUTOMOC ON)
 
 set_property(
-  TARGET klogg_ui
+  TARGET logsquirl_ui
   APPEND
   PROPERTY AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 )
 
-if(KLOGG_USE_LTO)
-  set_property(TARGET klogg_ui PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+if(LOGSQUIRL_USE_LTO)
+  set_property(TARGET logsquirl_ui PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
 
-target_include_directories(klogg_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories(logsquirl_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(
-  klogg_ui
+  logsquirl_ui
   PUBLIC project_options
          project_warnings
-         klogg_logdata
-         klogg_versioncheck
-         klogg_karchive
+         logsquirl_logdata
+         logsquirl_versioncheck
+         logsquirl_karchive
          Qt${QT_VERSION_MAJOR}::Widgets
          Qt${QT_VERSION_MAJOR}::Xml
 )
 
 if(WIN32)
-  target_link_libraries(klogg_ui PUBLIC user32)
+  target_link_libraries(logsquirl_ui PUBLIC user32)
 endif()

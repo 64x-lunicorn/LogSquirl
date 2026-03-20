@@ -20,20 +20,20 @@
 /*
  * Copyright (C) 2016 -- 2019 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 // This file implements LogData, the content of a log file.
@@ -324,7 +324,7 @@ QString LogData::doGetExpandedLineString( LineNumber line ) const
 // Note this function is also called from the LogFilteredDataWorker thread, so
 // data must be protected because they are changed in the main thread (by
 // indexingFinished).
-klogg::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount number ) const
+logsquirl::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount number ) const
 {
     return getLinesFromFile( first_line, number, []( QString&& lineData ) {
         if ( lineData.endsWith( QChar::CarriageReturn ) ) {
@@ -334,7 +334,7 @@ klogg::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount nu
     } );
 }
 
-klogg::vector<QString> LogData::doGetExpandedLines( LineNumber first_line, LinesCount number ) const
+logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line, LinesCount number ) const
 {
     return getLinesFromFile( first_line, number, []( QString&& lineData ) {
         return untabify( std::move( lineData ) );
@@ -372,7 +372,7 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
                   ? 0
                   : scopedAccessor.getEndOfLineOffset( firstLine - 1_lcount ).get();
 
-        klogg::vector<OffsetInFile> endOfLines
+        logsquirl::vector<OffsetInFile> endOfLines
             = scopedAccessor.getEndOfLineOffsets( firstLine, number );
 
         const auto lastByte = endOfLines.back().get();
@@ -404,16 +404,16 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
     }
 }
 
-klogg::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, LinesCount number,
+logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, LinesCount number,
                                                   QString ( *processLine )( QString&& ) ) const
 {
     LOG_DEBUG << "firstLine:" << firstLine << " nb:" << number;
 
     if ( number.get() == 0 ) {
-        return klogg::vector<QString>();
+        return logsquirl::vector<QString>();
     }
 
-    klogg::vector<QString> processedLines;
+    logsquirl::vector<QString> processedLines;
     try {
         const auto rawLines = getLinesRaw( firstLine, number );
         auto decodedLines = rawLines.decodeLines();
@@ -426,12 +426,12 @@ klogg::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, LinesCou
 
     } catch ( const std::bad_alloc& e ) {
         LOG_ERROR << "not enough memory " << e.what();
-        processedLines.emplace_back( "KLOGG WARNING: not enough memory" );
+        processedLines.emplace_back( "LOGSQUIRL WARNING: not enough memory" );
     }
 
     processedLines.reserve( number.get() - processedLines.size() );
     while ( processedLines.size() < number.get() ) {
-        processedLines.emplace_back( "KLOGG WARNING: failed to read some lines before this one" );
+        processedLines.emplace_back( "LOGSQUIRL WARNING: failed to read some lines before this one" );
     }
 
     return processedLines;
@@ -452,13 +452,13 @@ void LogData::doDetachReader() const
     attached_file_->detachReader();
 }
 
-klogg::vector<QString> LogData::RawLines::decodeLines() const
+logsquirl::vector<QString> LogData::RawLines::decodeLines() const
 {
     if ( this->endOfLines.empty() ) {
-        return klogg::vector<QString>();
+        return logsquirl::vector<QString>();
     }
 
-    klogg::vector<QString> decodedLines;
+    logsquirl::vector<QString> decodedLines;
     decodedLines.reserve( this->endOfLines.size() );
 
     try {
@@ -472,12 +472,12 @@ klogg::vector<QString> LogData::RawLines::decodeLines() const
 
             constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
             if ( length >= maxlength ) {
-                decodedLines.emplace_back( "KLOGG WARNING: this line is too long" );
+                decodedLines.emplace_back( "LOGSQUIRL WARNING: this line is too long" );
                 break;
             }
 
-            if ( lineStart + length > klogg::ssize( buffer ) ) {
-                decodedLines.emplace_back( "KLOGG WARNING: file read failed" );
+            if ( lineStart + length > logsquirl::ssize( buffer ) ) {
+                decodedLines.emplace_back( "LOGSQUIRL WARNING: file read failed" );
                 LOG_WARNING << "not enough data in buffer";
                 break;
             }
@@ -495,20 +495,20 @@ klogg::vector<QString> LogData::RawLines::decodeLines() const
         }
     } catch ( const std::bad_alloc& ) {
         LOG_ERROR << "not enough memory";
-        decodedLines.emplace_back( "KLOGG WARNING: not enough memory" );
+        decodedLines.emplace_back( "LOGSQUIRL WARNING: not enough memory" );
     }
 
     decodedLines.reserve( this->endOfLines.size() - decodedLines.size() );
     while ( decodedLines.size() < this->endOfLines.size() ) {
-        decodedLines.emplace_back( "KLOGG WARNING: failed to decode some lines before this one" );
+        decodedLines.emplace_back( "LOGSQUIRL WARNING: failed to decode some lines before this one" );
     }
 
     return decodedLines;
 }
 
-klogg::vector<std::string_view> LogData::RawLines::buildUtf8View() const
+logsquirl::vector<std::string_view> LogData::RawLines::buildUtf8View() const
 {
-    klogg::vector<std::string_view> lines;
+    logsquirl::vector<std::string_view> lines;
     if ( this->endOfLines.empty() || textDecoder.decoder == nullptr ) {
         return lines;
     }
@@ -529,10 +529,10 @@ klogg::vector<std::string_view> LogData::RawLines::buildUtf8View() const
             QString utf16Data;
             if ( prefilterPattern.pattern().isEmpty() && textDecoder.encodingParams.isUtf16LE ) {
                 utf16Data = QString::fromRawData( reinterpret_cast<const QChar*>( buffer.data() ),
-                                                  klogg::isize( buffer ) / 2 );
+                                                  logsquirl::isize( buffer ) / 2 );
             }
             else {
-                utf16Data = textDecoder.decoder->toUnicode( buffer.data(), klogg::isize( buffer ) );
+                utf16Data = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
             }
 
             if ( !prefilterPattern.pattern().isEmpty() ) {
@@ -568,7 +568,7 @@ klogg::vector<std::string_view> LogData::RawLines::buildUtf8View() const
     } catch ( const std::exception& e ) {
         LOG_ERROR << "failed to transform lines to utf8 " << e.what();
         const auto lastLineOffset = utf8Data_.size();
-        // utf8Data_.append( "KLOGG WARNING: not enough memory, try decrease search buffer" );
+        // utf8Data_.append( "LOGSQUIRL WARNING: not enough memory, try decrease search buffer" );
         lines.reserve( this->endOfLines.size() - lines.size() );
         while ( lines.size() < this->endOfLines.size() ) {
             lines.emplace_back( utf8Data_.data() + lastLineOffset,

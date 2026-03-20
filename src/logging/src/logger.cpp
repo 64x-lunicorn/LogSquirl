@@ -1,20 +1,20 @@
 /*
  * Copyright (C) 2021 Anton Filimonov and other contributors
  *
- * This file is part of klogg.
+ * This file is part of logsquirl.
  *
- * klogg is free software: you can redistribute it and/or modify
+ * logsquirl is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
- * klogg is distributed in the hope that it will be useful,
+ * logsquirl is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with klogg.  If not, see <http://www.gnu.org/licenses/>.
+ * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "logger.h"
@@ -34,11 +34,11 @@
 
 namespace logging {
 
-void kloggFileMessageHandler( QtMsgType type, const QMessageLogContext& context,
+void logsquirlFileMessageHandler( QtMsgType type, const QMessageLogContext& context,
                               const QString& msg );
-void kloggConsoleMessageHandler( QtMsgType type, const QMessageLogContext& context,
+void logsquirlConsoleMessageHandler( QtMsgType type, const QMessageLogContext& context,
                                  const QString& msg );
-void kloggNoopMessageHandler( QtMsgType, const QMessageLogContext&, const QString& ) {}
+void logsquirlNoopMessageHandler( QtMsgType, const QMessageLogContext&, const QString& ) {}
 
 class Logger {
   public:
@@ -103,7 +103,7 @@ class Logger {
 
         if ( isEnabled && !logFile_ ) {
             auto logFileName
-                = QString( "klogg_%1_%2.log" )
+                = QString( "logsquirl_%1_%2.log" )
                       .arg( QDateTime::currentDateTime().toString( "yyyy-MM-dd_HH-mm-ss" ) )
                       .arg( QCoreApplication::applicationPid() );
 
@@ -138,13 +138,13 @@ class Logger {
     void setMessageHandler()
     {
         if ( !isAnyEnabled() ) {
-            qInstallMessageHandler( logging::kloggNoopMessageHandler );
+            qInstallMessageHandler( logging::logsquirlNoopMessageHandler );
         }
         else if ( logFile_ ) {
-            qInstallMessageHandler( logging::kloggFileMessageHandler );
+            qInstallMessageHandler( logging::logsquirlFileMessageHandler );
         }
         else {
-            qInstallMessageHandler( logging::kloggConsoleMessageHandler );
+            qInstallMessageHandler( logging::logsquirlConsoleMessageHandler );
         }
     }
 
@@ -191,13 +191,13 @@ void enableFileLogging( bool isEnabled, LogLevel logLevel )
     Logger::instance().enableFileLogging( isEnabled, static_cast<uint8_t>( logLevel ) );
 }
 
-void kloggFileMessageHandler( QtMsgType type, const QMessageLogContext& context,
+void logsquirlFileMessageHandler( QtMsgType type, const QMessageLogContext& context,
                               const QString& msg )
 {
     Logger::instance().fileMessageHandler( type, context, msg );
 }
 
-void kloggConsoleMessageHandler( QtMsgType type, const QMessageLogContext& context,
+void logsquirlConsoleMessageHandler( QtMsgType type, const QMessageLogContext& context,
                                  const QString& msg )
 {
     Logger::instance().consoleMessageHandler( type, context, msg );

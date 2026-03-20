@@ -1,8 +1,10 @@
-[klogg]
-Copyright (c) 2016 -- 2021 Anton Filimonov
+[LogSquirl]
+This is a fork of the project "klogg" (https://github.com/variar/klogg).
+This fork has been renamed to "LogSquirl" and further developed.
+All changes are documented in the Git history.
 
-klogg is free software; you can redistribute it and/or modify it under
-the terms of the GNU General PubLic License as published by the Free
+LogSquirl is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free
 Software Foundation; either version 3 of the License, or (at your option)
 any later version.
 
@@ -12,9 +14,28 @@ or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
 for more details.
 
 ===
+This product is based on software developed by Anton Filimonov:
+klogg (https://github.com/variar/klogg) licensed under the terms
+of the GNU General Public License as published by the Free Software
+Foundation; either version 3 of the License, or (at your option)
+any later version.
+
+> Copyright (c) 2016 -- 2021 Anton Filimonov and other contributors
+>
+> klogg is free software; you can redistribute it and/or modify it under
+> the terms of the GNU General Public License as published by the Free
+> Software Foundation; either version 3 of the License, or (at your option)
+> any later version.
+>
+> This program is distributed in the hope that it will be useful, but
+> WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+> or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+> for more details.
+
+===
 This product is based on software developed by Nicolas Bonnefon:
 glogg (https://github.com/nickbnf/glogg) licensed under the terms
-of the GNU General PubLic License as published by the Free Software
+of the GNU General Public License as published by the Free Software
 Foundation; either version 3 of the License, or (at your option)
 any later version.
 

@@ -1,0 +1,9 @@
+name: "Prepare logsquirl version env var"
+description: ""
+runs:
+  using: "composite"
+  steps:
+    - name: Set logsquirl version
+      shell: sh
+      run: |
+        echo "LOGSQUIRL_VERSION=24.11.0.$((${{ github.run_number }} + 717))" >> $GITHUB_ENV 

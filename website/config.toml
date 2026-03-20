@@ -1,6 +1,6 @@
-baseURL = "https://klogg.filimonov.dev/"
+baseURL = "/"
 languageCode = "en-us"
-title = "KLOGG"
+title = "LogSquirl"
 
 theme = 'hugo-book'
 disableKinds = ['taxonomy', 'taxonomyTerm']
@@ -18,7 +18,7 @@ disableKinds = ['taxonomy', 'taxonomyTerm']
 
   # (Optional, default none) Set the path to a logo for the book. If the logo is
   # /static/logo.png then the path would be logo.png
-  BookLogo = 'klogg.png'
+  BookLogo = 'logsquirl.png'
 
   # (Optional, default none) Set leaf bundle to render as side menu
   # When not specified file structure and weights will be used
@@ -33,7 +33,7 @@ disableKinds = ['taxonomy', 'taxonomyTerm']
 
   # Set source repository location.
   # Used for 'Last Modified' and 'Edit this page' links.
-  BookRepo = 'https://github.com/variar/klogg'
+  BookRepo = 'https://github.com/variar/logsquirl'
 
   # Enable "Edit this page" links for 'doc' page type.
   # Disabled by default. Uncomment to enable. Requires 'BookRepo' param.

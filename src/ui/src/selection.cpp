@@ -133,9 +133,9 @@ OptionalLineNumber Selection::selectedLine() const
     return selectedLine_;
 }
 
-klogg::vector<LineNumber> Selection::getLines() const
+logsquirl::vector<LineNumber> Selection::getLines() const
 {
-    klogg::vector<LineNumber> selection;
+    logsquirl::vector<LineNumber> selection;
 
     if ( selectedLine_.has_value() ) {
         selection.push_back( *selectedLine_ );
@@ -165,7 +165,7 @@ QString Selection::getSelectedText( const AbstractLogData* logData, bool lineNum
     QString text;
 
     const auto selectionSizeEstimate = std::accumulate(
-        selectionData.begin(), selectionData.end(), klogg::isize( selectionData ),
+        selectionData.begin(), selectionData.end(), logsquirl::isize( selectionData ),
         []( const auto& acc, const auto& next ) { return acc + next.second.size(); } );
 
     text.reserve( selectionSizeEstimate );

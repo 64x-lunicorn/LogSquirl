@@ -3,7 +3,7 @@
 //
 #pragma once
 
-namespace klogg {
+namespace logsquirl {
 namespace mainwindow {
 namespace menu {
 extern const char* fileTitle;
@@ -96,4 +96,4 @@ extern const char* autoEncodingStatusTip;
 
 } // namespace mainwindow
 
-} // namespace klogg
+} // namespace logsquirl

@@ -18,15 +18,15 @@ Crash report provides information about:
 
  - operating system: name, version, architecture
  - Qt version
- - modules that were loaded into klogg process: filename, size and hashes for symbols 
- - stacktraces for all running threads in klogg process
+ - modules that were loaded into logsquirl process: filename, size and hashes for symbols 
+ - stacktraces for all running threads in logsquirl process
 
-These minidumps do not include content of klogg process memory during the crash. 
+These minidumps do not include content of logsquirl process memory during the crash. 
 
 ### A word abour privacy
 
-Although crash dumps can make fixing bugs easier, privacy of klogg users is far more important.
-So crash reporting is not automated. If during startup klogg finds minidumps from previous runs, 
+Although crash dumps can make fixing bugs easier, privacy of logsquirl users is far more important.
+So crash reporting is not automated. If during startup logsquirl finds minidumps from previous runs, 
 it will show a dialog asking user to look through generated crash report and confirm sending it
 to Sentry servers. Unsent reports are deleted. Crash reports are anonymous and do not include
 any information to identify users or their computers (like hardware ids, hostames, usernames etc.). 

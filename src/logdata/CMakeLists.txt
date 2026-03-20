@@ -1,5 +1,5 @@
 add_library(
-  klogg_logdata STATIC
+  logsquirl_logdata STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/abstractlogdata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/compressedlinestorage.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdetector.h
@@ -28,35 +28,35 @@ add_library(
   src/filedigest.cpp
 )
 
-set_target_properties(klogg_logdata PROPERTIES AUTOMOC ON)
+set_target_properties(logsquirl_logdata PROPERTIES AUTOMOC ON)
 
-target_include_directories(klogg_logdata PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_compile_definitions(klogg_logdata PUBLIC "-DQT_NO_KEYWORDS")
+target_include_directories(logsquirl_logdata PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_compile_definitions(logsquirl_logdata PUBLIC "-DQT_NO_KEYWORDS")
 
 target_link_libraries(
-  klogg_logdata
+  logsquirl_logdata
   PUBLIC project_options
          project_warnings
-         klogg_crash_handler
-         klogg_settings
-         klogg_utils
-         klogg_regex
-         klogg_filewatch
+         logsquirl_crash_handler
+         logsquirl_settings
+         logsquirl_utils
+         logsquirl_regex
+         logsquirl_filewatch
          Qt${QT_VERSION_MAJOR}::Core
          roaring
          roaring-headers-cpp
          roaring-headers
          tbb
          type_safe
-         klogg_uchardet_wrapper
+         logsquirl_uchardet_wrapper
          kdtoolbox
          robin_hood
          simdutf
          streamvbyte
-         klogg_mimalloc_wrapper
+         logsquirl_mimalloc_wrapper
 )
 
-target_link_libraries(klogg_logdata PRIVATE xxhash)
+target_link_libraries(logsquirl_logdata PRIVATE xxhash)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
   find_package(
@@ -64,9 +64,9 @@ if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     COMPONENTS Core5Compat
     REQUIRED
   )
-  target_link_libraries(klogg_logdata PUBLIC Qt${QT_VERSION_MAJOR}::Core5Compat)
+  target_link_libraries(logsquirl_logdata PUBLIC Qt${QT_VERSION_MAJOR}::Core5Compat)
 endif()
 
-if(KLOGG_USE_LTO)
-  set_property(TARGET klogg_logdata PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+if(LOGSQUIRL_USE_LTO)
+  set_property(TARGET logsquirl_logdata PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
