@@ -192,6 +192,21 @@ Do **not** remove existing copyright headers from forked files. Add a new block 
 - **Pull requests**: Keep PRs small and focused — one feature or fix per PR.
 - **CI**: GitHub Actions runs builds on Linux (Ubuntu, Oracle Linux), macOS, and Windows.
 
+If possible commit message should be like prefix: message, where prefix is one of
+
+  feat = 'Features',
+  fix = 'Bug Fixes',
+  docs = 'Documentation',
+  style = 'Styles',
+  refactor = 'Code Refactoring',
+  perf = 'Performance Improvements',
+  test = 'Tests',
+  build = 'Builds',
+  ci = 'Continuous Integration',
+  chore = 'Chores',
+  revert = 'Reverts',
+  tr = 'Translations'
+
 ## Build Commands
 
 ```bash
