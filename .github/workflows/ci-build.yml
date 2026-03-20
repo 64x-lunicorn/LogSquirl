@@ -26,7 +26,7 @@ on:
 jobs:
   SaveVersion:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/logsquirl-version
@@ -70,18 +70,6 @@ jobs:
             container: variar/klogg_oracle8
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
-          - os: ubuntu_focal
-            os_version: 20.04
-            arch: x64
-            check_command: apt-get update && apt install --dry-run /usr/local/logsquirl*.deb
-            cpack_gen: DEB
-            artifacts_id: focal
-            package_suffix: deb
-            check_container: ubuntu:20.04
-            container_root: docker/ubuntu20.04
-            container: variar/klogg_ubuntu20.04
-            cmake_opts:
-          
           - os: ubuntu_jammy
             os_version: 22.04
             arch: x64
@@ -107,16 +95,16 @@ jobs:
             cmake_opts:
 
           - os: ubuntu_appimage
-            os_version: 20.04
+            os_version: 22.04
             arch: x64
             artifacts_id: appimage
             package_suffix: AppImage
-            container_root: docker/ubuntu20.04
-            container: variar/klogg_ubuntu20.04
+            container_root: docker/ubuntu22.04
+            container: variar/klogg_ubuntu22.04
             cmake_opts:
 
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -149,29 +137,25 @@ jobs:
       matrix:
         config:
           - os: macos
-            os_version: 13
+            runner: macos-26-intel
             qt_version: 6.7.3
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: x64
             artifacts_id: macos-intel-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=13.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
           - os: macos
-            os_version: 14
+            runner: macos-26
             qt_version: 6.7.3
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: arm64
             artifacts_id: macos-arm-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=14.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
 
-    runs-on: ${{ matrix.config.os }}-${{ matrix.config.os_version }}
+    runs-on: ${{ matrix.config.runner }}
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Xcode
-        shell: sh
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app
 
 #Install build deps
       - name: Set brew env
@@ -210,7 +194,7 @@ jobs:
       matrix:
         config:
           - os: windows
-            os_version: 2022
+            runner: windows-2025
             qt_version: 6.7.3
             qt_modules: qt5compat
             qt_arch: win64_msvc2019_64
@@ -219,15 +203,7 @@ jobs:
             cmake_opts:
             artifacts_id: windows-x64-qt6
 
-          - os: windows
-            os_version: 2022
-            qt_version: 5.15.2
-            qt_arch: win32_msvc2019
-            arch: x86
-            cmake_opts:
-            artifacts_id: windows-x86-qt5
-
-    runs-on: ${{ matrix.config.os }}-${{ matrix.config.os_version }}
+    runs-on: ${{ matrix.config.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -236,13 +212,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}\openssl-3
-          key: OpensslCache-3-5-0
+          key: OpensslCache-3-choco-x64
 
-      - name: Download openssl
+      - name: Install openssl
         if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }} 
         run: |
-          Invoke-WebRequest -Uri "https://www.firedaemon.com/download-firedaemon-openssl-3-zip" -OutFile openssl.zip
-          7z x openssl.zip 
+          choco install openssl --no-progress -y
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\openssl-3\x64\bin"
+          Copy-Item "C:\Program Files\OpenSSL-Win64\bin\*.dll" "${{ github.workspace }}\openssl-3\x64\bin\"
 
       - name: Set openssl paths
         shell: sh
