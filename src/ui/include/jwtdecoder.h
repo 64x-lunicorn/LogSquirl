@@ -38,7 +38,7 @@ inline QByteArray decodeBase64Url( const QByteArray& input )
     base64.replace( '-', '+' );
     base64.replace( '_', '/' );
 
-    const int pad = ( 4 - base64.size() % 4 ) % 4;
+    const int pad = static_cast<int>( ( 4 - base64.size() % 4 ) % 4 );
     base64.append( pad, '=' );
 
     return QByteArray::fromBase64( base64 );
