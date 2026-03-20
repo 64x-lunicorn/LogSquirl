@@ -142,6 +142,7 @@ if(NOT _KARCHIVE_FOUND)
     foreach(_karchive_src
       "${Klogg_KArchive_SOURCE_DIR}/karchive/src/karchive.cpp"
       "${Klogg_KArchive_SOURCE_DIR}/karchive/src/kar.cpp"
+      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/krcc.cpp"
     )
       if(EXISTS "${_karchive_src}")
         file(READ "${_karchive_src}" _karchive_content)
@@ -390,6 +391,17 @@ if(LOGSQUIRL_USE_SENTRY)
      CACHE INTERNAL "" FORCE
   )
 
+  # Crashpad requires CMAKE_OSX_SYSROOT to locate mach/*.defs files.
+  # With Makefile/Ninja generators CMake may leave this empty; detect it.
+  if(APPLE AND NOT CMAKE_OSX_SYSROOT)
+    execute_process(
+      COMMAND xcrun --show-sdk-path
+      OUTPUT_VARIABLE _osx_sdk_path
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    set(CMAKE_OSX_SYSROOT "${_osx_sdk_path}" CACHE STRING "" FORCE)
+  endif()
+
   cpmaddpackage(
     NAME
     sentry
@@ -400,6 +412,30 @@ if(LOGSQUIRL_USE_SENTRY)
     EXCLUDE_FROM_ALL
     YES
   )
+
+  # GCC 15 / Clang 17+ no longer transitively include <cstdint> from standard
+  # headers.  The pinned crashpad revision uses uint64_t etc. without including
+  # <cstdint> in several files.  Force-include the header for all crashpad targets.
+  # Use a generator expression so the C++ header is only applied to CXX sources
+  # (crashpad_util also compiles MIG-generated .c files).
+  if(MSVC)
+    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:/FIcstdint>")
+  else()
+    set(_sentry_cstdint_flag "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include cstdint>")
+  endif()
+  set(_sentry_cstdint_targets
+      sentry crashpad_client crashpad_compat crashpad_util crashpad_handler
+      crashpad_minidump crashpad_snapshot crashpad_tools mini_chromium)
+  foreach(_t ${_sentry_cstdint_targets})
+    if(TARGET ${_t})
+      get_target_property(_t_type ${_t} TYPE)
+      if(_t_type STREQUAL "INTERFACE_LIBRARY")
+        target_compile_options(${_t} INTERFACE ${_sentry_cstdint_flag})
+      else()
+        target_compile_options(${_t} PRIVATE ${_sentry_cstdint_flag})
+      endif()
+    endif()
+  endforeach()
 
   if(WIN32)
     set_target_properties(crashpad_handler PROPERTIES OUTPUT_NAME "logsquirl_crashpad_handler.exe")

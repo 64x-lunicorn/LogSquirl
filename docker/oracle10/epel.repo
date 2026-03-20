@@ -1,20 +1,6 @@
-[ol10_developer_EPEL]
-name=Oracle Linux $releasever Development Packages ($basearch)
-baseurl=https://yum.oracle.com/repo/OracleLinux/OL10/developer/EPEL/x86_64
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
-gpgcheck=1
-enabled=1
-
-[ol10_appstream]
-name=Oracle Linux AppStream
-baseurl=https://yum.oracle.com/repo/OracleLinux/OL10/appstream/x86_64
-gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
-gpgcheck=1
-enabled=1
-
 [ol10_codeready_builder]
-name=Oracle Linux CodeReady Builder
-baseurl=https://yum.oracle.com/repo/OracleLinux/OL10/codeready/builder/x86_64
+name=Oracle Linux 10 CodeReady Builder ($basearch)
+baseurl=https://yum.oracle.com/repo/OracleLinux/OL10/codeready/builder/$basearch
 gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-oracle
 gpgcheck=1
 enabled=1
