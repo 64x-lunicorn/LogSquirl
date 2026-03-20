@@ -40,8 +40,8 @@ runs:
         echo "=== Available signing identities ==="
         security find-identity -v -p codesigning || true
         security find-identity -v || true
-        CODESIGN_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*/"\(.*\)"/\1/')
-        INSTALLER_ID=$(security find-identity -v | grep "Developer ID Installer" | head -1 | sed 's/.*/"\(.*\)"/\1/')
+        CODESIGN_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
+        INSTALLER_ID=$(security find-identity -v | grep "Developer ID Installer" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
         if [ -z "$CODESIGN_ID" ]; then
           echo "::warning::No Developer ID Application identity found in keychain. App will not be signed."
         else
