@@ -104,7 +104,7 @@ QuickFindWidget::QuickFindWidget( QWidget* parent )
     connect( editQuickFind_, &QLineEdit::textEdited, this, &QuickFindWidget::textChanged );
     connect( editQuickFind_, &QLineEdit::returnPressed, this, &QuickFindWidget::returnHandler );
 
-#if QT_VERSION >= QT_VERSION_CHECK( 6, 9, 0 )
+#if QT_VERSION >= QT_VERSION_CHECK( 6, 7, 0 )
     connect( ignoreCaseCheck_, &QCheckBox::checkStateChanged, this, [ this ] {
 #else
     connect( ignoreCaseCheck_, &QCheckBox::stateChanged, this, [ this ] {
