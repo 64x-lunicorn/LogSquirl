@@ -200,7 +200,7 @@ jobs:
             runner: windows-2025
             qt_version: 6.8.2
             qt_modules: qt5compat
-            qt_arch: win64_msvc2019_64
+            qt_arch: win64_msvc2022_64
             arch: x64
             ssl_arch: -x64
             cmake_opts:
