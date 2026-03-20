@@ -54,9 +54,6 @@ jobs:
 
     - uses: ./.github/actions/agent-setup
 
-    - name: Install KArchive
-      run: sudo apt-get update && sudo apt-get install -y libkf6archive-dev
-
     - name: Prepare compiler env
       run: |
         echo "CC=gcc-13" >> $GITHUB_ENV

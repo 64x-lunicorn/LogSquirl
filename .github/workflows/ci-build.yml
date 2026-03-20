@@ -143,7 +143,7 @@ jobs:
             qt_modules: qt5compat
             arch: x64
             artifacts_id: macos-intel-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DLOGSQUIRL_USE_SENTRY=OFF
           - os: macos
             runner: macos-26
             qt_version: 6.7.3
@@ -151,7 +151,7 @@ jobs:
             qt_modules: qt5compat
             arch: arm64
             artifacts_id: macos-arm-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DLOGSQUIRL_USE_SENTRY=OFF
 
     runs-on: ${{ matrix.config.runner }}
     steps:
