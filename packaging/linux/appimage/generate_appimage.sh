@@ -12,4 +12,4 @@ cp /lib/x86_64-linux-gnu/libssl* appdir/usr/lib
 VERSION=$LOGSQUIRL_VERSION ./linuxdeployqt-continuous-x86_64.AppImage appdir/usr/share/applications/*.desktop -appimage
 
 mkdir ./packages
-cp ./logsquirl-$LOGSQUIRL_VERSION-x86_64.AppImage ./packages/logsquirl-$LOGSQUIRL_VERSION-x86_64.AppImage
+cp ./LogSquirl-$LOGSQUIRL_VERSION-x86_64.AppImage ./packages/logsquirl-$LOGSQUIRL_VERSION-x86_64.AppImage
