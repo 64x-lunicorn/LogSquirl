@@ -8,4 +8,4 @@ runs:
       shell: sh
       run: |
         cd $LOGSQUIRL_BUILD_ROOT
-        ctest --verbose
+        ctest --verbose --output-on-failure
