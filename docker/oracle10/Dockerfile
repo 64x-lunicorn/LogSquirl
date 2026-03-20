@@ -3,11 +3,17 @@ FROM oraclelinux:10
 COPY epel.repo /etc/yum.repos.d
 
 RUN dnf update -y && \
-    dnf install -y ragel make wget python3 rpm-build git \
+    dnf install -y make wget python3 rpm-build git \
     qt6-qtbase-devel qt6-qttools-devel qt6-qt5compat-devel qt6-linguist \
     openssl-devel boost-devel zlib-devel libcurl-devel \
     gcc gcc-c++ elfutils-devel && \
     dnf clean all
+
+# ragel is not packaged for OL10; build from source
+RUN wget https://www.colm.net/files/ragel/ragel-6.10.tar.gz && \
+    tar xzf ragel-6.10.tar.gz && \
+    cd ragel-6.10 && ./configure --prefix=/usr/local && make -j$(nproc) && make install && \
+    cd .. && rm -rf ragel-6.10 ragel-6.10.tar.gz
 
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-linux-x86_64.sh && \
     chmod 755 cmake-3.20.2-linux-x86_64.sh && \
