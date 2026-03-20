@@ -158,7 +158,7 @@ jobs:
             qt_modules: qt5compat
             arch: x64
             artifacts_id: macos-intel-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
           - os: macos
             runner: macos-26
             qt_version: 6.10.3
@@ -166,7 +166,7 @@ jobs:
             qt_modules: qt5compat
             arch: arm64
             artifacts_id: macos-arm-qt6
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0
 
     runs-on: ${{ matrix.config.runner }}
     steps:

@@ -37,16 +37,8 @@ runs:
     - name: Set packaging env
       shell: sh
       run: |
-        echo "=== Available signing identities ==="
-        security find-identity -v -p codesigning || true
-        security find-identity -v || true
         CODESIGN_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)"/\1/')
         INSTALLER_ID=$(security find-identity -v | grep "Developer ID Installer" | head -1 | sed 's/.*"\(.*\)"/\1/')
-        if [ -z "$CODESIGN_ID" ]; then
-          echo "::warning::No Developer ID Application identity found in keychain. App will not be signed."
-        else
-          echo "Using codesign identity: $CODESIGN_ID"
-        fi
         echo "LOGSQUIRL_CODESIGN=${CODESIGN_ID}" >> $GITHUB_ENV
         echo "LOGSQUIRL_INSTALLERSIGN=${INSTALLER_ID:-$CODESIGN_ID}" >> $GITHUB_ENV
         echo "LOGSQUIRL_DMG=logsquirl-${{ env.LOGSQUIRL_VERSION }}-mac-${{ env.LOGSQUIRL_ARCH }}.dmg" >> $GITHUB_ENV
