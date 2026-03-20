@@ -18,7 +18,7 @@
 !include "FileAssociation.nsh"
 
 # General
-OutFile "logsquirl-${VERSION}-${PLATFORM}-${QT_MAJOR}-setup.exe"
+OutFile "logsquirl-win-${PLATFORM}-setup.exe"
 
 XpStyle on
 

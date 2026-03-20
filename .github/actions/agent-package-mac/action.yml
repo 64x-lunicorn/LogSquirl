@@ -23,6 +23,11 @@ runs:
         p12-file-base64: ${{ inputs.p12-file-base64 }}
         p12-password: ${{ inputs.p12-password }}
      
+    - name: Mac create PkgInfo
+      shell: sh
+      run: |
+        printf 'APPL????' > $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/PkgInfo
+
     - name: Mac deploy Qt
       shell: sh
       run: |
@@ -49,8 +54,8 @@ runs:
         fi
         echo "LOGSQUIRL_CODESIGN=${CODESIGN_ID}" >> $GITHUB_ENV
         echo "LOGSQUIRL_INSTALLERSIGN=${INSTALLER_ID:-$CODESIGN_ID}" >> $GITHUB_ENV
-        echo "LOGSQUIRL_DMG=logsquirl-${{ env.LOGSQUIRL_VERSION }}-mac-${{ env.LOGSQUIRL_ARCH }}.dmg" >> $GITHUB_ENV
-        echo "LOGSQUIRL_PKG=logsquirl-${{ env.LOGSQUIRL_VERSION }}-mac-${{ env.LOGSQUIRL_ARCH }}.pkg" >> $GITHUB_ENV
+        echo "LOGSQUIRL_DMG=logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.dmg" >> $GITHUB_ENV
+        echo "LOGSQUIRL_PKG=logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.pkg" >> $GITHUB_ENV
 
     - name: Mac codesign binaries
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
@@ -70,7 +75,7 @@ runs:
       shell: sh
       run: |
         cd $LOGSQUIRL_BUILD_ROOT
-        mv ./packages/logsquirl-${{ env.LOGSQUIRL_VERSION }}-OSX.dmg ./packages/${{ env.LOGSQUIRL_DMG }}
+        mv ./packages/logsquirl-*.dmg ./packages/${{ env.LOGSQUIRL_DMG }}
 
     - name: Mac codesign dmg
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
@@ -129,5 +134,5 @@ runs:
       shell: sh
       run: |
         cd $LOGSQUIRL_BUILD_ROOT
-        cp -a ./output/logsquirl.dSym ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.dSym
-        cp -a ./output/logsquirl.app ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.app
+        cp -a ./output/logsquirl.dSym ./packages/logsquirl.dSym
+        cp -a ./output/logsquirl.app ./packages/logsquirl.app
