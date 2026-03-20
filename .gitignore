@@ -122,3 +122,6 @@ website/public/
 website/hugo
 website/resources/
 build_test_cpp23/
+
+# ── Temporary files ────────────────────────────────────────────────────────
+tmp/
