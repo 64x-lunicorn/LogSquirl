@@ -10,9 +10,10 @@ RUN dnf update -y && \
     dnf clean all
 
 # ragel is not packaged for OL10; build from source
+# Install to /usr (not /usr/local) because CI mounts workspace over /usr/local
 RUN wget https://www.colm.net/files/ragel/ragel-6.10.tar.gz && \
     tar xzf ragel-6.10.tar.gz && \
-    cd ragel-6.10 && ./configure --prefix=/usr/local && make -j$(nproc) && make install && \
+    cd ragel-6.10 && ./configure --prefix=/usr && make -j$(nproc) && make install && \
     cd .. && rm -rf ragel-6.10 ragel-6.10.tar.gz
 
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3-linux-x86_64.sh && \

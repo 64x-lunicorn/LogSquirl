@@ -41,7 +41,7 @@ jobs:
         ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
       with:
         token: ${{ secrets.SENTRY_TOKEN }}
-        organization: anton-filimonov
+        organization: logsquirl
         project: logsquirl
 
     - name: Create Sentry release
@@ -141,13 +141,6 @@ jobs:
           ./packages-macos-intel-qt6/*
           ./packages-macos-arm-qt6/*
 
-    - name: Discord notification
-      env:
-        DISCORD_WEBHOOK: ${{ secrets.DISCORD_NEW_VERSIONS_WEBHOOK }}
-        DISCORD_EMBEDS: '[{"title": "Windows", "url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-win"}, {"title": "Linux", "url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-linux"}, {"title": "Mac", "url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-osx"}]'
-      uses: Ilshidur/action-discord@master
-      with:
-        args: 'New CI build {{LOGSQUIRL_VERSION}} has been released!'
 
 
 

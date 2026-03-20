@@ -14,7 +14,6 @@ xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_minidump_dum
 
 REM Copy TBB DLL from build output (placed there by cmake post-build step)
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\tbb12.dll %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\tbb12.pdb %LOGSQUIRL_WORKSPACE%\release\ /y
 
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\generated\documentation.html %LOGSQUIRL_WORKSPACE%\release\ /y
 xcopy %LOGSQUIRL_WORKSPACE%\COPYING %LOGSQUIRL_WORKSPACE%\release\ /y
@@ -48,7 +47,6 @@ md %LOGSQUIRL_WORKSPACE%\release\platforms
 xcopy %QTDIR%\plugins\platforms\qwindows.dll %LOGSQUIRL_WORKSPACE%\release\platforms\ /y
 
 md %LOGSQUIRL_WORKSPACE%\release\styles
-xcopy %QTDIR%\plugins\styles\qwindowsvistastyle.dll %LOGSQUIRL_WORKSPACE%\release\styles /y
 xcopy %QTDIR%\plugins\styles\qmodernwindowsstyle.dll %LOGSQUIRL_WORKSPACE%\release\styles /y
 
 echo "Copying packaging files..."
