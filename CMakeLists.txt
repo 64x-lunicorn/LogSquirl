@@ -204,17 +204,6 @@ find_package(
 set(LOGSQUIRL_QT_VERSION ${Qt${QT_VERSION_MAJOR}Core_VERSION})
 
 message("Qt version ${LOGSQUIRL_QT_VERSION}")
-
-# Qt 6.8.x prebuilts reference -framework AGL which was removed in macOS 26 SDK.
-# Strip it from Qt6::Gui's imported link libraries so the build succeeds.
-if(APPLE AND TARGET Qt6::Gui)
-  get_target_property(_gui_libs Qt6::Gui INTERFACE_LINK_LIBRARIES)
-  if(_gui_libs)
-    list(REMOVE_ITEM _gui_libs "-framework AGL")
-    set_target_properties(Qt6::Gui PROPERTIES INTERFACE_LINK_LIBRARIES "${_gui_libs}")
-  endif()
-endif()
-
 message("LTO ${LOGSQUIRL_USE_LTO}")
 
 if(APPLE)
