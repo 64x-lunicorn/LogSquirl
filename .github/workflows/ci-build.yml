@@ -58,7 +58,7 @@ jobs:
           #  package_suffix: rpm
           #  check_container: oraclelinux:7
           #  container_root: docker/oracle7
-          #  container: variar/klogg_oracle7
+          #  container: logsquirl_oracle7
           #  cmake_opts: -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF -DLOGSQUIRL_USE_HYPERSCAN=OFF
 
           - os: oraclelinux
