@@ -137,6 +137,19 @@ if(NOT _KARCHIVE_FOUND)
     YES
   )
   if(Klogg_KArchive_ADDED)
+    # Qt 6.10 no longer allows QFlags to be passed to QString::arg() directly.
+    # Patch the klogg_karchive source to cast to int.
+    foreach(_karchive_src
+      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/karchive.cpp"
+      "${Klogg_KArchive_SOURCE_DIR}/karchive/src/kar.cpp"
+    )
+      if(EXISTS "${_karchive_src}")
+        file(READ "${_karchive_src}" _karchive_content)
+        string(REPLACE ".arg(mode)" ".arg(static_cast<int>(mode))" _karchive_content "${_karchive_content}")
+        string(REPLACE ".arg(d->mode)" ".arg(static_cast<int>(d->mode))" _karchive_content "${_karchive_content}")
+        file(WRITE "${_karchive_src}" "${_karchive_content}")
+      endif()
+    endforeach()
     target_link_libraries(logsquirl_karchive INTERFACE klogg_karchive)
   else()
     message(WARNING "KArchive not found and CPM fetch failed")

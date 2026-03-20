@@ -56,10 +56,12 @@ jobs:
         xz -d ./packages-jammy/logsquirl_jammy.debug.xz
         xz -d ./packages-noble/logsquirl_noble.debug.xz
         xz -d ./packages-oracle/logsquirl_oracle.debug.xz
+        xz -d ./packages-fedora/logsquirl_fedora.debug.xz
         xz -d ./packages-appimage/logsquirl_appimage.debug.xz
         sentry-cli upload-dif ./packages-jammy/logsquirl_jammy.debug ./packages-jammy/logsquirl_jammy
         sentry-cli upload-dif ./packages-noble/logsquirl_noble.debug  ./packages-noble/logsquirl_noble
         sentry-cli upload-dif ./packages-oracle/logsquirl_oracle.debug ./packages-oracle/logsquirl_oracle
+        sentry-cli upload-dif ./packages-fedora/logsquirl_fedora.debug ./packages-fedora/logsquirl_fedora
         sentry-cli upload-dif ./packages-appimage/logsquirl_appimage.debug  ./packages-appimage/logsquirl_appimage
 
     - name: Upload symbols mac
@@ -79,6 +81,7 @@ jobs:
         rm -rf ./packages-jammy/logsquirl_jammy
         rm -rf ./packages-noble/logsquirl_noble
         rm -rf ./packages-oracle/logsquirl_oracle
+        rm -rf ./packages-fedora/logsquirl_fedora
         rm -rf ./packages-appimage/logsquirl_appimage
         rm -rf ./packages-macos-intel-qt6/logsquirl-x64.app
         rm -rf ./packages-macos-arm-qt6/logsquirl-arm64.app
@@ -86,6 +89,7 @@ jobs:
         mv ./packages-jammy/logsquirl_jammy.debug ./linux-debug
         mv ./packages-noble/logsquirl_noble.debug ./linux-debug
         mv ./packages-oracle/logsquirl_oracle.debug ./linux-debug
+        mv ./packages-fedora/logsquirl_fedora.debug ./linux-debug
         mv ./packages-appimage/logsquirl_appimage.debug ./linux-debug
         tar -cJf ./linux-debug/logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz ./linux-debug/*
         rm ./linux-debug/*.debug
@@ -101,7 +105,7 @@ jobs:
     - name: Prepare checksums
       shell: sh
       run: |
-        sha256sum --binary ./packages-bin/* ./packages-jammy/* ./packages-noble/* ./packages-oracle/* ./packages-appimage/*  > ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-sha256.txt
+        sha256sum --binary ./packages-bin/* ./packages-jammy/* ./packages-noble/* ./packages-oracle/* ./packages-fedora/* ./packages-appimage/*  > ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-sha256.txt
         
     - name: Release win
       uses: "marvinpinto/action-automatic-releases@latest"
@@ -122,6 +126,7 @@ jobs:
           ./packages-jammy/*
           ./packages-noble/*
           ./packages-oracle/*
+          ./packages-fedora/*
           ./packages-appimage/*
           ./packages-bin/*
           ./linux-debug/*

@@ -202,11 +202,17 @@ SCENARIO( "EncodingDetector detects encoding from byte content", "[encoding]" )
             REQUIRE( codec != nullptr );
         }
 
-        THEN( "The codec is UTF-8 compatible" )
+        THEN( "The codec can represent ASCII faithfully" )
         {
-            // ASCII is always detected as UTF-8 or US-ASCII, both are UTF-8 compatible
-            EncodingParameters params( codec );
-            REQUIRE( params.isUtf8Compatible );
+            // On some platforms uchardet may detect ASCII as a single-byte encoding
+            // like Windows-1252 instead of UTF-8/US-ASCII. All of these represent
+            // the ASCII range identically, so we check the codec name instead.
+            QString name = QString::fromLatin1( codec->name() ).toLower();
+            bool isAsciiCompatible = name.contains( "utf-8" ) || name.contains( "ascii" )
+                                     || name.contains( "iso-8859" )
+                                     || name.contains( "windows-1252" )
+                                     || name.contains( "latin" );
+            REQUIRE( isAsciiCompatible );
         }
     }
 

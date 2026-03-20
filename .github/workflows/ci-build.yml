@@ -62,15 +62,15 @@ jobs:
           #  cmake_opts: -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF -DLOGSQUIRL_USE_HYPERSCAN=OFF
 
           - os: oraclelinux
-            os_version: 8
+            os_version: 10
             arch: x64
-            check_command: yum install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
+            check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
             cpack_gen: RPM
             artifacts_id: oracle
             package_suffix: rpm
-            check_container: oraclelinux:8
-            container_root: docker/oracle8
-            container: variar/klogg_oracle8
+            check_container: oraclelinux:10
+            container_root: docker/oracle10
+            container: variar/klogg_oracle10
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
           - os: ubuntu_jammy
@@ -104,6 +104,18 @@ jobs:
             package_suffix: AppImage
             container_root: docker/ubuntu22.04
             container: variar/klogg_ubuntu22.04
+            cmake_opts:
+
+          - os: fedora
+            os_version: 43
+            arch: x64
+            check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
+            cpack_gen: RPM
+            artifacts_id: fedora
+            package_suffix: rpm
+            check_container: fedora:43
+            container_root: docker/fedora43
+            container: variar/klogg_fedora43
             cmake_opts:
 
 
