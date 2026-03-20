@@ -31,6 +31,7 @@
 #include <QDomDocument>
 #include <QFormLayout>
 #include <QJsonDocument>
+#include <QJsonObject>
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QStatusBar>
@@ -41,6 +42,7 @@
 
 #include "crc32.h"
 #include "clipboard.h"
+#include "jwtdecoder.h"
 
 namespace logsquirl {
 
@@ -117,6 +119,12 @@ ScratchPad::ScratchPad( QWidget* parent )
     auto decodeUrlAction = std::make_unique<QAction>( "Decode url" );
     connect( decodeUrlAction.get(), &QAction::triggered, [ this ]( auto ) { decodeUrl(); } );
     toolBar->addAction( decodeUrlAction.release() );
+
+    toolBar->addSeparator();
+
+    auto decodeJwtAction = std::make_unique<QAction>( "Decode JWT" );
+    connect( decodeJwtAction.get(), &QAction::triggered, [ this ]( auto ) { decodeJwt(); } );
+    toolBar->addAction( decodeJwtAction.release() );
 
     toolBar->addSeparator();
 
@@ -357,6 +365,12 @@ void ScratchPad::formatXml()
 
         return xml.toString( 2 );
     } );
+}
+
+void ScratchPad::decodeJwt()
+{
+    transformTextInPlace(
+        []( QString text ) { return logsquirl::jwt::decodeToken( text ); } );
 }
 
 logsquirl::DateTimeBox::DateTimeBox()

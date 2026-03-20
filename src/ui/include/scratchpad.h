@@ -67,6 +67,7 @@ class ScratchPad : public QWidget {
     void formatXml();
 
     void decodeUrl();
+    void decodeJwt();
 
     QString transformText( const std::function<QString( QString )>& transform );
 
