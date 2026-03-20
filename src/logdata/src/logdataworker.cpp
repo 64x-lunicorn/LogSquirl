@@ -192,6 +192,7 @@ LogDataWorker::~LogDataWorker() noexcept
     try {
         interruptRequest_.set();
         ScopedLock locker( operationsMutex_ );
+        operationsPool_.clear();
         operationsPool_.waitForDone();
         LOG_INFO << "LogDataWorker shutdown";
     } catch ( const std::exception& e ) {
