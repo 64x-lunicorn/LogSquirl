@@ -184,9 +184,14 @@ class CrawlerWidget : public QSplitter,
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
 
-  private Q_SLOTS:
-    // Instructs the widget to start a search using the current search line.
+  public Q_SLOTS:
+    // Apply a list of predefined filters as the current search pattern.
+    void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
+
+    // Start a new search using the current search line content.
     void startNewSearch();
+
+  private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
@@ -248,7 +253,6 @@ class CrawlerWidget : public QSplitter,
 
     // Save current search as predefined filter
     void saveAsPredefinedFilter();
-    void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
 
     // Search Context Menu
     void showSearchContextMenu();

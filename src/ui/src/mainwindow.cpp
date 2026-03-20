@@ -59,6 +59,7 @@
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QDialogButtonBox>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
@@ -82,6 +83,7 @@
 
 #include "mainwindow.h"
 
+#include "chipmunkimporter.h"
 #include "clipboard.h"
 #include "crawlerwidget.h"
 #include "decompressor.h"
@@ -190,8 +192,26 @@ MainWindow::MainWindow( WindowSession session )
     // mainTabWidget_.setTabShape( QTabWidget::Triangular );
     mainTabWidget_.setTabsClosable( true );
 
-    scratchPad_.setWindowIcon( mainIcon_ );
-    scratchPad_.setWindowTitle( tr( "logsquirl - scratchpad" ) );
+    // Create the right sidebar dock with a tabbed panel
+    sidebarDock_ = new QDockWidget( tr( "Sidebar" ), this );
+    sidebarDock_->setObjectName( "sidebarDock" );
+    sidebarDock_->setAllowedAreas( Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea );
+
+    sidebarTabs_ = new QTabWidget( sidebarDock_ );
+    sidebarTabs_->addTab( &filtersPanel_, tr( "Filters" ) );
+    sidebarTabs_->addTab( &scratchPad_, tr( "Scratchpad" ) );
+    sidebarDock_->setWidget( sidebarTabs_ );
+    addDockWidget( Qt::RightDockWidgetArea, sidebarDock_ );
+    sidebarDock_->hide();
+
+    // Route filter panel selections to the active crawler widget and auto-search
+    connect( &filtersPanel_, &FiltersPanel::filtersChanged, this,
+             [ this ]( const QList<PredefinedFilter>& filters ) {
+                 if ( auto crawler = currentCrawlerWidget() ) {
+                     crawler->setSearchPatternFromPredefinedFilters( filters );
+                     crawler->startNewSearch();
+                 }
+             } );
 
     connect( &mainTabWidget_, &TabbedCrawlerWidget::tabCloseRequested, this,
              [ this ]( int index ) { this->closeTab( index, ActionInitiator::User ); } );
@@ -393,6 +413,13 @@ void MainWindow::reTranslateUI()
 
     showScratchPadAction->setText( transAction( action::showScratchPadText ) );
     showScratchPadAction->setStatusTip( transAction( action::showScratchPadStatusTip ) );
+
+    showFiltersPanelAction->setText( transAction( action::showFiltersPanelText ) );
+    showFiltersPanelAction->setStatusTip( transAction( action::showFiltersPanelStatusTip ) );
+
+    importChipmunkFiltersAction->setText( transAction( action::importChipmunkFiltersText ) );
+    importChipmunkFiltersAction->setStatusTip(
+        transAction( action::importChipmunkFiltersStatusTip ) );
 
     auto curFavoritesIconText = addToFavoritesAction->data().toBool()
                                     ? transAction( action::addToFavoritesText )
@@ -613,6 +640,16 @@ void MainWindow::createActions()
     connect( showScratchPadAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showScratchPad(); } );
 
+    showFiltersPanelAction = new QAction( tr( action::showFiltersPanelText ), this );
+    showFiltersPanelAction->setStatusTip( tr( action::showFiltersPanelStatusTip ) );
+    connect( showFiltersPanelAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->showFiltersPanel(); } );
+
+    importChipmunkFiltersAction = new QAction( tr( action::importChipmunkFiltersText ), this );
+    importChipmunkFiltersAction->setStatusTip( tr( action::importChipmunkFiltersStatusTip ) );
+    connect( importChipmunkFiltersAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->importChipmunkFilters(); } );
+
     encodingGroup = new QActionGroup( this );
     connect( encodingGroup, &QActionGroup::triggered, this, &MainWindow::encodingChanged );
 
@@ -788,9 +825,11 @@ void MainWindow::createMenus()
     } );
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
+    toolsMenu->addAction( importChipmunkFiltersAction );
 
     toolsMenu->addSeparator();
     toolsMenu->addAction( showScratchPadAction );
+    toolsMenu->addAction( showFiltersPanelAction );
 
     menuBar()->addMenu( EncodingMenu::generate( encodingGroup ) );
     menuBar()->addSeparator();
@@ -1234,12 +1273,7 @@ void MainWindow::documentation()
 
 void MainWindow::showScratchPad()
 {
-    auto state = scratchPad_.windowState();
-    state.setFlag( Qt::WindowMinimized, false );
-    scratchPad_.setWindowState( state );
-
-    scratchPad_.show();
-    scratchPad_.activateWindow();
+    showSidebar( SidebarScratchPadTab );
 }
 
 void MainWindow::sendToScratchpad( QString newData )
@@ -1252,6 +1286,95 @@ void MainWindow::replaceDataInScratchpad( QString newData )
 {
     scratchPad_.replaceData( newData );
     showScratchPad();
+}
+
+void MainWindow::showFiltersPanel()
+{
+    showSidebar( SidebarFiltersPanelTab );
+}
+
+void MainWindow::showSidebar( int tabIndex )
+{
+    sidebarDock_->show();
+    sidebarDock_->raise();
+    sidebarTabs_->setCurrentIndex( tabIndex );
+}
+
+void MainWindow::importChipmunkFilters()
+{
+    const auto file = QFileDialog::getOpenFileName(
+        this, tr( "Import Chipmunk filters" ), "",
+        tr( "Chipmunk filters (*.json);;All files (*)" ) );
+
+    if ( file.isEmpty() ) {
+        return;
+    }
+
+    QFile jsonFile( file );
+    if ( !jsonFile.open( QIODevice::ReadOnly ) ) {
+        QMessageBox::warning( this, tr( "Import error" ),
+                              tr( "Could not open file: %1" ).arg( file ) );
+        return;
+    }
+
+    const auto jsonData = jsonFile.readAll();
+    const auto chipmunkFilters = logsquirl::chipmunk::parseChipmunkJson( jsonData );
+
+    if ( chipmunkFilters.isEmpty() ) {
+        QMessageBox::information( this, tr( "Import result" ),
+                                  tr( "No filters found in the selected file." ) );
+        return;
+    }
+
+    // Import as PredefinedFilters
+    const auto predefined = logsquirl::chipmunk::toFilters( chipmunkFilters );
+    auto& filtersCollection = PredefinedFiltersCollection::getSynced();
+    auto existingFilters = filtersCollection.getFilters();
+
+    int filtersAdded = 0;
+    for ( const auto& pf : predefined ) {
+        // Skip duplicates by name
+        const bool alreadyExists = std::any_of(
+            existingFilters.cbegin(), existingFilters.cend(),
+            [ &pf ]( const PredefinedFilter& existing ) { return existing.name == pf.name; } );
+        if ( !alreadyExists ) {
+            existingFilters.append( pf );
+            filtersAdded++;
+        }
+    }
+    filtersCollection.setFilters( existingFilters );
+    filtersCollection.save();
+
+    // Import as HighlighterSet
+    const auto setName = QFileInfo( file ).baseName();
+    const auto highlighterSet
+        = logsquirl::chipmunk::toHighlighterSet( chipmunkFilters, setName );
+
+    auto& highlighterCollection = HighlighterSetCollection::getSynced();
+    auto sets = highlighterCollection.highlighterSets();
+
+    bool highlighterAdded = false;
+    if ( !highlighterCollection.hasSetByName( setName ) ) {
+        sets.append( highlighterSet );
+        highlighterCollection.setHighlighterSets( sets );
+        highlighterCollection.save();
+        highlighterAdded = true;
+        updateHighlightersMenu();
+    }
+
+    // Refresh the filters panel if visible
+    filtersPanel_.refreshFilters();
+
+    QMessageBox::information(
+        this, tr( "Import result" ),
+        tr( "Imported %1 filter(s) and %2 highlighter set." )
+            .arg( filtersAdded )
+            .arg( highlighterAdded ? 1 : 0 ) );
+
+    // Notify active crawler to refresh its predefined filters combobox
+    if ( auto crawler = currentCrawlerWidget() ) {
+        crawler->applyConfiguration();
+    }
 }
 
 void MainWindow::encodingChanged( QAction* action )

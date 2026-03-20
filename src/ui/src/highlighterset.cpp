@@ -245,6 +245,11 @@ QString HighlighterSet::name() const
     return name_;
 }
 
+void HighlighterSet::addHighlighter( const Highlighter& highlighter )
+{
+    highlighterList_.append( highlighter );
+}
+
 QString HighlighterSet::id() const
 {
     return id_;

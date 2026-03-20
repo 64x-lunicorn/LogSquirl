@@ -1,5 +1,6 @@
 # Add test cpp file
 add_executable(logsquirl_tests
+    chipmunkimporter_test.cpp
     configuration_test.cpp
     encodingdetector_test.cpp
     jwtdecoder_test.cpp

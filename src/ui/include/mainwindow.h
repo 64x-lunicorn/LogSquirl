@@ -44,6 +44,8 @@
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
 
+#include <QDockWidget>
+#include <QTabWidget>
 #include <QTranslator>
 #include <array>
 #include <memory>
@@ -59,6 +61,7 @@
 #include "session.h"
 #include "signalmux.h"
 #include "tabbedcrawlerwidget.h"
+#include "filterspanel.h"
 #include "tabbedscratchpad.h"
 
 class QAction;
@@ -128,6 +131,9 @@ class MainWindow : public QMainWindow {
     void aboutQt();
     void documentation();
     void showScratchPad();
+    void showFiltersPanel();
+    void showSidebar( int tabIndex );
+    void importChipmunkFilters();
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
     void encodingChanged( QAction* action );
@@ -270,6 +276,8 @@ class MainWindow : public QMainWindow {
     QAction* editHighlightersAction;
     QAction* optionsAction;
     QAction* showScratchPadAction;
+    QAction* showFiltersPanelAction;
+    QAction* importChipmunkFiltersAction;
     QAction* showDocumentationAction;
     QAction* aboutAction;
     QAction* aboutQtAction;
@@ -310,6 +318,14 @@ class MainWindow : public QMainWindow {
     TabbedCrawlerWidget mainTabWidget_;
 
     TabbedScratchPad scratchPad_;
+
+    FiltersPanel filtersPanel_;
+
+    // Right sidebar dock with tabbed panels
+    QDockWidget* sidebarDock_{ nullptr };
+    QTabWidget* sidebarTabs_{ nullptr };
+    static constexpr int SidebarFiltersPanelTab = 0;
+    static constexpr int SidebarScratchPadTab = 1;
 
     QTemporaryDir tempDir_;
 
