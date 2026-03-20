@@ -168,10 +168,43 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   martinus/robin-hood-hashing
   GIT_TAG
-  3.11.2
+  3.11.5
   EXCLUDE_FROM_ALL
   YES
 )
+# GCC 14 compatibility: robin_hood 3.11.x has two issues:
+# 1. Missing <cstdint> include for UINT64_C macro
+# 2. Brace-init of Iter{} fails stricter overload resolution
+if(robin_hood_ADDED)
+  set(_rh_header "${robin_hood_SOURCE_DIR}/src/include/robin_hood.h")
+  if(EXISTS "${_rh_header}")
+    file(READ "${_rh_header}" _rh_content)
+    # Add missing <cstdint> include
+    string(REPLACE "#include <cstdlib>" "#include <cstdint>\n#include <cstdlib>" _rh_content "${_rh_content}")
+    # Replace brace-init with parenthesized init for Iter construction (GCC 14 compat)
+    string(REPLACE
+      "iterator{mKeyVals + idx, mInfo + idx}"
+      "iterator(mKeyVals + idx, mInfo + idx)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "const_iterator{mKeyVals + idx, mInfo + idx}"
+      "const_iterator(mKeyVals + idx, mInfo + idx)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "iterator{reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr}"
+      "iterator(reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "const_iterator{reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr}"
+      "const_iterator(reinterpret_cast_no_cast_align_warning<Node*>(mInfo), nullptr)"
+      _rh_content "${_rh_content}")
+    string(REPLACE
+      "erase(iterator{const_cast<Node*>(pos.mKeyVals), const_cast<uint8_t*>(pos.mInfo)})"
+      "erase(iterator(const_cast<Node*>(pos.mKeyVals), const_cast<uint8_t*>(pos.mInfo)))"
+      _rh_content "${_rh_content}")
+    file(WRITE "${_rh_header}" "${_rh_content}")
+  endif()
+endif()
 if(NOT TARGET robin_hood)
   message("Adding imported target for robin_hood")
   add_library(robin_hood INTERFACE)

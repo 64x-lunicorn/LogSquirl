@@ -12,15 +12,9 @@ xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl.pdb %LOGSQUI
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_crashpad_handler.exe %LOGSQUIRL_WORKSPACE%\release\ /y
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_minidump_dump.exe %LOGSQUIRL_WORKSPACE%\release\ /y
 
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.41_cxx17_64_md_relwithdebinfo\tbb12.dll %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.41_cxx17_64_md_relwithdebinfo\tbb12.pdb %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.41_cxx17_32_md_relwithdebinfo\tbb12.dll %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.41_cxx17_32_md_relwithdebinfo\tbb12.pdb %LOGSQUIRL_WORKSPACE%\release\ /y
-
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.42_cxx17_64_md_relwithdebinfo\tbb12.dll %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.42_cxx17_64_md_relwithdebinfo\tbb12.pdb %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.42_cxx17_32_md_relwithdebinfo\tbb12.dll %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\msvc_19.42_cxx17_32_md_relwithdebinfo\tbb12.pdb %LOGSQUIRL_WORKSPACE%\release\ /y
+REM Copy TBB DLL from build output (placed there by cmake post-build step)
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\tbb12.dll %LOGSQUIRL_WORKSPACE%\release\ /y
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\tbb12.pdb %LOGSQUIRL_WORKSPACE%\release\ /y
 
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\generated\documentation.html %LOGSQUIRL_WORKSPACE%\release\ /y
 xcopy %LOGSQUIRL_WORKSPACE%\COPYING %LOGSQUIRL_WORKSPACE%\release\ /y
@@ -58,11 +52,11 @@ xcopy %QTDIR%\plugins\styles\qwindowsvistastyle.dll %LOGSQUIRL_WORKSPACE%\releas
 xcopy %QTDIR%\plugins\styles\qmodernwindowsstyle.dll %LOGSQUIRL_WORKSPACE%\release\styles /y
 
 echo "Copying packaging files..."
-md %LOGSQUIRL_WORKSPACE%\chocolately
-xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\logsquirl.nuspec chocolately /y
+md %LOGSQUIRL_WORKSPACE%\chocolatey
+xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\chocolatey\logsquirl.nuspec chocolatey\ /y
 
-md %LOGSQUIRL_WORKSPACE%\chocolately\tools
-xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\chocolatelyInstall.ps1 chocolately\tools\ /y
+md %LOGSQUIRL_WORKSPACE%\chocolatey\tools
+xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\chocolatey\tools\chocolateyInstall.ps1 chocolatey\tools\ /y
 
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\logsquirl.nsi  /y
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\FileAssociation.nsh  /y

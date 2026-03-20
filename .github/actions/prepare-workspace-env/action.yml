@@ -13,14 +13,32 @@ runs:
 
     - name: Set qt env var
       if: "startsWith(matrix.config.qt_version, '5')"
-      shell: sh
+      shell: bash
       run: |
-        echo "LOGSQUIRL_QT=Qt5" >> $GITHUB_ENV 
-        echo "LOGSQUIRL_QT_DIR=${{ env.Qt5_Dir }}" >> $GITHUB_ENV
+        echo "LOGSQUIRL_QT=Qt5" >> $GITHUB_ENV
+        # Resolve Qt5 prefix from available env vars (install-qt-action@v4)
+        QT_PREFIX="${Qt5_Dir:-}"
+        if [ -z "$QT_PREFIX" ] && [ -n "${Qt5_DIR:-}" ]; then
+          QT_PREFIX=$(echo "$Qt5_DIR" | sed 's|[/\\]lib[/\\]cmake[/\\]Qt5[/\\]*$||')
+        fi
+        if [ -z "$QT_PREFIX" ] && [ -n "${QT_ROOT_DIR:-}" ]; then
+          QT_PREFIX="$QT_ROOT_DIR"
+        fi
+        echo "LOGSQUIRL_QT_DIR=$QT_PREFIX" >> $GITHUB_ENV
+        echo "Resolved Qt5 prefix: $QT_PREFIX"
     
     - name: Set qt env var
       if: "startsWith(matrix.config.qt_version, '6')"
-      shell: sh
+      shell: bash
       run: |
-        echo "LOGSQUIRL_QT=Qt6" >> $GITHUB_ENV 
-        echo "LOGSQUIRL_QT_DIR=${{ env.Qt6_Dir }}" >> $GITHUB_ENV
+        echo "LOGSQUIRL_QT=Qt6" >> $GITHUB_ENV
+        # Resolve Qt6 prefix from available env vars (install-qt-action@v4)
+        QT_PREFIX="${Qt6_Dir:-}"
+        if [ -z "$QT_PREFIX" ] && [ -n "${Qt6_DIR:-}" ]; then
+          QT_PREFIX=$(echo "$Qt6_DIR" | sed 's|[/\\]lib[/\\]cmake[/\\]Qt6[/\\]*$||')
+        fi
+        if [ -z "$QT_PREFIX" ] && [ -n "${QT_ROOT_DIR:-}" ]; then
+          QT_PREFIX="$QT_ROOT_DIR"
+        fi
+        echo "LOGSQUIRL_QT_DIR=$QT_PREFIX" >> $GITHUB_ENV
+        echo "Resolved Qt6 prefix: $QT_PREFIX"

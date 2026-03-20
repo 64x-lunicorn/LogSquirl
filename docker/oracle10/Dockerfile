@@ -15,10 +15,10 @@ RUN wget https://www.colm.net/files/ragel/ragel-6.10.tar.gz && \
     cd ragel-6.10 && ./configure --prefix=/usr/local && make -j$(nproc) && make install && \
     cd .. && rm -rf ragel-6.10 ragel-6.10.tar.gz
 
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.20.2/cmake-3.20.2-linux-x86_64.sh && \
-    chmod 755 cmake-3.20.2-linux-x86_64.sh && \
-    ./cmake-3.20.2-linux-x86_64.sh --prefix=/opt/ --exclude-subdir --skip-license && \
-    rm cmake-3.20.2-linux-x86_64.sh
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3-linux-x86_64.sh && \
+    chmod 755 cmake-3.28.3-linux-x86_64.sh && \
+    ./cmake-3.28.3-linux-x86_64.sh --prefix=/opt/ --exclude-subdir --skip-license && \
+    rm cmake-3.28.3-linux-x86_64.sh
 
 RUN wget https://github.com/ninja-build/ninja/releases/download/v1.10.2/ninja-linux.zip && \
     unzip ninja-linux.zip && chmod 755 ninja && mv ninja /opt/bin && rm ninja-linux.zip
