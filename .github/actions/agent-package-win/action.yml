@@ -36,7 +36,7 @@ runs:
         packaging\windows\prepare_release.cmd
 
     - name: Win installer
-      uses: joncloud/makensis-action@v3.3
+      uses: joncloud/makensis-action@v4
       with:
         script-file: logsquirl.nsi
         arguments: "-DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT%" 
