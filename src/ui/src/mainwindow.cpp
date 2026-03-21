@@ -751,6 +751,7 @@ void MainWindow::loadIcons()
     reloadAction->setIcon( iconLoader_.load( "icons8-restore-page" ) );
     followAction->setIcon( iconLoader_.load( "icons8-fast-forward" ) );
     showScratchPadAction->setIcon( iconLoader_.load( "icons8-create" ) );
+    showFiltersPanelAction->setIcon( iconLoader_.load( "icons8-filter" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
 }
@@ -891,6 +892,7 @@ void MainWindow::createToolBars()
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( lineNbField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
+    toolBar->addAction( showFiltersPanelAction );
     toolBar->addAction( showScratchPadAction );
 
     showInfoLabels( false );
@@ -1371,7 +1373,7 @@ void MainWindow::importChipmunkFilters()
             .arg( filtersAdded )
             .arg( highlighterAdded ? 1 : 0 ) );
 
-    // Notify active crawler to refresh its predefined filters combobox
+    // Notify active crawler to refresh its configuration
     if ( auto crawler = currentCrawlerWidget() ) {
         crawler->applyConfiguration();
     }

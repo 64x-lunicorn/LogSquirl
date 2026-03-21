@@ -55,6 +55,7 @@
 
 #include "colorlabelsmanager.h"
 #include "filteredview.h"
+#include "predefinedfilters.h"
 #include "iconloader.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
@@ -62,7 +63,6 @@
 #include "logfiltereddata.h"
 #include "logmainview.h"
 #include "overview.h"
-#include "predefinedfilterscombobox.h"
 #include "signalmux.h"
 #include "viewinterface.h"
 
@@ -336,10 +336,7 @@ class CrawlerWidget : public QSplitter,
     void changeDataStatus( DataStatus status );
     void updateEncoding();
     void changeTopViewSize( int32_t delta );
-    void updatePredefinedFiltersWidget();
 
-    // Reload predefined filters after changing settings
-    void reloadPredefinedFilters() const;
 
     QString escapeSearchPattern( const QString& searchPattern, bool isRegex = false ) const;
     QString& combinePatterns( QString& currentPattern, const QString& newPattern ) const;
@@ -379,8 +376,6 @@ class CrawlerWidget : public QSplitter,
 
     QComboBox* visibilityBox_;
     QStandardItemModel* visibilityModel_;
-
-    PredefinedFiltersComboBox* predefinedFilters_;
 
     QComboBox* searchLineEdit_;
     QMenu* searchLineContextMenu_;
