@@ -28,6 +28,11 @@ This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github
  - Upgraded CI runners: macOS 15 (ARM + Intel), Windows 2025, Ubuntu 24.04
  - Fixed Windows packaging: removed stale Qt/TBB DLLs, updated NSIS installer
  - Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24` to suppress Node.js 20 deprecation warnings
+ - Fixed macOS DMG appearing empty by replacing CPack DragNDrop with create-dmg (proper Applications symlink and icon layout)
+ - Fixed macOS Gatekeeper rejection by signing each nested component individually with hardened-runtime entitlements instead of --deep
+ - Added entitlements.plist for hardened runtime code signing
+ - Added LSMinimumSystemVersion to Info.plist for deployment target correctness
+ - Added notarization status validation — CI now fails when notarization is rejected
 
 ## Tests:
  - Added unit tests for regex, encoding, line types, and configuration modules

@@ -1,5 +1,5 @@
 name: "Prepare logsquirl mac packages"
-description: ""
+description: "Sign, package, notarize and staple the macOS app bundle into a DMG"
 inputs:
   p12-file-base64:
     required: true
@@ -11,18 +11,20 @@ inputs:
     required: true
   notarization-password:
     required: true
-    
+
 runs:
   using: "composite"
   steps:
+    # ── 1. Import signing certificates ────────────────────────────────────
     - name: Mac prepare codesign
       id: prepare-codesign
-      if: ${{ github.event_name != 'pull_request' }} 
+      if: ${{ github.event_name != 'pull_request' }}
       uses: apple-actions/import-codesign-certs@v3
-      with: 
+      with:
         p12-file-base64: ${{ inputs.p12-file-base64 }}
         p12-password: ${{ inputs.p12-password }}
-     
+
+    # ── 2. Prepare the .app bundle ────────────────────────────────────────
     - name: Mac create PkgInfo
       shell: sh
       run: |
@@ -37,99 +39,190 @@ runs:
     - name: Mac deploy Qt fixing
       shell: sh
       run: |
-        python3 $LOGSQUIRL_BUILD_ROOT/macdeployqtfix.py $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/MacOS/logsquirl $LOGSQUIRL_QT_DIR
-    
+        python3 $LOGSQUIRL_BUILD_ROOT/macdeployqtfix.py \
+          $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/MacOS/logsquirl \
+          $LOGSQUIRL_QT_DIR
+
+    # ── 3. Resolve signing identities ─────────────────────────────────────
     - name: Set packaging env
       shell: sh
       run: |
         echo "=== Available signing identities ==="
         security find-identity -v -p codesigning || true
         security find-identity -v || true
-        CODESIGN_ID=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
-        INSTALLER_ID=$(security find-identity -v | grep "Developer ID Installer" | head -1 | sed 's/.*"\(.*\)".*/\1/' || true)
+
+        CODESIGN_ID=$(security find-identity -v -p codesigning \
+          | grep "Developer ID Application" | head -1 \
+          | sed 's/.*"\(.*\)".*/\1/' || true)
+        INSTALLER_ID=$(security find-identity -v \
+          | grep "Developer ID Installer" | head -1 \
+          | sed 's/.*"\(.*\)".*/\1/' || true)
+
         if [ -z "$CODESIGN_ID" ]; then
-          echo "::warning::No Developer ID Application identity found in keychain. App will not be signed."
+          echo "::warning::No Developer ID Application identity found. App will not be signed."
         else
           echo "Using codesign identity: $CODESIGN_ID"
         fi
+
         echo "LOGSQUIRL_CODESIGN=${CODESIGN_ID}" >> $GITHUB_ENV
         echo "LOGSQUIRL_INSTALLERSIGN=${INSTALLER_ID:-$CODESIGN_ID}" >> $GITHUB_ENV
         echo "LOGSQUIRL_DMG=logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.dmg" >> $GITHUB_ENV
         echo "LOGSQUIRL_PKG=logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.pkg" >> $GITHUB_ENV
+        echo "LOGSQUIRL_ENTITLEMENTS=${{ github.workspace }}/packaging/osx/entitlements.plist" >> $GITHUB_ENV
 
+    # ── 4. Code-sign every component individually (inside-out) ────────────
+    #
+    # Apple requires signing nested code before the outer bundle.
+    # Using --deep is unreliable — we sign frameworks, dylibs, helpers,
+    # and the main binary one by one, with hardened-runtime entitlements.
     - name: Mac codesign binaries
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
-        cd $LOGSQUIRL_BUILD_ROOT
-        echo "Signing with: $LOGSQUIRL_CODESIGN"
-        codesign -v -f -o runtime --deep --timestamp -s "${{ env.LOGSQUIRL_CODESIGN }}" ./output/logsquirl.app;
-    
+        set -euo pipefail
+        cd "$LOGSQUIRL_BUILD_ROOT"
+        APP="./output/logsquirl.app"
+        SIGN="${{ env.LOGSQUIRL_CODESIGN }}"
+        ENT="${{ env.LOGSQUIRL_ENTITLEMENTS }}"
+
+        echo "::group::Signing individual components"
+
+        # 4a. Sign every framework bundle
+        find "$APP/Contents/Frameworks" -name '*.framework' -maxdepth 1 2>/dev/null | while read -r fw; do
+          echo "  Signing framework: $fw"
+          codesign --force --options runtime --timestamp \
+            --entitlements "$ENT" \
+            --sign "$SIGN" "$fw"
+        done
+
+        # 4b. Sign loose dylibs inside Frameworks/
+        find "$APP/Contents/Frameworks" -name '*.dylib' -maxdepth 1 2>/dev/null | while read -r lib; do
+          echo "  Signing dylib: $lib"
+          codesign --force --options runtime --timestamp \
+            --entitlements "$ENT" \
+            --sign "$SIGN" "$lib"
+        done
+
+        # 4c. Sign Qt plug-in bundles
+        find "$APP/Contents/PlugIns" -name '*.dylib' 2>/dev/null | while read -r plug; do
+          echo "  Signing plug-in: $plug"
+          codesign --force --options runtime --timestamp \
+            --entitlements "$ENT" \
+            --sign "$SIGN" "$plug"
+        done
+
+        # 4d. Sign helper executables (crashpad handler, minidump_dump, etc.)
+        find "$APP/Contents/MacOS" -type f -perm +111 ! -name 'logsquirl' 2>/dev/null | while read -r helper; do
+          echo "  Signing helper: $helper"
+          codesign --force --options runtime --timestamp \
+            --entitlements "$ENT" \
+            --sign "$SIGN" "$helper"
+        done
+
+        # 4e. Sign the main executable
+        echo "  Signing main binary"
+        codesign --force --options runtime --timestamp \
+          --entitlements "$ENT" \
+          --sign "$SIGN" "$APP/Contents/MacOS/logsquirl"
+
+        # 4f. Sign the outer app bundle
+        echo "  Signing app bundle"
+        codesign --force --options runtime --timestamp \
+          --entitlements "$ENT" \
+          --sign "$SIGN" "$APP"
+
+        echo "::endgroup::"
+
+        # Verify the signature
+        echo "=== Verify signature ==="
+        codesign --verify --deep --strict --verbose=2 "$APP"
+        echo "=== Verify Gatekeeper acceptance ==="
+        spctl --assess --type execute --verbose "$APP" || echo "::warning::spctl assess failed (expected without notarization)"
+
+    # ── 5. Create the DMG with proper layout ──────────────────────────────
+    #
+    # We build the DMG manually instead of using CPack DragNDrop because
+    # CPack does not create an Applications symlink and the resulting DMG
+    # window appears empty with the bundled DS_Store.
+    - name: Install create-dmg
+      shell: sh
+      run: |
+        brew install create-dmg
+
     - name: Mac pack dmg
       shell: sh
       run: |
-        cd $LOGSQUIRL_BUILD_ROOT
-        cpack --verbose -G "DragNDrop"
+        set -euo pipefail
+        cd "$LOGSQUIRL_BUILD_ROOT"
+        mkdir -p packages
 
-    - name: Mac rename dmg
-      shell: sh
-      run: |
-        cd $LOGSQUIRL_BUILD_ROOT
-        mv ./packages/logsquirl-*.dmg ./packages/${{ env.LOGSQUIRL_DMG }}
+        # create-dmg handles: Applications symlink, background image,
+        # icon positions, volume icon, window size.
+        create-dmg \
+          --volname "LogSquirl" \
+          --volicon "${{ github.workspace }}/Resources/logsquirl.icns" \
+          --background "${{ github.workspace }}/packaging/osx/dmg_background.tif" \
+          --window-pos 400 100 \
+          --window-size 500 365 \
+          --icon-size 128 \
+          --icon "logsquirl.app" 133 200 \
+          --icon "Applications" 378 200 \
+          --hide-extension "logsquirl.app" \
+          --no-internet-enable \
+          --app-drop-link 378 200 \
+          "./packages/${{ env.LOGSQUIRL_DMG }}" \
+          "./output/logsquirl.app"
 
+        echo "DMG created: $(ls -lh ./packages/${{ env.LOGSQUIRL_DMG }})"
+
+    # ── 6. Sign and notarize the DMG ──────────────────────────────────────
     - name: Mac codesign dmg
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
-        cd $LOGSQUIRL_BUILD_ROOT
-        codesign -v -f -o runtime --timestamp -s "${{ env.LOGSQUIRL_CODESIGN }}" ./packages/${{ env.LOGSQUIRL_DMG }}
-    
-    - name: Mac notarize DMG 
-      if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }} 
+        cd "$LOGSQUIRL_BUILD_ROOT"
+        codesign --force --timestamp \
+          --sign "${{ env.LOGSQUIRL_CODESIGN }}" \
+          "./packages/${{ env.LOGSQUIRL_DMG }}"
+
+    - name: Mac notarize DMG
+      if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
-        xcrun notarytool submit --wait --apple-id "${{ inputs.notarization-username }}" --team-id "${{ inputs.notarization-team }}" --password "${{ inputs.notarization-password }}" "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}" | tee dmg_notary.log
-        dmg_notary_id=$(awk '$1=="id:"{id=$2} END{print id}' dmg_notary.log)
-        xcrun notarytool log --apple-id "${{ inputs.notarization-username }}" --team-id "${{ inputs.notarization-team }}" --password "${{ inputs.notarization-password }}" "$dmg_notary_id" "dmg_notary.log.json"
-        cat "dmg_notary.log.json"
+        set -euo pipefail
+        xcrun notarytool submit --wait \
+          --apple-id "${{ inputs.notarization-username }}" \
+          --team-id "${{ inputs.notarization-team }}" \
+          --password "${{ inputs.notarization-password }}" \
+          "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}" \
+          | tee dmg_notary.log
 
-    - name: Mac staple DMG 
+        dmg_status=$(grep -i "status:" dmg_notary.log | tail -1 | awk '{print $NF}')
+        dmg_notary_id=$(awk '$1=="id:"{id=$2} END{print id}' dmg_notary.log)
+
+        # Always fetch the notarization log for diagnostics
+        xcrun notarytool log \
+          --apple-id "${{ inputs.notarization-username }}" \
+          --team-id "${{ inputs.notarization-team }}" \
+          --password "${{ inputs.notarization-password }}" \
+          "$dmg_notary_id" "dmg_notary.log.json" || true
+        echo "=== Notarization log ==="
+        cat "dmg_notary.log.json" || true
+
+        if [ "$dmg_status" != "Accepted" ]; then
+          echo "::error::DMG notarization failed with status: $dmg_status"
+          exit 1
+        fi
+
+    - name: Mac staple DMG
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
         xcrun stapler staple "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}"
+        echo "=== Stapler validation ==="
+        xcrun stapler validate "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}"
 
-    #- name: "Mac build pkg"
-    #  if: ${{ github.event_name != 'pull_request' }}
-    #  shell: sh
-    #  run: |
-    #    cd $LOGSQUIRL_BUILD_ROOT
-    #    mkdir -p packages
-    #    mkdir -p pkg_resources/en.lproj
-    #    cp ../COPYING pkg_resources/en.lproj
-    #    cp ../packaging/description.txt pkg_resources/en.lproj
-    #    sed -e s/%logsquirl_version%/${{ env.LOGSQUIRL_VERSION }}/ -e s/%logsquirl_pkg%/logsquirl-${{ env.LOGSQUIRL_VERSION }}-OSX.pkg/ ../packaging/osx/distribution.xml > distribution.xml
-    #    pkgbuild --component ./output/logsquirl.app --install-location /Applications --version ${{ env.LOGSQUIRL_VERSION }} --sign "${{ env.LOGSQUIRL_INSTALLERSIGN }}" --timestamp ./output/logsquirl-${{ env.LOGSQUIRL_VERSION }}-OSX.pkg
-    #    productbuild --package-path ./output --distribution distribution.xml --resources ./pkg_resources --sign "${{ env.LOGSQUIRL_INSTALLERSIGN }}" --timestamp ./output/logsquirl-${{ env.LOGSQUIRL_VERSION }}-OSX-product.pkg
-    #    pkgutil --expand ./output/logsquirl-${{ env.LOGSQUIRL_VERSION }}-OSX-product.pkg ./output/logsquirl_product_pkg
-    #    pkgutil --flatten ./output/logsquirl_product_pkg ./output/logsquirl-${{ env.LOGSQUIRL_VERSION }}-OSX-flatten.pkg
-    #    productsign --sign "${{ env.LOGSQUIRL_INSTALLERSIGN }}" --timestamp ./output/logsquirl-${{ env.LOGSQUIRL_VERSION }}-OSX-flatten.pkg ./packages/${{ env.LOGSQUIRL_PKG }}
-
-    #- name: Mac notarize PKG 
-    #  if: ${{ github.event_name != 'pull_request' }} 
-    #  shell: sh
-    #  run: |
-    #    xcrun notarytool submit  --wait --apple-id "${{ inputs.notarization-username }}" --team-id "${{ inputs.notarization-team }}" --password "${{ inputs.notarization-password }}" "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_PKG }}" | tee pkg_notary.log
-    #    pkg_notary_id=$(awk '$1=="id:"{id=$2} END{print id}' pkg_notary.log)
-    #    xcrun notarytool log --apple-id "${{ inputs.notarization-username }}" --team-id "${{ inputs.notarization-team }}" --password "${{ inputs.notarization-password }}" "$pkg_notary_id" "pkg_notary.log.json"
-    #    cat "pkg_notary.log.json"
-
-    #- name: Mac staple PKG 
-    #  if: ${{ github.event_name != 'pull_request' }} 
-    #  shell: sh 
-    #  run: |
-    #    xcrun stapler staple "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_PKG }}"
-
+    # ── 7. Copy debug symbols alongside artifacts ─────────────────────────
     - name: Mac symbols
       shell: sh
       run: |
