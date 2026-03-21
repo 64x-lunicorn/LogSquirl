@@ -260,6 +260,16 @@ class Configuration final : public Persistable<Configuration> {
         enableVersionChecking_ = enabled;
     }
 
+    // Whether the user opted in to beta update notifications
+    bool betaVersionCheckingEnabled() const
+    {
+        return enableBetaVersionChecking_;
+    }
+    void setBetaVersionCheckingEnabled( bool enabled )
+    {
+        enableBetaVersionChecking_ = enabled;
+    }
+
     // View settings
     bool isOverviewVisible() const
     {
@@ -602,6 +612,7 @@ class Configuration final : public Persistable<Configuration> {
     int loggingLevel_ = 4;
 
     bool enableVersionChecking_ = true;
+    bool enableBetaVersionChecking_ = false;
 
     bool extractArchives_ = true;
     bool extractArchivesAlways_ = false;

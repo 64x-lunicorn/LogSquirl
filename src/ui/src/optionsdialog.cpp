@@ -84,6 +84,10 @@ OptionsDialog::OptionsDialog( QWidget* parent )
     connect( extractArchivesCheckBox, &QCheckBox::toggled,
              [ this ]( auto ) { this->setupArchives(); } );
 
+    // Beta checkbox is only enabled when version checking is on
+    connect( checkForNewVersionCheckBox, &QCheckBox::toggled, checkForBetaVersionCheckBox,
+             &QWidget::setEnabled );
+
     connect( mainSearchColorButton, &QPushButton::clicked, this, &OptionsDialog::changeMainColor );
     connect( quickFindColorButton, &QPushButton::clicked, this, &OptionsDialog::changeQfColor );
 
@@ -373,6 +377,8 @@ void OptionsDialog::updateDialogFromConfig()
 
     // version checking
     checkForNewVersionCheckBox->setChecked( config.versionCheckingEnabled() );
+    checkForBetaVersionCheckBox->setChecked( config.betaVersionCheckingEnabled() );
+    checkForBetaVersionCheckBox->setEnabled( config.versionCheckingEnabled() );
 
     // downloads
     verifySslCheckBox->setChecked( config.verifySslPeers() );
@@ -548,6 +554,7 @@ void OptionsDialog::updateConfigFromDialog()
 
     // version checking
     config.setVersionCheckingEnabled( checkForNewVersionCheckBox->isChecked() );
+    config.setBetaVersionCheckingEnabled( checkForBetaVersionCheckBox->isChecked() );
 
     config.setVerifySslPeers( verifySslCheckBox->isChecked() );
 

@@ -223,6 +223,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     enableVersionChecking_
         = settings.value( "versionchecker.enabled", DefaultConfiguration.enableVersionChecking_ )
               .toBool();
+    enableBetaVersionChecking_
+        = settings.value( "versionchecker.betaEnabled",
+                          DefaultConfiguration.enableBetaVersionChecking_ )
+              .toBool();
 
     extractArchives_
         = settings.value( "archives.extract", DefaultConfiguration.extractArchives_ ).toBool();
@@ -400,6 +404,7 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "logging.verbosity", loggingLevel_ );
 
     settings.setValue( "versionchecker.enabled", enableVersionChecking_ );
+    settings.setValue( "versionchecker.betaEnabled", enableBetaVersionChecking_ );
 
     settings.setValue( "archives.extract", extractArchives_ );
     settings.setValue( "archives.extractAlways", extractArchivesAlways_ );
