@@ -43,6 +43,83 @@ runs:
           $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/MacOS/logsquirl \
           $LOGSQUIRL_QT_DIR
 
+    # ── 2b. Repair Qt framework bundle symlinks ──────────────────────────
+    #
+    # macdeployqt (especially Qt 6) copies files instead of creating the
+    # required versioned symlink structure. Without proper symlinks codesign
+    # fails with "bundle format is ambiguous (could be app or framework)".
+    # We rebuild the canonical layout:
+    #   Versions/Current -> A  (symlink)
+    #   QtFoo            -> Versions/Current/QtFoo  (symlink)
+    #   Resources        -> Versions/Current/Resources  (symlink)
+    - name: Mac fix framework symlinks
+      shell: sh
+      run: |
+        set -euo pipefail
+        APP="$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
+        FWDIR="$APP/Contents/Frameworks"
+
+        for framework in "$FWDIR"/*.framework; do
+          [ -d "$framework" ] || continue
+          fw_name=$(basename "$framework" .framework)
+          echo "Fixing framework: $fw_name"
+
+          # Ensure Versions/A exists with the binary
+          if [ ! -d "$framework/Versions/A" ]; then
+            mkdir -p "$framework/Versions/A"
+            # Move the top-level binary into Versions/A if it exists
+            if [ -f "$framework/$fw_name" ] && [ ! -L "$framework/$fw_name" ]; then
+              mv "$framework/$fw_name" "$framework/Versions/A/$fw_name"
+            fi
+          fi
+
+          # Move Resources into Versions/A if it is a real directory at top level
+          if [ -d "$framework/Resources" ] && [ ! -L "$framework/Resources" ]; then
+            if [ -d "$framework/Versions/A/Resources" ]; then
+              rm -rf "$framework/Versions/A/Resources"
+            fi
+            mv "$framework/Resources" "$framework/Versions/A/Resources"
+          fi
+
+          # Move _CodeSignature into Versions/A if present at top level
+          if [ -d "$framework/_CodeSignature" ] && [ ! -L "$framework/_CodeSignature" ]; then
+            rm -rf "$framework/Versions/A/_CodeSignature"
+            mv "$framework/_CodeSignature" "$framework/Versions/A/_CodeSignature"
+          fi
+
+          # Replace Versions/Current real directory with symlink -> A
+          if [ -d "$framework/Versions/Current" ] && [ ! -L "$framework/Versions/Current" ]; then
+            rm -rf "$framework/Versions/Current"
+          fi
+          if [ ! -L "$framework/Versions/Current" ]; then
+            ln -s A "$framework/Versions/Current"
+          fi
+
+          # Replace top-level binary with symlink -> Versions/Current/<name>
+          if [ -f "$framework/$fw_name" ] && [ ! -L "$framework/$fw_name" ]; then
+            rm "$framework/$fw_name"
+          fi
+          if [ ! -L "$framework/$fw_name" ]; then
+            ln -s "Versions/Current/$fw_name" "$framework/$fw_name"
+          fi
+
+          # Replace top-level Resources with symlink -> Versions/Current/Resources
+          if [ ! -L "$framework/Resources" ]; then
+            ln -s "Versions/Current/Resources" "$framework/Resources"
+          fi
+
+          echo "  OK: $(ls -la "$framework/$fw_name" | tail -1)"
+        done
+
+        echo "=== Framework structure verification ==="
+        for framework in "$FWDIR"/*.framework; do
+          fw_name=$(basename "$framework" .framework)
+          echo "$fw_name:"
+          echo "  Current: $(readlink "$framework/Versions/Current" || echo 'NOT A SYMLINK')"
+          echo "  Binary:  $(readlink "$framework/$fw_name" || echo 'NOT A SYMLINK')"
+          echo "  Res:     $(readlink "$framework/Resources" || echo 'NOT A SYMLINK')"
+        done
+
     # ── 3. Resolve signing identities ─────────────────────────────────────
     - name: Set packaging env
       shell: sh
@@ -87,12 +164,12 @@ runs:
 
         echo "::group::Signing individual components"
 
-        # 4a. Sign every framework bundle
+        # 4a. Sign every framework bundle (sign Versions/A, the canonical path)
         find "$APP/Contents/Frameworks" -name '*.framework' -maxdepth 1 2>/dev/null | while read -r fw; do
           echo "  Signing framework: $fw"
           codesign --force --options runtime --timestamp \
             --entitlements "$ENT" \
-            --sign "$SIGN" "$fw"
+            --sign "$SIGN" "$fw/Versions/A"
         done
 
         # 4b. Sign loose dylibs inside Frameworks/
