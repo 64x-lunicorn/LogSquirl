@@ -346,6 +346,9 @@ void OptionsDialog::updateDialogFromConfig()
     pollIntervalLineEdit->setText( QString::number( config.pollIntervalMs() ) );
     allowFollowOnScrollCheckBox->setChecked( config.allowFollowOnScroll() );
 
+    fastScrollEnabledCheckBox->setChecked( config.fastScrollEnabled() );
+    fastScrollMultiplierSpinBox->setValue( config.fastScrollMultiplier() );
+
     // Last session
     loadLastSessionCheckBox->setChecked( config.loadLastSession() );
     followFileOnLoadCheckBox->setChecked( config.followFileOnLoad() );
@@ -520,6 +523,9 @@ void OptionsDialog::updateConfigFromDialog()
     config.setPollIntervalMs( pollInterval );
     config.setFastModificationDetection( fastModificationDetectionCheckBox->isChecked() );
     config.setAllowFollowOnScroll( allowFollowOnScrollCheckBox->isChecked() );
+
+    config.setFastScrollEnabled( fastScrollEnabledCheckBox->isChecked() );
+    config.setFastScrollMultiplier( fastScrollMultiplierSpinBox->value() );
 
     config.setLoadLastSession( loadLastSessionCheckBox->isChecked() );
     config.setFollowFileOnLoad( followFileOnLoadCheckBox->isChecked() );

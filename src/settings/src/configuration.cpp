@@ -199,6 +199,14 @@ void Configuration::retrieveFromStorage( QSettings& settings )
               .value( "filewatch.allowFollowOnScroll", DefaultConfiguration.allowFollowOnScroll_ )
               .toBool();
 
+    fastScrollEnabled_
+        = settings.value( "view.fastScrollEnabled", DefaultConfiguration.fastScrollEnabled_ )
+              .toBool();
+    fastScrollMultiplier_
+        = settings
+              .value( "view.fastScrollMultiplier", DefaultConfiguration.fastScrollMultiplier_ )
+              .toInt();
+
     loadLastSession_
         = settings.value( "session.loadLast", DefaultConfiguration.loadLastSession_ ).toBool();
     allowMultipleWindows_
@@ -380,6 +388,9 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "filewatch.pollingIntervalMs", pollIntervalMs_ );
     settings.setValue( "filewatch.fastModificationDetection", fastModificationDetection_ );
     settings.setValue( "filewatch.allowFollowOnScroll", allowFollowOnScroll_ );
+
+    settings.setValue( "view.fastScrollEnabled", fastScrollEnabled_ );
+    settings.setValue( "view.fastScrollMultiplier", fastScrollMultiplier_ );
 
     settings.setValue( "session.loadLast", loadLastSession_ );
     settings.setValue( "session.multipleWindows", allowMultipleWindows_ );
