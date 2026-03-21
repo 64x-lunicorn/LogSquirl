@@ -57,7 +57,7 @@
 namespace {
 
 constexpr const char* DSN
-    = "https://d69acc4cb51cf449be540dcee6804f5d@o4511077090459648.ingest.de.sentry.io/4511077093474384";
+    = "https://1efd12558459df096d7774f048927775@o4511077090459648.ingest.de.sentry.io/4511083891916880";
 
 QString sentryDatabasePath()
 {
