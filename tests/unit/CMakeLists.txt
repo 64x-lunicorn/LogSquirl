@@ -2,6 +2,7 @@
 add_executable(logsquirl_tests
     configuration_test.cpp
     encodingdetector_test.cpp
+    jwtdecoder_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
     patternmatcher_test.cpp
