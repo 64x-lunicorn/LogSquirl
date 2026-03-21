@@ -70,8 +70,11 @@ jobs:
     - name: Upload symbols mac
       shell: sh
       run: |
-        sentry-cli upload-dif ./packages-macos-intel-qt6/logsquirl-x64.app/Contents/MacOS/logsquirl ./packages-macos-intel-qt6/logsquirl-x64.dSym
-        sentry-cli upload-dif ./packages-macos-arm-qt6/logsquirl-arm64.app/Contents/MacOS/logsquirl ./packages-macos-arm-qt6/logsquirl-arm64.dSym
+        # Extract tar.gz archives (preserves framework symlinks)
+        cd ./packages-mac-x64 && tar xzf logsquirl-x64.app.tar.gz && tar xzf logsquirl-x64.dSym.tar.gz && cd ..
+        cd ./packages-mac-arm64 && tar xzf logsquirl-arm64.app.tar.gz && tar xzf logsquirl-arm64.dSym.tar.gz && cd ..
+        sentry-cli upload-dif ./packages-mac-x64/logsquirl.app/Contents/MacOS/logsquirl ./packages-mac-x64/logsquirl.dSym
+        sentry-cli upload-dif ./packages-mac-arm64/logsquirl.app/Contents/MacOS/logsquirl ./packages-mac-arm64/logsquirl.dSym
 
     - name: Upload symbols win
       shell: sh
@@ -86,8 +89,8 @@ jobs:
         rm -rf ./packages-oracle/logsquirl_oracle
         rm -rf ./packages-fedora/logsquirl_fedora
         rm -rf ./packages-appimage/logsquirl_appimage
-        rm -rf ./packages-macos-intel-qt6/logsquirl-x64.app
-        rm -rf ./packages-macos-arm-qt6/logsquirl-arm64.app
+        rm -rf ./packages-mac-x64/logsquirl.app ./packages-mac-x64/logsquirl.dSym
+        rm -rf ./packages-mac-arm64/logsquirl.app ./packages-mac-arm64/logsquirl.dSym
         mkdir ./linux-debug
         mv ./packages-jammy/logsquirl_jammy.debug ./linux-debug
         mv ./packages-noble/logsquirl_noble.debug ./linux-debug
@@ -141,8 +144,8 @@ jobs:
         automatic_release_tag: continuous-osx
         prerelease: true
         files: |
-          ./packages-macos-intel-qt6/*
-          ./packages-macos-arm-qt6/*
+          ./packages-mac-x64/*
+          ./packages-mac-arm64/*
 
     # --- Beta release (only when beta-tag input is provided) ---
     - name: Release beta win
@@ -182,8 +185,8 @@ jobs:
         prerelease: true
         title: "Beta ${{ github.event.inputs.beta-tag }} (macOS)"
         files: |
-          ./packages-macos-intel-qt6/*
-          ./packages-macos-arm-qt6/*
+          ./packages-mac-x64/*
+          ./packages-mac-arm64/*
 
     - name: Update latest.json with beta version
       if: ${{ github.event.inputs.beta-tag }}
