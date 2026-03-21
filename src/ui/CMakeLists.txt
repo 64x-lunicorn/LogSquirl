@@ -37,6 +37,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewtools.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/scratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedscratchpad.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/chipmunkimporter.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/filterspanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodings.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/favoritefiles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabnamemapping.h
@@ -85,6 +87,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewtools.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedscratchpad.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/filterspanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/favoritefiles.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabnamemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/iconloader.cpp

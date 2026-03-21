@@ -133,6 +133,9 @@ class HighlighterSet {
     QString name() const;
     QString id() const;
 
+    // Append a highlighter to this set.
+    void addHighlighter( const Highlighter& highlighter );
+
     // Returns weither the passed line match a filter of the set,
     // if so, it returns the fore/back colors the line should use.
     HighlighterMatchType matchLine( const QString& line,

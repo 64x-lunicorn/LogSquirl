@@ -86,6 +86,10 @@ extern const char* removeFromFavoritesText;
 extern const char* selectOpenFileText;
 extern const char* predefinedFiltersDialogText;
 extern const char* predefinedFiltersDialogStatusTip;
+extern const char* importChipmunkFiltersText;
+extern const char* importChipmunkFiltersStatusTip;
+extern const char* showFiltersPanelText;
+extern const char* showFiltersPanelStatusTip;
 extern const char* autoEncodingText;
 extern const char* autoEncodingStatusTip;
 } // namespace action

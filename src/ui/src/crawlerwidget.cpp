@@ -209,11 +209,6 @@ bool CrawlerWidget::isTextWrapEnabled() const
     return logMainView_->isTextWrapEnabled();
 }
 
-void CrawlerWidget::reloadPredefinedFilters() const
-{
-    predefinedFilters_->populatePredefinedFilters();
-}
-
 QString CrawlerWidget::encodingText() const
 {
     return encodingText_;
@@ -409,12 +404,6 @@ void CrawlerWidget::startNewSearch()
     updateSearchCombo();
     // Call the private function to do the search
     replaceCurrentSearch( searchLineEdit_->currentText() );
-}
-
-void CrawlerWidget::updatePredefinedFiltersWidget()
-{
-    predefinedFilters_->updateSearchPattern( searchLineEdit_->currentText(),
-                                             booleanButton_->isChecked() );
 }
 
 void CrawlerWidget::stopSearch()
@@ -663,8 +652,6 @@ void CrawlerWidget::applyConfiguration()
     if ( isFollowEnabled() ) {
         changeDataStatus( DataStatus::OLD_DATA );
     }
-
-    reloadPredefinedFilters();
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -824,7 +811,6 @@ void CrawlerWidget::useRegexpChangeHandler( bool )
 void CrawlerWidget::searchTextChangeHandler( QString )
 {
     resetStateOnSearchPatternChanges();
-    updatePredefinedFiltersWidget();
 }
 
 void CrawlerWidget::changeFilteredViewVisibility( int index )
@@ -914,7 +900,6 @@ void CrawlerWidget::replaceSearch( const QString& searchString )
 void CrawlerWidget::setSearchPattern( const QString& searchPattern )
 {
     searchLineEdit_->setEditText( searchPattern );
-    updatePredefinedFiltersWidget();
     // Set the focus to lineEdit so that the user can press 'Return' immediately
     searchLineEdit_->lineEdit()->setFocus();
 
@@ -1122,8 +1107,6 @@ void CrawlerWidget::setup()
     stopButton_->setVisible( false );
     stopButton_->setContentsMargins( 2, 2, 2, 2 );
 
-    predefinedFilters_ = new PredefinedFiltersComboBox( this );
-
     auto* searchLineLayout = new QHBoxLayout;
     searchLineLayout->setContentsMargins( 2, 2, 2, 2 );
 
@@ -1133,7 +1116,6 @@ void CrawlerWidget::setup()
     searchLineLayout->addWidget( inverseButton_ );
     searchLineLayout->addWidget( booleanButton_ );
     searchLineLayout->addWidget( searchRefreshButton_ );
-    searchLineLayout->addWidget( predefinedFilters_ );
     searchLineLayout->addWidget( searchLineEdit_ );
     searchLineLayout->addWidget( clearButton_ );
     searchLineLayout->addWidget( searchButton_ );
@@ -1181,12 +1163,6 @@ void CrawlerWidget::setup()
              &QToolButton::click );
     connect( searchLineEdit_->lineEdit(), &QLineEdit::textEdited, this,
              &CrawlerWidget::searchTextChangeHandler );
-
-    connect( searchLineEdit_, QOverload<int>::of( &QComboBox::currentIndexChanged ), this,
-             [ this ]( auto ) { updatePredefinedFiltersWidget(); } );
-
-    connect( predefinedFilters_, &PredefinedFiltersComboBox::filterChanged, this,
-             &CrawlerWidget::setSearchPatternFromPredefinedFilters );
 
     connect( searchLineEdit_, &QWidget::customContextMenuRequested, this,
              &CrawlerWidget::showSearchContextMenu );
@@ -1297,7 +1273,6 @@ void CrawlerWidget::setup()
     if ( defaultEncodingMib >= 0 ) {
         encodingMib_ = defaultEncodingMib;
     }
-    updatePredefinedFiltersWidget();
 }
 
 void CrawlerWidget::changeFilteredView( int tabIndex )

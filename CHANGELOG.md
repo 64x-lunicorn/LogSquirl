@@ -5,6 +5,8 @@ This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github
 ## New features:
  - Rebranded project from klogg to LogSquirl with new bundle identifier `io.github.logsquirl`
  - Added JWT token decoder to Scratchpad: decodes Base64URL header/payload, formats JSON with indentation, and annotates epoch timestamps (iat, exp, nbf, auth_time) with human-readable UTC dates
+ - Added Filters Panel: right sidebar dock with tabbed Filters and Scratchpad panels, toolbar filter icon, auto-search on toggle, and pinned filters that persist across sessions
+ - Added Chipmunk filter import: import filters and highlighters from Chipmunk JSON export files via Tools menu
 
 ## Bug fixes:
  - Fixed crash on shutdown with Qt 6.10 on Windows (QThreadPool::waitForDone SEGFAULT)

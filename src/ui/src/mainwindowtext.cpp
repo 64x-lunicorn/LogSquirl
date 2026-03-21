@@ -90,6 +90,11 @@ const char* action::selectOpenFileText = QT_TR_NOOP( "Switch to opened file..." 
 const char* action::predefinedFiltersDialogText = QT_TR_NOOP( "Predefined filters..." );
 const char* action::predefinedFiltersDialogStatusTip
     = QT_TR_NOOP( "Show dialog to configure filters" );
+const char* action::importChipmunkFiltersText = QT_TR_NOOP( "Import Chipmunk filters..." );
+const char* action::importChipmunkFiltersStatusTip
+    = QT_TR_NOOP( "Import filters from a Chipmunk JSON export file" );
+const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters panel" );
+const char* action::showFiltersPanelStatusTip = QT_TR_NOOP( "Show the filters panel" );
 const char* action::autoEncodingText = QT_TR_NOOP( "Auto" );
 const char* action::autoEncodingStatusTip
     = QT_TR_NOOP( "Automatically detect the file's encoding" );

@@ -55,6 +55,7 @@
 
 #include "colorlabelsmanager.h"
 #include "filteredview.h"
+#include "predefinedfilters.h"
 #include "iconloader.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
@@ -62,7 +63,6 @@
 #include "logfiltereddata.h"
 #include "logmainview.h"
 #include "overview.h"
-#include "predefinedfilterscombobox.h"
 #include "signalmux.h"
 #include "viewinterface.h"
 
@@ -184,9 +184,14 @@ class CrawlerWidget : public QSplitter,
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
 
-  private Q_SLOTS:
-    // Instructs the widget to start a search using the current search line.
+  public Q_SLOTS:
+    // Apply a list of predefined filters as the current search pattern.
+    void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
+
+    // Start a new search using the current search line content.
     void startNewSearch();
+
+  private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
@@ -248,7 +253,6 @@ class CrawlerWidget : public QSplitter,
 
     // Save current search as predefined filter
     void saveAsPredefinedFilter();
-    void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
 
     // Search Context Menu
     void showSearchContextMenu();
@@ -332,10 +336,7 @@ class CrawlerWidget : public QSplitter,
     void changeDataStatus( DataStatus status );
     void updateEncoding();
     void changeTopViewSize( int32_t delta );
-    void updatePredefinedFiltersWidget();
 
-    // Reload predefined filters after changing settings
-    void reloadPredefinedFilters() const;
 
     QString escapeSearchPattern( const QString& searchPattern, bool isRegex = false ) const;
     QString& combinePatterns( QString& currentPattern, const QString& newPattern ) const;
@@ -375,8 +376,6 @@ class CrawlerWidget : public QSplitter,
 
     QComboBox* visibilityBox_;
     QStandardItemModel* visibilityModel_;
-
-    PredefinedFiltersComboBox* predefinedFilters_;
 
     QComboBox* searchLineEdit_;
     QMenu* searchLineContextMenu_;
