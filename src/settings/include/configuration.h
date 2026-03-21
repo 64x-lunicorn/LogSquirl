@@ -480,6 +480,24 @@ class Configuration final : public Persistable<Configuration> {
         allowFollowOnScroll_ = enable;
     }
 
+    // Fast scroll: multiply scroll speed when Alt (Option) is held
+    bool fastScrollEnabled() const
+    {
+        return fastScrollEnabled_;
+    }
+    void setFastScrollEnabled( bool enable )
+    {
+        fastScrollEnabled_ = enable;
+    }
+    int fastScrollMultiplier() const
+    {
+        return fastScrollMultiplier_;
+    }
+    void setFastScrollMultiplier( int multiplier )
+    {
+        fastScrollMultiplier_ = multiplier;
+    }
+
     bool useTextWrap() const
     {
         return useTextWrap_;
@@ -605,6 +623,9 @@ class Configuration final : public Persistable<Configuration> {
 
     bool allowFollowOnScroll_ = true;
     bool autoRunSearchOnPatternChange_ = false;
+
+    bool fastScrollEnabled_ = true;
+    int fastScrollMultiplier_ = 5;
 
     bool optimizeForNotLatinEncodings_ = false;
 

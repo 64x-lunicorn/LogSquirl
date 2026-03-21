@@ -941,6 +941,13 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
         return;
     }
 
+    // Fast scroll: multiply scroll delta when Alt (Option on macOS) is held
+    const bool isFastScroll = wheelEvent->modifiers().testFlag( Qt::AltModifier )
+                              && Configuration::get().fastScrollEnabled();
+    if ( isFastScroll ) {
+        yDelta *= Configuration::get().fastScrollMultiplier();
+    }
+
     // LOG_DEBUG << "wheelEvent";
 
     // This is to handle the case where follow mode is on, but the user
@@ -969,7 +976,13 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
     // LOG_DEBUG << "Length = " << followElasticHook_.size();
     if ( !allowFollowOnScroll
          || ( followElasticHook_.size() == 0 && !followElasticHook_.isHooked() ) ) {
-        QAbstractScrollArea::wheelEvent( wheelEvent );
+        if ( isFastScroll ) {
+            // Apply multiplied delta directly since the original event has the unmultiplied value
+            verticalScrollBar()->setValue( verticalScrollBar()->value() - yDelta );
+        }
+        else {
+            QAbstractScrollArea::wheelEvent( wheelEvent );
+        }
     }
 }
 
