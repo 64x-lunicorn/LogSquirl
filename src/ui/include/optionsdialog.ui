@@ -216,6 +216,16 @@
             </property>
            </widget>
           </item>
+          <item>
+           <widget class="QCheckBox" name="checkForBetaVersionCheckBox">
+            <property name="toolTip">
+             <string>When enabled, checks for beta versions on every application start</string>
+            </property>
+            <property name="text">
+             <string>Check for beta updates</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

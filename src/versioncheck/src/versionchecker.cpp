@@ -109,22 +109,25 @@ void VersionChecker::startCheck()
     const auto& deadlineConfig = VersionCheckerConfig::getSynced();
     const auto& appConfig = Configuration::get();
 
-    if ( appConfig.versionCheckingEnabled() ) {
-        // Check the deadline has been reached
-        if ( deadlineConfig.nextDeadline() < std::time( nullptr ) ) {
-            connect( manager_, &QNetworkAccessManager::finished, this,
-                     &VersionChecker::downloadFinished );
+    if ( !appConfig.versionCheckingEnabled() ) {
+        return;
+    }
 
-            LOG_DEBUG << "Requesting new version info from " << VERSION_URL;
+    // Beta checks bypass the 7-day deadline and run on every app start
+    const bool deadlineReached = deadlineConfig.nextDeadline() < std::time( nullptr );
+    if ( deadlineReached || appConfig.betaVersionCheckingEnabled() ) {
+        connect( manager_, &QNetworkAccessManager::finished, this,
+                 &VersionChecker::downloadFinished );
 
-            QNetworkRequest request;
-            request.setUrl( QUrl( VERSION_URL ) );
-            manager_->get( request );
-        }
-        else {
-            LOG_DEBUG << "Deadline not reached yet, next check in "
-                      << std::difftime( deadlineConfig.nextDeadline(), std::time( nullptr ) );
-        }
+        LOG_DEBUG << "Requesting new version info from " << VERSION_URL;
+
+        QNetworkRequest request;
+        request.setUrl( QUrl( VERSION_URL ) );
+        manager_->get( request );
+    }
+    else {
+        LOG_DEBUG << "Deadline not reached yet, next check in "
+                  << std::difftime( deadlineConfig.nextDeadline(), std::time( nullptr ) );
     }
 }
 
@@ -159,15 +162,32 @@ void VersionChecker::checkVersionData( QByteArray versionData )
 
     QString latestVersion;
     QString url;
+    bool isBetaNotification = false;
     const auto stableVersions = latestVersionMap.value( "releases" ).toList();
 
     const auto currentVersion = logsquirlVersion();
-    if ( std::any_of( stableVersions.begin(), stableVersions.end(),
-                      [ &currentVersion ]( const auto& version ) {
-                          return version.toString() == currentVersion;
-                      } ) ) {
+    const bool isStableUser = std::any_of(
+        stableVersions.begin(), stableVersions.end(),
+        [ &currentVersion ]( const auto& version ) {
+            return version.toString() == currentVersion;
+        } );
+
+    if ( isStableUser ) {
         latestVersion = latestVersionMap.value( "stable" ).toString();
         url = latestVersionMap.value( "stable_url" ).toString();
+
+        // If no newer stable version, check for beta when user opted in
+        const auto& appConfig = Configuration::get();
+        if ( !isVersionNewer( currentVersion, latestVersion )
+             && appConfig.betaVersionCheckingEnabled() ) {
+            const auto betaVersion = latestVersionMap.value( "beta" ).toString();
+            const auto betaUrl = latestVersionMap.value( "beta_url" ).toString();
+            if ( !betaVersion.isEmpty() && isVersionNewer( currentVersion, betaVersion ) ) {
+                latestVersion = betaVersion;
+                url = betaUrl;
+                isBetaNotification = true;
+            }
+        }
     }
     else {
         latestVersion = latestVersionMap.value( "ci" ).toString();
@@ -177,7 +197,7 @@ void VersionChecker::checkVersionData( QByteArray versionData )
     const auto changeLog = latestVersionMap.value( "changelog" ).toList();
 
     QStringList changes;
-    for ( const auto& entry :  changeLog ) {
+    for ( const auto& entry : changeLog ) {
         const auto entryData = entry.toMap();
         const auto version = entryData.value( "version" ).toString();
 
@@ -188,10 +208,13 @@ void VersionChecker::checkVersionData( QByteArray versionData )
     }
 
     LOG_DEBUG << "Current version: " << currentVersion << ". Latest version is " << latestVersion
-              << ", url " << url;
+              << ", url " << url << ( isBetaNotification ? " (beta)" : "" );
     if ( isVersionNewer( currentVersion, latestVersion ) ) {
-        LOG_INFO << "Sending new version notification";
+        LOG_INFO << "Sending new version notification"
+                 << ( isBetaNotification ? " (beta)" : "" );
 
-        Q_EMIT newVersionFound( latestVersion, url, changes );
+        const auto displayVersion
+            = isBetaNotification ? QString( "%1 (Beta)" ).arg( latestVersion ) : latestVersion;
+        Q_EMIT newVersionFound( displayVersion, url, changes );
     }
 }

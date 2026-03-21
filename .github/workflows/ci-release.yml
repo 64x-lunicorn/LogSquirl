@@ -6,6 +6,9 @@ on:
       ci-run-id:
         description: "Run ID of CI workflow"
         required: false
+      beta-tag:
+        description: "Beta release tag (e.g. v26.04.0-beta.1). Leave empty for standard CI release."
+        required: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -140,6 +143,69 @@ jobs:
         files: |
           ./packages-macos-intel-qt6/*
           ./packages-macos-arm-qt6/*
+
+    # --- Beta release (only when beta-tag input is provided) ---
+    - name: Release beta win
+      if: ${{ github.event.inputs.beta-tag }}
+      uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        automatic_release_tag: ${{ github.event.inputs.beta-tag }}-win
+        prerelease: true
+        title: "Beta ${{ github.event.inputs.beta-tag }} (Windows)"
+        files: |
+          ./packages-windows-x64-qt6/*
+
+    - name: Release beta linux
+      if: ${{ github.event.inputs.beta-tag }}
+      uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        automatic_release_tag: ${{ github.event.inputs.beta-tag }}-linux
+        prerelease: true
+        title: "Beta ${{ github.event.inputs.beta-tag }} (Linux)"
+        files: |
+          ./packages-jammy/*
+          ./packages-noble/*
+          ./packages-oracle/*
+          ./packages-fedora/*
+          ./packages-appimage/*
+          ./packages-bin/*
+          ./linux-debug/*
+
+    - name: Release beta mac
+      if: ${{ github.event.inputs.beta-tag }}
+      uses: "marvinpinto/action-automatic-releases@latest"
+      with:
+        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        automatic_release_tag: ${{ github.event.inputs.beta-tag }}-osx
+        prerelease: true
+        title: "Beta ${{ github.event.inputs.beta-tag }} (macOS)"
+        files: |
+          ./packages-macos-intel-qt6/*
+          ./packages-macos-arm-qt6/*
+
+    - name: Update latest.json with beta version
+      if: ${{ github.event.inputs.beta-tag }}
+      shell: bash
+      env:
+        BETA_TAG: ${{ github.event.inputs.beta-tag }}
+      run: |
+        # Extract version from tag (strip leading 'v' if present)
+        BETA_VERSION="${BETA_TAG#v}"
+        BETA_URL="https://github.com/64x-lunicorn/LogSquirl/releases/tag/${BETA_TAG}"
+
+        # Update latest.json using jq
+        jq --arg ver "$BETA_VERSION" --arg url "$BETA_URL" \
+           '.beta = $ver | .beta_url = $url' latest.json > latest.json.tmp \
+           && mv latest.json.tmp latest.json
+
+        # Commit and push the updated latest.json
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add latest.json
+        git commit -m "chore: update latest.json with beta ${BETA_VERSION} [skip ci]"
+        git push
 
 
 

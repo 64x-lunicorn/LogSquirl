@@ -3,6 +3,8 @@
     "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous",
     "stable": "26.03.0",
     "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.03.0",
+    "beta": "",
+    "beta_url": "",
     "releases": [
         "17.12.0.245",
         "19.2.0.366",
