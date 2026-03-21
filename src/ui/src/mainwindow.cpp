@@ -62,7 +62,9 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QHBoxLayout>
 #include <QInputDialog>
+#include <QLabel>
 #include <QListView>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -76,6 +78,7 @@
 #include <QTemporaryFile>
 #include <QTextBrowser>
 #include <QToolBar>
+#include <QToolButton>
 #include <QToolTip>
 #include <QUrl>
 #include <QUrlQuery>
@@ -202,6 +205,43 @@ MainWindow::MainWindow( WindowSession session )
     sidebarTabs_->addTab( &scratchPad_, tr( "Scratchpad" ) );
     sidebarDock_->setWidget( sidebarTabs_ );
     addDockWidget( Qt::RightDockWidgetArea, sidebarDock_ );
+
+    // Replace the default title bar with a custom widget for reliable button sizing
+    {
+        auto* titleBar = new QWidget( sidebarDock_ );
+        auto* titleLayout = new QHBoxLayout( titleBar );
+        titleLayout->setContentsMargins( 6, 2, 6, 2 );
+
+        auto* titleLabel = new QLabel( tr( "Sidebar" ), titleBar );
+        titleLayout->addWidget( titleLabel );
+        titleLayout->addStretch();
+
+        constexpr int kButtonSize = 24;
+        constexpr int kIconSize = 16;
+
+        auto* floatButton = new QToolButton( titleBar );
+        floatButton->setIcon( QIcon( ":/images/icons8-undock-16.png" ) );
+        floatButton->setFixedSize( kButtonSize, kButtonSize );
+        floatButton->setIconSize( QSize( kIconSize, kIconSize ) );
+        floatButton->setAutoRaise( true );
+        floatButton->setToolTip( tr( "Float" ) );
+        titleLayout->addWidget( floatButton );
+
+        auto* closeButton = new QToolButton( titleBar );
+        closeButton->setIcon( QIcon( ":/images/icons8-close-window-16.png" ) );
+        closeButton->setFixedSize( kButtonSize, kButtonSize );
+        closeButton->setIconSize( QSize( kIconSize, kIconSize ) );
+        closeButton->setAutoRaise( true );
+        closeButton->setToolTip( tr( "Close" ) );
+        titleLayout->addWidget( closeButton );
+
+        sidebarDock_->setTitleBarWidget( titleBar );
+
+        connect( closeButton, &QToolButton::clicked, sidebarDock_, &QDockWidget::close );
+        connect( floatButton, &QToolButton::clicked, sidebarDock_,
+                 [ this ] { sidebarDock_->setFloating( !sidebarDock_->isFloating() ); } );
+    }
+
     sidebarDock_->hide();
 
     // Route filter panel selections to the active crawler widget and auto-search
