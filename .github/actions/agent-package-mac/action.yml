@@ -216,11 +216,62 @@ runs:
         echo "=== Verify Gatekeeper acceptance ==="
         spctl --assess --type execute --verbose "$APP" || echo "::warning::spctl assess failed (expected without notarization)"
 
-    # ── 5. Create the DMG with proper layout ──────────────────────────────
+    # ── 5. Notarize the APP itself (not just the DMG) ────────────────────
+    #
+    # Stapling the notarization ticket directly onto the .app ensures
+    # Gatekeeper accepts it even when extracted from the DMG or downloaded
+    # as a raw artifact. Without this, only the DMG carries the ticket.
+    - name: Mac notarize app
+      if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
+      shell: sh
+      run: |
+        set -euo pipefail
+        cd "$LOGSQUIRL_BUILD_ROOT"
+
+        # notarytool accepts ZIP — create a temporary zip of the signed app
+        ditto -c -k --keepParent ./output/logsquirl.app ./output/logsquirl-notarize.zip
+
+        xcrun notarytool submit --wait \
+          --apple-id "${{ inputs.notarization-username }}" \
+          --team-id "${{ inputs.notarization-team }}" \
+          --password "${{ inputs.notarization-password }}" \
+          ./output/logsquirl-notarize.zip \
+          | tee app_notary.log
+
+        app_status=$(grep -i "status:" app_notary.log | tail -1 | awk '{print $NF}')
+        app_notary_id=$(awk '$1=="id:"{id=$2} END{print id}' app_notary.log)
+
+        xcrun notarytool log \
+          --apple-id "${{ inputs.notarization-username }}" \
+          --team-id "${{ inputs.notarization-team }}" \
+          --password "${{ inputs.notarization-password }}" \
+          "$app_notary_id" "app_notary.log.json" || true
+        echo "=== App notarization log ==="
+        cat "app_notary.log.json" || true
+
+        if [ "$app_status" != "Accepted" ]; then
+          echo "::error::App notarization failed with status: $app_status"
+          exit 1
+        fi
+
+        rm -f ./output/logsquirl-notarize.zip
+
+    - name: Mac staple app
+      if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
+      shell: sh
+      run: |
+        xcrun stapler staple "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
+        xcrun stapler validate "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
+        echo "=== Final app verification ==="
+        codesign --verify --deep --strict --verbose=2 "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
+        spctl --assess --type execute --verbose "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
+
+    # ── 6. Create the DMG with the stapled app ────────────────────────────
     #
     # We build the DMG manually instead of using CPack DragNDrop because
     # CPack does not create an Applications symlink and the resulting DMG
     # window appears empty with the bundled DS_Store.
+    # The app is already signed, notarized, and stapled at this point.
     - name: Install create-dmg
       shell: sh
       run: |
@@ -252,7 +303,7 @@ runs:
 
         echo "DMG created: $(ls -lh ./packages/${{ env.LOGSQUIRL_DMG }})"
 
-    # ── 6. Sign and notarize the DMG ──────────────────────────────────────
+    # ── 7. Sign and notarize the DMG ──────────────────────────────────────
     - name: Mac codesign dmg
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
@@ -299,10 +350,15 @@ runs:
         echo "=== Stapler validation ==="
         xcrun stapler validate "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}"
 
-    # ── 7. Copy debug symbols alongside artifacts ─────────────────────────
-    - name: Mac symbols
+    # ── 8. Archive app and symbols for CI artifacts ───────────────────────
+    #
+    # GitHub Actions upload-artifact uses ZIP which destroys symlinks.
+    # We tar.gz the .app and .dSym to preserve the framework symlink
+    # structure. Without this, downloaded artifacts have broken frameworks
+    # and fail Gatekeeper verification.
+    - name: Mac archive app and symbols
       shell: sh
       run: |
         cd $LOGSQUIRL_BUILD_ROOT
-        cp -a ./output/logsquirl.dSym ./packages/logsquirl.dSym
-        cp -a ./output/logsquirl.app ./packages/logsquirl.app
+        tar -czf ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.app.tar.gz -C ./output logsquirl.app
+        tar -czf ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.dSym.tar.gz -C ./output logsquirl.dSym
