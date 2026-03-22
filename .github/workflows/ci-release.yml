@@ -109,7 +109,11 @@ jobs:
           path: |
             packages-*/**
             logsquirl_version/**
+checkout@v4
+        with:
+          fetch-depth: 0
 
+      - uses: actions/
   # ── Job 3: Sentry release + symbol upload ──────────────────────────────
   sentry:
     runs-on: ubuntu-24.04
