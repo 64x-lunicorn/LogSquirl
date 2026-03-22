@@ -3,6 +3,12 @@ description: "Generate the build files, build the code and run the tests"
 runs:
   using: "composite"
   steps:
+    - name: Pre-seed CPM for sub-projects
+      shell: sh
+      run: |
+        mkdir -p "$LOGSQUIRL_WORKSPACE/cpm_cache/cpm"
+        cp "$LOGSQUIRL_WORKSPACE/cmake/CPM.cmake" "$LOGSQUIRL_WORKSPACE/cpm_cache/cpm/CPM_0.38.6.cmake"
+
     - name: configure
       shell: sh
       run: |
