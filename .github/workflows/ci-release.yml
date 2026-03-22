@@ -21,8 +21,25 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  # ── Job 0: Ensure tag is on master ─────────────────────────────────────
+  validate-branch:
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Ensure tag points to a commit on master
+        run: |
+          if ! git branch -r --contains "$GITHUB_SHA" | grep -q 'origin/master'; then
+            echo "::error::Release tags must be on the master branch."
+            echo "This tag points to a commit that is not on master — aborting release."
+            exit 1
+          fi
+
   # ── Job 1: Build (reuse ci-build.yml) ──────────────────────────────────
   build:
+    needs: [validate-branch]
     if: github.event_name == 'push'
     uses: ./.github/workflows/ci-build.yml
     secrets: inherit
