@@ -11,10 +11,8 @@ Feel free to submit bug reports, feature requests, questions and pull requests o
 There is a [Discord server](https://discord.gg/DruNyQftzB), [Telegram group](https://t.me/joinchat/JeIBxstIfp4xZTk6) 
 and [Gitter community](https://gitter.im/logsquirl_log_viewer/community).
 
-## Mailing list
-_glogg_ has a mailing list where bugs, features and future development are discussed. Sometimes these ideas end up in _logsquirl_ earlier.
-
-The mailing list address is glogg-devel@googlegroups.com and the archive is found on [Google Groups](http://groups.google.co.uk/group/glogg-devel).
+## Historical mailing list
+The original _glogg_ project had a mailing list (glogg-devel@googlegroups.com) where bugs, features and future development were discussed. The archive can still be found on [Google Groups](http://groups.google.co.uk/group/glogg-devel). For _logsquirl_ development, please use GitHub, Discord, Telegram, or Gitter instead.
 
 ## Sponsors
 Big thanks to everyone sponsoring _logsquirl_. This helps running code-signing infrastructure

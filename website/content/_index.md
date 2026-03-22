@@ -5,7 +5,7 @@ type: docs
 
 ## Faster log explorer
 
-_logsquirl_ is an open source multi-platform GUI application to search through all kinds of text log files using regular expressions. It has started as fork of [glogg project](https://glogg.bonnefon.org/) created by [Nicolas Bonnefon](https://github.com/nickbnf), and has evolved into a separate project with a lot of new features and improvements.
+_logsquirl_ is an open source multi-platform GUI application to search through all kinds of text log files using regular expressions. It started as a fork of [klogg](https://github.com/variar/klogg) by [Anton Filimonov](https://github.com/variar), which itself was a fork of the [glogg project](https://glogg.bonnefon.org/) by [Nicolas Bonnefon](https://github.com/nickbnf). Since the original klogg is no longer actively maintained, _logsquirl_ continues development under a new name with many new features and improvements.
 
 _logsquirl_ is designed to:
 
@@ -24,9 +24,9 @@ Here is what _logsquirl_ looks like:
 
 ## Features
 {{< columns >}}
- _logsquirl_ inherited a lot of features from _glogg_
+ _logsquirl_ inherited a lot of features from _glogg_ and _klogg_
 
- - Runs on Unix-like systems, Windows and Mac thanks to Qt5
+ - Runs on Unix-like systems, Windows and Mac thanks to Qt
  - Displays search results separately from original file
  - Supports Perl-compatible regular expressions
  - Colorizes the log and search results
@@ -42,7 +42,12 @@ _logsquirl_ improves and brings more
  - Has portable version (no need to install)
  - Understands a lot of text encodings and detects many of them automatically
  - Allows to perform search in a portion of huge log file
+ - Combines regular expressions with boolean operators (AND, OR, NOT)
  - Supports multiple sets of text highlight rules with more sophisticated match options
+ - Includes a Filters Panel with pinned filters that persist across sessions
+ - JWT token decoder in Scratchpad for inspecting JSON Web Tokens
+ - Import filters and highlighters from Chipmunk JSON export files
+ - Opt-in beta update channel for early access to new versions
  - Provides many small features to make life easier (tab renaming, favorite files list, archive extraction,
  scratchpad etc.)
  
@@ -51,11 +56,9 @@ _logsquirl_ improves and brings more
 
 ## Downloads
 
-Latest stable version:
+Latest beta version:
 
 [ ![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
-[ ![Chocolatey](https://img.shields.io/chocolatey/v/logsquirl?style=for-the-badge)](https://chocolatey.org/packages/logsquirl)
-[ ![Homebrew](https://img.shields.io/homebrew/cask/v/logsquirl?style=for-the-badge)](https://formulae.brew.sh/cask/logsquirl)
 
 
 Latest development builds can be downloaded from releases on Github: 

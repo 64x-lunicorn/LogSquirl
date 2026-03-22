@@ -49,7 +49,7 @@ Except as described above, and as required to perform the application's core fun
 ### Questions and Feedback
 Our privacy policies might change or be edited for clarity over time. Up-to-date information will always be available from this page.
 
-Please [contact us](https://github.com/vairar) if you have any questions about our data collection or privacy policies. We'll be more than happy to discuss them with you.
+Please [contact us](https://github.com/64x-lunicorn/LogSquirl/issues) if you have any questions about our data collection or privacy policies. We'll be more than happy to discuss them with you.
  
  
 

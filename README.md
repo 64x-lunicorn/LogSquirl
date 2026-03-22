@@ -62,6 +62,10 @@ LogSquirl is standing on the shoulders of giants.
 * Includes a dark mode
 * Has configurable shortcuts
 * Has a scratchpad window for taking notes and doing basic data transformations
+* Includes a JWT token decoder in the Scratchpad for inspecting JSON Web Tokens
+* Features a Filters Panel with pinned filters that persist across sessions
+* Can import filters and highlighters from Chipmunk JSON export files
+* Offers an opt-in beta update channel for early access to new versions
 * Open source, released under the GPL-3.0
 
 **[Back to top](#table-of-contents)**
