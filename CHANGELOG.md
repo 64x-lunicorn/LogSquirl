@@ -34,6 +34,14 @@ This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github
  - Added entitlements.plist for hardened runtime code signing
  - Added LSMinimumSystemVersion to Info.plist for deployment target correctness
  - Added notarization status validation — CI now fails when notarization is rejected
+ - Modernized CI/CD pipeline: pre-built Docker images on GHCR, tag-based releases (stable + beta), concurrency groups, CPM dependency caching, non-blocking clang-tidy lint job, reusable build workflow via workflow_call
+ - Replaced deprecated `marvinpinto/action-automatic-releases` with `softprops/action-gh-release@v2` — single release per tag with all platforms bundled
+ - Replaced `mathrix-education/setup-sentry-cli` with direct sentry-cli install; Sentry jobs now run as non-blocking (`continue-on-error`) and are guarded by token presence
+ - Split release workflow into separate jobs: build, prepare, sentry, release, update-metadata
+ - Dropped Qt5 from CI: Jammy Dockerfile upgraded to Qt6, removed Qt5 logic from prepare-workspace-env
+ - Removed dead CI files: docker/ubuntu20.04, docker/ubuntu20.04_qt5.15, docker/oracle7, docker/oracle8, test_env.yml
+ - Extracted macOS framework symlink repair into standalone script (`scripts/fix_macos_frameworks.sh`)
+ - Added auto-changelog generation in release workflow using `scripts/gen_changelog.py`
 
 ## Tests:
  - Added unit tests for regex, encoding, line types, and configuration modules

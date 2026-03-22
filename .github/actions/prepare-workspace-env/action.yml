@@ -11,24 +11,8 @@ runs:
         echo "LOGSQUIRL_ARCH=${{ matrix.config.arch }}" >> $GITHUB_ENV 
         echo "LOGSQUIRL_CMAKE_OPTS=-G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ${{ matrix.config.cmake_opts }}" >> $GITHUB_ENV
 
-    - name: Set qt env var
-      if: "startsWith(matrix.config.qt_version, '5')"
-      shell: bash
-      run: |
-        echo "LOGSQUIRL_QT=Qt5" >> $GITHUB_ENV
-        # Resolve Qt5 prefix from available env vars (install-qt-action@v4)
-        QT_PREFIX="${Qt5_Dir:-}"
-        if [ -z "$QT_PREFIX" ] && [ -n "${Qt5_DIR:-}" ]; then
-          QT_PREFIX=$(echo "$Qt5_DIR" | sed 's|[/\\]lib[/\\]cmake[/\\]Qt5[/\\]*$||')
-        fi
-        if [ -z "$QT_PREFIX" ] && [ -n "${QT_ROOT_DIR:-}" ]; then
-          QT_PREFIX="$QT_ROOT_DIR"
-        fi
-        echo "LOGSQUIRL_QT_DIR=$QT_PREFIX" >> $GITHUB_ENV
-        echo "Resolved Qt5 prefix: $QT_PREFIX"
-    
-    - name: Set qt env var
-      if: "startsWith(matrix.config.qt_version, '6')"
+    - name: Set Qt6 env var
+      if: ${{ matrix.config.qt_version }}
       shell: bash
       run: |
         echo "LOGSQUIRL_QT=Qt6" >> $GITHUB_ENV

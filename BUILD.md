@@ -184,3 +184,48 @@ cd <path_to_logsquirl_repository_clone>
 cd build_root
 ctest --build-config RelWithDebInfo --verbose
 ```
+
+## CI/CD Pipeline
+
+### Version Numbering
+
+CI builds use the scheme `YY.MM.PATCH.BUILD` where BUILD = `github.run_number + 717`.
+For example, run number 50 produces version `26.03.0.767`.
+
+### Docker Build Containers
+
+Linux builds use pre-built Docker images hosted on GHCR:
+
+| Image | Based On | Packages |
+|-------|----------|----------|
+| `ghcr.io/64x-lunicorn/logsquirl-oracle10` | Oracle Linux 10 | Qt 6, GCC, RPM |
+| `ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy` | Ubuntu 22.04 | Qt 6, GCC, DEB |
+| `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB |
+| `ghcr.io/64x-lunicorn/logsquirl-fedora43` | Fedora 43 | Qt 6, GCC, RPM |
+
+Images are rebuilt automatically when files in `docker/` change on master, or monthly for OS security patches.
+To rebuild manually, trigger the **Docker Images** workflow via `workflow_dispatch`.
+
+### Release Process
+
+Releases are triggered by pushing a git tag to master:
+
+- **Stable release**: push a semver tag like `v26.04.0`
+- **Beta release**: push a pre-release tag like `v26.04.0-beta.1`
+
+The release workflow:
+1. Calls `ci-build.yml` to build all 8 platforms
+2. Uploads debug symbols to Sentry (non-blocking)
+3. Publishes a single GitHub Release with all platform packages
+4. Updates `latest.json` with the new version (beta or stable field)
+
+Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag.
+
+### Workflows
+
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ci-build.yml` | push/PR to master | Build + test all 8 platforms |
+| `ci-release.yml` | tag push `v*` | Publish GitHub Release |
+| `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
+| `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis |

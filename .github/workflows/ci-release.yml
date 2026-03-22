@@ -1,214 +1,264 @@
-name: "Make CI Release"
+name: "CI Release"
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       ci-run-id:
-        description: "Run ID of CI workflow"
+        description: "Run ID of CI Build workflow (leave empty to use last successful)"
         required: false
-      beta-tag:
-        description: "Beta release tag (e.g. v26.04.0-beta.1). Leave empty for standard CI release."
+      tag:
+        description: "Release tag (e.g. v26.04.0 or v26.04.0-beta.1). Required for manual dispatch."
         required: false
+
+concurrency:
+  group: ci-release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  # ── Job 1: Build (reuse ci-build.yml) ──────────────────────────────────
+  build:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci-build.yml
+    secrets: inherit
+
+  # ── Job 2: Prepare release metadata ────────────────────────────────────
+  prepare:
+    runs-on: ubuntu-24.04
+    needs: [build]
+    if: always() && (needs.build.result == 'success' || github.event_name == 'workflow_dispatch')
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.tag.outputs.tag }}
+      is_prerelease: ${{ steps.tag.outputs.is_prerelease }}
     steps:
-    - uses: actions/checkout@v4
-    - name: Download artifacts for last successful CI workflow
-      if: ${{ !github.event.inputs.ci-run-id }}
-      uses: dawidd6/action-download-artifact@v6
-      with:
-        workflow: ci-build.yml
-        workflow_conclusion: success
+      - uses: actions/checkout@v4
 
-    - name: Download artifacts for CI workflow with provided run id
-      if: ${{ github.event.inputs.ci-run-id }}
-      uses: dawidd6/action-download-artifact@v6
-      with:
-        workflow: ci-build.yml
-        run_id: ${{ github.event.inputs.ci-run-id }}
+      # Download artifacts from the build job or from a previous run
+      - name: Download artifacts (from build job)
+        if: github.event_name == 'push'
+        uses: actions/download-artifact@v4
 
-    - name: Initialize version
-      run: echo "LOGSQUIRL_VERSION=`cat logsquirl_version/logsquirl_version.txt`" >> $GITHUB_ENV
+      - name: Download artifacts (last successful CI build)
+        if: github.event_name == 'workflow_dispatch' && !github.event.inputs.ci-run-id
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: ci-build.yml
+          workflow_conclusion: success
 
-    - name: Display structure of downloaded files
-      run: ls -R ./packages-*
+      - name: Download artifacts (specific CI run)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.ci-run-id
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: ci-build.yml
+          run_id: ${{ github.event.inputs.ci-run-id }}
 
-    - name: Setup Sentry CLI
-      uses: mathrix-education/setup-sentry-cli@0.1.0
-      env:
-        ACTIONS_ALLOW_UNSECURE_COMMANDS: 'true'
-      with:
-        token: ${{ secrets.SENTRY_TOKEN }}
-        organization: logsquirl
-        project: logsquirl
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(cat logsquirl_version/logsquirl_version.txt)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "LOGSQUIRL_VERSION=$VERSION" >> "$GITHUB_ENV"
 
-    - name: Create Sentry release
-      shell: sh
-      run: |
-        sentry-cli releases new $LOGSQUIRL_VERSION
-        sentry-cli releases set-commits --auto $LOGSQUIRL_VERSION
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="${{ github.event.inputs.tag }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-    - name: Upload symbols linux
-      shell: sh
-      run: |
-        xz -d ./packages-jammy/logsquirl_jammy.debug.xz
-        xz -d ./packages-noble/logsquirl_noble.debug.xz
-        xz -d ./packages-oracle/logsquirl_oracle.debug.xz
-        xz -d ./packages-fedora/logsquirl_fedora.debug.xz
-        xz -d ./packages-appimage/logsquirl_appimage.debug.xz
-        sentry-cli upload-dif ./packages-jammy/logsquirl_jammy.debug ./packages-jammy/logsquirl_jammy
-        sentry-cli upload-dif ./packages-noble/logsquirl_noble.debug  ./packages-noble/logsquirl_noble
-        sentry-cli upload-dif ./packages-oracle/logsquirl_oracle.debug ./packages-oracle/logsquirl_oracle
-        sentry-cli upload-dif ./packages-fedora/logsquirl_fedora.debug ./packages-fedora/logsquirl_fedora
-        sentry-cli upload-dif ./packages-appimage/logsquirl_appimage.debug  ./packages-appimage/logsquirl_appimage
+          if echo "$TAG" | grep -qE '(-beta|-alpha|-rc)'; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Resolved tag=$TAG"
 
-    - name: Upload symbols mac
-      shell: sh
-      run: |
-        # Extract tar.gz archives (preserves framework symlinks)
-        cd ./packages-mac-x64 && tar xzf logsquirl-x64.app.tar.gz && tar xzf logsquirl-x64.dSym.tar.gz && cd ..
-        cd ./packages-mac-arm64 && tar xzf logsquirl-arm64.app.tar.gz && tar xzf logsquirl-arm64.dSym.tar.gz && cd ..
-        sentry-cli upload-dif ./packages-mac-x64/logsquirl.app/Contents/MacOS/logsquirl ./packages-mac-x64/logsquirl.dSym
-        sentry-cli upload-dif ./packages-mac-arm64/logsquirl.app/Contents/MacOS/logsquirl ./packages-mac-arm64/logsquirl.dSym
+      - name: Display downloaded artifacts
+        run: ls -R ./packages-*
 
-    - name: Upload symbols win
-      shell: sh
-      run: |
-        sentry-cli upload-dif ./packages-windows-x64-qt6/logsquirl-$LOGSQUIRL_VERSION-x64-Qt6-pdb.zip
+      # Re-upload merged artifacts so downstream jobs can access them
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            packages-*/**
+            logsquirl_version/**
 
-    - name: Cleanup release artifacts
-      shell: sh
-      run: |
-        rm -rf ./packages-jammy/logsquirl_jammy
-        rm -rf ./packages-noble/logsquirl_noble
-        rm -rf ./packages-oracle/logsquirl_oracle
-        rm -rf ./packages-fedora/logsquirl_fedora
-        rm -rf ./packages-appimage/logsquirl_appimage
-        rm -rf ./packages-mac-x64/logsquirl.app ./packages-mac-x64/logsquirl.dSym
-        rm -rf ./packages-mac-arm64/logsquirl.app ./packages-mac-arm64/logsquirl.dSym
-        mkdir ./linux-debug
-        mv ./packages-jammy/logsquirl_jammy.debug ./linux-debug
-        mv ./packages-noble/logsquirl_noble.debug ./linux-debug
-        mv ./packages-oracle/logsquirl_oracle.debug ./linux-debug
-        mv ./packages-fedora/logsquirl_fedora.debug ./linux-debug
-        mv ./packages-appimage/logsquirl_appimage.debug ./linux-debug
-        tar -cJf ./linux-debug/logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz ./linux-debug/*
-        rm ./linux-debug/*.debug
+  # ── Job 3: Sentry release + symbol upload ──────────────────────────────
+  sentry:
+    runs-on: ubuntu-24.04
+    needs: [prepare]
+    if: needs.prepare.outputs.version != ''
+    continue-on-error: true
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_TOKEN }}
+      SENTRY_ORG: logsquirl
+      SENTRY_PROJECT: logsquirl
+      LOGSQUIRL_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - name: Skip if no Sentry token
+        if: ${{ !env.SENTRY_AUTH_TOKEN }}
+        run: echo "::warning::SENTRY_TOKEN not set — skipping Sentry release" && exit 0
 
-    - name: Prepare binary artifacts
-      shell: sh
-      run: |
-        mkdir ./packages-bin
-        mv ./packages-appimage/logsquirl_deps.tar.xz ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-deps.tar.xz
-        ar p  ./packages-jammy/logsquirl-$LOGSQUIRL_VERSION-jammy.deb data.tar.gz > ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-bin.tar.gz
-        mv ./logsquirl_version/logsquirl_version.txt ./packages-bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
 
-    - name: Prepare checksums
-      shell: sh
-      run: |
-        sha256sum --binary ./packages-bin/* ./packages-jammy/* ./packages-noble/* ./packages-oracle/* ./packages-fedora/* ./packages-appimage/*  > ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-sha256.txt
-        
-    - name: Release win
-      uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: continuous-win
-        prerelease: true
-        files: |
-          ./packages-windows-x64-qt6/*
+      - name: Install sentry-cli
+        run: curl -sL https://sentry.io/get-cli/ | bash
 
-    - name: Release linux
-      uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: continuous-linux
-        prerelease: true
-        files: |
-          ./packages-jammy/*
-          ./packages-noble/*
-          ./packages-oracle/*
-          ./packages-fedora/*
-          ./packages-appimage/*
-          ./packages-bin/*
-          ./linux-debug/*
+      - name: Create Sentry release
+        run: |
+          sentry-cli releases new "$LOGSQUIRL_VERSION"
+          sentry-cli releases set-commits --auto "$LOGSQUIRL_VERSION"
 
-    - name: Release mac
-      uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: continuous-osx
-        prerelease: true
-        files: |
-          ./packages-mac-x64/*
-          ./packages-mac-arm64/*
+      - name: Upload symbols linux
+        run: |
+          xz -d ./packages-jammy/logsquirl_jammy.debug.xz
+          xz -d ./packages-noble/logsquirl_noble.debug.xz
+          xz -d ./packages-oracle/logsquirl_oracle.debug.xz
+          xz -d ./packages-fedora/logsquirl_fedora.debug.xz
+          xz -d ./packages-appimage/logsquirl_appimage.debug.xz
+          sentry-cli upload-dif ./packages-jammy/logsquirl_jammy.debug ./packages-jammy/logsquirl_jammy
+          sentry-cli upload-dif ./packages-noble/logsquirl_noble.debug ./packages-noble/logsquirl_noble
+          sentry-cli upload-dif ./packages-oracle/logsquirl_oracle.debug ./packages-oracle/logsquirl_oracle
+          sentry-cli upload-dif ./packages-fedora/logsquirl_fedora.debug ./packages-fedora/logsquirl_fedora
+          sentry-cli upload-dif ./packages-appimage/logsquirl_appimage.debug ./packages-appimage/logsquirl_appimage
 
-    # --- Beta release (only when beta-tag input is provided) ---
-    - name: Release beta win
-      if: ${{ github.event.inputs.beta-tag }}
-      uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: ${{ github.event.inputs.beta-tag }}-win
-        prerelease: true
-        title: "Beta ${{ github.event.inputs.beta-tag }} (Windows)"
-        files: |
-          ./packages-windows-x64-qt6/*
+      - name: Upload symbols mac
+        run: |
+          cd ./packages-mac-x64 && tar xzf logsquirl-x64.app.tar.gz && tar xzf logsquirl-x64.dSym.tar.gz && cd ..
+          cd ./packages-mac-arm64 && tar xzf logsquirl-arm64.app.tar.gz && tar xzf logsquirl-arm64.dSym.tar.gz && cd ..
+          sentry-cli upload-dif ./packages-mac-x64/logsquirl.app/Contents/MacOS/logsquirl ./packages-mac-x64/logsquirl.dSym
+          sentry-cli upload-dif ./packages-mac-arm64/logsquirl.app/Contents/MacOS/logsquirl ./packages-mac-arm64/logsquirl.dSym
 
-    - name: Release beta linux
-      if: ${{ github.event.inputs.beta-tag }}
-      uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: ${{ github.event.inputs.beta-tag }}-linux
-        prerelease: true
-        title: "Beta ${{ github.event.inputs.beta-tag }} (Linux)"
-        files: |
-          ./packages-jammy/*
-          ./packages-noble/*
-          ./packages-oracle/*
-          ./packages-fedora/*
-          ./packages-appimage/*
-          ./packages-bin/*
-          ./linux-debug/*
+      - name: Upload symbols win
+        run: |
+          sentry-cli upload-dif ./packages-windows-x64/logsquirl-$LOGSQUIRL_VERSION-x64-Qt6-pdb.zip
 
-    - name: Release beta mac
-      if: ${{ github.event.inputs.beta-tag }}
-      uses: "marvinpinto/action-automatic-releases@latest"
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        automatic_release_tag: ${{ github.event.inputs.beta-tag }}-osx
-        prerelease: true
-        title: "Beta ${{ github.event.inputs.beta-tag }} (macOS)"
-        files: |
-          ./packages-mac-x64/*
-          ./packages-mac-arm64/*
+  # ── Job 4: Publish GitHub Release ──────────────────────────────────────
+  release:
+    runs-on: ubuntu-24.04
+    needs: [prepare, sentry]
+    if: always() && needs.prepare.result == 'success'
+    permissions:
+      contents: write
+    env:
+      LOGSQUIRL_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Update latest.json with beta version
-      if: ${{ github.event.inputs.beta-tag }}
-      shell: bash
-      env:
-        BETA_TAG: ${{ github.event.inputs.beta-tag }}
-      run: |
-        # Extract version from tag (strip leading 'v' if present)
-        BETA_VERSION="${BETA_TAG#v}"
-        BETA_URL="https://github.com/64x-lunicorn/LogSquirl/releases/tag/${BETA_TAG}"
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
 
-        # Update latest.json using jq
-        jq --arg ver "$BETA_VERSION" --arg url "$BETA_URL" \
-           '.beta = $ver | .beta_url = $url' latest.json > latest.json.tmp \
-           && mv latest.json.tmp latest.json
+      - name: Cleanup release artifacts
+        run: |
+          # Remove uncompressed binaries (only keep packages)
+          rm -f ./packages-jammy/logsquirl_jammy
+          rm -f ./packages-noble/logsquirl_noble
+          rm -f ./packages-oracle/logsquirl_oracle
+          rm -f ./packages-fedora/logsquirl_fedora
+          rm -f ./packages-appimage/logsquirl_appimage
 
-        # Commit and push the updated latest.json
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add latest.json
-        git commit -m "chore: update latest.json with beta ${BETA_VERSION} [skip ci]"
-        git push
+          # Remove extracted app/dSym bundles (keep tar.gz archives)
+          rm -rf ./packages-mac-x64/logsquirl.app ./packages-mac-x64/logsquirl.dSym
+          rm -rf ./packages-mac-arm64/logsquirl.app ./packages-mac-arm64/logsquirl.dSym
+
+          # Collect debug symbols into a single archive
+          mkdir -p ./linux-debug
+          for id in jammy noble oracle fedora appimage; do
+            [ -f "./packages-${id}/logsquirl_${id}.debug" ] && mv "./packages-${id}/logsquirl_${id}.debug" ./linux-debug/ || true
+            [ -f "./packages-${id}/logsquirl_${id}.debug.xz" ] && xz -d "./packages-${id}/logsquirl_${id}.debug.xz" && mv "./packages-${id}/logsquirl_${id}.debug" ./linux-debug/ || true
+          done
+          if ls ./linux-debug/*.debug 1>/dev/null 2>&1; then
+            tar -cJf ./linux-debug/logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz -C ./linux-debug .
+            rm -f ./linux-debug/*.debug
+          fi
+
+      - name: Prepare binary artifacts
+        run: |
+          mkdir -p ./packages-bin
+          [ -f "./packages-appimage/logsquirl_deps.tar.xz" ] && mv ./packages-appimage/logsquirl_deps.tar.xz ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-deps.tar.xz || true
+          cp ./logsquirl_version/logsquirl_version.txt ./packages-bin/
+
+      - name: Prepare checksums
+        run: |
+          sha256sum --binary ./packages-bin/* ./packages-jammy/* ./packages-noble/* \
+            ./packages-oracle/* ./packages-fedora/* ./packages-appimage/* \
+            2>/dev/null > ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-sha256.txt || true
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          python3 scripts/gen_changelog.py > release_notes.md 2>/dev/null || echo "See commit history for changes." > release_notes.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: "LogSquirl ${{ needs.prepare.outputs.tag }}"
+          body_path: release_notes.md
+          prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
+          files: |
+            ./packages-windows-x64/*
+            ./packages-jammy/*
+            ./packages-noble/*
+            ./packages-oracle/*
+            ./packages-fedora/*
+            ./packages-appimage/*
+            ./packages-mac-x64/*
+            ./packages-mac-arm64/*
+            ./packages-bin/*
+            ./linux-debug/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Job 5: Update latest.json ──────────────────────────────────────────
+  update-metadata:
+    runs-on: ubuntu-24.04
+    needs: [prepare, release]
+    if: needs.release.result == 'success'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - name: Update latest.json
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          IS_PRERELEASE: ${{ needs.prepare.outputs.is_prerelease }}
+        run: |
+          VERSION="${TAG#v}"
+          URL="https://github.com/64x-lunicorn/LogSquirl/releases/tag/${TAG}"
+
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            jq --arg ver "$VERSION" --arg url "$URL" \
+               '.beta = $ver | .beta_url = $url' latest.json > latest.json.tmp \
+               && mv latest.json.tmp latest.json
+            COMMIT_MSG="chore: update latest.json with beta ${VERSION} [skip ci]"
+          else
+            jq --arg ver "$VERSION" --arg url "$URL" \
+               '.stable_version = $ver | .stable_url = $url' latest.json > latest.json.tmp \
+               && mv latest.json.tmp latest.json
+            COMMIT_MSG="chore: update latest.json with ${VERSION} [skip ci]"
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add latest.json
+          git diff --cached --quiet || git commit -m "$COMMIT_MSG" && git push
 
 
 
