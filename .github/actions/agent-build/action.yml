@@ -18,12 +18,6 @@ runs:
         restore-keys: |
           cpm-${{ runner.os }}-${{ matrix.config.arch }}-
 
-    - name: Pre-seed CPM for sub-projects
-      shell: sh
-      run: |
-        mkdir -p $LOGSQUIRL_WORKSPACE/cpm_cache/cpm
-        cp $LOGSQUIRL_WORKSPACE/cmake/CPM.cmake $LOGSQUIRL_WORKSPACE/cpm_cache/cpm/CPM_0.38.6.cmake
-
     - name: configure
       shell: sh
       run: |
