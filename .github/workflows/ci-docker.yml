@@ -28,8 +28,6 @@ jobs:
         include:
           - context: docker/oracle10
             image_name: oracle10
-          - context: docker/ubuntu22.04
-            image_name: ubuntu-jammy
           - context: docker/ubuntu24.04
             image_name: ubuntu-noble
           - context: docker/fedora43

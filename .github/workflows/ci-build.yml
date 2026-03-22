@@ -67,18 +67,6 @@ jobs:
             container: ghcr.io/64x-lunicorn/logsquirl-oracle10:latest
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
-          - os: ubuntu_jammy
-            os_version: 22.04
-            arch: x64
-            check_command: apt-get update && apt install --dry-run /usr/local/logsquirl*.deb
-            cpack_gen: DEB
-            artifacts_id: jammy
-            package_suffix: deb
-            check_container: ubuntu:22.04
-            container_root: docker/ubuntu22.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
-            cmake_opts:
-
           - os: ubuntu_noble
             os_version: 24.04
             arch: x64
@@ -92,12 +80,12 @@ jobs:
             cmake_opts:
 
           - os: ubuntu_appimage
-            os_version: 22.04
+            os_version: 24.04
             arch: x64
             artifacts_id: appimage
             package_suffix: AppImage
-            container_root: docker/ubuntu22.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
+            container_root: docker/ubuntu24.04
+            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
             cmake_opts:
 
           - os: fedora
