@@ -109,11 +109,7 @@ jobs:
           path: |
             packages-*/**
             logsquirl_version/**
-checkout@v4
-        with:
-          fetch-depth: 0
 
-      - uses: actions/
   # ── Job 3: Sentry release + symbol upload ──────────────────────────────
   sentry:
     runs-on: ubuntu-24.04
@@ -129,6 +125,10 @@ checkout@v4
       - name: Skip if no Sentry token
         if: ${{ !env.SENTRY_AUTH_TOKEN }}
         run: echo "::warning::SENTRY_TOKEN not set — skipping Sentry release" && exit 0
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
