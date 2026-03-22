@@ -2,7 +2,7 @@ name: "CI Build"
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
     paths-ignore:
       - 'website/**'
       - BUILD.md
@@ -12,7 +12,7 @@ on:
       - latest.json
       - .gitignore
   pull_request:
-    branches: [ master ]
+    branches: [master]
     paths-ignore:
       - 'website/**'
       - BUILD.md
@@ -21,10 +21,16 @@ on:
       - README.md
       - latest.json
       - .gitignore
+  workflow_call:
   workflow_dispatch:
+
+concurrency:
+  group: ci-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  GHCR_PREFIX: ghcr.io/64x-lunicorn/logsquirl
 
 jobs:
   SaveVersion:
@@ -34,7 +40,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/logsquirl-version
 
-      - name: Save version 
+      - name: Save version
         run: echo $LOGSQUIRL_VERSION > logsquirl_version.txt
 
       - uses: actions/upload-artifact@v4
@@ -49,18 +55,6 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          #- os: oraclelinux
-          #  os_version: 7
-          #  arch: x64
-          #  check_command: yum install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
-          #  cpack_gen: RPM
-          #  artifacts_id: oracle7
-          #  package_suffix: rpm
-          #  check_container: oraclelinux:7
-          #  container_root: docker/oracle7
-          #  container: logsquirl_oracle7
-          #  cmake_opts: -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF -DLOGSQUIRL_USE_HYPERSCAN=OFF
-
           - os: oraclelinux
             os_version: 10
             arch: x64
@@ -69,8 +63,7 @@ jobs:
             artifacts_id: oracle
             package_suffix: rpm
             check_container: oraclelinux:10
-            container_root: docker/oracle10
-            container: logsquirl/oracle10
+            container: ghcr.io/64x-lunicorn/logsquirl-oracle10:latest
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
           - os: ubuntu_jammy
@@ -81,8 +74,7 @@ jobs:
             artifacts_id: jammy
             package_suffix: deb
             check_container: ubuntu:22.04
-            container_root: docker/ubuntu22.04
-            container: logsquirl/ubuntu22.04
+            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
             cmake_opts:
 
           - os: ubuntu_noble
@@ -93,8 +85,7 @@ jobs:
             artifacts_id: noble
             package_suffix: deb
             check_container: ubuntu:24.04
-            container_root: docker/ubuntu24.04
-            container: logsquirl/ubuntu24.04
+            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
             cmake_opts:
 
           - os: ubuntu_appimage
@@ -102,8 +93,7 @@ jobs:
             arch: x64
             artifacts_id: appimage
             package_suffix: AppImage
-            container_root: docker/ubuntu22.04
-            container: logsquirl/ubuntu22.04
+            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
             cmake_opts:
 
           - os: fedora
@@ -114,36 +104,42 @@ jobs:
             artifacts_id: fedora
             package_suffix: rpm
             check_container: fedora:43
-            container_root: docker/fedora43
-            container: logsquirl/fedora43
+            container: ghcr.io/64x-lunicorn/logsquirl-fedora43:latest
             cmake_opts:
-
 
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
-      #- uses: satackey/action-docker-layer-caching@v0.0.11
-      #  # Ignore the failure of a step and avoid terminating the job.
-      #  continue-on-error: true
-      
-      - name: Build container 
-        run: |
-          cd ${{ matrix.config.container_root }}
-          docker build -t ${{ matrix.config.container }} .
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull container
+        run: docker pull ${{ matrix.config.container }}
+
+      - name: Restore CPM cache
+        uses: actions/cache@v4
+        with:
+          path: cpm_cache
+          key: cpm-Linux-${{ matrix.config.artifacts_id }}-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+          restore-keys: |
+            cpm-Linux-${{ matrix.config.artifacts_id }}-
 
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
       - uses: ./.github/actions/docker-run-tests
       - uses: ./.github/actions/docker-package
-          
-# Final upload of all packages
+
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
-          if-no-files-found: error      
+          if-no-files-found: error
 
   Mac:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
@@ -172,7 +168,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-#Install build deps
       - name: Set brew env
         run: |
           echo "HOMEBREW_NO_ANALYTICS=1" >> $GITHUB_ENV
@@ -199,7 +194,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.config.artifacts_id }}
-          path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*' 
+          path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
 
   Windows:
@@ -215,7 +210,7 @@ jobs:
             qt_arch: win64_msvc2022_64
             arch: x64
             ssl_arch: -x64
-            cmake_opts: 
+            cmake_opts:
             artifacts_id: windows-x64
 
     runs-on: ${{ matrix.config.runner }}
@@ -230,7 +225,7 @@ jobs:
           key: OpensslCache-3-choco-x64
 
       - name: Install openssl
-        if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }} 
+        if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }}
         run: |
           choco install openssl --no-progress -y
           $sslDir = (Get-ChildItem 'C:\Program Files\OpenSSL*' -Directory -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
@@ -243,12 +238,12 @@ jobs:
         shell: sh
         run: |
           echo "SSL_DIR=${{ github.workspace }}\openssl-3\${{ matrix.config.arch }}\bin" >> $GITHUB_ENV
-          echo "SSL_ARCH=${{ matrix.config.ssl_arch }}" >> $GITHUB_ENV 
+          echo "SSL_ARCH=${{ matrix.config.ssl_arch }}" >> $GITHUB_ENV
 
       - uses: ./.github/actions/agent-setup
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
-      
+
       - name: Prepare dev cmd
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -261,10 +256,80 @@ jobs:
           s3-key-id: ${{ secrets.WIN_CS_KEY_ID }}
           s3-secret: ${{ secrets.WIN_CS_SECRET }}
           s3-bucket: ${{ secrets.WIN_CS_BUCKET }}
-     
-# Final upload of all packages
+
       - uses: actions/upload-artifact@v4
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
+
+  Lint:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull container
+        run: docker pull ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+
+      - name: Pre-seed CPM for sub-projects
+        run: |
+          mkdir -p cpm_cache/cpm
+          cp cmake/CPM.cmake cpm_cache/cpm/CPM_0.38.6.cmake
+
+      - name: Configure for clang-tidy
+        run: |
+          docker run \
+            --env LOGSQUIRL_VERSION=$LOGSQUIRL_VERSION \
+            --env LOGSQUIRL_BUILD_ROOT=$LOGSQUIRL_BUILD_ROOT \
+            -v "${{ github.workspace }}":/usr/local \
+            ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest \
+            /bin/bash -c "cmake -B /usr/local/$LOGSQUIRL_BUILD_ROOT \
+              -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=ON \
+              -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+              -DCPM_SOURCE_CACHE=/usr/local/cpm_cache \
+              /usr/local"
+
+      - name: Run clang-tidy
+        run: |
+          docker run \
+            -v "${{ github.workspace }}":/usr/local \
+            ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest \
+            /bin/bash -c "
+              apt-get update -qq && apt-get install -y -qq clang-tidy >/dev/null 2>&1
+              cd /usr/local
+              run-clang-tidy -p /usr/local/$LOGSQUIRL_BUILD_ROOT \
+                -header-filter='.*/(src|tests)/.*' \
+                2>&1 | tee /usr/local/$LOGSQUIRL_BUILD_ROOT/clang-tidy.log
+            "
+
+      - name: Clang-Tidy summary
+        if: always()
+        run: |
+          LOG="$LOGSQUIRL_BUILD_ROOT/clang-tidy.log"
+          if [ -f "$LOG" ]; then
+            WARNINGS=$(grep -c 'warning:' "$LOG" || true)
+            ERRORS=$(grep -c 'error:' "$LOG" || true)
+            echo "### Clang-Tidy Results" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Warnings**: $WARNINGS" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Errors**: $ERRORS" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$WARNINGS" -gt 0 ] || [ "$ERRORS" -gt 0 ]; then
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              grep -E '(warning|error):' "$LOG" | head -50 >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi

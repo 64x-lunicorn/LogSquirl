@@ -1,0 +1,55 @@
+name: "Docker Images"
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docker/**'
+  workflow_dispatch:
+  schedule:
+    # Monthly rebuild to pick up OS security patches
+    - cron: '0 4 1 * *'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/64x-lunicorn/logsquirl
+
+jobs:
+  build-images:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - context: docker/oracle10
+            image_name: oracle10
+          - context: docker/ubuntu22.04
+            image_name: ubuntu-jammy
+          - context: docker/ubuntu24.04
+            image_name: ubuntu-noble
+          - context: docker/fedora43
+            image_name: fedora43
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:latest
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ github.sha }}
