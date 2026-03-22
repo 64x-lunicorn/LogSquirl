@@ -116,7 +116,7 @@ jobs:
     - name: Release win
       uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         automatic_release_tag: continuous-win
         prerelease: true
         files: |
@@ -125,7 +125,7 @@ jobs:
     - name: Release linux
       uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         automatic_release_tag: continuous-linux
         prerelease: true
         files: |
@@ -140,7 +140,7 @@ jobs:
     - name: Release mac
       uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         automatic_release_tag: continuous-osx
         prerelease: true
         files: |
@@ -152,7 +152,7 @@ jobs:
       if: ${{ github.event.inputs.beta-tag }}
       uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         automatic_release_tag: ${{ github.event.inputs.beta-tag }}-win
         prerelease: true
         title: "Beta ${{ github.event.inputs.beta-tag }} (Windows)"
@@ -163,7 +163,7 @@ jobs:
       if: ${{ github.event.inputs.beta-tag }}
       uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         automatic_release_tag: ${{ github.event.inputs.beta-tag }}-linux
         prerelease: true
         title: "Beta ${{ github.event.inputs.beta-tag }} (Linux)"
@@ -180,7 +180,7 @@ jobs:
       if: ${{ github.event.inputs.beta-tag }}
       uses: "marvinpinto/action-automatic-releases@latest"
       with:
-        repo_token: ${{ secrets.LOGSQUIRL_GITHUB_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
         automatic_release_tag: ${{ github.event.inputs.beta-tag }}-osx
         prerelease: true
         title: "Beta ${{ github.event.inputs.beta-tag }} (macOS)"
