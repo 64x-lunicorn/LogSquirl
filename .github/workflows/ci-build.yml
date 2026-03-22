@@ -63,6 +63,7 @@ jobs:
             artifacts_id: oracle
             package_suffix: rpm
             check_container: oraclelinux:10
+            container_root: docker/oracle10
             container: ghcr.io/64x-lunicorn/logsquirl-oracle10:latest
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
 
@@ -74,6 +75,7 @@ jobs:
             artifacts_id: jammy
             package_suffix: deb
             check_container: ubuntu:22.04
+            container_root: docker/ubuntu22.04
             container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
             cmake_opts:
 
@@ -85,6 +87,7 @@ jobs:
             artifacts_id: noble
             package_suffix: deb
             check_container: ubuntu:24.04
+            container_root: docker/ubuntu24.04
             container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
             cmake_opts:
 
@@ -93,6 +96,7 @@ jobs:
             arch: x64
             artifacts_id: appimage
             package_suffix: AppImage
+            container_root: docker/ubuntu22.04
             container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
             cmake_opts:
 
@@ -104,6 +108,7 @@ jobs:
             artifacts_id: fedora
             package_suffix: rpm
             check_container: fedora:43
+            container_root: docker/fedora43
             container: ghcr.io/64x-lunicorn/logsquirl-fedora43:latest
             cmake_opts:
 
@@ -118,8 +123,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull container
-        run: docker pull ${{ matrix.config.container }}
+      - name: Pull or build container
+        run: |
+          if ! docker pull ${{ matrix.config.container }} 2>/dev/null; then
+            echo "::warning::GHCR image not found, building locally from ${{ matrix.config.container_root }}"
+            docker build -t ${{ matrix.config.container }} ${{ matrix.config.container_root }}
+          fi
 
       - name: Restore CPM cache
         uses: actions/cache@v4
@@ -277,8 +286,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull container
-        run: docker pull ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+      - name: Pull or build container
+        run: |
+          if ! docker pull ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest 2>/dev/null; then
+            echo "::warning::GHCR image not found, building locally"
+            docker build -t ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest docker/ubuntu24.04
+          fi
 
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
