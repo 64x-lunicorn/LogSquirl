@@ -168,6 +168,12 @@ or simple text search.
 It is possible to save the current search pattern as a predefined filter from
 search input context menu.
 
+### Importing filters from Chipmunk
+
+*logsquirl* can import filters and highlighters from Chipmunk JSON export files.
+This is available from the `Tools` menu. The imported filters are converted to
+*logsquirl* predefined filters and highlighter sets.
+
 ### Using highlighters
 
 *Highlighters* can colorize some lines of the log being displayed
@@ -250,15 +256,34 @@ The following file mode requires monitoring of the file system for any changes.
 If native monitoring or polling are both disabled in settings, then the 
 following file mode is also disabled.
 
+### Filters Panel
+
+The Filters Panel is a right sidebar dock that provides quick access to filters
+and the Scratchpad. It contains two tabs:
+
+*   **Filters tab** -- allows pinning frequently used search filters that persist
+    across sessions. Toggling a pinned filter automatically triggers a search.
+*   **Scratchpad tab** -- the same Scratchpad tool described below, accessible
+    from the sidebar for convenience.
+
+The Filters Panel can be toggled using the filter icon in the toolbar.
+
 ### Scratchpad
 
 Sometimes in log files there are text in base64 encoding, unformatted
 xml/json, etc. For such cases *logsquirl* provides Scratchpad tool. Text can
 be copied to this window and transformed to human-readable form.
 Use context menu to either add data to the current scratchpad tab or 
-replace its content with selected text. There are shortcuts `Ctrl+Z` and `Ctrl+Shit+Z` for these actions.
+replace its content with selected text. There are shortcuts `Ctrl+Z` and `Ctrl+Shift+Z` for these actions.
 
 New tabs can be opened in Scratchpad using the `Ctrl+N` hotkey.
+
+#### JWT token decoder
+
+The Scratchpad includes a JWT (JSON Web Token) decoder. When a JWT is pasted
+into the Scratchpad, it can decode the Base64URL-encoded header and payload,
+format the JSON with indentation, and annotate epoch timestamp fields
+(`iat`, `exp`, `nbf`, `auth_time`) with human-readable UTC dates.
 
 ## Settings
 
@@ -312,6 +337,10 @@ once per week.
 
 Stable builds will check if a new stable version is available and pop a dialogue about it.
 Testing builds will check for new testing versions.
+
+There is also an opt-in beta update channel. When "Check for beta updates" is enabled,
+*logsquirl* checks for beta versions on every startup (bypassing the 7-day interval)
+and shows notifications with a "(Beta)" label.
 
 ### View
 
