@@ -10,11 +10,13 @@ runs:
         echo "CC=${{ matrix.config.cc }}" >> $GITHUB_ENV
         echo "CXX=${{ matrix.config.cxx }}" >> $GITHUB_ENV
 
-    - name: Pre-seed CPM for sub-projects
-      shell: sh
-      run: |
-        mkdir -p $LOGSQUIRL_WORKSPACE/cpm_cache/cpm
-        cp $LOGSQUIRL_WORKSPACE/cmake/CPM.cmake $LOGSQUIRL_WORKSPACE/cpm_cache/cpm/CPM_0.38.6.cmake
+    - name: Restore CPM cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/cpm_cache
+        key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+        restore-keys: |
+          cpm-${{ runner.os }}-${{ matrix.config.arch }}-
 
     - name: configure
       shell: sh

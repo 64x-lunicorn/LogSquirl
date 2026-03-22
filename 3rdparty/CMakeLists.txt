@@ -6,7 +6,12 @@ set(_TMP_CPM_USE_LOCAL_PACKAGES ${CPM_USE_LOCAL_PACKAGES})
 
 cpmaddpackage("gh:simdutf/simdutf@5.6.2")
 cpmaddpackage("gh:foonathan/type_safe@0.2.4")
-cpmaddpackage("gh:RoaringBitmap/CRoaring@4.2.1")
+cpmaddpackage(
+  NAME CRoaring
+  GITHUB_REPOSITORY RoaringBitmap/CRoaring
+  VERSION 4.2.1
+  OPTIONS "ROARING_USE_CPM OFF" "ENABLE_ROARING_TESTS OFF"
+)
 cpmaddpackage("gh:lemire/streamvbyte@1.0.0")
 
 if(APPLE)
