@@ -193,8 +193,9 @@ checkout@v4
             [ -f "./packages-${id}/logsquirl_${id}.debug.xz" ] && xz -d "./packages-${id}/logsquirl_${id}.debug.xz" && mv "./packages-${id}/logsquirl_${id}.debug" ./linux-debug/ || true
           done
           if ls ./linux-debug/*.debug 1>/dev/null 2>&1; then
-            tar -cJf ./linux-debug/logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz -C ./linux-debug .
+            tar -cJf ./logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz -C ./linux-debug .
             rm -f ./linux-debug/*.debug
+            mv ./logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz ./linux-debug/
           fi
 
       - name: Prepare binary artifacts
