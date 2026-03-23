@@ -94,7 +94,7 @@ tests/e2e/
 └── test_performance.py      # Performance regression tests (6 tests)
 ```
 
-Total: **38 tests** (32 functional + 6 performance)
+Total: **40 tests** (34 functional + 6 performance)
 
 ## Adding New Tests
 
@@ -104,6 +104,54 @@ Total: **38 tests** (32 functional + 6 performance)
 4. For GUI tests, use `run_gui()` for short-lived commands or `subprocess.Popen` for startup tests.
 5. For performance tests, use `measure_execution()` and `assert_performance()`, add a slot in
    `baseline.json`, and mark the test with `@pytest.mark.performance`.
+
+## Developer Workflow
+
+Every code change must pass the full E2E suite **before** opening a pull request.
+
+### Before you start coding
+
+```bash
+# Make sure the test suite is green on the current branch
+cd tests/e2e
+source .venv/bin/activate
+pytest -v --binary-dir=../../build/output
+```
+
+### After making changes
+
+```bash
+# 1. Rebuild the project
+cd <repo_root>
+cmake --build build --parallel
+
+# 2. Run C++ unit tests
+cd build && ctest --verbose --output-on-failure && cd ..
+
+# 3. Run the full E2E suite
+cd tests/e2e
+source .venv/bin/activate
+pytest -v --binary-dir=../../build/output
+```
+
+- **All 40 tests must pass** before you push.
+- If performance tests fail, your change introduced a regression. Profile and fix it.
+- If you intentionally improved performance, update the baseline and commit it with your PR:
+  ```bash
+  pytest -m performance --update-baseline
+  git add baseline.json
+  ```
+- If you added a new binary feature, add a corresponding E2E test in the appropriate file.
+
+### Quick reference
+
+| What you changed       | What to run                          |
+|------------------------|--------------------------------------|
+| Grep/search logic      | `pytest -k grep`                     |
+| Encoding handling      | `pytest -k encoding`                 |
+| GUI / UI code          | `pytest -k gui`                      |
+| Performance-sensitive   | `pytest -m performance`              |
+| Everything             | `pytest -v`                          |
 
 ## CI Integration
 

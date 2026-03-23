@@ -176,6 +176,8 @@ To override default cmake value pass an option `-DLOGSQUIRL_OSX_DEPLOYMENT_TARGE
 
 ## Running tests
 
+### C++ unit tests (Catch2)
+
 Tests are built by default. To turn them off pass `-DLOGSQUIRL_BUILD_TESTS=OFF` to cmake.
 Tests use Catch2 (bundled with logsquirl sources) and require QtTest module. Tests can be run using ctest tool provided by CMake:
 
@@ -184,6 +186,37 @@ cd <path_to_logsquirl_repository_clone>
 cd build_root
 ctest --build-config RelWithDebInfo --verbose
 ```
+
+### E2E integration tests (Python / pytest)
+
+End-to-end tests exercise the compiled `logsquirl_grep` and `logsquirl` binaries
+against the files in `test_data/`. They cover search correctness, encoding handling,
+edge cases, GUI smoke tests, and **performance regression detection** (5 % tolerance).
+
+**Prerequisites:** Python >= 3.10
+
+```bash
+# One-time setup (from repository root)
+cd tests/e2e
+python3 -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e .
+
+# Run all E2E tests (40 tests)
+pytest -v --binary-dir=../../build/output
+
+# Run only functional tests (skip performance benchmarks)
+pytest -v --binary-dir=../../build/output -m "not performance"
+
+# Run only performance benchmarks
+pytest -v --binary-dir=../../build/output -m performance
+```
+
+**Performance baselines:** After optimizations, update the baseline with
+`pytest -m performance --update-baseline`. Review the diff in `baseline.json`
+before committing — values should only go down, never up.
+
+See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
 ## CI/CD Pipeline
 
