@@ -219,8 +219,16 @@ MainWindow::MainWindow( WindowSession session )
         constexpr int kButtonSize = 24;
         constexpr int kIconSize = 16;
 
+        // Pick icon variant based on configured style — at construction time
+        // the dark palette is not yet applied, so IconLoader cannot detect it.
+        const bool isDarkStyle
+            = Configuration::get().style() == StyleManager::DarkStyleKey
+              || Configuration::get().style() == StyleManager::DarkWindowsStyleKey;
+
         auto* floatButton = new QToolButton( titleBar );
-        floatButton->setIcon( QIcon( ":/images/icons8-undock-16.png" ) );
+        floatButton->setIcon(
+            isDarkStyle ? QIcon( ":/images/icons8-undock-16_inverse.png" )
+                        : QIcon( ":/images/icons8-undock-16.png" ) );
         floatButton->setFixedSize( kButtonSize, kButtonSize );
         floatButton->setIconSize( QSize( kIconSize, kIconSize ) );
         floatButton->setAutoRaise( true );
@@ -228,7 +236,9 @@ MainWindow::MainWindow( WindowSession session )
         titleLayout->addWidget( floatButton );
 
         auto* closeButton = new QToolButton( titleBar );
-        closeButton->setIcon( QIcon( ":/images/icons8-close-window-16.png" ) );
+        closeButton->setIcon(
+            isDarkStyle ? QIcon( ":/images/icons8-close-window-16_inverse.png" )
+                        : QIcon( ":/images/icons8-close-window-16.png" ) );
         closeButton->setFixedSize( kButtonSize, kButtonSize );
         closeButton->setIconSize( QSize( kIconSize, kIconSize ) );
         closeButton->setAutoRaise( true );
@@ -461,6 +471,9 @@ void MainWindow::reTranslateUI()
     showFiltersPanelAction->setText( transAction( action::showFiltersPanelText ) );
     showFiltersPanelAction->setStatusTip( transAction( action::showFiltersPanelStatusTip ) );
 
+    toggleSidebarAction->setText( transAction( action::toggleSidebarText ) );
+    toggleSidebarAction->setStatusTip( transAction( action::toggleSidebarStatusTip ) );
+
     importChipmunkFiltersAction->setText( transAction( action::importChipmunkFiltersText ) );
     importChipmunkFiltersAction->setStatusTip(
         transAction( action::importChipmunkFiltersStatusTip ) );
@@ -689,6 +702,11 @@ void MainWindow::createActions()
     connect( showFiltersPanelAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showFiltersPanel(); } );
 
+    toggleSidebarAction = new QAction( tr( action::toggleSidebarText ), this );
+    toggleSidebarAction->setStatusTip( tr( action::toggleSidebarStatusTip ) );
+    connect( toggleSidebarAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->toggleSidebar(); } );
+
     importChipmunkFiltersAction = new QAction( tr( action::importChipmunkFiltersText ), this );
     importChipmunkFiltersAction->setStatusTip( tr( action::importChipmunkFiltersStatusTip ) );
     connect( importChipmunkFiltersAction, &QAction::triggered, this,
@@ -796,6 +814,7 @@ void MainWindow::loadIcons()
     followAction->setIcon( iconLoader_.load( "icons8-fast-forward" ) );
     showScratchPadAction->setIcon( iconLoader_.load( "icons8-create" ) );
     showFiltersPanelAction->setIcon( iconLoader_.load( "icons8-filter" ) );
+    toggleSidebarAction->setIcon( iconLoader_.load( "icons8-sidebar" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
 }
@@ -936,8 +955,7 @@ void MainWindow::createToolBars()
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( lineNbField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
-    toolBar->addAction( showFiltersPanelAction );
-    toolBar->addAction( showScratchPadAction );
+    toolBar->addAction( toggleSidebarAction );
 
     showInfoLabels( false );
 }
@@ -1340,6 +1358,17 @@ void MainWindow::replaceDataInScratchpad( QString newData )
 void MainWindow::showFiltersPanel()
 {
     showSidebar( SidebarFiltersPanelTab );
+}
+
+void MainWindow::toggleSidebar()
+{
+    if ( sidebarDock_->isVisible() ) {
+        sidebarDock_->hide();
+    }
+    else {
+        sidebarDock_->show();
+        sidebarDock_->raise();
+    }
 }
 
 void MainWindow::showSidebar( int tabIndex )

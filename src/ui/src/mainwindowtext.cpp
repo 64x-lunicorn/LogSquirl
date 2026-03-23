@@ -95,6 +95,8 @@ const char* action::importChipmunkFiltersStatusTip
     = QT_TR_NOOP( "Import filters from a Chipmunk JSON export file" );
 const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters panel" );
 const char* action::showFiltersPanelStatusTip = QT_TR_NOOP( "Show the filters panel" );
+const char* action::toggleSidebarText = QT_TR_NOOP( "Sidebar" );
+const char* action::toggleSidebarStatusTip = QT_TR_NOOP( "Toggle the sidebar panel" );
 const char* action::autoEncodingText = QT_TR_NOOP( "Auto" );
 const char* action::autoEncodingStatusTip
     = QT_TR_NOOP( "Automatically detect the file's encoding" );
