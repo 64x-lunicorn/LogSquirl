@@ -132,6 +132,7 @@ class MainWindow : public QMainWindow {
     void documentation();
     void showScratchPad();
     void showFiltersPanel();
+    void toggleSidebar();
     void showSidebar( int tabIndex );
     void importChipmunkFilters();
     void sendToScratchpad( QString );
@@ -277,6 +278,7 @@ class MainWindow : public QMainWindow {
     QAction* optionsAction;
     QAction* showScratchPadAction;
     QAction* showFiltersPanelAction;
+    QAction* toggleSidebarAction;
     QAction* importChipmunkFiltersAction;
     QAction* showDocumentationAction;
     QAction* aboutAction;

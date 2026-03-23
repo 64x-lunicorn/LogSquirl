@@ -43,45 +43,49 @@
 #include <QDialog>
 
 #include "predefinedfilters.h"
-#include "predefinedfiltersdialog.h"
+#include "predefinedfiltersetedit.h"
 #include "ui_predefinedfiltersdialog.h"
 
+// Dialog for managing predefined filter groups.
+// Mirrors HighlightersDialog: left panel = group list, right panel = group editor.
 class PredefinedFiltersDialog : public QDialog, public Ui::PredefinedFiltersDialog {
     Q_OBJECT
 
   public:
-    PredefinedFiltersDialog( QWidget* parent = nullptr );
+    explicit PredefinedFiltersDialog( QWidget* parent = nullptr );
     PredefinedFiltersDialog( const QString& newFilter, QWidget* parent = nullptr );
-
-  private Q_SLOTS:
-    void addFilter();
-    void removeFilter();
-
-    void moveFilterUp();
-    void moveFilterDown();
-
-    void exportFilters();
-    void importFilters();
-
-    void resolveStandardButton( QAbstractButton* button );
-
-    void onCurrentCellChanged( int currentRow, int currentColumn, int previousRow,
-                               int previousColumn );
 
   Q_SIGNALS:
     void optionsChanged();
 
+  private Q_SLOTS:
+    void addFilterSet();
+    void removeFilterSet();
+
+    void moveFilterSetUp();
+    void moveFilterSetDown();
+
+    void exportFilters();
+    void importFilters();
+
+    void resolveDialog( QAbstractButton* button );
+
+    // Sync the embedded editor with the selected group.
+    void updatePropertyFields();
+
+    // Write changes from the embedded editor back to the selected group.
+    void updateFilterSetProperties();
+
   private:
-    void addFilterRow( const QString& newFilter );
-    void populateFiltersTable( const PredefinedFiltersCollection::Collection& filters );
+    void populateSetList();
+    void setCurrentRow( int row );
 
-    void swapFilters( int currentRow, int newRow, int column );
+    PredefinedFilterSetEdit* filterSetEdit_;
 
-    void saveSettings() const;
-    PredefinedFiltersCollection::Collection readFiltersTable() const;
+    // Temporary copy of the collection, committed on Apply/OK.
+    QList<PredefinedFilterSet> filterSets_;
 
-    void updateButtons();
-    void updateUpDownButtons( int currentRow );
+    int selectedRow_;
 };
 
 #endif

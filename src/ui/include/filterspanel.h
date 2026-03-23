@@ -20,19 +20,21 @@
 #pragma once
 
 #include <QLineEdit>
-#include <QListWidget>
 #include <QPushButton>
 #include <QSet>
 #include <QSettings>
 #include <QShowEvent>
+#include <QTimer>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include "predefinedfilters.h"
 
-// Widget that displays all predefined filters as a checklist.
-// Users can check/uncheck filters, pin filters (persists across sessions),
-// and search the list by name. Selected filters are emitted via signal.
+// Widget that displays all predefined filters grouped into expandable tree items.
+// Users can check/uncheck individual filters or entire groups (tri-state).
+// Pinned filters persist across sessions. Selected filters are emitted via signal.
 class FiltersPanel : public QWidget {
     Q_OBJECT
 
@@ -43,35 +45,45 @@ class FiltersPanel : public QWidget {
     FiltersPanel( const FiltersPanel& ) = delete;
     FiltersPanel& operator=( const FiltersPanel& ) = delete;
 
-    // Reload filters from PredefinedFiltersCollection and re-populate the list.
+    // Reload filter sets from PredefinedFiltersCollection and re-populate the tree.
     void refreshFilters();
 
   Q_SIGNALS:
     // Emitted when the set of checked (active) filters changes.
     void filtersChanged( const QList<PredefinedFilter>& selectedFilters );
 
+    // Emitted when the user clicks the "Edit Filters" button.
+    void editFiltersRequested();
+
   private Q_SLOTS:
-    void onItemChanged( QListWidgetItem* item );
+    void onItemChanged( QTreeWidgetItem* item, int column );
     void onSearchTextChanged( const QString& text );
     void selectAll();
     void deselectAll();
 
   protected:
     void showEvent( QShowEvent* event ) override;
+    void changeEvent( QEvent* event ) override;
 
   private:
-    void populateList( const PredefinedFiltersCollection::Collection& filters );
+    void populateTree( const QList<PredefinedFilterSet>& sets );
     void emitCurrentSelection();
     void savePinnedFilters();
     void loadPinnedFilters();
+    void applyCurrentPalette();
 
     QLineEdit* searchBox_{ nullptr };
-    QListWidget* filterList_{ nullptr };
+    QTreeWidget* filterTree_{ nullptr };
     QPushButton* selectAllButton_{ nullptr };
     QPushButton* deselectAllButton_{ nullptr };
+    QPushButton* editFiltersButton_{ nullptr };
 
-    PredefinedFiltersCollection::Collection allFilters_;
-    QSet<QString> pinnedFilterNames_;
+    QList<PredefinedFilterSet> allFilterSets_;
+    QSet<QString> pinnedFilterKeys_;
 
-    bool updatingList_{ false };
+    // Debounce timer — batches rapid itemChanged signals (e.g. group toggle)
+    // into a single emitCurrentSelection() call.
+    QTimer* debounceTimer_{ nullptr };
+
+    bool updatingTree_{ false };
 };

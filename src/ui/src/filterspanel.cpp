@@ -19,7 +19,9 @@
 
 #include "filterspanel.h"
 
+#include <QApplication>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 
 #include "log.h"
@@ -27,35 +29,57 @@
 
 static constexpr const char* PinnedSettingsKey = "PinnedFilters";
 
+// Composite key for pinning: "groupId/filterName".
+static QString pinKey( const QString& groupId, const QString& filterName )
+{
+    return groupId + QStringLiteral( "/" ) + filterName;
+}
+
 FiltersPanel::FiltersPanel( QWidget* parent )
     : QWidget( parent )
 {
     auto* mainLayout = new QVBoxLayout( this );
     mainLayout->setContentsMargins( 6, 6, 6, 6 );
 
-    // Search box to filter the list
+    // Search box
     searchBox_ = new QLineEdit( this );
     searchBox_->setPlaceholderText( tr( "Search filters..." ) );
     searchBox_->setClearButtonEnabled( true );
     mainLayout->addWidget( searchBox_ );
 
-    // Filter list with checkboxes
-    filterList_ = new QListWidget( this );
-    mainLayout->addWidget( filterList_ );
+    // Tree widget with groups
+    filterTree_ = new QTreeWidget( this );
+    filterTree_->setHeaderHidden( true );
+    filterTree_->setRootIsDecorated( true );
+
+    applyCurrentPalette();
+
+    mainLayout->addWidget( filterTree_ );
 
     // Buttons row
     auto* buttonsLayout = new QHBoxLayout;
     selectAllButton_ = new QPushButton( tr( "Select All" ), this );
     deselectAllButton_ = new QPushButton( tr( "Deselect All" ), this );
+    editFiltersButton_ = new QPushButton( tr( "Edit..." ), this );
     buttonsLayout->addWidget( selectAllButton_ );
     buttonsLayout->addWidget( deselectAllButton_ );
     buttonsLayout->addStretch();
+    buttonsLayout->addWidget( editFiltersButton_ );
     mainLayout->addLayout( buttonsLayout );
 
+    // Debounce timer: when a group checkbox is toggled, Qt fires itemChanged
+    // for every child individually. This timer coalesces those into one emission.
+    debounceTimer_ = new QTimer( this );
+    debounceTimer_->setSingleShot( true );
+    debounceTimer_->setInterval( 0 );
+    connect( debounceTimer_, &QTimer::timeout, this, &FiltersPanel::emitCurrentSelection );
+
     connect( searchBox_, &QLineEdit::textChanged, this, &FiltersPanel::onSearchTextChanged );
-    connect( filterList_, &QListWidget::itemChanged, this, &FiltersPanel::onItemChanged );
+    connect( filterTree_, &QTreeWidget::itemChanged, this, &FiltersPanel::onItemChanged );
     connect( selectAllButton_, &QPushButton::clicked, this, &FiltersPanel::selectAll );
     connect( deselectAllButton_, &QPushButton::clicked, this, &FiltersPanel::deselectAll );
+    connect( editFiltersButton_, &QPushButton::clicked, this,
+             &FiltersPanel::editFiltersRequested );
 
     loadPinnedFilters();
     refreshFilters();
@@ -67,116 +91,161 @@ void FiltersPanel::showEvent( QShowEvent* event )
     refreshFilters();
 }
 
-void FiltersPanel::refreshFilters()
+void FiltersPanel::changeEvent( QEvent* event )
 {
-    auto& collection = PredefinedFiltersCollection::getSynced();
-    allFilters_ = collection.getFilters();
-    populateList( allFilters_ );
+    if ( event->type() == QEvent::ApplicationPaletteChange
+         || event->type() == QEvent::PaletteChange ) {
+        applyCurrentPalette();
+    }
+    QWidget::changeEvent( event );
 }
 
-void FiltersPanel::populateList( const PredefinedFiltersCollection::Collection& filters )
+void FiltersPanel::refreshFilters()
 {
-    updatingList_ = true;
-    filterList_->clear();
+    allFilterSets_ = PredefinedFiltersCollection::getSynced().filterSets();
+    populateTree( allFilterSets_ );
+}
+
+void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
+{
+    updatingTree_ = true;
+    filterTree_->clear();
 
     const auto searchText = searchBox_ ? searchBox_->text().trimmed() : QString{};
 
-    for ( const auto& filter : filters ) {
-        // Apply search filter
-        if ( !searchText.isEmpty()
-             && !filter.name.contains( searchText, Qt::CaseInsensitive )
-             && !filter.pattern.contains( searchText, Qt::CaseInsensitive ) ) {
+    for ( const auto& set : sets ) {
+        auto* groupItem = new QTreeWidgetItem( filterTree_ );
+        groupItem->setText( 0, set.name() );
+        groupItem->setFlags( groupItem->flags() | Qt::ItemIsAutoTristate
+                             | Qt::ItemIsUserCheckable );
+        // Store group id for later retrieval.
+        groupItem->setData( 0, Qt::UserRole, set.id() );
+
+        bool anyChildVisible = false;
+
+        for ( const auto& filter : set.filters() ) {
+            // Apply search filter across group name, filter name, and pattern.
+            if ( !searchText.isEmpty()
+                 && !set.name().contains( searchText, Qt::CaseInsensitive )
+                 && !filter.name.contains( searchText, Qt::CaseInsensitive )
+                 && !filter.pattern.contains( searchText, Qt::CaseInsensitive ) ) {
+                continue;
+            }
+
+            auto* childItem = new QTreeWidgetItem( groupItem );
+
+            if ( filter.name != filter.pattern && !filter.name.isEmpty() ) {
+                childItem->setText( 0, filter.name + QString::fromUtf8( "  \u2014  " )
+                                           + filter.pattern );
+            }
+            else {
+                childItem->setText( 0, filter.pattern );
+            }
+            childItem->setToolTip( 0, filter.pattern );
+            childItem->setFlags( childItem->flags() | Qt::ItemIsUserCheckable );
+
+            // Store filter name and group id for retrieval.
+            childItem->setData( 0, Qt::UserRole, filter.name );
+            childItem->setData( 0, Qt::UserRole + 1, set.id() );
+
+            const bool isPinned = pinnedFilterKeys_.contains( pinKey( set.id(), filter.name ) );
+            childItem->setCheckState( 0, isPinned ? Qt::Checked : Qt::Unchecked );
+
+            anyChildVisible = true;
+        }
+
+        // Hide the group entirely if no children matched the search.
+        if ( !anyChildVisible && !searchText.isEmpty() ) {
+            delete filterTree_->takeTopLevelItem( filterTree_->indexOfTopLevelItem( groupItem ) );
             continue;
         }
 
-        auto* item = new QListWidgetItem( filterList_ );
-
-        // Show "Name  —  pattern" or just pattern if name equals pattern
-        if ( filter.name != filter.pattern && !filter.name.isEmpty() ) {
-            item->setText( filter.name + QString::fromUtf8( "  \u2014  " ) + filter.pattern );
-        }
-        else {
-            item->setText( filter.pattern );
-        }
-        item->setToolTip( filter.pattern );
-
-        item->setFlags( item->flags() | Qt::ItemIsUserCheckable );
-
-        // Pinned filters start checked
-        const bool isPinned = pinnedFilterNames_.contains( filter.name );
-        item->setCheckState( isPinned ? Qt::Checked : Qt::Unchecked );
-
-        // Store filter index for retrieval
-        item->setData( Qt::UserRole, filter.name );
+        groupItem->setExpanded( true );
     }
 
-    updatingList_ = false;
+    updatingTree_ = false;
 
-    // Emit current selection if any pinned filters were auto-checked
+    // Emit current selection if any pinned filters were auto-checked.
     emitCurrentSelection();
 }
 
-void FiltersPanel::onItemChanged( QListWidgetItem* item )
+void FiltersPanel::onItemChanged( QTreeWidgetItem* item, int column )
 {
-    if ( updatingList_ ) {
+    Q_UNUSED( column );
+    Q_UNUSED( item );
+    if ( updatingTree_ ) {
         return;
     }
 
-    Q_UNUSED( item );
-    emitCurrentSelection();
+    // Don't emit immediately — start/restart the debounce timer so that
+    // a group toggle (which fires once per child) results in a single emission.
+    debounceTimer_->start();
 }
 
 void FiltersPanel::onSearchTextChanged( const QString& text )
 {
     Q_UNUSED( text );
-    populateList( allFilters_ );
+    populateTree( allFilterSets_ );
 }
 
 void FiltersPanel::selectAll()
 {
-    updatingList_ = true;
-    for ( int i = 0; i < filterList_->count(); ++i ) {
-        filterList_->item( i )->setCheckState( Qt::Checked );
+    updatingTree_ = true;
+    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
+        auto* groupItem = filterTree_->topLevelItem( g );
+        for ( int c = 0; c < groupItem->childCount(); ++c ) {
+            groupItem->child( c )->setCheckState( 0, Qt::Checked );
+        }
     }
-    updatingList_ = false;
+    updatingTree_ = false;
     emitCurrentSelection();
 }
 
 void FiltersPanel::deselectAll()
 {
-    updatingList_ = true;
-    for ( int i = 0; i < filterList_->count(); ++i ) {
-        filterList_->item( i )->setCheckState( Qt::Unchecked );
+    updatingTree_ = true;
+    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
+        auto* groupItem = filterTree_->topLevelItem( g );
+        for ( int c = 0; c < groupItem->childCount(); ++c ) {
+            groupItem->child( c )->setCheckState( 0, Qt::Unchecked );
+        }
     }
-    updatingList_ = false;
+    updatingTree_ = false;
     emitCurrentSelection();
 }
 
 void FiltersPanel::emitCurrentSelection()
 {
     QList<PredefinedFilter> selected;
+    QSet<QString> checkedKeys;
 
-    // Collect currently checked filter names for pin tracking
-    QSet<QString> checkedNames;
+    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
+        const auto* groupItem = filterTree_->topLevelItem( g );
+        const auto groupId = groupItem->data( 0, Qt::UserRole ).toString();
 
-    for ( int i = 0; i < filterList_->count(); ++i ) {
-        const auto* item = filterList_->item( i );
-        if ( item->checkState() == Qt::Checked ) {
-            const auto name = item->data( Qt::UserRole ).toString();
-            checkedNames.insert( name );
+        for ( int c = 0; c < groupItem->childCount(); ++c ) {
+            const auto* childItem = groupItem->child( c );
+            if ( childItem->checkState( 0 ) == Qt::Checked ) {
+                const auto filterName = childItem->data( 0, Qt::UserRole ).toString();
+                checkedKeys.insert( pinKey( groupId, filterName ) );
 
-            // Find the matching filter in allFilters_
-            for ( const auto& filter : allFilters_ ) {
-                if ( filter.name == name ) {
-                    selected.append( filter );
-                    break;
+                // Resolve the actual PredefinedFilter from allFilterSets_.
+                for ( const auto& set : allFilterSets_ ) {
+                    if ( set.id() == groupId ) {
+                        for ( const auto& filter : set.filters() ) {
+                            if ( filter.name == filterName ) {
+                                selected.append( filter );
+                                break;
+                            }
+                        }
+                        break;
+                    }
                 }
             }
         }
     }
 
-    // Update pinned filters to match current checked state
-    pinnedFilterNames_ = checkedNames;
+    pinnedFilterKeys_ = checkedKeys;
     savePinnedFilters();
 
     Q_EMIT filtersChanged( selected );
@@ -187,11 +256,11 @@ void FiltersPanel::savePinnedFilters()
     auto& settings = PersistentInfo::getSettings( app_settings{} );
     settings.beginGroup( PinnedSettingsKey );
     settings.remove( "" );
-    settings.setValue( "count", pinnedFilterNames_.size() );
+    settings.setValue( "count", pinnedFilterKeys_.size() );
 
     int index = 0;
-    for ( const auto& name : pinnedFilterNames_ ) {
-        settings.setValue( QString( "filter%1" ).arg( index ), name );
+    for ( const auto& key : pinnedFilterKeys_ ) {
+        settings.setValue( QString( "filter%1" ).arg( index ), key );
         index++;
     }
 
@@ -206,11 +275,60 @@ void FiltersPanel::loadPinnedFilters()
 
     const auto count = settings.value( "count", 0 ).toInt();
     for ( int i = 0; i < count; ++i ) {
-        const auto name = settings.value( QString( "filter%1" ).arg( i ) ).toString();
-        if ( !name.isEmpty() ) {
-            pinnedFilterNames_.insert( name );
+        const auto key = settings.value( QString( "filter%1" ).arg( i ) ).toString();
+        if ( !key.isEmpty() ) {
+            pinnedFilterKeys_.insert( key );
         }
     }
 
     settings.endGroup();
+}
+
+void FiltersPanel::applyCurrentPalette()
+{
+    const auto appPal = qApp->palette();
+    const auto baseColor = appPal.color( QPalette::Base );
+    const bool isDark = baseColor.lightnessF() < 0.5f;
+
+    if ( isDark ) {
+        // Fusion derives the checkbox outline from palette roles (Mid, Dark,
+        // Shadow, Window) that the app dark palette leaves near-black.
+        // Only override the unchecked border so the box is visible; leave
+        // checked/indeterminate to Fusion so it draws proper checkmarks.
+        const auto textColor = appPal.color( QPalette::Text );
+        const auto borderHex = textColor.darker( 130 ).name();
+        const auto bgHex = baseColor.lighter( 160 ).name();
+
+        const auto indicatorCss = QString(
+            "QTreeWidget::indicator:unchecked {"
+            "  border: 1px solid %1;"
+            "  background: %2;"
+            "}" )
+            .arg( borderHex, bgHex );
+
+        filterTree_->setStyleSheet( indicatorCss );
+    }
+    else {
+        filterTree_->setStyleSheet( QString() );
+    }
+
+    // Ensure the tree uses the app palette for text and background.
+    filterTree_->setPalette( appPal );
+    filterTree_->viewport()->setPalette( appPal );
+
+    // Fix placeholder text colour for the search box in dark mode.
+    // The app dark palette omits PlaceholderText, so it falls back to a
+    // near-black default that is unreadable on the dark Base background.
+    auto searchPal = appPal;
+    if ( isDark ) {
+        const auto textColor = searchPal.color( QPalette::Text );
+        searchPal.setColor( QPalette::PlaceholderText,
+                            QColor( textColor.red(), textColor.green(), textColor.blue(), 128 ) );
+    }
+    searchBox_->setPalette( searchPal );
+
+    // Sync the widget-level style with the app style so that
+    // Fusion (used by the dark theme) draws correctly.
+    filterTree_->setStyle( qApp->style() );
+    filterTree_->viewport()->update();
 }

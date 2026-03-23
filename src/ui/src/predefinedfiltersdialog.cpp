@@ -38,80 +38,64 @@
 
 #include "predefinedfiltersdialog.h"
 
-#include <QDialogButtonBox>
 #include <QFileDialog>
-#include <QTimer>
-#include <QToolButton>
-#include <qboxlayout.h>
-#include <qcheckbox.h>
-#include <qglobal.h>
-#include <qwidget.h>
 
+#include "containers.h"
 #include "dispatch_to.h"
 #include "iconloader.h"
 #include "log.h"
 #include "predefinedfilters.h"
 
-class CenteredCheckbox : public QWidget {
-  public:
-    explicit CenteredCheckbox( QWidget* parent = nullptr )
-        : QWidget( parent )
-    {
-        auto layout = new QHBoxLayout;
-        layout->setAlignment( Qt::AlignCenter );
-        checkbox_ = new QCheckBox;
-        layout->addWidget( checkbox_ );
-        this->setLayout( layout );
-
-        QPalette palette = this->palette();
-        palette.setColor( QPalette::Base, palette.color( QPalette::Window ) );
-        checkbox_->setPalette( palette );
-    }
-
-    bool isChecked() const
-    {
-        return checkbox_->isChecked();
-    }
-
-    void setChecked( bool isChecked )
-    {
-        checkbox_->setChecked( isChecked );
-    }
-
-  private:
-    QCheckBox* checkbox_;
-};
+static constexpr QLatin1String DEFAULT_SET_NAME = QLatin1String( "New filter group", 16 );
 
 PredefinedFiltersDialog::PredefinedFiltersDialog( QWidget* parent )
     : QDialog( parent )
 {
     setupUi( this );
 
-    populateFiltersTable( PredefinedFiltersCollection::getSynced().getFilters() );
+    filterSetEdit_ = new PredefinedFilterSetEdit( this );
+    filterSetEdit_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
+    filterSetEditLayout->addWidget( filterSetEdit_ );
 
-    connect( addFilterButton, &QToolButton::clicked, this, &PredefinedFiltersDialog::addFilter );
-    connect( removeFilterButton, &QToolButton::clicked, this,
-             &PredefinedFiltersDialog::removeFilter );
-    connect( upButton, &QToolButton::clicked, this, &PredefinedFiltersDialog::moveFilterUp );
-    connect( downButton, &QToolButton::clicked, this, &PredefinedFiltersDialog::moveFilterDown );
-    connect( importFilterButton, &QToolButton::clicked, this,
-             &PredefinedFiltersDialog::importFilters );
-    connect( exportFilterButton, &QToolButton::clicked, this,
-             &PredefinedFiltersDialog::exportFilters );
+    splitter->setStretchFactor( 0, 0 );
+    splitter->setStretchFactor( 1, 1 );
 
-    connect( buttonBox, &QDialogButtonBox::clicked, this,
-             &PredefinedFiltersDialog::resolveStandardButton );
+    // Load a temporary copy of filter sets from disk.
+    filterSets_ = PredefinedFiltersCollection::getSynced().filterSets();
 
-    connect( filtersTableWidget, &QTableWidget::currentCellChanged, this,
-             &PredefinedFiltersDialog::onCurrentCellChanged );
+    populateSetList();
+
+    removeSetButton->setEnabled( false );
+    upSetButton->setEnabled( false );
+    downSetButton->setEnabled( false );
+
+    connect( addSetButton, &QToolButton::clicked, this, &PredefinedFiltersDialog::addFilterSet );
+    connect( removeSetButton, &QToolButton::clicked, this,
+             &PredefinedFiltersDialog::removeFilterSet );
+    connect( upSetButton, &QToolButton::clicked, this, &PredefinedFiltersDialog::moveFilterSetUp );
+    connect( downSetButton, &QToolButton::clicked, this,
+             &PredefinedFiltersDialog::moveFilterSetDown );
+    connect( exportButton, &QPushButton::clicked, this, &PredefinedFiltersDialog::exportFilters );
+    connect( importButton, &QPushButton::clicked, this, &PredefinedFiltersDialog::importFilters );
+
+    selectedRow_ = -1;
+
+    connect( setListWidget, &QListWidget::itemSelectionChanged, this,
+             &PredefinedFiltersDialog::updatePropertyFields );
+    connect( filterSetEdit_, &PredefinedFilterSetEdit::changed, this,
+             &PredefinedFiltersDialog::updateFilterSetProperties );
+    connect( buttonBox, &QDialogButtonBox::clicked, this, &PredefinedFiltersDialog::resolveDialog );
+
+    if ( !filterSets_.empty() ) {
+        setCurrentRow( 0 );
+    }
 
     dispatchToMainThread( [ this ] {
         IconLoader iconLoader( this );
-
-        addFilterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-        removeFilterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-        upButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-        downButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
+        addSetButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
+        removeSetButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
+        upSetButton->setIcon( iconLoader.load( "icons8-up-16" ) );
+        downSetButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
     } );
 }
 
@@ -119,232 +103,216 @@ PredefinedFiltersDialog::PredefinedFiltersDialog( const QString& newFilter, QWid
     : PredefinedFiltersDialog( parent )
 {
     if ( !newFilter.isEmpty() ) {
-        addFilterRow( newFilter );
-    }
-}
-
-void PredefinedFiltersDialog::updateButtons()
-{
-    const auto filtersCount = filtersTableWidget->rowCount();
-    removeFilterButton->setEnabled( filtersCount > 0 );
-
-    updateUpDownButtons( filtersTableWidget->currentRow() );
-}
-
-void PredefinedFiltersDialog::onCurrentCellChanged( int currentRow, int currentColumn,
-                                                    int previousRow, int previousColumn )
-{
-    Q_UNUSED( currentColumn )
-    Q_UNUSED( previousRow )
-    Q_UNUSED( previousColumn )
-
-    updateUpDownButtons( currentRow );
-}
-
-void PredefinedFiltersDialog::updateUpDownButtons( int currentRow )
-{
-    upButton->setEnabled( currentRow > 0 );
-    downButton->setEnabled( currentRow < filtersTableWidget->rowCount() - 1 );
-}
-
-void PredefinedFiltersDialog::populateFiltersTable(
-    const PredefinedFiltersCollection::Collection& filters )
-{
-    filtersTableWidget->clear();
-
-    filtersTableWidget->setRowCount( static_cast<int>( filters.size() ) );
-    filtersTableWidget->setColumnCount( 3 );
-
-    filtersTableWidget->setHorizontalHeaderLabels( QStringList() << tr( "Name" ) << tr( "Pattern" )
-                                                                 << tr( "Regex" ) );
-
-    int filterIndex = 0;
-    for ( const auto& filter : filters ) {
-        filtersTableWidget->setItem( filterIndex, 0, new QTableWidgetItem( filter.name ) );
-        filtersTableWidget->setItem( filterIndex, 1, new QTableWidgetItem( filter.pattern ) );
-        auto* regexCheckbox = new CenteredCheckbox;
-        regexCheckbox->setChecked( filter.useRegex );
-        filtersTableWidget->setCellWidget( filterIndex, 2, regexCheckbox );
-
-        filterIndex++;
-    }
-
-    filtersTableWidget->horizontalHeader()->setSectionResizeMode( 0, QHeaderView::ResizeToContents );
-    filtersTableWidget->horizontalHeader()->setSectionResizeMode( 1, QHeaderView::Stretch );
-    filtersTableWidget->verticalHeader()->setSectionResizeMode( QHeaderView::ResizeToContents );
-    filtersTableWidget->setWordWrap( false );
-
-    updateButtons();
-}
-
-void PredefinedFiltersDialog::saveSettings() const
-{
-    PredefinedFiltersCollection::getSynced().saveToStorage( readFiltersTable() );
-}
-
-PredefinedFiltersCollection::Collection PredefinedFiltersDialog::readFiltersTable() const
-{
-    const auto rows = filtersTableWidget->rowCount();
-
-    PredefinedFiltersCollection::Collection currentFilters;
-
-    for ( auto i = 0; i < rows; ++i ) {
-        if ( nullptr == filtersTableWidget->item( i, 0 )
-             || nullptr == filtersTableWidget->item( i, 1 ) ) {
-            continue;
-        }
-
-        const auto name = filtersTableWidget->item( i, 0 )->text();
-        const auto value = filtersTableWidget->item( i, 1 )->text();
-
-        const auto useRegexCheckbox
-            = static_cast<CenteredCheckbox*>( filtersTableWidget->cellWidget( i, 2 ) );
-        const auto useRegex = useRegexCheckbox ? useRegexCheckbox->isChecked() : false;
-
-        if ( !name.isEmpty() && !value.isEmpty() ) {
-            currentFilters.push_back( { name, value, useRegex } );
-        }
-    }
-
-    return currentFilters;
-}
-
-void PredefinedFiltersDialog::addFilter()
-{
-    addFilterRow( {} );
-}
-
-void PredefinedFiltersDialog::addFilterRow( const QString& newFilter )
-{
-    const auto newRow = filtersTableWidget->rowCount();
-    filtersTableWidget->setRowCount( newRow + 1 );
-    filtersTableWidget->setItem( newRow, 1, new QTableWidgetItem( newFilter ) );
-    filtersTableWidget->setItem( newRow, 0, new QTableWidgetItem( "" ) );
-    auto regexCheckBox = new CenteredCheckbox;
-    filtersTableWidget->setCellWidget( newRow, 2, regexCheckBox );
-
-    filtersTableWidget->scrollToItem( filtersTableWidget->item( newRow, 0 ) );
-    filtersTableWidget->setCurrentCell( newRow, 0 );
-    filtersTableWidget->editItem( filtersTableWidget->item( newRow, 0 ) );
-
-    filtersTableWidget->resizeRowToContents( newRow );
-}
-
-void PredefinedFiltersDialog::removeFilter()
-{
-    filtersTableWidget->removeRow( filtersTableWidget->currentRow() );
-
-    updateButtons();
-}
-
-void PredefinedFiltersDialog::moveFilterUp()
-{
-    const auto currentRow = filtersTableWidget->currentRow();
-    const auto selectedColumn = filtersTableWidget->currentColumn();
-
-    if ( currentRow >= 0 ) {
-        swapFilters( currentRow, currentRow - 1, selectedColumn );
-    }
-}
-
-void PredefinedFiltersDialog::moveFilterDown()
-{
-    const auto currentRow = filtersTableWidget->currentRow();
-    const auto selectedColumn = filtersTableWidget->currentColumn();
-
-    if ( currentRow >= 0 ) {
-        swapFilters( currentRow, currentRow + 1, selectedColumn );
-    }
-}
-
-void PredefinedFiltersDialog::swapFilters( int currentRow, int newRow, int selectedColumn )
-{
-    dispatchToMainThread( [ this, currentRow, newRow, selectedColumn ] {
-        for ( int column = 0; column < filtersTableWidget->columnCount(); ++column ) {
-            auto currentUseRegex = static_cast<CenteredCheckbox*>(
-                filtersTableWidget->cellWidget( currentRow, column ) );
-            auto newUseRegex = static_cast<CenteredCheckbox*>(
-                filtersTableWidget->cellWidget( newRow, column ) );
-
-            if ( currentUseRegex && newUseRegex ) {
-                const auto currentCheckState = currentUseRegex->isChecked();
-                const auto newCheckState = newUseRegex->isChecked();
-                currentUseRegex->setChecked( newCheckState );
-                newUseRegex->setChecked( currentCheckState );
-            }
-            else {
-                auto currentItem = filtersTableWidget->takeItem( currentRow, column );
-                auto newItem = filtersTableWidget->takeItem( newRow, column );
-
-                filtersTableWidget->setItem( newRow, column, currentItem );
-                filtersTableWidget->setItem( currentRow, column, newItem );
+        // Add the filter to the Default set and select that row.
+        for ( int i = 0; i < filterSets_.size(); ++i ) {
+            if ( filterSets_[ i ].id() == defaultFilterSetId() ) {
+                filterSets_[ i ].addFilter( { newFilter, newFilter, false } );
+                setCurrentRow( i );
+                updatePropertyFields();
+                break;
             }
         }
-        filtersTableWidget->setCurrentCell( newRow, selectedColumn );
-    } );
+    }
 }
 
-void PredefinedFiltersDialog::importFilters()
-{
-    const auto file
-        = QFileDialog::getOpenFileName( this, tr( "Select file to import" ), "",
-                                        tr( "Predefined filters (*.conf);;All files (*)" ) );
+// --- Group list management ---
 
-    if ( file.isEmpty() ) {
+void PredefinedFiltersDialog::addFilterSet()
+{
+    filterSets_.append( PredefinedFilterSet::createNewSet( DEFAULT_SET_NAME ) );
+    setListWidget->addItem( DEFAULT_SET_NAME );
+    setCurrentRow( setListWidget->count() - 1 );
+}
+
+void PredefinedFiltersDialog::removeFilterSet()
+{
+    const int index = setListWidget->currentRow();
+    if ( index < 0 || index >= filterSets_.size() ) {
         return;
     }
 
-    LOG_DEBUG << "Loading predefined filters from " << file;
-    QSettings settings{ file, QSettings::IniFormat };
+    // Prevent deletion of the Default group.
+    if ( filterSets_[ index ].id() == defaultFilterSetId() ) {
+        return;
+    }
 
-    PredefinedFiltersCollection collection;
-    collection.retrieveFromStorage( settings );
-    populateFiltersTable( collection.getFilters() );
+    setCurrentRow( -1 );
+    dispatchToMainThread( [ this, index ] {
+        filterSets_.removeAt( index );
+        delete setListWidget->takeItem( index );
+
+        const int count = setListWidget->count();
+        if ( index < count ) {
+            setCurrentRow( index );
+        }
+        else {
+            setCurrentRow( count - 1 );
+        }
+    } );
 }
+
+void PredefinedFiltersDialog::moveFilterSetUp()
+{
+    const int index = setListWidget->currentRow();
+    if ( index <= 0 ) {
+        return;
+    }
+
+    filterSets_.move( index, index - 1 );
+    dispatchToMainThread( [ this, index ] {
+        auto* item = setListWidget->takeItem( index );
+        setListWidget->insertItem( index - 1, item );
+        setCurrentRow( index - 1 );
+    } );
+}
+
+void PredefinedFiltersDialog::moveFilterSetDown()
+{
+    const int index = setListWidget->currentRow();
+    if ( index < 0 || index >= setListWidget->count() - 1 ) {
+        return;
+    }
+
+    filterSets_.move( index, index + 1 );
+    dispatchToMainThread( [ this, index ] {
+        auto* item = setListWidget->takeItem( index );
+        setListWidget->insertItem( index + 1, item );
+        setCurrentRow( index + 1 );
+    } );
+}
+
+// --- Import / Export ---
 
 void PredefinedFiltersDialog::exportFilters()
 {
     auto file = QFileDialog::getSaveFileName( this, tr( "Export predefined filters" ), "",
                                               tr( "Predefined filters (*.conf)" ) );
-
     if ( file.isEmpty() ) {
         return;
     }
-
     if ( !file.endsWith( ".conf" ) ) {
         file += ".conf";
     }
 
     QSettings settings{ file, QSettings::IniFormat };
-
     PredefinedFiltersCollection collection;
-    collection.setFilters( readFiltersTable() );
+    collection.setFilterSets( filterSets_ );
     collection.saveToStorage( settings );
 }
 
-void PredefinedFiltersDialog::resolveStandardButton( QAbstractButton* button )
+void PredefinedFiltersDialog::importFilters()
 {
-    LOG_DEBUG << "PredefinedFiltersDialog::resolveStandardButton";
+    const QStringList files = QFileDialog::getOpenFileNames(
+        this, tr( "Select one or more files to open" ), "",
+        tr( "Predefined filters (*.conf)" ) );
 
+    for ( const auto& file : files ) {
+        LOG_INFO << "Loading filters from " << file;
+        QSettings settings{ file, QSettings::IniFormat };
+        PredefinedFiltersCollection collection;
+        collection.retrieveFromStorage( settings );
+
+        for ( const auto& set : collection.filterSets() ) {
+            // Skip duplicates by name or id.
+            bool duplicate = false;
+            for ( const auto& existing : filterSets_ ) {
+                if ( existing.id() == set.id() || existing.name() == set.name() ) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if ( duplicate ) {
+                LOG_INFO << "Skipping duplicate set: " << set.name();
+                continue;
+            }
+
+            filterSets_.append( set );
+            setListWidget->addItem( set.name() );
+        }
+    }
+}
+
+// --- Apply / OK / Cancel ---
+
+void PredefinedFiltersDialog::resolveDialog( QAbstractButton* button )
+{
     const auto role = buttonBox->buttonRole( button );
 
-    switch ( role ) {
-    case QDialogButtonBox::RejectRole:
+    if ( role == QDialogButtonBox::RejectRole ) {
         reject();
-        return;
-
-    case QDialogButtonBox::ApplyRole:
-        saveSettings();
-        break;
-
-    case QDialogButtonBox::AcceptRole:
-        saveSettings();
-        accept();
-        break;
-    default:
-        LOG_ERROR << "PredefinedFiltersDialog::resolveStandardButton unhandled role: " << role;
         return;
     }
 
+    // Write back to the temporary set if a row is selected.
+    if ( selectedRow_ >= 0 ) {
+        filterSets_[ selectedRow_ ] = filterSetEdit_->filterSet();
+    }
+
+    auto& persistent = PredefinedFiltersCollection::get();
+
+    if ( role == QDialogButtonBox::AcceptRole ) {
+        persistent.setFilterSets( filterSets_ );
+        accept();
+    }
+    else if ( role == QDialogButtonBox::ApplyRole ) {
+        persistent.setFilterSets( filterSets_ );
+    }
+    else {
+        LOG_ERROR << "PredefinedFiltersDialog::resolveDialog unhandled role: " << role;
+        return;
+    }
+
+    persistent.save();
     Q_EMIT optionsChanged();
+}
+
+// --- Selection / property sync ---
+
+void PredefinedFiltersDialog::setCurrentRow( int row )
+{
+    dispatchToMainThread( [ this, row ]() { setListWidget->setCurrentRow( row ); } );
+}
+
+void PredefinedFiltersDialog::updatePropertyFields()
+{
+    if ( setListWidget->selectedItems().count() >= 1 ) {
+        selectedRow_ = setListWidget->row( setListWidget->selectedItems().at( 0 ) );
+    }
+    else {
+        selectedRow_ = -1;
+    }
+
+    if ( selectedRow_ >= 0 ) {
+        filterSetEdit_->setFilterSet( filterSets_.at( selectedRow_ ) );
+
+        // The Default group cannot be removed or renamed.
+        const bool isDefault = ( filterSets_[ selectedRow_ ].id() == defaultFilterSetId() );
+        removeSetButton->setEnabled( !isDefault );
+        upSetButton->setEnabled( selectedRow_ > 0 );
+        downSetButton->setEnabled( selectedRow_ < setListWidget->count() - 1 );
+    }
+    else {
+        filterSetEdit_->reset();
+        removeSetButton->setEnabled( false );
+        upSetButton->setEnabled( false );
+        downSetButton->setEnabled( false );
+    }
+}
+
+void PredefinedFiltersDialog::updateFilterSetProperties()
+{
+    if ( selectedRow_ >= 0 ) {
+        filterSets_[ selectedRow_ ] = filterSetEdit_->filterSet();
+        setListWidget->currentItem()->setText( filterSets_[ selectedRow_ ].name() );
+    }
+}
+
+// --- Helpers ---
+
+void PredefinedFiltersDialog::populateSetList()
+{
+    setListWidget->clear();
+    for ( const auto& set : filterSets_ ) {
+        setListWidget->addItem( set.name() );
+    }
 }

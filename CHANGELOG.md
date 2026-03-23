@@ -3,16 +3,19 @@
 This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github.com/variar/klogg).
 
 ## New features:
+ - Added Filter Groups: organize predefined filters into named groups (like highlighter groups) with a redesigned management dialog, expandable tree sidebar with tri-state checkboxes, and group-aware Chipmunk import
  - Rebranded project from klogg to LogSquirl with new bundle identifier `io.github.logsquirl`
  - Added JWT token decoder to Scratchpad: decodes Base64URL header/payload, formats JSON with indentation, and annotates epoch timestamps (iat, exp, nbf, auth_time) with human-readable UTC dates
  - Added Filters Panel: right sidebar dock with tabbed Filters and Scratchpad panels, toolbar filter icon, auto-search on toggle, and pinned filters that persist across sessions
  - Added Chipmunk filter import: import filters and highlighters from Chipmunk JSON export files via Tools menu
  - Added opt-in beta update channel: new "Check for beta updates" checkbox in Settings > General. When enabled, the app checks for beta versions on every startup (bypassing the 7-day interval) and shows notifications with "(Beta)" label
+ - Replaced toolbar Filter/Scratchpad buttons with a single Sidebar toggle button
 
 ## Bug fixes:
  - Fixed crash on shutdown with Qt 6.10 on Windows (QThreadPool::waitForDone SEGFAULT)
  - Fixed BOM not written when saving search results to file for UTF-16 encoded logs
  - Fixed OpenSSL upgraded from 1.1.x to 3.x (CVE-2022-1292)
+ - Fixed Float (undock) button icon not visible in dark mode
 
 ## Build system:
  - Upgraded to Qt 6.10.3 as primary build target (Qt 5 still supported)

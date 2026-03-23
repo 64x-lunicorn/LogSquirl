@@ -6,122 +6,166 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>640</width>
-    <height>480</height>
+    <width>860</width>
+    <height>560</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Predefined Filters</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0">
-   <property name="sizeConstraint">
-    <enum>QLayout::SetDefaultConstraint</enum>
-   </property>
+  <layout class="QVBoxLayout" name="mainLayout">
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_5">
-     <property name="bottomMargin">
-      <number>0</number>
+    <widget class="QSplitter" name="splitter">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
      </property>
-     <item>
-      <widget class="QToolButton" name="addFilterButton">
-       <property name="toolTip">
-        <string>New Filter</string>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-       <property name="icon">
-        <iconset resource="../../app/logsquirl.qrc">
-         <normaloff>:/images/icons8-plus-16.png</normaloff>:/images/icons8-plus-16.png</iconset>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="removeFilterButton">
-       <property name="toolTip">
-        <string>Remove Filter</string>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-       <property name="icon">
-        <iconset resource="../../app/logsquirl.qrc">
-         <normaloff>:/images/icons8-minus-16.png</normaloff>:/images/icons8-minus-16.png</iconset>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QToolButton" name="importFilterButton">
-       <property name="toolTip">
-        <string>Import Filters</string>
-       </property>
-       <property name="text">
-        <string>Import</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="exportFilterButton">
-       <property name="toolTip">
-        <string>Export Filters</string>
-       </property>
-       <property name="text">
-        <string>Export</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer_2">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QToolButton" name="upButton">
-       <property name="text">
-        <string/>
-       </property>
-       <property name="icon">
-        <iconset resource="../../app/logsquirl.qrc">
-         <normaloff>:/images/icons8-up-16.png</normaloff>:/images/icons8-up-16.png</iconset>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="downButton">
-       <property name="text">
-        <string/>
-       </property>
-       <property name="icon">
-        <iconset resource="../../app/logsquirl.qrc">
-         <normaloff>:/images/icons8-down-arrow-16.png</normaloff>:/images/icons8-down-arrow-16.png</iconset>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="QTableWidget" name="filtersTableWidget"/>
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="childrenCollapsible">
+      <bool>false</bool>
+     </property>
+     <widget class="QWidget" name="leftPanel">
+      <layout class="QVBoxLayout" name="leftLayout">
+       <item>
+        <widget class="QLabel" name="setsLabel">
+         <property name="text">
+          <string>Filter groups</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="setButtonsLayout">
+         <property name="spacing">
+          <number>6</number>
+         </property>
+         <item>
+          <widget class="QToolButton" name="addSetButton">
+           <property name="toolTip">
+            <string>New Filter Group</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset resource="../../app/logsquirl.qrc">
+             <normaloff>:/images/icons8-plus-16.png</normaloff>:/images/icons8-plus-16.png</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="removeSetButton">
+           <property name="toolTip">
+            <string>Delete Filter Group</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset resource="../../app/logsquirl.qrc">
+             <normaloff>:/images/icons8-minus-16.png</normaloff>:/images/icons8-minus-16.png</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="setButtonsSpacer1">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="exportButton">
+           <property name="text">
+            <string>Export</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="importButton">
+           <property name="text">
+            <string>Import</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="setButtonsSpacer2">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QToolButton" name="upSetButton">
+           <property name="toolTip">
+            <string>Move Group Up</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset resource="../../app/logsquirl.qrc">
+             <normaloff>:/images/icons8-up-16.png</normaloff>:/images/icons8-up-16.png</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="downSetButton">
+           <property name="toolTip">
+            <string>Move Group Down</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="icon">
+            <iconset resource="../../app/logsquirl.qrc">
+             <normaloff>:/images/icons8-down-arrow-16.png</normaloff>:/images/icons8-down-arrow-16.png</iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QListWidget" name="setListWidget">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QGroupBox" name="editGroupBox">
+      <property name="title">
+       <string>Filter group properties</string>
+      </property>
+      <layout class="QVBoxLayout" name="editLayout">
+       <item>
+        <layout class="QVBoxLayout" name="filterSetEditLayout"/>
+       </item>
+      </layout>
+     </widget>
+    </widget>
    </item>
    <item>
     <widget class="QDialogButtonBox" name="buttonBox">
@@ -136,7 +180,6 @@
   </layout>
  </widget>
  <resources>
-  <include location="../../app/logsquirl.qrc"/>
   <include location="../../app/logsquirl.qrc"/>
  </resources>
  <connections/>

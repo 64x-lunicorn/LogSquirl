@@ -219,8 +219,16 @@ MainWindow::MainWindow( WindowSession session )
         constexpr int kButtonSize = 24;
         constexpr int kIconSize = 16;
 
+        // Pick icon variant based on configured style — at construction time
+        // the dark palette is not yet applied, so IconLoader cannot detect it.
+        const bool isDarkStyle
+            = Configuration::get().style() == StyleManager::DarkStyleKey
+              || Configuration::get().style() == StyleManager::DarkWindowsStyleKey;
+
         auto* floatButton = new QToolButton( titleBar );
-        floatButton->setIcon( QIcon( ":/images/icons8-undock-16.png" ) );
+        floatButton->setIcon(
+            isDarkStyle ? QIcon( ":/images/icons8-undock-16_inverse.png" )
+                        : QIcon( ":/images/icons8-undock-16.png" ) );
         floatButton->setFixedSize( kButtonSize, kButtonSize );
         floatButton->setIconSize( QSize( kIconSize, kIconSize ) );
         floatButton->setAutoRaise( true );
@@ -228,7 +236,9 @@ MainWindow::MainWindow( WindowSession session )
         titleLayout->addWidget( floatButton );
 
         auto* closeButton = new QToolButton( titleBar );
-        closeButton->setIcon( QIcon( ":/images/icons8-close-window-16.png" ) );
+        closeButton->setIcon(
+            isDarkStyle ? QIcon( ":/images/icons8-close-window-16_inverse.png" )
+                        : QIcon( ":/images/icons8-close-window-16.png" ) );
         closeButton->setFixedSize( kButtonSize, kButtonSize );
         closeButton->setIconSize( QSize( kIconSize, kIconSize ) );
         closeButton->setAutoRaise( true );
@@ -252,6 +262,10 @@ MainWindow::MainWindow( WindowSession session )
                      crawler->startNewSearch();
                  }
              } );
+
+    // Open the predefined filters dialog when the sidebar "Edit..." button is clicked.
+    connect( &filtersPanel_, &FiltersPanel::editFiltersRequested, this,
+             [ this ]() { editPredefinedFilters(); } );
 
     connect( &mainTabWidget_, &TabbedCrawlerWidget::tabCloseRequested, this,
              [ this ]( int index ) { this->closeTab( index, ActionInitiator::User ); } );
@@ -456,6 +470,9 @@ void MainWindow::reTranslateUI()
 
     showFiltersPanelAction->setText( transAction( action::showFiltersPanelText ) );
     showFiltersPanelAction->setStatusTip( transAction( action::showFiltersPanelStatusTip ) );
+
+    toggleSidebarAction->setText( transAction( action::toggleSidebarText ) );
+    toggleSidebarAction->setStatusTip( transAction( action::toggleSidebarStatusTip ) );
 
     importChipmunkFiltersAction->setText( transAction( action::importChipmunkFiltersText ) );
     importChipmunkFiltersAction->setStatusTip(
@@ -685,6 +702,11 @@ void MainWindow::createActions()
     connect( showFiltersPanelAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showFiltersPanel(); } );
 
+    toggleSidebarAction = new QAction( tr( action::toggleSidebarText ), this );
+    toggleSidebarAction->setStatusTip( tr( action::toggleSidebarStatusTip ) );
+    connect( toggleSidebarAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->toggleSidebar(); } );
+
     importChipmunkFiltersAction = new QAction( tr( action::importChipmunkFiltersText ), this );
     importChipmunkFiltersAction->setStatusTip( tr( action::importChipmunkFiltersStatusTip ) );
     connect( importChipmunkFiltersAction, &QAction::triggered, this,
@@ -792,6 +814,7 @@ void MainWindow::loadIcons()
     followAction->setIcon( iconLoader_.load( "icons8-fast-forward" ) );
     showScratchPadAction->setIcon( iconLoader_.load( "icons8-create" ) );
     showFiltersPanelAction->setIcon( iconLoader_.load( "icons8-filter" ) );
+    toggleSidebarAction->setIcon( iconLoader_.load( "icons8-sidebar" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
 }
@@ -932,8 +955,7 @@ void MainWindow::createToolBars()
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( lineNbField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
-    toolBar->addAction( showFiltersPanelAction );
-    toolBar->addAction( showScratchPadAction );
+    toolBar->addAction( toggleSidebarAction );
 
     showInfoLabels( false );
 }
@@ -1244,6 +1266,9 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
 
     signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 
+    connect( &dialog, &PredefinedFiltersDialog::optionsChanged,
+             [ this ]() { filtersPanel_.refreshFilters(); } );
+
     dialog.exec();
     signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 }
@@ -1335,6 +1360,17 @@ void MainWindow::showFiltersPanel()
     showSidebar( SidebarFiltersPanelTab );
 }
 
+void MainWindow::toggleSidebar()
+{
+    if ( sidebarDock_->isVisible() ) {
+        sidebarDock_->hide();
+    }
+    else {
+        sidebarDock_->show();
+        sidebarDock_->raise();
+    }
+}
+
 void MainWindow::showSidebar( int tabIndex )
 {
     sidebarDock_->show();
@@ -1368,27 +1404,29 @@ void MainWindow::importChipmunkFilters()
         return;
     }
 
-    // Import as PredefinedFilters
-    const auto predefined = logsquirl::chipmunk::toFilters( chipmunkFilters );
+    // Import as PredefinedFilterSet (group named after the file)
+    const auto groupName = QFileInfo( file ).baseName();
     auto& filtersCollection = PredefinedFiltersCollection::getSynced();
-    auto existingFilters = filtersCollection.getFilters();
 
     int filtersAdded = 0;
-    for ( const auto& pf : predefined ) {
-        // Skip duplicates by name
-        const bool alreadyExists = std::any_of(
-            existingFilters.cbegin(), existingFilters.cend(),
-            [ &pf ]( const PredefinedFilter& existing ) { return existing.name == pf.name; } );
-        if ( !alreadyExists ) {
-            existingFilters.append( pf );
-            filtersAdded++;
-        }
+    if ( filtersCollection.hasSetByName( groupName ) ) {
+        QMessageBox::information(
+            this, tr( "Import result" ),
+            tr( "A filter group named '%1' already exists. Skipping filter import." )
+                .arg( groupName ) );
     }
-    filtersCollection.setFilters( existingFilters );
-    filtersCollection.save();
+    else {
+        auto filterSet
+            = logsquirl::chipmunk::toFilterSet( chipmunkFilters, groupName );
+        filtersAdded = static_cast<int>( filterSet.filters().size() );
+        auto sets = filtersCollection.filterSets();
+        sets.append( filterSet );
+        filtersCollection.setFilterSets( sets );
+        filtersCollection.save();
+    }
 
     // Import as HighlighterSet
-    const auto setName = QFileInfo( file ).baseName();
+    const auto setName = groupName;
     const auto highlighterSet
         = logsquirl::chipmunk::toHighlighterSet( chipmunkFilters, setName );
 

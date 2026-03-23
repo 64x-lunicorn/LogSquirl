@@ -152,6 +152,24 @@ inline QList<ChipmunkFilter> parseChipmunkJson( const QByteArray& jsonData )
     return result;
 }
 
+// Convert parsed Chipmunk filters into a PredefinedFilterSet.
+// The set is named after the source file (e.g. "my_filters").
+inline PredefinedFilterSet toFilterSet( const QList<ChipmunkFilter>& chipmunkFilters,
+                                        const QString& setName )
+{
+    auto set = PredefinedFilterSet::createNewSet( setName );
+
+    for ( const auto& cf : chipmunkFilters ) {
+        PredefinedFilter pf;
+        pf.name = cf.groupName.isEmpty() ? cf.pattern : cf.groupName + ": " + cf.pattern;
+        pf.pattern = cf.pattern;
+        pf.useRegex = cf.useRegex;
+        set.addFilter( pf );
+    }
+
+    return set;
+}
+
 // Convert parsed Chipmunk filters to PredefinedFilter list.
 // Each filter gets its group name prefixed for readability.
 inline QList<PredefinedFilter> toFilters( const QList<ChipmunkFilter>& chipmunkFilters )
