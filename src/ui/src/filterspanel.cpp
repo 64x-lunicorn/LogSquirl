@@ -61,6 +61,13 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     buttonsLayout->addStretch();
     mainLayout->addLayout( buttonsLayout );
 
+    // Debounce timer: when a group checkbox is toggled, Qt fires itemChanged
+    // for every child individually. This timer coalesces those into one emission.
+    debounceTimer_ = new QTimer( this );
+    debounceTimer_->setSingleShot( true );
+    debounceTimer_->setInterval( 0 );
+    connect( debounceTimer_, &QTimer::timeout, this, &FiltersPanel::emitCurrentSelection );
+
     connect( searchBox_, &QLineEdit::textChanged, this, &FiltersPanel::onSearchTextChanged );
     connect( filterTree_, &QTreeWidget::itemChanged, this, &FiltersPanel::onItemChanged );
     connect( selectAllButton_, &QPushButton::clicked, this, &FiltersPanel::selectAll );
@@ -148,12 +155,14 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 void FiltersPanel::onItemChanged( QTreeWidgetItem* item, int column )
 {
     Q_UNUSED( column );
+    Q_UNUSED( item );
     if ( updatingTree_ ) {
         return;
     }
 
-    Q_UNUSED( item );
-    emitCurrentSelection();
+    // Don't emit immediately — start/restart the debounce timer so that
+    // a group toggle (which fires once per child) results in a single emission.
+    debounceTimer_->start();
 }
 
 void FiltersPanel::onSearchTextChanged( const QString& text )

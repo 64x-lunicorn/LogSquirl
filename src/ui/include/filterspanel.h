@@ -24,6 +24,7 @@
 #include <QSet>
 #include <QSettings>
 #include <QShowEvent>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
@@ -73,6 +74,10 @@ class FiltersPanel : public QWidget {
 
     QList<PredefinedFilterSet> allFilterSets_;
     QSet<QString> pinnedFilterKeys_;
+
+    // Debounce timer — batches rapid itemChanged signals (e.g. group toggle)
+    // into a single emitCurrentSelection() call.
+    QTimer* debounceTimer_{ nullptr };
 
     bool updatingTree_{ false };
 };
