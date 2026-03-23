@@ -1244,6 +1244,9 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
 
     signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 
+    connect( &dialog, &PredefinedFiltersDialog::optionsChanged,
+             [ this ]() { filtersPanel_.refreshFilters(); } );
+
     dialog.exec();
     signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 }
@@ -1368,27 +1371,29 @@ void MainWindow::importChipmunkFilters()
         return;
     }
 
-    // Import as PredefinedFilters
-    const auto predefined = logsquirl::chipmunk::toFilters( chipmunkFilters );
+    // Import as PredefinedFilterSet (group named after the file)
+    const auto groupName = QFileInfo( file ).baseName();
     auto& filtersCollection = PredefinedFiltersCollection::getSynced();
-    auto existingFilters = filtersCollection.getFilters();
 
     int filtersAdded = 0;
-    for ( const auto& pf : predefined ) {
-        // Skip duplicates by name
-        const bool alreadyExists = std::any_of(
-            existingFilters.cbegin(), existingFilters.cend(),
-            [ &pf ]( const PredefinedFilter& existing ) { return existing.name == pf.name; } );
-        if ( !alreadyExists ) {
-            existingFilters.append( pf );
-            filtersAdded++;
-        }
+    if ( filtersCollection.hasSetByName( groupName ) ) {
+        QMessageBox::information(
+            this, tr( "Import result" ),
+            tr( "A filter group named '%1' already exists. Skipping filter import." )
+                .arg( groupName ) );
     }
-    filtersCollection.setFilters( existingFilters );
-    filtersCollection.save();
+    else {
+        auto filterSet
+            = logsquirl::chipmunk::toFilterSet( chipmunkFilters, groupName );
+        filtersAdded = static_cast<int>( filterSet.filters().size() );
+        auto sets = filtersCollection.filterSets();
+        sets.append( filterSet );
+        filtersCollection.setFilterSets( sets );
+        filtersCollection.save();
+    }
 
     // Import as HighlighterSet
-    const auto setName = QFileInfo( file ).baseName();
+    const auto setName = groupName;
     const auto highlighterSet
         = logsquirl::chipmunk::toHighlighterSet( chipmunkFilters, setName );
 

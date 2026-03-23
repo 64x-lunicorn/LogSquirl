@@ -105,7 +105,7 @@ PredefinedFiltersComboBox::PredefinedFiltersComboBox( QWidget* parent )
 void PredefinedFiltersComboBox::populatePredefinedFilters()
 {
     model_->clear();
-    const auto filters = filtersCollection_.getSyncedFilters();
+    const auto filters = filtersCollection_.getAllFilters();
 
     setTitle( tr("Predefined filters") );
 

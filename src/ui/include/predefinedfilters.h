@@ -51,7 +51,51 @@ struct PredefinedFilter {
     bool useRegex;
 };
 
-// Represents collection of filters read from settings file.
+// Represents a named group of predefined filters, analogous to HighlighterSet.
+// Each set has a unique UUID-based identifier and a display name.
+class PredefinedFilterSet {
+  public:
+    // Create a new set with a generated UUID.
+    static PredefinedFilterSet createNewSet( const QString& name );
+
+    PredefinedFilterSet() = default;
+
+    QString id() const;
+    QString name() const;
+    void setName( const QString& name );
+
+    QList<PredefinedFilter> filters() const;
+    void setFilters( const QList<PredefinedFilter>& filters );
+    void addFilter( const PredefinedFilter& filter );
+
+    bool isEmpty() const;
+
+    void saveToStorage( QSettings& settings ) const;
+    void retrieveFromStorage( QSettings& settings );
+
+  private:
+    explicit PredefinedFilterSet( const QString& name );
+
+    static constexpr int PredefinedFilterSet_VERSION = 1;
+
+    QString id_;
+    QString name_;
+    QList<PredefinedFilter> filters_;
+
+    // Allow dialog classes direct access for editing convenience.
+    friend class PredefinedFilterSetEdit;
+    friend class PredefinedFiltersDialog;
+    friend class PredefinedFiltersCollection;
+};
+
+// Well-known ID for the non-deletable Default group.
+inline const QString& defaultFilterSetId()
+{
+    static const QString id = QStringLiteral( "00000000-0000-0000-0000-000000000000" );
+    return id;
+}
+
+// Represents collection of filter sets read from settings file.
 class PredefinedFiltersCollection final : public Persistable<PredefinedFiltersCollection> {
   public:
     using Collection = QList<PredefinedFilter>;
@@ -61,6 +105,19 @@ class PredefinedFiltersCollection final : public Persistable<PredefinedFiltersCo
         return "PredefinedFiltersCollection";
     }
 
+    // --- Filter-set-level API ---
+
+    QList<PredefinedFilterSet> filterSets() const;
+    void setFilterSets( const QList<PredefinedFilterSet>& sets );
+
+    bool hasSetByName( const QString& name ) const;
+
+    // --- Backward-compatible flat API ---
+
+    // Returns a flattened list of all filters across every set.
+    Collection getAllFilters() const;
+
+    // Legacy helpers — operate on the flat list inside the Default set.
     Collection getSyncedFilters();
     Collection getFilters() const;
     void setFilters( const Collection& filters );
@@ -70,11 +127,16 @@ class PredefinedFiltersCollection final : public Persistable<PredefinedFiltersCo
     void saveToStorage( const Collection& filters );
 
   private:
-    static constexpr int PredefinedFiltersCollection_VERSION = 2;
+    static constexpr int PredefinedFiltersCollection_VERSION = 3;
+    // Version 2 stored a flat array of filters (no groups).
+    static constexpr int FLAT_FILTERS_VERSION = 2;
 
-    Collection filters_;
+    // Ensure the Default set exists; creates it if missing.
+    void ensureDefaultSet();
+
+    QList<PredefinedFilterSet> filterSets_;
 };
 
-Q_DECLARE_METATYPE(PredefinedFilter)
+Q_DECLARE_METATYPE( PredefinedFilter )
 
 #endif

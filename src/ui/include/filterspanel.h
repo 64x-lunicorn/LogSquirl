@@ -20,19 +20,20 @@
 #pragma once
 
 #include <QLineEdit>
-#include <QListWidget>
 #include <QPushButton>
 #include <QSet>
 #include <QSettings>
 #include <QShowEvent>
+#include <QTreeWidget>
+#include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include "predefinedfilters.h"
 
-// Widget that displays all predefined filters as a checklist.
-// Users can check/uncheck filters, pin filters (persists across sessions),
-// and search the list by name. Selected filters are emitted via signal.
+// Widget that displays all predefined filters grouped into expandable tree items.
+// Users can check/uncheck individual filters or entire groups (tri-state).
+// Pinned filters persist across sessions. Selected filters are emitted via signal.
 class FiltersPanel : public QWidget {
     Q_OBJECT
 
@@ -43,7 +44,7 @@ class FiltersPanel : public QWidget {
     FiltersPanel( const FiltersPanel& ) = delete;
     FiltersPanel& operator=( const FiltersPanel& ) = delete;
 
-    // Reload filters from PredefinedFiltersCollection and re-populate the list.
+    // Reload filter sets from PredefinedFiltersCollection and re-populate the tree.
     void refreshFilters();
 
   Q_SIGNALS:
@@ -51,7 +52,7 @@ class FiltersPanel : public QWidget {
     void filtersChanged( const QList<PredefinedFilter>& selectedFilters );
 
   private Q_SLOTS:
-    void onItemChanged( QListWidgetItem* item );
+    void onItemChanged( QTreeWidgetItem* item, int column );
     void onSearchTextChanged( const QString& text );
     void selectAll();
     void deselectAll();
@@ -60,18 +61,18 @@ class FiltersPanel : public QWidget {
     void showEvent( QShowEvent* event ) override;
 
   private:
-    void populateList( const PredefinedFiltersCollection::Collection& filters );
+    void populateTree( const QList<PredefinedFilterSet>& sets );
     void emitCurrentSelection();
     void savePinnedFilters();
     void loadPinnedFilters();
 
     QLineEdit* searchBox_{ nullptr };
-    QListWidget* filterList_{ nullptr };
+    QTreeWidget* filterTree_{ nullptr };
     QPushButton* selectAllButton_{ nullptr };
     QPushButton* deselectAllButton_{ nullptr };
 
-    PredefinedFiltersCollection::Collection allFilters_;
-    QSet<QString> pinnedFilterNames_;
+    QList<PredefinedFilterSet> allFilterSets_;
+    QSet<QString> pinnedFilterKeys_;
 
-    bool updatingList_{ false };
+    bool updatingTree_{ false };
 };

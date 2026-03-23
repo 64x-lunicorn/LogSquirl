@@ -3,6 +3,7 @@
 This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github.com/variar/klogg).
 
 ## New features:
+ - Added Filter Groups: organize predefined filters into named groups (like highlighter groups) with a redesigned management dialog, expandable tree sidebar with tri-state checkboxes, and group-aware Chipmunk import
  - Rebranded project from klogg to LogSquirl with new bundle identifier `io.github.logsquirl`
  - Added JWT token decoder to Scratchpad: decodes Base64URL header/payload, formats JSON with indentation, and annotates epoch timestamps (iat, exp, nbf, auth_time) with human-readable UTC dates
  - Added Filters Panel: right sidebar dock with tabbed Filters and Scratchpad panels, toolbar filter icon, auto-search on toggle, and pinned filters that persist across sessions

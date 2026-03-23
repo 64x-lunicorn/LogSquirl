@@ -12,6 +12,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilters.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilterscombobox.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersetedit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/infoline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pathline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logmainview.h
@@ -52,6 +53,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersetedit.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersdialog.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersdialog.ui
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersetedit.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/include/optionsdialog.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/crawlerwidget.cpp
@@ -64,6 +66,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfilters.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfilterscombobox.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfiltersdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfiltersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/infoline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pathline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
