@@ -101,6 +101,14 @@ void StyleManager::applyStyle( const QString& style )
         darkPalette.setColor( QPalette::Disabled, QPalette::Light,
                               QColor( palette.at( "DisabledLight" ) ) );
 
+        // PlaceholderText defaults to a near-black colour in some Qt builds,
+        // making placeholder strings unreadable on the dark Base background.
+        // Use a semi-transparent version of the Text colour.
+        const auto textColor = QColor( palette.at( "Text" ) );
+        darkPalette.setColor( QPalette::PlaceholderText,
+                              QColor( textColor.red(), textColor.green(), textColor.blue(),
+                                      128 ) );
+
         if ( style == DarkWindowsStyleKey ) {
             qApp->setStyle( QStyleFactory::create( WindowsKey ) );
         }
