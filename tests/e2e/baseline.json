@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "version": 1,
+    "tolerance_percent": 5,
+    "updated": "2026-03-23",
+    "description": "Performance baselines for LogSquirl E2E tests. null = no baseline yet (first run)."
+  },
+  "benchmarks": {
+    "grep_search_1mb_simple": {
+      "median_seconds": 0.142582,
+      "p95_seconds": 0.151574
+    },
+    "grep_search_1mb_regex": {
+      "median_seconds": 0.154677,
+      "p95_seconds": 0.157163
+    },
+    "grep_search_1_5mb_simple": {
+      "median_seconds": 0.149489,
+      "p95_seconds": 0.15536
+    },
+    "grep_search_utf16_1mb": {
+      "median_seconds": 0.148987,
+      "p95_seconds": 0.153842
+    },
+    "gui_startup_version": {
+      "median_seconds": 0.115112,
+      "p95_seconds": 0.115705
+    },
+    "gui_load_1mb": {
+      "median_seconds": 2.035289,
+      "p95_seconds": 2.038627
+    }
+  }
+}
