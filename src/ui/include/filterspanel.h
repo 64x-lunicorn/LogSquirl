@@ -52,6 +52,9 @@ class FiltersPanel : public QWidget {
     // Emitted when the set of checked (active) filters changes.
     void filtersChanged( const QList<PredefinedFilter>& selectedFilters );
 
+    // Emitted when the user clicks the "Edit Filters" button.
+    void editFiltersRequested();
+
   private Q_SLOTS:
     void onItemChanged( QTreeWidgetItem* item, int column );
     void onSearchTextChanged( const QString& text );
@@ -60,17 +63,20 @@ class FiltersPanel : public QWidget {
 
   protected:
     void showEvent( QShowEvent* event ) override;
+    void changeEvent( QEvent* event ) override;
 
   private:
     void populateTree( const QList<PredefinedFilterSet>& sets );
     void emitCurrentSelection();
     void savePinnedFilters();
     void loadPinnedFilters();
+    void applyCurrentPalette();
 
     QLineEdit* searchBox_{ nullptr };
     QTreeWidget* filterTree_{ nullptr };
     QPushButton* selectAllButton_{ nullptr };
     QPushButton* deselectAllButton_{ nullptr };
+    QPushButton* editFiltersButton_{ nullptr };
 
     QList<PredefinedFilterSet> allFilterSets_;
     QSet<QString> pinnedFilterKeys_;

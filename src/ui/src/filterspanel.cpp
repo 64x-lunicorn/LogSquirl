@@ -19,6 +19,7 @@
 
 #include "filterspanel.h"
 
+#include <QApplication>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -50,15 +51,20 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     filterTree_ = new QTreeWidget( this );
     filterTree_->setHeaderHidden( true );
     filterTree_->setRootIsDecorated( true );
+
+    applyCurrentPalette();
+
     mainLayout->addWidget( filterTree_ );
 
     // Buttons row
     auto* buttonsLayout = new QHBoxLayout;
     selectAllButton_ = new QPushButton( tr( "Select All" ), this );
     deselectAllButton_ = new QPushButton( tr( "Deselect All" ), this );
+    editFiltersButton_ = new QPushButton( tr( "Edit..." ), this );
     buttonsLayout->addWidget( selectAllButton_ );
     buttonsLayout->addWidget( deselectAllButton_ );
     buttonsLayout->addStretch();
+    buttonsLayout->addWidget( editFiltersButton_ );
     mainLayout->addLayout( buttonsLayout );
 
     // Debounce timer: when a group checkbox is toggled, Qt fires itemChanged
@@ -72,6 +78,8 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     connect( filterTree_, &QTreeWidget::itemChanged, this, &FiltersPanel::onItemChanged );
     connect( selectAllButton_, &QPushButton::clicked, this, &FiltersPanel::selectAll );
     connect( deselectAllButton_, &QPushButton::clicked, this, &FiltersPanel::deselectAll );
+    connect( editFiltersButton_, &QPushButton::clicked, this,
+             &FiltersPanel::editFiltersRequested );
 
     loadPinnedFilters();
     refreshFilters();
@@ -81,6 +89,15 @@ void FiltersPanel::showEvent( QShowEvent* event )
 {
     QWidget::showEvent( event );
     refreshFilters();
+}
+
+void FiltersPanel::changeEvent( QEvent* event )
+{
+    if ( event->type() == QEvent::ApplicationPaletteChange
+         || event->type() == QEvent::PaletteChange ) {
+        applyCurrentPalette();
+    }
+    QWidget::changeEvent( event );
 }
 
 void FiltersPanel::refreshFilters()
@@ -265,4 +282,34 @@ void FiltersPanel::loadPinnedFilters()
     }
 
     settings.endGroup();
+}
+
+void FiltersPanel::applyCurrentPalette()
+{
+    auto pal = qApp->palette();
+
+    // Fusion draws checkbox borders using Mid/Dark/Shadow palette roles.
+    // The app's dark palette doesn't set these explicitly, so they
+    // default to nearly-black — invisible on a dark background.
+    // Derive visible border colours from the Text role so the
+    // checkboxes always contrast against Base.
+    const auto baseColor = pal.color( QPalette::Base );
+    const bool isDark = baseColor.lightnessF() < 0.5f;
+    if ( isDark ) {
+        const auto borderColor = pal.color( QPalette::Text ).darker( 150 );
+        pal.setColor( QPalette::Mid, borderColor );
+        pal.setColor( QPalette::Dark, borderColor );
+        pal.setColor( QPalette::Shadow, borderColor );
+        // Light role is used for the inner highlight of the checkbox frame.
+        pal.setColor( QPalette::Light, baseColor.lighter( 130 ) );
+    }
+
+    filterTree_->setPalette( pal );
+    filterTree_->viewport()->setPalette( pal );
+    searchBox_->setPalette( qApp->palette() );
+
+    // Sync the widget-level style with the app style so that
+    // Fusion (used by the dark theme) draws palette-aware checkboxes.
+    filterTree_->setStyle( qApp->style() );
+    filterTree_->viewport()->update();
 }

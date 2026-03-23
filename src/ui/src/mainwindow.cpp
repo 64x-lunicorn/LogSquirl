@@ -253,6 +253,10 @@ MainWindow::MainWindow( WindowSession session )
                  }
              } );
 
+    // Open the predefined filters dialog when the sidebar "Edit..." button is clicked.
+    connect( &filtersPanel_, &FiltersPanel::editFiltersRequested, this,
+             [ this ]() { editPredefinedFilters(); } );
+
     connect( &mainTabWidget_, &TabbedCrawlerWidget::tabCloseRequested, this,
              [ this ]( int index ) { this->closeTab( index, ActionInitiator::User ); } );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::currentChanged, this,
