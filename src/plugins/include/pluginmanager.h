@@ -94,6 +94,13 @@ class PluginManager : public QObject {
     /** Shut down and unload all plugins. */
     void unloadAll();
 
+    /**
+     * Load all plugins listed in Configuration::enabledPlugins().
+     * Skips IDs that are not discovered or already loaded.
+     * @return List of error messages (empty if all loaded successfully).
+     */
+    QStringList autoLoadPlugins();
+
     /** Check whether a plugin is currently loaded and initialised. */
     bool isLoaded( const QString& pluginId ) const;
 

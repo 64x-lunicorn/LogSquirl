@@ -23,6 +23,7 @@ target_link_libraries(
   PUBLIC project_options
          project_warnings
          logsquirl_logging
+         logsquirl_settings
          Qt6::Core
          Qt6::Network
          Qt6::Widgets

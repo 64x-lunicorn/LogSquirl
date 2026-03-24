@@ -14,6 +14,11 @@
    index, displays available plugins, and downloads archives with SHA-256 verification
  - Added optional Lua scripting layer (LOGSQUIRL_USE_LUA=ON): write plugins as Lua
    scripts using sol2; supports DataSource, Converter, and UI Extension plugin types
+ - Added plugin auto-load: enabled plugins are automatically loaded on startup
+   based on persisted configuration; toggle via "Manage Plugins..." dialog
+ - Improved "Manage Plugins..." dialog: now uses checkboxes per plugin with
+   auto-load toggle; plugin enable/disable state persists across restarts
+ - DataSource menu entries now auto-load the plugin on first use if not loaded
 
 ## Build:
  - Upgraded C++ standard from C++17 to C++23

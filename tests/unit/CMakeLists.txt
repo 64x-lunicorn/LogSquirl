@@ -7,6 +7,7 @@ add_executable(logsquirl_tests
     linepositionarray_test.cpp
     linetypes_test.cpp
     patternmatcher_test.cpp
+    pluginmanager_test.cpp
     pluginmetadata_test.cpp
     regularexpression_test.cpp
     tests_main.cpp

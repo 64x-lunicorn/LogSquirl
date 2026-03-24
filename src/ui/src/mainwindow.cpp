@@ -58,6 +58,7 @@
 
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
@@ -72,6 +73,7 @@
 #include <QProgressDialog>
 #include <QResource>
 #include <QScreen>
+#include <QScrollArea>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
@@ -307,6 +309,12 @@ MainWindow::MainWindow( WindowSession session )
 
     // Discover available plugins (does not load them yet)
     pluginManager_.discoverPlugins();
+
+    // Auto-load previously enabled plugins
+    const auto pluginErrors = pluginManager_.autoLoadPlugins();
+    for ( const auto& error : pluginErrors ) {
+        LOG_WARNING << "Plugin auto-load error: " << error;
+    }
 
     // Connect plugin manager signals
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStarted,
@@ -1359,16 +1367,7 @@ void MainWindow::managePlugins()
 {
     const auto& plugins = pluginManager_.discoveredPlugins();
 
-    // Build a simple list of plugins for display
-    QStringList items;
-    for ( const auto& meta : plugins ) {
-        const auto loaded = pluginManager_.isLoaded( meta.id() );
-        items << QString( "%1 v%2 [%3]" )
-                     .arg( meta.name(), meta.version(),
-                           loaded ? tr( "loaded" ) : tr( "not loaded" ) );
-    }
-
-    if ( items.isEmpty() ) {
+    if ( plugins.empty() ) {
         QMessageBox::information( this, tr( "Plugins" ),
                                   tr( "No plugins discovered.\n\n"
                                       "Plugin directories:\n%1" )
@@ -1377,24 +1376,87 @@ void MainWindow::managePlugins()
         return;
     }
 
-    // Simple selection dialog — will be replaced by PluginManagerDialog in later phase
-    bool ok = false;
-    const auto selected = QInputDialog::getItem( this, tr( "Manage Plugins" ),
-                                                 tr( "Discovered plugins:" ),
-                                                 items, 0, false, &ok );
-    if ( ok && !selected.isEmpty() ) {
-        const auto index = items.indexOf( selected );
-        if ( index >= 0 && index < static_cast<int>( plugins.size() ) ) {
-            const auto& meta = plugins[ static_cast<size_t>( index ) ];
-            if ( pluginManager_.isLoaded( meta.id() ) ) {
-                pluginManager_.unloadPlugin( meta.id() );
+    // Read current enabled list from configuration
+    auto& config = Configuration::get();
+    auto enabledIds = config.enabledPlugins().toVector();
+
+    // Build a dialog with one checkbox per discovered plugin
+    QDialog dialog( this );
+    dialog.setWindowTitle( tr( "Manage Plugins" ) );
+    dialog.setMinimumWidth( 400 );
+
+    auto* layout = new QVBoxLayout( &dialog );
+
+    auto* autoLoadCheck = new QCheckBox( tr( "Auto-load enabled plugins on startup" ), &dialog );
+    autoLoadCheck->setChecked( config.pluginsAutoLoad() );
+    layout->addWidget( autoLoadCheck );
+
+    layout->addSpacing( 8 );
+
+    auto* scrollArea = new QScrollArea( &dialog );
+    scrollArea->setWidgetResizable( true );
+    auto* scrollWidget = new QWidget();
+    auto* scrollLayout = new QVBoxLayout( scrollWidget );
+
+    std::vector<QCheckBox*> checkboxes;
+    checkboxes.reserve( plugins.size() );
+
+    for ( const auto& meta : plugins ) {
+        const auto label = QString( "%1 v%2  —  %3" )
+                               .arg( meta.name(), meta.version(),
+                                     meta.description().isEmpty()
+                                         ? meta.id()
+                                         : meta.description() );
+        auto* cb = new QCheckBox( label, scrollWidget );
+        cb->setChecked( enabledIds.contains( meta.id() ) );
+        scrollLayout->addWidget( cb );
+        checkboxes.push_back( cb );
+    }
+
+    scrollLayout->addStretch();
+    scrollArea->setWidget( scrollWidget );
+    layout->addWidget( scrollArea );
+
+    auto* buttonBox = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                            &dialog );
+    connect( buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept );
+    connect( buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject );
+    layout->addWidget( buttonBox );
+
+    if ( dialog.exec() != QDialog::Accepted ) {
+        return;
+    }
+
+    // Collect newly enabled IDs
+    QStringList newEnabledIds;
+    for ( size_t i = 0; i < plugins.size(); ++i ) {
+        if ( checkboxes[ i ]->isChecked() ) {
+            newEnabledIds.append( plugins[ i ].id() );
+        }
+    }
+
+    // Persist auto-load setting
+    config.setPluginsAutoLoad( autoLoadCheck->isChecked() );
+
+    // Persist enabled plugins list
+    config.setEnabledPlugins( newEnabledIds );
+    config.save();
+
+    // Apply changes: load newly enabled, unload newly disabled
+    for ( const auto& meta : plugins ) {
+        const bool shouldBeEnabled = newEnabledIds.contains( meta.id() );
+        const bool currentlyLoaded = pluginManager_.isLoaded( meta.id() );
+
+        if ( shouldBeEnabled && !currentlyLoaded ) {
+            const auto error = pluginManager_.loadPlugin( meta.id() );
+            if ( !error.isEmpty() ) {
+                QMessageBox::warning( this, tr( "Plugin Error" ),
+                                      tr( "Failed to load %1:\n%2" )
+                                          .arg( meta.name(), error ) );
             }
-            else {
-                const auto error = pluginManager_.loadPlugin( meta.id() );
-                if ( !error.isEmpty() ) {
-                    QMessageBox::warning( this, tr( "Plugin Error" ), error );
-                }
-            }
+        }
+        else if ( !shouldBeEnabled && currentlyLoaded ) {
+            pluginManager_.unloadPlugin( meta.id() );
         }
     }
 }
@@ -1409,6 +1471,16 @@ void MainWindow::browsePluginRepository()
 
 void MainWindow::startPluginDataSource( const QString& pluginId )
 {
+    // Auto-load the plugin if it is not yet loaded
+    if ( !pluginManager_.isLoaded( pluginId ) ) {
+        const auto loadError = pluginManager_.loadPlugin( pluginId );
+        if ( !loadError.isEmpty() ) {
+            QMessageBox::warning( this, tr( "Plugin Error" ),
+                                  tr( "Failed to load plugin:\n%1" ).arg( loadError ) );
+            return;
+        }
+    }
+
     const auto error = pluginManager_.startDataSource( pluginId );
     if ( !error.isEmpty() ) {
         QMessageBox::warning( this, tr( "DataSource Error" ), error );

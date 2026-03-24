@@ -51,6 +51,16 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE( config.language() == "en" );
         }
 
+        THEN( "Plugins auto-load is enabled by default" )
+        {
+            REQUIRE( config.pluginsAutoLoad() );
+        }
+
+        THEN( "Enabled plugins list is empty by default" )
+        {
+            REQUIRE( config.enabledPlugins().isEmpty() );
+        }
+
         THEN( "Native file watch is enabled by default" )
         {
             REQUIRE( config.nativeFileWatchEnabled() );
@@ -333,6 +343,49 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
             {
                 REQUIRE( restored.hideAnsiColorSequences() );
                 REQUIRE( restored.useTextWrap() );
+            }
+        }
+    }
+}
+
+SCENARIO( "Configuration plugin settings round-trip", "[configuration][plugins]" )
+{
+    GIVEN( "A Configuration with plugin settings" )
+    {
+        Configuration config;
+        config.setPluginsAutoLoad( false );
+        config.setEnabledPlugins(
+            QStringList{ "com.example.a", "com.example.b" } );
+
+        WHEN( "Saved and restored" )
+        {
+            QTemporaryDir tmpDir;
+            REQUIRE( tmpDir.isValid() );
+            QString tmpPath = tmpDir.path() + QDir::separator() + "plugin_config.ini";
+
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                config.saveToStorage( settings );
+                settings.sync();
+            }
+
+            Configuration restored;
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                restored.retrieveFromStorage( settings );
+            }
+
+            THEN( "Auto-load setting is preserved" )
+            {
+                REQUIRE_FALSE( restored.pluginsAutoLoad() );
+            }
+
+            THEN( "Enabled plugins list is preserved" )
+            {
+                const auto ids = restored.enabledPlugins();
+                REQUIRE( ids.size() == 2 );
+                REQUIRE( ids.contains( "com.example.a" ) );
+                REQUIRE( ids.contains( "com.example.b" ) );
             }
         }
     }

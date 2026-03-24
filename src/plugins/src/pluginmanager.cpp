@@ -19,6 +19,7 @@
 
 #include "pluginmanager.h"
 
+#include "configuration.h"
 #include "log.h"
 #include "streamwriter.h"
 
@@ -140,6 +141,35 @@ QStringList PluginManager::loadedPluginIds() const
         ids.append( id );
     }
     return ids;
+}
+
+QStringList PluginManager::autoLoadPlugins()
+{
+    const auto& config = Configuration::get();
+    if ( !config.pluginsAutoLoad() ) {
+        return {};
+    }
+
+    QStringList errors;
+    const auto enabledIds = config.enabledPlugins();
+
+    for ( const auto& pluginId : enabledIds ) {
+        if ( isLoaded( pluginId ) ) {
+            continue;
+        }
+        if ( !findDiscovered( pluginId ) ) {
+            LOG_WARNING << "Auto-load: plugin '" << pluginId << "' not found, skipping";
+            continue;
+        }
+
+        const auto error = loadPlugin( pluginId );
+        if ( !error.isEmpty() ) {
+            LOG_WARNING << "Auto-load failed for '" << pluginId << "': " << error;
+            errors.append( QString( "%1: %2" ).arg( pluginId, error ) );
+        }
+    }
+
+    return errors;
 }
 
 QString PluginManager::loadPlugin( const QString& pluginId )
