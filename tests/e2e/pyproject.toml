@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "logsquirl-e2e-tests"
+version = "0.1.0"
+description = "End-to-end integration and performance regression tests for LogSquirl"
+requires-python = ">=3.9"
+dependencies = [
+    "pytest>=7.0",
+]
+
+[project.optional-dependencies]
+report = [
+    "pytest-html>=4.0",
+]
+
+[tool.setuptools]
+py-modules = []
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+markers = [
+    "performance: marks tests as performance benchmarks (may be deselected with '-m \"not performance\"')",
+    "slow: marks tests as slow-running",
+]
+addopts = "-v"

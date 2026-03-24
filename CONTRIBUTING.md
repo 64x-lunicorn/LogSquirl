@@ -89,7 +89,32 @@ For something that is bigger than a ten line fix:
 1. If you like the change and think the project could use it:
     * Be sure you have followed the code style for the project (.clang-format file is provided)
     * Note the [Code of Conduct](CODE_OF_CONDUCT.md).
+    * **Run the test suites before creating a pull request** (see below)
     * Create a pull request
+
+## Testing checklist
+
+Every pull request **must** pass all tests before being merged. Run these locally:
+
+```bash
+# 1. C++ unit tests
+cd build_root && ctest --build-config RelWithDebInfo --verbose
+
+# 2. E2E integration tests (Python / pytest)
+cd tests/e2e
+source .venv/bin/activate   # create venv first if not done — see BUILD.md
+pytest -v --binary-dir=../../build/output
+```
+
+**Performance rule ("Safari Rule"):** LogSquirl must never get slower. The E2E suite
+includes performance benchmarks; if your change causes a regression beyond 5 %, the
+tests will fail. If you intentionally improve performance, update the baseline:
+
+```bash
+pytest -m performance --update-baseline
+```
+
+Commit the updated `tests/e2e/baseline.json` with your PR.
 
 ## Commit message format
 If possible commit message should be like `prefix: message`, where prefix is one of

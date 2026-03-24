@@ -123,5 +123,12 @@ website/hugo
 website/resources/
 build_test_cpp23/
 
+# ── Python (E2E tests) ─────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
 # ── Temporary files ────────────────────────────────────────────────────────
 tmp/
