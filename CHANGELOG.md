@@ -12,7 +12,8 @@ This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github
  - Replaced toolbar Filter/Scratchpad buttons with a single Sidebar toggle button
 
 ## Bug fixes:
- - Fixed crash on shutdown with Qt 6.10 on Windows (QThreadPool::waitForDone SEGFAULT)
+ - Fixed crash on shutdown with Qt 6.10 on Windows (QThreadPool::waitForDone SEGFAULT) — resolved mutex deadlock in LogDataWorker and LogFilteredDataWorker destructors where waitForDone() was called while holding operationsMutex_, preventing pool threads from completing
+ - Fixed LogData destructor not disconnecting FileWatcher before shutdown, preventing late fileChanged signals from enqueuing operations during teardown
  - Fixed BOM not written when saving search results to file for UTF-16 encoded logs
  - Fixed OpenSSL upgraded from 1.1.x to 3.x (CVE-2022-1292)
  - Fixed Float (undock) button icon not visible in dark mode

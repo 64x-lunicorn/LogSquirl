@@ -90,10 +90,18 @@ void OperationQueue::interrupt()
 
 void OperationQueue::shutdown()
 {
-    ScopedLock guard( mutex_ );
-    if ( auto worker = std::move( worker_ ) ) {
+    std::unique_ptr<LogDataWorker> worker;
+    {
+        ScopedLock guard( mutex_ );
+        worker = std::move( worker_ );
+    }
+
+    // Interrupt and destroy the worker outside the queue mutex so that the
+    // worker destructor can wait for its thread pool without contention.
+    if ( worker ) {
         worker->interrupt();
     }
+    worker.reset();
 
     LOG_INFO << "Operation queue shutdown";
 }
