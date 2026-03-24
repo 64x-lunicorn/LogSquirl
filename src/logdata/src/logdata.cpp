@@ -96,6 +96,11 @@ LogData::LogData()
 LogData::~LogData()
 {
     LOG_DEBUG << "Destroying log data";
+
+    // Disconnect FileWatcher before shutdown to prevent new operations
+    // from being enqueued via fileChangedOnDisk() during teardown
+    disconnect( &FileWatcher::getFileWatcher(), nullptr, this, nullptr );
+
     operationQueue_.shutdown();
 }
 

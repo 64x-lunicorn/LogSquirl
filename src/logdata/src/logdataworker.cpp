@@ -190,10 +190,17 @@ LogDataWorker::LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data
 LogDataWorker::~LogDataWorker() noexcept
 {
     try {
+        // Signal all running operations to stop early
         interruptRequest_.set();
-        ScopedLock locker( operationsMutex_ );
+
+        // Remove pending runnables from the pool (thread-safe, no mutex needed)
         operationsPool_.clear();
+
+        // Wait for the active runnable to finish WITHOUT holding operationsMutex_.
+        // The pool thread needs to acquire operationsMutex_ before it can observe
+        // the interrupt flag and exit. Holding the mutex here would deadlock.
         operationsPool_.waitForDone();
+
         LOG_INFO << "LogDataWorker shutdown";
     } catch ( const std::exception& e ) {
         LOG_ERROR << "Failed to destroy LogDataWorker: " << e.what();
