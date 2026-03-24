@@ -35,7 +35,7 @@ function(set_project_compile_flags project_name)
   target_compile_options(${project_name} INTERFACE ${PROJECT_FLAGS})
   target_compile_definitions(${project_name} INTERFACE ${PROJECT_DEFINITIONS})
 
-  set(PROJECT_COMPILER_FEATURES cxx_std_14)
+  set(PROJECT_COMPILER_FEATURES cxx_std_23)
   target_compile_features(${project_name} INTERFACE ${PROJECT_COMPILER_FEATURES})
 
 endfunction()

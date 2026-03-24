@@ -1,5 +1,11 @@
 # 26.03.1-beta (2026-03):
 
+## Build:
+ - Upgraded C++ standard from C++17 to C++23
+ - Dropped Qt5 support — Qt6 is now the only supported version
+ - Removed all `QT_VERSION_MAJOR` conditionals and Qt5 compatibility code paths
+ - Updated minimum compiler requirements: GCC 13, Clang 17, MSVC 19.36
+
 ## Continuous integration:
  - Upgraded macOS CI runner from macos-15 to macos-26
  - Dropped macOS Intel build — now ARM64 only

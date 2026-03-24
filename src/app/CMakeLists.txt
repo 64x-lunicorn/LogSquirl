@@ -17,18 +17,14 @@ set(TS_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/i18n/zh_CN.ts
 )
 
-find_package(Qt${QT_VERSION_MAJOR}LinguistTools REQUIRED)
-if (${QT_VERSION_MAJOR} EQUAL 5)
-  qt5_add_translation(QM_FILES ${TS_FILES})
-else (${QT_VERSION_MAJOR} EQUAL 6)
-  qt6_add_translation(QM_FILES ${TS_FILES})
-endif()
+find_package(Qt6LinguistTools REQUIRED)
+qt6_add_translation(QM_FILES ${TS_FILES})
 
-if (NOT TARGET Qt${QT_VERSION_MAJOR}::lupdate)
-    message(FATAL_ERROR "The package \"Qt${QT_VERSION_MAJOR}LinguistTools\" is required.")
+if (NOT TARGET Qt6::lupdate)
+    message(FATAL_ERROR "The package \"Qt6LinguistTools\" is required.")
 endif()
-set(Qt_LUPDATE_EXECUTABLE Qt${QT_VERSION_MAJOR}::lupdate)
-set(Qt_LCONVERT_EXECUTABLE Qt${QT_VERSION_MAJOR}::lconvert)
+set(Qt_LUPDATE_EXECUTABLE Qt6::lupdate)
+set(Qt_LCONVERT_EXECUTABLE Qt6::lconvert)
 add_custom_target(lupdate
     COMMAND ${Qt_LUPDATE_EXECUTABLE} -recursive -no-obsolete ${CMAKE_SOURCE_DIR}/src -ts ${TS_FILES}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/src

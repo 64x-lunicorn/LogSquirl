@@ -58,14 +58,12 @@ target_link_libraries(
 
 target_link_libraries(logsquirl_logdata PRIVATE xxhash)
 
-if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-  find_package(
-    Qt6
-    COMPONENTS Core5Compat
-    REQUIRED
-  )
-  target_link_libraries(logsquirl_logdata PUBLIC Qt${QT_VERSION_MAJOR}::Core5Compat)
-endif()
+find_package(
+  Qt6
+  COMPONENTS Core5Compat
+  REQUIRED
+)
+target_link_libraries(logsquirl_logdata PUBLIC Qt6::Core5Compat)
 
 if(LOGSQUIRL_USE_LTO)
   set_property(TARGET logsquirl_logdata PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)

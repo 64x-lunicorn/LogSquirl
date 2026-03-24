@@ -19,8 +19,8 @@ git clone https://github.com/64x-lunicorn/LogSquirl
 To build LogSquirl:
 
 - cmake 3.12 or later to generate build files
-- C++ compiler with C++17 support (at least gcc 10, clang 14, msvc 19.30)
-- Qt 6.5 or later (CI builds use Qt 6.10.3). Qt 5.15 is still supported but not the primary target:
+- C++ compiler with C++23 support (at least gcc 13, clang 17, msvc 19.36)
+- Qt 6.5 or later (CI builds use Qt 6.10.3):
   - QtCore
   - QtGui
   - QtWidgets
@@ -28,7 +28,7 @@ To build LogSquirl:
   - QtNetwork
   - QtXml
   - QtTools
-  - Qt5Compat (Qt 6 only)
+  - Qt5Compat
 
 To build Hyperscan regular expressions backend (default):
 

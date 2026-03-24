@@ -3,7 +3,7 @@ BasedOnStyle: llvm
 AccessModifierOffset: -4
 BreakBeforeBinaryOperators: true
 ColumnLimit: 100
-Standard: c++17
+Standard: c++23
 IndentWidth: 4
 
 # Glogg-specific options

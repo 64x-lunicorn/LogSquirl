@@ -57,6 +57,11 @@ if(LOGSQUIRL_USE_HYPERSCAN)
   target_link_libraries(logsquirl_hyperscan INTERFACE hs)
   target_include_directories(logsquirl_hyperscan INTERFACE ${hyperscan_SOURCE_DIR}/src)
 elseif(LOGSQUIRL_USE_VECTORSCAN)
+  # Vectorscan's ue2_literal iterators are not C++23-compatible yet.
+  # Build vectorscan with C++17 to avoid compilation errors.
+  set(_SAVED_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+  set(CMAKE_CXX_STANDARD 17)
+
   cpmaddpackage(
     NAME
     vectorscan
@@ -79,6 +84,8 @@ elseif(LOGSQUIRL_USE_VECTORSCAN)
     "BUIlD_AVX512VBMI OFF"
     "FAT_RUNTIME OFF"
   )
+
+  set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD})
  
   message("Adding alias for vectorscan")
   add_library(logsquirl_vectorscan INTERFACE)
@@ -115,18 +122,10 @@ endif()
 # KArchive: try system package first, fall back to CPM-fetched klogg_karchive fork
 add_library(logsquirl_karchive INTERFACE)
 set(_KARCHIVE_FOUND OFF)
-if(${QT_VERSION_MAJOR} EQUAL 6)
-  find_package(KF6Archive QUIET)
-  if(KF6Archive_FOUND)
-    target_link_libraries(logsquirl_karchive INTERFACE KF6::Archive)
-    set(_KARCHIVE_FOUND ON)
-  endif()
-else()
-  find_package(KF5Archive QUIET)
-  if(KF5Archive_FOUND)
-    target_link_libraries(logsquirl_karchive INTERFACE KF5::Archive)
-    set(_KARCHIVE_FOUND ON)
-  endif()
+find_package(KF6Archive QUIET)
+if(KF6Archive_FOUND)
+  target_link_libraries(logsquirl_karchive INTERFACE KF6::Archive)
+  set(_KARCHIVE_FOUND ON)
 endif()
 
 if(NOT _KARCHIVE_FOUND)
@@ -252,7 +251,7 @@ if(KDSingleApplication_ADDED)
   )
 
   target_include_directories(kdsingleapp PUBLIC ${KDSingleApplication_SOURCE_DIR}/src)
-  target_link_libraries(kdsingleapp Qt${QT_VERSION_MAJOR}::Core)
+  target_link_libraries(kdsingleapp Qt6::Core)
   target_compile_definitions(kdsingleapp PUBLIC KDSINGLEAPPLICATION_STATIC_BUILD)
 
   set_target_properties(kdsingleapp PROPERTIES AUTOMOC ON)
@@ -334,7 +333,7 @@ if(KDToolBox_ADDED)
   )
 
   target_include_directories(kdtoolbox PUBLIC ${KDToolBox_SOURCE_DIR}/qt/KDSignalThrottler/src)
-  target_link_libraries(kdtoolbox Qt${QT_VERSION_MAJOR}::Core)
+  target_link_libraries(kdtoolbox Qt6::Core)
   set_target_properties(kdtoolbox PROPERTIES AUTOMOC ON)
 endif()
 

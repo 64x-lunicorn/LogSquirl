@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-LogSquirl is a cross-platform log viewer built with C++17 and Qt (supports both Qt5 and Qt6).
+LogSquirl is a cross-platform log viewer built with C++23 and Qt6.
 It is a GPL-3.0-or-later licensed fork of [klogg](https://github.com/variar/klogg), which itself
 is a fork of [glogg](https://github.com/nickbnf/glogg). The build system is CMake (minimum 3.12).
 Dependencies are managed via [CPM](https://github.com/cpm-cmake/CPM.cmake).
@@ -48,7 +48,7 @@ with clang-format before committing.
 
 ### Formatting Highlights (from `.clang-format`)
 
-- **Standard**: C++17
+- **Standard**: C++23
 - **Column limit**: 100
 - **Indent**: 4 spaces (no tabs)
 - **Braces**: Custom — opening brace on next line for functions; `else` on new line
@@ -89,8 +89,7 @@ with clang-format before committing.
 - **Cross-thread connections**: Explicitly specify `Qt::QueuedConnection`.
 - **Meta-object macros**: Use `Q_OBJECT`, `Q_SIGNALS`, `Q_SLOTS` (not `signals:` / `slots:`).
 - **Meta-type registration**: Register custom types used across threads with `qRegisterMetaType`.
-- **Qt version compatibility**: The codebase supports both Qt5 and Qt6. Use conditional compilation
-  (`QT_VERSION_MAJOR`) when APIs differ between versions.
+- **Qt version**: The codebase targets Qt6 only. Do not add Qt5 compatibility code.
 - **UI files**: Use Qt Designer `.ui` files for dialog layouts. Build system has `AUTOUIC ON`.
 - **Resources**: Use `.qrc` files with `AUTORCC ON`.
 
