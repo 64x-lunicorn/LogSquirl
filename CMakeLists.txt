@@ -20,6 +20,7 @@ option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
 option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
 option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
 option(LOGSQUIRL_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
+option(LOGSQUIRL_USE_LUA "Enable Lua scripting plugin support" OFF)
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
   set(LOGSQUIRL_ARCH 32)

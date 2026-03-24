@@ -305,6 +305,31 @@ MainWindow::MainWindow( WindowSession session )
 
     setCentralWidget( central_widget );
 
+    // Discover available plugins (does not load them yet)
+    pluginManager_.discoverPlugins();
+
+    // Connect plugin manager signals
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStarted,
+             this, &MainWindow::handleDataSourceStarted );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStopped,
+             this, &MainWindow::handleDataSourceStopped );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetAdded,
+             this, &MainWindow::handlePluginStatusWidget );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetRemoved,
+             this, &MainWindow::handlePluginStatusWidgetRemoved );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::menuActionAdded,
+             this, &MainWindow::handlePluginMenuAction );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested,
+             this, []( const QString& msg ) {
+                 LOG_INFO << "Plugin notification: " << msg;
+             } );
+
+    // Let plugins request opening files
+    pluginManager_.setOpenFileCallback(
+        [this]( const QString& path, bool follow ) {
+            loadFile( path, follow );
+        } );
+
     updateTitleBar( "" );
     loadIcons();
     reTranslateUI();
@@ -743,6 +768,15 @@ void MainWindow::createActions()
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
 
+    managePluginsAction = new QAction( tr( "Manage Plugins..." ), this );
+    managePluginsAction->setStatusTip( tr( "View, enable, and configure installed plugins" ) );
+    connect( managePluginsAction, &QAction::triggered, this, &MainWindow::managePlugins );
+
+    browsePluginsAction = new QAction( tr( "Browse Plugins..." ), this );
+    browsePluginsAction->setStatusTip( tr( "Browse and install plugins from the repository" ) );
+    connect( browsePluginsAction, &QAction::triggered, this,
+             &MainWindow::browsePluginRepository );
+
     updateShortcuts();
 }
 
@@ -901,6 +935,26 @@ void MainWindow::createMenus()
     favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
     favoritesMenu->setToolTipsVisible( true );
 
+    pluginsMenu = menuBar()->addMenu( tr( "Plugins" ) );
+    pluginsMenu->addAction( managePluginsAction );
+    pluginsMenu->addAction( browsePluginsAction );
+
+    // Build Sources sub-menu from DataSource plugins
+    sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
+    for ( const auto& meta : pluginManager_.discoveredPlugins() ) {
+        if ( meta.type() == LOGSQUIRL_PLUGIN_DATASOURCE ) {
+            auto* action = new QAction( meta.name(), this );
+            action->setStatusTip( tr( "Start %1 data source" ).arg( meta.name() ) );
+            const auto id = meta.id();
+            connect( action, &QAction::triggered, this,
+                     [ this, id ]() { startPluginDataSource( id ); } );
+            sourcesMenu->addAction( action );
+        }
+    }
+    if ( sourcesMenu->isEmpty() ) {
+        sourcesMenu->addAction( tr( "(no data source plugins)" ) )->setEnabled( false );
+    }
+
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );
     helpMenu->addAction( showDocumentationAction );
     helpMenu->addSeparator();
@@ -1017,8 +1071,14 @@ void MainWindow::open()
         defaultDir = fileInfo.path();
     }
 
+    // Build file filter including converter plugins
+    QStringList filters;
+    filters << tr( "All files (*)" );
+    filters << pluginManager_.converterFileFilters();
+    const auto filter = filters.join( ";;" );
+
     const auto selectedFiles = QFileDialog::getOpenFileUrls(
-        this, tr( "Open file" ), QUrl::fromLocalFile( defaultDir ), tr( "All files (*)" ) );
+        this, tr( "Open file" ), QUrl::fromLocalFile( defaultDir ), filter );
 
     std::vector<QUrl> localFiles;
     std::vector<QUrl> remoteFiles;
@@ -1293,6 +1353,139 @@ void MainWindow::options()
     dialog.exec();
 
     signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+}
+
+void MainWindow::managePlugins()
+{
+    const auto& plugins = pluginManager_.discoveredPlugins();
+
+    // Build a simple list of plugins for display
+    QStringList items;
+    for ( const auto& meta : plugins ) {
+        const auto loaded = pluginManager_.isLoaded( meta.id() );
+        items << QString( "%1 v%2 [%3]" )
+                     .arg( meta.name(), meta.version(),
+                           loaded ? tr( "loaded" ) : tr( "not loaded" ) );
+    }
+
+    if ( items.isEmpty() ) {
+        QMessageBox::information( this, tr( "Plugins" ),
+                                  tr( "No plugins discovered.\n\n"
+                                      "Plugin directories:\n%1" )
+                                      .arg( pluginManager_.defaultPluginDirectories()
+                                                .join( "\n" ) ) );
+        return;
+    }
+
+    // Simple selection dialog — will be replaced by PluginManagerDialog in later phase
+    bool ok = false;
+    const auto selected = QInputDialog::getItem( this, tr( "Manage Plugins" ),
+                                                 tr( "Discovered plugins:" ),
+                                                 items, 0, false, &ok );
+    if ( ok && !selected.isEmpty() ) {
+        const auto index = items.indexOf( selected );
+        if ( index >= 0 && index < static_cast<int>( plugins.size() ) ) {
+            const auto& meta = plugins[ static_cast<size_t>( index ) ];
+            if ( pluginManager_.isLoaded( meta.id() ) ) {
+                pluginManager_.unloadPlugin( meta.id() );
+            }
+            else {
+                const auto error = pluginManager_.loadPlugin( meta.id() );
+                if ( !error.isEmpty() ) {
+                    QMessageBox::warning( this, tr( "Plugin Error" ), error );
+                }
+            }
+        }
+    }
+}
+
+// ── Plugin DataSource slots (Phase 2) ────────────────────────────────
+
+void MainWindow::browsePluginRepository()
+{
+    logsquirl::plugins::PluginRepositoryDialog dialog( pluginManager_, this );
+    dialog.exec();
+}
+
+void MainWindow::startPluginDataSource( const QString& pluginId )
+{
+    const auto error = pluginManager_.startDataSource( pluginId );
+    if ( !error.isEmpty() ) {
+        QMessageBox::warning( this, tr( "DataSource Error" ), error );
+    }
+}
+
+void MainWindow::handleDataSourceStarted( const QString& pluginId,
+                                           const QString& displayName,
+                                           const QString& filePath )
+{
+    LOG_INFO << "DataSource started: " << pluginId << " -> " << filePath;
+
+    // Open the temp file with follow mode so it tails as the plugin pushes lines
+    const bool loaded = loadFile( filePath, true );
+    if ( loaded ) {
+        // Set a friendly tab title instead of the temp file path
+        const int tabIndex = mainTabWidget_.currentIndex();
+        if ( tabIndex >= 0 ) {
+            mainTabWidget_.setTabText( tabIndex, displayName );
+            mainTabWidget_.setTabToolTip( tabIndex,
+                                          tr( "DataSource: %1\n%2" )
+                                              .arg( displayName, filePath ) );
+        }
+    }
+}
+
+void MainWindow::handleDataSourceStopped( const QString& pluginId )
+{
+    LOG_INFO << "DataSource stopped: " << pluginId;
+    // The file remains open — the user can still browse it.
+    // Optionally we could disable follow mode on the associated tab here.
+}
+
+// ── Plugin UI extension slots (Phase 3) ──────────────────────────────
+
+void MainWindow::handlePluginStatusWidget( const QString& pluginId, QWidget* widget )
+{
+    if ( !widget ) {
+        return;
+    }
+    if ( !pluginStatusBar_ ) {
+        pluginStatusBar_ = new QStatusBar( this );
+        // Insert the plugin status bar at the bottom of the central layout
+        auto* centralLayout = qobject_cast<QVBoxLayout*>( centralWidget()->layout() );
+        if ( centralLayout ) {
+            centralLayout->addWidget( pluginStatusBar_ );
+        }
+    }
+    pluginStatusBar_->addPermanentWidget( widget );
+    LOG_INFO << "Plugin " << pluginId << " registered status widget";
+}
+
+void MainWindow::handlePluginStatusWidgetRemoved( const QString& pluginId, QWidget* widget )
+{
+    if ( pluginStatusBar_ && widget ) {
+        pluginStatusBar_->removeWidget( widget );
+        LOG_INFO << "Plugin " << pluginId << " unregistered status widget";
+    }
+}
+
+void MainWindow::handlePluginMenuAction( const QString& pluginId,
+                                          const QString& /* menuPath */,
+                                          const QString& label,
+                                          logsquirl::plugins::PluginCallbackFn callback,
+                                          void* userData )
+{
+    if ( !pluginsMenu ) {
+        return;
+    }
+    auto* action = new QAction( label, this );
+    action->setStatusTip( tr( "Plugin action from %1" ).arg( pluginId ) );
+    connect( action, &QAction::triggered, this, [ callback, userData ]() {
+        if ( callback ) {
+            callback( userData );
+        }
+    } );
+    pluginsMenu->addAction( action );
 }
 
 void MainWindow::about()
@@ -1915,6 +2108,22 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
         crawlerWindow->mainTabWidget_.setCurrentWidget( existing_crawler );
         crawlerWindow->activateWindow();
         return true;
+    }
+
+    // Check if a converter plugin handles this file extension (Phase 4)
+    const auto ext = QFileInfo( fileName ).suffix().toLower();
+    const auto converterId = pluginManager_.converterForExtension( ext );
+    if ( !converterId.isEmpty() ) {
+        auto* tempFile = new QTemporaryFile(
+            tempDir_.filePath( QFileInfo( fileName ).fileName() + ".txt" ), this );
+        if ( tempFile->open() ) {
+            const auto rc = pluginManager_.runConverter( converterId,
+                                                         fileName, tempFile->fileName() );
+            if ( rc == 0 ) {
+                return loadFile( tempFile->fileName(), followFile );
+            }
+            LOG_ERROR << "Converter plugin " << converterId << " failed with rc=" << rc;
+        }
     }
 
     const auto decompressAction = Decompressor::action( fileName );

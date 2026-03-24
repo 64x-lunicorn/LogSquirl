@@ -1,5 +1,20 @@
 # 26.03.1-beta (2026-03):
 
+## New features:
+ - Added Plugin Infrastructure: C ABI-based plugin system supporting data source,
+   converter, and UI extension plugins. Includes plugin discovery, loading,
+   lifecycle management, and a host API for plugins to interact with the application.
+   See `docs/plugin-sdk.md` for the developer guide.
+ - Added Plugins menu in the menu bar with "Manage Plugins..." dialog
+ - Added Sources menu: start data source plugins directly from the menu bar;
+   streamed log lines appear in a follow-mode tab backed by a temp file
+ - Added converter plugin support: file extensions registered by converter plugins
+   are shown in the Open File dialog; files are converted to a temp file before display
+ - Added Plugin Repository: "Browse Plugins..." dialog fetches a remote plugins.json
+   index, displays available plugins, and downloads archives with SHA-256 verification
+ - Added optional Lua scripting layer (LOGSQUIRL_USE_LUA=ON): write plugins as Lua
+   scripts using sol2; supports DataSource, Converter, and UI Extension plugin types
+
 ## Build:
  - Upgraded C++ standard from C++17 to C++23
  - Dropped Qt5 support — Qt6 is now the only supported version

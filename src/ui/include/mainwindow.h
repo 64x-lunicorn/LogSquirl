@@ -41,6 +41,7 @@
 
 #include <QMainWindow>
 #include <QMenu>
+#include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
 
@@ -62,6 +63,8 @@
 #include "signalmux.h"
 #include "tabbedcrawlerwidget.h"
 #include "filterspanel.h"
+#include "pluginmanager.h"
+#include "pluginrepositorydialog.h"
 #include "tabbedscratchpad.h"
 
 class QAction;
@@ -137,6 +140,20 @@ class MainWindow : public QMainWindow {
     void importChipmunkFilters();
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
+    void managePlugins();
+    void browsePluginRepository();
+    void startPluginDataSource( const QString& pluginId );
+    void handleDataSourceStarted( const QString& pluginId,
+                                  const QString& displayName,
+                                  const QString& filePath );
+    void handleDataSourceStopped( const QString& pluginId );
+    void handlePluginStatusWidget( const QString& pluginId, QWidget* widget );
+    void handlePluginStatusWidgetRemoved( const QString& pluginId, QWidget* widget );
+    void handlePluginMenuAction( const QString& pluginId,
+                                 const QString& menuPath,
+                                 const QString& label,
+                                 logsquirl::plugins::PluginCallbackFn callback,
+                                 void* userData );
     void encodingChanged( QAction* action );
     void addToFavorites();
     void removeFromFavorites();
@@ -241,6 +258,8 @@ class MainWindow : public QMainWindow {
     QMenu* favoritesMenu;
     HighlightersMenu* highlightersMenu;
     QMenu* openedFilesMenu;
+    QMenu* pluginsMenu;
+    QMenu* sourcesMenu;
     QMenu* helpMenu;
 
     PathLine* infoLine;
@@ -286,6 +305,8 @@ class MainWindow : public QMainWindow {
     QAction* predefinedFiltersDialogAction;
     QAction* reportIssueAction;
     QAction* generateDumpAction;
+    QAction* managePluginsAction;
+    QAction* browsePluginsAction;
     QActionGroup* encodingGroup;
     QAction* addToFavoritesAction;
     QAction* addToFavoritesMenuAction;
@@ -335,6 +356,11 @@ class MainWindow : public QMainWindow {
     bool isCloseFromTray_ = false;
 
     std::once_flag screenChangesConnect_;
+
+    logsquirl::plugins::PluginManager pluginManager_;
+
+    // Plugin-contributed status bar widgets (Phase 3)
+    QStatusBar* pluginStatusBar_ = nullptr;
 };
 
 #endif

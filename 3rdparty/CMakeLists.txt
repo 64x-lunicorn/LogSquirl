@@ -481,6 +481,23 @@ if(LOGSQUIRL_USE_SENTRY)
   endif()
 endif(LOGSQUIRL_USE_SENTRY)
 
+# ── Lua scripting (Phase 6) ─────────────────────────────────────────
+if(LOGSQUIRL_USE_LUA)
+  cpmaddpackage(
+    NAME lua
+    GITHUB_REPOSITORY walterschell/Lua
+    VERSION 5.4.7
+    OPTIONS "LUA_ENABLE_TESTING OFF"
+  )
+
+  cpmaddpackage(
+    NAME sol2
+    GITHUB_REPOSITORY ThePhD/sol2
+    VERSION 3.3.1
+    OPTIONS "SOL2_BUILD_LUA FALSE"
+  )
+endif(LOGSQUIRL_USE_LUA)
+
 set(logsquirl_cpm_targets
     xxhash
     Catch2
@@ -504,6 +521,8 @@ set(logsquirl_cpm_targets
     mini_chromium
     streamvbyte
     FastPFor
+    lua_static
+    sol2
 )
 foreach(target ${logsquirl_cpm_targets})
   if(TARGET ${target})

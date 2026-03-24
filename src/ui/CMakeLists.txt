@@ -120,6 +120,7 @@ target_link_libraries(
          project_warnings
          logsquirl_logdata
          logsquirl_versioncheck
+         logsquirl_plugins
          logsquirl_karchive
          Qt6::Widgets
          Qt6::Xml

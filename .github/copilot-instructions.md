@@ -141,10 +141,13 @@ src/
 tests/
 ├── unit/                 # Unit tests (Catch2)
 ├── ui/                   # UI integration tests
+├── e2e/                  # E2E / performance tests (pytest)
 └── helpers/              # Test utilities
 ```
 
 ## Testing
+
+### Unit & Integration Tests (C++ / Catch2)
 
 - **Framework**: [Catch2](https://github.com/catchorg/Catch2)
 - **Test style**: Use `SCENARIO` / `GIVEN` / `WHEN` / `THEN` (BDD) for new tests.
@@ -153,6 +156,27 @@ tests/
 - **Assertions**: Use `REQUIRE()` and `REQUIRE_FALSE()` — avoid `CHECK()` unless intentional.
 - **Build**: Tests are built when `LOGSQUIRL_BUILD_TESTS=ON` (default).
 - **Test data**: Static test fixtures go in `test_data/` at the repository root.
+
+### E2E / Performance Tests (Python / pytest)
+
+The `tests/e2e/` directory contains end-to-end integration tests and performance regression
+benchmarks written in Python (pytest ≥ 7.0). These tests exercise the compiled `logsquirl_grep`
+and `logsquirl` binaries.
+
+**Every change must pass E2E tests before merging.** Run them after a successful build:
+
+```bash
+cd tests/e2e
+python -m venv .venv && source .venv/bin/activate  # first time only
+pip install -e .                                     # first time only
+pytest -v --binary-dir=../../build/output
+```
+
+- **Performance tests** are marked `@pytest.mark.performance`. They compare against baselines
+  stored in `tests/e2e/baseline.json`. LogSquirl must never regress — a 5 % tolerance applies.
+- **GUI smoke tests** are marked `@pytest.mark.slow` (they launch the app with a short sleep).
+- To skip performance tests: `pytest -v -m "not performance"`
+- To update baselines after intentional changes: `pytest -v -m performance --update-baseline`
 
 ## File Headers
 
@@ -215,8 +239,14 @@ cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 # Build
 cmake --build build --parallel
 
-# Run tests
+# Run unit & integration tests
 cd build && ctest --output-on-failure
+
+# Run E2E tests (after build)
+cd tests/e2e
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+pytest -v --binary-dir=../../build/output
 ```
 
 See `BUILD.md` for full dependency and platform-specific instructions.

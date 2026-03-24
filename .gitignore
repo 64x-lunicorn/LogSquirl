@@ -37,6 +37,7 @@ qrc_*.cpp
 # ── CMake ──────────────────────────────────────────────────────────────────
 CMakeLists.txt.user*
 CMakeUserPresets.json
+cpm_cache/
 
 # ── Editor swap / backup files ─────────────────────────────────────────────
 *~

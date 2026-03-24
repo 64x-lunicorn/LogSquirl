@@ -347,6 +347,12 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     }
     settings.endArray();
 
+    pluginsAutoLoad_
+        = settings.value( "plugins.autoLoad", DefaultConfiguration.pluginsAutoLoad_ ).toBool();
+    enabledPlugins_
+        = settings.value( "plugins.enabledPlugins", DefaultConfiguration.enabledPlugins_ )
+              .toStringList();
+
     settings.beginGroup( "dark" );
     for ( auto& color : darkPalette_ ) {
         color.second = settings.value( color.first, color.second ).toString();
@@ -447,6 +453,9 @@ void Configuration::saveToStorage( QSettings& settings ) const
         shortcutIndex++;
     }
     settings.endArray();
+
+    settings.setValue( "plugins.autoLoad", pluginsAutoLoad_ );
+    settings.setValue( "plugins.enabledPlugins", enabledPlugins_ );
 
     settings.beginGroup( "dark" );
     for ( const auto& color : darkPalette_ ) {
