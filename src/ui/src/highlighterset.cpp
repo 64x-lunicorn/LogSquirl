@@ -277,6 +277,12 @@ HighlighterMatchType HighlighterSet::matchLine( const QString& line,
         return HighlighterMatchType::NoMatch;
     }
 
+    // Skip expensive regex matching on extremely long lines to prevent UI hangs
+    constexpr int MaxHighlightLineLength = 1'000'000;
+    if ( line.size() > MaxHighlightLineLength ) {
+        return HighlighterMatchType::NoMatch;
+    }
+
     if ( !compiledExpression_ ) {
         compile();
     }

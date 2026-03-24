@@ -274,7 +274,8 @@ LineLength LogData::doGetLineLength( LineNumber line ) const
         return 0_length; /* exception? */
     }
 
-    return LineLength{ doGetExpandedLineString( line ).size() };
+    // Use allocation-free length calculation instead of building the full expanded string
+    return getUntabifiedLength( doGetLineString( line ) );
 }
 
 void LogData::doSetDisplayEncoding( const char* encoding )

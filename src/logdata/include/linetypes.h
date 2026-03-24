@@ -306,21 +306,80 @@ private:
 // Length of a tab stop
 constexpr int TabStop = 8;
 
+// Maximum expanded line length for display (prevents OOM on malicious/corrupt files).
+// Lines exceeding this after tab expansion are truncated.
+constexpr int MaxExpandedLineLength = 1'000'000;
+
+// Replaces tab characters with the appropriate number of spaces using O(n) single-pass
+// algorithm. Also replaces null characters with spaces.
 inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
 {
-    line.replace( QChar::Null, QChar::Space );
+    const auto* src = line.constData();
+    const auto srcLen = static_cast<int>( line.size() );
 
-    LineLength::UnderlyingType position = 0;
-    position = type_safe::narrow_cast<LineLength::UnderlyingType>(
-        line.indexOf( QChar::Tabulation, position ) );
-    while ( position >= 0 ) {
-        const auto spaces = TabStop - ( ( initialPosition.get() + position ) % TabStop );
-        line.replace( position, 1, QString( spaces, QChar::Space ) );
-        position = type_safe::narrow_cast<LineLength::UnderlyingType>(
-            line.indexOf( QChar::Tabulation, position ) );
+    // Fast path: no tabs and no nulls — return as-is
+    bool hasTabs = false;
+    bool hasNulls = false;
+    for ( int i = 0; i < srcLen; ++i ) {
+        if ( src[ i ] == QChar::Tabulation ) {
+            hasTabs = true;
+            break;
+        }
+        if ( src[ i ] == QChar::Null ) {
+            hasNulls = true;
+        }
     }
 
-    return std::move( line );
+    if ( !hasTabs ) {
+        if ( hasNulls ) {
+            line.replace( QChar::Null, QChar::Space );
+        }
+        return std::move( line );
+    }
+
+    // First pass: compute expanded length
+    int expandedLen = 0;
+    int column = initialPosition.get<int>();
+    for ( int i = 0; i < srcLen; ++i ) {
+        if ( src[ i ] == QChar::Tabulation ) {
+            const int spaces = TabStop - ( column % TabStop );
+            expandedLen += spaces;
+            column += spaces;
+        }
+        else {
+            ++expandedLen;
+            ++column;
+        }
+    }
+
+    // Cap at maximum display length to prevent OOM
+    const bool truncated = expandedLen > MaxExpandedLineLength;
+    if ( truncated ) {
+        expandedLen = MaxExpandedLineLength;
+    }
+
+    // Second pass: build result string in one allocation
+    QString result;
+    result.reserve( expandedLen );
+
+    column = initialPosition.get<int>();
+    int outPos = 0;
+    for ( int i = 0; i < srcLen && outPos < expandedLen; ++i ) {
+        if ( src[ i ] == QChar::Tabulation ) {
+            const int spaces = TabStop - ( column % TabStop );
+            const int toWrite = std::min( spaces, expandedLen - outPos );
+            result.append( QString( toWrite, QChar::Space ) );
+            column += spaces;
+            outPos += toWrite;
+        }
+        else {
+            result.append( src[ i ] == QChar::Null ? QChar::Space : src[ i ] );
+            ++column;
+            ++outPos;
+        }
+    }
+
+    return result;
 }
 
 template <typename LineType>
@@ -336,6 +395,32 @@ LineLength getUntabifiedLength( const LineType& utf8Line )
         tabPosition = utf8Line.find( '\t', tabPosition + 1 );
     }
 
-    return LineLength( type_safe::narrow_cast<LineLength::UnderlyingType>(
-        static_cast<int64_t>( utf8Line.size() + totalSpaces ) ) );
+    const auto expandedLen = static_cast<int64_t>( utf8Line.size() + totalSpaces );
+    const auto cappedLen = std::min( expandedLen, static_cast<int64_t>( MaxExpandedLineLength ) );
+
+    return LineLength( type_safe::narrow_cast<LineLength::UnderlyingType>( cappedLen ) );
+}
+
+// Calculates the expanded length of a QString after tab expansion, without allocating
+// a new string. O(n) in the length of the input.
+inline LineLength getUntabifiedLength( const QString& line )
+{
+    const auto* src = line.constData();
+    const auto srcLen = static_cast<int>( line.size() );
+    int expandedLen = 0;
+    int column = 0;
+
+    for ( int i = 0; i < srcLen; ++i ) {
+        if ( src[ i ] == QChar::Tabulation ) {
+            const int spaces = TabStop - ( column % TabStop );
+            expandedLen += spaces;
+            column += spaces;
+        }
+        else {
+            ++expandedLen;
+            ++column;
+        }
+    }
+
+    return LineLength( std::min( expandedLen, MaxExpandedLineLength ) );
 }
