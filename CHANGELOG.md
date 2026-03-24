@@ -1,4 +1,17 @@
-# 26.03.0 (2025-06):
+# 26.03.1-beta (2026-03):
+
+## Continuous integration:
+ - Upgraded macOS CI runner from macos-15 to macos-26
+ - Dropped macOS Intel build — now ARM64 only
+ - Updated macOS deployment target to 15.0
+ - Upgraded Windows CI runner to windows-2025
+
+## Tests:
+ - Added E2E integration test suite (pytest-based, 40 tests covering search correctness, encoding handling, edge cases, GUI smoke tests, and performance regression detection)
+
+---
+
+# 26.03.0 (2026-03):
 
 This is the first release of LogSquirl, a GPL-3.0 fork of [klogg](https://github.com/variar/klogg).
 

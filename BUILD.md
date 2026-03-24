@@ -98,7 +98,7 @@ Install latest Qt 6 version using [online installer](https://www.qt.io/download-
 Make sure to select the MSVC 2022 64-bit component.
 
 Install CMake from [Kitware](https://cmake.org/download/).
-Use version 3.14 or later for Visual Studio 2019 support.
+Use version 3.14 or later for Visual Studio 2022 support.
 
 Download the Boost source code from http://www.boost.org/users/download/.
 Extract to some folder. Directory structure should be something like `C:\Boost\boost_1_63_0`.
@@ -140,12 +140,12 @@ Put libcrypto-3 and libssl-3 for desired architecture near logsquirl binaries.
 
 ### Building on Mac OS
 
-LogSquirl requires macOS High Sierra (10.13) or higher.
+LogSquirl requires macOS 15 (Sequoia) or higher.
 
 Install [Homebrew](https://brew.sh/) using terminal:
 
 ```
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 Homebrew installer should also install xcode command line tools.
@@ -172,7 +172,7 @@ Binaries are placed into `build_root/output`.
 
 By default, logsquirl will rely on cmake to figure out target MacOS version. Usually it uses build host version.
 To override default cmake value pass an option `-DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=<target>` to cmake during configuration step,
-`<target>` is one of `10.14`, `10.15`, `11`, `12`. LogSquirl's traget must be greater or equal to target used by Qt libraries.
+`<target>` is one of `14`, `15`, `16`. LogSquirl's target must be greater or equal to the target used by Qt libraries.
 
 ## Running tests
 
@@ -232,7 +232,6 @@ Linux builds use pre-built Docker images hosted on GHCR:
 | Image | Based On | Packages |
 |-------|----------|----------|
 | `ghcr.io/64x-lunicorn/logsquirl-oracle10` | Oracle Linux 10 | Qt 6, GCC, RPM |
-| `ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy` | Ubuntu 22.04 | Qt 6, GCC, DEB |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB |
 | `ghcr.io/64x-lunicorn/logsquirl-fedora43` | Fedora 43 | Qt 6, GCC, RPM |
 
@@ -247,7 +246,7 @@ Releases are triggered by pushing a git tag to master:
 - **Beta release**: push a pre-release tag like `v26.04.0-beta.1`
 
 The release workflow:
-1. Calls `ci-build.yml` to build all 8 platforms
+1. Calls `ci-build.yml` to build all platforms
 2. Uploads debug symbols to Sentry (non-blocking)
 3. Publishes a single GitHub Release with all platform packages
 4. Updates `latest.json` with the new version (beta or stable field)
@@ -258,7 +257,7 @@ Manual releases are also supported via `workflow_dispatch` — provide a CI Buil
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci-build.yml` | push/PR to master | Build + test all 8 platforms |
+| `ci-build.yml` | push/PR to master | Build + test all platforms |
 | `ci-release.yml` | tag push `v*` | Publish GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis |
