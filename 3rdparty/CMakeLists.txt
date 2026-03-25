@@ -361,6 +361,12 @@ if(efsw_ADDED)
   target_compile_definitions(efsw PRIVATE EFSW_FSEVENTS_NOT_SUPPORTED)
 endif()
 
+# The variar/oneTBB fork's compiled code is not C++23-compatible on MSVC,
+# causing heap corruption (STATUS_HEAP_CORRUPTION 0xc0000374) in TBB flow
+# graph operations during parallel search. Build with C++17 like vectorscan.
+set(_SAVED_CXX_STANDARD_TBB ${CMAKE_CXX_STANDARD})
+set(CMAKE_CXX_STANDARD 17)
+
 if(WIN32)
   set(BUILD_SHARED_LIBS ON)
 endif()
@@ -382,6 +388,8 @@ cpmaddpackage(
 if(WIN32)
   set(BUILD_SHARED_LIBS OFF)
 endif()
+
+set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_TBB})
 
 set(CPM_USE_LOCAL_PACKAGES OFF)
 cpmaddpackage(
