@@ -42,6 +42,11 @@ cpmaddpackage(
 )
 
 if(LOGSQUIRL_USE_HYPERSCAN)
+  # Hyperscan's flat_containers.h uses std::out_of_range without including
+  # <stdexcept>, which breaks under MSVC's C++23 STL. Build with C++17.
+  set(_SAVED_CXX_STANDARD_HS ${CMAKE_CXX_STANDARD})
+  set(CMAKE_CXX_STANDARD 17)
+
   cpmaddpackage(
     NAME
     hyperscan
@@ -52,6 +57,9 @@ if(LOGSQUIRL_USE_HYPERSCAN)
     EXCLUDE_FROM_ALL
     YES
   )
+
+  set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_HS})
+
   message("Adding alias for hyperscan")
   add_library(logsquirl_hyperscan INTERFACE)
   target_link_libraries(logsquirl_hyperscan INTERFACE hs)
