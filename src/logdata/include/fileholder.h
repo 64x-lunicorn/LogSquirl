@@ -39,7 +39,8 @@ template <typename T> class ScopedFileHolder {
     }
 
   private:
-    Q_DISABLE_COPY( ScopedFileHolder<T> )
+    ScopedFileHolder( const ScopedFileHolder& ) = delete;
+    ScopedFileHolder& operator=( const ScopedFileHolder& ) = delete;
 
     T* file_holder_;
 };
