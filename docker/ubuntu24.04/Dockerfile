@@ -9,7 +9,7 @@ RUN apt-get update -y && \
                     wget ca-certificates fuse libfuse2 file \
                     libgl-dev libxkbcommon-dev libfontconfig1-dev libfreetype-dev \
                     libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
-                    libglib2.0-0 -y && \
+                    libglib2.0-0 libdbus-1-dev -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
