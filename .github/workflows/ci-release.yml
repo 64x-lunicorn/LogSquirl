@@ -72,14 +72,14 @@ jobs:
 
       - name: Download artifacts (last successful CI build)
         if: github.event_name == 'workflow_dispatch' && !github.event.inputs.ci-run-id
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v19
         with:
           workflow: ci-build.yml
           workflow_conclusion: success
 
       - name: Download artifacts (specific CI run)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.ci-run-id
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@v19
         with:
           workflow: ci-build.yml
           run_id: ${{ github.event.inputs.ci-run-id }}
