@@ -8,7 +8,8 @@ RUN apt-get update -y && \
                     ragel ninja-build zlib1g-dev git pkg-config \
                     wget ca-certificates fuse libfuse2 file \
                     libgl-dev libxkbcommon-dev libfontconfig1-dev libfreetype-dev \
-                    libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 -y && \
+                    libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
+                    libglib2.0-0 -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
@@ -18,12 +19,12 @@ RUN pip3 install --break-system-packages aqtinstall && \
         --modules qt5compat \
         --archives qtbase qtimageformats qtsvg qttools qttranslations icu \
         --outputdir /opt/qt && \
-    pip3 uninstall -y aqtinstall && \
+    pip3 uninstall --break-system-packages -y aqtinstall && \
     rm -rf /root/.cache/pip
 
 ENV Qt6_DIR=/opt/qt/${QT_VERSION}/gcc_64
 ENV PATH=${Qt6_DIR}/bin:/opt/bin:$PATH
-ENV LD_LIBRARY_PATH=${Qt6_DIR}/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=${Qt6_DIR}/lib
 ENV CMAKE_PREFIX_PATH=${Qt6_DIR}
 
 # CMake 3.31.11 with integrity verification
