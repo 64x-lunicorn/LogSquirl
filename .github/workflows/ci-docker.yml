@@ -43,6 +43,10 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute Dockerfile hash
+        id: df_hash
+        run: echo "sha256=$(sha256sum ${{ matrix.context }}/Dockerfile | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -51,3 +55,5 @@ jobs:
           tags: |
             ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:latest
             ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ github.sha }}
+          labels: |
+            dockerfile.sha256=${{ steps.df_hash.outputs.sha256 }}

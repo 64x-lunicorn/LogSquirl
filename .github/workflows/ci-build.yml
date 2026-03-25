@@ -113,9 +113,23 @@ jobs:
 
       - name: Pull or build container
         run: |
-          if ! docker pull ${{ matrix.config.container }} 2>/dev/null; then
-            echo "::warning::GHCR image not found, building locally from ${{ matrix.config.container_root }}"
-            docker build -t ${{ matrix.config.container }} ${{ matrix.config.container_root }}
+          LOCAL_HASH=$(sha256sum ${{ matrix.config.container_root }}/Dockerfile | cut -d' ' -f1)
+          NEED_BUILD=false
+
+          if docker pull ${{ matrix.config.container }} 2>/dev/null; then
+            REMOTE_HASH=$(docker inspect --format='{{index .Config.Labels "dockerfile.sha256"}}' ${{ matrix.config.container }} 2>/dev/null || echo "")
+            if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+              echo "::warning::Dockerfile changed (local=$LOCAL_HASH remote=$REMOTE_HASH), rebuilding"
+              NEED_BUILD=true
+            fi
+          else
+            echo "::warning::GHCR image not found, building locally"
+            NEED_BUILD=true
+          fi
+
+          if [ "$NEED_BUILD" = "true" ]; then
+            docker build --label "dockerfile.sha256=$LOCAL_HASH" \
+              -t ${{ matrix.config.container }} ${{ matrix.config.container_root }}
           fi
 
       - name: Restore CPM cache
