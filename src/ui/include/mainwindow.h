@@ -154,6 +154,7 @@ class MainWindow : public QMainWindow {
                                  const QString& label,
                                  logsquirl::plugins::PluginCallbackFn callback,
                                  void* userData );
+    void removePluginMenuActions( const QString& pluginId );
     void encodingChanged( QAction* action );
     void addToFavorites();
     void removeFromFavorites();
@@ -359,8 +360,14 @@ class MainWindow : public QMainWindow {
 
     logsquirl::plugins::PluginManager pluginManager_;
 
-    // Plugin-contributed status bar widgets (Phase 3)
-    QStatusBar* pluginStatusBar_ = nullptr;
+    // Plugin-contributed toolbar (shown below the main toolbar)
+    QToolBar* pluginToolBar_ = nullptr;
+
+    // Tracks menu actions added by each plugin so they can be removed on unload.
+    std::map<QString, std::vector<QAction*>> pluginMenuActions_;
+
+    // Separator between plugin actions (top) and management actions (bottom).
+    QAction* pluginMenuSeparator_ = nullptr;
 };
 
 #endif

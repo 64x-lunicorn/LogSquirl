@@ -150,9 +150,22 @@ QStringList PluginManager::autoLoadPlugins()
         return {};
     }
 
-    QStringList errors;
-    const auto enabledIds = config.enabledPlugins();
+    auto enabledIds = config.enabledPlugins();
 
+    // First run: if no plugins have been explicitly configured yet, enable
+    // all discovered plugins by default so they are visible immediately.
+    if ( enabledIds.isEmpty() && !discovered_.empty() ) {
+        for ( const auto& meta : discovered_ ) {
+            enabledIds.append( meta.id() );
+        }
+        // Persist so this only triggers once
+        auto& mutableConfig = Configuration::get();
+        mutableConfig.setEnabledPlugins( enabledIds );
+        mutableConfig.save();
+        LOG_INFO << "First run: auto-enabled " << enabledIds.size() << " discovered plugin(s)";
+    }
+
+    QStringList errors;
     for ( const auto& pluginId : enabledIds ) {
         if ( isLoaded( pluginId ) ) {
             continue;

@@ -137,6 +137,11 @@ MainWindow::MainWindow( WindowSession session )
     , tempDir_( QDir::temp().filePath( "logsquirl_temp_" ) )
 {
     createActions();
+
+    // Discover plugins before createMenus() so the Sources and Plugins
+    // menus can list discovered plugins immediately.
+    pluginManager_.discoverPlugins();
+
     createMenus();
     createToolBars();
 
@@ -307,16 +312,9 @@ MainWindow::MainWindow( WindowSession session )
 
     setCentralWidget( central_widget );
 
-    // Discover available plugins (does not load them yet)
-    pluginManager_.discoverPlugins();
-
-    // Auto-load previously enabled plugins
-    const auto pluginErrors = pluginManager_.autoLoadPlugins();
-    for ( const auto& error : pluginErrors ) {
-        LOG_WARNING << "Plugin auto-load error: " << error;
-    }
-
-    // Connect plugin manager signals
+    // Connect plugin manager signals — wired up before autoLoadPlugins() so
+    // that signals emitted during loading (status widgets, menu actions) are
+    // delivered immediately.
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStarted,
              this, &MainWindow::handleDataSourceStarted );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStopped,
@@ -327,6 +325,8 @@ MainWindow::MainWindow( WindowSession session )
              this, &MainWindow::handlePluginStatusWidgetRemoved );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::menuActionAdded,
              this, &MainWindow::handlePluginMenuAction );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::pluginUnloaded,
+             this, &MainWindow::removePluginMenuActions );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested,
              this, []( const QString& msg ) {
                  LOG_INFO << "Plugin notification: " << msg;
@@ -337,6 +337,13 @@ MainWindow::MainWindow( WindowSession session )
         [this]( const QString& path, bool follow ) {
             loadFile( path, follow );
         } );
+
+    // Auto-load previously enabled plugins (signals are now connected, so
+    // register_status_widget / register_menu_action will be delivered).
+    const auto pluginErrors = pluginManager_.autoLoadPlugins();
+    for ( const auto& error : pluginErrors ) {
+        LOG_WARNING << "Plugin auto-load error: " << error;
+    }
 
     updateTitleBar( "" );
     loadIcons();
@@ -944,6 +951,9 @@ void MainWindow::createMenus()
     favoritesMenu->setToolTipsVisible( true );
 
     pluginsMenu = menuBar()->addMenu( tr( "Plugins" ) );
+    // Plugin-contributed actions are inserted at the top (before this separator)
+    // by handlePluginMenuAction().  Management actions live below the separator.
+    pluginMenuSeparator_ = pluginsMenu->addSeparator();
     pluginsMenu->addAction( managePluginsAction );
     pluginsMenu->addAction( browsePluginsAction );
 
@@ -1521,22 +1531,21 @@ void MainWindow::handlePluginStatusWidget( const QString& pluginId, QWidget* wid
     if ( !widget ) {
         return;
     }
-    if ( !pluginStatusBar_ ) {
-        pluginStatusBar_ = new QStatusBar( this );
-        // Insert the plugin status bar at the bottom of the central layout
-        auto* centralLayout = qobject_cast<QVBoxLayout*>( centralWidget()->layout() );
-        if ( centralLayout ) {
-            centralLayout->addWidget( pluginStatusBar_ );
-        }
+    if ( !pluginToolBar_ ) {
+        pluginToolBar_ = new QToolBar( tr( "Plugins" ), this );
+        pluginToolBar_->setMovable( false );
+        pluginToolBar_->setFloatable( false );
+        addToolBar( Qt::TopToolBarArea, pluginToolBar_ );
     }
-    pluginStatusBar_->addPermanentWidget( widget );
+    pluginToolBar_->addWidget( widget );
     LOG_INFO << "Plugin " << pluginId << " registered status widget";
 }
 
 void MainWindow::handlePluginStatusWidgetRemoved( const QString& pluginId, QWidget* widget )
 {
-    if ( pluginStatusBar_ && widget ) {
-        pluginStatusBar_->removeWidget( widget );
+    if ( pluginToolBar_ && widget ) {
+        pluginToolBar_->removeAction( pluginToolBar_->actionAt( widget->pos() ) );
+        widget->setParent( nullptr );
         LOG_INFO << "Plugin " << pluginId << " unregistered status widget";
     }
 }
@@ -1550,6 +1559,14 @@ void MainWindow::handlePluginMenuAction( const QString& pluginId,
     if ( !pluginsMenu ) {
         return;
     }
+
+    // Prevent duplicate entries when a plugin is re-enabled without restart.
+    for ( const auto* existing : pluginMenuActions_[ pluginId ] ) {
+        if ( existing->text() == label ) {
+            return;
+        }
+    }
+
     auto* action = new QAction( label, this );
     action->setStatusTip( tr( "Plugin action from %1" ).arg( pluginId ) );
     connect( action, &QAction::triggered, this, [ callback, userData ]() {
@@ -1557,7 +1574,26 @@ void MainWindow::handlePluginMenuAction( const QString& pluginId,
             callback( userData );
         }
     } );
-    pluginsMenu->addAction( action );
+
+    // Insert above the separator so plugin actions appear at the top,
+    // with Manage/Browse sitting below the divider line.
+    pluginsMenu->insertAction( pluginMenuSeparator_, action );
+    pluginMenuActions_[ pluginId ].push_back( action );
+}
+
+void MainWindow::removePluginMenuActions( const QString& pluginId )
+{
+    auto it = pluginMenuActions_.find( pluginId );
+    if ( it == pluginMenuActions_.end() ) {
+        return;
+    }
+    for ( auto* action : it->second ) {
+        if ( pluginsMenu ) {
+            pluginsMenu->removeAction( action );
+        }
+        delete action;
+    }
+    pluginMenuActions_.erase( it );
 }
 
 void MainWindow::about()
