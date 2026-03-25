@@ -28,6 +28,10 @@ concurrency:
   group: ci-build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+  packages: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   GHCR_PREFIX: ghcr.io/64x-lunicorn/logsquirl

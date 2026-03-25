@@ -11,9 +11,13 @@ RUN apt-get update -y && \
                     wget ca-certificates fuse libfuse2 file -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.28.3/cmake-3.28.3-linux-x86_64.sh && \
-    chmod 755 cmake-3.28.3-linux-x86_64.sh && \
-    ./cmake-3.28.3-linux-x86_64.sh --prefix=/opt/ --exclude-subdir --skip-license && \
-    rm cmake-3.28.3-linux-x86_64.sh
+# CMake 3.31.11 with integrity verification
+ENV CMAKE_VERSION=3.31.11
+ENV CMAKE_SHA256=e1ddad49d24a196d3b09c6a29f49408a418a3de096fb10fbd3626aeb22d9312b
+RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh && \
+    echo "${CMAKE_SHA256}  cmake-${CMAKE_VERSION}-linux-x86_64.sh" | sha256sum -c - && \
+    chmod 755 cmake-${CMAKE_VERSION}-linux-x86_64.sh && \
+    ./cmake-${CMAKE_VERSION}-linux-x86_64.sh --prefix=/opt/ --exclude-subdir --skip-license && \
+    rm cmake-${CMAKE_VERSION}-linux-x86_64.sh
 
 ENV PATH=/opt/bin:$PATH
