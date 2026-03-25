@@ -58,6 +58,7 @@
 
 #include <QClipboard>
 #include <QCloseEvent>
+#include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
@@ -72,6 +73,7 @@
 #include <QProgressDialog>
 #include <QResource>
 #include <QScreen>
+#include <QScrollArea>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
@@ -135,6 +137,11 @@ MainWindow::MainWindow( WindowSession session )
     , tempDir_( QDir::temp().filePath( "logsquirl_temp_" ) )
 {
     createActions();
+
+    // Discover plugins before createMenus() so the Sources and Plugins
+    // menus can list discovered plugins immediately.
+    pluginManager_.discoverPlugins();
+
     createMenus();
     createToolBars();
 
@@ -304,6 +311,39 @@ MainWindow::MainWindow( WindowSession session )
     central_widget->setLayout( main_layout );
 
     setCentralWidget( central_widget );
+
+    // Connect plugin manager signals — wired up before autoLoadPlugins() so
+    // that signals emitted during loading (status widgets, menu actions) are
+    // delivered immediately.
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStarted,
+             this, &MainWindow::handleDataSourceStarted );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStopped,
+             this, &MainWindow::handleDataSourceStopped );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetAdded,
+             this, &MainWindow::handlePluginStatusWidget );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetRemoved,
+             this, &MainWindow::handlePluginStatusWidgetRemoved );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::menuActionAdded,
+             this, &MainWindow::handlePluginMenuAction );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::pluginUnloaded,
+             this, &MainWindow::removePluginMenuActions );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested,
+             this, []( const QString& msg ) {
+                 LOG_INFO << "Plugin notification: " << msg;
+             } );
+
+    // Let plugins request opening files
+    pluginManager_.setOpenFileCallback(
+        [this]( const QString& path, bool follow ) {
+            loadFile( path, follow );
+        } );
+
+    // Auto-load previously enabled plugins (signals are now connected, so
+    // register_status_widget / register_menu_action will be delivered).
+    const auto pluginErrors = pluginManager_.autoLoadPlugins();
+    for ( const auto& error : pluginErrors ) {
+        LOG_WARNING << "Plugin auto-load error: " << error;
+    }
 
     updateTitleBar( "" );
     loadIcons();
@@ -541,7 +581,7 @@ void MainWindow::createActions()
 
     newWindowAction = new QAction( tr( action::newWindowText ), this );
     newWindowAction->setStatusTip( tr( action::newWindowStatusTip ) );
-    connect( newWindowAction, &QAction::triggered, [ = ] { Q_EMIT newWindow(); } );
+    connect( newWindowAction, &QAction::triggered, [ this ] { Q_EMIT newWindow(); } );
     newWindowAction->setVisible( config.allowMultipleWindows() );
 
     openAction = new QAction( tr( action::openText ), this );
@@ -743,6 +783,15 @@ void MainWindow::createActions()
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
 
+    managePluginsAction = new QAction( tr( "Manage Plugins..." ), this );
+    managePluginsAction->setStatusTip( tr( "View, enable, and configure installed plugins" ) );
+    connect( managePluginsAction, &QAction::triggered, this, &MainWindow::managePlugins );
+
+    browsePluginsAction = new QAction( tr( "Browse Plugins..." ), this );
+    browsePluginsAction->setStatusTip( tr( "Browse and install plugins from the repository" ) );
+    connect( browsePluginsAction, &QAction::triggered, this,
+             &MainWindow::browsePluginRepository );
+
     updateShortcuts();
 }
 
@@ -901,6 +950,29 @@ void MainWindow::createMenus()
     favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
     favoritesMenu->setToolTipsVisible( true );
 
+    pluginsMenu = menuBar()->addMenu( tr( "Plugins" ) );
+    // Plugin-contributed actions are inserted at the top (before this separator)
+    // by handlePluginMenuAction().  Management actions live below the separator.
+    pluginMenuSeparator_ = pluginsMenu->addSeparator();
+    pluginsMenu->addAction( managePluginsAction );
+    pluginsMenu->addAction( browsePluginsAction );
+
+    // Build Sources sub-menu from DataSource plugins
+    sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
+    for ( const auto& meta : pluginManager_.discoveredPlugins() ) {
+        if ( meta.type() == LOGSQUIRL_PLUGIN_DATASOURCE ) {
+            auto* action = new QAction( meta.name(), this );
+            action->setStatusTip( tr( "Start %1 data source" ).arg( meta.name() ) );
+            const auto id = meta.id();
+            connect( action, &QAction::triggered, this,
+                     [ this, id ]() { startPluginDataSource( id ); } );
+            sourcesMenu->addAction( action );
+        }
+    }
+    if ( sourcesMenu->isEmpty() ) {
+        sourcesMenu->addAction( tr( "(no data source plugins)" ) )->setEnabled( false );
+    }
+
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );
     helpMenu->addAction( showDocumentationAction );
     helpMenu->addSeparator();
@@ -1017,8 +1089,14 @@ void MainWindow::open()
         defaultDir = fileInfo.path();
     }
 
+    // Build file filter including converter plugins
+    QStringList filters;
+    filters << tr( "All files (*)" );
+    filters << pluginManager_.converterFileFilters();
+    const auto filter = filters.join( ";;" );
+
     const auto selectedFiles = QFileDialog::getOpenFileUrls(
-        this, tr( "Open file" ), QUrl::fromLocalFile( defaultDir ), tr( "All files (*)" ) );
+        this, tr( "Open file" ), QUrl::fromLocalFile( defaultDir ), filter );
 
     std::vector<QUrl> localFiles;
     std::vector<QUrl> remoteFiles;
@@ -1293,6 +1371,229 @@ void MainWindow::options()
     dialog.exec();
 
     signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+}
+
+void MainWindow::managePlugins()
+{
+    const auto& plugins = pluginManager_.discoveredPlugins();
+
+    if ( plugins.empty() ) {
+        QMessageBox::information( this, tr( "Plugins" ),
+                                  tr( "No plugins discovered.\n\n"
+                                      "Plugin directories:\n%1" )
+                                      .arg( pluginManager_.defaultPluginDirectories()
+                                                .join( "\n" ) ) );
+        return;
+    }
+
+    // Read current enabled list from configuration
+    auto& config = Configuration::get();
+    auto enabledIds = config.enabledPlugins().toVector();
+
+    // Build a dialog with one checkbox per discovered plugin
+    QDialog dialog( this );
+    dialog.setWindowTitle( tr( "Manage Plugins" ) );
+    dialog.setMinimumWidth( 400 );
+
+    auto* layout = new QVBoxLayout( &dialog );
+
+    auto* autoLoadCheck = new QCheckBox( tr( "Auto-load enabled plugins on startup" ), &dialog );
+    autoLoadCheck->setChecked( config.pluginsAutoLoad() );
+    layout->addWidget( autoLoadCheck );
+
+    layout->addSpacing( 8 );
+
+    auto* scrollArea = new QScrollArea( &dialog );
+    scrollArea->setWidgetResizable( true );
+    auto* scrollWidget = new QWidget();
+    auto* scrollLayout = new QVBoxLayout( scrollWidget );
+
+    std::vector<QCheckBox*> checkboxes;
+    checkboxes.reserve( plugins.size() );
+
+    for ( const auto& meta : plugins ) {
+        const auto label = QString( "%1 v%2  —  %3" )
+                               .arg( meta.name(), meta.version(),
+                                     meta.description().isEmpty()
+                                         ? meta.id()
+                                         : meta.description() );
+        auto* cb = new QCheckBox( label, scrollWidget );
+        cb->setChecked( enabledIds.contains( meta.id() ) );
+        scrollLayout->addWidget( cb );
+        checkboxes.push_back( cb );
+    }
+
+    scrollLayout->addStretch();
+    scrollArea->setWidget( scrollWidget );
+    layout->addWidget( scrollArea );
+
+    auto* buttonBox = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+                                            &dialog );
+    connect( buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept );
+    connect( buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject );
+    layout->addWidget( buttonBox );
+
+    if ( dialog.exec() != QDialog::Accepted ) {
+        return;
+    }
+
+    // Collect newly enabled IDs
+    QStringList newEnabledIds;
+    for ( size_t i = 0; i < plugins.size(); ++i ) {
+        if ( checkboxes[ i ]->isChecked() ) {
+            newEnabledIds.append( plugins[ i ].id() );
+        }
+    }
+
+    // Persist auto-load setting
+    config.setPluginsAutoLoad( autoLoadCheck->isChecked() );
+
+    // Persist enabled plugins list
+    config.setEnabledPlugins( newEnabledIds );
+    config.save();
+
+    // Apply changes: load newly enabled, unload newly disabled
+    for ( const auto& meta : plugins ) {
+        const bool shouldBeEnabled = newEnabledIds.contains( meta.id() );
+        const bool currentlyLoaded = pluginManager_.isLoaded( meta.id() );
+
+        if ( shouldBeEnabled && !currentlyLoaded ) {
+            const auto error = pluginManager_.loadPlugin( meta.id() );
+            if ( !error.isEmpty() ) {
+                QMessageBox::warning( this, tr( "Plugin Error" ),
+                                      tr( "Failed to load %1:\n%2" )
+                                          .arg( meta.name(), error ) );
+            }
+        }
+        else if ( !shouldBeEnabled && currentlyLoaded ) {
+            pluginManager_.unloadPlugin( meta.id() );
+        }
+    }
+}
+
+// ── Plugin DataSource slots (Phase 2) ────────────────────────────────
+
+void MainWindow::browsePluginRepository()
+{
+    logsquirl::plugins::PluginRepositoryDialog dialog( pluginManager_, this );
+    dialog.exec();
+}
+
+void MainWindow::startPluginDataSource( const QString& pluginId )
+{
+    // Auto-load the plugin if it is not yet loaded
+    if ( !pluginManager_.isLoaded( pluginId ) ) {
+        const auto loadError = pluginManager_.loadPlugin( pluginId );
+        if ( !loadError.isEmpty() ) {
+            QMessageBox::warning( this, tr( "Plugin Error" ),
+                                  tr( "Failed to load plugin:\n%1" ).arg( loadError ) );
+            return;
+        }
+    }
+
+    const auto error = pluginManager_.startDataSource( pluginId );
+    if ( !error.isEmpty() ) {
+        QMessageBox::warning( this, tr( "DataSource Error" ), error );
+    }
+}
+
+void MainWindow::handleDataSourceStarted( const QString& pluginId,
+                                           const QString& displayName,
+                                           const QString& filePath )
+{
+    LOG_INFO << "DataSource started: " << pluginId << " -> " << filePath;
+
+    // Open the temp file with follow mode so it tails as the plugin pushes lines
+    const bool loaded = loadFile( filePath, true );
+    if ( loaded ) {
+        // Set a friendly tab title instead of the temp file path
+        const int tabIndex = mainTabWidget_.currentIndex();
+        if ( tabIndex >= 0 ) {
+            mainTabWidget_.setTabText( tabIndex, displayName );
+            mainTabWidget_.setTabToolTip( tabIndex,
+                                          tr( "DataSource: %1\n%2" )
+                                              .arg( displayName, filePath ) );
+        }
+    }
+}
+
+void MainWindow::handleDataSourceStopped( const QString& pluginId )
+{
+    LOG_INFO << "DataSource stopped: " << pluginId;
+    // The file remains open — the user can still browse it.
+    // Optionally we could disable follow mode on the associated tab here.
+}
+
+// ── Plugin UI extension slots (Phase 3) ──────────────────────────────
+
+void MainWindow::handlePluginStatusWidget( const QString& pluginId, QWidget* widget )
+{
+    if ( !widget ) {
+        return;
+    }
+    if ( !pluginToolBar_ ) {
+        pluginToolBar_ = new QToolBar( tr( "Plugins" ), this );
+        pluginToolBar_->setMovable( false );
+        pluginToolBar_->setFloatable( false );
+        addToolBar( Qt::TopToolBarArea, pluginToolBar_ );
+    }
+    pluginToolBar_->addWidget( widget );
+    LOG_INFO << "Plugin " << pluginId << " registered status widget";
+}
+
+void MainWindow::handlePluginStatusWidgetRemoved( const QString& pluginId, QWidget* widget )
+{
+    if ( pluginToolBar_ && widget ) {
+        pluginToolBar_->removeAction( pluginToolBar_->actionAt( widget->pos() ) );
+        widget->setParent( nullptr );
+        LOG_INFO << "Plugin " << pluginId << " unregistered status widget";
+    }
+}
+
+void MainWindow::handlePluginMenuAction( const QString& pluginId,
+                                          const QString& /* menuPath */,
+                                          const QString& label,
+                                          logsquirl::plugins::PluginCallbackFn callback,
+                                          void* userData )
+{
+    if ( !pluginsMenu ) {
+        return;
+    }
+
+    // Prevent duplicate entries when a plugin is re-enabled without restart.
+    for ( const auto* existing : pluginMenuActions_[ pluginId ] ) {
+        if ( existing->text() == label ) {
+            return;
+        }
+    }
+
+    auto* action = new QAction( label, this );
+    action->setStatusTip( tr( "Plugin action from %1" ).arg( pluginId ) );
+    connect( action, &QAction::triggered, this, [ callback, userData ]() {
+        if ( callback ) {
+            callback( userData );
+        }
+    } );
+
+    // Insert above the separator so plugin actions appear at the top,
+    // with Manage/Browse sitting below the divider line.
+    pluginsMenu->insertAction( pluginMenuSeparator_, action );
+    pluginMenuActions_[ pluginId ].push_back( action );
+}
+
+void MainWindow::removePluginMenuActions( const QString& pluginId )
+{
+    auto it = pluginMenuActions_.find( pluginId );
+    if ( it == pluginMenuActions_.end() ) {
+        return;
+    }
+    for ( auto* action : it->second ) {
+        if ( pluginsMenu ) {
+            pluginsMenu->removeAction( action );
+        }
+        delete action;
+    }
+    pluginMenuActions_.erase( it );
 }
 
 void MainWindow::about()
@@ -1915,6 +2216,22 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
         crawlerWindow->mainTabWidget_.setCurrentWidget( existing_crawler );
         crawlerWindow->activateWindow();
         return true;
+    }
+
+    // Check if a converter plugin handles this file extension (Phase 4)
+    const auto ext = QFileInfo( fileName ).suffix().toLower();
+    const auto converterId = pluginManager_.converterForExtension( ext );
+    if ( !converterId.isEmpty() ) {
+        auto* tempFile = new QTemporaryFile(
+            tempDir_.filePath( QFileInfo( fileName ).fileName() + ".txt" ), this );
+        if ( tempFile->open() ) {
+            const auto rc = pluginManager_.runConverter( converterId,
+                                                         fileName, tempFile->fileName() );
+            if ( rc == 0 ) {
+                return loadFile( tempFile->fileName(), followFile );
+            }
+            LOG_ERROR << "Converter plugin " << converterId << " failed with rc=" << rc;
+        }
     }
 
     const auto decompressAction = Decompressor::action( fileName );

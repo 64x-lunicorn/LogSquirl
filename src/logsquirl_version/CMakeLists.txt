@@ -4,6 +4,6 @@ add_library(
 )
 
 target_include_directories(logsquirl_version PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_link_libraries(logsquirl_version PUBLIC project_options project_warnings Qt${QT_VERSION_MAJOR}::Core)
+target_link_libraries(logsquirl_version PUBLIC project_options project_warnings Qt6::Core)
 
 add_dependencies(logsquirl_version generate_version)

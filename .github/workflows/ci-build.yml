@@ -28,6 +28,10 @@ concurrency:
   group: ci-build-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+permissions:
+  contents: read
+  packages: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   GHCR_PREFIX: ghcr.io/64x-lunicorn/logsquirl
@@ -37,13 +41,13 @@ jobs:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/logsquirl-version
 
       - name: Save version
         run: echo $LOGSQUIRL_VERSION > logsquirl_version.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: logsquirl_version
           path: 'logsquirl_version.txt'
@@ -102,7 +106,7 @@ jobs:
 
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -113,9 +117,23 @@ jobs:
 
       - name: Pull or build container
         run: |
-          if ! docker pull ${{ matrix.config.container }} 2>/dev/null; then
-            echo "::warning::GHCR image not found, building locally from ${{ matrix.config.container_root }}"
-            docker build -t ${{ matrix.config.container }} ${{ matrix.config.container_root }}
+          LOCAL_HASH=$(sha256sum ${{ matrix.config.container_root }}/Dockerfile | cut -d' ' -f1)
+          NEED_BUILD=false
+
+          if docker pull ${{ matrix.config.container }} 2>/dev/null; then
+            REMOTE_HASH=$(docker inspect --format='{{index .Config.Labels "dockerfile.sha256"}}' ${{ matrix.config.container }} 2>/dev/null || echo "")
+            if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+              echo "::warning::Dockerfile changed (local=$LOCAL_HASH remote=$REMOTE_HASH), rebuilding"
+              NEED_BUILD=true
+            fi
+          else
+            echo "::warning::GHCR image not found, building locally"
+            NEED_BUILD=true
+          fi
+
+          if [ "$NEED_BUILD" = "true" ]; then
+            docker build --label "dockerfile.sha256=$LOCAL_HASH" \
+              -t ${{ matrix.config.container }} ${{ matrix.config.container_root }}
           fi
 
       - name: Restore CPM cache
@@ -132,7 +150,7 @@ jobs:
       - uses: ./.github/actions/docker-run-tests
       - uses: ./.github/actions/docker-package
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -155,7 +173,7 @@ jobs:
 
     runs-on: ${{ matrix.config.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set brew env
         run: |
@@ -180,7 +198,7 @@ jobs:
           notarization-team: ${{ secrets.APPLE_TEAM_ID }}
           notarization-password: ${{ secrets.APPLE_PASSWORD }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -204,7 +222,7 @@ jobs:
 
     runs-on: ${{ matrix.config.runner }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Cache openssl
         id: cache-openssl
@@ -246,7 +264,7 @@ jobs:
           s3-secret: ${{ secrets.WIN_CS_SECRET }}
           s3-bucket: ${{ secrets.WIN_CS_BUCKET }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'

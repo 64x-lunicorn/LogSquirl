@@ -20,13 +20,17 @@ concurrency:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+permissions: {}
+
 jobs:
   # ── Job 0: Ensure tag is on master ─────────────────────────────────────
   validate-branch:
     runs-on: ubuntu-24.04
     if: github.event_name == 'push'
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Ensure tag points to a commit on master
@@ -42,6 +46,9 @@ jobs:
     needs: [validate-branch]
     if: github.event_name == 'push'
     uses: ./.github/workflows/ci-build.yml
+    permissions:
+      contents: read
+      packages: read
     secrets: inherit
 
   # ── Job 2: Prepare release metadata ────────────────────────────────────
@@ -49,17 +56,19 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [build]
     if: always() && (needs.build.result == 'success' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.tag.outputs.tag }}
       is_prerelease: ${{ steps.tag.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Download artifacts from the build job or from a previous run
       - name: Download artifacts (from build job)
         if: github.event_name == 'push'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
 
       - name: Download artifacts (last successful CI build)
         if: github.event_name == 'workflow_dispatch' && !github.event.inputs.ci-run-id
@@ -103,7 +112,7 @@ jobs:
         run: ls -R ./packages-*
 
       # Re-upload merged artifacts so downstream jobs can access them
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-artifacts
           path: |
@@ -115,6 +124,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [prepare]
     if: needs.prepare.outputs.version != ''
+    permissions:
+      contents: read
     continue-on-error: true
     env:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_TOKEN }}
@@ -126,11 +137,11 @@ jobs:
         if: ${{ !env.SENTRY_AUTH_TOKEN }}
         run: echo "::warning::SENTRY_TOKEN not set — skipping Sentry release" && exit 0
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-artifacts
 
@@ -167,12 +178,14 @@ jobs:
     if: always() && needs.prepare.result == 'success'
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     env:
       LOGSQUIRL_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-artifacts
 
@@ -234,6 +247,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            ./packages-windows-x64/*
+            ./packages-noble/*
+            ./packages-oracle/*
+            ./packages-fedora/*
+            ./packages-appimage/*
+            ./packages-mac-arm64/*
+
   # ── Job 5: Update latest.json ──────────────────────────────────────────
   update-metadata:
     runs-on: ubuntu-24.04
@@ -242,7 +266,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: master
 

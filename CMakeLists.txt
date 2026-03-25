@@ -20,6 +20,7 @@ option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
 option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
 option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
 option(LOGSQUIRL_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
+option(LOGSQUIRL_USE_LUA "Enable Lua scripting plugin support" OFF)
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
   set(LOGSQUIRL_ARCH 32)
@@ -84,7 +85,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${out_dir}")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 #set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -180,19 +181,7 @@ if(APPLE)
 endif()
 
 find_package(
-  QT
-  NAMES
   Qt6
-  Qt5
-  COMPONENTS Core
-             Widgets
-             Concurrent
-             Network
-             Xml
-  REQUIRED
-)
-find_package(
-  Qt${QT_VERSION_MAJOR}
   COMPONENTS Core
              Widgets
              Concurrent
@@ -201,7 +190,7 @@ find_package(
   REQUIRED
 )
 
-set(LOGSQUIRL_QT_VERSION ${Qt${QT_VERSION_MAJOR}Core_VERSION})
+set(LOGSQUIRL_QT_VERSION ${Qt6Core_VERSION})
 
 message("Qt version ${LOGSQUIRL_QT_VERSION}")
 message("LTO ${LOGSQUIRL_USE_LTO}")

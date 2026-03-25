@@ -4,7 +4,7 @@ runs:
   using: "composite"
   steps:
     - name: Install Ninja
-      uses: seanmiddleditch/gha-setup-ninja@v5
+      uses: seanmiddleditch/gha-setup-ninja@v6
 
     - name: Install Qt
       if: ${{ matrix.config.qt_arch }}

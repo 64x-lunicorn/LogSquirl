@@ -557,6 +557,24 @@ class Configuration final : public Persistable<Configuration> {
         return darkPalette_;
     }
 
+    // Plugin settings
+    bool pluginsAutoLoad() const
+    {
+        return pluginsAutoLoad_;
+    }
+    void setPluginsAutoLoad( bool enabled )
+    {
+        pluginsAutoLoad_ = enabled;
+    }
+    QStringList enabledPlugins() const
+    {
+        return enabledPlugins_;
+    }
+    void setEnabledPlugins( const QStringList& plugins )
+    {
+        enabledPlugins_ = plugins;
+    }
+
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
@@ -643,6 +661,9 @@ class Configuration final : public Persistable<Configuration> {
     bool hideAnsiColorSequences_ = false;
 
     int defaultEncodingMib_ = -1;
+
+    bool pluginsAutoLoad_ = true;
+    QStringList enabledPlugins_;
 
     bool qfIgnoreCase_ = false;
 

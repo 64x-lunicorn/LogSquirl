@@ -438,11 +438,7 @@ void CrawlerWidget::editSearchHistory()
 
     if ( ok ) {
         savedSearches_->clear();
-#if QT_VERSION >= QT_VERSION_CHECK( 5, 15, 0 )
         auto items = newHistory.split( QChar::LineFeed, Qt::SkipEmptyParts );
-#else
-        auto items = newHistory.split( QChar::LineFeed, QString::SkipEmptyParts );
-#endif
         std::for_each( items.rbegin(), items.rend(), [ this ]( const auto& item ) {
             savedSearches_->addRecent( item );
             LOG_INFO << item;

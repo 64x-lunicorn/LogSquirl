@@ -23,6 +23,7 @@ page for how to use LogSquirl.
 
 1. [About the Project](#about-the-project)
 1. [Features](#features)
+1. [Plugins](#plugins)
 1. [Installation](#installation)
 1. [Building](#building)
 1. [How to Get Help](#how-to-get-help)
@@ -40,9 +41,13 @@ development under a new name, building on the excellent foundation laid by both 
 
 LogSquirl is standing on the shoulders of giants.
 
+The project is built with **C++23** and **Qt6**, and uses
+[CMake](https://cmake.org/) with [CPM](https://github.com/cpm-cmake/CPM.cmake)
+for dependency management.
+
 ## Features
 
-* Runs on Linux, Windows, and macOS thanks to Qt
+* Runs on Linux, Windows, and macOS thanks to Qt6
 * Reads files directly from disk without loading them into memory
 * Can operate on huge text files (10+ GB is not a problem)
 * Search results are displayed separately from the original file
@@ -59,6 +64,7 @@ LogSquirl is standing on the shoulders of giants.
 * Can limit search operations to a portion of a huge file
 * Allows configuring several highlighter sets and switching between them
 * Has a list of configurable predefined regular expression patterns
+* Supports Filter Groups for organizing predefined filters into named groups
 * Includes a dark mode
 * Has configurable shortcuts
 * Has a scratchpad window for taking notes and doing basic data transformations
@@ -66,7 +72,32 @@ LogSquirl is standing on the shoulders of giants.
 * Features a Filters Panel with pinned filters that persist across sessions
 * Can import filters and highlighters from Chipmunk JSON export files
 * Offers an opt-in beta update channel for early access to new versions
+* Extensible via a [Plugin System](#plugins) — data sources, converters, and UI extensions
+* Optional Lua scripting for writing plugins without compiled code
+* Built-in Plugin Repository for browsing and installing community plugins
 * Open source, released under the GPL-3.0
+
+**[Back to top](#table-of-contents)**
+
+## Plugins
+
+LogSquirl includes a C ABI-based plugin system that supports three plugin types:
+
+| Type | Description |
+|------|-------------|
+| **DataSource** | Stream log lines from external sources (e.g. Android logcat, serial ports) |
+| **Converter** | Convert proprietary file formats into plain-text logs |
+| **UI Extension** | Add custom UI elements, dialogs, and menu actions |
+
+Plugins can be managed via **Plugins → Manage Plugins…** and browsed/downloaded
+from a remote repository via **Plugins → Browse Plugins…**.
+
+Plugins can also be written as **Lua scripts** (enable with `LOGSQUIRL_USE_LUA=ON`
+at build time) instead of compiled shared libraries.
+
+See [docs/plugin-sdk.md](docs/plugin-sdk.md) for the developer guide and the
+[LogSquirl-Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat) plugin as a
+reference implementation.
 
 **[Back to top](#table-of-contents)**
 
@@ -83,9 +114,9 @@ on your local machine.
 
 ## Building
 
-Please review
-[BUILD.md](BUILD.md)
-for how to set up LogSquirl on your local machine for development and testing purposes.
+Requires **C++23** (GCC ≥ 13, Clang ≥ 17, MSVC ≥ 19.36), **Qt 6.5+**, and
+**CMake ≥ 3.12**. Please review [BUILD.md](BUILD.md) for full dependency and
+platform-specific instructions.
 
 ## How to Get Help
 

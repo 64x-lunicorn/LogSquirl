@@ -120,9 +120,10 @@ target_link_libraries(
          project_warnings
          logsquirl_logdata
          logsquirl_versioncheck
+         logsquirl_plugins
          logsquirl_karchive
-         Qt${QT_VERSION_MAJOR}::Widgets
-         Qt${QT_VERSION_MAJOR}::Xml
+         Qt6::Widgets
+         Qt6::Xml
 )
 
 if(WIN32)

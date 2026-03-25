@@ -17,8 +17,8 @@ target_link_libraries(
          logsquirl_version
          logsquirl_utils
          tbb
-         Qt${QT_VERSION_MAJOR}::Gui
-         Qt${QT_VERSION_MAJOR}::Widgets
+         Qt6::Gui
+         Qt6::Widgets
 )
 
 if(LOGSQUIRL_USE_SENTRY)

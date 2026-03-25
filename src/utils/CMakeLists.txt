@@ -24,10 +24,10 @@ target_link_libraries(
          project_warnings
          logsquirl_version
          logsquirl_logging
-         Qt${QT_VERSION_MAJOR}::Gui
-         Qt${QT_VERSION_MAJOR}::Widgets
-         Qt${QT_VERSION_MAJOR}::Network
-         Qt${QT_VERSION_MAJOR}::Concurrent
+         Qt6::Gui
+         Qt6::Widgets
+         Qt6::Network
+         Qt6::Concurrent
          whereami
          type_safe
          logsquirl_mimalloc_wrapper

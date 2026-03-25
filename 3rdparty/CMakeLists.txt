@@ -42,6 +42,11 @@ cpmaddpackage(
 )
 
 if(LOGSQUIRL_USE_HYPERSCAN)
+  # Hyperscan's flat_containers.h uses std::out_of_range without including
+  # <stdexcept>, which breaks under MSVC's C++23 STL. Build with C++17.
+  set(_SAVED_CXX_STANDARD_HS ${CMAKE_CXX_STANDARD})
+  set(CMAKE_CXX_STANDARD 17)
+
   cpmaddpackage(
     NAME
     hyperscan
@@ -52,11 +57,19 @@ if(LOGSQUIRL_USE_HYPERSCAN)
     EXCLUDE_FROM_ALL
     YES
   )
+
+  set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_HS})
+
   message("Adding alias for hyperscan")
   add_library(logsquirl_hyperscan INTERFACE)
   target_link_libraries(logsquirl_hyperscan INTERFACE hs)
   target_include_directories(logsquirl_hyperscan INTERFACE ${hyperscan_SOURCE_DIR}/src)
 elseif(LOGSQUIRL_USE_VECTORSCAN)
+  # Vectorscan's ue2_literal iterators are not C++23-compatible yet.
+  # Build vectorscan with C++17 to avoid compilation errors.
+  set(_SAVED_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+  set(CMAKE_CXX_STANDARD 17)
+
   cpmaddpackage(
     NAME
     vectorscan
@@ -79,6 +92,8 @@ elseif(LOGSQUIRL_USE_VECTORSCAN)
     "BUIlD_AVX512VBMI OFF"
     "FAT_RUNTIME OFF"
   )
+
+  set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD})
  
   message("Adding alias for vectorscan")
   add_library(logsquirl_vectorscan INTERFACE)
@@ -115,18 +130,10 @@ endif()
 # KArchive: try system package first, fall back to CPM-fetched klogg_karchive fork
 add_library(logsquirl_karchive INTERFACE)
 set(_KARCHIVE_FOUND OFF)
-if(${QT_VERSION_MAJOR} EQUAL 6)
-  find_package(KF6Archive QUIET)
-  if(KF6Archive_FOUND)
-    target_link_libraries(logsquirl_karchive INTERFACE KF6::Archive)
-    set(_KARCHIVE_FOUND ON)
-  endif()
-else()
-  find_package(KF5Archive QUIET)
-  if(KF5Archive_FOUND)
-    target_link_libraries(logsquirl_karchive INTERFACE KF5::Archive)
-    set(_KARCHIVE_FOUND ON)
-  endif()
+find_package(KF6Archive QUIET)
+if(KF6Archive_FOUND)
+  target_link_libraries(logsquirl_karchive INTERFACE KF6::Archive)
+  set(_KARCHIVE_FOUND ON)
 endif()
 
 if(NOT _KARCHIVE_FOUND)
@@ -252,7 +259,7 @@ if(KDSingleApplication_ADDED)
   )
 
   target_include_directories(kdsingleapp PUBLIC ${KDSingleApplication_SOURCE_DIR}/src)
-  target_link_libraries(kdsingleapp Qt${QT_VERSION_MAJOR}::Core)
+  target_link_libraries(kdsingleapp Qt6::Core)
   target_compile_definitions(kdsingleapp PUBLIC KDSINGLEAPPLICATION_STATIC_BUILD)
 
   set_target_properties(kdsingleapp PROPERTIES AUTOMOC ON)
@@ -334,7 +341,7 @@ if(KDToolBox_ADDED)
   )
 
   target_include_directories(kdtoolbox PUBLIC ${KDToolBox_SOURCE_DIR}/qt/KDSignalThrottler/src)
-  target_link_libraries(kdtoolbox Qt${QT_VERSION_MAJOR}::Core)
+  target_link_libraries(kdtoolbox Qt6::Core)
   set_target_properties(kdtoolbox PROPERTIES AUTOMOC ON)
 endif()
 
@@ -353,6 +360,12 @@ cpmaddpackage(
 if(efsw_ADDED)
   target_compile_definitions(efsw PRIVATE EFSW_FSEVENTS_NOT_SUPPORTED)
 endif()
+
+# The variar/oneTBB fork's compiled code is not C++23-compatible on MSVC,
+# causing heap corruption (STATUS_HEAP_CORRUPTION 0xc0000374) in TBB flow
+# graph operations during parallel search. Build with C++17 like vectorscan.
+set(_SAVED_CXX_STANDARD_TBB ${CMAKE_CXX_STANDARD})
+set(CMAKE_CXX_STANDARD 17)
 
 if(WIN32)
   set(BUILD_SHARED_LIBS ON)
@@ -375,6 +388,8 @@ cpmaddpackage(
 if(WIN32)
   set(BUILD_SHARED_LIBS OFF)
 endif()
+
+set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_TBB})
 
 set(CPM_USE_LOCAL_PACKAGES OFF)
 cpmaddpackage(
@@ -482,6 +497,23 @@ if(LOGSQUIRL_USE_SENTRY)
   endif()
 endif(LOGSQUIRL_USE_SENTRY)
 
+# ── Lua scripting (Phase 6) ─────────────────────────────────────────
+if(LOGSQUIRL_USE_LUA)
+  cpmaddpackage(
+    NAME lua
+    GITHUB_REPOSITORY walterschell/Lua
+    VERSION 5.4.7
+    OPTIONS "LUA_ENABLE_TESTING OFF"
+  )
+
+  cpmaddpackage(
+    NAME sol2
+    GITHUB_REPOSITORY ThePhD/sol2
+    VERSION 3.3.1
+    OPTIONS "SOL2_BUILD_LUA FALSE"
+  )
+endif(LOGSQUIRL_USE_LUA)
+
 set(logsquirl_cpm_targets
     xxhash
     Catch2
@@ -505,6 +537,8 @@ set(logsquirl_cpm_targets
     mini_chromium
     streamvbyte
     FastPFor
+    lua_static
+    sol2
 )
 foreach(target ${logsquirl_cpm_targets})
   if(TARGET ${target})

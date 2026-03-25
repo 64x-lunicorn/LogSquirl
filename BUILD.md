@@ -19,8 +19,8 @@ git clone https://github.com/64x-lunicorn/LogSquirl
 To build LogSquirl:
 
 - cmake 3.12 or later to generate build files
-- C++ compiler with C++17 support (at least gcc 10, clang 14, msvc 19.30)
-- Qt 6.5 or later (CI builds use Qt 6.10.3). Qt 5.15 is still supported but not the primary target:
+- C++ compiler with C++23 support (at least gcc 13, clang 17, msvc 19.36)
+- Qt 6.5 or later (CI builds use Qt 6.10.3):
   - QtCore
   - QtGui
   - QtWidgets
@@ -28,7 +28,7 @@ To build LogSquirl:
   - QtNetwork
   - QtXml
   - QtTools
-  - Qt5Compat (Qt 6 only)
+  - Qt5Compat
 
 To build Hyperscan regular expressions backend (default):
 
@@ -62,6 +62,25 @@ LogSquirl can be built with only Qt reqular expressions backend by passing `-DLO
 LogSquirl can use custom memory allocator. By default it uses TBB memory allocator for Windows, mimalloc on Linux and default system allocator on MacOS.
 Memory allocator override can be turned off by passing `-DLOGSQUIRL_OVERRIDE_MALLOC`. If you want to use TBB allocator on Linux then pass
 `-DLOGSQUIRL_USE_MIMALLOC=OFF`.
+
+### Plugin SDK
+
+The plugin C ABI header (`logsquirl_plugin_api.h`) is installed alongside the
+application during `cmake --install`. To develop plugins, see
+[docs/plugin-sdk.md](docs/plugin-sdk.md) for the complete developer guide.
+
+#### Lua scripting support
+
+Plugins can be written as Lua scripts instead of compiled shared libraries.
+This is disabled by default and can be enabled with:
+
+```
+cmake -DLOGSQUIRL_USE_LUA=ON ..
+```
+
+This fetches Lua 5.4 and sol2 via CPM during the configure step. Lua plugin
+scripts use the same `plugin.json` manifest but set `"library": "script.lua"`
+instead of a shared library filename.
 
 ### Building on Linux
 

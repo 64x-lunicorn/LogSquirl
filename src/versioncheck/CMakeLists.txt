@@ -12,5 +12,5 @@ target_link_libraries(
          project_warnings
          logsquirl_settings
          logsquirl_utils
-         Qt${QT_VERSION_MAJOR}::Network
+         Qt6::Network
 )

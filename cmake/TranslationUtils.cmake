@@ -47,7 +47,7 @@ function(ADD_QT_TRANSLATIONS_RESOURCE res_file)
     set(_languages ${ARGN})
     set(_res_file ${CMAKE_CURRENT_BINARY_DIR}/qt_translations.qrc)
     # get qt translation dir
-    get_target_property (LOGSQUIRL_QT_QMAKE_EXECUTABLE Qt${QT_VERSION_MAJOR}::qmake IMPORTED_LOCATION)
+    get_target_property (LOGSQUIRL_QT_QMAKE_EXECUTABLE Qt6::qmake IMPORTED_LOCATION)
     execute_process(COMMAND ${LOGSQUIRL_QT_QMAKE_EXECUTABLE} -query "QT_INSTALL_TRANSLATIONS"
             TIMEOUT 3
             OUTPUT_VARIABLE TRANSLATION_DIR

@@ -16,7 +16,7 @@ target_link_libraries(
          logsquirl_logging
          logsquirl_settings
          logsquirl_utils
-         Qt${QT_VERSION_MAJOR}::Core
+         Qt6::Core
          robin_hood
          exprtk
 )

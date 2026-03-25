@@ -243,7 +243,7 @@ class LogSquirlApp : public QApplication {
         activeWindows_.push( QPointer<MainWindow>( window ) );
 
         LOG_INFO << "Window " << &window << " created";
-        connect( window, &MainWindow::newWindow, [ = ]() { newWindow()->show(); } );
+        connect( window, &MainWindow::newWindow, [ =, this ]() { newWindow()->show(); } );
         connect( window, &MainWindow::windowActivated,
                  [ this, window ]() { onWindowActivated( *window ); } );
         connect( window, &MainWindow::windowClosed,

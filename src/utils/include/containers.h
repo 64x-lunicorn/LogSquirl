@@ -41,7 +41,7 @@ constexpr auto ssize( const C& c )
 template <class C>
 constexpr int isize( const C& c )
 {
-    return type_safe::narrow_cast<int>( ssize( c ) );
+    return type_safe::narrow_cast<int>( logsquirl::ssize( c ) );
 }
 
 
