@@ -7,9 +7,12 @@ RUN apt-get update -y && \
                     libboost-dev libicu-dev libssl-dev libcurl4-openssl-dev \
                     ragel ninja-build zlib1g-dev git pkg-config \
                     wget ca-certificates fuse libfuse2 file \
-                    libgl-dev libxkbcommon-dev libfontconfig1-dev libfreetype-dev \
+                    libgl-dev libegl-dev libdbus-1-dev \
+                    libfontconfig1-dev libfreetype-dev libglib2.0-0 \
+                    libxkbcommon-dev libxkbcommon-x11-dev \
                     libxcb-cursor0 libxcb-icccm4 libxcb-keysyms1 libxcb-shape0 \
-                    libglib2.0-0 libdbus-1-dev libegl-dev -y && \
+                    libxcb-xkb-dev libxcb-render-util0-dev libxcb-randr0-dev \
+                    libxcb-xinerama0-dev libxcb-image0-dev libxcb-util-dev -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
