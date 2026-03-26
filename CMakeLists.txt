@@ -281,13 +281,14 @@ if(UNIX)
     set(CPACK_DEBIAN_PACKAGE_SECTION "utils")
     set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/64x-lunicorn/LogSquirl")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "LogSquirl Contributors <${CPACK_PACKAGE_CONTACT}>")
-    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS YES)
+    # Qt is installed via aqtinstall (not distro packages), so auto-dependency
+    # detection would generate unsatisfiable requires like libQt6Core.so.6(Qt_6.10).
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS NO)
 
     #RPM
     set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
     set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
-    set(CPACK_RPM_PACKAGE_AUTOREQ YES)
-    #set(CPACK_RPM_PACKAGE_REQUIRES "qt5-qtbase >= ${LOGSQUIRL_QT_VERSION}")
+    set(CPACK_RPM_PACKAGE_AUTOREQ NO)
     set(CPACK_RPM_PACKAGE_URL "https://github.com/64x-lunicorn/LogSquirl")
     set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
         /usr/share/applications
