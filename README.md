@@ -7,7 +7,10 @@ A fast, smart log file explorer.
 > All changes are documented in the Git history.
 
 [![CI Build](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/ci-build.yml?branch=master&label=CI%20Build)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/ci-build.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/codeql-analysis.yml?branch=master&label=CodeQL)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/codeql-analysis.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](COPYING)
+[![Downloads](https://img.shields.io/github/downloads/64x-lunicorn/LogSquirl/total)](https://github.com/64x-lunicorn/LogSquirl/releases)
+[![Commits since latest release](https://img.shields.io/github/commits-since/64x-lunicorn/LogSquirl/latest)](https://github.com/64x-lunicorn/LogSquirl/commits/master)
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://isocpp.org/)
 [![Qt6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io/)
 [![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
