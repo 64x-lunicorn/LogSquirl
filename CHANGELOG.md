@@ -1,3 +1,16 @@
+# 26.03.2-beta (2026-03):
+
+## New features:
+ - Added Plugin Sidebar Tabs: plugins can now register sidebar tabs via
+   `register_sidebar_tab()` / `unregister_sidebar_tab()` in the Host API.
+   Tabs appear in a dockable sidebar panel next to the main view.
+
+## Bug fixes:
+ - Fixed "Help → Report Issue" opening GitHub with percent-encoded body text
+   (e.g. `Details%20for%20the%20issue`) instead of readable content
+
+---
+
 # 26.03.1-beta (2026-03):
 
 ## New features:

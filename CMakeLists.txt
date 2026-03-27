@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(
   logsquirl
-  VERSION 26.03.0
+  VERSION 26.03.2
   DESCRIPTION "logsquirl log viewer"
   LANGUAGES C CXX ASM
 )
