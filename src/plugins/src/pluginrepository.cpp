@@ -30,6 +30,10 @@
 
 #include <kzip.h>
 
+#ifdef LOGSQUIRL_KARCHIVE
+#include <QAtomicInt>
+#endif
+
 namespace logsquirl::plugins {
 
 namespace {
@@ -230,7 +234,13 @@ bool PluginRepository::extractPluginArchive( const QString& archivePath,
 
     QDir().mkpath( destDir );
 
-    const auto ok = root->copyTo( destDir, true /* recursive */ );
+    const auto recursive = true;
+#ifdef LOGSQUIRL_KARCHIVE
+    QAtomicInt notCanceled{ 0 };
+    const auto ok = root->copyTo( destDir, notCanceled, recursive );
+#else
+    const auto ok = root->copyTo( destDir, recursive );
+#endif
     zip.close();
 
     if ( !ok ) {
