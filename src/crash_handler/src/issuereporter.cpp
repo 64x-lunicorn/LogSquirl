@@ -20,7 +20,6 @@
 #include <QDesktopServices>
 #include <QMessageBox>
 #include <QUrl>
-#include <QUrlQuery>
 #include <qglobal.h>
 #include <qthreadpool.h>
 #include <string>
@@ -108,10 +107,7 @@ void IssueReporter::reportIssue( IssueTemplate issueTemplate, const QString& inf
                            arch, std::to_string(concurrency).c_str() ) );
     body.append( QString( LibraryVersionsFooter ).arg( qVersion(), TBB_runtime_version() ) );
 
-    QUrlQuery query;
-    query.addQueryItem( "body", body );
-
-    QUrl url( "https://github.com/64x-lunicorn/LogSquirl/issues/new" );
-    url.setQuery( query );
-    QDesktopServices::openUrl( url );
+    QByteArray urlBytes = "https://github.com/64x-lunicorn/LogSquirl/issues/new?body=";
+    urlBytes += QUrl::toPercentEncoding( body );
+    QDesktopServices::openUrl( QUrl::fromEncoded( urlBytes ) );
 }
