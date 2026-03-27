@@ -96,6 +96,18 @@ class PluginRepository : public QObject {
     /** Return the current platform tag (e.g. "macos", "linux", "windows"). */
     static QString currentPlatform();
 
+    /**
+     * Extract a plugin archive (ZIP) into the given directory.
+     * The destination directory is created if it does not exist.
+     * @param archivePath  Path to the ZIP archive.
+     * @param destDir      Directory to extract files into.
+     * @param errorMessage Optional output parameter for the error description.
+     * @return true on success, false on failure.
+     */
+    static bool extractPluginArchive( const QString& archivePath,
+                                      const QString& destDir,
+                                      QString* errorMessage = nullptr );
+
   Q_SIGNALS:
     /** Emitted when the index has been successfully fetched and parsed. */
     void indexReady();

@@ -24,6 +24,7 @@ target_link_libraries(
          project_warnings
          logsquirl_logging
          logsquirl_settings
+         logsquirl_karchive
          Qt6::Core
          Qt6::Network
          Qt6::Widgets

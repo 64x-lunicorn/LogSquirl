@@ -56,8 +56,13 @@ class PluginRepositoryDialog : public QDialog {
   private:
     void populateTable();
 
+    /** Extract archive, discover, and load the plugin.  Returns true on success. */
+    bool extractAndInstall( const QString& archivePath, const QString& pluginId );
+
     PluginManager& manager_;
     PluginRepository repository_;
+
+    QString currentInstallId_;    ///< Plugin ID of the current download
 
     QLineEdit* filterEdit_ = nullptr;
     QTableWidget* table_ = nullptr;

@@ -12,6 +12,10 @@
    are shown in the Open File dialog; files are converted to a temp file before display
  - Added Plugin Repository: "Browse Plugins..." dialog fetches a remote plugins.json
    index, displays available plugins, and downloads archives with SHA-256 verification
+ - Automatic plugin installation: "Browse Plugins..." now downloads, extracts,
+   discovers, and loads plugins in a single click — no manual extraction or
+   restart required. Updates unload the existing version before overwriting.
+   Failed extractions are rolled back automatically.
  - Added optional Lua scripting layer (LOGSQUIRL_USE_LUA=ON): write plugins as Lua
    scripts using sol2; supports DataSource, Converter, and UI Extension plugin types
  - Added plugin auto-load: enabled plugins are automatically loaded on startup
