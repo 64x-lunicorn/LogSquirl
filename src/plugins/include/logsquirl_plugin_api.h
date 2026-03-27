@@ -168,6 +168,20 @@ typedef struct {
                                   void ( *callback )( void* user_data ),
                                   void* user_data );
 
+    /**
+     * Register a QWidget* as a new tab in the host sidebar.
+     * The plugin creates and owns the widget; the host parents it.
+     * The sidebar is shown automatically when a tab is added.
+     * @param label         Tab label (UTF-8).
+     * @param qwidget_ptr   Cast of a QWidget* to void*.
+     */
+    void (*register_sidebar_tab)( void* handle,
+                                  const char* label,
+                                  void* qwidget_ptr );
+
+    /** Remove a previously registered sidebar tab. */
+    void (*unregister_sidebar_tab)( void* handle, void* qwidget_ptr );
+
 } LogSquirlHostApi;
 
 /* ── Plugin-exported entry points ────────────────────────────────────────── */

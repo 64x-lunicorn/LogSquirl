@@ -155,6 +155,9 @@ class MainWindow : public QMainWindow {
                                  logsquirl::plugins::PluginCallbackFn callback,
                                  void* userData );
     void removePluginMenuActions( const QString& pluginId );
+    void handlePluginSidebarTab( const QString& pluginId, const QString& label,
+                                 QWidget* widget );
+    void handlePluginSidebarTabRemoved( const QString& pluginId, QWidget* widget );
     void encodingChanged( QAction* action );
     void addToFavorites();
     void removeFromFavorites();

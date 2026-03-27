@@ -177,6 +177,14 @@ class PluginManager : public QObject {
                           PluginCallbackFn callback,
                           void* userData );
 
+    /** Emitted when a plugin registers a sidebar tab. */
+    void sidebarTabAdded( const QString& pluginId,
+                          const QString& label,
+                          QWidget* widget );
+
+    /** Emitted when a plugin unregisters a sidebar tab. */
+    void sidebarTabRemoved( const QString& pluginId, QWidget* widget );
+
     /** Emitted when a user-visible notification is requested. */
     void notificationRequested( const QString& message );
 
@@ -242,6 +250,9 @@ class PluginManager : public QObject {
                                         const char* label,
                                         PluginCallbackFn callback,
                                         void* userData );
+    static void hostRegisterSidebarTab( void* handle, const char* label,
+                                        void* qwidgetPtr );
+    static void hostUnregisterSidebarTab( void* handle, void* qwidgetPtr );
 };
 
 } // namespace logsquirl::plugins

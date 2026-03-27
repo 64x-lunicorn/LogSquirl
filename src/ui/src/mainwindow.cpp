@@ -325,6 +325,10 @@ MainWindow::MainWindow( WindowSession session )
              this, &MainWindow::handlePluginStatusWidgetRemoved );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::menuActionAdded,
              this, &MainWindow::handlePluginMenuAction );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::sidebarTabAdded,
+             this, &MainWindow::handlePluginSidebarTab );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::sidebarTabRemoved,
+             this, &MainWindow::handlePluginSidebarTabRemoved );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::pluginUnloaded,
              this, &MainWindow::removePluginMenuActions );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested,
@@ -1594,6 +1598,41 @@ void MainWindow::removePluginMenuActions( const QString& pluginId )
         delete action;
     }
     pluginMenuActions_.erase( it );
+}
+
+void MainWindow::handlePluginSidebarTab( const QString& pluginId,
+                                          const QString& label,
+                                          QWidget* widget )
+{
+    if ( !sidebarTabs_ || !widget ) {
+        return;
+    }
+
+    // Avoid adding the same widget twice.
+    for ( int i = 0; i < sidebarTabs_->count(); ++i ) {
+        if ( sidebarTabs_->widget( i ) == widget ) {
+            return;
+        }
+    }
+
+    sidebarTabs_->addTab( widget, label );
+    LOG_INFO << "Plugin " << pluginId << " registered sidebar tab: " << label;
+    showSidebar( sidebarTabs_->count() - 1 );
+}
+
+void MainWindow::handlePluginSidebarTabRemoved( const QString& pluginId,
+                                                 QWidget* widget )
+{
+    if ( !sidebarTabs_ || !widget ) {
+        return;
+    }
+
+    const int idx = sidebarTabs_->indexOf( widget );
+    if ( idx >= 0 ) {
+        sidebarTabs_->removeTab( idx );
+        widget->setParent( nullptr );
+        LOG_INFO << "Plugin " << pluginId << " removed sidebar tab";
+    }
 }
 
 void MainWindow::about()

@@ -485,6 +485,8 @@ LogSquirlHostApi PluginManager::buildHostApi()
     api.register_status_widget = &PluginManager::hostRegisterStatusWidget;
     api.unregister_status_widget = &PluginManager::hostUnregisterStatusWidget;
     api.register_menu_action = &PluginManager::hostRegisterMenuAction;
+    api.register_sidebar_tab = &PluginManager::hostRegisterSidebarTab;
+    api.unregister_sidebar_tab = &PluginManager::hostUnregisterSidebarTab;
 
     return api;
 }
@@ -643,6 +645,30 @@ void PluginManager::hostRegisterMenuAction( void* handle, const char* menuPath,
         QString::fromUtf8( label ),
         callback,
         userData );
+}
+
+void PluginManager::hostRegisterSidebarTab( void* handle, const char* label,
+                                            void* qwidgetPtr )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->manager ) {
+        return;
+    }
+    auto* widget = static_cast<QWidget*>( qwidgetPtr );
+    const auto pluginId = ctx->handle.metadata().id();
+    Q_EMIT ctx->manager->sidebarTabAdded(
+        pluginId, QString::fromUtf8( label ), widget );
+}
+
+void PluginManager::hostUnregisterSidebarTab( void* handle, void* qwidgetPtr )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->manager ) {
+        return;
+    }
+    auto* widget = static_cast<QWidget*>( qwidgetPtr );
+    const auto pluginId = ctx->handle.metadata().id();
+    Q_EMIT ctx->manager->sidebarTabRemoved( pluginId, widget );
 }
 
 } // namespace logsquirl::plugins
