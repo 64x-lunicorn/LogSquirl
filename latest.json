@@ -2,7 +2,7 @@
   "ci": "26.03.0",
   "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous",
   "stable": "26.03.0",
-  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.03.0",
+  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.03.2",
   "beta": "26.03.2-beta",
   "beta_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.03.2-beta",
   "releases": [
@@ -42,5 +42,6 @@
       "version": "26.03.0",
       "description": "First LogSquirl release: Qt 6.10, OpenSSL 3.x, new platforms"
     }
-  ]
+  ],
+  "stable_version": "26.03.2"
 }
