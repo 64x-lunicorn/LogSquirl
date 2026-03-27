@@ -40,7 +40,7 @@ namespace {
 
 // Default repository index URL — can be overridden via setIndexUrl()
 constexpr auto DefaultIndexUrl
-    = "https://raw.githubusercontent.com/64x-lunicorn/LogSquirl/master/plugins.json";
+    = "https://raw.githubusercontent.com/64x-lunicorn/LogSquirl-Plugins/main/plugins.json";
 
 } // namespace
 
