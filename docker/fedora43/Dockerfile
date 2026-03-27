@@ -5,7 +5,7 @@ RUN dnf update -y && \
     openssl-devel boost-devel zlib-devel libcurl-devel \
     gcc gcc-c++ elfutils-devel ninja-build cmake \
     mesa-libGL-devel libxkbcommon-devel fontconfig-devel freetype-devel \
-    xcb-util-cursor xcb-util-keysyms xcb-util-wm && \
+    xcb-util-cursor xcb-util-keysyms xcb-util-wm dbus-devel && \
     dnf clean all
 
 # Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
