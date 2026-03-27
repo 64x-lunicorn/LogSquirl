@@ -6,6 +6,11 @@ A fast, smart log file explorer.
 > This fork has been renamed to "LogSquirl" and further developed.
 > All changes are documented in the Git history.
 
+[![CI Build](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/ci-build.yml?branch=master&label=CI%20Build)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/ci-build.yml)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](COPYING)
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://isocpp.org/)
+[![Qt6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io/)
+[![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](http://makeapullrequest.com)
 
 ## Overview
@@ -105,6 +110,15 @@ reference implementation.
 
 This project uses [Calendar Versioning](https://calver.org/).
 
+Download the latest release for your platform from
+**[GitHub Releases](https://github.com/64x-lunicorn/LogSquirl/releases)**.
+
+| Platform | Packages |
+|----------|----------|
+| **Windows** | NSIS installer, Chocolatey, Scoop |
+| **macOS** | `.pkg` installer |
+| **Linux** | DEB, RPM, AppImage |
+
 ### Building from source
 
 Please review [BUILD.md](BUILD.md) for instructions on how to build LogSquirl
@@ -114,17 +128,16 @@ on your local machine.
 
 ## Building
 
-Requires **C++23** (GCC ≥ 13, Clang ≥ 17, MSVC ≥ 19.36), **Qt 6.5+**, and
+Requires **C++23** (GCC ≥ 13, Clang ≥ 17, MSVC ≥ 19.36), **Qt 6.5+** (CI uses 6.10.3), and
 **CMake ≥ 3.12**. Please review [BUILD.md](BUILD.md) for full dependency and
 platform-specific instructions.
 
 ## How to Get Help
 
-First, please refer to the
-[documentation](DOCUMENTATION.md)
-page.
-
-You can open issues on the GitHub issues page.
+- Read the [documentation](DOCUMENTATION.md).
+- Search [existing issues](https://github.com/64x-lunicorn/LogSquirl/issues)
+  or open a new one.
+- Check the [CHANGELOG](CHANGELOG.md) for recent changes.
 
 ## Contributing
 
