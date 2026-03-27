@@ -9,6 +9,7 @@ add_executable(logsquirl_tests
     patternmatcher_test.cpp
     pluginmanager_test.cpp
     pluginmetadata_test.cpp
+    pluginrepository_test.cpp
     regularexpression_test.cpp
     tests_main.cpp
 )

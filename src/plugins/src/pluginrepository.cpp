@@ -28,6 +28,8 @@
 #include <QJsonObject>
 #include <QNetworkReply>
 
+#include <kzip.h>
+
 namespace logsquirl::plugins {
 
 namespace {
@@ -199,6 +201,50 @@ QString PluginRepository::currentPlatform()
 #else
     return QStringLiteral( "linux" );
 #endif
+}
+
+bool PluginRepository::extractPluginArchive( const QString& archivePath,
+                                             const QString& destDir,
+                                             QString* errorMessage )
+{
+    KZip zip( archivePath );
+    if ( !zip.open( QIODevice::ReadOnly ) ) {
+        const auto msg = QString( "Cannot open archive: %1" ).arg( archivePath );
+        LOG_ERROR << msg;
+        if ( errorMessage ) {
+            *errorMessage = msg;
+        }
+        return false;
+    }
+
+    const auto* root = zip.directory();
+    if ( !root ) {
+        zip.close();
+        const auto msg = QString( "Cannot read archive directory: %1" ).arg( archivePath );
+        LOG_ERROR << msg;
+        if ( errorMessage ) {
+            *errorMessage = msg;
+        }
+        return false;
+    }
+
+    QDir().mkpath( destDir );
+
+    const auto ok = root->copyTo( destDir, true /* recursive */ );
+    zip.close();
+
+    if ( !ok ) {
+        const auto msg
+            = QString( "Failed to extract archive %1 to %2" ).arg( archivePath, destDir );
+        LOG_ERROR << msg;
+        if ( errorMessage ) {
+            *errorMessage = msg;
+        }
+        return false;
+    }
+
+    LOG_INFO << "Extracted plugin archive " << archivePath << " to " << destDir;
+    return true;
 }
 
 } // namespace logsquirl::plugins
