@@ -409,10 +409,80 @@ end
 
 ## Plugin Repository
 
-LogSquirl includes a built-in plugin browser (Plugins → Browse Plugins...) that
-fetches available plugins from a remote JSON index.
+LogSquirl includes a built-in plugin manager (Plugins → Plugin Management...)
+that lists installed and available plugins in a unified card-based dialog.
 
-### Repository Index Format (`plugins.json`)
+### Registry Architecture
+
+The plugin registry uses a **two-level** design:
+
+1. **Central catalog** (`plugins.json`) — lightweight entries listing each plugin
+   with its name, author, description, and a pointer to its own `releases.json`.
+2. **Per-plugin releases** (`releases.json`) — hosted in each plugin's repository,
+   listing all versions with per-platform download URLs and SHA-256 checksums.
+
+This decouples version updates from the central catalog: plugins publish new
+releases without touching the central `plugins.json`.
+
+### Catalog Format (schema v2) — `plugins.json`
+
+```json
+{
+  "schema_version": 2,
+  "plugins": [
+    {
+      "id": "com.example.myplugin",
+      "name": "My Plugin",
+      "author": "Author Name",
+      "description": "Does useful things",
+      "repo_url": "https://github.com/example/myplugin",
+      "releases_url": "https://raw.githubusercontent.com/example/myplugin/main/releases.json",
+      "icon_url": "https://raw.githubusercontent.com/example/myplugin/main/icon.png"
+    }
+  ]
+}
+```
+
+### Per-Plugin Release Manifest — `releases.json`
+
+```json
+{
+  "plugin_id": "com.example.myplugin",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "api_version": 1,
+      "release_notes": "Initial release",
+      "assets": [
+        {
+          "platform": "macos",
+          "download_url": "https://github.com/example/myplugin/releases/download/v1.0.0/myplugin-1.0.0-macos.zip",
+          "sha256": "abc123def456..."
+        },
+        {
+          "platform": "linux",
+          "download_url": "https://github.com/example/myplugin/releases/download/v1.0.0/myplugin-1.0.0-linux.zip",
+          "sha256": "789abc012def..."
+        }
+      ]
+    }
+  ]
+}
+```
+
+Releases are ordered newest-first. Assets are filtered by the current platform.
+Downloaded archives are verified against the `sha256` checksum.
+
+### Plugin Icons
+
+Plugins can include an icon by adding `"icon": "icon.png"` to their `plugin.json`
+manifest. The icon is displayed in the Plugin Management dialog. Remote icons
+are fetched from the `icon_url` in the catalog entry.
+
+### Legacy Format (schema v1)
+
+For backward compatibility, the host also supports schema v1 where all version
+and platform data is inline in `plugins.json`:
 
 ```json
 {
@@ -432,6 +502,3 @@ fetches available plugins from a remote JSON index.
   ]
 }
 ```
-
-Plugins are filtered by platform automatically. Downloaded archives are verified
-against the `sha256` checksum before being saved to the plugin directory.

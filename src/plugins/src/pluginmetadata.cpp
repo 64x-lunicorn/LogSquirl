@@ -120,6 +120,7 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
     meta.author_ = obj[ "author" ].toString();
     meta.license_ = obj[ "license" ].toString();
     meta.library_ = obj[ "library" ].toString();
+    meta.icon_ = obj[ "icon" ].toString();
     meta.type_ = typeResult.value();
     meta.apiVersion_ = apiVer;
 
@@ -132,6 +133,14 @@ QString PluginMetadata::libraryPath() const
         return {};
     }
     return QDir( directory_ ).filePath( library_ );
+}
+
+QString PluginMetadata::iconPath() const
+{
+    if ( directory_.isEmpty() || icon_.isEmpty() ) {
+        return {};
+    }
+    return QDir( directory_ ).filePath( icon_ );
 }
 
 } // namespace logsquirl::plugins

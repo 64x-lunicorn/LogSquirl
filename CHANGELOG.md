@@ -1,6 +1,17 @@
 # 26.03.2-beta (2026-03):
 
 ## New features:
+ - Unified Plugin Management dialog: replaced separate "Manage Plugins" and
+   "Browse Plugins" dialogs with a single card-based "Plugin Management" dialog.
+   Shows installed, available, and updatable plugins with icons, status badges,
+   and one-click install/update/enable/disable actions.
+ - Decentralized plugin registry (schema v2): the central plugins.json now contains
+   only lightweight catalog entries.  Per-plugin releases.json files hosted in each
+   plugin repository provide version and platform details.
+ - Plugin icon support: plugins can specify an "icon" field in plugin.json.
+   Icons are fetched from the registry and displayed in the management dialog.
+ - Schema v1 backward compatibility: the host gracefully falls back to the
+   legacy flat plugins.json format when schema_version is 1.
  - Added Plugin Sidebar Tabs: plugins can now register sidebar tabs via
    `register_sidebar_tab()` / `unregister_sidebar_tab()` in the Host API.
    Tabs appear in a dockable sidebar panel next to the main view.

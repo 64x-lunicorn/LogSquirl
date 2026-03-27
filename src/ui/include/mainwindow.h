@@ -64,7 +64,6 @@
 #include "tabbedcrawlerwidget.h"
 #include "filterspanel.h"
 #include "pluginmanager.h"
-#include "pluginrepositorydialog.h"
 #include "tabbedscratchpad.h"
 
 class QAction;
@@ -140,8 +139,7 @@ class MainWindow : public QMainWindow {
     void importChipmunkFilters();
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
-    void managePlugins();
-    void browsePluginRepository();
+    void showPluginDialog();
     void startPluginDataSource( const QString& pluginId );
     void handleDataSourceStarted( const QString& pluginId,
                                   const QString& displayName,
@@ -309,8 +307,7 @@ class MainWindow : public QMainWindow {
     QAction* predefinedFiltersDialogAction;
     QAction* reportIssueAction;
     QAction* generateDumpAction;
-    QAction* managePluginsAction;
-    QAction* browsePluginsAction;
+    QAction* pluginsAction;
     QActionGroup* encodingGroup;
     QAction* addToFavoritesAction;
     QAction* addToFavoritesMenuAction;

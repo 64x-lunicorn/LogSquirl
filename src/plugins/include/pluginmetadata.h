@@ -58,6 +58,7 @@ class PluginMetadata {
     const QString& author() const { return author_; }
     const QString& license() const { return license_; }
     const QString& library() const { return library_; }
+    const QString& icon() const { return icon_; }
     LogSquirlPluginType type() const { return type_; }
     int apiVersion() const { return apiVersion_; }
 
@@ -66,6 +67,9 @@ class PluginMetadata {
 
     /** Absolute path to the shared library (directory + library). */
     QString libraryPath() const;
+
+    /** Absolute path to the icon file (directory + icon), empty if none. */
+    QString iconPath() const;
 
   private:
     PluginMetadata() = default;
@@ -77,6 +81,7 @@ class PluginMetadata {
     QString author_;
     QString license_;
     QString library_;
+    QString icon_;
     QString directory_;
     LogSquirlPluginType type_ = LOGSQUIRL_PLUGIN_DATASOURCE;
     int apiVersion_ = 0;
