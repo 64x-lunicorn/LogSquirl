@@ -100,6 +100,27 @@ LogSquirl includes a C ABI-based plugin system that supports three plugin types:
 Plugins can be managed via **Plugins → Manage Plugins…** and browsed/downloaded
 from a remote repository via **Plugins → Browse Plugins…**.
 
+The available plugins are listed in the
+[LogSquirl-Plugins](https://github.com/64x-lunicorn/LogSquirl-Plugins) registry.
+To publish a new plugin or update an existing one, open a pull request in that
+repository — see the
+[Contributing Guide](https://github.com/64x-lunicorn/LogSquirl-Plugins/blob/main/CONTRIBUTING.md)
+for details.
+
+```mermaid
+flowchart LR
+    LS["LogSquirl"] -- "GET plugins.json" --> PR["LogSquirl-Plugins\n(registry)"]
+    LS -- "download ZIP" --> R1["LogSquirl-Logcat\n(release)"]
+    LS -- "download ZIP" --> R2["LogSquirl-Serial\n(release)"]
+```
+
+### Official Plugins
+
+| Plugin | Description | Repo |
+|--------|-------------|------|
+| **Android Logcat** | Stream logcat from ADB devices | [LogSquirl-Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat) |
+| **Serial Monitor** | Stream serial port data | [LogSquirl-Serial](https://github.com/64x-lunicorn/LogSquirl-Serial) |
+
 Plugins can also be written as **Lua scripts** (enable with `LOGSQUIRL_USE_LUA=ON`
 at build time) instead of compiled shared libraries.
 
