@@ -111,7 +111,7 @@
 #include "recentfiles.h"
 #include "sessioninfo.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "thememanager.h"
 #include "tabbedcrawlerwidget.h"
 
 namespace {
@@ -227,11 +227,8 @@ MainWindow::MainWindow( WindowSession session )
         constexpr int kButtonSize = 24;
         constexpr int kIconSize = 16;
 
-        // Pick icon variant based on configured style — at construction time
-        // the dark palette is not yet applied, so IconLoader cannot detect it.
-        const bool isDarkStyle
-            = Configuration::get().style() == StyleManager::DarkStyleKey
-              || Configuration::get().style() == StyleManager::DarkWindowsStyleKey;
+        // Detect whether the current theme is dark for icon selection
+        const bool isDarkStyle = ThemeManager::currentPalette().isDark;
 
         auto* floatButton = new QToolButton( titleBar );
         floatButton->setIcon(

@@ -42,6 +42,8 @@
 #include <QToolButton>
 #include <QtGui>
 
+#include <QTimer>
+
 #include "encodings.h"
 #include "fontutils.h"
 #include "highlighteredit.h"
@@ -50,7 +52,7 @@
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "thememanager.h"
 
 #include "optionsdialog.h"
 
@@ -154,7 +156,7 @@ void OptionsDialog::setupRegexp()
 
 void OptionsDialog::setupStyles()
 {
-    styleComboBox->addItems( StyleManager::availableStyles() );
+    styleComboBox->addItems( ThemeManager::availableThemes() );
 }
 
 void OptionsDialog::setupEncodings()
@@ -316,8 +318,8 @@ void OptionsDialog::updateDialogFromConfig()
     }
     languageComboBox->setCurrentIndex( langIdx );
 
-    const auto style = config.style();
-    if ( !styleComboBox->findText( style, Qt::MatchExactly ) ) {
+    const auto style = config.theme();
+    if ( styleComboBox->findText( style, Qt::MatchExactly ) < 0 ) {
         styleComboBox->setCurrentIndex( 0 );
     }
     else {
@@ -558,9 +560,17 @@ void OptionsDialog::updateConfigFromDialog()
 
     config.setVerifySslPeers( verifySslCheckBox->isChecked() );
 
-    restartAppMessage = config.style() != styleComboBox->currentText();
-
-    config.setStyle( styleComboBox->currentText() );
+    // Apply theme change — deferred to next event-loop iteration so that
+    // the OptionsDialog finishes processing its button-click before Qt
+    // tears down and rebuilds the QStyleSheetStyle proxy (which would
+    // otherwise delete the style object while widgets still reference it).
+    if ( config.theme() != styleComboBox->currentText() ) {
+        config.setTheme( styleComboBox->currentText() );
+        const auto newTheme = config.theme();
+        QTimer::singleShot( 0, qApp, [newTheme]() {
+            ThemeManager::applyTheme( newTheme );
+        } );
+    }
     config.setHideAnsiColorSequences( hideAnsiColorsCheckBox->isChecked() );
 
     config.setDefaultEncodingMib( encodingComboBox->currentData().toInt() );

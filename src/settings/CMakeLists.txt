@@ -3,11 +3,12 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/persistentinfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/configuration.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/shortcuts.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/styles.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/thememanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/include/persistable.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/persistentinfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/configuration.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/styles.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/theme.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/thememanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/shortcuts.h
 )
 

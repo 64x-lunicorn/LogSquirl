@@ -54,6 +54,7 @@
 #include <QApplication>
 #include <QCompleter>
 #include <QInputDialog>
+#include <QPointer>
 #include <QJsonDocument>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -239,9 +240,15 @@ void CrawlerWidget::doSendAllStateSignals()
 void CrawlerWidget::changeEvent( QEvent* event )
 {
     if ( event->type() == QEvent::StyleChange ) {
-        dispatchToMainThread( [ this ] {
-            loadIcons();
-            searchInfoLineDefaultPalette_ = this->palette();
+        // Guard with QPointer so the deferred lambda is a no-op if
+        // the widget is destroyed before the event loop processes it.
+        QPointer<CrawlerWidget> guard( this );
+        dispatchToMainThread( [guard] {
+            if ( !guard ) {
+                return;
+            }
+            guard->loadIcons();
+            guard->searchInfoLineDefaultPalette_ = guard->palette();
         } );
     }
 
@@ -992,26 +999,6 @@ void CrawlerWidget::setup()
     // Select "Marks and matches" by default (same default as the filtered view)
     visibilityBox_->setCurrentIndex( 0 );
     visibilityBox_->setContentsMargins( 2, 2, 2, 2 );
-
-    // TODO: Maybe there is some way to set the popup width to be
-    // sized-to-content (as it is when the stylesheet is not overriden) in the
-    // stylesheet as opposed to setting a hard min-width on the view above.
-    /*visibilityBox_->setStyleSheet( " \
-        QComboBox:on {\
-            padding: 1px 2px 1px 6px;\
-            width: 19px;\
-        } \
-        QComboBox:!on {\
-            padding: 1px 2px 1px 7px;\
-            width: 19px;\
-            height: 16px;\
-            border: 1px solid gray;\
-        } \
-        QComboBox::drop-down::down-arrow {\
-            width: 0px;\
-            border-width: 0px;\
-        } \
-" );*/
 
     // Construct the Search Info line
     searchInfoLine_ = new InfoLine();

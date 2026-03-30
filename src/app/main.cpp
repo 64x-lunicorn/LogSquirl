@@ -58,7 +58,7 @@
 #include "configuration.h"
 #include "logger.h"
 #include "mainwindow.h"
-#include "styles.h"
+#include "thememanager.h"
 
 #include "cli.h"
 #include "logsquirlapp.h"
@@ -145,7 +145,8 @@ int main( int argc, char* argv[] )
         app.sendFilesToPrimaryInstance( parameters.filenames );
     }
     else {
-        StyleManager::applyStyle( config.style() );
+        ThemeManager::applyTheme( config.theme() );
+        ThemeManager::connectToSystemThemeChanges();
 
         auto startNewSession = true;
         MainWindow* mw = nullptr;

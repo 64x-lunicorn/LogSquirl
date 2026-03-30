@@ -37,7 +37,6 @@
 #include "iconloader.h"
 #include "log.h"
 #include "openfilehelper.h"
-#include "styles.h"
 #include "tabnamemapping.h"
 
 namespace {
@@ -50,54 +49,7 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
     , newdata_icon_( ":/images/newdata_icon.png" )
     , newfiltered_icon_( ":/images/newfiltered_icon.png" )
 {
-
-    QString tabStyle = "QTabBar::tab { height: 24px; }";
-    QString tabCloseButtonStyle = " QTabBar::close-button {\
-              height: 12px; width: 12px;\
-              subcontrol-origin: padding;\
-              subcontrol-position: right;\
-              %1}";
-
-    QString backgroundImage;
-    QString backgroundHoverImage;
-
-    const auto& config = Configuration::get();
-    if ( config.style() == StyleManager::DarkStyleKey ) {
-        backgroundImage = ":/images/icons8-close-window-16_inverse.png";
-        backgroundHoverImage = ":/images/icons8-close-window-hover-16_inverse.png";
-    }
-
-#if defined( Q_OS_MAC )
-    // work around Qt MacOSX bug missing tab close icons
-    // see: https://bugreports.qt.io/browse/QTBUG-61092
-    // still broken in document mode in Qt.5.12.2 !!!!
-    if ( config.style() != StyleManager::DarkStyleKey ) {
-        backgroundImage
-            = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-16.png";
-        backgroundHoverImage
-            = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-hover-16.png";
-    }
-#elif defined( Q_OS_WIN )
-    if ( config.style() == StyleManager::FusionKey ) {
-        backgroundImage = ":/images/icons8-close-window-16.png";
-        backgroundHoverImage = ":/images/icons8-close-window-hover-16.png";
-    }
-#endif
-
-    if ( !backgroundImage.isEmpty() ) {
-        const QString backgroundImageTemplate = " image: url(%1);";
-        QString tabCloseButtonHoverStyle = " QTabBar::close-button:hover { %1 }";
-        backgroundImage = backgroundImageTemplate.arg( backgroundImage );
-        backgroundHoverImage = backgroundImageTemplate.arg( backgroundHoverImage );
-        tabCloseButtonHoverStyle = tabCloseButtonHoverStyle.arg( backgroundHoverImage );
-        tabCloseButtonStyle = tabCloseButtonStyle.arg( backgroundImage );
-        tabCloseButtonStyle.append( tabCloseButtonHoverStyle );
-    }
-    else {
-        tabCloseButtonStyle = tabCloseButtonStyle.arg( "" );
-    }
-
-    myTabBar_.setStyleSheet( tabStyle.append( tabCloseButtonStyle ) );
+    // Tab styling is now handled by the global theme QSS (ThemeManager).
 
     setTabBar( &myTabBar_ );
     myTabBar_.hide();

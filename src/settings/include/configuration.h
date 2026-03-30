@@ -291,9 +291,9 @@ class Configuration final : public Persistable<Configuration> {
     {
         return minimizeToTray_;
     }
-    QString style() const
+    QString theme() const
     {
-        return style_;
+        return theme_;
     }
     void setMainLineNumbersVisible( bool lineNumbersVisible )
     {
@@ -307,9 +307,9 @@ class Configuration final : public Persistable<Configuration> {
     {
         minimizeToTray_ = minimizeToTray;
     }
-    void setStyle( const QString& style )
+    void setTheme( const QString& theme )
     {
-        style_ = style;
+        theme_ = theme;
     }
 
     bool enableLogging() const
@@ -553,9 +553,7 @@ class Configuration final : public Persistable<Configuration> {
         defaultEncodingMib_ = mib;
     }
 
-    std::map<QString, QString> darkPalette() const {
-        return darkPalette_;
-    }
+
 
     // Plugin settings
     bool pluginsAutoLoad() const
@@ -608,7 +606,7 @@ class Configuration final : public Persistable<Configuration> {
     bool lineNumbersVisibleInMain_ = false;
     bool lineNumbersVisibleInFiltered_ = true;
     bool minimizeToTray_ = false;
-    QString style_;
+    QString theme_{ "System" };
 
     // Default settings for new views
     bool searchAutoRefresh_ = false;
@@ -671,26 +669,7 @@ class Configuration final : public Persistable<Configuration> {
 
     std::map<std::string, QStringList> shortcuts_;
 
-    // based on https://gist.github.com/QuantumCD/6245215
-    std::map<QString, QString> darkPalette_ = {
-        {"Window", "#353535"},
-        {"WindowText", "#FFFFFF"},
-        {"Base", "#282828"},
-        {"AlternateBase", "#353535"},
-        {"ToolTipBase", "#2a82da"},
-        {"ToolTipText", "#FFFFFF"},
-        {"Text", "#FFFFFF"},
-        {"Button", "#353535"},
-        {"ButtonText", "#FFFFFF"},
-        {"Link", "#2a82da"},
-        {"Highlight", "#2a82da"},
-        {"HighlightedText", "#212121"},
-        {"ActiveButton", "#303030"},
-        {"DisabledButtonText", "#757575"},
-        {"DisabledWindowText", "#808080"},
-        {"DisabledText", "#808080"},
-        {"DisabledLight", "#353535"},
-    };
+
 };
 
 #endif

@@ -48,7 +48,7 @@
 #include "configuration.h"
 #include "log.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "thememanager.h"
 
 namespace {
 std::once_flag fontInitFlag;
@@ -285,14 +285,29 @@ void Configuration::retrieveFromStorage( QSettings& settings )
 
     useTextWrap_ = settings.value( "view.textWrap", DefaultConfiguration.useTextWrap() ).toBool();
 
-    style_ = settings.value( "view.style", DefaultConfiguration.style_ ).toString();
-
-    auto styles = StyleManager::availableStyles();
-    if ( !styles.contains( style_ ) ) {
-        style_ = StyleManager::defaultPlatformStyle();
+    // Theme: migrate from old "view.style" key if present
+    if ( settings.contains( "view.theme" ) ) {
+        theme_ = settings.value( "view.theme", DefaultConfiguration.theme_ ).toString();
     }
-    if ( !styles.contains( style_ ) ) {
-        style_ = styles.front();
+    else if ( settings.contains( "view.style" ) ) {
+        // Legacy migration: map old style names to new theme names
+        const auto oldStyle = settings.value( "view.style" ).toString();
+        if ( oldStyle == QLatin1String( "Dark" )
+             || oldStyle == QLatin1String( "Windows Dark" ) ) {
+            theme_ = ThemeManager::DarkThemeKey;
+        }
+        else {
+            theme_ = ThemeManager::SystemThemeKey;
+        }
+        settings.remove( "view.style" );
+    }
+    else {
+        theme_ = DefaultConfiguration.theme_;
+    }
+
+    const auto themes = ThemeManager::availableThemes();
+    if ( !themes.contains( theme_ ) ) {
+        theme_ = ThemeManager::defaultTheme();
     }
 
     // DefaultConfiguration crawler settings
@@ -352,12 +367,6 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     enabledPlugins_
         = settings.value( "plugins.enabledPlugins", DefaultConfiguration.enabledPlugins_ )
               .toStringList();
-
-    settings.beginGroup( "dark" );
-    for ( auto& color : darkPalette_ ) {
-        color.second = settings.value( color.first, color.second ).toString();
-    }
-    settings.endGroup();
 }
 
 void Configuration::saveToStorage( QSettings& settings ) const
@@ -423,7 +432,7 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "view.lineNumbersVisibleInMain", lineNumbersVisibleInMain_ );
     settings.setValue( "view.lineNumbersVisibleInFiltered", lineNumbersVisibleInFiltered_ );
     settings.setValue( "view.minimizeToTray", minimizeToTray_ );
-    settings.setValue( "view.style", style_ );
+    settings.setValue( "view.theme", theme_ );
     settings.setValue( "view.language", language_ );
     settings.setValue( "view.textWrap", useTextWrap_ );
 
@@ -456,10 +465,4 @@ void Configuration::saveToStorage( QSettings& settings ) const
 
     settings.setValue( "plugins.autoLoad", pluginsAutoLoad_ );
     settings.setValue( "plugins.enabledPlugins", enabledPlugins_ );
-
-    settings.beginGroup( "dark" );
-    for ( const auto& color : darkPalette_ ) {
-        settings.setValue( color.first, color.second );
-    }
-    settings.endGroup();
 }
