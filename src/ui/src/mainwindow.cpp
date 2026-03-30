@@ -104,6 +104,7 @@
 #include "mainwindowtext.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
+#include "plugindialog.h"
 #include "predefinedfiltersdialog.h"
 #include "progress.h"
 #include "readablesize.h"
@@ -787,14 +788,9 @@ void MainWindow::createActions()
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
 
-    managePluginsAction = new QAction( tr( "Manage Plugins..." ), this );
-    managePluginsAction->setStatusTip( tr( "View, enable, and configure installed plugins" ) );
-    connect( managePluginsAction, &QAction::triggered, this, &MainWindow::managePlugins );
-
-    browsePluginsAction = new QAction( tr( "Browse Plugins..." ), this );
-    browsePluginsAction->setStatusTip( tr( "Browse and install plugins from the repository" ) );
-    connect( browsePluginsAction, &QAction::triggered, this,
-             &MainWindow::browsePluginRepository );
+    pluginsAction = new QAction( tr( "Plugin Management..." ), this );
+    pluginsAction->setStatusTip( tr( "Manage, install, and update plugins" ) );
+    connect( pluginsAction, &QAction::triggered, this, &MainWindow::showPluginDialog );
 
     updateShortcuts();
 }
@@ -958,8 +954,7 @@ void MainWindow::createMenus()
     // Plugin-contributed actions are inserted at the top (before this separator)
     // by handlePluginMenuAction().  Management actions live below the separator.
     pluginMenuSeparator_ = pluginsMenu->addSeparator();
-    pluginsMenu->addAction( managePluginsAction );
-    pluginsMenu->addAction( browsePluginsAction );
+    pluginsMenu->addAction( pluginsAction );
 
     // Build Sources sub-menu from DataSource plugins
     sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
@@ -1377,109 +1372,9 @@ void MainWindow::options()
     signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 }
 
-void MainWindow::managePlugins()
+void MainWindow::showPluginDialog()
 {
-    const auto& plugins = pluginManager_.discoveredPlugins();
-
-    if ( plugins.empty() ) {
-        QMessageBox::information( this, tr( "Plugins" ),
-                                  tr( "No plugins discovered.\n\n"
-                                      "Plugin directories:\n%1" )
-                                      .arg( pluginManager_.defaultPluginDirectories()
-                                                .join( "\n" ) ) );
-        return;
-    }
-
-    // Read current enabled list from configuration
-    auto& config = Configuration::get();
-    auto enabledIds = config.enabledPlugins().toVector();
-
-    // Build a dialog with one checkbox per discovered plugin
-    QDialog dialog( this );
-    dialog.setWindowTitle( tr( "Manage Plugins" ) );
-    dialog.setMinimumWidth( 400 );
-
-    auto* layout = new QVBoxLayout( &dialog );
-
-    auto* autoLoadCheck = new QCheckBox( tr( "Auto-load enabled plugins on startup" ), &dialog );
-    autoLoadCheck->setChecked( config.pluginsAutoLoad() );
-    layout->addWidget( autoLoadCheck );
-
-    layout->addSpacing( 8 );
-
-    auto* scrollArea = new QScrollArea( &dialog );
-    scrollArea->setWidgetResizable( true );
-    auto* scrollWidget = new QWidget();
-    auto* scrollLayout = new QVBoxLayout( scrollWidget );
-
-    std::vector<QCheckBox*> checkboxes;
-    checkboxes.reserve( plugins.size() );
-
-    for ( const auto& meta : plugins ) {
-        const auto label = QString( "%1 v%2  —  %3" )
-                               .arg( meta.name(), meta.version(),
-                                     meta.description().isEmpty()
-                                         ? meta.id()
-                                         : meta.description() );
-        auto* cb = new QCheckBox( label, scrollWidget );
-        cb->setChecked( enabledIds.contains( meta.id() ) );
-        scrollLayout->addWidget( cb );
-        checkboxes.push_back( cb );
-    }
-
-    scrollLayout->addStretch();
-    scrollArea->setWidget( scrollWidget );
-    layout->addWidget( scrollArea );
-
-    auto* buttonBox = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
-                                            &dialog );
-    connect( buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept );
-    connect( buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject );
-    layout->addWidget( buttonBox );
-
-    if ( dialog.exec() != QDialog::Accepted ) {
-        return;
-    }
-
-    // Collect newly enabled IDs
-    QStringList newEnabledIds;
-    for ( size_t i = 0; i < plugins.size(); ++i ) {
-        if ( checkboxes[ i ]->isChecked() ) {
-            newEnabledIds.append( plugins[ i ].id() );
-        }
-    }
-
-    // Persist auto-load setting
-    config.setPluginsAutoLoad( autoLoadCheck->isChecked() );
-
-    // Persist enabled plugins list
-    config.setEnabledPlugins( newEnabledIds );
-    config.save();
-
-    // Apply changes: load newly enabled, unload newly disabled
-    for ( const auto& meta : plugins ) {
-        const bool shouldBeEnabled = newEnabledIds.contains( meta.id() );
-        const bool currentlyLoaded = pluginManager_.isLoaded( meta.id() );
-
-        if ( shouldBeEnabled && !currentlyLoaded ) {
-            const auto error = pluginManager_.loadPlugin( meta.id() );
-            if ( !error.isEmpty() ) {
-                QMessageBox::warning( this, tr( "Plugin Error" ),
-                                      tr( "Failed to load %1:\n%2" )
-                                          .arg( meta.name(), error ) );
-            }
-        }
-        else if ( !shouldBeEnabled && currentlyLoaded ) {
-            pluginManager_.unloadPlugin( meta.id() );
-        }
-    }
-}
-
-// ── Plugin DataSource slots (Phase 2) ────────────────────────────────
-
-void MainWindow::browsePluginRepository()
-{
-    logsquirl::plugins::PluginRepositoryDialog dialog( pluginManager_, this );
+    logsquirl::plugins::PluginDialog dialog( pluginManager_, this );
     dialog.exec();
 }
 

@@ -5,13 +5,13 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginrepository.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginrepositorydialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugindialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/streamwriter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginmetadata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginrepository.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginrepositorydialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugindialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/streamwriter.cpp
 )
 
