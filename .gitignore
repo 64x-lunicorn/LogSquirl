@@ -131,5 +131,13 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
+# ── Generated test data (large files for benchmarks) ──────────────────────
+test_data/random_block_10Mb.txt
+test_data/random_block_50Mb.txt
+test_data/random_block_100Mb.txt
+test_data/random_block_10Mb_utf16le.txt
+tests/e2e/benchmark_report.md
+tests/e2e/benchmark_report.json
+
 # ── Temporary files ────────────────────────────────────────────────────────
 tmp/

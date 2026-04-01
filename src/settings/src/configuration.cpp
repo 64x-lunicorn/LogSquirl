@@ -206,6 +206,9 @@ void Configuration::retrieveFromStorage( QSettings& settings )
               .toBool();
     followFileOnLoad_
         = settings.value( "session.followOnLoad", DefaultConfiguration.followFileOnLoad_ ).toBool();
+    confirmTabClose_
+        = settings.value( "session.confirmTabClose", DefaultConfiguration.confirmTabClose_ )
+              .toBool();
 
     enableLogging_
         = settings.value( "logging.enableLogging", DefaultConfiguration.enableLogging_ ).toBool();
@@ -397,6 +400,7 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "session.loadLast", loadLastSession_ );
     settings.setValue( "session.multipleWindows", allowMultipleWindows_ );
     settings.setValue( "session.followOnLoad", followFileOnLoad_ );
+    settings.setValue( "session.confirmTabClose", confirmTabClose_ );
 
     settings.setValue( "logging.enableLogging", enableLogging_ );
     settings.setValue( "logging.verbosity", loggingLevel_ );

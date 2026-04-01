@@ -56,7 +56,7 @@ enum class SearchRegexpType {
     FixedString,
 };
 
-enum class RegexpEngine { Hyperscan, QRegularExpression };
+enum class RegexpEngine { Vectorscan, QRegularExpression };
 static constexpr int MAX_RECENT_FILES = 25;
 
 // Configuration class containing everything in the "Settings" dialog
@@ -174,6 +174,15 @@ class Configuration final : public Persistable<Configuration> {
         allowMultipleWindows_ = enabled;
     }
 
+    bool confirmTabClose() const
+    {
+        return confirmTabClose_;
+    }
+    void setConfirmTabClose( bool enabled )
+    {
+        confirmTabClose_ = enabled;
+    }
+
     // perf settings
     bool useParallelSearch() const
     {
@@ -245,7 +254,7 @@ class Configuration final : public Persistable<Configuration> {
         return regexpEngine_;
     }
 
-    void setRegexpEnging( RegexpEngine engine )
+    void setRegexpEngine( RegexpEngine engine )
     {
         regexpEngine_ = engine;
     }
@@ -602,6 +611,7 @@ class Configuration final : public Persistable<Configuration> {
     bool loadLastSession_ = true;
     bool followFileOnLoad_ = false;
     bool allowMultipleWindows_ = false;
+    bool confirmTabClose_ = true;
 
     // View settings
     bool overviewVisible_ = true;
@@ -643,7 +653,7 @@ class Configuration final : public Persistable<Configuration> {
 
     int scaleFactorRounding_ = 1;
 
-    RegexpEngine regexpEngine_ = RegexpEngine::Hyperscan;
+    RegexpEngine regexpEngine_ = RegexpEngine::Vectorscan;
 
     QColor qfBackColor_ = Qt::yellow;
     QColor mainSearchBackColor_ = Qt::lightGray;

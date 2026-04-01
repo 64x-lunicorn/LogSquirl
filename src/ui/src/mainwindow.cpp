@@ -277,6 +277,8 @@ MainWindow::MainWindow( WindowSession session )
 
     connect( &mainTabWidget_, &TabbedCrawlerWidget::tabCloseRequested, this,
              [ this ]( int index ) { this->closeTab( index, ActionInitiator::User ); } );
+    connect( &mainTabWidget_, &TabbedCrawlerWidget::bulkTabCloseRequested, this,
+             &MainWindow::closeTabs );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::currentChanged, this,
              &MainWindow::currentTabChanged );
 
@@ -392,6 +394,8 @@ void MainWindow::reloadSession()
             followAction->setChecked( true );
         }
     }
+
+    mainTabWidget_.refreshAllTabGroupAppearances();
 
     updateOpenedFilesMenu();
 }
@@ -1859,6 +1863,34 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
 
     assert( widget );
 
+    // Show confirmation dialog for user-initiated tab close if enabled
+    if ( initiator == ActionInitiator::User ) {
+        const auto& config = Configuration::get();
+        if ( config.confirmTabClose() ) {
+            const auto fileName = session_.getFilename( widget );
+            const auto displayName = QFileInfo( fileName ).fileName();
+
+            QMessageBox msgBox( this );
+            msgBox.setIcon( QMessageBox::Question );
+            msgBox.setWindowTitle( tr( "Close Tab" ) );
+            msgBox.setText( tr( "Close tab \"%1\"?" ).arg( displayName ) );
+            msgBox.setStandardButtons( QMessageBox::Yes | QMessageBox::No );
+            msgBox.setDefaultButton( QMessageBox::No );
+
+            auto* dontAskCheckBox = new QCheckBox( tr( "Don't ask again" ), &msgBox );
+            msgBox.setCheckBox( dontAskCheckBox );
+
+            if ( msgBox.exec() != QMessageBox::Yes ) {
+                return;
+            }
+
+            if ( dontAskCheckBox->isChecked() ) {
+                Configuration::get().setConfirmTabClose( false );
+                Configuration::get().save();
+            }
+        }
+    }
+
     widget->stopLoading();
     mainTabWidget_.removeCrawler( index );
 
@@ -1871,6 +1903,51 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
     updateOpenedFilesMenu();
 
     widget->deleteLater();
+}
+
+void MainWindow::closeTabs( QList<int> indices )
+{
+    if ( indices.isEmpty() ) {
+        return;
+    }
+
+    const auto& config = Configuration::get();
+    if ( config.confirmTabClose() ) {
+        QMessageBox msgBox( this );
+        msgBox.setIcon( QMessageBox::Question );
+        msgBox.setWindowTitle( tr( "Close Tabs" ) );
+        msgBox.setText( tr( "Close %n tab(s)?", "", static_cast<int>( indices.size() ) ) );
+        msgBox.setStandardButtons( QMessageBox::Yes | QMessageBox::No );
+        msgBox.setDefaultButton( QMessageBox::No );
+
+        auto* dontAskCheckBox = new QCheckBox( tr( "Don't ask again" ), &msgBox );
+        msgBox.setCheckBox( dontAskCheckBox );
+
+        if ( msgBox.exec() != QMessageBox::Yes ) {
+            return;
+        }
+
+        if ( dontAskCheckBox->isChecked() ) {
+            Configuration::get().setConfirmTabClose( false );
+            Configuration::get().save();
+        }
+    }
+
+    // Sort descending so removal doesn't shift indices
+    std::sort( indices.begin(), indices.end(), std::greater<int>() );
+    for ( const auto index : indices ) {
+        auto* widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
+        if ( !widget ) {
+            continue;
+        }
+        widget->stopLoading();
+        mainTabWidget_.removeCrawler( index );
+        addRecentFile( session_.getFilename( widget ) );
+        session_.close( widget );
+        widget->deleteLater();
+    }
+
+    updateOpenedFilesMenu();
 }
 
 void MainWindow::currentTabChanged( int index )

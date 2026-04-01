@@ -41,34 +41,22 @@ cpmaddpackage(
   YES
 )
 
-if(LOGSQUIRL_USE_HYPERSCAN)
-  # Hyperscan's flat_containers.h uses std::out_of_range without including
-  # <stdexcept>, which breaks under MSVC's C++23 STL. Build with C++17.
-  set(_SAVED_CXX_STANDARD_HS ${CMAKE_CXX_STANDARD})
-  set(CMAKE_CXX_STANDARD 17)
-
-  cpmaddpackage(
-    NAME
-    hyperscan
-    GITHUB_REPOSITORY
-    variar/hyperscan
-    GIT_TAG
-    0931a40e0cf1d7f92189bc546c3491ed5c113f8b
-    EXCLUDE_FROM_ALL
-    YES
-  )
-
-  set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_HS})
-
-  message("Adding alias for hyperscan")
-  add_library(logsquirl_hyperscan INTERFACE)
-  target_link_libraries(logsquirl_hyperscan INTERFACE hs)
-  target_include_directories(logsquirl_hyperscan INTERFACE ${hyperscan_SOURCE_DIR}/src)
-elseif(LOGSQUIRL_USE_VECTORSCAN)
+if(LOGSQUIRL_USE_VECTORSCAN)
   # Vectorscan's ue2_literal iterators are not C++23-compatible yet.
   # Build vectorscan with C++17 to avoid compilation errors.
   set(_SAVED_CXX_STANDARD ${CMAKE_CXX_STANDARD})
   set(CMAKE_CXX_STANDARD 17)
+
+  # FAT_RUNTIME and AVX options are only supported on x86 Linux.
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
+    set(_VS_FAT_RUNTIME ON)
+    set(_VS_BUILD_AVX2 ON)
+    set(_VS_BUILD_AVX512 ON)
+  else()
+    set(_VS_FAT_RUNTIME OFF)
+    set(_VS_BUILD_AVX2 OFF)
+    set(_VS_BUILD_AVX512 OFF)
+  endif()
 
   cpmaddpackage(
     NAME
@@ -87,10 +75,10 @@ elseif(LOGSQUIRL_USE_VECTORSCAN)
     "BUILD_BENCHMARKS OFF"
     "BUILD_DOC OFF"
     "BUILD_CHIMERA OFF"
-    "BUIlD_AVX2 OFF"
-    "BUIlD_AVX512 OFF"
-    "BUIlD_AVX512VBMI OFF"
-    "FAT_RUNTIME OFF"
+    "BUILD_AVX2 ${_VS_BUILD_AVX2}"
+    "BUILD_AVX512 ${_VS_BUILD_AVX512}"
+    "BUILD_AVX512VBMI OFF"
+    "FAT_RUNTIME ${_VS_FAT_RUNTIME}"
   )
 
   set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD})

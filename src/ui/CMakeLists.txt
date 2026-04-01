@@ -43,6 +43,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodings.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/favoritefiles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabnamemapping.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupinfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
@@ -93,6 +94,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filterspanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/favoritefiles.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabnamemapping.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupinfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/iconloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp

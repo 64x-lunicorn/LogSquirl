@@ -196,8 +196,8 @@ PatternMatcher::PatternMatcher( const RegularExpression& expression )
     , matcher_( expression.hsExpression_.createMatcher() )
 {
     const auto& config = Configuration::get();
-    const auto useHyperscanEngine = config.regexpEngine() == RegexpEngine::Hyperscan;
-    if ( !useHyperscanEngine ) {
+    const auto useVectorscanEngine = config.regexpEngine() == RegexpEngine::Vectorscan;
+    if ( !useVectorscanEngine ) {
         matcher_ = DefaultRegularExpressionMatcher( expression.subPatterns_ );
     }
 

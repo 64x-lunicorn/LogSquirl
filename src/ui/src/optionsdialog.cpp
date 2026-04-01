@@ -147,7 +147,7 @@ void OptionsDialog::setupRegexp()
     quickFindSearchBox->addItems( regexpTypes );
 
     QStringList regexpEngines;
-    regexpEngines << tr( "Hyperscan" ) << tr( "Qt" );
+    regexpEngines << tr( "Vectorscan" ) << tr( "Qt" );
 
     regexpEngineComboBox->addItems( regexpEngines );
 }
@@ -278,7 +278,7 @@ RegexpEngine OptionsDialog::getRegexpEngineFromIndex( int index ) const
         type = RegexpEngine::QRegularExpression;
         break;
     default:
-        type = RegexpEngine::Hyperscan;
+        type = RegexpEngine::Vectorscan;
         break;
     }
 
@@ -358,6 +358,7 @@ void OptionsDialog::updateDialogFromConfig()
     followFileOnLoadCheckBox->setChecked( config.followFileOnLoad() );
     minimizeToTrayCheckBox->setChecked( config.minimizeToTray() );
     multipleWindowsCheckBox->setChecked( config.allowMultipleWindows() );
+    confirmTabCloseCheckBox->setChecked( config.confirmTabClose() );
 
     loggingCheckBox->setChecked( config.enableLogging() );
     verbositySpinBox->setValue( config.loggingLevel() );
@@ -515,7 +516,7 @@ void OptionsDialog::updateConfigFromDialog()
     config.setQuickfindRegexpType( getRegexpTypeFromIndex( quickFindSearchBox->currentIndex() ) );
     config.setQfBackColor( qfSearchColor_ );
     config.setQuickfindIncremental( incrementalCheckBox->isChecked() );
-    config.setRegexpEnging( getRegexpEngineFromIndex( regexpEngineComboBox->currentIndex() ) );
+    config.setRegexpEngine( getRegexpEngineFromIndex( regexpEngineComboBox->currentIndex() ) );
     config.setAutoRunSearchOnPatternChange( autoRunSearchOnAddCheckBox->isChecked() );
 
     config.setNativeFileWatchEnabled( nativeFileWatchCheckBox->isChecked() );
@@ -536,6 +537,7 @@ void OptionsDialog::updateConfigFromDialog()
     config.setLoadLastSession( loadLastSessionCheckBox->isChecked() );
     config.setFollowFileOnLoad( followFileOnLoadCheckBox->isChecked() );
     config.setAllowMultipleWindows( multipleWindowsCheckBox->isChecked() );
+    config.setConfirmTabClose( confirmTabCloseCheckBox->isChecked() );
     config.setMinimizeToTray( minimizeToTrayCheckBox->isChecked() );
     config.setEnableLogging( loggingCheckBox->isChecked() );
     config.setLoggingLevel( verbositySpinBox->value() );

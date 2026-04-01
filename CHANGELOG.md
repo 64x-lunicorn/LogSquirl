@@ -1,3 +1,54 @@
+# 26.04.1-beta (2026-04):
+
+## New features:
+ - Replaced Hyperscan with Vectorscan as the sole SIMD regex backend on all
+   platforms (Windows 64-bit, Linux, macOS).  Vectorscan is a maintained,
+   API-compatible fork of Intel Hyperscan with native ARM/NEON support.
+ - Enabled Vectorscan FAT_RUNTIME: the binary now auto-selects the fastest
+   SIMD path at runtime (SSE2 → SSE4.2 → AVX2 → AVX512).
+ - Enabled AVX2 and AVX512 code generation in Vectorscan for higher
+   throughput on modern CPUs.
+ - Overhauled E2E performance benchmark infrastructure:
+   - Increased default runs from 5 to 21 with 3 warmup iterations
+   - Added IQR-based outlier filtering for stable measurements
+   - Full statistical analysis: median, mean, std, CV%, P5/P95, IQR
+   - Welch's t-test for statistically significant regression detection
+   - Auto-generated benchmark report (Markdown or JSON) with throughput
+     metrics (MB/s, lines/sec), stability analysis, and system info
+   - 8 new benchmarks: case-insensitive, alternation, no-match overhead,
+     10/50/100 MB large-file tests, and UTF-16 at scale (14 total)
+   - Configurable via --bench-runs, --bench-warmup, --bench-report
+ - Added generate_test_data.py script for creating large test files
+   (10/50/100 MB) from existing 1 MB test data
+ - Tab Grouping: organize open tabs into named, colored groups via the tab
+   context menu.  Grouped tabs display a colored bullet prefix (●) and tinted
+   text.  Groups support rename, recolor, close-all-in-group, and ungroup-all
+   operations.  Group membership persists across sessions.
+ - Tab Close Confirmation: optional confirmation dialog when closing tabs
+   (single or bulk).  Includes a "Don't ask again" checkbox; the preference
+   can be re-enabled under Options > General > Session options.
+ - Bulk tab close operations (close others / left / right / all) now present
+   a single confirmation dialog instead of per-tab prompts.
+
+## Bug fixes:
+ - Fixed missing assert_performance call in UTF-16 1MB benchmark
+ - Fixed typo in Configuration::setRegexpEnging → setRegexpEngine
+ - Fixed typo in Vectorscan CMake option names (BUIlD_AVX2 → BUILD_AVX2)
+
+## Refactoring:
+ - Removed LOGSQUIRL_USE_HYPERSCAN CMake option (replaced by LOGSQUIRL_USE_VECTORSCAN)
+ - Removed cmake/Findhyperscan.cmake find module
+ - Removed Hyperscan CPM dependency (variar/hyperscan fork)
+ - Renamed RegexpEngine::Hyperscan enum to RegexpEngine::Vectorscan
+ - Updated UI options dialog label from "Hyperscan" to "Vectorscan"
+ - Updated NOTICE attribution for Vectorscan
+ - Updated Gentoo ebuild dependency from hyperscan to vectorscan
+ - Updated CI workflows to remove explicit Hyperscan flags
+ - Upgraded baseline.json to schema v2 with system info and raw run data
+
+---
+
+
 # 26.03.2-beta (2026-03):
 
 ## New features:

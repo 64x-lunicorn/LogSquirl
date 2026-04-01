@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.12)
 
+# Allow old third-party deps (debug_assert, ucm, …) that call
+# cmake_minimum_required(VERSION <3.5) to configure under CMake 4.x.
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+  set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
 project(
   logsquirl
   VERSION 26.03.2
@@ -28,17 +34,10 @@ else()
   set(LOGSQUIRL_ARCH 64)
 endif()
 
-if(WIN32)
-  if(LOGSQUIRL_ARCH EQUAL 64)
-    option(LOGSQUIRL_USE_HYPERSCAN "Use Hyperscan" ON)
-    option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" OFF)
-  else()
-    option(LOGSQUIRL_USE_HYPERSCAN "Use Hyperscan" OFF)
-    option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" OFF)
-  endif()
+if(LOGSQUIRL_ARCH EQUAL 64)
+  option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" ON)
 else()
-    option(LOGSQUIRL_USE_HYPERSCAN "Use Hyperscan" OFF)
-    option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" ON)
+  option(LOGSQUIRL_USE_VECTORSCAN "Use Vectorscan" OFF)
 endif()
 
 set(BUILD_VERSION

@@ -21,10 +21,7 @@ target_link_libraries(
          exprtk
 )
 
-if(LOGSQUIRL_USE_HYPERSCAN)
-  target_link_libraries(logsquirl_regex PUBLIC logsquirl_hyperscan)
-  target_compile_definitions(logsquirl_regex PUBLIC LOGSQUIRL_HAS_HS)
-elseif(LOGSQUIRL_USE_VECTORSCAN)
+if(LOGSQUIRL_USE_VECTORSCAN)
   target_link_libraries(logsquirl_regex PUBLIC logsquirl_vectorscan)
   target_compile_definitions(logsquirl_regex PUBLIC LOGSQUIRL_HAS_HS)
 endif()

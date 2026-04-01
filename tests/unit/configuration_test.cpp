@@ -127,9 +127,9 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE( config.verifySslPeers() );
         }
 
-        THEN( "Regexp engine defaults to Hyperscan" )
+        THEN( "Regexp engine defaults to Vectorscan" )
         {
-            REQUIRE( config.regexpEngine() == RegexpEngine::Hyperscan );
+            REQUIRE( config.regexpEngine() == RegexpEngine::Vectorscan );
         }
 
         THEN( "Text wrap is disabled" )
