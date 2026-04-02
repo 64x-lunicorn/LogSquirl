@@ -40,7 +40,7 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
 {
     setFrameShape( QFrame::StyledPanel );
     setLineWidth( 1 );
-    setFixedHeight( 120 );
+    setFixedHeight( 135 );
     setObjectName( "PluginCard" );
     setStyleSheet(
         "#PluginCard { background: palette(base); border: 1px solid palette(mid); "
@@ -83,6 +83,10 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     authorLabel = new QLabel( this );
     authorLabel->setStyleSheet( "color: palette(dark); font-size: 11px;" );
     centerLayout->addWidget( authorLabel );
+
+    licenseLabel = new QLabel( this );
+    licenseLabel->setStyleSheet( "color: palette(dark); font-size: 11px;" );
+    centerLayout->addWidget( licenseLabel );
 
     descriptionLabel = new QLabel( plugin.description, this );
     descriptionLabel->setWordWrap( true );
@@ -134,6 +138,11 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
 
     // Author
     authorLabel->setText( plugin.author.isEmpty() ? QString() : plugin.author );
+
+    // License
+    licenseLabel->setText( plugin.license.isEmpty() ? QString()
+                                                    : tr( "License: %1" ).arg( plugin.license ) );
+    licenseLabel->setVisible( !plugin.license.isEmpty() );
 
     // Status badge
     statusBadge->setText( badgeText( plugin.state ) );
@@ -390,6 +399,7 @@ void PluginDialog::rebuildMergedList()
         mp.name = meta.name();
         mp.author = meta.author();
         mp.description = meta.description();
+        mp.license = meta.license();
         mp.installedVersion = meta.version();
 
         if ( enabledIds.contains( meta.id() ) ) {
@@ -414,6 +424,9 @@ void PluginDialog::rebuildMergedList()
             if ( mp.author.isEmpty() ) {
                 mp.author = ce.author;
             }
+            if ( mp.license.isEmpty() ) {
+                mp.license = ce.license;
+            }
 
             // Check for updates
             const auto* latest = repository_.latestRelease( ce.id );
@@ -432,6 +445,7 @@ void PluginDialog::rebuildMergedList()
             mp.name = ce.name;
             mp.author = ce.author;
             mp.description = ce.description;
+            mp.license = ce.license;
             mp.state = PluginState::NotInstalled;
 
             const auto* latest = repository_.latestRelease( ce.id );

@@ -40,6 +40,7 @@ struct CatalogEntry {
     QString name;         ///< Human-readable name
     QString author;       ///< Plugin author
     QString description;  ///< Short plugin description
+    QString license;      ///< SPDX license identifier
     QUrl repoUrl;         ///< URL to the plugin's source repository
     QUrl releasesUrl;     ///< URL to the plugin's releases.json
     QUrl iconUrl;         ///< URL to the plugin icon (PNG/SVG, optional)
@@ -73,6 +74,7 @@ struct RepositoryEntry {
     QString version;
     QString description;
     QString author;
+    QString license;
     QUrl downloadUrl;
     QString sha256;
     QStringList platforms;

@@ -131,6 +131,7 @@ void PluginRepository::parseCatalogV1( const QJsonArray& plugins )
         entry.version = obj.value( "version" ).toString();
         entry.description = obj.value( "description" ).toString();
         entry.author = obj.value( "author" ).toString();
+        entry.license = obj.value( "license" ).toString();
         entry.downloadUrl = QUrl( obj.value( "download_url" ).toString() );
         entry.sha256 = obj.value( "sha256" ).toString();
         entry.apiVersion = obj.value( "api_version" ).toInt( 1 );
@@ -154,6 +155,7 @@ void PluginRepository::parseCatalogV1( const QJsonArray& plugins )
             ce.name = le.name;
             ce.author = le.author;
             ce.description = le.description;
+            ce.license = le.license;
             seen[ le.id ] = ce;
         }
 
@@ -209,6 +211,7 @@ void PluginRepository::parseCatalogV2( const QJsonArray& plugins )
         entry.repoUrl = QUrl( obj.value( "repo_url" ).toString() );
         entry.releasesUrl = QUrl( obj.value( "releases_url" ).toString() );
         entry.iconUrl = QUrl( obj.value( "icon_url" ).toString() );
+        entry.license = obj.value( "license" ).toString();
 
         if ( !entry.id.isEmpty() ) {
             catalog_.push_back( std::move( entry ) );

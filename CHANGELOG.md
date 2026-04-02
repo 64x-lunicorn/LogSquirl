@@ -1,4 +1,4 @@
-# 26.04.1-beta (2026-04):
+# 26.04.1-beta1 (2026-04-02):
 
 ## New features:
  - Replaced Hyperscan with Vectorscan as the SIMD regex backend on Linux
@@ -59,6 +59,10 @@
  - Fixed missing assert_performance call in UTF-16 1MB benchmark
  - Fixed typo in Configuration::setRegexpEnging → setRegexpEngine
  - Fixed typo in Vectorscan CMake option names (BUIlD_AVX2 → BUILD_AVX2)
+ - Plugin Management dialog now displays the SPDX license identifier for
+   each plugin (read from plugin.json metadata and remote catalog)
+ - Added license field to CatalogEntry and RepositoryEntry structs
+ - Added license field to plugins.json registries (v1 and v2 schemas)
 
 ## Refactoring:
  - Removed LOGSQUIRL_USE_HYPERSCAN CMake option (replaced by LOGSQUIRL_USE_VECTORSCAN)

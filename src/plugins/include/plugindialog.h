@@ -78,6 +78,7 @@ class PluginDialog : public QDialog {
         QString name;
         QString author;
         QString description;
+        QString license;
         QString installedVersion;
         QString latestVersion;
         PluginState state = PluginState::NotInstalled;
@@ -98,6 +99,7 @@ class PluginDialog : public QDialog {
         QLabel* nameLabel = nullptr;
         QLabel* versionLabel = nullptr;
         QLabel* authorLabel = nullptr;
+        QLabel* licenseLabel = nullptr;
         QLabel* descriptionLabel = nullptr;
         QLabel* statusBadge = nullptr;
         QPushButton* actionButton = nullptr;
