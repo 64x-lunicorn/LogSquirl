@@ -263,6 +263,8 @@ jobs:
           s3-key-id: ${{ secrets.WIN_CS_KEY_ID }}
           s3-secret: ${{ secrets.WIN_CS_SECRET }}
           s3-bucket: ${{ secrets.WIN_CS_BUCKET }}
+          sign-cert-pfx: ${{ secrets.WIN_SIGN_CERT_PFX }}
+          sign-cert-password: ${{ secrets.WIN_SIGN_CERT_PASSWORD }}
 
       - uses: actions/upload-artifact@v7
         with:

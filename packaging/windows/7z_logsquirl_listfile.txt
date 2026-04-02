@@ -1,4 +1,6 @@
 .\release\*.dll
+.\release\tls\qopensslbackend.dll
+.\release\tls\qschannelbackend.dll
 .\release\logsquirl_portable.exe
 .\release\logsquirl_crashpad_handler.exe
 .\release\logsquirl_minidump_dump.exe

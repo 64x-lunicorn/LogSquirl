@@ -49,6 +49,11 @@ xcopy %QTDIR%\plugins\platforms\qwindows.dll %LOGSQUIRL_WORKSPACE%\release\platf
 md %LOGSQUIRL_WORKSPACE%\release\styles
 xcopy %QTDIR%\plugins\styles\qmodernwindowsstyle.dll %LOGSQUIRL_WORKSPACE%\release\styles /y
 
+echo "Copying Qt TLS plugins..."
+md %LOGSQUIRL_WORKSPACE%\release\tls
+xcopy %QTDIR%\plugins\tls\qopensslbackend.dll %LOGSQUIRL_WORKSPACE%\release\tls\ /y
+xcopy %QTDIR%\plugins\tls\qschannelbackend.dll %LOGSQUIRL_WORKSPACE%\release\tls\ /y
+
 echo "Copying packaging files..."
 md %LOGSQUIRL_WORKSPACE%\chocolatey
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\chocolatey\logsquirl.nuspec chocolatey\ /y
