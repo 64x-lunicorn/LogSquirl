@@ -128,6 +128,11 @@ Section "Qt Runtime libraries" qtlibs
     File release\styles\qwindowsvistastyle.dll
 !endif
 
+    ; Qt TLS backends (OpenSSL for HTTPS, SChannel as OS-native fallback)
+    SetOutPath $INSTDIR\tls
+    File release\tls\qopensslbackend.dll
+    File release\tls\qschannelbackend.dll
+
 SectionEnd
 
 Section "MSVC Runtime libraries" vcruntime
@@ -197,6 +202,9 @@ Section "Uninstall"
     Delete "$INSTDIR\styles\qmodernwindowsstyle.dll"
     ; Clean up legacy Qt style plugins from previous installations
     Delete "$INSTDIR\styles\qwindowsvistastyle.dll"
+    Delete "$INSTDIR\tls\qopensslbackend.dll"
+    Delete "$INSTDIR\tls\qschannelbackend.dll"
+    RMDir "$INSTDIR\tls"
     Delete "$INSTDIR\msvcp140.dll"
     Delete "$INSTDIR\msvcp140_1.dll"
     Delete "$INSTDIR\vcruntime140.dll"

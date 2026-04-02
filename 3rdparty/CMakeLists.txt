@@ -53,6 +53,13 @@ if(LOGSQUIRL_USE_VECTORSCAN)
     # -----------------------------------------------------------------
     #  Windows — use variar/hyperscan (Intel Hyperscan fork, MSVC-ready)
     # -----------------------------------------------------------------
+    # Enable AVX2 in Hyperscan for local builds; CI generic builds disable it.
+    if(LOGSQUIRL_GENERIC_CPU)
+      set(_HS_BUILD_AVX2 OFF)
+    else()
+      set(_HS_BUILD_AVX2 ON)
+    endif()
+
     cpmaddpackage(
       NAME
       hyperscan
@@ -65,6 +72,7 @@ if(LOGSQUIRL_USE_VECTORSCAN)
       OPTIONS
       "BUILD_STATIC_LIBS ON"
       "BUILD_SHARED_LIBS OFF"
+      "BUILD_AVX2 ${_HS_BUILD_AVX2}"
       "BUILD_AVX512 OFF"
       "BUILD_AVX512VBMI OFF"
       "FAT_RUNTIME OFF"

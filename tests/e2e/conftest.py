@@ -90,7 +90,8 @@ def binary_dir(request, repo_root) -> Path:
 
 @pytest.fixture(scope="session")
 def logsquirl_grep_binary(binary_dir) -> Path:
-    binary = binary_dir / "logsquirl_grep"
+    suffix = ".exe" if platform.system() == "Windows" else ""
+    binary = binary_dir / f"logsquirl_grep{suffix}"
     if not binary.exists():
         pytest.skip(f"logsquirl_grep not found at {binary}")
     return binary
@@ -101,6 +102,8 @@ def logsquirl_binary(binary_dir) -> Path:
     system = platform.system()
     if system == "Darwin":
         binary = binary_dir / "logsquirl.app" / "Contents" / "MacOS" / "logsquirl"
+    elif system == "Windows":
+        binary = binary_dir / "logsquirl.exe"
     else:
         binary = binary_dir / "logsquirl"
     if not binary.exists():
@@ -155,7 +158,21 @@ def grep_output_lines(result: subprocess.CompletedProcess) -> list[str]:
 # Performance baseline utilities
 # ---------------------------------------------------------------------------
 
-_BASELINE_PATH = Path(__file__).resolve().parent / "baseline.json"
+_BASELINE_DIR = Path(__file__).resolve().parent
+
+
+def _baseline_path() -> Path:
+    """Return the OS-specific baseline file, falling back to the default."""
+    import platform
+
+    if platform.system() == "Windows":
+        win_path = _BASELINE_DIR / "baseline-windows.json"
+        if win_path.exists():
+            return win_path
+    return _BASELINE_DIR / "baseline.json"
+
+
+_BASELINE_PATH = _baseline_path()
 
 
 def load_baseline() -> dict:

@@ -28,6 +28,30 @@
  - Tab Close Confirmation: optional confirmation dialog when closing tabs
    (single or bulk).  Includes a "Don't ask again" checkbox; the preference
    can be re-enabled under Options > General > Session options.
+
+## Performance:
+ - Windows: enabled MSVC `/arch:AVX2` code generation for local builds
+   (non-generic CPU).  This allows the compiler to emit AVX2 instructions
+   for hot loops in the log parser and search engine.
+ - Windows: enabled Hyperscan `BUILD_AVX2` for regex pattern matching with
+   AVX2 SIMD instructions on non-generic builds.
+ - Added Windows-specific performance baselines (`baseline-windows.json`)
+   and OS-aware baseline loading in E2E tests.
+
+## Bug Fixes:
+ - Windows: embedded application manifest (`asInvoker`) to eliminate
+   SmartScreen "unknown publisher" security warnings on first launch.
+   Manifest also enables per-monitor DPI v2, long-path awareness, and
+   Windows Segment Heap for improved memory performance.
+ - Windows portable: fixed TLS/HTTPS errors when connecting to the GitHub
+   plugin repository or checking for updates.  The Qt TLS backend plugins
+   (`qopensslbackend.dll`, `qschannelbackend.dll`) are now included in
+   both the portable ZIP and NSIS installer distributions.
+
+## Build:
+ - Replaced legacy `codesign_client.exe` CI hooks with `signtool.exe`-based
+   code signing.  Signing is now opt-in via `sign-cert-pfx` and
+   `sign-cert-password` inputs to the Windows packaging action.
  - Bulk tab close operations (close others / left / right / all) now present
    a single confirmation dialog instead of per-tab prompts.
 

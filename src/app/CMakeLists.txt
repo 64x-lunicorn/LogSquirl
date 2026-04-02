@@ -92,6 +92,12 @@ if(WIN32)
   target_sources(logsquirl_portable PRIVATE ${ProductVersionResourceFiles})
   target_sources(logsquirl_grep PRIVATE ${ProductVersionResourceFiles})
 
+  # Embed Windows application manifest (asInvoker, DPI, long-path, SegmentHeap)
+  set(_LOGSQUIRL_MANIFEST "${CMAKE_CURRENT_SOURCE_DIR}/logsquirl.manifest")
+  foreach(_target logsquirl logsquirl_portable logsquirl_grep)
+    target_sources(${_target} PRIVATE ${_LOGSQUIRL_MANIFEST})
+  endforeach()
+
 elseif(APPLE)
   set_source_files_properties(${ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
   set_source_files_properties(${NOTICE_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION SharedSupport)

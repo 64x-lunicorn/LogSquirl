@@ -7,28 +7,36 @@ inputs:
     required: true
   s3-bucket:
     required: true
+  sign-cert-pfx:
+    description: "Base64-encoded PFX code-signing certificate (optional)"
+    required: false
+    default: ""
+  sign-cert-password:
+    description: "Password for the PFX certificate (optional)"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
-    #- name: Setup codesing env
-    #  if: ${{ github.event_name != 'pull_request' }}
-    #  shell: sh
-    #  run: |
-    #    echo "CS_CLIENT_S3_KEY_ID=${{ inputs.s3-key-id }}" >> $GITHUB_ENV 
-    #    echo "CS_CLIENT_S3_SECRET=${{ inputs.s3-secret }}" >> $GITHUB_ENV 
-    #    echo "CS_CLIENT_S3_BUCKET=${{ inputs.s3-bucket }}" >> $GITHUB_ENV 
-    
-    #- name: Win codesign executables
-    #  if: ${{ github.event_name != 'pull_request' }}
-    #  shell: cmd
-    #  run: |
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl.exe
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl_portable.exe
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl_crashpad_handler.exe
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\logsquirl_minidump_dump.exe
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\tbb12.dll
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\tbbmalloc.dll
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\output\tbbmalloc_proxy.dll
+    - name: Win codesign executables
+      if: ${{ inputs.sign-cert-pfx != '' && github.ref == 'refs/heads/master' }}
+      shell: pwsh
+      run: |
+        $pfxBytes = [System.Convert]::FromBase64String("${{ inputs.sign-cert-pfx }}")
+        $pfxPath  = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+        [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+        $bin = "$env:LOGSQUIRL_BUILD_ROOT\output"
+        $exes = @(
+          "$bin\logsquirl.exe",
+          "$bin\logsquirl_portable.exe",
+          "$bin\logsquirl_grep.exe"
+        )
+        foreach ($f in $exes) {
+          if (Test-Path $f) {
+            & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "${{ inputs.sign-cert-password }}" $f
+          }
+        }
+        Remove-Item $pfxPath -Force
     
     - name: Win portable
       shell: cmd
@@ -53,9 +61,16 @@ runs:
         xcopy logsquirl-win-%LOGSQUIRL_ARCH%-pdb.zip %LOGSQUIRL_BUILD_ROOT%\packages /y
         xcopy logsquirl-win-%LOGSQUIRL_ARCH%-setup.exe %LOGSQUIRL_BUILD_ROOT%\packages /y
 
-    #- name: Win codesign installer
-    #  if: ${{ github.event_name != 'pull_request' }}
-    #  shell: cmd
-    #  run: |
-    #    packaging\windows\codesign_client.exe --debug %LOGSQUIRL_BUILD_ROOT%\packages\logsquirl-%LOGSQUIRL_VERSION%-%LOGSQUIRL_ARCH%-%LOGSQUIRL_QT%-setup.exe
+    - name: Win codesign installer
+      if: ${{ inputs.sign-cert-pfx != '' && github.ref == 'refs/heads/master' }}
+      shell: pwsh
+      run: |
+        $pfxBytes = [System.Convert]::FromBase64String("${{ inputs.sign-cert-pfx }}")
+        $pfxPath  = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+        [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
+        $installer = Get-ChildItem "$env:LOGSQUIRL_BUILD_ROOT\packages\*-setup.exe" | Select-Object -First 1
+        if ($installer) {
+          & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "${{ inputs.sign-cert-password }}" $installer.FullName
+        }
+        Remove-Item $pfxPath -Force
       
