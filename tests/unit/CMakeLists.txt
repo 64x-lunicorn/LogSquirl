@@ -21,3 +21,4 @@ add_test(
     NAME logsquirl_tests
     COMMAND logsquirl_tests -platform offscreen
 )
+set_tests_properties(logsquirl_tests PROPERTIES TIMEOUT 120)

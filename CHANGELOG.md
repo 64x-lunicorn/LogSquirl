@@ -1,9 +1,10 @@
 # 26.04.1-beta (2026-04):
 
 ## New features:
- - Replaced Hyperscan with Vectorscan as the sole SIMD regex backend on all
-   platforms (Windows 64-bit, Linux, macOS).  Vectorscan is a maintained,
-   API-compatible fork of Intel Hyperscan with native ARM/NEON support.
+ - Replaced Hyperscan with Vectorscan as the SIMD regex backend on Linux
+   and macOS.  Vectorscan is a maintained, API-compatible fork of Intel
+   Hyperscan with native ARM/NEON support.  On Windows the MSVC-compatible
+   variar/hyperscan fork is used (same hs_* API as Vectorscan).
  - Enabled Vectorscan FAT_RUNTIME: the binary now auto-selects the fastest
    SIMD path at runtime (SSE2 → SSE4.2 → AVX2 → AVX512).
  - Enabled AVX2 and AVX512 code generation in Vectorscan for higher

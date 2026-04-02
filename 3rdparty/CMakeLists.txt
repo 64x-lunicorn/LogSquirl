@@ -42,54 +42,94 @@ cpmaddpackage(
 )
 
 if(LOGSQUIRL_USE_VECTORSCAN)
-  # Vectorscan's ue2_literal iterators are not C++23-compatible yet.
-  # Build vectorscan with C++17 to avoid compilation errors.
+  # Both Hyperscan (Intel) and Vectorscan (VectorCamp) provide the identical
+  # hs_* API.  Vectorscan does not support MSVC, so on Windows we use the
+  # variar/hyperscan fork which carries MSVC patches and a bundled ragel.exe.
+  # On all other platforms we use VectorCamp/vectorscan (latest develop).
   set(_SAVED_CXX_STANDARD ${CMAKE_CXX_STANDARD})
   set(CMAKE_CXX_STANDARD 17)
 
-  # FAT_RUNTIME and AVX options are only supported on x86 Linux.
-  if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64")
-    set(_VS_FAT_RUNTIME ON)
-    set(_VS_BUILD_AVX2 ON)
-    set(_VS_BUILD_AVX512 ON)
+  if(WIN32)
+    # -----------------------------------------------------------------
+    #  Windows — use variar/hyperscan (Intel Hyperscan fork, MSVC-ready)
+    # -----------------------------------------------------------------
+    cpmaddpackage(
+      NAME
+      hyperscan
+      GITHUB_REPOSITORY
+      variar/hyperscan
+      GIT_TAG
+      0931a40e0cf1d7f92189bc546c3491ed5c113f8b
+      EXCLUDE_FROM_ALL
+      YES
+      OPTIONS
+      "BUILD_STATIC_LIBS ON"
+      "BUILD_SHARED_LIBS OFF"
+      "BUILD_AVX512 OFF"
+      "BUILD_AVX512VBMI OFF"
+      "FAT_RUNTIME OFF"
+    )
+
+    message("Adding alias for hyperscan (Windows)")
+    add_library(logsquirl_vectorscan INTERFACE)
+    target_link_libraries(logsquirl_vectorscan INTERFACE hs)
+    target_include_directories(logsquirl_vectorscan INTERFACE
+      ${hyperscan_SOURCE_DIR}/src
+      ${hyperscan_BINARY_DIR}
+    )
   else()
-    set(_VS_FAT_RUNTIME OFF)
-    set(_VS_BUILD_AVX2 OFF)
-    set(_VS_BUILD_AVX512 OFF)
+    # -----------------------------------------------------------------
+    #  Linux / macOS — use VectorCamp/vectorscan (develop branch)
+    # -----------------------------------------------------------------
+    # FAT_RUNTIME is only supported on Linux x86_64.
+    # AVX2/AVX512 are x86-only features (work on Linux and macOS).
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64|x86")
+      set(_VS_BUILD_AVX2 ON)
+      set(_VS_BUILD_AVX512 ON)
+    else()
+      set(_VS_BUILD_AVX2 OFF)
+      set(_VS_BUILD_AVX512 OFF)
+    endif()
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND _VS_BUILD_AVX2)
+      set(_VS_FAT_RUNTIME ON)
+    else()
+      set(_VS_FAT_RUNTIME OFF)
+    endif()
+
+    cpmaddpackage(
+      NAME
+      vectorscan
+      GITHUB_REPOSITORY
+      VectorCamp/vectorscan
+      GIT_TAG
+      vectorscan/5.4.12
+      EXCLUDE_FROM_ALL
+      YES
+      OPTIONS
+      "BUILD_STATIC_LIBS ON"
+      "BUILD_UNIT OFF"
+      "BUILD_TOOLS OFF"
+      "BUILD_EXAMPLES OFF"
+      "BUILD_BENCHMARKS OFF"
+      "BUILD_DOC OFF"
+      "BUILD_CHIMERA OFF"
+      "BUILD_AVX2 ${_VS_BUILD_AVX2}"
+      "BUILD_AVX512 ${_VS_BUILD_AVX512}"
+      "BUILD_AVX512VBMI OFF"
+      "FAT_RUNTIME ${_VS_FAT_RUNTIME}"
+    )
+
+    message("Adding alias for vectorscan")
+    add_library(logsquirl_vectorscan INTERFACE)
+    target_link_libraries(logsquirl_vectorscan INTERFACE hs)
+    target_include_directories(logsquirl_vectorscan INTERFACE
+      ${vectorscan_SOURCE_DIR}/src
+      ${vectorscan_BINARY_DIR}
+    )
   endif()
 
-  cpmaddpackage(
-    NAME
-    vectorscan
-    GITHUB_REPOSITORY
-    VectorCamp/vectorscan
-    GIT_TAG
-    d29730e1cb9daaa66bda63426cdce83505d2c809
-    EXCLUDE_FROM_ALL
-    YES
-    OPTIONS
-    "BUILD_STATIC_LIBS ON"
-    "BUILD_UNIT OFF"
-    "BUILD_TOOLS OFF"
-    "BUILD_EXAMPLES OFF"
-    "BUILD_BENCHMARKS OFF"
-    "BUILD_DOC OFF"
-    "BUILD_CHIMERA OFF"
-    "BUILD_AVX2 ${_VS_BUILD_AVX2}"
-    "BUILD_AVX512 ${_VS_BUILD_AVX512}"
-    "BUILD_AVX512VBMI OFF"
-    "FAT_RUNTIME ${_VS_FAT_RUNTIME}"
-  )
-
   set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD})
- 
-  message("Adding alias for vectorscan")
-  add_library(logsquirl_vectorscan INTERFACE)
-  target_link_libraries(logsquirl_vectorscan INTERFACE hs)
-  target_include_directories(logsquirl_vectorscan INTERFACE 
-    ${vectorscan_SOURCE_DIR}/src
-    ${vectorscan_BINARY_DIR}
-  )
 endif()
 
 cpmaddpackage(
