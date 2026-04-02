@@ -217,7 +217,7 @@ jobs:
             qt_arch: win64_msvc2022_64
             arch: x64
             ssl_arch: -x64
-            cmake_opts: -DCMAKE_BUILD_TYPE=Release
+            cmake_opts:
             artifacts_id: windows-x64
 
     runs-on: ${{ matrix.config.runner }}
