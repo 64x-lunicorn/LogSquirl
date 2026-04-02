@@ -69,7 +69,7 @@ jobs:
             check_container: oraclelinux:10
             container_root: docker/oracle10
             container: ghcr.io/64x-lunicorn/logsquirl-oracle10:latest
-            cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on -DLOGSQUIRL_USE_VECTORSCAN=OFF -DLOGSQUIRL_USE_HYPERSCAN=ON
+            cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on
 
           - os: ubuntu_noble
             os_version: 24.04

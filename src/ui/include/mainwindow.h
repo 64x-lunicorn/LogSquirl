@@ -191,6 +191,8 @@ class MainWindow : public QMainWindow {
 
     // Close the tab with the passed index
     void closeTab( int index, ActionInitiator initiator );
+    // Close multiple tabs at once with a single confirmation dialog
+    void closeTabs( QList<int> indices );
     // Setup the tab with current index for view
     void currentTabChanged( int index );
 

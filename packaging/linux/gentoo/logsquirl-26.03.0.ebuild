@@ -21,7 +21,7 @@ RESTRICT="!test? ( test )"
 
 DEPEND="
 	dev-qt/qtbase:6
-	>=dev-libs/hyperscan-5.4.0
+	>=dev-libs/vectorscan-5.4.0
 	>=dev-libs/xxhash-0.8.0
 	>=app-i18n/uchardet-0.0.7
 	>=dev-cpp/tbb-2021.5

@@ -49,6 +49,9 @@ class TabbedCrawlerWidget : public QTabWidget {
   public:
     TabbedCrawlerWidget();
 
+    // Emitted when multiple tabs should be closed at once (indices in order).
+    Q_SIGNAL void bulkTabCloseRequested( QList<int> indices );
+
     template <typename T>
     int addCrawler( T* crawler, const QString& fileName )
     {
@@ -76,9 +79,19 @@ class TabbedCrawlerWidget : public QTabWidget {
     void mouseReleaseEvent( QMouseEvent* event ) override;
     void changeEvent( QEvent* event ) override;
 
+  public:
+    // Re-applies group styling (bullet prefix + text colour) to all tabs.
+    void refreshAllTabGroupAppearances();
+
   private:
     void addTabBarItem( int index, const QString& fileName );
     QString tabPathAt( int index ) const;
+
+    // Applies group styling (bullet prefix + text colour) to a single tab.
+    void updateTabGroupAppearance( int index );
+
+    // Returns the base display name for a tab (custom rename or filename).
+    QString baseTabName( int index ) const;
 
     // Set the data status (icon) for the tab number 'index'
     void setTabDataStatus( int index, DataStatus status );

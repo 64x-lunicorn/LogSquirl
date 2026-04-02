@@ -154,6 +154,10 @@ HsRegularExpression::HsRegularExpression( const logsquirl::vector<RegularExpress
     if ( hasRequiredInstructions( supportedCpuInstructions(), requiredInstructuins ) ) {
         auto compileHsDatabase = []( const logsquirl::vector<RegularExpressionPattern>& expressions,
                                      QString& errorMessage, bool isPrefilter ) -> hs_database_t* {
+            if ( expressions.empty() ) {
+                return nullptr;
+            }
+
             hs_database_t* db = nullptr;
             hs_compile_error_t* error = nullptr;
 

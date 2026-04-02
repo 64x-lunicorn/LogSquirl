@@ -30,9 +30,9 @@ To build LogSquirl:
   - QtTools
   - Qt5Compat
 
-To build Hyperscan regular expressions backend (default):
+To build Vectorscan regular expressions backend (default on 64-bit):
 
-- CPU with support for [SSSE3](https://en.wikipedia.org/wiki/SSSE3) instructions (for Hyperscan backend)
+- CPU with support for [SSSE3](https://en.wikipedia.org/wiki/SSSE3) instructions (for Vectorscan backend; FAT_RUNTIME auto-selects best SIMD path)
 - Boost (1.58 or later, header-only part)
 - Ragel (6.8 or later; precompiled binary is provided for Windows; has to be installed from package managers on Linux or Homebrew on Mac)
 
@@ -47,7 +47,7 @@ Building tests:
 
 All other dependencies are provided by [CPM](https://github.com/cpm-cmake/CPM.cmake) during cmake configuration stage (see 3rdparty directory).
 
-CPM will try to find Hyperscan, TBB, uchardet and xxhash installed on build host.
+CPM will try to find Vectorscan, TBB, uchardet and xxhash installed on build host.
 If a library can't be found, the one provided by CPM will be used.
 
 ## Building
@@ -56,8 +56,8 @@ If a library can't be found, the one provided by CPM will be used.
 
 By default LogSquirl is built without support for reporting crash dumps. This can be enabled via cmake option `-DLOGSQUIRL_USE_SENTRY=ON`.
 
-LogSquirl uses Hyperscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
-LogSquirl can be built with only Qt reqular expressions backend by passing `-DLOGSQUIRL_USE_HYPERSCAN=OFF` to cmake.
+LogSquirl uses Vectorscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
+LogSquirl can be built with only Qt regular expressions backend by passing `-DLOGSQUIRL_USE_VECTORSCAN=OFF` to cmake.
 
 LogSquirl can use custom memory allocator. By default it uses TBB memory allocator for Windows, mimalloc on Linux and default system allocator on MacOS.
 Memory allocator override can be turned off by passing `-DLOGSQUIRL_OVERRIDE_MALLOC`. If you want to use TBB allocator on Linux then pass

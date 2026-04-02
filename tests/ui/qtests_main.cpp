@@ -93,6 +93,12 @@ int main( int argc, char* argv[] )
 
     config.setNativeFileWatchEnabled( true );
 
+    // Disable confirmation dialogs so tests don't block on modal QMessageBox.
+    // Must persist to storage because other tests call getSynced() which reloads
+    // all values from QSettings, overwriting in-memory-only changes.
+    config.setConfirmTabClose( false );
+    config.save();
+
     QThreadPool::globalInstance()->reserveThread();
 
     TestRunner* runner = new TestRunner( argc, argv );

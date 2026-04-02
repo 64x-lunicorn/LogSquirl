@@ -1,9 +1,14 @@
 {
   "_meta": {
-    "version": 1,
+    "version": 2,
     "tolerance_percent": 5,
     "updated": "2026-03-23",
-    "description": "Performance baselines for LogSquirl E2E tests. null = no baseline yet (first run)."
+    "description": "Performance baselines for LogSquirl E2E tests. Run with --update-baseline to refresh.",
+    "config": {
+      "warmup": 3,
+      "runs": 21,
+      "outlier_method": "iqr_1.5"
+    }
   },
   "benchmarks": {
     "grep_search_1mb_simple": {
