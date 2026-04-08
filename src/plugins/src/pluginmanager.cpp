@@ -311,6 +311,21 @@ void PluginManager::setOpenFileCallback(
     openFileCallback_ = std::move( callback );
 }
 
+void PluginManager::setActiveFilePathCallback( std::function<QString()> callback )
+{
+    activeFilePathCallback_ = std::move( callback );
+}
+
+void PluginManager::notifyActiveFileChanged( const QString& filePath )
+{
+    const auto utf8 = filePath.toUtf8();
+    for ( auto& [id, ctx] : loaded_ ) {
+        if ( ctx->activeFileCallback ) {
+            ctx->activeFileCallback( ctx->activeFileUserData, utf8.constData() );
+        }
+    }
+}
+
 #if LOGSQUIRL_HAS_LUA
 QString PluginManager::loadLuaPlugin( const QString& pluginId, const PluginMetadata& meta )
 {
@@ -487,6 +502,10 @@ LogSquirlHostApi PluginManager::buildHostApi()
     api.register_menu_action = &PluginManager::hostRegisterMenuAction;
     api.register_sidebar_tab = &PluginManager::hostRegisterSidebarTab;
     api.unregister_sidebar_tab = &PluginManager::hostUnregisterSidebarTab;
+    api.register_footer_widget = &PluginManager::hostRegisterFooterWidget;
+    api.unregister_footer_widget = &PluginManager::hostUnregisterFooterWidget;
+    api.get_active_file_path = &PluginManager::hostGetActiveFilePath;
+    api.register_active_file_callback = &PluginManager::hostRegisterActiveFileCallback;
 
     return api;
 }
@@ -669,6 +688,53 @@ void PluginManager::hostUnregisterSidebarTab( void* handle, void* qwidgetPtr )
     auto* widget = static_cast<QWidget*>( qwidgetPtr );
     const auto pluginId = ctx->handle.metadata().id();
     Q_EMIT ctx->manager->sidebarTabRemoved( pluginId, widget );
+}
+
+void PluginManager::hostRegisterFooterWidget( void* handle, void* qwidgetPtr )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->manager ) {
+        return;
+    }
+    auto* widget = static_cast<QWidget*>( qwidgetPtr );
+    const auto pluginId = ctx->handle.metadata().id();
+    Q_EMIT ctx->manager->footerWidgetAdded( pluginId, widget );
+}
+
+void PluginManager::hostUnregisterFooterWidget( void* handle, void* qwidgetPtr )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->manager ) {
+        return;
+    }
+    auto* widget = static_cast<QWidget*>( qwidgetPtr );
+    const auto pluginId = ctx->handle.metadata().id();
+    Q_EMIT ctx->manager->footerWidgetRemoved( pluginId, widget );
+}
+
+const char* PluginManager::hostGetActiveFilePath( void* handle )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->manager || !ctx->manager->activeFilePathCallback_ ) {
+        return "";
+    }
+    // Cache the UTF-8 bytes so the returned pointer remains valid
+    ctx->manager->activeFilePathUtf8_
+        = ctx->manager->activeFilePathCallback_().toUtf8();
+    return ctx->manager->activeFilePathUtf8_.constData();
+}
+
+void PluginManager::hostRegisterActiveFileCallback(
+    void* handle,
+    void ( *callback )( void* user_data, const char* file_path ),
+    void* user_data )
+{
+    auto* ctx = contextFromHandle( handle );
+    if ( !ctx ) {
+        return;
+    }
+    ctx->activeFileCallback = callback;
+    ctx->activeFileUserData = user_data;
 }
 
 } // namespace logsquirl::plugins

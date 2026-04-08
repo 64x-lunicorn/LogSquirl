@@ -316,6 +316,17 @@ class Configuration final : public Persistable<Configuration> {
     {
         minimizeToTray_ = minimizeToTray;
     }
+
+    // Number of context lines shown around matches in the filtered view (0 = off).
+    int contextLinesCount() const
+    {
+        return contextLinesCount_;
+    }
+    void setContextLinesCount( int count )
+    {
+        contextLinesCount_ = count;
+    }
+
     void setStyle( const QString& style )
     {
         style_ = style;
@@ -618,6 +629,7 @@ class Configuration final : public Persistable<Configuration> {
     bool lineNumbersVisibleInMain_ = false;
     bool lineNumbersVisibleInFiltered_ = true;
     bool minimizeToTray_ = false;
+    int contextLinesCount_ = 5;
     QString style_;
 
     // Default settings for new views

@@ -487,6 +487,30 @@
             </item>
            </layout>
           </item>
+          <item>
+           <layout class="QHBoxLayout" name="contextLinesLayout">
+            <item>
+             <widget class="QLabel" name="contextLinesLabel">
+              <property name="text">
+               <string>Context lines around matches (0 = off)</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="contextLinesSpinBox">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>50</number>
+              </property>
+              <property name="value">
+               <number>0</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
          </layout>
         </widget>
        </item>

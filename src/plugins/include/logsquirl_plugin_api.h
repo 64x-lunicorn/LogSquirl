@@ -182,6 +182,35 @@ typedef struct {
     /** Remove a previously registered sidebar tab. */
     void (*unregister_sidebar_tab)( void* handle, void* qwidget_ptr );
 
+    /**
+     * Register a QWidget* for the footer area (bottom of the window).
+     * The plugin creates and owns the widget; the host parents it.
+     */
+    void (*register_footer_widget)( void* handle, void* qwidget_ptr );
+
+    /** Remove a previously registered footer widget. */
+    void (*unregister_footer_widget)( void* handle, void* qwidget_ptr );
+
+    /* ── Active file queries ───────────────────────────────────────── */
+
+    /**
+     * Return the file path of the currently active (focused) log tab.
+     * Returns an empty string if no file is open.
+     * The returned pointer is valid until the next host API call.
+     */
+    const char* (*get_active_file_path)( void* handle );
+
+    /**
+     * Register a callback invoked whenever the active log file changes
+     * (e.g. when the user switches tabs or opens a new file).
+     * @param callback   Function called with the new file path (UTF-8).
+     * @param user_data  Passed back to callback unchanged.
+     */
+    void (*register_active_file_callback)(
+        void* handle,
+        void ( *callback )( void* user_data, const char* file_path ),
+        void* user_data );
+
 } LogSquirlHostApi;
 
 /* ── Plugin-exported entry points ────────────────────────────────────────── */

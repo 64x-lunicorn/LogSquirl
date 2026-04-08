@@ -207,6 +207,10 @@ LogFilteredData::LineType LogFilteredData::lineTypeByLine( LineNumber lineNumber
     if ( isLineMatched( lineNumber ) )
         line_type |= LineTypeFlags::Match;
 
+    // Mark as context only if line is not already a match or mark
+    if ( line_type == LineTypeFlags::Plain && context_lines_.contains( lineNumber.get() ) )
+        line_type |= LineTypeFlags::Context;
+
     return line_type;
 }
 
@@ -221,6 +225,51 @@ void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>&
             return true;
         },
         static_cast<void*>( const_cast<CallbackFn*>( &callback ) ) );
+}
+
+void LogFilteredData::rebuildContextLines()
+{
+    const auto& config = Configuration::get();
+    const int contextCount = config.contextLinesCount();
+
+    context_lines_ = SearchResultArray();
+
+    if ( contextCount <= 0 ) {
+        return;
+    }
+
+    const auto totalLines = sourceLogData_->getNbLine().get();
+    if ( totalLines == 0 ) {
+        return;
+    }
+
+    // Expand each match/mark ±contextCount lines
+    const auto& base = marks_and_matches_;
+
+    struct ExpandParams {
+        SearchResultArray* result;
+        int n;
+        uint64_t maxLine;
+        const SearchResultArray* baseSet;
+    };
+
+    ExpandParams params{ &context_lines_, contextCount, totalLines, &base };
+
+    base.iterate(
+        []( uint64_t line, void* ctx ) -> bool {
+            auto* p = static_cast<ExpandParams*>( ctx );
+            const auto start = ( line > static_cast<uint64_t>( p->n ) )
+                                   ? ( line - static_cast<uint64_t>( p->n ) )
+                                   : 0ULL;
+            const auto end = std::min( line + static_cast<uint64_t>( p->n ), p->maxLine - 1 );
+            for ( auto i = start; i <= end; ++i ) {
+                if ( !p->baseSet->contains( i ) ) {
+                    p->result->add( i );
+                }
+            }
+            return true;
+        },
+        static_cast<void*>( &params ) );
 }
 
 // Delegation to our Marks object
@@ -317,12 +366,15 @@ void LogFilteredData::updateMaxLengthMarks( OptionalLineNumber added_line,
             },
             static_cast<void*>( this ) );
     }
+
+    rebuildContextLines();
 }
 
 void LogFilteredData::clearMarks()
 {
     marks_ = {};
     maxLengthMarks_ = 0_length;
+    rebuildContextLines();
 }
 
 QList<LineNumber> LogFilteredData::getMarks() const
@@ -421,6 +473,7 @@ void LogFilteredData::handleSearchProgressed( LinesCount nbMatches, int progress
 
     if ( progress == 100 ) {
         detachReader();
+        rebuildContextLines();
 
         LOG_INFO << "Matches size " << readableSize( matching_lines_.getSizeInBytes( false ) )
                  << ", marks size " << readableSize( marks_.getSizeInBytes( false ) )
@@ -459,16 +512,25 @@ LineNumber LogFilteredData::findLogDataLine( LineNumber index ) const
 
 const SearchResultArray& LogFilteredData::currentResultArray() const
 {
+    const SearchResultArray* base = nullptr;
     if ( visibility_.testFlag( VisibilityFlags::Marks )
          && visibility_.testFlag( VisibilityFlags::Matches ) ) {
-        return marks_and_matches_;
+        base = &marks_and_matches_;
     }
     else if ( visibility_.testFlag( VisibilityFlags::Matches ) ) {
-        return matching_lines_;
+        base = &matching_lines_;
     }
     else {
-        return marks_;
+        base = &marks_;
     }
+
+    if ( context_lines_.isEmpty() || !visibility_.testFlag( VisibilityFlags::Context ) ) {
+        return *base;
+    }
+
+    // Rebuild the combined array with context lines included
+    with_context_ = *base | context_lines_;
+    return with_context_;
 }
 
 LineNumber LogFilteredData::findFilteredLine( LineNumber lineNum ) const

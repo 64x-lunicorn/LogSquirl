@@ -645,6 +645,12 @@ void CrawlerWidget::applyConfiguration()
 
     FileWatcher::getFileWatcher().updateConfiguration();
 
+    // Rebuild breadcrumb context lines when setting changes
+    logFilteredData_->rebuildContextLines();
+    for ( const auto& [fv, fd] : filteredViewsData_ ) {
+        fd->rebuildContextLines();
+    }
+
     if ( isFollowEnabled() ) {
         changeDataStatus( DataStatus::OLD_DATA );
     }
@@ -972,6 +978,18 @@ void CrawlerWidget::setup()
         QVariant::fromValue( VisibilityFlags::Marks | VisibilityFlags::Matches ) );
     visibilityModel_->appendRow( marksAndMatchesItem );
 
+    QStandardItem* marksMatchesBreadcrumbsItem
+        = new QStandardItem( tr( "Marks, matches + breadcrumbs" ) );
+    marksMatchesBreadcrumbsItem->setData( QVariant::fromValue(
+        VisibilityFlags::Marks | VisibilityFlags::Matches | VisibilityFlags::Context ) );
+    visibilityModel_->appendRow( marksMatchesBreadcrumbsItem );
+
+    QStandardItem* matchesBreadcrumbsItem
+        = new QStandardItem( tr( "Matches + breadcrumbs" ) );
+    matchesBreadcrumbsItem->setData( QVariant::fromValue(
+        VisibilityFlags::Matches | VisibilityFlags::Context ) );
+    visibilityModel_->appendRow( matchesBreadcrumbsItem );
+
     QStandardItem* marksItem = new QStandardItem( tr( "Marks" ) );
     marksItem->setData( QVariant::fromValue<FilteredView::Visibility>( VisibilityFlags::Marks ) );
     visibilityModel_->appendRow( marksItem );
@@ -1135,6 +1153,11 @@ void CrawlerWidget::setup()
     addWidget( logMainView_ );
     addWidget( bottomWindow );
 
+    // Chart panel — third pane in the vertical splitter, hidden by default.
+    chartPanel_ = new ChartPanel;
+    chartPanel_->hide();
+    addWidget( chartPanel_ );
+
     // Default search checkboxes
     auto& config = Configuration::get();
     searchRefreshButton_->setChecked( config.isSearchAutoRefreshDefault() );
@@ -1265,6 +1288,21 @@ void CrawlerWidget::setup()
 
     connectAllFilteredViewSlots( filteredView_ );
 
+    // Wire chart panel — provide log data and connect click-to-navigate.
+    chartPanel_->setLogData( logData_ );
+    connect( chartPanel_, &ChartPanel::lineSelected, this,
+             [ this ]( LineNumber line ) {
+                 logMainView_->selectAndDisplayLine( line );
+             } );
+
+    // Refresh chart data when the file finishes loading.
+    connect( logData_.get(), &LogData::loadingFinished, this,
+             [ this ]( auto ) {
+                 if ( chartPanel_->isVisible() ) {
+                     chartPanel_->extractData();
+                 }
+             } );
+
     const auto defaultEncodingMib = config.defaultEncodingMib();
     if ( defaultEncodingMib >= 0 ) {
         encodingMib_ = defaultEncodingMib;
@@ -1306,6 +1344,36 @@ void CrawlerWidget::saveSplitterSizes() const
     auto& splitterConfig = Configuration::get();
     splitterConfig.setSplitterSizes( sizes() );
     splitterConfig.save();
+}
+
+void CrawlerWidget::toggleChartPanel()
+{
+    if ( chartPanel_->isVisible() ) {
+        chartPanel_->hide();
+    }
+    else {
+        chartPanel_->show();
+
+        // Ensure the chart panel gets a reasonable size.  The splitter may
+        // have assigned it 0 height because saved sizes only cover 2 panes.
+        auto currentSizes = sizes();
+        if ( currentSizes.size() >= 3 && currentSizes[ 2 ] < 120 ) {
+            const int chartHeight = 200;
+            // Take space proportionally from the first two panes.
+            const int total = currentSizes[ 0 ] + currentSizes[ 1 ];
+            if ( total > chartHeight + 100 ) {
+                const double ratio
+                    = static_cast<double>( total - chartHeight ) / static_cast<double>( total );
+                currentSizes[ 0 ] = static_cast<int>( currentSizes[ 0 ] * ratio );
+                currentSizes[ 1 ] = static_cast<int>( currentSizes[ 1 ] * ratio );
+                currentSizes[ 2 ] = chartHeight;
+                setSizes( currentSizes );
+            }
+        }
+
+        // Refresh data when the chart panel becomes visible.
+        chartPanel_->extractData();
+    }
 }
 
 void CrawlerWidget::changeFontSize( bool increase )

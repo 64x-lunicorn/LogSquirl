@@ -1,12 +1,15 @@
 # Add test cpp file
 add_executable(logsquirl_tests
+    chartseries_test.cpp
     chipmunkimporter_test.cpp
     configuration_test.cpp
     encodingdetector_test.cpp
     jwtdecoder_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
+    mergecontroller_test.cpp
     patternmatcher_test.cpp
+    plugindialog_test.cpp
     pluginmanager_test.cpp
     pluginmetadata_test.cpp
     pluginrepository_test.cpp

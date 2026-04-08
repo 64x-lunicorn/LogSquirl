@@ -1,6 +1,26 @@
 # 26.04.1-beta1 (2026-04-02):
 
 ## New features:
+ - **Tab Group Manager dialog**: Tools → "Manage Tab Groups…" opens a
+   dedicated dialog to rename, recolor, and delete tab groups without
+   navigating the per-tab context menu.
+ - **Log Merge**: right-click a tab → "Merge All Left" / "Merge All Right"
+   to concatenate logs from neighboring tabs into a virtual merged tab.
+   Supports optional exact-line deduplication and live-updates when source
+   files change (300 ms debounce).
+ - **Breadcrumbs (Context Lines)**: configurable ±N context lines around
+   matches/marks in the filtered view.  Set via Options → View →
+   "Context lines around matches" (QSpinBox, 0–50, default 0 = off).
+   Context lines are dimmed (50 % opacity) and include the `Context`
+   line-type flag.  Overlapping contexts merge automatically.
+ - **Chart Panel (Chipmunk-style)**: View → "Chart Panel" toggles an
+   interactive chart pane below the filtered view.  Define regex-based
+   series with numeric capture groups to extract and plot values across the
+   log file.  Features: line/scatter chart with zoom (mouse wheel), pan
+   (middle-drag), click-to-navigate (left click jumps to the source line),
+   hover tooltips, multiple series with independent colors, and automatic
+   data refresh on file reload.  No external dependencies — uses a custom
+   QPainter-based rendering engine.
  - Replaced Hyperscan with Vectorscan as the SIMD regex backend on Linux
    and macOS.  Vectorscan is a maintained, API-compatible fork of Intel
    Hyperscan with native ARM/NEON support.  On Windows the MSVC-compatible

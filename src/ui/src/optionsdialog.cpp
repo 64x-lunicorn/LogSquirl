@@ -326,6 +326,8 @@ void OptionsDialog::updateDialogFromConfig()
 
     hideAnsiColorsCheckBox->setChecked( config.hideAnsiColorSequences() );
 
+    contextLinesSpinBox->setValue( config.contextLinesCount() );
+
     // Regexp types
     mainSearchBox->setCurrentIndex( getRegexpTypeIndex( config.mainRegexpType() ) );
     mainSearchColor_ = config.mainSearchBackColor();
@@ -564,6 +566,8 @@ void OptionsDialog::updateConfigFromDialog()
 
     config.setStyle( styleComboBox->currentText() );
     config.setHideAnsiColorSequences( hideAnsiColorsCheckBox->isChecked() );
+
+    config.setContextLinesCount( contextLinesSpinBox->value() );
 
     config.setDefaultEncodingMib( encodingComboBox->currentData().toInt() );
 

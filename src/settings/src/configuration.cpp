@@ -281,6 +281,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     minimizeToTray_
         = settings.value( "view.minimizeToTray", DefaultConfiguration.minimizeToTray_ ).toBool();
 
+    contextLinesCount_
+        = settings.value( "view.contextLinesCount", DefaultConfiguration.contextLinesCount_ )
+              .toInt();
+
     hideAnsiColorSequences_
         = settings
               .value( "view.hideAnsiColorSequences", DefaultConfiguration.hideAnsiColorSequences_ )
@@ -427,6 +431,7 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "view.lineNumbersVisibleInMain", lineNumbersVisibleInMain_ );
     settings.setValue( "view.lineNumbersVisibleInFiltered", lineNumbersVisibleInFiltered_ );
     settings.setValue( "view.minimizeToTray", minimizeToTray_ );
+    settings.setValue( "view.contextLinesCount", contextLinesCount_ );
     settings.setValue( "view.style", style_ );
     settings.setValue( "view.language", language_ );
     settings.setValue( "view.textWrap", useTextWrap_ );

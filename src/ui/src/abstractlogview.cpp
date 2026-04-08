@@ -2428,6 +2428,13 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             }
         }
 
+        // Dim context (breadcrumb) lines
+        using LineTypeFlags = AbstractLogData::LineTypeFlags;
+        const auto currentLineType = lineType( lineNumber );
+        if ( currentLineType.testFlag( LineTypeFlags::Context ) ) {
+            foreColor.setAlpha( 128 );
+        }
+
         const auto untabifyHighlight = [ &logLine ]( const auto& match ) {
             const auto prefix = QStringView{ logLine }.left( match.startColumn().get() );
             const auto matchPart
@@ -2558,8 +2565,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         const int middleXLine = BulletAreaWidth / 2;
         const int middleYLine = yPos + ( fontHeight / 2 );
 
-        using LineTypeFlags = AbstractLogData::LineTypeFlags;
-        const auto currentLineType = lineType( lineNumber );
         if ( currentLineType.testFlag( LineTypeFlags::Mark ) ) {
             // A pretty arrow if the line is marked
             const QPointF points[ 7 ] = {

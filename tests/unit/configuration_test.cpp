@@ -142,6 +142,11 @@ SCENARIO( "Configuration default values", "[configuration]" )
             REQUIRE_FALSE( config.hideAnsiColorSequences() );
         }
 
+        THEN( "Context lines count defaults to 5" )
+        {
+            REQUIRE( config.contextLinesCount() == 5 );
+        }
+
         THEN( "Logging is disabled" )
         {
             REQUIRE_FALSE( config.enableLogging() );
@@ -229,6 +234,7 @@ SCENARIO( "Configuration setters and getters", "[configuration]" )
             config.setMainLineNumbersVisible( true );
             config.setFilteredLineNumbersVisible( false );
             config.setMinimizeToTray( true );
+            config.setContextLinesCount( 5 );
 
             THEN( "Values are reflected" )
             {
@@ -236,6 +242,7 @@ SCENARIO( "Configuration setters and getters", "[configuration]" )
                 REQUIRE( config.mainLineNumbersVisible() );
                 REQUIRE_FALSE( config.filteredLineNumbersVisible() );
                 REQUIRE( config.minimizeToTray() );
+                REQUIRE( config.contextLinesCount() == 5 );
             }
         }
 
@@ -274,6 +281,7 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
         config.setLoggingLevel( 2 );
         config.setHideAnsiColorSequences( true );
         config.setUseTextWrap( true );
+        config.setContextLinesCount( 10 );
 
         WHEN( "Saved to QSettings and restored" )
         {
@@ -343,6 +351,7 @@ SCENARIO( "Configuration save and restore round-trip", "[configuration]" )
             {
                 REQUIRE( restored.hideAnsiColorSequences() );
                 REQUIRE( restored.useTextWrap() );
+                REQUIRE( restored.contextLinesCount() == 10 );
             }
         }
     }
