@@ -283,3 +283,105 @@ SCENARIO( "Full JWT token decoding", "[jwtdecoder]" )
         }
     }
 }
+
+SCENARIO( "JWT extraction from log lines", "[jwtdecoder]" )
+{
+    GIVEN( "A logcat line with access_token containing a JWT" )
+    {
+        const QString logLine
+            = "04-08 20:02:20.375 11938 19668 D {CS}BackendManager: access_token: "
+              "eyJraWQiOiJNQkIwMiIsImFsZyI6IlJTMjU2In0."
+              "eyJkZXZpZCI6IkdSTy0wMEIxNC4xMC4yNTk5OTkwMDQ3QDVGIn0."
+              "QG8VeD0oqRRd1FvLpd2s46TXQExSkhAH1cbn";
+
+        WHEN( "extractToken is called" )
+        {
+            const auto token = extractToken( logLine );
+
+            THEN( "A JWT is extracted" )
+            {
+                REQUIRE_FALSE( token.isEmpty() );
+                REQUIRE( token.startsWith( "eyJ" ) );
+                REQUIRE( token.count( '.' ) == 2 );
+            }
+        }
+
+        WHEN( "decodeToken is called on the full log line" )
+        {
+            const auto result = decodeToken( logLine );
+
+            THEN( "The JWT is decoded successfully" )
+            {
+                REQUIRE_FALSE( result.isEmpty() );
+                REQUIRE( result.contains( QString::fromUtf8( "═══ JWT Header ═══" ) ) );
+                REQUIRE( result.contains( QString::fromUtf8( "═══ JWT Payload ═══" ) ) );
+                REQUIRE( result.contains( "\"kid\": \"MBB02\"" ) );
+            }
+        }
+    }
+
+    GIVEN( "A log line with Bearer prefix before the JWT" )
+    {
+        const QString logLine
+            = "04-08 20:02:20.384 I RetrofitBuilder: Authorization: Bearer "
+              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+              "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ."
+              "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+
+        WHEN( "decodeToken is called" )
+        {
+            const auto result = decodeToken( logLine );
+
+            THEN( "The JWT behind Bearer is decoded" )
+            {
+                REQUIRE_FALSE( result.isEmpty() );
+                REQUIRE( result.contains( "\"alg\": \"HS256\"" ) );
+                REQUIRE( result.contains( "\"sub\": \"1234567890\"" ) );
+            }
+        }
+    }
+
+    GIVEN( "A multi-line text with a JWT on one of the lines" )
+    {
+        const QString text
+            = "Some log prefix\n"
+              "token=eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.\n"
+              "Some other text";
+
+        WHEN( "decodeToken is called on the full text" )
+        {
+            const auto result = decodeToken( text );
+
+            THEN( "The JWT is found and decoded" )
+            {
+                REQUIRE_FALSE( result.isEmpty() );
+                REQUIRE( result.contains( "\"alg\": \"none\"" ) );
+            }
+        }
+    }
+
+    GIVEN( "A line with no JWT at all" )
+    {
+        const QString logLine = "04-08 20:02:20.375 Some regular log message without tokens";
+
+        WHEN( "extractToken is called" )
+        {
+            const auto token = extractToken( logLine );
+
+            THEN( "No token is found" )
+            {
+                REQUIRE( token.isEmpty() );
+            }
+        }
+
+        WHEN( "decodeToken is called" )
+        {
+            const auto result = decodeToken( logLine );
+
+            THEN( "The result is empty" )
+            {
+                REQUIRE( result.isEmpty() );
+            }
+        }
+    }
+}
