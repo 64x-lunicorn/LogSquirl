@@ -181,7 +181,7 @@ This project is licensed under the GNU General Public License v3.0 or later - se
 
 ## Acknowledgements
 
-LogSquirl is built on the work of:
+**[LogSquirl](https://github.com/64x-lunicorn/LogSquirl)** is built by [64x-Lunicorn](https://github.com/64x-lunicorn) on the work of:
 
 * **[klogg](https://github.com/variar/klogg)** by [Anton Filimonov](https://github.com/variar) and contributors (GPL-3.0)
 * **[glogg](https://github.com/nickbnf/glogg)** by [Nicolas Bonnefon](https://github.com/nickbnf) (GPL-3.0)
