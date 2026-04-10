@@ -88,6 +88,7 @@ class AbstractLogData : public QObject {
         Plain = 0, // 0 can be checked like a proper flag in QFlags
         Match = 1 << 0,
         Mark = 1 << 1,
+        Context = 1 << 2, // breadcrumb context line around a match/mark
     };
     Q_DECLARE_FLAGS( LineType, LineTypeFlags )
 

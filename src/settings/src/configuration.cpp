@@ -281,6 +281,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     minimizeToTray_
         = settings.value( "view.minimizeToTray", DefaultConfiguration.minimizeToTray_ ).toBool();
 
+    contextLinesCount_
+        = settings.value( "view.contextLinesCount", DefaultConfiguration.contextLinesCount_ )
+              .toInt();
+
     hideAnsiColorSequences_
         = settings
               .value( "view.hideAnsiColorSequences", DefaultConfiguration.hideAnsiColorSequences_ )
@@ -361,6 +365,17 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         color.second = settings.value( color.first, color.second ).toString();
     }
     settings.endGroup();
+
+    const auto presetsCount = settings.beginReadArray( "chartPresets" );
+    for ( auto i = 0; i < presetsCount; ++i ) {
+        settings.setArrayIndex( i );
+        const auto name = settings.value( "name" ).toString();
+        const auto defs = settings.value( "definitions" ).toString();
+        if ( !name.isEmpty() ) {
+            chartPresets_[ name ] = defs;
+        }
+    }
+    settings.endArray();
 }
 
 void Configuration::saveToStorage( QSettings& settings ) const
@@ -427,6 +442,7 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "view.lineNumbersVisibleInMain", lineNumbersVisibleInMain_ );
     settings.setValue( "view.lineNumbersVisibleInFiltered", lineNumbersVisibleInFiltered_ );
     settings.setValue( "view.minimizeToTray", minimizeToTray_ );
+    settings.setValue( "view.contextLinesCount", contextLinesCount_ );
     settings.setValue( "view.style", style_ );
     settings.setValue( "view.language", language_ );
     settings.setValue( "view.textWrap", useTextWrap_ );
@@ -466,4 +482,14 @@ void Configuration::saveToStorage( QSettings& settings ) const
         settings.setValue( color.first, color.second );
     }
     settings.endGroup();
+
+    settings.beginWriteArray( "chartPresets" );
+    auto presetIndex = 0;
+    for ( auto it = chartPresets_.cbegin(); it != chartPresets_.cend(); ++it ) {
+        settings.setArrayIndex( presetIndex );
+        settings.setValue( "name", it.key() );
+        settings.setValue( "definitions", it.value() );
+        presetIndex++;
+    }
+    settings.endArray();
 }

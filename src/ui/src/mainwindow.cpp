@@ -281,6 +281,8 @@ MainWindow::MainWindow( WindowSession session )
              &MainWindow::closeTabs );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::currentChanged, this,
              &MainWindow::currentTabChanged );
+    connect( &mainTabWidget_, &TabbedCrawlerWidget::mergeRequested, this,
+             &MainWindow::openMergedFiles );
 
     // Establish the QuickFindWidget and mux ( to send requests from the
     // QFWidget to the right window )
@@ -332,6 +334,10 @@ MainWindow::MainWindow( WindowSession session )
              this, &MainWindow::handlePluginSidebarTab );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::sidebarTabRemoved,
              this, &MainWindow::handlePluginSidebarTabRemoved );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::footerWidgetAdded,
+             this, &MainWindow::handlePluginFooterWidget );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::footerWidgetRemoved,
+             this, &MainWindow::handlePluginFooterWidgetRemoved );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::pluginUnloaded,
              this, &MainWindow::removePluginMenuActions );
     connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested,
@@ -344,6 +350,12 @@ MainWindow::MainWindow( WindowSession session )
         [this]( const QString& path, bool follow ) {
             loadFile( path, follow );
         } );
+
+    // Let plugins query the currently active file path
+    pluginManager_.setActiveFilePathCallback( [this]() -> QString {
+        auto* crawler = currentCrawlerWidget();
+        return crawler ? session_.getFilename( crawler ) : QString();
+    } );
 
     // Auto-load previously enabled plugins (signals are now connected, so
     // register_status_widget / register_menu_action will be delivered).
@@ -522,6 +534,13 @@ void MainWindow::reTranslateUI()
 
     toggleSidebarAction->setText( transAction( action::toggleSidebarText ) );
     toggleSidebarAction->setStatusTip( transAction( action::toggleSidebarStatusTip ) );
+
+    toggleChartPanelAction->setText( transAction( action::toggleChartPanelText ) );
+    toggleChartPanelAction->setStatusTip( transAction( action::toggleChartPanelStatusTip ) );
+
+    showFilterFrequencyAction->setText( transAction( action::showFilterFrequencyText ) );
+    showFilterFrequencyAction->setStatusTip(
+        transAction( action::showFilterFrequencyStatusTip ) );
 
     importChipmunkFiltersAction->setText( transAction( action::importChipmunkFiltersText ) );
     importChipmunkFiltersAction->setStatusTip(
@@ -756,6 +775,24 @@ void MainWindow::createActions()
     connect( toggleSidebarAction, &QAction::triggered, this,
              [ this ]( auto ) { this->toggleSidebar(); } );
 
+    toggleChartPanelAction = new QAction( tr( action::toggleChartPanelText ), this );
+    toggleChartPanelAction->setStatusTip( tr( action::toggleChartPanelStatusTip ) );
+    connect( toggleChartPanelAction, &QAction::triggered, this, [ this ]( auto ) {
+        auto* crawler = currentCrawlerWidget();
+        if ( crawler != nullptr ) {
+            crawler->toggleChartPanel();
+        }
+    } );
+
+    showFilterFrequencyAction = new QAction( tr( action::showFilterFrequencyText ), this );
+    showFilterFrequencyAction->setStatusTip( tr( action::showFilterFrequencyStatusTip ) );
+    connect( showFilterFrequencyAction, &QAction::triggered, this, [ this ]( auto ) {
+        auto* crawler = currentCrawlerWidget();
+        if ( crawler != nullptr ) {
+            crawler->showFilterFrequency();
+        }
+    } );
+
     importChipmunkFiltersAction = new QAction( tr( action::importChipmunkFiltersText ), this );
     importChipmunkFiltersAction->setStatusTip( tr( action::importChipmunkFiltersStatusTip ) );
     connect( importChipmunkFiltersAction, &QAction::triggered, this,
@@ -791,6 +828,11 @@ void MainWindow::createActions()
     predefinedFiltersDialogAction->setStatusTip( tr( action::predefinedFiltersDialogStatusTip ) );
     connect( predefinedFiltersDialogAction, &QAction::triggered, this,
              [ this ]( auto ) { this->editPredefinedFilters(); } );
+
+    manageTabGroupsAction = new QAction( tr( "Manage Tab Groups..." ), this );
+    manageTabGroupsAction->setStatusTip( tr( "Rename, recolor, or delete tab groups" ) );
+    connect( manageTabGroupsAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->manageTabGroups(); } );
 
     pluginsAction = new QAction( tr( "Plugin Management..." ), this );
     pluginsAction->setStatusTip( tr( "Manage, install, and update plugins" ) );
@@ -929,6 +971,9 @@ void MainWindow::createMenus()
     viewMenu->addAction( followAction );
     viewMenu->addSeparator();
     viewMenu->addAction( reloadAction );
+    viewMenu->addSeparator();
+    viewMenu->addAction( toggleChartPanelAction );
+    viewMenu->addAction( showFilterFrequencyAction );
 
     toolsMenu = menuBar()->addMenu( tr( menu::toolsTitle ) );
 
@@ -943,6 +988,8 @@ void MainWindow::createMenus()
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
+    toolsMenu->addSeparator();
+    toolsMenu->addAction( manageTabGroupsAction );
 
     toolsMenu->addSeparator();
     toolsMenu->addAction( showScratchPadAction );
@@ -1453,6 +1500,30 @@ void MainWindow::handlePluginStatusWidgetRemoved( const QString& pluginId, QWidg
     }
 }
 
+void MainWindow::handlePluginFooterWidget( const QString& pluginId, QWidget* widget )
+{
+    if ( !widget ) {
+        return;
+    }
+    if ( !pluginFooterBar_ ) {
+        pluginFooterBar_ = new QToolBar( tr( "Plugin Footer" ), this );
+        pluginFooterBar_->setMovable( false );
+        pluginFooterBar_->setFloatable( false );
+        addToolBar( Qt::BottomToolBarArea, pluginFooterBar_ );
+    }
+    pluginFooterBar_->addWidget( widget );
+    LOG_INFO << "Plugin " << pluginId << " registered footer widget";
+}
+
+void MainWindow::handlePluginFooterWidgetRemoved( const QString& pluginId, QWidget* widget )
+{
+    if ( pluginFooterBar_ && widget ) {
+        pluginFooterBar_->removeAction( pluginFooterBar_->actionAt( widget->pos() ) );
+        widget->setParent( nullptr );
+        LOG_INFO << "Plugin " << pluginId << " unregistered footer widget";
+    }
+}
+
 void MainWindow::handlePluginMenuAction( const QString& pluginId,
                                           const QString& /* menuPath */,
                                           const QString& label,
@@ -1597,6 +1668,43 @@ void MainWindow::replaceDataInScratchpad( QString newData )
 void MainWindow::showFiltersPanel()
 {
     showSidebar( SidebarFiltersPanelTab );
+}
+
+void MainWindow::manageTabGroups()
+{
+    TabGroupManagerDialog dialog( this );
+    dialog.exec();
+    mainTabWidget_.refreshAllTabGroupAppearances();
+}
+
+void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
+{
+    if ( filePaths.isEmpty() ) {
+        return;
+    }
+
+    auto controller = std::make_unique<MergeController>( this );
+    const auto mergedPath = controller->merge( filePaths, dedup );
+
+    // Open the merged temp file as a regular tab
+    const auto direction = dedup ? tr( "Merged (dedup)" ) : tr( "Merged" );
+    loadFile( mergedPath );
+
+    // Connect live updates: when the merged file is rebuilt, reload the LogData
+    connect( controller.get(), &MergeController::mergedFileUpdated, this, [ this, mergedPath ] {
+        // The loadFile + reload mechanism handles re-reading
+        for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
+            if ( mainTabWidget_.tabToolTip( i ) == mergedPath ) {
+                auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
+                if ( crawler ) {
+                    crawler->reload();
+                }
+                break;
+            }
+        }
+    } );
+
+    mergeControllers_.push_back( std::move( controller ) );
 }
 
 void MainWindow::toggleSidebar()
@@ -1967,6 +2075,10 @@ void MainWindow::currentTabChanged( int index )
         updateFavoritesMenu();
 
         editMenu->setEnabled( true );
+
+        // Notify plugins about the active file change
+        pluginManager_.notifyActiveFileChanged(
+            session_.getFilename( crawler_widget ) );
     }
     else {
         // No tab left
@@ -1982,6 +2094,9 @@ void MainWindow::currentTabChanged( int index )
         editMenu->setEnabled( false );
         addToFavoritesAction->setEnabled( false );
         addToFavoritesMenuAction->setEnabled( false );
+
+        // Notify plugins that no file is active
+        pluginManager_.notifyActiveFileChanged( QString() );
     }
 }
 

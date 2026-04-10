@@ -419,6 +419,51 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
         } );
     }
 
+    // --- Merge operations ---
+    if ( count() > 1 ) {
+        menu.addSeparator();
+
+        if ( tab > 0 ) {
+            auto* mergeLeft = menu.addAction( tr( "Merge All Left" ) );
+            connect( mergeLeft, &QAction::triggered, this, [ this, tab ] {
+                QStringList paths;
+                for ( int i = 0; i < tab; ++i ) {
+                    paths.append( tabPathAt( i ) );
+                }
+                Q_EMIT mergeRequested( paths, false );
+            } );
+
+            auto* mergeLeftDedup = menu.addAction( tr( "Merge All Left (dedup)" ) );
+            connect( mergeLeftDedup, &QAction::triggered, this, [ this, tab ] {
+                QStringList paths;
+                for ( int i = 0; i < tab; ++i ) {
+                    paths.append( tabPathAt( i ) );
+                }
+                Q_EMIT mergeRequested( paths, true );
+            } );
+        }
+
+        if ( tab < count() - 1 ) {
+            auto* mergeRight = menu.addAction( tr( "Merge All Right" ) );
+            connect( mergeRight, &QAction::triggered, this, [ this, tab ] {
+                QStringList paths;
+                for ( int i = tab + 1; i < count(); ++i ) {
+                    paths.append( tabPathAt( i ) );
+                }
+                Q_EMIT mergeRequested( paths, false );
+            } );
+
+            auto* mergeRightDedup = menu.addAction( tr( "Merge All Right (dedup)" ) );
+            connect( mergeRightDedup, &QAction::triggered, this, [ this, tab ] {
+                QStringList paths;
+                for ( int i = tab + 1; i < count(); ++i ) {
+                    paths.append( tabPathAt( i ) );
+                }
+                Q_EMIT mergeRequested( paths, true );
+            } );
+        }
+    }
+
     menu.exec( globalPoint );
 }
 

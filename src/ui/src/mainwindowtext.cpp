@@ -97,6 +97,12 @@ const char* action::showFiltersPanelText = QT_TR_NOOP( "Filters panel" );
 const char* action::showFiltersPanelStatusTip = QT_TR_NOOP( "Show the filters panel" );
 const char* action::toggleSidebarText = QT_TR_NOOP( "Sidebar" );
 const char* action::toggleSidebarStatusTip = QT_TR_NOOP( "Toggle the sidebar panel" );
+const char* action::toggleChartPanelText = QT_TR_NOOP( "Chart Panel" );
+const char* action::toggleChartPanelStatusTip
+    = QT_TR_NOOP( "Toggle the chart panel for visualizing extracted values" );
+const char* action::showFilterFrequencyText = QT_TR_NOOP( "Show Filter Frequency" );
+const char* action::showFilterFrequencyStatusTip
+    = QT_TR_NOOP( "Chart the frequency of current search filter matches" );
 const char* action::autoEncodingText = QT_TR_NOOP( "Auto" );
 const char* action::autoEncodingStatusTip
     = QT_TR_NOOP( "Automatically detect the file's encoding" );

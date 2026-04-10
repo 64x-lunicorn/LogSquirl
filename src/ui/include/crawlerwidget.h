@@ -53,6 +53,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+#include "chartpanel.h"
 #include "colorlabelsmanager.h"
 #include "filteredview.h"
 #include "predefinedfilters.h"
@@ -270,6 +271,14 @@ class CrawlerWidget : public QSplitter,
     void addNextColorLabelToSelection();
     void clearColorLabels();
 
+  public Q_SLOTS:
+    void toggleChartPanel();
+    // Create chart series from the current search filter patterns and show
+    // them in the chart panel.
+    void showFilterFrequency();
+
+  private Q_SLOTS:
+
     void changeFilteredView(int tabIndex);
     void closeFilteredView(int tabIndex);
     void filteredViewDestroyed(QObject* view);
@@ -430,6 +439,8 @@ class CrawlerWidget : public QSplitter,
     QString encodingText_;
 
     ColorLabelsManager colorLabelsManager_;
+
+    ChartPanel* chartPanel_ = nullptr;
 };
 
 #endif

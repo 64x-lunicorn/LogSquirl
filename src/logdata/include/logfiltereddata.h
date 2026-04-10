@@ -130,6 +130,7 @@ class LogFilteredData : public AbstractLogData {
         None = static_cast<LineType::Int>( LineTypeFlags::Plain ), // this is for internal use
         Matches = static_cast<LineType::Int>( LineTypeFlags::Match ),
         Marks = static_cast<LineType::Int>( LineTypeFlags::Mark ),
+        Context = static_cast<LineType::Int>( LineTypeFlags::Context ),
     };
     Q_ENUM( VisibilityFlags );
     Q_DECLARE_FLAGS( Visibility, VisibilityFlags )
@@ -137,6 +138,10 @@ class LogFilteredData : public AbstractLogData {
     Visibility visibility() const;
 
     void iterateOverLines( const std::function<void( LineNumber )>& callback ) const;
+
+    // Rebuilds context (breadcrumb) lines around matches/marks.
+    // Call after search completes or contextLinesCount changes.
+    void rebuildContextLines();
   Q_SIGNALS:
     // Sent when the search has progressed, give the number of matches (so far)
     // and the percentage of completion
@@ -178,6 +183,10 @@ class LogFilteredData : public AbstractLogData {
     SearchResultArray matching_lines_;
     SearchResultArray marks_;
     SearchResultArray marks_and_matches_;
+    // Context lines (breadcrumbs) around matches/marks, excluding match/mark lines themselves.
+    SearchResultArray context_lines_;
+    // Combined result including context lines.
+    mutable SearchResultArray with_context_;
 
     const LogData* sourceLogData_;
 

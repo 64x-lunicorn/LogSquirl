@@ -120,6 +120,18 @@ class PluginManager : public QObject {
      */
     void setOpenFileCallback( std::function<void( const QString&, bool )> callback );
 
+    /**
+     * Set the callback used by get_active_file_path host API.
+     * MainWindow connects this to return the current tab's file path.
+     */
+    void setActiveFilePathCallback( std::function<QString()> callback );
+
+    /**
+     * Notify all plugins that registered an active-file callback
+     * that the focused log file has changed.
+     */
+    void notifyActiveFileChanged( const QString& filePath );
+
     // ── DataSource (Phase 2) ─────────────────────────────────────────
 
     /**
@@ -185,6 +197,12 @@ class PluginManager : public QObject {
     /** Emitted when a plugin unregisters a sidebar tab. */
     void sidebarTabRemoved( const QString& pluginId, QWidget* widget );
 
+    /** Emitted when a plugin registers a footer widget. */
+    void footerWidgetAdded( const QString& pluginId, QWidget* widget );
+
+    /** Emitted when a plugin unregisters a footer widget. */
+    void footerWidgetRemoved( const QString& pluginId, QWidget* widget );
+
     /** Emitted when a user-visible notification is requested. */
     void notificationRequested( const QString& message );
 
@@ -213,6 +231,9 @@ class PluginManager : public QObject {
         std::unique_ptr<StreamWriter> stream;
         // Back-pointer to the owning PluginManager (for static trampolines)
         PluginManager* manager = nullptr;
+        // Active-file-change callback registered by plugin (optional)
+        void ( *activeFileCallback )( void* user_data, const char* file_path ) = nullptr;
+        void* activeFileUserData = nullptr;
 #if LOGSQUIRL_HAS_LUA
         // Lua script wrapper — non-null for Lua-based plugins
         std::unique_ptr<LuaPluginWrapper> luaWrapper;
@@ -231,6 +252,8 @@ class PluginManager : public QObject {
     std::map<QString, std::unique_ptr<PluginContext>> loaded_;
 
     std::function<void( const QString&, bool )> openFileCallback_;
+    std::function<QString()> activeFilePathCallback_;
+    QByteArray activeFilePathUtf8_; ///< Cached for get_active_file_path pointer stability
 
     // ── Static host API trampolines ──────────────────────────────────
     // These are the actual C function pointers stored in LogSquirlHostApi.
@@ -253,6 +276,13 @@ class PluginManager : public QObject {
     static void hostRegisterSidebarTab( void* handle, const char* label,
                                         void* qwidgetPtr );
     static void hostUnregisterSidebarTab( void* handle, void* qwidgetPtr );
+    static void hostRegisterFooterWidget( void* handle, void* qwidgetPtr );
+    static void hostUnregisterFooterWidget( void* handle, void* qwidgetPtr );
+    static const char* hostGetActiveFilePath( void* handle );
+    static void hostRegisterActiveFileCallback(
+        void* handle,
+        void ( *callback )( void* user_data, const char* file_path ),
+        void* user_data );
 };
 
 } // namespace logsquirl::plugins

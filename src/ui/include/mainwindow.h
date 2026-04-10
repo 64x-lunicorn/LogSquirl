@@ -65,6 +65,8 @@
 #include "filterspanel.h"
 #include "pluginmanager.h"
 #include "tabbedscratchpad.h"
+#include "tabgroupmanagerdialog.h"
+#include "mergecontroller.h"
 
 class QAction;
 class QActionGroup;
@@ -134,6 +136,8 @@ class MainWindow : public QMainWindow {
     void documentation();
     void showScratchPad();
     void showFiltersPanel();
+    void manageTabGroups();
+    void openMergedFiles( QStringList filePaths, bool dedup );
     void toggleSidebar();
     void showSidebar( int tabIndex );
     void importChipmunkFilters();
@@ -156,6 +160,8 @@ class MainWindow : public QMainWindow {
     void handlePluginSidebarTab( const QString& pluginId, const QString& label,
                                  QWidget* widget );
     void handlePluginSidebarTabRemoved( const QString& pluginId, QWidget* widget );
+    void handlePluginFooterWidget( const QString& pluginId, QWidget* widget );
+    void handlePluginFooterWidgetRemoved( const QString& pluginId, QWidget* widget );
     void encodingChanged( QAction* action );
     void addToFavorites();
     void removeFromFavorites();
@@ -302,11 +308,14 @@ class MainWindow : public QMainWindow {
     QAction* showScratchPadAction;
     QAction* showFiltersPanelAction;
     QAction* toggleSidebarAction;
+    QAction* toggleChartPanelAction;
+    QAction* showFilterFrequencyAction;
     QAction* importChipmunkFiltersAction;
     QAction* showDocumentationAction;
     QAction* aboutAction;
     QAction* aboutQtAction;
     QAction* predefinedFiltersDialogAction;
+    QAction* manageTabGroupsAction;
     QAction* reportIssueAction;
     QAction* generateDumpAction;
     QAction* pluginsAction;
@@ -365,11 +374,17 @@ class MainWindow : public QMainWindow {
     // Plugin-contributed toolbar (shown below the main toolbar)
     QToolBar* pluginToolBar_ = nullptr;
 
+    // Plugin-contributed footer toolbar (shown at the bottom of the window)
+    QToolBar* pluginFooterBar_ = nullptr;
+
     // Tracks menu actions added by each plugin so they can be removed on unload.
     std::map<QString, std::vector<QAction*>> pluginMenuActions_;
 
     // Separator between plugin actions (top) and management actions (bottom).
     QAction* pluginMenuSeparator_ = nullptr;
+
+    // Active merge controllers (one per merged tab).
+    std::vector<std::unique_ptr<MergeController>> mergeControllers_;
 };
 
 #endif

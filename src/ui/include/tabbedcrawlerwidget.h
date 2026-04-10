@@ -52,6 +52,10 @@ class TabbedCrawlerWidget : public QTabWidget {
     // Emitted when multiple tabs should be closed at once (indices in order).
     Q_SIGNAL void bulkTabCloseRequested( QList<int> indices );
 
+    // Emitted when the user requests a merge of tabs left or right of the given tab.
+    // `dedup` is true when duplicate-line removal was requested.
+    Q_SIGNAL void mergeRequested( QStringList filePaths, bool dedup );
+
     template <typename T>
     int addCrawler( T* crawler, const QString& fileName )
     {

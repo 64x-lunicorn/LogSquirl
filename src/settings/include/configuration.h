@@ -316,6 +316,17 @@ class Configuration final : public Persistable<Configuration> {
     {
         minimizeToTray_ = minimizeToTray;
     }
+
+    // Number of context lines shown around matches in the filtered view (0 = off).
+    int contextLinesCount() const
+    {
+        return contextLinesCount_;
+    }
+    void setContextLinesCount( int count )
+    {
+        contextLinesCount_ = count;
+    }
+
     void setStyle( const QString& style )
     {
         style_ = style;
@@ -584,6 +595,20 @@ class Configuration final : public Persistable<Configuration> {
         enabledPlugins_ = plugins;
     }
 
+    // Chart presets — app-level named chart configurations
+    QMap<QString, QString> chartPresets() const
+    {
+        return chartPresets_;
+    }
+    void setChartPreset( const QString& name, const QString& jsonDefs )
+    {
+        chartPresets_[ name ] = jsonDefs;
+    }
+    void removeChartPreset( const QString& name )
+    {
+        chartPresets_.remove( name );
+    }
+
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
@@ -618,6 +643,7 @@ class Configuration final : public Persistable<Configuration> {
     bool lineNumbersVisibleInMain_ = false;
     bool lineNumbersVisibleInFiltered_ = true;
     bool minimizeToTray_ = false;
+    int contextLinesCount_ = 5;
     QString style_;
 
     // Default settings for new views
@@ -680,6 +706,8 @@ class Configuration final : public Persistable<Configuration> {
     bool useTextWrap_ = false;
 
     std::map<std::string, QStringList> shortcuts_;
+
+    QMap<QString, QString> chartPresets_;
 
     // based on https://gist.github.com/QuantumCD/6245215
     std::map<QString, QString> darkPalette_ = {

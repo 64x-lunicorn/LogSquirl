@@ -83,6 +83,14 @@ for dependency management.
 * Extensible via a [Plugin System](#plugins) — data sources, converters, and UI extensions
 * Optional Lua scripting for writing plugins without compiled code
 * Built-in Plugin Repository for browsing and installing community plugins
+* Includes an interactive **Chart Panel** for visualizing data extracted from log lines:
+  * Define chart series with regex capture groups to plot numeric values
+  * Custom X-axis extraction with timestamp parsing support
+  * Time-based aggregation / bucketing (100 ms – 5 min) for spotting peaks
+  * **Filter Frequency** mode — one-click chart of how often each search filter matches
+  * Zoom, pan, click-to-navigate to the source log line
+  * Save / Load / Delete app-level **chart presets**; per-file series are auto-saved
+  * **Export / Import** chart presets as portable JSON files
 * Open source, released under the GPL-3.0
 
 **[Back to top](#table-of-contents)**
@@ -173,7 +181,7 @@ This project is licensed under the GNU General Public License v3.0 or later - se
 
 ## Acknowledgements
 
-LogSquirl is built on the work of:
+**[LogSquirl](https://github.com/64x-lunicorn/LogSquirl)** is built by [64x-Lunicorn](https://github.com/64x-lunicorn) on the work of:
 
 * **[klogg](https://github.com/variar/klogg)** by [Anton Filimonov](https://github.com/variar) and contributors (GPL-3.0)
 * **[glogg](https://github.com/nickbnf/glogg)** by [Nicolas Bonnefon](https://github.com/nickbnf) (GPL-3.0)

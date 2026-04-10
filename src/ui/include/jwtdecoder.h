@@ -23,6 +23,7 @@
 #include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 #include <QTimeZone>
@@ -84,14 +85,61 @@ inline QString formatJwtJson( const QByteArray& jsonBytes )
     return result;
 }
 
+// Extract a JWT token from arbitrary text (e.g. a log line).
+// Looks for a three-part Base64URL-dot-separated sequence that is typical for JWTs.
+// Returns the extracted token string, or an empty string if none is found.
+inline QString extractToken( const QString& text )
+{
+    // A JWT consists of three Base64URL segments separated by dots.
+    // Each segment uses [A-Za-z0-9_-] characters.  The header and payload
+    // are at least a few characters long; the signature may also be long.
+    static const QRegularExpression jwtRegex(
+        R"((?<![A-Za-z0-9_.-])(eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*)(?![A-Za-z0-9_-]))" );
+
+    // Search each line individually so we don't skip tokens in multi-line input.
+    const auto lines = text.split( '\n' );
+    for ( const auto& line : lines ) {
+        const auto match = jwtRegex.match( line );
+        if ( match.hasMatch() ) {
+            return match.captured( 0 );
+        }
+    }
+    return {};
+}
+
 // Decode a complete JWT token string into a formatted human-readable representation.
-// Returns an empty string if the input is not a valid JWT structure.
+// If the input is not a bare JWT, the function attempts to extract a token from
+// the text using a regex (e.g. from a log line like "access_token: eyJ...").
+// Returns an empty string if no valid JWT structure is found.
 inline QString decodeToken( const QString& token )
 {
     const auto trimmed = token.trimmed();
-    const auto parts = trimmed.split( '.' );
+    auto parts = trimmed.split( '.' );
+
+    // If the input doesn't look like a bare JWT, try to extract one.
     if ( parts.size() < 2 || parts.size() > 3 ) {
-        return QString{};
+        const auto extracted = extractToken( trimmed );
+        if ( extracted.isEmpty() ) {
+            return {};
+        }
+        parts = extracted.split( '.' );
+        if ( parts.size() < 2 || parts.size() > 3 ) {
+            return {};
+        }
+    }
+
+    // Validate that the first two parts start with "eyJ" (Base64URL for '{"')
+    if ( !parts[ 0 ].startsWith( "eyJ" ) || !parts[ 1 ].startsWith( "eyJ" ) ) {
+        // Might be arbitrary dot-separated text, try extraction
+        const auto extracted = extractToken( trimmed );
+        if ( extracted.isEmpty() ) {
+            return {};
+        }
+        parts = extracted.split( '.' );
+        if ( parts.size() < 2 || !parts[ 0 ].startsWith( "eyJ" )
+             || !parts[ 1 ].startsWith( "eyJ" ) ) {
+            return {};
+        }
     }
 
     const auto headerBytes = decodeBase64Url( parts[ 0 ].toUtf8() );

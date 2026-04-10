@@ -21,6 +21,7 @@
 
 #include "configuration.h"
 #include "log.h"
+#include "openfilehelper.h"
 
 #include <QButtonGroup>
 #include <QDialogButtonBox>
@@ -29,6 +30,7 @@
 #include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMessageBox>
+#include <QStandardPaths>
 
 namespace logsquirl::plugins {
 
@@ -265,6 +267,18 @@ PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
     footerLayout->addWidget( autoLoadCheck_ );
 
     footerLayout->addStretch();
+
+    auto* pluginFolderButton = new QPushButton( tr( "Plugin Folder" ), this );
+    pluginFolderButton->setToolTip(
+        tr( "Open the user plugin directory in the file manager" ) );
+    connect( pluginFolderButton, &QPushButton::clicked, this, []() {
+        const auto dir = QStandardPaths::writableLocation(
+                             QStandardPaths::AppDataLocation )
+                         + "/plugins";
+        QDir().mkpath( dir );
+        showPathInFileExplorer( dir );
+    } );
+    footerLayout->addWidget( pluginFolderButton );
 
     auto* closeButton = new QPushButton( tr( "Close" ), this );
     connect( closeButton, &QPushButton::clicked, this, &QDialog::accept );
