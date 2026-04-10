@@ -595,6 +595,20 @@ class Configuration final : public Persistable<Configuration> {
         enabledPlugins_ = plugins;
     }
 
+    // Chart presets — app-level named chart configurations
+    QMap<QString, QString> chartPresets() const
+    {
+        return chartPresets_;
+    }
+    void setChartPreset( const QString& name, const QString& jsonDefs )
+    {
+        chartPresets_[ name ] = jsonDefs;
+    }
+    void removeChartPreset( const QString& name )
+    {
+        chartPresets_.remove( name );
+    }
+
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
@@ -692,6 +706,8 @@ class Configuration final : public Persistable<Configuration> {
     bool useTextWrap_ = false;
 
     std::map<std::string, QStringList> shortcuts_;
+
+    QMap<QString, QString> chartPresets_;
 
     // based on https://gist.github.com/QuantumCD/6245215
     std::map<QString, QString> darkPalette_ = {

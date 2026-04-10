@@ -309,6 +309,7 @@ class MainWindow : public QMainWindow {
     QAction* showFiltersPanelAction;
     QAction* toggleSidebarAction;
     QAction* toggleChartPanelAction;
+    QAction* showFilterFrequencyAction;
     QAction* importChipmunkFiltersAction;
     QAction* showDocumentationAction;
     QAction* aboutAction;

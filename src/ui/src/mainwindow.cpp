@@ -538,6 +538,10 @@ void MainWindow::reTranslateUI()
     toggleChartPanelAction->setText( transAction( action::toggleChartPanelText ) );
     toggleChartPanelAction->setStatusTip( transAction( action::toggleChartPanelStatusTip ) );
 
+    showFilterFrequencyAction->setText( transAction( action::showFilterFrequencyText ) );
+    showFilterFrequencyAction->setStatusTip(
+        transAction( action::showFilterFrequencyStatusTip ) );
+
     importChipmunkFiltersAction->setText( transAction( action::importChipmunkFiltersText ) );
     importChipmunkFiltersAction->setStatusTip(
         transAction( action::importChipmunkFiltersStatusTip ) );
@@ -780,6 +784,15 @@ void MainWindow::createActions()
         }
     } );
 
+    showFilterFrequencyAction = new QAction( tr( action::showFilterFrequencyText ), this );
+    showFilterFrequencyAction->setStatusTip( tr( action::showFilterFrequencyStatusTip ) );
+    connect( showFilterFrequencyAction, &QAction::triggered, this, [ this ]( auto ) {
+        auto* crawler = currentCrawlerWidget();
+        if ( crawler != nullptr ) {
+            crawler->showFilterFrequency();
+        }
+    } );
+
     importChipmunkFiltersAction = new QAction( tr( action::importChipmunkFiltersText ), this );
     importChipmunkFiltersAction->setStatusTip( tr( action::importChipmunkFiltersStatusTip ) );
     connect( importChipmunkFiltersAction, &QAction::triggered, this,
@@ -960,6 +973,7 @@ void MainWindow::createMenus()
     viewMenu->addAction( reloadAction );
     viewMenu->addSeparator();
     viewMenu->addAction( toggleChartPanelAction );
+    viewMenu->addAction( showFilterFrequencyAction );
 
     toolsMenu = menuBar()->addMenu( tr( menu::toolsTitle ) );
 

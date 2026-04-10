@@ -94,6 +94,8 @@ extern const char* toggleSidebarText;
 extern const char* toggleSidebarStatusTip;
 extern const char* toggleChartPanelText;
 extern const char* toggleChartPanelStatusTip;
+extern const char* showFilterFrequencyText;
+extern const char* showFilterFrequencyStatusTip;
 extern const char* autoEncodingText;
 extern const char* autoEncodingStatusTip;
 } // namespace action
