@@ -263,8 +263,8 @@ void LogFilteredData::rebuildContextLines()
                                    : 0ULL;
             const auto end = std::min( line + static_cast<uint64_t>( p->n ), p->maxLine - 1 );
             for ( auto i = start; i <= end; ++i ) {
-                if ( !p->baseSet->contains( i ) ) {
-                    p->result->add( i );
+                if ( !p->baseSet->contains( static_cast<uint64_t>( i ) ) ) {
+                    p->result->add( static_cast<uint64_t>( i ) );
                 }
             }
             return true;
