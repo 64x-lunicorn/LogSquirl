@@ -54,6 +54,7 @@
 #include <QApplication>
 #include <QCompleter>
 #include <QInputDialog>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -90,7 +91,8 @@ public:
     // Construct from the value passsed
     CrawlerWidgetContext( QList<int> sizes, bool ignoreCase, bool autoRefresh, bool followFile,
                           bool useRegexp, bool inverseRegexp, bool useBooleanCombination,
-                          QList<LineNumber> markedLines )
+                          QList<LineNumber> markedLines,
+                          QJsonArray chartSeriesJson = {}, bool chartVisible = false )
         : sizes_( sizes )
         , ignoreCase_( ignoreCase )
         , autoRefresh_( autoRefresh )
@@ -98,6 +100,8 @@ public:
         , useRegexp_( useRegexp )
         , inverseRegexp_( inverseRegexp )
         , useBooleanCombination_( useBooleanCombination )
+        , chartSeriesJson_( chartSeriesJson )
+        , chartVisible_( chartVisible )
     {
         std::transform( markedLines.cbegin(), markedLines.cend(), std::back_inserter( marks_ ),
                         []( const auto& m ) { return m.get(); } );
@@ -142,6 +146,15 @@ public:
         return marks_;
     }
 
+    QJsonArray chartSeriesJson() const
+    {
+        return chartSeriesJson_;
+    }
+    bool chartVisible() const
+    {
+        return chartVisible_;
+    }
+
 private:
     void loadFromString( const QString& string );
     void loadFromJson( const QString& json );
@@ -157,6 +170,8 @@ private:
     bool useBooleanCombination_;
 
     QList<LineNumber::UnderlyingType> marks_;
+    QJsonArray chartSeriesJson_;
+    bool chartVisible_ = false;
 };
 
 // Constructor only does trivial construction. The real work is done once
@@ -351,14 +366,34 @@ void CrawlerWidget::doSetViewContext( const QString& view_context )
     const auto savedMarks = context.marks();
     std::transform( savedMarks.cbegin(), savedMarks.cend(), std::back_inserter( savedMarkedLines_ ),
                     []( const auto& l ) { return LineNumber( l ); } );
+
+    // Restore chart series and visibility
+    const auto chartJson = context.chartSeriesJson();
+    if ( !chartJson.isEmpty() ) {
+        QList<ChartSeriesDefinition> defs;
+        for ( const auto& val : chartJson ) {
+            defs.append( ChartSeriesDefinition::fromJson( val.toObject() ) );
+        }
+        chartPanel_->setSeriesDefinitions( defs );
+    }
+    if ( context.chartVisible() ) {
+        chartPanel_->show();
+    }
 }
 
 std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() const
 {
+    // Serialize current chart series definitions to JSON
+    QJsonArray chartJson;
+    for ( const auto& def : chartPanel_->seriesDefinitions() ) {
+        chartJson.append( def.toJson() );
+    }
+
     auto context = std::make_shared<const CrawlerWidgetContext>(
         sizes(), ( !matchCaseButton_->isChecked() ), searchRefreshButton_->isChecked(),
         logMainView_->isFollowEnabled(), useRegexpButton_->isChecked(), inverseButton_->isChecked(),
-        booleanButton_->isChecked(), logFilteredData_->getMarks() );
+        booleanButton_->isChecked(), logFilteredData_->getMarks(),
+        chartJson, chartPanel_->isVisible() );
 
     return static_cast<std::shared_ptr<const ViewContextInterface>>( context );
 }
@@ -1376,6 +1411,49 @@ void CrawlerWidget::toggleChartPanel()
     }
 }
 
+void CrawlerWidget::showFilterFrequency()
+{
+    const auto searchText = searchLineEdit_->currentText().trimmed();
+    if ( searchText.isEmpty() ) {
+        return;
+    }
+
+    // Split the search text into individual patterns.
+    QStringList patterns;
+    if ( booleanButton_->isChecked() ) {
+        // Boolean mode uses "or" as separator between quoted terms.
+        // Split on " or " and strip quotes.
+        const auto parts = searchText.split( " or ", Qt::SkipEmptyParts );
+        for ( auto part : parts ) {
+            part = part.trimmed();
+            if ( part.startsWith( '"' ) && part.endsWith( '"' ) ) {
+                part = part.mid( 1, part.size() - 2 );
+            }
+            if ( !part.isEmpty() ) {
+                patterns.append( part );
+            }
+        }
+    }
+    else if ( useRegexpButton_->isChecked() ) {
+        // Regex mode: split on top-level '|' (basic heuristic).
+        patterns = searchText.split( '|', Qt::SkipEmptyParts );
+    }
+    else {
+        patterns.append( QRegularExpression::escape( searchText ) );
+    }
+
+    if ( patterns.isEmpty() ) {
+        return;
+    }
+
+    // Show the chart panel if hidden.
+    if ( !chartPanel_->isVisible() ) {
+        toggleChartPanel();
+    }
+
+    chartPanel_->addFilterFrequencySeries( patterns );
+}
+
 void CrawlerWidget::changeFontSize( bool increase )
 {
     auto& fontConfig = Configuration::get();
@@ -1947,6 +2025,12 @@ void CrawlerWidgetContext::loadFromJson( const QString& json )
             marks_.append( m.toUInt() );
         }
     }
+
+    if ( properties.contains( "CS" ) ) {
+        chartSeriesJson_ = QJsonDocument::fromJson(
+            properties.value( "CS" ).toString().toUtf8() ).array();
+    }
+    chartVisible_ = properties.value( "CV" ).toBool();
 }
 
 QString CrawlerWidgetContext::toString() const
@@ -1969,6 +2053,12 @@ QString CrawlerWidgetContext::toString() const
     properies[ "IR" ] = inverseRegexp_;
     properies[ "BC" ] = useBooleanCombination_;
     properies[ "M" ] = toVariantList( marks_ );
+
+    if ( !chartSeriesJson_.isEmpty() ) {
+        properies[ "CS" ] = QString::fromUtf8(
+            QJsonDocument( chartSeriesJson_ ).toJson( QJsonDocument::Compact ) );
+    }
+    properies[ "CV" ] = chartVisible_;
 
     return QJsonDocument::fromVariant( properies ).toJson( QJsonDocument::Compact );
 }

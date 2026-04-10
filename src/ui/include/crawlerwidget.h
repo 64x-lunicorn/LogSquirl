@@ -273,6 +273,9 @@ class CrawlerWidget : public QSplitter,
 
   public Q_SLOTS:
     void toggleChartPanel();
+    // Create chart series from the current search filter patterns and show
+    // them in the chart panel.
+    void showFilterFrequency();
 
   private Q_SLOTS:
 
