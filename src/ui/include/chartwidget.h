@@ -101,6 +101,9 @@ class ChartWidget : public QWidget {
     int hoveredPoint_ = -1;
     QPoint hoverPos_;
 
+    // Whether any visible series uses timestamp X-axis.
+    bool xAxisIsTimestamp_ = false;
+
     // Axis margin constants.
     static constexpr int LeftMargin = 60;
     static constexpr int BottomMargin = 30;

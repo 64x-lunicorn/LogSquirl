@@ -31,8 +31,10 @@
 
 // A single extracted data point for a chart series.
 struct ChartPoint {
-    LineNumber line;
-    double value;
+    LineNumber line;      // Line number in the log file (for click-to-navigate).
+    double xValue;        // X-axis coordinate (line number or extracted value).
+    double value;         // Y-axis value (extracted numeric or 1.0 for count mode).
+    QString xLabel;       // Optional display label for X-axis (raw timestamp text).
 };
 
 // Defines how to extract numeric values from log lines using a regex.
@@ -46,8 +48,18 @@ struct ChartSeriesDefinition {
     int captureGroup = 1;
     bool visible = true;
 
+    // X-axis extraction (optional; empty xPattern = use line number).
+    QString xPattern;
+    int xCaptureGroup = 1;
+    // QDateTime format for parsing timestamps (empty = treat as numeric).
+    QString xTimestampFormat;
+    // Bucket size in milliseconds for time aggregation (0 = no bucketing).
+    // When > 0, data points are grouped into time buckets and Y values summed.
+    qint64 bucketSizeMs = 0;
+
     // Pre-compiled regex — rebuilt when pattern changes.
     QRegularExpression compiledRegex;
+    QRegularExpression compiledXRegex;
 
     // Extracted data points.
     QVector<ChartPoint> points;
@@ -56,8 +68,23 @@ struct ChartSeriesDefinition {
     bool compilePattern()
     {
         compiledRegex = QRegularExpression( pattern );
+        if ( !xPattern.isEmpty() ) {
+            compiledXRegex = QRegularExpression( xPattern );
+        }
         return compiledRegex.isValid();
     }
+
+    // Whether a custom X-axis regex is configured.
+    bool hasCustomXAxis() const { return !xPattern.isEmpty(); }
+
+    // Whether the X-axis uses timestamp parsing.
+    bool isTimestampXAxis() const
+    {
+        return !xPattern.isEmpty() && !xTimestampFormat.isEmpty();
+    }
+
+    // Whether time-based aggregation (bucketing) is enabled.
+    bool isBucketed() const { return bucketSizeMs > 0 && isTimestampXAxis(); }
 
     // Serialize to JSON for persistence.
     QJsonObject toJson() const
@@ -69,6 +96,16 @@ struct ChartSeriesDefinition {
         obj[ "pattern" ] = pattern;
         obj[ "captureGroup" ] = captureGroup;
         obj[ "visible" ] = visible;
+        if ( !xPattern.isEmpty() ) {
+            obj[ "xPattern" ] = xPattern;
+            obj[ "xCaptureGroup" ] = xCaptureGroup;
+            if ( !xTimestampFormat.isEmpty() ) {
+                obj[ "xTimestampFormat" ] = xTimestampFormat;
+            }
+            if ( bucketSizeMs > 0 ) {
+                obj[ "bucketSizeMs" ] = bucketSizeMs;
+            }
+        }
         return obj;
     }
 
@@ -82,6 +119,10 @@ struct ChartSeriesDefinition {
         def.pattern = obj[ "pattern" ].toString();
         def.captureGroup = obj[ "captureGroup" ].toInt( 1 );
         def.visible = obj[ "visible" ].toBool( true );
+        def.xPattern = obj[ "xPattern" ].toString();
+        def.xCaptureGroup = obj[ "xCaptureGroup" ].toInt( 1 );
+        def.xTimestampFormat = obj[ "xTimestampFormat" ].toString();
+        def.bucketSizeMs = static_cast<qint64>( obj[ "bucketSizeMs" ].toDouble( 0 ) );
         def.compilePattern();
         return def;
     }

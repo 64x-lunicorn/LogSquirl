@@ -20,8 +20,11 @@
 #include "chartseriesdialog.h"
 
 #include <QColorDialog>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -47,11 +50,11 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
 
     patternEdit_ = new QLineEdit;
     patternEdit_->setPlaceholderText( tr( "e.g. duration=(\\d+\\.?\\d*)ms" ) );
-    form->addRow( tr( "Regex pattern:" ), patternEdit_ );
+    form->addRow( tr( "Regex pattern (Y):" ), patternEdit_ );
 
     auto* patternHint
-        = new QLabel( tr( "The pattern must contain at least one capture group ().\n"
-                          "The selected capture group should match a numeric value." ) );
+        = new QLabel( tr( "Capture group 0 = count occurrences (Y=1 per match).\n"
+                          "Otherwise the capture group should match a numeric value." ) );
     patternHint->setWordWrap( true );
     auto hintFont = patternHint->font();
     hintFont.setPointSize( hintFont.pointSize() - 1 );
@@ -59,11 +62,12 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     form->addRow( QString(), patternHint );
 
     captureGroupSpin_ = new QSpinBox;
-    captureGroupSpin_->setMinimum( 1 );
+    captureGroupSpin_->setMinimum( 0 );
     captureGroupSpin_->setMaximum( 20 );
     captureGroupSpin_->setValue( 1 );
-    captureGroupSpin_->setToolTip( tr( "Which capture group contains the numeric value" ) );
-    form->addRow( tr( "Capture group:" ), captureGroupSpin_ );
+    captureGroupSpin_->setToolTip(
+        tr( "0 = count occurrences (Y=1 per match); 1+ = extract numeric value" ) );
+    form->addRow( tr( "Capture group (Y):" ), captureGroupSpin_ );
 
     colorButton_ = new QPushButton;
     colorButton_->setFixedSize( 60, 24 );
@@ -73,6 +77,67 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     form->addRow( tr( "Color:" ), colorButton_ );
 
     layout->addLayout( form );
+
+    // X-axis configuration (optional, defaults to line number).
+    xAxisGroup_ = new QGroupBox( tr( "X-Axis (custom)" ) );
+    xAxisGroup_->setCheckable( true );
+    xAxisGroup_->setChecked( false );
+    xAxisGroup_->setToolTip(
+        tr( "Extract X-axis values from log lines instead of using line numbers" ) );
+
+    auto* xForm = new QFormLayout( xAxisGroup_ );
+
+    xPatternEdit_ = new QLineEdit;
+    xPatternEdit_->setPlaceholderText(
+        tr( R"(e.g. (\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}))" ) );
+    xForm->addRow( tr( "Pattern:" ), xPatternEdit_ );
+
+    xCaptureGroupSpin_ = new QSpinBox;
+    xCaptureGroupSpin_->setMinimum( 1 );
+    xCaptureGroupSpin_->setMaximum( 20 );
+    xCaptureGroupSpin_->setValue( 1 );
+    xForm->addRow( tr( "Capture group:" ), xCaptureGroupSpin_ );
+
+    xTimestampCheckbox_ = new QCheckBox( tr( "Parse as timestamp" ) );
+    xForm->addRow( xTimestampCheckbox_ );
+
+    xTimestampFormatEdit_ = new QLineEdit;
+    xTimestampFormatEdit_->setPlaceholderText( tr( "MM-dd HH:mm:ss.zzz" ) );
+    xTimestampFormatEdit_->setEnabled( false );
+    xForm->addRow( tr( "Format:" ), xTimestampFormatEdit_ );
+
+    auto* xHint
+        = new QLabel( tr( "Qt date/time tokens: yyyy, MM, dd, HH, mm, ss, zzz" ) );
+    xHint->setWordWrap( true );
+    auto xHintFont = xHint->font();
+    xHintFont.setPointSize( xHintFont.pointSize() - 1 );
+    xHint->setFont( xHintFont );
+    xForm->addRow( QString(), xHint );
+
+    connect( xTimestampCheckbox_, &QCheckBox::toggled, xTimestampFormatEdit_,
+             &QWidget::setEnabled );
+
+    bucketSizeCombo_ = new QComboBox;
+    bucketSizeCombo_->addItem( tr( "No aggregation" ), 0 );
+    bucketSizeCombo_->addItem( tr( "100 ms" ), 100 );
+    bucketSizeCombo_->addItem( tr( "500 ms" ), 500 );
+    bucketSizeCombo_->addItem( tr( "1 second" ), 1000 );
+    bucketSizeCombo_->addItem( tr( "5 seconds" ), 5000 );
+    bucketSizeCombo_->addItem( tr( "10 seconds" ), 10000 );
+    bucketSizeCombo_->addItem( tr( "30 seconds" ), 30000 );
+    bucketSizeCombo_->addItem( tr( "1 minute" ), 60000 );
+    bucketSizeCombo_->addItem( tr( "5 minutes" ), 300000 );
+    bucketSizeCombo_->setEnabled( false );
+    bucketSizeCombo_->setToolTip(
+        tr( "Group data points into time buckets and sum Y values.\n"
+            "Useful with count mode (Y capture group = 0) to see activity peaks." ) );
+    xForm->addRow( tr( "Aggregate:" ), bucketSizeCombo_ );
+
+    // Enable bucket combo only when timestamp parsing is active.
+    connect( xTimestampCheckbox_, &QCheckBox::toggled, bucketSizeCombo_,
+             &QWidget::setEnabled );
+
+    layout->addWidget( xAxisGroup_ );
 
     auto* buttons = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel );
     connect( buttons, &QDialogButtonBox::accepted, this, &ChartSeriesDialog::validateAndAccept );
@@ -88,6 +153,23 @@ void ChartSeriesDialog::setSeries( const ChartSeriesDefinition& def )
     selectedColor_ = def.color;
     colorButton_->setStyleSheet(
         QString( "background-color: %1; border: 1px solid gray;" ).arg( selectedColor_.name() ) );
+
+    if ( !def.xPattern.isEmpty() ) {
+        xAxisGroup_->setChecked( true );
+        xPatternEdit_->setText( def.xPattern );
+        xCaptureGroupSpin_->setValue( def.xCaptureGroup );
+        if ( !def.xTimestampFormat.isEmpty() ) {
+            xTimestampCheckbox_->setChecked( true );
+            xTimestampFormatEdit_->setText( def.xTimestampFormat );
+        }
+        if ( def.bucketSizeMs > 0 ) {
+            const int idx
+                = bucketSizeCombo_->findData( static_cast<int>( def.bucketSizeMs ) );
+            if ( idx >= 0 ) {
+                bucketSizeCombo_->setCurrentIndex( idx );
+            }
+        }
+    }
 }
 
 ChartSeriesDefinition ChartSeriesDialog::series() const
@@ -99,6 +181,18 @@ ChartSeriesDefinition ChartSeriesDialog::series() const
     def.captureGroup = captureGroupSpin_->value();
     def.color = selectedColor_;
     def.visible = true;
+
+    if ( xAxisGroup_->isChecked() && !xPatternEdit_->text().isEmpty() ) {
+        def.xPattern = xPatternEdit_->text();
+        def.xCaptureGroup = xCaptureGroupSpin_->value();
+        if ( xTimestampCheckbox_->isChecked()
+             && !xTimestampFormatEdit_->text().isEmpty() ) {
+            def.xTimestampFormat = xTimestampFormatEdit_->text();
+            def.bucketSizeMs
+                = bucketSizeCombo_->currentData().toLongLong();
+        }
+    }
+
     def.compilePattern();
     return def;
 }
@@ -127,20 +221,55 @@ void ChartSeriesDialog::validateAndAccept()
         return;
     }
 
-    if ( re.captureCount() < 1 ) {
-        QMessageBox::warning(
-            this, tr( "Validation" ),
-            tr( "The pattern must contain at least one capture group ()." ) );
-        return;
+    if ( captureGroupSpin_->value() > 0 ) {
+        if ( re.captureCount() < 1 ) {
+            QMessageBox::warning(
+                this, tr( "Validation" ),
+                tr( "The pattern needs at least one capture group () for Y values.\n"
+                    "Set capture group to 0 for count mode." ) );
+            return;
+        }
+
+        if ( captureGroupSpin_->value() > re.captureCount() ) {
+            QMessageBox::warning(
+                this, tr( "Validation" ),
+                tr( "Capture group %1 does not exist. The pattern has %2 group(s)." )
+                    .arg( captureGroupSpin_->value() )
+                    .arg( re.captureCount() ) );
+            return;
+        }
     }
 
-    if ( captureGroupSpin_->value() > re.captureCount() ) {
-        QMessageBox::warning(
-            this, tr( "Validation" ),
-            tr( "Capture group %1 does not exist. The pattern has %2 group(s)." )
-                .arg( captureGroupSpin_->value() )
-                .arg( re.captureCount() ) );
-        return;
+    if ( xAxisGroup_->isChecked() ) {
+        if ( xPatternEdit_->text().isEmpty() ) {
+            QMessageBox::warning( this, tr( "Validation" ),
+                                  tr( "Please enter an X-axis regex pattern." ) );
+            return;
+        }
+
+        const QRegularExpression xRe( xPatternEdit_->text() );
+        if ( !xRe.isValid() ) {
+            QMessageBox::warning(
+                this, tr( "Validation" ),
+                tr( "Invalid X-axis regex:\n%1" ).arg( xRe.errorString() ) );
+            return;
+        }
+
+        if ( xRe.captureCount() < xCaptureGroupSpin_->value() ) {
+            QMessageBox::warning(
+                this, tr( "Validation" ),
+                tr( "X-axis capture group %1 does not exist. Pattern has %2 group(s)." )
+                    .arg( xCaptureGroupSpin_->value() )
+                    .arg( xRe.captureCount() ) );
+            return;
+        }
+
+        if ( xTimestampCheckbox_->isChecked()
+             && xTimestampFormatEdit_->text().isEmpty() ) {
+            QMessageBox::warning( this, tr( "Validation" ),
+                                  tr( "Please enter a timestamp format." ) );
+            return;
+        }
     }
 
     accept();

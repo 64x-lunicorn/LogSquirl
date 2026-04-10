@@ -23,7 +23,10 @@
 
 #include "chartseries.h"
 
+class QCheckBox;
 class QColorDialog;
+class QComboBox;
+class QGroupBox;
 class QLineEdit;
 class QSpinBox;
 
@@ -52,4 +55,12 @@ class ChartSeriesDialog : public QDialog {
     QSpinBox* captureGroupSpin_;
     QPushButton* colorButton_;
     QColor selectedColor_{ "#2196F3" };
+
+    // X-axis configuration.
+    QGroupBox* xAxisGroup_;
+    QLineEdit* xPatternEdit_;
+    QSpinBox* xCaptureGroupSpin_;
+    QCheckBox* xTimestampCheckbox_;
+    QLineEdit* xTimestampFormatEdit_;
+    QComboBox* bucketSizeCombo_;
 };

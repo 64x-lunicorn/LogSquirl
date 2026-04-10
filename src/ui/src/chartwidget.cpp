@@ -23,6 +23,7 @@
 #include <cmath>
 #include <limits>
 
+#include <QDateTime>
 #include <QPainter>
 #include <QPainterPath>
 #include <QToolTip>
@@ -40,6 +41,16 @@ ChartWidget::ChartWidget( QWidget* parent )
 void ChartWidget::setSeriesList( const QVector<ChartSeriesDefinition>& series )
 {
     series_ = series;
+
+    // Detect if any visible series uses timestamp X-axis.
+    xAxisIsTimestamp_ = false;
+    for ( const auto& s : series_ ) {
+        if ( s.visible && s.isTimestampXAxis() ) {
+            xAxisIsTimestamp_ = true;
+            break;
+        }
+    }
+
     fitView();
 }
 
@@ -57,7 +68,7 @@ void ChartWidget::fitView()
             continue;
         }
         for ( const auto& pt : s.points ) {
-            const double x = static_cast<double>( pt.line.get() );
+            const double x = pt.xValue;
             minX = std::min( minX, x );
             maxX = std::max( maxX, x );
             minY = std::min( minY, pt.value );
@@ -189,7 +200,11 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
             painter.setPen( axisPen );
             painter.drawText( QRectF( p.x() - 30, area.bottom() + 2, 60, BottomMargin - 2 ),
                               Qt::AlignHCenter | Qt::AlignTop,
-                              QString::number( static_cast<qint64>( v ) ) );
+                              xAxisIsTimestamp_
+                                  ? QDateTime::fromMSecsSinceEpoch(
+                                        static_cast<qint64>( v ) )
+                                        .toString( "HH:mm:ss" )
+                                  : QString::number( static_cast<qint64>( v ) ) );
         }
     }
 
@@ -224,8 +239,7 @@ void ChartWidget::drawSeries( QPainter& painter, const QRectF& /*area*/,
     QPainterPath path;
     bool first = true;
     for ( const auto& pt : series.points ) {
-        const QPointF px
-            = dataToPixel( static_cast<double>( pt.line.get() ), pt.value );
+        const QPointF px = dataToPixel( pt.xValue, pt.value );
         if ( first ) {
             path.moveTo( px );
             first = false;
@@ -241,8 +255,7 @@ void ChartWidget::drawSeries( QPainter& painter, const QRectF& /*area*/,
     painter.setPen( Qt::NoPen );
     constexpr double dotRadius = 3.0;
     for ( const auto& pt : series.points ) {
-        const QPointF px
-            = dataToPixel( static_cast<double>( pt.line.get() ), pt.value );
+        const QPointF px = dataToPixel( pt.xValue, pt.value );
         painter.drawEllipse( px, dotRadius, dotRadius );
     }
 }
@@ -258,12 +271,13 @@ void ChartWidget::drawTooltip( QPainter& painter ) const
     }
 
     const auto& pt = s.points[ hoveredPoint_ ];
-    const QPointF px = dataToPixel( static_cast<double>( pt.line.get() ), pt.value );
+    const QPointF px = dataToPixel( pt.xValue, pt.value );
 
-    const QString text = QString( "%1\nLine %2: %3" )
-                             .arg( s.name )
-                             .arg( pt.line.get() + 1 )
-                             .arg( pt.value );
+    const QString xText = pt.xLabel.isEmpty()
+                              ? QString( "Line %1" ).arg( pt.line.get() + 1 )
+                              : pt.xLabel;
+    const QString text
+        = QString( "%1\n%2: %3" ).arg( s.name, xText ).arg( pt.value );
 
     QFont tooltipFont = painter.font();
     tooltipFont.setPointSize( tooltipFont.pointSize() - 1 );
@@ -308,8 +322,7 @@ std::pair<int, int> ChartWidget::findNearestPoint( const QPointF& pixelPos,
         }
         for ( int pi = 0; pi < s.points.size(); ++pi ) {
             const auto& pt = s.points[ pi ];
-            const QPointF px
-                = dataToPixel( static_cast<double>( pt.line.get() ), pt.value );
+            const QPointF px = dataToPixel( pt.xValue, pt.value );
             const double dist = QLineF( pixelPos, px ).length();
             if ( dist < bestDist ) {
                 bestDist = dist;

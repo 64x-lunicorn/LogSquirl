@@ -56,6 +56,11 @@ class ChartPanel : public QWidget {
     // Restore series definitions (e.g. from saved config).
     void setSeriesDefinitions( const QVector<ChartSeriesDefinition>& defs );
 
+    // Create count-mode chart series from the given filter patterns.
+    // Used by the "Show Filter Frequency" feature to visualise how
+    // often each search filter matches across the log file.
+    void addFilterFrequencySeries( const QStringList& patterns );
+
   Q_SIGNALS:
     // Propagated from the chart widget when the user clicks a data point.
     void lineSelected( LineNumber line );
@@ -66,6 +71,13 @@ class ChartPanel : public QWidget {
     void removeSeries();
     void fitView();
     void onSeriesComboChanged( int index );
+
+    // Preset management
+    void savePreset();
+    void loadPreset();
+    void deletePreset();
+    void exportPreset();
+    void importPreset();
 
   private:
     void rebuildSeriesCombo();
@@ -78,6 +90,12 @@ class ChartPanel : public QWidget {
     QAction* editAction_;
     QAction* removeAction_;
     QAction* fitAction_;
+
+    QAction* savePresetAction_;
+    QAction* loadPresetAction_;
+    QAction* deletePresetAction_;
+    QAction* exportPresetAction_;
+    QAction* importPresetAction_;
 
     QVector<ChartSeriesDefinition> series_;
     std::shared_ptr<LogData> logData_;
