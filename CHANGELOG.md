@@ -1,3 +1,36 @@
+# 26.04.1-beta2 (2026-04-10):
+
+## New features:
+ - **Chart X-Axis Extraction**: chart series can now use a custom regex to
+   extract X-axis values from log lines (timestamp or numeric).  Configure
+   via the "X-Axis" group in the series dialog.
+ - **Timestamp X-Axis**: parse timestamps with configurable QDateTime format
+   (e.g. `MM-dd HH:mm:ss.zzz`).  Auto-defaults to current year for formats
+   without a year component.
+ - **Time Aggregation / Bucketing**: group data points into configurable time
+   buckets (100 ms, 500 ms, 1 s, 5 s, 10 s, 30 s, 1 min, 5 min) and sum
+   Y values per bucket — ideal for spotting activity peaks.
+ - **Per-Document Chart Persistence**: chart series and panel visibility are
+   automatically saved and restored when reopening a file.  Stored in the
+   existing session context (JSON keys `CS` and `CV`).
+ - **App-Level Chart Presets**: save named chart configurations via
+   Save Preset / Load Preset / Delete Preset toolbar actions.  Presets
+   persist across sessions in the application settings.
+ - **Chart Export / Import**: export current series to a JSON file and import
+   from JSON files — share chart configurations between machines or users.
+ - **Filter Frequency Chart**: View → "Show Filter Frequency" creates
+   count-mode chart series (one per search sub-pattern) from the active
+   search text and auto-shows the chart panel.
+ - **JWT Decoder improvements**: `extractToken()` now uses regex-based
+   extraction to find JWTs in arbitrary text.  Fixed multi-line input
+   handling and added support for tokens embedded in log lines.
+
+## Bug fixes:
+ - Fixed ambiguous `Roaring64Map::contains()` / `add()` overload on
+   GCC/Linux where `unsigned long long` differs from `uint64_t`.
+
+---
+
 # 26.04.1-beta1 (2026-04-02):
 
 ## New features:
