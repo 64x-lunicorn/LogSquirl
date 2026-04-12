@@ -1,10 +1,18 @@
 add_custom_target(website
-   SOURCES  config.toml
-            content/_index.md
-            content/docs/legal_notice/_index.md
-            content/docs/getting_involved/_index.md
-            content/docs/news/_index.md
-            content/docs/news/release_26.03.md
-            content/docs/news/release_26.04.md
-            content/docs/privacy_policy/_index.md
+   SOURCES  astro.config.mjs
+            package.json
+            src/content/docs/index.mdx
+            src/content/docs/getting-involved.md
+            src/content/docs/legal-notice.md
+            src/content/docs/privacy-policy.md
+            src/content/docs/news/release-26-04.md
+            src/content/docs/news/release-26-03.md
+            src/content/docs/news/release-22-06.md
+            src/content/docs/news/release-20-12.md
+            src/content/docs/articles/crash-reporting.md
+            src/content/docs/articles/hyperscan.md
+            src/content/docs/articles/allocation.md
+            src/content/docs/articles/boolean-combination.md
+            src/styles/custom.css
+            src/components/Footer.astro
 )

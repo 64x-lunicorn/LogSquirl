@@ -1,0 +1,72 @@
+---
+title: LogSquirl — Faster Log Explorer
+description: Open source, cross-platform log viewer built with C++23 and Qt6. Handles 10 GB+ files with SIMD-accelerated regex.
+template: splash
+hero:
+  tagline: An open source, cross-platform log viewer built with C++23 and Qt6. Blazing fast — optimized for modern multi-core CPUs with SIMD (SSE2 → AVX512). Handles 10 GB+ log files without loading them into memory.
+  actions:
+    - text: Download Latest
+      link: https://github.com/64x-lunicorn/LogSquirl/releases/latest
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/64x-lunicorn/LogSquirl
+      icon: github
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Screenshots
+
+<div class="screenshot-gallery">
+  <img src="/screenshots/mainwindow.png" alt="LogSquirl main window" />
+  <img src="/screenshots/dark.png" alt="LogSquirl dark theme" />
+  <img src="/screenshots/scratchpad.png" alt="LogSquirl scratchpad" />
+  <img src="/screenshots/highlighters.png" alt="LogSquirl highlighters configuration" />
+</div>
+
+## Features
+
+<CardGrid>
+  <Card title="Core Features" icon="star">
+    - Runs on **Windows, macOS, and Linux** thanks to Qt6
+    - Displays search results separately from the original file
+    - **Perl-compatible regular expressions** via Vectorscan SIMD engine
+    - Colorizes log lines with **multi-set highlighters**
+    - Context view showing where matches are in the log
+    - Reads file directly from disk — no memory loading
+    - **Follow Mode** — watches for file changes and reloads in real-time
+    - Configurable keyboard shortcuts
+  </Card>
+  <Card title="New in LogSquirl" icon="rocket">
+    - **Chart Panel** — plot numeric values with regex capture groups, timestamps, bucketing, presets, and filter frequency
+    - **Plugin System** — DataSource, Converter, and UI plugins via pure C ABI (or Lua scripts)
+    - **Log Merge** — combine multiple log files into a unified, live-updated view
+    - **Tab Groups** — organize tabs with named, colored groups; session persistence
+    - **Context Lines (Breadcrumbs)** — surrounding lines around matches in filtered view
+    - **Predefined Filters Panel** — pinned filters with Chipmunk import support
+    - **Scratchpad** — Base64, Hex, URL, JSON/XML formatter, CRC32, timestamps, JWT decoder
+    - **Boolean Search** — combine regex with AND, OR, NOT operators
+  </Card>
+</CardGrid>
+
+## Downloads
+
+[![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
+
+<div class="download-buttons">
+  <a href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-win">Windows</a>
+  <a href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-linux">Linux</a>
+  <a href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-osx">Mac</a>
+</div>
+
+## Documentation
+
+<LinkCard title="LogSquirl Wiki" description="Full documentation including Getting Started, feature guides, configuration reference, and plugin development." href="https://github.com/64x-lunicorn/LogSquirl/wiki" />
+
+## System Requirements
+
+- **CPU**: SSE2 minimum. SSSE3/POPCNT recommended. AVX2/AVX512 auto-detected for best performance.
+- **OS**: Windows 10+, macOS 15+, Ubuntu 22.04+, Fedora 43+, Oracle Linux 10+
+- **License**: [GPL-3.0-or-later](https://www.gnu.org/licenses/gpl-3.0.html)

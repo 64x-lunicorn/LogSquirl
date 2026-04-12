@@ -1,0 +1,14 @@
+---
+import Default from '@astrojs/starlight/components/Footer.astro';
+---
+<footer class="sl-footer">
+  <div class="donate-links">
+    <a href="https://www.paypal.com/donate/?hosted_button_id=FZ6URQUL3RFVC" target="_blank" rel="noopener">
+      ☕ Donate via PayPal
+    </a>
+    <a href="https://ko-fi.com/lunicorn" target="_blank" rel="noopener">
+      ❤️ Support on Ko-fi
+    </a>
+  </div>
+  <Default {...Astro.props}><slot /></Default>
+</footer>

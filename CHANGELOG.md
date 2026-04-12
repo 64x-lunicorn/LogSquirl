@@ -1,3 +1,10 @@
+# 26.04.1-beta2 (2026-04-12):
+
+## Website:
+ - Migrated website from Hugo to Starlight (Astro 6). Modern documentation
+   site with full-text search, responsive design, and sitemap generation.
+ - Updated deploy workflow for Node.js/npm build pipeline.
+
 # 26.04.1-beta2 (2026-04-10):
 
 ## New features:
