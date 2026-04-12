@@ -9,6 +9,7 @@ add_custom_target(website
             src/content/docs/news/release-26-03.md
             src/content/docs/news/release-22-06.md
             src/content/docs/news/release-20-12.md
+            src/content/docs/news/index.mdx
             src/content/docs/articles/crash-reporting.md
             src/content/docs/articles/hyperscan.md
             src/content/docs/articles/allocation.md
