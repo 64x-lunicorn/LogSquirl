@@ -4,15 +4,6 @@ description: Open source, cross-platform log viewer built with C++23 and Qt6. Ha
 template: splash
 hero:
   tagline: An open source, cross-platform log viewer built with C++23 and Qt6. Blazing fast — optimized for modern multi-core CPUs with SIMD (SSE2 → AVX512). Handles 10 GB+ log files without loading them into memory.
-  actions:
-    - text: Download Latest
-      link: https://github.com/64x-lunicorn/LogSquirl/releases/latest
-      icon: right-arrow
-      variant: primary
-    - text: View on GitHub
-      link: https://github.com/64x-lunicorn/LogSquirl
-      icon: github
-      variant: minimal
 ---
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
@@ -21,6 +12,15 @@ import mainwindow from '@assets/screenshots/mainwindow.png';
 import dark from '@assets/screenshots/dark.png';
 import scratchpad from '@assets/screenshots/scratchpad.png';
 import highlighters from '@assets/screenshots/highlighters.png';
+
+## Latest Release
+
+<CardGrid>
+  <LinkCard title="v26.04.1-beta2" description="Latest beta — Chart X-Axis, Bucketing, Presets, Filter Frequency, JWT improvements." href="/news/release-26-04/" />
+  <LinkCard title="All Releases" description="View all release notes and download links." href="/news/" />
+</CardGrid>
+
+[![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
 
 ## Screenshots
 
@@ -55,15 +55,6 @@ import highlighters from '@assets/screenshots/highlighters.png';
     - **Boolean Search** — combine regex with AND, OR, NOT operators
   </Card>
 </CardGrid>
-
-## Latest Release
-
-<CardGrid>
-  <LinkCard title="v26.04.1-beta2" description="Latest beta — Chart X-Axis, Bucketing, Presets, Filter Frequency, JWT improvements." href="/news/release-26-04/" />
-  <LinkCard title="All Releases" description="View all release notes and download links." href="/news/" />
-</CardGrid>
-
-[![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
 
 ## Documentation
 
