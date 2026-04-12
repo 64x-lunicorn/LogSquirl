@@ -122,6 +122,7 @@ doc/*.html
 website/public/
 website/hugo
 website/resources/
+website/.hugo_build.lock
 build_test_cpp23/
 
 # ── Python (E2E tests) ─────────────────────────────────────────────────────

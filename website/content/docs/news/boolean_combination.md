@@ -1,6 +1,6 @@
 ---
 title: "Combining search expressions"
-date: 2021-05-26T01:46+03:00
+date: 2021-05-26T01:46:00+03:00
 anchor: "boolean_combination"
 weight: 25
 ---

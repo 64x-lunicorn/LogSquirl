@@ -1,9 +1,9 @@
-baseURL = "/"
+baseURL = "https://logsquirl.lunicorn-lab.de/"
 languageCode = "en-us"
 title = "LogSquirl"
 
 theme = 'hugo-book'
-disableKinds = ['taxonomy', 'taxonomyTerm']
+disableKinds = ['taxonomy']
 
 [markup]
   [markup.goldmark]
@@ -47,4 +47,4 @@ disableKinds = ['taxonomy', 'taxonomyTerm']
 
   # (Optional, default true) Enables search function with lunr.js, 
   # Index is built on fly, therefore it might slowdown your website.
-  BookSearch = false
+  BookSearch = true
