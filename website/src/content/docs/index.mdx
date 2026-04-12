@@ -16,16 +16,20 @@ hero:
 ---
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { Image } from 'astro:assets';
+import mainwindow from '@assets/screenshots/mainwindow.png';
+import dark from '@assets/screenshots/dark.png';
+import scratchpad from '@assets/screenshots/scratchpad.png';
+import highlighters from '@assets/screenshots/highlighters.png';
 
 ## Screenshots
 
-![LogSquirl main window](/screenshots/mainwindow.png)
-
-![LogSquirl dark theme](/screenshots/dark.png)
-
-![LogSquirl scratchpad](/screenshots/scratchpad.png)
-
-![LogSquirl highlighters configuration](/screenshots/highlighters.png)
+<div class="screenshot-gallery">
+  <Image src={mainwindow} alt="LogSquirl main window" />
+  <Image src={dark} alt="LogSquirl dark theme" />
+  <Image src={scratchpad} alt="LogSquirl scratchpad" />
+  <Image src={highlighters} alt="LogSquirl highlighters configuration" />
+</div>
 
 ## Features
 
@@ -52,15 +56,14 @@ import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
   </Card>
 </CardGrid>
 
-## Downloads
+## Latest Release
+
+<CardGrid>
+  <LinkCard title="v26.04.1-beta2" description="Latest beta — Chart X-Axis, Bucketing, Presets, Filter Frequency, JWT improvements." href="/news/release-26-04/" />
+  <LinkCard title="All Releases" description="View all release notes and download links." href="/news/" />
+</CardGrid>
 
 [![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
-
-<div class="download-buttons">
-  <a href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-win">Windows</a>
-  <a href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-linux">Linux</a>
-  <a href="https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous-osx">Mac</a>
-</div>
 
 ## Documentation
 

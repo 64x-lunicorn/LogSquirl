@@ -39,28 +39,7 @@
   }
 }
 
-.download-buttons {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-  justify-content: center;
-  margin: 1.5rem 0;
-}
 
-.download-buttons a {
-  display: inline-block;
-  padding: 0.6rem 1.5rem;
-  border-radius: 6px;
-  background: var(--sl-color-accent);
-  color: var(--sl-color-white);
-  text-decoration: none;
-  font-weight: 600;
-  transition: opacity 0.2s;
-}
-
-.download-buttons a:hover {
-  opacity: 0.85;
-}
 
 .donate-links {
   display: flex;

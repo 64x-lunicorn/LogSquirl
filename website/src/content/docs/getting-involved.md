@@ -13,7 +13,7 @@ Full documentation is available on the [LogSquirl Wiki](https://github.com/64x-l
 
 ## Chats with developers
 
-There is a [Discord server](https://discord.gg/DruNyQftzB), [Telegram group](https://t.me/joinchat/JeIBxstIfp4xZTk6) and [Gitter community](https://gitter.im/logsquirl_log_viewer/community).
+There is a [Telegram group](https://t.me/joinchat/JeIBxstIfp4xZTk6) and [Gitter community](https://gitter.im/logsquirl_log_viewer/community).
 
 ## Plugins
 

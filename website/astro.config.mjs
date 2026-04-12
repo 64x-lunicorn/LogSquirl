@@ -3,6 +3,13 @@ import starlight from '@astrojs/starlight';
 
 export default defineConfig({
   site: 'https://logsquirl.lunicorn-lab.de',
+  vite: {
+    resolve: {
+      alias: {
+        '@assets': '/src/assets',
+      },
+    },
+  },
   integrations: [
     starlight({
       title: 'LogSquirl',
@@ -13,7 +20,6 @@ export default defineConfig({
       favicon: '/favicon.png',
       social: [
         { icon: 'github', label: 'GitHub', href: 'https://github.com/64x-lunicorn/LogSquirl' },
-        { icon: 'discord', label: 'Discord', href: 'https://discord.gg/DruNyQftzB' },
       ],
       customCss: ['./src/styles/custom.css'],
       sidebar: [
