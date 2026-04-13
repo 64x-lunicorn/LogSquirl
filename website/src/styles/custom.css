@@ -1,5 +1,5 @@
 /* Make the splash hero full width */
-[data-page-type="splash"] .hero > .sl-flex {
+[data-has-hero] .content-panel:first-child .sl-container {
   max-width: 100%;
 }
 
@@ -55,4 +55,21 @@
 
 .donate-links a {
   text-decoration: none;
+}
+
+.footer-legal {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.footer-legal a {
+  text-decoration: none;
+  color: var(--sl-color-gray-3);
+}
+
+.footer-legal a:hover {
+  color: var(--sl-color-white);
 }
