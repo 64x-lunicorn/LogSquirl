@@ -229,7 +229,7 @@ jobs:
           python3 scripts/gen_changelog.py > release_notes.md 2>/dev/null || echo "See commit history for changes." > release_notes.md
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: "LogSquirl ${{ needs.prepare.outputs.tag }}"
