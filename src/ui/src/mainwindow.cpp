@@ -1311,11 +1311,13 @@ void MainWindow::find()
 void MainWindow::clearLog()
 {
     const auto current_file = session_.getFilename( currentCrawlerWidget() );
-    if ( QMessageBox::warning(
-             this, tr( "logsquirl - clear file" ),
-             tr( "Clear file %1? File content will be removed from disk, this is irreversible" )
-                 .arg( current_file ) )
-         == QMessageBox::Yes ) {
+    const auto userAction = QMessageBox::question(
+        this, tr( "logsquirl - clear file" ),
+        tr( "Clear file %1? File content will be removed from disk, this is irreversible" )
+            .arg( current_file ),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
+
+    if ( userAction == QMessageBox::Yes ) {
         QFile::resize( current_file, 0 );
     }
 }

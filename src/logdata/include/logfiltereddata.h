@@ -73,6 +73,10 @@ class LogFilteredData : public AbstractLogData {
     // Constructor used by LogData
     explicit LogFilteredData( const LogData* logData );
 
+    // Destructor: disconnects signals before member destruction to prevent
+    // use-after-destroy when searchProgressThrottler_ emits during teardown.
+    ~LogFilteredData() override;
+
     // Starts the async search, sending newDataAvailable() when new data found.
     // If a search is already in progress this function will block until
     // it is done, so the application should call interruptSearch() first.
