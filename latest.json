@@ -1,10 +1,10 @@
 {
-  "ci": "26.03.0",
+  "ci": "26.04.1",
   "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous",
-  "stable": "26.03.0",
-  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.03.2",
-  "beta": "26.04.1-beta2",
-  "beta_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.04.1-beta2",
+  "stable": "26.04.1",
+  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.04.1",
+  "beta": "26.04.1",
+  "beta_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.04.1",
   "releases": [
     "17.12.0.245",
     "19.2.0.366",
@@ -15,7 +15,8 @@
     "20.12.0.812",
     "20.12.0.813",
     "22.06.0.1289",
-    "26.03.0"
+    "26.03.0",
+    "26.04.1"
   ],
   "changelog": [
     {
@@ -41,8 +42,12 @@
     {
       "version": "26.03.0",
       "description": "First LogSquirl release: Qt 6.10, OpenSSL 3.x, new platforms"
+    },
+    {
+      "version": "26.04.1",
+      "description": "Chart Panel, Log Merge, Tab Groups, Breadcrumbs, Vectorscan, Plugin System"
     }
   ],
-  "stable_version": "26.03.2",
+  "stable_version": "26.04.1",
   "beta_version": "26.04.1"
 }

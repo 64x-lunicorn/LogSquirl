@@ -1,13 +1,26 @@
-# 26.04.1-beta2 (2026-04-12):
-
-## Website:
- - Migrated website from Hugo to Starlight (Astro 6). Modern documentation
-   site with full-text search, responsive design, and sitemap generation.
- - Updated deploy workflow for Node.js/npm build pipeline.
-
-# 26.04.1-beta2 (2026-04-10):
+# 26.04.1 (2026-04-19):
 
 ## New features:
+ - **Tab Group Manager dialog**: Tools → "Manage Tab Groups…" opens a
+   dedicated dialog to rename, recolor, and delete tab groups without
+   navigating the per-tab context menu.
+ - **Log Merge**: right-click a tab → "Merge All Left" / "Merge All Right"
+   to concatenate logs from neighboring tabs into a virtual merged tab.
+   Supports optional exact-line deduplication and live-updates when source
+   files change (300 ms debounce).
+ - **Breadcrumbs (Context Lines)**: configurable ±N context lines around
+   matches/marks in the filtered view.  Set via Options → View →
+   "Context lines around matches" (QSpinBox, 0–50, default 0 = off).
+   Context lines are dimmed (50 % opacity) and include the `Context`
+   line-type flag.  Overlapping contexts merge automatically.
+ - **Chart Panel (Chipmunk-style)**: View → "Chart Panel" toggles an
+   interactive chart pane below the filtered view.  Define regex-based
+   series with numeric capture groups to extract and plot values across the
+   log file.  Features: line/scatter chart with zoom (mouse wheel), pan
+   (middle-drag), click-to-navigate (left click jumps to the source line),
+   hover tooltips, multiple series with independent colors, and automatic
+   data refresh on file reload.  No external dependencies — uses a custom
+   QPainter-based rendering engine.
  - **Chart X-Axis Extraction**: chart series can now use a custom regex to
    extract X-axis values from log lines (timestamp or numeric).  Configure
    via the "X-Axis" group in the series dialog.
@@ -31,36 +44,6 @@
  - **JWT Decoder improvements**: `extractToken()` now uses regex-based
    extraction to find JWTs in arbitrary text.  Fixed multi-line input
    handling and added support for tokens embedded in log lines.
-
-## Bug fixes:
- - Fixed ambiguous `Roaring64Map::contains()` / `add()` overload on
-   GCC/Linux where `unsigned long long` differs from `uint64_t`.
-
----
-
-# 26.04.1-beta1 (2026-04-02):
-
-## New features:
- - **Tab Group Manager dialog**: Tools → "Manage Tab Groups…" opens a
-   dedicated dialog to rename, recolor, and delete tab groups without
-   navigating the per-tab context menu.
- - **Log Merge**: right-click a tab → "Merge All Left" / "Merge All Right"
-   to concatenate logs from neighboring tabs into a virtual merged tab.
-   Supports optional exact-line deduplication and live-updates when source
-   files change (300 ms debounce).
- - **Breadcrumbs (Context Lines)**: configurable ±N context lines around
-   matches/marks in the filtered view.  Set via Options → View →
-   "Context lines around matches" (QSpinBox, 0–50, default 0 = off).
-   Context lines are dimmed (50 % opacity) and include the `Context`
-   line-type flag.  Overlapping contexts merge automatically.
- - **Chart Panel (Chipmunk-style)**: View → "Chart Panel" toggles an
-   interactive chart pane below the filtered view.  Define regex-based
-   series with numeric capture groups to extract and plot values across the
-   log file.  Features: line/scatter chart with zoom (mouse wheel), pan
-   (middle-drag), click-to-navigate (left click jumps to the source line),
-   hover tooltips, multiple series with independent colors, and automatic
-   data refresh on file reload.  No external dependencies — uses a custom
-   QPainter-based rendering engine.
  - Replaced Hyperscan with Vectorscan as the SIMD regex backend on Linux
    and macOS.  Vectorscan is a maintained, API-compatible fork of Intel
    Hyperscan with native ARM/NEON support.  On Windows the MSVC-compatible
@@ -98,7 +81,9 @@
  - Added Windows-specific performance baselines (`baseline-windows.json`)
    and OS-aware baseline loading in E2E tests.
 
-## Bug Fixes:
+## Bug fixes:
+ - Fixed ambiguous `Roaring64Map::contains()` / `add()` overload on
+   GCC/Linux where `unsigned long long` differs from `uint64_t`.
  - Windows: embedded application manifest (`asInvoker`) to eliminate
    SmartScreen "unknown publisher" security warnings on first launch.
    Manifest also enables per-monitor DPI v2, long-path awareness, and
@@ -107,6 +92,13 @@
    plugin repository or checking for updates.  The Qt TLS backend plugins
    (`qopensslbackend.dll`, `qschannelbackend.dll`) are now included in
    both the portable ZIP and NSIS installer distributions.
+ - Fixed missing assert_performance call in UTF-16 1MB benchmark
+ - Fixed typo in Configuration::setRegexpEnging → setRegexpEngine
+ - Fixed typo in Vectorscan CMake option names (BUIlD_AVX2 → BUILD_AVX2)
+ - Plugin Management dialog now displays the SPDX license identifier for
+   each plugin (read from plugin.json metadata and remote catalog)
+ - Added license field to CatalogEntry and RepositoryEntry structs
+ - Added license field to plugins.json registries (v1 and v2 schemas)
 
 ## Build:
  - Replaced legacy `codesign_client.exe` CI hooks with `signtool.exe`-based
@@ -115,14 +107,10 @@
  - Bulk tab close operations (close others / left / right / all) now present
    a single confirmation dialog instead of per-tab prompts.
 
-## Bug fixes:
- - Fixed missing assert_performance call in UTF-16 1MB benchmark
- - Fixed typo in Configuration::setRegexpEnging → setRegexpEngine
- - Fixed typo in Vectorscan CMake option names (BUIlD_AVX2 → BUILD_AVX2)
- - Plugin Management dialog now displays the SPDX license identifier for
-   each plugin (read from plugin.json metadata and remote catalog)
- - Added license field to CatalogEntry and RepositoryEntry structs
- - Added license field to plugins.json registries (v1 and v2 schemas)
+## Website:
+ - Migrated website from Hugo to Starlight (Astro 6). Modern documentation
+   site with full-text search, responsive design, and sitemap generation.
+ - Updated deploy workflow for Node.js/npm build pipeline.
 
 ## Refactoring:
  - Removed LOGSQUIRL_USE_HYPERSCAN CMake option (replaced by LOGSQUIRL_USE_VECTORSCAN)
