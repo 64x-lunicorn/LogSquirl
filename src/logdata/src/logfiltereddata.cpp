@@ -59,6 +59,16 @@
 #include "readablesize.h"
 #include "synchronization.h"
 
+LogFilteredData::~LogFilteredData()
+{
+    // Disconnect all signals before members (workerThread_, searchProgressThrottler_)
+    // are destroyed.  The throttler's destructor calls maybeEmitTriggered() which
+    // would otherwise invoke our slot on a partially-destroyed object (SIGSEGV).
+    disconnect();
+    searchProgressThrottler_.disconnect();
+    workerThread_.disconnect();
+}
+
 // Usual constructor: just copy the data, the search is started by runSearch()
 LogFilteredData::LogFilteredData( const LogData* logData )
     : AbstractLogData()

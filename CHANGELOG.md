@@ -1,3 +1,17 @@
+# 26.04.2 (2026-04-19):
+
+## Bug fixes:
+ - Fixed "Clear File" (Ctrl+X) not clearing the file.  `QMessageBox::warning()`
+   only shows an OK button, so the `== QMessageBox::Yes` check always failed.
+   Replaced with `QMessageBox::question()` using explicit Yes/No buttons
+   (No as default).  (Fixes [#44](https://github.com/64x-lunicorn/LogSquirl/issues/44))
+ - Fixed SIGSEGV crash during `LogFilteredData` destruction on Windows CI.
+   The `KDSignalThrottler` member could emit a pending signal during teardown,
+   invoking a slot on the partially-destroyed object.  Added an explicit
+   destructor that disconnects all signals before member destruction.
+
+---
+
 # 26.04.1 (2026-04-19):
 
 ## New features:
