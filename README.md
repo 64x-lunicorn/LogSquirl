@@ -80,6 +80,7 @@ for dependency management.
 * Features a Filters Panel with pinned filters that persist across sessions
 * Can import filters and highlighters from Chipmunk JSON export files
 * Offers an opt-in beta update channel for early access to new versions
+* Opens compressed logs (`.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`) and tarballs directly
 * Extensible via a [Plugin System](#plugins) — data sources, converters, and UI extensions
 * Optional Lua scripting for writing plugins without compiled code
 * Built-in Plugin Repository for browsing and installing community plugins

@@ -1,3 +1,75 @@
+# Unreleased
+
+## New features:
+ - **Zstd & LZ4 decompression**: LogSquirl can now open `.zst`/`.zstd` and
+   `.lz4` compressed log files directly, including `.tar.zst`/`.tar.lz4`
+   archives.  Uses libzstd 1.5.6 and liblz4 1.10.0 (statically linked via
+   CPM).
+ - **Startup Splash Screen**: A splash screen with the LogSquirl app icon and
+   version is now shown while the application initialises (plugin discovery,
+   session restore).  **Disabled by default** — enable via Options → General →
+   "Show splash screen on startup" when loading many plugins.
+ - **Welcome Dashboard**: A permanent "Home" tab (pinned at position 0)
+   displays the app icon, recent files, favorites, quick action buttons
+   (Open File, Load Session), loaded plugin status, and keyboard shortcut
+   hints.  Files can also be dropped onto the dashboard.  The Home tab
+   cannot be closed and is always available.
+
+## UI/UX improvements:
+ - **Welcome Dashboard theme awareness**: All hardcoded hex colors in the
+   Welcome Dashboard have been replaced with `QPalette` lookups so the
+   dashboard adapts correctly to dark, light, and custom themes.
+ - **Welcome Dashboard clean background**: The dashboard content area,
+   recent files list, and favorites list now use `QPalette::Base` instead of
+   the default grey `QPalette::Window` colour, giving a cleaner look that
+   matches the editor background.
+ - **Open file dialog filter**: Added a "Compressed logs" filter group
+   (`.gz`, `.bz2`, `.xz`, `.zst`, `.zstd`, `.lz4`) to the Open File dialog.
+ - **Toggle button visibility**: Checkable toolbar buttons (filter bar: match
+   case, regex, inverse, boolean, auto-refresh; and main toolbar: follow,
+   text wrap) now clearly show their checked/active state across all themes
+   (Dark, Fusion, macOS, Windows).
+ - **Light/Fusion theme**: Added a proper light palette and baseline QSS
+   stylesheet for the Fusion style covering buttons, tab bar, scroll bars,
+   tooltips, menus, group boxes, and dock widgets.  Text contrast is now
+   consistent and widgets no longer look washed out.
+ - **Platform themes (macOS, Windows)**: Common QSS for checked-state
+   buttons is now applied to all platform-native themes so toggle buttons
+   are always visually distinguishable.
+ - **Tab close buttons**: Increased tab height from 24px to 28px and close
+   button size from 12px to 14px to prevent clipping.
+ - **Dark theme tab close**: The tab close (X) button now shows a red
+   background (#C42B1C) on hover for clear affordance.
+ - **High-res logo**: Splash screen and dashboard now use a 1024×1024
+   logo image for crisp rendering on all display densities.
+ - **Toolbar icon size**: Increased default toolbar icon size from 16×16 to
+   24×24 for better visibility on modern displays.  Configurable via
+   `toolbarIconSize` setting.
+ - **Dark theme contrast**: Improved disabled text contrast from #808080 to
+   #A0A0A0 (~4.6:1 ratio on dark background, meeting WCAG AA).  Changed
+   highlighted text from dark #212121 to white for better readability on
+   the blue selection highlight.
+ - **Dark theme stylesheet**: Added a baseline QSS stylesheet for the dark
+   theme covering buttons, tab bar, scroll bars, tooltips, menus, group
+   boxes, and dock widgets for a more polished appearance.
+ - **Tab bar styling**: Tabs now have rounded top corners, a blue bottom
+   border on the active tab, and distinct hover states.
+ - **Toolbar layout**: Added separator between action buttons and the path
+   info line.  Info fields (size, date, encoding, line count) now have
+   consistent horizontal padding.
+ - **Scroll bars**: Dark-mode scroll bars are now clearly visible with
+   rounded handles and hover highlighting.
+
+## Bug fixes:
+ - **Write-violation crash in `drawTextArea`**: Fixed a fatal
+   `EXCEPTION_ACCESS_VIOLATION_WRITE` in `mi_page_free_list_extend`
+   (mimalloc) triggered by repeated vector reallocations during painting.
+   `wrappedLinesInfo_` is now pre-reserved to `nbLines` entries and
+   `wrappedLinesCount()` is capped at 10 000 to guard against corrupted
+   values.  An out-of-bounds guard was also added for the `logLines` access.
+
+---
+
 # 26.04.2 (2026-04-19):
 
 ## Bug fixes:

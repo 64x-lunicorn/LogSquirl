@@ -62,9 +62,14 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
     , newfiltered_icon_( ":/images/newfiltered_icon.png" )
 {
 
-    QString tabStyle = "QTabBar::tab { height: 24px; }";
+    const auto& config = Configuration::get();
+    const bool isDark = ( config.style() == StyleManager::DarkStyleKey
+                          || config.style() == StyleManager::DarkWindowsStyleKey );
+
+    QString tabStyle = QStringLiteral( "QTabBar::tab { height: 28px; }" );
+
     QString tabCloseButtonStyle = " QTabBar::close-button {\
-              height: 12px; width: 12px;\
+              height: 14px; width: 14px;\
               subcontrol-origin: padding;\
               subcontrol-position: right;\
               %1}";
@@ -72,17 +77,15 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
     QString backgroundImage;
     QString backgroundHoverImage;
 
-    const auto& config = Configuration::get();
-    if ( config.style() == StyleManager::DarkStyleKey ) {
+    if ( isDark ) {
         backgroundImage = ":/images/icons8-close-window-16_inverse.png";
         backgroundHoverImage = ":/images/icons8-close-window-hover-16_inverse.png";
     }
 
 #if defined( Q_OS_MAC )
-    // work around Qt MacOSX bug missing tab close icons
+    // work around Qt macOS bug missing tab close icons
     // see: https://bugreports.qt.io/browse/QTBUG-61092
-    // still broken in document mode in Qt.5.12.2 !!!!
-    if ( config.style() != StyleManager::DarkStyleKey ) {
+    if ( !isDark ) {
         backgroundImage
             = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-16.png";
         backgroundHoverImage
@@ -97,7 +100,11 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
 
     if ( !backgroundImage.isEmpty() ) {
         const QString backgroundImageTemplate = " image: url(%1);";
-        QString tabCloseButtonHoverStyle = " QTabBar::close-button:hover { %1 }";
+        QString tabCloseButtonHoverStyle
+            = isDark
+                  ? " QTabBar::close-button:hover { %1 background-color: #C42B1C;"
+                    " border-radius: 3px; }"
+                  : " QTabBar::close-button:hover { %1 }";
         backgroundImage = backgroundImageTemplate.arg( backgroundImage );
         backgroundHoverImage = backgroundImageTemplate.arg( backgroundHoverImage );
         tabCloseButtonHoverStyle = tabCloseButtonHoverStyle.arg( backgroundHoverImage );
@@ -108,7 +115,7 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
         tabCloseButtonStyle = tabCloseButtonStyle.arg( "" );
     }
 
-    myTabBar_.setStyleSheet( tabStyle.append( tabCloseButtonStyle ) );
+    myTabBar_.setStyleSheet( tabStyle + tabCloseButtonStyle );
 
     setTabBar( &myTabBar_ );
     myTabBar_.hide();
@@ -195,8 +202,10 @@ void TabbedCrawlerWidget::removeCrawler( int index )
 {
     QTabWidget::removeTab( index );
 
-    if ( count() <= 1 )
-        myTabBar_.hide();
+    // Keep the tab bar visible when only the pinned dashboard tab remains
+    if ( count() <= 1 ) {
+        myTabBar_.show();
+    }
 }
 
 void TabbedCrawlerWidget::mouseReleaseEvent( QMouseEvent* event )
@@ -205,7 +214,7 @@ void TabbedCrawlerWidget::mouseReleaseEvent( QMouseEvent* event )
 
     if ( event->button() == Qt::MiddleButton ) {
         int tab = this->myTabBar_.tabAt( event->pos() );
-        if ( -1 != tab ) {
+        if ( tab > 0 ) {
             Q_EMIT tabCloseRequested( tab );
             event->accept();
         }
@@ -234,6 +243,11 @@ void CrawlerTabBar::mouseReleaseEvent( QMouseEvent* mouseEvent )
 
 void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 {
+    // No context menu for the pinned dashboard tab
+    if ( tab == 0 && !qobject_cast<CrawlerWidget*>( widget( 0 ) ) ) {
+        return;
+    }
+
     QMenu menu( this );
     auto closeThis = menu.addAction( tr( "Close this" ) );
     auto closeOthers = menu.addAction( tr( "Close others" ) );
@@ -251,7 +265,7 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 
     connect( closeOthers, &QAction::triggered, [ tab, this ] {
         QList<int> indices;
-        for ( int i = 0; i < count(); ++i ) {
+        for ( int i = 1; i < count(); ++i ) {
             if ( i != tab ) {
                 indices.append( i );
             }
@@ -261,7 +275,7 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 
     connect( closeLeft, &QAction::triggered, [ tab, this ] {
         QList<int> indices;
-        for ( int i = 0; i < tab; ++i ) {
+        for ( int i = 1; i < tab; ++i ) {
             indices.append( i );
         }
         Q_EMIT bulkTabCloseRequested( indices );
@@ -277,13 +291,13 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 
     connect( closeAll, &QAction::triggered, [ this ] {
         QList<int> indices;
-        for ( int i = 0; i < count(); ++i ) {
+        for ( int i = 1; i < count(); ++i ) {
             indices.append( i );
         }
         Q_EMIT bulkTabCloseRequested( indices );
     } );
 
-    if ( tab == 0 ) {
+    if ( tab <= 1 ) {
         closeLeft->setDisabled( true );
     }
     else if ( tab == count() - 1 ) {
@@ -405,7 +419,7 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
             }
             // Collect tab indices first, then close in reverse order
             const auto paths = it->tabPaths;
-            for ( int i = count() - 1; i >= 0; --i ) {
+            for ( int i = count() - 1; i >= 1; --i ) {
                 if ( paths.contains( tabPathAt( i ) ) ) {
                     Q_EMIT tabCloseRequested( i );
                 }
@@ -420,14 +434,14 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     }
 
     // --- Merge operations ---
-    if ( count() > 1 ) {
+    if ( count() > 2 ) {
         menu.addSeparator();
 
-        if ( tab > 0 ) {
+        if ( tab > 1 ) {
             auto* mergeLeft = menu.addAction( tr( "Merge All Left" ) );
             connect( mergeLeft, &QAction::triggered, this, [ this, tab ] {
                 QStringList paths;
-                for ( int i = 0; i < tab; ++i ) {
+                for ( int i = 1; i < tab; ++i ) {
                     paths.append( tabPathAt( i ) );
                 }
                 Q_EMIT mergeRequested( paths, false );
@@ -436,7 +450,7 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
             auto* mergeLeftDedup = menu.addAction( tr( "Merge All Left (dedup)" ) );
             connect( mergeLeftDedup, &QAction::triggered, this, [ this, tab ] {
                 QStringList paths;
-                for ( int i = 0; i < tab; ++i ) {
+                for ( int i = 1; i < tab; ++i ) {
                     paths.append( tabPathAt( i ) );
                 }
                 Q_EMIT mergeRequested( paths, true );

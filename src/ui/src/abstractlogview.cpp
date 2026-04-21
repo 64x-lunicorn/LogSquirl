@@ -2382,9 +2382,16 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     // Position in pixel of the base line of the line to print
     int yPos = 0;
     wrappedLinesInfo_.clear();
+    // Pre-reserve to reduce mimalloc reallocations during the paint loop.
+    // With text wrapping off each visible line produces exactly one entry;
+    // with wrapping the count is higher but this avoids the first N reallocs.
+    wrappedLinesInfo_.reserve( static_cast<size_t>( nbLines.get() ) );
     logsquirl::vector<std::pair<QColor, QColor>> highlightColors;
     for ( auto currentLine = 0_lcount; currentLine < nbLines; ++currentLine ) {
         const auto lineNumber = firstLine_ + currentLine;
+        if ( currentLine.get() >= logLines.size() ) {
+            break; // Guard against stale nbLines after file change
+        }
         QString logLine = logLines[ currentLine.get() ];
 
         const int xPos = contentStartPosX + ContentMarginWidth;
@@ -2602,7 +2609,11 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, yPos + fontAscent,
                                lineNumberStr );
         }
-        for ( size_t i = 0u; i < wrappedLineView.wrappedLinesCount(); ++i ) {
+        // Sanity-cap: protect against corrupted wrappedLinesCount values that
+        // could cause an out-of-memory crash inside the mimalloc allocator.
+        const auto wrappedCount = wrappedLineView.wrappedLinesCount();
+        static constexpr size_t kMaxWrappedLines = 10000;
+        for ( size_t i = 0u; i < wrappedCount && i < kMaxWrappedLines; ++i ) {
             wrappedLinesInfo_.emplace_back( WrappedLineData{ lineNumber, i, wrappedLineView } );
         }
 

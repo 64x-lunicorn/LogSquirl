@@ -308,14 +308,38 @@ MainWindow::MainWindow( WindowSession session )
     // Construct the QuickFind bar
     quickFindWidget_.hide();
 
-    QWidget* central_widget = new QWidget();
-    auto* main_layout = new QVBoxLayout();
-    main_layout->setContentsMargins( 0, 0, 0, 0 );
-    main_layout->addWidget( &mainTabWidget_ );
-    main_layout->addWidget( &quickFindWidget_ );
-    central_widget->setLayout( main_layout );
+    // Build the central layout with the tab widget, quick-find bar, and
+    // welcome dashboard as a permanent pinned first tab.
+    welcomeDashboard_ = new WelcomeDashboard();
+    welcomeDashboard_->setPluginManager( &pluginManager_ );
 
-    setCentralWidget( central_widget );
+    // Insert dashboard as the permanent first tab (index 0)
+    mainTabWidget_.insertTab( 0, welcomeDashboard_, tr( "Home" ) );
+    // Disable the close button on the dashboard tab
+    mainTabWidget_.tabBar()->setTabButton( 0, QTabBar::RightSide, nullptr );
+    mainTabWidget_.tabBar()->setTabButton( 0, QTabBar::LeftSide, nullptr );
+    // Always show the tab bar so the dashboard is accessible
+    mainTabWidget_.tabBar()->show();
+    mainTabWidget_.setCurrentIndex( 0 );
+
+    QWidget* centralContainer = new QWidget();
+    auto* centralLayout = new QVBoxLayout();
+    centralLayout->setContentsMargins( 0, 0, 0, 0 );
+    centralLayout->setSpacing( 0 );
+    centralLayout->addWidget( &mainTabWidget_ );
+    centralLayout->addWidget( &quickFindWidget_ );
+    centralContainer->setLayout( centralLayout );
+    setCentralWidget( centralContainer );
+
+    // Wire dashboard signals
+    connect( welcomeDashboard_, &WelcomeDashboard::openFileRequested, this,
+             [ this ]( const QString& path ) { loadFile( path ); } );
+    connect( welcomeDashboard_, &WelcomeDashboard::openFileDialogRequested, this,
+             &MainWindow::open );
+    connect( welcomeDashboard_, &WelcomeDashboard::loadSessionRequested, this,
+             &MainWindow::reloadSession );
+
+    welcomeDashboard_->refresh();
 
     // Connect plugin manager signals — wired up before autoLoadPlugins() so
     // that signals emitted during loading (status widgets, menu actions) are
@@ -901,6 +925,20 @@ void MainWindow::updateShortcuts()
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
 }
 
+// Check whether the given tab index points to the pinned welcome dashboard.
+bool isDashboardTab( const TabbedCrawlerWidget& tabs, int index )
+{
+    return index == 0 && qobject_cast<WelcomeDashboard*>( tabs.widget( 0 ) ) != nullptr;
+}
+
+// Refresh the welcome dashboard content.
+void MainWindow::showDashboardOrTabs()
+{
+    if ( welcomeDashboard_ ) {
+        welcomeDashboard_->refresh();
+    }
+}
+
 void MainWindow::loadIcons()
 {
     openAction->setIcon( iconLoader_.load( "icons8-open-file" ) );
@@ -1044,26 +1082,31 @@ void MainWindow::createToolBars()
 
     sizeField = new QLabel();
     sizeField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+    sizeField->setContentsMargins( 6, 0, 6, 0 );
 
     dateField = new QLabel();
     dateField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+    dateField->setContentsMargins( 6, 0, 6, 0 );
 
     encodingField = new QLabel();
-    dateField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+    encodingField->setAlignment( Qt::AlignHCenter | Qt::AlignVCenter );
+    encodingField->setContentsMargins( 6, 0, 6, 0 );
 
     lineNbField = new QLabel();
     lineNbField->setAlignment( Qt::AlignRight | Qt::AlignVCenter );
-    lineNbField->setContentsMargins( 2, 0, 2, 0 );
+    lineNbField->setContentsMargins( 6, 0, 6, 0 );
 
     toolBar = addToolBar( QApplication::translate( "logsquirl::mainwindow::toolbar",
                                                    logsquirl::mainwindow::toolbar::toolbarTitle ) );
-    toolBar->setIconSize( QSize( 16, 16 ) );
+    const auto iconSize = Configuration::get().toolbarIconSize();
+    toolBar->setIconSize( QSize( iconSize, iconSize ) );
     toolBar->setMovable( false );
     toolBar->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
     toolBar->addAction( openAction );
     toolBar->addAction( reloadAction );
     toolBar->addAction( followAction );
     toolBar->addAction( addToFavoritesAction );
+    toolBar->addSeparator();
     toolBar->addWidget( infoLine );
     toolBar->addAction( stopAction );
 
@@ -1142,6 +1185,7 @@ void MainWindow::open()
     // Build file filter including converter plugins
     QStringList filters;
     filters << tr( "All files (*)" );
+    filters << tr( "Compressed logs (*.gz *.bz2 *.xz *.zst *.zstd *.lz4)" );
     filters << pluginManager_.converterFileFilters();
     const auto filter = filters.join( ";;" );
 
@@ -1255,19 +1299,19 @@ void MainWindow::closeTab( ActionInitiator initiator )
 {
     int currentIndex = mainTabWidget_.currentIndex();
 
-    if ( currentIndex >= 0 ) {
+    if ( currentIndex >= 0 && !isDashboardTab( mainTabWidget_, currentIndex ) ) {
         closeTab( currentIndex, initiator );
     }
-    else {
+    else if ( currentIndex < 0 ) {
         this->close();
     }
 }
 
-// Close all tabs
+// Close all tabs (except the pinned dashboard)
 void MainWindow::closeAll( ActionInitiator initiator )
 {
-    while ( mainTabWidget_.count() ) {
-        closeTab( 0, initiator );
+    while ( mainTabWidget_.count() > 1 ) {
+        closeTab( 1, initiator );
     }
 }
 
@@ -1961,14 +2005,22 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
 void MainWindow::handleFilteredViewChanged()
 {
     int currentIndex = mainTabWidget_.currentIndex();
-    if ( currentIndex >= 0 ) {
-        auto* crawler_widget = static_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
-        quickFindMux_.registerSelector( crawler_widget );
+    if ( currentIndex >= 0 && !isDashboardTab( mainTabWidget_, currentIndex ) ) {
+        auto* crawler_widget
+            = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
+        if ( crawler_widget ) {
+            quickFindMux_.registerSelector( crawler_widget );
+        }
     }
 }
 
 void MainWindow::closeTab( int index, ActionInitiator initiator )
 {
+    // Never close the pinned dashboard tab
+    if ( isDashboardTab( mainTabWidget_, index ) ) {
+        return;
+    }
+
     auto widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
 
     assert( widget );
@@ -2064,8 +2116,11 @@ void MainWindow::currentTabChanged( int index )
 {
     LOG_DEBUG << "currentTabChanged";
 
-    if ( index >= 0 ) {
-        auto* crawler_widget = static_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
+    if ( index >= 0 && !isDashboardTab( mainTabWidget_, index ) ) {
+        auto* crawler_widget = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
+        if ( !crawler_widget ) {
+            return;
+        }
         signalMux_.setCurrentDocument( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
 
@@ -2083,7 +2138,7 @@ void MainWindow::currentTabChanged( int index )
             session_.getFilename( crawler_widget ) );
     }
     else {
-        // No tab left
+        // Dashboard tab or no tab — clear the document state
         signalMux_.setCurrentDocument( nullptr );
         quickFindMux_.registerSelector( nullptr );
 
@@ -2099,6 +2154,11 @@ void MainWindow::currentTabChanged( int index )
 
         // Notify plugins that no file is active
         pluginManager_.notifyActiveFileChanged( QString() );
+
+        // Refresh dashboard when it becomes visible
+        if ( isDashboardTab( mainTabWidget_, index ) ) {
+            showDashboardOrTabs();
+        }
     }
 }
 
@@ -2819,6 +2879,9 @@ void MainWindow::writeSettings()
         widget_list;
     for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
         auto view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
+        if ( !view ) {
+            continue; // skip the pinned dashboard tab
+        }
         widget_list.emplace_back( view, 0UL, view->context() );
     }
     session_.save( widget_list, saveGeometry() );

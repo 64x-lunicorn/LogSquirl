@@ -67,6 +67,7 @@
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
 #include "mergecontroller.h"
+#include "welcomedashboard.h"
 
 class QAction;
 class QActionGroup;
@@ -253,6 +254,7 @@ class MainWindow : public QMainWindow {
     void removeFromRecent( const QString& pathToRemove );
     void tryOpenClipboard( int tryTimes );
     void updateShortcuts();
+    void showDashboardOrTabs();
 
     WindowSession session_;
     QString loadingFileName;
@@ -351,6 +353,9 @@ class MainWindow : public QMainWindow {
 
     // The main widget
     TabbedCrawlerWidget mainTabWidget_;
+
+    // Welcome dashboard shown as the permanent first tab
+    WelcomeDashboard* welcomeDashboard_ = nullptr;
 
     TabbedScratchPad scratchPad_;
 

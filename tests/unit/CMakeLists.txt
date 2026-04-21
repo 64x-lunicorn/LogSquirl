@@ -7,6 +7,7 @@ add_executable(logsquirl_tests
     jwtdecoder_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
+    lz4device_test.cpp
     mergecontroller_test.cpp
     patternmatcher_test.cpp
     plugindialog_test.cpp
@@ -14,10 +15,11 @@ add_executable(logsquirl_tests
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     regularexpression_test.cpp
+    zstddevice_test.cpp
     tests_main.cpp
 )
 
-target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_plugins logsquirl_utils logsquirl_logging logsquirl_settings Catch2 Qt6::Test)
+target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_plugins logsquirl_utils logsquirl_logging logsquirl_settings logsquirl_zstd logsquirl_lz4 Catch2 Qt6::Test)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 add_test(

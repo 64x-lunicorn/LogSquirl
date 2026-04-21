@@ -354,6 +354,14 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     }
     settings.endArray();
 
+    showSplashScreen_
+        = settings.value( "view.showSplashScreen", DefaultConfiguration.showSplashScreen_ )
+              .toBool();
+
+    toolbarIconSize_
+        = settings.value( "view.toolbarIconSize", DefaultConfiguration.toolbarIconSize_ )
+              .toInt();
+
     pluginsAutoLoad_
         = settings.value( "plugins.autoLoad", DefaultConfiguration.pluginsAutoLoad_ ).toBool();
     enabledPlugins_
@@ -473,6 +481,9 @@ void Configuration::saveToStorage( QSettings& settings ) const
         shortcutIndex++;
     }
     settings.endArray();
+
+    settings.setValue( "view.showSplashScreen", showSplashScreen_ );
+    settings.setValue( "view.toolbarIconSize", toolbarIconSize_ );
 
     settings.setValue( "plugins.autoLoad", pluginsAutoLoad_ );
     settings.setValue( "plugins.enabledPlugins", enabledPlugins_ );

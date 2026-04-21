@@ -577,6 +577,26 @@ class Configuration final : public Persistable<Configuration> {
         return darkPalette_;
     }
 
+    // Splash screen
+    bool showSplashScreen() const
+    {
+        return showSplashScreen_;
+    }
+    void setShowSplashScreen( bool show )
+    {
+        showSplashScreen_ = show;
+    }
+
+    // Toolbar icon size in pixels (default 24)
+    int toolbarIconSize() const
+    {
+        return toolbarIconSize_;
+    }
+    void setToolbarIconSize( int size )
+    {
+        toolbarIconSize_ = size;
+    }
+
     // Plugin settings
     bool pluginsAutoLoad() const
     {
@@ -698,6 +718,10 @@ class Configuration final : public Persistable<Configuration> {
 
     int defaultEncodingMib_ = -1;
 
+    bool showSplashScreen_ = false;
+
+    int toolbarIconSize_ = 24;
+
     bool pluginsAutoLoad_ = true;
     QStringList enabledPlugins_;
 
@@ -722,11 +746,11 @@ class Configuration final : public Persistable<Configuration> {
         {"ButtonText", "#FFFFFF"},
         {"Link", "#2a82da"},
         {"Highlight", "#2a82da"},
-        {"HighlightedText", "#212121"},
+        {"HighlightedText", "#FFFFFF"},
         {"ActiveButton", "#303030"},
-        {"DisabledButtonText", "#757575"},
-        {"DisabledWindowText", "#808080"},
-        {"DisabledText", "#808080"},
+        {"DisabledButtonText", "#A0A0A0"},
+        {"DisabledWindowText", "#A0A0A0"},
+        {"DisabledText", "#A0A0A0"},
         {"DisabledLight", "#353535"},
     };
 };

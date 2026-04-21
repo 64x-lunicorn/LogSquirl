@@ -361,6 +361,7 @@ void OptionsDialog::updateDialogFromConfig()
     minimizeToTrayCheckBox->setChecked( config.minimizeToTray() );
     multipleWindowsCheckBox->setChecked( config.allowMultipleWindows() );
     confirmTabCloseCheckBox->setChecked( config.confirmTabClose() );
+    showSplashScreenCheckBox->setChecked( config.showSplashScreen() );
 
     loggingCheckBox->setChecked( config.enableLogging() );
     verbositySpinBox->setValue( config.loggingLevel() );
@@ -541,6 +542,7 @@ void OptionsDialog::updateConfigFromDialog()
     config.setAllowMultipleWindows( multipleWindowsCheckBox->isChecked() );
     config.setConfirmTabClose( confirmTabCloseCheckBox->isChecked() );
     config.setMinimizeToTray( minimizeToTrayCheckBox->isChecked() );
+    config.setShowSplashScreen( showSplashScreenCheckBox->isChecked() );
     config.setEnableLogging( loggingCheckBox->isChecked() );
     config.setLoggingLevel( verbositySpinBox->value() );
 

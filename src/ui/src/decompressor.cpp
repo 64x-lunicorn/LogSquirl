@@ -31,10 +31,12 @@
 #include "log.h"
 
 #include "decompressor.h"
+#include "lz4device.h"
+#include "zstddevice.h"
 
 namespace {
 
-enum class Archive { None, Zip7, Tar, Zip, Gz, Bz2, Xz };
+enum class Archive { None, Zip7, Tar, Zip, Gz, Bz2, Xz, Zstd, Lz4 };
 
 Archive archiveTypeByExtension( const QString& archiveFilePath )
 {
@@ -48,11 +50,13 @@ Archive archiveTypeByExtension( const QString& archiveFilePath )
     else if ( extension == "7z" ) {
         return Archive::Zip7;
     }
-    else if ( extension == "tgz" || extension == "tbz2" || extension == "txz" ) {
+    else if ( extension == "tgz" || extension == "tbz2" || extension == "txz"
+              || extension == "tzst" ) {
         return Archive::Tar;
     }
 
-    if ( extension == "gz" || extension == "bz2" || extension == "xz" || extension == "lzma" ) {
+    if ( extension == "gz" || extension == "bz2" || extension == "xz" || extension == "lzma"
+         || extension == "zst" || extension == "zstd" || extension == "lz4" ) {
         const auto completeSuffix = info.completeSuffix().toLower();
         if ( completeSuffix.contains( "tar." ) ) {
             return Archive::Tar;
@@ -65,6 +69,12 @@ Archive archiveTypeByExtension( const QString& archiveFilePath )
         }
         else if ( extension == "xz" || extension == "lzma" ) {
             return Archive::Xz;
+        }
+        else if ( extension == "zst" || extension == "zstd" ) {
+            return Archive::Zstd;
+        }
+        else if ( extension == "lz4" ) {
+            return Archive::Lz4;
         }
     }
 
@@ -99,6 +109,12 @@ Archive archiveType( const QString& archiveFilePath )
     else if ( mime.inherits( "application/x-lzma" ) || mime.inherits( "application/x-xz" ) ) {
         mimeArchiveType = Archive::Xz;
     }
+    else if ( mime.inherits( "application/zstd" ) || mime.inherits( "application/x-zstd" ) ) {
+        mimeArchiveType = Archive::Zstd;
+    }
+    else if ( mime.inherits( "application/x-lz4" ) ) {
+        mimeArchiveType = Archive::Lz4;
+    }
 
     if ( mimeArchiveType == Archive::None ) {
         return archiveTypeByExtension( archiveFilePath );
@@ -111,7 +127,8 @@ Archive archiveType( const QString& archiveFilePath )
          || extension.endsWith( "tgz", Qt::CaseInsensitive )
          || extension.endsWith( "tbz", Qt::CaseInsensitive )
          || extension.endsWith( "tbz2", Qt::CaseInsensitive )
-         || extension.endsWith( "txz", Qt::CaseInsensitive ) ) {
+         || extension.endsWith( "txz", Qt::CaseInsensitive )
+         || extension.endsWith( "tzst", Qt::CaseInsensitive ) ) {
 
         return Archive::Tar;
     }
@@ -126,36 +143,58 @@ std::shared_ptr<KArchive> makeExtractor( Archive archiveType, const QString& arc
         return std::make_shared<KZip>( archiveFilePath );
     case Archive::Zip7:
         return std::make_shared<K7Zip>( archiveFilePath );
-    case Archive::Tar:
+    case Archive::Tar: {
+        // KTar handles .tar.gz/.tar.bz2/.tar.xz natively, but not zstd/lz4.
+        // For those, provide a pre-decompressing QIODevice to KTar.
+        const auto info = QFileInfo( archiveFilePath );
+        const auto completeSuffix = info.completeSuffix().toLower();
+        const auto extension = info.suffix().toLower();
+
+        QIODevice* decompDevice = nullptr;
+        if ( completeSuffix.contains( "tar.zst" ) || completeSuffix.contains( "tar.zstd" )
+             || extension == "tzst" ) {
+            decompDevice = new ZstdDevice( archiveFilePath );
+        }
+        else if ( completeSuffix.contains( "tar.lz4" ) ) {
+            decompDevice = new Lz4Device( archiveFilePath );
+        }
+
+        if ( decompDevice ) {
+            // KTar does not own the device — use a custom deleter to clean up both.
+            return std::shared_ptr<KTar>( new KTar( decompDevice ),
+                                          [ decompDevice ]( KTar* tar ) {
+                                              delete tar;
+                                              delete decompDevice;
+                                          } );
+        }
+
         return std::make_shared<KTar>( archiveFilePath );
+    }
     default:
         return {};
     }
 }
 
-std::shared_ptr<KCompressionDevice> makeDecompressor( Archive archiveType,
-                                                      const QString& archiveFilePath )
+/// Creates a QIODevice for streaming decompression. Returns KCompressionDevice
+/// for gz/bz2/xz and custom wrappers for zstd/lz4.
+std::shared_ptr<QIODevice> makeDecompressor( Archive archiveType,
+                                             const QString& archiveFilePath )
 {
-    KCompressionDevice::CompressionType compression = KCompressionDevice::None;
-
     switch ( archiveType ) {
     case Archive::Gz:
-        compression = KCompressionDevice::GZip;
-        break;
+        return std::make_shared<KCompressionDevice>( archiveFilePath,
+                                                     KCompressionDevice::GZip );
     case Archive::Bz2:
-        compression = KCompressionDevice::BZip2;
-        break;
+        return std::make_shared<KCompressionDevice>( archiveFilePath,
+                                                     KCompressionDevice::BZip2 );
     case Archive::Xz:
-        compression = KCompressionDevice::Xz;
-        break;
+        return std::make_shared<KCompressionDevice>( archiveFilePath,
+                                                     KCompressionDevice::Xz );
+    case Archive::Zstd:
+        return std::make_shared<ZstdDevice>( archiveFilePath );
+    case Archive::Lz4:
+        return std::make_shared<Lz4Device>( archiveFilePath );
     default:
-        compression = KCompressionDevice::None;
-    }
-
-    if ( compression != KCompressionDevice::None ) {
-        return std::make_shared<KCompressionDevice>( archiveFilePath, compression );
-    }
-    else {
         return {};
     }
 }
@@ -197,7 +236,7 @@ bool doExtract( std::shared_ptr<KArchive> archive, const QString& archiveFilePat
     return result;
 }
 
-bool doDecompress( std::shared_ptr<KCompressionDevice> input, const QString& archiveFilePath,
+bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFilePath,
                    QFile* outputFile, AtomicFlag& interrupt )
 {
     if ( !input->open( QIODevice::ReadOnly ) ) {
@@ -262,6 +301,8 @@ DecompressAction Decompressor::action( const QString& archiveFilePath )
     case Archive::Gz:
     case Archive::Bz2:
     case Archive::Xz:
+    case Archive::Zstd:
+    case Archive::Lz4:
         return DecompressAction::Decompress;
     default:
         return DecompressAction::None;
