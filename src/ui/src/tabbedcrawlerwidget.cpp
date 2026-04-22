@@ -63,8 +63,7 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
 {
 
     const auto& config = Configuration::get();
-    const bool isDark = ( config.style() == StyleManager::DarkStyleKey
-                          || config.style() == StyleManager::DarkWindowsStyleKey );
+    const bool isDark = ( config.style() == StyleManager::DarkStyleKey );
 
     QString tabStyle = QStringLiteral( "QTabBar::tab { height: 28px; }" );
 
@@ -477,6 +476,13 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
             } );
         }
     }
+
+    // --- Compare operation ---
+    menu.addSeparator();
+    auto* compareWith = menu.addAction( tr( "Compare with…" ) );
+    connect( compareWith, &QAction::triggered, this, [ this, tab ] {
+        Q_EMIT compareRequested( tabPathAt( tab ) );
+    } );
 
     menu.exec( globalPoint );
 }

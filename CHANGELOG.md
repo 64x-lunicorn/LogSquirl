@@ -1,30 +1,52 @@
 # Unreleased
 
 ## New features:
- - **Zstd & LZ4 decompression**: LogSquirl can now open `.zst`/`.zstd` and
-   `.lz4` compressed log files directly, including `.tar.zst`/`.tar.lz4`
-   archives.  Uses libzstd 1.5.6 and liblz4 1.10.0 (statically linked via
-   CPM).
+ - **Diff View**: Compare two log files side-by-side using two full
+   CrawlerWidget instances.  Each pane has its own search, filtered view,
+   marks, and quick-find.  An anchor system allows manual line pairing
+   between the two panes (right-click → "Set Anchor", two clicks to form
+   a pair).  Anchors drive piecewise-linear scroll synchronization and
+   enable a shared regex search bar that applies patterns to both panes
+   simultaneously.  The shared search is disabled when no anchors exist.
+   Access via File → "Compare Files…" or right-click a tab → "Compare
+   with…".  Anchor state, file paths, and splitter geometry persist across
+   sessions.
  - **Startup Splash Screen**: A splash screen with the LogSquirl app icon and
    version is now shown while the application initialises (plugin discovery,
-   session restore).  **Disabled by default** — enable via Options → General →
-   "Show splash screen on startup" when loading many plugins.
+   session restore).  Can be disabled via Options → General →
+   "Show splash screen on startup".
  - **Welcome Dashboard**: A permanent "Home" tab (pinned at position 0)
    displays the app icon, recent files, favorites, quick action buttons
    (Open File, Load Session), loaded plugin status, and keyboard shortcut
    hints.  Files can also be dropped onto the dashboard.  The Home tab
    cannot be closed and is always available.
+ - **Zstd/LZ4 Decompression**: Transparently open `.zst` and `.lz4`
+   compressed log files.  The file is streamed through a decompressor to a
+   temporary file before indexing, so the original compressed file is never
+   modified.
+ - **Index Cache**: File indexes are persisted to disk so re-opening a
+   previously indexed file skips the full indexing pass.  Enable/disable and
+   configure the maximum cache size (MB) in Options → Performance.  The
+   cache is keyed by file path and size; stale entries are evicted
+   automatically.
+ - **Command Palette**: VS Code-style quick-command dialog
+   (Ctrl+Shift+P / Cmd+Shift+P or Tools → "Command Palette…").  Fuzzy-search
+   all menu actions, recent files, favorites, highlighter sets, and plugin
+   commands from a single input field.
+ - **German, Ukrainian, Spanish, French, Brazilian Portuguese, European Portuguese translations**: 
+   Added full UI translations for German (de), Ukrainian (uk), and Spanish (es), 
+   French (fr), Brazilian Portuguese (pt_BR), and European Portuguese (pt_PT).  
+   Selectable in Options → View → Language.
+ - **Dashboard toggle**: The welcome dashboard can now be disabled via
+   Options → General → "Show dashboard on startup" (enabled by default).
+ - **Splash screen disabled by default**: The startup splash screen is now
+   off by default.  Users who want it can re-enable it in
+   Options → General → "Show splash screen on startup".
+ - **Index cache disabled by default**: The index cache is now disabled by
+   default to avoid unexpected disk usage.  Users can opt in via
+   Options → Performance → "Use index cache".
 
 ## UI/UX improvements:
- - **Welcome Dashboard theme awareness**: All hardcoded hex colors in the
-   Welcome Dashboard have been replaced with `QPalette` lookups so the
-   dashboard adapts correctly to dark, light, and custom themes.
- - **Welcome Dashboard clean background**: The dashboard content area,
-   recent files list, and favorites list now use `QPalette::Base` instead of
-   the default grey `QPalette::Window` colour, giving a cleaner look that
-   matches the editor background.
- - **Open file dialog filter**: Added a "Compressed logs" filter group
-   (`.gz`, `.bz2`, `.xz`, `.zst`, `.zstd`, `.lz4`) to the Open File dialog.
  - **Toggle button visibility**: Checkable toolbar buttons (filter bar: match
    case, regex, inverse, boolean, auto-refresh; and main toolbar: follow,
    text wrap) now clearly show their checked/active state across all themes
@@ -52,6 +74,31 @@
  - **Dark theme stylesheet**: Added a baseline QSS stylesheet for the dark
    theme covering buttons, tab bar, scroll bars, tooltips, menus, group
    boxes, and dock widgets for a more polished appearance.
+ - **External QSS theme system**: Theme stylesheets are now loaded from
+   external `.qss` files instead of inline C++.  Built-in themes (Dark,
+   Fusion Light, High Contrast) are embedded as Qt resources.  Users can
+   override any theme by placing a `.qss` file in
+   `<AppConfigDir>/themes/`.
+ - **High Contrast theme**: New "High Contrast" style option for users
+   who need maximum contrast — bold borders, high-visibility focus
+   indicators, and a black-on-white palette.
+ - **Dashboard title bar**: The title bar now shows "Dashboard" instead
+   of "Untitled" when the dashboard tab is active.
+ - **Dashboard tab label**: The dashboard tab is now labelled "Dashboard"
+   instead of "Home" for consistency.
+
+## Accessibility:
+ - **Keyboard focus on filter buttons**: The five search filter buttons
+   (Match case, Regex, Inverse, Boolean, Auto-refresh) are now keyboard-
+   focusable via Tab.  Previously they were set to `NoFocus`.
+ - **Tab order**: Added explicit tab order for the search bar and filter
+   buttons so keyboard navigation follows a logical left-to-right sequence.
+ - **Accessible names**: Added `setAccessibleName()` to the main window,
+   tab widget, search input, and all filter buttons for screen reader
+   compatibility.
+ - **Focus indicators**: All themes now include `:focus` styles for
+   buttons, combo boxes, and line edits so the currently focused widget
+   is always visible.
  - **Tab bar styling**: Tabs now have rounded top corners, a blue bottom
    border on the active tab, and distinct hover states.
  - **Toolbar layout**: Added separator between action buttons and the path
@@ -59,14 +106,6 @@
    consistent horizontal padding.
  - **Scroll bars**: Dark-mode scroll bars are now clearly visible with
    rounded handles and hover highlighting.
-
-## Bug fixes:
- - **Write-violation crash in `drawTextArea`**: Fixed a fatal
-   `EXCEPTION_ACCESS_VIOLATION_WRITE` in `mi_page_free_list_extend`
-   (mimalloc) triggered by repeated vector reallocations during painting.
-   `wrappedLinesInfo_` is now pre-reserved to `nbLines` entries and
-   `wrappedLinesCount()` is capped at 10 000 to guard against corrupted
-   values.  An out-of-bounds guard was also added for the `logLines` access.
 
 ---
 

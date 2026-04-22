@@ -146,6 +146,12 @@ public:
     LinePosition( const LinePosition& ) = delete;
     LinePosition& operator=( const LinePosition& ) = delete;
 
+    /// Construct from a pre-built storage (used by IndexCache).
+    explicit LinePosition( Storage&& storage )
+        : array( std::move( storage ) )
+    {
+    }
+
     LinePosition( LinePosition&& orig ) noexcept
     {
         *this = std::move( orig );
@@ -215,6 +221,18 @@ public:
 
         // In case the 'other' object has a fake LF
         this->fakeFinalLF_ = other.fakeFinalLF_;
+    }
+
+    /// Read-only access to the underlying storage (used by IndexCache).
+    const Storage& storage() const
+    {
+        return array;
+    }
+
+    /// Whether a fake final LF was appended.
+    bool hasFakeFinalLF() const
+    {
+        return fakeFinalLF_;
     }
 
 private:

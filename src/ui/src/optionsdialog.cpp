@@ -80,6 +80,8 @@ OptionsDialog::OptionsDialog( QWidget* parent )
     connect( searchResultsCacheCheckBox, &QCheckBox::toggled,
              [ this ]( auto ) { this->setupSearchResultsCache(); } );
     connect( loggingCheckBox, &QCheckBox::toggled, [ this ]( auto ) { this->setupLogging(); } );
+    connect( indexCacheCheckBox, &QCheckBox::toggled,
+             [ this ]( auto ) { this->setupIndexCache(); } );
 
     connect( extractArchivesCheckBox, &QCheckBox::toggled,
              [ this ]( auto ) { this->setupArchives(); } );
@@ -105,6 +107,7 @@ OptionsDialog::OptionsDialog( QWidget* parent )
     setupSearchResultsCache();
     setupLogging();
     setupArchives();
+    setupIndexCache();
 }
 
 //
@@ -217,6 +220,11 @@ void OptionsDialog::setupLogging()
 void OptionsDialog::setupArchives()
 {
     extractArchivesAlwaysCheckBox->setEnabled( extractArchivesCheckBox->isChecked() );
+}
+
+void OptionsDialog::setupIndexCache()
+{
+    indexCacheMaxSizeSpinBox->setEnabled( indexCacheCheckBox->isChecked() );
 }
 
 // Convert a regexp type to its index in the list
@@ -362,6 +370,7 @@ void OptionsDialog::updateDialogFromConfig()
     multipleWindowsCheckBox->setChecked( config.allowMultipleWindows() );
     confirmTabCloseCheckBox->setChecked( config.confirmTabClose() );
     showSplashScreenCheckBox->setChecked( config.showSplashScreen() );
+    showDashboardCheckBox->setChecked( config.showDashboard() );
 
     loggingCheckBox->setChecked( config.enableLogging() );
     verbositySpinBox->setValue( config.loggingLevel() );
@@ -377,6 +386,8 @@ void OptionsDialog::updateDialogFromConfig()
     searchReadBufferSpinBox->setValue( config.searchReadBufferSizeLines() );
     keepFileClosedCheckBox->setChecked( config.keepFileClosed() );
     compressedIndexCheckBox->setChecked( config.useCompressedIndex() );
+    indexCacheCheckBox->setChecked( config.useIndexCache() );
+    indexCacheMaxSizeSpinBox->setValue( config.indexCacheMaxSizeMb() );
     optimizeForNotLatinEncodingsCheckBox->setChecked( config.optimizeForNotLatinEncodings() );
 
     // version checking
@@ -543,6 +554,7 @@ void OptionsDialog::updateConfigFromDialog()
     config.setConfirmTabClose( confirmTabCloseCheckBox->isChecked() );
     config.setMinimizeToTray( minimizeToTrayCheckBox->isChecked() );
     config.setShowSplashScreen( showSplashScreenCheckBox->isChecked() );
+    config.setShowDashboard( showDashboardCheckBox->isChecked() );
     config.setEnableLogging( loggingCheckBox->isChecked() );
     config.setLoggingLevel( verbositySpinBox->value() );
 
@@ -556,6 +568,8 @@ void OptionsDialog::updateConfigFromDialog()
     config.setSearchReadBufferSizeLines( searchReadBufferSpinBox->value() );
     config.setKeepFileClosed( keepFileClosedCheckBox->isChecked() );
     config.setUseCompressedIndex( compressedIndexCheckBox->isChecked() );
+    config.setUseIndexCache( indexCacheCheckBox->isChecked() );
+    config.setIndexCacheMaxSizeMb( indexCacheMaxSizeSpinBox->value() );
     config.setOptimizeForNotLatinEncodings( optimizeForNotLatinEncodingsCheckBox->isChecked() );
 
     // version checking

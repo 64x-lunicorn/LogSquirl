@@ -124,6 +124,13 @@ public:
     {
         return data_->getEncodingGuess();
     }
+
+    /// Returns the compressed line position array, or nullptr if using fast storage.
+    const LinePositionArray* getCompressedLinePosition() const
+    {
+        return data_->getCompressedLinePosition();
+    }
+
     void setEncodingGuess( QTextCodec* codec )
     {
         data_->setEncodingGuess( codec );
@@ -175,6 +182,13 @@ public:
         data_->clear();
     }
 
+    /// Load index data from a CachedIndex (disk cache).
+    void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
+                        const IndexedHash& hash, QTextCodec* encoding )
+    {
+        data_->loadFromCache( std::move( linePosition ), maxLength, hash, encoding );
+    }
+
     size_t allocatedSize() const
     {
         return data_->allocatedSize();
@@ -221,6 +235,13 @@ private:
 
     // Completely clear the indexing data.
     void clear();
+
+    // Load index data from a CachedIndex (disk cache).
+    void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
+                        const IndexedHash& hash, QTextCodec* encoding );
+
+    /// Returns the compressed line position array, or nullptr if using fast (uncompressed) storage.
+    const LinePositionArray* getCompressedLinePosition() const;
 
     size_t allocatedSize() const;
 

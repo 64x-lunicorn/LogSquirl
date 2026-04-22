@@ -56,6 +56,9 @@ class TabbedCrawlerWidget : public QTabWidget {
     // `dedup` is true when duplicate-line removal was requested.
     Q_SIGNAL void mergeRequested( QStringList filePaths, bool dedup );
 
+    // Emitted when the user requests to compare the file at the given tab with another file.
+    Q_SIGNAL void compareRequested( QString filePath );
+
     template <typename T>
     int addCrawler( T* crawler, const QString& fileName )
     {

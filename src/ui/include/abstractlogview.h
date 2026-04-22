@@ -277,12 +277,23 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     // being on the screen or not. (does NOT Q_EMIT followDisabled() )
     void jumpToLine( LineNumber line );
 
+    // Scroll so that the given line is the top visible line.
+    // Unlike jumpToLine, this does NOT centre the line.
+    void scrollToTopLine( LineNumber line );
+
     // Configure the setting of whether to show line number margin
     void setLineNumbersVisible( bool lineNumbersVisible );
 
     // Force the next refresh to fully redraw the view by invalidating the cache.
     // To be used if the data might have changed.
     void forceRefresh();
+
+    // Set the overview visibility and update viewport margins accordingly.
+    void setOverviewVisible( bool visible );
+
+    // Lock the overview visibility so that refreshOverview() becomes a no-op.
+    // Used by the diff view to prevent applyConfiguration from re-enabling it.
+    void setOverviewLocked( bool locked );
 
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
 
@@ -409,6 +420,9 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     QMenu* colorLabelsMenu_;
 
     std::map<QString, QShortcut*> shortcuts_;
+
+    // When true, refreshOverview() is a no-op (diff view override).
+    bool overviewLocked_ = false;
 
     // Pointer to the CrawlerWidget's QFP object
     const QuickFindPattern* const quickFindPattern_;

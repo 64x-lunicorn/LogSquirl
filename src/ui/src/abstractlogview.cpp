@@ -143,6 +143,12 @@ int intLog2( uint64_t x )
     return 63 - countLeadingZeroes( x | 1 );
 }
 
+// Layout constants shared between drawTextArea() and updateScrollBars().
+constexpr int SeparatorWidth = 1;
+constexpr int BulletAreaWidth = 11;
+constexpr int ContentMarginWidth = 1;
+constexpr int LineNumberPadding = 3;
+
 // see https://lemire.me/blog/2021/05/28/computing-the-number-of-digits-of-an-integer-quickly/
 int countDigits( uint64_t x )
 {
@@ -402,9 +408,15 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     , searchEnd_( newLogData->getNbLine().get() )
     , quickFindPattern_( quickFindPattern )
     , quickFind_( new QuickFind( *newLogData ) )
-    , pixmapFontMetrics_( this->font() )
+    , pixmapFontMetrics_( pixmapFontMetrics( parent ? parent->font() : QFont() ) )
 {
     setViewport( nullptr );
+
+    // Initialise char dimensions from the pixmap-based font metrics so that
+    // updateScrollBars() computes sensible values even before the first
+    // resizeEvent() (which calls updateDisplaySize()).
+    charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
+    charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
 
     useTextWrap_ = Configuration::get().useTextWrap();
 
@@ -1314,6 +1326,11 @@ void AbstractLogView::refreshOverview()
 {
     assert( overviewWidget_ );
 
+    // When locked, the overview state is controlled externally (e.g. diff view).
+    if ( overviewLocked_ ) {
+        return;
+    }
+
     // Create space for the Overview if needed
     if ( ( getOverview() != nullptr ) && getOverview()->isVisible() ) {
         setViewportMargins( 0, 0, OverviewWidth, 0 );
@@ -1323,6 +1340,19 @@ void AbstractLogView::refreshOverview()
         setViewportMargins( 0, 0, 0, 0 );
         overviewWidget_->hide();
     }
+}
+
+void AbstractLogView::setOverviewVisible( bool visible )
+{
+    if ( overview_ ) {
+        overview_->setVisible( visible );
+    }
+    refreshOverview();
+}
+
+void AbstractLogView::setOverviewLocked( bool locked )
+{
+    overviewLocked_ = locked;
 }
 
 // Reset the QuickFind when the pattern is changed.
@@ -1749,6 +1779,11 @@ void AbstractLogView::jumpToLine( LineNumber line )
     const auto newTopLine = line - LinesCount( getNbVisibleLines().get() / 2 );
     // This will also trigger a scrollContents event
     verticalScrollBar()->setValue( lineNumberToVerticalScroll( newTopLine ) );
+}
+
+void AbstractLogView::scrollToTopLine( LineNumber line )
+{
+    verticalScrollBar()->setValue( lineNumberToVerticalScroll( line ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
@@ -2202,6 +2237,19 @@ LinesCount AbstractLogView::getNbBottomWrappedVisibleLines() const
 
 void AbstractLogView::updateScrollBars()
 {
+    // Recompute leftMarginPx_ so getNbVisibleCols() returns the correct value
+    // even before the first paint (where drawTextArea() normally sets it).
+    {
+        int contentStartPosX = BulletAreaWidth + SeparatorWidth;
+        if ( lineNumbersVisible_ ) {
+            const int nbDigits = countDigits( maxDisplayLineNumber().get() );
+            const auto lineNumberWidth = charWidth_ * nbDigits;
+            const auto lineNumberAreaWidth = 2 * LineNumberPadding + lineNumberWidth;
+            contentStartPosX += lineNumberAreaWidth;
+        }
+        leftMarginPx_ = contentStartPosX + SeparatorWidth;
+    }
+
     const LinesCount visibleLines = getNbVisibleLines();
     const LineLength visibleColumns = getNbVisibleCols();
     if ( logData_->getNbLine() < visibleLines ) {
@@ -2260,10 +2308,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     static const QBrush markBrush = QBrush( "dodgerblue" );
     static const QBrush markedMatchBrush = QBrush( "violet" );
 
-    static constexpr int SeparatorWidth = 1;
-    static constexpr int BulletAreaWidth = 11;
-    static constexpr int ContentMarginWidth = 1;
-    static constexpr int LineNumberPadding = 3;
+    // Layout constants moved to anonymous namespace (see top of file).
 
     // First check the lines to be drawn are within range (might not be the case if
     // the file has just changed)

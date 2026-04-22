@@ -245,6 +245,13 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            MainWindowCommandPalette,
+            {
+                QApplication::tr( "Command Palette" ),
+                QStringList{ QKeySequence( Qt::CTRL | Qt::SHIFT | Qt::Key_P ).toString() },
+            },
+        },
+        {
             MainWindowFollowFile,
             {
                 QApplication::tr( "Monitor file changes" ),

@@ -1,0 +1,149 @@
+/*
+ * LogSquirl — High Contrast Theme (accessibility)
+ *
+ * This file is part of LogSquirl.
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ *
+ * Designed for users who need maximum contrast and clear focus indicators.
+ * Palette colours are applied in C++ (see styles.cpp).
+ */
+
+/* --- Buttons --- */
+QPushButton {
+    border: 2px solid #000000;
+    border-radius: 3px;
+    padding: 4px 12px;
+    background-color: #FFFFFF;
+    color: #000000;
+}
+QPushButton:hover { background-color: #FFFF00; color: #000000; }
+QPushButton:pressed { background-color: #00FFFF; color: #000000; }
+QPushButton:disabled { color: #808080; border-color: #808080; }
+
+/* --- Tool buttons --- */
+QToolButton {
+    border: 2px solid transparent;
+    border-radius: 3px;
+    padding: 3px;
+    color: #000000;
+}
+QToolButton:hover {
+    background-color: #FFFF00;
+    border-color: #000000;
+    color: #000000;
+}
+QToolButton:pressed { background-color: #00FFFF; }
+
+/* Checked / toggled tool-buttons */
+QToolButton:checked {
+    background-color: #0000FF;
+    color: #FFFFFF;
+    border: 2px solid #FFFFFF;
+    border-radius: 3px;
+}
+
+/* --- Tab bar --- */
+QTabBar::tab {
+    padding: 6px 14px;
+    border: 2px solid #000000;
+    border-bottom: none;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    margin-right: 2px;
+    background-color: #E0E0E0;
+    color: #000000;
+}
+QTabBar::tab:selected {
+    background-color: #FFFFFF;
+    border-bottom: 3px solid #0000FF;
+    font-weight: bold;
+}
+QTabBar::tab:hover:!selected { background-color: #FFFF00; }
+
+/* --- Tab close button --- */
+QTabBar::close-button {
+    border: 2px solid transparent;
+    border-radius: 3px;
+    padding: 2px;
+}
+QTabBar::close-button:hover {
+    background-color: #FF0000;
+    border-color: #000000;
+}
+
+/* --- Scroll bars --- */
+QScrollBar:vertical {
+    background: #E0E0E0; width: 16px; margin: 0; border: 1px solid #000000;
+}
+QScrollBar::handle:vertical {
+    background: #000000; min-height: 28px; border-radius: 4px; margin: 2px;
+}
+QScrollBar::handle:vertical:hover { background: #0000FF; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar:horizontal {
+    background: #E0E0E0; height: 16px; margin: 0; border: 1px solid #000000;
+}
+QScrollBar::handle:horizontal {
+    background: #000000; min-width: 28px; border-radius: 4px; margin: 2px;
+}
+QScrollBar::handle:horizontal:hover { background: #0000FF; }
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+
+/* --- Tooltips --- */
+QToolTip {
+    background-color: #000000; color: #FFFFFF;
+    border: 2px solid #FFFF00; padding: 4px;
+    border-radius: 3px;
+    font-size: 14px;
+}
+
+/* --- Menu --- */
+QMenu { background-color: #FFFFFF; border: 2px solid #000000; padding: 4px 0; }
+QMenu::item { padding: 5px 24px; color: #000000; }
+QMenu::item:selected { background-color: #0000FF; color: #FFFFFF; }
+QMenu::separator { height: 2px; background: #000000; margin: 4px 8px; }
+
+/* --- Group boxes --- */
+QGroupBox {
+    border: 2px solid #000000;
+    border-radius: 4px;
+    margin-top: 8px;
+    padding-top: 10px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+    font-weight: bold;
+}
+
+/* --- Dock widget title --- */
+QDockWidget::title {
+    background-color: #E0E0E0;
+    padding: 4px;
+    border-bottom: 2px solid #000000;
+}
+
+/* --- Status bar --- */
+QStatusBar { border-top: 2px solid #000000; }
+QStatusBar::item { border: none; }
+
+/* --- Focus indicators (high visibility) --- */
+QToolButton:focus {
+    outline: 3px solid #FF6600;
+    outline-offset: 2px;
+}
+QPushButton:focus {
+    outline: 3px solid #FF6600;
+    outline-offset: 2px;
+}
+QComboBox:focus {
+    border: 3px solid #FF6600;
+}
+QLineEdit:focus {
+    border: 3px solid #FF6600;
+}
+QTabBar::tab:focus {
+    outline: 3px solid #FF6600;
+    outline-offset: -1px;
+}

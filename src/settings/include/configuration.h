@@ -249,6 +249,24 @@ class Configuration final : public Persistable<Configuration> {
         useCompressedIndex_ = useCompressedIndex;
     }
 
+    bool useIndexCache() const
+    {
+        return useIndexCache_;
+    }
+    void setUseIndexCache( bool useCache )
+    {
+        useIndexCache_ = useCache;
+    }
+
+    int indexCacheMaxSizeMb() const
+    {
+        return indexCacheMaxSizeMb_;
+    }
+    void setIndexCacheMaxSizeMb( int sizeMb )
+    {
+        indexCacheMaxSizeMb_ = sizeMb;
+    }
+
     RegexpEngine regexpEngine() const
     {
         return regexpEngine_;
@@ -587,6 +605,16 @@ class Configuration final : public Persistable<Configuration> {
         showSplashScreen_ = show;
     }
 
+    // Dashboard on startup
+    bool showDashboard() const
+    {
+        return showDashboard_;
+    }
+    void setShowDashboard( bool show )
+    {
+        showDashboard_ = show;
+    }
+
     // Toolbar icon size in pixels (default 24)
     int toolbarIconSize() const
     {
@@ -681,6 +709,8 @@ class Configuration final : public Persistable<Configuration> {
     int searchThreadPoolSize_ = 0;
     bool keepFileClosed_ = false;
     bool useCompressedIndex_ = true;
+    bool useIndexCache_ = false;
+    int indexCacheMaxSizeMb_ = 500;
 
     bool enableLogging_ = false;
     int loggingLevel_ = 4;
@@ -719,6 +749,8 @@ class Configuration final : public Persistable<Configuration> {
     int defaultEncodingMib_ = -1;
 
     bool showSplashScreen_ = false;
+
+    bool showDashboard_ = true;
 
     int toolbarIconSize_ = 24;
 

@@ -74,6 +74,7 @@
 #include <QResource>
 #include <QScreen>
 #include <QScrollArea>
+#include <QSettings>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
@@ -90,12 +91,15 @@
 
 #include "chipmunkimporter.h"
 #include "clipboard.h"
+#include "commandpalette.h"
 #include "crawlerwidget.h"
 #include "decompressor.h"
+#include "diff_view_widget.hpp"
 #include "dispatch_to.h"
 #include "downloader.h"
 #include "encodings.h"
 #include "favoritefiles.h"
+#include "indexcache.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
 #include "issuereporter.h"
@@ -230,8 +234,7 @@ MainWindow::MainWindow( WindowSession session )
         // Pick icon variant based on configured style — at construction time
         // the dark palette is not yet applied, so IconLoader cannot detect it.
         const bool isDarkStyle
-            = Configuration::get().style() == StyleManager::DarkStyleKey
-              || Configuration::get().style() == StyleManager::DarkWindowsStyleKey;
+            = Configuration::get().style() == StyleManager::DarkStyleKey;
 
         auto* floatButton = new QToolButton( titleBar );
         floatButton->setIcon(
@@ -283,6 +286,15 @@ MainWindow::MainWindow( WindowSession session )
              &MainWindow::currentTabChanged );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::mergeRequested, this,
              &MainWindow::openMergedFiles );
+    connect( &mainTabWidget_, &TabbedCrawlerWidget::compareRequested, this,
+             [ this ]( const QString& filePath ) {
+                 const auto otherFile = QFileDialog::getOpenFileName(
+                     this, tr( "Select file to compare with" ),
+                     QFileInfo( filePath ).path(), tr( "All files (*)" ) );
+                 if ( !otherFile.isEmpty() ) {
+                     compareWithFile( filePath, otherFile );
+                 }
+             } );
 
     // Establish the QuickFindWidget and mux ( to send requests from the
     // QFWidget to the right window )
@@ -309,18 +321,22 @@ MainWindow::MainWindow( WindowSession session )
     quickFindWidget_.hide();
 
     // Build the central layout with the tab widget, quick-find bar, and
-    // welcome dashboard as a permanent pinned first tab.
-    welcomeDashboard_ = new WelcomeDashboard();
-    welcomeDashboard_->setPluginManager( &pluginManager_ );
+    // welcome dashboard as a permanent pinned first tab (if enabled).
+    const auto& config = Configuration::get();
 
-    // Insert dashboard as the permanent first tab (index 0)
-    mainTabWidget_.insertTab( 0, welcomeDashboard_, tr( "Home" ) );
-    // Disable the close button on the dashboard tab
-    mainTabWidget_.tabBar()->setTabButton( 0, QTabBar::RightSide, nullptr );
-    mainTabWidget_.tabBar()->setTabButton( 0, QTabBar::LeftSide, nullptr );
-    // Always show the tab bar so the dashboard is accessible
-    mainTabWidget_.tabBar()->show();
-    mainTabWidget_.setCurrentIndex( 0 );
+    if ( config.showDashboard() ) {
+        welcomeDashboard_ = new WelcomeDashboard();
+        welcomeDashboard_->setPluginManager( &pluginManager_ );
+
+        // Insert dashboard as the permanent first tab (index 0)
+        mainTabWidget_.insertTab( 0, welcomeDashboard_, tr( "Dashboard" ) );
+        // Disable the close button on the dashboard tab
+        mainTabWidget_.tabBar()->setTabButton( 0, QTabBar::RightSide, nullptr );
+        mainTabWidget_.tabBar()->setTabButton( 0, QTabBar::LeftSide, nullptr );
+        // Always show the tab bar so the dashboard is accessible
+        mainTabWidget_.tabBar()->show();
+        mainTabWidget_.setCurrentIndex( 0 );
+    }
 
     QWidget* centralContainer = new QWidget();
     auto* centralLayout = new QVBoxLayout();
@@ -331,15 +347,17 @@ MainWindow::MainWindow( WindowSession session )
     centralContainer->setLayout( centralLayout );
     setCentralWidget( centralContainer );
 
-    // Wire dashboard signals
-    connect( welcomeDashboard_, &WelcomeDashboard::openFileRequested, this,
-             [ this ]( const QString& path ) { loadFile( path ); } );
-    connect( welcomeDashboard_, &WelcomeDashboard::openFileDialogRequested, this,
-             &MainWindow::open );
-    connect( welcomeDashboard_, &WelcomeDashboard::loadSessionRequested, this,
-             &MainWindow::reloadSession );
+    // Wire dashboard signals (only if dashboard is enabled)
+    if ( welcomeDashboard_ ) {
+        connect( welcomeDashboard_, &WelcomeDashboard::openFileRequested, this,
+                 [ this ]( const QString& path ) { loadFile( path ); } );
+        connect( welcomeDashboard_, &WelcomeDashboard::openFileDialogRequested, this,
+                 &MainWindow::open );
+        connect( welcomeDashboard_, &WelcomeDashboard::loadSessionRequested, this,
+                 &MainWindow::reloadSession );
 
-    welcomeDashboard_->refresh();
+        welcomeDashboard_->refresh();
+    }
 
     // Connect plugin manager signals — wired up before autoLoadPlugins() so
     // that signals emitted during loading (status widgets, menu actions) are
@@ -391,6 +409,10 @@ MainWindow::MainWindow( WindowSession session )
     updateTitleBar( "" );
     loadIcons();
     reTranslateUI();
+
+    // Accessibility: set accessible names on main widgets
+    setAccessibleName( tr( "LogSquirl main window" ) );
+    mainTabWidget_.setAccessibleName( tr( "Open files" ) );
 }
 
 void MainWindow::reloadGeometry()
@@ -713,6 +735,11 @@ void MainWindow::createActions()
     openUrlAction->setStatusTip( tr( action::openUrlStatusTip ) );
     connect( openUrlAction, &QAction::triggered, this, [ this ]( auto ) { this->openUrl(); } );
 
+    compareAction = new QAction( tr( "Compare Files…" ), this );
+    compareAction->setStatusTip( tr( "Open two files side-by-side for comparison" ) );
+    connect( compareAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->openComparison(); } );
+
     overviewVisibleAction = new QAction( tr( action::overviewVisibleText ), this );
     overviewVisibleAction->setCheckable( true );
     overviewVisibleAction->setChecked( config.isOverviewVisible() );
@@ -950,6 +977,7 @@ void MainWindow::loadIcons()
     toggleSidebarAction->setIcon( iconLoader_.load( "icons8-sidebar" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
+    compareAction->setIcon( iconLoader_.load( "icons8-not-equal" ) );
 }
 
 void MainWindow::createMenus()
@@ -962,6 +990,7 @@ void MainWindow::createMenus()
     fileMenu->addAction( openAction );
     fileMenu->addAction( openClipboardAction );
     fileMenu->addAction( openUrlAction );
+    fileMenu->addAction( compareAction );
     recentFilesMenu = fileMenu->addMenu( tr( "Open Recent" ) );
     for ( auto i = 0u; i < recentFileActions.size(); ++i ) {
         recentFilesMenu->addAction( recentFileActions[ i ] );
@@ -1185,7 +1214,6 @@ void MainWindow::open()
     // Build file filter including converter plugins
     QStringList filters;
     filters << tr( "All files (*)" );
-    filters << tr( "Compressed logs (*.gz *.bz2 *.xz *.zst *.zstd *.lz4)" );
     filters << pluginManager_.converterFileFilters();
     const auto filter = filters.join( ";;" );
 
@@ -1723,6 +1751,53 @@ void MainWindow::manageTabGroups()
     mainTabWidget_.refreshAllTabGroupAppearances();
 }
 
+void MainWindow::clearIndexCache()
+{
+    const auto freed = IndexCache::clearAll();
+    const auto freedMb = static_cast<double>( freed ) / ( 1024.0 * 1024.0 );
+    statusBar()->showMessage(
+        tr( "Index cache cleared (%1 MB freed)" ).arg( freedMb, 0, 'f', 1 ), 5000 );
+}
+
+void MainWindow::showCommandPalette()
+{
+    if ( !commandPalette_ ) {
+        commandPalette_ = new CommandPalette( this );
+    }
+
+    // Collect commands from the menu bar.
+    std::vector<CommandEntry> entries;
+
+    const auto collectFromMenu = [&entries]( QMenu* menu, const QString& category,
+                                             auto&& self ) -> void {
+        for ( QAction* action : menu->actions() ) {
+            if ( action->isSeparator() || !action->isEnabled() ) {
+                continue;
+            }
+            if ( action->menu() ) {
+                self( action->menu(), category + " › " + action->text().remove( '&' ), self );
+                continue;
+            }
+            CommandEntry entry;
+            entry.name = action->text().remove( '&' );
+            entry.category = category;
+            entry.shortcut = action->shortcut().toString( QKeySequence::NativeText );
+            entry.action = [action]() { action->trigger(); };
+            entries.push_back( std::move( entry ) );
+        }
+    };
+
+    for ( QAction* topAction : menuBar()->actions() ) {
+        if ( topAction->menu() ) {
+            const auto category = topAction->text().remove( '&' );
+            collectFromMenu( topAction->menu(), category, collectFromMenu );
+        }
+    }
+
+    commandPalette_->setCommands( std::move( entries ) );
+    commandPalette_->show();
+}
+
 void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
 {
     if ( filePaths.isEmpty() ) {
@@ -1751,6 +1826,33 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     } );
 
     mergeControllers_.push_back( std::move( controller ) );
+}
+
+void MainWindow::openComparison()
+{
+    QString defaultDir = ".";
+    if ( auto current = currentCrawlerWidget() ) {
+        const auto currentFile = session_.getFilename( current );
+        defaultDir = QFileInfo( currentFile ).path();
+    }
+
+    const auto selectedFiles = QFileDialog::getOpenFileNames(
+        this, tr( "Select two files to compare" ), defaultDir, tr( "All files (*)" ) );
+
+    if ( selectedFiles.size() != 2 ) {
+        return;
+    }
+
+    compareWithFile( selectedFiles.at( 0 ), selectedFiles.at( 1 ) );
+}
+
+void MainWindow::compareWithFile( const QString& fileA, const QString& fileB )
+{
+    auto* diffView = new DiffViewWidget( this );
+    diffView->openFiles( fileA, fileB );
+
+    const auto index = mainTabWidget_.addCrawler( diffView, diffView->tabTitle() );
+    mainTabWidget_.setCurrentIndex( index );
 }
 
 void MainWindow::toggleSidebar()
@@ -1949,8 +2051,15 @@ void MainWindow::updateLoadingProgress( int progress )
 {
     LOG_DEBUG << "Loading progress: " << progress;
 
+    // Guard: currentCrawlerWidget() returns nullptr when the active tab is
+    // not a CrawlerWidget (e.g. DiffViewWidget).
+    auto* crawler = currentCrawlerWidget();
+    if ( !crawler ) {
+        return;
+    }
+
     QString current_file
-        = QDir::toNativeSeparators( session_.getFilename( currentCrawlerWidget() ) );
+        = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     // We ignore 0% and 100% to avoid a flash when the file (or update)
     // is very short.
@@ -1972,6 +2081,12 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
     // No file is loading
     loadingFileName.clear();
 
+    // Guard: active tab may not be a CrawlerWidget (e.g. DiffViewWidget).
+    auto* crawler = currentCrawlerWidget();
+    if ( !crawler ) {
+        return;
+    }
+
     if ( status == LoadingStatus::Successful ) {
         updateInfoLine();
 
@@ -1983,7 +2098,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
         // Now everything is ready, we can finally show the file!
-        currentCrawlerWidget()->show();
+        crawler->show();
     }
     else {
         if ( status == LoadingStatus::NoMemory ) {
@@ -2023,7 +2138,17 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
 
     auto widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
 
-    assert( widget );
+    // Handle non-CrawlerWidget tabs (e.g. DiffViewWidget).
+    if ( !widget ) {
+        auto* tabWidget = mainTabWidget_.widget( index );
+        auto* diffView = qobject_cast<DiffViewWidget*>( tabWidget );
+        if ( diffView ) {
+            diffView->stopLoading();
+        }
+        mainTabWidget_.removeCrawler( index );
+        tabWidget->deleteLater();
+        return;
+    }
 
     // Show confirmation dialog for user-initiated tab close if enabled
     if ( initiator == ActionInitiator::User ) {
@@ -2098,8 +2223,16 @@ void MainWindow::closeTabs( QList<int> indices )
     // Sort descending so removal doesn't shift indices
     std::sort( indices.begin(), indices.end(), std::greater<int>() );
     for ( const auto index : indices ) {
-        auto* widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
+        auto* tabWidget = mainTabWidget_.widget( index );
+        auto* widget = qobject_cast<CrawlerWidget*>( tabWidget );
         if ( !widget ) {
+            // Handle non-CrawlerWidget tabs (e.g. DiffViewWidget).
+            auto* diffView = qobject_cast<DiffViewWidget*>( tabWidget );
+            if ( diffView ) {
+                diffView->stopLoading();
+            }
+            mainTabWidget_.removeCrawler( index );
+            tabWidget->deleteLater();
             continue;
         }
         widget->stopLoading();
@@ -2146,7 +2279,14 @@ void MainWindow::currentTabChanged( int index )
         infoLine->clear();
         showInfoLabels( false );
 
-        updateTitleBar( QString() );
+        // Show "Dashboard" in title bar when on the dashboard tab,
+        // otherwise clear title (avoids misleading "Untitled")
+        if ( isDashboardTab( mainTabWidget_, index ) ) {
+            updateTitleBar( tr( "Dashboard" ) );
+        }
+        else {
+            updateTitleBar( QString() );
+        }
 
         editMenu->setEnabled( false );
         addToFavoritesAction->setEnabled( false );
@@ -2885,6 +3025,22 @@ void MainWindow::writeSettings()
         widget_list.emplace_back( view, 0UL, view->context() );
     }
     session_.save( widget_list, saveGeometry() );
+
+    // Persist open diff view tabs.
+    QSettings settings;
+    settings.beginGroup( "DiffViews" );
+    settings.remove( "" ); // clear previous entries
+    int diffIndex = 0;
+    for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
+        auto* diffView = qobject_cast<DiffViewWidget*>( mainTabWidget_.widget( i ) );
+        if ( diffView ) {
+            settings.setValue( QString( "state_%1" ).arg( diffIndex ),
+                               diffView->saveState() );
+            ++diffIndex;
+        }
+    }
+    settings.setValue( "count", diffIndex );
+    settings.endGroup();
 }
 
 // Read settings from permanent storage
@@ -2906,6 +3062,25 @@ void MainWindow::readSettings()
 
     HighlighterSetCollection::getSynced();
     updateHighlightersMenu();
+
+    // Restore persisted diff view tabs.
+    QSettings settings;
+    settings.beginGroup( "DiffViews" );
+    const int diffCount = settings.value( "count", 0 ).toInt();
+    for ( int i = 0; i < diffCount; ++i ) {
+        const auto state = settings.value( QString( "state_%1" ).arg( i ) ).toByteArray();
+        if ( state.isEmpty() ) {
+            continue;
+        }
+        auto* diffView = new DiffViewWidget( this );
+        if ( diffView->restoreState( state ) ) {
+            mainTabWidget_.addCrawler( diffView, diffView->tabTitle() );
+        }
+        else {
+            delete diffView;
+        }
+    }
+    settings.endGroup();
 }
 
 void MainWindow::displayQuickFindBar( QuickFindMux::QFDirection direction )

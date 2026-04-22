@@ -18,8 +18,12 @@
  */
 
 #include <QApplication>
+#include <QDir>
+#include <QFile>
 #include <QPalette>
+#include <QStandardPaths>
 #include <QStyleFactory>
+#include <QTextStream>
 #include <qcolor.h>
 
 #include "configuration.h"
@@ -29,26 +33,9 @@
 QStringList StyleManager::availableStyles()
 {
     QStringList styles;
-#ifdef Q_OS_WIN
-    styles << VistaKey;
-    styles << WindowsKey;
     styles << FusionKey;
-#else
-    styles << QStyleFactory::keys();
-#endif
-
-    auto removedStyles = std::remove_if( styles.begin(), styles.end(), []( const QString& style ) {
-        return style.startsWith( Gtk2Key, Qt::CaseInsensitive )
-               || style.startsWith( Bb10Key, Qt::CaseInsensitive );
-    } );
-
-    styles.erase( removedStyles, styles.end() );
-
     styles << DarkStyleKey;
-
-#ifndef Q_OS_MACOS
-    styles << DarkWindowsStyleKey;
-#endif
+    styles << HighContrastKey;
 
     std::sort( styles.begin(), styles.end(), []( const auto& lhs, const auto& rhs ) {
         return lhs.compare( rhs, Qt::CaseInsensitive ) < 0;
@@ -59,36 +46,15 @@ QStringList StyleManager::availableStyles()
 
 QString StyleManager::defaultPlatformStyle()
 {
-#if defined( Q_OS_WIN )
-    return VistaKey;
-#elif defined( Q_OS_MACOS )
-    return MacintoshKey;
-#else
     return FusionKey;
-#endif
 }
 
 void StyleManager::applyStyle( const QString& style )
 {
     LOG_INFO << "Setting style to " << style;
 
-    const bool isDark
-        = ( style == DarkStyleKey || style == DarkWindowsStyleKey );
-
-    // ---------------------------------------------------------------
-    // Common QSS applied to EVERY theme so checkable toolbar buttons
-    // (filter bar, follow, wrap, …) always show their checked state
-    // and tab close buttons have enough room.
-    // ---------------------------------------------------------------
-    QString commonQss = QStringLiteral(
-        // Checked / toggled tool-buttons — visible on all themes
-        "QToolButton:checked {"
-        "  background-color: %1;"
-        "  border: 1px solid %2;"
-        "  border-radius: 3px;"
-        "}"
-    ).arg( isDark ? "#2a82da" : "#B8D4F0",
-           isDark ? "#2a82da" : "#7AADE8" );
+    const bool isDark = ( style == DarkStyleKey );
+    const bool isHighContrast = ( style == HighContrastKey );
 
     // ---------------------------------------------------------------
     // 1.  Dark themes
@@ -127,105 +93,40 @@ void StyleManager::applyStyle( const QString& style )
                               QColor( textColor.red(), textColor.green(), textColor.blue(),
                                       128 ) );
 
-        if ( style == DarkWindowsStyleKey ) {
-            qApp->setStyle( QStyleFactory::create( WindowsKey ) );
-        }
-        else {
-            qApp->setStyle( QStyleFactory::create( FusionKey ) );
-        }
+        qApp->setStyle( QStyleFactory::create( FusionKey ) );
 
         qApp->setPalette( darkPalette );
-
-        // Dark-mode QSS
-        QString darkQss = QStringLiteral(
-            // --- Buttons ---
-            "QPushButton {"
-            "  border: 1px solid #555555;"
-            "  border-radius: 3px;"
-            "  padding: 4px 12px;"
-            "  background-color: #404040;"
-            "}"
-            "QPushButton:hover { background-color: #4a4a4a; }"
-            "QPushButton:pressed { background-color: #353535; }"
-            "QPushButton:disabled { color: #A0A0A0; background-color: #383838; }"
-
-            // --- Tool buttons (toolbar) ---
-            "QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 3px; }"
-            "QToolButton:hover { background-color: #4a4a4a; border-color: #555555; }"
-            "QToolButton:pressed { background-color: #353535; }"
-
-            // --- Tab bar ---
-            "QTabBar::tab {"
-            "  padding: 6px 14px;"
-            "  border: 1px solid #555555;"
-            "  border-bottom: none;"
-            "  border-top-left-radius: 3px;"
-            "  border-top-right-radius: 3px;"
-            "  margin-right: 2px;"
-            "  background-color: #303030;"
-            "}"
-            "QTabBar::tab:selected {"
-            "  background-color: #282828;"
-            "  border-bottom: 2px solid #2a82da;"
-            "}"
-            "QTabBar::tab:hover:!selected { background-color: #3a3a3a; }"
-
-            // --- Tab close button: red ---
-            "QTabBar::close-button {"
-            "  border: none; border-radius: 3px; padding: 2px;"
-            "}"
-            "QTabBar::close-button:hover {"
-            "  background-color: #C42B1C;"
-            "}"
-
-            // --- Scroll bars ---
-            "QScrollBar:vertical {"
-            "  background: #2a2a2a; width: 12px; margin: 0; border: none;"
-            "}"
-            "QScrollBar::handle:vertical {"
-            "  background: #555555; min-height: 24px; border-radius: 4px; margin: 2px;"
-            "}"
-            "QScrollBar::handle:vertical:hover { background: #777777; }"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-            "QScrollBar:horizontal {"
-            "  background: #2a2a2a; height: 12px; margin: 0; border: none;"
-            "}"
-            "QScrollBar::handle:horizontal {"
-            "  background: #555555; min-width: 24px; border-radius: 4px; margin: 2px;"
-            "}"
-            "QScrollBar::handle:horizontal:hover { background: #777777; }"
-            "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
-
-            // --- Tooltips ---
-            "QToolTip {"
-            "  background-color: #2a82da; color: #FFFFFF;"
-            "  border: 1px solid #1a72ca; padding: 4px;"
-            "  border-radius: 3px;"
-            "}"
-
-            // --- Menu ---
-            "QMenu { background-color: #353535; border: 1px solid #555555; padding: 4px 0; }"
-            "QMenu::item { padding: 5px 24px; }"
-            "QMenu::item:selected { background-color: #2a82da; }"
-            "QMenu::separator { height: 1px; background: #555555; margin: 4px 8px; }"
-
-            // --- Group boxes ---
-            "QGroupBox { border: 1px solid #555555; border-radius: 4px;"
-            "  margin-top: 8px; padding-top: 10px; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-
-            // --- Dock widget title ---
-            "QDockWidget::title { background-color: #303030; padding: 4px; }"
-
-            // --- Status bar ---
-            "QStatusBar { border-top: 1px solid #555555; }"
-            "QStatusBar::item { border: none; }"
-        );
-
-        qApp->setStyleSheet( commonQss + darkQss );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "dark.qss" ) ) );
     }
     // ---------------------------------------------------------------
-    // 2.  Light Fusion
+    // 2.  High Contrast (accessibility)
+    // ---------------------------------------------------------------
+    else if ( isHighContrast ) {
+        qApp->setStyle( QStyleFactory::create( FusionKey ) );
+
+        QPalette hcPalette;
+        hcPalette.setColor( QPalette::Window, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::WindowText, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::Base, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::AlternateBase, QColor( "#F0F0F0" ) );
+        hcPalette.setColor( QPalette::ToolTipBase, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::ToolTipText, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Text, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::Button, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::ButtonText, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::Link, QColor( "#0000FF" ) );
+        hcPalette.setColor( QPalette::Highlight, QColor( "#0000FF" ) );
+        hcPalette.setColor( QPalette::HighlightedText, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::ButtonText, QColor( "#808080" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::WindowText, QColor( "#808080" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::Text, QColor( "#808080" ) );
+        hcPalette.setColor( QPalette::PlaceholderText, QColor( "#808080" ) );
+
+        qApp->setPalette( hcPalette );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "high-contrast.qss" ) ) );
+    }
+    // ---------------------------------------------------------------
+    // 3.  Light Fusion
     // ---------------------------------------------------------------
     else if ( style == FusionKey ) {
         qApp->setStyle( QStyleFactory::create( FusionKey ) );
@@ -254,101 +155,45 @@ void StyleManager::applyStyle( const QString& style )
         lightPalette.setColor( QPalette::Midlight, QColor( "#E8E8E8" ) );
 
         qApp->setPalette( lightPalette );
-
-        QString fusionQss = QStringLiteral(
-            // --- Buttons ---
-            "QPushButton {"
-            "  border: 1px solid #B0B0B0;"
-            "  border-radius: 3px;"
-            "  padding: 4px 12px;"
-            "  background-color: #E4E4E4;"
-            "}"
-            "QPushButton:hover { background-color: #D8D8D8; }"
-            "QPushButton:pressed { background-color: #C8C8C8; }"
-            "QPushButton:disabled { color: #A0A0A0; }"
-
-            // --- Tool buttons ---
-            "QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 3px; }"
-            "QToolButton:hover { background-color: #D0D0D0; border-color: #B0B0B0; }"
-            "QToolButton:pressed { background-color: #C0C0C0; }"
-
-            // --- Tab bar ---
-            "QTabBar::tab {"
-            "  padding: 6px 14px;"
-            "  border: 1px solid #C0C0C0;"
-            "  border-bottom: none;"
-            "  border-top-left-radius: 3px;"
-            "  border-top-right-radius: 3px;"
-            "  margin-right: 2px;"
-            "  background-color: #E8E8E8;"
-            "}"
-            "QTabBar::tab:selected {"
-            "  background-color: #FFFFFF;"
-            "  border-bottom: 2px solid #3080E8;"
-            "}"
-            "QTabBar::tab:hover:!selected { background-color: #DCDCDC; }"
-
-            // --- Tab close button ---
-            "QTabBar::close-button {"
-            "  border: none; border-radius: 3px; padding: 2px;"
-            "}"
-            "QTabBar::close-button:hover {"
-            "  background-color: #E0A0A0;"
-            "}"
-
-            // --- Scroll bars ---
-            "QScrollBar:vertical {"
-            "  background: #F0F0F0; width: 12px; margin: 0; border: none;"
-            "}"
-            "QScrollBar::handle:vertical {"
-            "  background: #C0C0C0; min-height: 24px; border-radius: 4px; margin: 2px;"
-            "}"
-            "QScrollBar::handle:vertical:hover { background: #A0A0A0; }"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-            "QScrollBar:horizontal {"
-            "  background: #F0F0F0; height: 12px; margin: 0; border: none;"
-            "}"
-            "QScrollBar::handle:horizontal {"
-            "  background: #C0C0C0; min-width: 24px; border-radius: 4px; margin: 2px;"
-            "}"
-            "QScrollBar::handle:horizontal:hover { background: #A0A0A0; }"
-            "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }"
-
-            // --- Tooltips ---
-            "QToolTip {"
-            "  background-color: #FFFFDC; color: #1C1C1C;"
-            "  border: 1px solid #C0C0C0; padding: 4px;"
-            "  border-radius: 3px;"
-            "}"
-
-            // --- Menu ---
-            "QMenu { background-color: #FFFFFF; border: 1px solid #C0C0C0; padding: 4px 0; }"
-            "QMenu::item { padding: 5px 24px; }"
-            "QMenu::item:selected { background-color: #3080E8; color: #FFFFFF; }"
-            "QMenu::separator { height: 1px; background: #D0D0D0; margin: 4px 8px; }"
-
-            // --- Group boxes ---
-            "QGroupBox { border: 1px solid #C0C0C0; border-radius: 4px;"
-            "  margin-top: 8px; padding-top: 10px; }"
-            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
-
-            // --- Dock widget title ---
-            "QDockWidget::title { background-color: #E8E8E8; padding: 4px; }"
-
-            // --- Status bar ---
-            "QStatusBar { border-top: 1px solid #C0C0C0; }"
-            "QStatusBar::item { border: none; }"
-        );
-
-        qApp->setStyleSheet( commonQss + fusionQss );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "fusion-light.qss" ) ) );
     }
     // ---------------------------------------------------------------
-    // 3.  Platform-native themes (macOS, Vista, Windows, …)
-    //     Only apply the common checked-state QSS so toggle buttons
-    //     and tab close buttons remain usable.
+    // 4.  Platform-native themes (macOS, Vista, Windows, …)
+    //     Load the fusion-light QSS as a sensible baseline so toggle
+    //     buttons and tab close buttons remain usable.
     // ---------------------------------------------------------------
     else {
         qApp->setStyle( style );
-        qApp->setStyleSheet( commonQss );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "fusion-light.qss" ) ) );
     }
+}
+
+QString StyleManager::loadThemeQss( const QString& themeFileName )
+{
+    // 1. Check user-specific theme directory first
+    const QString userThemeDir
+        = QStandardPaths::writableLocation( QStandardPaths::AppConfigLocation )
+          + QStringLiteral( "/themes/" );
+    const QString userPath = userThemeDir + themeFileName;
+
+    if ( QFile::exists( userPath ) ) {
+        QFile file( userPath );
+        if ( file.open( QIODevice::ReadOnly | QIODevice::Text ) ) {
+            LOG_INFO << "Loading user theme from " << userPath;
+            QTextStream stream( &file );
+            return stream.readAll();
+        }
+    }
+
+    // 2. Fall back to embedded Qt resource
+    const QString resourcePath = QStringLiteral( ":/themes/" ) + themeFileName;
+    QFile resFile( resourcePath );
+    if ( resFile.open( QIODevice::ReadOnly | QIODevice::Text ) ) {
+        LOG_INFO << "Loading built-in theme from " << resourcePath;
+        QTextStream stream( &resFile );
+        return stream.readAll();
+    }
+
+    LOG_WARNING << "Theme file not found: " << themeFileName;
+    return {};
 }

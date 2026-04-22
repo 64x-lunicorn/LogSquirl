@@ -441,6 +441,20 @@ void CrawlerWidget::startNewSearch()
     replaceCurrentSearch( searchLineEdit_->currentText() );
 }
 
+void CrawlerWidget::applyExternalSearch( const QString& pattern, bool matchCase, bool useRegexp,
+                                          bool inverse, bool boolean )
+{
+    // Set the search text and button states to match the external request.
+    searchLineEdit_->setCurrentText( pattern );
+    matchCaseButton_->setChecked( matchCase );
+    useRegexpButton_->setChecked( useRegexp );
+    inverseButton_->setChecked( inverse );
+    booleanButton_->setChecked( boolean );
+
+    // Trigger the search through the normal path.
+    replaceCurrentSearch( pattern );
+}
+
 void CrawlerWidget::stopSearch()
 {
     logFilteredData_->interruptSearch();
@@ -1080,32 +1094,37 @@ void CrawlerWidget::setup()
 
     matchCaseButton_ = new QToolButton();
     matchCaseButton_->setToolTip( tr( "Match case" ) );
+    matchCaseButton_->setAccessibleName( tr( "Match case" ) );
     matchCaseButton_->setCheckable( true );
-    matchCaseButton_->setFocusPolicy( Qt::NoFocus );
+    matchCaseButton_->setFocusPolicy( Qt::TabFocus );
     matchCaseButton_->setContentsMargins( 2, 2, 2, 2 );
 
     useRegexpButton_ = new QToolButton();
     useRegexpButton_->setToolTip( tr( "Use regex" ) );
+    useRegexpButton_->setAccessibleName( tr( "Use regex" ) );
     useRegexpButton_->setCheckable( true );
-    useRegexpButton_->setFocusPolicy( Qt::NoFocus );
+    useRegexpButton_->setFocusPolicy( Qt::TabFocus );
     useRegexpButton_->setContentsMargins( 2, 2, 2, 2 );
 
     inverseButton_ = new QToolButton();
     inverseButton_->setToolTip( tr( "Inverse match" ) );
+    inverseButton_->setAccessibleName( tr( "Inverse match" ) );
     inverseButton_->setCheckable( true );
-    inverseButton_->setFocusPolicy( Qt::NoFocus );
+    inverseButton_->setFocusPolicy( Qt::TabFocus );
     inverseButton_->setContentsMargins( 2, 2, 2, 2 );
 
     booleanButton_ = new QToolButton();
     booleanButton_->setToolTip( tr( "Enable regular expression logical combining" ) );
+    booleanButton_->setAccessibleName( tr( "Boolean combining" ) );
     booleanButton_->setCheckable( true );
-    booleanButton_->setFocusPolicy( Qt::NoFocus );
+    booleanButton_->setFocusPolicy( Qt::TabFocus );
     booleanButton_->setContentsMargins( 2, 2, 2, 2 );
 
     searchRefreshButton_ = new QToolButton();
     searchRefreshButton_->setToolTip( tr( "Auto-refresh" ) );
+    searchRefreshButton_->setAccessibleName( tr( "Auto-refresh" ) );
     searchRefreshButton_->setCheckable( true );
-    searchRefreshButton_->setFocusPolicy( Qt::NoFocus );
+    searchRefreshButton_->setFocusPolicy( Qt::TabFocus );
     searchRefreshButton_->setContentsMargins( 2, 2, 2, 2 );
 
     // Construct the Search line
@@ -1118,6 +1137,14 @@ void CrawlerWidget::setup()
     searchLineEdit_->setSizeAdjustPolicy( QComboBox::AdjustToMinimumContentsLengthWithIcon );
     searchLineEdit_->lineEdit()->setMaxLength( std::numeric_limits<int>::max() / 1024 );
     searchLineEdit_->setContentsMargins( 2, 2, 2, 2 );
+    searchLineEdit_->setAccessibleName( tr( "Search pattern" ) );
+
+    // Keyboard tab order for the search bar and filter buttons
+    setTabOrder( searchLineEdit_, matchCaseButton_ );
+    setTabOrder( matchCaseButton_, useRegexpButton_ );
+    setTabOrder( useRegexpButton_, inverseButton_ );
+    setTabOrder( inverseButton_, booleanButton_ );
+    setTabOrder( booleanButton_, searchRefreshButton_ );
 
     QAction* clearSearchHistoryAction = new QAction( tr( "Clear search history" ), this );
     QAction* editSearchHistoryAction = new QAction( tr( "Edit search history" ), this );

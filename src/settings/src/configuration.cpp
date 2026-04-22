@@ -264,6 +264,13 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         = settings.value( "perf.useCompressedIndex", DefaultConfiguration.useCompressedIndex_ )
               .toBool();
 
+    useIndexCache_
+        = settings.value( "perf.useIndexCache", DefaultConfiguration.useIndexCache_ ).toBool();
+
+    indexCacheMaxSizeMb_
+        = settings.value( "perf.indexCacheMaxSizeMb", DefaultConfiguration.indexCacheMaxSizeMb_ )
+              .toInt();
+
     verifySslPeers_
         = settings.value( "net.verifySslPeers", DefaultConfiguration.verifySslPeers_ ).toBool();
 
@@ -358,6 +365,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         = settings.value( "view.showSplashScreen", DefaultConfiguration.showSplashScreen_ )
               .toBool();
 
+    showDashboard_
+        = settings.value( "view.showDashboard", DefaultConfiguration.showDashboard_ )
+              .toBool();
+
     toolbarIconSize_
         = settings.value( "view.toolbarIconSize", DefaultConfiguration.toolbarIconSize_ )
               .toInt();
@@ -442,6 +453,8 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "perf.searchThreadPoolSize", searchThreadPoolSize_ );
     settings.setValue( "perf.keepFileClosed", keepFileClosed_ );
     settings.setValue( "perf.useCompressedIndex", useCompressedIndex_ );
+    settings.setValue( "perf.useIndexCache", useIndexCache_ );
+    settings.setValue( "perf.indexCacheMaxSizeMb", indexCacheMaxSizeMb_ );
     settings.setValue( "perf.optimizeForNotLatinEncodings", optimizeForNotLatinEncodings_ );
 
     settings.setValue( "net.verifySslPeers", verifySslPeers_ );
@@ -483,6 +496,7 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.endArray();
 
     settings.setValue( "view.showSplashScreen", showSplashScreen_ );
+    settings.setValue( "view.showDashboard", showDashboard_ );
     settings.setValue( "view.toolbarIconSize", toolbarIconSize_ );
 
     settings.setValue( "plugins.autoLoad", pluginsAutoLoad_ );

@@ -88,6 +88,7 @@ class CrawlerWidget : public QSplitter,
 
     // Get the line number of the first line displayed.
     LineNumber getTopLine() const;
+
     // Get the selected text as a string (from the main window)
     QString getSelectedText() const;
     // True for partial selection
@@ -191,6 +192,11 @@ class CrawlerWidget : public QSplitter,
 
     // Start a new search using the current search line content.
     void startNewSearch();
+
+    // Apply a search pattern from an external source (e.g. diff view shared search).
+    // Sets the search text and button states, then triggers the search.
+    void applyExternalSearch( const QString& pattern, bool matchCase, bool useRegexp,
+                              bool inverse, bool boolean );
 
   private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)

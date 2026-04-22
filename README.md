@@ -81,6 +81,10 @@ for dependency management.
 * Can import filters and highlighters from Chipmunk JSON export files
 * Offers an opt-in beta update channel for early access to new versions
 * Opens compressed logs (`.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`) and tarballs directly
+* Persistent **Index Cache** — re-opening a file loads the cached index instantly instead of
+  re-scanning (toggle via Options → Advanced → Caching or `perf.useIndexCache`)
+* **Command Palette** (Ctrl+Shift+P) — fuzzy-search all commands, plugin actions, recent files
+  and favorites in one dialog
 * Extensible via a [Plugin System](#plugins) — data sources, converters, and UI extensions
 * Optional Lua scripting for writing plugins without compiled code
 * Built-in Plugin Repository for browsing and installing community plugins

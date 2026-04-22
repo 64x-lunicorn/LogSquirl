@@ -35,8 +35,6 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 
-#include <QApplication>
-#include <QPalette>
 #include <QPixmap>
 
 namespace {
@@ -44,47 +42,19 @@ namespace {
 /// Maximum number of recent/favorite entries shown on the dashboard.
 constexpr int kMaxListEntries = 8;
 
-/// Build a link-button stylesheet using the current application palette.
-QString linkButtonStyle()
-{
-    const auto pal = QApplication::palette();
-    const auto linkColor = pal.color( QPalette::Link ).name();
-    const auto hoverColor = pal.color( QPalette::Link ).lighter( 130 ).name();
-    return QStringLiteral(
-        "QPushButton { color: %1; background: transparent; border: none; text-align: left;"
-        " padding: 3px 0px; font-size: 12px; }"
-        "QPushButton:hover { text-decoration: underline; color: %2; }" )
-        .arg( linkColor, hoverColor );
-}
+/// Stylesheet for clickable file-link buttons.
+const QString kLinkButtonStyle = QStringLiteral(
+    "QPushButton { color: #2a82da; border: none; text-align: left;"
+    " padding: 3px 0px; font-size: 12px; }"
+    "QPushButton:hover { text-decoration: underline; color: #4da6ff; }" );
 
-/// Build a section-heading stylesheet.
-QString sectionHeadingStyle()
-{
-    return QStringLiteral(
-        "QLabel { font-weight: bold; font-size: 13px; padding-top: 12px; }" );
-}
+/// Stylesheet for section headings.
+const QString kSectionHeadingStyle = QStringLiteral(
+    "QLabel { font-weight: bold; font-size: 13px; padding-top: 12px; }" );
 
-/// Build a hint-text stylesheet from the current palette.
-QString hintStyle()
-{
-    const auto pal = QApplication::palette();
-    const auto hintColor = pal.color( QPalette::Disabled, QPalette::WindowText ).name();
-    return QStringLiteral(
-        "QLabel { color: %1; font-size: 11px; padding: 2px 0px; }" )
-        .arg( hintColor );
-}
-
-/// Build a subdued-text stylesheet (version label, drop hint).
-QString subduedStyle( int fontSize = 12, bool italic = false )
-{
-    const auto pal = QApplication::palette();
-    const auto color = pal.color( QPalette::Disabled, QPalette::WindowText ).name();
-    auto style = QStringLiteral( "color: %1; font-size: %2px;" ).arg( color ).arg( fontSize );
-    if ( italic ) {
-        style += QStringLiteral( " font-style: italic; padding-top: 8px;" );
-    }
-    return style;
-}
+/// Stylesheet for shortcut hint text.
+const QString kHintStyle = QStringLiteral(
+    "QLabel { color: #808080; font-size: 11px; padding: 2px 0px; }" );
 
 /// Create a clickable QPushButton styled as a link.
 /// Clicking emits the dashboard's openFileRequested signal.
@@ -92,7 +62,7 @@ QPushButton* createFileLink( const QString& displayText, const QString& fullPath
                              WelcomeDashboard* dashboard )
 {
     auto* btn = new QPushButton( displayText, dashboard );
-    btn->setStyleSheet( linkButtonStyle() );
+    btn->setStyleSheet( kLinkButtonStyle );
     btn->setCursor( Qt::PointingHandCursor );
     btn->setToolTip( fullPath );
     btn->setFlat( true );
@@ -133,15 +103,9 @@ void WelcomeDashboard::buildUi()
     auto* scrollArea = new QScrollArea( this );
     scrollArea->setWidgetResizable( true );
     scrollArea->setFrameShape( QFrame::NoFrame );
-    // Use the Base role so the dashboard matches the editor background
-    // instead of the grey QPalette::Window colour.
-    scrollArea->viewport()->setAutoFillBackground( true );
-    scrollArea->viewport()->setBackgroundRole( QPalette::Base );
     outerLayout->addWidget( scrollArea );
 
     auto* content = new QWidget( scrollArea );
-    content->setAutoFillBackground( true );
-    content->setBackgroundRole( QPalette::Base );
     scrollArea->setWidget( content );
 
     auto* rootLayout = new QVBoxLayout( content );
@@ -170,7 +134,7 @@ void WelcomeDashboard::buildUi()
     auto* versionLabel = new QLabel(
         QStringLiteral( "v%1" ).arg( logsquirlVersion() ), content );
     versionLabel->setAlignment( Qt::AlignCenter );
-    versionLabel->setStyleSheet( subduedStyle( 12 ) );
+    versionLabel->setStyleSheet( QStringLiteral( "color: #808080; font-size: 12px;" ) );
     rootLayout->addWidget( versionLabel );
 
     rootLayout->addSpacing( 10 );
@@ -205,7 +169,7 @@ void WelcomeDashboard::buildUi()
     auto* recentColumn = new QVBoxLayout();
     recentColumn->setSpacing( 2 );
     auto* recentHeading = new QLabel( tr( "Recent Files" ), content );
-    recentHeading->setStyleSheet( sectionHeadingStyle() );
+    recentHeading->setStyleSheet( kSectionHeadingStyle );
     recentColumn->addWidget( recentHeading );
 
     recentFilesLayout_ = new QVBoxLayout();
@@ -218,7 +182,7 @@ void WelcomeDashboard::buildUi()
     auto* favColumn = new QVBoxLayout();
     favColumn->setSpacing( 2 );
     auto* favHeading = new QLabel( tr( "Favorites" ), content );
-    favHeading->setStyleSheet( sectionHeadingStyle() );
+    favHeading->setStyleSheet( kSectionHeadingStyle );
     favColumn->addWidget( favHeading );
 
     favoritesLayout_ = new QVBoxLayout();
@@ -233,7 +197,7 @@ void WelcomeDashboard::buildUi()
 
     // ---- Plugin Status ----
     auto* pluginHeading = new QLabel( tr( "Plugins" ), content );
-    pluginHeading->setStyleSheet( sectionHeadingStyle() );
+    pluginHeading->setStyleSheet( kSectionHeadingStyle );
     pluginHeading->setAlignment( Qt::AlignCenter );
     rootLayout->addWidget( pluginHeading );
 
@@ -248,13 +212,14 @@ void WelcomeDashboard::buildUi()
     auto* shortcutsLabel = new QLabel(
         QStringLiteral( "Ctrl+O Open File  |  Ctrl+W Close Tab  |  Ctrl+F Find  |  F5 Reload" ),
         content );
-    shortcutsLabel->setStyleSheet( hintStyle() );
+    shortcutsLabel->setStyleSheet( kHintStyle );
     shortcutsLabel->setAlignment( Qt::AlignCenter );
     rootLayout->addWidget( shortcutsLabel );
 
     // ---- Drop hint ----
     auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), content );
-    dropHint->setStyleSheet( subduedStyle( 11, true ) );
+    dropHint->setStyleSheet(
+        QStringLiteral( "color: #606060; font-size: 11px; font-style: italic; padding-top: 8px;" ) );
     dropHint->setAlignment( Qt::AlignCenter );
     rootLayout->addWidget( dropHint );
 
@@ -282,7 +247,7 @@ void WelcomeDashboard::refreshRecentFiles()
 
     if ( files.isEmpty() ) {
         auto* empty = new QLabel( tr( "No recent files" ), this );
-        empty->setStyleSheet( hintStyle() );
+        empty->setStyleSheet( kHintStyle );
         recentFilesLayout_->addWidget( empty );
         return;
     }
@@ -308,7 +273,7 @@ void WelcomeDashboard::refreshFavorites()
 
     if ( files.empty() ) {
         auto* empty = new QLabel( tr( "No favorites" ), this );
-        empty->setStyleSheet( hintStyle() );
+        empty->setStyleSheet( kHintStyle );
         favoritesLayout_->addWidget( empty );
         return;
     }
@@ -330,7 +295,7 @@ void WelcomeDashboard::refreshPluginStatus()
 
     if ( !pluginManager_ ) {
         auto* none = new QLabel( tr( "No plugin manager available" ), this );
-        none->setStyleSheet( hintStyle() );
+        none->setStyleSheet( kHintStyle );
         none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );
         return;
@@ -341,7 +306,7 @@ void WelcomeDashboard::refreshPluginStatus()
 
     if ( discovered.empty() ) {
         auto* none = new QLabel( tr( "No plugins installed" ), this );
-        none->setStyleSheet( hintStyle() );
+        none->setStyleSheet( kHintStyle );
         none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );
         return;
