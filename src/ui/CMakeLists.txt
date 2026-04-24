@@ -119,19 +119,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/lz4device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/anchor.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/anchor.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/diff_view_strings.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/gutter_widget.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/gutter_widget.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/diff_view_widget.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/diff_view_widget.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/merged_filtered_view.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/merged_filtered_view.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/anchor_controller.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/anchor_controller.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/diff_view_actions.hpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/diff_view/diff_view_actions.cpp
 )
 
 set_target_properties(logsquirl_ui PROPERTIES AUTOUIC ON)
@@ -148,7 +135,6 @@ if(LOGSQUIRL_USE_LTO)
 endif()
 
 target_include_directories(logsquirl_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_include_directories(logsquirl_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/diff_view")
 target_link_libraries(
   logsquirl_ui
   PUBLIC project_options

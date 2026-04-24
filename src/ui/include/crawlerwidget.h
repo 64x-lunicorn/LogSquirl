@@ -193,11 +193,6 @@ class CrawlerWidget : public QSplitter,
     // Start a new search using the current search line content.
     void startNewSearch();
 
-    // Apply a search pattern from an external source (e.g. diff view shared search).
-    // Sets the search text and button states, then triggers the search.
-    void applyExternalSearch( const QString& pattern, bool matchCase, bool useRegexp,
-                              bool inverse, bool boolean );
-
   private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();

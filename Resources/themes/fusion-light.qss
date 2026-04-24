@@ -6,110 +6,292 @@
  *
  * Palette colours are applied in C++ (see styles.cpp).
  * This stylesheet covers widget-level styling only.
+ *
+ * ---------------------------------------------------------------
+ *  Palette reference — keep in sync with the values used below
+ * ---------------------------------------------------------------
+ *  Surfaces
+ *    base / content ................... #FFFFFF
+ *    panel / tab bar .................. #E8E8E8
+ *    button ........................... #E4E4E4
+ *    button hover ..................... #D8D8D8
+ *    button pressed ................... #C8C8C8
+ *    tab hover ........................ #DCDCDC
+ *    disabled surface ................. #EDEDED
+ *    scrollbar track .................. #F0F0F0
+ *
+ *  Borders
+ *    regular .......................... #C0C0C0
+ *    input / button ................... #B0B0B0
+ *    strong ........................... #A0A0A0
+ *    disabled ......................... #D0D0D0
+ *
+ *  Text
+ *    disabled ......................... #9A9A9A
+ *    tooltip .......................... #1C1C1C
+ *
+ *  Accent
+ *    primary .......................... #2870D6
+ *    soft (checked background) ........ #B8D4F0
+ *    soft border ...................... #7AADE8
+ *
+ *  Misc
+ *    tooltip bg ....................... #FFFFDC
+ *    close-button hover ............... #D87070
+ *    separator ........................ #D0D0D0
+ * ---------------------------------------------------------------
  */
 
-/* --- Buttons --- */
+
+/* ===========================================================
+ *  Push buttons
+ * =========================================================== */
 QPushButton {
+    background-color: #E4E4E4;
     border: 1px solid #B0B0B0;
     border-radius: 3px;
     padding: 4px 12px;
-    background-color: #E4E4E4;
 }
-QPushButton:hover { background-color: #D8D8D8; }
-QPushButton:pressed { background-color: #C8C8C8; }
-QPushButton:disabled { color: #A0A0A0; }
+QPushButton:hover    { background-color: #D8D8D8; }
+QPushButton:pressed  { background-color: #C8C8C8; }
+QPushButton:focus    { border-color: #2870D6; }
+QPushButton:disabled {
+    background-color: #EDEDED;
+    border-color: #D0D0D0;
+    color: #9A9A9A;
+}
 
-/* --- Tool buttons --- */
-QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 3px; }
-QToolButton:hover { background-color: #D0D0D0; border-color: #B0B0B0; }
-QToolButton:pressed { background-color: #C0C0C0; }
 
-/* Checked / toggled tool-buttons */
+/* ===========================================================
+ *  Tool buttons
+ * =========================================================== */
+QToolButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    padding: 3px;
+}
+QToolButton:hover {
+    background-color: #D8D8D8;
+    border-color: #B0B0B0;
+}
+QToolButton:pressed {
+    background-color: #C8C8C8;
+    border-color: #A0A0A0;
+}
 QToolButton:checked {
     background-color: #B8D4F0;
-    border: 1px solid #7AADE8;
-    border-radius: 3px;
+    border-color: #7AADE8;
+}
+QToolButton:focus {
+    border-color: #2870D6;
 }
 
-/* --- Tab bar --- */
-QTabBar::tab {
-    padding: 6px 14px;
+
+/* ===========================================================
+ *  Text inputs & combo boxes
+ *  Base rule gives them a 1px border so :focus only changes
+ *  the colour — no layout shift on focus.
+ * =========================================================== */
+QLineEdit,
+QComboBox,
+QSpinBox,
+QDoubleSpinBox {
+    background-color: #FFFFFF;
+    border: 1px solid #B0B0B0;
+    border-radius: 3px;
+    padding: 3px 6px;
+}
+QLineEdit:focus,
+QComboBox:focus,
+QSpinBox:focus,
+QDoubleSpinBox:focus {
+    border-color: #2870D6;
+}
+QLineEdit:disabled,
+QComboBox:disabled,
+QSpinBox:disabled,
+QDoubleSpinBox:disabled {
+    background-color: #F0F0F0;
+    border-color: #D0D0D0;
+    color: #9A9A9A;
+}
+
+
+/* ===========================================================
+ *  Tabs (QTabWidget / QTabBar)
+ * =========================================================== */
+QTabWidget::pane {
+    background: #FFFFFF;
     border: 1px solid #C0C0C0;
-    border-bottom: none;
+    top: -1px;                  /* avoid double border between tab and pane */
+}
+
+QTabBar::tab {
+    background-color: #E8E8E8;
+    border: 1px solid #C0C0C0;
+    border-bottom: 2px solid transparent;  /* reserve space → no wiggle on select */
     border-top-left-radius: 3px;
     border-top-right-radius: 3px;
-    margin-right: 2px;
-    background-color: #E8E8E8;
+    padding: 4px 4px;
+    margin-right: 0px;
+}
+QTabBar::tab:hover:!selected {
+    background-color: #DCDCDC;
 }
 QTabBar::tab:selected {
     background-color: #FFFFFF;
-    border-bottom: 2px solid #3080E8;
+    border-bottom-color: #2870D6;
 }
-QTabBar::tab:hover:!selected { background-color: #DCDCDC; }
 
-/* --- Tab close button --- */
 QTabBar::close-button {
-    border: none; border-radius: 3px; padding: 2px;
+    image: url(:/icons/close-light.svg);
+    width: 24px;
+    height: 24px;
+    subcontrol-origin: padding;
+    subcontrol-position: right center;
+    margin-right: 6px;
+    border-radius: 2px;
 }
 QTabBar::close-button:hover {
-    background-color: #E0A0A0;
+    background-color: #D87070;
 }
 
-/* --- Scroll bars --- */
+/*
+ *  "New tab" (+) button — requires:
+ *  addTabButton->setObjectName("tabAddButton");
+ */
+QToolButton#tabAddButton {
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 0 6px;
+    margin: 2px 4px;
+    min-width: 20px;
+    min-height: 18px;
+    max-height: 22px;
+    color: #505050;
+}
+QToolButton#tabAddButton:hover {
+    background-color: #D0D0D0;
+    border-color: #B0B0B0;
+    color: #303030;
+}
+QToolButton#tabAddButton:pressed {
+    background-color: #C0C0C0;
+    border-color: #A0A0A0;
+}
+
+
+/* ===========================================================
+ *  Scroll bars
+ * =========================================================== */
 QScrollBar:vertical {
-    background: #F0F0F0; width: 12px; margin: 0; border: none;
+    background: #F0F0F0;
+    width: 12px;
+    margin: 0;
+    border: none;
 }
 QScrollBar::handle:vertical {
-    background: #C0C0C0; min-height: 24px; border-radius: 4px; margin: 2px;
+    background: #C0C0C0;
+    border-radius: 4px;
+    min-height: 24px;
+    margin: 2px;
 }
-QScrollBar::handle:vertical:hover { background: #A0A0A0; }
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::handle:vertical:hover {
+    background: #A0A0A0;
+}
+
 QScrollBar:horizontal {
-    background: #F0F0F0; height: 12px; margin: 0; border: none;
+    background: #F0F0F0;
+    height: 12px;
+    margin: 0;
+    border: none;
 }
 QScrollBar::handle:horizontal {
-    background: #C0C0C0; min-width: 24px; border-radius: 4px; margin: 2px;
+    background: #C0C0C0;
+    border-radius: 4px;
+    min-width: 24px;
+    margin: 2px;
 }
-QScrollBar::handle:horizontal:hover { background: #A0A0A0; }
-QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
+QScrollBar::handle:horizontal:hover {
+    background: #A0A0A0;
+}
 
-/* --- Tooltips --- */
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0;
+    height: 0;
+    border: none;
+    background: none;
+}
+
+
+/* ===========================================================
+ *  Tooltips
+ * =========================================================== */
 QToolTip {
-    background-color: #FFFFDC; color: #1C1C1C;
-    border: 1px solid #C0C0C0; padding: 4px;
+    background-color: #FFFFDC;
+    color: #1C1C1C;
+    border: 1px solid #C0C0C0;
     border-radius: 3px;
+    padding: 4px;
 }
 
-/* --- Menu --- */
-QMenu { background-color: #FFFFFF; border: 1px solid #C0C0C0; padding: 4px 0; }
-QMenu::item { padding: 5px 24px; }
-QMenu::item:selected { background-color: #3080E8; color: #FFFFFF; }
-QMenu::separator { height: 1px; background: #D0D0D0; margin: 4px 8px; }
 
-/* --- Group boxes --- */
-QGroupBox { border: 1px solid #C0C0C0; border-radius: 4px;
-    margin-top: 8px; padding-top: 10px; }
-QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-
-/* --- Dock widget title --- */
-QDockWidget::title { background-color: #E8E8E8; padding: 4px; }
-
-/* --- Status bar --- */
-QStatusBar { border-top: 1px solid #C0C0C0; }
-QStatusBar::item { border: none; }
-
-/* --- Focus indicators (accessibility) --- */
-QToolButton:focus {
-    outline: 2px solid #3080E8;
-    outline-offset: 1px;
+/* ===========================================================
+ *  Menus
+ * =========================================================== */
+QMenu {
+    background-color: #FFFFFF;
+    border: 1px solid #C0C0C0;
+    padding: 4px 0;
 }
-QPushButton:focus {
-    outline: 2px solid #3080E8;
-    outline-offset: 1px;
+QMenu::item {
+    padding: 5px 24px;
 }
-QComboBox:focus {
-    border: 2px solid #3080E8;
+QMenu::item:selected {
+    background-color: #2870D6;
+    color: #FFFFFF;
 }
-QLineEdit:focus {
-    border: 2px solid #3080E8;
+QMenu::separator {
+    height: 1px;
+    background: #D0D0D0;
+    margin: 4px 8px;
+}
+
+
+/* ===========================================================
+ *  Group boxes
+ * =========================================================== */
+QGroupBox {
+    border: 1px solid #C0C0C0;
+    border-radius: 4px;
+    margin-top: 8px;
+    padding-top: 10px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    padding: 0 4px;
+}
+
+
+/* ===========================================================
+ *  Dock widgets & status bar
+ * =========================================================== */
+QDockWidget::title {
+    background-color: #E8E8E8;
+    padding: 4px;
+}
+
+QStatusBar {
+    border-top: 1px solid #C0C0C0;
+}
+QStatusBar::item {
+    border: none;
 }

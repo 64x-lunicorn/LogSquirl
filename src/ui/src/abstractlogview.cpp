@@ -580,8 +580,8 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
         highlightersMenu_->populateHighlightersMenu();
         highlightersMenu_->setApplyChange( [ this ]() { Q_EMIT highlightersChange(); } );
 
-        auto colorLablesActionGroup = new QActionGroup( this );
-        connect( colorLablesActionGroup, &QActionGroup::triggered, this,
+        auto colorLabelsActionGroup = new QActionGroup( this );
+        connect( colorLabelsActionGroup, &QActionGroup::triggered, this,
                  &AbstractLogView::setColorLabel );
         colorLabelsMenu_->clear();
         colorLabelsMenu_->setEnabled( selection_.isPortion() || selection_.isSingleLine() );
@@ -596,7 +596,7 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
             }
 
             auto noneAction = colorLabelsMenu_->addAction( tr( "None" ) );
-            noneAction->setActionGroup( colorLablesActionGroup );
+            noneAction->setActionGroup( colorLabelsActionGroup );
             noneAction->setCheckable( true );
             noneAction->setChecked( !currentLabel.has_value() );
             if ( currentLabel ) {
@@ -616,7 +616,7 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
                     = quickHighlightersConfiguration.at( static_cast<int>( i ) );
                 auto colorLabelAction
                     = colorLabelsMenu_->addAction( currentLabelConfiguration.name );
-                colorLabelAction->setActionGroup( colorLablesActionGroup );
+                colorLabelAction->setActionGroup( colorLabelsActionGroup );
                 colorLabelAction->setCheckable( true );
                 colorLabelAction->setChecked( currentLabel == i );
                 colorLabelAction->setData( i );
@@ -637,7 +637,7 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
         popupMenu_->exec( QCursor::pos( activeScreen( this ) ) );
 
         highlightersMenu_->clearHighlightersMenu();
-        colorLablesActionGroup->deleteLater();
+        colorLabelsActionGroup->deleteLater();
     }
 
     Q_EMIT activity();
@@ -1326,11 +1326,6 @@ void AbstractLogView::refreshOverview()
 {
     assert( overviewWidget_ );
 
-    // When locked, the overview state is controlled externally (e.g. diff view).
-    if ( overviewLocked_ ) {
-        return;
-    }
-
     // Create space for the Overview if needed
     if ( ( getOverview() != nullptr ) && getOverview()->isVisible() ) {
         setViewportMargins( 0, 0, OverviewWidth, 0 );
@@ -1348,11 +1343,6 @@ void AbstractLogView::setOverviewVisible( bool visible )
         overview_->setVisible( visible );
     }
     refreshOverview();
-}
-
-void AbstractLogView::setOverviewLocked( bool locked )
-{
-    overviewLocked_ = locked;
 }
 
 // Reset the QuickFind when the pattern is changed.
@@ -1779,11 +1769,6 @@ void AbstractLogView::jumpToLine( LineNumber line )
     const auto newTopLine = line - LinesCount( getNbVisibleLines().get() / 2 );
     // This will also trigger a scrollContents event
     verticalScrollBar()->setValue( lineNumberToVerticalScroll( newTopLine ) );
-}
-
-void AbstractLogView::scrollToTopLine( LineNumber line )
-{
-    verticalScrollBar()->setValue( lineNumberToVerticalScroll( line ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )

@@ -16,7 +16,6 @@ add_executable(logsquirl_tests
     pluginrepository_test.cpp
     regularexpression_test.cpp
     zstddevice_test.cpp
-    anchor_test.cpp
     tests_main.cpp
 )
 

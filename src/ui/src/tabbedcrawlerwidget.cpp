@@ -67,11 +67,7 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
 
     QString tabStyle = QStringLiteral( "QTabBar::tab { height: 28px; }" );
 
-    QString tabCloseButtonStyle = " QTabBar::close-button {\
-              height: 14px; width: 14px;\
-              subcontrol-origin: padding;\
-              subcontrol-position: right;\
-              %1}";
+    QString tabCloseButtonStyle = " QTabBar::close-button { %1 }";
 
     QString backgroundImage;
     QString backgroundHoverImage;
@@ -476,13 +472,6 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
             } );
         }
     }
-
-    // --- Compare operation ---
-    menu.addSeparator();
-    auto* compareWith = menu.addAction( tr( "Compare with…" ) );
-    connect( compareWith, &QAction::triggered, this, [ this, tab ] {
-        Q_EMIT compareRequested( tabPathAt( tab ) );
-    } );
 
     menu.exec( globalPoint );
 }

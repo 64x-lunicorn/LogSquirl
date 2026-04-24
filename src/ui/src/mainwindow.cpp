@@ -94,7 +94,6 @@
 #include "commandpalette.h"
 #include "crawlerwidget.h"
 #include "decompressor.h"
-#include "diff_view_widget.hpp"
 #include "dispatch_to.h"
 #include "downloader.h"
 #include "encodings.h"
@@ -286,15 +285,6 @@ MainWindow::MainWindow( WindowSession session )
              &MainWindow::currentTabChanged );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::mergeRequested, this,
              &MainWindow::openMergedFiles );
-    connect( &mainTabWidget_, &TabbedCrawlerWidget::compareRequested, this,
-             [ this ]( const QString& filePath ) {
-                 const auto otherFile = QFileDialog::getOpenFileName(
-                     this, tr( "Select file to compare with" ),
-                     QFileInfo( filePath ).path(), tr( "All files (*)" ) );
-                 if ( !otherFile.isEmpty() ) {
-                     compareWithFile( filePath, otherFile );
-                 }
-             } );
 
     // Establish the QuickFindWidget and mux ( to send requests from the
     // QFWidget to the right window )
@@ -735,11 +725,6 @@ void MainWindow::createActions()
     openUrlAction->setStatusTip( tr( action::openUrlStatusTip ) );
     connect( openUrlAction, &QAction::triggered, this, [ this ]( auto ) { this->openUrl(); } );
 
-    compareAction = new QAction( tr( "Compare Files…" ), this );
-    compareAction->setStatusTip( tr( "Open two files side-by-side for comparison" ) );
-    connect( compareAction, &QAction::triggered, this,
-             [ this ]( auto ) { this->openComparison(); } );
-
     overviewVisibleAction = new QAction( tr( action::overviewVisibleText ), this );
     overviewVisibleAction->setCheckable( true );
     overviewVisibleAction->setChecked( config.isOverviewVisible() );
@@ -977,7 +962,6 @@ void MainWindow::loadIcons()
     toggleSidebarAction->setIcon( iconLoader_.load( "icons8-sidebar" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
-    compareAction->setIcon( iconLoader_.load( "icons8-not-equal" ) );
 }
 
 void MainWindow::createMenus()
@@ -990,7 +974,6 @@ void MainWindow::createMenus()
     fileMenu->addAction( openAction );
     fileMenu->addAction( openClipboardAction );
     fileMenu->addAction( openUrlAction );
-    fileMenu->addAction( compareAction );
     recentFilesMenu = fileMenu->addMenu( tr( "Open Recent" ) );
     for ( auto i = 0u; i < recentFileActions.size(); ++i ) {
         recentFilesMenu->addAction( recentFileActions[ i ] );
@@ -1828,33 +1811,6 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     mergeControllers_.push_back( std::move( controller ) );
 }
 
-void MainWindow::openComparison()
-{
-    QString defaultDir = ".";
-    if ( auto current = currentCrawlerWidget() ) {
-        const auto currentFile = session_.getFilename( current );
-        defaultDir = QFileInfo( currentFile ).path();
-    }
-
-    const auto selectedFiles = QFileDialog::getOpenFileNames(
-        this, tr( "Select two files to compare" ), defaultDir, tr( "All files (*)" ) );
-
-    if ( selectedFiles.size() != 2 ) {
-        return;
-    }
-
-    compareWithFile( selectedFiles.at( 0 ), selectedFiles.at( 1 ) );
-}
-
-void MainWindow::compareWithFile( const QString& fileA, const QString& fileB )
-{
-    auto* diffView = new DiffViewWidget( this );
-    diffView->openFiles( fileA, fileB );
-
-    const auto index = mainTabWidget_.addCrawler( diffView, diffView->tabTitle() );
-    mainTabWidget_.setCurrentIndex( index );
-}
-
 void MainWindow::toggleSidebar()
 {
     if ( sidebarDock_->isVisible() ) {
@@ -2052,7 +2008,7 @@ void MainWindow::updateLoadingProgress( int progress )
     LOG_DEBUG << "Loading progress: " << progress;
 
     // Guard: currentCrawlerWidget() returns nullptr when the active tab is
-    // not a CrawlerWidget (e.g. DiffViewWidget).
+    // not a CrawlerWidget.
     auto* crawler = currentCrawlerWidget();
     if ( !crawler ) {
         return;
@@ -2081,7 +2037,7 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
     // No file is loading
     loadingFileName.clear();
 
-    // Guard: active tab may not be a CrawlerWidget (e.g. DiffViewWidget).
+    // Guard: active tab may not be a CrawlerWidget.
     auto* crawler = currentCrawlerWidget();
     if ( !crawler ) {
         return;
@@ -2138,17 +2094,7 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
 
     auto widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
 
-    // Handle non-CrawlerWidget tabs (e.g. DiffViewWidget).
-    if ( !widget ) {
-        auto* tabWidget = mainTabWidget_.widget( index );
-        auto* diffView = qobject_cast<DiffViewWidget*>( tabWidget );
-        if ( diffView ) {
-            diffView->stopLoading();
-        }
-        mainTabWidget_.removeCrawler( index );
-        tabWidget->deleteLater();
-        return;
-    }
+    assert( widget );
 
     // Show confirmation dialog for user-initiated tab close if enabled
     if ( initiator == ActionInitiator::User ) {
@@ -2223,16 +2169,8 @@ void MainWindow::closeTabs( QList<int> indices )
     // Sort descending so removal doesn't shift indices
     std::sort( indices.begin(), indices.end(), std::greater<int>() );
     for ( const auto index : indices ) {
-        auto* tabWidget = mainTabWidget_.widget( index );
-        auto* widget = qobject_cast<CrawlerWidget*>( tabWidget );
+        auto* widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
         if ( !widget ) {
-            // Handle non-CrawlerWidget tabs (e.g. DiffViewWidget).
-            auto* diffView = qobject_cast<DiffViewWidget*>( tabWidget );
-            if ( diffView ) {
-                diffView->stopLoading();
-            }
-            mainTabWidget_.removeCrawler( index );
-            tabWidget->deleteLater();
             continue;
         }
         widget->stopLoading();
@@ -3025,22 +2963,6 @@ void MainWindow::writeSettings()
         widget_list.emplace_back( view, 0UL, view->context() );
     }
     session_.save( widget_list, saveGeometry() );
-
-    // Persist open diff view tabs.
-    QSettings settings;
-    settings.beginGroup( "DiffViews" );
-    settings.remove( "" ); // clear previous entries
-    int diffIndex = 0;
-    for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-        auto* diffView = qobject_cast<DiffViewWidget*>( mainTabWidget_.widget( i ) );
-        if ( diffView ) {
-            settings.setValue( QString( "state_%1" ).arg( diffIndex ),
-                               diffView->saveState() );
-            ++diffIndex;
-        }
-    }
-    settings.setValue( "count", diffIndex );
-    settings.endGroup();
 }
 
 // Read settings from permanent storage
@@ -3062,25 +2984,6 @@ void MainWindow::readSettings()
 
     HighlighterSetCollection::getSynced();
     updateHighlightersMenu();
-
-    // Restore persisted diff view tabs.
-    QSettings settings;
-    settings.beginGroup( "DiffViews" );
-    const int diffCount = settings.value( "count", 0 ).toInt();
-    for ( int i = 0; i < diffCount; ++i ) {
-        const auto state = settings.value( QString( "state_%1" ).arg( i ) ).toByteArray();
-        if ( state.isEmpty() ) {
-            continue;
-        }
-        auto* diffView = new DiffViewWidget( this );
-        if ( diffView->restoreState( state ) ) {
-            mainTabWidget_.addCrawler( diffView, diffView->tabTitle() );
-        }
-        else {
-            delete diffView;
-        }
-    }
-    settings.endGroup();
 }
 
 void MainWindow::displayQuickFindBar( QuickFindMux::QFDirection direction )

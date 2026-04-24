@@ -142,8 +142,6 @@ class MainWindow : public QMainWindow {
     void manageTabGroups();
     void showCommandPalette();
     void openMergedFiles( QStringList filePaths, bool dedup );
-    void openComparison();
-    void compareWithFile( const QString& fileA, const QString& fileB );
     void toggleSidebar();
     void showSidebar( int tabIndex );
     void importChipmunkFilters();
@@ -330,7 +328,6 @@ class MainWindow : public QMainWindow {
     QAction* manageTabGroupsAction;
     QAction* reportIssueAction;
     QAction* generateDumpAction;
-    QAction* compareAction;
     QAction* pluginsAction;
     QActionGroup* encodingGroup;
     QAction* addToFavoritesAction;

@@ -4,4 +4,8 @@
         <file alias="fusion-light.qss">themes/fusion-light.qss</file>
         <file alias="high-contrast.qss">themes/high-contrast.qss</file>
     </qresource>
+    <qresource prefix="/icons">
+        <file alias="close-dark.svg">icons/close-dark.svg</file>
+        <file alias="close-light.svg">icons/close-light.svg</file>
+    </qresource>
 </RCC>

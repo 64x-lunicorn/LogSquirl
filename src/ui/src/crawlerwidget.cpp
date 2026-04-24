@@ -441,20 +441,6 @@ void CrawlerWidget::startNewSearch()
     replaceCurrentSearch( searchLineEdit_->currentText() );
 }
 
-void CrawlerWidget::applyExternalSearch( const QString& pattern, bool matchCase, bool useRegexp,
-                                          bool inverse, bool boolean )
-{
-    // Set the search text and button states to match the external request.
-    searchLineEdit_->setCurrentText( pattern );
-    matchCaseButton_->setChecked( matchCase );
-    useRegexpButton_->setChecked( useRegexp );
-    inverseButton_->setChecked( inverse );
-    booleanButton_->setChecked( boolean );
-
-    // Trigger the search through the normal path.
-    replaceCurrentSearch( pattern );
-}
-
 void CrawlerWidget::stopSearch()
 {
     logFilteredData_->interruptSearch();
