@@ -332,7 +332,7 @@ int CommandPalette::fuzzyScore( const QString& pattern, const QString& text )
     }
 
     // Penalty for remaining unmatched text length
-    score += ( textLen - patternLen ) / 3;
+    score += static_cast<int>( ( textLen - patternLen ) / 3 );
 
     return score;
 }
