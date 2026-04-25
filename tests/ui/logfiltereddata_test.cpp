@@ -22,7 +22,6 @@
 #include <QSignalSpy>
 #include <QTemporaryFile>
 #include <QTest>
-#include <QTimer>
 #include <qglobal.h>
 
 #include "configuration.h"
@@ -54,19 +53,21 @@ bool generateDataFiles( QTemporaryFile& file )
     return true;
 }
 
+// Start an async search and wait until the spy reports 100 % progress.
+// Uses waitUiState() polling instead of QSignalSpy::wait() to avoid
+// platform-specific event-loop issues (Windows CI TBB hangs, #50).
 void runSearch( LogFilteredData* filtered_data, const QString& regexp,
                 SafeQSignalSpy& searchProgressSpy )
 {
+    filtered_data->runSearch( RegularExpressionPattern( regexp ) );
 
-    QTimer::singleShot(
-        50, [ & ]() { filtered_data->runSearch( RegularExpressionPattern( regexp ) ); } );
-
-    int progress = 0;
-    do {
-        REQUIRE( searchProgressSpy.wait() );
-        QList<QVariant> progressArgs = searchProgressSpy.last();
-        progress = progressArgs.at( 1 ).toInt();
-    } while ( progress < 100 );
+    const bool completed = waitUiState( [ & ]() {
+        if ( searchProgressSpy.count() == 0 ) {
+            return false;
+        }
+        return searchProgressSpy.last().at( 1 ).toInt() >= 100;
+    } );
+    REQUIRE( completed );
 }
 
 } // namespace

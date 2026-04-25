@@ -189,7 +189,10 @@ LogFilteredDataWorker::~LogFilteredDataWorker() noexcept
         // Wait for the active runnable to finish WITHOUT holding operationsMutex_.
         // The pool thread needs to acquire operationsMutex_ before it can observe
         // the interrupt flag and exit. Holding the mutex here would deadlock.
-        operationsPool_.waitForDone();
+        // Use a timeout so the process can exit even if TBB hangs on Windows.
+        if ( !operationsPool_.waitForDone( 10000 ) ) {
+            LOG_ERROR << "Search thread did not finish within 10 s — giving up";
+        }
 
         LOG_INFO << "LogFilteredDataWorker shutdown";
     } catch ( const std::exception& e ) {
