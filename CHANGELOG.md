@@ -4,53 +4,6 @@
  - **Native title bar theming**: The OS window chrome (macOS traffic lights,
    Windows title bar) now matches the active theme.  Uses
    `QStyleHints::setColorScheme()` (Qt 6.8+) for cross-platform support.
-
-## UI/UX improvements:
- - **Theme rename**: "Fusion" theme renamed to "Light" for clarity.
-   Existing user settings are migrated automatically.
- - **Complete theme overhaul**: All three themes (Light, Dark, High Contrast)
-   have been fully rewritten with consistent color palettes based on the
-   PRD design specs (Fusion Refined, Modern Slate, Accessibility First).
- - **Checkbox and indicator visibility**: Tree widget checkboxes
-   (`QTreeWidget::indicator`) now have explicit styling in all themes with
-   2px borders, proper indeterminate/disabled states, and hover feedback.
-   Menu and standalone checkboxes updated to match.
- - **Tree item spacing**: Added 3px vertical padding to all tree, list, and
-   table view items for improved readability.
- - **Container background consistency**: `QSplitter`, `QScrollArea`,
-   `QDockWidget`, `QDialog`, and `QMainWindow::separator` now have explicit
-   backgrounds matching each theme's surface color.
- - **Dark theme softened**: Checkbox contrast in the dark theme reduced from
-   harsh `#888888`-on-`#1E1E1E` to a softer `#777777`-on-`#2D2D30`.
- - **Light theme white surface fix**: Replaced pure white (`#FFFFFF`)
-   container backgrounds with off-white (`#F8F9FA`) for `QTabWidget::pane`,
-   `QTabBar::tab:selected`, splitters, and dock widgets.  Pure white is now
-   reserved for content/input areas only.
-
-## Bug fixes:
- - Fixed bright green (`#54c01a`) background on input fields in the Light
-   theme caused by a corrupted QSS replace.
- - Fixed SIGSEGV crash in `MainWindow::closeTab()` when tab widget returns a
-   null widget pointer.  Added null-check guard before casting.
- - Hardened `Session::close()` against double-close scenarios.
- - Removed hardcoded colors from `WelcomeDashboard` — link buttons, hint
-   text, and version labels now use `palette()` functions.
-
----
-
-# Unreleased
-
-## New features:
- - **Diff View**: Compare two log files side-by-side using two full
-   CrawlerWidget instances.  Each pane has its own search, filtered view,
-   marks, and quick-find.  An anchor system allows manual line pairing
-   between the two panes (right-click → "Set Anchor", two clicks to form
-   a pair).  Anchors drive piecewise-linear scroll synchronization and
-   enable a shared regex search bar that applies patterns to both panes
-   simultaneously.  The shared search is disabled when no anchors exist.
-   Access via File → "Compare Files…" or right-click a tab → "Compare
-   with…".  Anchor state, file paths, and splitter geometry persist across
-   sessions.
  - **Startup Splash Screen**: A splash screen with the LogSquirl app icon and
    version is now shown while the application initialises (plugin discovery,
    session restore).  Can be disabled via Options → General →
@@ -87,6 +40,26 @@
    Options → Performance → "Use index cache".
 
 ## UI/UX improvements:
+ - **Theme rename**: "Fusion" theme renamed to "Light" for clarity.
+   Existing user settings are migrated automatically.
+ - **Complete theme overhaul**: All three themes (Light, Dark, High Contrast)
+   have been fully rewritten with consistent color palettes based on the
+   PRD design specs (Fusion Refined, Modern Slate, Accessibility First).
+ - **Checkbox and indicator visibility**: Tree widget checkboxes
+   (`QTreeWidget::indicator`) now have explicit styling in all themes with
+   2px borders, proper indeterminate/disabled states, and hover feedback.
+   Menu and standalone checkboxes updated to match.
+ - **Tree item spacing**: Added 3px vertical padding to all tree, list, and
+   table view items for improved readability.
+ - **Container background consistency**: `QSplitter`, `QScrollArea`,
+   `QDockWidget`, `QDialog`, and `QMainWindow::separator` now have explicit
+   backgrounds matching each theme's surface color.
+ - **Dark theme softened**: Checkbox contrast in the dark theme reduced from
+   harsh `#888888`-on-`#1E1E1E` to a softer `#777777`-on-`#2D2D30`.
+ - **Light theme white surface fix**: Replaced pure white (`#FFFFFF`)
+   container backgrounds with off-white (`#F8F9FA`) for `QTabWidget::pane`,
+   `QTabBar::tab:selected`, splitters, and dock widgets.  Pure white is now
+   reserved for content/input areas only.
  - **Toggle button visibility**: Checkable toolbar buttons (filter bar: match
    case, regex, inverse, boolean, auto-refresh; and main toolbar: follow,
    text wrap) now clearly show their checked/active state across all themes
@@ -146,6 +119,15 @@
    consistent horizontal padding.
  - **Scroll bars**: Dark-mode scroll bars are now clearly visible with
    rounded handles and hover highlighting.
+
+## Bug fixes:
+ - Fixed bright green (`#54c01a`) background on input fields in the Light
+   theme caused by a corrupted QSS replace.
+ - Fixed SIGSEGV crash in `MainWindow::closeTab()` when tab widget returns a
+   null widget pointer.  Added null-check guard before casting.
+ - Hardened `Session::close()` against double-close scenarios.
+ - Removed hardcoded colors from `WelcomeDashboard` — link buttons, hint
+   text, and version labels now use `palette()` functions.
 
 ---
 
