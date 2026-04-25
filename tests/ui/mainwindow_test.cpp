@@ -68,9 +68,14 @@ SCENARIO( "Main window tests", "[ui]" )
         auto tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
         REQUIRE( tabArea != nullptr );
 
+        // The welcome dashboard occupies a permanent pinned tab at index 0
+        // when enabled (default). Record the baseline so file-tab assertions
+        // are independent of that setting.
+        const int baseTabCount = tabArea->count();
+
         THEN( "Has no tabs" )
         {
-            REQUIRE( tabArea->count() == 0 );
+            REQUIRE( tabArea->count() == baseTabCount );
             AND_THEN( "Path label empty" )
             {
                 REQUIRE( filePathLabel->text().isEmpty() );
@@ -104,7 +109,7 @@ SCENARIO( "Main window tests", "[ui]" )
 
                 AND_THEN( "Has one tab" )
                 {
-                    REQUIRE( waitUiState( [&] { return tabArea->count() == 1; } ) );
+                    REQUIRE( waitUiState( [&] { return tabArea->count() == baseTabCount + 1; } ) );
                 }
             }
 
@@ -117,7 +122,7 @@ SCENARIO( "Main window tests", "[ui]" )
 
                 THEN( "Has no tabs" )
                 {
-                    REQUIRE( waitUiState( [&] { return tabArea->count() == 0; } ) );
+                    REQUIRE( waitUiState( [&] { return tabArea->count() == baseTabCount; } ) );
 
                     AND_THEN( "Path label empty" )
                     {
