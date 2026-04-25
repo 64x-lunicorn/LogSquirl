@@ -295,11 +295,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-24.04
-            artifact: packages-jammy
+            artifact: packages-noble
           - os: macos-15
-            artifact: packages-macos
+            artifact: packages-mac-arm64
           - os: windows-2025
-            artifact: packages-windows
+            artifact: packages-windows-x64
     runs-on: ${{ matrix.os }}
 
     steps:
