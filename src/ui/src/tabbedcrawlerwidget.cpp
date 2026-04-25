@@ -87,7 +87,7 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
             = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-hover-16.png";
     }
 #elif defined( Q_OS_WIN )
-    if ( config.style() == StyleManager::FusionKey ) {
+    if ( config.style() == StyleManager::LightKey ) {
         backgroundImage = ":/images/icons8-close-window-16.png";
         backgroundHoverImage = ":/images/icons8-close-window-hover-16.png";
     }

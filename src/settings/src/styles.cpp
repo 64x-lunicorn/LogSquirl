@@ -23,6 +23,7 @@
 #include <QPalette>
 #include <QStandardPaths>
 #include <QStyleFactory>
+#include <QStyleHints>
 #include <QTextStream>
 #include <qcolor.h>
 
@@ -33,7 +34,7 @@
 QStringList StyleManager::availableStyles()
 {
     QStringList styles;
-    styles << FusionKey;
+    styles << LightKey;
     styles << DarkStyleKey;
     styles << HighContrastKey;
 
@@ -46,7 +47,7 @@ QStringList StyleManager::availableStyles()
 
 QString StyleManager::defaultPlatformStyle()
 {
-    return FusionKey;
+    return LightKey;
 }
 
 void StyleManager::applyStyle( const QString& style )
@@ -93,7 +94,10 @@ void StyleManager::applyStyle( const QString& style )
                               QColor( textColor.red(), textColor.green(), textColor.blue(),
                                       128 ) );
 
-        qApp->setStyle( QStyleFactory::create( FusionKey ) );
+        qApp->setStyle( QStyleFactory::create( FusionEngine ) );
+
+        // Tell the platform to use a dark title bar / window chrome.
+        qApp->styleHints()->setColorScheme( Qt::ColorScheme::Dark );
 
         qApp->setPalette( darkPalette );
         qApp->setStyleSheet( loadThemeQss( QStringLiteral( "dark.qss" ) ) );
@@ -102,57 +106,63 @@ void StyleManager::applyStyle( const QString& style )
     // 2.  High Contrast (accessibility)
     // ---------------------------------------------------------------
     else if ( isHighContrast ) {
-        qApp->setStyle( QStyleFactory::create( FusionKey ) );
+        qApp->setStyle( QStyleFactory::create( FusionEngine ) );
+
+        // Tell the platform to use a dark title bar / window chrome.
+        qApp->styleHints()->setColorScheme( Qt::ColorScheme::Dark );
 
         QPalette hcPalette;
-        hcPalette.setColor( QPalette::Window, QColor( "#FFFFFF" ) );
-        hcPalette.setColor( QPalette::WindowText, QColor( "#000000" ) );
-        hcPalette.setColor( QPalette::Base, QColor( "#FFFFFF" ) );
-        hcPalette.setColor( QPalette::AlternateBase, QColor( "#F0F0F0" ) );
+        hcPalette.setColor( QPalette::Window, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::WindowText, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Base, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::AlternateBase, QColor( "#000000" ) );
         hcPalette.setColor( QPalette::ToolTipBase, QColor( "#000000" ) );
-        hcPalette.setColor( QPalette::ToolTipText, QColor( "#FFFFFF" ) );
-        hcPalette.setColor( QPalette::Text, QColor( "#000000" ) );
-        hcPalette.setColor( QPalette::Button, QColor( "#FFFFFF" ) );
-        hcPalette.setColor( QPalette::ButtonText, QColor( "#000000" ) );
-        hcPalette.setColor( QPalette::Link, QColor( "#0000FF" ) );
-        hcPalette.setColor( QPalette::Highlight, QColor( "#0000FF" ) );
-        hcPalette.setColor( QPalette::HighlightedText, QColor( "#FFFFFF" ) );
-        hcPalette.setColor( QPalette::Disabled, QPalette::ButtonText, QColor( "#808080" ) );
-        hcPalette.setColor( QPalette::Disabled, QPalette::WindowText, QColor( "#808080" ) );
-        hcPalette.setColor( QPalette::Disabled, QPalette::Text, QColor( "#808080" ) );
+        hcPalette.setColor( QPalette::ToolTipText, QColor( "#FFFF00" ) );
+        hcPalette.setColor( QPalette::Text, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Button, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::ButtonText, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Link, QColor( "#00FFFF" ) );
+        hcPalette.setColor( QPalette::Highlight, QColor( "#FFFF00" ) );
+        hcPalette.setColor( QPalette::HighlightedText, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::ButtonText, QColor( "#A6A6A6" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::WindowText, QColor( "#A6A6A6" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::Text, QColor( "#A6A6A6" ) );
         hcPalette.setColor( QPalette::PlaceholderText, QColor( "#808080" ) );
 
         qApp->setPalette( hcPalette );
         qApp->setStyleSheet( loadThemeQss( QStringLiteral( "high-contrast.qss" ) ) );
     }
     // ---------------------------------------------------------------
-    // 3.  Light Fusion
+    // 3.  Light
     // ---------------------------------------------------------------
-    else if ( style == FusionKey ) {
-        qApp->setStyle( QStyleFactory::create( FusionKey ) );
+    else if ( style == LightKey ) {
+        qApp->setStyle( QStyleFactory::create( FusionEngine ) );
+
+        // Tell the platform to use a light title bar / window chrome.
+        qApp->styleHints()->setColorScheme( Qt::ColorScheme::Light );
 
         QPalette lightPalette;
-        lightPalette.setColor( QPalette::Window, QColor( "#F0F0F0" ) );
-        lightPalette.setColor( QPalette::WindowText, QColor( "#1C1C1C" ) );
+        lightPalette.setColor( QPalette::Window, QColor( "#F8F9FA" ) );
+        lightPalette.setColor( QPalette::WindowText, QColor( "#212529" ) );
         lightPalette.setColor( QPalette::Base, QColor( "#FFFFFF" ) );
-        lightPalette.setColor( QPalette::AlternateBase, QColor( "#F5F5F5" ) );
-        lightPalette.setColor( QPalette::ToolTipBase, QColor( "#FFFFDC" ) );
-        lightPalette.setColor( QPalette::ToolTipText, QColor( "#1C1C1C" ) );
-        lightPalette.setColor( QPalette::Text, QColor( "#1C1C1C" ) );
-        lightPalette.setColor( QPalette::Button, QColor( "#E4E4E4" ) );
-        lightPalette.setColor( QPalette::ButtonText, QColor( "#1C1C1C" ) );
-        lightPalette.setColor( QPalette::Link, QColor( "#2A6FDB" ) );
-        lightPalette.setColor( QPalette::Highlight, QColor( "#3080E8" ) );
+        lightPalette.setColor( QPalette::AlternateBase, QColor( "#F8F9FA" ) );
+        lightPalette.setColor( QPalette::ToolTipBase, QColor( "#343A40" ) );
+        lightPalette.setColor( QPalette::ToolTipText, QColor( "#F8F9FA" ) );
+        lightPalette.setColor( QPalette::Text, QColor( "#212529" ) );
+        lightPalette.setColor( QPalette::Button, QColor( "#E9ECEF" ) );
+        lightPalette.setColor( QPalette::ButtonText, QColor( "#212529" ) );
+        lightPalette.setColor( QPalette::Link, QColor( "#0056B3" ) );
+        lightPalette.setColor( QPalette::Highlight, QColor( "#0056B3" ) );
         lightPalette.setColor( QPalette::HighlightedText, QColor( "#FFFFFF" ) );
-        lightPalette.setColor( QPalette::Active, QPalette::Button, QColor( "#E0E0E0" ) );
-        lightPalette.setColor( QPalette::Disabled, QPalette::ButtonText, QColor( "#A0A0A0" ) );
-        lightPalette.setColor( QPalette::Disabled, QPalette::WindowText, QColor( "#A0A0A0" ) );
-        lightPalette.setColor( QPalette::Disabled, QPalette::Text, QColor( "#A0A0A0" ) );
-        lightPalette.setColor( QPalette::PlaceholderText, QColor( "#A0A0A0" ) );
-        lightPalette.setColor( QPalette::Mid, QColor( "#C0C0C0" ) );
-        lightPalette.setColor( QPalette::Shadow, QColor( "#A0A0A0" ) );
+        lightPalette.setColor( QPalette::Active, QPalette::Button, QColor( "#DEE2E6" ) );
+        lightPalette.setColor( QPalette::Disabled, QPalette::ButtonText, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::Disabled, QPalette::WindowText, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::Disabled, QPalette::Text, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::PlaceholderText, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::Mid, QColor( "#ADB5BD" ) );
+        lightPalette.setColor( QPalette::Shadow, QColor( "#868E96" ) );
         lightPalette.setColor( QPalette::Light, QColor( "#FFFFFF" ) );
-        lightPalette.setColor( QPalette::Midlight, QColor( "#E8E8E8" ) );
+        lightPalette.setColor( QPalette::Midlight, QColor( "#E9ECEF" ) );
 
         qApp->setPalette( lightPalette );
         qApp->setStyleSheet( loadThemeQss( QStringLiteral( "fusion-light.qss" ) ) );

@@ -27,11 +27,14 @@
 struct StyleManager {
 
     static constexpr QLatin1String DarkStyleKey = QLatin1String( "Dark", 4 );
-    static constexpr QLatin1String FusionKey = QLatin1String( "Fusion", 6 );
+    static constexpr QLatin1String LightKey = QLatin1String( "Light", 5 );
     static constexpr QLatin1String HighContrastKey = QLatin1String( "High Contrast", 13 );
 
     static constexpr QLatin1String Gtk2Key = QLatin1String( "Gtk2", 4 );
     static constexpr QLatin1String Bb10Key = QLatin1String( "bb10", 4 );
+
+    // Qt style engine name (all themes use the Fusion engine).
+    static constexpr QLatin1String FusionEngine = QLatin1String( "Fusion", 6 );
 
     static QStringList availableStyles();
     static QString defaultPlatformStyle();

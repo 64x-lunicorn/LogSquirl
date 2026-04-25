@@ -73,7 +73,10 @@ QString Session::getFilename( const ViewInterface* view ) const
 {
     const OpenFile* file = findOpenFileFromView( view );
 
-    assert( file );
+    if ( !file ) {
+        LOG_WARNING << "getFilename: view not found in open files";
+        return {};
+    }
 
     return file->fileName;
 }
@@ -83,7 +86,10 @@ void Session::getFileInfo( const ViewInterface* view, uint64_t* fileSize, uint64
 {
     const OpenFile* file = findOpenFileFromView( view );
 
-    assert( file );
+    if ( !file ) {
+        LOG_WARNING << "getFileInfo: view not found in open files";
+        return;
+    }
 
     *fileSize = static_cast<uint64_t>( file->logData->getFileSize() );
     *fileNbLine = file->logData->getNbLine().get();
@@ -168,7 +174,10 @@ void WindowSession::save(
         std::tie( view_object, top_line, view_context ) = view;
 
         const Session::OpenFile* file = appSession_->findOpenFileFromView( view_object );
-        assert( file );
+        if ( !file ) {
+            LOG_WARNING << "save: view not found in open files, skipping";
+            continue;
+        }
 
         LOG_DEBUG << "Saving " << file->fileName.toLocal8Bit().data() << " in session.";
         session_files.emplace_back( file->fileName, top_line, view_context->toString() );

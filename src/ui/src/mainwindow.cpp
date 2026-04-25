@@ -2094,7 +2094,10 @@ void MainWindow::closeTab( int index, ActionInitiator initiator )
 
     auto widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
 
-    assert( widget );
+    if ( !widget ) {
+        LOG_WARNING << "closeTab: widget at index " << index << " is not a CrawlerWidget";
+        return;
+    }
 
     // Show confirmation dialog for user-initiated tab close if enabled
     if ( initiator == ActionInitiator::User ) {

@@ -42,19 +42,19 @@ namespace {
 /// Maximum number of recent/favorite entries shown on the dashboard.
 constexpr int kMaxListEntries = 8;
 
-/// Stylesheet for clickable file-link buttons.
+/// Stylesheet for clickable file-link buttons (uses palette for theme awareness).
 const QString kLinkButtonStyle = QStringLiteral(
-    "QPushButton { color: #2a82da; border: none; text-align: left;"
+    "QPushButton { color: palette(link); border: none; text-align: left;"
     " padding: 3px 0px; font-size: 12px; }"
-    "QPushButton:hover { text-decoration: underline; color: #4da6ff; }" );
+    "QPushButton:hover { text-decoration: underline; }" );
 
 /// Stylesheet for section headings.
 const QString kSectionHeadingStyle = QStringLiteral(
     "QLabel { font-weight: bold; font-size: 13px; padding-top: 12px; }" );
 
-/// Stylesheet for shortcut hint text.
+/// Stylesheet for shortcut hint text (uses palette for theme awareness).
 const QString kHintStyle = QStringLiteral(
-    "QLabel { color: #808080; font-size: 11px; padding: 2px 0px; }" );
+    "QLabel { color: palette(dark); font-size: 11px; padding: 2px 0px; }" );
 
 /// Create a clickable QPushButton styled as a link.
 /// Clicking emits the dashboard's openFileRequested signal.
@@ -134,7 +134,7 @@ void WelcomeDashboard::buildUi()
     auto* versionLabel = new QLabel(
         QStringLiteral( "v%1" ).arg( logsquirlVersion() ), content );
     versionLabel->setAlignment( Qt::AlignCenter );
-    versionLabel->setStyleSheet( QStringLiteral( "color: #808080; font-size: 12px;" ) );
+    versionLabel->setStyleSheet( QStringLiteral( "color: palette(dark); font-size: 12px;" ) );
     rootLayout->addWidget( versionLabel );
 
     rootLayout->addSpacing( 10 );
@@ -219,7 +219,7 @@ void WelcomeDashboard::buildUi()
     // ---- Drop hint ----
     auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), content );
     dropHint->setStyleSheet(
-        QStringLiteral( "color: #606060; font-size: 11px; font-style: italic; padding-top: 8px;" ) );
+        QStringLiteral( "color: palette(dark); font-size: 11px; font-style: italic; padding-top: 8px;" ) );
     dropHint->setAlignment( Qt::AlignCenter );
     rootLayout->addWidget( dropHint );
 
