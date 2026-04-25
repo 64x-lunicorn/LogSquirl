@@ -53,6 +53,9 @@ jobs:
           path: 'logsquirl_version.txt'
           if-no-files-found: error
 
+  # -----------------------------------------------------------------------
+  # Stage 1 — Linux (cheapest runners, gates Windows & Mac)
+  # -----------------------------------------------------------------------
   Linux:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
@@ -156,7 +159,11 @@ jobs:
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
 
+  # -----------------------------------------------------------------------
+  # Stage 3 — macOS (most expensive, runs only after Windows succeeds)
+  # -----------------------------------------------------------------------
   Mac:
+    needs: [Windows]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
       fail-fast: false
@@ -204,7 +211,11 @@ jobs:
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
 
+  # -----------------------------------------------------------------------
+  # Stage 2 — Windows (2× cost, runs only after Linux succeeds)
+  # -----------------------------------------------------------------------
   Windows:
+    needs: [Linux]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
       fail-fast: false
