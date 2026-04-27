@@ -129,6 +129,18 @@
  - Removed hardcoded colors from `WelcomeDashboard` — link buttons, hint
    text, and version labels now use `palette()` functions.
 
+## CI/CD:
+ - **Sequential build pipeline**: Restructured GitHub Actions to run builds
+   sequentially by runner cost (Linux → Windows → macOS) instead of in
+   parallel.  A failure in a cheaper stage prevents burning expensive
+   runner minutes (Linux 1×, Windows 2×, macOS 10×).
+ - **E2E artifact name alignment**: Fixed E2E test failures caused by stale
+   artifact names that no longer matched the build matrix (`jammy` → `noble`,
+   `macos` → `mac-arm64`, `windows` → `windows-x64`).
+ - **Windows E2E compression tools**: Removed non-existent `lz4` Chocolatey
+   package from the Windows E2E install step.  LZ4 decompression tests are
+   skipped gracefully on Windows.
+
 ---
 
 # 26.04.2 (2026-04-19):
