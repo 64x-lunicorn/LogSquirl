@@ -319,7 +319,8 @@ jobs:
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
             brew install zstd lz4
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
-            choco install zstandard lz4 --no-progress -y
+            choco install zstandard --no-progress -y
+            # lz4 has no Chocolatey package; tests skip gracefully
           fi
 
       - uses: actions/setup-python@v5
