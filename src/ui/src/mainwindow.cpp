@@ -2497,8 +2497,10 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
 
     if ( existing_crawler ) {
         auto* crawlerWindow = qobject_cast<MainWindow*>( existing_crawler->window() );
-        crawlerWindow->mainTabWidget_.setCurrentWidget( existing_crawler );
-        crawlerWindow->activateWindow();
+        if ( crawlerWindow ) {
+            crawlerWindow->mainTabWidget_.setCurrentWidget( existing_crawler );
+            crawlerWindow->activateWindow();
+        }
         return true;
     }
 
@@ -2640,7 +2642,7 @@ void MainWindow::updateRecentFileActions()
         recentFilesMenu->setEnabled( true );
         for ( auto j = 0; j < MAX_RECENT_FILES; ++j ) {
             const auto actionIndex = static_cast<size_t>( j );
-            if ( j < recent_files_max_items ) {
+            if ( j < recent_files_max_items && j < recent_files.size() ) {
                 int key = j + ( ( j < 9 ) ? 0x31 : ( 0x61 - 9 ) ); // shortcuts: 1..9 next a,b...
                 QString text
                     = tr( "&%1 %2" ).arg( QChar( key ) ).arg( strippedName( recent_files[ j ] ) );
@@ -2698,19 +2700,24 @@ void MainWindow::updateInfoLine()
 
     // Following should always work as we will only receive enter
     // this slot if there is a crawler connected.
+    const auto* crawler = currentCrawlerWidget();
+    if ( !crawler ) {
+        return;
+    }
+
     QString current_file
-        = QDir::toNativeSeparators( session_.getFilename( currentCrawlerWidget() ) );
+        = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     uint64_t fileSize;
     uint64_t fileNbLine;
     QDateTime lastModified;
 
-    session_.getFileInfo( currentCrawlerWidget(), &fileSize, &fileNbLine, &lastModified );
+    session_.getFileInfo( crawler, &fileSize, &fileNbLine, &lastModified );
 
     infoLine->setText( current_file );
     infoLine->setPath( current_file );
     sizeField->setText( readableSize( fileSize ) );
-    encodingField->setText( currentCrawlerWidget()->encodingText() );
+    encodingField->setText( crawler->encodingText() );
 
     if ( lastModified.isValid() ) {
         const QString date = defaultLocale.toString( lastModified, QLocale::NarrowFormat );

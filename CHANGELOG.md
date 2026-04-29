@@ -228,6 +228,31 @@
  - **`IndexCache::trySave()` ignored `QDir::mkpath()` failure**: the cache
    directory creation was not checked, producing a confusing "cannot open
    for writing" error.  Now returns early with a descriptive warning.
+ - **Crash in `MainWindow::openFileByName` on foreign window cast**: the
+   `qobject_cast<MainWindow*>(existing_crawler->window())` result was
+   dereferenced without a null check; if the crawler widget was reparented
+   into a non-`MainWindow` top-level, the cast returned `nullptr` and the
+   subsequent method calls crashed.  Added a null guard.
+ - **Crash in `MainWindow::updateInfoLine` on null crawler**: three
+   consecutive calls to `currentCrawlerWidget()` were made without a null
+   check.  When no tab was open, `encodingField->setText(nullptr->…)` caused
+   a segfault.  The result is now stored once and guarded at the top of the
+   function.
+ - **Out-of-bounds access in `updateRecentFileActions`**: the loop condition
+   checked `j < recent_files_max_items` but not `j < recent_files.size()`,
+   so a stale config with a higher display count than the actual list size
+   would read past the end.  Added the missing size guard.
+ - **Invalid highlighter regex caused silent match failures**:
+   `Highlighter::compile()` never checked `QRegularExpression::isValid()`
+   after construction, so a malformed user regex was silently passed to
+   `globalMatch()` which returned zero matches.  Now validates and falls
+   back to an escaped literal with a warning log.
+ - **`LogFilteredData::doGetLineString` passed sentinel to source data**:
+   when `findLogDataLine()` returned `maxValue<LineNumber>()` (out-of-bounds
+   sentinel), it was forwarded to `sourceLogData_->getLineString()`, which
+   eventually fell through to a warning-string path but did unnecessary work.
+   Both `doGetLineString` and `doGetExpandedLineString` now return an empty
+   `QString` immediately on sentinel.
 
 ## Build / internal:
  - Fixed broken header guard in `src/utils/include/dispatch_to.h` (missing

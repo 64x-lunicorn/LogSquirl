@@ -191,6 +191,16 @@ void Highlighter::compile() const
         = useRegex_ ? regexp_.pattern() : QRegularExpression::escape( regexp_.pattern() );
 
     optimizedRegexp_ = QRegularExpression( pattern, regexp_.patternOptions() );
+
+    if ( !optimizedRegexp_->isValid() ) {
+        LOG_WARNING << "Invalid highlighter regex: " << optimizedRegexp_->errorString()
+                    << " at offset " << optimizedRegexp_->patternErrorOffset()
+                    << " for pattern: " << pattern;
+        // Fall back to escaped literal so globalMatch never crashes
+        optimizedRegexp_ = QRegularExpression( QRegularExpression::escape( regexp_.pattern() ),
+                                               regexp_.patternOptions() );
+    }
+
     optimizedRegexp_->optimize();
 }
 
