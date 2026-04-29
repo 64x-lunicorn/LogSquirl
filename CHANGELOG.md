@@ -1,97 +1,5 @@
-# Unreleased
 
-## Bug fixes:
- - **Memory leaks on indexing/search interrupt**: `IndexOperation::readFileInBlocks`
-   and `FullSearchOperation::run` leaked their per-block buffers when the operation
-   was interrupted while a block was awaiting capacity in the TBB flow graph, and
-   the indexer additionally leaked on the `read` error and end-of-stream paths.
-   The owning paths now release the buffers explicitly when the block is never
-   published or accepted.
- - **Potential double-free in `AbstractLogView` destructor**: if `quickFind_->stopSearch()`
-   threw, the catch handler deleted the same pointer the `try` block had already
-   freed. Restructured to guarantee exactly one delete and reset the pointer to
-   `nullptr` afterwards.
- - **Trailing quote not stripped in logical-combining filter**: the
-   predefined-filters combobox stripped only the leading `"` before splitting on
-   `" or "`, leaving the trailing `"` attached to the last token. The wrapping
-   quotes are now stripped symmetrically (with a length guard).
- - **Edge-case underflow in `AbstractLogView::convertViewportPosition`**: when the
-   data was cleared while a viewport conversion was in flight, `getNbLine()` could
-   return `0` and `LineNumber{0} - 1_lcount` would underflow. Added an explicit
-   early return for the empty case.
- - **`endOfLines.back()` on empty result in `LogData::doGetLinesRaw`**: a concurrent
-   index truncation could yield an empty offset vector, making the `back()` call
-   undefined behavior. The function now returns the partially-populated raw lines
-   instead.
- - **`refreshOverview` could crash in release builds**: the function relied on a
-   plain `assert(overviewWidget_)` which is stripped in release. Replaced with an
-   explicit null guard and a warning log.
- - **`hs_scan` return code was discarded**: the Hyperscan single- and multi-matchers
-   ignored the return value, silently producing false negatives on `HS_*` errors.
-   Both matchers now log non-success codes.
- - **Empty `catch(...)` in `MainWindow::loadFile` lost diagnostics**: the
-   exception type and `what()` are now captured separately for `std::exception` and
-   the unknown-exception path.
- - **Chart preset export ignored write failures**: `chartpanel.cpp` now reports
-   short writes from `QFile::write` to the user instead of silently producing a
-   truncated JSON file.
- - **Index cache crash on empty/truncated files**:
-   `CompressedLinePositionStorage::serialize()` invoked `QDataStream::writeRawData`
-   with a null buffer pointer when no lines were stored, which is undefined
-   behavior (memcpy from nullptr).  ASAN reproduced the crash on the integration
-   suite as soon as `perf.useIndexCache=true` was set.  Guarded against zero-size
-   and null buffer.
- - **Empty index cache files were created and re-tried on every reindex**:
-   `FullIndexOperation::run` now skips `IndexCache::trySave` when the resulting
-   index has zero lines so we never write a useless cache entry.
- - **Decompressor silently truncated output on short writes**: the gzip /
-   zstd / lz4 decompression worker treated a short `QFile::write` as success.
-   It now logs the underlying error and aborts with `success=false` so the user
-   sees the dialog error rather than a corrupted temporary file.
- - **`Ctrl+W` on a dashboard-only window did nothing**: when the Welcome
-   Dashboard was the only open tab, the close-tab handler short-circuited
-   without closing the window.  It now closes the main window in that
-   scenario, matching user expectation.
- - **Command Palette could dereference a dangling `QAction`**: the lambda
-   stored in each command captured a raw `QAction*` and `triggered()` it on
-   accept.  If the source menu rebuilt before the user pressed Enter the
-   pointer was already deleted.  Wrapped each capture in `QPointer<QAction>`
-   and made `acceptCurrent()` copy the action callback before
-   `close()` so the surrounding palette state cannot be invalidated mid-call.
- - **`WelcomeDashboard` HTML-injected plugin name and version**: rich-text
-   formatting was applied to plugin metadata strings without escaping, so a
-   malicious `plugin.json` could inject markup or links.  Names and versions
-   are now passed through `QString::toHtmlEscaped` and the rich-text label
-   has `Qt::NoTextInteraction`.
- - **Undefined behavior in `AbstractLogView::lineNumberToVerticalScroll`**:
-   for a sentinel `LineNumber` (max `UnderlyingType`), the multiplied double
-   exceeded `INT_MAX`, making the `static_cast<int>` undefined behavior
-   (caught by UBSan: "1.84467e+19 is outside the range of representable
-   values of type 'int'").  The result is now clamped to `[INT_MIN, INT_MAX]`
-   before the cast.
-
-## Build / internal:
- - Fixed broken header guard in `src/utils/include/dispatch_to.h` (missing
-   `#define` after `#ifndef`); the header was effectively re-included in every
-   translation unit that pulled it in.
- - Renamed the misspelled struct `WatchedDirecotry` → `WatchedDirectory` in
-   `src/filewatch/src/filewatcher.cpp`.
-
-## Tests:
- - Added `tests/e2e/test_audit_regressions.py` with 11 regression tests covering
-   the bug fixes above (empty/tiny files, repeated grep cycles, GUI clean
-   shutdown, quote-strip specification, missing-file diagnostics, regex
-   correctness).
- - Extended the audit regression suite with coverage for the round-2 fixes
-   (dashboard-only close behaviour, command-palette safety smoke test, and a
-   placeholder for the gzip short-write path which is GUI-only).
- - Refreshed `tests/e2e/baseline.json` to reflect the updated grep startup
-   cost introduced upstream by the compression-dashboard feature work
-   (PR #53).  All performance tests pass within the 5 % tolerance again.
-
----
-
-# 26.05.0-beta (2026-04-25)
+# 26.05.0-beta (2026-04-29)
 
 ## New features:
  - **Native title bar theming**: The OS window chrome (macOS traffic lights,
@@ -221,6 +129,124 @@
  - Hardened `Session::close()` against double-close scenarios.
  - Removed hardcoded colors from `WelcomeDashboard` — link buttons, hint
    text, and version labels now use `palette()` functions.
+ - **Memory leaks on indexing/search interrupt**: `IndexOperation::readFileInBlocks`
+   and `FullSearchOperation::run` leaked their per-block buffers when the operation
+   was interrupted while a block was awaiting capacity in the TBB flow graph, and
+   the indexer additionally leaked on the `read` error and end-of-stream paths.
+   The owning paths now release the buffers explicitly when the block is never
+   published or accepted.
+ - **Potential double-free in `AbstractLogView` destructor**: if `quickFind_->stopSearch()`
+   threw, the catch handler deleted the same pointer the `try` block had already
+   freed. Restructured to guarantee exactly one delete and reset the pointer to
+   `nullptr` afterwards.
+ - **Trailing quote not stripped in logical-combining filter**: the
+   predefined-filters combobox stripped only the leading `"` before splitting on
+   `" or "`, leaving the trailing `"` attached to the last token. The wrapping
+   quotes are now stripped symmetrically (with a length guard).
+ - **Edge-case underflow in `AbstractLogView::convertViewportPosition`**: when the
+   data was cleared while a viewport conversion was in flight, `getNbLine()` could
+   return `0` and `LineNumber{0} - 1_lcount` would underflow. Added an explicit
+   early return for the empty case.
+ - **`endOfLines.back()` on empty result in `LogData::doGetLinesRaw`**: a concurrent
+   index truncation could yield an empty offset vector, making the `back()` call
+   undefined behavior. The function now returns the partially-populated raw lines
+   instead.
+ - **`refreshOverview` could crash in release builds**: the function relied on a
+   plain `assert(overviewWidget_)` which is stripped in release. Replaced with an
+   explicit null guard and a warning log.
+ - **`hs_scan` return code was discarded**: the Hyperscan single- and multi-matchers
+   ignored the return value, silently producing false negatives on `HS_*` errors.
+   Both matchers now log non-success codes.
+ - **Empty `catch(...)` in `MainWindow::loadFile` lost diagnostics**: the
+   exception type and `what()` are now captured separately for `std::exception` and
+   the unknown-exception path.
+ - **Chart preset export ignored write failures**: `chartpanel.cpp` now reports
+   short writes from `QFile::write` to the user instead of silently producing a
+   truncated JSON file.
+ - **Index cache crash on empty/truncated files**:
+   `CompressedLinePositionStorage::serialize()` invoked `QDataStream::writeRawData`
+   with a null buffer pointer when no lines were stored, which is undefined
+   behavior (memcpy from nullptr).  ASAN reproduced the crash on the integration
+   suite as soon as `perf.useIndexCache=true` was set.  Guarded against zero-size
+   and null buffer.
+ - **Empty index cache files were created and re-tried on every reindex**:
+   `FullIndexOperation::run` now skips `IndexCache::trySave` when the resulting
+   index has zero lines so we never write a useless cache entry.
+ - **Decompressor silently truncated output on short writes**: the gzip /
+   zstd / lz4 decompression worker treated a short `QFile::write` as success.
+   It now logs the underlying error and aborts with `success=false` so the user
+   sees the dialog error rather than a corrupted temporary file.
+ - **`Ctrl+W` on a dashboard-only window did nothing**: when the Welcome
+   Dashboard was the only open tab, the close-tab handler short-circuited
+   without closing the window.  It now closes the main window in that
+   scenario, matching user expectation.
+ - **Command Palette could dereference a dangling `QAction`**: the lambda
+   stored in each command captured a raw `QAction*` and `triggered()` it on
+   accept.  If the source menu rebuilt before the user pressed Enter the
+   pointer was already deleted.  Wrapped each capture in `QPointer<QAction>`
+   and made `acceptCurrent()` copy the action callback before
+   `close()` so the surrounding palette state cannot be invalidated mid-call.
+ - **`WelcomeDashboard` HTML-injected plugin name and version**: rich-text
+   formatting was applied to plugin metadata strings without escaping, so a
+   malicious `plugin.json` could inject markup or links.  Names and versions
+   are now passed through `QString::toHtmlEscaped` and the rich-text label
+   has `Qt::NoTextInteraction`.
+ - **Undefined behavior in `AbstractLogView::lineNumberToVerticalScroll`**:
+   for a sentinel `LineNumber` (max `UnderlyingType`), the multiplied double
+   exceeded `INT_MAX`, making the `static_cast<int>` undefined behavior
+   (caught by UBSan: "1.84467e+19 is outside the range of representable
+   values of type 'int'").  The result is now clamped to `[INT_MIN, INT_MAX]`
+   before the cast.
+ - **`Session::close()` undefined behavior on unknown view**: calling
+   `openFiles_.erase( openFiles_.find( view ) )` without checking whether
+   `find()` returned `end()` caused undefined behavior when the view was
+   not in the map.  Now guarded with an `end()` check.
+ - **`Lz4Device::readData()` missing `finished_` check**: after a
+   decompression error or end-of-stream, subsequent `readData()` calls
+   could re-enter the decompression loop with an invalid context.  Added
+   `finished_` guard consistent with `ZstdDevice`.
+ - **`Lz4Device` / `ZstdDevice` decompression context leaked on error**:
+   when `LZ4F_decompress()` or `ZSTD_decompressStream()` returned an error
+   the decompression context was left allocated in an invalid state.  Now
+   freed and set to `nullptr` on error.
+ - **`Lz4Device::open()` did not clear `dctx_` on failure**: if
+   `LZ4F_createDecompressionContext()` failed, the potentially non-null
+   pointer was left dangling.  Now explicitly set to `nullptr`.
+ - **`ZstdDevice::open()` leaked context on double-open**: calling `open()`
+   twice without `close()` overwrote the existing `ZSTD_DCtx*`, leaking it.
+   Now frees the old context before creating a new one.
+ - **Decompressor infinite loop on stalled device**: if the decompression
+   `QIODevice` returned an empty buffer while `atEnd()` was `false`, the
+   read loop spun forever.  Now breaks and logs the error.
+ - **`indexCacheMaxSizeMb` overflow**: no bounds validation on the
+   QSettings value meant a negative or excessively large integer caused
+   overflow when multiplied by `1024 * 1024`.  Clamped to `[0, 8 000 000]`.
+ - **`IndexCache::evict()` silently ignored failed file removals**:
+   `QFile::remove()` return value was not checked, and `totalSize` was
+   decremented even when the deletion failed, breaking the eviction
+   accounting.  Now checks the return value and logs failures.
+ - **`IndexCache::trySave()` ignored `QDir::mkpath()` failure**: the cache
+   directory creation was not checked, producing a confusing "cannot open
+   for writing" error.  Now returns early with a descriptive warning.
+
+## Build / internal:
+ - Fixed broken header guard in `src/utils/include/dispatch_to.h` (missing
+   `#define` after `#ifndef`); the header was effectively re-included in every
+   translation unit that pulled it in.
+ - Renamed the misspelled struct `WatchedDirecotry` → `WatchedDirectory` in
+   `src/filewatch/src/filewatcher.cpp`.
+
+## Tests:
+ - Added `tests/e2e/test_audit_regressions.py` with 11 regression tests covering
+   the bug fixes above (empty/tiny files, repeated grep cycles, GUI clean
+   shutdown, quote-strip specification, missing-file diagnostics, regex
+   correctness).
+ - Extended the audit regression suite with coverage for the round-2 fixes
+   (dashboard-only close behaviour, command-palette safety smoke test, and a
+   placeholder for the gzip short-write path which is GUI-only).
+ - Refreshed `tests/e2e/baseline.json` to reflect the updated grep startup
+   cost introduced upstream by the compression-dashboard feature work
+   (PR #53).  All performance tests pass within the 5 % tolerance again.
 
 ## CI/CD:
  - **Sequential build pipeline**: Restructured GitHub Actions to run builds
