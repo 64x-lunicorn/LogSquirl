@@ -143,6 +143,12 @@ int intLog2( uint64_t x )
     return 63 - countLeadingZeroes( x | 1 );
 }
 
+// Layout constants shared between drawTextArea() and updateScrollBars().
+constexpr int SeparatorWidth = 1;
+constexpr int BulletAreaWidth = 11;
+constexpr int ContentMarginWidth = 1;
+constexpr int LineNumberPadding = 3;
+
 // see https://lemire.me/blog/2021/05/28/computing-the-number-of-digits-of-an-integer-quickly/
 int countDigits( uint64_t x )
 {
@@ -402,9 +408,15 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     , searchEnd_( newLogData->getNbLine().get() )
     , quickFindPattern_( quickFindPattern )
     , quickFind_( new QuickFind( *newLogData ) )
-    , pixmapFontMetrics_( this->font() )
+    , pixmapFontMetrics_( pixmapFontMetrics( parent ? parent->font() : QFont() ) )
 {
     setViewport( nullptr );
+
+    // Initialise char dimensions from the pixmap-based font metrics so that
+    // updateScrollBars() computes sensible values even before the first
+    // resizeEvent() (which calls updateDisplaySize()).
+    charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
+    charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
 
     useTextWrap_ = Configuration::get().useTextWrap();
 
@@ -568,8 +580,8 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
         highlightersMenu_->populateHighlightersMenu();
         highlightersMenu_->setApplyChange( [ this ]() { Q_EMIT highlightersChange(); } );
 
-        auto colorLablesActionGroup = new QActionGroup( this );
-        connect( colorLablesActionGroup, &QActionGroup::triggered, this,
+        auto colorLabelsActionGroup = new QActionGroup( this );
+        connect( colorLabelsActionGroup, &QActionGroup::triggered, this,
                  &AbstractLogView::setColorLabel );
         colorLabelsMenu_->clear();
         colorLabelsMenu_->setEnabled( selection_.isPortion() || selection_.isSingleLine() );
@@ -584,7 +596,7 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
             }
 
             auto noneAction = colorLabelsMenu_->addAction( tr( "None" ) );
-            noneAction->setActionGroup( colorLablesActionGroup );
+            noneAction->setActionGroup( colorLabelsActionGroup );
             noneAction->setCheckable( true );
             noneAction->setChecked( !currentLabel.has_value() );
             if ( currentLabel ) {
@@ -604,7 +616,7 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
                     = quickHighlightersConfiguration.at( static_cast<int>( i ) );
                 auto colorLabelAction
                     = colorLabelsMenu_->addAction( currentLabelConfiguration.name );
-                colorLabelAction->setActionGroup( colorLablesActionGroup );
+                colorLabelAction->setActionGroup( colorLabelsActionGroup );
                 colorLabelAction->setCheckable( true );
                 colorLabelAction->setChecked( currentLabel == i );
                 colorLabelAction->setData( i );
@@ -625,7 +637,7 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
         popupMenu_->exec( QCursor::pos( activeScreen( this ) ) );
 
         highlightersMenu_->clearHighlightersMenu();
-        colorLablesActionGroup->deleteLater();
+        colorLabelsActionGroup->deleteLater();
     }
 
     Q_EMIT activity();
@@ -1323,6 +1335,14 @@ void AbstractLogView::refreshOverview()
         setViewportMargins( 0, 0, 0, 0 );
         overviewWidget_->hide();
     }
+}
+
+void AbstractLogView::setOverviewVisible( bool visible )
+{
+    if ( overview_ ) {
+        overview_->setVisible( visible );
+    }
+    refreshOverview();
 }
 
 // Reset the QuickFind when the pattern is changed.
@@ -2202,6 +2222,19 @@ LinesCount AbstractLogView::getNbBottomWrappedVisibleLines() const
 
 void AbstractLogView::updateScrollBars()
 {
+    // Recompute leftMarginPx_ so getNbVisibleCols() returns the correct value
+    // even before the first paint (where drawTextArea() normally sets it).
+    {
+        int contentStartPosX = BulletAreaWidth + SeparatorWidth;
+        if ( lineNumbersVisible_ ) {
+            const int nbDigits = countDigits( maxDisplayLineNumber().get() );
+            const auto lineNumberWidth = charWidth_ * nbDigits;
+            const auto lineNumberAreaWidth = 2 * LineNumberPadding + lineNumberWidth;
+            contentStartPosX += lineNumberAreaWidth;
+        }
+        leftMarginPx_ = contentStartPosX + SeparatorWidth;
+    }
+
     const LinesCount visibleLines = getNbVisibleLines();
     const LineLength visibleColumns = getNbVisibleCols();
     if ( logData_->getNbLine() < visibleLines ) {
@@ -2260,10 +2293,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     static const QBrush markBrush = QBrush( "dodgerblue" );
     static const QBrush markedMatchBrush = QBrush( "violet" );
 
-    static constexpr int SeparatorWidth = 1;
-    static constexpr int BulletAreaWidth = 11;
-    static constexpr int ContentMarginWidth = 1;
-    static constexpr int LineNumberPadding = 3;
+    // Layout constants moved to anonymous namespace (see top of file).
 
     // First check the lines to be drawn are within range (might not be the case if
     // the file has just changed)
@@ -2382,9 +2412,16 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     // Position in pixel of the base line of the line to print
     int yPos = 0;
     wrappedLinesInfo_.clear();
+    // Pre-reserve to reduce mimalloc reallocations during the paint loop.
+    // With text wrapping off each visible line produces exactly one entry;
+    // with wrapping the count is higher but this avoids the first N reallocs.
+    wrappedLinesInfo_.reserve( static_cast<size_t>( nbLines.get() ) );
     logsquirl::vector<std::pair<QColor, QColor>> highlightColors;
     for ( auto currentLine = 0_lcount; currentLine < nbLines; ++currentLine ) {
         const auto lineNumber = firstLine_ + currentLine;
+        if ( currentLine.get() >= logLines.size() ) {
+            break; // Guard against stale nbLines after file change
+        }
         QString logLine = logLines[ currentLine.get() ];
 
         const int xPos = contentStartPosX + ContentMarginWidth;
@@ -2602,7 +2639,11 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, yPos + fontAscent,
                                lineNumberStr );
         }
-        for ( size_t i = 0u; i < wrappedLineView.wrappedLinesCount(); ++i ) {
+        // Sanity-cap: protect against corrupted wrappedLinesCount values that
+        // could cause an out-of-memory crash inside the mimalloc allocator.
+        const auto wrappedCount = wrappedLineView.wrappedLinesCount();
+        static constexpr size_t kMaxWrappedLines = 10000;
+        for ( size_t i = 0u; i < wrappedCount && i < kMaxWrappedLines; ++i ) {
             wrappedLinesInfo_.emplace_back( WrappedLineData{ lineNumber, i, wrappedLineView } );
         }
 

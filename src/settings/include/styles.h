@@ -20,25 +20,31 @@
 #ifndef LOGSQUIRL_STYLES
 #define LOGSQUIRL_STYLES
 
+#include <QString>
 #include <QStringList>
 #include <QLatin1String>
 
 struct StyleManager {
 
     static constexpr QLatin1String DarkStyleKey = QLatin1String( "Dark", 4 );
-    static constexpr QLatin1String DarkWindowsStyleKey = QLatin1String( "Windows Dark", 12 );
-    static constexpr QLatin1String VistaKey = QLatin1String( "WindowsVista", 12 );
-    static constexpr QLatin1String FusionKey = QLatin1String( "Fusion", 6 );
-    static constexpr QLatin1String WindowsKey = QLatin1String( "Windows", 7 );
-    static constexpr QLatin1String MacintoshKey = QLatin1String( "macintosh", 9 );
+    static constexpr QLatin1String LightKey = QLatin1String( "Light", 5 );
+    static constexpr QLatin1String HighContrastKey = QLatin1String( "High Contrast", 13 );
 
     static constexpr QLatin1String Gtk2Key = QLatin1String( "Gtk2", 4 );
     static constexpr QLatin1String Bb10Key = QLatin1String( "bb10", 4 );
+
+    // Qt style engine name (all themes use the Fusion engine).
+    static constexpr QLatin1String FusionEngine = QLatin1String( "Fusion", 6 );
 
     static QStringList availableStyles();
     static QString defaultPlatformStyle();
 
     static void applyStyle( const QString& style );
+
+    // Load a QSS theme file.  Searches the user theme directory first,
+    // then falls back to the embedded Qt resource.  Returns the QSS
+    // content or an empty string if no file was found.
+    static QString loadThemeQss( const QString& themeFileName );
 };
 
 #endif

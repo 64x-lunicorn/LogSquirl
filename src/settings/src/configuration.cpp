@@ -264,6 +264,13 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         = settings.value( "perf.useCompressedIndex", DefaultConfiguration.useCompressedIndex_ )
               .toBool();
 
+    useIndexCache_
+        = settings.value( "perf.useIndexCache", DefaultConfiguration.useIndexCache_ ).toBool();
+
+    indexCacheMaxSizeMb_
+        = settings.value( "perf.indexCacheMaxSizeMb", DefaultConfiguration.indexCacheMaxSizeMb_ )
+              .toInt();
+
     verifySslPeers_
         = settings.value( "net.verifySslPeers", DefaultConfiguration.verifySslPeers_ ).toBool();
 
@@ -354,6 +361,18 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     }
     settings.endArray();
 
+    showSplashScreen_
+        = settings.value( "view.showSplashScreen", DefaultConfiguration.showSplashScreen_ )
+              .toBool();
+
+    showDashboard_
+        = settings.value( "view.showDashboard", DefaultConfiguration.showDashboard_ )
+              .toBool();
+
+    toolbarIconSize_
+        = settings.value( "view.toolbarIconSize", DefaultConfiguration.toolbarIconSize_ )
+              .toInt();
+
     pluginsAutoLoad_
         = settings.value( "plugins.autoLoad", DefaultConfiguration.pluginsAutoLoad_ ).toBool();
     enabledPlugins_
@@ -434,6 +453,8 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "perf.searchThreadPoolSize", searchThreadPoolSize_ );
     settings.setValue( "perf.keepFileClosed", keepFileClosed_ );
     settings.setValue( "perf.useCompressedIndex", useCompressedIndex_ );
+    settings.setValue( "perf.useIndexCache", useIndexCache_ );
+    settings.setValue( "perf.indexCacheMaxSizeMb", indexCacheMaxSizeMb_ );
     settings.setValue( "perf.optimizeForNotLatinEncodings", optimizeForNotLatinEncodings_ );
 
     settings.setValue( "net.verifySslPeers", verifySslPeers_ );
@@ -473,6 +494,10 @@ void Configuration::saveToStorage( QSettings& settings ) const
         shortcutIndex++;
     }
     settings.endArray();
+
+    settings.setValue( "view.showSplashScreen", showSplashScreen_ );
+    settings.setValue( "view.showDashboard", showDashboard_ );
+    settings.setValue( "view.toolbarIconSize", toolbarIconSize_ );
 
     settings.setValue( "plugins.autoLoad", pluginsAutoLoad_ );
     settings.setValue( "plugins.enabledPlugins", enabledPlugins_ );

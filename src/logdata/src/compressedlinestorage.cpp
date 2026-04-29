@@ -229,3 +229,107 @@ logsquirl::vector<OffsetInFile> CompressedLinePositionStorage::range( LineNumber
 
     return result;
 }
+
+void CompressedLinePositionStorage::serialize( QDataStream& out ) const
+{
+    // Number of compressed blocks
+    out << static_cast<quint32>( blocks_.size() );
+    for ( const auto& block : blocks_ ) {
+        out << static_cast<qint64>( block.firstLineOffset.get() );
+        out << static_cast<quint64>( block.packetStorageOffset );
+    }
+
+    // Packed byte storage
+    out << static_cast<quint64>( packedLinesStorageUsedSize_ );
+    out.writeRawData( reinterpret_cast<const char*>( packedLinesStorage_.data() ),
+                      static_cast<int>( packedLinesStorageUsedSize_ ) );
+
+    // Uncompressed tail block (< 128 lines)
+    out << static_cast<quint32>( currentLinesBlock_.size() );
+    for ( const auto& offset : currentLinesBlock_ ) {
+        out << static_cast<qint64>( offset.get() );
+    }
+
+    // Scalar state
+    out << static_cast<qint64>( nbLines_.get() );
+    out << static_cast<qint64>( lastPos_.get() );
+}
+
+bool CompressedLinePositionStorage::deserialize( QDataStream& in )
+{
+    quint32 blockCount = 0;
+    in >> blockCount;
+    if ( in.status() != QDataStream::Ok || blockCount > 100'000'000 ) {
+        return false;
+    }
+
+    blocks_.clear();
+    blocks_.reserve( blockCount );
+    for ( quint32 i = 0; i < blockCount; ++i ) {
+        qint64 firstOffset = 0;
+        quint64 storageOffset = 0;
+        in >> firstOffset >> storageOffset;
+        if ( in.status() != QDataStream::Ok ) {
+            return false;
+        }
+        blocks_.push_back( BlockMetadata{ OffsetInFile( firstOffset ), storageOffset } );
+    }
+
+    // Packed byte storage
+    quint64 packedSize = 0;
+    in >> packedSize;
+    if ( in.status() != QDataStream::Ok || packedSize > 2'000'000'000ULL ) {
+        return false;
+    }
+    packedLinesStorage_.resize( static_cast<size_t>( packedSize ) );
+    packedLinesStorageUsedSize_ = static_cast<size_t>( packedSize );
+    if ( packedSize > 0 ) {
+        if ( in.readRawData( reinterpret_cast<char*>( packedLinesStorage_.data() ),
+                             static_cast<int>( packedSize ) )
+             != static_cast<int>( packedSize ) ) {
+            return false;
+        }
+    }
+
+    // Uncompressed tail block
+    quint32 tailCount = 0;
+    in >> tailCount;
+    if ( in.status() != QDataStream::Ok || tailCount > 128 ) {
+        return false;
+    }
+    currentLinesBlock_.clear();
+    currentLinesBlock_.reserve( tailCount );
+    currentLinesBlockShifted_.clear();
+    currentLinesBlockShifted_.reserve( tailCount );
+    OffsetInFile blockBase( 0 );
+    for ( quint32 i = 0; i < tailCount; ++i ) {
+        qint64 val = 0;
+        in >> val;
+        if ( in.status() != QDataStream::Ok ) {
+            return false;
+        }
+        const auto off = OffsetInFile( val );
+        currentLinesBlock_.push_back( off );
+        if ( i == 0 ) {
+            blockBase = off;
+        }
+        currentLinesBlockShifted_.push_back(
+            type_safe::narrow_cast<uint32_t>( off.get() - blockBase.get() ) );
+    }
+
+    // Scalar state
+    qint64 lines = 0;
+    qint64 lastP = 0;
+    in >> lines >> lastP;
+    if ( in.status() != QDataStream::Ok ) {
+        return false;
+    }
+    nbLines_ = LinesCount( static_cast<LinesCount::UnderlyingType>( lines ) );
+    lastPos_ = OffsetInFile( lastP );
+
+    // Detect SIMD capability
+    canUseSimdSelect_
+        = hasRequiredInstructions( supportedCpuInstructions(), CpuInstructions::SSE41 );
+
+    return true;
+}

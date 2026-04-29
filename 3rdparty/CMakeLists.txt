@@ -211,6 +211,52 @@ if(NOT _KARCHIVE_FOUND)
   set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
 endif()
 
+# ── Zstd: streaming decompression for .zst / .zstd files ─────────────────────
+# Same version used by LogSquirl-Format-SDK; static build, no CLI tools.
+add_library(logsquirl_zstd INTERFACE)
+CPMAddPackage(
+  NAME zstd
+  GITHUB_REPOSITORY facebook/zstd
+  VERSION 1.5.6
+  SOURCE_SUBDIR build/cmake
+  EXCLUDE_FROM_ALL YES
+  OPTIONS
+    "ZSTD_BUILD_PROGRAMS OFF"
+    "ZSTD_BUILD_TESTS OFF"
+    "ZSTD_BUILD_SHARED OFF"
+    "ZSTD_BUILD_STATIC ON"
+)
+if(TARGET libzstd_static)
+  target_link_libraries(logsquirl_zstd INTERFACE libzstd_static)
+elseif(TARGET zstd::libzstd_static)
+  target_link_libraries(logsquirl_zstd INTERFACE zstd::libzstd_static)
+else()
+  message(WARNING "zstd static target not found — .zst decompression disabled")
+endif()
+
+# ── LZ4: streaming decompression for .lz4 files ─────────────────────────────
+# Same version used by LogSquirl-Format-SDK; static build, no CLI tools.
+add_library(logsquirl_lz4 INTERFACE)
+CPMAddPackage(
+  NAME lz4
+  GITHUB_REPOSITORY lz4/lz4
+  VERSION 1.10.0
+  SOURCE_SUBDIR build/cmake
+  EXCLUDE_FROM_ALL YES
+  OPTIONS
+    "LZ4_BUILD_CLI OFF"
+    "LZ4_BUILD_LEGACY_LZ4C OFF"
+    "BUILD_SHARED_LIBS OFF"
+    "BUILD_STATIC_LIBS ON"
+)
+if(TARGET lz4_static)
+  target_link_libraries(logsquirl_lz4 INTERFACE lz4_static)
+elseif(TARGET LZ4::lz4_static)
+  target_link_libraries(logsquirl_lz4 INTERFACE LZ4::lz4_static)
+else()
+  message(WARNING "lz4 static target not found — .lz4 decompression disabled")
+endif()
+
 cpmaddpackage(
   NAME
   robin_hood

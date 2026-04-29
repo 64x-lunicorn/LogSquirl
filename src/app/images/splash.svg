@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#282828"/>
+      <stop offset="100%" stop-color="#1E1E1E"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2a82da"/>
+      <stop offset="100%" stop-color="#1a5ea0"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="600" height="360" rx="0" fill="url(#bg)"/>
+  <!-- Decorative accent bar -->
+  <rect x="0" y="350" width="600" height="10" fill="url(#accent)"/>
+  <!-- Logo area: stylised log/scroll icon -->
+  <g transform="translate(300, 120)">
+    <!-- Outer circle -->
+    <circle cx="0" cy="0" r="55" fill="none" stroke="#2a82da" stroke-width="3"/>
+    <!-- Inner document lines -->
+    <rect x="-22" y="-28" width="44" height="4" rx="2" fill="#2a82da"/>
+    <rect x="-22" y="-18" width="36" height="4" rx="2" fill="#2a82da" opacity="0.7"/>
+    <rect x="-22" y="-8" width="44" height="4" rx="2" fill="#2a82da"/>
+    <rect x="-22" y="2" width="28" height="4" rx="2" fill="#2a82da" opacity="0.7"/>
+    <rect x="-22" y="12" width="40" height="4" rx="2" fill="#2a82da"/>
+    <rect x="-22" y="22" width="32" height="4" rx="2" fill="#2a82da" opacity="0.7"/>
+    <!-- Search magnifier overlay -->
+    <circle cx="18" cy="18" r="14" fill="none" stroke="#FFFFFF" stroke-width="2.5" opacity="0.9"/>
+    <line x1="28" y1="28" x2="38" y2="38" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+  </g>
+  <!-- App name -->
+  <text x="300" y="215" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="32" font-weight="600" fill="#FFFFFF" letter-spacing="2">LogSquirl</text>
+  <!-- Tagline -->
+  <text x="300" y="245" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="13" fill="#808080">Cross-platform log viewer</text>
+  <!-- Version placeholder (painted over at runtime) -->
+  <text x="300" y="330" text-anchor="middle" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="12" fill="#606060" id="version"></text>
+</svg>

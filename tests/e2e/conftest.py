@@ -9,7 +9,9 @@ import json
 import math
 import os
 import platform
+import shutil
 import subprocess
+import tempfile
 import time
 from datetime import date
 from pathlib import Path
@@ -117,6 +119,50 @@ def test_data_dir(repo_root) -> Path:
     if not p.is_dir():
         pytest.skip(f"test_data directory not found: {p}")
     return p
+
+
+@pytest.fixture(scope="session")
+def compressed_test_files(test_data_dir, tmp_path_factory) -> dict[str, Path]:
+    """
+    Generate compressed variants of the 1 MB random-block test file.
+
+    Returns a dict mapping format name ("gz", "bz2", "xz", "zst", "lz4")
+    to the path of the compressed file.  Skips formats whose CLI tool is
+    not available on the system.
+    """
+    source = test_data_dir / "random_block_1Mb.txt"
+    if not source.exists():
+        pytest.skip(f"Test file not found: {source}")
+
+    out_dir = tmp_path_factory.mktemp("compressed")
+    result: dict[str, Path] = {}
+
+    # (format_name, file_suffix, compress_command_builder)
+    formats = [
+        ("gz", ".gz", lambda src, dst: ["gzip", "-k", "-c"]),
+        ("bz2", ".bz2", lambda src, dst: ["bzip2", "-k", "-c"]),
+        ("xz", ".xz", lambda src, dst: ["xz", "-k", "-c"]),
+        ("zst", ".zst", lambda src, dst: ["zstd", "-q", "-c"]),
+        ("lz4", ".lz4", lambda src, dst: ["lz4", "-q", "-c"]),
+    ]
+
+    for name, suffix, cmd_builder in formats:
+        tool = cmd_builder(source, None)[0]
+        if not shutil.which(tool):
+            continue
+
+        dest = out_dir / f"random_block_1Mb.txt{suffix}"
+        cmd = cmd_builder(source, dest)
+        with open(source, "rb") as fin, open(dest, "wb") as fout:
+            subprocess.run(cmd, stdin=fin, stdout=fout, check=True)
+
+        if dest.stat().st_size > 0:
+            result[name] = dest
+
+    if not result:
+        pytest.skip("No compression tools available")
+
+    return result
 
 
 # ---------------------------------------------------------------------------

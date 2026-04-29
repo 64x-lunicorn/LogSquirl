@@ -18,8 +18,13 @@
  */
 
 #include <QApplication>
+#include <QDir>
+#include <QFile>
 #include <QPalette>
+#include <QStandardPaths>
 #include <QStyleFactory>
+#include <QStyleHints>
+#include <QTextStream>
 #include <qcolor.h>
 
 #include "configuration.h"
@@ -29,26 +34,9 @@
 QStringList StyleManager::availableStyles()
 {
     QStringList styles;
-#ifdef Q_OS_WIN
-    styles << VistaKey;
-    styles << WindowsKey;
-    styles << FusionKey;
-#else
-    styles << QStyleFactory::keys();
-#endif
-
-    auto removedStyles = std::remove_if( styles.begin(), styles.end(), []( const QString& style ) {
-        return style.startsWith( Gtk2Key, Qt::CaseInsensitive )
-               || style.startsWith( Bb10Key, Qt::CaseInsensitive );
-    } );
-
-    styles.erase( removedStyles, styles.end() );
-
+    styles << LightKey;
     styles << DarkStyleKey;
-
-#ifndef Q_OS_MACOS
-    styles << DarkWindowsStyleKey;
-#endif
+    styles << HighContrastKey;
 
     std::sort( styles.begin(), styles.end(), []( const auto& lhs, const auto& rhs ) {
         return lhs.compare( rhs, Qt::CaseInsensitive ) < 0;
@@ -59,20 +47,20 @@ QStringList StyleManager::availableStyles()
 
 QString StyleManager::defaultPlatformStyle()
 {
-#if defined( Q_OS_WIN )
-    return VistaKey;
-#elif defined( Q_OS_MACOS )
-    return MacintoshKey;
-#else
-    return FusionKey;
-#endif
+    return LightKey;
 }
 
 void StyleManager::applyStyle( const QString& style )
 {
     LOG_INFO << "Setting style to " << style;
 
-    if ( style == DarkStyleKey || style == DarkWindowsStyleKey ) {
+    const bool isDark = ( style == DarkStyleKey );
+    const bool isHighContrast = ( style == HighContrastKey );
+
+    // ---------------------------------------------------------------
+    // 1.  Dark themes
+    // ---------------------------------------------------------------
+    if ( isDark ) {
         const auto palette = Configuration::get().darkPalette();
 
         QPalette darkPalette;
@@ -101,25 +89,121 @@ void StyleManager::applyStyle( const QString& style )
         darkPalette.setColor( QPalette::Disabled, QPalette::Light,
                               QColor( palette.at( "DisabledLight" ) ) );
 
-        // PlaceholderText defaults to a near-black colour in some Qt builds,
-        // making placeholder strings unreadable on the dark Base background.
-        // Use a semi-transparent version of the Text colour.
         const auto textColor = QColor( palette.at( "Text" ) );
         darkPalette.setColor( QPalette::PlaceholderText,
                               QColor( textColor.red(), textColor.green(), textColor.blue(),
                                       128 ) );
 
-        if ( style == DarkWindowsStyleKey ) {
-            qApp->setStyle( QStyleFactory::create( WindowsKey ) );
-        }
-        else {
-            qApp->setStyle( QStyleFactory::create( FusionKey ) );
-        }
+        qApp->setStyle( QStyleFactory::create( FusionEngine ) );
+
+        // Tell the platform to use a dark title bar / window chrome.
+        qApp->styleHints()->setColorScheme( Qt::ColorScheme::Dark );
 
         qApp->setPalette( darkPalette );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "dark.qss" ) ) );
     }
+    // ---------------------------------------------------------------
+    // 2.  High Contrast (accessibility)
+    // ---------------------------------------------------------------
+    else if ( isHighContrast ) {
+        qApp->setStyle( QStyleFactory::create( FusionEngine ) );
+
+        // Tell the platform to use a dark title bar / window chrome.
+        qApp->styleHints()->setColorScheme( Qt::ColorScheme::Dark );
+
+        QPalette hcPalette;
+        hcPalette.setColor( QPalette::Window, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::WindowText, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Base, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::AlternateBase, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::ToolTipBase, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::ToolTipText, QColor( "#FFFF00" ) );
+        hcPalette.setColor( QPalette::Text, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Button, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::ButtonText, QColor( "#FFFFFF" ) );
+        hcPalette.setColor( QPalette::Link, QColor( "#00FFFF" ) );
+        hcPalette.setColor( QPalette::Highlight, QColor( "#FFFF00" ) );
+        hcPalette.setColor( QPalette::HighlightedText, QColor( "#000000" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::ButtonText, QColor( "#A6A6A6" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::WindowText, QColor( "#A6A6A6" ) );
+        hcPalette.setColor( QPalette::Disabled, QPalette::Text, QColor( "#A6A6A6" ) );
+        hcPalette.setColor( QPalette::PlaceholderText, QColor( "#808080" ) );
+
+        qApp->setPalette( hcPalette );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "high-contrast.qss" ) ) );
+    }
+    // ---------------------------------------------------------------
+    // 3.  Light
+    // ---------------------------------------------------------------
+    else if ( style == LightKey ) {
+        qApp->setStyle( QStyleFactory::create( FusionEngine ) );
+
+        // Tell the platform to use a light title bar / window chrome.
+        qApp->styleHints()->setColorScheme( Qt::ColorScheme::Light );
+
+        QPalette lightPalette;
+        lightPalette.setColor( QPalette::Window, QColor( "#F8F9FA" ) );
+        lightPalette.setColor( QPalette::WindowText, QColor( "#212529" ) );
+        lightPalette.setColor( QPalette::Base, QColor( "#FFFFFF" ) );
+        lightPalette.setColor( QPalette::AlternateBase, QColor( "#F8F9FA" ) );
+        lightPalette.setColor( QPalette::ToolTipBase, QColor( "#343A40" ) );
+        lightPalette.setColor( QPalette::ToolTipText, QColor( "#F8F9FA" ) );
+        lightPalette.setColor( QPalette::Text, QColor( "#212529" ) );
+        lightPalette.setColor( QPalette::Button, QColor( "#E9ECEF" ) );
+        lightPalette.setColor( QPalette::ButtonText, QColor( "#212529" ) );
+        lightPalette.setColor( QPalette::Link, QColor( "#0056B3" ) );
+        lightPalette.setColor( QPalette::Highlight, QColor( "#0056B3" ) );
+        lightPalette.setColor( QPalette::HighlightedText, QColor( "#FFFFFF" ) );
+        lightPalette.setColor( QPalette::Active, QPalette::Button, QColor( "#DEE2E6" ) );
+        lightPalette.setColor( QPalette::Disabled, QPalette::ButtonText, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::Disabled, QPalette::WindowText, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::Disabled, QPalette::Text, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::PlaceholderText, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::Mid, QColor( "#ADB5BD" ) );
+        lightPalette.setColor( QPalette::Shadow, QColor( "#868E96" ) );
+        lightPalette.setColor( QPalette::Light, QColor( "#FFFFFF" ) );
+        lightPalette.setColor( QPalette::Midlight, QColor( "#E9ECEF" ) );
+
+        qApp->setPalette( lightPalette );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "fusion-light.qss" ) ) );
+    }
+    // ---------------------------------------------------------------
+    // 4.  Platform-native themes (macOS, Vista, Windows, …)
+    //     Load the fusion-light QSS as a sensible baseline so toggle
+    //     buttons and tab close buttons remain usable.
+    // ---------------------------------------------------------------
     else {
         qApp->setStyle( style );
-        qApp->setStyleSheet( "" );
+        qApp->setStyleSheet( loadThemeQss( QStringLiteral( "fusion-light.qss" ) ) );
     }
+}
+
+QString StyleManager::loadThemeQss( const QString& themeFileName )
+{
+    // 1. Check user-specific theme directory first
+    const QString userThemeDir
+        = QStandardPaths::writableLocation( QStandardPaths::AppConfigLocation )
+          + QStringLiteral( "/themes/" );
+    const QString userPath = userThemeDir + themeFileName;
+
+    if ( QFile::exists( userPath ) ) {
+        QFile file( userPath );
+        if ( file.open( QIODevice::ReadOnly | QIODevice::Text ) ) {
+            LOG_INFO << "Loading user theme from " << userPath;
+            QTextStream stream( &file );
+            return stream.readAll();
+        }
+    }
+
+    // 2. Fall back to embedded Qt resource
+    const QString resourcePath = QStringLiteral( ":/themes/" ) + themeFileName;
+    QFile resFile( resourcePath );
+    if ( resFile.open( QIODevice::ReadOnly | QIODevice::Text ) ) {
+        LOG_INFO << "Loading built-in theme from " << resourcePath;
+        QTextStream stream( &resFile );
+        return stream.readAll();
+    }
+
+    LOG_WARNING << "Theme file not found: " << themeFileName;
+    return {};
 }

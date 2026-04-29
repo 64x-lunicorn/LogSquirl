@@ -101,6 +101,7 @@ class OptionsDialog : public QDialog, public Ui::OptionsDialog {
     void setupSearchResultsCache();
     void setupLogging();
     void setupArchives();
+    void setupIndexCache();
     void setupStyles();
     void setupEncodings();
     void setupLanguageList();

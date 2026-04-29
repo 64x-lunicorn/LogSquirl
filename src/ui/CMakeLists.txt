@@ -39,6 +39,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/scratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedscratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chipmunkimporter.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/commandpalette.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filterspanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodings.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/favoritefiles.h
@@ -46,6 +47,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupinfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupmanagerdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mergecontroller.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/welcomedashboard.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseries.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartpanel.h
@@ -54,6 +56,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/decompressor.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/zstddevice.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/lz4device.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fontutils.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/colorlabelsmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighteredit.ui
@@ -103,6 +107,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupinfo.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabgroupmanagerdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mergecontroller.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/welcomedashboard.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartpanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartseriesdialog.cpp
@@ -110,7 +115,10 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/decompressor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/zstddevice.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/lz4device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
 )
 
 set_target_properties(logsquirl_ui PROPERTIES AUTOUIC ON)
@@ -135,6 +143,8 @@ target_link_libraries(
          logsquirl_versioncheck
          logsquirl_plugins
          logsquirl_karchive
+         logsquirl_zstd
+         logsquirl_lz4
          Qt6::Widgets
          Qt6::Xml
 )

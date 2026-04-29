@@ -46,6 +46,7 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QDir>
 #include <QMessageBox>
 #include <QSemaphore>
 #include <tuple>
@@ -54,6 +55,7 @@
 #include "containers.h"
 #include "dispatch_to.h"
 #include "encodingdetector.h"
+#include "indexcache.h"
 #include "issuereporter.h"
 #include "linepositionarray.h"
 #include "linetypes.h"
@@ -173,6 +175,29 @@ void IndexingData::clear()
 
     progress_ = {};
     useFastModificationDetection_ = config.fastModificationDetection();
+}
+
+void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
+                                  const IndexedHash& hash, QTextCodec* encoding )
+{
+    const auto& config = Configuration::get();
+    useFastModificationDetection_ = config.fastModificationDetection();
+
+    linePosition_ = std::move( linePosition );
+    maxLength_ = maxLength;
+    hash_ = hash;
+    hashBuilder_.reset();
+    encodingGuess_ = encoding;
+    encodingForced_ = nullptr;
+    progress_ = 100;
+}
+
+const LinePositionArray* IndexingData::getCompressedLinePosition() const
+{
+    if ( auto* p = std::get_if<LinePositionArray>( &linePosition_ ) ) {
+        return p;
+    }
+    return nullptr;
 }
 
 size_t IndexingData::allocatedSize() const
@@ -762,6 +787,89 @@ OperationResult FullIndexOperation::run()
 
         Q_EMIT indexingProgressed( 0 );
 
+        const auto& config = Configuration::get();
+
+        // Try loading cached index from disk (skip temp files)
+        const bool isTempFile = fileName_.startsWith( QDir::tempPath() );
+        if ( config.useIndexCache() && !isTempFile ) {
+            auto cached = IndexCache::tryLoad( fileName_ );
+            if ( cached ) {
+                // Validate the cached hash against the current file
+                QFileInfo fi( fileName_ );
+                const auto realFileSize = fi.size();
+
+                if ( realFileSize == cached->hash.size ) {
+                    // File size matches — verify header+tail hashes
+                    QFile file( fileName_ );
+                    if ( file.open( QIODevice::ReadOnly ) ) {
+                        QByteArray buffer( IndexingBlockSize, Qt::Uninitialized );
+                        bool valid = true;
+
+                        // Check header
+                        const auto headerRead
+                            = file.read( buffer.data(), cached->hash.headerSize );
+                        if ( headerRead == cached->hash.headerSize ) {
+                            FileDigest headerDigest;
+                            headerDigest.addData( buffer.data(),
+                                                  static_cast<size_t>( headerRead ) );
+                            if ( headerDigest.digest() != cached->hash.headerDigest ) {
+                                valid = false;
+                            }
+                        }
+                        else {
+                            valid = false;
+                        }
+
+                        // Check tail
+                        if ( valid && cached->hash.tailOffset > 0 ) {
+                            file.seek( cached->hash.tailOffset );
+                            const auto tailRead
+                                = file.read( buffer.data(), cached->hash.tailSize );
+                            if ( tailRead == cached->hash.tailSize ) {
+                                FileDigest tailDigest;
+                                tailDigest.addData( buffer.data(),
+                                                    static_cast<size_t>( tailRead ) );
+                                if ( tailDigest.digest() != cached->hash.tailDigest ) {
+                                    valid = false;
+                                }
+                            }
+                            else {
+                                valid = false;
+                            }
+                        }
+
+                        if ( valid ) {
+                            LOG_INFO << "Using cached index for " << fileName_;
+
+                            auto* codec
+                                = QTextCodec::codecForName( cached->encodingName );
+                            if ( !codec ) {
+                                codec = QTextCodec::codecForLocale();
+                            }
+
+                            {
+                                IndexingData::MutateAccessor scopedAccessor{
+                                    indexing_data_.get() };
+                                scopedAccessor.loadFromCache(
+                                    std::move( cached->linePosition ), cached->maxLength,
+                                    cached->hash, codec );
+                                if ( forcedEncoding_ ) {
+                                    scopedAccessor.forceEncoding( forcedEncoding_ );
+                                }
+                            }
+
+                            Q_EMIT indexingProgressed( 100 );
+                            Q_EMIT indexingFinished( true );
+                            return true;
+                        }
+                    }
+                }
+
+                LOG_INFO << "Cached index stale for " << fileName_ << ", re-indexing";
+                IndexCache::remove( fileName_ );
+            }
+        }
+
         {
             IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
             scopedAccessor.clear();
@@ -774,6 +882,26 @@ OperationResult FullIndexOperation::run()
                  << static_cast<bool>( interruptRequest_ );
 
         const auto result = interruptRequest_ ? false : true;
+
+        // Save to cache if indexing succeeded (and not a temp file)
+        if ( result && config.useIndexCache() && !isTempFile ) {
+            IndexingData::ConstAccessor accessor{ indexing_data_.get() };
+            const auto* linePos = accessor.getCompressedLinePosition();
+            if ( linePos ) {
+                const auto* codec = accessor.getEncodingGuess();
+                const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
+
+                IndexCache::trySave( fileName_, *linePos, accessor.getMaxLength(),
+                                     accessor.getHash(), encodingName,
+                                     linePos->hasFakeFinalLF() );
+
+                // Evict old entries if cache is too large
+                const auto maxBytes
+                    = static_cast<qint64>( config.indexCacheMaxSizeMb() ) * 1024 * 1024;
+                IndexCache::evict( maxBytes );
+            }
+        }
+
         Q_EMIT indexingFinished( result );
         return result;
     } catch ( const std::exception& err ) {

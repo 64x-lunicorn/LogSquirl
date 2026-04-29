@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <languages>
 	<language ietfCode="en" name="English" />
+	<language ietfCode="de" name="Deutsch" />
+	<language ietfCode="es" name="Español" />
+	<language ietfCode="fr" name="Français" />
+	<language ietfCode="pt_BR" name="Português (Brasil)" />
+	<language ietfCode="pt_PT" name="Português (Portugal)" />
+	<language ietfCode="uk" name="Українська" />
 	<language ietfCode="zh_CN" name="中文 (简体)" />
 	<language ietfCode="zh_TW" name="中文 (繁體)" />
 </languages>

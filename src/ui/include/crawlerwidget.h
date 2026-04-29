@@ -88,6 +88,7 @@ class CrawlerWidget : public QSplitter,
 
     // Get the line number of the first line displayed.
     LineNumber getTopLine() const;
+
     // Get the selected text as a string (from the main window)
     QString getSelectedText() const;
     // True for partial selection

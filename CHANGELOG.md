@@ -1,3 +1,148 @@
+# 26.05.0-beta (2026-04-25)
+
+## New features:
+ - **Native title bar theming**: The OS window chrome (macOS traffic lights,
+   Windows title bar) now matches the active theme.  Uses
+   `QStyleHints::setColorScheme()` (Qt 6.8+) for cross-platform support.
+ - **Startup Splash Screen**: A splash screen with the LogSquirl app icon and
+   version is now shown while the application initialises (plugin discovery,
+   session restore).  Can be disabled via Options → General →
+   "Show splash screen on startup".
+ - **Welcome Dashboard**: A permanent "Home" tab (pinned at position 0)
+   displays the app icon, recent files, favorites, quick action buttons
+   (Open File, Load Session), loaded plugin status, and keyboard shortcut
+   hints.  Files can also be dropped onto the dashboard.  The Home tab
+   cannot be closed and is always available.
+ - **Zstd/LZ4 Decompression**: Transparently open `.zst` and `.lz4`
+   compressed log files.  The file is streamed through a decompressor to a
+   temporary file before indexing, so the original compressed file is never
+   modified.
+ - **Index Cache**: File indexes are persisted to disk so re-opening a
+   previously indexed file skips the full indexing pass.  Enable/disable and
+   configure the maximum cache size (MB) in Options → Performance.  The
+   cache is keyed by file path and size; stale entries are evicted
+   automatically.
+ - **Command Palette**: VS Code-style quick-command dialog
+   (Ctrl+Shift+P / Cmd+Shift+P or Tools → "Command Palette…").  Fuzzy-search
+   all menu actions, recent files, favorites, highlighter sets, and plugin
+   commands from a single input field.
+ - **German, Ukrainian, Spanish, French, Brazilian Portuguese, European Portuguese translations**: 
+   Added full UI translations for German (de), Ukrainian (uk), and Spanish (es), 
+   French (fr), Brazilian Portuguese (pt_BR), and European Portuguese (pt_PT).  
+   Selectable in Options → View → Language.
+ - **Dashboard toggle**: The welcome dashboard can now be disabled via
+   Options → General → "Show dashboard on startup" (enabled by default).
+ - **Splash screen disabled by default**: The startup splash screen is now
+   off by default.  Users who want it can re-enable it in
+   Options → General → "Show splash screen on startup".
+ - **Index cache disabled by default**: The index cache is now disabled by
+   default to avoid unexpected disk usage.  Users can opt in via
+   Options → Performance → "Use index cache".
+
+## UI/UX improvements:
+ - **Theme rename**: "Fusion" theme renamed to "Light" for clarity.
+   Existing user settings are migrated automatically.
+ - **Complete theme overhaul**: All three themes (Light, Dark, High Contrast)
+   have been fully rewritten with consistent color palettes based on the
+   PRD design specs (Fusion Refined, Modern Slate, Accessibility First).
+ - **Checkbox and indicator visibility**: Tree widget checkboxes
+   (`QTreeWidget::indicator`) now have explicit styling in all themes with
+   2px borders, proper indeterminate/disabled states, and hover feedback.
+   Menu and standalone checkboxes updated to match.
+ - **Tree item spacing**: Added 3px vertical padding to all tree, list, and
+   table view items for improved readability.
+ - **Container background consistency**: `QSplitter`, `QScrollArea`,
+   `QDockWidget`, `QDialog`, and `QMainWindow::separator` now have explicit
+   backgrounds matching each theme's surface color.
+ - **Dark theme softened**: Checkbox contrast in the dark theme reduced from
+   harsh `#888888`-on-`#1E1E1E` to a softer `#777777`-on-`#2D2D30`.
+ - **Light theme white surface fix**: Replaced pure white (`#FFFFFF`)
+   container backgrounds with off-white (`#F8F9FA`) for `QTabWidget::pane`,
+   `QTabBar::tab:selected`, splitters, and dock widgets.  Pure white is now
+   reserved for content/input areas only.
+ - **Toggle button visibility**: Checkable toolbar buttons (filter bar: match
+   case, regex, inverse, boolean, auto-refresh; and main toolbar: follow,
+   text wrap) now clearly show their checked/active state across all themes
+   (Dark, Fusion, macOS, Windows).
+ - **Light/Fusion theme**: Added a proper light palette and baseline QSS
+   stylesheet for the Fusion style covering buttons, tab bar, scroll bars,
+   tooltips, menus, group boxes, and dock widgets.  Text contrast is now
+   consistent and widgets no longer look washed out.
+ - **Platform themes (macOS, Windows)**: Common QSS for checked-state
+   buttons is now applied to all platform-native themes so toggle buttons
+   are always visually distinguishable.
+ - **Tab close buttons**: Increased tab height from 24px to 28px and close
+   button size from 12px to 14px to prevent clipping.
+ - **Dark theme tab close**: The tab close (X) button now shows a red
+   background (#C42B1C) on hover for clear affordance.
+ - **High-res logo**: Splash screen and dashboard now use a 1024×1024
+   logo image for crisp rendering on all display densities.
+ - **Toolbar icon size**: Increased default toolbar icon size from 16×16 to
+   24×24 for better visibility on modern displays.  Configurable via
+   `toolbarIconSize` setting.
+ - **Dark theme contrast**: Improved disabled text contrast from #808080 to
+   #A0A0A0 (~4.6:1 ratio on dark background, meeting WCAG AA).  Changed
+   highlighted text from dark #212121 to white for better readability on
+   the blue selection highlight.
+ - **Dark theme stylesheet**: Added a baseline QSS stylesheet for the dark
+   theme covering buttons, tab bar, scroll bars, tooltips, menus, group
+   boxes, and dock widgets for a more polished appearance.
+ - **External QSS theme system**: Theme stylesheets are now loaded from
+   external `.qss` files instead of inline C++.  Built-in themes (Dark,
+   Fusion Light, High Contrast) are embedded as Qt resources.  Users can
+   override any theme by placing a `.qss` file in
+   `<AppConfigDir>/themes/`.
+ - **High Contrast theme**: New "High Contrast" style option for users
+   who need maximum contrast — bold borders, high-visibility focus
+   indicators, and a black-on-white palette.
+ - **Dashboard title bar**: The title bar now shows "Dashboard" instead
+   of "Untitled" when the dashboard tab is active.
+ - **Dashboard tab label**: The dashboard tab is now labelled "Dashboard"
+   instead of "Home" for consistency.
+
+## Accessibility:
+ - **Keyboard focus on filter buttons**: The five search filter buttons
+   (Match case, Regex, Inverse, Boolean, Auto-refresh) are now keyboard-
+   focusable via Tab.  Previously they were set to `NoFocus`.
+ - **Tab order**: Added explicit tab order for the search bar and filter
+   buttons so keyboard navigation follows a logical left-to-right sequence.
+ - **Accessible names**: Added `setAccessibleName()` to the main window,
+   tab widget, search input, and all filter buttons for screen reader
+   compatibility.
+ - **Focus indicators**: All themes now include `:focus` styles for
+   buttons, combo boxes, and line edits so the currently focused widget
+   is always visible.
+ - **Tab bar styling**: Tabs now have rounded top corners, a blue bottom
+   border on the active tab, and distinct hover states.
+ - **Toolbar layout**: Added separator between action buttons and the path
+   info line.  Info fields (size, date, encoding, line count) now have
+   consistent horizontal padding.
+ - **Scroll bars**: Dark-mode scroll bars are now clearly visible with
+   rounded handles and hover highlighting.
+
+## Bug fixes:
+ - Fixed bright green (`#54c01a`) background on input fields in the Light
+   theme caused by a corrupted QSS replace.
+ - Fixed SIGSEGV crash in `MainWindow::closeTab()` when tab widget returns a
+   null widget pointer.  Added null-check guard before casting.
+ - Hardened `Session::close()` against double-close scenarios.
+ - Removed hardcoded colors from `WelcomeDashboard` — link buttons, hint
+   text, and version labels now use `palette()` functions.
+
+## CI/CD:
+ - **Sequential build pipeline**: Restructured GitHub Actions to run builds
+   sequentially by runner cost (Linux → Windows → macOS) instead of in
+   parallel.  A failure in a cheaper stage prevents burning expensive
+   runner minutes (Linux 1×, Windows 2×, macOS 10×).
+ - **E2E artifact name alignment**: Fixed E2E test failures caused by stale
+   artifact names that no longer matched the build matrix (`jammy` → `noble`,
+   `macos` → `mac-arm64`, `windows` → `windows-x64`).
+ - **Windows E2E compression tools**: Removed non-existent `lz4` Chocolatey
+   package from the Windows E2E install step.  LZ4 decompression tests are
+   skipped gracefully on Windows.
+
+---
+
 # 26.04.2 (2026-04-19):
 
 ## Bug fixes:

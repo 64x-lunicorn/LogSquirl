@@ -88,7 +88,11 @@ DerivedData/
 ._*
 .Spotlight-V100
 .Trashes
-Icon?
+
+# macOS custom folder icon file (Icon + carriage return).
+# Use [\\r] so that the pattern does not accidentally exclude
+# paths like Resources/icons/.
+Icon[\\r]
 
 # ── Windows ────────────────────────────────────────────────────────────────
 Thumbs.db

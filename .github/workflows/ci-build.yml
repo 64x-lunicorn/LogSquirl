@@ -53,6 +53,9 @@ jobs:
           path: 'logsquirl_version.txt'
           if-no-files-found: error
 
+  # -----------------------------------------------------------------------
+  # Stage 1 — Linux (cheapest runners, gates Windows & Mac)
+  # -----------------------------------------------------------------------
   Linux:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
@@ -156,7 +159,11 @@ jobs:
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
 
+  # -----------------------------------------------------------------------
+  # Stage 3 — macOS (most expensive, runs only after Windows succeeds)
+  # -----------------------------------------------------------------------
   Mac:
+    needs: [Windows]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
       fail-fast: false
@@ -204,7 +211,11 @@ jobs:
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
 
+  # -----------------------------------------------------------------------
+  # Stage 2 — Windows (2× cost, runs only after Linux succeeds)
+  # -----------------------------------------------------------------------
   Windows:
+    needs: [Linux]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
       fail-fast: false
@@ -272,4 +283,56 @@ jobs:
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
 
+  # ---------------------------------------------------------------------------
+  # E2E tests — run after build artifacts are available
+  # ---------------------------------------------------------------------------
+  e2e-tests:
+    name: "E2E Tests (${{ matrix.os }})"
+    needs: [Linux, Mac, Windows]
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            artifact: packages-noble
+          - os: macos-15
+            artifact: packages-mac-arm64
+          - os: windows-2025
+            artifact: packages-windows-x64
+    runs-on: ${{ matrix.os }}
 
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: build/output
+
+      - name: Install compression tools
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq zstd lz4
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install zstd lz4
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            choco install zstandard --no-progress -y
+            # lz4 has no Chocolatey package; tests skip gracefully
+          fi
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install E2E dependencies
+        working-directory: tests/e2e
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run E2E tests (skip performance)
+        working-directory: tests/e2e
+        run: pytest -v -m "not performance" --binary-dir=../../build/output

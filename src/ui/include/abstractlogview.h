@@ -284,6 +284,9 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     // To be used if the data might have changed.
     void forceRefresh();
 
+    // Set the overview visibility and update viewport margins accordingly.
+    void setOverviewVisible( bool visible );
+
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
 
   private Q_SLOTS:

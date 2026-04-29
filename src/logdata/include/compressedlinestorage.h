@@ -21,6 +21,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <QDataStream>
+
 #include "linetypes.h"
 #include <type_safe/strong_typedef.hpp>
 
@@ -74,6 +76,13 @@ public:
 
     // Pop the last element of the storage
     void pop_back();
+
+    /// Serialize the entire storage to a data stream for disk caching.
+    void serialize( QDataStream& out ) const;
+
+    /// Deserialize from a data stream, replacing current contents.
+    /// Returns false on format error.
+    bool deserialize( QDataStream& in );
 
 private:
     // Utility for move ctor/assign

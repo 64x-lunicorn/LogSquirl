@@ -249,6 +249,24 @@ class Configuration final : public Persistable<Configuration> {
         useCompressedIndex_ = useCompressedIndex;
     }
 
+    bool useIndexCache() const
+    {
+        return useIndexCache_;
+    }
+    void setUseIndexCache( bool useCache )
+    {
+        useIndexCache_ = useCache;
+    }
+
+    int indexCacheMaxSizeMb() const
+    {
+        return indexCacheMaxSizeMb_;
+    }
+    void setIndexCacheMaxSizeMb( int sizeMb )
+    {
+        indexCacheMaxSizeMb_ = sizeMb;
+    }
+
     RegexpEngine regexpEngine() const
     {
         return regexpEngine_;
@@ -577,6 +595,36 @@ class Configuration final : public Persistable<Configuration> {
         return darkPalette_;
     }
 
+    // Splash screen
+    bool showSplashScreen() const
+    {
+        return showSplashScreen_;
+    }
+    void setShowSplashScreen( bool show )
+    {
+        showSplashScreen_ = show;
+    }
+
+    // Dashboard on startup
+    bool showDashboard() const
+    {
+        return showDashboard_;
+    }
+    void setShowDashboard( bool show )
+    {
+        showDashboard_ = show;
+    }
+
+    // Toolbar icon size in pixels (default 24)
+    int toolbarIconSize() const
+    {
+        return toolbarIconSize_;
+    }
+    void setToolbarIconSize( int size )
+    {
+        toolbarIconSize_ = size;
+    }
+
     // Plugin settings
     bool pluginsAutoLoad() const
     {
@@ -661,6 +709,8 @@ class Configuration final : public Persistable<Configuration> {
     int searchThreadPoolSize_ = 0;
     bool keepFileClosed_ = false;
     bool useCompressedIndex_ = true;
+    bool useIndexCache_ = false;
+    int indexCacheMaxSizeMb_ = 500;
 
     bool enableLogging_ = false;
     int loggingLevel_ = 4;
@@ -698,6 +748,12 @@ class Configuration final : public Persistable<Configuration> {
 
     int defaultEncodingMib_ = -1;
 
+    bool showSplashScreen_ = false;
+
+    bool showDashboard_ = true;
+
+    int toolbarIconSize_ = 24;
+
     bool pluginsAutoLoad_ = true;
     QStringList enabledPlugins_;
 
@@ -711,23 +767,23 @@ class Configuration final : public Persistable<Configuration> {
 
     // based on https://gist.github.com/QuantumCD/6245215
     std::map<QString, QString> darkPalette_ = {
-        {"Window", "#353535"},
-        {"WindowText", "#FFFFFF"},
-        {"Base", "#282828"},
-        {"AlternateBase", "#353535"},
-        {"ToolTipBase", "#2a82da"},
-        {"ToolTipText", "#FFFFFF"},
-        {"Text", "#FFFFFF"},
-        {"Button", "#353535"},
-        {"ButtonText", "#FFFFFF"},
-        {"Link", "#2a82da"},
-        {"Highlight", "#2a82da"},
-        {"HighlightedText", "#212121"},
-        {"ActiveButton", "#303030"},
-        {"DisabledButtonText", "#757575"},
-        {"DisabledWindowText", "#808080"},
-        {"DisabledText", "#808080"},
-        {"DisabledLight", "#353535"},
+        {"Window", "#121212"},
+        {"WindowText", "#E0E0E0"},
+        {"Base", "#1E1E1E"},
+        {"AlternateBase", "#252526"},
+        {"ToolTipBase", "#2D2D30"},
+        {"ToolTipText", "#E0E0E0"},
+        {"Text", "#E0E0E0"},
+        {"Button", "#2D2D30"},
+        {"ButtonText", "#E0E0E0"},
+        {"Link", "#4D90FE"},
+        {"Highlight", "#4D90FE"},
+        {"HighlightedText", "#FFFFFF"},
+        {"ActiveButton", "#252526"},
+        {"DisabledButtonText", "#666666"},
+        {"DisabledWindowText", "#666666"},
+        {"DisabledText", "#666666"},
+        {"DisabledLight", "#252526"},
     };
 };
 

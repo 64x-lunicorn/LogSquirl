@@ -22,7 +22,6 @@
 #include <QSignalSpy>
 #include <QTemporaryFile>
 #include <QTest>
-#include <QTimer>
 
 #include "configuration.h"
 #include "log.h"
@@ -146,17 +145,16 @@ SCENARIO( "Repeated LogData create-search-destroy cycles are stable",
                 SafeQSignalSpy searchProgressSpy{
                     filtered.get(), &LogFilteredData::searchProgressed };
 
-                QTimer::singleShot( 50, [ & ]() {
-                    filtered->runSearch(
-                        RegularExpressionPattern( "line [0-9]{4}[13579]" ) );
-                } );
+                filtered->runSearch(
+                    RegularExpressionPattern( "line [0-9]{4}[13579]" ) );
 
-                int progress = 0;
-                do {
-                    REQUIRE( searchProgressSpy.wait() );
-                    QList<QVariant> progressArgs = searchProgressSpy.last();
-                    progress = progressArgs.at( 1 ).toInt();
-                } while ( progress < 100 );
+                const bool completed = waitUiState( [ & ]() {
+                    if ( searchProgressSpy.count() == 0 ) {
+                        return false;
+                    }
+                    return searchProgressSpy.last().at( 1 ).toInt() >= 100;
+                } );
+                REQUIRE( completed );
 
                 // Destroy while event loop may still have queued signals
                 filtered.reset();

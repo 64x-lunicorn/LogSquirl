@@ -7,6 +7,7 @@
     <file>images/hicolor/16x16/logsquirl.png</file>
     <file>images/hicolor/32x32/logsquirl.png</file>
     <file>images/hicolor/48x48/logsquirl.png</file>
+    <file>images/logsquirl-logo.png</file>
     <file>images/icons8-add-file-16.png</file>
     <file>images/icons8-cancel-16.png</file>
     <file>images/icons8-close-window-16.png</file>
@@ -40,6 +41,7 @@
     <file>images/olddata_icon.png</file>
     <file>images/olddata_icon@2x.png</file>
     <file>images/regex.png</file>
+    <file>images/splash.svg</file>
 
 
     <file>fonts/DejaVuSansMono.ttf</file>

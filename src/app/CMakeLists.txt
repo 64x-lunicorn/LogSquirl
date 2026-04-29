@@ -14,6 +14,12 @@ add_custom_command(
 
 set(TS_FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/i18n/en.ts
+  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/de.ts
+  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/es.ts
+  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/fr.ts
+  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/pt_BR.ts
+  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/pt_PT.ts
+  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/uk.ts
   ${CMAKE_CURRENT_SOURCE_DIR}/i18n/zh_CN.ts
 )
 
@@ -33,10 +39,11 @@ add_custom_target(lupdate
 
 include(TranslationUtils)
 add_app_translations_resource(LOGSQUIRL_I18N_RES ${QM_FILES})
-add_qt_translations_resource(LOGSQUIRL_QT_TRANSLATION_RES zh_CN)
+add_qt_translations_resource(LOGSQUIRL_QT_TRANSLATION_RES de es fr pt_BR pt_PT uk zh_CN)
 
 set(MAIN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cli.h
                  ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl.qrc 
+                 ${CMAKE_SOURCE_DIR}/Resources/themes.qrc
                  ${LOGSQUIRL_I18N_RES}
                  ${LOGSQUIRL_QT_TRANSLATION_RES})
 

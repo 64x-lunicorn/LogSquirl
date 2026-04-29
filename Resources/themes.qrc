@@ -1,0 +1,17 @@
+<RCC>
+    <qresource prefix="/themes">
+        <file alias="dark.qss">themes/dark.qss</file>
+        <file alias="fusion-light.qss">themes/fusion-light.qss</file>
+        <file alias="high-contrast.qss">themes/high-contrast.qss</file>
+    </qresource>
+    <qresource prefix="/icons">
+        <file alias="close-dark.svg">icons/close-dark.svg</file>
+        <file alias="close-light.svg">icons/close-light.svg</file>
+        <file alias="check-dark.svg">icons/check-dark.svg</file>
+        <file alias="check-light.svg">icons/check-light.svg</file>
+        <file alias="check-hc.svg">icons/check-hc.svg</file>
+        <file alias="arrow-down-dark.svg">icons/arrow-down-dark.svg</file>
+        <file alias="arrow-down-light.svg">icons/arrow-down-light.svg</file>
+        <file alias="arrow-down-hc.svg">icons/arrow-down-hc.svg</file>
+    </qresource>
+</RCC>

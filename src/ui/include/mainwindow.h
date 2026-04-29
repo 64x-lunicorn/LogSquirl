@@ -67,7 +67,9 @@
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
 #include "mergecontroller.h"
+#include "welcomedashboard.h"
 
+class CommandPalette;
 class QAction;
 class QActionGroup;
 class Session;
@@ -136,7 +138,9 @@ class MainWindow : public QMainWindow {
     void documentation();
     void showScratchPad();
     void showFiltersPanel();
+    void clearIndexCache();
     void manageTabGroups();
+    void showCommandPalette();
     void openMergedFiles( QStringList filePaths, bool dedup );
     void toggleSidebar();
     void showSidebar( int tabIndex );
@@ -253,6 +257,12 @@ class MainWindow : public QMainWindow {
     void removeFromRecent( const QString& pathToRemove );
     void tryOpenClipboard( int tryTimes );
     void updateShortcuts();
+    void showDashboardOrTabs();
+
+    /// Build the full list of commands for the command palette by
+    /// collecting menu actions, plugin actions, recent files, and
+    /// favorites.
+    std::vector<struct CommandEntry> collectCommands();
 
     WindowSession session_;
     QString loadingFileName;
@@ -352,6 +362,9 @@ class MainWindow : public QMainWindow {
     // The main widget
     TabbedCrawlerWidget mainTabWidget_;
 
+    // Welcome dashboard shown as the permanent first tab
+    WelcomeDashboard* welcomeDashboard_ = nullptr;
+
     TabbedScratchPad scratchPad_;
 
     FiltersPanel filtersPanel_;
@@ -385,6 +398,9 @@ class MainWindow : public QMainWindow {
 
     // Active merge controllers (one per merged tab).
     std::vector<std::unique_ptr<MergeController>> mergeControllers_;
+
+    // Command palette (Ctrl+Shift+P / Cmd+Shift+P)
+    CommandPalette* commandPalette_ = nullptr;
 };
 
 #endif
