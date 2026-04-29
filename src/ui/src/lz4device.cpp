@@ -49,6 +49,7 @@ bool Lz4Device::open( OpenMode mode )
 
     const auto err = LZ4F_createDecompressionContext( &dctx_, LZ4F_VERSION );
     if ( LZ4F_isError( err ) ) {
+        dctx_ = nullptr;
         file_.close();
         return false;
     }
@@ -94,7 +95,7 @@ qint64 Lz4Device::bytesAvailable() const
 
 qint64 Lz4Device::readData( char* data, qint64 maxSize )
 {
-    if ( !dctx_ || maxSize <= 0 ) {
+    if ( !dctx_ || maxSize <= 0 || finished_ ) {
         return 0;
     }
 
@@ -129,6 +130,8 @@ qint64 Lz4Device::readData( char* data, qint64 maxSize )
         totalOut += dstSize;
 
         if ( LZ4F_isError( hint ) ) {
+            LZ4F_freeDecompressionContext( dctx_ );
+            dctx_ = nullptr;
             finished_ = true;
             return totalOut > 0 ? static_cast<qint64>( totalOut ) : -1;
         }
