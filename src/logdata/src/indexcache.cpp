@@ -135,7 +135,10 @@ bool IndexCache::trySave( const QString& filePath, const LinePositionArray& line
                           const QByteArray& encodingName, bool fakeFinalLF )
 {
     const auto dir = cacheDir();
-    QDir().mkpath( dir );
+    if ( !QDir().mkpath( dir ) ) {
+        LOG_WARNING << "Cannot create index cache directory: " << dir;
+        return false;
+    }
 
     const auto path = cacheFilePath( filePath );
     QSaveFile file( path );
@@ -251,8 +254,13 @@ void IndexCache::evict( qint64 maxBytes )
         if ( totalSize <= maxBytes ) {
             break;
         }
-        QFile::remove( entry.path );
-        totalSize -= entry.size;
-        LOG_INFO << "Evicted index cache entry: " << entry.path << " (" << entry.size << " bytes)";
+        if ( QFile::remove( entry.path ) ) {
+            totalSize -= entry.size;
+            LOG_INFO << "Evicted index cache entry: " << entry.path << " (" << entry.size
+                     << " bytes)";
+        }
+        else {
+            LOG_WARNING << "Failed to evict index cache entry: " << entry.path;
+        }
     }
 }
