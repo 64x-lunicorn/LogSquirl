@@ -1,4 +1,4 @@
-FROM fedora:43
+FROM fedora:44
 
 RUN dnf update -y && \
     dnf install -y ragel make wget python3 python3-pip rpm-build git unzip \
