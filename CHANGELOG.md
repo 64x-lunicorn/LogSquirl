@@ -1,5 +1,5 @@
 
-# 26.05.0-beta (2026-04-29)
+# 26.05.0-beta1 (2026-04-29)
 
 ## New features:
  - **Native title bar theming**: The OS window chrome (macOS traffic lights,

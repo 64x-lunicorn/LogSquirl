@@ -35,6 +35,7 @@ export default defineConfig({
           label: 'Releases',
           items: [
             { label: 'Overview', slug: 'news' },
+            { label: 'v26.05.0-beta1', slug: 'news/release-26-05' },
             { label: 'v26.04.1', slug: 'news/release-26-04' },
             { label: 'v26.03 (Beta)', slug: 'news/release-26-03' },
             { label: 'v22.06', slug: 'news/release-22-06' },
