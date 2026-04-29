@@ -75,6 +75,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
+#include <QPointer>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
@@ -1316,6 +1317,13 @@ void MainWindow::closeTab( ActionInitiator initiator )
     else if ( currentIndex < 0 ) {
         this->close();
     }
+    else {
+        // The dashboard tab is the only/current tab — closing it should close
+        // the window if there is nothing else open, otherwise it is a no-op.
+        if ( mainTabWidget_.count() <= 1 ) {
+            this->close();
+        }
+    }
 }
 
 // Close all tabs (except the pinned dashboard)
@@ -1765,7 +1773,14 @@ void MainWindow::showCommandPalette()
             entry.name = action->text().remove( '&' );
             entry.category = category;
             entry.shortcut = action->shortcut().toString( QKeySequence::NativeText );
-            entry.action = [action]() { action->trigger(); };
+            // Capture a QPointer so the action firing path is safe if the
+            // QAction has been destroyed (menus rebuilt) before invocation.
+            QPointer<QAction> safeAction( action );
+            entry.action = [ safeAction ]() {
+                if ( safeAction ) {
+                    safeAction->trigger();
+                }
+            };
             entries.push_back( std::move( entry ) );
         }
     };
@@ -2561,11 +2576,8 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
                 signalCrawlerToFollowFile( crawler_widget );
                 followAction->setChecked( true );
             }
-        } catch ( const std::exception& err ) {
-            LOG_ERROR << "Can't open file " << fileName.toStdString() << ": " << err.what();
-            return false;
         } catch ( ... ) {
-            LOG_ERROR << "Can't open file " << fileName.toStdString() << ": unknown exception";
+            LOG_ERROR << "Can't open file " << fileName.toStdString();
             return false;
         }
 
