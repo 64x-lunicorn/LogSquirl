@@ -2561,8 +2561,11 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
                 signalCrawlerToFollowFile( crawler_widget );
                 followAction->setChecked( true );
             }
+        } catch ( const std::exception& err ) {
+            LOG_ERROR << "Can't open file " << fileName.toStdString() << ": " << err.what();
+            return false;
         } catch ( ... ) {
-            LOG_ERROR << "Can't open file " << fileName.toStdString();
+            LOG_ERROR << "Can't open file " << fileName.toStdString() << ": unknown exception";
             return false;
         }
 
