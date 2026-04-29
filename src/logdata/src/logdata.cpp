@@ -381,6 +381,15 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
         logsquirl::vector<OffsetInFile> endOfLines
             = scopedAccessor.getEndOfLineOffsets( firstLine, number );
 
+        // Guard against the (rare) case where the index has been concurrently truncated
+        // between the firstByte lookup above and this call: back() on an empty vector is
+        // undefined behavior.
+        if ( endOfLines.empty() ) {
+            LOG_DEBUG << "no end-of-line offsets returned for firstLine=" << firstLine
+                      << " number=" << number;
+            return rawLines;
+        }
+
         const auto lastByte = endOfLines.back().get();
 
         std::transform(

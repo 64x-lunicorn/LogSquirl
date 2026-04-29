@@ -241,8 +241,13 @@ void CompressedLinePositionStorage::serialize( QDataStream& out ) const
 
     // Packed byte storage
     out << static_cast<quint64>( packedLinesStorageUsedSize_ );
-    out.writeRawData( reinterpret_cast<const char*>( packedLinesStorage_.data() ),
-                      static_cast<int>( packedLinesStorageUsedSize_ ) );
+    // QDataStream::writeRawData → memcpy.  Calling memcpy with a null pointer
+    // is undefined behaviour even when the length is zero, and ASAN's wrapper
+    // crashes on it.  Skip the call when there is nothing to write.
+    if ( packedLinesStorageUsedSize_ > 0 && packedLinesStorage_.data() != nullptr ) {
+        out.writeRawData( reinterpret_cast<const char*>( packedLinesStorage_.data() ),
+                          static_cast<int>( packedLinesStorageUsedSize_ ) );
+    }
 
     // Uncompressed tail block (< 128 lines)
     out << static_cast<quint32>( currentLinesBlock_.size() );

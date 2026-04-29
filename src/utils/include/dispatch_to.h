@@ -18,6 +18,7 @@
  */
 
 #ifndef LOGSQUIRL_DISPATCH_TO_H
+#define LOGSQUIRL_DISPATCH_TO_H
 
 #include <QAbstractEventDispatcher>
 #include <QApplication>

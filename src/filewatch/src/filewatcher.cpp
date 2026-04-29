@@ -51,7 +51,7 @@ struct WatchedFile {
     }
 };
 
-struct WatchedDirecotry {
+struct WatchedDirectory {
     efsw::WatchID watchId;
 
     // filenames are in utf8
@@ -59,7 +59,7 @@ struct WatchedDirecotry {
     std::vector<WatchedFile> files;
 };
 
-bool isOnlyForPolling( const WatchedDirecotry& wd )
+bool isOnlyForPolling( const WatchedDirectory& wd )
 {
     return wd.watchId < 0;
 }
@@ -312,7 +312,7 @@ class EfswFileWatcher final : public efsw::FileWatchListener {
 
   private:
     efsw::FileWatcher watcher_;
-    std::vector<WatchedDirecotry> watchedPaths_;
+    std::vector<WatchedDirectory> watchedPaths_;
     FileWatcher* parent_;
 
     bool nativeWatchEnabled_ = true;

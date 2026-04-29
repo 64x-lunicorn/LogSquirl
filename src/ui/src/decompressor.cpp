@@ -254,13 +254,32 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
             }
 
             QByteArray data = input->read( 4 * 1024 * 1024 );
-            if ( data.size() > 0 ) {
-                const auto writtenBytes = outputFile->write( data );
-                if ( writtenBytes < 0 ) {
-                    LOG_ERROR << "Error decompressing " << archiveFilePath;
+            if ( data.isEmpty() ) {
+                // No progress while not at end — device is in a bad state.
+                // Break to avoid an infinite loop.
+                if ( !input->atEnd() ) {
+                    LOG_ERROR << "Decompressor stalled (read returned 0 but not atEnd) for "
+                              << archiveFilePath;
                     success = false;
-                    break;
                 }
+                break;
+            }
+
+            // Detect short writes (e.g. disk full, quota exceeded) — these
+            // would otherwise produce a silently truncated output file.
+            const auto writtenBytes = outputFile->write( data );
+            if ( writtenBytes < 0 ) {
+                LOG_ERROR << "Error decompressing " << archiveFilePath
+                          << ": " << outputFile->errorString();
+                success = false;
+                break;
+            }
+            if ( writtenBytes != data.size() ) {
+                LOG_ERROR << "Short write while decompressing " << archiveFilePath
+                          << ": wrote " << writtenBytes << " of " << data.size()
+                          << " bytes (" << outputFile->errorString() << ")";
+                success = false;
+                break;
             }
         }
     } catch ( const std::exception& e ) {

@@ -318,11 +318,17 @@ void WelcomeDashboard::refreshPluginStatus()
                                            : QStringLiteral( "\u25CB " ); // ○ empty circle
         const QString color = isLoaded ? QStringLiteral( "#4CAF50" )  // green
                                        : QStringLiteral( "#808080" ); // gray
+        // The plugin name and version come from the plugin's plugin.json on
+        // disk and could contain HTML special characters.  Escape them before
+        // they end up in the rich-text label.
         auto* row = new QLabel(
             QStringLiteral( "<span style='color:%1'>%2</span>%3 <span style='color:#808080'>v%4</span>" )
-                .arg( color, statusDot, plugin.name(), plugin.version() ),
+                .arg( color, statusDot, plugin.name().toHtmlEscaped(),
+                      plugin.version().toHtmlEscaped() ),
             this );
         row->setAlignment( Qt::AlignCenter );
+        row->setTextFormat( Qt::RichText );
+        row->setTextInteractionFlags( Qt::NoTextInteraction );
         pluginStatusLayout_->addWidget( row );
     }
 }
