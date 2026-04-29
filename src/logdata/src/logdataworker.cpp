@@ -565,6 +565,10 @@ std::chrono::microseconds IndexOperation::readFileInBlocks( QFile& file,
 
         if ( readBytes < 0 ) {
             LOG_ERROR << "Reading past the end of file";
+            // The buffer was never published to the prefetcher; release it here so
+            // the consumer (which would otherwise free it) does not leak it.
+            delete blockData.second;
+            blockData.second = nullptr;
             break;
         }
 
@@ -580,15 +584,36 @@ std::chrono::microseconds IndexOperation::readFileInBlocks( QFile& file,
             LOG_INFO << "Sending block " << blockData.first << " size " << blockData.second->size();
         }
 
-        while ( !blockPrefetcher.try_put( std::move( blockData ) ) && !interruptRequest_ ) {
+        // try_put may legitimately fail forever if the indexing was interrupted while we
+        // were waiting for capacity. In that case the buffer is still owned by us; free it
+        // before exiting the loop to avoid a leak.
+        bool blockAccepted = false;
+        while ( !interruptRequest_ ) {
+            if ( blockPrefetcher.try_put( std::move( blockData ) ) ) {
+                blockAccepted = true;
+                break;
+            }
             std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+        }
+        if ( !blockAccepted ) {
+            delete blockData.second;
+            blockData.second = nullptr;
+            break;
         }
         sentBlocksCount++;
     }
 
     auto lastBlock = std::make_pair( -1, new logsquirl::vector<char>{} );
-    while ( !blockPrefetcher.try_put( lastBlock ) && !interruptRequest_ ) {
+    bool lastBlockAccepted = false;
+    while ( !interruptRequest_ ) {
+        if ( blockPrefetcher.try_put( lastBlock ) ) {
+            lastBlockAccepted = true;
+            break;
+        }
         std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+    }
+    if ( !lastBlockAccepted ) {
+        delete lastBlock.second;
     }
 
     LOG_INFO << "IO thread done";
@@ -887,7 +912,10 @@ OperationResult FullIndexOperation::run()
         if ( result && config.useIndexCache() && !isTempFile ) {
             IndexingData::ConstAccessor accessor{ indexing_data_.get() };
             const auto* linePos = accessor.getCompressedLinePosition();
-            if ( linePos ) {
+            // Don't cache empty indexes — they have no value, waste disk
+            // space, and exercise the empty-storage code paths in
+            // CompressedLinePositionStorage::serialize() unnecessarily.
+            if ( linePos && linePos->size().get() > 0 ) {
                 const auto* codec = accessor.getEncodingGuess();
                 const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
 

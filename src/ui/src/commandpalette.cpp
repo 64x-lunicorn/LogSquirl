@@ -270,10 +270,13 @@ void CommandPalette::acceptCurrent()
 
     const auto idx = item->data( Qt::UserRole ).toInt();
     if ( idx >= 0 && idx < static_cast<int>( commands_.size() ) ) {
-        const auto& cmd = commands_[ static_cast<size_t>( idx ) ];
+        // Copy the action callable before close() — the action may indirectly
+        // mutate or replace commands_ (e.g. by re-opening the palette), which
+        // would invalidate any reference into the underlying vector.
+        auto action = commands_[ static_cast<size_t>( idx ) ].action;
         close();
-        if ( cmd.action ) {
-            cmd.action();
+        if ( action ) {
+            action();
         }
     }
 }

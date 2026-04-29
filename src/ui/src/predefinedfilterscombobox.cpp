@@ -134,8 +134,15 @@ void PredefinedFiltersComboBox::showPopup()
 
     if ( searchPattern_.useLogicalCombining_ ) {
         delimeter = R"(" or ")";
-        // Remove " at the beginning and at the end
-        searchPattern = searchPattern.mid(1, searchPattern.size() - 1);
+        // Strip the wrapping quotes (leading and trailing) before splitting on `" or "`.
+        // Previously this used mid(1, size - 1) which only stripped the leading quote,
+        // leaving the trailing one attached to the last token.
+        if ( searchPattern.size() >= 2 ) {
+            searchPattern = searchPattern.mid( 1, searchPattern.size() - 2 );
+        }
+        else {
+            searchPattern.clear();
+        }
     }
 
     QStringList list = searchPattern.split( QRegularExpression( delimeter ) );

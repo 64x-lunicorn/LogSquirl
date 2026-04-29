@@ -90,8 +90,16 @@ MatchedPatterns HsSingleMatcher::match( const std::string_view& utf8Data ) const
 {
     context_.reset();
 
-    hs_scan( database_.get(), utf8Data.data(), static_cast<unsigned int>( utf8Data.size() ), 0,
-             scratch_.get(), matchSingleCallback, static_cast<void*>( &context_ ) );
+    // HS_SCAN_TERMINATED is the expected outcome when our callback returns 1 to stop the
+    // scan early after the first match. Any other non-success code indicates a real error
+    // (corrupted scratch, invalid arguments, etc.) and would otherwise be silently ignored.
+    const hs_error_t err
+        = hs_scan( database_.get(), utf8Data.data(),
+                   static_cast<unsigned int>( utf8Data.size() ), 0, scratch_.get(),
+                   matchSingleCallback, static_cast<void*>( &context_ ) );
+    if ( err != HS_SUCCESS && err != HS_SCAN_TERMINATED ) {
+        LOG_ERROR << "hs_scan (single) failed with code " << err;
+    }
 
     return std::move( context_.matchingPatterns );
 }
@@ -105,8 +113,16 @@ MatchedPatterns HsMultiMatcher::match( const std::string_view& utf8Data ) const
 {
     context_.reset();
 
-    hs_scan( database_.get(), utf8Data.data(), static_cast<unsigned int>( utf8Data.size() ), 0,
-             scratch_.get(), matchMultiCallback, static_cast<void*>( &context_ ) );
+    // The multi-matcher callback returns 0 (continue) so HS_SCAN_TERMINATED is unexpected
+    // here; only HS_SUCCESS indicates a clean scan. Log any other code instead of dropping
+    // it silently, which would otherwise produce false negatives in search results.
+    const hs_error_t err
+        = hs_scan( database_.get(), utf8Data.data(),
+                   static_cast<unsigned int>( utf8Data.size() ), 0, scratch_.get(),
+                   matchMultiCallback, static_cast<void*>( &context_ ) );
+    if ( err != HS_SUCCESS ) {
+        LOG_ERROR << "hs_scan (multi) failed with code " << err;
+    }
 
     return std::move( context_.matchingPatterns );
 }

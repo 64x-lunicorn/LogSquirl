@@ -75,6 +75,7 @@
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
+#include <QPointer>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
@@ -1316,6 +1317,13 @@ void MainWindow::closeTab( ActionInitiator initiator )
     else if ( currentIndex < 0 ) {
         this->close();
     }
+    else {
+        // The dashboard tab is the only/current tab — closing it should close
+        // the window if there is nothing else open, otherwise it is a no-op.
+        if ( mainTabWidget_.count() <= 1 ) {
+            this->close();
+        }
+    }
 }
 
 // Close all tabs (except the pinned dashboard)
@@ -1765,7 +1773,14 @@ void MainWindow::showCommandPalette()
             entry.name = action->text().remove( '&' );
             entry.category = category;
             entry.shortcut = action->shortcut().toString( QKeySequence::NativeText );
-            entry.action = [action]() { action->trigger(); };
+            // Capture a QPointer so the action firing path is safe if the
+            // QAction has been destroyed (menus rebuilt) before invocation.
+            QPointer<QAction> safeAction( action );
+            entry.action = [ safeAction ]() {
+                if ( safeAction ) {
+                    safeAction->trigger();
+                }
+            };
             entries.push_back( std::move( entry ) );
         }
     };
@@ -2482,8 +2497,10 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
 
     if ( existing_crawler ) {
         auto* crawlerWindow = qobject_cast<MainWindow*>( existing_crawler->window() );
-        crawlerWindow->mainTabWidget_.setCurrentWidget( existing_crawler );
-        crawlerWindow->activateWindow();
+        if ( crawlerWindow ) {
+            crawlerWindow->mainTabWidget_.setCurrentWidget( existing_crawler );
+            crawlerWindow->activateWindow();
+        }
         return true;
     }
 
@@ -2625,7 +2642,7 @@ void MainWindow::updateRecentFileActions()
         recentFilesMenu->setEnabled( true );
         for ( auto j = 0; j < MAX_RECENT_FILES; ++j ) {
             const auto actionIndex = static_cast<size_t>( j );
-            if ( j < recent_files_max_items ) {
+            if ( j < recent_files_max_items && j < recent_files.size() ) {
                 int key = j + ( ( j < 9 ) ? 0x31 : ( 0x61 - 9 ) ); // shortcuts: 1..9 next a,b...
                 QString text
                     = tr( "&%1 %2" ).arg( QChar( key ) ).arg( strippedName( recent_files[ j ] ) );
@@ -2683,19 +2700,24 @@ void MainWindow::updateInfoLine()
 
     // Following should always work as we will only receive enter
     // this slot if there is a crawler connected.
+    const auto* crawler = currentCrawlerWidget();
+    if ( !crawler ) {
+        return;
+    }
+
     QString current_file
-        = QDir::toNativeSeparators( session_.getFilename( currentCrawlerWidget() ) );
+        = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     uint64_t fileSize;
     uint64_t fileNbLine;
     QDateTime lastModified;
 
-    session_.getFileInfo( currentCrawlerWidget(), &fileSize, &fileNbLine, &lastModified );
+    session_.getFileInfo( crawler, &fileSize, &fileNbLine, &lastModified );
 
     infoLine->setText( current_file );
     infoLine->setPath( current_file );
     sizeField->setText( readableSize( fileSize ) );
-    encodingField->setText( currentCrawlerWidget()->encodingText() );
+    encodingField->setText( crawler->encodingText() );
 
     if ( lastModified.isValid() ) {
         const QString date = defaultLocale.toString( lastModified, QLocale::NarrowFormat );

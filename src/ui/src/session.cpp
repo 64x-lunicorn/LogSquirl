@@ -66,7 +66,13 @@ ViewInterface* Session::open( const QString& file_name,
 
 void Session::close( const ViewInterface* view )
 {
-    openFiles_.erase( openFiles_.find( view ) );
+    const auto it = openFiles_.find( view );
+    if ( it != openFiles_.end() ) {
+        openFiles_.erase( it );
+    }
+    else {
+        LOG_WARNING << "Session::close: view not found in open files";
+    }
 }
 
 QString Session::getFilename( const ViewInterface* view ) const

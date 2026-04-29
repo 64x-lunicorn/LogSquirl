@@ -378,6 +378,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
             searchGraph, 1, [ & ]( const BlockDataType& blockData ) {
                 if ( interruptRequested_ ) {
                     LOG_INFO << "Match processor interrupted";
+                    // The processor owns the block once it reaches this node; release the
+                    // heap-allocated SearchBlockData even on the interrupt path to avoid leaks.
+                    delete blockData;
                     return tbb::flow::continue_msg{};
                 }
 
@@ -462,8 +465,20 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
         chunkStart = chunkStart + nbLinesInChunk;
         fileReadingDuration += chunkReadTime;
 
-        while ( !blockPrefetcher.try_put( blockData ) && !interruptRequested_ ) {
+        // Wait until the prefetcher accepts the block or the search is interrupted. If the
+        // block was never published it is still owned by us, so it must be freed here to
+        // avoid leaking the SearchBlockData.
+        bool blockAccepted = false;
+        while ( !interruptRequested_ ) {
+            if ( blockPrefetcher.try_put( blockData ) ) {
+                blockAccepted = true;
+                break;
+            }
             std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+        }
+        if ( !blockAccepted ) {
+            delete blockData;
+            break;
         }
     }
 

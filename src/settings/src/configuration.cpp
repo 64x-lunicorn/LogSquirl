@@ -271,6 +271,15 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         = settings.value( "perf.indexCacheMaxSizeMb", DefaultConfiguration.indexCacheMaxSizeMb_ )
               .toInt();
 
+    // Clamp to a sane range to prevent integer overflow when converting to bytes
+    // (value * 1024 * 1024 must fit in qint64).
+    if ( indexCacheMaxSizeMb_ < 0 ) {
+        indexCacheMaxSizeMb_ = 0;
+    }
+    else if ( indexCacheMaxSizeMb_ > 8'000'000 ) {
+        indexCacheMaxSizeMb_ = 8'000'000; // ~8 TB — generous upper bound
+    }
+
     verifySslPeers_
         = settings.value( "net.verifySslPeers", DefaultConfiguration.verifySslPeers_ ).toBool();
 

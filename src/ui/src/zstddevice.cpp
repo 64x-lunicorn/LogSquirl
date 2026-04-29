@@ -47,6 +47,9 @@ bool ZstdDevice::open( OpenMode mode )
         return false;
     }
 
+    if ( dctx_ ) {
+        ZSTD_freeDCtx( dctx_ );
+    }
     dctx_ = ZSTD_createDCtx();
     if ( !dctx_ ) {
         file_.close();
@@ -139,6 +142,8 @@ qint64 ZstdDevice::readData( char* data, qint64 maxSize )
         inPos_ = input.pos;
 
         if ( ZSTD_isError( rc ) ) {
+            ZSTD_freeDCtx( dctx_ );
+            dctx_ = nullptr;
             finished_ = true;
             return output.pos > 0 ? static_cast<qint64>( output.pos ) : -1;
         }

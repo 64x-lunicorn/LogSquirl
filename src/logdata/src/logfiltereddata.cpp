@@ -557,6 +557,9 @@ LineNumber LogFilteredData::findFilteredLine( LineNumber lineNum ) const
 QString LogFilteredData::doGetLineString( LineNumber index ) const
 {
     const auto line = findLogDataLine( index );
+    if ( line == maxValue<LineNumber>() ) {
+        return {};
+    }
     return sourceLogData_->getLineString( line );
 }
 
@@ -564,6 +567,9 @@ QString LogFilteredData::doGetLineString( LineNumber index ) const
 QString LogFilteredData::doGetExpandedLineString( LineNumber index ) const
 {
     const auto line = findLogDataLine( index );
+    if ( line == maxValue<LineNumber>() ) {
+        return {};
+    }
     return sourceLogData_->getExpandedLineString( line );
 }
 
