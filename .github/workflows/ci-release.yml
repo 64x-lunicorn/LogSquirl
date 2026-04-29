@@ -35,7 +35,10 @@ jobs:
           fetch-depth: 0
       - name: Ensure tag points to a commit on master
         run: |
-          if ! git branch -r --contains "$GITHUB_SHA" | grep -q 'origin/master'; then
+          # Dereference annotated tags to the underlying commit
+          COMMIT_SHA=$(git rev-parse "$GITHUB_SHA^{commit}" 2>/dev/null || echo "$GITHUB_SHA")
+          echo "Resolved commit: $COMMIT_SHA"
+          if ! git branch -r --contains "$COMMIT_SHA" | grep -q 'origin/master'; then
             echo "::error::Release tags must be on the master branch."
             echo "This tag points to a commit that is not on master — aborting release."
             exit 1
