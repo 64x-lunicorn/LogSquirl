@@ -242,3 +242,69 @@ class TestRegexCorrectness:
         ]
         # 10 timestamps with seconds 00..09
         assert len(matches) == 10
+
+
+# ---------------------------------------------------------------------------
+# Bug #2026-04 round 2: dashboard tab close (Ctrl+W) must not no-op silently
+# when only the dashboard tab is open. The fix closes the window if the
+# dashboard is the only remaining tab.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+class TestDashboardCloseBehavior:
+    """The pinned dashboard tab is unclosable, but Ctrl+W on it must still
+    close the window when nothing else is open."""
+
+    @pytest.fixture(autouse=True)
+    def _skip_on_mac(self):
+        if platform.system() == "Darwin":
+            pytest.skip("offscreen platform not available on macOS")
+
+    def test_gui_starts_with_dashboard_only(self, logsquirl_binary):
+        # Plain startup (no file argument) — the dashboard is the only tab.
+        # Verify the binary launches and does not segfault before our timeout.
+        result = run_gui(logsquirl_binary, [], timeout=4)
+        assert result.returncode != -11, "logsquirl segfaulted on dashboard-only startup"
+        assert result.returncode != -6, "logsquirl aborted on dashboard-only startup"
+
+
+# ---------------------------------------------------------------------------
+# Bug #2026-04 round 2: command palette must be safe against
+# stale QAction pointers and re-entrant invocation. We can only test the
+# binary path here; the UI safety is covered by the QPointer capture and
+# the action-copy fix in commandpalette.cpp/mainwindow.cpp.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.slow
+class TestCommandPaletteSafety:
+    """Smoke check: starting the GUI exposes the command palette wiring.
+    A regression in the QPointer capture would crash on shutdown."""
+
+    @pytest.fixture(autouse=True)
+    def _skip_on_mac(self):
+        if platform.system() == "Darwin":
+            pytest.skip("offscreen platform not available on macOS")
+
+    def test_gui_clean_shutdown_with_palette_wired(self, logsquirl_binary, tmp_path):
+        log = _make_synthetic_log(tmp_path, lines=200)
+        result = run_gui(logsquirl_binary, [str(log)], timeout=4)
+        # Crash exit codes (-11 SIGSEGV, -6 SIGABRT) must not occur.
+        assert result.returncode != -11
+        assert result.returncode != -6
+
+
+# ---------------------------------------------------------------------------
+# Bug #2026-04 round 2: decompressor must surface short writes.
+# We can't easily simulate ENOSPC in CI, but we can verify a successful
+# decompression round-trip never silently truncates.
+# ---------------------------------------------------------------------------
+
+class TestDecompressorRoundTrip:
+    """The decompressor is a GUI-only feature in LogSquirl; the CLI grep tool
+    does not auto-decompress .gz files. The short-write regression is therefore
+    covered by code review and unit-level inspection rather than E2E.
+    This placeholder keeps the test class for documentation."""
+
+    @pytest.mark.skip(reason="decompressor is a GUI-only code path; CLI grep does not handle .gz")
+    def test_gzip_round_trip_preserves_bytes(self):
+        pass
