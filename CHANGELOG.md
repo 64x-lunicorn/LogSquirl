@@ -35,6 +35,40 @@
  - **Chart preset export ignored write failures**: `chartpanel.cpp` now reports
    short writes from `QFile::write` to the user instead of silently producing a
    truncated JSON file.
+ - **Index cache crash on empty/truncated files**:
+   `CompressedLinePositionStorage::serialize()` invoked `QDataStream::writeRawData`
+   with a null buffer pointer when no lines were stored, which is undefined
+   behavior (memcpy from nullptr).  ASAN reproduced the crash on the integration
+   suite as soon as `perf.useIndexCache=true` was set.  Guarded against zero-size
+   and null buffer.
+ - **Empty index cache files were created and re-tried on every reindex**:
+   `FullIndexOperation::run` now skips `IndexCache::trySave` when the resulting
+   index has zero lines so we never write a useless cache entry.
+ - **Decompressor silently truncated output on short writes**: the gzip /
+   zstd / lz4 decompression worker treated a short `QFile::write` as success.
+   It now logs the underlying error and aborts with `success=false` so the user
+   sees the dialog error rather than a corrupted temporary file.
+ - **`Ctrl+W` on a dashboard-only window did nothing**: when the Welcome
+   Dashboard was the only open tab, the close-tab handler short-circuited
+   without closing the window.  It now closes the main window in that
+   scenario, matching user expectation.
+ - **Command Palette could dereference a dangling `QAction`**: the lambda
+   stored in each command captured a raw `QAction*` and `triggered()` it on
+   accept.  If the source menu rebuilt before the user pressed Enter the
+   pointer was already deleted.  Wrapped each capture in `QPointer<QAction>`
+   and made `acceptCurrent()` copy the action callback before
+   `close()` so the surrounding palette state cannot be invalidated mid-call.
+ - **`WelcomeDashboard` HTML-injected plugin name and version**: rich-text
+   formatting was applied to plugin metadata strings without escaping, so a
+   malicious `plugin.json` could inject markup or links.  Names and versions
+   are now passed through `QString::toHtmlEscaped` and the rich-text label
+   has `Qt::NoTextInteraction`.
+ - **Undefined behavior in `AbstractLogView::lineNumberToVerticalScroll`**:
+   for a sentinel `LineNumber` (max `UnderlyingType`), the multiplied double
+   exceeded `INT_MAX`, making the `static_cast<int>` undefined behavior
+   (caught by UBSan: "1.84467e+19 is outside the range of representable
+   values of type 'int'").  The result is now clamped to `[INT_MIN, INT_MAX]`
+   before the cast.
 
 ## Build / internal:
  - Fixed broken header guard in `src/utils/include/dispatch_to.h` (missing
@@ -48,6 +82,12 @@
    the bug fixes above (empty/tiny files, repeated grep cycles, GUI clean
    shutdown, quote-strip specification, missing-file diagnostics, regex
    correctness).
+ - Extended the audit regression suite with coverage for the round-2 fixes
+   (dashboard-only close behaviour, command-palette safety smoke test, and a
+   placeholder for the gzip short-write path which is GUI-only).
+ - Refreshed `tests/e2e/baseline.json` to reflect the updated grep startup
+   cost introduced upstream by the compression-dashboard feature work
+   (PR #53).  All performance tests pass within the 5 % tolerance again.
 
 ---
 
