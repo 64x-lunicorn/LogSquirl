@@ -452,14 +452,20 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
 
 AbstractLogView::~AbstractLogView()
 {
-    try {
-        if ( quickFind_ ) {
+    // Explicit cleanup: stop any in-flight QuickFind search before destruction. We must
+    // delete the worker exactly once — even if stopSearch() throws — and never twice.
+    if ( quickFind_ != nullptr ) {
+        try {
             quickFind_->stopSearch();
-            delete quickFind_;
         }
-    } catch ( const std::exception& e ) {
-        LOG_ERROR << "Failed to stop search: " << e.what();
+        catch ( const std::exception& e ) {
+            LOG_ERROR << "Failed to stop search: " << e.what();
+        }
+        catch ( ... ) {
+            LOG_ERROR << "Failed to stop search: unknown exception";
+        }
         delete quickFind_;
+        quickFind_ = nullptr;
     }
 }
 
@@ -1324,7 +1330,12 @@ void AbstractLogView::textWrapSet( bool checked )
 
 void AbstractLogView::refreshOverview()
 {
-    assert( overviewWidget_ );
+    // assert() is stripped from release builds, so a stale call would crash on the
+    // ->show()/->hide() lines below. Guard explicitly instead.
+    if ( overviewWidget_ == nullptr ) {
+        LOG_WARNING << "refreshOverview called before overviewWidget_ was set";
+        return;
+    }
 
     // Create space for the Overview if needed
     if ( ( getOverview() != nullptr ) && getOverview()->isVisible() ) {
@@ -1842,6 +1853,12 @@ FilePosition AbstractLogView::convertCoordToFilePos( const QPoint& pos ) const
 
     auto clampedLineIndex = lineIndex;
     if ( clampedLineIndex >= logData_->getNbLine() ) {
+        // Defensive guard: if the data has been cleared while a viewport conversion is in
+        // flight, getNbLine() may be 0. Subtracting 1 from LineNumber{0} would underflow
+        // because LineNumber is an unsigned strong typedef.
+        if ( logData_->getNbLine().get() == 0 ) {
+            return FilePosition{ 0_lnum, 0_lcol };
+        }
         clampedLineIndex = LineNumber( logData_->getNbLine().get() ) - 1_lcount;
     }
 
