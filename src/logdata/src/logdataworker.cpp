@@ -912,7 +912,10 @@ OperationResult FullIndexOperation::run()
         if ( result && config.useIndexCache() && !isTempFile ) {
             IndexingData::ConstAccessor accessor{ indexing_data_.get() };
             const auto* linePos = accessor.getCompressedLinePosition();
-            if ( linePos ) {
+            // Don't cache empty indexes — they have no value, waste disk
+            // space, and exercise the empty-storage code paths in
+            // CompressedLinePositionStorage::serialize() unnecessarily.
+            if ( linePos && linePos->size().get() > 0 ) {
                 const auto* codec = accessor.getEncodingGuess();
                 const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
 
