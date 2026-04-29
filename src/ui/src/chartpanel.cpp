@@ -483,8 +483,8 @@ void ChartPanel::exportPreset()
     }
     // Surface I/O failures (disk full, permission errors) to the user so a corrupt or
     // truncated preset file is not silently produced.
-    const auto data = seriesToJsonString( series_ ).toUtf8();
-    if ( file.write( data ) != data.size() ) {
+    const auto jsonData = seriesToJsonString( series_ ).toUtf8();
+    if ( file.write( jsonData ) != jsonData.size() ) {
         QMessageBox::warning( this, tr( "Export" ),
                               tr( "Failed to write all data to %1" ).arg( path ) );
     }
