@@ -146,3 +146,6 @@ tests/e2e/benchmark_report.json
 
 # ── Temporary files ────────────────────────────────────────────────────────
 tmp/
+
+# Audit working directory (local only)
+audit/

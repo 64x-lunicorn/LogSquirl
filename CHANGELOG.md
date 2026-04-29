@@ -1,3 +1,56 @@
+# Unreleased
+
+## Bug fixes:
+ - **Memory leaks on indexing/search interrupt**: `IndexOperation::readFileInBlocks`
+   and `FullSearchOperation::run` leaked their per-block buffers when the operation
+   was interrupted while a block was awaiting capacity in the TBB flow graph, and
+   the indexer additionally leaked on the `read` error and end-of-stream paths.
+   The owning paths now release the buffers explicitly when the block is never
+   published or accepted.
+ - **Potential double-free in `AbstractLogView` destructor**: if `quickFind_->stopSearch()`
+   threw, the catch handler deleted the same pointer the `try` block had already
+   freed. Restructured to guarantee exactly one delete and reset the pointer to
+   `nullptr` afterwards.
+ - **Trailing quote not stripped in logical-combining filter**: the
+   predefined-filters combobox stripped only the leading `"` before splitting on
+   `" or "`, leaving the trailing `"` attached to the last token. The wrapping
+   quotes are now stripped symmetrically (with a length guard).
+ - **Edge-case underflow in `AbstractLogView::convertViewportPosition`**: when the
+   data was cleared while a viewport conversion was in flight, `getNbLine()` could
+   return `0` and `LineNumber{0} - 1_lcount` would underflow. Added an explicit
+   early return for the empty case.
+ - **`endOfLines.back()` on empty result in `LogData::doGetLinesRaw`**: a concurrent
+   index truncation could yield an empty offset vector, making the `back()` call
+   undefined behavior. The function now returns the partially-populated raw lines
+   instead.
+ - **`refreshOverview` could crash in release builds**: the function relied on a
+   plain `assert(overviewWidget_)` which is stripped in release. Replaced with an
+   explicit null guard and a warning log.
+ - **`hs_scan` return code was discarded**: the Hyperscan single- and multi-matchers
+   ignored the return value, silently producing false negatives on `HS_*` errors.
+   Both matchers now log non-success codes.
+ - **Empty `catch(...)` in `MainWindow::loadFile` lost diagnostics**: the
+   exception type and `what()` are now captured separately for `std::exception` and
+   the unknown-exception path.
+ - **Chart preset export ignored write failures**: `chartpanel.cpp` now reports
+   short writes from `QFile::write` to the user instead of silently producing a
+   truncated JSON file.
+
+## Build / internal:
+ - Fixed broken header guard in `src/utils/include/dispatch_to.h` (missing
+   `#define` after `#ifndef`); the header was effectively re-included in every
+   translation unit that pulled it in.
+ - Renamed the misspelled struct `WatchedDirecotry` → `WatchedDirectory` in
+   `src/filewatch/src/filewatcher.cpp`.
+
+## Tests:
+ - Added `tests/e2e/test_audit_regressions.py` with 11 regression tests covering
+   the bug fixes above (empty/tiny files, repeated grep cycles, GUI clean
+   shutdown, quote-strip specification, missing-file diagnostics, regex
+   correctness).
+
+---
+
 # 26.05.0-beta (2026-04-25)
 
 ## New features:
