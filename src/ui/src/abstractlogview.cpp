@@ -1039,8 +1039,16 @@ bool AbstractLogView::event( QEvent* e )
 
 int AbstractLogView::lineNumberToVerticalScroll( LineNumber line ) const
 {
-    return static_cast<int>(
-        std::round( static_cast<double>( line.get() ) * verticalScrollMultiplicator() ) );
+    // Clamp the result to the representable range of int before casting.
+    // line.get() can be a sentinel value (e.g., max LineNumber::UnderlyingType for an
+    // invalid/unset line), and the floating-point product can exceed INT_MAX,
+    // making the conversion undefined behavior. See UBSan finding.
+    const double value
+        = std::round( static_cast<double>( line.get() ) * verticalScrollMultiplicator() );
+    constexpr double IntMax = static_cast<double>( std::numeric_limits<int>::max() );
+    constexpr double IntMin = static_cast<double>( std::numeric_limits<int>::min() );
+    const double clamped = std::clamp( value, IntMin, IntMax );
+    return static_cast<int>( clamped );
 }
 
 LineNumber AbstractLogView::verticalScrollToLineNumber( int scrollPosition ) const
