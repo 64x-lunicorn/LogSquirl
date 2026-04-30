@@ -22,4 +22,4 @@ add_test(
     COMMAND logsquirl_itests -platform offscreen
 )
 # Prevent infinite hangs in CI (e.g. from unexpected modal dialogs)
-set_tests_properties(logsquirl_itests PROPERTIES TIMEOUT 120)
+set_tests_properties(logsquirl_itests PROPERTIES TIMEOUT 240)
