@@ -122,6 +122,14 @@
    rounded handles and hover highlighting.
 
 ## Bug fixes:
+ - **Text clipping in log view**: `getNbVisibleCols()` double-subtracted the
+   vertical scrollbar width from the viewport, causing text to be clipped
+   too early on the right side.  Qt's `viewport()->width()` already excludes
+   the scrollbar; the redundant subtraction has been removed.
+ - **Sidebar opens on startup when plugins register tabs**: The sidebar dock
+   was automatically shown whenever a plugin registered a sidebar tab via
+   `handlePluginSidebarTab()`.  The sidebar now stays closed by default and
+   only opens on explicit user action.
  - Fixed bright green (`#54c01a`) background on input fields in the Light
    theme caused by a corrupted QSS replace.
  - Fixed SIGSEGV crash in `MainWindow::closeTab()` when tab widget returns a
