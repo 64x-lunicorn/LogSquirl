@@ -1824,8 +1824,9 @@ LinesCount AbstractLogView::getNbVisibleLines() const
 // Returns the number of columns visible in the viewport
 LineLength AbstractLogView::getNbVisibleCols() const
 {
-    const auto scrollBarWidth = verticalScrollBar()->isVisible() ? verticalScrollBar()->width() : 0;
-    return LineLength{ ( viewport()->width() - leftMarginPx_ - scrollBarWidth ) / charWidth_ + 1 };
+    // viewport()->width() already excludes the vertical scrollbar (Qt's
+    // QAbstractScrollArea handles this), so no manual subtraction is needed.
+    return LineLength{ ( viewport()->width() - leftMarginPx_ ) / charWidth_ + 1 };
 }
 
 // Converts the mouse x, y coordinates to the line number in the file

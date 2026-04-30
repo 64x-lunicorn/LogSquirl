@@ -1652,7 +1652,6 @@ void MainWindow::handlePluginSidebarTab( const QString& pluginId,
 
     sidebarTabs_->addTab( widget, label );
     LOG_INFO << "Plugin " << pluginId << " registered sidebar tab: " << label;
-    showSidebar( sidebarTabs_->count() - 1 );
 }
 
 void MainWindow::handlePluginSidebarTabRemoved( const QString& pluginId,
