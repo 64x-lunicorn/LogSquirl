@@ -625,6 +625,26 @@ class Configuration final : public Persistable<Configuration> {
         toolbarIconSize_ = size;
     }
 
+    // Auto-detect log format (lnav-compatible) — disabled by default
+    bool autoDetectLogFormats() const
+    {
+        return autoDetectLogFormats_;
+    }
+    void setAutoDetectLogFormats( bool enabled )
+    {
+        autoDetectLogFormats_ = enabled;
+    }
+
+    // Automatically switch to table view when a format is detected
+    bool autoShowTableView() const
+    {
+        return autoShowTableView_;
+    }
+    void setAutoShowTableView( bool enabled )
+    {
+        autoShowTableView_ = enabled;
+    }
+
     // Plugin settings
     bool pluginsAutoLoad() const
     {
@@ -753,6 +773,9 @@ class Configuration final : public Persistable<Configuration> {
     bool showDashboard_ = true;
 
     int toolbarIconSize_ = 24;
+
+    bool autoDetectLogFormats_ = false;
+    bool autoShowTableView_ = false;
 
     bool pluginsAutoLoad_ = true;
     QStringList enabledPlugins_;

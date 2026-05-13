@@ -1826,7 +1826,13 @@ LineLength AbstractLogView::getNbVisibleCols() const
 {
     // viewport()->width() already excludes the vertical scrollbar (Qt's
     // QAbstractScrollArea handles this), so no manual subtraction is needed.
-    return LineLength{ ( viewport()->width() - leftMarginPx_ ) / charWidth_ + 1 };
+    // Use floor division: only count columns that fully fit.  The drawing
+    // code already adds +1 via addChunk()'s inclusive end, so a partial
+    // column at the right edge is still rendered.
+    // Clamp to at least 1 to avoid negative/zero values when the viewport
+    // is narrower than the left margin (e.g., splitter dragged almost closed).
+    const int cols = ( viewport()->width() - leftMarginPx_ ) / charWidth_;
+    return LineLength{ std::max( cols, 1 ) };
 }
 
 // Converts the mouse x, y coordinates to the line number in the file

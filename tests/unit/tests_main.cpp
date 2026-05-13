@@ -25,6 +25,7 @@
 #include <logger.h>
 
 #include "configuration.h"
+#include "highlighterset.h"
 #include <persistentinfo.h>
 
 const bool PersistentInfo::ForcePortable = true;
@@ -36,6 +37,7 @@ int main( int argc, char* argv[] )
     logging::enableLogging();
 
     Configuration::getSynced();
+    HighlighterSetCollection::getSynced();
 
     return Catch::Session().run( argc, argv );
 }

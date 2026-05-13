@@ -9,6 +9,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightedmatch.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilters.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilterscombobox.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersdialog.h
@@ -52,6 +53,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartpanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseriesdialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/chartwizarddialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/charttemplategenerator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
@@ -111,6 +114,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartpanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartseriesdialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwizarddialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/charttemplategenerator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/iconloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp
@@ -140,6 +145,7 @@ target_link_libraries(
   PUBLIC project_options
          project_warnings
          logsquirl_logdata
+         logsquirl_logformat
          logsquirl_versioncheck
          logsquirl_plugins
          logsquirl_karchive
@@ -147,6 +153,7 @@ target_link_libraries(
          logsquirl_lz4
          Qt6::Widgets
          Qt6::Xml
+         Qt6::Concurrent
 )
 
 if(WIN32)

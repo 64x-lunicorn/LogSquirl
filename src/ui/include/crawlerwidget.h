@@ -41,15 +41,19 @@
 #define CRAWLERWIDGET_H
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 
 #include <QCheckBox>
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
 #include <QSplitter>
+#include <QStackedWidget>
+#include <QTableView>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -67,6 +71,10 @@
 #include "signalmux.h"
 #include "viewinterface.h"
 
+#include "logformatdefinition.h"
+
+class LogFormatTableModel;
+class LogTableHighlightDelegate;
 class InfoLine;
 class QuickFindPattern;
 class SavedSearches;
@@ -272,6 +280,9 @@ class CrawlerWidget : public QSplitter,
     void addNextColorLabelToSelection();
     void clearColorLabels();
 
+    // Toggle between text view and table view (if format detected)
+    void toggleTableView();
+
   public Q_SLOTS:
     void toggleChartPanel();
     // Create chart series from the current search filter patterns and show
@@ -362,6 +373,53 @@ class CrawlerWidget : public QSplitter,
 
     void changeFontSize( bool increase );
 
+    // Try auto-detecting a log format from the first lines after loading.
+    void tryAutoDetectFormat();
+
+    // Populate the table model from the current logData_ contents.
+    void populateTableModel();
+
+    // Reset table view state (model, format, delegate) for re-detection.
+    void resetTableViewState();
+
+    // Save/restore column widths for the active log format.
+    void saveTableColumnWidths();
+    bool restoreTableColumnWidths();
+    bool applySavedColumnWidths();
+
+    // Return a sanitized format name safe for use as a QSettings group key.
+    static QString sanitizedFormatName( const QString& name );
+
+    // Compute column widths by sampling the first N rows of data.
+    void autoSizeTableColumns();
+
+    // Stretch the last table column to fill remaining viewport space.
+    void stretchLastTableColumn();
+
+    // Update the table view's overview widget position and current-view indicator.
+    void updateTableOverview();
+
+    // Handle a row selection change in the table view.
+    void tableViewSelectionChanged();
+
+    // Show context menu for the table view.
+    void showTableViewContextMenu( const QPoint& pos );
+
+    // Handle table view overview click — jump to the clicked line.
+    void tableOverviewLineClicked( LineNumber line );
+
+    // Copy selected table rows to clipboard.
+    void copyTableSelection();
+
+    // Copy selected table rows with line numbers to clipboard.
+    void copyTableSelectionWithLineNumbers();
+
+    // Mark/unmark the selected table row(s).
+    void markTableSelection();
+
+    // Event filter for table viewport resize handling.
+    bool eventFilter( QObject* obj, QEvent* event ) override;
+
     // Palette for error notification (yellow background)
     static const QPalette ErrorPalette;
 
@@ -442,6 +500,62 @@ class CrawlerWidget : public QSplitter,
     ColorLabelsManager colorLabelsManager_;
 
     ChartPanel* chartPanel_ = nullptr;
+
+    // Table view for auto-detected log formats
+    QStackedWidget* mainViewStack_ = nullptr;
+    QTableView* logTableView_ = nullptr;
+    LogFormatTableModel* tableModel_ = nullptr;
+    LogTableHighlightDelegate* tableHighlightDelegate_ = nullptr;
+    QToolButton* tableViewToggle_ = nullptr;
+    std::unique_ptr<LogFormatDefinition> detectedFormat_;
+    bool tableViewActive_ = false;
+    bool tableColumnsNeedSizing_ = false;
+    bool programmaticColumnResize_ = false;
+
+    // Portion (in-cell text) selection state for the table view.
+    // Tracks a drag-selection of characters within a single cell.
+    struct TableCellSelection {
+        bool active = false;       // Is a portion selection in progress / completed?
+        int row = -1;              // Row of the selected cell
+        int column = -1;           // Column of the selected cell
+        int startChar = 0;         // Start character index (inclusive)
+        int endChar = 0;           // End character index (exclusive)
+
+        // Clear the selection.
+        void clear()
+        {
+            active = false;
+            row = -1;
+            column = -1;
+            startChar = 0;
+            endChar = 0;
+        }
+
+        // Return the selected substring from the given cell text.
+        QString selectedText( const QString& cellText ) const
+        {
+            if ( !active || startChar == endChar ) {
+                return {};
+            }
+            const int lo = std::min( startChar, endChar );
+            const int hi = std::min( std::max( startChar, endChar ),
+                                     static_cast<int>( cellText.size() ) );
+            return cellText.mid( lo, hi - lo );
+        }
+    };
+
+    TableCellSelection tableCellSelection_;
+    bool tableSelectionDragging_ = false;  // Mouse drag in progress?
+    int tableHoverRow_ = -1;               // Row under the mouse for hover highlight
+
+    // Convert a pixel X position within a cell to a character index.
+    int tableCellCharAtX( const QModelIndex& index, int pixelX ) const;
+
+    // Select the word at the given character position in a cell.
+    void tableSelectWordAt( const QModelIndex& index, int charPos );
+
+    // Overview (minimap) widget for the table view
+    OverviewWidget* tableOverviewWidget_ = nullptr;
 };
 
 #endif

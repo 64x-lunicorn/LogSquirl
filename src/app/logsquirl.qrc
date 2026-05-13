@@ -10,6 +10,7 @@
     <file>images/logsquirl-logo.png</file>
     <file>images/icons8-add-file-16.png</file>
     <file>images/icons8-cancel-16.png</file>
+    <file>images/icons8-chart-16.png</file>
     <file>images/icons8-close-window-16.png</file>
     <file>images/icons8-close-window-16_inverse.png</file>
     <file>images/icons8-close-window-hover-16.png</file>
@@ -20,6 +21,7 @@
     <file>images/icons8-fast-forward-16.png</file>
     <file>images/icons8-filter-16.png</file>
     <file>images/icons8-font-size-16.png</file>
+    <file>images/icons8-frequency-16.png</file>
     <file>images/icons8-lock-16.png</file>
     <file>images/icons8-minus-16.png</file>
     <file>images/icons8-not-equal-16.png</file>
@@ -32,6 +34,8 @@
     <file>images/icons8-search-refresh-16.png</file>
     <file>images/icons8-star-16.png</file>
     <file>images/icons8-star-filled-16.png</file>
+    <file>images/icons8-table-16.png</file>
+    <file>images/icons8-table-16_inverse.png</file>
     <file>images/icons8-up-16.png</file>
     <file>images/icons8-venn-diagram-16.png</file>
     <file>images/newdata_icon.png</file>

@@ -37,6 +37,7 @@
  */
 
 #include <QColorDialog>
+#include <QDesktopServices>
 #include <QKeySequenceEdit>
 #include <QMessageBox>
 #include <QToolButton>
@@ -46,6 +47,7 @@
 #include "fontutils.h"
 #include "highlighteredit.h"
 #include "log.h"
+#include "logformatregistry.h"
 #include "mainwindow.h"
 #include "recentfiles.h"
 #include "savedsearches.h"
@@ -101,13 +103,21 @@ OptionsDialog::OptionsDialog( QWidget* parent )
             buildShortcutsTable( true );
     } );
 
+    // Auto-show table view is only meaningful when auto-detect is enabled
+    connect( autoDetectLogFormatsCheckBox, &QCheckBox::toggled, autoShowTableViewCheckBox,
+             &QWidget::setEnabled );
+
     updateDialogFromConfig();
+
+    // Sync enabled state after config has been loaded
+    autoShowTableViewCheckBox->setEnabled( autoDetectLogFormatsCheckBox->isChecked() );
 
     setupPolling();
     setupSearchResultsCache();
     setupLogging();
     setupArchives();
     setupIndexCache();
+    setupLogFormats();
 }
 
 //
@@ -225,6 +235,41 @@ void OptionsDialog::setupArchives()
 void OptionsDialog::setupIndexCache()
 {
     indexCacheMaxSizeSpinBox->setEnabled( indexCacheCheckBox->isChecked() );
+}
+
+// Populate the Log Formats tab with available format definitions
+// and wire the "Open Formats Folder" button.
+void OptionsDialog::setupLogFormats()
+{
+    LogFormatRegistry registry;
+    registry.loadBuiltinFormats();
+    registry.loadUserFormats();
+
+    formatsTreeWidget->clear();
+    auto names = registry.formatNames();
+    names.sort( Qt::CaseInsensitive );
+
+    for ( const auto& name : names ) {
+        const auto* fmt = registry.formatByName( name );
+        if ( !fmt ) {
+            continue;
+        }
+        auto* item = new QTreeWidgetItem( formatsTreeWidget );
+        const auto title = fmt->title().isEmpty() ? name : fmt->title();
+        item->setText( 0, title );
+        item->setText( 1, fmt->description() );
+        item->setToolTip( 0, name );
+    }
+
+    formatsTreeWidget->resizeColumnToContents( 0 );
+
+    connect( openFormatsFolderButton, &QPushButton::clicked, this, []() {
+        const auto dataDir
+            = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
+        const auto formatsDir = dataDir + "/formats";
+        QDir().mkpath( formatsDir );
+        QDesktopServices::openUrl( QUrl::fromLocalFile( formatsDir ) );
+    } );
 }
 
 // Convert a regexp type to its index in the list
@@ -371,6 +416,8 @@ void OptionsDialog::updateDialogFromConfig()
     confirmTabCloseCheckBox->setChecked( config.confirmTabClose() );
     showSplashScreenCheckBox->setChecked( config.showSplashScreen() );
     showDashboardCheckBox->setChecked( config.showDashboard() );
+    autoDetectLogFormatsCheckBox->setChecked( config.autoDetectLogFormats() );
+    autoShowTableViewCheckBox->setChecked( config.autoShowTableView() );
 
     loggingCheckBox->setChecked( config.enableLogging() );
     verbositySpinBox->setValue( config.loggingLevel() );
@@ -555,6 +602,8 @@ void OptionsDialog::updateConfigFromDialog()
     config.setMinimizeToTray( minimizeToTrayCheckBox->isChecked() );
     config.setShowSplashScreen( showSplashScreenCheckBox->isChecked() );
     config.setShowDashboard( showDashboardCheckBox->isChecked() );
+    config.setAutoDetectLogFormats( autoDetectLogFormatsCheckBox->isChecked() );
+    config.setAutoShowTableView( autoShowTableViewCheckBox->isChecked() );
     config.setEnableLogging( loggingCheckBox->isChecked() );
     config.setLoggingLevel( verbositySpinBox->value() );
 

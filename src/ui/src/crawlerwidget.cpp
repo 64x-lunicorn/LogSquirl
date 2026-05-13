@@ -51,17 +51,25 @@
 #include <chrono>
 
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
+#include <QClipboard>
 #include <QCompleter>
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QKeyEvent>
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListView>
+#include <QMenu>
+#include <QPixmap>
+#include <QScrollBar>
+#include <QSettings>
 #include <QShortcut>
 #include <QStandardItemModel>
 #include <QStringListModel>
+#include <QTimer>
 #include <qglobal.h>
 #include <qobject.h>
 #include <string>
@@ -73,7 +81,14 @@
 #include "configuration.h"
 #include "dispatch_to.h"
 #include "fontutils.h"
+#include "highlightersmenu.h"
 #include "infoline.h"
+#include "logformatdefinition.h"
+#include "logformatmatcher.h"
+#include "logformatregistry.h"
+#include "logformattablemodel.h"
+#include "logtablehighlightdelegate.h"
+#include "overviewwidget.h"
 #include "quickfindpattern.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
@@ -190,6 +205,17 @@ LineNumber CrawlerWidget::getTopLine() const
 
 QString CrawlerWidget::getSelectedText() const
 {
+    // Table view with active portion selection
+    if ( tableViewActive_ && tableCellSelection_.active && tableModel_ ) {
+        const auto index = tableModel_->index( tableCellSelection_.row,
+                                               tableCellSelection_.column );
+        const auto cellText = index.data( Qt::DisplayRole ).toString();
+        const auto selected = tableCellSelection_.selectedText( cellText );
+        if ( !selected.isEmpty() ) {
+            return selected;
+        }
+    }
+
     if ( filteredView_->hasFocus() )
         return filteredView_->getSelectedText();
     else
@@ -549,6 +575,12 @@ void CrawlerWidget::updateFilteredView( LinesCount nbMatches, int progress,
 
         // Also update the top window for the coloured bullets.
         update();
+
+        // Repaint the table view so match/mark highlights are updated
+        if ( logTableView_ && tableViewActive_ ) {
+            logTableView_->viewport()->update();
+            updateTableOverview();
+        }
     }
 
     // Try to restore the filtered window selection close to where it was
@@ -570,6 +602,14 @@ void CrawlerWidget::jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nL
     const auto mainViewLine = logFilteredData_->getMatchingLineNumber( filteredLineNb );
     logMainView_->selectPortionAndDisplayLine( mainViewLine, nLines, startCol,
                                                nSymbols ); // FIXME: should be done with a signal.
+
+    // Also scroll the table view to the matching row when it is active
+    if ( logTableView_ && tableViewActive_ && tableModel_ ) {
+        const auto row = static_cast<int>( mainViewLine.get() );
+        const auto idx = tableModel_->index( row, 0 );
+        logTableView_->scrollTo( idx, QAbstractItemView::PositionAtCenter );
+        logTableView_->selectRow( row );
+    }
 }
 
 void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
@@ -615,6 +655,12 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
 
     // Also update the top window for the coloured bullets.
     update();
+
+    // Repaint the table view so mark highlights are updated
+    if ( logTableView_ && tableViewActive_ ) {
+        logTableView_->viewport()->update();
+        updateTableOverview();
+    }
 }
 
 void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines )
@@ -668,6 +714,18 @@ void CrawlerWidget::applyConfiguration()
     logMainView_->refreshOverview();
     logMainView_->updateFont( font );
 
+    // Apply the same font to the table view
+    if ( logTableView_ ) {
+        logTableView_->setFont( font );
+        // Adjust row height to fit the configured font
+        const QFontMetrics fm( font );
+        logTableView_->verticalHeader()->setDefaultSectionSize( fm.height() + 2 );
+        logTableView_->horizontalHeader()->setFont( font );
+    }
+
+    // Refresh the table overview visibility to match the overview setting
+    updateTableOverview();
+
     for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
         auto fv = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) );
         fv->setLineNumbersVisible( config.filteredLineNumbersVisible() );
@@ -688,6 +746,11 @@ void CrawlerWidget::applyConfiguration()
 
     if ( isFollowEnabled() ) {
         changeDataStatus( DataStatus::OLD_DATA );
+    }
+
+    // Repaint the table view so highlighter changes are reflected
+    if ( logTableView_ && tableViewActive_ ) {
+        logTableView_->viewport()->update();
     }
 }
 
@@ -756,6 +819,16 @@ void CrawlerWidget::loadingFinishedHandler( LoadingStatus status )
     }
 
     loadingInProgress_ = false;
+
+    // Try auto-detecting log format after first load
+    if ( !detectedFormat_ ) {
+        tryAutoDetectFormat();
+    }
+    else if ( tableViewActive_ ) {
+        // File was updated — refresh table model contents
+        populateTableModel();
+    }
+
     Q_EMIT loadingFinished( status );
 }
 
@@ -774,6 +847,9 @@ void CrawlerWidget::fileChangedHandler( MonitoredFileStatus status )
             printSearchInfoMessage();
             nbMatches_ = 0_lcount;
         }
+
+        // Reset table view state so the format is re-detected after reload
+        resetTableViewState();
     }
 }
 
@@ -950,6 +1026,9 @@ void CrawlerWidget::mouseHoveredOverMatch( LineNumber line )
     const auto line_in_mainview = logFilteredData_->getMatchingLineNumber( line );
 
     overviewWidget_->highlightLine( line_in_mainview );
+    if ( tableOverviewWidget_ ) {
+        tableOverviewWidget_->highlightLine( line_in_mainview );
+    }
 }
 
 void CrawlerWidget::activityDetected()
@@ -1185,6 +1264,20 @@ void CrawlerWidget::setup()
     searchLineLayout->addWidget( stopButton_ );
     searchLineLayout->addWidget( searchInfoLine_ );
 
+    // Table view toggle button (hidden until format is detected)
+    tableViewToggle_ = new QToolButton();
+    tableViewToggle_->setToolTip( tr( "Toggle table/text view" ) );
+    tableViewToggle_->setAccessibleName( tr( "Toggle table view" ) );
+    tableViewToggle_->setCheckable( true );
+    tableViewToggle_->setIcon( iconLoader_.load( "icons8-table" ) );
+    tableViewToggle_->setToolButtonStyle( Qt::ToolButtonIconOnly );
+    tableViewToggle_->setContentsMargins( 2, 2, 2, 2 );
+    tableViewToggle_->setVisible( false );
+    searchLineLayout->addWidget( tableViewToggle_ );
+
+    connect( tableViewToggle_, &QToolButton::toggled, this,
+             &CrawlerWidget::toggleTableView );
+
     // Construct the bottom window
     tabbedFilteredView_ = new QTabWidget;
     tabbedFilteredView_->setTabsClosable( true );
@@ -1198,7 +1291,66 @@ void CrawlerWidget::setup()
     bottomMainLayout->setContentsMargins( 2, 2, 2, 2 );
     bottomWindow->setLayout( bottomMainLayout );
 
-    addWidget( logMainView_ );
+    // Wrap main view and table view in a stacked widget for toggling
+    mainViewStack_ = new QStackedWidget;
+    logTableView_ = new QTableView;
+    logTableView_->setSelectionBehavior( QAbstractItemView::SelectRows );
+    logTableView_->setAlternatingRowColors( true );
+    logTableView_->setShowGrid( false );
+    logTableView_->horizontalHeader()->setStretchLastSection( true );
+    logTableView_->setHorizontalScrollBarPolicy( Qt::ScrollBarAsNeeded );
+    logTableView_->setHorizontalScrollMode( QAbstractItemView::ScrollPerPixel );
+    logTableView_->horizontalScrollBar()->setSingleStep( 10 );
+    logTableView_->verticalHeader()->setVisible( false );
+    logTableView_->setContentsMargins( 2, 0, 2, 0 );
+    logTableView_->viewport()->setMouseTracking( true );
+    logTableView_->viewport()->setCursor( Qt::IBeamCursor );
+    logTableView_->viewport()->installEventFilter( this );
+    logTableView_->installEventFilter( this );
+
+    // Apply the same font the text view uses so appearance is consistent
+    // from the very first frame (applyConfiguration runs later).
+    {
+        const auto& config = Configuration::get();
+        QFont tableFont = config.mainFont();
+        tableFont.setKerning( false );
+        tableFont.setFixedPitch( true );
+        if ( config.forceFontAntialiasing() ) {
+            tableFont.setStyleStrategy( QFont::PreferAntialias );
+        }
+        tableFont.setBold( config.useBoldFont() );
+        logTableView_->setFont( tableFont );
+
+        const QFontMetrics fm( tableFont );
+        logTableView_->verticalHeader()->setDefaultSectionSize( fm.height() + 2 );
+    }
+
+    // Install highlight delegate for match/mark row coloring and text highlighting
+    tableHighlightDelegate_ = new LogTableHighlightDelegate( logTableView_ );
+    tableHighlightDelegate_->setQuickFindPattern( quickFindPattern_ );
+    logTableView_->setItemDelegate( tableHighlightDelegate_ );
+
+    // Overview (minimap) widget for the table view — shares the same Overview data
+    // as the text view so matches/marks are always in sync.
+    tableOverviewWidget_ = new OverviewWidget( logTableView_ );
+    tableOverviewWidget_->setOverview( &overview_ );
+    connect( tableOverviewWidget_, &OverviewWidget::lineClicked, this,
+             &CrawlerWidget::tableOverviewLineClicked );
+
+    // Right-click context menu for the table view
+    logTableView_->setContextMenuPolicy( Qt::CustomContextMenu );
+    connect( logTableView_, &QWidget::customContextMenuRequested, this,
+             &CrawlerWidget::showTableViewContextMenu );
+
+    // Update overview position when the table view scrolls
+    connect( logTableView_->verticalScrollBar(), &QScrollBar::valueChanged, this,
+             [this]() { updateTableOverview(); } );
+
+    mainViewStack_->addWidget( logMainView_ );   // index 0 = text view
+    mainViewStack_->addWidget( logTableView_ );   // index 1 = table view
+    mainViewStack_->setCurrentIndex( 0 );
+
+    addWidget( mainViewStack_ );
     addWidget( bottomWindow );
 
     // Chart panel — third pane in the vertical splitter, hidden by default.
@@ -1489,6 +1641,13 @@ void CrawlerWidget::changeFontSize( bool increase )
         fontConfig.setMainFont( newFont );
         logMainView_->updateFont( newFont );
         filteredView_->updateFont( newFont );
+
+        if ( logTableView_ ) {
+            logTableView_->setFont( newFont );
+            const QFontMetrics fm( newFont );
+            logTableView_->verticalHeader()->setDefaultSectionSize( fm.height() + 2 );
+            logTableView_->horizontalHeader()->setFont( newFont );
+        }
     }
 }
 
@@ -1515,6 +1674,9 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
              &CrawlerWidget::mouseHoveredOverMatch );
 
     connect( view, &FilteredView::mouseLeftHoveringZone, overviewWidget_,
+             &OverviewWidget::removeHighlight );
+
+    connect( view, &FilteredView::mouseLeftHoveringZone, tableOverviewWidget_,
              &OverviewWidget::removeHighlight );
 
     connect( this, &CrawlerWidget::followSet, view, &FilteredView::followSet );
@@ -1880,6 +2042,14 @@ void CrawlerWidget::updateColorLabels(
 {
     logMainView_->setQuickHighlighters( labels );
     filteredView_->setQuickHighlighters( labels );
+
+    // Sync color labels to the table view highlight delegate
+    if ( tableHighlightDelegate_ ) {
+        tableHighlightDelegate_->setColorLabelWords( labels );
+        if ( logTableView_ && tableViewActive_ ) {
+            logTableView_->viewport()->update();
+        }
+    }
 }
 
 //
@@ -2074,4 +2244,966 @@ QString CrawlerWidgetContext::toString() const
     properies[ "CV" ] = chartVisible_;
 
     return QJsonDocument::fromVariant( properies ).toJson( QJsonDocument::Compact );
+}
+
+// Toggle between text view and table view
+void CrawlerWidget::toggleTableView()
+{
+    if ( !detectedFormat_ ) {
+        return;
+    }
+
+    tableViewActive_ = tableViewToggle_->isChecked();
+
+    if ( tableViewActive_ ) {
+        mainViewStack_->setCurrentIndex( 1 );
+        // Defer model population so the view switch renders immediately
+        QTimer::singleShot( 0, this, [this]() {
+            populateTableModel();
+            updateTableOverview();
+        } );
+    }
+    else {
+        mainViewStack_->setCurrentIndex( 0 );
+        // Hide the table overview and re-show the text view overview
+        if ( tableOverviewWidget_ ) {
+            tableOverviewWidget_->hide();
+        }
+    }
+}
+
+// Try auto-detecting a log format from the first lines of the file.
+// Called after loading finishes, only if the config setting is enabled.
+void CrawlerWidget::tryAutoDetectFormat()
+{
+    const auto& config = Configuration::get();
+    if ( !config.autoDetectLogFormats() ) {
+        return;
+    }
+
+    if ( !logData_ || logData_->getNbLine().get() == 0 ) {
+        return;
+    }
+
+    // Sample the first 50 lines for detection
+    const auto totalLines = logData_->getNbLine().get();
+    const int sampleCount = static_cast<int>( std::min( totalLines, uint64_t{ 50 } ) );
+    QStringList sampleLines;
+    sampleLines.reserve( sampleCount );
+    for ( int i = 0; i < sampleCount; ++i ) {
+        sampleLines << logData_->getLineString( LineNumber( static_cast<uint64_t>( i ) ) );
+    }
+
+    // Load built-in formats, then user formats (user overrides built-in)
+    LogFormatRegistry registry;
+    registry.loadBuiltinFormats();
+    registry.loadUserFormats();
+
+    LogFormatMatcher matcher( registry );
+    const auto* match = matcher.detectFormat( sampleLines );
+
+    if ( match ) {
+        LOG_INFO << "Auto-detected log format: " << match->name().toStdString();
+        detectedFormat_ = std::make_unique<LogFormatDefinition>( *match );
+        tableViewToggle_->setVisible( true );
+        tableViewToggle_->setToolTip(
+            tr( "Toggle table/text view (%1)" ).arg( detectedFormat_->title() ) );
+
+        // Provide format info to the chart panel for template series.
+        chartPanel_->setLogFormat( detectedFormat_.get() );
+
+        // Automatically activate table view if the user opted in
+        if ( config.autoShowTableView() && !tableViewToggle_->isChecked() ) {
+            tableViewToggle_->setChecked( true );
+        }
+    }
+}
+
+// Reset all table view state so the format can be re-detected from scratch.
+void CrawlerWidget::resetTableViewState()
+{
+    if ( tableModel_ ) {
+        // Disconnect header signals before removing the model to prevent
+        // duplicate connections when populateTableModel() reconnects.
+        disconnect( logTableView_->horizontalHeader(), &QHeaderView::sectionResized, this,
+                    &CrawlerWidget::saveTableColumnWidths );
+        logTableView_->setModel( nullptr );
+        delete tableModel_;
+        tableModel_ = nullptr;
+    }
+    detectedFormat_.reset();
+    tableViewActive_ = false;
+    tableColumnsNeedSizing_ = false;
+
+    // Clear format info from chart panel.
+    chartPanel_->setLogFormat( nullptr );
+
+    if ( tableViewToggle_ ) {
+        tableViewToggle_->setChecked( false );
+        tableViewToggle_->setVisible( false );
+    }
+    if ( mainViewStack_ ) {
+        mainViewStack_->setCurrentIndex( 0 );
+    }
+
+    // Hide the overview widget (no longer valid after reset)
+    if ( tableOverviewWidget_ ) {
+        tableOverviewWidget_->hide();
+    }
+}
+
+// Return a sanitized format name safe for use as a QSettings group key.
+// Replaces characters that are special in QSettings paths.
+QString CrawlerWidget::sanitizedFormatName( const QString& name )
+{
+    QString safe = name;
+    safe.replace( '/', '_' );
+    safe.replace( '\\', '_' );
+    return safe;
+}
+
+// Populate the table model from the current logData_ contents.
+void CrawlerWidget::populateTableModel()
+{
+    if ( !detectedFormat_ || !logData_ ) {
+        return;
+    }
+
+    // Recreate the model if the logData_ pointer changed (e.g. after reload)
+    if ( tableModel_ && tableModel_->logDataPtr() != logData_.get() ) {
+        resetTableViewState();
+        // Re-detect format for the new data
+        tryAutoDetectFormat();
+        if ( !detectedFormat_ ) {
+            return;
+        }
+    }
+
+    // Create the model if it does not exist yet
+    if ( !tableModel_ ) {
+        tableModel_ = new LogFormatTableModel( *detectedFormat_, logData_.get(), this );
+        logTableView_->setModel( tableModel_ );
+
+        // Save column widths when the user resizes a column
+        connect( logTableView_->horizontalHeader(), &QHeaderView::sectionResized, this,
+                 &CrawlerWidget::saveTableColumnWidths );
+
+        // Sync table view selection changes to the filtered view / current line
+        connect( logTableView_->selectionModel(), &QItemSelectionModel::selectionChanged,
+                 this, [this]() { tableViewSelectionChanged(); } );
+
+        // Flag: column widths need initial sizing after first data arrives
+        tableColumnsNeedSizing_ = true;
+    }
+
+    // Keep the highlight delegate's filtered data reference up to date
+    if ( tableHighlightDelegate_ && logFilteredData_ ) {
+        tableHighlightDelegate_->setFilteredData( logFilteredData_.get() );
+    }
+
+    const auto lineCount = logData_->getNbLine().get();
+    const int lineCountInt
+        = static_cast<int>( std::min( lineCount, static_cast<uint64_t>( INT_MAX ) ) );
+    tableModel_->setLineCount( lineCountInt );
+
+    // Size columns once, after the model has data for the first time
+    if ( tableColumnsNeedSizing_ && lineCountInt > 0 ) {
+        tableColumnsNeedSizing_ = false;
+
+        // Apply saved widths immediately (fast, no I/O) so the table is usable
+        // right away, then refine from actual data asynchronously.
+        if ( !applySavedColumnWidths() ) {
+            // No saved widths — use a reasonable default until auto-sizing finishes
+            programmaticColumnResize_ = true;
+            for ( int col = 0; col < tableModel_->columnCount(); ++col ) {
+                logTableView_->setColumnWidth( col, 120 );
+            }
+            programmaticColumnResize_ = false;
+        }
+
+        // Defer the expensive auto-sizing so the UI stays responsive
+        QTimer::singleShot( 0, this, &CrawlerWidget::autoSizeTableColumns );
+    }
+
+    // Follow mode: auto-scroll the table view to the last row
+    if ( isFollowEnabled() && lineCountInt > 0 ) {
+        logTableView_->scrollToBottom();
+    }
+
+    // Refresh the overview widget
+    updateTableOverview();
+}
+
+// Save column widths for the active log format to QSettings.
+void CrawlerWidget::saveTableColumnWidths()
+{
+    if ( programmaticColumnResize_ || !detectedFormat_ || !tableModel_ || !logTableView_ ) {
+        return;
+    }
+
+    QSettings settings;
+    settings.beginGroup( "logformat/columns/" + sanitizedFormatName( detectedFormat_->name() ) );
+
+    const auto* header = logTableView_->horizontalHeader();
+    const int colCount = tableModel_->columnCount();
+
+    // Save column count and a layout fingerprint so stale widths can be detected
+    settings.setValue( "_columnCount", colCount );
+    QStringList colNames;
+    for ( int i = 0; i < colCount; ++i ) {
+        colNames << tableModel_->headerData( i, Qt::Horizontal ).toString();
+    }
+    settings.setValue( "_columnNames", colNames.join( "|" ) );
+
+    for ( int i = 0; i < colCount; ++i ) {
+        settings.setValue( QString::number( i ), header->sectionSize( i ) );
+    }
+
+    settings.endGroup();
+}
+
+// Restore column widths for the active log format from QSettings.
+// Returns true if saved widths were applied, false if none were found.
+bool CrawlerWidget::restoreTableColumnWidths()
+{
+    if ( !detectedFormat_ || !tableModel_ || !logTableView_ ) {
+        return false;
+    }
+
+    // Try saved widths first, then fall back to auto-sizing
+    if ( applySavedColumnWidths() ) {
+        return true;
+    }
+    autoSizeTableColumns();
+    return true;
+}
+
+// Apply saved column widths from QSettings if available and matching.
+bool CrawlerWidget::applySavedColumnWidths()
+{
+    if ( !detectedFormat_ || !tableModel_ || !logTableView_ ) {
+        return false;
+    }
+
+    QSettings settings;
+    settings.beginGroup( "logformat/columns/" + sanitizedFormatName( detectedFormat_->name() ) );
+
+    const int savedColCount = settings.value( "_columnCount", -1 ).toInt();
+    const int currentColCount = tableModel_->columnCount();
+    if ( savedColCount != currentColCount ) {
+        settings.endGroup();
+        return false;
+    }
+
+    // Verify layout fingerprint matches current columns
+    QStringList currentNames;
+    for ( int i = 0; i < currentColCount; ++i ) {
+        currentNames << tableModel_->headerData( i, Qt::Horizontal ).toString();
+    }
+    if ( settings.value( "_columnNames" ).toString() != currentNames.join( "|" ) ) {
+        settings.endGroup();
+        return false;
+    }
+
+    programmaticColumnResize_ = true;
+    for ( int i = 0; i < currentColCount; ++i ) {
+        const int w = settings.value( QString::number( i ), -1 ).toInt();
+        if ( w > 0 ) {
+            logTableView_->setColumnWidth( i, w );
+        }
+    }
+    programmaticColumnResize_ = false;
+    stretchLastTableColumn();
+
+    settings.endGroup();
+    return true;
+}
+
+// Stretch the last table column to fill any remaining viewport space.
+void CrawlerWidget::stretchLastTableColumn()
+{
+    if ( !tableModel_ || !logTableView_ ) {
+        return;
+    }
+
+    const int colCount = tableModel_->columnCount();
+    const int lastCol = colCount - 1;
+    if ( lastCol < 0 ) {
+        return;
+    }
+
+    const auto* header = logTableView_->horizontalHeader();
+    int usedWidth = 0;
+    for ( int i = 0; i < colCount; ++i ) {
+        usedWidth += header->sectionSize( i );
+    }
+    const int viewportWidth = logTableView_->viewport()->width();
+    if ( usedWidth < viewportWidth ) {
+        const int currentLast = header->sectionSize( lastCol );
+        programmaticColumnResize_ = true;
+        logTableView_->setColumnWidth( lastCol, currentLast + ( viewportWidth - usedWidth ) );
+        programmaticColumnResize_ = false;
+    }
+}
+
+// Compute column widths by sampling rows from the model data.
+// Measures actual text width with the view's font metrics to ensure no clipping.
+void CrawlerWidget::autoSizeTableColumns()
+{
+    if ( !tableModel_ || !logTableView_ ) {
+        return;
+    }
+
+    const int colCount = tableModel_->columnCount();
+    const int rowCount = tableModel_->rowCount();
+    if ( colCount <= 0 || rowCount <= 0 ) {
+        return;
+    }
+
+    // Sample a small number of rows from the beginning of the file to find
+    // the maximum text width per column.  We only read from the start because
+    // those lines are already in the OS page cache (format detection reads the
+    // first 50).  Reading from the middle/end of a multi-GB file causes heavy
+    // random I/O that freezes the UI.  The column widths are approximate —
+    // the user can resize manually if needed.
+    const int sampleRows = std::min( rowCount, 50 );
+    const auto fm = logTableView_->fontMetrics();
+    constexpr int cellPadding = 16; // 4px padding each side + some margin
+
+    QVector<int> maxWidths( colCount, 0 );
+
+    // Start with header text widths as minimum
+    for ( int col = 0; col < colCount; ++col ) {
+        const auto headerText = tableModel_->headerData( col, Qt::Horizontal ).toString();
+        maxWidths[ col ] = fm.horizontalAdvance( headerText ) + cellPadding;
+    }
+
+    // Measure cell content widths from the first N rows
+    for ( int row = 0; row < sampleRows; ++row ) {
+        for ( int col = 0; col < colCount; ++col ) {
+            const auto idx = tableModel_->index( row, col );
+            const auto text = idx.data( Qt::DisplayRole ).toString();
+            if ( !text.isEmpty() ) {
+                const int textWidth = fm.horizontalAdvance( text ) + cellPadding;
+                if ( textWidth > maxWidths[ col ] ) {
+                    maxWidths[ col ] = textWidth;
+                }
+            }
+        }
+    }
+
+    programmaticColumnResize_ = true;
+    for ( int col = 0; col < colCount; ++col ) {
+        logTableView_->setColumnWidth( col, maxWidths[ col ] );
+    }
+    programmaticColumnResize_ = false;
+
+    stretchLastTableColumn();
+}
+
+bool CrawlerWidget::eventFilter( QObject* obj, QEvent* event )
+{
+    if ( logTableView_ && obj == logTableView_->viewport() ) {
+        if ( event->type() == QEvent::Resize ) {
+            stretchLastTableColumn();
+            updateTableOverview();
+        }
+
+        // --- Mouse events on the table viewport for portion selection & hover ---
+        if ( tableViewActive_ && tableModel_ ) {
+            switch ( event->type() ) {
+
+            case QEvent::MouseButtonPress: {
+                const auto* me = static_cast<QMouseEvent*>( event );
+                if ( me->button() == Qt::LeftButton ) {
+                    const auto index = logTableView_->indexAt( me->pos() );
+                    if ( index.isValid() ) {
+                        const int charPos = tableCellCharAtX( index, me->pos().x() );
+
+                        if ( me->modifiers() & Qt::ShiftModifier
+                             && tableCellSelection_.active
+                             && tableCellSelection_.row == index.row()
+                             && tableCellSelection_.column == index.column() ) {
+                            // Shift-click extends the existing selection
+                            tableCellSelection_.endChar = charPos;
+                        }
+                        else {
+                            // Start a new portion selection
+                            tableCellSelection_.active = true;
+                            tableCellSelection_.row = index.row();
+                            tableCellSelection_.column = index.column();
+                            tableCellSelection_.startChar = charPos;
+                            tableCellSelection_.endChar = charPos;
+                        }
+                        tableSelectionDragging_ = true;
+
+                        // Update delegate and repaint
+                        tableHighlightDelegate_->setPortionSelection(
+                            tableCellSelection_.row, tableCellSelection_.column,
+                            tableCellSelection_.startChar, tableCellSelection_.endChar );
+                        logTableView_->viewport()->update();
+                    }
+                }
+                // Don't consume — let QTableView handle row selection too
+                break;
+            }
+
+            case QEvent::MouseMove: {
+                const auto* me = static_cast<QMouseEvent*>( event );
+                const auto index = logTableView_->indexAt( me->pos() );
+
+                // --- Hover highlight ---
+                const int newHoverRow = index.isValid() ? index.row() : -1;
+                if ( newHoverRow != tableHoverRow_ ) {
+                    tableHoverRow_ = newHoverRow;
+                    tableHighlightDelegate_->setHoverRow( tableHoverRow_ );
+                    logTableView_->viewport()->update();
+                }
+
+                // --- Drag to extend portion selection ---
+                if ( tableSelectionDragging_ && tableCellSelection_.active && index.isValid() ) {
+                    // Only extend within the same row AND same column
+                    if ( index.row() == tableCellSelection_.row
+                         && index.column() == tableCellSelection_.column ) {
+                        const int charPos = tableCellCharAtX( index, me->pos().x() );
+                        tableCellSelection_.endChar = charPos;
+
+                        tableHighlightDelegate_->setPortionSelection(
+                            tableCellSelection_.row, tableCellSelection_.column,
+                            tableCellSelection_.startChar, tableCellSelection_.endChar );
+                        logTableView_->viewport()->update();
+                    }
+                }
+                break;
+            }
+
+            case QEvent::MouseButtonRelease: {
+                const auto* me = static_cast<QMouseEvent*>( event );
+                if ( me->button() == Qt::LeftButton && tableSelectionDragging_ ) {
+                    tableSelectionDragging_ = false;
+                    // If start == end, it was just a click, not a drag — clear portion
+                    if ( tableCellSelection_.startChar == tableCellSelection_.endChar ) {
+                        tableCellSelection_.clear();
+                        tableHighlightDelegate_->clearPortionSelection();
+                        logTableView_->viewport()->update();
+                    }
+                }
+                break;
+            }
+
+            case QEvent::MouseButtonDblClick: {
+                const auto* me = static_cast<QMouseEvent*>( event );
+                if ( me->button() == Qt::LeftButton ) {
+                    const auto index = logTableView_->indexAt( me->pos() );
+                    if ( index.isValid() ) {
+                        const int charPos = tableCellCharAtX( index, me->pos().x() );
+                        tableSelectWordAt( index, charPos );
+                        return true; // Consume to prevent default editing
+                    }
+                }
+                break;
+            }
+
+            case QEvent::Leave: {
+                // Clear hover when mouse leaves the viewport
+                if ( tableHoverRow_ >= 0 ) {
+                    tableHoverRow_ = -1;
+                    tableHighlightDelegate_->clearHoverRow();
+                    logTableView_->viewport()->update();
+                }
+                break;
+            }
+
+            default:
+                break;
+            }
+        }
+    }
+
+    // Handle keyboard shortcuts for the table view
+    if ( logTableView_ && tableViewActive_ && obj == logTableView_
+         && event->type() == QEvent::KeyPress ) {
+        const auto* keyEvent = static_cast<QKeyEvent*>( event );
+        if ( keyEvent->matches( QKeySequence::Copy ) ) {
+            copyTableSelection();
+            return true;
+        }
+        // 'm' to mark/unmark lines (same as text view)
+        if ( keyEvent->key() == Qt::Key_M && keyEvent->modifiers() == Qt::NoModifier ) {
+            markTableSelection();
+            return true;
+        }
+        // Home = jump to first row, End = jump to last row
+        if ( keyEvent->key() == Qt::Key_Home && keyEvent->modifiers() == Qt::ControlModifier ) {
+            if ( tableModel_ && tableModel_->rowCount() > 0 ) {
+                logTableView_->scrollToTop();
+                logTableView_->selectRow( 0 );
+            }
+            return true;
+        }
+        if ( keyEvent->key() == Qt::Key_End && keyEvent->modifiers() == Qt::ControlModifier ) {
+            if ( tableModel_ && tableModel_->rowCount() > 0 ) {
+                logTableView_->scrollToBottom();
+                logTableView_->selectRow( tableModel_->rowCount() - 1 );
+            }
+            return true;
+        }
+    }
+
+    return QSplitter::eventFilter( obj, event );
+}
+
+// Convert a pixel X position to a character index within a table cell.
+int CrawlerWidget::tableCellCharAtX( const QModelIndex& index, int pixelX ) const
+{
+    const auto cellText = index.data( Qt::DisplayRole ).toString();
+    if ( cellText.isEmpty() ) {
+        return 0;
+    }
+
+    const auto cellRect = logTableView_->visualRect( index );
+    // 4px left padding matches the delegate
+    const int textLeft = cellRect.left() + 4;
+    const int relativeX = pixelX - textLeft;
+
+    if ( relativeX <= 0 ) {
+        return 0;
+    }
+
+    const QFontMetrics fm( logTableView_->font() );
+
+    const int textLen = static_cast<int>( cellText.size() );
+
+    // Binary search for the character position
+    for ( int i = 1; i <= textLen; ++i ) {
+        const int charRight = fm.horizontalAdvance( cellText.left( i ) );
+        if ( relativeX < charRight ) {
+            // Check if click is closer to left or right edge of this character
+            const int charLeft = fm.horizontalAdvance( cellText.left( i - 1 ) );
+            return ( relativeX - charLeft < charRight - relativeX ) ? i - 1 : i;
+        }
+    }
+    return textLen;
+}
+
+// Select the word at the given character position in a table cell.
+void CrawlerWidget::tableSelectWordAt( const QModelIndex& index, int charPos )
+{
+    const auto cellText = index.data( Qt::DisplayRole ).toString();
+    if ( cellText.isEmpty() ) {
+        return;
+    }
+
+    const int textLen = static_cast<int>( cellText.size() );
+
+    // Clamp charPos to valid range
+    charPos = std::clamp( charPos, 0, textLen - 1 );
+
+    // Find word boundaries (alphanumeric + underscore)
+    int start = charPos;
+    int end = charPos;
+
+    while ( start > 0 && ( cellText[ start - 1 ].isLetterOrNumber()
+                           || cellText[ start - 1 ] == '_' ) ) {
+        --start;
+    }
+    while ( end < textLen && ( cellText[ end ].isLetterOrNumber()
+                               || cellText[ end ] == '_' ) ) {
+        ++end;
+    }
+
+    if ( start == end ) {
+        // No word found at position, select the single character
+        end = std::min( start + 1, textLen );
+    }
+
+    tableCellSelection_.active = true;
+    tableCellSelection_.row = index.row();
+    tableCellSelection_.column = index.column();
+    tableCellSelection_.startChar = start;
+    tableCellSelection_.endChar = end;
+
+    tableHighlightDelegate_->setPortionSelection( index.row(), index.column(), start, end );
+    logTableView_->viewport()->update();
+}
+
+// ── Table view feature implementations ──────────────────────────────────────
+
+// Position and update the overview (minimap) widget beside the table view.
+// Mirrors what AbstractLogView::refreshOverview / updateDisplaySize do.
+void CrawlerWidget::updateTableOverview()
+{
+    if ( !tableOverviewWidget_ || !logTableView_ ) {
+        return;
+    }
+
+    const bool shouldShow = tableViewActive_ && overview_.isVisible();
+    if ( !shouldShow ) {
+        tableOverviewWidget_->hide();
+        return;
+    }
+
+    static constexpr int OverviewWidth = 27;
+
+    // Place the overview widget at the right edge of the table view,
+    // spanning the full height below the header.
+    const int headerHeight = logTableView_->horizontalHeader()->isVisible()
+                                 ? logTableView_->horizontalHeader()->height()
+                                 : 0;
+    const int tableWidth = logTableView_->width();
+    const int tableHeight = logTableView_->height();
+    const int overviewHeight = tableHeight - headerHeight;
+
+    if ( overviewHeight <= 0 ) {
+        tableOverviewWidget_->hide();
+        return;
+    }
+
+    tableOverviewWidget_->setGeometry(
+        tableWidth - OverviewWidth - 1, headerHeight, OverviewWidth, overviewHeight );
+    tableOverviewWidget_->show();
+    tableOverviewWidget_->raise();
+
+    // Update the current-view position indicator in the overview
+    if ( tableModel_ ) {
+        const auto* vbar = logTableView_->verticalScrollBar();
+        const int firstVisibleRow = vbar->value();
+        const int rowHeight = logTableView_->verticalHeader()->defaultSectionSize();
+        const int visibleRows = ( rowHeight > 0 ) ? ( overviewHeight / rowHeight ) : 1;
+        const int lastVisibleRow = firstVisibleRow + visibleRows;
+
+        overview_.updateCurrentPosition(
+            LineNumber( static_cast<uint64_t>( firstVisibleRow ) ),
+            LineNumber( static_cast<uint64_t>( lastVisibleRow ) ) );
+    }
+
+    tableOverviewWidget_->update();
+}
+
+// Handle a click on the table overview — jump to the corresponding row.
+void CrawlerWidget::tableOverviewLineClicked( LineNumber line )
+{
+    if ( !logTableView_ || !tableModel_ ) {
+        return;
+    }
+
+    const auto row = static_cast<int>( line.get() );
+    if ( row >= 0 && row < tableModel_->rowCount() ) {
+        const auto idx = tableModel_->index( row, 0 );
+        logTableView_->scrollTo( idx, QAbstractItemView::PositionAtCenter );
+        logTableView_->selectRow( row );
+    }
+}
+
+// Handle selection change in the table view: update the text view and
+// filtered view to show the same line (just like the text view does).
+void CrawlerWidget::tableViewSelectionChanged()
+{
+    if ( !logTableView_ || !tableModel_ ) {
+        return;
+    }
+
+    const auto indexes = logTableView_->selectionModel()->selectedRows();
+    if ( indexes.isEmpty() ) {
+        return;
+    }
+
+    const auto row = indexes.first().row();
+    const auto lineNumber = LineNumber( static_cast<uint64_t>( row ) );
+
+    // Update the current line tracking (same as updateLineNumberHandler)
+    currentLineNumber_ = lineNumber;
+    Q_EMIT newSelection( lineNumber, 1_lcount, 0_lcol, 0_length );
+
+    // Keep the text view in sync so switching back shows the same line
+    logMainView_->selectAndDisplayLine( lineNumber );
+
+    // If there is a match in the filtered view, select it there too
+    if ( logFilteredData_ && logFilteredData_->getNbLine().get() > 0 ) {
+        const auto filteredIndex = logFilteredData_->getLineIndexNumber( lineNumber );
+        if ( filteredIndex < logFilteredData_->getNbLine() ) {
+            filteredView_->selectAndDisplayLine( filteredIndex );
+        }
+    }
+
+    // Refresh the overview position indicator
+    updateTableOverview();
+}
+
+// Show a context menu when the user right-clicks the table view.
+void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
+{
+    if ( !logTableView_ ) {
+        return;
+    }
+
+    const auto indexes = logTableView_->selectionModel()->selectedRows();
+    const bool hasSelection = !indexes.isEmpty();
+
+    // Find the cell the user right-clicked on
+    const auto clickedIdx = logTableView_->indexAt( pos );
+    auto cellText = ( clickedIdx.isValid() && hasSelection )
+                        ? clickedIdx.data( Qt::DisplayRole ).toString()
+                        : QString{};
+
+    // Prefer the portion-selected text when a sub-cell selection is active
+    if ( tableCellSelection_.active
+         && tableCellSelection_.startChar != tableCellSelection_.endChar ) {
+        const auto selIdx = tableModel_->index( tableCellSelection_.row,
+                                                tableCellSelection_.column );
+        const auto selText
+            = tableCellSelection_.selectedText( selIdx.data( Qt::DisplayRole ).toString() );
+        if ( !selText.isEmpty() ) {
+            cellText = selText;
+        }
+    }
+
+    QMenu menu( logTableView_ );
+
+    // ── Highlighters submenu ──
+    auto* highlightersMenu = new HighlightersMenu( tr( "Highlighters" ), &menu );
+    highlightersMenu->createHighlightersMenu();
+    highlightersMenu->populateHighlightersMenu();
+    highlightersMenu->setApplyChange( [this]() {
+        logMainView_->update();
+        filteredView_->update();
+        if ( logTableView_ && tableViewActive_ ) {
+            logTableView_->viewport()->update();
+        }
+    } );
+    menu.addMenu( highlightersMenu );
+
+    // ── Color labels submenu ──
+    auto* colorLabelsMenu = menu.addMenu( tr( "Color labels" ) );
+    const bool hasText = !cellText.isEmpty();
+    colorLabelsMenu->setEnabled( hasText );
+    QActionGroup* colorLabelsActionGroup = nullptr;
+
+    if ( hasText ) {
+        colorLabelsActionGroup = new QActionGroup( &menu );
+
+        // Determine current label for the cell text
+        const auto& quickHighlighters
+            = HighlighterSetCollection::get().quickHighlighters();
+        const auto& currentLabels = colorLabelsManager_.colorLabels();
+        std::optional<size_t> currentLabel;
+        for ( size_t i = 0; i < currentLabels.size(); ++i ) {
+            if ( currentLabels[ i ].contains( cellText ) ) {
+                currentLabel = i;
+                break;
+            }
+        }
+
+        auto* noneAction = colorLabelsMenu->addAction( tr( "None" ) );
+        noneAction->setActionGroup( colorLabelsActionGroup );
+        noneAction->setCheckable( true );
+        noneAction->setChecked( !currentLabel.has_value() );
+        if ( currentLabel ) {
+            noneAction->setData( static_cast<unsigned>( *currentLabel ) );
+        }
+
+        colorLabelsMenu->addSeparator();
+        const auto maxLabel = std::min( currentLabels.size(),
+                                        static_cast<size_t>( quickHighlighters.size() ) );
+        for ( size_t i = 0; i < maxLabel; ++i ) {
+            const auto& cfg = quickHighlighters.at( static_cast<int>( i ) );
+            auto* action = colorLabelsMenu->addAction( cfg.name );
+            action->setActionGroup( colorLabelsActionGroup );
+            action->setCheckable( true );
+            action->setChecked( currentLabel == i );
+            action->setData( static_cast<unsigned>( i ) );
+
+            QPixmap pixmap( 20, 10 );
+            auto fillColor = cfg.color.backColor;
+            fillColor.setAlphaF( 1.0 );
+            pixmap.fill( fillColor );
+            action->setIcon( QIcon( pixmap ) );
+            action->setIconVisibleInMenu( true );
+        }
+        colorLabelsMenu->addSeparator();
+        auto* clearAllAction = colorLabelsMenu->addAction( tr( "Clear all" ) );
+        connect( clearAllAction, &QAction::triggered, this, &CrawlerWidget::clearColorLabels );
+
+        connect( colorLabelsActionGroup, &QActionGroup::triggered, this,
+                 [this, cellText]( QAction* action ) {
+                     if ( action->data().isValid() ) {
+                         updateColorLabels( colorLabelsManager_.setColorLabel(
+                             static_cast<size_t>( action->data().toInt() ), cellText ) );
+                     }
+                 } );
+    }
+
+    menu.addSeparator();
+
+    // ── Mark ──
+    auto* markAction = menu.addAction( hasSelection ? tr( "Mark / Unmark lines" ) : tr( "Mark" ) );
+    markAction->setEnabled( hasSelection );
+    connect( markAction, &QAction::triggered, this, &CrawlerWidget::markTableSelection );
+
+    menu.addSeparator();
+
+    // ── Copy ──
+    auto* copyAction = menu.addAction( tr( "Copy" ) );
+    copyAction->setShortcut( QKeySequence::Copy );
+    copyAction->setEnabled( hasSelection );
+    connect( copyAction, &QAction::triggered, this, &CrawlerWidget::copyTableSelection );
+
+    auto* copyWithLinesAction = menu.addAction( tr( "Copy with line numbers" ) );
+    copyWithLinesAction->setEnabled( hasSelection );
+    connect( copyWithLinesAction, &QAction::triggered, this,
+             &CrawlerWidget::copyTableSelectionWithLineNumbers );
+
+    // ── Scratchpad ──
+    auto* sendToScratchpadAction = menu.addAction( tr( "Send to scratchpad" ) );
+    sendToScratchpadAction->setEnabled( hasText );
+    connect( sendToScratchpadAction, &QAction::triggered, this,
+             [this, cellText]() { Q_EMIT sendToScratchpad( cellText ); } );
+
+    auto* replaceInScratchpadAction = menu.addAction( tr( "Replace scratchpad" ) );
+    replaceInScratchpadAction->setEnabled( hasText );
+    connect( replaceInScratchpadAction, &QAction::triggered, this,
+             [this, cellText]() { Q_EMIT replaceDataInScratchpad( cellText ); } );
+
+    menu.addSeparator();
+
+    // ── Search ──
+    if ( hasText ) {
+        const auto escapedCell = QRegularExpression::escape( cellText );
+
+        auto* replaceSearchAction
+            = menu.addAction( tr( "Replace search with \"%1\"" )
+                                  .arg( cellText.left( 30 ) ) );
+        connect( replaceSearchAction, &QAction::triggered, this,
+                 [this, escapedCell]() { replaceSearch( escapedCell ); } );
+
+        auto* addToSearchAction
+            = menu.addAction( tr( "Add \"%1\" to search" )
+                                  .arg( cellText.left( 30 ) ) );
+        connect( addToSearchAction, &QAction::triggered, this,
+                 [this, escapedCell]() { addToSearch( escapedCell ); } );
+
+        auto* excludeSearchAction
+            = menu.addAction( tr( "Exclude \"%1\" from search" )
+                                  .arg( cellText.left( 30 ) ) );
+        connect( excludeSearchAction, &QAction::triggered, this,
+                 [this, escapedCell]() { excludeFromSearch( escapedCell ); } );
+    }
+
+    menu.addSeparator();
+
+    // ── Splitter position ──
+    auto* saveSplitterAction = menu.addAction( tr( "Save splitter position" ) );
+    connect( saveSplitterAction, &QAction::triggered, this,
+             &CrawlerWidget::saveSplitterSizes );
+
+    // ── Save to file ──
+    auto* saveToFileAction = menu.addAction( tr( "Save to file" ) );
+    connect( saveToFileAction, &QAction::triggered, this, [this]() {
+        QMetaObject::invokeMethod( logMainView_, "saveToFile" );
+    } );
+
+    auto* saveSelectedToFileAction = menu.addAction( tr( "Save selected to file" ) );
+    saveSelectedToFileAction->setEnabled( hasSelection );
+    connect( saveSelectedToFileAction, &QAction::triggered, this, [this]() {
+        QMetaObject::invokeMethod( logMainView_, "saveSelectedToFile" );
+    } );
+
+    menu.exec( logTableView_->viewport()->mapToGlobal( pos ) );
+
+    highlightersMenu->clearHighlightersMenu();
+}
+
+// Copy selected table rows (display text, tab-separated columns) to clipboard.
+// If a portion (in-cell text) selection is active, copy only that portion.
+void CrawlerWidget::copyTableSelection()
+{
+    if ( !logTableView_ || !tableModel_ ) {
+        return;
+    }
+
+    // If there is an active portion selection, copy just that text
+    if ( tableCellSelection_.active && tableCellSelection_.startChar != tableCellSelection_.endChar ) {
+        const auto index = tableModel_->index( tableCellSelection_.row,
+                                               tableCellSelection_.column );
+        const auto cellText = index.data( Qt::DisplayRole ).toString();
+        const auto selected = tableCellSelection_.selectedText( cellText );
+        if ( !selected.isEmpty() ) {
+            QApplication::clipboard()->setText( selected );
+            return;
+        }
+    }
+
+    const auto rows = logTableView_->selectionModel()->selectedRows();
+    if ( rows.isEmpty() ) {
+        return;
+    }
+
+    QStringList lines;
+    lines.reserve( rows.size() );
+    const int colCount = tableModel_->columnCount();
+
+    for ( const auto& rowIdx : rows ) {
+        QStringList cells;
+        cells.reserve( colCount );
+        for ( int c = 0; c < colCount; ++c ) {
+            cells << tableModel_->index( rowIdx.row(), c ).data( Qt::DisplayRole ).toString();
+        }
+        lines << cells.join( '\t' );
+    }
+
+    QApplication::clipboard()->setText( lines.join( '\n' ) );
+}
+
+// Copy selected table rows with line numbers prepended.
+void CrawlerWidget::copyTableSelectionWithLineNumbers()
+{
+    if ( !logTableView_ || !tableModel_ ) {
+        return;
+    }
+
+    const auto rows = logTableView_->selectionModel()->selectedRows();
+    if ( rows.isEmpty() ) {
+        return;
+    }
+
+    QStringList lines;
+    lines.reserve( rows.size() );
+    const int colCount = tableModel_->columnCount();
+
+    for ( const auto& rowIdx : rows ) {
+        // 1-based line number
+        const auto lineNum = rowIdx.row() + 1;
+        QStringList cells;
+        cells.reserve( colCount );
+        for ( int c = 0; c < colCount; ++c ) {
+            cells << tableModel_->index( rowIdx.row(), c ).data( Qt::DisplayRole ).toString();
+        }
+        lines << QString( "%1\t%2" ).arg( lineNum ).arg( cells.join( '\t' ) );
+    }
+
+    QApplication::clipboard()->setText( lines.join( '\n' ) );
+}
+
+// Mark or unmark the selected table rows.
+void CrawlerWidget::markTableSelection()
+{
+    if ( !logTableView_ ) {
+        return;
+    }
+
+    const auto rows = logTableView_->selectionModel()->selectedRows();
+    if ( rows.isEmpty() ) {
+        return;
+    }
+
+    logsquirl::vector<LineNumber> linesToMark;
+    linesToMark.reserve( static_cast<size_t>( rows.size() ) );
+    for ( const auto& rowIdx : rows ) {
+        linesToMark.push_back( LineNumber( static_cast<uint64_t>( rowIdx.row() ) ) );
+    }
+
+    markLinesFromMain( linesToMark );
+
+    // Repaint so mark colors update
+    logTableView_->viewport()->update();
 }

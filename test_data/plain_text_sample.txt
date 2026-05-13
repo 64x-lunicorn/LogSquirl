@@ -1,0 +1,5 @@
+This is a plain text file with no log format.
+Just some random lines of text.
+Nothing structured here at all.
+Another line without any timestamp or level.
+Yet more unstructured content.

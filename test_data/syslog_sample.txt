@@ -1,0 +1,10 @@
+Jan  5 14:32:01 myhost sshd[12345]: Accepted publickey for user from 192.168.1.100 port 52413 ssh2
+Jan  5 14:32:01 myhost sshd[12345]: pam_unix(sshd:session): session opened for user by (uid=0)
+Jan  5 14:32:05 myhost systemd[1]: Started Session 42 of user.
+Jan  5 14:33:12 myhost kernel: [UFW BLOCK] IN=eth0 OUT= MAC=00:11:22:33:44:55 SRC=10.0.0.1
+Jan  5 14:33:15 myhost cron[9876]: (root) CMD (/usr/local/bin/backup.sh)
+Jan  5 14:34:00 myhost postfix/smtpd[11111]: connect from unknown[192.168.2.50]
+Jan  5 14:34:01 myhost postfix/smtpd[11111]: disconnect from unknown[192.168.2.50]
+Jan  5 14:35:22 myhost sshd[12345]: error: Could not load host key: /etc/ssh/ssh_host_ed25519_key
+Jan  5 14:36:00 myhost dhclient[2222]: DHCPREQUEST on eth0 to 10.0.0.1 port 67
+Jan  5 14:36:01 myhost dhclient[2222]: DHCPACK from 10.0.0.1

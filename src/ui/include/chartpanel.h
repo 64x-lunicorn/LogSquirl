@@ -19,9 +19,14 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 
+#include <QFutureWatcher>
+#include <QMenu>
+#include <QProgressBar>
 #include <QToolBar>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -29,6 +34,7 @@
 #include "chartwidget.h"
 
 class LogData;
+class LogFormatDefinition;
 class QAction;
 class QComboBox;
 
@@ -43,9 +49,14 @@ class ChartPanel : public QWidget {
 
   public:
     explicit ChartPanel( QWidget* parent = nullptr );
+    ~ChartPanel() override;
 
     // Assign the log data source.  Must be called before extractData().
     void setLogData( const std::shared_ptr<LogData>& logData );
+
+    // Provide the detected log format definition so the panel can offer
+    // format-aware quick-add templates.  Pass nullptr to clear.
+    void setLogFormat( const LogFormatDefinition* format );
 
     // Re-scan the log file for all series and refresh the chart.
     void extractData();
@@ -67,6 +78,7 @@ class ChartPanel : public QWidget {
 
   private Q_SLOTS:
     void addSeries();
+    void addSeriesWizard();
     void editSeries();
     void removeSeries();
     void fitView();
@@ -81,12 +93,23 @@ class ChartPanel : public QWidget {
 
   private:
     void rebuildSeriesCombo();
+    void rebuildTemplatesMenu();
+    void addTemplateSeries( const QVector<ChartSeriesDefinition>& defs );
+
+    // Run the heavy regex extraction in a background thread.
+    // Populates each series' points vector and performs bucketing.
+    // Cancels any previously running extraction first.
+    void startAsyncExtraction();
+    void onExtractionFinished();
+    void cancelExtraction();
 
     ChartWidget* chartWidget_;
     QToolBar* toolBar_;
+    QProgressBar* progressBar_;
     QComboBox* seriesCombo_;
 
     QAction* addAction_;
+    QAction* wizardAction_;
     QAction* editAction_;
     QAction* removeAction_;
     QAction* fitAction_;
@@ -97,6 +120,16 @@ class ChartPanel : public QWidget {
     QAction* exportPresetAction_;
     QAction* importPresetAction_;
 
+    // Format-aware templates
+    QToolButton* templatesButton_ = nullptr;
+    QMenu* templatesMenu_ = nullptr;
+
     QVector<ChartSeriesDefinition> series_;
     std::shared_ptr<LogData> logData_;
+    const LogFormatDefinition* format_ = nullptr;
+
+    // Async extraction state
+    QFutureWatcher<QVector<ChartSeriesDefinition>> extractionWatcher_;
+    std::shared_ptr<std::atomic<bool>> cancelFlag_;
+    QMetaObject::Connection progressConnection_;
 };

@@ -23,6 +23,7 @@
 
 #include "chartseries.h"
 
+class LogFormatDefinition;
 class QCheckBox;
 class QColorDialog;
 class QComboBox;
@@ -41,6 +42,10 @@ class ChartSeriesDialog : public QDialog {
 
     // Pre-populate the dialog fields for editing an existing series.
     void setSeries( const ChartSeriesDefinition& def );
+
+    // Pre-fill X-axis fields from a detected log format so the user
+    // doesn't have to type the timestamp regex and format manually.
+    void setFormatDefaults( const LogFormatDefinition* format );
 
     // Return the configured series definition.
     ChartSeriesDefinition series() const;

@@ -399,3 +399,58 @@ SCENARIO( "Configuration plugin settings round-trip", "[configuration][plugins]"
         }
     }
 }
+
+SCENARIO( "Log format settings default values", "[configuration]" )
+{
+    GIVEN( "A freshly constructed Configuration" )
+    {
+        Configuration config;
+
+        THEN( "Auto-detect log formats is disabled by default" )
+        {
+            REQUIRE_FALSE( config.autoDetectLogFormats() );
+        }
+
+        THEN( "Auto-show table view is disabled by default" )
+        {
+            REQUIRE_FALSE( config.autoShowTableView() );
+        }
+    }
+}
+
+SCENARIO( "Log format settings round-trip through QSettings", "[configuration]" )
+{
+    GIVEN( "A temporary settings file" )
+    {
+        QTemporaryDir tmpDir;
+        REQUIRE( tmpDir.isValid() );
+        const auto tmpPath = tmpDir.path() + "/test_logformat.ini";
+
+        WHEN( "Log format settings are saved and restored" )
+        {
+            {
+                Configuration config;
+                config.setAutoDetectLogFormats( true );
+                config.setAutoShowTableView( true );
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                config.saveToStorage( settings );
+            }
+
+            Configuration restored;
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                restored.retrieveFromStorage( settings );
+            }
+
+            THEN( "Auto-detect is preserved" )
+            {
+                REQUIRE( restored.autoDetectLogFormats() );
+            }
+
+            THEN( "Auto-show table view is preserved" )
+            {
+                REQUIRE( restored.autoShowTableView() );
+            }
+        }
+    }
+}
