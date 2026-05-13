@@ -1042,6 +1042,86 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="logFormatsTab">
+      <attribute name="title">
+       <string>Log Formats</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="logFormatsLayout">
+       <item>
+        <widget class="QCheckBox" name="autoDetectLogFormatsCheckBox">
+         <property name="text">
+          <string>Auto-detect log format (table view)</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="autoShowTableViewCheckBox">
+         <property name="text">
+          <string>Automatically switch to table view when format is detected</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="availableFormatsLabel">
+         <property name="text">
+          <string>Available Formats:</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="formatsTreeWidget">
+         <property name="alternatingRowColors">
+          <bool>true</bool>
+         </property>
+         <property name="rootIsDecorated">
+          <bool>false</bool>
+         </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <property name="sortingEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::NoEditTriggers</set>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::NoSelection</enum>
+         </property>
+         <column>
+          <property name="text">
+           <string>Name</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Description</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="openFormatsFolderButton">
+         <property name="text">
+          <string>Open Formats Folder…</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="logFormatsVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>

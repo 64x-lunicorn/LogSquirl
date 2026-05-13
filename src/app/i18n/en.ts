@@ -323,13 +323,13 @@
     </message>
     <message>
         <location filename="../../ui/include/highlighteredit.ui" line="104"/>
-        <source>Fore Color: </source>
-        <translation>Fore Color: </translation>
+        <source>Text Color: </source>
+        <translation>Text Color: </translation>
     </message>
     <message>
         <location filename="../../ui/include/highlighteredit.ui" line="125"/>
-        <source>Back Color: </source>
-        <translation>Back Color: </translation>
+        <source>Background Color: </source>
+        <translation>Background Color: </translation>
     </message>
     <message>
         <location filename="../../ui/src/highlighteredit.cpp" line="37"/>
@@ -430,13 +430,13 @@
     </message>
     <message>
         <location filename="../../ui/include/highlightersdialog.ui" line="192"/>
-        <source>Fore color</source>
-        <translation>Fore color</translation>
+        <source>Text color</source>
+        <translation>Text color</translation>
     </message>
     <message>
         <location filename="../../ui/include/highlightersdialog.ui" line="202"/>
-        <source>Back color</source>
-        <translation>Back color</translation>
+        <source>Background color</source>
+        <translation>Background color</translation>
     </message>
     <message>
         <location filename="../../ui/include/highlightersdialog.ui" line="209"/>

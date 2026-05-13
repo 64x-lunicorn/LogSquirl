@@ -382,6 +382,13 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         = settings.value( "view.toolbarIconSize", DefaultConfiguration.toolbarIconSize_ )
               .toInt();
 
+    autoDetectLogFormats_
+        = settings.value( "logformat.autoDetect", DefaultConfiguration.autoDetectLogFormats_ )
+              .toBool();
+    autoShowTableView_
+        = settings.value( "logformat.autoShowTable", DefaultConfiguration.autoShowTableView_ )
+              .toBool();
+
     pluginsAutoLoad_
         = settings.value( "plugins.autoLoad", DefaultConfiguration.pluginsAutoLoad_ ).toBool();
     enabledPlugins_
@@ -507,6 +514,9 @@ void Configuration::saveToStorage( QSettings& settings ) const
     settings.setValue( "view.showSplashScreen", showSplashScreen_ );
     settings.setValue( "view.showDashboard", showDashboard_ );
     settings.setValue( "view.toolbarIconSize", toolbarIconSize_ );
+
+    settings.setValue( "logformat.autoDetect", autoDetectLogFormats_ );
+    settings.setValue( "logformat.autoShowTable", autoShowTableView_ );
 
     settings.setValue( "plugins.autoLoad", pluginsAutoLoad_ );
     settings.setValue( "plugins.enabledPlugins", enabledPlugins_ );

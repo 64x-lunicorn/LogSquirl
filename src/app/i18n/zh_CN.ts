@@ -323,12 +323,12 @@
     </message>
     <message>
         <location filename="../../ui/include/highlighteredit.ui" line="104"/>
-        <source>Fore Color: </source>
-        <translation>前景色: </translation>
+        <source>Text Color: </source>
+        <translation>文字颜色: </translation>
     </message>
     <message>
         <location filename="../../ui/include/highlighteredit.ui" line="125"/>
-        <source>Back Color: </source>
+        <source>Background Color: </source>
         <translation>背景色: </translation>
     </message>
     <message>
@@ -430,12 +430,12 @@
     </message>
     <message>
         <location filename="../../ui/include/highlightersdialog.ui" line="192"/>
-        <source>Fore color</source>
-        <translation>前景色</translation>
+        <source>Text color</source>
+        <translation>文字颜色</translation>
     </message>
     <message>
         <location filename="../../ui/include/highlightersdialog.ui" line="202"/>
-        <source>Back color</source>
+        <source>Background color</source>
         <translation>背景色</translation>
     </message>
     <message>

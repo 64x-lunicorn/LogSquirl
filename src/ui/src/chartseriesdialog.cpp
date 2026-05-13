@@ -34,6 +34,9 @@
 #include <QUuid>
 #include <QVBoxLayout>
 
+#include "charttemplategenerator.h"
+#include "logformatdefinition.h"
+
 ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     : QDialog( parent )
 {
@@ -170,6 +173,57 @@ void ChartSeriesDialog::setSeries( const ChartSeriesDefinition& def )
             }
         }
     }
+}
+
+void ChartSeriesDialog::setFormatDefaults( const LogFormatDefinition* format )
+{
+    if ( !format ) {
+        return;
+    }
+
+    // Only pre-fill when the X-axis section has not been manually configured.
+    if ( xAxisGroup_->isChecked() ) {
+        return;
+    }
+
+    const auto& tsField = format->timestampField();
+    if ( tsField.isEmpty() ) {
+        return;
+    }
+
+    // Find a Qt-compatible timestamp format.
+    QString qtFmt;
+    for ( const auto& fmt : format->timestampFormats() ) {
+        qtFmt = ChartTemplateGenerator::strftimeToQtFormat( fmt );
+        if ( !qtFmt.isEmpty() ) {
+            break;
+        }
+    }
+    if ( qtFmt.isEmpty() ) {
+        return;
+    }
+
+    // Find a regex pattern that contains the timestamp group.
+    const auto xPattern
+        = ChartTemplateGenerator::patternContainingGroup( *format, tsField );
+    if ( xPattern.isEmpty() ) {
+        return;
+    }
+
+    const int tsGroupIdx
+        = ChartTemplateGenerator::namedGroupIndex( xPattern, tsField );
+    if ( tsGroupIdx < 1 ) {
+        return;
+    }
+
+    // Pre-populate the X-axis fields.
+    xAxisGroup_->setChecked( true );
+    xPatternEdit_->setText( xPattern );
+    xCaptureGroupSpin_->setValue( tsGroupIdx );
+    xTimestampCheckbox_->setChecked( true );
+    xTimestampFormatEdit_->setText( qtFmt );
+    bucketSizeCombo_->setCurrentIndex(
+        bucketSizeCombo_->findData( 1000 ) ); // default 1 second
 }
 
 ChartSeriesDefinition ChartSeriesDialog::series() const

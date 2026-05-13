@@ -1,7 +1,47 @@
 
-# 26.05.0-beta1 (2026-04-29)
+# 26.05.0-beta2 (2026-05-13)
 
 ## New features:
+ - **Chart Panel — Format-Aware Templates**: When a log format is auto-detected,
+   the Chart Panel now shows a **Templates** button in the toolbar with
+   pre-configured chart series that can be added with a single click:
+   - **Log Level Distribution**: One count-mode series per known log level
+     (error, warning, notice, …) with configurable time buckets (1 s, 5 s, 1 min).
+   - **Message Rate**: Count all matching lines over time (per second, per 5 s,
+     per 10 s, or per minute).
+   - **Numeric Fields**: Automatically extract integer/float fields defined in
+     the format as value series.
+   - **Field Occurrence**: Count-mode series for each non-hidden field.
+   - The **X-axis is automatically configured** with the format's timestamp regex
+     and timestamp format — no manual regex input needed.
+   - The **"+ Add Series" dialog** also pre-fills X-axis timestamp fields when
+     a format is detected, so manually created series get timestamp support
+     for free.
+   - Works in both **text view and table view** — format detection feeds the
+     chart panel regardless of which view mode is active.
+   - Supports all built-in and user-defined format definitions.
+   - strftime/lnav timestamp formats are automatically converted to Qt format
+     strings (`%Y-%m-%d` → `yyyy-MM-dd`, `%L` → `zzz`, etc.).
+ - **Auto Log Format Detection**: Automatically detect log formats (lnav-compatible)
+   and display logs in a structured table view with columns for timestamp, level,
+   and other fields. Supports 24 built-in format definitions. Toggle between
+   text and table view with a toolbar button. User-defined format files can be
+   placed in the platform data directory
+   (`~/.local/share/logsquirl/formats/` on Linux,
+   `~/Library/Application Support/LogSquirl/formats/` on macOS,
+   `%APPDATA%/LogSquirl/formats/` on Windows). Enable via Options → Log Formats →
+   "Auto-detect log format (table view)". Available formats are listed in the
+   same tab, and the user formats folder can be opened directly from there.
+   - Columns are auto-sized by sampling up to 2000 rows to ensure all cell
+     content is fully visible without clipping.
+   - Column order matches the order capture groups appear in the format's regex,
+     so columns reflect the original log line layout.
+   - Full-fidelity highlighting: search matches, marks, highlighter sets, quickfind
+     results, and color labels are rendered in the table view using a custom
+     `LogTableHighlightDelegate`.
+   - Pixel-level horizontal scrolling with a smooth scroll step.
+   - The last column stretches to fill the viewport when content is narrower
+     than the view, and shrinks back when scrolling is needed.
  - **Native title bar theming**: The OS window chrome (macOS traffic lights,
    Windows title bar) now matches the active theme.  Uses
    `QStyleHints::setColorScheme()` (Qt 6.8+) for cross-platform support.
@@ -122,6 +162,46 @@
    rounded handles and hover highlighting.
 
 ## Bug fixes:
+ - **Table view extremely slow on large files**: `populateTableModel()` read ALL
+   lines into a `QStringList` and then regex-extracted every row upfront, making
+   the table view unusable on files with hundreds of thousands of lines.
+   The model is now virtual/lazy — it stores a pointer to `AbstractLogData` and
+   extracts fields on demand in `data()` with an LRU cache (2000 rows).
+ - **Table view column order ignored JSON definition**: Value field columns were
+   always sorted alphabetically, ignoring the order defined in the format JSON.
+   Column order is now derived from the regex capture group order, which is
+   deterministic and matches the order fields appear in the log line.
+   Alphabetical sort is used as a fallback when no explicit order is defined.
+ - **Table view missing highlighting**: Search matches, marks, highlighter sets,
+   quickfind results, and color labels were not rendered in the table view.
+   Added a custom `LogTableHighlightDelegate` that paints row-level match/mark
+   backgrounds and cell-level text highlighting consistent with the main log view.
+ - **Table view missing horizontal scrollbar**: The table view had no horizontal
+   scrollbar, making it impossible to see columns that extended beyond the viewport.
+   Added `ScrollBarAsNeeded` policy with pixel-level horizontal scrolling and a
+   controlled single-step of 10 px per scroll tick.
+ - **Table view horizontal scroll too fast**: `ScrollPerPixel` mode with the default
+   single step caused the table to scroll much faster horizontally than other views.
+   Set `horizontalScrollBar()->setSingleStep(10)` for consistent scroll speed.
+ - **Table view columns clipped after reopening file**: Programmatic column width
+   changes (auto-sizing, last-column stretching) triggered `saveTableColumnWidths()`,
+   persisting inflated widths. On next load these stale widths were restored,
+   causing content to be clipped. Added a `programmaticColumnResize_` guard so only
+   user-initiated resizes are persisted. Column widths are now always auto-sized
+   from actual data on load.
+ - **Table view column order non-deterministic**: `LogFieldExtractor::columnNames()`
+   iterated over a `QHash` which has random iteration order in Qt 6, causing
+   column layout to change between restarts and breaking saved column widths.
+   Value definition columns are now sorted alphabetically.
+ - **Table view recompiled regex per row**: `LogFormatTableModel::extractRow()`
+   created a new `LogFieldExtractor` on every call, recompiling all regex patterns.
+   Now reuses the member extractor for significantly better performance on large files.
+ - **Hidden fields shown as table columns**: Fields marked `hidden: true` in lnav
+   format definitions were still displayed as table columns. They are now excluded
+   from `columnNames()` but remain extractable via `extractFields()`.
+ - **opid-field missing from table columns**: Formats defining an `opid-field`
+   (e.g. syslog's `log_syslog_tag`) never had that field appear in the table view.
+   The operation-id field is now included in `columnNames()` alongside `thread-id`.
  - **Text clipping in log view**: `getNbVisibleCols()` double-subtracted the
    vertical scrollbar width from the viewport, causing text to be clipped
    too early on the right side.  Qt's `viewport()->width()` already excludes

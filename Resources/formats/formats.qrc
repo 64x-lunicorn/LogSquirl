@@ -1,0 +1,28 @@
+<RCC>
+    <qresource prefix="/formats">
+        <file>access_log.json</file>
+        <file>bunyan_log.json</file>
+        <file>cups_log.json</file>
+        <file>dpkg_log.json</file>
+        <file>env_logger_log.json</file>
+        <file>error_log.json</file>
+        <file>glog_log.json</file>
+        <file>haproxy_log.json</file>
+        <file>idea_log.json</file>
+        <file>java_log.json</file>
+        <file>laravel_log.json</file>
+        <file>logcat_log.json</file>
+        <file>mysql_error_log.json</file>
+        <file>openstack_log.json</file>
+        <file>pino_log.json</file>
+        <file>postgres_log.json</file>
+        <file>rails_log.json</file>
+        <file>redis_log.json</file>
+        <file>s3_log.json</file>
+        <file>spdlog_log.json</file>
+        <file>strace_log.json</file>
+        <file>syslog_log.json</file>
+        <file>uwsgi_log.json</file>
+        <file>zookeeper_log.json</file>
+    </qresource>
+</RCC>

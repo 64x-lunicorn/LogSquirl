@@ -4,6 +4,8 @@
 
 1. [Getting started](#Getting-started)
 1. [Exploring log files](#Exploring-log-files)
+   - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
+   - [Chart Panel](#chart-panel)
 1. [Settings](#Settings)
 1. [Keyboard commands](#Keyboard-commands)
 1. [Command line options](#Command-line-options)
@@ -226,6 +228,125 @@ will remove all color labels.
 
 The colors that are used for text highlight can be configured from the color labels
 tab of highlighters configuration dialog.
+
+### Auto Log Format Detection (Table View)
+
+*logsquirl* can automatically detect the format of a log file and display it
+in a structured **table view** with separate columns for each field (timestamp,
+level, body, and any custom fields defined by the format).
+
+#### Enabling the feature
+
+Enable auto-detection in **Options → Log Formats → "Auto-detect log format
+(table view)"**. The same tab shows a scrollable list of all available format
+definitions (built-in and user-defined) and provides an "Open Formats Folder…"
+button to quickly access the user formats directory.
+
+When enabled, *logsquirl* samples the first lines of each
+opened file and matches them against its library of format definitions. If a
+format matches, a table-view toggle button appears in the toolbar. Click it
+to switch between the classic text view and the table view.
+
+#### Format definitions
+
+Format definitions are JSON files compatible with the
+[lnav](https://lnav.org/) log format specification. Each file describes one
+or more formats with:
+
+- **Regex patterns** — named capture groups define the fields
+  (e.g. `(?<timestamp>...)`, `(?<level>...)`, `(?<body>...)`).
+- **Value definitions** — metadata for custom fields (kind, hidden flag,
+  identifier flag).
+- **Timestamp format** — strftime-style pattern for parsing the timestamp
+  field.
+- **Level mapping** — maps format-specific level strings to standard
+  severity levels.
+
+*logsquirl* ships with 24 built-in format definitions. Additional user-defined
+formats can be placed in the platform data directory:
+
+| Platform  | Path                                                     |
+|-----------|----------------------------------------------------------|
+| Linux     | `~/.local/share/logsquirl/formats/`                      |
+| macOS     | `~/Library/Application Support/LogSquirl/formats/`       |
+| Windows   | `%APPDATA%/LogSquirl/formats/`                            |
+
+#### Column order
+
+Columns appear in the order their corresponding named capture groups are
+defined in the format's regex pattern. This means the table layout matches
+the structure of the original log line. If no explicit order can be
+determined, columns fall back to alphabetical order.
+
+#### Column sizing
+
+Columns are auto-sized by measuring the actual text content of up to 2000
+rows using the view's font metrics. This ensures that cell content — including
+very long body messages — is never clipped. When the total column width is
+narrower than the viewport, the last column stretches to fill the remaining
+space. A horizontal scrollbar appears automatically when columns exceed the
+viewport width.
+
+#### Highlighting in the table view
+
+The table view renders the same highlighting as the main text view:
+
+- **Search matches and marks** — matched/marked rows receive tinted
+  backgrounds.
+- **Highlighter sets** — the active highlighter set is applied per cell,
+  coloring matching text segments with the configured foreground and
+  background colors.
+- **Color labels** — quick highlight rules are rendered in each cell.
+- **QuickFind** — interactive search results are highlighted in real time.
+
+#### Non-matching lines
+
+Lines that do not match the detected format's regex are displayed in the
+**body** column with all other columns empty. This ensures no data is lost
+in the table view.
+
+### Chart Panel
+
+The Chart Panel lets you plot numeric values extracted from log lines using
+regex capture groups.  Toggle it from the **View** menu or the toolbar.
+
+#### Format-aware templates
+
+When a log format is auto-detected the Chart Panel toolbar shows a
+**Templates** button.  Clicking it opens a menu with pre-configured series
+that can be added with a single click:
+
+- **Log Level Distribution** — one count-mode series per known log level
+  (error, warning, notice, …) with selectable time buckets (1 s, 5 s, 1 min).
+- **Message Rate** — count all matching lines over time (per second, 5 s,
+  10 s, or minute).
+- **Numeric Fields** — extract integer or float fields defined in the
+  format as value series.
+- **Field Occurrence** — count-mode series for each non-hidden custom field.
+
+All templates automatically configure the X-axis with the format's
+timestamp regex and parse format, so you get a time-based chart without
+any manual configuration.
+
+The **"+ Add Series" dialog** also pre-fills the X-axis timestamp fields
+when a format is detected, making manual series creation easier.
+
+Templates work in both **text view and table view** — format detection
+feeds the chart panel regardless of which view mode is active.  They
+support all built-in and user-defined format definitions.
+
+#### Manual series
+
+You can still create custom series with the **+ Add Series** button.
+Each series requires a regex pattern with at least one capture group for
+the Y value (or capture group 0 for count mode).  An optional X-axis
+section lets you extract X values from a separate regex, parse them as
+timestamps, and aggregate into time buckets.
+
+#### Presets
+
+Series configurations can be saved, loaded, deleted, exported, and
+imported via the toolbar buttons.
 
 ### Browsing changing log files
 

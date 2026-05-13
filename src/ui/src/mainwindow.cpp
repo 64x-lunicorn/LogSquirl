@@ -961,6 +961,8 @@ void MainWindow::loadIcons()
     showScratchPadAction->setIcon( iconLoader_.load( "icons8-create" ) );
     showFiltersPanelAction->setIcon( iconLoader_.load( "icons8-filter" ) );
     toggleSidebarAction->setIcon( iconLoader_.load( "icons8-sidebar" ) );
+    toggleChartPanelAction->setIcon( iconLoader_.load( "icons8-chart" ) );
+    showFilterFrequencyAction->setIcon( iconLoader_.load( "icons8-frequency" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
 }

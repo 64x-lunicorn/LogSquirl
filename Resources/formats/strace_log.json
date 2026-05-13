@@ -1,0 +1,123 @@
+{
+    "$schema": "https://lnav.org/schemas/format-v1.schema.json",
+    "strace_log": {
+        "title": "Strace",
+        "description": "The strace output format.",
+        "url": "http://en.wikipedia.org/wiki/Strace",
+        "multiline": false,
+        "regex": {
+            "std": {
+                "pattern": "^(?:(?:\\[pid )?(?<pid>\\d+)\\]? )?(?<timestamp>\\d{2}:\\d{2}:\\d{2}\\.\\d{6}|\\d+\\.\\d{6}) (?<syscall>\\w+)\\((?<body>.*)\\)\\s+=\\s+(?:(?<rc>[-\\w]+|\\?)(?<rc_extra>\\s?\\([^)]+\\)|\\?|<[^>]+>)?)(?: (?<errno>\\w+) \\([^\\)]+\\))?(?: <(?<duration>\\d+\\.\\d+)>)?$"
+            },
+            "unfinished": {
+                "pattern": "^(?:(?:\\[pid )?(?<pid>\\d+)\\]? )?(?<timestamp>\\d{2}:\\d{2}:\\d{2}\\.\\d{6}|\\d+\\.\\d{6}) (?<syscall>\\w+)\\((?<body>.*)\\s<unfinished ...>$"
+            },
+            "resumed": {
+                "pattern": "^(?:(?:\\[pid )?(?<pid>\\d+)\\]? )?(?<timestamp>\\d{2}:\\d{2}:\\d{2}\\.\\d{6}|\\d+\\.\\d{6}) <... (?<syscall>\\w+) resumed>\\s*(?<body>.*)\\)\\s+=\\s+(?:(?<rc>[-\\w]+(?: \\((?<rc_extra>.+)\\))?)|\\?)(?: (?<errno>\\w+) \\([^\\)]+\\))?(?: <(?<duration>\\d+\\.\\d+)>)?$"
+            },
+            "signal": {
+                "pattern": "^(?:(?:\\[pid )?(?<pid>\\d+)\\]? )?(?<timestamp>\\d{2}:\\d{2}:\\d{2}\\.\\d{6}|\\d+\\.\\d{6}) --- (?<signame>\\w+) (?<siginfo>.*) ---$"
+            },
+            "exit": {
+                "pattern": "^(?:(?:\\[pid )?(?<pid>\\d+)\\]? )?(?<timestamp>\\d{2}:\\d{2}:\\d{2}\\.\\d{6}|\\d+\\.\\d{6}) \\+\\+\\+ .* \\+\\+\\+$"
+            }
+        },
+        "timestamp-format": [
+            "%s.%f",
+            "%H:%M:%S",
+            "%H:%M:%S.%f"
+        ],
+        "timestamp-point-of-reference": "start",
+        "duration-field": "duration",
+        "level-field": "errno",
+        "thread-id-field": "pid",
+        "level": {
+            "error": ".+"
+        },
+        "opid": {
+            "source": "from-whole-msg",
+            "description": {
+                "syscall": {
+                    "format": [
+                        {
+                            "field": "syscall"
+                        }
+                    ]
+                }
+            }
+        },
+        "value": {
+            "pid": {
+                "kind": "integer",
+                "foreign-key": true,
+                "identifier": true
+            },
+            "syscall": {
+                "kind": "string",
+                "identifier": true
+            },
+            "rc": {
+                "kind": "integer",
+                "foreign-key": true
+            },
+            "rc_extra": {
+                "kind": "string"
+            },
+            "duration": {
+                "kind": "float"
+            },
+            "errno": {
+                "kind": "string",
+                "identifier": true
+            },
+            "signame": {
+                "kind": "string",
+                "identifier": true
+            },
+            "siginfo": {
+                "kind": "string"
+            }
+        },
+        "sample": [
+            {
+                "line": "08:09:33.814936 execve(\"/bin/ls\", [\"ls\"], [/* 38 vars */]) = 0 <0.000264>"
+            },
+            {
+                "line": "08:09:33.815943 access(\"/etc/ld.so.nohwcap\", F_OK) = -1 ENOENT (No such file or directory) <0.000019>"
+            },
+            {
+                "line": "1695668091.895450 execve(\"/tmp/lnav\", [\"/tmp/lnav\"], [/* 21 vars */]) = 0"
+            },
+            {
+                "line": "1743339613.560493 poll([{fd=11, events=POLLIN}], 1, 49) = ? ERESTART_RESTARTBLOCK (Interrupted by signal)"
+            },
+            {
+                "line": "1743339613.601613 --- SIGALRM {si_signo=SIGALRM, si_code=SI_KERNEL} ---"
+            },
+            {
+                "line": "1743339613.701907 poll([{fd=11, events=POLLIN}], 1, 49) = 0 (Timeout)"
+            },
+            {
+                "line": "1743341007.534738 poll([{fd=10, events=POLLIN}, {fd=14, events=POLLIN}, {fd=37, events=POLLIN}], 3, 0) = 1 ([{fd=37, revents=POLLIN}])"
+            },
+            {
+                "line": "1743339626.018554 +++ exited with 0 +++"
+            },
+            {
+                "line": "10000 1697048351.000561 arch_prctl(ARCH_SET_FS, 0x7fb7a64c5740) = 0 <0.000003>"
+            },
+            {
+                "line": "10000 1697048351.004442 accept4(3,  <unfinished ...>"
+            },
+            {
+                "line": "10003 1697048351.010612 <... accept4 resumed> {sa_family=AF_INET, sin_port=htons(51235), sin_addr=inet_addr(\"127.0.0.1\")}, [16], SOCK_CLOEXEC) = 4 <0.006157>"
+            },
+            {
+                "line": "478760 12:21:46.359506 openat(AT_FDCWD, \"/etc/ld.so.cache\", O_RDONLY|O_CLOEXEC) = 3</etc/ld.so.cache> <0.000015>"
+            },
+            {
+                "line": "478760 12:21:46.386512 <... read resumed>\"/usr/bin/firefox\\n\", 128) = 17 <0.024012>"
+            }
+        ]
+    }
+}

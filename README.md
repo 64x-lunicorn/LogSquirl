@@ -83,6 +83,16 @@ for dependency management.
 * Opens compressed logs (`.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`) and tarballs directly
 * Persistent **Index Cache** — re-opening a file loads the cached index instantly instead of
   re-scanning (toggle via Options → Advanced → Caching or `perf.useIndexCache`)
+* **Auto Log Format Detection** — automatically detects lnav-compatible log formats and displays
+  logs in a structured table view with separate columns for timestamp, level, body, and
+  user-defined fields. Columns are auto-sized from actual data (2000-row sampling), column order
+  follows the regex capture group order, and full highlighting (matches, marks, highlighter sets,
+  color labels) is rendered in each cell. Toggle between text and table view with a toolbar button.
+  Place custom format JSON files in the platform data directory
+  (`~/.local/share/logsquirl/formats/`, `~/Library/Application Support/LogSquirl/formats/`,
+  or `%APPDATA%/LogSquirl/formats/`). Enable via Options → Log Formats →
+  "Auto-detect log format (table view)". The Log Formats tab also lists all
+  available formats and provides a button to open the user formats folder
 * **Command Palette** (Ctrl+Shift+P) — fuzzy-search all commands, plugin actions, recent files
   and favorites in one dialog
 * Extensible via a [Plugin System](#plugins) — data sources, converters, and UI extensions

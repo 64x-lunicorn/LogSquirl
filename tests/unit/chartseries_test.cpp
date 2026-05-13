@@ -475,3 +475,231 @@ SCENARIO( "Filter frequency series creation pattern", "[chartseries]" )
         }
     }
 }
+
+SCENARIO( "ChartSeriesDefinition compilePattern with X-axis regex",
+          "[chartseries]" )
+{
+    GIVEN( "A series with both Y and X patterns" )
+    {
+        ChartSeriesDefinition def;
+        def.pattern = "ERROR";
+        def.captureGroup = 0;
+        def.xPattern = "(\\d{2}:\\d{2}:\\d{2})";
+        def.xCaptureGroup = 1;
+        def.xTimestampFormat = "HH:mm:ss";
+        def.bucketSizeMs = 1000;
+
+        WHEN( "compilePattern is called" )
+        {
+            const bool ok = def.compilePattern();
+
+            THEN( "Both regexes are compiled and valid" )
+            {
+                REQUIRE( ok );
+                REQUIRE( def.compiledRegex.isValid() );
+                REQUIRE( def.compiledXRegex.isValid() );
+            }
+        }
+    }
+
+    GIVEN( "A series with a valid Y pattern but invalid X pattern" )
+    {
+        ChartSeriesDefinition def;
+        def.pattern = "ERROR";
+        def.xPattern = "[invalid(";
+
+        WHEN( "compilePattern is called" )
+        {
+            const bool ok = def.compilePattern();
+
+            THEN( "Y pattern compiles but X is invalid" )
+            {
+                REQUIRE( ok );
+                REQUIRE( def.compiledRegex.isValid() );
+                REQUIRE_FALSE( def.compiledXRegex.isValid() );
+            }
+        }
+    }
+
+    GIVEN( "A series with no X pattern" )
+    {
+        ChartSeriesDefinition def;
+        def.pattern = "(\\d+)";
+        def.compilePattern();
+
+        THEN( "The X regex is default-constructed (empty/invalid)" )
+        {
+            REQUIRE( def.compiledXRegex.pattern().isEmpty() );
+        }
+    }
+}
+
+SCENARIO( "ChartSeriesDefinition fromJson with empty object", "[chartseries]" )
+{
+    GIVEN( "A completely empty JSON object" )
+    {
+        QJsonObject obj;
+
+        WHEN( "Deserialized" )
+        {
+            const auto def = ChartSeriesDefinition::fromJson( obj );
+
+            THEN( "An id is auto-generated" )
+            {
+                REQUIRE_FALSE( def.id.isEmpty() );
+            }
+
+            THEN( "Name and pattern are empty strings" )
+            {
+                REQUIRE( def.name.isEmpty() );
+                REQUIRE( def.pattern.isEmpty() );
+            }
+
+            THEN( "Defaults are applied" )
+            {
+                REQUIRE( def.captureGroup == 1 );
+                REQUIRE( def.visible );
+                REQUIRE( def.bucketSizeMs == 0 );
+                REQUIRE_FALSE( def.hasCustomXAxis() );
+            }
+        }
+    }
+}
+
+SCENARIO( "ChartSeriesDefinition toJson includes all configured fields",
+          "[chartseries]" )
+{
+    GIVEN( "A fully configured definition with X-axis and bucketing" )
+    {
+        ChartSeriesDefinition def;
+        def.id = "test-json";
+        def.name = "Rate";
+        def.color = QColor( "#FF5722" );
+        def.pattern = "\\{CS\\}";
+        def.captureGroup = 0;
+        def.visible = false;
+        def.xPattern = "(\\d{2}:\\d{2}:\\d{2})";
+        def.xCaptureGroup = 1;
+        def.xTimestampFormat = "HH:mm:ss";
+        def.bucketSizeMs = 5000;
+
+        WHEN( "Serialized to JSON" )
+        {
+            const auto obj = def.toJson();
+
+            THEN( "All fields are present with correct values" )
+            {
+                REQUIRE( obj[ "id" ].toString() == "test-json" );
+                REQUIRE( obj[ "name" ].toString() == "Rate" );
+                REQUIRE( obj[ "color" ].toString() == "#ff5722" );
+                REQUIRE( obj[ "pattern" ].toString() == "\\{CS\\}" );
+                REQUIRE( obj[ "captureGroup" ].toInt() == 0 );
+                REQUIRE( obj[ "visible" ].toBool() == false );
+                REQUIRE( obj[ "xPattern" ].toString()
+                         == "(\\d{2}:\\d{2}:\\d{2})" );
+                REQUIRE( obj[ "xCaptureGroup" ].toInt() == 1 );
+                REQUIRE( obj[ "xTimestampFormat" ].toString() == "HH:mm:ss" );
+                REQUIRE( obj[ "bucketSizeMs" ].toDouble() == 5000.0 );
+            }
+        }
+    }
+
+    GIVEN( "A definition without X-axis" )
+    {
+        ChartSeriesDefinition def;
+        def.id = "no-x";
+        def.name = "Simple";
+        def.pattern = "(\\d+)";
+
+        WHEN( "Serialized to JSON" )
+        {
+            const auto obj = def.toJson();
+
+            THEN( "X-axis fields are absent" )
+            {
+                REQUIRE_FALSE( obj.contains( "xPattern" ) );
+                REQUIRE_FALSE( obj.contains( "xCaptureGroup" ) );
+                REQUIRE_FALSE( obj.contains( "xTimestampFormat" ) );
+                REQUIRE_FALSE( obj.contains( "bucketSizeMs" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "ChartSeriesDefinition JSON round-trip preserves visibility=false",
+          "[chartseries]" )
+{
+    GIVEN( "A hidden series definition" )
+    {
+        ChartSeriesDefinition def;
+        def.id = "hidden-1";
+        def.name = "Hidden";
+        def.pattern = "TRACE";
+        def.visible = false;
+        def.compilePattern();
+
+        WHEN( "Serialized and deserialized" )
+        {
+            const auto restored
+                = ChartSeriesDefinition::fromJson( def.toJson() );
+
+            THEN( "visible remains false" )
+            {
+                REQUIRE_FALSE( restored.visible );
+            }
+        }
+    }
+}
+
+SCENARIO( "ChartSeriesDefinition count mode with captureGroup zero",
+          "[chartseries]" )
+{
+    GIVEN( "A pattern with no capture groups, captureGroup=0" )
+    {
+        ChartSeriesDefinition def;
+        def.pattern = "ERROR|FATAL";
+        def.captureGroup = 0;
+        REQUIRE( def.compilePattern() );
+
+        WHEN( "Matched against a line" )
+        {
+            const auto match
+                = def.compiledRegex.match( "2026-01-01 ERROR oops" );
+
+            THEN( "It matches and Y value is implicitly 1.0" )
+            {
+                REQUIRE( match.hasMatch() );
+                // captureGroup 0 → count mode → Y = 1.0
+                double yVal = 1.0;
+                if ( def.captureGroup > 0
+                     && match.lastCapturedIndex() >= def.captureGroup ) {
+                    yVal = match.captured( def.captureGroup ).toDouble();
+                }
+                REQUIRE( yVal == Approx( 1.0 ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "ChartSeriesDefinition captureGroup exceeds last captured index",
+          "[chartseries]" )
+{
+    GIVEN( "A pattern with 1 group but captureGroup=3" )
+    {
+        ChartSeriesDefinition def;
+        def.pattern = "(\\d+)";
+        def.captureGroup = 3;
+        REQUIRE( def.compilePattern() );
+
+        WHEN( "Matched against a line" )
+        {
+            const auto match = def.compiledRegex.match( "value=42" );
+
+            THEN( "Match succeeds but captured index is insufficient" )
+            {
+                REQUIRE( match.hasMatch() );
+                REQUIRE( match.lastCapturedIndex() < def.captureGroup );
+            }
+        }
+    }
+}
