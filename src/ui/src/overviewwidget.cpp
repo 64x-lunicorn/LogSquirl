@@ -202,8 +202,9 @@ void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
             painter.drawRect( 2, position - 2, width() - 2 - 2, 4 );
             */
             int position = overview_->yFromFileLine( *highlightedLine_ );
-            painter.drawPixmap( ( width() - HIGHLIGHT_XPM_WIDTH ) / 2,
-                                position - ( HIGHLIGHT_XPM_HEIGHT / 2 ),
+            int pixmapY = std::clamp( position - ( HIGHLIGHT_XPM_HEIGHT / 2 ), 0,
+                                       height() - HIGHLIGHT_XPM_HEIGHT );
+            painter.drawPixmap( ( width() - HIGHLIGHT_XPM_WIDTH ) / 2, pixmapY,
                                 highlight_pixmap[ INITIAL_TTL_VALUE - highlightedTTL_ ] );
         }
     }
