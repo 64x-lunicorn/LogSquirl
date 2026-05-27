@@ -199,43 +199,6 @@ if(NOT _KARCHIVE_FOUND)
         file(WRITE "${_karchive_src}" "${_karchive_content}")
       endif()
     endforeach()
-    # Patch cmbzip2/bzlib.c — widen multiplication to size_t to prevent
-    # integer overflow (CodeQL alert #1: "Multiplication result converted
-    # to larger type").
-    set(_bzlib_src "${Klogg_KArchive_SOURCE_DIR}/cmbzip2/bzlib.c")
-    if(EXISTS "${_bzlib_src}")
-      file(READ "${_bzlib_src}" _bzlib_content)
-      string(REPLACE
-        "void* v = malloc ( items * size );"
-        "void* v = malloc ( (size_t)items * (size_t)size );"
-        _bzlib_content "${_bzlib_content}")
-      file(WRITE "${_bzlib_src}" "${_bzlib_content}")
-    endif()
-
-    # Patch cmzlib/zutil.c — widen items*size to size_t (CodeQL alert #2).
-    set(_zutil_src "${Klogg_KArchive_SOURCE_DIR}/cmzlib/zutil.c")
-    if(EXISTS "${_zutil_src}")
-      file(READ "${_zutil_src}" _zutil_content)
-      string(REPLACE
-        "return sizeof(uInt) > 2 ? (voidpf)malloc(items * size) :"
-        "return sizeof(uInt) > 2 ? (voidpf)malloc((size_t)items * (size_t)size) :"
-        _zutil_content "${_zutil_content}")
-      file(WRITE "${_zutil_src}" "${_zutil_content}")
-    endif()
-
-    # Patch cmbzip2/decompress.c — widen loop variable to Int32 so it
-    # matches the comparison target (CodeQL alert #3: "Comparison of
-    # narrow type with wide type in loop condition").
-    set(_decomp_src "${Klogg_KArchive_SOURCE_DIR}/cmbzip2/decompress.c")
-    if(EXISTS "${_decomp_src}")
-      file(READ "${_decomp_src}" _decomp_content)
-      string(REPLACE
-        "UChar pos[BZ_N_GROUPS], tmp, v;"
-        "UChar pos[BZ_N_GROUPS], tmp; Int32 v;"
-        _decomp_content "${_decomp_content}")
-      file(WRITE "${_decomp_src}" "${_decomp_content}")
-    endif()
-
     target_link_libraries(logsquirl_karchive INTERFACE klogg_karchive)
     target_compile_definitions(logsquirl_karchive INTERFACE LOGSQUIRL_KARCHIVE)
   else()
