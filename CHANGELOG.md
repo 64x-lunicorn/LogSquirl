@@ -1,4 +1,20 @@
 
+# Unreleased
+
+## New features:
+ - **Filters Panel — Double-click Solo**: Double-clicking a filter item now activates
+   only that filter (or all filters in a group when double-clicking a group header),
+   deactivating everything else. Useful for quickly focusing on a single filter
+   without manually toggling others off.
+
+## Improvements:
+ - **Filters Panel — Debounced persistence**: Pinned-filter state is now written to
+   disk via a 500 ms debounce timer instead of on every checkbox change, reducing
+   I/O pressure when toggling multiple filters rapidly.
+ - **Filters Panel — O(1) filter lookup**: Replaced the O(n²) nested-loop filter
+   resolution in `emitCurrentSelection` with a pre-built `QHash` index, improving
+   performance when filter sets are large.
+
 # 26.05.0-beta2 (2026-05-13)
 
 ## New features:

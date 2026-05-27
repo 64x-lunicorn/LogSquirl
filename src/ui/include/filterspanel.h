@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QHash>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSet>
@@ -48,6 +49,11 @@ class FiltersPanel : public QWidget {
     // Reload filter sets from PredefinedFiltersCollection and re-populate the tree.
     void refreshFilters();
 
+    // Flush any pending debounced save to disk immediately.
+    // Call before destroying the panel when the pinned state must be persisted,
+    // or in tests to force a synchronous write.
+    void flushPendingSaves();
+
   Q_SIGNALS:
     // Emitted when the set of checked (active) filters changes.
     void filtersChanged( const QList<PredefinedFilter>& selectedFilters );
@@ -57,6 +63,7 @@ class FiltersPanel : public QWidget {
 
   private Q_SLOTS:
     void onItemChanged( QTreeWidgetItem* item, int column );
+    void onItemDoubleClicked( QTreeWidgetItem* item, int column );
     void onSearchTextChanged( const QString& text );
     void selectAll();
     void deselectAll();
@@ -67,8 +74,10 @@ class FiltersPanel : public QWidget {
 
   private:
     void populateTree( const QList<PredefinedFilterSet>& sets );
+    void rebuildFilterIndex();
     void emitCurrentSelection();
     void savePinnedFilters();
+    void savePinnedFiltersNow();
     void loadPinnedFilters();
     void applyCurrentPalette();
 
@@ -81,9 +90,16 @@ class FiltersPanel : public QWidget {
     QList<PredefinedFilterSet> allFilterSets_;
     QSet<QString> pinnedFilterKeys_;
 
+    // Fast lookup: pinKey(groupId, filterName) → PredefinedFilter.
+    QHash<QString, PredefinedFilter> filterIndex_;
+
     // Debounce timer — batches rapid itemChanged signals (e.g. group toggle)
     // into a single emitCurrentSelection() call.
     QTimer* debounceTimer_{ nullptr };
 
+    // Debounce timer for persisting pinned filters to disk.
+    QTimer* saveTimer_{ nullptr };
+
     bool updatingTree_{ false };
+    bool filtersDirty_{ true };
 };
