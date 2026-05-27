@@ -1701,7 +1701,7 @@ void AbstractLogView::updateDisplaySize()
 {
     // Font is assumed to be mono-space (is restricted by options dialog)
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
-    charWidth_ = textWidth( pixmapFontMetrics_, QString( "m" ) );
+    charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
 
     // Update the scroll bars
     updateScrollBars();
@@ -2559,7 +2559,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             = fontHeight * static_cast<int>( wrappedLineView.wrappedLinesCount() );
         // LOG_INFO << "Draw line " << lineNumber << ": " << expandedLine;
 
-        painter->fillRect( xPos - ContentMarginWidth, yPos, viewport()->width(), finalLineHeight,
+        painter->fillRect( xPos - ContentMarginWidth, yPos,
+                           viewport()->width() - xPos + ContentMarginWidth, finalLineHeight,
                            backColor );
 
         LineDrawer lineDrawer( backColor );
@@ -2622,9 +2623,10 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             auto selectionPen = QPen( palette.color( QPalette::Highlight ) );
             selectionPen.setWidth( 1 );
             painter->setPen( selectionPen );
-            painter->drawLine( xPos - ContentMarginWidth + 1, yPos, viewport()->width(), yPos );
+            painter->drawLine( xPos - ContentMarginWidth + 1, yPos,
+                               viewport()->width() - 1, yPos );
             painter->drawLine( xPos - ContentMarginWidth + 1, yPos + finalLineHeight - 1,
-                               viewport()->width(), yPos + finalLineHeight - 1 );
+                               viewport()->width() - 1, yPos + finalLineHeight - 1 );
         }
 
         // Then draw the bullet
