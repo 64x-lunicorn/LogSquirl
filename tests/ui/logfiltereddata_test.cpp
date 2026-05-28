@@ -72,7 +72,9 @@ void runSearch( LogFilteredData* filtered_data, const QString& regexp,
     } );
 
     // Disconnect before potential throw to prevent race during exception unwinding.
-    QObject::disconnect( filtered_data, nullptr, &searchProgressSpy, nullptr );
+    // Use the instance overload: sender->disconnect(receiver) avoids template
+    // deduction ambiguity with nullptr signal/slot in Qt6's static overloads.
+    filtered_data->disconnect( &searchProgressSpy );
 
     REQUIRE( completed );
 }
