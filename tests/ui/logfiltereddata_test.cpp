@@ -56,6 +56,9 @@ bool generateDataFiles( QTemporaryFile& file )
 // Start an async search and wait until the spy reports 100 % progress.
 // Uses waitUiState() polling instead of QSignalSpy::wait() to avoid
 // platform-specific event-loop issues (Windows CI TBB hangs, #50).
+// The spy is disconnected before REQUIRE so that a Catch2 TestFailureException
+// thrown on timeout does not race with the worker thread still delivering
+// signals through the spy during stack unwinding (SIGSEGV risk).
 void runSearch( LogFilteredData* filtered_data, const QString& regexp,
                 SafeQSignalSpy& searchProgressSpy )
 {
@@ -67,6 +70,10 @@ void runSearch( LogFilteredData* filtered_data, const QString& regexp,
         }
         return searchProgressSpy.last().at( 1 ).toInt() >= 100;
     } );
+
+    // Disconnect before potential throw to prevent race during exception unwinding.
+    QObject::disconnect( filtered_data, nullptr, &searchProgressSpy, nullptr );
+
     REQUIRE( completed );
 }
 

@@ -61,7 +61,9 @@ bool waitUiState( F&& checkFunc )
     QElapsedTimer elapsed;
     elapsed.start();
 
-    while ( elapsed.elapsed() < 20000 ) {
+    // 120 s is enough headroom for TBB flow-graph startup on slow Windows CI
+    // runners where the first wait_for_all() can stall 20+ seconds (#50).
+    while ( elapsed.elapsed() < 120000 ) {
         if ( checkFunc() ) {
             return true;
         }
