@@ -56,9 +56,10 @@ bool generateDataFiles( QTemporaryFile& file )
 // Start an async search and wait until the spy reports 100 % progress.
 // Uses waitUiState() polling instead of QSignalSpy::wait() to avoid
 // platform-specific event-loop issues (Windows CI TBB hangs, #50).
-// The spy is disconnected before REQUIRE so that a Catch2 TestFailureException
-// thrown on timeout does not race with the worker thread still delivering
-// signals through the spy during stack unwinding (SIGSEGV risk).
+// The 120 s timeout gives TBB enough headroom so REQUIRE rarely throws
+// during exception unwinding.  Qt6's QSignalSpy auto-disconnects on
+// destruction via its internal context object, so no explicit disconnect
+// is required.
 void runSearch( LogFilteredData* filtered_data, const QString& regexp,
                 SafeQSignalSpy& searchProgressSpy )
 {
@@ -71,11 +72,11 @@ void runSearch( LogFilteredData* filtered_data, const QString& regexp,
         return searchProgressSpy.last().at( 1 ).toInt() >= 100;
     } );
 
-    // Disconnect before potential throw to prevent race during exception unwinding.
-    // Use the instance overload: sender->disconnect(receiver) avoids template
-    // deduction ambiguity with nullptr signal/slot in Qt6's static overloads.
-    filtered_data->disconnect( &searchProgressSpy );
-
+    // In Qt6 QSignalSpy is not a QObject, so receiver-based disconnect is not
+    // available.  Qt6 tracks the spy's internal context object and
+    // auto-disconnects when the spy is destroyed, so no explicit disconnect is
+    // needed.  The 120 s waitUiState timeout ensures TBB finishes before we
+    // time out, so REQUIRE rarely throws and the spy is destroyed cleanly.
     REQUIRE( completed );
 }
 
