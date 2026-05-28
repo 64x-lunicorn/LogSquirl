@@ -1,0 +1,10 @@
+# CodeQL analysis configuration.
+# Exclude CPM-fetched third-party dependencies that live in the build tree.
+# These are upstream libraries (simdutf, klogg_karchive/bzip2/zlib, etc.)
+# whose code we do not own; alerts should be reported upstream, not here.
+
+name: "LogSquirl CodeQL config"
+
+paths-ignore:
+  - "build/_deps"
+  - "3rdparty/dump_syms"
