@@ -1,5 +1,5 @@
 
-# Unreleased
+# 26.06.0 (2026-06-08)
 
 ## New features:
  - **Filters Panel — Double-click Solo**: Double-clicking a filter item now activates

@@ -1,10 +1,10 @@
 {
-  "ci": "26.04.2",
+  "ci": "26.06.0",
   "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous",
-  "stable": "26.04.2",
-  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.04.2",
-  "beta": "26.05.0-beta1",
-  "beta_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.05.0-beta1",
+  "stable": "26.06.0",
+  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.06.0",
+  "beta": "26.06.0",
+  "beta_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.06.0",
   "releases": [
     "17.12.0.245",
     "19.2.0.366",
@@ -18,7 +18,8 @@
     "26.03.0",
     "26.04.1",
     "26.04.2",
-    "26.05.0-beta1"
+    "26.05.0-beta1",
+    "26.06.0"
   ],
   "changelog": [
     {
@@ -56,8 +57,12 @@
     {
       "version": "26.05.0-beta1",
       "description": "Title bar theming, splash screen, welcome dashboard, zstd/lz4 decompression, index cache, command palette, 33 bug fixes"
+    },
+    {
+      "version": "26.06.0",
+      "description": "Auto log format detection, chart templates, table view, Filters Panel improvements, viewport fixes, security hardening"
     }
   ],
-  "stable_version": "26.04.2",
-  "beta_version": "26.05.0-beta1"
+  "stable_version": "26.06.0",
+  "beta_version": "26.06.0"
 }
