@@ -22,11 +22,50 @@ xcopy %LOGSQUIRL_WORKSPACE%\README.md %LOGSQUIRL_WORKSPACE%\release\ /y
 xcopy %LOGSQUIRL_WORKSPACE%\DOCUMENTATION.md %LOGSQUIRL_WORKSPACE%\release\ /y
 
 echo "Copying vc runtime..."
-xcopy "%VCToolsRedistDir%%platform%\Microsoft.VC143.CRT\msvcp140.dll" %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy "%VCToolsRedistDir%%platform%\Microsoft.VC143.CRT\msvcp140_1.dll" %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy "%VCToolsRedistDir%%platform%\Microsoft.VC143.CRT\msvcp140_2.dll" %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy "%VCToolsRedistDir%%platform%\Microsoft.VC143.CRT\vcruntime140.dll" %LOGSQUIRL_WORKSPACE%\release\ /y
-xcopy "%VCToolsRedistDir%%platform%\Microsoft.VC143.CRT\vcruntime140_1.dll" %LOGSQUIRL_WORKSPACE%\release\ /y
+set "CRT_ARCH=%VSCMD_ARG_TGT_ARCH%"
+if "%CRT_ARCH%"=="" set "CRT_ARCH=%platform%"
+if "%CRT_ARCH%"=="" set "CRT_ARCH=%LOGSQUIRL_ARCH%"
+
+set "CRT_DIR="
+for %%D in (
+	"%VCToolsRedistDir%%CRT_ARCH%\Microsoft.VC143.CRT"
+	"%VCToolsRedistDir%\Microsoft.VC143.CRT"
+	"%SystemRoot%\System32"
+) do (
+	if exist "%%~D\msvcp140.dll" (
+		set "CRT_DIR=%%~D"
+		goto :crt_found
+	)
+)
+
+echo ERROR: Could not locate VC runtime directory (msvcp140.dll not found).
+echo VCToolsRedistDir=%VCToolsRedistDir%
+echo CRT_ARCH=%CRT_ARCH%
+exit /b 1
+
+:crt_found
+echo Using VC runtime from: %CRT_DIR%
+xcopy "%CRT_DIR%\msvcp140.dll" "%LOGSQUIRL_WORKSPACE%\release\" /y
+xcopy "%CRT_DIR%\msvcp140_1.dll" "%LOGSQUIRL_WORKSPACE%\release\" /y
+xcopy "%CRT_DIR%\vcruntime140.dll" "%LOGSQUIRL_WORKSPACE%\release\" /y
+xcopy "%CRT_DIR%\vcruntime140_1.dll" "%LOGSQUIRL_WORKSPACE%\release\" /y
+
+if not exist "%LOGSQUIRL_WORKSPACE%\release\msvcp140.dll" (
+	echo ERROR: Failed to copy msvcp140.dll to release directory.
+	exit /b 1
+)
+if not exist "%LOGSQUIRL_WORKSPACE%\release\msvcp140_1.dll" (
+	echo ERROR: Failed to copy msvcp140_1.dll to release directory.
+	exit /b 1
+)
+if not exist "%LOGSQUIRL_WORKSPACE%\release\vcruntime140.dll" (
+	echo ERROR: Failed to copy vcruntime140.dll to release directory.
+	exit /b 1
+)
+if not exist "%LOGSQUIRL_WORKSPACE%\release\vcruntime140_1.dll" (
+	echo ERROR: Failed to copy vcruntime140_1.dll to release directory.
+	exit /b 1
+)
 
 echo "Copying ssl..."
 xcopy %SSL_DIR%\libcrypto-3%SSL_ARCH%.dll %LOGSQUIRL_WORKSPACE%\release\ /y

@@ -1,23 +1,15 @@
 
-# 26.06.0 (2026-06-08)
+# v26.06.1 (2026-06-18)
 
 ## New features:
- - **Filters Panel — Double-click Solo**: Double-clicking a filter item now activates
-   only that filter (or all filters in a group when double-clicking a group header),
-   deactivating everything else. Useful for quickly focusing on a single filter
-   without manually toggling others off.
-
-## Improvements:
- - **Filters Panel — Debounced persistence**: Pinned-filter state is now written to
-   disk via a 500 ms debounce timer instead of on every checkbox change, reducing
-   I/O pressure when toggling multiple filters rapidly.
- - **Filters Panel — O(1) filter lookup**: Replaced the O(n²) nested-loop filter
-   resolution in `emitCurrentSelection` with a pre-built `QHash` index, improving
-   performance when filter sets are large.
-
-# 26.05.0-beta2 (2026-05-13)
-
-## New features:
+ - **FiltersPanel — Double-click to solo-activate**: Double-clicking a filter
+   item unchecks all other filters and activates only that single filter.
+   Double-clicking a group item activates all filters in that group exclusively
+   while unchecking every filter in all other groups.
+ - **FiltersPanel — Persistent pinned state**: The set of checked (active)
+   filters is now saved to and restored from QSettings so the selection
+   survives application restarts.  Writes are debounced (500 ms) to avoid
+   synchronous disk I/O on every checkbox click.
  - **Chart Panel — Format-Aware Templates**: When a log format is auto-detected,
    the Chart Panel now shows a **Templates** button in the toolbar with
    pre-configured chart series that can be added with a single click:
@@ -178,6 +170,14 @@
    rounded handles and hover highlighting.
 
 ## Bug fixes:
+ - **Viewport text clipping and overflow**: Corrected rendering bugs in the
+   log view that caused text to be clipped at the right edge of the viewport
+   and scroll offsets to be miscalculated on wide log lines.
+
+## Tests:
+ - Stabilized the `logfiltereddata_test` search helper by draining queued Qt
+   events after asynchronous searches complete, preventing Windows teardown
+   races in the integration test suite.
  - **Table view extremely slow on large files**: `populateTableModel()` read ALL
    lines into a `QStringList` and then regex-extracted every row upfront, making
    the table view unusable on files with hundreds of thousands of lines.

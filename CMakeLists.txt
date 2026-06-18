@@ -8,7 +8,7 @@ endif()
 
 project(
   logsquirl
-  VERSION 26.06.0
+  VERSION 26.06.1
   DESCRIPTION "logsquirl log viewer"
   LANGUAGES C CXX ASM
 )

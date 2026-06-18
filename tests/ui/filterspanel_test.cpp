@@ -14,15 +14,17 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/\>.
+ * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <catch2/catch.hpp>
 
 #include <QApplication>
+#include <QMap>
 #include <QMetaObject>
 #include <QSignalSpy>
 #include <QTreeWidget>
+#include <QVariant>
 
 #include "filterspanel.h"
 #include "persistentinfo.h"
@@ -65,8 +67,10 @@ static int countChecked( QTreeWidget* tree )
 // QTest::mouseDClick on QTreeWidget items.
 static void invokeDoubleClick( FiltersPanel* panel, QTreeWidgetItem* item )
 {
-    QMetaObject::invokeMethod( panel, "onItemDoubleClicked",
-                               Q_ARG( QTreeWidgetItem*, item ), Q_ARG( int, 0 ) );
+    const bool invoked = QMetaObject::invokeMethod( panel, "onItemDoubleClicked",
+                                                    Q_ARG( QTreeWidgetItem*, item ),
+                                                    Q_ARG( int, 0 ) );
+    REQUIRE( invoked );
 }
 
 // Helper: set check states on leaf items without triggering onItemChanged.
@@ -92,6 +96,41 @@ static void clearPinnedFilters()
     settings.sync();
 }
 
+class FiltersPanelTestStateGuard {
+  public:
+    FiltersPanelTestStateGuard()
+        : originalSets_( PredefinedFiltersCollection::getSynced().filterSets() )
+    {
+        auto& settings = PersistentInfo::getSettings( app_settings{} );
+        settings.beginGroup( "PinnedFilters" );
+        const auto keys = settings.allKeys();
+        for ( const auto& key : keys ) {
+            pinnedState_.insert( key, settings.value( key ) );
+        }
+        settings.endGroup();
+    }
+
+    ~FiltersPanelTestStateGuard()
+    {
+        auto& collection = PredefinedFiltersCollection::getSynced();
+        collection.setFilterSets( originalSets_ );
+        collection.save();
+
+        auto& settings = PersistentInfo::getSettings( app_settings{} );
+        settings.beginGroup( "PinnedFilters" );
+        settings.remove( "" );
+        for ( auto it = pinnedState_.cbegin(); it != pinnedState_.cend(); ++it ) {
+            settings.setValue( it.key(), it.value() );
+        }
+        settings.endGroup();
+        settings.sync();
+    }
+
+  private:
+    QList<PredefinedFilterSet> originalSets_;
+    QMap<QString, QVariant> pinnedState_;
+};
+
 // Set up two filter groups with known test data.
 static void setupTestFilters()
 {
@@ -113,6 +152,7 @@ static void setupTestFilters()
 SCENARIO( "Double-click on a filter activates only that filter",
           "[filterspanel][doubleclick]" )
 {
+    FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
 
     FiltersPanel panel;
@@ -166,6 +206,7 @@ SCENARIO( "Double-click on a filter activates only that filter",
 SCENARIO( "Double-click on a group activates all its filters exclusively",
           "[filterspanel][doubleclick]" )
 {
+    FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
 
     FiltersPanel panel;
@@ -204,6 +245,7 @@ SCENARIO( "Double-click on a group activates all its filters exclusively",
 SCENARIO( "Double-click emits filtersChanged with correct selection",
           "[filterspanel][doubleclick]" )
 {
+    FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
 
     FiltersPanel panel;
@@ -239,6 +281,7 @@ SCENARIO( "Double-click emits filtersChanged with correct selection",
 SCENARIO( "Pinned state survives panel recreation after flush",
           "[filterspanel][persistence]" )
 {
+    FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
 
     GIVEN( "a panel where one filter is solo-activated and flushed" )
@@ -276,6 +319,7 @@ SCENARIO( "Pinned state survives panel recreation after flush",
 SCENARIO( "flushPendingSaves is a no-op when nothing is pending",
           "[filterspanel][persistence]" )
 {
+    FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
 
     GIVEN( "a freshly constructed panel with no user interaction" )
