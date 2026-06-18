@@ -4,7 +4,18 @@ runs:
   using: "composite"
   steps:
     - name: Install Ninja
-      uses: seanmiddleditch/gha-setup-ninja@v6
+      shell: bash
+      run: |
+        # Install Ninja via the platform's package manager to avoid the fragile
+        # zip-download in seanmiddleditch/gha-setup-ninja which occasionally
+        # returns a corrupt archive ("No END header found").
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          choco install ninja --no-progress -y
+        elif [ "$RUNNER_OS" = "macOS" ]; then
+          brew install ninja
+        else
+          sudo apt-get install -y ninja-build
+        fi
 
     - name: Install Qt
       if: ${{ matrix.config.qt_arch }}
