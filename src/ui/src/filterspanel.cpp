@@ -74,8 +74,17 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     debounceTimer_->setInterval( 0 );
     connect( debounceTimer_, &QTimer::timeout, this, &FiltersPanel::emitCurrentSelection );
 
+    // Debounce timer for persisting pinned filters — avoids synchronous disk
+    // writes on every checkbox click.
+    saveTimer_ = new QTimer( this );
+    saveTimer_->setSingleShot( true );
+    saveTimer_->setInterval( 500 );
+    connect( saveTimer_, &QTimer::timeout, this, &FiltersPanel::savePinnedFiltersNow );
+
     connect( searchBox_, &QLineEdit::textChanged, this, &FiltersPanel::onSearchTextChanged );
     connect( filterTree_, &QTreeWidget::itemChanged, this, &FiltersPanel::onItemChanged );
+    connect( filterTree_, &QTreeWidget::itemDoubleClicked, this,
+             &FiltersPanel::onItemDoubleClicked );
     connect( selectAllButton_, &QPushButton::clicked, this, &FiltersPanel::selectAll );
     connect( deselectAllButton_, &QPushButton::clicked, this, &FiltersPanel::deselectAll );
     connect( editFiltersButton_, &QPushButton::clicked, this,
@@ -88,7 +97,9 @@ FiltersPanel::FiltersPanel( QWidget* parent )
 void FiltersPanel::showEvent( QShowEvent* event )
 {
     QWidget::showEvent( event );
-    refreshFilters();
+    if ( filtersDirty_ ) {
+        refreshFilters();
+    }
 }
 
 void FiltersPanel::changeEvent( QEvent* event )
@@ -103,7 +114,9 @@ void FiltersPanel::changeEvent( QEvent* event )
 void FiltersPanel::refreshFilters()
 {
     allFilterSets_ = PredefinedFiltersCollection::getSynced().filterSets();
+    rebuildFilterIndex();
     populateTree( allFilterSets_ );
+    filtersDirty_ = false;
 }
 
 void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
@@ -182,6 +195,39 @@ void FiltersPanel::onItemChanged( QTreeWidgetItem* item, int column )
     debounceTimer_->start();
 }
 
+void FiltersPanel::onItemDoubleClicked( QTreeWidgetItem* item, int column )
+{
+    Q_UNUSED( column );
+    if ( !item ) {
+        return;
+    }
+
+    updatingTree_ = true;
+
+    // Uncheck every filter across all groups.
+    for ( int g = 0; g < filterTree_->topLevelItemCount(); ++g ) {
+        auto* groupItem = filterTree_->topLevelItem( g );
+        for ( int c = 0; c < groupItem->childCount(); ++c ) {
+            groupItem->child( c )->setCheckState( 0, Qt::Unchecked );
+        }
+    }
+
+    // Solo: check only the double-clicked item(s).
+    if ( item->parent() ) {
+        // Child item (individual filter) — activate only this one.
+        item->setCheckState( 0, Qt::Checked );
+    }
+    else {
+        // Group item — activate all filters in this group.
+        for ( int c = 0; c < item->childCount(); ++c ) {
+            item->child( c )->setCheckState( 0, Qt::Checked );
+        }
+    }
+
+    updatingTree_ = false;
+    emitCurrentSelection();
+}
+
 void FiltersPanel::onSearchTextChanged( const QString& text )
 {
     Q_UNUSED( text );
@@ -214,6 +260,17 @@ void FiltersPanel::deselectAll()
     emitCurrentSelection();
 }
 
+void FiltersPanel::rebuildFilterIndex()
+{
+    filterIndex_.clear();
+    filterIndex_.reserve( 64 );
+    for ( const auto& set : allFilterSets_ ) {
+        for ( const auto& filter : set.filters() ) {
+            filterIndex_.insert( pinKey( set.id(), filter.name ), filter );
+        }
+    }
+}
+
 void FiltersPanel::emitCurrentSelection()
 {
     QList<PredefinedFilter> selected;
@@ -227,19 +284,13 @@ void FiltersPanel::emitCurrentSelection()
             const auto* childItem = groupItem->child( c );
             if ( childItem->checkState( 0 ) == Qt::Checked ) {
                 const auto filterName = childItem->data( 0, Qt::UserRole ).toString();
-                checkedKeys.insert( pinKey( groupId, filterName ) );
+                const auto key = pinKey( groupId, filterName );
+                checkedKeys.insert( key );
 
-                // Resolve the actual PredefinedFilter from allFilterSets_.
-                for ( const auto& set : allFilterSets_ ) {
-                    if ( set.id() == groupId ) {
-                        for ( const auto& filter : set.filters() ) {
-                            if ( filter.name == filterName ) {
-                                selected.append( filter );
-                                break;
-                            }
-                        }
-                        break;
-                    }
+                // O(1) lookup via pre-built index.
+                const auto it = filterIndex_.constFind( key );
+                if ( it != filterIndex_.constEnd() ) {
+                    selected.append( it.value() );
                 }
             }
         }
@@ -252,6 +303,20 @@ void FiltersPanel::emitCurrentSelection()
 }
 
 void FiltersPanel::savePinnedFilters()
+{
+    // Schedule a debounced write instead of flushing to disk immediately.
+    saveTimer_->start();
+}
+
+void FiltersPanel::flushPendingSaves()
+{
+    if ( saveTimer_->isActive() ) {
+        saveTimer_->stop();
+        savePinnedFiltersNow();
+    }
+}
+
+void FiltersPanel::savePinnedFiltersNow()
 {
     auto& settings = PersistentInfo::getSettings( app_settings{} );
     settings.beginGroup( PinnedSettingsKey );
