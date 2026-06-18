@@ -173,6 +173,11 @@
  - **Viewport text clipping and overflow**: Corrected rendering bugs in the
    log view that caused text to be clipped at the right edge of the viewport
    and scroll offsets to be miscalculated on wide log lines.
+
+## Tests:
+ - Stabilized the `logfiltereddata_test` search helper by draining queued Qt
+   events after asynchronous searches complete, preventing Windows teardown
+   races in the integration test suite.
  - **Table view extremely slow on large files**: `populateTableModel()` read ALL
    lines into a `QStringList` and then regex-extracted every row upfront, making
    the table view unusable on files with hundreds of thousands of lines.

@@ -78,6 +78,10 @@ void runSearch( LogFilteredData* filtered_data, const QString& regexp,
     // needed.  The 120 s waitUiState timeout ensures TBB finishes before we
     // time out, so REQUIRE rarely throws and the spy is destroyed cleanly.
     REQUIRE( completed );
+
+    // Let any queued progress/throttling events drain before the owning
+    // LogData and LogFilteredData objects start tearing down.
+    QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
 }
 
 } // namespace
