@@ -1,7 +1,15 @@
 
-# 26.05.0-beta2 (2026-05-13)
+# v26.06.1 (2026-06-18)
 
 ## New features:
+ - **FiltersPanel — Double-click to solo-activate**: Double-clicking a filter
+   item unchecks all other filters and activates only that single filter.
+   Double-clicking a group item activates all filters in that group exclusively
+   while unchecking every filter in all other groups.
+ - **FiltersPanel — Persistent pinned state**: The set of checked (active)
+   filters is now saved to and restored from QSettings so the selection
+   survives application restarts.  Writes are debounced (500 ms) to avoid
+   synchronous disk I/O on every checkbox click.
  - **Chart Panel — Format-Aware Templates**: When a log format is auto-detected,
    the Chart Panel now shows a **Templates** button in the toolbar with
    pre-configured chart series that can be added with a single click:
@@ -162,6 +170,9 @@
    rounded handles and hover highlighting.
 
 ## Bug fixes:
+ - **Viewport text clipping and overflow**: Corrected rendering bugs in the
+   log view that caused text to be clipped at the right edge of the viewport
+   and scroll offsets to be miscalculated on wide log lines.
  - **Table view extremely slow on large files**: `populateTableModel()` read ALL
    lines into a `QStringList` and then regex-extracted every row upfront, making
    the table view unusable on files with hundreds of thousands of lines.
