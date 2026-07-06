@@ -252,10 +252,20 @@ Linux builds use pre-built Docker images hosted on GHCR:
 |-------|----------|----------|
 | `ghcr.io/64x-lunicorn/logsquirl-oracle10` | Oracle Linux 10 | Qt 6, GCC, RPM |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB |
+| `ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy` | Ubuntu 22.04 | Qt 6, GCC 12, AppImage |
 | `ghcr.io/64x-lunicorn/logsquirl-fedora43` | Fedora 43 | Qt 6, GCC, RPM |
 
 Images are rebuilt automatically when files in `docker/` change on master, or monthly for OS security patches.
 To rebuild manually, trigger the **Docker Images** workflow via `workflow_dispatch`.
+
+> **AppImage compatibility:** The AppImage is built on the Ubuntu 22.04 (jammy)
+> image on purpose. `linuxdeploy` bundles Qt and libssl but never bundles glibc
+> or libstdc++ — those come from the host — so the build host's C library sets
+> the compatibility floor. Building on jammy pins that floor to glibc 2.35 and
+> the GCC 12 libstdc++ (`GLIBCXX_3.4.30`), letting the AppImage run on Ubuntu
+> 22.04 and every newer distribution. Do not move the AppImage build to a newer
+> base unless you intend to drop support for older distros. (The `.deb` is still
+> produced on Ubuntu 24.04 and targets that release and newer.)
 
 ### Release Process
 

@@ -30,6 +30,8 @@ jobs:
             image_name: oracle10
           - context: docker/ubuntu24.04
             image_name: ubuntu-noble
+          - context: docker/ubuntu22.04
+            image_name: ubuntu-jammy
           - context: docker/fedora43
             image_name: fedora43
 
