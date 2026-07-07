@@ -142,7 +142,7 @@ jobs:
           fi
 
       - name: Restore CPM cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: cpm_cache
           key: cpm-Linux-${{ matrix.config.artifacts_id }}-${{ hashFiles('3rdparty/CMakeLists.txt') }}
@@ -239,7 +239,7 @@ jobs:
 
       - name: Cache openssl
         id: cache-openssl
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}\openssl-3
           key: OpensslCache-3-choco-x64
