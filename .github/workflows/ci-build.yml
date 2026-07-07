@@ -87,12 +87,14 @@ jobs:
             cmake_opts:
 
           - os: ubuntu_appimage
-            os_version: 24.04
+            # Built on Ubuntu 22.04 (jammy) so the AppImage's glibc/libstdc++
+            # floor stays at 2.35 / GCC 12 — runs on jammy and every newer distro.
+            os_version: 22.04
             arch: x64
             artifacts_id: appimage
             package_suffix: AppImage
-            container_root: docker/ubuntu24.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+            container_root: docker/ubuntu22.04
+            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
             cmake_opts:
 
           - os: fedora

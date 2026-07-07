@@ -1,4 +1,19 @@
 
+# Unreleased
+
+## Bug fixes:
+ - **AppImage now runs on Ubuntu 22.04 (jammy) and other older distributions**:
+   The Linux AppImage was built on Ubuntu 24.04, so it required glibc 2.39 and a
+   GCC 13 `libstdc++`, neither of which ships on Ubuntu 22.04 (glibc 2.35).  The
+   AppImage failed to launch there with `version 'GLIBC_2.38' not found`.  It is
+   now built on a dedicated Ubuntu 22.04 image using GCC 12.  Because
+   `linuxdeploy` intentionally never bundles glibc or libstdc++ (they come from
+   the host), building on jammy pins the compatibility floor to glibc 2.35 and
+   `GLIBCXX_3.4.30`, so a single AppImage runs on Ubuntu 22.04 and every newer
+   distribution.  See `BUILD.md` → "Docker Build Containers" for details.
+
+---
+
 # v26.06.1 (2026-06-18)
 
 ## New features:
