@@ -2,6 +2,18 @@
 # Unreleased
 
 ## Bug fixes:
+ - **Windows dark mode: checkbox and combobox icons not rendered**: Under
+   Windows dark mode the checkmark in checkboxes and the dropdown arrow in
+   comboboxes were invisible or incorrectly drawn.  Root causes: the indicator
+   size was only 12 px (with a 2 px border leaving just 8 px for the SVG image,
+   too small for Windows DPI scaling) and no explicit `image: none` was set for
+   the unchecked state, so Qt6's Fusion style bled through its native indicator
+   drawing on Windows.  Indicators are now 16 px (matching the menu indicator),
+   unchecked states explicitly suppress the image, and the combobox arrow size
+   was bumped from 10 px to 12 px for better hi-DPI visibility.
+ - **SpinBox up-arrow used the down-arrow icon**: `QSpinBox::up-arrow` and
+   `QDoubleSpinBox::up-arrow` incorrectly referenced `arrow-down-dark.svg`.
+   A new `arrow-up-dark.svg` was created and wired up.
  - **AppImage now runs on Ubuntu 22.04 (jammy) and other older distributions**:
    The Linux AppImage was built on Ubuntu 24.04, so it required glibc 2.39 and a
    GCC 13 `libstdc++`, neither of which ships on Ubuntu 22.04 (glibc 2.35).  The

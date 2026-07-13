@@ -144,8 +144,8 @@ QComboBox::drop-down:hover {
 }
 QComboBox::down-arrow {
     image: url(:/icons/arrow-down-dark.svg);
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
 }
 
 QComboBox QAbstractItemView {
@@ -192,7 +192,7 @@ QDoubleSpinBox::down-button:hover {
 }
 QSpinBox::up-arrow,
 QDoubleSpinBox::up-arrow {
-    image: url(:/icons/arrow-down-dark.svg);
+    image: url(:/icons/arrow-up-dark.svg);
     width: 8px;
     height: 8px;
 }
@@ -472,6 +472,10 @@ QMenu::indicator {
     border: 2px solid #777777;
     border-radius: 3px;
     background-color: #2D2D30;
+    image: none;
+}
+QMenu::indicator:unchecked {
+    image: none;
 }
 QMenu::indicator:checked {
     background-color: #4D90FE;
@@ -481,11 +485,16 @@ QMenu::indicator:checked {
 
 QCheckBox::indicator,
 QTreeWidget::indicator {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     border: 2px solid #777777;
     border-radius: 3px;
     background-color: #2D2D30;
+    image: none;
+}
+QCheckBox::indicator:unchecked,
+QTreeWidget::indicator:unchecked {
+    image: none;
 }
 QCheckBox::indicator:checked,
 QTreeWidget::indicator:checked {
@@ -507,6 +516,7 @@ QCheckBox::indicator:disabled,
 QTreeWidget::indicator:disabled {
     border-color: #555555;
     background-color: #252526;
+    image: none;
 }
 
 
