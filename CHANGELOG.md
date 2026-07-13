@@ -1,5 +1,5 @@
 
-# Unreleased
+# v26.07.0 (2026-07-13)
 
 ## Bug fixes:
  - **Windows dark mode: checkbox and combobox icons not rendered**: Under
@@ -23,6 +23,19 @@
    the host), building on jammy pins the compatibility floor to glibc 2.35 and
    `GLIBCXX_3.4.30`, so a single AppImage runs on Ubuntu 22.04 and every newer
    distribution.  See `BUILD.md` → "Docker Build Containers" for details.
+ - **Release binaries now carry the correct version number**: The CI version
+   helper (`.github/actions/logsquirl-version`) hard-coded the base version
+   `26.03.0`, so every release — regardless of its Git tag — attached binaries
+   reporting `26.03.0.<build>`. For example, release `v26.06.1` shipped
+   artifacts versioned `26.03.0.0740`. The action now derives `YY.MM.PATCH`
+   from the release tag (falling back to the `CMakeLists.txt` project version
+   for untagged builds), so binaries match the published release
+   (e.g. `v26.06.1` → `26.06.1.<build>`). See `BUILD.md` → "Version Numbering".
+ - **Update notifications now fire after a stable release**: When publishing a
+   stable release, the CI pipeline updated the unused `stable_version` field in
+   `latest.json` instead of the `stable` field the application actually reads,
+   so stable users were never notified of new stable versions. The pipeline now
+   updates `stable` (and keeps `stable_version` in sync).
 
 ---
 

@@ -283,12 +283,12 @@ jobs:
 
           if [ "$IS_PRERELEASE" = "true" ]; then
             jq --arg ver "$VERSION" --arg url "$URL" \
-               '.beta = $ver | .beta_url = $url' latest.json > latest.json.tmp \
+               '.beta = $ver | .beta_url = $url | .beta_version = $ver' latest.json > latest.json.tmp \
                && mv latest.json.tmp latest.json
             COMMIT_MSG="chore: update latest.json with beta ${VERSION} [skip ci]"
           else
             jq --arg ver "$VERSION" --arg url "$URL" \
-               '.stable_version = $ver | .stable_url = $url' latest.json > latest.json.tmp \
+               '.stable = $ver | .stable_url = $url | .stable_version = $ver' latest.json > latest.json.tmp \
                && mv latest.json.tmp latest.json
             COMMIT_MSG="chore: update latest.json with ${VERSION} [skip ci]"
           fi
