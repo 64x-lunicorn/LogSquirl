@@ -1,9 +1,41 @@
 name: "Prepare logsquirl version env var"
-description: ""
+description: "Derive LOGSQUIRL_VERSION (YY.MM.PATCH.BUILD) from the release tag or the project version"
 runs:
   using: "composite"
   steps:
     - name: Set logsquirl version
-      shell: sh
+      shell: bash
+      env:
+        # Consume the (potentially attacker-controlled) ref name via the
+        # environment instead of interpolating it directly into the script.
+        REF_TYPE: ${{ github.ref_type }}
+        REF_NAME: ${{ github.ref_name }}
+        RUN_NUMBER: ${{ github.run_number }}
+        WORKSPACE: ${{ github.workspace }}
       run: |
-        echo "LOGSQUIRL_VERSION=26.03.0.$((${{ github.run_number }} + 717))" >> $GITHUB_ENV 
+        set -euo pipefail
+
+        # Build number: derived from the CI run counter, offset to stay above
+        # historical build numbers (see BUILD.md → "Version Numbering").
+        build_number=$(( RUN_NUMBER + 717 ))
+
+        # Base version is YY.MM.PATCH. Prefer the release tag when the build was
+        # triggered by one, so that binaries carry the same version as the
+        # published GitHub release. Fall back to the version declared in
+        # CMakeLists.txt for untagged builds (branch pushes, pull requests).
+        if [ "${REF_TYPE}" = "tag" ] && [ "${REF_NAME#v}" != "${REF_NAME}" ]; then
+          base_version="${REF_NAME#v}"        # strip the leading "v"
+          base_version="${base_version%%-*}"  # strip any pre-release suffix (-beta.1, -rc.1, …)
+        else
+          base_version=$(sed -n \
+            's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([0-9][0-9.]*\).*/\1/p' \
+            "${WORKSPACE}/CMakeLists.txt" | head -n1)
+        fi
+
+        if [ -z "${base_version}" ]; then
+          echo "::error::Unable to determine base version for LOGSQUIRL_VERSION" >&2
+          exit 1
+        fi
+
+        echo "LOGSQUIRL_VERSION=${base_version}.${build_number}" >> "$GITHUB_ENV"
+        echo "Resolved LOGSQUIRL_VERSION=${base_version}.${build_number}"

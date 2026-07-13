@@ -1,10 +1,10 @@
 {
-  "ci": "26.06.1",
+  "ci": "26.07.0",
   "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous",
-  "stable": "26.06.1",
-  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.06.1",
-  "beta": "26.06.1",
-  "beta_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.06.1",
+  "stable": "26.07.0",
+  "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.07.0",
+  "beta": "26.07.0",
+  "beta_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.07.0",
   "releases": [
     "17.12.0.245",
     "19.2.0.366",
@@ -19,7 +19,8 @@
     "26.04.1",
     "26.04.2",
     "26.05.0-beta1",
-    "26.06.1"
+    "26.06.1",
+    "26.07.0"
   ],
   "changelog": [
     {
@@ -61,8 +62,12 @@
     {
       "version": "26.06.1",
       "description": "FiltersPanel double-click solo-activate, persistent pinned state, viewport clipping fixes, auto log format detection, chart templates, table view"
+    },
+    {
+      "version": "26.07.0",
+      "description": "Windows dark mode icon fixes, AppImage runs on Ubuntu 22.04, correct release version numbering"
     }
   ],
-  "stable_version": "26.06.1",
-  "beta_version": "26.06.1"
+  "stable_version": "26.07.0",
+  "beta_version": "26.07.0"
 }

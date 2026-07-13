@@ -241,8 +241,17 @@ See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
 ### Version Numbering
 
-CI builds use the scheme `YY.MM.PATCH.BUILD` where BUILD = `github.run_number + 717`.
-For example, run number 50 produces version `26.03.0.767`.
+CI builds use the scheme `YY.MM.PATCH.BUILD`.
+
+- `YY.MM.PATCH` is taken from the release tag being built (e.g. tag `v26.06.1`
+  produces base version `26.06.1`; any pre-release suffix such as `-beta.1` is
+  stripped). For untagged builds (branch pushes, pull requests) it falls back to
+  the `project(... VERSION …)` value declared in `CMakeLists.txt`.
+- `BUILD = github.run_number + 717`.
+
+For example, tag `v26.06.1` on run number 50 produces version `26.06.1.767`.
+The base version is resolved by `.github/actions/logsquirl-version`, so the
+binaries always carry the same version as the published GitHub release.
 
 ### Docker Build Containers
 
