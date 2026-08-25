@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "bash .github/hooks/session-check.sh",
+        "windows": "powershell -NoProfile -ExecutionPolicy Bypass -File .github/hooks/session-check.ps1",
+        "timeout": 10
+      }
+    ]
+  }
+}
