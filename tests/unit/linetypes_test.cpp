@@ -467,6 +467,119 @@ SCENARIO( "untabify handles very long lines with many tabs efficiently", "[linet
 }
 
 // ---------------------------------------------------------------------------
+// rawToDisplayColumns() tests
+// ---------------------------------------------------------------------------
+
+SCENARIO( "rawToDisplayColumns maps raw columns to display columns", "[linetypes][untabify]" )
+{
+    GIVEN( "A string with no tabs" )
+    {
+        const QString line = "hello";
+
+        THEN( "every raw column maps to itself" )
+        {
+            const auto columns = rawToDisplayColumns( line );
+            REQUIRE( columns.size() == static_cast<size_t>( line.size() ) + 1 );
+            for ( size_t i = 0; i < columns.size(); ++i ) {
+                REQUIRE( columns[ i ] == static_cast<int>( i ) );
+            }
+        }
+    }
+
+    GIVEN( "A single tab at position 0" )
+    {
+        const QString line = "\t";
+
+        THEN( "the tab expands to 8 display columns" )
+        {
+            const auto columns = rawToDisplayColumns( line );
+            REQUIRE( columns == logsquirl::vector<int>{ 0, 8 } );
+        }
+    }
+
+    GIVEN( "A tab after 3 characters" )
+    {
+        const QString line = "abc\t";
+
+        THEN( "columns match untabify's own tab-stop arithmetic" )
+        {
+            const auto columns = rawToDisplayColumns( line );
+            REQUIRE( columns == logsquirl::vector<int>{ 0, 1, 2, 3, 8 } );
+        }
+    }
+
+    GIVEN( "Mixed text and tabs, as in the untabify test above" )
+    {
+        // "ab\tcd\tefgh" -> "ab      cd      efgh"
+        const QString line = "ab\tcd\tefgh";
+
+        THEN( "the last entry is the full expanded length" )
+        {
+            const auto columns = rawToDisplayColumns( line );
+            REQUIRE( columns.back() == untabify( QString( line ) ).size() );
+        }
+    }
+
+    GIVEN( "An initialPosition offset" )
+    {
+        const QString line = "\t";
+
+        THEN( "tab stops align relative to the initial column, as untabify does" )
+        {
+            const auto columns = rawToDisplayColumns( line, LineColumn( 3 ) );
+            REQUIRE( columns == logsquirl::vector<int>{ 3, 8 } );
+        }
+    }
+
+    GIVEN( "A line with several tabs" )
+    {
+        const QString line = "field1\tfield2\tfield3\tvalue";
+
+        THEN( "translating any sub-range through the map matches untabify-ing that "
+             "sub-range directly (the property the decoration path relies on)" )
+        {
+            const auto columns = rawToDisplayColumns( line );
+
+            for ( int start = 0; start <= line.size(); ++start ) {
+                for ( int len = 0; start + len <= line.size(); ++len ) {
+                    const auto expected = untabify( line.mid( start, len ),
+                                                    LineColumn( columns[ static_cast<size_t>( start ) ] ) )
+                                              .size();
+                    const auto viaMap = columns[ static_cast<size_t>( start + len ) ]
+                                         - columns[ static_cast<size_t>( start ) ];
+                    REQUIRE( viaMap == expected );
+                }
+            }
+        }
+    }
+
+    GIVEN( "A line with tabs that would exceed MaxExpandedLineLength" )
+    {
+        // Mirrors the "untabify handles very long lines..." truncation
+        // test above -- the map must agree with untabify()'s own cap,
+        // since decorate() consumers rely on both describing the same
+        // (possibly truncated) rendered line.
+        const int numTabs = ( MaxExpandedLineLength / TabStop ) + 1000;
+        const QString line( numTabs, QChar::Tabulation );
+
+        THEN( "the last entry is capped at MaxExpandedLineLength, matching untabify's own cap" )
+        {
+            const auto columns = rawToDisplayColumns( line );
+            REQUIRE( columns.back() == MaxExpandedLineLength );
+            REQUIRE( columns.back() == untabify( QString( line ) ).size() );
+        }
+
+        THEN( "no entry ever exceeds the cap" )
+        {
+            const auto columns = rawToDisplayColumns( line );
+            for ( const auto column : columns ) {
+                REQUIRE( column <= MaxExpandedLineLength );
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // getUntabifiedLength() tests
 // ---------------------------------------------------------------------------
 

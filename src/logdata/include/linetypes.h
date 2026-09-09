@@ -31,6 +31,7 @@
 
 #include <QMetaType>
 #include <QString>
+#include <QStringView>
 #include <type_traits>
 
 #include "containers.h"
@@ -380,6 +381,41 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
     }
 
     return result;
+}
+
+// Maps every raw column of a line to its display (tab-expanded) column, in
+// a single O(n) pass using the same tab-stop arithmetic and
+// MaxExpandedLineLength cap as untabify() -- so result.back() always
+// equals what untabify(line.toString(), initialPosition).size() would be,
+// even for a line so long or tab-heavy its expansion would be truncated.
+// Has line.size() + 1 entries: result[i] is the display column immediately
+// before raw column i, so result[0] == initialPosition.get<int>() and
+// result[line.size()] is the display column right after the last
+// character (both endpoints of a raw span are valid indices). Takes a
+// QStringView so a caller that only needs a handful of spans translated
+// can pass a truncated view (e.g. up to the furthest raw column any of
+// them actually reaches) instead of paying for the whole line.
+inline logsquirl::vector<int> rawToDisplayColumns( QStringView line,
+                                                   LineColumn initialPosition = 0_lcol )
+{
+    const auto srcLen = static_cast<int>( line.size() );
+
+    logsquirl::vector<int> columns;
+    columns.reserve( static_cast<size_t>( srcLen ) + 1 );
+
+    int column = initialPosition.get<int>();
+    columns.push_back( std::min( column, MaxExpandedLineLength ) );
+    for ( int i = 0; i < srcLen; ++i ) {
+        if ( line[ i ] == QChar::Tabulation ) {
+            column += TabStop - ( column % TabStop );
+        }
+        else {
+            ++column;
+        }
+        columns.push_back( std::min( column, MaxExpandedLineLength ) );
+    }
+
+    return columns;
 }
 
 template <typename LineType>

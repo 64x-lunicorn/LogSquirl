@@ -88,6 +88,7 @@
 #include "configuration.h"
 #include "highlighterset.h"
 #include "highlightersmenu.h"
+#include "linedecorator.h"
 #include "log.h"
 #include "overview.h"
 #include "quickfind.h"
@@ -2441,6 +2442,34 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                         } );
     }
 
+    // The Line Decorator owns the colour precedence rule (whole-line
+    // Highlighter, main search, Color Labels, QuickFind); it is
+    // constructed once per repaint with the stable context, not once per
+    // line. Every source it matches works against the raw line, so its
+    // Decoration is in raw-space too -- the loop below maps that Decoration
+    // to display columns once per line rather than once per match.
+    // Selection is the one source left out of its context: it comes from
+    // mouse/pixel positions against the already-rendered (tab-expanded)
+    // text, so it is display-space already and needs no translation.
+    const LineDecorator lineDecorator{ LineDecorator::Context{
+        highlighterSet,
+        patternHighlight,
+        additionalHighlighters,
+        quickFindPattern_->getMatcher(),
+        Configuration::get().qfBackColor(),
+        SearchLimits{ searchStartIndex, searchEndIndex - 1_lcount },
+    } };
+
+    // A Line Verdict for a line that should show no Highlighter/main-search/
+    // Color Label colour -- used for the reversed-selection line below,
+    // which already gets a uniform selection background instead. This
+    // reuses decorate()'s isOutsideSearchLimits gate for that tier (the
+    // line is not actually outside the search limits); QuickFind is
+    // unconditional in decorate() regardless, so it still applies.
+    const auto quickFindOnlyVerdict = []( AbstractLogData::LineType lineType ) {
+        return LineVerdict{ std::nullopt, lineType, /* isOutsideSearchLimits = */ true };
+    };
+
     // Position in pixel of the base line of the line to print
     int yPos = 0;
     wrappedLinesInfo_.clear();
@@ -2458,93 +2487,85 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         const int xPos = contentStartPosX + ContentMarginWidth;
 
-        HighlightedMatchRanges highlighterMatches;
+        using LineTypeFlags = AbstractLogData::LineTypeFlags;
+        const auto currentLineType = lineType( lineNumber );
+
+        LineVerdict verdict;
 
         if ( selection_.isLineSelected( lineNumber ) && !selection_.isSingleLine() ) {
-            // Reverse the selected line
+            // Reverse the selected line. No Highlighter/main-search/Color
+            // Label colour is shown over it, same as before.
             foreColor = palette.color( QPalette::HighlightedText );
             backColor = palette.color( QPalette::Highlight );
             painter->setPen( palette.color( QPalette::Text ) );
+            verdict = quickFindOnlyVerdict( currentLineType );
         }
         else {
             foreColor = palette.color( QPalette::Text );
             backColor = palette.color( QPalette::Base );
 
-            if ( lineNumber < searchStartIndex || lineNumber >= searchEndIndex ) {
+            verdict = lineDecorator.verdictFor( LogLine{ lineNumber, logLine }, currentLineType );
+
+            if ( verdict.isOutsideSearchLimits() ) {
                 foreColor = palette.brush( QPalette::Disabled, QPalette::Text ).color();
             }
-            else {
-                const auto highlightType = highlighterSet.matchLine( logLine, highlighterMatches );
-
-                if ( highlightType == HighlighterMatchType::LineMatch ) {
-                    // color applies to whole line
-                    foreColor = highlighterMatches.front().foreColor();
-                    backColor = highlighterMatches.front().backColor();
-                }
-
-                if ( patternHighlight ) {
-                    logsquirl::vector<HighlightedMatch> patternMatches;
-                    patternHighlight->matchLine( logLine, patternMatches );
-                    highlighterMatches.addMatches( patternMatches );
-                }
-
-                // highlighterMatches.reserve( additionalHighlighters.size() );
-                for ( const auto& highlighter : additionalHighlighters ) {
-                    logsquirl::vector<HighlightedMatch> patternMatches;
-                    highlighter.matchLine( logLine, patternMatches );
-                    highlighterMatches.addMatches( patternMatches );
-                }
+            else if ( const auto wholeLine = verdict.wholeLineHighlight(); wholeLine.has_value() ) {
+                // color applies to whole line
+                foreColor = wholeLine->foreColor;
+                backColor = wholeLine->backColor;
             }
         }
 
         // Dim context (breadcrumb) lines
-        using LineTypeFlags = AbstractLogData::LineTypeFlags;
-        const auto currentLineType = lineType( lineNumber );
         if ( currentLineType.testFlag( LineTypeFlags::Context ) ) {
             foreColor.setAlpha( 128 );
         }
 
-        const auto untabifyHighlight = [ &logLine ]( const auto& match ) {
-            const auto prefix = QStringView{ logLine }.left( match.startColumn().get() );
-            const auto matchPart
-                = QStringView{ logLine }.mid( match.startColumn().get(), match.size().get() );
-            const auto expandedPrefixLength = untabify( prefix.toString() ).size();
-            const LineLength startDelta
-                = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                    expandedPrefixLength - prefix.size() ) };
+        // Every colour source the Decorator owns -- Highlighters, main
+        // search, Color Labels and QuickFind -- is matched against the raw
+        // line in this one call, so the returned spans are all in raw
+        // column space.
+        auto rawSpans = lineDecorator.decorate( logLine, verdict ).spans();
 
-            const LineLength expandedMatchLength = LineLength{
-                untabify( matchPart.toString(),
-                          LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-                              expandedPrefixLength ) } )
-                    .size()
-            };
+        if ( !rawSpans.empty() ) {
+            // The raw-to-display mapping runs once per line here, instead
+            // of re-expanding the prefix from scratch for every match --
+            // but only up to the furthest raw column any match actually
+            // reaches, so a long line with only a few early matches isn't
+            // mapped past where any of them need it.
+            int furthestRawColumn = 0;
+            for ( const auto& match : rawSpans ) {
+                furthestRawColumn = std::max<int>(
+                    furthestRawColumn,
+                    static_cast<int>( match.startColumn().get() + match.size().get() ) );
+            }
+            const auto rawToDisplay
+                = rawToDisplayColumns( QStringView{ logLine }.left( furthestRawColumn ) );
+            std::transform(
+                rawSpans.begin(), rawSpans.end(), rawSpans.begin(),
+                [ &rawToDisplay ]( const HighlightedMatch& match ) {
+                    const auto rawStart = static_cast<size_t>( match.startColumn().get() );
+                    const auto rawEnd = rawStart + static_cast<size_t>( match.size().get() );
+                    const auto displayStart = rawToDisplay[ rawStart ];
+                    const auto displayEnd = rawToDisplay[ rawEnd ];
+                    return HighlightedMatch{
+                        LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
+                            displayStart ) },
+                        LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                            displayEnd - displayStart ) },
+                        match.foreColor(), match.backColor()
+                    };
+                } );
+        }
 
-            const auto lengthDelta
-                = expandedMatchLength
-                  - LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                      matchPart.size() ) };
-
-            return HighlightedMatch{ match.startColumn() + startDelta, match.size() + lengthDelta,
-                                     match.foreColor(), match.backColor() };
-        };
-
-        logsquirl::vector<HighlightedMatch> sortedHighlights = highlighterMatches.matches();
-        std::transform( sortedHighlights.begin(), sortedHighlights.end(), sortedHighlights.begin(),
-                        untabifyHighlight );
-
-        HighlightedMatchRanges allHighlights{ std::move( sortedHighlights ) };
+        HighlightedMatchRanges allHighlights{ std::move( rawSpans ) };
 
         // string to print, cut to fit the length and position of the view
         const QString& expandedLine = untabify( std::move( logLine ) );
 
-        // Has the line got elements to be highlighted
-        logsquirl::vector<HighlightedMatch> quickFindMatches;
-        quickFindPattern_->matchLine( expandedLine, quickFindMatches,
-                                      Configuration::get().qfBackColor() );
-        allHighlights.addMatches( quickFindMatches );
-
-        // Is there something selected in the line?
+        // Is there something selected in the line? Selection columns come
+        // from mouse/pixel positions against the rendered (tab-expanded)
+        // text, so they are already display-space and need no translation.
         const auto selectionPortion = selection_.getPortionForLine( lineNumber );
         if ( selectionPortion.isValid() ) {
             allHighlights.addMatch( HighlightedMatch{ selectionPortion.startColumn(),

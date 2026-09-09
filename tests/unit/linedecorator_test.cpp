@@ -141,9 +141,15 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
             const auto verdict = decorator.verdictFor(
                 LogLine{ 0_lnum, "an ERROR occurred" }, LineTypeFlags::Plain );
 
-            THEN( "it is not a whole-line highlight" )
+            THEN( "it is not a whole-line highlight, but the matched word is reported" )
             {
                 REQUIRE_FALSE( verdict.wholeLineHighlight().has_value() );
+                REQUIRE( verdict.highlighterSpans().size() == 1 );
+                const auto& match = verdict.highlighterSpans().front();
+                REQUIRE( match.startColumn() == 3_lcol );
+                REQUIRE( match.size() == LineLength{ 5 } );
+                REQUIRE( match.foreColor() == QColor{ Qt::white } );
+                REQUIRE( match.backColor() == QColor{ Qt::red } );
             }
         }
     }
@@ -225,8 +231,14 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
         LineDecorator decorator{ std::move( context ) };
 
         const QString text = "hello world";
-        const LineVerdict wholeLineVerdict{ HighlightColor{ QColor{ Qt::white }, QColor{ Qt::red } },
-                                            LineTypeFlags::Plain, false };
+        // Mirrors what verdictFor() produces for a whole-line Highlighter
+        // match: the whole-line colour, plus the single full-line span
+        // HighlighterSet::matchLine returns for it.
+        const LineVerdict wholeLineVerdict{
+            HighlightColor{ QColor{ Qt::white }, QColor{ Qt::red } }, LineTypeFlags::Plain, false,
+            { HighlightedMatch{ 0_lcol, LineLength{ text.size() }, QColor{ Qt::white },
+                               QColor{ Qt::red } } }
+        };
 
         WHEN( "only a whole-line highlight applies" )
         {
@@ -396,6 +408,152 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
                 const auto& span = decoration.spans().front();
                 REQUIRE( span.startColumn() == 6_lcol );
                 REQUIRE( span.backColor() == QColor{ Qt::cyan } );
+            }
+        }
+    }
+
+    GIVEN( "a decorator with a word-only Highlighter for ERROR" )
+    {
+        auto context = emptyContext();
+        context.highlighterSet
+            = setWithHighlighter( "ERROR", true, QColor{ Qt::white }, QColor{ Qt::red } );
+        LineDecorator decorator{ std::move( context ) };
+
+        const QString text = "an ERROR occurred";
+        const auto verdict = decorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain );
+
+        WHEN( "decorating the matched line" )
+        {
+            const auto decoration = decorator.decorate( text, verdict );
+
+            THEN( "the matched word carries the Highlighter's colors" )
+            {
+                REQUIRE( decoration.spans().size() == 1 );
+                const auto& span = decoration.spans().front();
+                REQUIRE( span.startColumn() == 3_lcol );
+                REQUIRE( span.size() == LineLength{ 5 } );
+                REQUIRE( span.foreColor() == QColor{ Qt::white } );
+                REQUIRE( span.backColor() == QColor{ Qt::red } );
+            }
+        }
+
+        WHEN( "a Search Limit puts the line outside the limits" )
+        {
+            auto outsideContext = emptyContext();
+            outsideContext.highlighterSet
+                = setWithHighlighter( "ERROR", true, QColor{ Qt::white }, QColor{ Qt::red } );
+            outsideContext.searchLimits = SearchLimits{ 5_lnum, 10_lnum };
+            LineDecorator outsideDecorator{ std::move( outsideContext ) };
+            const auto outsideVerdict
+                = outsideDecorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain );
+
+            const auto decoration = outsideDecorator.decorate( text, outsideVerdict );
+
+            THEN( "the word highlight is suppressed" )
+            {
+                REQUIRE( decoration.spans().empty() );
+            }
+        }
+    }
+
+    GIVEN( "a Highlighter Set with a word-only rule added before a whole-line rule" )
+    {
+        // HighlighterSet::matchLine walks the set in reverse, so the
+        // whole-line rule (added second, matched first) sets matchType to
+        // LineMatch, and the word-only rule (added first, matched last)
+        // still layers its own span on top -- the two are not mutually
+        // exclusive the way a single verdict's wholeLineHighlight() is.
+        auto set = HighlighterSet::createNewSet( "test" );
+        set.addHighlighter(
+            Highlighter{ "CRITICAL", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } } );
+        set.addHighlighter(
+            Highlighter{ "ERROR", false, false, QColor{ Qt::white }, QColor{ Qt::red } } );
+
+        auto context = emptyContext();
+        context.highlighterSet = set;
+        LineDecorator decorator{ std::move( context ) };
+
+        const QString text = "an ERROR occurred: CRITICAL failure";
+        const auto verdict = decorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain );
+
+        WHEN( "decorating the matched line" )
+        {
+            const auto decoration = decorator.decorate( text, verdict );
+
+            THEN( "the CRITICAL word still stands out within the whole-line highlight" )
+            {
+                bool foundCritical = false;
+                for ( const auto& span : decoration.spans() ) {
+                    if ( span.backColor() == QColor{ Qt::yellow } ) {
+                        foundCritical = true;
+                        REQUIRE( span.startColumn() == LineColumn{ text.indexOf( "CRITICAL" ) } );
+                    }
+                }
+                REQUIRE( foundCritical );
+
+                AND_THEN( "the rest of the line keeps the whole-line Highlighter's color" )
+                {
+                    const auto& first = decoration.spans().front();
+                    REQUIRE( first.startColumn() == 0_lcol );
+                    REQUIRE( first.backColor() == QColor{ Qt::red } );
+                }
+            }
+        }
+    }
+}
+
+// Issue #80's coordinate-space unification: QuickFind is now matched
+// against the raw Log Line (via LineDecorator's Context, as of #80),
+// instead of the tab-expanded display line. This is a deliberate,
+// acknowledged behavior change for patterns that match whitespace or tab
+// characters -- these two scenarios pin down exactly what changed, using
+// "a\tb" (one raw tab between two letters, expanding to "a" followed by
+// 7 spaces up to the next tab stop, then "b").
+SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line", "[linedecorator][quickfind-raw-space]" )
+{
+    const QString rawLine = "a\tb";
+
+    GIVEN( "a QuickFind pattern for a literal tab character" )
+    {
+        auto context = emptyContext();
+        QRegularExpression qfRegex{ "\\t" };
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        LineDecorator decorator{ std::move( context ) };
+
+        WHEN( "decorating the raw line" )
+        {
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, rawLine }, LineTypeFlags::Plain );
+            const auto decoration = decorator.decorate( rawLine, verdict );
+
+            THEN( "the tab character itself is found -- before #80, matching against the "
+                 "expanded line (all spaces) never found a tab at all" )
+            {
+                REQUIRE( decoration.spans().size() == 1 );
+                const auto& span = decoration.spans().front();
+                REQUIRE( span.startColumn() == 1_lcol );
+                REQUIRE( span.size() == LineLength{ 1 } );
+            }
+        }
+    }
+
+    GIVEN( "a QuickFind pattern for the run of spaces the tab used to expand to" )
+    {
+        auto context = emptyContext();
+        QRegularExpression qfRegex{ " {7}" }; // "a\tb" expanded to "a" + 7 spaces + "b"
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        LineDecorator decorator{ std::move( context ) };
+
+        WHEN( "decorating the raw line" )
+        {
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, rawLine }, LineTypeFlags::Plain );
+            const auto decoration = decorator.decorate( rawLine, verdict );
+
+            THEN( "there is no match -- before #80, matching against the expanded line found "
+                 "one, even though the file contains no run of spaces at all, only a tab" )
+            {
+                REQUIRE( decoration.spans().empty() );
             }
         }
     }
