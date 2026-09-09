@@ -227,7 +227,11 @@ SearchId LogFilteredDataWorker::search( const RegularExpressionPattern& regExp,
     operationsPool_.start( createRunnable( [ this, &operationStarted, id, regExp, startLine,
                                              endLine ] {
         operationStarted.release();
-        ScopedLock operationLock( operationsMutex_ );
+        // Deliberately not holding operationsMutex_ here: the pool (maxThreadCount 1)
+        // already serializes actual execution, and holding it across a run -- which
+        // can take a while -- would block a superseding search() call from even
+        // updating activeSearchId_ until this run finished on its own, defeating
+        // supersession entirely (the same trap the destructor's wait avoids).
         auto operationRequested = std::make_unique<FullSearchOperation>(
             sourceLogData_, id, activeSearchId_, regExp, startLine, endLine );
         connectSignalsAndRun( operationRequested.get() );
@@ -252,7 +256,8 @@ SearchId LogFilteredDataWorker::updateSearch( const RegularExpressionPattern& re
     operationsPool_.start(
         createRunnable( [ this, &operationStarted, id, regExp, startLine, endLine, position ] {
             operationStarted.release();
-            ScopedLock operationLock( operationsMutex_ );
+            // See the comment in search(): not holding operationsMutex_ here is what
+            // lets a superseding call proceed without waiting for this run to finish.
             auto operationRequested = std::make_unique<UpdateSearchOperation>(
                 sourceLogData_, id, activeSearchId_, regExp, startLine, endLine, position );
             connectSignalsAndRun( operationRequested.get() );
