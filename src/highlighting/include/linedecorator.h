@@ -76,16 +76,30 @@ class LineVerdict {
     LineVerdict() = default;
 
     LineVerdict( std::optional<HighlightColor> wholeLineHighlight,
-                 AbstractLogData::LineType lineType, bool isOutsideSearchLimits )
+                 AbstractLogData::LineType lineType, bool isOutsideSearchLimits,
+                 logsquirl::vector<HighlightedMatch> highlighterSpans = {} )
         : wholeLineHighlight_{ wholeLineHighlight }
         , lineType_{ lineType }
         , isOutsideSearchLimits_{ isOutsideSearchLimits }
+        , highlighterSpans_{ std::move( highlighterSpans ) }
     {
     }
 
     std::optional<HighlightColor> wholeLineHighlight() const
     {
         return wholeLineHighlight_;
+    }
+
+    // The full set of spans the Highlighter Set produced for this Log Line,
+    // exactly as HighlighterSet::matchLine returned them: a single
+    // full-line span when a whole-line Highlighter applies, the individual
+    // matches of any word-only (highlight-just-the-match) Highlighters, or
+    // both layered together when a word-only rule and a whole-line rule
+    // both match -- HighlighterSet::matchLine resolves that layering by
+    // priority, not by picking one kind over the other.
+    const logsquirl::vector<HighlightedMatch>& highlighterSpans() const
+    {
+        return highlighterSpans_;
     }
 
     bool isMatch() const
@@ -112,6 +126,7 @@ class LineVerdict {
     std::optional<HighlightColor> wholeLineHighlight_;
     AbstractLogData::LineType lineType_ = AbstractLogData::LineTypeFlags::Plain;
     bool isOutsideSearchLimits_ = false;
+    logsquirl::vector<HighlightedMatch> highlighterSpans_;
 };
 
 // The finished visual result for a piece of displayed text: an ordered,

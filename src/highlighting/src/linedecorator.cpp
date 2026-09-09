@@ -27,6 +27,7 @@ LineVerdict LineDecorator::verdictFor( const LogLine& line,
     const bool isOutsideSearchLimits = !context_.searchLimits.contains( line.number() );
 
     std::optional<HighlightColor> wholeLineHighlight;
+    logsquirl::vector<HighlightedMatch> highlighterSpans;
     if ( !isOutsideSearchLimits && !context_.highlighterSet.isEmpty() ) {
         HighlightedMatchRanges matches;
         const auto matchType = context_.highlighterSet.matchLine( line.text(), matches );
@@ -34,9 +35,18 @@ LineVerdict LineDecorator::verdictFor( const LogLine& line,
             wholeLineHighlight
                 = HighlightColor{ matches.front().foreColor(), matches.front().backColor() };
         }
+        if ( matchType != HighlighterMatchType::NoMatch ) {
+            // A word-only rule can be layered on top of a whole-line match
+            // that a higher-priority rule already set (HighlighterSet::
+            // matchLine resolves that by priority, not by picking one kind
+            // over the other), so the full match set is kept here rather
+            // than only the whole-line color.
+            highlighterSpans = matches.matches();
+        }
     }
 
-    return LineVerdict{ wholeLineHighlight, lineType, isOutsideSearchLimits };
+    return LineVerdict{ wholeLineHighlight, lineType, isOutsideSearchLimits,
+                        std::move( highlighterSpans ) };
 }
 
 Decoration LineDecorator::decorate( const QString& text, const LineVerdict& verdict,
@@ -45,10 +55,7 @@ Decoration LineDecorator::decorate( const QString& text, const LineVerdict& verd
     HighlightedMatchRanges ranges;
 
     if ( !verdict.isOutsideSearchLimits() ) {
-        if ( const auto wholeLine = verdict.wholeLineHighlight(); wholeLine.has_value() ) {
-            ranges.addMatch( HighlightedMatch{ 0_lcol, LineLength{ text.size() },
-                                               wholeLine->foreColor, wholeLine->backColor } );
-        }
+        ranges.addMatches( verdict.highlighterSpans() );
 
         if ( context_.mainSearch.has_value() ) {
             logsquirl::vector<HighlightedMatch> matches;

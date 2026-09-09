@@ -88,6 +88,7 @@
 #include "configuration.h"
 #include "highlighterset.h"
 #include "highlightersmenu.h"
+#include "linedecorator.h"
 #include "log.h"
 #include "overview.h"
 #include "quickfind.h"
@@ -2441,6 +2442,21 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                         } );
     }
 
+    // The Line Decorator owns the colour precedence rule (whole-line
+    // Highlighter, main search, Color Labels); it is constructed once per
+    // repaint with the stable context, not once per line. QuickFind and
+    // selection are deliberately left out of its context: they are matched
+    // against the expanded (tab-expanded) line below, exactly as before,
+    // while the Decorator works in the coordinate space of the raw line.
+    const LineDecorator lineDecorator{ LineDecorator::Context{
+        highlighterSet,
+        patternHighlight,
+        additionalHighlighters,
+        QuickFindMatcher{},
+        Configuration::get().qfBackColor(),
+        SearchLimits{ searchStartIndex, searchEndIndex - 1_lcount },
+    } };
+
     // Position in pixel of the base line of the line to print
     int yPos = 0;
     wrappedLinesInfo_.clear();
@@ -2458,7 +2474,10 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         const int xPos = contentStartPosX + ContentMarginWidth;
 
-        HighlightedMatchRanges highlighterMatches;
+        using LineTypeFlags = AbstractLogData::LineTypeFlags;
+        const auto currentLineType = lineType( lineNumber );
+
+        logsquirl::vector<HighlightedMatch> highlighterSpans;
 
         if ( selection_.isLineSelected( lineNumber ) && !selection_.isSingleLine() ) {
             // Reverse the selected line
@@ -2470,36 +2489,24 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             foreColor = palette.color( QPalette::Text );
             backColor = palette.color( QPalette::Base );
 
-            if ( lineNumber < searchStartIndex || lineNumber >= searchEndIndex ) {
+            const auto verdict
+                = lineDecorator.verdictFor( LogLine{ lineNumber, logLine }, currentLineType );
+
+            if ( verdict.isOutsideSearchLimits() ) {
                 foreColor = palette.brush( QPalette::Disabled, QPalette::Text ).color();
             }
             else {
-                const auto highlightType = highlighterSet.matchLine( logLine, highlighterMatches );
-
-                if ( highlightType == HighlighterMatchType::LineMatch ) {
+                if ( const auto wholeLine = verdict.wholeLineHighlight(); wholeLine.has_value() ) {
                     // color applies to whole line
-                    foreColor = highlighterMatches.front().foreColor();
-                    backColor = highlighterMatches.front().backColor();
+                    foreColor = wholeLine->foreColor;
+                    backColor = wholeLine->backColor;
                 }
 
-                if ( patternHighlight ) {
-                    logsquirl::vector<HighlightedMatch> patternMatches;
-                    patternHighlight->matchLine( logLine, patternMatches );
-                    highlighterMatches.addMatches( patternMatches );
-                }
-
-                // highlighterMatches.reserve( additionalHighlighters.size() );
-                for ( const auto& highlighter : additionalHighlighters ) {
-                    logsquirl::vector<HighlightedMatch> patternMatches;
-                    highlighter.matchLine( logLine, patternMatches );
-                    highlighterMatches.addMatches( patternMatches );
-                }
+                highlighterSpans = lineDecorator.decorate( logLine, verdict ).spans();
             }
         }
 
         // Dim context (breadcrumb) lines
-        using LineTypeFlags = AbstractLogData::LineTypeFlags;
-        const auto currentLineType = lineType( lineNumber );
         if ( currentLineType.testFlag( LineTypeFlags::Context ) ) {
             foreColor.setAlpha( 128 );
         }
@@ -2529,11 +2536,10 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                                      match.foreColor(), match.backColor() };
         };
 
-        logsquirl::vector<HighlightedMatch> sortedHighlights = highlighterMatches.matches();
-        std::transform( sortedHighlights.begin(), sortedHighlights.end(), sortedHighlights.begin(),
+        std::transform( highlighterSpans.begin(), highlighterSpans.end(), highlighterSpans.begin(),
                         untabifyHighlight );
 
-        HighlightedMatchRanges allHighlights{ std::move( sortedHighlights ) };
+        HighlightedMatchRanges allHighlights{ std::move( highlighterSpans ) };
 
         // string to print, cut to fit the length and position of the view
         const QString& expandedLine = untabify( std::move( logLine ) );
