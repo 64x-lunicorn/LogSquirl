@@ -7,6 +7,7 @@ add_executable(logsquirl_tests
     configuration_test.cpp
     encodingdetector_test.cpp
     jwtdecoder_test.cpp
+    linedecorator_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
     logfieldextractor_test.cpp
@@ -27,7 +28,7 @@ add_executable(logsquirl_tests
     tests_main.cpp
 )
 
-target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings logsquirl_zstd logsquirl_lz4 Catch2 Qt6::Test)
+target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_highlighting logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings logsquirl_zstd logsquirl_lz4 Catch2 Qt6::Test)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 add_test(

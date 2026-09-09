@@ -95,6 +95,24 @@ std::pair<LineColumn, LineColumn> QuickFindMatcher::getLastMatch() const
     return std::make_pair( lastMatchStart_, lastMatchEnd_ );
 }
 
+bool QuickFindMatcher::matchLine( const QString& line,
+                                  logsquirl::vector<HighlightedMatch>& matches,
+                                  const QColor& backColor ) const
+{
+    matches.clear();
+
+    if ( isActive_ ) {
+        QRegularExpressionMatchIterator matchIterator = regexp_.globalMatch( line );
+        while ( matchIterator.hasNext() ) {
+            QRegularExpressionMatch match = matchIterator.next();
+            matches.emplace_back( LineColumn{ match.capturedStart() },
+                                  LineLength{ match.capturedLength() }, QfForeColor, backColor );
+        }
+    }
+
+    return ( !matches.empty() );
+}
+
 void QuickFindPattern::changeSearchPattern( const QString& pattern, bool useExtendedRegexp,
                                             bool isRegex )
 {
@@ -131,18 +149,7 @@ bool QuickFindPattern::matchLine( const QString& line,
                                   logsquirl::vector<HighlightedMatch>& matches,
                                   const QColor& backColor ) const
 {
-    matches.clear();
-
-    if ( active_ ) {
-        QRegularExpressionMatchIterator matchIterator = regexp_.globalMatch( line );
-        while ( matchIterator.hasNext() ) {
-            QRegularExpressionMatch match = matchIterator.next();
-            matches.emplace_back( LineColumn{ match.capturedStart() },
-                                  LineLength{ match.capturedLength() }, QfForeColor, backColor );
-        }
-    }
-
-    return ( !matches.empty() );
+    return getMatcher().matchLine( line, matches, backColor );
 }
 
 QuickFindMatcher QuickFindPattern::getMatcher() const

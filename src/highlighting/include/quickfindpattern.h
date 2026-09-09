@@ -79,6 +79,11 @@ class QuickFindMatcher {
     // the position of the first match found.
     std::pair<LineColumn, LineColumn> getLastMatch() const;
 
+    // Returns whether there is a match anywhere in the passed line, populating
+    // matches with every occurrence found, colored with backColor.
+    bool matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches,
+                    const QColor& backColor ) const;
+
   private:
     bool isActive_ = false;
     QRegularExpression regexp_;

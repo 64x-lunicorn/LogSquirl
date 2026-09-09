@@ -2,8 +2,10 @@ add_library(
   logsquirl_highlighting STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightedmatch.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighter.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/linedecorator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfindpattern.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/linedecorator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindpattern.cpp
 )
 
