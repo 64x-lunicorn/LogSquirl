@@ -89,6 +89,8 @@ LogFilteredData::LogFilteredData( const LogData* logData )
     // Forward the update signal
     connect( &workerThread_, &LogFilteredDataWorker::searchProgressed, this,
              &LogFilteredData::handleSearchProgressed );
+    connect( &workerThread_, &LogFilteredDataWorker::searchFinished, this,
+             &LogFilteredData::handleSearchFinished );
 
     searchProgressThrottler_.setTimeout( 100 );
     connect( this, &LogFilteredData::searchProgressedThrottled, &searchProgressThrottler_,
@@ -134,7 +136,7 @@ void LogFilteredData::runSearch( const RegularExpressionPattern& regExp, LineNum
 
     if ( shouldRunSearch ) {
         attachReader();
-        workerThread_.search( currentRegExp_, startLine, endLine );
+        currentSearchId_ = workerThread_.search( currentRegExp_, startLine, endLine );
     }
 }
 
@@ -145,8 +147,8 @@ void LogFilteredData::updateSearch( LineNumber startLine, LineNumber endLine )
     currentSearchKey_ = {};
 
     attachReader();
-    workerThread_.updateSearch( currentRegExp_, startLine, endLine,
-                                LineNumber( nbLinesProcessed_.get() ) );
+    currentSearchId_ = workerThread_.updateSearch( currentRegExp_, startLine, endLine,
+                                                   LineNumber( nbLinesProcessed_.get() ) );
 }
 
 void LogFilteredData::interruptSearch()
@@ -154,6 +156,11 @@ void LogFilteredData::interruptSearch()
     LOG_DEBUG << "Entering interruptSearch";
 
     workerThread_.interrupt();
+    // Nothing is in flight for us any more; whatever this interrupted will
+    // still deliver its final searchFinished (to balance its attachReader()),
+    // but carrying an id that no longer matches, so its results are discarded
+    // on arrival rather than silently mutating data with no signal to show it.
+    currentSearchId_ = SearchId( 0 );
 }
 
 void LogFilteredData::clearSearch( bool dropCache )
@@ -457,8 +464,13 @@ void LogFilteredData::updateSearchResultsCache()
 // Q_SLOTS:
 //
 void LogFilteredData::handleSearchProgressed( LinesCount nbMatches, int progress,
-                                              LineNumber initialLine )
+                                              LineNumber initialLine, SearchId searchId )
 {
+    if ( searchId != currentSearchId_ ) {
+        // Progress from a run we've since superseded; its results are stale.
+        return;
+    }
+
     assert( nbMatches >= 0_lcount );
 
     const auto searchResults = workerThread_.getSearchResults();
@@ -469,26 +481,62 @@ void LogFilteredData::handleSearchProgressed( LinesCount nbMatches, int progress
     maxLength_ = searchResults.maxLength;
     nbLinesProcessed_ = searchResults.processedLines;
 
-    if ( progress == 100
-         && nbLinesProcessed_.get() == getExpectedSearchEnd( currentSearchKey_ ).get() ) {
-        updateSearchResultsCache();
-    }
-
     {
         ScopedLock lock( searchProgressMutex_ );
         searchProgress_ = std::make_tuple( nbMatches, progress, initialLine );
     }
 
     Q_EMIT searchProgressedThrottled();
+}
 
-    if ( progress == 100 ) {
-        detachReader();
-        rebuildContextLines();
+void LogFilteredData::handleSearchFinished( SearchId searchId, LinesCount nbMatches,
+                                            LineNumber initialLine, bool interrupted )
+{
+    // Every runSearch()/updateSearch() call did exactly one attachReader(); this
+    // is its matching detachReader(), and it must happen regardless of whether
+    // this run's results end up applied below -- a superseded run must not leak
+    // the attach just because its results are discarded.
+    detachReader();
 
-        LOG_INFO << "Matches size " << readableSize( matching_lines_.getSizeInBytes( false ) )
-                 << ", marks size " << readableSize( marks_.getSizeInBytes( false ) )
-                 << ", union size " << readableSize( marks_and_matches_.getSizeInBytes( false ) );
+    if ( searchId != currentSearchId_ ) {
+        // A superseded (or explicitly interrupted) run finishing late; discard
+        // rather than apply -- this is what stops residue from an earlier
+        // pattern from showing up once a later one has taken over.
+        return;
     }
+
+    const auto searchResults = workerThread_.getSearchResults();
+
+    matching_lines_ |= searchResults.newMatches;
+    marks_and_matches_ |= searchResults.newMatches;
+
+    maxLength_ = searchResults.maxLength;
+    nbLinesProcessed_ = searchResults.processedLines;
+
+    if ( interrupted ) {
+        // Report neither completion nor 100%: an interrupted run is not a
+        // finished one, and its partial results must not be cached under a
+        // key that promises the whole range was searched.
+        LOG_INFO << "Search run interrupted before completion";
+        return;
+    }
+
+    if ( nbLinesProcessed_.get() == getExpectedSearchEnd( currentSearchKey_ ).get() ) {
+        updateSearchResultsCache();
+    }
+
+    rebuildContextLines();
+
+    LOG_INFO << "Matches size " << readableSize( matching_lines_.getSizeInBytes( false ) )
+             << ", marks size " << readableSize( marks_.getSizeInBytes( false ) )
+             << ", union size " << readableSize( marks_and_matches_.getSizeInBytes( false ) );
+
+    {
+        ScopedLock lock( searchProgressMutex_ );
+        searchProgress_ = std::make_tuple( nbMatches, 100, initialLine );
+    }
+
+    Q_EMIT searchProgressedThrottled();
 }
 
 void LogFilteredData::handleSearchProgressedThrottled()

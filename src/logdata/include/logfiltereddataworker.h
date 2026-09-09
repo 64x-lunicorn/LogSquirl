@@ -39,6 +39,9 @@
 #ifndef LOGFILTEREDDATAWORKERTHREAD_H
 #define LOGFILTEREDDATAWORKERTHREAD_H
 
+#include <atomic>
+#include <cstdint>
+
 #include <QObject>
 
 #include <qthreadpool.h>
@@ -49,12 +52,29 @@
 #include <tbb/task_group.h>
 #endif
 
-#include "atomicflag.h"
+#include <type_safe/strong_typedef.hpp>
+
 #include "linetypes.h"
 #include "regularexpression.h"
 #include "synchronization.h"
 
 class LogData;
+
+// Identifies one Search run. A new run gets a fresh id; whatever owns the
+// worker compares an incoming result's id against the id it is currently
+// waiting on to tell a result belonging to a superseded run from a live one.
+struct SearchId : type_safe::strong_typedef<SearchId, uint64_t>,
+                  type_safe::strong_typedef_op::equality_comparison<SearchId> {
+    using strong_typedef::strong_typedef;
+
+    using UnderlyingType = uint64_t;
+
+    UnderlyingType get() const
+    {
+        return type_safe::get( *this );
+    }
+};
+Q_DECLARE_METATYPE( SearchId )
 
 // Class encapsulating a single matching line
 // Contains the line number the line was found in and its content.
@@ -129,7 +149,8 @@ private:
 class SearchOperation : public QObject {
     Q_OBJECT
 public:
-    SearchOperation( const LogData& sourceLogData, AtomicFlag& interruptRequested,
+    SearchOperation( const LogData& sourceLogData, SearchId searchId,
+                     const std::atomic<uint64_t>& activeSearchId,
                      const RegularExpressionPattern& regExp, LineNumber startLine,
                      LineNumber endLine );
 
@@ -138,15 +159,24 @@ public:
     virtual void run( SearchData& result ) = 0;
 
 Q_SIGNALS:
-    void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine );
-    void searchFinished();
+    void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine,
+                           SearchId searchId );
+    // interrupted is true when this run was superseded by another (or explicitly
+    // interrupted) before it reached the end of its range.
+    void searchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
+                         bool interrupted );
 
 protected:
     // Implement the common part of the search, passing
     // the shared results and the line to begin the search from.
     void doSearch( SearchData& result, LineNumber initialLine );
 
-    AtomicFlag& interruptRequested_;
+    // True once another run has become the active one, i.e. this run has been
+    // superseded (by a newer search) or explicitly interrupted.
+    bool isSuperseded() const;
+
+    SearchId searchId_;
+    const std::atomic<uint64_t>& activeSearchId_;
     const RegularExpressionPattern regexp_;
     const LogData& sourceLogData_;
     LineNumber startLine_;
@@ -156,10 +186,11 @@ protected:
 class FullSearchOperation : public SearchOperation {
     Q_OBJECT
 public:
-    FullSearchOperation( const LogData& sourceLogData, AtomicFlag& interruptRequested,
+    FullSearchOperation( const LogData& sourceLogData, SearchId searchId,
+                         const std::atomic<uint64_t>& activeSearchId,
                          const RegularExpressionPattern& regExp, LineNumber startLine,
                          LineNumber endLine )
-        : SearchOperation( sourceLogData, interruptRequested, regExp, startLine, endLine )
+        : SearchOperation( sourceLogData, searchId, activeSearchId, regExp, startLine, endLine )
     {
     }
 
@@ -169,10 +200,11 @@ public:
 class UpdateSearchOperation : public SearchOperation {
     Q_OBJECT
 public:
-    UpdateSearchOperation( const LogData& sourceLogData, AtomicFlag& interruptRequested,
+    UpdateSearchOperation( const LogData& sourceLogData, SearchId searchId,
+                           const std::atomic<uint64_t>& activeSearchId,
                            const RegularExpressionPattern& regExp, LineNumber startLine,
                            LineNumber endLine, LineNumber position )
-        : SearchOperation( sourceLogData, interruptRequested, regExp, startLine, endLine )
+        : SearchOperation( sourceLogData, searchId, activeSearchId, regExp, startLine, endLine )
         , initialPosition_( position )
     {
     }
@@ -196,14 +228,19 @@ public:
     LogFilteredDataWorker( LogFilteredDataWorker&& ) = delete;
     LogFilteredDataWorker& operator=( LogFilteredDataWorker&& ) = delete;
 
-    // Start the search with the passed regexp
-    void search( const RegularExpressionPattern& regExp, LineNumber startLine, LineNumber endLine );
+    // Start the search with the passed regexp. Returns the id of the run started,
+    // which becomes the new active run -- superseding whatever was running before,
+    // without waiting for it to acknowledge.
+    SearchId search( const RegularExpressionPattern& regExp, LineNumber startLine,
+                     LineNumber endLine );
     // Continue the previous search starting at the passed position
-    // in the source file (line number)
-    void updateSearch( const RegularExpressionPattern& regExp, LineNumber startLine,
-                       LineNumber endLine, LineNumber position );
+    // in the source file (line number). Returns the id of the run started.
+    SearchId updateSearch( const RegularExpressionPattern& regExp, LineNumber startLine,
+                           LineNumber endLine, LineNumber position );
 
-    // Interrupts the search if one is in progress
+    // Interrupts the search if one is in progress. Does not wait for it to
+    // acknowledge; the run simply stops being the active one, so its next
+    // progress check will see itself as superseded.
     void interrupt();
 
     // get the current indexing data
@@ -212,17 +249,24 @@ public:
 Q_SIGNALS:
     // Sent during the indexing process to signal progress
     // percent being the percentage of completion.
-    void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine );
-    // Sent when indexing is finished, signals the client
-    // to copy the new data back.
-    void searchFinished();
+    void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine,
+                           SearchId searchId );
+    // Sent once a run stops, one way or another. interrupted is true when the
+    // run was superseded or explicitly interrupted before reaching its end.
+    void searchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
+                         bool interrupted );
 
 private:
     void connectSignalsAndRun( SearchOperation* operationRequested );
 
 private:
     const LogData& sourceLogData_;
-    AtomicFlag interruptRequested_;
+
+    // The id of the run currently considered "active". A run compares its own
+    // id against this to tell whether it has been superseded; interrupt() (and
+    // starting a new run) simply change what this holds. 0 means no run active.
+    std::atomic<uint64_t> activeSearchId_{ 0 };
+    std::atomic<uint64_t> nextSearchId_{ 0 };
 
     QThreadPool operationsPool_;
     Mutex operationsMutex_;

@@ -73,6 +73,7 @@ class LogSquirlApp : public QApplication {
         qRegisterMetaType<std::vector<LineNumber>>( "std::vector<LineNumber>" );
         qRegisterMetaType<logsquirl::vector<LineNumber>>( "logsquirl::vector<LineNumber>" );
         qRegisterMetaType<LineLength>( "LineLength" );
+        qRegisterMetaType<SearchId>( "SearchId" );
         qRegisterMetaType<Portion>( "Portion" );
         qRegisterMetaType<Selection>( "Selection" );
         qRegisterMetaType<QFNotification>( "QFNotification" );

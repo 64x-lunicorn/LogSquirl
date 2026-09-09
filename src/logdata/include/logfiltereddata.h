@@ -153,7 +153,10 @@ class LogFilteredData : public AbstractLogData {
     void searchProgressedThrottled();
 
   private Q_SLOTS:
-    void handleSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine );
+    void handleSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine,
+                                 SearchId searchId );
+    void handleSearchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
+                               bool interrupted );
     void handleSearchProgressedThrottled();
 
   private:
@@ -203,6 +206,11 @@ class LogFilteredData : public AbstractLogData {
     Visibility visibility_;
 
     LogFilteredDataWorker workerThread_;
+
+    // The run whose progress and results we're currently waiting on. A signal
+    // carrying any other id belongs to a run we've since superseded, and is
+    // discarded rather than applied.
+    SearchId currentSearchId_{ 0 };
 
     Mutex searchProgressMutex_;
     std::tuple<LinesCount, int, LineNumber> searchProgress_;

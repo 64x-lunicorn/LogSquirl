@@ -578,3 +578,82 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
         }
     }
 }
+
+SCENARIO( "a Search superseded by a later one applies no stale results", "[logdata][search]" )
+{
+    GIVEN( "a log file where every line matches exactly one of two disjoint patterns" )
+    {
+        // Large enough, with a small enough chunk size and a single search thread,
+        // that the first Search is still in flight when the second one starts --
+        // this is what lets the test catch a genuine supersede, not just two
+        // searches that happened to run back to back.
+        static const qint64 nbLines = 20000;
+
+        QTemporaryFile file{ "supersede_test_XXXXXX" };
+        REQUIRE( [ & ]() {
+            if ( !file.open() ) {
+                return false;
+            }
+            char line[ 96 ];
+            for ( qint64 i = 0; i < nbLines; ++i ) {
+                const char* tag = ( i % 2 == 0 ) ? "EVEN" : "ODD";
+                snprintf( line, sizeof( line ), "SUPERSEDE_TEST %s line %06lld\n", tag,
+                         static_cast<long long>( i ) );
+                file.write( line, static_cast<qint64>( qstrlen( line ) ) );
+            }
+            file.flush();
+            return true;
+        }() );
+
+        auto& config = Configuration::getSynced();
+        config.setSearchThreadPoolSize( 1 );
+        config.setUseParallelSearch( false );
+        config.setUseSearchResultsCache( false );
+
+        LogData log_data;
+        SafeQSignalSpy loadEndSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        log_data.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+
+        auto filtered_data = log_data.getNewFilteredData();
+
+        WHEN( "a second Search for the other pattern starts while the first is still running" )
+        {
+            SafeQSignalSpy searchProgressSpy{ filtered_data.get(),
+                                              &LogFilteredData::searchProgressed };
+
+            filtered_data->runSearch( RegularExpressionPattern( "EVEN" ) );
+
+            const bool firstSearchStarted
+                = waitUiState( [ & ]() { return searchProgressSpy.count() > 0; } );
+            REQUIRE( firstSearchStarted );
+
+            // Supersede it before it has had a chance to finish.
+            filtered_data->runSearch( RegularExpressionPattern( "ODD" ) );
+
+            const bool secondSearchCompleted = waitUiState( [ & ]() {
+                if ( searchProgressSpy.count() == 0 ) {
+                    return false;
+                }
+                return searchProgressSpy.last().at( 1 ).toInt() >= 100;
+            } );
+            REQUIRE( secondSearchCompleted );
+
+            // Let any late progress from the superseded first Search be delivered
+            // and (if the fix works) discarded, before we inspect the final state.
+            QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
+
+            THEN( "only the second pattern's matches are applied, with none of the first's" )
+            {
+                REQUIRE( filtered_data->getNbMatches() == 10000_lcount );
+
+                const auto lines
+                    = filtered_data->getExpandedLines( 0_lnum, filtered_data->getNbMatches() );
+                for ( const auto& l : lines ) {
+                    REQUIRE( l.contains( "ODD" ) );
+                    REQUIRE_FALSE( l.contains( "EVEN" ) );
+                }
+            }
+        }
+    }
+}
