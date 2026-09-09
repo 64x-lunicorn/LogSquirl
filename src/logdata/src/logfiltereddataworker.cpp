@@ -355,6 +355,13 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     logsquirl::vector<MatcherContext> regexMatchers;
     regexMatchers.reserve( matchingThreadsCount );
     RegularExpression regularExpression{ regexp_ };
+    // Diagnostic for the #85 CI-only ~120s stall (see logfiltereddata_test.cpp's
+    // "a Search superseded by a later one" scenario): bisects doSearch's overall
+    // duration so a failing CI run pins down which phase actually ate the time,
+    // rather than guessing between regex compilation, graph setup, the feed loop
+    // and wait_for_all(). Remove once that investigation concludes.
+    LOG_INFO << "doSearch checkpoint: pattern compiled after "
+             << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
     for ( auto index = 0u; index < matchingThreadsCount; ++index ) {
         regexMatchers.emplace_back(
             regularExpression.createMatcher(), microseconds{ 0 },
@@ -464,6 +471,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     tbb::flow::make_edge( resultsQueue, matchProcessor );
     tbb::flow::make_edge( matchProcessor, blockPrefetcher.decrementer() );
 
+    LOG_INFO << "doSearch checkpoint: graph wired after "
+             << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
+
     auto chunkStart = initialLine;
     while ( chunkStart < endLine && !isSuperseded() ) {
         const auto lineSourceStartTime = high_resolution_clock::now();
@@ -507,6 +517,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
             break;
         }
     }
+
+    LOG_INFO << "doSearch checkpoint: feed loop done after "
+             << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
 
     searchGraph.wait_for_all();
 
