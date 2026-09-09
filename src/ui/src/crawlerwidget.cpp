@@ -748,6 +748,13 @@ void CrawlerWidget::applyConfiguration()
         changeDataStatus( DataStatus::OLD_DATA );
     }
 
+    // Rebuild the table delegate's cached main-search Highlighter so a
+    // Configuration change (e.g. toggling main-search highlighting) is
+    // picked up without needing a new search
+    if ( tableHighlightDelegate_ ) {
+        tableHighlightDelegate_->refreshMainSearchHighlighter();
+    }
+
     // Repaint the table view so highlighter changes are reflected
     if ( logTableView_ && tableViewActive_ ) {
         logTableView_->viewport()->update();
@@ -1043,6 +1050,14 @@ void CrawlerWidget::setSearchLimits( LineNumber startLine, LineNumber endLine )
 
     logMainView_->setSearchLimits( startLine, endLine );
     filteredView_->setSearchLimits( startLine, endLine );
+
+    // Sync Search Limits to the table view highlight delegate
+    if ( tableHighlightDelegate_ ) {
+        tableHighlightDelegate_->setSearchLimits( startLine, endLine );
+        if ( logTableView_ && tableViewActive_ ) {
+            logTableView_->viewport()->update();
+        }
+    }
 }
 
 void CrawlerWidget::clearSearchLimits()
@@ -1903,6 +1918,14 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
             searchInfoLine_->hide();
             logMainView_->setSearchPattern( regexpPattern );
             filteredView_->setSearchPattern( regexpPattern );
+
+            // Sync main search pattern to the table view highlight delegate
+            if ( tableHighlightDelegate_ ) {
+                tableHighlightDelegate_->setSearchPattern( regexpPattern );
+                if ( logTableView_ && tableViewActive_ ) {
+                    logTableView_->viewport()->update();
+                }
+            }
         }
         else {
             // The regexp is wrong
@@ -1926,6 +1949,14 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
 
             logMainView_->setSearchPattern( {} );
             filteredView_->setSearchPattern( {} );
+
+            // Sync main search pattern to the table view highlight delegate
+            if ( tableHighlightDelegate_ ) {
+                tableHighlightDelegate_->setSearchPattern( {} );
+                if ( logTableView_ && tableViewActive_ ) {
+                    logTableView_->viewport()->update();
+                }
+            }
         }
     }
     else {

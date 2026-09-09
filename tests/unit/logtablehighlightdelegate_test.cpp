@@ -28,6 +28,30 @@
 #include <QStyleOptionViewItem>
 #include <QTableView>
 
+namespace {
+
+using LineTypeFlags = AbstractLogData::LineTypeFlags;
+
+HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMatch,
+                                   const QColor& foreColor, const QColor& backColor )
+{
+    auto set = HighlighterSet::createNewSet( "test" );
+    set.addHighlighter( Highlighter{ pattern, false, highlightOnlyMatch, foreColor, backColor } );
+    return set;
+}
+
+LineDecorator::Context emptyDecoratorContext()
+{
+    return LineDecorator::Context{ HighlighterSet{},
+                                   std::nullopt,
+                                   {},
+                                   QuickFindMatcher{},
+                                   QColor{ Qt::yellow },
+                                   SearchLimits{} };
+}
+
+} // namespace
+
 // ── TableCellSelection tests ───────────────────────────────────────────────
 
 // Minimal reproduction of CrawlerWidget::TableCellSelection for unit testing.
@@ -689,5 +713,317 @@ SCENARIO( "Portion selection on row does not suppress unrelated rows",
                 REQUIRE( true );
             }
         }
+    }
+}
+
+// ── decorationFor composition tests (issue #81) ─────────────────────────────
+//
+// The Table View obtains its Decoration from the Line Decorator instead of
+// its own copy of the colour rule: the row-level Line Verdict is decided
+// from the raw Log Line -- a whole-line Highlighter and the Search Limits
+// are facts about the whole line, not about one field of it -- while the
+// Decoration itself is composed straight from the cell's own text (a
+// word-only Highlighter, main search, Color Labels and QuickFind are all
+// matched again directly against that text, in its own coordinate space).
+
+namespace {
+
+LineVerdict rowVerdictFor( const LineDecorator::Context& context, LineNumber lineNumber,
+                           const QString& rawLine, AbstractLogData::LineType lineType )
+{
+    return LineDecorator{ context }.verdictFor( LogLine{ lineNumber, rawLine }, lineType );
+}
+
+} // namespace
+
+SCENARIO( "A whole-line Highlighter colours the whole row, not just the "
+          "matching cell",
+          "[logtablehighlightdelegate][decorationfor]" )
+{
+    GIVEN( "a whole-line Highlighter for lines containing ERROR" )
+    {
+        auto context = emptyDecoratorContext();
+        context.highlighterSet
+            = setWithHighlighter( "ERROR", false, QColor{ Qt::white }, QColor{ Qt::red } );
+
+        const QString rawLine = "2026-05-07 an ERROR occurred in the pipeline";
+
+        WHEN( "deciding the row-level verdict from the raw line" )
+        {
+            const auto rowVerdict = rowVerdictFor( context, 0_lnum, rawLine, LineTypeFlags::Plain );
+
+            THEN( "the whole-line colour is decided for the row, independently of any one "
+                 "cell's own text" )
+            {
+                REQUIRE( rowVerdict.wholeLineHighlight().has_value() );
+                REQUIRE( rowVerdict.wholeLineHighlight()->foreColor == QColor{ Qt::white } );
+                REQUIRE( rowVerdict.wholeLineHighlight()->backColor == QColor{ Qt::red } );
+            }
+
+            AND_WHEN( "decorating a cell whose own text does not contain the pattern at all" )
+            {
+                const auto decoration = LogTableHighlightDelegate::decorationFor(
+                    context, rowVerdict, 0_lnum, LineTypeFlags::Plain, "unrelated field text" );
+
+                THEN( "no bogus span leaks in from the raw line's own coordinate space -- the "
+                     "whole row's colour is applied by paint() from the row verdict above, "
+                     "not by a span here" )
+                {
+                    REQUIRE( decoration.spans().empty() );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "A word-only Highlighter matches the cell's own text, not the raw "
+          "line's coordinate space",
+          "[logtablehighlightdelegate][decorationfor]" )
+{
+    GIVEN( "a word-only Highlighter for ERROR" )
+    {
+        auto context = emptyDecoratorContext();
+        context.highlighterSet
+            = setWithHighlighter( "ERROR", true, QColor{ Qt::white }, QColor{ Qt::red } );
+
+        // The word is much further into the raw line than into the cell's
+        // own (shorter, differently-offset) text.
+        const QString rawLine = "2026-05-07 12:00:00 an ERROR occurred";
+        const QString cellText = "ERROR: pipeline failed";
+        const auto rowVerdict = rowVerdictFor( context, 0_lnum, rawLine, LineTypeFlags::Plain );
+
+        WHEN( "decorating the cell" )
+        {
+            const auto decoration = LogTableHighlightDelegate::decorationFor(
+                context, rowVerdict, 0_lnum, LineTypeFlags::Plain, cellText );
+
+            THEN( "the match is positioned within the cell's own text, not the raw line's" )
+            {
+                REQUIRE( decoration.spans().size() == 1 );
+                const auto& span = decoration.spans().front();
+                REQUIRE( span.startColumn() == LineColumn{ cellText.indexOf( "ERROR" ) } );
+                REQUIRE( span.size() == LineLength{ 5 } );
+                REQUIRE( span.foreColor() == QColor{ Qt::white } );
+                REQUIRE( span.backColor() == QColor{ Qt::red } );
+            }
+        }
+
+        WHEN( "decorating a cell whose own text does not contain the word" )
+        {
+            const auto decoration = LogTableHighlightDelegate::decorationFor(
+                context, rowVerdict, 0_lnum, LineTypeFlags::Plain, "unrelated field" );
+
+            THEN( "no span is produced for this cell" )
+            {
+                REQUIRE( decoration.spans().empty() );
+            }
+        }
+    }
+}
+
+SCENARIO( "A row outside the Search Limits is subdued in the Table View, "
+          "as in the text view",
+          "[logtablehighlightdelegate][decorationfor]" )
+{
+    GIVEN( "a whole-line Highlighter and Search Limits restricted to lines 5-10" )
+    {
+        auto context = emptyDecoratorContext();
+        context.highlighterSet
+            = setWithHighlighter( "ERROR", false, QColor{ Qt::white }, QColor{ Qt::red } );
+        context.searchLimits = SearchLimits{ 5_lnum, 10_lnum };
+
+        const QString rawLine = "an ERROR occurred";
+        const QString cellText = "an ERROR occurred";
+
+        WHEN( "decorating a row before the limits" )
+        {
+            const auto rowVerdict = rowVerdictFor( context, 0_lnum, rawLine, LineTypeFlags::Plain );
+
+            THEN( "the row verdict itself says so" )
+            {
+                REQUIRE( rowVerdict.isOutsideSearchLimits() );
+                REQUIRE_FALSE( rowVerdict.wholeLineHighlight().has_value() );
+            }
+
+            AND_THEN( "the Highlighter colour is suppressed in the cell's Decoration too" )
+            {
+                const auto decoration = LogTableHighlightDelegate::decorationFor(
+                    context, rowVerdict, 0_lnum, LineTypeFlags::Plain, cellText );
+                REQUIRE( decoration.spans().empty() );
+            }
+        }
+
+        WHEN( "decorating a row inside the limits" )
+        {
+            const auto rowVerdict = rowVerdictFor( context, 7_lnum, rawLine, LineTypeFlags::Plain );
+            const auto decoration = LogTableHighlightDelegate::decorationFor(
+                context, rowVerdict, 7_lnum, LineTypeFlags::Plain, cellText );
+
+            THEN( "the Highlighter colour still applies" )
+            {
+                REQUIRE_FALSE( rowVerdict.isOutsideSearchLimits() );
+                REQUIRE_FALSE( decoration.spans().empty() );
+            }
+        }
+    }
+}
+
+SCENARIO( "Main search matches are highlighted in the Table View",
+          "[logtablehighlightdelegate][decorationfor]" )
+{
+    GIVEN( "a main search pattern for the word 'field'" )
+    {
+        auto context = emptyDecoratorContext();
+        context.mainSearch
+            = Highlighter{ "field", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
+
+        const QString rawLine = "2026-05-07 the field name is set";
+        const QString cellText = "the field name";
+        const auto rowVerdict = rowVerdictFor( context, 0_lnum, rawLine, LineTypeFlags::Plain );
+
+        WHEN( "decorating the cell containing the matched word" )
+        {
+            const auto decoration = LogTableHighlightDelegate::decorationFor(
+                context, rowVerdict, 0_lnum, LineTypeFlags::Plain, cellText );
+
+            THEN( "the matched word carries the main search colour" )
+            {
+                REQUIRE( decoration.spans().size() == 1 );
+                const auto& span = decoration.spans().front();
+                REQUIRE( span.startColumn() == LineColumn{ cellText.indexOf( "field" ) } );
+                REQUIRE( span.size() == LineLength{ 5 } );
+                REQUIRE( span.backColor() == QColor{ Qt::yellow } );
+            }
+        }
+    }
+}
+
+SCENARIO( "A partially selected row still shows Highlighter colour outside "
+          "the selection",
+          "[logtablehighlightdelegate][decorationfor]" )
+{
+    GIVEN( "a whole-line Highlighter for lines containing hello" )
+    {
+        auto context = emptyDecoratorContext();
+        context.highlighterSet
+            = setWithHighlighter( "hello", false, QColor{ Qt::white }, QColor{ Qt::red } );
+
+        const QString text = "hello world";
+        const auto rowVerdict = rowVerdictFor( context, 0_lnum, text, LineTypeFlags::Plain );
+        const HighlightedMatch selection{ 6_lcol, LineLength{ 5 }, QColor{ Qt::white },
+                                          QColor{ Qt::blue } };
+
+        WHEN( "decorating the cell with a selection over part of it" )
+        {
+            const auto decoration = LogTableHighlightDelegate::decorationFor(
+                context, rowVerdict, 0_lnum, LineTypeFlags::Plain, text, selection );
+
+            THEN( "the selection wins where it overlaps" )
+            {
+                bool foundSelection = false;
+                for ( const auto& span : decoration.spans() ) {
+                    if ( span.startColumn() == 6_lcol ) {
+                        REQUIRE( span.backColor() == QColor{ Qt::blue } );
+                        foundSelection = true;
+                    }
+                }
+                REQUIRE( foundSelection );
+
+                AND_THEN( "the untouched prefix keeps the whole-line Highlighter's colour" )
+                {
+                    const auto& first = decoration.spans().front();
+                    REQUIRE( first.startColumn() == 0_lcol );
+                    REQUIRE( first.backColor() == QColor{ Qt::red } );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "A fully selected row overrides Highlighter colour everywhere",
+          "[logtablehighlightdelegate][decorationfor]" )
+{
+    GIVEN( "a whole-line Highlighter for lines containing hello" )
+    {
+        auto context = emptyDecoratorContext();
+        context.highlighterSet
+            = setWithHighlighter( "hello", false, QColor{ Qt::white }, QColor{ Qt::red } );
+
+        const QString text = "hello world";
+        const auto rowVerdict = rowVerdictFor( context, 0_lnum, text, LineTypeFlags::Plain );
+        const HighlightedMatch selection{ 0_lcol, LineLength{ text.size() }, QColor{ Qt::white },
+                                          QColor{ Qt::blue } };
+
+        WHEN( "decorating the cell with a selection covering the whole cell text" )
+        {
+            const auto decoration = LogTableHighlightDelegate::decorationFor(
+                context, rowVerdict, 0_lnum, LineTypeFlags::Plain, text, selection );
+
+            THEN( "the selection colour covers the whole cell, with nothing left showing "
+                 "the Highlighter's colour" )
+            {
+                for ( const auto& span : decoration.spans() ) {
+                    REQUIRE( span.backColor() == QColor{ Qt::blue } );
+                }
+            }
+        }
+    }
+}
+
+// ── Cache invalidation tests (buildDecoratorContext performance) ───────────
+
+SCENARIO( "setSearchPattern and setColorLabelWords rebuild the cached "
+          "Highlighters they feed decorationFor()",
+          "[logtablehighlightdelegate][cache]" )
+{
+    LogTableHighlightDelegate delegate;
+
+    GIVEN( "a main search pattern is set" )
+    {
+        delegate.setSearchPattern( RegularExpressionPattern{ "field" } );
+
+        WHEN( "painting a cell containing the pattern" )
+        {
+            QStandardItemModel model;
+            model.setColumnCount( 1 );
+            model.setRowCount( 1 );
+            model.setData( model.index( 0, 0 ), "the field name" );
+
+            QPixmap pixmap{ 200, 30 };
+            pixmap.fill( Qt::white );
+            QPainter painter( &pixmap );
+            QStyleOptionViewItem option;
+            option.rect = QRect( 0, 0, 200, 30 );
+            option.font = QFont( "Monospace", 10 );
+            option.fontMetrics = QFontMetrics( option.font );
+            option.palette = QApplication::palette();
+            option.state = QStyle::State_Enabled;
+
+            THEN( "it does not crash and reuses the cached Highlighter on later repaints" )
+            {
+                delegate.paint( &painter, option, model.index( 0, 0 ) );
+                delegate.paint( &painter, option, model.index( 0, 0 ) );
+                REQUIRE( true );
+            }
+            painter.end();
+        }
+
+        WHEN( "clearing the pattern" )
+        {
+            delegate.setSearchPattern( {} );
+            THEN( "no crash" ) { REQUIRE( true ); }
+        }
+    }
+
+    GIVEN( "color label words are set" )
+    {
+        delegate.setColorLabelWords( { QStringList{ "warn" } } );
+        THEN( "no crash" ) { REQUIRE( true ); }
+    }
+
+    GIVEN( "refreshMainSearchHighlighter is called without a pattern set" )
+    {
+        delegate.refreshMainSearchHighlighter();
+        THEN( "no crash" ) { REQUIRE( true ); }
     }
 }
