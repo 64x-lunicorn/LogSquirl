@@ -34,6 +34,8 @@
 
 #include <tbb/global_control.h>
 
+#include <thread>
+
 const bool PersistentInfo::ForcePortable = true;
 
 class TestRunner : public QObject {
@@ -87,6 +89,15 @@ int main( int argc, char* argv[] )
     QApplication a( argc, argv );
 
     logging::enableLogging();
+
+    // Diagnostic for #85's "search superseded by a later one" CI flake on
+    // ubuntu_noble specifically: this is the one figure the earlier
+    // floor-of-2 fix (f1e50506) never actually logged, so there is no way
+    // to tell from a CI run whether TBB saw this container as having 1
+    // logical thread (the case that fix targets) or something else. Remove
+    // once that investigation concludes.
+    LOG_INFO << "qtests_main: ambient TBB concurrency " << ambientConcurrency
+             << ", std::thread::hardware_concurrency() " << std::thread::hardware_concurrency();
 
     qRegisterMetaType<LinesCount>( "LinesCount" );
     qRegisterMetaType<LineNumber>( "LineNumber" );
