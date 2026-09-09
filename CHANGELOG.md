@@ -1,3 +1,14 @@
+# Unreleased
+
+## Documentation
+
+- **README refresh**: Add a branded introduction, prominent download links, a
+  short getting-started workflow, and concise, benefit-focused feature sections
+  while preserving the project's origin statement and attribution. Replace the
+  outdated screenshot with a fresh macOS capture using a fictional incident log,
+  with the personal file path removed from the image.
+
+---
 
 # v26.07.0 (2026-07-13)
 

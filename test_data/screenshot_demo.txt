@@ -1,0 +1,105 @@
+# Copyright (C) 2026 LogSquirl Contributors
+#
+# This file is part of LogSquirl.
+#
+# LogSquirl is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# LogSquirl is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with LogSquirl. If not, see <http://www.gnu.org/licenses/>.
+#
+# FICTIONAL DEMO: Acorn Store / checkout latency incident / no real customer data.
+# Built-in format: spdlog. Chart Y: duration_ms=(\d+) using capture group 1.
+# Chart X: ^\[(.*?)\] using group 1, timestamp format yyyy-MM-dd HH:mm:ss.zzz.
+#
+[2026-09-09 09:41:00.000] [demo] [info] ACORN STORE | Synthetic incident replay | All services and requests are fictional
+[2026-09-09 09:41:00.100] [gateway] [info] GET /api/catalog status=200 duration_ms=24 request=demo-001
+[2026-09-09 09:41:01.000] [inventory] [debug] Cache warm: items=128 hit_rate=99 pool_active=4 pool_limit=32
+[2026-09-09 09:41:03.100] [gateway] [info] POST /api/checkout status=201 duration_ms=32 request=demo-002
+[2026-09-09 09:41:04.000] [checkout] [info] Order accepted order=acorn-001 payment=sandbox
+[2026-09-09 09:41:06.100] [gateway] [info] GET /api/catalog status=200 duration_ms=19 request=demo-003
+[2026-09-09 09:41:07.000] [worker] [debug] Queue drained pending=0 workers=8
+[2026-09-09 09:41:09.100] [gateway] [info] POST /api/checkout status=201 duration_ms=28 request=demo-004
+[2026-09-09 09:41:10.000] [health] [info] All checks passing region=demo-west
+[2026-09-09 09:41:12.100] [gateway] [info] GET /api/catalog status=200 duration_ms=22 request=demo-005
+[2026-09-09 09:41:13.000] [inventory] [debug] Cache hit item=trail-mix stock=240
+[2026-09-09 09:41:15.100] [gateway] [info] POST /api/checkout status=201 duration_ms=35 request=demo-006
+[2026-09-09 09:41:16.000] [checkout] [info] Order accepted order=acorn-002 payment=sandbox
+[2026-09-09 09:41:18.100] [gateway] [info] GET /api/catalog status=200 duration_ms=26 request=demo-007
+[2026-09-09 09:41:19.000] [traffic] [info] Synthetic campaign started campaign=autumn-acorns
+[2026-09-09 09:41:21.100] [gateway] [info] POST /api/checkout status=201 duration_ms=64 request=demo-008
+[2026-09-09 09:41:22.000] [inventory] [debug] Cache misses increasing hit_rate=81 pool_active=12 pool_limit=32
+[2026-09-09 09:41:24.100] [gateway] [info] GET /api/catalog status=200 duration_ms=110 request=demo-009
+[2026-09-09 09:41:25.000] [database] [warn] Connection pool filling pool_active=24 pool_limit=32
+[2026-09-09 09:41:27.100] [gateway] [info] POST /api/checkout status=201 duration_ms=185 request=demo-010
+[2026-09-09 09:41:28.000] [worker] [warn] Queue growing pending=48 workers=8
+[2026-09-09 09:41:30.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=310 request=demo-011
+[2026-09-09 09:41:31.000] [checkout] [warn] Slow inventory lookup item=trail-mix threshold_ms=250
+[2026-09-09 09:41:33.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=520 request=demo-012
+[2026-09-09 09:41:34.000] [database] [warn] Connection pool saturated pool_active=32 pool_limit=32
+[2026-09-09 09:41:36.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=780 request=demo-013
+[2026-09-09 09:41:37.000] [health] [warn] Checkout latency budget exceeded incident=DEMO-042
+[2026-09-09 09:41:39.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=1180 request=demo-014
+[2026-09-09 09:41:40.000] [database] [error] Connection acquisition timeout pool_active=32 waiting=96 incident=DEMO-042
+[2026-09-09 09:41:42.100] [gateway] [error] POST /api/checkout status=504 duration_ms=2000 request=demo-015
+[2026-09-09 09:41:43.000] [checkout] [error] Inventory lookup timeout request=demo-015 order=acorn-003
+[2026-09-09 09:41:44.000] [worker] [warn] Retry scheduled attempt=1 backoff_ms=500 jitter=enabled
+[2026-09-09 09:41:45.100] [gateway] [error] POST /api/checkout status=504 duration_ms=2000 request=demo-016
+[2026-09-09 09:41:46.000] [database] [error] Slow query detected query=inventory_by_sku index=missing
+[2026-09-09 09:41:47.000] [health] [error] Checkout degraded incident=DEMO-042 synthetic_alert=true
+[2026-09-09 09:41:48.100] [gateway] [error] POST /api/checkout status=504 duration_ms=2000 request=demo-017
+[2026-09-09 09:41:49.000] [checkout] [warn] Circuit breaker opened dependency=inventory cooldown_s=12
+[2026-09-09 09:41:50.000] [worker] [warn] Dispatch paused pending=192 reason=downstream_unavailable
+[2026-09-09 09:41:51.100] [gateway] [error] POST /api/checkout status=503 duration_ms=8 request=demo-018
+[2026-09-09 09:41:52.000] [checkout] [warn] Request rejected quickly by open circuit; low latency does not mean recovery
+[2026-09-09 09:41:54.100] [gateway] [error] POST /api/checkout status=503 duration_ms=6 request=demo-019
+[2026-09-09 09:41:55.000] [operator] [info] Mitigation started: enable catalog cache and install inventory index
+[2026-09-09 09:41:57.100] [gateway] [error] POST /api/checkout status=503 duration_ms=7 request=demo-020
+[2026-09-09 09:41:58.000] [database] [info] Index ready name=idx_inventory_sku build_ms=1840
+[2026-09-09 09:42:00.100] [gateway] [error] POST /api/checkout status=503 duration_ms=5 request=demo-021
+[2026-09-09 09:42:01.000] [checkout] [info] Circuit breaker half-open; allowing probe requests
+[2026-09-09 09:42:03.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=920 request=demo-022
+[2026-09-09 09:42:04.000] [database] [info] Connection pressure easing pool_active=26 pool_limit=32
+[2026-09-09 09:42:06.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=680 request=demo-023
+[2026-09-09 09:42:07.000] [inventory] [info] Cache hit rate recovering hit_rate=91
+[2026-09-09 09:42:09.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=440 request=demo-024
+[2026-09-09 09:42:10.000] [checkout] [info] Probe window passed; circuit breaker closed
+[2026-09-09 09:42:12.100] [gateway] [warn] POST /api/checkout status=201 duration_ms=290 request=demo-025
+[2026-09-09 09:42:13.000] [worker] [info] Dispatch resumed pending=128 workers=8
+[2026-09-09 09:42:15.100] [gateway] [info] POST /api/checkout status=201 duration_ms=180 request=demo-026
+[2026-09-09 09:42:16.000] [database] [debug] Indexed lookup active rows_scanned=1 pool_active=12
+[2026-09-09 09:42:18.100] [gateway] [info] GET /api/catalog status=200 duration_ms=105 request=demo-027
+[2026-09-09 09:42:19.000] [worker] [info] Backlog shrinking pending=64 workers=8
+[2026-09-09 09:42:21.100] [gateway] [info] POST /api/checkout status=201 duration_ms=72 request=demo-028
+[2026-09-09 09:42:22.000] [checkout] [info] Order accepted order=acorn-004 payment=sandbox
+[2026-09-09 09:42:24.100] [gateway] [info] GET /api/catalog status=200 duration_ms=49 request=demo-029
+[2026-09-09 09:42:25.000] [worker] [info] Backlog cleared pending=0
+[2026-09-09 09:42:27.100] [gateway] [info] POST /api/checkout status=201 duration_ms=37 request=demo-030
+[2026-09-09 09:42:28.000] [health] [info] All checks passing; monitoring recovery incident=DEMO-042
+[2026-09-09 09:42:30.100] [gateway] [info] GET /api/catalog status=200 duration_ms=28 request=demo-031
+[2026-09-09 09:42:31.000] [inventory] [debug] Cache warm hit_rate=99 pool_active=4 pool_limit=32
+[2026-09-09 09:42:33.100] [gateway] [info] POST /api/checkout status=201 duration_ms=31 request=demo-032
+[2026-09-09 09:42:34.000] [checkout] [info] Order accepted order=acorn-005 payment=sandbox
+[2026-09-09 09:42:36.100] [gateway] [info] GET /api/catalog status=200 duration_ms=23 request=demo-033
+[2026-09-09 09:42:37.000] [worker] [debug] Queue drained pending=0 workers=8
+[2026-09-09 09:42:39.100] [gateway] [info] POST /api/checkout status=201 duration_ms=29 request=demo-034
+[2026-09-09 09:42:40.000] [health] [info] Error rate back to baseline; no new checkout failures
+[2026-09-09 09:42:42.100] [gateway] [info] GET /api/catalog status=200 duration_ms=21 request=demo-035
+[2026-09-09 09:42:43.000] [database] [debug] Pool healthy pool_active=3 pool_limit=32
+[2026-09-09 09:42:45.100] [gateway] [info] POST /api/checkout status=201 duration_ms=30 request=demo-036
+[2026-09-09 09:42:46.000] [checkout] [info] Order accepted order=acorn-006 payment=sandbox
+[2026-09-09 09:42:48.100] [gateway] [info] GET /api/catalog status=200 duration_ms=25 request=demo-037
+[2026-09-09 09:42:49.000] [inventory] [debug] Cache hit item=trail-mix stock=234
+[2026-09-09 09:42:51.100] [gateway] [info] POST /api/checkout status=201 duration_ms=33 request=demo-038
+[2026-09-09 09:42:52.000] [health] [info] Recovery confirmed incident=DEMO-042
+[2026-09-09 09:42:54.100] [gateway] [info] GET /api/catalog status=200 duration_ms=20 request=demo-039
+[2026-09-09 09:42:55.000] [operator] [info] Incident resolved: missing index fixed; cache warmed; retries drained
+[2026-09-09 09:42:57.100] [gateway] [info] POST /api/checkout status=201 duration_ms=27 request=demo-040
+[2026-09-09 09:42:58.000] [demo] [info] REPLAY COMPLETE | Healthy -> degraded -> timeout -> circuit breaker -> recovered

@@ -1,45 +1,146 @@
+<!-- Allow GitHub's presentation markup and a logo before the main heading. -->
+<!-- markdownlint-configure-file {"MD033": {"allowed_elements": ["div", "img"]}, "MD041": false} -->
+
+<div align="center">
+
+<img src="src/app/images/logsquirl-logo.png" alt="LogSquirl mascot investigating a log with a magnifying glass" width="112">
+
 # LogSquirl
 
-A fast, smart log file explorer.
+**Big logs. Clear answers.**
 
-> **This is a fork of the project [klogg](https://github.com/variar/klogg).**
-> This fork has been renamed to "LogSquirl" and further developed.
-> All changes are documented in the Git history.
+**A fast, open-source log explorer for Windows, macOS, and Linux.**
 
-[![CI Build](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/ci-build.yml?branch=master&label=CI%20Build)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/ci-build.yml)
-[![CodeQL](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/codeql-analysis.yml?branch=master&label=CodeQL)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/codeql-analysis.yml)
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](COPYING)
+Search huge files, follow live logs, and turn noisy output into something you can actually work with.
+
+[![Download LogSquirl](https://img.shields.io/badge/Download-LogSquirl-f97316?style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
+[![Read the docs](https://img.shields.io/badge/Read_the-Docs-334155?style=for-the-badge)](DOCUMENTATION.md)
+
+[![Latest release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?color=f97316)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/64x-lunicorn/LogSquirl/total)](https://github.com/64x-lunicorn/LogSquirl/releases)
-[![Commits since latest release](https://img.shields.io/github/commits-since/64x-lunicorn/LogSquirl/latest)](https://github.com/64x-lunicorn/LogSquirl/commits/master)
-[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://isocpp.org/)
-[![Qt6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io/)
-[![Platforms](https://img.shields.io/badge/Platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat)](http://makeapullrequest.com)
+[![CI Build](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/ci-build.yml?branch=master&label=build)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/ci-build.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/codeql-analysis.yml?branch=master&label=CodeQL)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/codeql-analysis.yml)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](COPYING)
 
-## Overview
+[Why LogSquirl?](#why-logsquirl) · [Get started](#get-started) · [Features](#features) · [Plugins](#plugins) · [Contribute](#contributing)
 
-LogSquirl is a multi-platform GUI application that helps browse and search
-through long and complex log files. It is designed with programmers and
-system administrators in mind and can be seen as a graphical, interactive
-combination of grep, less, and tail.
+</div>
 
-Please refer to the
-[documentation](DOCUMENTATION.md)
-page for how to use LogSquirl.
+[![LogSquirl in dark mode showing the fictional Acorn Store incident, highlighted errors, and matching log lines](images/logsquirl-demo.png)](images/logsquirl-demo.png)
 
-## Table of Contents
+*Follow the incident, highlight the clues, and keep matching lines in view.
+Captured on macOS with fictional demo data; the local file path is anonymized.*
 
-1. [About the Project](#about-the-project)
-1. [Features](#features)
-1. [Plugins](#plugins)
-1. [Installation](#installation)
-1. [Building](#building)
-1. [How to Get Help](#how-to-get-help)
-1. [Contributing](#contributing)
-1. [License](#license)
-1. [Acknowledgements](#acknowledgements)
+---
 
-## About the Project
+## Why LogSquirl?
+
+Your editor struggles with the file. Your terminal shows the match, but not the whole story.
+LogSquirl brings **grep, less, and tail** into one desktop app so you can find what happened
+without losing the context.
+
+| Less friction | More insight |
+| :--- | :--- |
+| **Open the big one.** Work with multi-gigabyte logs without loading the entire file into memory. | **Find the signal.** Combine regex searches with AND, OR, and NOT, then inspect matches alongside the source. |
+| **Stay with the action.** Follow growing files and reload automatically when they change. | **See the structure.** Detect supported log formats and switch between raw text and a column-based table view. |
+| **Skip the unpacking.** Open compressed logs and tarballs directly. | **Spot the pattern.** Chart numeric values, message rates, and filter frequency over time. |
+
+## Get started
+
+### 1. Grab your build
+
+**[Download the latest release](https://github.com/64x-lunicorn/LogSquirl/releases/latest)**
+and choose the package for your platform.
+
+| Windows | macOS | Linux |
+| :--- | :--- | :--- |
+| NSIS installer | `.pkg` installer | AppImage, DEB, or RPM |
+
+See the release notes for package details and platform requirements.
+
+### 2. Find your first clue
+
+1. **Open a log file** you want to investigate.
+2. **Search for a keyword or regex** such as `ERROR|WARN|timeout` with regex mode enabled.
+3. **Select a match** to inspect the surrounding lines in the original log.
+4. **Enable follow mode** to keep watching as new lines arrive.
+
+Need a log to try? Open the [fictional incident demo](test_data/screenshot_demo.txt)
+and follow a service from healthy traffic through timeouts to recovery.
+The [user guide](DOCUMENTATION.md) covers filters, charts, and keyboard shortcuts.
+
+## Features
+
+### Fast where it matters
+
+Multi-threaded, SIMD-optimized search. Persistent index caching for reopening files.
+Automatic encoding detection. Direct support for `.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`,
+and tarballs.
+
+### Make the important parts stand out
+
+Save and group filters, pin them across sessions, and switch between color highlighter sets.
+Browse supported formats as structured tables, or chart values and jump from a data point
+straight to its log line. Reuse chart templates and share presets as JSON.
+
+### Keep your investigation in one place
+
+Dark mode, configurable shortcuts, and a Command Palette (`Ctrl+Shift+P`) for quick access.
+A Scratchpad for notes, data transformations, and JWT decoding.
+
+**Go deeper:** [Log formats](DOCUMENTATION.md#auto-log-format-detection-table-view) ·
+[Chart Panel](DOCUMENTATION.md#chart-panel) · [Full user guide](DOCUMENTATION.md)
+
+## Plugins
+
+**Your logs do not have to start in a file.**
+Extend LogSquirl with data sources, format converters, and custom UI actions.
+
+| Plugin | What it brings |
+| :--- | :--- |
+| [Android Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat) | Stream logcat output from ADB devices. |
+| [Serial Monitor](https://github.com/64x-lunicorn/LogSquirl-Serial) | Stream data from serial ports. |
+
+Use **Plugins → Browse Plugins…** to discover and download plugins, and
+**Plugins → Manage Plugins…** to manage them.
+
+Want to build your own? The C ABI supports **DataSource**, **Converter**, and **UI Extension**
+plugins. Lua scripting is also available in builds configured with `LOGSQUIRL_USE_LUA=ON`.
+
+[Explore the registry](https://github.com/64x-lunicorn/LogSquirl-Plugins) ·
+[Read the Plugin SDK guide](docs/plugin-sdk.md) ·
+[Publish a plugin](https://github.com/64x-lunicorn/LogSquirl-Plugins/blob/main/CONTRIBUTING.md)
+
+## Building
+
+LogSquirl is built with **C++23** and **Qt6**, using **CMake** and
+[CPM](https://github.com/cpm-cmake/CPM.cmake) for dependency management.
+
+You will need a C++23 compiler (GCC 13+, Clang 17+, or MSVC 19.36+), Qt 6.5+,
+and CMake 3.12+, along with the platform-specific dependencies.
+
+**[Follow the build guide](BUILD.md)** for setup, build options, and testing instructions.
+
+## How to get help
+
+| Looking for… | Start here |
+| :--- | :--- |
+| Usage, settings, and shortcuts | [User guide](DOCUMENTATION.md) |
+| New features and fixes | [Changelog](CHANGELOG.md) |
+| A known issue or workaround | [Search existing issues](https://github.com/64x-lunicorn/LogSquirl/issues) |
+| A bug report or feature request | [Open an issue](https://github.com/64x-lunicorn/LogSquirl/issues/new/choose) |
+
+## Contributing
+
+Help make the next log investigation a little easier.
+Bug reports, feature ideas, documentation improvements, plugins, and code contributions
+are all welcome.
+
+Read the [contributing guide](CONTRIBUTING.md) to get started.
+If LogSquirl helps you, **give it a star** or share it with someone who spends too much
+time scrolling through logs.
+
+## About the project
 
 LogSquirl is a fork of [klogg](https://github.com/variar/klogg), which itself started as a fork of
 [glogg](https://github.com/nickbnf/glogg) - the fast, smart log explorer.
@@ -49,158 +150,31 @@ development under a new name, building on the excellent foundation laid by both 
 
 LogSquirl is standing on the shoulders of giants.
 
-The project is built with **C++23** and **Qt6**, and uses
-[CMake](https://cmake.org/) with [CPM](https://github.com/cpm-cmake/CPM.cmake)
-for dependency management.
+### Acknowledgements
 
-## Features
+**[LogSquirl](https://github.com/64x-lunicorn/LogSquirl)** is built by
+[64x-Lunicorn](https://github.com/64x-lunicorn) on the work of:
 
-* Runs on Linux, Windows, and macOS thanks to Qt6
-* Reads files directly from disk without loading them into memory
-* Can operate on huge text files (10+ GB is not a problem)
-* Search results are displayed separately from the original file
-* Supports Perl-compatible regular expressions
-* Colorizes the log and search results
-* Displays a context view of where in the log the lines of interest are
-* Watches for file changes on disk and reloads automatically (like tail)
-* Is heavily optimized using multi-threading and SIMD
-* Supports files with more than 2 billion lines
-* Includes much faster regular expression search (2-4x)
-* Allows combining regular expressions with boolean operators (AND, OR, NOT)
-* Supports many common text encodings
-* Detects file encoding automatically using [uchardet](https://www.freedesktop.org/wiki/Software/uchardet/)
-* Can limit search operations to a portion of a huge file
-* Allows configuring several highlighter sets and switching between them
-* Has a list of configurable predefined regular expression patterns
-* Supports Filter Groups for organizing predefined filters into named groups
-* Includes a dark mode
-* Has configurable shortcuts
-* Has a scratchpad window for taking notes and doing basic data transformations
-* Includes a JWT token decoder in the Scratchpad for inspecting JSON Web Tokens
-* Features a Filters Panel with pinned filters that persist across sessions
-* Can import filters and highlighters from Chipmunk JSON export files
-* Offers an opt-in beta update channel for early access to new versions
-* Opens compressed logs (`.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`) and tarballs directly
-* Persistent **Index Cache** — re-opening a file loads the cached index instantly instead of
-  re-scanning (toggle via Options → Advanced → Caching or `perf.useIndexCache`)
-* **Auto Log Format Detection** — automatically detects lnav-compatible log formats and displays
-  logs in a structured table view with separate columns for timestamp, level, body, and
-  user-defined fields. Columns are auto-sized from actual data (2000-row sampling), column order
-  follows the regex capture group order, and full highlighting (matches, marks, highlighter sets,
-  color labels) is rendered in each cell. Toggle between text and table view with a toolbar button.
-  Place custom format JSON files in the platform data directory
-  (`~/.local/share/logsquirl/formats/`, `~/Library/Application Support/LogSquirl/formats/`,
-  or `%APPDATA%/LogSquirl/formats/`). Enable via Options → Log Formats →
-  "Auto-detect log format (table view)". The Log Formats tab also lists all
-  available formats and provides a button to open the user formats folder
-* **Command Palette** (Ctrl+Shift+P) — fuzzy-search all commands, plugin actions, recent files
-  and favorites in one dialog
-* Extensible via a [Plugin System](#plugins) — data sources, converters, and UI extensions
-* Optional Lua scripting for writing plugins without compiled code
-* Built-in Plugin Repository for browsing and installing community plugins
-* Includes an interactive **Chart Panel** for visualizing data extracted from log lines:
-  * Define chart series with regex capture groups to plot numeric values
-  * Custom X-axis extraction with timestamp parsing support
-  * Time-based aggregation / bucketing (100 ms – 5 min) for spotting peaks
-  * **Filter Frequency** mode — one-click chart of how often each search filter matches
-  * Zoom, pan, click-to-navigate to the source log line
-  * Save / Load / Delete app-level **chart presets**; per-file series are auto-saved
-  * **Export / Import** chart presets as portable JSON files
-* Open source, released under the GPL-3.0
+- **[klogg](https://github.com/variar/klogg)** by
+  [Anton Filimonov](https://github.com/variar) and contributors (GPL-3.0).
+- **[glogg](https://github.com/nickbnf/glogg)** by
+  [Nicolas Bonnefon](https://github.com/nickbnf) (GPL-3.0).
 
-**[Back to top](#table-of-contents)**
+See [NOTICE](NOTICE) for third-party components and their licenses.
 
-## Plugins
+### License
 
-LogSquirl includes a C ABI-based plugin system that supports three plugin types:
+Free and open source under the **GNU General Public License v3.0 or later**.
+See [COPYING](COPYING) for the full license.
 
-| Type | Description |
-|------|-------------|
-| **DataSource** | Stream log lines from external sources (e.g. Android logcat, serial ports) |
-| **Converter** | Convert proprietary file formats into plain-text logs |
-| **UI Extension** | Add custom UI elements, dialogs, and menu actions |
+---
 
-Plugins can be managed via **Plugins → Manage Plugins…** and browsed/downloaded
-from a remote repository via **Plugins → Browse Plugins…**.
+<div align="center">
 
-The available plugins are listed in the
-[LogSquirl-Plugins](https://github.com/64x-lunicorn/LogSquirl-Plugins) registry.
-To publish a new plugin or update an existing one, open a pull request in that
-repository — see the
-[Contributing Guide](https://github.com/64x-lunicorn/LogSquirl-Plugins/blob/main/CONTRIBUTING.md)
-for details.
+**Less scrolling. More investigating.**
 
-```mermaid
-flowchart LR
-    LS["LogSquirl"] -- "GET plugins.json" --> PR["LogSquirl-Plugins\n(registry)"]
-    LS -- "download ZIP" --> R1["LogSquirl-Logcat\n(release)"]
-    LS -- "download ZIP" --> R2["LogSquirl-Serial\n(release)"]
-```
+[Download LogSquirl](https://github.com/64x-lunicorn/LogSquirl/releases/latest) ·
+[Read the docs](DOCUMENTATION.md) ·
+[Back to top](#logsquirl)
 
-### Official Plugins
-
-| Plugin | Description | Repo |
-|--------|-------------|------|
-| **Android Logcat** | Stream logcat from ADB devices | [LogSquirl-Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat) |
-| **Serial Monitor** | Stream serial port data | [LogSquirl-Serial](https://github.com/64x-lunicorn/LogSquirl-Serial) |
-
-Plugins can also be written as **Lua scripts** (enable with `LOGSQUIRL_USE_LUA=ON`
-at build time) instead of compiled shared libraries.
-
-See [docs/plugin-sdk.md](docs/plugin-sdk.md) for the developer guide and the
-[LogSquirl-Logcat](https://github.com/64x-lunicorn/LogSquirl-Logcat) plugin as a
-reference implementation.
-
-**[Back to top](#table-of-contents)**
-
-## Installation
-
-This project uses [Calendar Versioning](https://calver.org/).
-
-Download the latest release for your platform from
-**[GitHub Releases](https://github.com/64x-lunicorn/LogSquirl/releases)**.
-
-| Platform | Packages |
-|----------|----------|
-| **Windows** | NSIS installer, Chocolatey, Scoop |
-| **macOS** | `.pkg` installer |
-| **Linux** | DEB, RPM, AppImage |
-
-### Building from source
-
-Please review [BUILD.md](BUILD.md) for instructions on how to build LogSquirl
-on your local machine.
-
-**[Back to top](#table-of-contents)**
-
-## Building
-
-Requires **C++23** (GCC ≥ 13, Clang ≥ 17, MSVC ≥ 19.36), **Qt 6.5+** (CI uses 6.10.3), and
-**CMake ≥ 3.12**. Please review [BUILD.md](BUILD.md) for full dependency and
-platform-specific instructions.
-
-## How to Get Help
-
-- Read the [documentation](DOCUMENTATION.md).
-- Search [existing issues](https://github.com/64x-lunicorn/LogSquirl/issues)
-  or open a new one.
-- Check the [CHANGELOG](CHANGELOG.md) for recent changes.
-
-## Contributing
-
-We encourage public contributions! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and development process.
-
-## License
-
-This project is licensed under the GNU General Public License v3.0 or later - see [COPYING](COPYING) file for details.
-
-## Acknowledgements
-
-**[LogSquirl](https://github.com/64x-lunicorn/LogSquirl)** is built by [64x-Lunicorn](https://github.com/64x-lunicorn) on the work of:
-
-* **[klogg](https://github.com/variar/klogg)** by [Anton Filimonov](https://github.com/variar) and contributors (GPL-3.0)
-* **[glogg](https://github.com/nickbnf/glogg)** by [Nicolas Bonnefon](https://github.com/nickbnf) (GPL-3.0)
-
-See the [NOTICE](NOTICE) file for a full list of third-party components and their licenses.
-
-**[Back to top](#table-of-contents)**
+</div>
