@@ -32,6 +32,8 @@
 
 #include <logger.h>
 
+#include <tbb/global_control.h>
+
 const bool PersistentInfo::ForcePortable = true;
 
 class TestRunner : public QObject {
@@ -70,6 +72,18 @@ class TestRunner : public QObject {
 
 int main( int argc, char* argv[] )
 {
+    // Unlike the app's own main() (src/app/main.cpp), nothing here otherwise
+    // guarantees a second TBB thread. On a CPU-constrained CI runner where
+    // TBB's ambient concurrency is 1, a search/index flow graph has no worker
+    // thread free to make progress whenever its driving thread is busy
+    // elsewhere (e.g. polling for buffer space), and can stall indefinitely.
+    // Kept alive for the rest of main() so the constraint doesn't revert
+    // before the tests run.
+    const auto ambientConcurrency
+        = tbb::global_control::active_value( tbb::global_control::max_allowed_parallelism );
+    tbb::global_control ensureWorkerThread( tbb::global_control::max_allowed_parallelism,
+                                            std::max( ambientConcurrency, size_t{ 2 } ) );
+
     QApplication a( argc, argv );
 
     logging::enableLogging();

@@ -38,6 +38,7 @@
 
 #include "log.h"
 #include <QtGlobal>
+#include <optional>
 #include <qapplication.h>
 #include <qthreadpool.h>
 
@@ -137,11 +138,20 @@ int main( int argc, char* argv[] )
     hs_set_allocator(mi_malloc, mi_free);
 #endif
 
+    // Kept alive for the rest of main() (not scoped to this if): a
+    // tbb::global_control's constraint only applies while the object itself is
+    // alive, so a block-scoped instance here would revert the moment this if
+    // exits -- before app.exec() ever runs -- silently undoing the override it
+    // claims to make. With only one thread allowed, a TBB flow graph (search,
+    // indexing, ...) has no worker thread free to make progress whenever its
+    // driving thread is busy elsewhere (e.g. polling for buffer space), and
+    // can stall indefinitely; two is the minimum that avoids that.
+    std::optional<tbb::global_control> concurrencyControl;
     if ( maxConcurrency < 2 ) {
         maxConcurrency = 2;
         LOG_INFO << "Overriding default concurrency to " << maxConcurrency;
-        tbb::global_control concurrencyControl( tbb::global_control::max_allowed_parallelism,
-                                                maxConcurrency );
+        concurrencyControl.emplace( tbb::global_control::max_allowed_parallelism,
+                                    maxConcurrency );
         QThreadPool::globalInstance()->setMaxThreadCount( static_cast<int>( maxConcurrency ) );
     }
 
