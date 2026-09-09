@@ -132,6 +132,48 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
         return lineDecorator.decorate( cellText, cellVerdict, selection );
     }
 
+    // The row's foreground and background colour, decided from its Line
+    // Verdict. Mirrors AbstractLogView's per-line colour derivation so the
+    // Table View reads the same facts the text view's gutter bullet reads --
+    // it just has nowhere but the row background to show them, having no
+    // gutter of its own. Precedence, highest to lowest: Search Limits (the
+    // whole row is subdued, nothing else shows), a whole-line Highlighter
+    // (an explicit, deliberate user rule), then Mark/Match -- consistent
+    // with the text view's bullet colours, including the distinct colour
+    // for a line that is both. A Context Line is dimmed on top of whatever
+    // colour was decided, exactly as the text view dims its foreground.
+    struct RowColors {
+        QColor foreColor;
+        QColor backColor;
+    };
+
+    static RowColors rowColorsFor( const LineVerdict& rowVerdict, QColor defaultForeColor,
+                                   QColor defaultBackColor, QColor disabledForeColor )
+    {
+        QColor foreColor = defaultForeColor;
+        QColor backColor = defaultBackColor;
+
+        if ( rowVerdict.isOutsideSearchLimits() ) {
+            foreColor = disabledForeColor;
+        }
+        else if ( const auto wholeLine = rowVerdict.wholeLineHighlight(); wholeLine.has_value() ) {
+            foreColor = wholeLine->foreColor;
+            backColor = wholeLine->backColor;
+        }
+        else if ( rowVerdict.isMark() ) {
+            backColor = rowVerdict.isMatch() ? markedMatchRowColor() : markRowColor();
+        }
+        else if ( rowVerdict.isMatch() ) {
+            backColor = matchRowColor();
+        }
+
+        if ( rowVerdict.isContextLine() ) {
+            foreColor.setAlpha( 128 );
+        }
+
+        return { foreColor, backColor };
+    }
+
     void paint( QPainter* painter, const QStyleOptionViewItem& option,
                 const QModelIndex& index ) const override
     {
@@ -206,16 +248,16 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
         const auto rowVerdict
             = lineDecorator.verdictFor( LogLine{ lineNumber, rawLine }, currentLineType );
 
-        if ( rowVerdict.isOutsideSearchLimits() ) {
-            foreColor = opt.palette.brush( QPalette::Disabled, QPalette::Text ).color();
-        }
-        else if ( const auto wholeLine = rowVerdict.wholeLineHighlight(); wholeLine.has_value() ) {
-            // A whole-line Highlighter colours the whole row: every cell
-            // gets the same background/foreground, not just the one whose
-            // text happens to contain the matched word.
-            foreColor = wholeLine->foreColor;
-            backColor = wholeLine->backColor;
-        }
+        // A whole-line Highlighter colours the whole row: every cell gets
+        // the same background/foreground, not just the one whose text
+        // happens to contain the matched word. Mark and Match colour the
+        // row background the same way, since this view has no gutter to
+        // draw a bullet in.
+        const auto rowColors = rowColorsFor(
+            rowVerdict, foreColor, backColor,
+            opt.palette.brush( QPalette::Disabled, QPalette::Text ).color() );
+        foreColor = rowColors.foreColor;
+        backColor = rowColors.backColor;
 
         painter->fillRect( opt.rect, backColor );
 
@@ -267,6 +309,13 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     }
 
   private:
+    // Row background colours for Mark/Match, consistent with the text
+    // view's gutter bullet colours (see AbstractLogView::drawing, where
+    // matchBulletBrush/markBrush/markedMatchBrush are the same colours).
+    static QColor matchRowColor() { return QColor{ Qt::red }; }
+    static QColor markRowColor() { return QColor{ "dodgerblue" }; }
+    static QColor markedMatchRowColor() { return QColor{ "violet" }; }
+
     // Rebuild the cached main-search Highlighter (used by
     // buildDecoratorContext() below) from the current pattern and
     // Configuration. Highlighter compiles its regex lazily on first match

@@ -970,6 +970,201 @@ SCENARIO( "A fully selected row overrides Highlighter colour everywhere",
     }
 }
 
+// ── rowColorsFor tests (issue #82) ──────────────────────────────────────────
+//
+// Marking a Log Line already wired the setter, the LineType read used by
+// AbstractLogView's gutter bullet, and the repaint -- only the Table View's
+// own read of that LineType, to turn it into a row background, was ever
+// missing. rowColorsFor() is that read, isolated from live singletons so it
+// can be tested directly.
+
+SCENARIO( "rowColorsFor renders a Match line's row background in the "
+          "text view's bullet colour",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Match line, with no whole-line Highlighter" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Match, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the row background is the text view's match bullet colour (red)" )
+            {
+                REQUIRE( colors.backColor == QColor{ Qt::red } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor renders a Mark line's row background in the "
+          "text view's bullet colour",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Mark-only line" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Mark, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the row background is the text view's mark bullet colour (dodgerblue)" )
+            {
+                REQUIRE( colors.backColor == QColor{ "dodgerblue" } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor gives a Mark+Match line its own distinct colour, "
+          "as the text view's bullet does",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a line that is both Mark and Match" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match,
+                                   false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the row background is the text view's marked-match bullet colour (violet), "
+                 "not plain match or plain mark" )
+            {
+                REQUIRE( colors.backColor == QColor{ "violet" } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor leaves a Plain line's row background untouched",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Plain line" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Plain, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the default background is unchanged" )
+            {
+                REQUIRE( colors.backColor == QColor{ Qt::white } );
+                REQUIRE( colors.foreColor == QColor{ Qt::black } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor dims a Context Line's foreground, as the text view does",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Context Line" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Context, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the foreground is subdued (reduced alpha), matching the text view's dimming" )
+            {
+                REQUIRE( colors.foreColor.alpha() == 128 );
+            }
+
+            AND_THEN( "the background is untouched -- the text view dims foreground only" )
+            {
+                REQUIRE( colors.backColor == QColor{ Qt::white } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor gives Search Limits the highest precedence, "
+          "suppressing Mark/Match colour outside the limits",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Match line that is outside the Search Limits" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Match,
+                                   /* isOutsideSearchLimits = */ true };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the disabled foreground wins and the match colour does not show" )
+            {
+                REQUIRE( colors.foreColor == QColor{ Qt::gray } );
+                REQUIRE( colors.backColor == QColor{ Qt::white } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor gives a whole-line Highlighter precedence over "
+          "Mark/Match row colour",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Match line that also carries a whole-line Highlighter" )
+    {
+        const HighlightColor wholeLine{ QColor{ Qt::white }, QColor{ Qt::green } };
+        const LineVerdict verdict{ wholeLine, LineTypeFlags::Match, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the Highlighter's own colour wins over the match colour" )
+            {
+                REQUIRE( colors.backColor == QColor{ Qt::green } );
+                REQUIRE( colors.foreColor == QColor{ Qt::white } );
+            }
+        }
+    }
+}
+
+// A regression test for the bug itself: marking a line (via LogFilteredData,
+// the same path CrawlerWidget::markLinesFromMain drives) must change what
+// rowColorsFor() -- and therefore paint() -- produces for that line. Before
+// this fix, the row-level LineType was read into the Line Verdict but never
+// consulted for colour, so this would fail: the "before" and "after" colours
+// were identical no matter what the LineType said.
+SCENARIO( "Marking a line changes the Table View's row background",
+          "[logtablehighlightdelegate][rowcolors][regression]" )
+{
+    GIVEN( "an unmarked Plain line" )
+    {
+        const LineVerdict before{ std::nullopt, LineTypeFlags::Plain, false };
+        const auto beforeColors = LogTableHighlightDelegate::rowColorsFor(
+            before, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+        WHEN( "the line is marked (LineType now carries the Mark flag)" )
+        {
+            const LineVerdict after{ std::nullopt, LineTypeFlags::Mark, false };
+            const auto afterColors = LogTableHighlightDelegate::rowColorsFor(
+                after, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the row background actually changes" )
+            {
+                REQUIRE( beforeColors.backColor != afterColors.backColor );
+                REQUIRE( afterColors.backColor == QColor{ "dodgerblue" } );
+            }
+        }
+    }
+}
+
 // ── Cache invalidation tests (buildDecoratorContext performance) ───────────
 
 SCENARIO( "setSearchPattern and setColorLabelWords rebuild the cached "
