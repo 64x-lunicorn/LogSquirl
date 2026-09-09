@@ -39,6 +39,7 @@
 #ifndef QUICKFINDPATTERN_H
 #define QUICKFINDPATTERN_H
 
+#include <QColor>
 #include <QList>
 #include <QObject>
 #include <QRegularExpression>
@@ -95,11 +96,15 @@ class QuickFindPattern : public QObject {
     QuickFindPattern() = default;
 
     // Set the search to a new pattern, using the current
-    // case status
-    void changeSearchPattern( const QString& pattern, bool isRegex = false );
+    // case status. useExtendedRegexp selects which regexp syntax the pattern
+    // is interpreted as (the "extended regexp" search type vs. a plain/wildcard
+    // string) -- the caller supplies the currently configured value.
+    void changeSearchPattern( const QString& pattern, bool useExtendedRegexp,
+                              bool isRegex = false );
 
     // Set the search to a new pattern, as well as the case status
-    void changeSearchPattern( const QString& pattern, bool ignoreCase, bool isRegex );
+    void changeSearchPattern( const QString& pattern, bool ignoreCase, bool isRegex,
+                              bool useExtendedRegexp );
 
     // Returns whether the search is active (i.e. valid and non empty regexp)
     bool isActive() const
@@ -115,8 +120,10 @@ class QuickFindPattern : public QObject {
 
     // Returns whether the passed line match the quick find search.
     // If so, it populate the passed list with the list of matches
-    // within this particular line.
-    bool matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches ) const;
+    // within this particular line. backColor is the colour matches should be
+    // painted with (the caller supplies the currently configured colour).
+    bool matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches,
+                    const QColor& backColor ) const;
 
     QuickFindMatcher getMatcher() const;
 

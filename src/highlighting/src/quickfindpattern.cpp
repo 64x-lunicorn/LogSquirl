@@ -46,10 +46,6 @@
 #include "linetypes.h"
 #include "quickfindpattern.h"
 
-#include "configuration.h"
-
-#include "quickfind.h"
-
 constexpr Qt::GlobalColor QfForeColor = Qt::black;
 
 bool QuickFindMatcher::isLineMatching( const QString& line, LineColumn column ) const
@@ -99,22 +95,17 @@ std::pair<LineColumn, LineColumn> QuickFindMatcher::getLastMatch() const
     return std::make_pair( lastMatchStart_, lastMatchEnd_ );
 }
 
-void QuickFindPattern::changeSearchPattern( const QString& pattern, bool isRegex )
+void QuickFindPattern::changeSearchPattern( const QString& pattern, bool useExtendedRegexp,
+                                            bool isRegex )
 {
-    // Determine the type of regexp depending on the config
-    const auto searchType = Configuration::get().quickfindRegexpType();
-    switch ( searchType ) {
-    case SearchRegexpType::ExtendedRegexp:
+    if ( useExtendedRegexp ) {
         pattern_ = isRegex ? pattern : QRegularExpression::escape( pattern );
-        break;
-    default:
+    }
+    else {
         pattern_ = pattern;
-        break;
     }
 
-    regexp_.setPattern( searchType == SearchRegexpType::ExtendedRegexp
-                            ? pattern_
-                            : QRegularExpression::escape( pattern_ ) );
+    regexp_.setPattern( useExtendedRegexp ? pattern_ : QRegularExpression::escape( pattern_ ) );
 
     if ( regexp_.isValid() && ( !pattern_.isEmpty() ) )
         active_ = true;
@@ -124,7 +115,8 @@ void QuickFindPattern::changeSearchPattern( const QString& pattern, bool isRegex
     Q_EMIT patternUpdated();
 }
 
-void QuickFindPattern::changeSearchPattern( const QString& pattern, bool ignoreCase, bool isRegex )
+void QuickFindPattern::changeSearchPattern( const QString& pattern, bool ignoreCase, bool isRegex,
+                                            bool useExtendedRegexp )
 {
     QRegularExpression::PatternOptions options = QRegularExpression::UseUnicodePropertiesOption;
 
@@ -132,18 +124,17 @@ void QuickFindPattern::changeSearchPattern( const QString& pattern, bool ignoreC
         options |= QRegularExpression::CaseInsensitiveOption;
 
     regexp_.setPatternOptions( options );
-    changeSearchPattern( pattern, isRegex );
+    changeSearchPattern( pattern, useExtendedRegexp, isRegex );
 }
 
 bool QuickFindPattern::matchLine( const QString& line,
-                                  logsquirl::vector<HighlightedMatch>& matches ) const
+                                  logsquirl::vector<HighlightedMatch>& matches,
+                                  const QColor& backColor ) const
 {
     matches.clear();
 
     if ( active_ ) {
         QRegularExpressionMatchIterator matchIterator = regexp_.globalMatch( line );
-        const auto& config = Configuration::get();
-        const auto backColor = config.qfBackColor();
         while ( matchIterator.hasNext() ) {
             QRegularExpressionMatch match = matchIterator.next();
             matches.emplace_back( LineColumn{ match.capturedStart() },

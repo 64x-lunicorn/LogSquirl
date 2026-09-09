@@ -8,7 +8,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersetedit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightedmatch.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilters.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilterscombobox.h
@@ -26,7 +25,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/qfnotifications.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfind.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfindmux.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfindpattern.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfindwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/recentfiles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savedsearches.h
@@ -92,7 +90,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/overviewwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfind.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindmux.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindpattern.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/recentfiles.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savedsearches.cpp
@@ -148,6 +145,7 @@ target_link_libraries(
          logsquirl_logformat
          logsquirl_versioncheck
          logsquirl_plugins
+         logsquirl_highlighting
          logsquirl_karchive
          logsquirl_zstd
          logsquirl_lz4

@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "configuration.h"
 #include "highlightedmatch.h"
 #include "highlighterset.h"
 #include "logfiltereddata.h"
@@ -184,7 +185,8 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
             // QuickFind pattern matches
             if ( quickFindPattern_ && quickFindPattern_->isActive() ) {
                 logsquirl::vector<HighlightedMatch> qfMatches;
-                quickFindPattern_->matchLine( cellText, qfMatches );
+                quickFindPattern_->matchLine( cellText, qfMatches,
+                                              Configuration::get().qfBackColor() );
                 for ( auto& m : qfMatches ) {
                     cellMatches.push_back( m );
                 }

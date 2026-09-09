@@ -2540,7 +2540,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         // Has the line got elements to be highlighted
         logsquirl::vector<HighlightedMatch> quickFindMatches;
-        quickFindPattern_->matchLine( expandedLine, quickFindMatches );
+        quickFindPattern_->matchLine( expandedLine, quickFindMatches,
+                                      Configuration::get().qfBackColor() );
         allHighlights.addMatches( quickFindMatches );
 
         // Is there something selected in the line?
