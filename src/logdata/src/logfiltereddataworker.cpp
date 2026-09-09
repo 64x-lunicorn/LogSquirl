@@ -44,6 +44,7 @@
 
 #include <robin_hood.h>
 #include <tbb/flow_graph.h>
+#include <tbb/task_arena.h>
 #include <vector>
 
 #include "configuration.h"
@@ -328,6 +329,23 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     LOG_INFO << "Using " << matchingThreadsCount << " matching threads";
 
+    // Bound to this search thread specifically (not the process-wide implicit
+    // arena TBB would otherwise hand a `tbb::flow::graph` constructed on a
+    // thread that has never joined one): removing the blocking wait between
+    // runs (80f08072) means a new graph can now be constructed on this same
+    // thread within microseconds of the previous one's destruction, with no
+    // gap for the arena to settle in between. A persistent, explicitly
+    // entered arena survives that churn intact instead of leaving each fresh
+    // graph's task demand to a from-scratch implicit arena that may not
+    // register it in time -- suspected cause of the #85 CI-only stall where
+    // the feed loop's try_put() spins for ~120s because nothing ever drains
+    // the queue.
+    static thread_local tbb::task_arena searchArena;
+    // Declared here, not inside the lambda below, because searchFinished()
+    // needs the final count after the arena's work is done.
+    LinesCount nbMatches = searchData.getNbMatches();
+    searchArena.execute( [ & ] {
+
     tbb::flow::graph searchGraph;
 
     if ( initialLine < startLine_ ) {
@@ -399,7 +417,6 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     const auto totalLines = endLine - initialLine;
     LinesCount totalProcessedLines = 0_lcount;
     LineLength maxLength = 0_length;
-    LinesCount nbMatches = searchData.getNbMatches();
     auto reportedMatches = nbMatches;
     int reportedPercentage = 0;
 
@@ -547,6 +564,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                   / static_cast<float>( durationMs.count() ) )
                     / ( 1024 * 1024 )
              << " MiB/s";
+
+    } );
 
     // Completion is reported once, here, rather than folded into the last progress
     // tick -- that is what lets a superseded/interrupted run be told apart from a
