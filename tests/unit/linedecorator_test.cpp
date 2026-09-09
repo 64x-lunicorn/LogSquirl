@@ -501,3 +501,60 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
         }
     }
 }
+
+// Issue #80's coordinate-space unification: QuickFind is now matched
+// against the raw Log Line (via LineDecorator's Context, as of #80),
+// instead of the tab-expanded display line. This is a deliberate,
+// acknowledged behavior change for patterns that match whitespace or tab
+// characters -- these two scenarios pin down exactly what changed, using
+// "a\tb" (one raw tab between two letters, expanding to "a" followed by
+// 7 spaces up to the next tab stop, then "b").
+SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line", "[linedecorator][quickfind-raw-space]" )
+{
+    const QString rawLine = "a\tb";
+
+    GIVEN( "a QuickFind pattern for a literal tab character" )
+    {
+        auto context = emptyContext();
+        QRegularExpression qfRegex{ "\\t" };
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        LineDecorator decorator{ std::move( context ) };
+
+        WHEN( "decorating the raw line" )
+        {
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, rawLine }, LineTypeFlags::Plain );
+            const auto decoration = decorator.decorate( rawLine, verdict );
+
+            THEN( "the tab character itself is found -- before #80, matching against the "
+                 "expanded line (all spaces) never found a tab at all" )
+            {
+                REQUIRE( decoration.spans().size() == 1 );
+                const auto& span = decoration.spans().front();
+                REQUIRE( span.startColumn() == 1_lcol );
+                REQUIRE( span.size() == LineLength{ 1 } );
+            }
+        }
+    }
+
+    GIVEN( "a QuickFind pattern for the run of spaces the tab used to expand to" )
+    {
+        auto context = emptyContext();
+        QRegularExpression qfRegex{ " {7}" }; // "a\tb" expanded to "a" + 7 spaces + "b"
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        LineDecorator decorator{ std::move( context ) };
+
+        WHEN( "decorating the raw line" )
+        {
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, rawLine }, LineTypeFlags::Plain );
+            const auto decoration = decorator.decorate( rawLine, verdict );
+
+            THEN( "there is no match -- before #80, matching against the expanded line found "
+                 "one, even though the file contains no run of spaces at all, only a tab" )
+            {
+                REQUIRE( decoration.spans().empty() );
+            }
+        }
+    }
+}

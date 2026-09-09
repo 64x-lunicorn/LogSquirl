@@ -75,6 +75,24 @@ outside the reported confidence interval, not a percent-level wobble.
   matching 2000 times on one line — the cost of `HighlightedMatchRanges`
   overlap splitting at scale.
 - **tab-heavy line**: 200 tab-separated fields.
+- **translate to display space: old per-match re-expansion** / **...:
+  rawToDisplayColumns**: isolates the raw-to-display column translation
+  step from `decorate()` itself, comparing the per-match prefix
+  re-expansion issue #80 replaced (`AbstractLogView::drawTextArea` used to
+  re-run `untabify()` on the whole prefix for every match) against the
+  `rawToDisplayColumns()` mapping built once per line that replaced it.
+  Same input for both: the 2000 raw-space matches from "many matches on one
+  line". This step lives in the view, not `LineDecorator`, so it isn't
+  exercised by any of the other cases above.
+- **long line, one early match: old per-match re-expansion** / **...:
+  rawToDisplayColumns (limited)**: the case the mapping approach could
+  regress if built naively — a ~24,000 character line with a single match
+  near the start. The view limits `rawToDisplayColumns()` to the furthest
+  raw column any match actually reaches (`QStringView{ logLine }.left(
+  furthestRawColumn )`), instead of mapping the whole line for one early
+  match; this pair confirms that keeps the cost comparable to the old
+  per-match approach instead of regressing to an O(line length) cost paid
+  regardless of how few matches there are.
 
 ## Recorded baseline
 
@@ -82,16 +100,35 @@ Measured 2026-09-09 on Apple Silicon (macOS, Debug build — release numbers
 will be lower across the board; what matters is the relative shape and the
 delta on a future re-run on the same machine/config):
 
-| Benchmark                              | Mean       |
-|-----------------------------------------|-----------:|
-| common no-match line                    |   100.0 µs |
-| very long line                          |    1.127 ms |
-| many highlighters, one whole-line match |   31.38 ms |
-| many matches on one line                |  593.9 ms |
-| tab-heavy line                          |  569.8 µs |
+| Benchmark                                                    | Mean       |
+|-----------------------------------------------------------------|-----------:|
+| common no-match line                                          |   100.0 µs |
+| very long line                                                |    1.127 ms |
+| many highlighters, one whole-line match                       |   31.38 ms |
+| many matches on one line                                      |  593.9 ms |
+| tab-heavy line                                                 |  569.8 µs |
+| translate to display space: old per-match re-expansion         |   76.70 ms |
+| translate to display space: rawToDisplayColumns                |  0.4199 ms |
+| long line, one early match: old per-match re-expansion         |  1.285 µs |
+| long line, one early match: rawToDisplayColumns (limited)      |  2.359 µs |
 
 The "many highlighters" and "many matches on one line" cases are
 pathological stress cases, not representative of typical log lines — they
 exist to give the next optimisation ticket a concrete, reproducible number
 to chase, per this ticket's purpose. They are not currently regarded as
 regressions to fix by this ticket.
+
+The translation cases were added by issue #80 (unifying the decoration
+coordinate space). On the 2000-match input, the mapping-based translation
+is about **155x faster** than the per-match re-expansion it replaced
+(76.70 ms → 0.42 ms). On the one-early-match input, the mapping approach
+is about 1 µs slower than the old approach (2.36 µs vs 1.29 µs) — both
+values are negligible in absolute terms (well under a millisecond, for a
+line drawn at most a few dozen times per repaint), and this is what
+motivated limiting `rawToDisplayColumns()` to the furthest raw column
+actually needed rather than always mapping the whole line: an earlier,
+unlimited version of this change cost the full ~1 ms "very long line"
+`decorate()` price *again*, per line, for even a single early match. The
+first five cases are unaffected by #80 (within noise of the numbers
+recorded above) — that change lives entirely in the view's translation
+step, not in `LineDecorator`.
