@@ -45,7 +45,9 @@ function(enable_sanitizers project_name)
        STREQUAL
        ""
     )
-      target_compile_options(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
+      # Frame pointers keep the sanitizers' fast unwinder useful at -O2:
+      # without them, allocation/free stacks stop after the first frame.
+      target_compile_options(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS} -fno-omit-frame-pointer)
       target_link_libraries(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
     endif()
   endif()
