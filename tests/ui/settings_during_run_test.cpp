@@ -39,10 +39,15 @@
 //
 // These scenarios pin that outcome: a run whose settings are rewritten
 // underneath it still produces its complete, correct result, and the next
-// run works under the new ones. They are not a race detector -- copying an
-// unsynchronised bool is still a racing read, and a thread sanitizer says
-// so; that read only goes away when these workers are handed a Policy
-// instead of the ambient settings object (#93).
+// run works under the new ones. They are not a race detector.
+//
+// The search worker's copy (#116) is taken on the caller's own thread in
+// search()/updateSearch(), before the run is even handed to the pool, so
+// there is no cross-thread read left for a thread sanitizer to flag there.
+// The indexing worker still copies from inside the pool thread's own run,
+// which is a racing read on an unsynchronised Configuration; that goes away
+// once these workers are handed a Policy instead of the ambient settings
+// object (#93).
 
 namespace {
 

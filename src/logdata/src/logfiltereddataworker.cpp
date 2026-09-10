@@ -36,6 +36,7 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <exception>
@@ -222,10 +223,18 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
     const auto id = SearchId( ++nextSearchId_ );
     activeSearchId_.store( id.get(), std::memory_order_release );
 
+    // Read here, on the caller's thread, rather than inside the run once it is
+    // executing on a pool thread: Configuration has no synchronisation of its
+    // own, and the Options dialog writes these same fields from the UI thread.
+    // See the comment on SearchExecutionParams.
+    const SearchExecutionParams executionParams{ Configuration::get().useParallelSearch(),
+                                                 Configuration::get().searchThreadPoolSize(),
+                                                 Configuration::get().searchReadBufferSizeLines() };
+
     LOG_INFO << "Search requested";
     QSemaphore operationStarted;
     operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
-                                             startLine, endLine ] {
+                                             startLine, endLine, executionParams ] {
         operationStarted.release();
         // Deliberately not holding operationsMutex_ here: the pool (maxThreadCount 1)
         // already serializes actual execution, and holding it across a run -- which
@@ -233,7 +242,8 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
         // updating activeSearchId_ until this run finished on its own, defeating
         // supersession entirely (the same trap the destructor's wait avoids).
         auto operationRequested = std::make_unique<FullSearchOperation>(
-            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine );
+            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
+            executionParams );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
     operationStarted.acquire();
@@ -250,17 +260,22 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
     const auto id = SearchId( ++nextSearchId_ );
     activeSearchId_.store( id.get(), std::memory_order_release );
 
+    // See the comment in search(): read on the caller's thread, not the pool's.
+    const SearchExecutionParams executionParams{ Configuration::get().useParallelSearch(),
+                                                 Configuration::get().searchThreadPoolSize(),
+                                                 Configuration::get().searchReadBufferSizeLines() };
+
     LOG_INFO << "Search update requested from " << position.get();
 
     QSemaphore operationStarted;
     operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
-                                             startLine, endLine, position ] {
+                                             startLine, endLine, position, executionParams ] {
         operationStarted.release();
         // See the comment in search(): not holding operationsMutex_ here is what
         // lets a superseding call proceed without waiting for this run to finish.
         auto operationRequested = std::make_unique<UpdateSearchOperation>(
             sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
-            position );
+            position, executionParams );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
 
@@ -291,7 +306,8 @@ SearchResults LogFilteredDataWorker::getSearchResults() const
 SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchId,
                                   const std::atomic<uint64_t>& activeSearchId,
                                   std::shared_ptr<const RegularExpression> compiledExpression,
-                                  LineNumber startLine, LineNumber endLine )
+                                  LineNumber startLine, LineNumber endLine,
+                                  SearchExecutionParams executionParams )
 
     : searchId_( searchId )
     , activeSearchId_( activeSearchId )
@@ -299,6 +315,7 @@ SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchI
     , sourceLogData_( sourceLogData )
     , startLine_( startLine )
     , endLine_( endLine )
+    , executionParams_( executionParams )
 
 {
 }
@@ -317,21 +334,16 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     using namespace std::chrono;
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
-    // Copied at the start of the run rather than read through a reference
-    // held for its duration. The options dialog is modal to the window but
-    // does not stop this pool, so pressing Apply writes these very fields
-    // from the UI thread while this search is reading them.
-    //
-    // Copying is not synchronisation -- the settings object still has
-    // neither a mutex nor atomics, and a thread sanitizer still flags each
-    // read below -- but it does mean the run stays consistent with itself
-    // rather than picking up a new value part-way through. A setting
-    // changed mid-run takes effect on the next run, exactly as before.
-    // The read disappears entirely once this worker is handed a Search
-    // Policy instead (#93).
-    const auto useParallelSearch = Configuration::get().useParallelSearch();
-    const auto configuredThreadPoolSize = Configuration::get().searchThreadPoolSize();
-    const auto searchReadBufferSizeLines = Configuration::get().searchReadBufferSizeLines();
+    // Snapshotted by the caller on its own thread (search()/updateSearch()) and
+    // handed down as executionParams_ rather than read here: Configuration has
+    // neither a mutex nor atomics, and this doSearch() runs on a pool thread
+    // while the Options dialog can write these very fields from the UI thread
+    // at any time -- a thread sanitizer flags a live Configuration::get() read
+    // here as a data race with that write. The full Search Policy (#93) will
+    // replace this snapshot with a proper policy object.
+    const auto useParallelSearch = executionParams_.useParallelSearch;
+    const auto configuredThreadPoolSize = executionParams_.threadPoolSize;
+    const auto searchReadBufferSizeLines = executionParams_.readBufferSizeLines;
 
     const auto matchingThreadsCount = static_cast<uint32_t>(
         [ useParallelSearch, configuredThreadPoolSize ]() {
@@ -575,7 +587,6 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     high_resolution_clock::time_point t2 = high_resolution_clock::now();
     const auto durationUs = duration_cast<microseconds>( t2 - t1 );
-    const auto durationMs = duration_cast<milliseconds>( t2 - t1 );
 
     LOG_INFO << "Searching done, overall duration " << durationUs;
     LOG_INFO << "Line reading took " << fileReadingDuration;
@@ -587,15 +598,18 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     const auto totalFileSize = sourceLogData_.getFileSize();
 
+    // A small file searches in well under a millisecond; dividing by the
+    // millisecond count would then divide by zero, and casting the resulting
+    // infinity to an integer is undefined behaviour (UBSan aborts on it).
+    const auto elapsedSeconds
+        = std::max( static_cast<double>( durationUs.count() ), 1.0 ) / 1'000'000.0;
+
     LOG_INFO << "Searching perf "
-             << static_cast<uint64_t>(
-                    std::floor( 1000.f * static_cast<float>( ( endLine - initialLine ).get() )
-                                / static_cast<float>( durationMs.count() ) ) )
+             << static_cast<uint64_t>( std::floor(
+                    static_cast<double>( ( endLine - initialLine ).get() ) / elapsedSeconds ) )
              << " lines/s";
     LOG_INFO << "Searching io perf "
-             << ( 1000.f * static_cast<float>( totalFileSize )
-                  / static_cast<float>( durationMs.count() ) )
-                    / ( 1024 * 1024 )
+             << ( static_cast<double>( totalFileSize ) / elapsedSeconds ) / ( 1024 * 1024 )
              << " MiB/s";
 
     // Completion is reported once, here, rather than folded into the last progress

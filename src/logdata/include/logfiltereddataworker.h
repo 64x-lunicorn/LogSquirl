@@ -147,6 +147,19 @@ private:
     LinesCount nbMatches_{ 0 };
 };
 
+// A snapshot of the Configuration fields a search run needs, taken once on
+// the calling (UI) thread before the run is handed to the pool. Configuration
+// has no synchronisation of its own, so a run must never read it again once
+// it is executing on a pool thread -- the Options dialog writes those same
+// fields from the UI thread while a run would be reading them, which a
+// thread sanitizer flags as a data race (and, on at least one platform, as
+// the underlying cause of a crash). Superseded by a real Search Policy (#93).
+struct SearchExecutionParams {
+    bool useParallelSearch{};
+    int threadPoolSize{};
+    int readBufferSizeLines{};
+};
+
 class SearchOperation : public QObject {
     Q_OBJECT
 public:
@@ -157,7 +170,8 @@ public:
     SearchOperation( const LogData& sourceLogData, SearchId searchId,
                      const std::atomic<uint64_t>& activeSearchId,
                      std::shared_ptr<const RegularExpression> compiledExpression,
-                     LineNumber startLine, LineNumber endLine );
+                     LineNumber startLine, LineNumber endLine,
+                     SearchExecutionParams executionParams );
 
     // Run the search operation, returns true if it has been done
     // and false if it has been cancelled (results not copied)
@@ -186,6 +200,7 @@ protected:
     const LogData& sourceLogData_;
     LineNumber startLine_;
     LineNumber endLine_;
+    SearchExecutionParams executionParams_;
 };
 
 class FullSearchOperation : public SearchOperation {
@@ -194,9 +209,11 @@ public:
     FullSearchOperation( const LogData& sourceLogData, SearchId searchId,
                          const std::atomic<uint64_t>& activeSearchId,
                          std::shared_ptr<const RegularExpression> compiledExpression,
-                         LineNumber startLine, LineNumber endLine )
+                         LineNumber startLine, LineNumber endLine,
+                         SearchExecutionParams executionParams )
         : SearchOperation( sourceLogData, searchId, activeSearchId,
-                           std::move( compiledExpression ), startLine, endLine )
+                           std::move( compiledExpression ), startLine, endLine,
+                           executionParams )
     {
     }
 
@@ -209,9 +226,11 @@ public:
     UpdateSearchOperation( const LogData& sourceLogData, SearchId searchId,
                            const std::atomic<uint64_t>& activeSearchId,
                            std::shared_ptr<const RegularExpression> compiledExpression,
-                           LineNumber startLine, LineNumber endLine, LineNumber position )
+                           LineNumber startLine, LineNumber endLine, LineNumber position,
+                           SearchExecutionParams executionParams )
         : SearchOperation( sourceLogData, searchId, activeSearchId,
-                           std::move( compiledExpression ), startLine, endLine )
+                           std::move( compiledExpression ), startLine, endLine,
+                           executionParams )
         , initialPosition_( position )
     {
     }
