@@ -67,8 +67,10 @@ class LogFilteredData : public AbstractLogData {
     Q_OBJECT
 
   public:
-    // Constructor used by LogData
-    explicit LogFilteredData( const LogData* logData );
+    // Constructor used by LogData, which hands on the Search Policy it was
+    // built with: everything this object and its Search Session know about
+    // the settings arrives here.
+    LogFilteredData( const LogData* logData, const SearchPolicy& searchPolicy );
 
     // Destructor: disconnects signals before member destruction to prevent
     // use-after-destroy from a queued signal firing during teardown.
@@ -137,6 +139,12 @@ class LogFilteredData : public AbstractLogData {
     Visibility visibility() const;
 
     void iterateOverLines( const std::function<void( LineNumber )>& callback ) const;
+
+    // Replaces the Search Policy, for this object and its Search Session.
+    // Called when a setting on the Search axis changed; the Log File this
+    // was built from does the calling, so every LogFilteredData is reached,
+    // not only the one the active tab happens to be showing.
+    void setSearchPolicy( const SearchPolicy& searchPolicy );
 
     // Rebuilds context (breadcrumb) lines around matches/marks.
     // Call after search completes or contextLinesCount changes.

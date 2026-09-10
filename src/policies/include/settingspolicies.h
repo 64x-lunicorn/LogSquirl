@@ -40,9 +40,12 @@ class Configuration;
 // that says false/0 throughout is therefore visibly not a configured one;
 // the values that matter always arrive via deriveSettingsPolicies().
 //
-// This is the expand half of an expand-contract migration (#92): the
-// Policies exist alongside the ambient Configuration accessor and no
-// consumer has been migrated onto them yet.
+// The types live in their own header-only library, apart from the settings
+// store: a library that consumes a Policy links logsquirl_policies and not
+// logsquirl_settings, so reaching for an ambient setting from inside it is
+// a link error rather than something a reviewer has to catch. Only the
+// place that derives the Policies -- and deriveSettingsPolicies() below,
+// which is defined in logsquirl_settings -- needs the store itself.
 
 // What indexing a Log File needs, and nothing else.
 struct IndexingPolicy {
@@ -51,6 +54,10 @@ struct IndexingPolicy {
     bool useIndexCache{};
     int cacheMaxSizeMb{};
     bool fastModificationDetection{};
+
+    // Compared so that a settings change can be applied per axis: only the
+    // consumers of an axis that actually changed are disturbed.
+    bool operator==( const IndexingPolicy& ) const = default;
 };
 
 // What running a Search needs, and nothing else.
@@ -62,6 +69,12 @@ struct SearchPolicy {
     bool useResultsCache{};
     unsigned resultsCacheLines{};
     RegexpEngine regexpEngine{};
+    // How far around a Match or Mark the Context Lines reach. Part of the
+    // Search axis because the Search Session owns Context Lines: they are
+    // rebuilt from the matches a run produced.
+    int contextLinesCount{};
+
+    bool operator==( const SearchPolicy& ) const = default;
 };
 
 // What following a Log File on disk needs, and nothing else.
@@ -69,6 +82,8 @@ struct WatchPolicy {
     bool nativeWatchEnabled{};
     bool pollingEnabled{};
     int pollIntervalMs{};
+
+    bool operator==( const WatchPolicy& ) const = default;
 };
 
 // What opening and reading a Log File needs, and nothing else.
@@ -78,6 +93,8 @@ struct FileAccessPolicy {
     int defaultEncodingMib{};
     bool extractArchives{};
     bool extractArchivesAlways{};
+
+    bool operator==( const FileAccessPolicy& ) const = default;
 };
 
 // The four Policies as one bundle, so the place that builds the
@@ -87,6 +104,8 @@ struct SettingsPolicies {
     SearchPolicy search;
     WatchPolicy watch;
     FileAccessPolicy fileAccess;
+
+    bool operator==( const SettingsPolicies& ) const = default;
 };
 
 // Derives all four Policies from a Configuration. Called once, where the

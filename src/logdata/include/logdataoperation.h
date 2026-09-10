@@ -76,13 +76,19 @@ class LogDataOperation {
 // Attaching a new file (change name + full index)
 class AttachOperation : public LogDataOperation {
   public:
-    explicit AttachOperation( const QString& fileName )
+    // The default Encoding comes from the File Access Policy the LogData
+    // was built with; negative means "detect it rather than force one".
+    AttachOperation( const QString& fileName, int defaultEncodingMib )
         : LogDataOperation( fileName )
+        , defaultEncodingMib_( defaultEncodingMib )
     {
     }
 
   protected:
     void doStart( LogDataWorker& workerThread ) const override;
+
+  private:
+    int defaultEncodingMib_;
 };
 
 // Reindexing the current file
@@ -117,6 +123,9 @@ class OperationQueue {
     explicit OperationQueue( std::function<void()> beforeOperationStart );
 
     void setWorker( std::unique_ptr<LogDataWorker>&& worker );
+
+    // Hands a changed Indexing Policy to the worker, if there is one.
+    void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
 
     void interrupt();
     void shutdown();

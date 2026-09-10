@@ -44,6 +44,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QTextCodec>
 #include <qregularexpression.h>
@@ -57,6 +58,7 @@
 #include "loadingstatus.h"
 #include "logdataoperation.h"
 #include "logdataworker.h"
+#include "settingspolicies.h"
 
 class LogFilteredData;
 
@@ -70,7 +72,13 @@ class LogData : public AbstractLogData {
     Q_OBJECT
 
   public:
-    LogData();
+    // The three Policies are everything this object knows about the
+    // settings: what indexing a Log File needs, what running a Search on
+    // it needs (handed on to every LogFilteredData built from it), and how
+    // the file itself is opened and decoded. It reads no setting of its
+    // own -- the log data library does not link the settings library.
+    LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
+             const FileAccessPolicy& fileAccessPolicy );
     ~LogData();
 
     LogData( const LogData& ) = delete;
@@ -103,6 +111,21 @@ class LogData : public AbstractLogData {
     QTextCodec* getDetectedEncoding() const;
 
     void setPrefilter(const QString& prefilterPattern);
+
+    // Replaces the Indexing Policy: the operations requested from now on
+    // use it, one already in flight keeps the one it started with.
+    void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
+
+    // Replaces the Search Policy, here and in every LogFilteredData built
+    // from this Log File -- including the ones a tab kept from an earlier
+    // Search, which nothing else holds a list of.
+    void setSearchPolicy( const SearchPolicy& searchPolicy );
+
+    // There is deliberately no setFileAccessPolicy(): both of its fields
+    // are read when an object is built (the FileHolder, and the codec at
+    // attach time) and never again. A change to either reaches an open Log
+    // File only by reopening it, so a setter would promise more than it
+    // could deliver.
 
     struct RawLines {
         LineNumber startLine;
@@ -170,11 +193,23 @@ class LogData : public AbstractLogData {
 
     OperationQueue operationQueue_;
 
+    // Every LogFilteredData handed out by getNewFilteredData(), so that a
+    // changed Search Policy reaches all of them. QPointer rather than a
+    // shared handle: the caller owns them, and one that has been destroyed
+    // simply drops out of this list.
+    mutable std::vector<QPointer<LogFilteredData>> filteredData_;
+
     QString indexingFileName_;
     // mutable std::unique_ptr<QFile> attached_file_;
     // mutable FileId attached_file_id_;
 
-    bool keepFileClosed_;
+    IndexingPolicy indexingPolicy_;
+    SearchPolicy searchPolicy_;
+    // Both of its fields are read when an object is built and never again:
+    // keeping a file closed is fixed when the FileHolder is created, and
+    // the default Encoding when the file is attached. A change to either
+    // reaches an already-open Log File only by reopening it.
+    const FileAccessPolicy fileAccessPolicy_;
 
     QDateTime lastModifiedDate_;
 

@@ -30,7 +30,8 @@
 #include "sessioninfo.h"
 #include "viewinterface.h"
 
-Session::Session()
+Session::Session( const SettingsPolicies& policies )
+    : policies_( policies )
 {
     // Get the global search history (it remains the property
     // of the Persistent)
@@ -107,7 +108,8 @@ ViewInterface* Session::openAlways( const QString& file_name,
                                     const QString& view_context )
 {
     // Create the data objects
-    auto log_data = std::make_shared<LogData>();
+    auto log_data = std::make_shared<LogData>( policies_.indexing, policies_.search,
+                                              policies_.fileAccess );
     auto log_filtered_data = std::shared_ptr<LogFilteredData>( log_data->getNewFilteredData() );
 
     ViewInterface* view = view_factory();
@@ -149,6 +151,36 @@ const Session::OpenFile* Session::findOpenFileFromView( const ViewInterface* vie
     // be attached to a file, we don't handle it!
 
     return file;
+}
+
+void Session::applyPolicies( const SettingsPolicies& policies )
+{
+    const auto indexingChanged = policies.indexing != policies_.indexing;
+    const auto searchChanged = policies.search != policies_.search;
+
+    // Stored whether or not anything is open: the File Access Policy in
+    // particular reaches a Log File only when one is built, so this is the
+    // only thing a change to it can do.
+    policies_ = policies;
+
+    if ( !indexingChanged && !searchChanged ) {
+        return;
+    }
+
+    for ( auto& [ view, openFile ] : openFiles_ ) {
+        Q_UNUSED( view );
+
+        if ( indexingChanged ) {
+            openFile.logData->setIndexingPolicy( policies_.indexing );
+        }
+
+        if ( searchChanged ) {
+            // The Log File hands it on to every LogFilteredData built from
+            // it, which is more than the one this Session holds: a tab that
+            // kept an earlier Search has its own.
+            openFile.logData->setSearchPolicy( policies_.search );
+        }
+    }
 }
 
 std::vector<WindowSession> Session::windowSessions()

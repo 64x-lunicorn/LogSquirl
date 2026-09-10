@@ -37,12 +37,16 @@ set_target_properties(logsquirl_logdata PROPERTIES AUTOMOC ON)
 target_include_directories(logsquirl_logdata PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_compile_definitions(logsquirl_logdata PUBLIC "-DQT_NO_KEYWORDS")
 
+# Deliberately not logsquirl_settings: indexing, searching, the Index
+# cache and file opening are all handed their Policies and read no setting
+# themselves, so an ambient read from in here is a link error rather than
+# something a reviewer has to catch (#94).
 target_link_libraries(
   logsquirl_logdata
   PUBLIC project_options
          project_warnings
          logsquirl_crash_handler
-         logsquirl_settings
+         logsquirl_policies
          logsquirl_utils
          logsquirl_regex
          logsquirl_filewatch

@@ -25,6 +25,7 @@
 #include "abstractlogview.h"
 #include "logdata.h"
 #include "quickfindpattern.h"
+#include "test_policies.h"
 
 namespace {
 
@@ -34,7 +35,7 @@ class TestLogView : public AbstractLogView {
   public:
     TestLogView( const AbstractLogData* logData, const QuickFindPattern* qfp,
                  QWidget* parent = nullptr )
-        : AbstractLogView( logData, qfp, parent )
+        : AbstractLogView( logData, qfp, /* initialTextWrap */ false, parent )
     {
     }
 
@@ -49,7 +50,8 @@ class TestLogView : public AbstractLogView {
 
 SCENARIO( "AbstractLogView updateDisplaySize keeps charWidth_ safe", "[abstractlogview][viewport]" )
 {
-    LogData logData;
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
     QuickFindPattern qfp;
 
     GIVEN( "A log view widget created with default font" )

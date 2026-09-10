@@ -51,7 +51,6 @@
 
 #include <simdutf.h>
 
-#include "configuration.h"
 #include "containers.h"
 #include "linetypes.h"
 #include "log.h"
@@ -59,17 +58,21 @@
 
 #include "logdata.h"
 
-LogData::LogData()
+LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
+                  const FileAccessPolicy& fileAccessPolicy )
     : AbstractLogData()
     , indexing_data_( std::make_shared<IndexingData>() )
     , operationQueue_( [ this ] { attached_file_->attachReader(); } )
+    , indexingPolicy_( indexingPolicy )
+    , searchPolicy_( searchPolicy )
+    , fileAccessPolicy_( fileAccessPolicy )
     , codec_( QTextCodec::codecForName( "ISO-8859-1" ) )
 {
     // Initialise the file watcher
     connect( &FileWatcher::getFileWatcher(), &FileWatcher::fileChanged, this,
              &LogData::fileChangedOnDisk, Qt::QueuedConnection );
 
-    auto worker = std::make_unique<LogDataWorker>( indexing_data_ );
+    auto worker = std::make_unique<LogDataWorker>( indexing_data_, indexingPolicy_ );
 
     // Forward the update signal
     connect( worker.get(), &LogDataWorker::indexingProgressed, this, &LogData::loadingProgressed );
@@ -80,16 +83,12 @@ LogData::LogData()
 
     operationQueue_.setWorker( std::move( worker ) );
 
-    const auto& config = Configuration::get();
-    keepFileClosed_ = config.keepFileClosed();
-
-    if ( keepFileClosed_ ) {
+    if ( fileAccessPolicy_.keepFileClosed ) {
         LOG_INFO << "Keep file closed option is set";
     }
 
-    const auto defaultEncodingMib = config.defaultEncodingMib();
-    if ( defaultEncodingMib >= 0 ) {
-        codec_.setCodec( QTextCodec::codecForMib( defaultEncodingMib ) );
+    if ( fileAccessPolicy_.defaultEncodingMib >= 0 ) {
+        codec_.setCodec( QTextCodec::codecForMib( fileAccessPolicy_.defaultEncodingMib ) );
     }
 }
 
@@ -102,6 +101,23 @@ LogData::~LogData()
     disconnect( &FileWatcher::getFileWatcher(), nullptr, this, nullptr );
 
     operationQueue_.shutdown();
+}
+
+void LogData::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
+{
+    indexingPolicy_ = indexingPolicy;
+    operationQueue_.setIndexingPolicy( indexingPolicy );
+}
+
+void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
+{
+    searchPolicy_ = searchPolicy;
+
+    for ( const auto& filteredData : filteredData_ ) {
+        if ( filteredData ) {
+            filteredData->setSearchPolicy( searchPolicy );
+        }
+    }
 }
 
 void LogData::setPrefilter( const QString& prefilterPattern )
@@ -120,10 +136,11 @@ void LogData::attachFile( const QString& fileName )
     }
 
     indexingFileName_ = fileName;
-    attached_file_.reset( new FileHolder( keepFileClosed_ ) );
+    attached_file_.reset( new FileHolder( fileAccessPolicy_.keepFileClosed ) );
     attached_file_->open( indexingFileName_ );
 
-    operationQueue_.enqueueOperation<AttachOperation>( fileName );
+    operationQueue_.enqueueOperation<AttachOperation>( fileName,
+                                                       fileAccessPolicy_.defaultEncodingMib );
 }
 
 void LogData::interruptLoading()
@@ -144,7 +161,15 @@ QDateTime LogData::getLastModifiedDate() const
 // Return an initialised LogFilteredData. The search is not started.
 std::unique_ptr<LogFilteredData> LogData::getNewFilteredData() const
 {
-    return std::make_unique<LogFilteredData>( this );
+    auto filteredData = std::make_unique<LogFilteredData>( this, searchPolicy_ );
+
+    // Forget the ones that have since been destroyed while we are here, so
+    // this list cannot grow without bound over a long session.
+    filteredData_.erase( std::remove( filteredData_.begin(), filteredData_.end(), nullptr ),
+                         filteredData_.end() );
+    filteredData_.emplace_back( filteredData.get() );
+
+    return filteredData;
 }
 
 void LogData::reload( QTextCodec* forcedEncoding )
@@ -529,9 +554,6 @@ logsquirl::vector<std::string_view> LogData::RawLines::buildUtf8View() const
     }
 
     try {
-        // const auto optimizeForNotLatinEncodings
-        //     = Configuration::get().optimizeForNotLatinEncodings();
-
         lines.reserve( endOfLines.size() );
 
         std::string_view wholeString;
@@ -554,17 +576,10 @@ logsquirl::vector<std::string_view> LogData::RawLines::buildUtf8View() const
                 utf16Data.remove( prefilterPattern );
             }
 
-            size_t resultSize = 0;
-            // if ( !optimizeForNotLatinEncodings ) {
-            //     utf8Data_ = utf16Data.toUtf8();
-            //     resultSize = static_cast<size_t>( utf8Data_.size() );
-            // }
-            // else {
             utf8Data_.resize( buffer.size() * 4 );
-            resultSize = simdutf::convert_utf16_to_utf8(
+            const auto resultSize = simdutf::convert_utf16_to_utf8(
                 reinterpret_cast<const char16_t*>( utf16Data.utf16() ),
                 static_cast<size_t>( utf16Data.size() ), utf8Data_.data() );
-            // }
 
             wholeString = { utf8Data_.data(), resultSize };
         }

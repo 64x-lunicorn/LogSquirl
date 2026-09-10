@@ -1113,6 +1113,9 @@ void MainWindow::createToolBars()
 
     toolBar = addToolBar( QApplication::translate( "logsquirl::mainwindow::toolbar",
                                                    logsquirl::mainwindow::toolbar::toolbarTitle ) );
+    // Read once, while the toolbar is built: there is no path that resizes
+    // an existing toolbar, so a change to this setting shows up on the next
+    // window opened.
     const auto iconSize = Configuration::get().toolbarIconSize();
     toolBar->setIconSize( QSize( iconSize, iconSize ) );
     toolBar->setMovable( false );
@@ -1177,6 +1180,9 @@ void MainWindow::createTrayIcon()
                  }
              } );
 
+    // Read once, while this window is built. The checkbox for it is hidden
+    // in the options dialog, so there is no way to change it mid-session
+    // and nothing to tell the user about.
     if ( Configuration::get().minimizeToTray() ) {
         trayIcon_->show();
     }
@@ -1484,6 +1490,11 @@ void MainWindow::options()
 
         updateShortcuts();
         updateRecentFileActions();
+
+        // The settings store has changed: whoever derives the Policies
+        // re-derives them and hands the changed axes down. This is the
+        // only place that writes a setting a Policy names.
+        Q_EMIT settingsChanged();
     } );
     dialog.exec();
 

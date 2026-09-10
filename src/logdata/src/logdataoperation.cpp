@@ -38,18 +38,17 @@
 
 #include "logdataoperation.h"
 
-#include "configuration.h"
 #include "log.h"
 #include "overload_visitor.h"
 #include "synchronization.h"
 
 void AttachOperation::doStart( LogDataWorker& workerThread ) const
 {
-    const auto defaultEncodingMib = Configuration::get().defaultEncodingMib();
-    LOG_INFO << "Attaching " << filename_ << ", encoding " << defaultEncodingMib;
+    LOG_INFO << "Attaching " << filename_ << ", encoding " << defaultEncodingMib_;
     workerThread.attachFile( filename_ );
-    workerThread.indexAll( defaultEncodingMib >= 0 ? QTextCodec::codecForMib( defaultEncodingMib )
-                                                   : nullptr );
+    workerThread.indexAll( defaultEncodingMib_ >= 0
+                               ? QTextCodec::codecForMib( defaultEncodingMib_ )
+                               : nullptr );
 }
 
 void FullReindexOperation::doStart( LogDataWorker& workerThread ) const
@@ -78,6 +77,14 @@ OperationQueue::OperationQueue( std::function<void()> beforeOperationStart )
 void OperationQueue::setWorker( std::unique_ptr<LogDataWorker>&& worker )
 {
     worker_ = std::move( worker );
+}
+
+void OperationQueue::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
+{
+    ScopedLock guard( mutex_ );
+    if ( worker_ ) {
+        worker_->setIndexingPolicy( indexingPolicy );
+    }
 }
 
 void OperationQueue::interrupt()

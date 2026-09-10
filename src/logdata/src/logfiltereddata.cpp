@@ -63,11 +63,11 @@ LogFilteredData::~LogFilteredData()
 }
 
 // Usual constructor: just copy the data, the search is started by request()
-LogFilteredData::LogFilteredData( const LogData* logData )
+LogFilteredData::LogFilteredData( const LogData* logData, const SearchPolicy& searchPolicy )
     : AbstractLogData()
     , matching_lines_( SearchResultArray() )
     , visibility_()
-    , session_( *logData )
+    , session_( *logData, searchPolicy )
 {
     // Starts with an empty result list
     maxLength_ = 0_length;
@@ -181,6 +181,15 @@ void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>&
             return true;
         },
         static_cast<void*>( const_cast<CallbackFn*>( &callback ) ) );
+}
+
+void LogFilteredData::setSearchPolicy( const SearchPolicy& searchPolicy )
+{
+    // Marks are the one input to Context Lines the Session doesn't own, so
+    // push the current set before handing over a Policy that may make it
+    // rebuild them.
+    session_.setMarks( marks_ );
+    session_.setSearchPolicy( searchPolicy );
 }
 
 void LogFilteredData::rebuildContextLines()

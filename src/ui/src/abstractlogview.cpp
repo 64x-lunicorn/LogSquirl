@@ -402,10 +402,12 @@ void DigitsBuffer::timerEvent( QTimerEvent* event )
 }
 
 AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
-                                  const QuickFindPattern* const quickFindPattern, QWidget* parent )
+                                  const QuickFindPattern* const quickFindPattern,
+                                  bool initialTextWrap, QWidget* parent )
     : QAbstractScrollArea( parent )
     , followElasticHook_( HookThreshold )
     , logData_( newLogData )
+    , useTextWrap_( initialTextWrap )
     , searchEnd_( newLogData->getNbLine().get() )
     , quickFindPattern_( quickFindPattern )
     , quickFind_( new QuickFind( *newLogData ) )
@@ -418,8 +420,6 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     // resizeEvent() (which calls updateDisplaySize()).
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
     charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
-
-    useTextWrap_ = Configuration::get().useTextWrap();
 
     // Hovering
     setMouseTracking( true );

@@ -213,6 +213,12 @@ class MainWindow : public QMainWindow {
   Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
+    // Is emitted when the settings store has been written, so that the
+    // place which derives the Settings Policies can re-derive them and
+    // hand the changed axes to whatever is already running. Distinct from
+    // optionsChanged() above, which drives this window's own widgets via
+    // the signal mux and therefore reaches the current tab only.
+    void settingsChanged();
     // Is emitted when the 'follow' option is enabled/disabled
     void followSet( bool checked );
     // Is emitted when the 'text wrap' option is enabled/disabled

@@ -31,8 +31,10 @@
 
 #include "file_write_helper.h"
 #include "log.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
+#include "filewatcher.h"
 #include "logdata.h"
 
 static const qint64 SL_NB_LINES = 500LL;
@@ -118,7 +120,8 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
 
     writeDataToFile( file, 199, WriteFileModification::EndWithPartialLineBegin );
 
-    LogData logData;
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
 
     auto finishedSpy
         = std::make_unique<SafeQSignalSpy>( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
@@ -140,8 +143,16 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
 
 TEST_CASE( "Logdata reading changing file", "[logdata]" )
 {
+    // File watching holds a Watch Policy and reads no setting of its own
+    // (#93), so a test that expects a change on disk to be noticed has to
+    // hand it one. Polling as well as native watching, at a far shorter
+    // interval than the shipped one, so the test does not wait on the
+    // platform having working native notifications.
+    FileWatcher::getFileWatcher().setWatchPolicy(
+        WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
 
-    LogData logData;
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
 
     SafeQSignalSpy changedSpy( &logData, SIGNAL( fileChanged( MonitoredFileStatus ) ) );
 
@@ -236,7 +247,8 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
 
         WHEN( "Interrupt loading" )
         {
-            LogData log_data;
+            const auto policies = testSettingsPolicies();
+            LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
             SafeQSignalSpy endSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             // Start loading the VBL
@@ -263,7 +275,8 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
 
         WHEN( "Try to reattach" )
         {
-            LogData log_data;
+            const auto policies = testSettingsPolicies();
+            LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
             SafeQSignalSpy endSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             log_data.attachFile( QFileInfo{ smallFile }.absoluteFilePath() );

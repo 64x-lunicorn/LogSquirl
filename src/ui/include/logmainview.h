@@ -52,6 +52,7 @@ class LogMainView : public AbstractLogView
             const QuickFindPattern* const quickFindPattern,
             Overview* overview,
             OverviewWidget* overview_widget,
+            bool initialTextWrap,
             QWidget* parent = nullptr );
 
     // Configure the view to use the passed filtered list

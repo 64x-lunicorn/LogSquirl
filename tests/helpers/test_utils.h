@@ -55,15 +55,17 @@ class SafeQSignalSpy : public QSignalSpy {
 // events (e.g. KDSignalThrottler) are reliably dispatched on all platforms.
 // QTest::qWait() polls with processEvents() which can miss timer events
 // on Windows CI when the timer fires at the polling boundary (#50).
+// The default timeout is 120 s: enough headroom for TBB flow-graph startup
+// on slow Windows CI runners where the first wait_for_all() can stall 20+
+// seconds (#50). Pass a shorter one when waiting for something that is
+// expected *not* to happen, where the whole timeout is paid every time.
 template<typename F>
-bool waitUiState( F&& checkFunc )
+bool waitUiState( F&& checkFunc, int timeoutMs = 120000 )
 {
     QElapsedTimer elapsed;
     elapsed.start();
 
-    // 120 s is enough headroom for TBB flow-graph startup on slow Windows CI
-    // runners where the first wait_for_all() can stall 20+ seconds (#50).
-    while ( elapsed.elapsed() < 120000 ) {
+    while ( elapsed.elapsed() < timeoutMs ) {
         if ( checkFunc() ) {
             return true;
         }

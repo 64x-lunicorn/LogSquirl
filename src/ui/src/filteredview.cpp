@@ -46,8 +46,9 @@
 #include "shortcuts.h"
 
 FilteredView::FilteredView( LogFilteredData* newLogData,
-                            const QuickFindPattern* const quickFindPattern, QWidget* parent )
-    : AbstractLogView( newLogData, quickFindPattern, parent )
+                            const QuickFindPattern* const quickFindPattern, bool initialTextWrap,
+                            QWidget* parent )
+    : AbstractLogView( newLogData, quickFindPattern, initialTextWrap, parent )
 {
     // We keep a copy of the filtered data for fast lookup of the line type
     logFilteredData_ = newLogData;

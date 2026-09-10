@@ -35,7 +35,8 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                     .readBufferSizeLines = config.searchReadBufferSizeLines(),
                     .useResultsCache = config.useSearchResultsCache(),
                     .resultsCacheLines = config.searchResultsCacheLines(),
-                    .regexpEngine = config.regexpEngine() },
+                    .regexpEngine = config.regexpEngine(),
+                    .contextLinesCount = config.contextLinesCount() },
 
         .watch = { .nativeWatchEnabled = config.nativeFileWatchEnabled(),
                    .pollingEnabled = config.pollingEnabled(),

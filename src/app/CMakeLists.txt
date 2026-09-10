@@ -89,7 +89,9 @@ endif()
 
 target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui)
 target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui)
-target_link_libraries(logsquirl_grep PUBLIC ${MAIN_LIBS})
+# logsquirl_grep derives the Policies itself (there is no LogSquirlApp
+# here), so unlike the log data library it does link the settings library.
+target_link_libraries(logsquirl_grep PUBLIC ${MAIN_LIBS} logsquirl_settings)
 
 target_compile_definitions(logsquirl_portable PUBLIC -DLOGSQUIRL_PORTABLE)
 

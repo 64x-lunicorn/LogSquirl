@@ -22,14 +22,14 @@
 #include <numeric>
 #include <utility>
 
-#include "configuration.h"
 #include "log.h"
 #include "logdata.h"
 #include "regularexpression.h"
 
-SearchSession::SearchSession( const LogData& sourceLogData )
+SearchSession::SearchSession( const LogData& sourceLogData, const SearchPolicy& searchPolicy )
     : sourceLogData_( sourceLogData )
-    , workerThread_( sourceLogData )
+    , searchPolicy_( searchPolicy )
+    , workerThread_( sourceLogData, searchPolicy )
 {
     connect( &workerThread_, &LogFilteredDataWorker::searchProgressed, this,
              &SearchSession::handleSearchProgressed );
@@ -84,7 +84,7 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     // Which engine to run on is resolved here, on the calling (UI) thread,
     // and travels with the compiled expression -- the regex module no
     // longer reaches for the settings object from a worker thread.
-    RegularExpression expression{ pattern, Configuration::get().regexpEngine() };
+    RegularExpression expression{ pattern, searchPolicy_.regexpEngine };
     if ( !expression.isValid() ) {
         invalidateCurrentRun();
         resetResults();
@@ -101,7 +101,7 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
         return;
     }
 
-    if ( Configuration::get().useSearchResultsCache() ) {
+    if ( searchPolicy_.useResultsCache ) {
         const auto key = makeCacheKey( pattern, startLine, endLine );
         const auto cached = searchResultsCache_.find( key );
         if ( cached != std::end( searchResultsCache_ ) ) {
@@ -117,6 +117,19 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     // this same run can reuse it too.
     compiledExpression_ = std::make_shared<const RegularExpression>( std::move( expression ) );
     startRun( pattern, startLine, endLine, false, compiledExpression_ );
+}
+
+void SearchSession::setSearchPolicy( const SearchPolicy& searchPolicy )
+{
+    const bool contextLinesChanged
+        = searchPolicy.contextLinesCount != searchPolicy_.contextLinesCount;
+
+    searchPolicy_ = searchPolicy;
+    workerThread_.setSearchPolicy( searchPolicy );
+
+    if ( contextLinesChanged ) {
+        rebuildContextLines();
+    }
 }
 
 void SearchSession::request( const RegularExpressionPattern& pattern )
@@ -272,8 +285,7 @@ void SearchSession::setMarks( const SearchResultArray& marks )
 
 void SearchSession::rebuildContextLines()
 {
-    const auto& config = Configuration::get();
-    const int contextCount = config.contextLinesCount();
+    const int contextCount = searchPolicy_.contextLinesCount;
 
     contextLines_ = SearchResultArray();
 
@@ -317,8 +329,7 @@ void SearchSession::rebuildContextLines()
 
 void SearchSession::updateSearchResultsCache()
 {
-    const auto& config = Configuration::get();
-    if ( !config.useSearchResultsCache() ) {
+    if ( !searchPolicy_.useResultsCache ) {
         return;
     }
 
@@ -326,7 +337,7 @@ void SearchSession::updateSearchResultsCache()
         return;
     }
 
-    const uint64_t maxCacheLines = config.searchResultsCacheLines();
+    const uint64_t maxCacheLines = searchPolicy_.resultsCacheLines;
 
     if ( matches_.cardinality() > maxCacheLines ) {
         LOG_DEBUG << "SearchSession: too many matches to place in cache";

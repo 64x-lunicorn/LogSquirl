@@ -24,8 +24,8 @@
 #include <QTest>
 #include <qglobal.h>
 
-#include "configuration.h"
 #include "log.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
 #include "logdata.h"
@@ -101,7 +101,8 @@ static LogFilteredData::LineTypeFlags toFlags( LogFilteredData::LineType type )
 }
 
 struct LogDataLoader {
-    LogDataLoader()
+    explicit LogDataLoader( SettingsPolicies policies = testSettingsPolicies() )
+        : log_data( policies.indexing, policies.search, policies.fileAccess )
     {
         static int counter = 0;
         counter++;
@@ -244,10 +245,12 @@ SCENARIO( "search for regex", "[logdata]" )
         {
             const auto threadPoolSize = GENERATE( 0, 1, 2 );
 
-            auto& config = Configuration::getSynced();
-
-            config.setSearchThreadPoolSize( threadPoolSize );
-            config.setUseParallelSearch( threadPoolSize > 0 );
+            // Handed to the Log File, which passes it on to the
+            // LogFilteredData above -- created before this line (#95).
+            auto searchPolicy = testSettingsPolicies().search;
+            searchPolicy.threadPoolSize = threadPoolSize;
+            searchPolicy.useParallelSearch = threadPoolSize > 0;
+            logDataLoader.log_data.setSearchPolicy( searchPolicy );
 
             auto filtered_lines = filtered_data->getNbLine();
             REQUIRE( filtered_lines.get() == 0 );
@@ -283,9 +286,10 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
 
         WHEN( "Searched for regex" )
         {
-            auto& config = Configuration::getSynced();
-            config.setSearchThreadPoolSize( 2 );
-            config.setUseParallelSearch( true );
+            auto searchPolicy = testSettingsPolicies().search;
+            searchPolicy.threadPoolSize = 2;
+            searchPolicy.useParallelSearch = true;
+            logDataLoader.log_data.setSearchPolicy( searchPolicy );
 
             auto filtered_lines = filtered_data->getNbLine();
             REQUIRE( filtered_lines.get() == 0 );
@@ -609,12 +613,12 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
             return true;
         }() );
 
-        auto& config = Configuration::getSynced();
-        config.setSearchThreadPoolSize( 1 );
-        config.setUseParallelSearch( false );
-        config.setUseSearchResultsCache( false );
+        auto policies = testSettingsPolicies();
+        policies.search.threadPoolSize = 1;
+        policies.search.useParallelSearch = false;
+        policies.search.useResultsCache = false;
 
-        LogData log_data;
+        LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
         SafeQSignalSpy loadEndSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
         log_data.attachFile( file.fileName() );
         REQUIRE( loadEndSpy.safeWait( 10000 ) );
@@ -725,9 +729,10 @@ SCENARIO( "Context Lines are correct after a cache hit, and cleared when a Searc
 
     GIVEN( "caching enabled and a non-zero Context Lines count" )
     {
-        auto& config = Configuration::getSynced();
-        config.setUseSearchResultsCache( true );
-        config.setContextLinesCount( 2 );
+        auto searchPolicy = testSettingsPolicies().search;
+        searchPolicy.useResultsCache = true;
+        searchPolicy.contextLinesCount = 2;
+        logDataLoader.log_data.setSearchPolicy( searchPolicy );
 
         auto filtered_data = logDataLoader.log_data.getNewFilteredData();
         SafeQSignalSpy searchStateSpy{ filtered_data.get(),
@@ -782,8 +787,9 @@ SCENARIO( "A cache hit is never treated as a base for a continuation", "[logdata
 
     GIVEN( "a cached pattern, and a different pattern that ran for real afterwards" )
     {
-        auto& config = Configuration::getSynced();
-        config.setUseSearchResultsCache( true );
+        auto searchPolicy = testSettingsPolicies().search;
+        searchPolicy.useResultsCache = true;
+        logDataLoader.log_data.setSearchPolicy( searchPolicy );
 
         auto filtered_data = logDataLoader.log_data.getNewFilteredData();
         const RegularExpressionPattern patternA( "this is line 000010" ); // matches only line 10

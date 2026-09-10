@@ -46,7 +46,6 @@
 #include <tbb/flow_graph.h>
 #include <vector>
 
-#include "configuration.h"
 #include "dispatch_to.h"
 #include "issuereporter.h"
 #include "linetypes.h"
@@ -171,8 +170,10 @@ void SearchData::clear()
     newMatches_ = {};
 }
 
-LogFilteredDataWorker::LogFilteredDataWorker( const LogData& sourceLogData )
+LogFilteredDataWorker::LogFilteredDataWorker( const LogData& sourceLogData,
+                                              const SearchPolicy& searchPolicy )
     : sourceLogData_( sourceLogData )
+    , searchPolicy_( searchPolicy )
 {
     operationsPool_.setMaxThreadCount( 1 );
 }
@@ -225,7 +226,8 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
     LOG_INFO << "Search requested";
     QSemaphore operationStarted;
     operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
-                                             startLine, endLine ] {
+                                             startLine, endLine,
+                                             searchPolicy = searchPolicy_ ] {
         operationStarted.release();
         // Deliberately not holding operationsMutex_ here: the pool (maxThreadCount 1)
         // already serializes actual execution, and holding it across a run -- which
@@ -233,7 +235,8 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
         // updating activeSearchId_ until this run finished on its own, defeating
         // supersession entirely (the same trap the destructor's wait avoids).
         auto operationRequested = std::make_unique<FullSearchOperation>(
-            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine );
+            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
+            searchPolicy );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
     operationStarted.acquire();
@@ -254,19 +257,26 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
 
     QSemaphore operationStarted;
     operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
-                                             startLine, endLine, position ] {
+                                             startLine, endLine, position,
+                                             searchPolicy = searchPolicy_ ] {
         operationStarted.release();
         // See the comment in search(): not holding operationsMutex_ here is what
         // lets a superseding call proceed without waiting for this run to finish.
         auto operationRequested = std::make_unique<UpdateSearchOperation>(
-            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
-            position );
+            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine, position,
+            searchPolicy );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
 
     operationStarted.acquire();
 
     return id;
+}
+
+void LogFilteredDataWorker::setSearchPolicy( const SearchPolicy& searchPolicy )
+{
+    ScopedLock locker( operationsMutex_ );
+    searchPolicy_ = searchPolicy;
 }
 
 void LogFilteredDataWorker::interrupt()
@@ -291,7 +301,8 @@ SearchResults LogFilteredDataWorker::getSearchResults() const
 SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchId,
                                   const std::atomic<uint64_t>& activeSearchId,
                                   std::shared_ptr<const RegularExpression> compiledExpression,
-                                  LineNumber startLine, LineNumber endLine )
+                                  LineNumber startLine, LineNumber endLine,
+                                  SearchPolicy searchPolicy )
 
     : searchId_( searchId )
     , activeSearchId_( activeSearchId )
@@ -299,6 +310,7 @@ SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchI
     , sourceLogData_( sourceLogData )
     , startLine_( startLine )
     , endLine_( endLine )
+    , searchPolicy_( searchPolicy )
 
 {
 }
@@ -317,21 +329,12 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     using namespace std::chrono;
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
-    // Copied at the start of the run rather than read through a reference
-    // held for its duration. The options dialog is modal to the window but
-    // does not stop this pool, so pressing Apply writes these very fields
-    // from the UI thread while this search is reading them.
-    //
-    // Copying is not synchronisation -- the settings object still has
-    // neither a mutex nor atomics, and a thread sanitizer still flags each
-    // read below -- but it does mean the run stays consistent with itself
-    // rather than picking up a new value part-way through. A setting
-    // changed mid-run takes effect on the next run, exactly as before.
-    // The read disappears entirely once this worker is handed a Search
-    // Policy instead (#93).
-    const auto useParallelSearch = Configuration::get().useParallelSearch();
-    const auto configuredThreadPoolSize = Configuration::get().searchThreadPoolSize();
-    const auto searchReadBufferSizeLines = Configuration::get().searchReadBufferSizeLines();
+    // From this run's own Search Policy: no settings object is read here at
+    // all, so pressing Apply while this search is in flight cannot be
+    // observed by it (#94).
+    const auto useParallelSearch = searchPolicy_.useParallelSearch;
+    const auto configuredThreadPoolSize = searchPolicy_.threadPoolSize;
+    const auto searchReadBufferSizeLines = searchPolicy_.readBufferSizeLines;
 
     const auto matchingThreadsCount = static_cast<uint32_t>(
         [ useParallelSearch, configuredThreadPoolSize ]() {

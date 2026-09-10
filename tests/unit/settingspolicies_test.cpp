@@ -34,7 +34,8 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
                                    .readBufferSizeLines = 512,
                                    .useResultsCache = true,
                                    .resultsCacheLines = 99u,
-                                   .regexpEngine = RegexpEngine::QRegularExpression };
+                                   .regexpEngine = RegexpEngine::QRegularExpression,
+                                   .contextLinesCount = 4 };
         const IndexingPolicy indexing{ .readBufferSizeMb = 7,
                                        .useCompressedIndex = false,
                                        .useIndexCache = true,
@@ -56,6 +57,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( search.useResultsCache );
             REQUIRE( search.resultsCacheLines == 99u );
             REQUIRE( search.regexpEngine == RegexpEngine::QRegularExpression );
+            REQUIRE( search.contextLinesCount == 4 );
 
             REQUIRE( indexing.readBufferSizeMb == 7 );
             REQUIRE_FALSE( indexing.useCompressedIndex );
@@ -99,6 +101,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( search.readBufferSizeLines == 0 );
             REQUIRE_FALSE( search.useResultsCache );
             REQUIRE( search.resultsCacheLines == 0u );
+            REQUIRE( search.contextLinesCount == 0 );
 
             REQUIRE( indexing.readBufferSizeMb == 0 );
             REQUIRE( indexing.cacheMaxSizeMb == 0 );
@@ -131,6 +134,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         config.setUseSearchResultsCache( false );
         config.setSearchResultsCacheLines( 4242u );
         config.setRegexpEngine( RegexpEngine::QRegularExpression );
+        config.setContextLinesCount( 9 );
 
         config.setNativeFileWatchEnabled( false );
         config.setPollingEnabled( true );
@@ -162,6 +166,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE_FALSE( policies.search.useResultsCache );
                 REQUIRE( policies.search.resultsCacheLines == 4242u );
                 REQUIRE( policies.search.regexpEngine == RegexpEngine::QRegularExpression );
+                REQUIRE( policies.search.contextLinesCount == 9 );
             }
 
             THEN( "the Watch Policy carries the watch settings" )

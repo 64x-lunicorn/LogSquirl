@@ -436,7 +436,10 @@ void CrawlerWidget::startNewSearch()
         logFilteredData_->stop();
         logFilteredData_ = logData_->getNewFilteredData();
 
-        filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get() );
+        // The setting is the starting state for a new view; the views that
+        // already exist follow the View menu instead.
+        filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
+                                          Configuration::get().useTextWrap() );
         filteredViewsData_[ filteredView_ ] = logFilteredData_;
 
         connectAllFilteredViewSlots( filteredView_ );
@@ -733,6 +736,12 @@ void CrawlerWidget::applyConfiguration()
 
     LOG_DEBUG << "CrawlerWidget::applyConfiguration";
 
+    // Deliberately not here: file watching and Context Lines. Both are
+    // driven by a Settings Policy now, re-derived and handed down per axis
+    // when a setting actually changes (#95). This function runs for a
+    // Highlighter Set change too, and restarting the watcher or rebuilding
+    // every tab's Context Lines for that was work nobody asked for.
+
     registerShortcuts();
 
     // Whatever font we use, we should NOT use kerning
@@ -782,16 +791,6 @@ void CrawlerWidget::applyConfiguration()
 
     // Update the SearchLine (history)
     updateSearchCombo();
-
-    FileWatcher::getFileWatcher().updateConfiguration();
-
-    // Rebuild breadcrumb context lines when setting changes. Every tab's
-    // LogFilteredData is in filteredViewsData_, including the active one
-    // (logFilteredData_), so this loop alone covers all of them exactly
-    // once each.
-    for ( const auto& [fv, fd] : filteredViewsData_ ) {
-        fd->rebuildContextLines();
-    }
 
     if ( isFollowEnabled() ) {
         changeDataStatus( DataStatus::OLD_DATA );
@@ -1134,11 +1133,12 @@ void CrawlerWidget::setup()
     bottomWindow->setContentsMargins( 2, 0, 2, 0 );
 
     overviewWidget_ = new OverviewWidget();
-    logMainView_
-        = new LogMainView( logData_.get(), quickFindPattern_.get(), &overview_, overviewWidget_ );
+    logMainView_ = new LogMainView( logData_.get(), quickFindPattern_.get(), &overview_,
+                                    overviewWidget_, Configuration::get().useTextWrap() );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
 
-    filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get() );
+    filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
+                                      Configuration::get().useTextWrap() );
     filteredViewsData_[ filteredView_ ] = logFilteredData_;
     filteredView_->setContentsMargins( 2, 0, 2, 0 );
 
