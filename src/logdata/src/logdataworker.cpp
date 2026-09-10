@@ -51,7 +51,6 @@
 #include <QSemaphore>
 #include <tuple>
 
-#include "configuration.h"
 #include "containers.h"
 #include "dispatch_to.h"
 #include "encodingdetector.h"
@@ -157,19 +156,12 @@ void IndexingData::setProgress( int progress )
     progress_ = progress;
 }
 
-void IndexingData::clear()
+void IndexingData::clear( const IndexingPolicy& policy )
 {
-    // Copied, not read through a held reference: this runs on a worker
-    // thread while the options dialog can be writing the very same fields
-    // from the UI thread. See doIndex() below for what the copy does and
-    // does not buy.
-    const auto useCompressedIndex = Configuration::get().useCompressedIndex();
-    const auto fastModificationDetection = Configuration::get().fastModificationDetection();
-
     maxLength_ = 0_length;
     hash_ = {};
     hashBuilder_.reset();
-    if ( useCompressedIndex ) {
+    if ( policy.useCompressedIndex ) {
         linePosition_ = LinePositionArrayType( LinePositionArray{} );
     }
     else {
@@ -179,13 +171,14 @@ void IndexingData::clear()
     encodingForced_ = nullptr;
 
     progress_ = {};
-    useFastModificationDetection_ = fastModificationDetection;
+    useFastModificationDetection_ = policy.fastModificationDetection;
 }
 
 void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                                  const IndexedHash& hash, QTextCodec* encoding )
+                                  const IndexedHash& hash, QTextCodec* encoding,
+                                  bool fastModificationDetection )
 {
-    useFastModificationDetection_ = Configuration::get().fastModificationDetection();
+    useFastModificationDetection_ = fastModificationDetection;
 
     linePosition_ = std::move( linePosition );
     maxLength_ = maxLength;
@@ -210,8 +203,10 @@ size_t IndexingData::allocatedSize() const
                        linePosition_ );
 }
 
-LogDataWorker::LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data )
-    : indexing_data_( indexing_data )
+LogDataWorker::LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data,
+                              const IndexingPolicy& indexingPolicy )
+    : indexingPolicy_( indexingPolicy )
+    , indexing_data_( indexing_data )
 {
     operationsPool_.setMaxThreadCount( 1 );
 }
@@ -236,6 +231,12 @@ LogDataWorker::~LogDataWorker() noexcept
     }
 }
 
+void LogDataWorker::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
+{
+    ScopedLock locker( operationsMutex_ );
+    indexingPolicy_ = indexingPolicy;
+}
+
 void LogDataWorker::attachFile( const QString& fileName )
 {
     ScopedLock locker( operationsMutex_ );
@@ -254,12 +255,13 @@ void LogDataWorker::indexAll( QTextCodec* forcedEncoding )
                                             : std::string{ "none" } );
     QSemaphore operationStarted;
     operationsPool_.start(
-        createRunnable( [ this, &operationStarted, forcedEncoding, fileName = fileName_ ] {
+        createRunnable( [ this, &operationStarted, forcedEncoding, fileName = fileName_,
+                          indexingPolicy = indexingPolicy_ ] {
             LOG_INFO << "FullIndex thread started";
             operationStarted.release();
             ScopedLock operationLock( operationsMutex_ );
             auto operationRequested = std::make_unique<FullIndexOperation>(
-                fileName, indexing_data_, interruptRequest_, forcedEncoding );
+                fileName, indexing_data_, interruptRequest_, indexingPolicy, forcedEncoding );
             return connectSignalsAndRun( operationRequested.get() );
         } ) );
     operationStarted.acquire();
@@ -274,13 +276,14 @@ void LogDataWorker::indexAdditionalLines()
     LOG_INFO << "PartialIndex requested";
 
     QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, fileName = fileName_ ] {
+    operationsPool_.start( createRunnable( [ this, &operationStarted, fileName = fileName_,
+                                            indexingPolicy = indexingPolicy_ ] {
         QThread::currentThread()->setObjectName( "PartialIndex" );
         LOG_INFO << "PartialIndex thread started";
         operationStarted.release();
         ScopedLock operationLock( operationsMutex_ );
-        auto operationRequested = std::make_unique<PartialIndexOperation>( fileName, indexing_data_,
-                                                                           interruptRequest_ );
+        auto operationRequested = std::make_unique<PartialIndexOperation>(
+            fileName, indexing_data_, interruptRequest_, indexingPolicy );
         return connectSignalsAndRun( operationRequested.get() );
     } ) );
     operationStarted.acquire();
@@ -295,11 +298,12 @@ void LogDataWorker::checkFileChanges()
     LOG_INFO << "Check file changes requested";
 
     QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, fileName = fileName_ ] {
+    operationsPool_.start( createRunnable( [ this, &operationStarted, fileName = fileName_,
+                                            indexingPolicy = indexingPolicy_ ] {
         operationStarted.release();
         ScopedLock operationLock( operationsMutex_ );
         auto operationRequested = std::make_unique<CheckFileChangesOperation>(
-            fileName, indexing_data_, interruptRequest_ );
+            fileName, indexing_data_, interruptRequest_, indexingPolicy );
 
         return connectSignalsAndRun( operationRequested.get() );
     } ) );
@@ -680,7 +684,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
 
         IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
-        scopedAccessor.clear();
+        scopedAccessor.clear( indexingPolicy_ );
         scopedAccessor.setEncodingGuess( QTextCodec::codecForLocale() );
 
         scopedAccessor.setProgress( 100 );
@@ -708,19 +712,10 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
                                                      : std::string{ "auto" } );
     }
 
-    // Copied once here rather than read through a reference held for the
-    // whole pass over the Log File, which for a large one can run for a
-    // long time: the options dialog writes this field from the UI thread
-    // without stopping this pool.
-    //
-    // Copying is not synchronisation -- the settings object still has
-    // neither a mutex nor atomics, and a thread sanitizer still flags the
-    // read -- but it does keep the run consistent with itself. A setting
-    // changed mid-run takes effect on the next run, exactly as before.
-    // The read disappears entirely once this worker is handed an Indexing
-    // Policy instead (#93).
-    const auto prefetchBufferSize
-        = static_cast<size_t>( Configuration::get().indexReadBufferSizeMb() );
+    // From this run's own Indexing Policy: no settings object is read here
+    // at all, so the options dialog writing from the UI thread while this
+    // pass over the Log File is in flight cannot be observed by it (#94).
+    const auto prefetchBufferSize = static_cast<size_t>( indexingPolicy_.readBufferSizeMb );
 
     LOG_INFO << "Prefetch buffer " << readableSize( prefetchBufferSize * IndexingBlockSize );
 
@@ -801,7 +796,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     LOG_INFO << "Memory usage " << readableSize( usedMemory() );
 
     if ( interruptRequest_ ) {
-        scopedAccessor.clear();
+        scopedAccessor.clear( indexingPolicy_ );
     }
 
     if ( scopedAccessor.getMaxLength().get()
@@ -811,7 +806,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
                                    QMessageBox::Close );
         } );
 
-        scopedAccessor.clear();
+        scopedAccessor.clear( indexingPolicy_ );
     }
 
     if ( !scopedAccessor.getEncodingGuess() ) {
@@ -827,11 +822,11 @@ OperationResult FullIndexOperation::run()
 
         Q_EMIT indexingProgressed( 0 );
 
-        // Copied up front, not read through a reference held across
-        // doIndex() below, so that the decision to consult the cache and
-        // the budget used to evict from it afterwards are the same run's.
-        const auto useIndexCache = Configuration::get().useIndexCache();
-        const auto indexCacheMaxSizeMb = Configuration::get().indexCacheMaxSizeMb();
+        // From this run's own Indexing Policy, so the decision to consult
+        // the cache and the budget used to evict from it afterwards are
+        // necessarily the same run's.
+        const auto useIndexCache = indexingPolicy_.useIndexCache;
+        const auto indexCacheMaxSizeMb = indexingPolicy_.cacheMaxSizeMb;
 
         // Try loading cached index from disk (skip temp files)
         const bool isTempFile = fileName_.startsWith( QDir::tempPath() );
@@ -896,7 +891,8 @@ OperationResult FullIndexOperation::run()
                                     indexing_data_.get() };
                                 scopedAccessor.loadFromCache(
                                     std::move( cached->linePosition ), cached->maxLength,
-                                    cached->hash, codec );
+                                    cached->hash, codec,
+                                    indexingPolicy_.fastModificationDetection );
                                 if ( forcedEncoding_ ) {
                                     scopedAccessor.forceEncoding( forcedEncoding_ );
                                 }
@@ -916,7 +912,7 @@ OperationResult FullIndexOperation::run()
 
         {
             IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-            scopedAccessor.clear();
+            scopedAccessor.clear( indexingPolicy_ );
             scopedAccessor.forceEncoding( forcedEncoding_ );
         }
 
@@ -959,7 +955,7 @@ OperationResult FullIndexOperation::run()
 
         {
             IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-            scopedAccessor.clear();
+            scopedAccessor.clear( indexingPolicy_ );
         }
 
         Q_EMIT indexingFinished( false );
@@ -995,7 +991,7 @@ OperationResult PartialIndexOperation::run()
 
         {
             IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-            scopedAccessor.clear();
+            scopedAccessor.clear( indexingPolicy_ );
         }
 
         Q_EMIT indexingFinished( false );
@@ -1038,9 +1034,7 @@ MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
         QByteArray buffer{ IndexingBlockSize, Qt::Uninitialized };
 
         bool isFileModified = false;
-        // Copied rather than referenced: this check runs on a worker
-        // thread against a settings object the UI thread can write.
-        const auto fastModificationDetection = Configuration::get().fastModificationDetection();
+        const auto fastModificationDetection = indexingPolicy_.fastModificationDetection;
 
         if ( !file.isOpen() && !file.open( QIODevice::ReadOnly ) ) {
             LOG_INFO << "File failed to open";

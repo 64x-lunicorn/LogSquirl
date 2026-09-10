@@ -21,6 +21,7 @@
 
 #include "configuration.h"
 #include "logdata.h"
+#include "settingspolicies.h"
 #include "logfiltereddata.h"
 #include "dispatch_to.h"
 #include "logger.h"
@@ -47,7 +48,11 @@ int main( int argc, char* argv[] )
 
     auto configuration = Configuration::getSynced();
 
-    LogData logData;
+    // The one place in this tool that touches the settings store: the log
+    // data library reads none itself, it is handed what it may know (#94).
+    const auto policies = deriveSettingsPolicies( configuration );
+
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
     auto filteredData = logData.getNewFilteredData();
 
     filteredData->connect(

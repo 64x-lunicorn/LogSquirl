@@ -32,6 +32,7 @@
 
 #include "log.h"
 #include "quickfindpattern.h"
+#include "settingspolicies.h"
 
 class ViewInterface;
 class ViewContextInterface;
@@ -52,7 +53,11 @@ class WindowSession;
 
 class Session : public std::enable_shared_from_this<Session> {
   public:
-    Session();
+    // The Policies the application derived. The Session does not consume
+    // them itself: it is the place that builds a Log File's data objects,
+    // so it is the place that has to hand each one what it is allowed to
+    // know about the settings.
+    explicit Session( const SettingsPolicies& policies );
     ~Session();
 
     // No copy/assignment please
@@ -132,6 +137,9 @@ class Session : public std::enable_shared_from_this<Session> {
 
     // Global quickfind pattern
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
+
+    // Handed to every Log File opened from now on.
+    SettingsPolicies policies_;
 
     bool exitRequested_ = false;
 

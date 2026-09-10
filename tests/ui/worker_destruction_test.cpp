@@ -25,6 +25,7 @@
 
 #include "configuration.h"
 #include "log.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
 #include "logdata.h"
@@ -72,7 +73,8 @@ SCENARIO( "LogData destruction after indexing completes without deadlock",
         WHEN( "LogData is created, indexes, and is immediately destroyed" )
         {
             {
-                LogData logData;
+                LogData logData{ testSettingsPolicies().indexing, testSettingsPolicies().search,
+                                 testSettingsPolicies().fileAccess };
                 attachAndWaitForIndexing( logData, file.fileName() );
                 // LogData destroyed here — must not deadlock or crash
             }
@@ -102,7 +104,8 @@ SCENARIO( "LogData destruction during active search does not deadlock",
             config.setUseParallelSearch( threadPoolSize > 0 );
 
             {
-                LogData logData;
+                LogData logData{ testSettingsPolicies().indexing, testSettingsPolicies().search,
+                                 testSettingsPolicies().fileAccess };
                 attachAndWaitForIndexing( logData, file.fileName() );
 
                 auto filtered = logData.getNewFilteredData();
@@ -150,7 +153,8 @@ SCENARIO( "Destroying mid-search while the progress throttle is pending does not
             config.setUseParallelSearch( threadPoolSize > 0 );
 
             {
-                LogData logData;
+                LogData logData{ testSettingsPolicies().indexing, testSettingsPolicies().search,
+                                 testSettingsPolicies().fileAccess };
                 attachAndWaitForIndexing( logData, file.fileName() );
 
                 auto filtered = logData.getNewFilteredData();
@@ -188,7 +192,8 @@ SCENARIO( "Repeated LogData create-search-destroy cycles are stable",
         WHEN( "LogData is created, searched, and destroyed 5 times in a row" )
         {
             for ( int cycle = 0; cycle < 5; ++cycle ) {
-                LogData logData;
+                LogData logData{ testSettingsPolicies().indexing, testSettingsPolicies().search,
+                                 testSettingsPolicies().fileAccess };
                 attachAndWaitForIndexing( logData, file.fileName() );
 
                 auto filtered = logData.getNewFilteredData();

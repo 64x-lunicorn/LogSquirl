@@ -56,6 +56,7 @@
 
 #include "atomicflag.h"
 #include "filedigest.h"
+#include "settingspolicies.h"
 #include "synchronization.h"
 
 #include "encodingdetector.h"
@@ -176,17 +177,23 @@ public:
         data_->setProgress( progress );
     }
 
-    // Completely clear the indexing data.
-    void clear()
+    // Completely clear the indexing data. The Indexing Policy decides how
+    // the line positions are stored and how modification is detected, and
+    // is passed in by the operation doing the clearing rather than held
+    // here: the operation's copy is fixed for the whole run, so a setting
+    // changed mid-run cannot be picked up half way through it.
+    void clear( const IndexingPolicy& policy )
     {
-        data_->clear();
+        data_->clear( policy );
     }
 
     /// Load index data from a CachedIndex (disk cache).
     void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                        const IndexedHash& hash, QTextCodec* encoding )
+                        const IndexedHash& hash, QTextCodec* encoding,
+                        bool fastModificationDetection )
     {
-        data_->loadFromCache( std::move( linePosition ), maxLength, hash, encoding );
+        data_->loadFromCache( std::move( linePosition ), maxLength, hash, encoding,
+                              fastModificationDetection );
     }
 
     size_t allocatedSize() const
@@ -234,11 +241,12 @@ private:
                  const FastLinePositionArray& linePosition, QTextCodec* encoding );
 
     // Completely clear the indexing data.
-    void clear();
+    void clear( const IndexingPolicy& policy );
 
     // Load index data from a CachedIndex (disk cache).
     void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                        const IndexedHash& hash, QTextCodec* encoding );
+                        const IndexedHash& hash, QTextCodec* encoding,
+                        bool fastModificationDetection );
 
     /// Returns the compressed line position array, or nullptr if using fast (uncompressed) storage.
     const LinePositionArray* getCompressedLinePosition() const;
@@ -288,11 +296,17 @@ using OperationResult = std::variant<bool, MonitoredFileStatus>;
 class IndexOperation : public QObject {
     Q_OBJECT
 public:
+    // The Indexing Policy is copied in, once, when the operation is built:
+    // everything this run reads about indexing is fixed for its duration,
+    // so the options dialog writing a setting from the UI thread while the
+    // pass over the Log File is in flight cannot be observed by it. A
+    // changed setting takes effect on the next run.
     IndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
-                    AtomicFlag& interruptRequest )
+                    AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy )
         : fileName_( fileName )
         , indexing_data_( indexingData )
         , interruptRequest_( interruptRequest )
+        , indexingPolicy_( indexingPolicy )
     {
     }
 
@@ -317,6 +331,7 @@ protected:
     QString fileName_;
     std::shared_ptr<IndexingData> indexing_data_;
     AtomicFlag& interruptRequest_;
+    const IndexingPolicy indexingPolicy_;
 
 private:
     FastLinePositionArray parseDataBlock( OffsetInFile::UnderlyingType blockBegining,
@@ -333,8 +348,9 @@ class FullIndexOperation : public IndexOperation {
     Q_OBJECT
 public:
     FullIndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
-                        AtomicFlag& interruptRequest, QTextCodec* forcedEncoding = nullptr )
-        : IndexOperation( fileName, indexingData, interruptRequest )
+                        AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy,
+                        QTextCodec* forcedEncoding = nullptr )
+        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy )
         , forcedEncoding_( forcedEncoding )
     {
     }
@@ -349,8 +365,8 @@ class PartialIndexOperation : public IndexOperation {
 public:
     PartialIndexOperation( const QString& fileName,
                            const std::shared_ptr<IndexingData>& indexingData,
-                           AtomicFlag& interruptRequest )
-        : IndexOperation( fileName, indexingData, interruptRequest )
+                           AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy )
+        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy )
     {
     }
 
@@ -362,8 +378,8 @@ class CheckFileChangesOperation : public IndexOperation {
 public:
     CheckFileChangesOperation( const QString& fileName,
                                const std::shared_ptr<IndexingData>& indexingData,
-                               AtomicFlag& interruptRequest )
-        : IndexOperation( fileName, indexingData, interruptRequest )
+                               AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy )
+        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy )
     {
     }
 
@@ -379,7 +395,10 @@ class LogDataWorker : public QObject {
 public:
     // Pass a pointer to the IndexingData (initially empty)
     // This object will change it when indexing (IndexingData must be thread safe!)
-    explicit LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data );
+    // The Indexing Policy is what this worker knows about the settings: it
+    // reads none itself.
+    LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data,
+                   const IndexingPolicy& indexingPolicy );
     ~LogDataWorker() noexcept override;
 
     LogDataWorker( const LogDataWorker& ) = delete;
@@ -399,6 +418,10 @@ public:
     void indexAdditionalLines();
 
     void checkFileChanges();
+
+    // Replaces the Indexing Policy used by the runs requested from now on.
+    // A run already in flight keeps the Policy it was started with.
+    void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
 
     // Interrupts the indexing if one is in progress
     void interrupt();
@@ -428,6 +451,11 @@ private:
     AtomicFlag interruptRequest_;
 
     QString fileName_;
+
+    // Read and written under operationsMutex_, and copied into every
+    // operation as it is requested, so that a run never reads it from the
+    // pool thread while the UI thread is replacing it.
+    IndexingPolicy indexingPolicy_;
 
     // Pointer to the owner's indexing data (we modify it)
     std::shared_ptr<IndexingData> indexing_data_;

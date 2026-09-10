@@ -21,6 +21,7 @@
 
 #include "logdata.h"
 #include "searchsession.h"
+#include "test_policies.h"
 
 using Phase = SearchSession::Phase;
 
@@ -32,8 +33,9 @@ using Phase = SearchSession::Phase;
 
 SCENARIO( "A Search Session starts idle", "[searchsession]" )
 {
-    LogData logData;
-    SearchSession session( logData );
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    SearchSession session( logData, policies.search );
 
     THEN( "its phase is Idle with no matches" )
     {
@@ -47,8 +49,9 @@ SCENARIO( "A Search Session starts idle", "[searchsession]" )
 SCENARIO( "Requesting an invalid pattern goes to InvalidPattern without running anything",
          "[searchsession]" )
 {
-    LogData logData;
-    SearchSession session( logData );
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    SearchSession session( logData, policies.search );
 
     GIVEN( "a pattern that fails to compile as a regex" )
     {
@@ -72,8 +75,9 @@ SCENARIO( "Requesting an invalid pattern goes to InvalidPattern without running 
 
 SCENARIO( "Requesting with no pattern goes idle", "[searchsession]" )
 {
-    LogData logData;
-    SearchSession session( logData );
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    SearchSession session( logData, policies.search );
 
     GIVEN( "a Session that was left in InvalidPattern" )
     {
@@ -97,8 +101,9 @@ SCENARIO( "Requesting with no pattern goes idle", "[searchsession]" )
 
 SCENARIO( "stop() is a no-op when nothing is running", "[searchsession]" )
 {
-    LogData logData;
-    SearchSession session( logData );
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    SearchSession session( logData, policies.search );
 
     WHEN( "stop() is called on an idle Session" )
     {

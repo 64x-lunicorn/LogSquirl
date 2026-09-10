@@ -156,7 +156,7 @@ class LogSquirlApp : public QApplication {
     MainWindow* reloadSession()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>();
+            session_ = std::make_shared<Session>( settingsPolicies_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -198,7 +198,7 @@ class LogSquirlApp : public QApplication {
     MainWindow* newWindow()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>();
+            session_ = std::make_shared<Session>( settingsPolicies_ );
         }
 
         const auto previousSessions = session_->windowSessions();

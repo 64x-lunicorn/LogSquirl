@@ -67,8 +67,10 @@ class LogFilteredData : public AbstractLogData {
     Q_OBJECT
 
   public:
-    // Constructor used by LogData
-    explicit LogFilteredData( const LogData* logData );
+    // Constructor used by LogData, which hands on the Search Policy it was
+    // built with: everything this object and its Search Session know about
+    // the settings arrives here.
+    LogFilteredData( const LogData* logData, const SearchPolicy& searchPolicy );
 
     // Destructor: disconnects signals before member destruction to prevent
     // use-after-destroy from a queued signal firing during teardown.

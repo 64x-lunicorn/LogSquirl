@@ -56,6 +56,7 @@
 #include <type_safe/strong_typedef.hpp>
 
 #include "linetypes.h"
+#include "settingspolicies.h"
 #include "regularexpression.h"
 #include "synchronization.h"
 
@@ -154,10 +155,15 @@ public:
     // pattern before starting this run, so the (expensive, Hyperscan-
     // backed) compile happens exactly once per request() rather than once
     // there and once more here.
+    // The Search Policy is copied in when the operation is built, so
+    // everything this run reads about the settings is fixed for its
+    // duration: the options dialog is modal to the window but does not
+    // stop this pool, and a setting changed mid-run takes effect on the
+    // next run rather than half way through this one.
     SearchOperation( const LogData& sourceLogData, SearchId searchId,
                      const std::atomic<uint64_t>& activeSearchId,
                      std::shared_ptr<const RegularExpression> compiledExpression,
-                     LineNumber startLine, LineNumber endLine );
+                     LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy );
 
     // Run the search operation, returns true if it has been done
     // and false if it has been cancelled (results not copied)
@@ -186,6 +192,7 @@ protected:
     const LogData& sourceLogData_;
     LineNumber startLine_;
     LineNumber endLine_;
+    const SearchPolicy searchPolicy_;
 };
 
 class FullSearchOperation : public SearchOperation {
@@ -194,9 +201,9 @@ public:
     FullSearchOperation( const LogData& sourceLogData, SearchId searchId,
                          const std::atomic<uint64_t>& activeSearchId,
                          std::shared_ptr<const RegularExpression> compiledExpression,
-                         LineNumber startLine, LineNumber endLine )
+                         LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy )
         : SearchOperation( sourceLogData, searchId, activeSearchId,
-                           std::move( compiledExpression ), startLine, endLine )
+                           std::move( compiledExpression ), startLine, endLine, searchPolicy )
     {
     }
 
@@ -209,9 +216,10 @@ public:
     UpdateSearchOperation( const LogData& sourceLogData, SearchId searchId,
                            const std::atomic<uint64_t>& activeSearchId,
                            std::shared_ptr<const RegularExpression> compiledExpression,
-                           LineNumber startLine, LineNumber endLine, LineNumber position )
+                           LineNumber startLine, LineNumber endLine, LineNumber position,
+                           SearchPolicy searchPolicy )
         : SearchOperation( sourceLogData, searchId, activeSearchId,
-                           std::move( compiledExpression ), startLine, endLine )
+                           std::move( compiledExpression ), startLine, endLine, searchPolicy )
         , initialPosition_( position )
     {
     }
@@ -226,7 +234,9 @@ class LogFilteredDataWorker : public QObject {
     Q_OBJECT
 
 public:
-    explicit LogFilteredDataWorker( const LogData& sourceLogData );
+    // The Search Policy is what this worker knows about the settings; it
+    // reads none itself.
+    LogFilteredDataWorker( const LogData& sourceLogData, const SearchPolicy& searchPolicy );
     ~LogFilteredDataWorker() noexcept override;
 
     LogFilteredDataWorker( const LogFilteredDataWorker& ) = delete;
@@ -245,6 +255,10 @@ public:
     // in the source file (line number). Returns the id of the run started.
     SearchId updateSearch( std::shared_ptr<const RegularExpression> compiledExpression,
                            LineNumber startLine, LineNumber endLine, LineNumber position );
+
+    // Replaces the Search Policy used by the runs started from now on. A
+    // run already in flight keeps the Policy it was started with.
+    void setSearchPolicy( const SearchPolicy& searchPolicy );
 
     // Interrupts the search if one is in progress. Does not wait for it to
     // acknowledge; the run simply stops being the active one, so its next
@@ -269,6 +283,11 @@ private:
 
 private:
     const LogData& sourceLogData_;
+
+    // Read and written under operationsMutex_ and copied into every
+    // operation as it is started, so a run never reads it from the pool
+    // thread while the UI thread is replacing it.
+    SearchPolicy searchPolicy_;
 
     // The id of the run currently considered "active". A run compares its own
     // id against this to tell whether it has been superseded; interrupt() (and

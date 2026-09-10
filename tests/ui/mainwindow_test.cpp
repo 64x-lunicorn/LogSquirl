@@ -30,10 +30,11 @@
 #include "log.h"
 #include "mainwindow.h"
 #include "session.h"
+#include "test_policies.h"
 
 SCENARIO( "Main window tests", "[ui]" )
 {
-    auto appSession = std::make_shared<Session>();
+    auto appSession = std::make_shared<Session>( testSettingsPolicies() );
     WindowSession windowSession{ appSession, "Main", 0 };
 
     std::unique_ptr<MainWindow> mainWindow;

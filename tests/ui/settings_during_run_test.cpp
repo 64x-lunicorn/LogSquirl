@@ -25,24 +25,26 @@
 
 #include "configuration.h"
 #include "log.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
 #include "logdata.h"
 #include "logfiltereddata.h"
 
 // The options dialog is modal to the window, but it does not stop the
-// indexing or search pools: pressing Apply writes the very settings a run
-// in flight is reading. Every such read now takes a copy at the start of
-// its operation instead of holding a reference into the shared settings
-// object for the operation's duration, so a run cannot be altered
-// mid-flight -- a changed setting takes effect on the next run.
+// indexing or search pools: pressing Apply writes the settings while a run
+// is in flight.
 //
-// These scenarios pin that outcome: a run whose settings are rewritten
-// underneath it still produces its complete, correct result, and the next
-// run works under the new ones. They are not a race detector -- copying an
-// unsynchronised bool is still a racing read, and a thread sanitizer says
-// so; that read only goes away when these workers are handed a Policy
-// instead of the ambient settings object (#93).
+// Indexing and searching are handed a Policy when they are built and read
+// the settings object never (#94), so a write to it cannot reach a run at
+// all -- not mid-flight, and not on the next run either, which is the
+// point: what a run does is decided by the Policy it was given, and a
+// changed setting reaches a live object only by being handed to it (#95).
+//
+// These scenarios pin that: a run whose settings are rewritten underneath
+// it produces its complete, correct result, and so does the run after it.
+// Where the previous version of this file said "the change took effect on
+// the next run", it now says the opposite, deliberately.
 
 namespace {
 
@@ -68,9 +70,9 @@ bool generateTestFile( QTemporaryFile& file, int lineCount )
     return true;
 }
 
-// Writes every setting a worker thread reads, exactly as pressing Apply in
-// the options dialog would, and flipped away from whatever the run started
-// with.
+// Writes every setting that used to be read from a worker thread, exactly
+// as pressing Apply in the options dialog would, and flipped away from
+// whatever the Policies below say.
 void applyDifferentSettings()
 {
     auto& config = Configuration::get();
@@ -107,16 +109,16 @@ SCENARIO( "Changing settings during a Search cannot alter the run in flight",
         QTemporaryFile file{ "settings_during_search_XXXXXX" };
         REQUIRE( generateTestFile( file, LineCount ) );
 
-        auto& config = Configuration::getSynced();
-        config.setUseParallelSearch( true );
-        config.setSearchThreadPoolSize( 2 );
-        config.setSearchReadBufferSizeLines( 10 );
+        auto policies = testSettingsPolicies();
+        policies.search.useParallelSearch = true;
+        policies.search.threadPoolSize = 2;
+        policies.search.readBufferSizeLines = 10;
         // A cache hit would never reach the worker at all, and this test is
-        // about what the worker reads.
-        config.setUseSearchResultsCache( false );
-        config.setRegexpEngine( RegexpEngine::Vectorscan );
+        // about what the worker runs on.
+        policies.search.useResultsCache = false;
+        policies.search.regexpEngine = RegexpEngine::Vectorscan;
 
-        LogData logData;
+        LogData logData{ policies.indexing, policies.search, policies.fileAccess };
         {
             SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
             logData.attachFile( file.fileName() );
@@ -126,7 +128,7 @@ SCENARIO( "Changing settings during a Search cannot alter the run in flight",
         auto filtered = logData.getNewFilteredData();
         SafeQSignalSpy searchStateSpy{ filtered.get(), &LogFilteredData::searchStateChanged };
 
-        WHEN( "every setting the search worker reads is rewritten while the run is in flight" )
+        WHEN( "every setting the search worker used to read is rewritten mid-run" )
         {
             filtered->request( RegularExpressionPattern( MatchingEveryTenth ) );
 
@@ -148,7 +150,7 @@ SCENARIO( "Changing settings during a Search cannot alter the run in flight",
                 REQUIRE( state.matchCount == LinesCount( LineCount / 10 ) );
             }
 
-            AND_WHEN( "a further Search runs under the settings that were written" )
+            AND_WHEN( "a further Search runs" )
             {
                 // Cleared so the wait below cannot be satisfied by the
                 // completed state of the run that just finished.
@@ -156,7 +158,8 @@ SCENARIO( "Changing settings during a Search cannot alter the run in flight",
                 filtered->request( RegularExpressionPattern( MatchingEveryFifth ) );
                 REQUIRE( waitForSearchToComplete( searchStateSpy ) );
 
-                THEN( "it is correct too -- the change took effect on the next run" )
+                THEN( "it runs on the Policy this object was built with, not on what "
+                      "was written to the settings" )
                 {
                     REQUIRE( filtered->getNbMatches() == LinesCount( LineCount / 5 ) );
                 }
@@ -173,15 +176,15 @@ SCENARIO( "Changing settings during indexing cannot alter the run in flight",
         QTemporaryFile file{ "settings_during_indexing_XXXXXX" };
         REQUIRE( generateTestFile( file, LineCount ) );
 
-        auto& config = Configuration::getSynced();
-        config.setIndexReadBufferSizeMb( 16 );
-        config.setUseCompressedIndex( true );
-        config.setUseIndexCache( false );
-        config.setFastModificationDetection( false );
+        auto policies = testSettingsPolicies();
+        policies.indexing.readBufferSizeMb = 16;
+        policies.indexing.useCompressedIndex = true;
+        policies.indexing.useIndexCache = false;
+        policies.indexing.fastModificationDetection = false;
 
-        WHEN( "every setting the indexing worker reads is rewritten while indexing runs" )
+        WHEN( "every setting the indexing worker used to read is rewritten mid-run" )
         {
-            LogData logData;
+            LogData logData{ policies.indexing, policies.search, policies.fileAccess };
             SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             logData.attachFile( file.fileName() );

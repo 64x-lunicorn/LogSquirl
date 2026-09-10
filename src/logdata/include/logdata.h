@@ -57,6 +57,7 @@
 #include "loadingstatus.h"
 #include "logdataoperation.h"
 #include "logdataworker.h"
+#include "settingspolicies.h"
 
 class LogFilteredData;
 
@@ -70,7 +71,13 @@ class LogData : public AbstractLogData {
     Q_OBJECT
 
   public:
-    LogData();
+    // The three Policies are everything this object knows about the
+    // settings: what indexing a Log File needs, what running a Search on
+    // it needs (handed on to every LogFilteredData built from it), and how
+    // the file itself is opened and decoded. It reads no setting of its
+    // own -- the log data library does not link the settings library.
+    LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
+             const FileAccessPolicy& fileAccessPolicy );
     ~LogData();
 
     LogData( const LogData& ) = delete;
@@ -174,7 +181,13 @@ class LogData : public AbstractLogData {
     // mutable std::unique_ptr<QFile> attached_file_;
     // mutable FileId attached_file_id_;
 
-    bool keepFileClosed_;
+    IndexingPolicy indexingPolicy_;
+    SearchPolicy searchPolicy_;
+    // Both of its fields are read when an object is built and never again:
+    // keeping a file closed is fixed when the FileHolder is created, and
+    // the default Encoding when the file is attached. A change to either
+    // reaches an already-open Log File only by reopening it.
+    const FileAccessPolicy fileAccessPolicy_;
 
     QDateTime lastModifiedDate_;
 

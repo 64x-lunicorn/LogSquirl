@@ -31,6 +31,7 @@
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
 #include "regularexpressionpattern.h"
+#include "settingspolicies.h"
 #include "synchronization.h"
 
 class LogData;
@@ -75,7 +76,11 @@ class SearchSession : public QObject {
         QString errorString;
     };
 
-    explicit SearchSession( const LogData& sourceLogData );
+    // The Search Policy is everything this object knows about the
+    // settings: which regex engine to compile on, whether and how far to
+    // cache results, and how far Context Lines reach. It reads none
+    // itself.
+    SearchSession( const LogData& sourceLogData, const SearchPolicy& searchPolicy );
     ~SearchSession() override;
 
     SearchSession( const SearchSession& ) = delete;
@@ -176,6 +181,7 @@ class SearchSession : public QObject {
     void resetResults();
 
     const LogData& sourceLogData_;
+    SearchPolicy searchPolicy_;
     LogFilteredDataWorker workerThread_;
 
     // The compiled form of the run currently held (Running/Complete/

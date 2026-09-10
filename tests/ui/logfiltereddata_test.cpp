@@ -26,6 +26,7 @@
 
 #include "configuration.h"
 #include "log.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
 #include "logdata.h"
@@ -102,6 +103,8 @@ static LogFilteredData::LineTypeFlags toFlags( LogFilteredData::LineType type )
 
 struct LogDataLoader {
     LogDataLoader()
+        : log_data( testSettingsPolicies().indexing, testSettingsPolicies().search,
+                    testSettingsPolicies().fileAccess )
     {
         static int counter = 0;
         counter++;
@@ -614,7 +617,8 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
         config.setUseParallelSearch( false );
         config.setUseSearchResultsCache( false );
 
-        LogData log_data;
+        const auto policies = testSettingsPolicies();
+        LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
         SafeQSignalSpy loadEndSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
         log_data.attachFile( file.fileName() );
         REQUIRE( loadEndSpy.safeWait( 10000 ) );

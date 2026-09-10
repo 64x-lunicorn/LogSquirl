@@ -29,6 +29,7 @@
 
 #include "savedsearches.h"
 #include "session.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
 #include "logdata.h"
@@ -157,7 +158,7 @@ SCENARIO( "Crawler widget search", "[ui]" )
     QTemporaryFile file{ "crawler_test_XXXXXX" };
     REQUIRE( generateDataFiles( file ) );
 
-    Session session;
+    Session session{ testSettingsPolicies() };
     session.savedSearches().clear();
 
     REQUIRE( session.savedSearches().recentSearches().empty() );

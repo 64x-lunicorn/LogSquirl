@@ -31,6 +31,7 @@
 
 #include "file_write_helper.h"
 #include "log.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
 #include "filewatcher.h"
@@ -119,7 +120,8 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
 
     writeDataToFile( file, 199, WriteFileModification::EndWithPartialLineBegin );
 
-    LogData logData;
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
 
     auto finishedSpy
         = std::make_unique<SafeQSignalSpy>( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
@@ -149,7 +151,8 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
     FileWatcher::getFileWatcher().setWatchPolicy(
         WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
 
-    LogData logData;
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
 
     SafeQSignalSpy changedSpy( &logData, SIGNAL( fileChanged( MonitoredFileStatus ) ) );
 
@@ -244,7 +247,8 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
 
         WHEN( "Interrupt loading" )
         {
-            LogData log_data;
+            const auto policies = testSettingsPolicies();
+            LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
             SafeQSignalSpy endSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             // Start loading the VBL
@@ -271,7 +275,8 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
 
         WHEN( "Try to reattach" )
         {
-            LogData log_data;
+            const auto policies = testSettingsPolicies();
+            LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
             SafeQSignalSpy endSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             log_data.attachFile( QFileInfo{ smallFile }.absoluteFilePath() );

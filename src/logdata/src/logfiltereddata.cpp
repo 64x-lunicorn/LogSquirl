@@ -63,11 +63,11 @@ LogFilteredData::~LogFilteredData()
 }
 
 // Usual constructor: just copy the data, the search is started by request()
-LogFilteredData::LogFilteredData( const LogData* logData )
+LogFilteredData::LogFilteredData( const LogData* logData, const SearchPolicy& searchPolicy )
     : AbstractLogData()
     , matching_lines_( SearchResultArray() )
     , visibility_()
-    , session_( *logData )
+    , session_( *logData, searchPolicy )
 {
     // Starts with an empty result list
     maxLength_ = 0_length;

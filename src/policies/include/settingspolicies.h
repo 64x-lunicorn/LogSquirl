@@ -65,6 +65,10 @@ struct SearchPolicy {
     bool useResultsCache{};
     unsigned resultsCacheLines{};
     RegexpEngine regexpEngine{};
+    // How far around a Match or Mark the Context Lines reach. Part of the
+    // Search axis because the Search Session owns Context Lines: they are
+    // rebuilt from the matches a run produced.
+    int contextLinesCount{};
 };
 
 // What following a Log File on disk needs, and nothing else.
