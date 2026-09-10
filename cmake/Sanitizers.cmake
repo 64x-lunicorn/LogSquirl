@@ -45,8 +45,25 @@ function(enable_sanitizers project_name)
        STREQUAL
        ""
     )
-      target_compile_options(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
+      # Frame pointers keep the sanitizers' fast unwinder useful at -O2:
+      # without them, allocation/free stacks stop after the first frame.
+      target_compile_options(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS} -fno-omit-frame-pointer)
       target_link_libraries(${project_name} INTERFACE -fsanitize=${LIST_OF_SANITIZERS})
+
+      if(ENABLE_SANITIZER_UNDEFINED_BEHAVIOR)
+        # oneTBB's flow_graph task objects are deliberately not a clean
+        # virtual class hierarchy: graph_task is placement-constructed as
+        # different derived types over the same storage and downcast via
+        # static_cast rather than a UBSan-visible vtable relationship, for
+        # performance. UBSan's vptr check reports that as an invalid
+        # downcast on every run that exercises the flow graph (indexing or
+        # search) -- TBB's intended object model, not a finding about this
+        # project's own code. Disabled at compile time (rather than via a
+        # runtime suppressions= file) because GCC's libubsan does not
+        # reliably honour UBSAN_OPTIONS=suppressions=.
+        target_compile_options(${project_name} INTERFACE -fno-sanitize=vptr)
+        target_link_libraries(${project_name} INTERFACE -fno-sanitize=vptr)
+      endif()
     endif()
   endif()
 

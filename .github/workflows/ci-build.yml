@@ -163,6 +163,79 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
+  # Sanitizers — ASan + UBSan build of the test suites in the Noble
+  # container. Runs alongside the Linux matrix; no packaging, no artifacts.
+  # -----------------------------------------------------------------------
+  Sanitizers:
+    name: Sanitizers / asan-ubsan
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    strategy:
+      matrix:
+        config:
+          # Single-entry matrix so the shared composite actions (which read
+          # matrix.config.*) work unchanged.
+          - arch: x64
+            artifacts_id: asan
+            container_root: docker/ubuntu24.04
+            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+            # Sentry/crashpad is a release concern and its own crash handler
+            # would fight the sanitizer runtime; LTO only slows the link of a
+            # build nobody ships. Vectorscan stays ON: it builds and runs clean
+            # under ASan (it is a CPM dependency, so it is not instrumented).
+            cmake_opts: >-
+              -DENABLE_SANITIZER_ADDRESS=ON
+              -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON
+              -DLOGSQUIRL_USE_SENTRY=OFF
+              -DLOGSQUIRL_USE_LTO=OFF
+
+    runs-on: ubuntu-24.04
+    env:
+      # halt_on_error: the first report aborts the test binary, so ctest goes red.
+      # detect_leaks=0: Qt's offscreen platform plugin and its global statics
+      # leak by design at exit; LSan would drown real findings in that noise.
+      ASAN_OPTIONS: halt_on_error=1:print_stacktrace=1:detect_leaks=0:symbolize=1:abort_on_error=0
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1:symbolize=1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          container: ${{ matrix.config.container }}
+          container_root: ${{ matrix.config.container_root }}
+
+      - name: Restore CPM cache
+        uses: actions/cache@v6
+        with:
+          path: cpm_cache
+          key: cpm-Linux-asan-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+          restore-keys: |
+            cpm-Linux-asan-
+
+      - name: Lower ASLR entropy for ASan
+        # Kernels with vm.mmap_rnd_bits=32 (GitHub's Ubuntu runners) break the
+        # shadow-memory layout of GCC's libasan; containers share the host
+        # kernel, so this must be set on the runner.
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+      - uses: ./.github/actions/docker-build
+
+      - name: Run tests under ASan/UBSan
+        run: |
+          docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+            --env ASAN_OPTIONS="$ASAN_OPTIONS" --env UBSAN_OPTIONS="$UBSAN_OPTIONS" \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local ${{ matrix.config.container }} \
+            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure"
+
+  # -----------------------------------------------------------------------
   # Stage 3 — macOS (most expensive, runs only after Windows succeeds)
   # -----------------------------------------------------------------------
   Mac:

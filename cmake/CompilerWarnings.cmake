@@ -80,6 +80,22 @@ function(set_project_warnings project_name)
                    # probably wanted
   )
 
+  if(ENABLE_SANITIZER_ADDRESS
+     OR ENABLE_SANITIZER_UNDEFINED_BEHAVIOR
+     OR ENABLE_SANITIZER_THREAD
+     OR ENABLE_SANITIZER_MEMORY
+  )
+    # GCC's -Wmaybe-uninitialized (pulled in by -Wall) false-positives inside
+    # inlined library templates once sanitizer instrumentation changes
+    # codegen -- seen through QRegularExpression's move-assign (Qt) and
+    # libstdc++'s <regex> (pulled in by Catch2). Not a finding about this
+    # project's own code, so it stays a warning instead of failing the
+    # sanitizer build; ordinary (non-sanitizer) GCC builds keep it as an
+    # error. Appended after -Werror (already in GCC_WARNINGS via
+    # CLANG_WARNINGS) so it takes priority for this one diagnostic.
+    list(APPEND GCC_WARNINGS -Wno-error=maybe-uninitialized)
+  endif()
+
   if(MSVC)
     set(PROJECT_WARNINGS ${MSVC_WARNINGS})
   elseif(CMAKE_CXX_COMPILER_ID MATCHES ".*Clang")

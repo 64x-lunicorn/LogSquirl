@@ -1,0 +1,36 @@
+name: "Pull or build container"
+description: "Pull a build container from GHCR; rebuild it locally when the Dockerfile hash label no longer matches the checked-in Dockerfile"
+inputs:
+  container:
+    description: "Image reference, e.g. ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest"
+    required: true
+  container_root:
+    description: "Directory holding the Dockerfile, e.g. docker/ubuntu24.04"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Pull or build container
+      shell: bash
+      env:
+        CONTAINER: ${{ inputs.container }}
+        CONTAINER_ROOT: ${{ inputs.container_root }}
+      run: |
+        set -euo pipefail
+        LOCAL_HASH=$(sha256sum "$CONTAINER_ROOT/Dockerfile" | cut -d' ' -f1)
+        NEED_BUILD=false
+
+        if docker pull "$CONTAINER" 2>/dev/null; then
+          REMOTE_HASH=$(docker inspect --format='{{index .Config.Labels "dockerfile.sha256"}}' "$CONTAINER" 2>/dev/null || echo "")
+          if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
+            echo "::warning::Dockerfile changed (local=$LOCAL_HASH remote=$REMOTE_HASH), rebuilding"
+            NEED_BUILD=true
+          fi
+        else
+          echo "::warning::GHCR image not found, building locally"
+          NEED_BUILD=true
+        fi
+
+        if [ "$NEED_BUILD" = "true" ]; then
+          docker build --label "dockerfile.sha256=$LOCAL_HASH" -t "$CONTAINER" "$CONTAINER_ROOT"
+        fi

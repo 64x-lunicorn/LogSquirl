@@ -36,6 +36,7 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <exception>
@@ -578,7 +579,6 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     high_resolution_clock::time_point t2 = high_resolution_clock::now();
     const auto durationUs = duration_cast<microseconds>( t2 - t1 );
-    const auto durationMs = duration_cast<milliseconds>( t2 - t1 );
 
     LOG_INFO << "Searching done, overall duration " << durationUs;
     LOG_INFO << "Line reading took " << fileReadingDuration;
@@ -590,15 +590,18 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     const auto totalFileSize = sourceLogData_.getFileSize();
 
+    // A small file searches in well under a millisecond; dividing by the
+    // millisecond count would then divide by zero, and casting the resulting
+    // infinity to an integer is undefined behaviour (UBSan aborts on it).
+    const auto elapsedSeconds
+        = std::max( static_cast<double>( durationUs.count() ), 1.0 ) / 1'000'000.0;
+
     LOG_INFO << "Searching perf "
-             << static_cast<uint64_t>(
-                    std::floor( 1000.f * static_cast<float>( ( endLine - initialLine ).get() )
-                                / static_cast<float>( durationMs.count() ) ) )
+             << static_cast<uint64_t>( std::floor(
+                    static_cast<double>( ( endLine - initialLine ).get() ) / elapsedSeconds ) )
              << " lines/s";
     LOG_INFO << "Searching io perf "
-             << ( 1000.f * static_cast<float>( totalFileSize )
-                  / static_cast<float>( durationMs.count() ) )
-                    / ( 1024 * 1024 )
+             << ( static_cast<double>( totalFileSize ) / elapsedSeconds ) / ( 1024 * 1024 )
              << " MiB/s";
 
     // Completion is reported once, here, rather than folded into the last progress
