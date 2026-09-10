@@ -329,13 +329,18 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
     if ( state.phase == Phase::Idle || state.phase == Phase::InvalidPattern ) {
         // Nothing was run (or the run was abandoned): nothing to keep.
         matching_lines_ = SearchResultArray();
+        marks_and_matches_ = marks_;
     }
     else if ( state.fromCache || session_.currentSearchId() != lastSyncedSearchId_ ) {
         // A cache hit, or the first notification of a run (fresh or a
         // continuation) we have not synced from yet: session_.matches()
         // is already exactly right, so take it wholesale rather than
-        // union it in -- this only runs once per run, not per tick.
+        // union it in -- this only runs once per run, not per tick. The
+        // previous marks_and_matches_ basis is stale too, so it gets the
+        // same full recompute (also a once-per-run cost, not a per-tick
+        // one).
         matching_lines_ = session_.matches();
+        marks_and_matches_ = matching_lines_ | marks_;
         // Drain whatever the Session already accumulated as "new" before
         // this wholesale copy, so the next (incremental) tick doesn't
         // re-apply matches this copy already included.
@@ -343,13 +348,17 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
     }
     else {
         // Another tick of a run already synced from: apply just what's
-        // new since the last tick, instead of copying/re-unioning the
-        // whole (potentially large) accumulated match set every ~100ms.
-        matching_lines_ |= session_.takeNewMatches();
+        // new since the last tick to both bitmaps, instead of copying/
+        // re-unioning the whole (potentially large) accumulated match set
+        // every ~100ms -- marks_ hasn't changed since the last tick, so
+        // the same delta that grows matching_lines_ also grows
+        // marks_and_matches_ correctly.
+        const auto delta = session_.takeNewMatches();
+        matching_lines_ |= delta;
+        marks_and_matches_ |= delta;
     }
     lastSyncedSearchId_ = session_.currentSearchId();
 
-    marks_and_matches_ = matching_lines_ | marks_;
     maxLength_ = session_.maxLength();
     nbLinesProcessed_ = session_.processedLines();
 

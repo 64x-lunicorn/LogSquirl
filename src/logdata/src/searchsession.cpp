@@ -59,6 +59,28 @@ SearchSession::~SearchSession()
 void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber startLine,
                              LineNumber endLine )
 {
+    const auto previous = state();
+    // A cache hit never touches the worker, so the persistent SearchData
+    // it accumulates into across calls is never reseeded to match
+    // whatever pattern the cache hit adopted -- resuming on top of it
+    // (via updateSearch()) could resume on another pattern's leftovers.
+    // Only a real run's own results are safe to continue from.
+    const bool isContinuation
+        = ( previous.phase == Phase::Running || previous.phase == Phase::Complete
+            || previous.phase == Phase::Interrupted )
+          && !previous.fromCache && pattern == previous.pattern
+          && startLine == previous.startLine && endLine > previous.endLine;
+
+    if ( isContinuation ) {
+        // Same pattern as the run being continued, already validated and
+        // compiled for it (compiledExpression_): autorefresh calls this
+        // far more often, per file, than a genuinely new pattern is ever
+        // typed, so re-validating -- a Hyperscan compile -- on every tick
+        // would be a self-inflicted, avoidable cost on the calling thread.
+        startRun( pattern, startLine, endLine, true, compiledExpression_ );
+        return;
+    }
+
     RegularExpression expression{ pattern };
     if ( !expression.isValid() ) {
         invalidateCurrentRun();
@@ -76,19 +98,7 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
         return;
     }
 
-    const auto previous = state();
-    // A cache hit never touches the worker, so the persistent SearchData
-    // it accumulates into across calls is never reseeded to match
-    // whatever pattern the cache hit adopted -- resuming on top of it
-    // (via updateSearch()) could resume on another pattern's leftovers.
-    // Only a real run's own results are safe to continue from.
-    const bool isContinuation
-        = ( previous.phase == Phase::Running || previous.phase == Phase::Complete
-            || previous.phase == Phase::Interrupted )
-          && !previous.fromCache && pattern == previous.pattern
-          && startLine == previous.startLine && endLine > previous.endLine;
-
-    if ( !isContinuation && Configuration::get().useSearchResultsCache() ) {
+    if ( Configuration::get().useSearchResultsCache() ) {
         const auto key = makeCacheKey( pattern, startLine, endLine );
         const auto cached = searchResultsCache_.find( key );
         if ( cached != std::end( searchResultsCache_ ) ) {
@@ -99,9 +109,11 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     }
 
     // Handed to the worker rather than recompiled there: expression above
-    // already paid the (Hyperscan) compile cost to answer isValid().
-    startRun( pattern, startLine, endLine, isContinuation,
-             std::make_shared<const RegularExpression>( std::move( expression ) ) );
+    // already paid the (Hyperscan) compile cost to answer isValid(). Kept
+    // (not just moved into the worker call) so a later continuation of
+    // this same run can reuse it too.
+    compiledExpression_ = std::make_shared<const RegularExpression>( std::move( expression ) );
+    startRun( pattern, startLine, endLine, false, compiledExpression_ );
 }
 
 void SearchSession::request( const RegularExpressionPattern& pattern )
@@ -115,6 +127,7 @@ void SearchSession::request()
     resetResults();
     contextLines_ = SearchResultArray();
     currentSearchKey_ = SearchCacheKey{};
+    compiledExpression_.reset();
 
     applyState( State{} );
     Q_EMIT stateChanged( state() );

@@ -178,6 +178,13 @@ class SearchSession : public QObject {
     const LogData& sourceLogData_;
     LogFilteredDataWorker workerThread_;
 
+    // The compiled form of the run currently held (Running/Complete/
+    // Interrupted, never a cache hit). A continuation reuses this instead
+    // of recompiling an already-validated pattern -- worth caching since
+    // autorefresh can call request() far more often, per file, than a
+    // fresh pattern is ever typed.
+    std::shared_ptr<const RegularExpression> compiledExpression_;
+
     SearchResultArray matches_;
     // Matches accumulated since the last takeNewMatches() call.
     SearchResultArray pendingDelta_;

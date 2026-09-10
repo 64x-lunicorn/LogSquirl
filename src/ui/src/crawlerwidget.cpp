@@ -548,6 +548,15 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         return;
     }
 
+    if ( state.phase == SearchSession::Phase::Idle ) {
+        // No search: nothing to report, and nothing here should override
+        // whatever the caller that drove the Session idle (e.g.
+        // replaceCurrentSearch() on an emptied search box) already decided
+        // to show -- nothing to do, in particular no unconditional show()
+        // reappearing over an intentionally-hidden or already-updated line.
+        return;
+    }
+
     const auto nbMatches = state.matchCount;
     const auto progress = state.progress;
     const bool isComplete = ( state.phase == SearchSession::Phase::Complete );
