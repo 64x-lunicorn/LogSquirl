@@ -317,15 +317,30 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     using namespace std::chrono;
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
 
-    const auto& config = Configuration::get();
-    const auto matchingThreadsCount = static_cast<uint32_t>( [ &config ]() {
-        if ( !config.useParallelSearch() ) {
-            return 1;
-        }
-        const auto configuredThreadPoolSize = config.searchThreadPoolSize();
-        return qMax( 1, configuredThreadPoolSize == 0 ? tbb::info::default_concurrency()
-                                                      : configuredThreadPoolSize );
-    }() );
+    // Copied at the start of the run rather than read through a reference
+    // held for its duration. The options dialog is modal to the window but
+    // does not stop this pool, so pressing Apply writes these very fields
+    // from the UI thread while this search is reading them.
+    //
+    // Copying is not synchronisation -- the settings object still has
+    // neither a mutex nor atomics, and a thread sanitizer still flags each
+    // read below -- but it does mean the run stays consistent with itself
+    // rather than picking up a new value part-way through. A setting
+    // changed mid-run takes effect on the next run, exactly as before.
+    // The read disappears entirely once this worker is handed a Search
+    // Policy instead (#93).
+    const auto useParallelSearch = Configuration::get().useParallelSearch();
+    const auto configuredThreadPoolSize = Configuration::get().searchThreadPoolSize();
+    const auto searchReadBufferSizeLines = Configuration::get().searchReadBufferSizeLines();
+
+    const auto matchingThreadsCount = static_cast<uint32_t>(
+        [ useParallelSearch, configuredThreadPoolSize ]() {
+            if ( !useParallelSearch ) {
+                return 1;
+            }
+            return qMax( 1, configuredThreadPoolSize == 0 ? tbb::info::default_concurrency()
+                                                          : configuredThreadPoolSize );
+        }() );
 
     LOG_INFO << "Using " << matchingThreadsCount << " matching threads";
 
@@ -349,8 +364,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     }
 
     const auto endLine = qMin( LineNumber( nbSourceLines.get() ), endLine_ );
-    const auto nbLinesInChunk = LinesCount(
-        static_cast<LinesCount::UnderlyingType>( config.searchReadBufferSizeLines() ) );
+    const auto nbLinesInChunk
+        = LinesCount( static_cast<LinesCount::UnderlyingType>( searchReadBufferSizeLines ) );
 
     std::chrono::microseconds fileReadingDuration{ 0 };
 
