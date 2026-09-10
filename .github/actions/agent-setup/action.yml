@@ -1,5 +1,5 @@
 name: "Setup agent"
-description: ""
+description: "Install the native build tooling: Ninja, sccache, Qt and Boost"
 runs:
   using: "composite"
   steps:
@@ -16,6 +16,23 @@ runs:
         else
           sudo apt-get install -y ninja-build
         fi
+
+    # Compiler cache for the native (non-container) builds. The action puts
+    # sccache on PATH, exports SCCACHE_PATH and forwards the Actions cache
+    # credentials (ACTIONS_RESULTS_URL / ACTIONS_RUNTIME_TOKEN) so the GitHub
+    # Actions cache backend works. Linux builds run inside docker containers
+    # and never see this step (see #119 for the container path).
+    - name: Install sccache
+      if: runner.os != 'Linux'
+      uses: mozilla-actions/sccache-action@v0.0.11
+
+    - name: Enable sccache GitHub Actions cache backend
+      if: runner.os != 'Linux'
+      shell: bash
+      run: |
+        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+        # Bump to invalidate every cached object at once.
+        echo "SCCACHE_GHA_VERSION=1" >> "$GITHUB_ENV"
 
     - name: Install Qt
       if: ${{ matrix.config.qt_arch }}
