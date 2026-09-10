@@ -35,7 +35,7 @@ class TestLogView : public AbstractLogView {
   public:
     TestLogView( const AbstractLogData* logData, const QuickFindPattern* qfp,
                  QWidget* parent = nullptr )
-        : AbstractLogView( logData, qfp, parent )
+        : AbstractLogView( logData, qfp, /* initialTextWrap */ false, parent )
     {
     }
 

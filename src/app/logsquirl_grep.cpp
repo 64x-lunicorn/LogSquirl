@@ -20,6 +20,7 @@
 #include <mimalloc.h>
 
 #include "configuration.h"
+#include "filewatcher.h"
 #include "logdata.h"
 #include "settingspolicies.h"
 #include "logfiltereddata.h"
@@ -51,6 +52,11 @@ int main( int argc, char* argv[] )
     // The one place in this tool that touches the settings store: the log
     // data library reads none itself, it is handed what it may know (#94).
     const auto policies = deriveSettingsPolicies( configuration );
+
+    // The file watcher is process-wide and reads no setting of its own
+    // either: attaching a Log File registers it there, so it is handed its
+    // Policy before that happens, exactly as LogSquirlApp does for the GUI.
+    FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
 
     LogData logData{ policies.indexing, policies.search, policies.fileAccess };
     auto filteredData = logData.getNewFilteredData();

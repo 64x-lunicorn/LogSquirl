@@ -126,6 +126,12 @@ and handed to it when it is built — an Indexing Policy, a Search Policy, a Wat
 File Access Policy. A part that holds a Policy cannot reach for a setting it did not declare.
 _Avoid_: config object, options, preferences
 
+**Axis**:
+One Settings Policy, seen as the unit a change travels in. A changed setting is re-derived
+into Policies and handed down one axis at a time, so changing a Highlighter Set does not
+restart file watching, and changing the poll interval does not disturb a Search.
+_Avoid_: category, group, domain
+
 **Session**:
 The set of Log Files currently open, their tabs, and the position and view state restored
 for each on the next start.

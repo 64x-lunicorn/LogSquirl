@@ -101,9 +101,8 @@ static LogFilteredData::LineTypeFlags toFlags( LogFilteredData::LineType type )
 }
 
 struct LogDataLoader {
-    LogDataLoader()
-        : log_data( testSettingsPolicies().indexing, testSettingsPolicies().search,
-                    testSettingsPolicies().fileAccess )
+    explicit LogDataLoader( SettingsPolicies policies = testSettingsPolicies() )
+        : log_data( policies.indexing, policies.search, policies.fileAccess )
     {
         static int counter = 0;
         counter++;

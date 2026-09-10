@@ -112,8 +112,14 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     // Constructor of the widget, the data set is passed.
     // The caller retains ownership of the data set.
     // The pointer to the QFP is used for colouring and QuickFind searches
+    // initialTextWrap is the state this view starts in. It is a
+    // constructor parameter and not a setting this view reads, because
+    // that is the truth of it: the setting is the starting state for a new
+    // view. Changing it afterwards goes through textWrapSet(), which is
+    // what the View menu's action calls; a view that already exists is
+    // never re-read from the settings.
     AbstractLogView( const AbstractLogData* newLogData, const QuickFindPattern* const quickFind,
-                     QWidget* parent = nullptr );
+                     bool initialTextWrap, QWidget* parent = nullptr );
 
     ~AbstractLogView() override;
 
@@ -369,7 +375,7 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     // rather than the top of the top one.
     LineNumber firstLine_;
     bool lastLineAligned_ = false;
-    bool useTextWrap_ = false;
+    bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
 
     struct WrappedLineData {

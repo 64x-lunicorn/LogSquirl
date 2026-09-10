@@ -402,10 +402,12 @@ void DigitsBuffer::timerEvent( QTimerEvent* event )
 }
 
 AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
-                                  const QuickFindPattern* const quickFindPattern, QWidget* parent )
+                                  const QuickFindPattern* const quickFindPattern,
+                                  bool initialTextWrap, QWidget* parent )
     : QAbstractScrollArea( parent )
     , followElasticHook_( HookThreshold )
     , logData_( newLogData )
+    , useTextWrap_( initialTextWrap )
     , searchEnd_( newLogData->getNbLine().get() )
     , quickFindPattern_( quickFindPattern )
     , quickFind_( new QuickFind( *newLogData ) )
@@ -418,13 +420,6 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     // resizeEvent() (which calls updateDisplaySize()).
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
     charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
-
-    // Read once, when this view is built, and never again: the setting is
-    // the starting state for a new view, not a live one. The live path is
-    // the View menu's Wrap text action, which calls setTextWrap() on the
-    // views that already exist. Changing the setting in the options dialog
-    // therefore shows up on the next file opened, not on this one.
-    useTextWrap_ = Configuration::get().useTextWrap();
 
     // Hovering
     setMouseTracking( true );

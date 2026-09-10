@@ -52,6 +52,7 @@ class FilteredView : public AbstractLogView
   public:
     FilteredView( LogFilteredData* newLogData,
             const QuickFindPattern* const quickFindPattern,
+            bool initialTextWrap,
             QWidget* parent = nullptr );
 
     // What is visible in the view.
