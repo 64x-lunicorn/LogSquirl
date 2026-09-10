@@ -21,11 +21,38 @@ runs:
     - name: configure
       shell: sh
       run: |
+        # sccache is installed and enabled by agent-setup. It is wired in as
+        # the CMake compiler launcher so the project's own build files stay
+        # untouched.
+        LAUNCHER_OPTS=""
+        if [ "$SCCACHE_GHA_ENABLED" = "true" ]; then
+          LAUNCHER_OPTS="-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # sccache cannot cache MSVC objects compiled with /Zi (the debug
+            # info goes into a per-target PDB shared by many objects). Embed
+            # it into the objects instead (/Z7); the linker still writes the
+            # executable's PDB, so the pdb zip in prepare_release.cmd is
+            # unaffected. CMAKE_MSVC_DEBUG_INFORMATION_FORMAT only takes
+            # effect under policy CMP0141 NEW, which this project's
+            # cmake_minimum_required(3.12) does not enable on its own.
+            LAUNCHER_OPTS="$LAUNCHER_OPTS -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DCMAKE_POLICY_DEFAULT_CMP0141=NEW"
+          fi
+        fi
         mkdir $LOGSQUIRL_BUILD_ROOT
         cd $LOGSQUIRL_BUILD_ROOT
-        cmake $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=$LOGSQUIRL_WORKSPACE/cpm_cache -DLOGSQUIRL_OVERRIDE_MALLOC=OFF $LOGSQUIRL_WORKSPACE
+        cmake $LOGSQUIRL_CMAKE_OPTS $LAUNCHER_OPTS -DCPM_SOURCE_CACHE=$LOGSQUIRL_WORKSPACE/cpm_cache -DLOGSQUIRL_OVERRIDE_MALLOC=OFF $LOGSQUIRL_WORKSPACE
 
     - name: build
       shell: sh
       run: |
         cmake --build $LOGSQUIRL_BUILD_ROOT -t ci_build
+
+    - name: sccache stats
+      if: always()
+      shell: bash
+      run: |
+        if [ "$SCCACHE_GHA_ENABLED" = "true" ] && command -v sccache >/dev/null 2>&1; then
+          sccache --show-stats
+        else
+          echo "sccache not enabled on this runner"
+        fi
