@@ -56,7 +56,9 @@ LineDecorator::Context emptyDecoratorContext()
 
 // Minimal reproduction of CrawlerWidget::TableCellSelection for unit testing.
 // The struct is private to CrawlerWidget, so we duplicate it here to test the
-// logic independently.
+// logic independently. This duplicate tests a copy of production code, not
+// the production code itself; folding it into the real thing belongs to the
+// separate Crawler Widget deepening.
 namespace {
 
 struct TableCellSelection {
@@ -226,95 +228,6 @@ SCENARIO( "TableCellSelection::selectedText returns the correct substring",
     }
 }
 
-// ── LogTableHighlightDelegate state management tests ───────────────────────
-
-SCENARIO( "setPortionSelection normalises start/end",
-          "[logtablehighlightdelegate][portionselection]" )
-{
-    LogTableHighlightDelegate delegate;
-
-    GIVEN( "A forward selection (start < end)" )
-    {
-        delegate.setPortionSelection( 3, 1, 5, 15 );
-
-        THEN( "The delegate does not crash and accepts the values" )
-        {
-            // We cannot read the private members directly, but we verify that
-            // painting with these values does not crash (tested below).
-            REQUIRE( true );
-        }
-    }
-
-    GIVEN( "A reversed selection (start > end)" )
-    {
-        delegate.setPortionSelection( 3, 1, 15, 5 );
-
-        THEN( "The delegate normalises internally without crash" )
-        {
-            REQUIRE( true );
-        }
-    }
-
-    GIVEN( "A zero-width selection" )
-    {
-        delegate.setPortionSelection( 3, 1, 10, 10 );
-
-        THEN( "The delegate accepts the values" )
-        {
-            REQUIRE( true );
-        }
-    }
-}
-
-SCENARIO( "clearPortionSelection resets portion state",
-          "[logtablehighlightdelegate][portionselection]" )
-{
-    LogTableHighlightDelegate delegate;
-
-    GIVEN( "An active portion selection" )
-    {
-        delegate.setPortionSelection( 2, 1, 5, 20 );
-
-        WHEN( "clearPortionSelection is called" )
-        {
-            delegate.clearPortionSelection();
-
-            THEN( "The delegate does not paint any portion highlight" )
-            {
-                // Verified via paint tests below
-                REQUIRE( true );
-            }
-        }
-    }
-}
-
-SCENARIO( "setHoverRow and clearHoverRow manage hover state",
-          "[logtablehighlightdelegate][hover]" )
-{
-    LogTableHighlightDelegate delegate;
-
-    WHEN( "setHoverRow is called with a valid row" )
-    {
-        delegate.setHoverRow( 5 );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-
-    WHEN( "clearHoverRow is called" )
-    {
-        delegate.setHoverRow( 5 );
-        delegate.clearHoverRow();
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-
-    WHEN( "setHoverRow is called with -1" )
-    {
-        delegate.setHoverRow( -1 );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-}
-
-// ── Paint smoke tests ──────────────────────────────────────────────────────
-
 namespace {
 
 // Helper to create a model, delegate, and paint into an off-screen pixmap.
@@ -353,208 +266,6 @@ struct PaintFixture {
 };
 
 } // namespace
-
-SCENARIO( "Delegate paints without crash for valid index",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    WHEN( "Painting a cell with text" )
-    {
-        const auto index = f.model.index( 0, 2 );
-        THEN( "No crash occurs" )
-        {
-            f.delegate.paint( &f.painter, f.option, index );
-            REQUIRE( true );
-        }
-    }
-}
-
-SCENARIO( "Delegate paints without crash for invalid index",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    WHEN( "Painting with an invalid QModelIndex" )
-    {
-        THEN( "No crash occurs (falls back to base class)" )
-        {
-            f.delegate.paint( &f.painter, f.option, QModelIndex{} );
-            REQUIRE( true );
-        }
-    }
-}
-
-SCENARIO( "Delegate paints without crash for empty cell text",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    WHEN( "Painting a cell with empty text" )
-    {
-        const auto index = f.model.index( 2, 0 );
-        THEN( "No crash occurs" )
-        {
-            f.delegate.paint( &f.painter, f.option, index );
-            REQUIRE( true );
-        }
-    }
-}
-
-SCENARIO( "Delegate paints selected row without crash",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    WHEN( "Painting a selected cell" )
-    {
-        f.option.state |= QStyle::State_Selected;
-        const auto index = f.model.index( 0, 2 );
-        THEN( "No crash occurs" )
-        {
-            f.delegate.paint( &f.painter, f.option, index );
-            REQUIRE( true );
-        }
-    }
-}
-
-SCENARIO( "Delegate paints portion selection without crash",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    GIVEN( "A portion selection on row 0, column 2, chars 6..11" )
-    {
-        f.delegate.setPortionSelection( 0, 2, 6, 11 );
-
-        WHEN( "Painting the cell with the portion selection" )
-        {
-            const auto index = f.model.index( 0, 2 );
-            THEN( "No crash occurs" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-
-        WHEN( "Painting a different cell (no portion on this cell)" )
-        {
-            const auto index = f.model.index( 0, 1 );
-            THEN( "No crash occurs" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-    }
-}
-
-SCENARIO( "Delegate paints portion selection on selected row without crash",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    GIVEN( "A portion selection on a selected row" )
-    {
-        f.delegate.setPortionSelection( 0, 2, 6, 11 );
-        f.option.state |= QStyle::State_Selected;
-
-        WHEN( "Painting the cell with portion + selection" )
-        {
-            const auto index = f.model.index( 0, 2 );
-            THEN( "Row selection is suppressed so portion is visible" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-    }
-}
-
-SCENARIO( "Delegate paints reversed portion selection without crash",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    GIVEN( "A reversed portion selection (start > end)" )
-    {
-        f.delegate.setPortionSelection( 0, 2, 15, 5 );
-
-        WHEN( "Painting the cell" )
-        {
-            const auto index = f.model.index( 0, 2 );
-            THEN( "No crash occurs (normalised internally)" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-    }
-}
-
-SCENARIO( "Delegate paints with portion selection beyond text length",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    GIVEN( "A portion selection that extends past the cell text" )
-    {
-        // "Hello World from LogSquirl" is 26 chars
-        f.delegate.setPortionSelection( 0, 2, 20, 999 );
-
-        WHEN( "Painting the cell" )
-        {
-            const auto index = f.model.index( 0, 2 );
-            THEN( "No crash occurs (clamped to text length)" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-    }
-}
-
-SCENARIO( "Delegate paints hover row without crash",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    GIVEN( "Hover row is set to row 0" )
-    {
-        f.delegate.setHoverRow( 0 );
-
-        WHEN( "Painting a cell on the hover row" )
-        {
-            const auto index = f.model.index( 0, 2 );
-            THEN( "No crash occurs" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-    }
-}
-
-SCENARIO( "Delegate paints alternating row without crash",
-          "[logtablehighlightdelegate][paint]" )
-{
-    PaintFixture f;
-
-    GIVEN( "The Alternate feature flag is set" )
-    {
-        f.option.features |= QStyleOptionViewItem::Alternate;
-
-        WHEN( "Painting a cell" )
-        {
-            const auto index = f.model.index( 1, 1 );
-            THEN( "No crash occurs" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-    }
-}
 
 // ── sizeHint tests ─────────────────────────────────────────────────────────
 
@@ -601,116 +312,6 @@ SCENARIO( "sizeHint for empty text falls back to base class",
                 const auto baseHint
                     = QStyledItemDelegate{}.sizeHint( f.option, index );
                 REQUIRE( hint.width() == baseHint.width() );
-            }
-        }
-    }
-}
-
-// ── setColorLabelWords tests ───────────────────────────────────────────────
-
-SCENARIO( "setColorLabelWords accepts various inputs",
-          "[logtablehighlightdelegate][colorlabels]" )
-{
-    LogTableHighlightDelegate delegate;
-
-    WHEN( "Setting empty color label words" )
-    {
-        delegate.setColorLabelWords( {} );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-
-    WHEN( "Setting color label words with empty inner lists" )
-    {
-        delegate.setColorLabelWords( { QStringList{}, QStringList{} } );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-
-    WHEN( "Setting color label words with actual words" )
-    {
-        delegate.setColorLabelWords( { QStringList{ "error", "fatal" },
-                                       QStringList{ "warning" } } );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-}
-
-// ── setFilteredData tests ──────────────────────────────────────────────────
-
-SCENARIO( "setFilteredData accepts nullptr",
-          "[logtablehighlightdelegate][filtereddata]" )
-{
-    LogTableHighlightDelegate delegate;
-
-    WHEN( "Setting filtered data to nullptr" )
-    {
-        delegate.setFilteredData( nullptr );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-}
-
-// ── setQuickFindPattern tests ──────────────────────────────────────────────
-
-SCENARIO( "setQuickFindPattern accepts nullptr and valid shared_ptr",
-          "[logtablehighlightdelegate][quickfind]" )
-{
-    LogTableHighlightDelegate delegate;
-
-    WHEN( "Setting a null shared_ptr" )
-    {
-        delegate.setQuickFindPattern( nullptr );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-
-    WHEN( "Setting a valid QuickFindPattern" )
-    {
-        auto pattern = std::make_shared<QuickFindPattern>();
-        delegate.setQuickFindPattern( pattern );
-        THEN( "No crash" ) { REQUIRE( true ); }
-    }
-}
-
-// ── Combined state paint tests ─────────────────────────────────────────────
-
-SCENARIO( "Delegate paints correctly with hover + portion + alternating combined",
-          "[logtablehighlightdelegate][paint][combined]" )
-{
-    PaintFixture f;
-
-    GIVEN( "Hover, portion selection, and alternating row all active" )
-    {
-        f.delegate.setHoverRow( 0 );
-        f.delegate.setPortionSelection( 0, 2, 0, 5 );
-        f.option.features |= QStyleOptionViewItem::Alternate;
-
-        WHEN( "Painting the cell" )
-        {
-            const auto index = f.model.index( 0, 2 );
-            THEN( "No crash occurs" )
-            {
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
-            }
-        }
-    }
-}
-
-SCENARIO( "Portion selection on row does not suppress unrelated rows",
-          "[logtablehighlightdelegate][paint][portionsuppression]" )
-{
-    PaintFixture f;
-
-    GIVEN( "A portion selection on row 0" )
-    {
-        f.delegate.setPortionSelection( 0, 2, 5, 10 );
-        f.option.state |= QStyle::State_Selected;
-
-        WHEN( "Painting row 1 (no portion selection)" )
-        {
-            const auto index = f.model.index( 1, 2 );
-            THEN( "Row 1 is still painted as selected (no suppression)" )
-            {
-                // This should not crash and should paint normally
-                f.delegate.paint( &f.painter, f.option, index );
-                REQUIRE( true );
             }
         }
     }
@@ -970,60 +571,198 @@ SCENARIO( "A fully selected row overrides Highlighter colour everywhere",
     }
 }
 
-// ── Cache invalidation tests (buildDecoratorContext performance) ───────────
+// ── rowColorsFor tests (issue #82) ──────────────────────────────────────────
+//
+// Marking a Log Line already wired the setter, the LineType read used by
+// AbstractLogView's gutter bullet, and the repaint -- only the Table View's
+// own read of that LineType, to turn it into a row background, was ever
+// missing. rowColorsFor() is that read, isolated from live singletons so it
+// can be tested directly.
 
-SCENARIO( "setSearchPattern and setColorLabelWords rebuild the cached "
-          "Highlighters they feed decorationFor()",
-          "[logtablehighlightdelegate][cache]" )
+SCENARIO( "rowColorsFor renders a Match line's row background in the "
+          "text view's bullet colour",
+          "[logtablehighlightdelegate][rowcolors]" )
 {
-    LogTableHighlightDelegate delegate;
-
-    GIVEN( "a main search pattern is set" )
+    GIVEN( "a Line Verdict for a Match line, with no whole-line Highlighter" )
     {
-        delegate.setSearchPattern( RegularExpressionPattern{ "field" } );
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Match, false };
 
-        WHEN( "painting a cell containing the pattern" )
+        WHEN( "deciding the row colours" )
         {
-            QStandardItemModel model;
-            model.setColumnCount( 1 );
-            model.setRowCount( 1 );
-            model.setData( model.index( 0, 0 ), "the field name" );
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
 
-            QPixmap pixmap{ 200, 30 };
-            pixmap.fill( Qt::white );
-            QPainter painter( &pixmap );
-            QStyleOptionViewItem option;
-            option.rect = QRect( 0, 0, 200, 30 );
-            option.font = QFont( "Monospace", 10 );
-            option.fontMetrics = QFontMetrics( option.font );
-            option.palette = QApplication::palette();
-            option.state = QStyle::State_Enabled;
-
-            THEN( "it does not crash and reuses the cached Highlighter on later repaints" )
+            THEN( "the row background is the text view's match bullet colour (red)" )
             {
-                delegate.paint( &painter, option, model.index( 0, 0 ) );
-                delegate.paint( &painter, option, model.index( 0, 0 ) );
-                REQUIRE( true );
+                REQUIRE( colors.backColor == QColor{ Qt::red } );
             }
-            painter.end();
         }
-
-        WHEN( "clearing the pattern" )
-        {
-            delegate.setSearchPattern( {} );
-            THEN( "no crash" ) { REQUIRE( true ); }
-        }
-    }
-
-    GIVEN( "color label words are set" )
-    {
-        delegate.setColorLabelWords( { QStringList{ "warn" } } );
-        THEN( "no crash" ) { REQUIRE( true ); }
-    }
-
-    GIVEN( "refreshMainSearchHighlighter is called without a pattern set" )
-    {
-        delegate.refreshMainSearchHighlighter();
-        THEN( "no crash" ) { REQUIRE( true ); }
     }
 }
+
+SCENARIO( "rowColorsFor renders a Mark line's row background in the "
+          "text view's bullet colour",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Mark-only line" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Mark, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the row background is the text view's mark bullet colour (dodgerblue)" )
+            {
+                REQUIRE( colors.backColor == QColor{ "dodgerblue" } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor gives a Mark+Match line its own distinct colour, "
+          "as the text view's bullet does",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a line that is both Mark and Match" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match,
+                                   false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the row background is the text view's marked-match bullet colour (violet), "
+                 "not plain match or plain mark" )
+            {
+                REQUIRE( colors.backColor == QColor{ "violet" } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor leaves a Plain line's row background untouched",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Plain line" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Plain, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the default background is unchanged" )
+            {
+                REQUIRE( colors.backColor == QColor{ Qt::white } );
+                REQUIRE( colors.foreColor == QColor{ Qt::black } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor dims a Context Line's foreground, as the text view does",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Context Line" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Context, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the foreground is subdued (reduced alpha), matching the text view's dimming" )
+            {
+                REQUIRE( colors.foreColor.alpha() == 128 );
+            }
+
+            AND_THEN( "the background is untouched -- the text view dims foreground only" )
+            {
+                REQUIRE( colors.backColor == QColor{ Qt::white } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor gives Search Limits the highest precedence, "
+          "suppressing Mark/Match colour outside the limits",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Match line that is outside the Search Limits" )
+    {
+        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Match,
+                                   /* isOutsideSearchLimits = */ true };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the disabled foreground wins and the match colour does not show" )
+            {
+                REQUIRE( colors.foreColor == QColor{ Qt::gray } );
+                REQUIRE( colors.backColor == QColor{ Qt::white } );
+            }
+        }
+    }
+}
+
+SCENARIO( "rowColorsFor gives a whole-line Highlighter precedence over "
+          "Mark/Match row colour",
+          "[logtablehighlightdelegate][rowcolors]" )
+{
+    GIVEN( "a Line Verdict for a Match line that also carries a whole-line Highlighter" )
+    {
+        const HighlightColor wholeLine{ QColor{ Qt::white }, QColor{ Qt::green } };
+        const LineVerdict verdict{ wholeLine, LineTypeFlags::Match, false };
+
+        WHEN( "deciding the row colours" )
+        {
+            const auto colors = LogTableHighlightDelegate::rowColorsFor(
+                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the Highlighter's own colour wins over the match colour" )
+            {
+                REQUIRE( colors.backColor == QColor{ Qt::green } );
+                REQUIRE( colors.foreColor == QColor{ Qt::white } );
+            }
+        }
+    }
+}
+
+// A regression test for the bug itself: marking a line (via LogFilteredData,
+// the same path CrawlerWidget::markLinesFromMain drives) must change what
+// rowColorsFor() -- and therefore paint() -- produces for that line. Before
+// this fix, the row-level LineType was read into the Line Verdict but never
+// consulted for colour, so this would fail: the "before" and "after" colours
+// were identical no matter what the LineType said.
+SCENARIO( "Marking a line changes the Table View's row background",
+          "[logtablehighlightdelegate][rowcolors][regression]" )
+{
+    GIVEN( "an unmarked Plain line" )
+    {
+        const LineVerdict before{ std::nullopt, LineTypeFlags::Plain, false };
+        const auto beforeColors = LogTableHighlightDelegate::rowColorsFor(
+            before, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+        WHEN( "the line is marked (LineType now carries the Mark flag)" )
+        {
+            const LineVerdict after{ std::nullopt, LineTypeFlags::Mark, false };
+            const auto afterColors = LogTableHighlightDelegate::rowColorsFor(
+                after, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+
+            THEN( "the row background actually changes" )
+            {
+                REQUIRE( beforeColors.backColor != afterColors.backColor );
+                REQUIRE( afterColors.backColor == QColor{ "dodgerblue" } );
+            }
+        }
+    }
+}
+

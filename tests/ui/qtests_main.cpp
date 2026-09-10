@@ -26,10 +26,15 @@
 
 #include <configuration.h>
 #include <linetypes.h>
+#include <logfiltereddataworker.h>
 #include <highlighterset.h>
 #include <persistentinfo.h>
 
 #include <logger.h>
+
+#include <tbb/global_control.h>
+
+#include <thread>
 
 const bool PersistentInfo::ForcePortable = true;
 
@@ -69,13 +74,35 @@ class TestRunner : public QObject {
 
 int main( int argc, char* argv[] )
 {
+    // Unlike the app's own main() (src/app/main.cpp), nothing here otherwise
+    // guarantees a second TBB thread. On a CPU-constrained CI runner where
+    // TBB's ambient concurrency is 1, a search/index flow graph has no worker
+    // thread free to make progress whenever its driving thread is busy
+    // elsewhere (e.g. polling for buffer space), and can stall indefinitely.
+    // Kept alive for the rest of main() so the constraint doesn't revert
+    // before the tests run.
+    const auto ambientConcurrency
+        = tbb::global_control::active_value( tbb::global_control::max_allowed_parallelism );
+    tbb::global_control ensureWorkerThread( tbb::global_control::max_allowed_parallelism,
+                                            std::max( ambientConcurrency, size_t{ 2 } ) );
+
     QApplication a( argc, argv );
 
     logging::enableLogging();
 
+    // Diagnostic for #85's "search superseded by a later one" CI flake on
+    // ubuntu_noble specifically: this is the one figure the earlier
+    // floor-of-2 fix (f1e50506) never actually logged, so there is no way
+    // to tell from a CI run whether TBB saw this container as having 1
+    // logical thread (the case that fix targets) or something else. Remove
+    // once that investigation concludes.
+    LOG_INFO << "qtests_main: ambient TBB concurrency " << ambientConcurrency
+             << ", std::thread::hardware_concurrency() " << std::thread::hardware_concurrency();
+
     qRegisterMetaType<LinesCount>( "LinesCount" );
     qRegisterMetaType<LineNumber>( "LineNumber" );
     qRegisterMetaType<LineLength>( "LineLength" );
+    qRegisterMetaType<SearchId>( "SearchId" );
 
     auto& config = Configuration::getSynced();
     config.setSearchReadBufferSizeLines( 10 );

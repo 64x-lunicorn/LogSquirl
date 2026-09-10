@@ -37,6 +37,7 @@ int main( int argc, char* argv[] )
 #endif
     qRegisterMetaType<LinesCount>( "LinesCount" );
     qRegisterMetaType<LineNumber>( "LineNumber" );
+    qRegisterMetaType<SearchId>( "SearchId" );
 
     QCoreApplication app( argc, argv );
     CliParameters parameters( app, true );

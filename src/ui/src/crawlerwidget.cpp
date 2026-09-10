@@ -472,6 +472,15 @@ void CrawlerWidget::stopSearch()
     logFilteredData_->interruptSearch();
     searchState_.stopSearch();
     printSearchInfoMessage();
+
+    // An interrupted run no longer reports completion (it is not one), so the
+    // button/gauge cleanup that normally happens on 100% progress has to happen
+    // here instead, immediately, rather than waiting on a signal that won't come.
+    searchInfoLine_->hideGauge();
+    stopButton_->setEnabled( false );
+    stopButton_->hide();
+    searchButton_->show();
+    clearButton_->show();
 }
 
 void CrawlerWidget::clearSearchHistory()
@@ -1868,17 +1877,11 @@ void CrawlerWidget::loadIcons()
 void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
 {
     LOG_INFO << "replacing current search with " << searchText;
-    // Interrupt the search if it's ongoing
-    logFilteredData_->interruptSearch();
 
-    // We have to wait for the last search update (100%)
-    // before clearing/restarting to avoid having remaining results.
-
-    // FIXME: this is a bit of a hack, we call processEvents
-    // for Qt to empty its event queue, including (hopefully)
-    // the search update event sent by logFilteredData_. It saves
-    // us the overhead of having proper sync.
-    QApplication::processEvents( QEventLoop::ExcludeUserInputEvents );
+    // clearSearch() (below) interrupts whatever search is in flight and, together
+    // with the runSearch() call further down, supersedes it: any of its results
+    // still arriving after this point carry its (now stale) id and are discarded
+    // on arrival, so there is nothing to wait for here.
 
     nbMatches_ = 0_lcount;
 
