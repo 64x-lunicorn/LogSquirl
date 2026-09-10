@@ -128,6 +128,19 @@ if(LOGSQUIRL_USE_VECTORSCAN)
       "FAT_RUNTIME ${_VS_FAT_RUNTIME}"
     )
 
+    if(_VS_FAT_RUNTIME)
+      # FAT_RUNTIME multiversions each source file through vectorscan's own
+      # build_wrapper.sh (one compile per microarch variant, e.g. core2,
+      # corei7, avx2), which post-processes the object file sccache just
+      # produced. That breaks sccache's own bookkeeping of the object it
+      # wrote ("failed to zip up compiler outputs" / file not found), so
+      # these targets must build without the global compiler launcher.
+      get_property(_VS_TARGETS DIRECTORY ${vectorscan_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
+      foreach(_VS_TARGET ${_VS_TARGETS})
+        set_target_properties(${_VS_TARGET} PROPERTIES C_COMPILER_LAUNCHER "" CXX_COMPILER_LAUNCHER "")
+      endforeach()
+    endif()
+
     message("Adding alias for vectorscan")
     add_library(logsquirl_vectorscan INTERFACE)
     target_link_libraries(logsquirl_vectorscan INTERFACE hs)

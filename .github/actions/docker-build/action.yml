@@ -1,14 +1,57 @@
-name: "Build and test in container"
-description: "Generate the build files, build the code and run the tests"
+name: "Build in container"
+description: "Generate the build files and build the code inside the matrix container, with sccache as the compiler launcher"
 runs:
   using: "composite"
   steps:
+    # The sccache disk cache lives in the workspace (bind-mounted as /usr/local
+    # inside the container) and is persisted with the Actions cache. Every run
+    # saves under a fresh key, so the newest cache of this job wins on restore.
+    - name: Restore sccache cache
+      uses: actions/cache/restore@v6
+      with:
+        path: sccache_cache
+        key: sccache-Linux-${{ matrix.config.artifacts_id }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: |
+          sccache-Linux-${{ matrix.config.artifacts_id }}-
+
+    # One long-lived container for configure, build and stats: the sccache
+    # server is per container, so the stats must be read where the build ran.
+    - name: start container
+      shell: sh
+      run: |
+        docker run -d --name logsquirl_build \
+          --env LOGSQUIRL_VERSION=$LOGSQUIRL_VERSION \
+          --env LOGSQUIRL_BUILD_ROOT=$LOGSQUIRL_BUILD_ROOT \
+          --env LOGSQUIRL_CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS" \
+          --env SCCACHE_DIR=/usr/local/sccache_cache \
+          --env SCCACHE_CACHE_SIZE=2G \
+          -v "$LOGSQUIRL_WORKSPACE":/usr/local ${{ matrix.config.container }} sleep infinity
+
     - name: configure
       shell: sh
       run: |
-        docker run --env LOGSQUIRL_VERSION=$LOGSQUIRL_VERSION --env LOGSQUIRL_BUILD_ROOT=$LOGSQUIRL_BUILD_ROOT --env LOGSQUIRL_CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS" -v "$LOGSQUIRL_WORKSPACE":/usr/local ${{ matrix.config.container }} /bin/bash -c "cmake -B /usr/local/$LOGSQUIRL_BUILD_ROOT $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache /usr/local"
+        docker exec logsquirl_build /bin/bash -c "cmake -B /usr/local/$LOGSQUIRL_BUILD_ROOT $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache /usr/local && sccache --zero-stats"
 
     - name: build
       shell: sh
       run: |
-        docker run --env LOGSQUIRL_BUILD_ROOT=$LOGSQUIRL_BUILD_ROOT -v "$LOGSQUIRL_WORKSPACE":/usr/local ${{ matrix.config.container }} /bin/bash -c "cmake --build /usr/local/$LOGSQUIRL_BUILD_ROOT --target ci_build"
+        docker exec logsquirl_build /bin/bash -c "cmake --build /usr/local/$LOGSQUIRL_BUILD_ROOT --target ci_build"
+
+    - name: sccache stats
+      if: always()
+      shell: sh
+      run: docker exec logsquirl_build sccache --show-stats
+
+    - name: stop container
+      if: always()
+      shell: sh
+      run: |
+        docker exec logsquirl_build sccache --stop-server || true
+        docker rm -f logsquirl_build
+
+    - name: Save sccache cache
+      if: always()
+      uses: actions/cache/save@v6
+      with:
+        path: sccache_cache
+        key: sccache-Linux-${{ matrix.config.artifacts_id }}-${{ github.run_id }}-${{ github.run_attempt }}
