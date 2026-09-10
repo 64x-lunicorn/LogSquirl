@@ -24,7 +24,6 @@
 #include <string>
 #include <variant>
 
-#include "configuration.h"
 #include "containers.h"
 #include "log.h"
 #include "regularexpressionpattern.h"
@@ -110,9 +109,11 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 
 } // namespace
 
-RegularExpression::RegularExpression( const RegularExpressionPattern& pattern )
+RegularExpression::RegularExpression( const RegularExpressionPattern& pattern,
+                                      RegexpEngine engine )
     : isInverse_( pattern.isExclude )
     , isBooleanCombination_( pattern.isBoolean )
+    , engine_( engine )
     , expression_( pattern.pattern )
 {
     try {
@@ -195,8 +196,7 @@ PatternMatcher::PatternMatcher( const RegularExpression& expression )
     , mainPatternId_( expression.subPatterns_.front().id() )
     , matcher_( expression.hsExpression_.createMatcher() )
 {
-    const auto& config = Configuration::get();
-    const auto useVectorscanEngine = config.regexpEngine() == RegexpEngine::Vectorscan;
+    const auto useVectorscanEngine = expression.engine_ == RegexpEngine::Vectorscan;
     if ( !useVectorscanEngine ) {
         matcher_ = DefaultRegularExpressionMatcher( expression.subPatterns_ );
     }

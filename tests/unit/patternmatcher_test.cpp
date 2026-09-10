@@ -21,6 +21,9 @@
 
 #include "regularexpression.h"
 
+// Constructed with an explicit engine and no global settings bootstrap.
+static constexpr auto TestEngine = RegexpEngine::Vectorscan;
+
 SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
 {
     std::string_view matchLine = "\"This\" is matching pattern";
@@ -28,7 +31,7 @@ SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
     WHEN( "Using single pattern" )
     {
         RegularExpression expression(
-            RegularExpressionPattern( "\"matching\"", false, false, true, true ) );
+            RegularExpressionPattern( "\"matching\"", false, false, true, true ), TestEngine );
         const auto matcher = expression.createMatcher();
         REQUIRE( matcher->hasMatch( matchLine ) );
     }
@@ -36,7 +39,7 @@ SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
     WHEN( "Using complex pattern" )
     {
         RegularExpression expression(
-            RegularExpressionPattern( "\"not_match\" | \"match\"", false, false, true, true ) );
+            RegularExpressionPattern( "\"not_match\" | \"match\"", false, false, true, true ), TestEngine );
         const auto matcher = expression.createMatcher();
         REQUIRE( matcher->hasMatch( matchLine ) );
     }
@@ -44,7 +47,7 @@ SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
     WHEN( "Using complex pattern with ()" )
     {
         RegularExpression expression( RegularExpressionPattern(
-            "(\"not_match\" | \"match\") & !(\"pattern\")", false, false, true, false ) );
+            "(\"not_match\" | \"match\") & !(\"pattern\")", false, false, true, false ), TestEngine );
         const auto matcher = expression.createMatcher();
         REQUIRE_FALSE( matcher->hasMatch( matchLine ) );
     }
@@ -52,7 +55,7 @@ SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
     WHEN( "Using pattern with escaped quotes" )
     {
         RegularExpression expression(
-            RegularExpressionPattern( "\"\\\"This\\\"\"", false, false, true, false ) );
+            RegularExpressionPattern( "\"\\\"This\\\"\"", false, false, true, false ), TestEngine );
         const auto matcher = expression.createMatcher();
         REQUIRE( matcher->hasMatch( matchLine ) );
     }
@@ -60,7 +63,7 @@ SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
     WHEN( "Using pattern with not matched quotes" )
     {
         RegularExpression expression(
-            RegularExpressionPattern( "\"not_match\" | \"match", false, false, true, false ) );
+            RegularExpressionPattern( "\"not_match\" | \"match", false, false, true, false ), TestEngine );
 
         REQUIRE_FALSE( expression.isValid() );
     }

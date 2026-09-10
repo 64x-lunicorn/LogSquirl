@@ -81,7 +81,10 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
         return;
     }
 
-    RegularExpression expression{ pattern };
+    // Which engine to run on is resolved here, on the calling (UI) thread,
+    // and travels with the compiled expression -- the regex module no
+    // longer reaches for the settings object from a worker thread.
+    RegularExpression expression{ pattern, Configuration::get().regexpEngine() };
     if ( !expression.isValid() ) {
         invalidateCurrentRun();
         resetResults();

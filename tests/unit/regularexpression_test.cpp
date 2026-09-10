@@ -22,6 +22,10 @@
 #include "regularexpression.h"
 #include "regularexpressionpattern.h"
 
+// Every test in this file constructs its matchers with an explicit engine
+// and no global settings bootstrap -- the regex module reads no settings.
+static constexpr auto TestEngine = RegexpEngine::Vectorscan;
+
 // Helper to create a simple regex pattern (not boolean, not plain text)
 static RegularExpressionPattern makeRegex( const QString& expr, bool caseSensitive = true,
                                            bool inverse = false )
@@ -39,7 +43,7 @@ SCENARIO( "RegularExpression basic regex matching", "[regex]" )
 {
     GIVEN( "A simple regex pattern" )
     {
-        RegularExpression expression( makeRegex( "error" ) );
+        RegularExpression expression( makeRegex( "error" ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -63,7 +67,7 @@ SCENARIO( "RegularExpression basic regex matching", "[regex]" )
 
     GIVEN( "A case-insensitive regex pattern" )
     {
-        RegularExpression expression( makeRegex( "ERROR", false ) );
+        RegularExpression expression( makeRegex( "ERROR", false ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -78,7 +82,7 @@ SCENARIO( "RegularExpression basic regex matching", "[regex]" )
 
     GIVEN( "A case-sensitive regex pattern" )
     {
-        RegularExpression expression( makeRegex( "ERROR", true ) );
+        RegularExpression expression( makeRegex( "ERROR", true ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -95,7 +99,7 @@ SCENARIO( "RegularExpression with special regex syntax", "[regex]" )
 {
     GIVEN( "A pattern with regex quantifiers" )
     {
-        RegularExpression expression( makeRegex( "err(or)?s?" ) );
+        RegularExpression expression( makeRegex( "err(or)?s?" ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -110,7 +114,7 @@ SCENARIO( "RegularExpression with special regex syntax", "[regex]" )
 
     GIVEN( "A pattern with character classes" )
     {
-        RegularExpression expression( makeRegex( "[0-9]{3}\\.[0-9]{3}" ) );
+        RegularExpression expression( makeRegex( "[0-9]{3}\\.[0-9]{3}" ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -124,7 +128,7 @@ SCENARIO( "RegularExpression with special regex syntax", "[regex]" )
 
     GIVEN( "A pattern with anchors" )
     {
-        RegularExpression expression( makeRegex( "^ERROR" ) );
+        RegularExpression expression( makeRegex( "^ERROR" ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -142,7 +146,7 @@ SCENARIO( "RegularExpression inverse matching", "[regex]" )
     GIVEN( "An inverse pattern" )
     {
         RegularExpressionPattern pat( "debug", true, true, false, false );
-        RegularExpression expression( pat );
+        RegularExpression expression( pat, TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -163,7 +167,7 @@ SCENARIO( "RegularExpression invalid patterns", "[regex]" )
 {
     GIVEN( "An invalid regex" )
     {
-        RegularExpression expression( makeRegex( "[invalid" ) );
+        RegularExpression expression( makeRegex( "[invalid" ), TestEngine );
 
         THEN( "It reports as invalid" )
         {
@@ -174,7 +178,7 @@ SCENARIO( "RegularExpression invalid patterns", "[regex]" )
 
     GIVEN( "An empty pattern" )
     {
-        RegularExpression expression( makeRegex( "" ) );
+        RegularExpression expression( makeRegex( "" ), TestEngine );
 
         // Empty patterns may be valid regex (matches everything) depending on engine
         // Just verify no crash
@@ -192,7 +196,7 @@ SCENARIO( "RegularExpression boolean operators", "[regex][boolean]" )
 
     GIVEN( "Boolean AND operation" )
     {
-        RegularExpression expression( makeBoolean( "\"error\" & \"log\"" ) );
+        RegularExpression expression( makeBoolean( "\"error\" & \"log\"" ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -210,7 +214,7 @@ SCENARIO( "RegularExpression boolean operators", "[regex][boolean]" )
 
     GIVEN( "Boolean OR operation" )
     {
-        RegularExpression expression( makeBoolean( "\"warning\" | \"error\"" ) );
+        RegularExpression expression( makeBoolean( "\"warning\" | \"error\"" ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -231,7 +235,7 @@ SCENARIO( "RegularExpression boolean operators", "[regex][boolean]" )
     {
         // Uses 'and' and 'not' keywords, which are more portable with exprtk
         RegularExpression expression( RegularExpressionPattern(
-            "(\"error\") and not (\"debug\")", false, false, true, false ) );
+            "(\"error\") and not (\"debug\")", false, false, true, false ), TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();
@@ -249,7 +253,7 @@ SCENARIO( "RegularExpression boolean operators", "[regex][boolean]" )
 
     GIVEN( "Invalid boolean pattern — unmatched quotes" )
     {
-        RegularExpression expression( makeBoolean( "\"error\" | \"warn" ) );
+        RegularExpression expression( makeBoolean( "\"error\" | \"warn" ), TestEngine );
 
         THEN( "It reports as invalid" )
         {
@@ -259,11 +263,63 @@ SCENARIO( "RegularExpression boolean operators", "[regex][boolean]" )
 
     GIVEN( "Invalid boolean pattern — no quotes at all" )
     {
-        RegularExpression expression( makeBoolean( "error | warn" ) );
+        RegularExpression expression( makeBoolean( "error | warn" ), TestEngine );
 
         THEN( "It reports as invalid" )
         {
             REQUIRE_FALSE( expression.isValid() );
+        }
+    }
+}
+
+SCENARIO( "The matching engine is the caller's choice", "[regex][engine]" )
+{
+    // No Configuration::get(), no persistable bootstrap: both engines are
+    // constructible side by side in the same binary, which is exactly what
+    // moving the choice out of the regex module bought.
+    GIVEN( "the same pattern compiled for both engines" )
+    {
+        RegularExpression vectorscan( makeRegex( "err(or)?" ), RegexpEngine::Vectorscan );
+        RegularExpression qt( makeRegex( "err(or)?" ), RegexpEngine::QRegularExpression );
+
+        REQUIRE( vectorscan.isValid() );
+        REQUIRE( qt.isValid() );
+
+        WHEN( "both matchers run over the same lines" )
+        {
+            auto vectorscanMatcher = vectorscan.createMatcher();
+            auto qtMatcher = qt.createMatcher();
+
+            THEN( "they agree on every line" )
+            {
+                for ( const auto* line : { "2026-01-01 error: broke", "2026-01-01 err: broke",
+                                           "2026-01-01 info: all good", "" } ) {
+                    REQUIRE( vectorscanMatcher->hasMatch( line ) == qtMatcher->hasMatch( line ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "an inverse pattern compiled for both engines" )
+    {
+        auto pat = makeRegex( "error" );
+        pat.isExclude = true;
+
+        RegularExpression vectorscan( pat, RegexpEngine::Vectorscan );
+        RegularExpression qt( pat, RegexpEngine::QRegularExpression );
+
+        WHEN( "both matchers run over the same lines" )
+        {
+            auto vectorscanMatcher = vectorscan.createMatcher();
+            auto qtMatcher = qt.createMatcher();
+
+            THEN( "they agree on every line" )
+            {
+                REQUIRE( vectorscanMatcher->hasMatch( "all good" ) );
+                REQUIRE( qtMatcher->hasMatch( "all good" ) );
+                REQUIRE_FALSE( vectorscanMatcher->hasMatch( "an error here" ) );
+                REQUIRE_FALSE( qtMatcher->hasMatch( "an error here" ) );
+            }
         }
     }
 }

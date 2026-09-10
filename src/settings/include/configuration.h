@@ -48,6 +48,7 @@
 #include <string_view>
 
 #include "persistable.h"
+#include "regexpengine.h"
 
 // Type of regexp to use for searches
 enum class SearchRegexpType {
@@ -56,7 +57,6 @@ enum class SearchRegexpType {
     FixedString,
 };
 
-enum class RegexpEngine { Vectorscan, QRegularExpression };
 static constexpr int MAX_RECENT_FILES = 25;
 
 // Configuration class containing everything in the "Settings" dialog
