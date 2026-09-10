@@ -44,6 +44,7 @@
 
 #include "configuration.h"
 #include "crashhandler.h"
+#include "settingspolicies.h"
 #include "logsquirl_version.h"
 #include "log.h"
 #include "searchsession.h"
@@ -104,6 +105,17 @@ class LogSquirlApp : public QApplication {
 
     bool isSecondary() const {
         return !singleApplication_.isPrimaryInstance();
+    }
+
+    // The four Settings Policies, derived once here -- this is the place
+    // that already owns the session and the windows, so it is the place
+    // that resolves what each part of the application is allowed to know
+    // about the settings. Nothing consumes them yet: #92 is the expand
+    // half of an expand-contract migration, and the ambient Configuration
+    // accessor remains the live path until each library is moved over.
+    const SettingsPolicies& settingsPolicies() const
+    {
+        return settingsPolicies_;
     }
 
     qint64 primaryPid() const {
@@ -330,6 +342,12 @@ class LogSquirlApp : public QApplication {
     MessageReceiver messageReceiver_;
 
     std::shared_ptr<Session> session_;
+
+    // Derived at construction: main() has already called
+    // Configuration::getSynced() by the time a LogSquirlApp exists (the
+    // high-DPI attributes have to be set before the QApplication is
+    // built), so the settings are loaded and this snapshot is complete.
+    SettingsPolicies settingsPolicies_ = deriveSettingsPolicies( Configuration::get() );
 
     std::list<std::pair<WindowSession, MainWindow*>> mainWindows_;
     std::stack<QPointer<MainWindow>> activeWindows_;
