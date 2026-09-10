@@ -103,6 +103,23 @@ LogData::~LogData()
     operationQueue_.shutdown();
 }
 
+void LogData::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
+{
+    indexingPolicy_ = indexingPolicy;
+    operationQueue_.setIndexingPolicy( indexingPolicy );
+}
+
+void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
+{
+    searchPolicy_ = searchPolicy;
+
+    for ( const auto& filteredData : filteredData_ ) {
+        if ( filteredData ) {
+            filteredData->setSearchPolicy( searchPolicy );
+        }
+    }
+}
+
 void LogData::setPrefilter( const QString& prefilterPattern )
 {
     IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
@@ -144,7 +161,15 @@ QDateTime LogData::getLastModifiedDate() const
 // Return an initialised LogFilteredData. The search is not started.
 std::unique_ptr<LogFilteredData> LogData::getNewFilteredData() const
 {
-    return std::make_unique<LogFilteredData>( this, searchPolicy_ );
+    auto filteredData = std::make_unique<LogFilteredData>( this, searchPolicy_ );
+
+    // Forget the ones that have since been destroyed while we are here, so
+    // this list cannot grow without bound over a long session.
+    filteredData_.erase( std::remove( filteredData_.begin(), filteredData_.end(), nullptr ),
+                         filteredData_.end() );
+    filteredData_.emplace_back( filteredData.get() );
+
+    return filteredData;
 }
 
 void LogData::reload( QTextCodec* forcedEncoding )

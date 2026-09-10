@@ -119,6 +119,19 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     startRun( pattern, startLine, endLine, false, compiledExpression_ );
 }
 
+void SearchSession::setSearchPolicy( const SearchPolicy& searchPolicy )
+{
+    const bool contextLinesChanged
+        = searchPolicy.contextLinesCount != searchPolicy_.contextLinesCount;
+
+    searchPolicy_ = searchPolicy;
+    workerThread_.setSearchPolicy( searchPolicy );
+
+    if ( contextLinesChanged ) {
+        rebuildContextLines();
+    }
+}
+
 void SearchSession::request( const RegularExpressionPattern& pattern )
 {
     request( pattern, 0_lnum, LineNumber( sourceLogData_.getNbLine().get() ) );

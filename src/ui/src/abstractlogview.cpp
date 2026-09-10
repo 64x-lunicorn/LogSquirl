@@ -419,6 +419,11 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
     charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
 
+    // Read once, when this view is built, and never again: the setting is
+    // the starting state for a new view, not a live one. The live path is
+    // the View menu's Wrap text action, which calls setTextWrap() on the
+    // views that already exist. Changing the setting in the options dialog
+    // therefore shows up on the next file opened, not on this one.
     useTextWrap_ = Configuration::get().useTextWrap();
 
     // Hovering

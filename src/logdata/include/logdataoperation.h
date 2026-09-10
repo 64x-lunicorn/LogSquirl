@@ -124,6 +124,9 @@ class OperationQueue {
 
     void setWorker( std::unique_ptr<LogDataWorker>&& worker );
 
+    // Hands a changed Indexing Policy to the worker, if there is one.
+    void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
+
     void interrupt();
     void shutdown();
 

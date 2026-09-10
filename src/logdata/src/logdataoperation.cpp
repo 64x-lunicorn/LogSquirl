@@ -79,6 +79,14 @@ void OperationQueue::setWorker( std::unique_ptr<LogDataWorker>&& worker )
     worker_ = std::move( worker );
 }
 
+void OperationQueue::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
+{
+    ScopedLock guard( mutex_ );
+    if ( worker_ ) {
+        worker_->setIndexingPolicy( indexingPolicy );
+    }
+}
+
 void OperationQueue::interrupt()
 {
     ScopedLock guard( mutex_ );

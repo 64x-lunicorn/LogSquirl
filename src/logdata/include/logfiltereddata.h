@@ -140,6 +140,12 @@ class LogFilteredData : public AbstractLogData {
 
     void iterateOverLines( const std::function<void( LineNumber )>& callback ) const;
 
+    // Replaces the Search Policy, for this object and its Search Session.
+    // Called when a setting on the Search axis changed; the Log File this
+    // was built from does the calling, so every LogFilteredData is reached,
+    // not only the one the active tab happens to be showing.
+    void setSearchPolicy( const SearchPolicy& searchPolicy );
+
     // Rebuilds context (breadcrumb) lines around matches/marks.
     // Call after search completes or contextLinesCount changes.
     void rebuildContextLines();

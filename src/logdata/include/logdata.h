@@ -44,6 +44,7 @@
 #include <QDateTime>
 #include <QFile>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QTextCodec>
 #include <qregularexpression.h>
@@ -111,6 +112,21 @@ class LogData : public AbstractLogData {
 
     void setPrefilter(const QString& prefilterPattern);
 
+    // Replaces the Indexing Policy: the operations requested from now on
+    // use it, one already in flight keeps the one it started with.
+    void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
+
+    // Replaces the Search Policy, here and in every LogFilteredData built
+    // from this Log File -- including the ones a tab kept from an earlier
+    // Search, which nothing else holds a list of.
+    void setSearchPolicy( const SearchPolicy& searchPolicy );
+
+    // There is deliberately no setFileAccessPolicy(): both of its fields
+    // are read when an object is built (the FileHolder, and the codec at
+    // attach time) and never again. A change to either reaches an open Log
+    // File only by reopening it, so a setter would promise more than it
+    // could deliver.
+
     struct RawLines {
         LineNumber startLine;
 
@@ -176,6 +192,12 @@ class LogData : public AbstractLogData {
     std::shared_ptr<IndexingData> indexing_data_;
 
     OperationQueue operationQueue_;
+
+    // Every LogFilteredData handed out by getNewFilteredData(), so that a
+    // changed Search Policy reaches all of them. QPointer rather than a
+    // shared handle: the caller owns them, and one that has been destroyed
+    // simply drops out of this list.
+    mutable std::vector<QPointer<LogFilteredData>> filteredData_;
 
     QString indexingFileName_;
     // mutable std::unique_ptr<QFile> attached_file_;

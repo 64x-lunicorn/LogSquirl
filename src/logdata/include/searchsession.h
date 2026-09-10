@@ -101,6 +101,12 @@ class SearchSession : public QObject {
     // far. A no-op (no phase change) if nothing is running.
     void stop();
 
+    // Replaces the Search Policy. Runs started from now on use it; a run
+    // already in flight keeps the one it started with. Rebuilds Context
+    // Lines if -- and only if -- that is the part that changed, so a
+    // settings change on some other axis costs nothing here.
+    void setSearchPolicy( const SearchPolicy& searchPolicy );
+
     // Drops every cached search result (e.g. the file was truncated, so
     // previously-cached ranges no longer mean what they used to).
     void dropCache();

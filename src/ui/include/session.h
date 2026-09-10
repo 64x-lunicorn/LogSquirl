@@ -99,6 +99,14 @@ class Session : public std::enable_shared_from_this<Session> {
         return *savedSearches_;
     }
 
+    // Takes the Policies re-derived after a settings change: stores them
+    // for the Log Files opened from now on, and hands the axes that
+    // actually changed to the Log Files already open -- every one of them,
+    // not only the one the active tab is showing. An axis that did not
+    // change is not handed to anybody, so changing (say) a Highlighter Set
+    // does not make every open file rebuild its Context Lines.
+    void applyPolicies( const SettingsPolicies& policies );
+
     std::vector<WindowSession> windowSessions();
 
     bool exitRequested() const

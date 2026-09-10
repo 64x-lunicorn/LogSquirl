@@ -79,7 +79,6 @@
 #include "crawlerwidget.h"
 
 #include "configuration.h"
-#include "settingspolicies.h"
 #include "dispatch_to.h"
 #include "fontutils.h"
 #include "highlightersmenu.h"
@@ -734,6 +733,12 @@ void CrawlerWidget::applyConfiguration()
 
     LOG_DEBUG << "CrawlerWidget::applyConfiguration";
 
+    // Deliberately not here: file watching and Context Lines. Both are
+    // driven by a Settings Policy now, re-derived and handed down per axis
+    // when a setting actually changes (#95). This function runs for a
+    // Highlighter Set change too, and restarting the watcher or rebuilding
+    // every tab's Context Lines for that was work nobody asked for.
+
     registerShortcuts();
 
     // Whatever font we use, we should NOT use kerning
@@ -783,19 +788,6 @@ void CrawlerWidget::applyConfiguration()
 
     // Update the SearchLine (history)
     updateSearchCombo();
-
-    // File watching holds a Watch Policy rather than reading the settings
-    // itself (#93), so the change has to be handed to it from here, where
-    // the settings are still in reach.
-    FileWatcher::getFileWatcher().setWatchPolicy( deriveSettingsPolicies( config ).watch );
-
-    // Rebuild breadcrumb context lines when setting changes. Every tab's
-    // LogFilteredData is in filteredViewsData_, including the active one
-    // (logFilteredData_), so this loop alone covers all of them exactly
-    // once each.
-    for ( const auto& [fv, fd] : filteredViewsData_ ) {
-        fd->rebuildContextLines();
-    }
 
     if ( isFollowEnabled() ) {
         changeDataStatus( DataStatus::OLD_DATA );

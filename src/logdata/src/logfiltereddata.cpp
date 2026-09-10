@@ -183,6 +183,15 @@ void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>&
         static_cast<void*>( const_cast<CallbackFn*>( &callback ) ) );
 }
 
+void LogFilteredData::setSearchPolicy( const SearchPolicy& searchPolicy )
+{
+    // Marks are the one input to Context Lines the Session doesn't own, so
+    // push the current set before handing over a Policy that may make it
+    // rebuild them.
+    session_.setMarks( marks_ );
+    session_.setSearchPolicy( searchPolicy );
+}
+
 void LogFilteredData::rebuildContextLines()
 {
     // Marks are the one input to Context Lines the Session doesn't own;

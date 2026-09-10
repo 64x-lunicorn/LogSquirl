@@ -268,8 +268,36 @@ class LogSquirlApp : public QApplication {
         connect( window, &MainWindow::windowClosed,
                  [ this, window ]() { onWindowClosed( *window ); } );
         connect( window, &MainWindow::exitRequested, [ this ] { exitApplication(); } );
+        connect( window, &MainWindow::settingsChanged, this, &LogSquirlApp::onSettingsChanged );
 
         return window;
+    }
+
+    // A setting has been written. The Policies are derived here, so they
+    // are re-derived here, and each axis is handed to its live consumers
+    // -- but only the axes that actually changed: changing a Highlighter
+    // Set must not restart file watching or rebuild Context Lines, and
+    // changing the poll interval must not disturb a Search.
+    void onSettingsChanged()
+    {
+        const auto policies = deriveSettingsPolicies( Configuration::get() );
+
+        if ( policies == settingsPolicies_ ) {
+            return;
+        }
+
+        if ( policies.watch != settingsPolicies_.watch ) {
+            FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
+        }
+
+        settingsPolicies_ = policies;
+
+        // Indexing and Search reach every open Log File through the
+        // Session, which is what holds them; the File Access Policy
+        // reaches only the ones opened from now on, which is all it can do.
+        if ( session_ ) {
+            session_->applyPolicies( settingsPolicies_ );
+        }
     }
 
     void onWindowActivated( MainWindow& window )

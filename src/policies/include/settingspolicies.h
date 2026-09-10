@@ -54,6 +54,10 @@ struct IndexingPolicy {
     bool useIndexCache{};
     int cacheMaxSizeMb{};
     bool fastModificationDetection{};
+
+    // Compared so that a settings change can be applied per axis: only the
+    // consumers of an axis that actually changed are disturbed.
+    bool operator==( const IndexingPolicy& ) const = default;
 };
 
 // What running a Search needs, and nothing else.
@@ -69,6 +73,8 @@ struct SearchPolicy {
     // Search axis because the Search Session owns Context Lines: they are
     // rebuilt from the matches a run produced.
     int contextLinesCount{};
+
+    bool operator==( const SearchPolicy& ) const = default;
 };
 
 // What following a Log File on disk needs, and nothing else.
@@ -76,6 +82,8 @@ struct WatchPolicy {
     bool nativeWatchEnabled{};
     bool pollingEnabled{};
     int pollIntervalMs{};
+
+    bool operator==( const WatchPolicy& ) const = default;
 };
 
 // What opening and reading a Log File needs, and nothing else.
@@ -85,6 +93,8 @@ struct FileAccessPolicy {
     int defaultEncodingMib{};
     bool extractArchives{};
     bool extractArchivesAlways{};
+
+    bool operator==( const FileAccessPolicy& ) const = default;
 };
 
 // The four Policies as one bundle, so the place that builds the
@@ -94,6 +104,8 @@ struct SettingsPolicies {
     SearchPolicy search;
     WatchPolicy watch;
     FileAccessPolicy fileAccess;
+
+    bool operator==( const SettingsPolicies& ) const = default;
 };
 
 // Derives all four Policies from a Configuration. Called once, where the
