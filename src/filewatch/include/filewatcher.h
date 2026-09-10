@@ -43,6 +43,8 @@
 
 #include <memory>
 
+#include "settingspolicies.h"
+
 class EfswFileWatcher;
 class QTimer;
 
@@ -73,7 +75,18 @@ class FileWatcher : public QObject {
     // (do nothing if said file is not monitored)
     void removeFile( const QString& fileName );
 
-    void updateConfiguration();
+    // Follows the passed Watch Policy from now on: native watching,
+    // polling and the poll interval, all three of them and nothing else.
+    // Takes effect immediately on the files already being watched, so a
+    // changed setting reaches a running watcher through this call and
+    // through no other path.
+    //
+    // A FileWatcher that has never been given one follows a Policy that
+    // watches nothing: this object cannot derive a Policy of its own (it
+    // does not link the settings library, by design -- see the CMake
+    // file), so whoever owns the settings has to hand it one before the
+    // first file is added.
+    void setWatchPolicy( const WatchPolicy& policy );
 
   public Q_SLOTS:
     void fileChangedOnDisk( const QString& );
@@ -92,6 +105,11 @@ class FileWatcher : public QObject {
     // Create an empty object
     FileWatcher();
     ~FileWatcher() override; // for complete EfswFileWatcher
+
+    // Applies the currently held Policy to the watcher and the poll timer.
+    void applyWatchPolicy();
+
+    WatchPolicy watchPolicy_{};
 
     QTimer* checkTimer_;
     KDToolBox::KDGenericSignalThrottler* throttler_;

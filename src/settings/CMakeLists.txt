@@ -10,7 +10,6 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/configuration.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/styles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/shortcuts.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/settingspolicies.h
 )
 
 target_include_directories(logsquirl_settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
@@ -19,6 +18,7 @@ target_link_libraries(
   PUBLIC project_options
          project_warnings
          logsquirl_utils
+         logsquirl_policies
          Qt6::Core
          Qt6::Gui
 )

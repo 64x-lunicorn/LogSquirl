@@ -1,6 +1,7 @@
 add_subdirectory(logsquirl_version)
 add_subdirectory(logging)
 add_subdirectory(utils)
+add_subdirectory(policies)
 add_subdirectory(settings)
 add_subdirectory(crash_handler)
 add_subdirectory(regex)

@@ -44,6 +44,7 @@
 
 #include "configuration.h"
 #include "crashhandler.h"
+#include "filewatcher.h"
 #include "settingspolicies.h"
 #include "logsquirl_version.h"
 #include "log.h"
@@ -87,6 +88,11 @@ class LogSquirlApp : public QApplication {
         qRegisterMetaType<QFNotificationInterrupted>( "QFNotificationInterrupted" );
         qRegisterMetaType<QuickFindMatcher>( "QuickFindMatcher" );
 
+        // File watching is a process-wide singleton that reads no setting
+        // of its own (#93). It is handed its Policy here, before any
+        // window exists and so before any Log File can be added to it.
+        FileWatcher::getFileWatcher().setWatchPolicy( settingsPolicies_.watch );
+
         if ( singleApplication_.isPrimaryInstance() ) {
             QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived, &messageReceiver_,
                               &MessageReceiver::receiveMessage, Qt::QueuedConnection );
@@ -110,9 +116,7 @@ class LogSquirlApp : public QApplication {
     // The four Settings Policies, derived once here -- this is the place
     // that already owns the session and the windows, so it is the place
     // that resolves what each part of the application is allowed to know
-    // about the settings. Nothing consumes them yet: #92 is the expand
-    // half of an expand-contract migration, and the ambient Configuration
-    // accessor remains the live path until each library is moved over.
+    // about the settings.
     const SettingsPolicies& settingsPolicies() const
     {
         return settingsPolicies_;

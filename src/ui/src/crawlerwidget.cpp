@@ -79,6 +79,7 @@
 #include "crawlerwidget.h"
 
 #include "configuration.h"
+#include "settingspolicies.h"
 #include "dispatch_to.h"
 #include "fontutils.h"
 #include "highlightersmenu.h"
@@ -783,7 +784,10 @@ void CrawlerWidget::applyConfiguration()
     // Update the SearchLine (history)
     updateSearchCombo();
 
-    FileWatcher::getFileWatcher().updateConfiguration();
+    // File watching holds a Watch Policy rather than reading the settings
+    // itself (#93), so the change has to be handed to it from here, where
+    // the settings are still in reach.
+    FileWatcher::getFileWatcher().setWatchPolicy( deriveSettingsPolicies( config ).watch );
 
     // Rebuild breadcrumb context lines when setting changes. Every tab's
     // LogFilteredData is in filteredViewsData_, including the active one

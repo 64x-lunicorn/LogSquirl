@@ -40,9 +40,12 @@ class Configuration;
 // that says false/0 throughout is therefore visibly not a configured one;
 // the values that matter always arrive via deriveSettingsPolicies().
 //
-// This is the expand half of an expand-contract migration (#92): the
-// Policies exist alongside the ambient Configuration accessor and no
-// consumer has been migrated onto them yet.
+// The types live in their own header-only library, apart from the settings
+// store: a library that consumes a Policy links logsquirl_policies and not
+// logsquirl_settings, so reaching for an ambient setting from inside it is
+// a link error rather than something a reviewer has to catch. Only the
+// place that derives the Policies -- and deriveSettingsPolicies() below,
+// which is defined in logsquirl_settings -- needs the store itself.
 
 // What indexing a Log File needs, and nothing else.
 struct IndexingPolicy {

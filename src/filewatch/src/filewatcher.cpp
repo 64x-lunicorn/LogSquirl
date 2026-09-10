@@ -19,7 +19,6 @@
 
 #include "filewatcher.h"
 
-#include "configuration.h"
 #include "dispatch_to.h"
 #include "log.h"
 #include "synchronization.h"
@@ -350,13 +349,13 @@ FileWatcher& FileWatcher::getFileWatcher()
 void FileWatcher::addFile( const QString& fileName )
 {
     efswWatcher_->addFile( fileName );
-    updateConfiguration();
+    applyWatchPolicy();
 }
 
 void FileWatcher::removeFile( const QString& fileName )
 {
     efswWatcher_->removeFile( fileName );
-    updateConfiguration();
+    applyWatchPolicy();
 }
 
 void FileWatcher::fileChangedOnDisk( const QString& fileName )
@@ -377,20 +376,24 @@ void FileWatcher::sendChangesNotifications()
     changes_.clear();
 }
 
-void FileWatcher::updateConfiguration()
+void FileWatcher::setWatchPolicy( const WatchPolicy& policy )
 {
-    const auto& config = Configuration::get();
+    watchPolicy_ = policy;
+    applyWatchPolicy();
+}
 
-    if ( config.pollingEnabled() ) {
+void FileWatcher::applyWatchPolicy()
+{
+    if ( watchPolicy_.pollingEnabled ) {
         LOG_INFO << "Polling files enabled";
-        checkTimer_->start( config.pollIntervalMs() );
+        checkTimer_->start( watchPolicy_.pollIntervalMs );
     }
     else {
         LOG_INFO << "Polling files disabled";
         checkTimer_->stop();
     }
 
-    efswWatcher_->enableWatch( config.nativeFileWatchEnabled() );
+    efswWatcher_->enableWatch( watchPolicy_.nativeWatchEnabled );
 }
 
 void FileWatcher::checkWatches()

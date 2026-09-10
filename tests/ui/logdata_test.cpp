@@ -33,6 +33,7 @@
 #include "log.h"
 #include "test_utils.h"
 
+#include "filewatcher.h"
 #include "logdata.h"
 
 static const qint64 SL_NB_LINES = 500LL;
@@ -140,6 +141,13 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
 
 TEST_CASE( "Logdata reading changing file", "[logdata]" )
 {
+    // File watching holds a Watch Policy and reads no setting of its own
+    // (#93), so a test that expects a change on disk to be noticed has to
+    // hand it one. Polling as well as native watching, at a far shorter
+    // interval than the shipped one, so the test does not wait on the
+    // platform having working native notifications.
+    FileWatcher::getFileWatcher().setWatchPolicy(
+        WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
 
     LogData logData;
 
