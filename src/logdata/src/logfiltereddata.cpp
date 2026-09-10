@@ -47,13 +47,11 @@
 
 #include <functional>
 #include <numeric>
-#include <tuple>
 #include <vector>
 
 #include "logdata.h"
 #include "logfiltereddata.h"
 
-#include "configuration.h"
 #include "readablesize.h"
 #include "synchronization.h"
 
@@ -89,43 +87,23 @@ void LogFilteredData::request( const RegularExpressionPattern& regExp )
     request( regExp, 0_lnum, LineNumber( getNbTotalLines().get() ) );
 }
 
-// Request results for regExp over [startLine, endLine), consulting the
-// cache first -- the Session decides on its own whether this continues
-// its current run or supersedes it as a fresh one.
+// Request results for regExp over [startLine, endLine) -- the Session
+// owns the cache and decides on its own whether this hits it, continues
+// its current run, or supersedes it as a fresh one.
 void LogFilteredData::request( const RegularExpressionPattern& regExp, LineNumber startLine,
                                LineNumber endLine )
 {
     LOG_DEBUG << "Entering request";
-
-    const auto& config = Configuration::get();
-
-    currentSearchKey_ = makeCacheKey( regExp, startLine, endLine );
-    LOG_INFO << "Search cache key: " << regExp.pattern << "_" << startLine.get() << "_"
-             << endLine.get();
-
-    if ( config.useSearchResultsCache() ) {
-        const auto cachedResults = searchResultsCache_.find( currentSearchKey_ );
-        if ( cachedResults != std::end( searchResultsCache_ ) ) {
-            LOG_INFO << "Got result from cache";
-            session_.completeFromCache( regExp, startLine, endLine,
-                                        cachedResults->second.matching_lines,
-                                        cachedResults->second.maxLength );
-            return;
-        }
-    }
-
     session_.request( regExp, startLine, endLine );
 }
 
 void LogFilteredData::request( bool dropCache )
 {
     LOG_DEBUG << "Entering request (idle)";
-
-    currentSearchKey_ = {};
     session_.request();
 
     if ( dropCache ) {
-        searchResultsCache_.clear();
+        session_.dropCache();
     }
 }
 
@@ -186,7 +164,7 @@ LogFilteredData::LineType LogFilteredData::lineTypeByLine( LineNumber lineNumber
         line_type |= LineTypeFlags::Match;
 
     // Mark as context only if line is not already a match or mark
-    if ( line_type == LineTypeFlags::Plain && context_lines_.contains( lineNumber.get() ) )
+    if ( line_type == LineTypeFlags::Plain && session_.contextLines().contains( lineNumber.get() ) )
         line_type |= LineTypeFlags::Context;
 
     return line_type;
@@ -207,47 +185,10 @@ void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>&
 
 void LogFilteredData::rebuildContextLines()
 {
-    const auto& config = Configuration::get();
-    const int contextCount = config.contextLinesCount();
-
-    context_lines_ = SearchResultArray();
-
-    if ( contextCount <= 0 ) {
-        return;
-    }
-
-    const auto totalLines = sourceLogData_->getNbLine().get();
-    if ( totalLines == 0 ) {
-        return;
-    }
-
-    // Expand each match/mark ±contextCount lines
-    const auto& base = marks_and_matches_;
-
-    struct ExpandParams {
-        SearchResultArray* result;
-        int n;
-        uint64_t maxLine;
-        const SearchResultArray* baseSet;
-    };
-
-    ExpandParams params{ &context_lines_, contextCount, totalLines, &base };
-
-    base.iterate(
-        []( uint64_t line, void* ctx ) -> bool {
-            auto* p = static_cast<ExpandParams*>( ctx );
-            const auto start = ( line > static_cast<uint64_t>( p->n ) )
-                                   ? ( line - static_cast<uint64_t>( p->n ) )
-                                   : 0ULL;
-            const auto end = std::min( line + static_cast<uint64_t>( p->n ), p->maxLine - 1 );
-            for ( auto i = start; i <= end; ++i ) {
-                if ( !p->baseSet->contains( static_cast<uint64_t>( i ) ) ) {
-                    p->result->add( static_cast<uint64_t>( i ) );
-                }
-            }
-            return true;
-        },
-        static_cast<void*>( &params ) );
+    // Marks are the one input to Context Lines the Session doesn't own;
+    // push the current set before asking it to recompute.
+    session_.setMarks( marks_ );
+    session_.rebuildContextLines();
 }
 
 // Delegation to our Marks object
@@ -378,49 +319,6 @@ LogFilteredData::Visibility LogFilteredData::visibility() const
     return visibility_;
 }
 
-void LogFilteredData::updateSearchResultsCache()
-{
-    const auto& config = Configuration::get();
-    if ( !config.useSearchResultsCache() ) {
-        return;
-    }
-
-    if ( currentSearchKey_ == SearchCacheKey{} ) {
-        return;
-    }
-
-    const uint64_t maxCacheLines = config.searchResultsCacheLines();
-
-    if ( matching_lines_.cardinality() > maxCacheLines ) {
-        LOG_DEBUG << "LogFilteredData: too many matches to place in cache";
-    }
-    else {
-        LOG_INFO << "LogFilteredData: caching results for key "
-                 << std::get<0>( currentSearchKey_ ).pattern << "_"
-                 << std::get<1>( currentSearchKey_ ) << "_" << std::get<2>( currentSearchKey_ );
-
-        searchResultsCache_[ currentSearchKey_ ] = { matching_lines_, maxLength_ };
-        auto cacheSize = std::accumulate( searchResultsCache_.cbegin(), searchResultsCache_.cend(),
-                                          uint64_t{ 0 }, []( const auto& acc, const auto& next ) {
-                                              return acc + next.second.matching_lines.cardinality();
-                                          } );
-
-        LOG_INFO << "LogFilteredData: cache size " << cacheSize;
-
-        auto cachedResult = std::begin( searchResultsCache_ );
-        while ( cachedResult != std::end( searchResultsCache_ ) && cacheSize > maxCacheLines ) {
-
-            if ( cachedResult->first == currentSearchKey_ ) {
-                ++cachedResult;
-                continue;
-            }
-
-            cacheSize -= cachedResult->second.matching_lines.cardinality();
-            cachedResult = searchResultsCache_.erase( cachedResult );
-        }
-    }
-}
-
 //
 // Q_SLOTS:
 //
@@ -438,6 +336,10 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
         // is already exactly right, so take it wholesale rather than
         // union it in -- this only runs once per run, not per tick.
         matching_lines_ = session_.matches();
+        // Drain whatever the Session already accumulated as "new" before
+        // this wholesale copy, so the next (incremental) tick doesn't
+        // re-apply matches this copy already included.
+        session_.takeNewMatches();
     }
     else {
         // Another tick of a run already synced from: apply just what's
@@ -451,17 +353,11 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
     maxLength_ = session_.maxLength();
     nbLinesProcessed_ = session_.processedLines();
 
-    if ( state.phase == Phase::Complete && !state.fromCache ) {
-        // A cache hit already reaches back to a previously-completed run's
-        // stored results; it does not itself need (re-)caching or a
-        // Context Lines rebuild -- that already happened when the result
-        // it is reusing was first produced.
-        if ( nbLinesProcessed_.get() == getExpectedSearchEnd( currentSearchKey_ ).get() ) {
-            updateSearchResultsCache();
-        }
-
-        rebuildContextLines();
-
+    if ( state.phase == Phase::Complete ) {
+        // Caching and the Context Lines rebuild (for a cache hit too, so
+        // Context Lines never belong to whatever ran previously) already
+        // happened inside the Session, whose own completion path this
+        // state came from.
         LOG_INFO << "Matches size " << readableSize( matching_lines_.getSizeInBytes( false ) )
                  << ", marks size " << readableSize( marks_.getSizeInBytes( false ) )
                  << ", union size " << readableSize( marks_and_matches_.getSizeInBytes( false ) );
@@ -501,12 +397,13 @@ const SearchResultArray& LogFilteredData::currentResultArray() const
         base = &marks_;
     }
 
-    if ( context_lines_.isEmpty() || !visibility_.testFlag( VisibilityFlags::Context ) ) {
+    const auto& contextLines = session_.contextLines();
+    if ( contextLines.isEmpty() || !visibility_.testFlag( VisibilityFlags::Context ) ) {
         return *base;
     }
 
     // Rebuild the combined array with context lines included
-    with_context_ = *base | context_lines_;
+    with_context_ = *base | contextLines;
     return with_context_;
 }
 

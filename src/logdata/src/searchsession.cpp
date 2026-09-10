@@ -19,8 +19,10 @@
 
 #include "searchsession.h"
 
+#include <numeric>
 #include <utility>
 
+#include "configuration.h"
 #include "log.h"
 #include "logdata.h"
 #include "regularexpression.h"
@@ -59,15 +61,9 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
 {
     RegularExpression expression{ pattern };
     if ( !expression.isValid() ) {
-        workerThread_.interrupt();
-        currentSearchId_ = SearchId( 0 );
-
-        // Nothing was run: the class's own contract, so results left over
-        // from whatever request() preceded this one must not linger.
-        matches_ = SearchResultArray();
-        pendingDelta_ = SearchResultArray();
-        maxLength_ = 0_length;
-        nbLinesProcessed_ = 0_lcount;
+        invalidateCurrentRun();
+        resetResults();
+        contextLines_ = SearchResultArray();
 
         State newState;
         newState.pattern = pattern;
@@ -81,11 +77,26 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     }
 
     const auto previous = state();
+    // A cache hit never touches the worker, so the persistent SearchData
+    // it accumulates into across calls is never reseeded to match
+    // whatever pattern the cache hit adopted -- resuming on top of it
+    // (via updateSearch()) could resume on another pattern's leftovers.
+    // Only a real run's own results are safe to continue from.
     const bool isContinuation
         = ( previous.phase == Phase::Running || previous.phase == Phase::Complete
             || previous.phase == Phase::Interrupted )
-          && pattern == previous.pattern && startLine == previous.startLine
-          && endLine > previous.endLine;
+          && !previous.fromCache && pattern == previous.pattern
+          && startLine == previous.startLine && endLine > previous.endLine;
+
+    if ( !isContinuation && Configuration::get().useSearchResultsCache() ) {
+        const auto key = makeCacheKey( pattern, startLine, endLine );
+        const auto cached = searchResultsCache_.find( key );
+        if ( cached != std::end( searchResultsCache_ ) ) {
+            adoptCacheHit( pattern, startLine, endLine, cached->second.matching_lines,
+                          cached->second.maxLength );
+            return;
+        }
+    }
 
     startRun( pattern, startLine, endLine, isContinuation );
 }
@@ -97,13 +108,10 @@ void SearchSession::request( const RegularExpressionPattern& pattern )
 
 void SearchSession::request()
 {
-    workerThread_.interrupt();
-    currentSearchId_ = SearchId( 0 );
-
-    matches_ = SearchResultArray();
-    pendingDelta_ = SearchResultArray();
-    maxLength_ = 0_length;
-    nbLinesProcessed_ = 0_lcount;
+    invalidateCurrentRun();
+    resetResults();
+    contextLines_ = SearchResultArray();
+    currentSearchKey_ = SearchCacheKey{};
 
     applyState( State{} );
     Q_EMIT stateChanged( state() );
@@ -111,8 +119,7 @@ void SearchSession::request()
 
 void SearchSession::stop()
 {
-    workerThread_.interrupt();
-    currentSearchId_ = SearchId( 0 );
+    invalidateCurrentRun();
 
     bool wasRunning = false;
     {
@@ -128,14 +135,28 @@ void SearchSession::stop()
     }
 }
 
-void SearchSession::completeFromCache( const RegularExpressionPattern& pattern,
-                                       LineNumber startLine, LineNumber endLine,
-                                       const SearchResultArray& matches, LineLength maxLength )
+void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, LineNumber startLine,
+                                   LineNumber endLine, const SearchResultArray& matches,
+                                   LineLength maxLength )
 {
+    // A real run may still be in flight for a different pattern (the user
+    // retyping a previously-searched, now-cached pattern before a newer
+    // search finished): supersede it exactly like starting a real run
+    // would, so its late results don't land on top of this cache hit.
+    invalidateCurrentRun();
+
     matches_ = matches;
     pendingDelta_ = SearchResultArray();
     maxLength_ = maxLength;
     nbLinesProcessed_ = LinesCount( endLine.get() );
+    currentSearchKey_ = makeCacheKey( pattern, startLine, endLine );
+
+    // Same completion path a real run takes: re-confirming an
+    // already-cached entry is a harmless no-op, and rebuilding Context
+    // Lines here (rather than skipping it, as a cache hit used to) is
+    // exactly what keeps them from belonging to whatever ran previously.
+    updateSearchResultsCache();
+    rebuildContextLines();
 
     State newState;
     newState.pattern = pattern;
@@ -153,13 +174,19 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
                               LineNumber endLine, bool isContinuation )
 {
     if ( !isContinuation ) {
-        matches_ = SearchResultArray();
-        maxLength_ = 0_length;
-        nbLinesProcessed_ = 0_lcount;
+        resetResults();
     }
-    // Whether continuing or starting over, nothing is pending yet for this
-    // (about to be assigned) run's id.
-    pendingDelta_ = SearchResultArray();
+    else {
+        // Whether continuing or starting over, nothing is pending yet for
+        // this (about to be assigned) run's id.
+        pendingDelta_ = SearchResultArray();
+    }
+
+    // A continuation's eventual completion must not be cached under a key
+    // that promises the whole (originally requested) range was searched
+    // from scratch; only a fresh run's key is kept.
+    currentSearchKey_
+        = isContinuation ? SearchCacheKey{} : makeCacheKey( pattern, startLine, endLine );
 
     State newState;
     newState.pattern = pattern;
@@ -201,9 +228,111 @@ LinesCount SearchSession::processedLines() const
     return nbLinesProcessed_;
 }
 
+void SearchSession::dropCache()
+{
+    searchResultsCache_.clear();
+}
+
 SearchId SearchSession::currentSearchId() const
 {
     return currentSearchId_;
+}
+
+const SearchResultArray& SearchSession::contextLines() const
+{
+    return contextLines_;
+}
+
+void SearchSession::setMarks( const SearchResultArray& marks )
+{
+    currentMarks_ = marks;
+}
+
+void SearchSession::rebuildContextLines()
+{
+    const auto& config = Configuration::get();
+    const int contextCount = config.contextLinesCount();
+
+    contextLines_ = SearchResultArray();
+
+    if ( contextCount <= 0 ) {
+        return;
+    }
+
+    const auto totalLines = sourceLogData_.getNbLine().get();
+    if ( totalLines == 0 ) {
+        return;
+    }
+
+    // Expand each match/mark +-contextCount lines
+    const auto base = matches_ | currentMarks_;
+
+    struct ExpandParams {
+        SearchResultArray* result;
+        int n;
+        uint64_t maxLine;
+        const SearchResultArray* baseSet;
+    };
+
+    ExpandParams params{ &contextLines_, contextCount, totalLines, &base };
+
+    base.iterate(
+        []( uint64_t line, void* ctx ) -> bool {
+            auto* p = static_cast<ExpandParams*>( ctx );
+            const auto start = ( line > static_cast<uint64_t>( p->n ) )
+                                   ? ( line - static_cast<uint64_t>( p->n ) )
+                                   : 0ULL;
+            const auto end = std::min( line + static_cast<uint64_t>( p->n ), p->maxLine - 1 );
+            for ( auto i = start; i <= end; ++i ) {
+                if ( !p->baseSet->contains( static_cast<uint64_t>( i ) ) ) {
+                    p->result->add( static_cast<uint64_t>( i ) );
+                }
+            }
+            return true;
+        },
+        static_cast<void*>( &params ) );
+}
+
+void SearchSession::updateSearchResultsCache()
+{
+    const auto& config = Configuration::get();
+    if ( !config.useSearchResultsCache() ) {
+        return;
+    }
+
+    if ( currentSearchKey_ == SearchCacheKey{} ) {
+        return;
+    }
+
+    const uint64_t maxCacheLines = config.searchResultsCacheLines();
+
+    if ( matches_.cardinality() > maxCacheLines ) {
+        LOG_DEBUG << "SearchSession: too many matches to place in cache";
+        return;
+    }
+
+    LOG_INFO << "SearchSession: caching results for key " << std::get<0>( currentSearchKey_ ).pattern
+             << "_" << std::get<1>( currentSearchKey_ ) << "_" << std::get<2>( currentSearchKey_ );
+
+    searchResultsCache_[ currentSearchKey_ ] = { matches_, maxLength_ };
+    auto cacheSize = std::accumulate( searchResultsCache_.cbegin(), searchResultsCache_.cend(),
+                                      uint64_t{ 0 }, []( const auto& acc, const auto& next ) {
+                                          return acc + next.second.matching_lines.cardinality();
+                                      } );
+
+    LOG_INFO << "SearchSession: cache size " << cacheSize;
+
+    auto cachedResult = std::begin( searchResultsCache_ );
+    while ( cachedResult != std::end( searchResultsCache_ ) && cacheSize > maxCacheLines ) {
+
+        if ( cachedResult->first == currentSearchKey_ ) {
+            ++cachedResult;
+            continue;
+        }
+
+        cacheSize -= cachedResult->second.matching_lines.cardinality();
+        cachedResult = searchResultsCache_.erase( cachedResult );
+    }
 }
 
 SearchResultArray SearchSession::takeNewMatches()
@@ -217,6 +346,20 @@ void SearchSession::applyState( State newState )
 {
     ScopedLock lock( stateMutex_ );
     state_ = std::move( newState );
+}
+
+void SearchSession::invalidateCurrentRun()
+{
+    workerThread_.interrupt();
+    currentSearchId_ = SearchId( 0 );
+}
+
+void SearchSession::resetResults()
+{
+    matches_ = SearchResultArray();
+    pendingDelta_ = SearchResultArray();
+    maxLength_ = 0_length;
+    nbLinesProcessed_ = 0_lcount;
 }
 
 void SearchSession::applyIncomingResults( const SearchResults& results )
@@ -273,6 +416,11 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
         LOG_INFO << "Search run interrupted before completion";
         return;
     }
+
+    if ( nbLinesProcessed_.get() == getExpectedSearchEnd( currentSearchKey_ ).get() ) {
+        updateSearchResultsCache();
+    }
+    rebuildContextLines();
 
     {
         ScopedLock lock( stateMutex_ );

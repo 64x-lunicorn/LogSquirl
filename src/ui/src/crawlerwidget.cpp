@@ -540,12 +540,20 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     const auto nbMatches = state.matchCount;
     const auto progress = state.progress;
     const bool isComplete = ( state.phase == SearchSession::Phase::Complete );
+    const bool isDone = isComplete || state.phase == SearchSession::Phase::Interrupted
+                        || state.phase == SearchSession::Phase::InvalidPattern;
 
     searchInfoLine_->show();
 
-    if ( isComplete ) {
-        // Searching done
-        printSearchInfoMessage( nbMatches );
+    if ( isDone ) {
+        // Searching done, one way or another. Only a real completion gets
+        // its message from here -- Interrupted/InvalidPattern already had
+        // theirs set by whoever drove the Session into that phase
+        // (stopSearch(), replaceCurrentSearch()'s error path), and
+        // re-deriving one from a bare phase here would just guess.
+        if ( isComplete ) {
+            printSearchInfoMessage( nbMatches );
+        }
         searchInfoLine_->hideGauge();
         // De-activate the stop button
         stopButton_->setEnabled( false );
@@ -757,8 +765,10 @@ void CrawlerWidget::applyConfiguration()
 
     FileWatcher::getFileWatcher().updateConfiguration();
 
-    // Rebuild breadcrumb context lines when setting changes
-    logFilteredData_->rebuildContextLines();
+    // Rebuild breadcrumb context lines when setting changes. Every tab's
+    // LogFilteredData is in filteredViewsData_, including the active one
+    // (logFilteredData_), so this loop alone covers all of them exactly
+    // once each.
     for ( const auto& [fv, fd] : filteredViewsData_ ) {
         fd->rebuildContextLines();
     }

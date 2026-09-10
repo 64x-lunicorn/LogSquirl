@@ -717,3 +717,147 @@ SCENARIO( "A request repeating the same pattern and start with a grown end is a 
         }
     }
 }
+
+SCENARIO( "Context Lines are correct after a cache hit, and cleared when a Search is cleared",
+         "[logdata][search]" )
+{
+    LogDataLoader logDataLoader;
+
+    GIVEN( "caching enabled and a non-zero Context Lines count" )
+    {
+        auto& config = Configuration::getSynced();
+        config.setUseSearchResultsCache( true );
+        config.setContextLinesCount( 2 );
+
+        auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
+                                      &LogFilteredData::searchStateChanged };
+
+        // Matches exactly line 10; caches under this exact pattern/range.
+        requestSearch( filtered_data.get(), "this is line 000010", searchStateSpy );
+        REQUIRE_FALSE( filtered_data->searchState().fromCache );
+        REQUIRE( toFlags( filtered_data->lineTypeByLine( 8_lnum ) ) == LineTypeFlags::Context );
+
+        // A real (non-cached) search for a different, far-away match moves
+        // Context Lines away from line 10's neighbourhood.
+        requestSearch( filtered_data.get(), "this is line 000200", searchStateSpy );
+        REQUIRE_FALSE( filtered_data->searchState().fromCache );
+        REQUIRE( toFlags( filtered_data->lineTypeByLine( 8_lnum ) ) == LineTypeFlags::Plain );
+        REQUIRE( toFlags( filtered_data->lineTypeByLine( 198_lnum ) ) == LineTypeFlags::Context );
+
+        WHEN( "the first pattern is requested again and hits the cache" )
+        {
+            requestSearch( filtered_data.get(), "this is line 000010", searchStateSpy );
+
+            THEN( "it was actually served from cache" )
+            {
+                REQUIRE( filtered_data->searchState().fromCache );
+            }
+
+            THEN( "Context Lines belong to this (cached) result, not the previous one" )
+            {
+                REQUIRE( toFlags( filtered_data->lineTypeByLine( 8_lnum ) )
+                         == LineTypeFlags::Context );
+                REQUIRE( toFlags( filtered_data->lineTypeByLine( 198_lnum ) )
+                         == LineTypeFlags::Plain );
+            }
+        }
+
+        WHEN( "the Search is cleared" )
+        {
+            filtered_data->request();
+
+            THEN( "Context Lines are cleared along with it" )
+            {
+                REQUIRE( toFlags( filtered_data->lineTypeByLine( 198_lnum ) )
+                         == LineTypeFlags::Plain );
+            }
+        }
+    }
+}
+
+SCENARIO( "A cache hit is never treated as a base for a continuation", "[logdata][search]" )
+{
+    LogDataLoader logDataLoader;
+
+    GIVEN( "a cached pattern, and a different pattern that ran for real afterwards" )
+    {
+        auto& config = Configuration::getSynced();
+        config.setUseSearchResultsCache( true );
+
+        auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+        const RegularExpressionPattern patternA( "this is line 000010" ); // matches only line 10
+        const RegularExpressionPattern patternB( "this is line 000200" ); // matches only line 200
+
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
+                                      &LogFilteredData::searchStateChanged };
+
+        auto waitForCompletion = [ & ]() {
+            REQUIRE( waitUiState( [ & ]() {
+                return searchStateSpy.count() > 0
+                       && lastSearchState( searchStateSpy ).progress >= 100;
+            } ) );
+            QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
+        };
+
+        // Caches patternA over [0, 250).
+        filtered_data->request( patternA, 0_lnum, LineNumber( SL_NB_LINES / 2 ) );
+        waitForCompletion();
+        REQUIRE_FALSE( filtered_data->searchState().fromCache );
+
+        // Runs for real over the same range, leaving the worker's own
+        // persistent search data holding patternB's (unrelated) totals.
+        filtered_data->request( patternB, 0_lnum, LineNumber( SL_NB_LINES / 2 ) );
+        waitForCompletion();
+        REQUIRE_FALSE( filtered_data->searchState().fromCache );
+
+        // Re-requesting patternA now hits the cache from the first step.
+        filtered_data->request( patternA, 0_lnum, LineNumber( SL_NB_LINES / 2 ) );
+        waitForCompletion();
+        REQUIRE( filtered_data->searchState().fromCache );
+
+        WHEN( "patternA is requested again with a larger end" )
+        {
+            filtered_data->request( patternA, 0_lnum, LineNumber( SL_NB_LINES ) );
+
+            THEN( "it is not treated as a continuation of the cache hit" )
+            {
+                REQUIRE_FALSE( filtered_data->searchState().isContinuation );
+            }
+
+            THEN( "once it completes, results reflect only patternA, not patternB's leftovers" )
+            {
+                waitForCompletion();
+                REQUIRE( filtered_data->getNbMatches() == 1_lcount );
+                REQUIRE( filtered_data->searchState().matchCount == 1_lcount );
+            }
+        }
+    }
+}
+
+SCENARIO( "Requesting an invalid pattern discards a previous run's results", "[logdata][search]" )
+{
+    LogDataLoader logDataLoader;
+
+    GIVEN( "a completed search with matches" )
+    {
+        auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
+                                      &LogFilteredData::searchStateChanged };
+
+        requestSearch( filtered_data.get(), "this is line [0-9]{5}9", searchStateSpy );
+        REQUIRE( filtered_data->getNbMatches() == 50_lcount );
+
+        WHEN( "an invalid pattern is requested" )
+        {
+            filtered_data->request( RegularExpressionPattern( "[unterminated" ), 0_lnum,
+                                    LineNumber( SL_NB_LINES ) );
+
+            THEN( "the previous results are gone, not just uncounted" )
+            {
+                REQUIRE( filtered_data->searchState().phase == SearchSession::Phase::InvalidPattern );
+                REQUIRE( filtered_data->getNbMatches() == 0_lcount );
+            }
+        }
+    }
+}

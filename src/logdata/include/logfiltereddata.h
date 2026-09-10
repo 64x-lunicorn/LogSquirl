@@ -42,8 +42,6 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <tuple>
-#include <unordered_map>
 
 #include <QByteArray>
 #include <QList>
@@ -188,9 +186,7 @@ class LogFilteredData : public AbstractLogData {
     SearchResultArray matching_lines_;
     SearchResultArray marks_;
     SearchResultArray marks_and_matches_;
-    // Context lines (breadcrumbs) around matches/marks, excluding match/mark lines themselves.
-    SearchResultArray context_lines_;
-    // Combined result including context lines.
+    // Combined result including Context Lines (session_.contextLines()).
     mutable SearchResultArray with_context_;
 
     const LogData* sourceLogData_;
@@ -212,49 +208,6 @@ class LogFilteredData : public AbstractLogData {
     SearchId lastSyncedSearchId_{ 0 };
 
   private:
-    struct CachedSearchResult {
-        SearchResultArray matching_lines;
-        LineLength maxLength;
-    };
-
-    using SearchCacheKey = std::tuple<RegularExpressionPattern, LineNumber::UnderlyingType,
-                                      LineNumber::UnderlyingType>;
-    struct SearchCacheKeyHash {
-        template <class T>
-        void hash_combine( std::size_t& seed, const T& v ) const
-        {
-            seed ^= std::hash<T>()( v ) + 0x9e3779b9 + ( seed << 6 ) + ( seed >> 2 );
-        }
-        std::size_t operator()( const SearchCacheKey& k ) const
-        {
-            size_t seed = qHash( std::get<0>( k ).pattern );
-
-            hash_combine( seed, std::get<0>( k ).isPlainText );
-            hash_combine( seed, std::get<0>( k ).isBoolean );
-            hash_combine( seed, std::get<0>( k ).isCaseSensitive );
-            hash_combine( seed, std::get<0>( k ).isExclude );
-            hash_combine( seed, std::get<1>( k ) );
-            hash_combine( seed, std::get<2>( k ) );
-            return seed;
-        }
-    };
-
-    std::unordered_map<SearchCacheKey, CachedSearchResult, SearchCacheKeyHash> searchResultsCache_;
-    SearchCacheKey currentSearchKey_;
-
-    SearchCacheKey makeCacheKey( const RegularExpressionPattern& regExp, LineNumber startLine,
-                                 LineNumber endLine )
-    {
-        return std::make_tuple( regExp, startLine.get(), endLine.get() );
-    }
-
-    void updateSearchResultsCache();
-
-    inline LineNumber getExpectedSearchEnd( const SearchCacheKey& cacheKey ) const
-    {
-        return LineNumber( std::get<2>( cacheKey ) );
-    }
-
     // Utility functions
     const SearchResultArray& currentResultArray() const;
     LineNumber findLogDataLine( LineNumber lineNum ) const;

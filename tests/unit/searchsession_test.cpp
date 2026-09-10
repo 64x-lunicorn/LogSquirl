@@ -111,69 +111,11 @@ SCENARIO( "stop() is a no-op when nothing is running", "[searchsession]" )
     }
 }
 
-SCENARIO( "A cache hit completes without touching the worker", "[searchsession]" )
-{
-    LogData logData;
-    SearchSession session( logData );
-
-    GIVEN( "a previously-cached result for a pattern" )
-    {
-        const RegularExpressionPattern pattern( "error" );
-        SearchResultArray cachedMatches;
-        cachedMatches.add( uint64_t{ 3 } );
-        cachedMatches.add( uint64_t{ 7 } );
-
-        WHEN( "the cache hit is adopted" )
-        {
-            session.completeFromCache( pattern, 0_lnum, 10_lnum, cachedMatches, 42_length );
-
-            THEN( "the Session reports Complete, fromCache, with the cached matches" )
-            {
-                const auto state = session.state();
-                REQUIRE( state.phase == Phase::Complete );
-                REQUIRE( state.fromCache );
-                REQUIRE_FALSE( state.isContinuation );
-                REQUIRE( state.matchCount == 2_lcount );
-                REQUIRE( state.progress == 100 );
-                REQUIRE( session.matches().cardinality() == 2 );
-                REQUIRE( session.maxLength() == 42_length );
-            }
-        }
-    }
-}
-
-SCENARIO( "Requesting an invalid pattern discards a previous run's results",
-         "[searchsession]" )
-{
-    LogData logData;
-    SearchSession session( logData );
-
-    GIVEN( "a Session holding results from a completed (cached) run" )
-    {
-        SearchResultArray previousMatches;
-        previousMatches.add( uint64_t{ 1 } );
-        previousMatches.add( uint64_t{ 2 } );
-        previousMatches.add( uint64_t{ 3 } );
-        session.completeFromCache( RegularExpressionPattern( "error" ), 0_lnum, 10_lnum,
-                                   previousMatches, 10_length );
-        REQUIRE( session.matches().cardinality() == 3 );
-
-        WHEN( "an invalid pattern is requested" )
-        {
-            session.request( RegularExpressionPattern( "[unterminated" ), 0_lnum, 100_lnum );
-
-            THEN( "the previous run's results are gone, not just uncounted" )
-            {
-                REQUIRE( session.state().phase == Phase::InvalidPattern );
-                REQUIRE( session.matches().cardinality() == 0 );
-                REQUIRE( session.maxLength() == 0_length );
-            }
-        }
-    }
-}
-
-// The continuation-vs-fresh decision for a *valid* pattern is exercised
-// end-to-end (through a real attached LogData and the worker thread) in
-// tests/ui/logfiltereddata_test.cpp instead: it needs a real, indexed
-// LogData to search against, which belongs with the other itests that
-// already set that up rather than being reproduced here.
+// Cache-hit adoption (matches/maxLength/fromCache, and that it rebuilds
+// Context Lines the same way a real completion does) and "an invalid
+// pattern discards a previous run's results" both need a real completed
+// search to set up their "previous result" -- which needs a real attached,
+// indexed LogData and the worker thread. Both are exercised end-to-end in
+// tests/ui/logfiltereddata_test.cpp instead, alongside the
+// continuation-vs-fresh decision for a *valid* pattern, for the same
+// reason.
