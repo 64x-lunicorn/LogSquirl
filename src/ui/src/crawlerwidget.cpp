@@ -537,6 +537,17 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
 {
     LOG_DEBUG << "updateFilteredView received.";
 
+    // Every tab's LogFilteredData keeps its own persistent connection to
+    // this slot, so a tab switched away from (e.g. via stop() in
+    // changeFilteredView()) can still have a notification queued when it
+    // arrives here -- after logFilteredData_ has already moved on to the
+    // newly-active tab. Since everything below mutates shared, single UI
+    // (searchInfoLine_, stopButton_, ...), a stale notification from a
+    // no-longer-active tab must not be allowed to touch it.
+    if ( sender() != logFilteredData_.get() ) {
+        return;
+    }
+
     const auto nbMatches = state.matchCount;
     const auto progress = state.progress;
     const bool isComplete = ( state.phase == SearchSession::Phase::Complete );
@@ -1952,8 +1963,10 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
             }
         }
         else {
-            // The regexp is wrong
-            logFilteredData_->request();
+            // The regexp is wrong. The request() just above already drove
+            // the Session to InvalidPattern, which on its own clears
+            // results/Context Lines the same way an idle request() would
+            // -- no separate clear needed here.
             filteredView_->updateData();
             searchState_.resetState();
 

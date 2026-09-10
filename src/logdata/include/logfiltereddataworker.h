@@ -41,6 +41,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 
 #include <QObject>
 
@@ -149,10 +150,14 @@ private:
 class SearchOperation : public QObject {
     Q_OBJECT
 public:
+    // compiledExpression is shared (not copied) with whoever validated the
+    // pattern before starting this run, so the (expensive, Hyperscan-
+    // backed) compile happens exactly once per request() rather than once
+    // there and once more here.
     SearchOperation( const LogData& sourceLogData, SearchId searchId,
                      const std::atomic<uint64_t>& activeSearchId,
-                     const RegularExpressionPattern& regExp, LineNumber startLine,
-                     LineNumber endLine );
+                     std::shared_ptr<const RegularExpression> compiledExpression,
+                     LineNumber startLine, LineNumber endLine );
 
     // Run the search operation, returns true if it has been done
     // and false if it has been cancelled (results not copied)
@@ -177,7 +182,7 @@ protected:
 
     SearchId searchId_;
     const std::atomic<uint64_t>& activeSearchId_;
-    const RegularExpressionPattern regexp_;
+    const std::shared_ptr<const RegularExpression> compiledExpression_;
     const LogData& sourceLogData_;
     LineNumber startLine_;
     LineNumber endLine_;
@@ -188,9 +193,10 @@ class FullSearchOperation : public SearchOperation {
 public:
     FullSearchOperation( const LogData& sourceLogData, SearchId searchId,
                          const std::atomic<uint64_t>& activeSearchId,
-                         const RegularExpressionPattern& regExp, LineNumber startLine,
-                         LineNumber endLine )
-        : SearchOperation( sourceLogData, searchId, activeSearchId, regExp, startLine, endLine )
+                         std::shared_ptr<const RegularExpression> compiledExpression,
+                         LineNumber startLine, LineNumber endLine )
+        : SearchOperation( sourceLogData, searchId, activeSearchId,
+                           std::move( compiledExpression ), startLine, endLine )
     {
     }
 
@@ -202,9 +208,10 @@ class UpdateSearchOperation : public SearchOperation {
 public:
     UpdateSearchOperation( const LogData& sourceLogData, SearchId searchId,
                            const std::atomic<uint64_t>& activeSearchId,
-                           const RegularExpressionPattern& regExp, LineNumber startLine,
-                           LineNumber endLine, LineNumber position )
-        : SearchOperation( sourceLogData, searchId, activeSearchId, regExp, startLine, endLine )
+                           std::shared_ptr<const RegularExpression> compiledExpression,
+                           LineNumber startLine, LineNumber endLine, LineNumber position )
+        : SearchOperation( sourceLogData, searchId, activeSearchId,
+                           std::move( compiledExpression ), startLine, endLine )
         , initialPosition_( position )
     {
     }
@@ -228,15 +235,16 @@ public:
     LogFilteredDataWorker( LogFilteredDataWorker&& ) = delete;
     LogFilteredDataWorker& operator=( LogFilteredDataWorker&& ) = delete;
 
-    // Start the search with the passed regexp. Returns the id of the run started,
-    // which becomes the new active run -- superseding whatever was running before,
-    // without waiting for it to acknowledge.
-    SearchId search( const RegularExpressionPattern& regExp, LineNumber startLine,
-                     LineNumber endLine );
+    // Start the search with the passed (already-compiled, e.g. by however
+    // validated it) expression. Returns the id of the run started, which
+    // becomes the new active run -- superseding whatever was running
+    // before, without waiting for it to acknowledge.
+    SearchId search( std::shared_ptr<const RegularExpression> compiledExpression,
+                     LineNumber startLine, LineNumber endLine );
     // Continue the previous search starting at the passed position
     // in the source file (line number). Returns the id of the run started.
-    SearchId updateSearch( const RegularExpressionPattern& regExp, LineNumber startLine,
-                           LineNumber endLine, LineNumber position );
+    SearchId updateSearch( std::shared_ptr<const RegularExpression> compiledExpression,
+                           LineNumber startLine, LineNumber endLine, LineNumber position );
 
     // Interrupts the search if one is in progress. Does not wait for it to
     // acknowledge; the run simply stops being the active one, so its next

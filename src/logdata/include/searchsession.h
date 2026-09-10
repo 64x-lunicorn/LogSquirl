@@ -148,7 +148,8 @@ class SearchSession : public QObject {
 
   private:
     void startRun( const RegularExpressionPattern& pattern, LineNumber startLine,
-                  LineNumber endLine, bool isContinuation );
+                  LineNumber endLine, bool isContinuation,
+                  std::shared_ptr<const RegularExpression> compiledExpression );
     // Absorbs a worker result batch into matches_/pendingDelta_/maxLength_/
     // nbLinesProcessed_. Shared by handleSearchProgressed and
     // handleSearchFinished, which otherwise duplicate this exactly.

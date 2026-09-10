@@ -211,7 +211,7 @@ void LogFilteredDataWorker::connectSignalsAndRun( SearchOperation* operationRequ
     operationRequested->disconnect( this );
 }
 
-SearchId LogFilteredDataWorker::search( const RegularExpressionPattern& regExp,
+SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression> compiledExpression,
                                         LineNumber startLine, LineNumber endLine )
 {
     ScopedLock locker( operationsMutex_ ); // to protect enqueueing against interrupt()
@@ -224,8 +224,8 @@ SearchId LogFilteredDataWorker::search( const RegularExpressionPattern& regExp,
 
     LOG_INFO << "Search requested";
     QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, id, regExp, startLine,
-                                             endLine ] {
+    operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
+                                             startLine, endLine ] {
         operationStarted.release();
         // Deliberately not holding operationsMutex_ here: the pool (maxThreadCount 1)
         // already serializes actual execution, and holding it across a run -- which
@@ -233,7 +233,7 @@ SearchId LogFilteredDataWorker::search( const RegularExpressionPattern& regExp,
         // updating activeSearchId_ until this run finished on its own, defeating
         // supersession entirely (the same trap the destructor's wait avoids).
         auto operationRequested = std::make_unique<FullSearchOperation>(
-            sourceLogData_, id, activeSearchId_, regExp, startLine, endLine );
+            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
     operationStarted.acquire();
@@ -241,9 +241,9 @@ SearchId LogFilteredDataWorker::search( const RegularExpressionPattern& regExp,
     return id;
 }
 
-SearchId LogFilteredDataWorker::updateSearch( const RegularExpressionPattern& regExp,
-                                              LineNumber startLine, LineNumber endLine,
-                                              LineNumber position )
+SearchId
+LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> compiledExpression,
+                                     LineNumber startLine, LineNumber endLine, LineNumber position )
 {
     ScopedLock locker( operationsMutex_ ); // to protect enqueueing against interrupt()
 
@@ -253,15 +253,16 @@ SearchId LogFilteredDataWorker::updateSearch( const RegularExpressionPattern& re
     LOG_INFO << "Search update requested from " << position.get();
 
     QSemaphore operationStarted;
-    operationsPool_.start(
-        createRunnable( [ this, &operationStarted, id, regExp, startLine, endLine, position ] {
-            operationStarted.release();
-            // See the comment in search(): not holding operationsMutex_ here is what
-            // lets a superseding call proceed without waiting for this run to finish.
-            auto operationRequested = std::make_unique<UpdateSearchOperation>(
-                sourceLogData_, id, activeSearchId_, regExp, startLine, endLine, position );
-            connectSignalsAndRun( operationRequested.get() );
-        } ) );
+    operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
+                                             startLine, endLine, position ] {
+        operationStarted.release();
+        // See the comment in search(): not holding operationsMutex_ here is what
+        // lets a superseding call proceed without waiting for this run to finish.
+        auto operationRequested = std::make_unique<UpdateSearchOperation>(
+            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
+            position );
+        connectSignalsAndRun( operationRequested.get() );
+    } ) );
 
     operationStarted.acquire();
 
@@ -289,12 +290,12 @@ SearchResults LogFilteredDataWorker::getSearchResults() const
 
 SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchId,
                                   const std::atomic<uint64_t>& activeSearchId,
-                                  const RegularExpressionPattern& regExp, LineNumber startLine,
-                                  LineNumber endLine )
+                                  std::shared_ptr<const RegularExpression> compiledExpression,
+                                  LineNumber startLine, LineNumber endLine )
 
     : searchId_( searchId )
     , activeSearchId_( activeSearchId )
-    , regexp_( regExp )
+    , compiledExpression_( std::move( compiledExpression ) )
     , sourceLogData_( sourceLogData )
     , startLine_( startLine )
     , endLine_( endLine )
@@ -367,7 +368,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     logsquirl::vector<MatcherContext> regexMatchers;
     regexMatchers.reserve( matchingThreadsCount );
-    RegularExpression regularExpression{ regexp_ };
+    // compiledExpression_ was already compiled by whoever validated the
+    // pattern before starting this run (see SearchOperation's ctor) --
+    // reused here rather than recompiled.
     // Diagnostic for the #85 CI-only ~120s stall (see logfiltereddata_test.cpp's
     // "a Search superseded by a later one" scenario): bisects doSearch's overall
     // duration so a failing CI run pins down which phase actually ate the time,
@@ -377,7 +380,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
              << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
     for ( auto index = 0u; index < matchingThreadsCount; ++index ) {
         regexMatchers.emplace_back(
-            regularExpression.createMatcher(), microseconds{ 0 },
+            compiledExpression_->createMatcher(), microseconds{ 0 },
             RegexMatcherNode(
                 searchGraph, 1, [ &regexMatchers, index, this ]( const BlockDataType& blockData ) {
                     if ( isSuperseded() ) {

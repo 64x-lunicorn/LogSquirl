@@ -98,7 +98,10 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
         }
     }
 
-    startRun( pattern, startLine, endLine, isContinuation );
+    // Handed to the worker rather than recompiled there: expression above
+    // already paid the (Hyperscan) compile cost to answer isValid().
+    startRun( pattern, startLine, endLine, isContinuation,
+             std::make_shared<const RegularExpression>( std::move( expression ) ) );
 }
 
 void SearchSession::request( const RegularExpressionPattern& pattern )
@@ -151,11 +154,12 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
     nbLinesProcessed_ = LinesCount( endLine.get() );
     currentSearchKey_ = makeCacheKey( pattern, startLine, endLine );
 
-    // Same completion path a real run takes: re-confirming an
-    // already-cached entry is a harmless no-op, and rebuilding Context
-    // Lines here (rather than skipping it, as a cache hit used to) is
+    // Same completion path a real run takes for Context Lines -- rebuilding
+    // them here (rather than skipping it, as a cache hit used to) is
     // exactly what keeps them from belonging to whatever ran previously.
-    updateSearchResultsCache();
+    // Not re-inserting into the cache: entry is already there (that's
+    // what a hit means), so writing it back would just redo
+    // updateSearchResultsCache()'s full-cache accounting for nothing.
     rebuildContextLines();
 
     State newState;
@@ -171,7 +175,8 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
 }
 
 void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumber startLine,
-                              LineNumber endLine, bool isContinuation )
+                              LineNumber endLine, bool isContinuation,
+                              std::shared_ptr<const RegularExpression> compiledExpression )
 {
     if ( !isContinuation ) {
         resetResults();
@@ -199,10 +204,11 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
 
     sourceLogData_.attachReader();
 
-    currentSearchId_ = isContinuation
-                          ? workerThread_.updateSearch( pattern, startLine, endLine,
-                                                        LineNumber( nbLinesProcessed_.get() ) )
-                          : workerThread_.search( pattern, startLine, endLine );
+    currentSearchId_
+        = isContinuation
+              ? workerThread_.updateSearch( compiledExpression, startLine, endLine,
+                                            LineNumber( nbLinesProcessed_.get() ) )
+              : workerThread_.search( compiledExpression, startLine, endLine );
 
     Q_EMIT stateChanged( state() );
 }
