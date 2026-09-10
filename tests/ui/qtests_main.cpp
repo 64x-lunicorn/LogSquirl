@@ -27,6 +27,7 @@
 #include <configuration.h>
 #include <linetypes.h>
 #include <logfiltereddataworker.h>
+#include <searchsession.h>
 #include <highlighterset.h>
 #include <persistentinfo.h>
 
@@ -103,6 +104,7 @@ int main( int argc, char* argv[] )
     qRegisterMetaType<LineNumber>( "LineNumber" );
     qRegisterMetaType<LineLength>( "LineLength" );
     qRegisterMetaType<SearchId>( "SearchId" );
+    qRegisterMetaType<SearchSession::State>( "SearchSession::State" );
 
     auto& config = Configuration::getSynced();
     config.setSearchReadBufferSizeLines( 10 );

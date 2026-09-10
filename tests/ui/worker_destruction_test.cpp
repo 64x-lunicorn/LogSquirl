@@ -108,7 +108,7 @@ SCENARIO( "LogData destruction during active search does not deadlock",
                 auto filtered = logData.getNewFilteredData();
 
                 // Start search but don't wait for completion
-                filtered->runSearch( RegularExpressionPattern( "line [0-9]{4}9" ) );
+                filtered->request( RegularExpressionPattern( "line [0-9]{4}9" ) );
 
                 // Small delay to let search begin on pool thread
                 QTest::qWait( 10 );
@@ -142,17 +142,19 @@ SCENARIO( "Repeated LogData create-search-destroy cycles are stable",
 
                 auto filtered = logData.getNewFilteredData();
 
-                SafeQSignalSpy searchProgressSpy{
-                    filtered.get(), &LogFilteredData::searchProgressed };
+                SafeQSignalSpy searchStateSpy{
+                    filtered.get(), &LogFilteredData::searchStateChanged };
 
-                filtered->runSearch(
+                filtered->request(
                     RegularExpressionPattern( "line [0-9]{4}[13579]" ) );
 
                 const bool completed = waitUiState( [ & ]() {
-                    if ( searchProgressSpy.count() == 0 ) {
+                    if ( searchStateSpy.count() == 0 ) {
                         return false;
                     }
-                    return searchProgressSpy.last().at( 1 ).toInt() >= 100;
+                    return qvariant_cast<SearchSession::State>( searchStateSpy.last().at( 0 ) )
+                               .progress
+                           >= 100;
                 } );
                 REQUIRE( completed );
 

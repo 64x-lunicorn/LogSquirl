@@ -24,6 +24,7 @@ add_executable(logsquirl_tests
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     regularexpression_test.cpp
+    searchsession_test.cpp
     zstddevice_test.cpp
     tests_main.cpp
 )

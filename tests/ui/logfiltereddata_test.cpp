@@ -60,16 +60,21 @@ bool generateDataFiles( QTemporaryFile& file )
 // during exception unwinding.  Qt6's QSignalSpy auto-disconnects on
 // destruction via its internal context object, so no explicit disconnect
 // is required.
-void runSearch( LogFilteredData* filtered_data, const QString& regexp,
-                SafeQSignalSpy& searchProgressSpy )
+SearchSession::State lastSearchState( SafeQSignalSpy& searchStateSpy )
 {
-    filtered_data->runSearch( RegularExpressionPattern( regexp ) );
+    return qvariant_cast<SearchSession::State>( searchStateSpy.last().at( 0 ) );
+}
+
+void requestSearch( LogFilteredData* filtered_data, const QString& regexp,
+                    SafeQSignalSpy& searchStateSpy )
+{
+    filtered_data->request( RegularExpressionPattern( regexp ) );
 
     const bool completed = waitUiState( [ & ]() {
-        if ( searchProgressSpy.count() == 0 ) {
+        if ( searchStateSpy.count() == 0 ) {
             return false;
         }
-        return searchProgressSpy.last().at( 1 ).toInt() >= 100;
+        return lastSearchState( searchStateSpy ).progress >= 100;
     } );
 
     // In Qt6 QSignalSpy is not a QObject, so receiver-based disconnect is not
@@ -247,15 +252,14 @@ SCENARIO( "search for regex", "[logdata]" )
             auto filtered_lines = filtered_data->getNbLine();
             REQUIRE( filtered_lines.get() == 0 );
 
-            SafeQSignalSpy searchProgressSpy{ filtered_data.get(),
-                                              &LogFilteredData::searchProgressed };
+            SafeQSignalSpy searchStateSpy{ filtered_data.get(),
+                                          &LogFilteredData::searchStateChanged };
 
-            runSearch( filtered_data.get(), "this is line [0-9]{5}9", searchProgressSpy );
+            requestSearch( filtered_data.get(), "this is line [0-9]{5}9", searchStateSpy );
 
             THEN( "Matched lines are in data" )
             {
-                QList<QVariant> progressArgs = searchProgressSpy.last();
-                REQUIRE( qvariant_cast<LinesCount>( progressArgs.at( 0 ) ) == 50_lcount );
+                REQUIRE( lastSearchState( searchStateSpy ).matchCount == 50_lcount );
 
                 const auto matches_count = filtered_data->getNbMatches();
                 REQUIRE( matches_count == 50_lcount );
@@ -286,10 +290,10 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
             auto filtered_lines = filtered_data->getNbLine();
             REQUIRE( filtered_lines.get() == 0 );
 
-            SafeQSignalSpy searchProgressSpy{ filtered_data.get(),
-                                              &LogFilteredData::searchProgressed };
+            SafeQSignalSpy searchStateSpy{ filtered_data.get(),
+                                          &LogFilteredData::searchStateChanged };
 
-            runSearch( filtered_data.get(), "this is line [0-9]{5}9", searchProgressSpy );
+            requestSearch( filtered_data.get(), "this is line [0-9]{5}9", searchStateSpy );
 
             AND_WHEN( "Add marks at matched line" )
             {
@@ -569,7 +573,7 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
 
             AND_WHEN( "Asked to clear search" )
             {
-                filtered_data->clearSearch();
+                filtered_data->request();
                 THEN( "Clear search results" )
                 {
                     REQUIRE( filtered_data->getNbLine() == 0_lcount );
@@ -619,23 +623,23 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
 
         WHEN( "a second Search for the other pattern starts while the first is still running" )
         {
-            SafeQSignalSpy searchProgressSpy{ filtered_data.get(),
-                                              &LogFilteredData::searchProgressed };
+            SafeQSignalSpy searchStateSpy{ filtered_data.get(),
+                                          &LogFilteredData::searchStateChanged };
 
-            filtered_data->runSearch( RegularExpressionPattern( "EVEN" ) );
+            filtered_data->request( RegularExpressionPattern( "EVEN" ) );
 
             const bool firstSearchStarted
-                = waitUiState( [ & ]() { return searchProgressSpy.count() > 0; } );
+                = waitUiState( [ & ]() { return searchStateSpy.count() > 0; } );
             REQUIRE( firstSearchStarted );
 
             // Supersede it before it has had a chance to finish.
-            filtered_data->runSearch( RegularExpressionPattern( "ODD" ) );
+            filtered_data->request( RegularExpressionPattern( "ODD" ) );
 
             const bool secondSearchCompleted = waitUiState( [ & ]() {
-                if ( searchProgressSpy.count() == 0 ) {
+                if ( searchStateSpy.count() == 0 ) {
                     return false;
                 }
-                return searchProgressSpy.last().at( 1 ).toInt() >= 100;
+                return lastSearchState( searchStateSpy ).progress >= 100;
             } );
             REQUIRE( secondSearchCompleted );
 
@@ -653,6 +657,62 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
                     REQUIRE( l.contains( "ODD" ) );
                     REQUIRE_FALSE( l.contains( "EVEN" ) );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "A request repeating the same pattern and start with a grown end is a continuation",
+         "[logdata][search]" )
+{
+    LogDataLoader logDataLoader;
+
+    GIVEN( "a completed search over the first half of the file" )
+    {
+        auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+        const RegularExpressionPattern pattern( "LOGDATA" );
+
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
+                                      &LogFilteredData::searchStateChanged };
+
+        filtered_data->request( pattern, 0_lnum, LineNumber( SL_NB_LINES / 2 ) );
+        REQUIRE( waitUiState( [ & ]() {
+            return searchStateSpy.count() > 0 && lastSearchState( searchStateSpy ).progress >= 100;
+        } ) );
+
+        WHEN( "the same pattern and start are requested again with a larger end" )
+        {
+            filtered_data->request( pattern, 0_lnum, LineNumber( SL_NB_LINES ) );
+
+            THEN( "the request is reported as a continuation" )
+            {
+                REQUIRE( filtered_data->searchState().isContinuation );
+
+                REQUIRE( waitUiState( [ & ]() {
+                    return lastSearchState( searchStateSpy ).progress >= 100;
+                } ) );
+                REQUIRE( filtered_data->getNbMatches() == LinesCount( SL_NB_LINES ) );
+            }
+        }
+
+        WHEN( "a different pattern is requested over a larger range" )
+        {
+            filtered_data->request( RegularExpressionPattern( "glogg" ), 0_lnum,
+                                    LineNumber( SL_NB_LINES ) );
+
+            THEN( "the request starts fresh, not as a continuation" )
+            {
+                REQUIRE_FALSE( filtered_data->searchState().isContinuation );
+            }
+        }
+
+        WHEN( "the same pattern is requested again without growing the end" )
+        {
+            filtered_data->request( pattern, 0_lnum, LineNumber( SL_NB_LINES / 2 ) );
+
+            THEN( "the request starts fresh, not as a continuation" )
+            {
+                REQUIRE_FALSE( filtered_data->searchState().isContinuation );
             }
         }
     }
