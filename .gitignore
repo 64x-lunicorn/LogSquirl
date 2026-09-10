@@ -39,6 +39,7 @@ qrc_*.cpp
 CMakeLists.txt.user*
 CMakeUserPresets.json
 cpm_cache/
+sccache_cache/
 
 # ── Editor swap / backup files ─────────────────────────────────────────────
 *~
