@@ -11,6 +11,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/resourcewrapper.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/crc32.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/cpu_info.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/regexpengine.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/runnable_lambda.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_info.cpp
 )

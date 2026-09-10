@@ -28,6 +28,7 @@
 #include <QString>
 
 #include "containers.h"
+#include "regexpengine.h"
 
 #include "hsregularexpression.h"
 #include "regularexpressionpattern.h"
@@ -39,7 +40,11 @@ class BooleanExpressionEvaluator;
 
 class RegularExpression {
   public:
-    explicit RegularExpression( const RegularExpressionPattern& pattern );
+    // The engine is the caller's choice, not this module's: resolved once
+    // where the object graph is built and handed in here, so that nothing
+    // under regex/ has to reach for the ambient settings object -- and so
+    // that a test can build matchers for both engines side by side.
+    RegularExpression( const RegularExpressionPattern& pattern, RegexpEngine engine );
 
     std::unique_ptr<PatternMatcher> createMatcher() const;
 
@@ -49,6 +54,7 @@ class RegularExpression {
   private:
     bool isInverse_ = false;
     bool isBooleanCombination_ = false;
+    RegexpEngine engine_;
 
     QString expression_;
     logsquirl::vector<RegularExpressionPattern> subPatterns_;

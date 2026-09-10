@@ -159,12 +159,17 @@ void IndexingData::setProgress( int progress )
 
 void IndexingData::clear()
 {
-    const auto& config = Configuration::get();
+    // Copied, not read through a held reference: this runs on a worker
+    // thread while the options dialog can be writing the very same fields
+    // from the UI thread. See doIndex() below for what the copy does and
+    // does not buy.
+    const auto useCompressedIndex = Configuration::get().useCompressedIndex();
+    const auto fastModificationDetection = Configuration::get().fastModificationDetection();
 
     maxLength_ = 0_length;
     hash_ = {};
     hashBuilder_.reset();
-    if ( config.useCompressedIndex() ) {
+    if ( useCompressedIndex ) {
         linePosition_ = LinePositionArrayType( LinePositionArray{} );
     }
     else {
@@ -174,14 +179,13 @@ void IndexingData::clear()
     encodingForced_ = nullptr;
 
     progress_ = {};
-    useFastModificationDetection_ = config.fastModificationDetection();
+    useFastModificationDetection_ = fastModificationDetection;
 }
 
 void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
                                   const IndexedHash& hash, QTextCodec* encoding )
 {
-    const auto& config = Configuration::get();
-    useFastModificationDetection_ = config.fastModificationDetection();
+    useFastModificationDetection_ = Configuration::get().fastModificationDetection();
 
     linePosition_ = std::move( linePosition );
     maxLength_ = maxLength;
@@ -704,8 +708,19 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
                                                      : std::string{ "auto" } );
     }
 
-    const auto& config = Configuration::get();
-    const auto prefetchBufferSize = static_cast<size_t>( config.indexReadBufferSizeMb() );
+    // Copied once here rather than read through a reference held for the
+    // whole pass over the Log File, which for a large one can run for a
+    // long time: the options dialog writes this field from the UI thread
+    // without stopping this pool.
+    //
+    // Copying is not synchronisation -- the settings object still has
+    // neither a mutex nor atomics, and a thread sanitizer still flags the
+    // read -- but it does keep the run consistent with itself. A setting
+    // changed mid-run takes effect on the next run, exactly as before.
+    // The read disappears entirely once this worker is handed an Indexing
+    // Policy instead (#93).
+    const auto prefetchBufferSize
+        = static_cast<size_t>( Configuration::get().indexReadBufferSizeMb() );
 
     LOG_INFO << "Prefetch buffer " << readableSize( prefetchBufferSize * IndexingBlockSize );
 
@@ -812,11 +827,15 @@ OperationResult FullIndexOperation::run()
 
         Q_EMIT indexingProgressed( 0 );
 
-        const auto& config = Configuration::get();
+        // Copied up front, not read through a reference held across
+        // doIndex() below, so that the decision to consult the cache and
+        // the budget used to evict from it afterwards are the same run's.
+        const auto useIndexCache = Configuration::get().useIndexCache();
+        const auto indexCacheMaxSizeMb = Configuration::get().indexCacheMaxSizeMb();
 
         // Try loading cached index from disk (skip temp files)
         const bool isTempFile = fileName_.startsWith( QDir::tempPath() );
-        if ( config.useIndexCache() && !isTempFile ) {
+        if ( useIndexCache && !isTempFile ) {
             auto cached = IndexCache::tryLoad( fileName_ );
             if ( cached ) {
                 // Validate the cached hash against the current file
@@ -909,7 +928,7 @@ OperationResult FullIndexOperation::run()
         const auto result = interruptRequest_ ? false : true;
 
         // Save to cache if indexing succeeded (and not a temp file)
-        if ( result && config.useIndexCache() && !isTempFile ) {
+        if ( result && useIndexCache && !isTempFile ) {
             IndexingData::ConstAccessor accessor{ indexing_data_.get() };
             const auto* linePos = accessor.getCompressedLinePosition();
             // Don't cache empty indexes — they have no value, waste disk
@@ -924,8 +943,7 @@ OperationResult FullIndexOperation::run()
                                      linePos->hasFakeFinalLF() );
 
                 // Evict old entries if cache is too large
-                const auto maxBytes
-                    = static_cast<qint64>( config.indexCacheMaxSizeMb() ) * 1024 * 1024;
+                const auto maxBytes = static_cast<qint64>( indexCacheMaxSizeMb ) * 1024 * 1024;
                 IndexCache::evict( maxBytes );
             }
         }
@@ -1020,7 +1038,9 @@ MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
         QByteArray buffer{ IndexingBlockSize, Qt::Uninitialized };
 
         bool isFileModified = false;
-        const auto& config = Configuration::get();
+        // Copied rather than referenced: this check runs on a worker
+        // thread against a settings object the UI thread can write.
+        const auto fastModificationDetection = Configuration::get().fastModificationDetection();
 
         if ( !file.isOpen() && !file.open( QIODevice::ReadOnly ) ) {
             LOG_INFO << "File failed to open";
@@ -1045,7 +1065,7 @@ MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
 
             return fileDigest.digest();
         };
-        if ( config.fastModificationDetection() ) {
+        if ( fastModificationDetection ) {
             const auto headerDigest = getDigest( indexedHash.headerSize );
 
             LOG_INFO << "indexed header xxhash " << indexedHash.headerDigest;

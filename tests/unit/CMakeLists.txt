@@ -26,6 +26,7 @@ add_executable(logsquirl_tests
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
     searchsession_test.cpp
+    settingspolicies_test.cpp
     zstddevice_test.cpp
     tests_main.cpp
 )

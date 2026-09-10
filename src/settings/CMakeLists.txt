@@ -4,11 +4,13 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/configuration.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/shortcuts.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/styles.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/settingspolicies.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/include/persistable.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/persistentinfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/configuration.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/styles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/shortcuts.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/settingspolicies.h
 )
 
 target_include_directories(logsquirl_settings PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

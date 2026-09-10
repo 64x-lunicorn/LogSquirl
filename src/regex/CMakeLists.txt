@@ -14,7 +14,6 @@ target_link_libraries(
   PUBLIC project_options
          project_warnings
          logsquirl_logging
-         logsquirl_settings
          logsquirl_utils
          Qt6::Core
          robin_hood
