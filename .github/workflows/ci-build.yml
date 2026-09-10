@@ -57,6 +57,7 @@ jobs:
   # Stage 1 — Linux (cheapest runners, gates Windows & Mac)
   # -----------------------------------------------------------------------
   Linux:
+    name: Linux / ${{ matrix.config.artifacts_id }}
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
       fail-fast: false
@@ -165,6 +166,7 @@ jobs:
   # Stage 3 — macOS (most expensive, runs only after Windows succeeds)
   # -----------------------------------------------------------------------
   Mac:
+    name: Mac
     needs: [Windows]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
@@ -217,6 +219,7 @@ jobs:
   # Stage 2 — Windows (2× cost, runs only after Linux succeeds)
   # -----------------------------------------------------------------------
   Windows:
+    name: Windows
     needs: [Linux]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
@@ -289,18 +292,21 @@ jobs:
   # E2E tests — run after build artifacts are available
   # ---------------------------------------------------------------------------
   e2e-tests:
-    name: "E2E Tests (${{ matrix.os }})"
+    name: E2E / ${{ matrix.name }}
     needs: [Linux, Mac, Windows]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
+          - name: linux
+            os: ubuntu-24.04
             artifact: packages-noble
-          - os: macos-15
+          - name: mac
+            os: macos-15
             artifact: packages-mac-arm64
-          - os: windows-2025
+          - name: windows
+            os: windows-2025
             artifact: packages-windows-x64
     runs-on: ${{ matrix.os }}
 
@@ -338,3 +344,26 @@ jobs:
       - name: Run E2E tests (skip performance)
         working-directory: tests/e2e
         run: pytest -v -m "not performance" --binary-dir=../../build/output
+
+  # ---------------------------------------------------------------------------
+  # Aggregate gate — the single required status check on master (#115).
+  # Runs even when a dependency failed or was cancelled, so it can turn that
+  # into its own failure; skipped only when the whole run is a [skip ci] run.
+  # ---------------------------------------------------------------------------
+  ci-passed:
+    name: CI passed
+    needs: [SaveVersion, Linux, Windows, Mac, e2e-tests]
+    if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every needed job to have succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo "$NEEDS" | jq -e '[.[].result] | all(. == "success")' > /dev/null; then
+            echo "All jobs succeeded."
+          else
+            echo "::error::At least one job did not succeed."
+            exit 1
+          fi
