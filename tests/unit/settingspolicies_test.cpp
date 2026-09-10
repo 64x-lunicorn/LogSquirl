@@ -27,46 +27,50 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
     // No settings store, no persistable bootstrap, no ambient accessor:
     // that a Policy is buildable this way is what makes it usable as a
     // constructor parameter for the parts that will hold one.
-    GIVEN( "Policies built from literals, naming only some fields" )
+    GIVEN( "Policies built from literals" )
     {
         const SearchPolicy search{ .useParallelSearch = false,
                                    .threadPoolSize = 3,
+                                   .readBufferSizeLines = 512,
+                                   .useResultsCache = true,
+                                   .resultsCacheLines = 99u,
                                    .regexpEngine = RegexpEngine::QRegularExpression };
-        const IndexingPolicy indexing{ .readBufferSizeMb = 7, .useIndexCache = true };
-        const WatchPolicy watch{ .nativeWatchEnabled = false, .pollingEnabled = true };
-        const FileAccessPolicy fileAccess{ .keepFileClosed = true, .defaultEncodingMib = 106 };
+        const IndexingPolicy indexing{ .readBufferSizeMb = 7,
+                                       .useCompressedIndex = false,
+                                       .useIndexCache = true,
+                                       .cacheMaxSizeMb = 64,
+                                       .fastModificationDetection = true };
+        const WatchPolicy watch{ .nativeWatchEnabled = false,
+                                 .pollingEnabled = true,
+                                 .pollIntervalMs = 250 };
+        const FileAccessPolicy fileAccess{ .keepFileClosed = true,
+                                           .defaultEncodingMib = 106,
+                                           .extractArchives = false,
+                                           .extractArchivesAlways = true };
 
-        THEN( "the named fields hold what was written" )
+        THEN( "each field holds what was written" )
         {
             REQUIRE_FALSE( search.useParallelSearch );
             REQUIRE( search.threadPoolSize == 3 );
+            REQUIRE( search.readBufferSizeLines == 512 );
+            REQUIRE( search.useResultsCache );
+            REQUIRE( search.resultsCacheLines == 99u );
             REQUIRE( search.regexpEngine == RegexpEngine::QRegularExpression );
 
             REQUIRE( indexing.readBufferSizeMb == 7 );
+            REQUIRE_FALSE( indexing.useCompressedIndex );
             REQUIRE( indexing.useIndexCache );
+            REQUIRE( indexing.cacheMaxSizeMb == 64 );
+            REQUIRE( indexing.fastModificationDetection );
 
             REQUIRE_FALSE( watch.nativeWatchEnabled );
             REQUIRE( watch.pollingEnabled );
+            REQUIRE( watch.pollIntervalMs == 250 );
 
             REQUIRE( fileAccess.keepFileClosed );
             REQUIRE( fileAccess.defaultEncodingMib == 106 );
-        }
-
-        THEN( "the unnamed ones are value-initialised, not the settings store's defaults" )
-        {
-            // A Policy deliberately carries no defaults of its own: the
-            // shipped values live in Configuration, and reach a Policy
-            // only through deriveSettingsPolicies().
-            REQUIRE( search.readBufferSizeLines == 0 );
-            REQUIRE( search.resultsCacheLines == 0u );
-            REQUIRE_FALSE( search.useResultsCache );
-
-            REQUIRE( indexing.cacheMaxSizeMb == 0 );
-            REQUIRE_FALSE( indexing.useCompressedIndex );
-
-            REQUIRE( watch.pollIntervalMs == 0 );
-
             REQUIRE_FALSE( fileAccess.extractArchives );
+            REQUIRE( fileAccess.extractArchivesAlways );
         }
 
         THEN( "they are copyable" )
@@ -74,6 +78,37 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             const auto copy = search;
             REQUIRE( copy.threadPoolSize == search.threadPoolSize );
             REQUIRE( copy.regexpEngine == search.regexpEngine );
+        }
+    }
+
+    GIVEN( "a default-built Policy" )
+    {
+        // A Policy carries no defaults of its own: the shipped values live
+        // in Configuration and reach a Policy only through
+        // deriveSettingsPolicies(), so an underived one is visibly empty
+        // rather than plausibly stale.
+        const SearchPolicy search{};
+        const IndexingPolicy indexing{};
+        const WatchPolicy watch{};
+        const FileAccessPolicy fileAccess{};
+
+        THEN( "every field is value-initialised" )
+        {
+            REQUIRE_FALSE( search.useParallelSearch );
+            REQUIRE( search.threadPoolSize == 0 );
+            REQUIRE( search.readBufferSizeLines == 0 );
+            REQUIRE_FALSE( search.useResultsCache );
+            REQUIRE( search.resultsCacheLines == 0u );
+
+            REQUIRE( indexing.readBufferSizeMb == 0 );
+            REQUIRE( indexing.cacheMaxSizeMb == 0 );
+            REQUIRE_FALSE( indexing.useCompressedIndex );
+
+            REQUIRE( watch.pollIntervalMs == 0 );
+            REQUIRE_FALSE( watch.nativeWatchEnabled );
+
+            REQUIRE( fileAccess.defaultEncodingMib == 0 );
+            REQUIRE_FALSE( fileAccess.extractArchives );
         }
     }
 }

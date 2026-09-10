@@ -30,14 +30,15 @@ class Configuration;
 // not declare -- which is the whole point, and why each type below names
 // its consumer's settings and nothing else.
 //
-// They are plain aggregates: a test builds one from literals, naming only
-// the fields it cares about, with no settings store, no persistable
-// bootstrap and no ambient accessor. Deliberately no member defaults --
-// the shipped defaults live in Configuration and nowhere else, so there is
-// nothing here to drift out of step with the settings store (some of those
-// defaults are platform-dependent, which a copy here would get wrong). An
-// unnamed field is simply value-initialised, and the values that matter
-// always arrive via deriveSettingsPolicies().
+// They are plain aggregates a test can build from literals, with no
+// settings store, no persistable bootstrap and no ambient accessor.
+//
+// Every member is value-initialised and nothing more. The shipped defaults
+// live in Configuration and nowhere else, so there is no second copy here
+// to drift out of step with the settings store -- and some of those
+// defaults are platform-dependent, which a copy would get wrong. A Policy
+// that says false/0 throughout is therefore visibly not a configured one;
+// the values that matter always arrive via deriveSettingsPolicies().
 //
 // This is the expand half of an expand-contract migration (#92): the
 // Policies exist alongside the ambient Configuration accessor and no
@@ -45,38 +46,38 @@ class Configuration;
 
 // What indexing a Log File needs, and nothing else.
 struct IndexingPolicy {
-    int readBufferSizeMb;
-    bool useCompressedIndex;
-    bool useIndexCache;
-    int cacheMaxSizeMb;
-    bool fastModificationDetection;
+    int readBufferSizeMb{};
+    bool useCompressedIndex{};
+    bool useIndexCache{};
+    int cacheMaxSizeMb{};
+    bool fastModificationDetection{};
 };
 
 // What running a Search needs, and nothing else.
 struct SearchPolicy {
-    bool useParallelSearch;
+    bool useParallelSearch{};
     // 0 means "as many threads as the hardware reports".
-    int threadPoolSize;
-    int readBufferSizeLines;
-    bool useResultsCache;
-    unsigned resultsCacheLines;
-    RegexpEngine regexpEngine;
+    int threadPoolSize{};
+    int readBufferSizeLines{};
+    bool useResultsCache{};
+    unsigned resultsCacheLines{};
+    RegexpEngine regexpEngine{};
 };
 
 // What following a Log File on disk needs, and nothing else.
 struct WatchPolicy {
-    bool nativeWatchEnabled;
-    bool pollingEnabled;
-    int pollIntervalMs;
+    bool nativeWatchEnabled{};
+    bool pollingEnabled{};
+    int pollIntervalMs{};
 };
 
 // What opening and reading a Log File needs, and nothing else.
 struct FileAccessPolicy {
-    bool keepFileClosed;
+    bool keepFileClosed{};
     // Negative means "detect the Encoding rather than force one".
-    int defaultEncodingMib;
-    bool extractArchives;
-    bool extractArchivesAlways;
+    int defaultEncodingMib{};
+    bool extractArchives{};
+    bool extractArchivesAlways{};
 };
 
 // The four Policies as one bundle, so the place that builds the
