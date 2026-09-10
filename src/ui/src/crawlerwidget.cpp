@@ -295,7 +295,7 @@ void CrawlerWidget::changeEvent( QEvent* event )
 
 void CrawlerWidget::stopLoading()
 {
-    logFilteredData_->interruptSearch();
+    logFilteredData_->stop();
     logData_->interruptLoading();
 }
 
@@ -303,7 +303,7 @@ void CrawlerWidget::reload()
 {
     searchState_.resetState();
     constexpr auto DropCache = true;
-    logFilteredData_->clearSearch( DropCache );
+    logFilteredData_->request( DropCache );
     logFilteredData_->clearMarks();
     filteredView_->updateData();
     printSearchInfoMessage();
@@ -433,7 +433,7 @@ void CrawlerWidget::startNewSearch()
     if ( keepSearchResultsButton_->isChecked() ) {
         keepSearchResultsButton_->setChecked( false );
 
-        logFilteredData_->interruptSearch();
+        logFilteredData_->stop();
         logFilteredData_ = logData_->getNewFilteredData();
 
         filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get() );
@@ -444,7 +444,7 @@ void CrawlerWidget::startNewSearch()
         auto index = tabbedFilteredView_->addTab( filteredView_, "" );
         tabbedFilteredView_->setCurrentIndex( index );
 
-        connect( logFilteredData_.get(), &LogFilteredData::searchProgressed, this,
+        connect( logFilteredData_.get(), &LogFilteredData::searchStateChanged, this,
                  &CrawlerWidget::updateFilteredView, Qt::QueuedConnection );
 
         logMainView_->useNewFiltering( logFilteredData_.get() );
@@ -469,7 +469,7 @@ void CrawlerWidget::startNewSearch()
 
 void CrawlerWidget::stopSearch()
 {
-    logFilteredData_->interruptSearch();
+    logFilteredData_->stop();
     searchState_.stopSearch();
     printSearchInfoMessage();
 
@@ -532,17 +532,48 @@ void CrawlerWidget::showSearchContextMenu()
         searchLineContextMenu_->exec( QCursor::pos( activeScreen( this ) ) );
 }
 
-// When receiving the 'newDataAvailable' signal from LogFilteredData
-void CrawlerWidget::updateFilteredView( LinesCount nbMatches, int progress,
-                                        LineNumber initialPosition )
+// When receiving the Search Session's searchStateChanged signal
+void CrawlerWidget::updateFilteredView( SearchSession::State state )
 {
     LOG_DEBUG << "updateFilteredView received.";
 
+    // Every tab's LogFilteredData keeps its own persistent connection to
+    // this slot, so a tab switched away from (e.g. via stop() in
+    // changeFilteredView()) can still have a notification queued when it
+    // arrives here -- after logFilteredData_ has already moved on to the
+    // newly-active tab. Since everything below mutates shared, single UI
+    // (searchInfoLine_, stopButton_, ...), a stale notification from a
+    // no-longer-active tab must not be allowed to touch it.
+    if ( sender() != logFilteredData_.get() ) {
+        return;
+    }
+
+    if ( state.phase == SearchSession::Phase::Idle ) {
+        // No search: nothing to report, and nothing here should override
+        // whatever the caller that drove the Session idle (e.g.
+        // replaceCurrentSearch() on an emptied search box) already decided
+        // to show -- nothing to do, in particular no unconditional show()
+        // reappearing over an intentionally-hidden or already-updated line.
+        return;
+    }
+
+    const auto nbMatches = state.matchCount;
+    const auto progress = state.progress;
+    const bool isComplete = ( state.phase == SearchSession::Phase::Complete );
+    const bool isDone = isComplete || state.phase == SearchSession::Phase::Interrupted
+                        || state.phase == SearchSession::Phase::InvalidPattern;
+
     searchInfoLine_->show();
 
-    if ( progress == 100 ) {
-        // Searching done
-        printSearchInfoMessage( nbMatches );
+    if ( isDone ) {
+        // Searching done, one way or another. Only a real completion gets
+        // its message from here -- Interrupted/InvalidPattern already had
+        // theirs set by whoever drove the Session into that phase
+        // (stopSearch(), replaceCurrentSearch()'s error path), and
+        // re-deriving one from a bare phase here would just guess.
+        if ( isComplete ) {
+            printSearchInfoMessage( nbMatches );
+        }
         searchInfoLine_->hideGauge();
         // De-activate the stop button
         stopButton_->setEnabled( false );
@@ -550,7 +581,7 @@ void CrawlerWidget::updateFilteredView( LinesCount nbMatches, int progress,
         searchButton_->show();
         clearButton_->show();
     }
-    else {
+    else if ( state.phase == SearchSession::Phase::Running ) {
         // Search in progress
         // We ignore 0% and 100% to avoid a flash when the search is very short
         if ( progress > 0 ) {
@@ -577,8 +608,12 @@ void CrawlerWidget::updateFilteredView( LinesCount nbMatches, int progress,
         // Update the match overview
         overview_.updateData( logData_->getNbLine() );
 
-        // New data found icon
-        if ( initialPosition > 0_lnum ) {
+        // New data found icon: fires for a continuation (autorefresh
+        // extending the range) and equally for a fresh search whose
+        // range starts past the beginning of the file (Search Limits),
+        // matching what a non-zero initialLine used to signal before the
+        // Search Session existed.
+        if ( state.isContinuation || state.startLine > 0_lnum ) {
             changeDataStatus( DataStatus::NEW_FILTERED_DATA );
         }
 
@@ -593,9 +628,12 @@ void CrawlerWidget::updateFilteredView( LinesCount nbMatches, int progress,
     }
 
     // Try to restore the filtered window selection close to where it was
-    // only for full searches to avoid disconnecting follow mode!
-    if ( ( progress == 100 ) && ( initialPosition == searchStartLine_ )
-         && ( !isFollowEnabled() ) ) {
+    // only for full searches to avoid disconnecting follow mode -- and
+    // only if the completed run's range still matches the current Search
+    // Limits, so a limits change while a search was in flight doesn't
+    // apply a stale range to the just-finished (different-range) result.
+    if ( isComplete && !state.isContinuation && state.startLine == searchStartLine_
+         && !isFollowEnabled() ) {
         const auto currenLineIndex = logFilteredData_->getLineIndexNumber( currentLineNumber_ );
         LOG_DEBUG << "updateFilteredView: restoring selection: "
                   << " absolute line number (0based) " << currentLineNumber_ << " index "
@@ -747,8 +785,10 @@ void CrawlerWidget::applyConfiguration()
 
     FileWatcher::getFileWatcher().updateConfiguration();
 
-    // Rebuild breadcrumb context lines when setting changes
-    logFilteredData_->rebuildContextLines();
+    // Rebuild breadcrumb context lines when setting changes. Every tab's
+    // LogFilteredData is in filteredViewsData_, including the active one
+    // (logFilteredData_), so this loop alone covers all of them exactly
+    // once each.
     for ( const auto& [fv, fd] : filteredViewsData_ ) {
         fd->rebuildContextLines();
     }
@@ -814,7 +854,8 @@ void CrawlerWidget::loadingFinishedHandler( LoadingStatus status )
             // We need to restart the search
             replaceCurrentSearch( searchLineEdit_->currentText() );
         else
-            logFilteredData_->updateSearch( searchStartLine_, searchEndLine_ );
+            logFilteredData_->request( logFilteredData_->searchState().pattern, searchStartLine_,
+                                       searchEndLine_ );
     }
 
     // Set the encoding for the views
@@ -857,7 +898,7 @@ void CrawlerWidget::fileChangedHandler( MonitoredFileStatus status )
         if ( !searchInfoLine_->text().isEmpty() ) {
             // Invalidate the search
             constexpr auto DropCache = true;
-            logFilteredData_->clearSearch( DropCache );
+            logFilteredData_->request( DropCache );
             filteredView_->updateData();
             searchState_.truncateFile();
             printSearchInfoMessage();
@@ -1469,7 +1510,7 @@ void CrawlerWidget::setup()
 
     connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
 
-    connect( logFilteredData_.get(), &LogFilteredData::searchProgressed, this,
+    connect( logFilteredData_.get(), &LogFilteredData::searchStateChanged, this,
              &CrawlerWidget::updateFilteredView, Qt::QueuedConnection );
 
     // Sent load file update to MainWindow (for status update)
@@ -1535,7 +1576,7 @@ void CrawlerWidget::setup()
 
 void CrawlerWidget::changeFilteredView( int tabIndex )
 {
-    logFilteredData_->interruptSearch();
+    logFilteredData_->stop();
     if ( tabIndex >= 0 ) {
         auto* tabFilteredView
             = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( tabIndex ) );
@@ -1878,10 +1919,9 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
 {
     LOG_INFO << "replacing current search with " << searchText;
 
-    // clearSearch() (below) interrupts whatever search is in flight and, together
-    // with the runSearch() call further down, supersedes it: any of its results
-    // still arriving after this point carry its (now stale) id and are discarded
-    // on arrival, so there is nothing to wait for here.
+    // request() (below) supersedes whatever search is in flight: any of its
+    // results still arriving after this point carry its (now stale) id and
+    // are discarded on arrival, so there is nothing to wait for here.
 
     nbMatches_ = 0_lcount;
 
@@ -1892,7 +1932,7 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
     }
 
     // Clear and recompute the content of the filtered window.
-    logFilteredData_->clearSearch();
+    logFilteredData_->request();
     filteredView_->updateData();
 
     // Update the match overview
@@ -1905,17 +1945,18 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
             searchText, matchCaseButton_->isChecked(), inverseButton_->isChecked(),
             booleanButton_->isChecked(), !useRegexpButton_->isChecked() );
 
-        RegularExpression hsExpression{ regexpPattern };
-        auto isValidExpression = hsExpression.isValid();
+        // Start a new asynchronous search -- the Session validates the
+        // pattern itself; on failure it goes to InvalidPattern synchronously
+        // (without touching the worker), so state() is already conclusive.
+        logFilteredData_->request( regexpPattern, searchStartLine_, searchEndLine_ );
+        const auto state = logFilteredData_->searchState();
 
-        if ( isValidExpression ) {
+        if ( state.phase != SearchSession::Phase::InvalidPattern ) {
             // Activate the stop button
             stopButton_->setEnabled( true );
             stopButton_->show();
             clearButton_->hide();
             searchButton_->hide();
-            // Start a new asynchronous search
-            logFilteredData_->runSearch( regexpPattern, searchStartLine_, searchEndLine_ );
             // Accept auto-refresh of the search
             searchState_.startSearch();
             searchInfoLine_->hide();
@@ -1931,13 +1972,14 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
             }
         }
         else {
-            // The regexp is wrong
-            logFilteredData_->clearSearch();
+            // The regexp is wrong. The request() just above already drove
+            // the Session to InvalidPattern, which on its own clears
+            // results/Context Lines the same way an idle request() would
+            // -- no separate clear needed here.
             filteredView_->updateData();
             searchState_.resetState();
 
             // Inform the user
-            QString errorString = hsExpression.errorString();
             QString errorMessage = tr( "Error in expression" );
             // const int offset = regexp.patternErrorOffset();
             // if ( offset != -1 ) {
@@ -1945,7 +1987,7 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
             //     errorMessage += QString::number( offset );
             // }
             errorMessage += ": ";
-            errorMessage += errorString;
+            errorMessage += state.errorString;
             searchInfoLine_->setPalette( ErrorPalette );
             searchInfoLine_->setText( errorMessage );
             searchInfoLine_->show();

@@ -79,9 +79,10 @@ struct RegularExpressionPattern {
 
     bool operator==( const RegularExpressionPattern& other ) const
     {
-        return std::tie( pattern, isCaseSensitive, isExclude, isBoolean, isPlainText )
-               == std::tie( other.pattern, other.isCaseSensitive, isExclude, isBoolean,
-                            isPlainText );
+        return std::tie( pattern, isCaseSensitive, isExclude, isBoolean, isPlainText,
+                         isPrefilter )
+               == std::tie( other.pattern, other.isCaseSensitive, other.isExclude,
+                            other.isBoolean, other.isPlainText, other.isPrefilter );
     }
 
   private:

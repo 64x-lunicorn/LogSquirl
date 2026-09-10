@@ -46,6 +46,7 @@
 #include "crashhandler.h"
 #include "logsquirl_version.h"
 #include "log.h"
+#include "searchsession.h"
 #include "session.h"
 #include "uuid.h"
 
@@ -74,6 +75,7 @@ class LogSquirlApp : public QApplication {
         qRegisterMetaType<logsquirl::vector<LineNumber>>( "logsquirl::vector<LineNumber>" );
         qRegisterMetaType<LineLength>( "LineLength" );
         qRegisterMetaType<SearchId>( "SearchId" );
+        qRegisterMetaType<SearchSession::State>( "SearchSession::State" );
         qRegisterMetaType<Portion>( "Portion" );
         qRegisterMetaType<Selection>( "Selection" );
         qRegisterMetaType<QFNotification>( "QFNotification" );

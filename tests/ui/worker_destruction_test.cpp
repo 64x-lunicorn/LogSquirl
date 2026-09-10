@@ -108,7 +108,7 @@ SCENARIO( "LogData destruction during active search does not deadlock",
                 auto filtered = logData.getNewFilteredData();
 
                 // Start search but don't wait for completion
-                filtered->runSearch( RegularExpressionPattern( "line [0-9]{4}9" ) );
+                filtered->request( RegularExpressionPattern( "line [0-9]{4}9" ) );
 
                 // Small delay to let search begin on pool thread
                 QTest::qWait( 10 );
@@ -116,6 +116,57 @@ SCENARIO( "LogData destruction during active search does not deadlock",
                 // Destroy filtered data and LogData while search may still be running
                 filtered.reset();
                 // logData destroyed here — must not deadlock or crash
+            }
+
+            THEN( "No crash or deadlock occurred" )
+            {
+                REQUIRE( true );
+            }
+        }
+    }
+}
+
+SCENARIO( "Destroying mid-search while the progress throttle is pending does not crash",
+          "[logdata][destruction]" )
+{
+    // Regression test for the fix that shipped without one: the progress
+    // throttler's own destructor calls maybeEmitTriggered(), which used to
+    // invoke a slot on the partially-destroyed LogFilteredData/SearchSession
+    // if a throttled emission was still pending (scheduled, not yet fired)
+    // at the moment of destruction. SearchSession::~SearchSession() now
+    // disconnects everything -- including the throttler -- before any
+    // member is torn down, so this must be safe regardless of timing.
+    GIVEN( "a log file large enough that a search stays busy past one throttle tick" )
+    {
+        QTemporaryFile file{ "destruction_throttle_test_XXXXXX" };
+        REQUIRE( generateTestFile( file, 20000 ) );
+
+        WHEN( "LogData is destroyed shortly after a search starts, before it can complete" )
+        {
+            const auto threadPoolSize = GENERATE( 0, 1, 2 );
+
+            auto& config = Configuration::getSynced();
+            config.setSearchThreadPoolSize( threadPoolSize );
+            config.setUseParallelSearch( threadPoolSize > 0 );
+
+            {
+                LogData logData;
+                attachAndWaitForIndexing( logData, file.fileName() );
+
+                auto filtered = logData.getNewFilteredData();
+
+                filtered->request( RegularExpressionPattern( "line [0-9]{4}9" ) );
+
+                // Long enough for the worker's cross-thread progress signal
+                // to be delivered at least once (scheduling the throttler's
+                // 100 ms timer), short enough that the timer cannot have
+                // fired yet: destruction lands with an emission genuinely
+                // pending, not merely possible.
+                QTest::qWait( 20 );
+
+                filtered.reset();
+                // logData destroyed here — must not deadlock or crash,
+                // even though the throttler had a pending emission.
             }
 
             THEN( "No crash or deadlock occurred" )
@@ -142,17 +193,19 @@ SCENARIO( "Repeated LogData create-search-destroy cycles are stable",
 
                 auto filtered = logData.getNewFilteredData();
 
-                SafeQSignalSpy searchProgressSpy{
-                    filtered.get(), &LogFilteredData::searchProgressed };
+                SafeQSignalSpy searchStateSpy{
+                    filtered.get(), &LogFilteredData::searchStateChanged };
 
-                filtered->runSearch(
+                filtered->request(
                     RegularExpressionPattern( "line [0-9]{4}[13579]" ) );
 
                 const bool completed = waitUiState( [ & ]() {
-                    if ( searchProgressSpy.count() == 0 ) {
+                    if ( searchStateSpy.count() == 0 ) {
                         return false;
                     }
-                    return searchProgressSpy.last().at( 1 ).toInt() >= 100;
+                    return qvariant_cast<SearchSession::State>( searchStateSpy.last().at( 0 ) )
+                               .progress
+                           >= 100;
                 } );
                 REQUIRE( completed );
 

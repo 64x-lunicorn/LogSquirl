@@ -42,20 +42,17 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <tuple>
-#include <unordered_map>
 
 #include <QByteArray>
 #include <QList>
 #include <QObject>
 #include <QStringList>
 
-#include <KDSignalThrottler.h>
-
 #include "abstractlogdata.h"
 #include "hsregularexpression.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
+#include "searchsession.h"
 #include "synchronization.h"
 
 class LogData;
@@ -74,25 +71,23 @@ class LogFilteredData : public AbstractLogData {
     explicit LogFilteredData( const LogData* logData );
 
     // Destructor: disconnects signals before member destruction to prevent
-    // use-after-destroy when searchProgressThrottler_ emits during teardown.
+    // use-after-destroy from a queued signal firing during teardown.
     ~LogFilteredData() override;
 
-    // Starts the async search, sending newDataAvailable() when new data found.
-    // If a search is already in progress this function will block until
-    // it is done, so the application should call interruptSearch() first.
-    void runSearch( const RegularExpressionPattern& regExp, LineNumber startLine,
-                    LineNumber endLine );
-    // Shortcut for runSearch on all file
-    void runSearch( const RegularExpressionPattern& regExp );
-
-    // Add to the existing search, starting at the line when the search was
-    // last stopped. Used when the file on disk has been added too.
-    void updateSearch( LineNumber startLine, LineNumber endLine );
-    // Interrupt the running search if one is in progress.
-    // Nothing is done if no search is in progress.
-    void interruptSearch();
-    // Clear the search and the list of results.
-    void clearSearch( bool dropCache = false );
+    // Requests results for regExp over [startLine, endLine), superseding
+    // whatever run is currently in flight -- callers no longer need to
+    // interrupt or clear before requesting. When regExp/startLine match
+    // the currently held run and endLine only grows, continues that run
+    // (used when the file on disk has grown) rather than starting over.
+    void request( const RegularExpressionPattern& regExp, LineNumber startLine,
+                 LineNumber endLine );
+    // Shortcut for request() on the whole file.
+    void request( const RegularExpressionPattern& regExp );
+    // Go idle: clears the pattern, the results and (optionally) the cache.
+    void request( bool dropCache = false );
+    // Stops the in-flight run, if any, keeping whatever has been found so
+    // far. A no-op if nothing is running.
+    void stop();
 
     // Returns the line number in the original LogData where the element
     // 'index' was found.
@@ -146,18 +141,19 @@ class LogFilteredData : public AbstractLogData {
     // Rebuilds context (breadcrumb) lines around matches/marks.
     // Call after search completes or contextLinesCount changes.
     void rebuildContextLines();
+
+    // The Search Session's current typed state (pattern, range, match
+    // count, progress, phase, whether results came from cache).
+    SearchSession::State searchState() const;
+
   Q_SIGNALS:
-    // Sent when the search has progressed, give the number of matches (so far)
-    // and the percentage of completion
-    void searchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine );
-    void searchProgressedThrottled();
+    // Sent whenever the Search Session's state changes: on progress, on
+    // completion (from a real run or from cache), when stopped, when
+    // going idle, or when the pattern fails to compile.
+    void searchStateChanged( SearchSession::State state );
 
   private Q_SLOTS:
-    void handleSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine,
-                                 SearchId searchId );
-    void handleSearchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                               bool interrupted );
-    void handleSearchProgressedThrottled();
+    void handleSessionStateChanged( SearchSession::State state );
 
   private:
     // Implementation of virtual functions
@@ -190,14 +186,11 @@ class LogFilteredData : public AbstractLogData {
     SearchResultArray matching_lines_;
     SearchResultArray marks_;
     SearchResultArray marks_and_matches_;
-    // Context lines (breadcrumbs) around matches/marks, excluding match/mark lines themselves.
-    SearchResultArray context_lines_;
-    // Combined result including context lines.
+    // Combined result including Context Lines (session_.contextLines()).
     mutable SearchResultArray with_context_;
 
     const LogData* sourceLogData_;
 
-    RegularExpressionPattern currentRegExp_;
     LineLength maxLength_;
     LineLength maxLengthMarks_;
     // Number of lines of the LogData that has been searched for:
@@ -205,62 +198,16 @@ class LogFilteredData : public AbstractLogData {
 
     Visibility visibility_;
 
-    LogFilteredDataWorker workerThread_;
+    // Owns the pattern, the run in flight, its results and its progress.
+    SearchSession session_;
 
-    // The run whose progress and results we're currently waiting on. A signal
-    // carrying any other id belongs to a run we've since superseded, and is
-    // discarded rather than applied.
-    SearchId currentSearchId_{ 0 };
-
-    Mutex searchProgressMutex_;
-    std::tuple<LinesCount, int, LineNumber> searchProgress_;
-
-    KDToolBox::KDSignalThrottler searchProgressThrottler_;
+    // The run id matching_lines_ was last synced from. When a notification
+    // carries the same id, only the delta since then needs to be applied;
+    // a different id (a new run, a continuation, a cache hit) means
+    // matching_lines_ must be replaced wholesale instead.
+    SearchId lastSyncedSearchId_{ 0 };
 
   private:
-    struct CachedSearchResult {
-        SearchResultArray matching_lines;
-        LineLength maxLength;
-    };
-
-    using SearchCacheKey = std::tuple<RegularExpressionPattern, LineNumber::UnderlyingType,
-                                      LineNumber::UnderlyingType>;
-    struct SearchCacheKeyHash {
-        template <class T>
-        void hash_combine( std::size_t& seed, const T& v ) const
-        {
-            seed ^= std::hash<T>()( v ) + 0x9e3779b9 + ( seed << 6 ) + ( seed >> 2 );
-        }
-        std::size_t operator()( const SearchCacheKey& k ) const
-        {
-            size_t seed = qHash( std::get<0>( k ).pattern );
-
-            hash_combine( seed, std::get<0>( k ).isPlainText );
-            hash_combine( seed, std::get<0>( k ).isBoolean );
-            hash_combine( seed, std::get<0>( k ).isCaseSensitive );
-            hash_combine( seed, std::get<0>( k ).isExclude );
-            hash_combine( seed, std::get<1>( k ) );
-            hash_combine( seed, std::get<2>( k ) );
-            return seed;
-        }
-    };
-
-    std::unordered_map<SearchCacheKey, CachedSearchResult, SearchCacheKeyHash> searchResultsCache_;
-    SearchCacheKey currentSearchKey_;
-
-    SearchCacheKey makeCacheKey( const RegularExpressionPattern& regExp, LineNumber startLine,
-                                 LineNumber endLine )
-    {
-        return std::make_tuple( regExp, startLine.get(), endLine.get() );
-    }
-
-    void updateSearchResultsCache();
-
-    inline LineNumber getExpectedSearchEnd( const SearchCacheKey& cacheKey ) const
-    {
-        return LineNumber( std::get<2>( cacheKey ) );
-    }
-
     // Utility functions
     const SearchResultArray& currentResultArray() const;
     LineNumber findLogDataLine( LineNumber lineNum ) const;

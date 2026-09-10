@@ -38,6 +38,7 @@ int main( int argc, char* argv[] )
     qRegisterMetaType<LinesCount>( "LinesCount" );
     qRegisterMetaType<LineNumber>( "LineNumber" );
     qRegisterMetaType<SearchId>( "SearchId" );
+    qRegisterMetaType<SearchSession::State>( "SearchSession::State" );
 
     QCoreApplication app( argc, argv );
     CliParameters parameters( app, true );
@@ -50,10 +51,11 @@ int main( int argc, char* argv[] )
     auto filteredData = logData.getNewFilteredData();
 
     filteredData->connect(
-        filteredData.get(), &LogFilteredData::searchProgressed,
-        [ & ]( LinesCount nbMatches, int progress, LineNumber ) {
-            if ( progress == 100 ) {
+        filteredData.get(), &LogFilteredData::searchStateChanged,
+        [ & ]( SearchSession::State state ) {
+            if ( state.phase == SearchSession::Phase::Complete ) {
 
+                const auto nbMatches = state.matchCount;
                 LOG_INFO << "Searched finished, got " << nbMatches.get() << " matches";
 
                 const auto defaultChunkSize = 1000_lcount;
@@ -73,7 +75,7 @@ int main( int argc, char* argv[] )
 
     logData.connect( &logData, &LogData::loadingFinished, [ & ]() {
         dispatchToMainThread(
-            [ & ] { filteredData->runSearch( RegularExpressionPattern( parameters.pattern ) ); } );
+            [ & ] { filteredData->request( RegularExpressionPattern( parameters.pattern ) ); } );
     } );
 
     logData.attachFile( parameters.filenames.front() );

@@ -42,40 +42,32 @@
 
 #include "log.h"
 
-#include <KDSignalThrottler.h>
 #include <QString>
 #include <QTimer>
 
-#include <cassert>
 #include <functional>
 #include <numeric>
-#include <tuple>
 #include <vector>
 
 #include "logdata.h"
 #include "logfiltereddata.h"
 
-#include "configuration.h"
 #include "readablesize.h"
 #include "synchronization.h"
 
 LogFilteredData::~LogFilteredData()
 {
-    // Disconnect all signals before members (workerThread_, searchProgressThrottler_)
-    // are destroyed.  The throttler's destructor calls maybeEmitTriggered() which
-    // would otherwise invoke our slot on a partially-destroyed object (SIGSEGV).
+    // Disconnect all signals before members (in particular session_) are
+    // destroyed, on top of session_'s own teardown safety.
     disconnect();
-    searchProgressThrottler_.disconnect();
-    workerThread_.disconnect();
 }
 
-// Usual constructor: just copy the data, the search is started by runSearch()
+// Usual constructor: just copy the data, the search is started by request()
 LogFilteredData::LogFilteredData( const LogData* logData )
     : AbstractLogData()
     , matching_lines_( SearchResultArray() )
-    , currentRegExp_()
     , visibility_()
-    , workerThread_( *logData )
+    , session_( *logData )
 {
     // Starts with an empty result list
     maxLength_ = 0_length;
@@ -86,96 +78,43 @@ LogFilteredData::LogFilteredData( const LogData* logData )
 
     visibility_ = VisibilityFlags::Marks | VisibilityFlags::Matches;
 
-    // Forward the update signal
-    connect( &workerThread_, &LogFilteredDataWorker::searchProgressed, this,
-             &LogFilteredData::handleSearchProgressed );
-    connect( &workerThread_, &LogFilteredDataWorker::searchFinished, this,
-             &LogFilteredData::handleSearchFinished );
-
-    searchProgressThrottler_.setTimeout( 100 );
-    connect( this, &LogFilteredData::searchProgressedThrottled, &searchProgressThrottler_,
-             &KDToolBox::KDGenericSignalThrottler::throttle );
-
-    connect( &searchProgressThrottler_, &KDToolBox::KDGenericSignalThrottler::triggered, this,
-             &LogFilteredData::handleSearchProgressedThrottled );
+    connect( &session_, &SearchSession::stateChanged, this,
+             &LogFilteredData::handleSessionStateChanged );
 }
 
-void LogFilteredData::runSearch( const RegularExpressionPattern& regExp )
+void LogFilteredData::request( const RegularExpressionPattern& regExp )
 {
-    runSearch( regExp, 0_lnum, LineNumber( getNbTotalLines().get() ) );
+    request( regExp, 0_lnum, LineNumber( getNbTotalLines().get() ) );
 }
 
-// Run the search and send newDataAvailable() signals.
-void LogFilteredData::runSearch( const RegularExpressionPattern& regExp, LineNumber startLine,
-                                 LineNumber endLine )
+// Request results for regExp over [startLine, endLine) -- the Session
+// owns the cache and decides on its own whether this hits it, continues
+// its current run, or supersedes it as a fresh one.
+void LogFilteredData::request( const RegularExpressionPattern& regExp, LineNumber startLine,
+                               LineNumber endLine )
 {
-    LOG_DEBUG << "Entering runSearch";
-
-    const auto& config = Configuration::get();
-
-    clearSearch();
-    currentRegExp_ = regExp;
-    currentSearchKey_ = makeCacheKey( regExp, startLine, endLine );
-    LOG_INFO << "Search cache key: " << regExp.pattern << "_" << startLine.get() << "_"
-             << endLine.get();
-
-    bool shouldRunSearch = true;
-    if ( config.useSearchResultsCache() ) {
-        const auto cachedResults = searchResultsCache_.find( currentSearchKey_ );
-        if ( cachedResults != std::end( searchResultsCache_ ) ) {
-            LOG_INFO << "Got result from cache";
-            shouldRunSearch = false;
-            matching_lines_ = cachedResults->second.matching_lines;
-            maxLength_ = cachedResults->second.maxLength;
-
-            marks_and_matches_ = matching_lines_ | marks_;
-
-            Q_EMIT searchProgressed( LinesCount( matching_lines_.cardinality() ), 100, startLine );
-        }
-    }
-
-    if ( shouldRunSearch ) {
-        attachReader();
-        currentSearchId_ = workerThread_.search( currentRegExp_, startLine, endLine );
-    }
+    LOG_DEBUG << "Entering request";
+    session_.request( regExp, startLine, endLine );
 }
 
-void LogFilteredData::updateSearch( LineNumber startLine, LineNumber endLine )
+void LogFilteredData::request( bool dropCache )
 {
-    LOG_DEBUG << "Entering updateSearch";
-
-    currentSearchKey_ = {};
-
-    attachReader();
-    currentSearchId_ = workerThread_.updateSearch( currentRegExp_, startLine, endLine,
-                                                   LineNumber( nbLinesProcessed_.get() ) );
-}
-
-void LogFilteredData::interruptSearch()
-{
-    LOG_DEBUG << "Entering interruptSearch";
-
-    workerThread_.interrupt();
-    // Nothing is in flight for us any more; whatever this interrupted will
-    // still deliver its final searchFinished (to balance its attachReader()),
-    // but carrying an id that no longer matches, so its results are discarded
-    // on arrival rather than silently mutating data with no signal to show it.
-    currentSearchId_ = SearchId( 0 );
-}
-
-void LogFilteredData::clearSearch( bool dropCache )
-{
-    interruptSearch();
-
-    currentRegExp_ = {};
-    matching_lines_ = {};
-    marks_and_matches_ = marks_;
-    maxLength_ = 0_length;
-    nbLinesProcessed_ = 0_lcount;
+    LOG_DEBUG << "Entering request (idle)";
+    session_.request();
 
     if ( dropCache ) {
-        searchResultsCache_.clear();
+        session_.dropCache();
     }
+}
+
+void LogFilteredData::stop()
+{
+    session_.stop();
+}
+
+SearchSession::State LogFilteredData::searchState() const
+{
+    return session_.state();
 }
 
 LineNumber LogFilteredData::getMatchingLineNumber( LineNumber matchNum ) const
@@ -225,7 +164,7 @@ LogFilteredData::LineType LogFilteredData::lineTypeByLine( LineNumber lineNumber
         line_type |= LineTypeFlags::Match;
 
     // Mark as context only if line is not already a match or mark
-    if ( line_type == LineTypeFlags::Plain && context_lines_.contains( lineNumber.get() ) )
+    if ( line_type == LineTypeFlags::Plain && session_.contextLines().contains( lineNumber.get() ) )
         line_type |= LineTypeFlags::Context;
 
     return line_type;
@@ -246,47 +185,10 @@ void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>&
 
 void LogFilteredData::rebuildContextLines()
 {
-    const auto& config = Configuration::get();
-    const int contextCount = config.contextLinesCount();
-
-    context_lines_ = SearchResultArray();
-
-    if ( contextCount <= 0 ) {
-        return;
-    }
-
-    const auto totalLines = sourceLogData_->getNbLine().get();
-    if ( totalLines == 0 ) {
-        return;
-    }
-
-    // Expand each match/mark ±contextCount lines
-    const auto& base = marks_and_matches_;
-
-    struct ExpandParams {
-        SearchResultArray* result;
-        int n;
-        uint64_t maxLine;
-        const SearchResultArray* baseSet;
-    };
-
-    ExpandParams params{ &context_lines_, contextCount, totalLines, &base };
-
-    base.iterate(
-        []( uint64_t line, void* ctx ) -> bool {
-            auto* p = static_cast<ExpandParams*>( ctx );
-            const auto start = ( line > static_cast<uint64_t>( p->n ) )
-                                   ? ( line - static_cast<uint64_t>( p->n ) )
-                                   : 0ULL;
-            const auto end = std::min( line + static_cast<uint64_t>( p->n ), p->maxLine - 1 );
-            for ( auto i = start; i <= end; ++i ) {
-                if ( !p->baseSet->contains( static_cast<uint64_t>( i ) ) ) {
-                    p->result->add( static_cast<uint64_t>( i ) );
-                }
-            }
-            return true;
-        },
-        static_cast<void*>( &params ) );
+    // Marks are the one input to Context Lines the Session doesn't own;
+    // push the current set before asking it to recompute.
+    session_.setMarks( marks_ );
+    session_.rebuildContextLines();
 }
 
 // Delegation to our Marks object
@@ -417,138 +319,60 @@ LogFilteredData::Visibility LogFilteredData::visibility() const
     return visibility_;
 }
 
-void LogFilteredData::updateSearchResultsCache()
-{
-    const auto& config = Configuration::get();
-    if ( !config.useSearchResultsCache() ) {
-        return;
-    }
-
-    if ( currentSearchKey_ == SearchCacheKey{} ) {
-        return;
-    }
-
-    const uint64_t maxCacheLines = config.searchResultsCacheLines();
-
-    if ( matching_lines_.cardinality() > maxCacheLines ) {
-        LOG_DEBUG << "LogFilteredData: too many matches to place in cache";
-    }
-    else {
-        LOG_INFO << "LogFilteredData: caching results for key "
-                 << std::get<0>( currentSearchKey_ ).pattern << "_"
-                 << std::get<1>( currentSearchKey_ ) << "_" << std::get<2>( currentSearchKey_ );
-
-        searchResultsCache_[ currentSearchKey_ ] = { matching_lines_, maxLength_ };
-        auto cacheSize = std::accumulate( searchResultsCache_.cbegin(), searchResultsCache_.cend(),
-                                          uint64_t{ 0 }, []( const auto& acc, const auto& next ) {
-                                              return acc + next.second.matching_lines.cardinality();
-                                          } );
-
-        LOG_INFO << "LogFilteredData: cache size " << cacheSize;
-
-        auto cachedResult = std::begin( searchResultsCache_ );
-        while ( cachedResult != std::end( searchResultsCache_ ) && cacheSize > maxCacheLines ) {
-
-            if ( cachedResult->first == currentSearchKey_ ) {
-                ++cachedResult;
-                continue;
-            }
-
-            cacheSize -= cachedResult->second.matching_lines.cardinality();
-            cachedResult = searchResultsCache_.erase( cachedResult );
-        }
-    }
-}
-
 //
 // Q_SLOTS:
 //
-void LogFilteredData::handleSearchProgressed( LinesCount nbMatches, int progress,
-                                              LineNumber initialLine, SearchId searchId )
+void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
 {
-    if ( searchId != currentSearchId_ ) {
-        // Progress from a run we've since superseded; its results are stale.
-        return;
+    using Phase = SearchSession::Phase;
+
+    if ( state.phase == Phase::Idle || state.phase == Phase::InvalidPattern ) {
+        // Nothing was run (or the run was abandoned): nothing to keep.
+        matching_lines_ = SearchResultArray();
+        marks_and_matches_ = marks_;
+    }
+    else if ( state.fromCache || session_.currentSearchId() != lastSyncedSearchId_ ) {
+        // A cache hit, or the first notification of a run (fresh or a
+        // continuation) we have not synced from yet: session_.matches()
+        // is already exactly right, so take it wholesale rather than
+        // union it in -- this only runs once per run, not per tick. The
+        // previous marks_and_matches_ basis is stale too, so it gets the
+        // same full recompute (also a once-per-run cost, not a per-tick
+        // one).
+        matching_lines_ = session_.matches();
+        marks_and_matches_ = matching_lines_ | marks_;
+        // Drain whatever the Session already accumulated as "new" before
+        // this wholesale copy, so the next (incremental) tick doesn't
+        // re-apply matches this copy already included.
+        session_.takeNewMatches();
+    }
+    else {
+        // Another tick of a run already synced from: apply just what's
+        // new since the last tick to both bitmaps, instead of copying/
+        // re-unioning the whole (potentially large) accumulated match set
+        // every ~100ms -- marks_ hasn't changed since the last tick, so
+        // the same delta that grows matching_lines_ also grows
+        // marks_and_matches_ correctly.
+        const auto delta = session_.takeNewMatches();
+        matching_lines_ |= delta;
+        marks_and_matches_ |= delta;
+    }
+    lastSyncedSearchId_ = session_.currentSearchId();
+
+    maxLength_ = session_.maxLength();
+    nbLinesProcessed_ = session_.processedLines();
+
+    if ( state.phase == Phase::Complete ) {
+        // Caching and the Context Lines rebuild (for a cache hit too, so
+        // Context Lines never belong to whatever ran previously) already
+        // happened inside the Session, whose own completion path this
+        // state came from.
+        LOG_INFO << "Matches size " << readableSize( matching_lines_.getSizeInBytes( false ) )
+                 << ", marks size " << readableSize( marks_.getSizeInBytes( false ) )
+                 << ", union size " << readableSize( marks_and_matches_.getSizeInBytes( false ) );
     }
 
-    assert( nbMatches >= 0_lcount );
-
-    const auto searchResults = workerThread_.getSearchResults();
-
-    matching_lines_ |= searchResults.newMatches;
-    marks_and_matches_ |= searchResults.newMatches;
-
-    maxLength_ = searchResults.maxLength;
-    nbLinesProcessed_ = searchResults.processedLines;
-
-    {
-        ScopedLock lock( searchProgressMutex_ );
-        searchProgress_ = std::make_tuple( nbMatches, progress, initialLine );
-    }
-
-    Q_EMIT searchProgressedThrottled();
-}
-
-void LogFilteredData::handleSearchFinished( SearchId searchId, LinesCount nbMatches,
-                                            LineNumber initialLine, bool interrupted )
-{
-    // Every runSearch()/updateSearch() call did exactly one attachReader(); this
-    // is its matching detachReader(), and it must happen regardless of whether
-    // this run's results end up applied below -- a superseded run must not leak
-    // the attach just because its results are discarded.
-    detachReader();
-
-    if ( searchId != currentSearchId_ ) {
-        // A superseded (or explicitly interrupted) run finishing late; discard
-        // rather than apply -- this is what stops residue from an earlier
-        // pattern from showing up once a later one has taken over.
-        return;
-    }
-
-    const auto searchResults = workerThread_.getSearchResults();
-
-    matching_lines_ |= searchResults.newMatches;
-    marks_and_matches_ |= searchResults.newMatches;
-
-    maxLength_ = searchResults.maxLength;
-    nbLinesProcessed_ = searchResults.processedLines;
-
-    if ( interrupted ) {
-        // Report neither completion nor 100%: an interrupted run is not a
-        // finished one, and its partial results must not be cached under a
-        // key that promises the whole range was searched.
-        LOG_INFO << "Search run interrupted before completion";
-        return;
-    }
-
-    if ( nbLinesProcessed_.get() == getExpectedSearchEnd( currentSearchKey_ ).get() ) {
-        updateSearchResultsCache();
-    }
-
-    rebuildContextLines();
-
-    LOG_INFO << "Matches size " << readableSize( matching_lines_.getSizeInBytes( false ) )
-             << ", marks size " << readableSize( marks_.getSizeInBytes( false ) )
-             << ", union size " << readableSize( marks_and_matches_.getSizeInBytes( false ) );
-
-    {
-        ScopedLock lock( searchProgressMutex_ );
-        searchProgress_ = std::make_tuple( nbMatches, 100, initialLine );
-    }
-
-    Q_EMIT searchProgressedThrottled();
-}
-
-void LogFilteredData::handleSearchProgressedThrottled()
-{
-    LinesCount nbMatches;
-    int progress;
-    LineNumber initialLine;
-    {
-        ScopedLock lock( searchProgressMutex_ );
-        std::tie( nbMatches, progress, initialLine ) = searchProgress_;
-    }
-    Q_EMIT searchProgressed( nbMatches, progress, initialLine );
+    Q_EMIT searchStateChanged( state );
 }
 
 LineNumber LogFilteredData::findLogDataLine( LineNumber index ) const
@@ -582,12 +406,13 @@ const SearchResultArray& LogFilteredData::currentResultArray() const
         base = &marks_;
     }
 
-    if ( context_lines_.isEmpty() || !visibility_.testFlag( VisibilityFlags::Context ) ) {
+    const auto& contextLines = session_.contextLines();
+    if ( contextLines.isEmpty() || !visibility_.testFlag( VisibilityFlags::Context ) ) {
         return *base;
     }
 
     // Rebuild the combined array with context lines included
-    with_context_ = *base | context_lines_;
+    with_context_ = *base | contextLines;
     return with_context_;
 }
 

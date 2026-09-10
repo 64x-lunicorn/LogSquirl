@@ -53,11 +53,19 @@ class Logger {
         if ( !needLogging( type ) ) {
             return;
         }
-        
+
+        // qFormatLogMessage() must be inside the lock: it formats
+        // %{time} via QDateTime/QLocale, which isn't safe to call
+        // concurrently from multiple threads (this handler runs on
+        // whichever thread logs -- search worker threads included) --
+        // calling it unguarded corrupted the heap under concurrent
+        // logging (crashes deep in QLocale::quoteString / QArrayData
+        // reallocation on Windows CI, never locally).
+        ScopedLock lock( mutex_ );
+
         const auto formattedMessage = qFormatLogMessage( type, context, msg );
         const auto messageToPrint = formattedMessage.toUtf8();
 
-        ScopedLock lock( mutex_ );
         QTextStream ts( logFile_.get() );
         ts << messageToPrint << '\n';
 
@@ -73,10 +81,13 @@ class Logger {
             return;
         }
 
+        // See the identical comment in fileMessageHandler(): formatting
+        // must happen under the lock, not before it.
+        ScopedLock lock( mutex_ );
+
         const auto formattedMessage = qFormatLogMessage( type, context, msg );
         const auto messageToPrint = formattedMessage.toUtf8();
 
-        ScopedLock lock( mutex_ );
         std::cout << messageToPrint.constData() << std::endl;
     }
 
