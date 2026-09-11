@@ -96,6 +96,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
+#include "wrappedstring.h"
 
 #ifdef Q_OS_WIN
 #pragma warning( disable : 4244 )
@@ -1848,14 +1849,12 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
         = qMin( geometry.visibleLines(), linesInFile - LinesCount( content.firstLine.get() ) );
     const auto visibleColumns = geometry.visibleColumns();
 
-    content.rawLines = logData_->getLines( content.firstLine, nbLines );
-    content.expandedLines.reserve( content.rawLines.size() );
-    content.wrappedLines.reserve( content.rawLines.size() );
-    content.rows.reserve( content.rawLines.size() );
+    const auto rawLines = logData_->getLines( content.firstLine, nbLines );
+    content.rows.reserve( rawLines.size() );
 
     int yPos = 0;
-    for ( size_t index = 0; index < content.rawLines.size(); ++index ) {
-        QString expandedLine = untabify( QString{ content.rawLines[ index ] } );
+    for ( size_t index = 0; index < rawLines.size(); ++index ) {
+        const QString expandedLine = untabify( QString{ rawLines[ index ] } );
         const auto wrappedLineLength
             = useTextWrap_ ? visibleColumns : LineLength{ logsquirl::isize( expandedLine ) + 1 };
         WrappedString wrappedLine{ expandedLine, wrappedLineLength };
@@ -1872,9 +1871,6 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
                                                  rowLength, lineLength } );
             rowStart += rowLength;
         }
-
-        content.expandedLines.push_back( std::move( expandedLine ) );
-        content.wrappedLines.push_back( std::move( wrappedLine ) );
 
         yPos += charHeight_ * static_cast<int>( wrappedCount );
         if ( yPos > viewport()->height() ) {

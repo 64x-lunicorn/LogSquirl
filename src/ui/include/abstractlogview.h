@@ -67,7 +67,6 @@
 #include "selection.h"
 #include "viewportlayout.h"
 #include "viewtools.h"
-#include "wrappedstring.h"
 
 class QMenu;
 class QAction;
@@ -382,9 +381,6 @@ private:
     // something it depends on changes.
     struct ViewportContent {
         LineNumber firstLine{ 0 };
-        logsquirl::vector<QString> rawLines;
-        logsquirl::vector<QString> expandedLines;
-        logsquirl::vector<WrappedString> wrappedLines;
         ViewportRows rows;
     };
 
