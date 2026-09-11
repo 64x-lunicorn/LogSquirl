@@ -98,89 +98,19 @@
 #include "shortcuts.h"
 
 #ifdef Q_OS_WIN
-
 #pragma warning( disable : 4244 )
-
-#include <intrin.h>
-
-#if _WIN64
-inline int countLeadingZeroes( uint64_t value )
-{
-    unsigned long leading_zero = 0;
-
-    if ( _BitScanReverse64( &leading_zero, value ) ) {
-        return 63ul - leading_zero;
-    }
-    else {
-        return 64;
-    }
-}
-#else
-inline int countLeadingZeroes( uint64_t value )
-{
-    unsigned long leading_zero = 0;
-
-    if ( _BitScanReverse( &leading_zero, static_cast<uint32_t>( value ) ) ) {
-        return 63ul - leading_zero;
-    }
-    else {
-        return 64;
-    }
-}
-#endif
-
-#else
-inline int countLeadingZeroes( uint64_t value )
-{
-    return __builtin_clzll( value );
-}
 #endif
 
 namespace {
 
 int mapPullToFollowLength( int length );
 
-int intLog2( uint64_t x )
-{
-    return 63 - countLeadingZeroes( x | 1 );
-}
-
-// Layout constants shared between drawTextArea() and updateScrollBars().
-constexpr int SeparatorWidth = 1;
-constexpr int BulletAreaWidth = 11;
-constexpr int ContentMarginWidth = 1;
-constexpr int LineNumberPadding = 3;
-
-// see https://lemire.me/blog/2021/05/28/computing-the-number-of-digits-of-an-integer-quickly/
-int countDigits( uint64_t x )
-{
-    int l2 = intLog2( x );
-    int ans = ( ( 77 * l2 ) >> 8 );
-    static uint64_t table[] = { 9,
-                                99,
-                                999,
-                                9999,
-                                99999,
-                                999999,
-                                9999999,
-                                99999999,
-                                999999999,
-                                9999999999,
-                                99999999999,
-                                999999999999,
-                                9999999999999,
-                                99999999999999,
-                                999999999999999,
-                                9999999999999999,
-                                99999999999999999,
-                                999999999999999999,
-                                9999999999999999999u,
-                                0xFFFFFFFFFFFFFF };
-    if ( x > table[ ans ] ) {
-        ans += 1;
-    }
-    return ans + 1;
-}
+// The margin geometry has one definition, in ViewportLayout. Hit testing, the
+// scrollbars and painting all read it from there.
+constexpr int SeparatorWidth = ViewportLayout::SeparatorWidth;
+constexpr int BulletAreaWidth = ViewportLayout::BulletAreaWidth;
+constexpr int ContentMarginWidth = ViewportLayout::ContentMarginWidth;
+constexpr int LineNumberPadding = ViewportLayout::LineNumberPadding;
 
 int textWidth( const QFontMetrics& fm, const QString& text )
 {
@@ -500,7 +430,7 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
             update();
         }
         else if ( line.has_value() ) {
-            if ( mouseEvent->pos().x() < bulletZoneWidthPx_ ) {
+            if ( mouseEvent->pos().x() < viewportGeometry().bulletZoneWidthPx() ) {
                 // Mark a line if it is clicked in the left margin
                 // (only if click and release in the same area)
                 markingClickInitiated_ = true;
@@ -696,7 +626,7 @@ void AbstractLogView::mouseMoveEvent( QMouseEvent* mouseEvent )
 
         // Do we need to scroll while extending the selection?
         QRect visible = viewport()->rect();
-        visible.setLeft( leftMarginPx_ );
+        visible.setLeft( viewportGeometry().leftMarginPx() );
         if ( visible.contains( mouseEvent->pos() ) )
             autoScrollTimer_.stop();
         else if ( !autoScrollTimer_.isActive() )
@@ -744,7 +674,7 @@ void AbstractLogView::timerEvent( QTimerEvent* timerEvent )
 {
     if ( timerEvent->timerId() == autoScrollTimer_.timerId() ) {
         QRect visible = viewport()->rect();
-        visible.setLeft( leftMarginPx_ );
+        visible.setLeft( viewportGeometry().leftMarginPx() );
         const QPoint globalPos = QCursor::pos( activeScreen( this ) );
         const QPoint pos = viewport()->mapFromGlobal( globalPos );
         QMouseEvent ev( QEvent::MouseMove, pos, globalPos, Qt::LeftButton, Qt::LeftButton,
@@ -1073,14 +1003,20 @@ void AbstractLogView::scrollContentsBy( int dx, int dy )
 
     const auto scrollPosition = verticalScrollToLineNumber( verticalScrollBar()->value() );
 
+    // Bring the target position back into the range the Log File actually
+    // has: scrolling is where firstLine_ gets clamped, painting never moves
+    // it.
+    const auto clampedScrollPosition
+        = viewportGeometry().clampFirstLine( scrollPosition, logData_->getNbLine() );
+
     if ( ( lastTopLine.get() > 0 ) && scrollPosition.get() > lastTopLine.get() ) {
         // The user is going further than the last line, we need to lock the last line at the bottom
         LOG_DEBUG << "scrollContentsBy beyond!";
-        firstLine_ = scrollPosition;
+        firstLine_ = clampedScrollPosition;
         lastLineAligned_ = true;
     }
     else {
-        firstLine_ = scrollPosition;
+        firstLine_ = clampedScrollPosition;
         lastLineAligned_ = false;
     }
 
@@ -1165,7 +1101,9 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     }
 
     QPainter devicePainter( viewport() );
-    int drawingTopPosition = -pullToFollowHeight;
+    // The same pure function hit testing uses: painting no longer computes
+    // this by hand and leaves it behind as a member for hit testing to read.
+    const int drawingTopPosition = pullToFollowOffsetPx();
     int drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
 
     // This is to cover the special case where there is less than a screenful
@@ -1173,20 +1111,13 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     // pushing the first couple of lines above the viewport.
     if ( followElasticHook_.isHooked()
          && ( logData_->getNbLine() + LinesCount( 1 ) < getNbVisibleLines() ) ) {
-        drawingTopOffset_ = 0;
-        drawingTopPosition += ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight;
         drawingPullToFollowTopPosition
             = drawingTopPosition + viewport()->height() - PullToFollowHookedHeight;
     }
     // This is the case where the user is on the 'extra' slot at the end
     // and is aligned on the last line (but no elastic shown)
     else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
-        drawingTopOffset_ = -( wholeHeight - viewport()->height() );
-        drawingTopPosition += drawingTopOffset_;
         drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
-    }
-    else {
-        drawingTopOffset_ = -pullToFollowHeight;
     }
 
     devicePainter.drawPixmap( 0, drawingTopPosition, textAreaCache_.pixmap_ );
@@ -1798,8 +1729,9 @@ void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
 
 void AbstractLogView::forceRefresh()
 {
-    // Invalidate our cache
+    // Invalidate our caches
     textAreaCache_.invalid_ = true;
+    ++viewportGeneration_;
     update();
 }
 
@@ -1815,120 +1747,166 @@ void AbstractLogView::setSearchLimits( LineNumber startLine, LineNumber endLine 
 // Private functions
 //
 
+// The viewport layout without the rows. Everything it answers -- margins,
+// visible counts, scroll ranges -- is pure arithmetic over the widget's own
+// geometry, so this is cheap enough to build on every call.
+ViewportLayout AbstractLogView::viewportGeometry() const
+{
+    ViewportLayoutInput input;
+    input.charWidthPx = charWidth_;
+    input.charHeightPx = charHeight_;
+    input.viewportWidthPx = viewport()->width();
+    input.viewportHeightPx = viewport()->height();
+    input.firstLine = firstLine_;
+    input.firstColumn = firstCol_;
+    input.lineNumbersVisible = lineNumbersVisible_;
+    input.largestDisplayLineNumber = maxDisplayLineNumber().get();
+    input.textWrap = useTextWrap_;
+    input.drawingTopOffsetPx = pullToFollowOffsetPx();
+    return ViewportLayout{ input };
+}
+
+// The vertical offset the pull-to-follow animation currently applies to the
+// drawn content, in pixels. Mirrors exactly the position painting blits the
+// text pixmap at (see paintEvent), computed here as a pure function of state
+// so hit testing can call it directly instead of painting leaving a value
+// behind.
+int AbstractLogView::pullToFollowOffsetPx() const
+{
+    // visibleLines() does not depend on drawingTopOffsetPx, so this does not
+    // recurse into viewportGeometry() -> pullToFollowOffsetPx() again; it is
+    // computed directly to avoid that recursion.
+    const int charHeight = std::max( charHeight_, 1 );
+    const int visibleLinesCount = std::max( viewport()->height() / charHeight + 1, 1 );
+    const auto visibleLines
+        = LinesCount( static_cast<LinesCount::UnderlyingType>( visibleLinesCount ) );
+    const int wholeHeight = visibleLinesCount * charHeight_;
+
+    const int pullToFollowHeight
+        = mapPullToFollowLength( followElasticHook_.size() )
+          + ( followElasticHook_.isHooked()
+                  ? ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight
+                  : 0 );
+
+    int drawingTopPosition = -pullToFollowHeight;
+
+    // Special case where there is less than a screenful worth of data: show
+    // the document from the top, rather than pushing the first couple of
+    // lines above the viewport.
+    if ( followElasticHook_.isHooked()
+         && ( logData_->getNbLine() + LinesCount( 1 ) < visibleLines ) ) {
+        drawingTopPosition += ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight;
+    }
+    // The user is on the 'extra' slot at the end and is aligned on the last
+    // line (but no elastic shown).
+    else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
+        drawingTopPosition += -( wholeHeight - viewport()->height() );
+    }
+
+    return drawingTopPosition;
+}
+
+// The viewport layout including the rows on screen. The rows come from the
+// Log File, never from a paint, so a click or a hover before the first paint
+// resolves correctly.
+ViewportLayout AbstractLogView::viewportLayout() const
+{
+    return ViewportLayout{ viewportGeometry().input(), viewportContent().rows };
+}
+
+const AbstractLogView::ViewportContent& AbstractLogView::viewportContent() const
+{
+    const ViewportContentKey key{
+        firstLine_, firstCol_,   logData_->getNbLine(), viewport()->width(), viewport()->height(),
+        charWidth_, charHeight_, useTextWrap_,          lineNumbersVisible_, viewportGeneration_
+    };
+
+    if ( !viewportContent_.has_value() || !( viewportContentKey_ == key ) ) {
+        viewportContentKey_ = key;
+        viewportContent_ = buildViewportContent();
+    }
+
+    return *viewportContent_;
+}
+
+AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
+{
+    // Sanity cap against a corrupted wrapped line count causing an
+    // out-of-memory crash inside the allocator.
+    static constexpr size_t MaxWrappedRowsPerLine = 10000;
+
+    ViewportContent content;
+
+    const auto geometry = viewportGeometry();
+    const auto linesInFile = logData_->getNbLine();
+    if ( linesInFile.get() == 0 ) {
+        return content;
+    }
+
+    content.firstLine = geometry.clampFirstLine( firstLine_, linesInFile );
+    const auto nbLines
+        = qMin( geometry.visibleLines(), linesInFile - LinesCount( content.firstLine.get() ) );
+    const auto visibleColumns = geometry.visibleColumns();
+
+    content.rawLines = logData_->getLines( content.firstLine, nbLines );
+    content.expandedLines.reserve( content.rawLines.size() );
+    content.wrappedLines.reserve( content.rawLines.size() );
+    content.rows.reserve( content.rawLines.size() );
+
+    int yPos = 0;
+    for ( size_t index = 0; index < content.rawLines.size(); ++index ) {
+        QString expandedLine = untabify( QString{ content.rawLines[ index ] } );
+        const auto wrappedLineLength
+            = useTextWrap_ ? visibleColumns : LineLength{ logsquirl::isize( expandedLine ) + 1 };
+        WrappedString wrappedLine{ expandedLine, wrappedLineLength };
+
+        const auto lineNumber = content.firstLine + LinesCount( index );
+        const auto lineLength = LineLength{ logsquirl::isize( expandedLine ) };
+        const auto wrappedCount = wrappedLine.wrappedLinesCount();
+
+        LineColumn rowStart = 0_lcol;
+        for ( size_t row = 0; row < wrappedCount && row < MaxWrappedRowsPerLine; ++row ) {
+            const auto rowLength = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                wrappedLine.wrappedLineLength( row ) ) };
+            content.rows.push_back( ViewportRow{ lineNumber, static_cast<uint32_t>( row ), rowStart,
+                                                 rowLength, lineLength } );
+            rowStart += rowLength;
+        }
+
+        content.expandedLines.push_back( std::move( expandedLine ) );
+        content.wrappedLines.push_back( std::move( wrappedLine ) );
+
+        yPos += charHeight_ * static_cast<int>( wrappedCount );
+        if ( yPos > viewport()->height() ) {
+            break;
+        }
+    }
+
+    return content;
+}
+
 // Returns the number of lines visible in the viewport
 LinesCount AbstractLogView::getNbVisibleLines() const
 {
-    return LinesCount(
-        static_cast<LinesCount::UnderlyingType>( viewport()->height() / charHeight_ + 1 ) );
+    return viewportGeometry().visibleLines();
 }
 
 // Returns the number of columns visible in the viewport
 LineLength AbstractLogView::getNbVisibleCols() const
 {
-    // viewport()->width() already excludes the vertical scrollbar (Qt's
-    // QAbstractScrollArea handles this), so no manual subtraction is needed.
-    // Use floor division: only count columns that fully fit.  The drawing
-    // code already adds +1 via addChunk()'s inclusive end, so a partial
-    // column at the right edge is still rendered.
-    // Clamp to at least 1 to avoid negative/zero values when the viewport
-    // is narrower than the left margin (e.g., splitter dragged almost closed).
-    const int cols = ( viewport()->width() - leftMarginPx_ ) / charWidth_;
-    return LineLength{ std::max( cols, 1 ) };
+    return viewportGeometry().visibleColumns();
 }
 
-// Converts the mouse x, y coordinates to the line number in the file
+// Converts the mouse y coordinate to the line number in the file
 OptionalLineNumber AbstractLogView::convertCoordToLine( int yPos ) const
 {
-    const auto offset = std::abs( ( yPos - drawingTopOffset_ ) / charHeight_ );
-    const auto wrappedLineInfoIndex = static_cast<size_t>( std::floor( offset ) );
-    if ( wrappedLineInfoIndex < wrappedLinesInfo_.size() && !wrappedLinesInfo_.empty() ) {
-        return wrappedLinesInfo_[ wrappedLineInfoIndex ].lineNumber;
-    }
-    else {
-        return OptionalLineNumber{};
-    }
+    return viewportLayout().lineAtPoint( yPos );
 }
 
 // Converts the mouse x, y coordinates to the char coordinates (in the file)
-// This function ensure the pos exists in the file.
 FilePosition AbstractLogView::convertCoordToFilePos( const QPoint& pos ) const
 {
-    const auto offset = std::abs( ( pos.y() - drawingTopOffset_ ) / charHeight_ );
-
-    if ( wrappedLinesInfo_.empty() ) {
-        return FilePosition{ 0_lnum, 0_lcol };
-    }
-
-    const auto wrappedLineInfoIndex = wrappedLinesInfo_.size() > 1
-                                          ? std::clamp( static_cast<size_t>( std::floor( offset ) ),
-                                                        size_t{ 0 }, wrappedLinesInfo_.size() - 1 )
-                                          : 0;
-
-    const auto [ lineIndex, wrappedLineIndex, wrappedString ]
-        = wrappedLinesInfo_[ wrappedLineInfoIndex ];
-
-    auto clampedLineIndex = lineIndex;
-    if ( clampedLineIndex >= logData_->getNbLine() ) {
-        // Defensive guard: if the data has been cleared while a viewport conversion is in
-        // flight, getNbLine() may be 0. Subtracting 1 from LineNumber{0} would underflow
-        // because LineNumber is an unsigned strong typedef.
-        if ( logData_->getNbLine().get() == 0 ) {
-            return FilePosition{ 0_lnum, 0_lcol };
-        }
-        clampedLineIndex = LineNumber( logData_->getNbLine().get() ) - 1_lcount;
-    }
-
-    const WrappedString::WrappedStringPart lineText = wrappedString.unwrappedLine();
-
-    if ( lineText.size() <= 1 ) {
-        return FilePosition{ clampedLineIndex, 0_lcol };
-    }
-
-    const WrappedString::WrappedStringPart visibleText
-        = useTextWrap_ ? wrappedString.wrappedLine( wrappedLineIndex )
-                       : lineText.mid( firstCol_.get(), getNbVisibleCols().get() );
-
-    logsquirl::vector<LineColumn> possibleColumns( static_cast<size_t>( visibleText.size() ) );
-    logsquirl::vector<int> columnsWidth( static_cast<size_t>( visibleText.size() ), -1 );
-    std::iota( possibleColumns.begin(), possibleColumns.end(), 0_lcol );
-
-    const auto columnIt = std::lower_bound(
-        possibleColumns.cbegin(), possibleColumns.cend(), pos,
-        [ this, &visibleText, &columnsWidth ]( LineColumn c, const QPoint& p ) {
-            const size_t columnIndex = static_cast<size_t>( c.get() );
-            if ( columnsWidth[ columnIndex ] == -1 ) {
-                columnsWidth[ columnIndex ]
-                    = textWidth( pixmapFontMetrics_, visibleText.left( c.get() ) ) + leftMarginPx_;
-            }
-
-            return columnsWidth[ columnIndex ] < p.x();
-        } );
-
-    const auto length
-        = LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>( visibleText.size() ) };
-
-    auto column = ( columnIt != possibleColumns.end() ? *columnIt : length ) - 1_length;
-    if ( useTextWrap_ ) {
-        for ( auto i = 0u; i < wrappedLineIndex; ++i ) {
-            column += LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                wrappedString.wrappedLine( i ).size() ) };
-        }
-    }
-    else {
-        column += LineLength{ firstCol_.get() };
-    }
-
-    const auto maxColumn
-        = LineColumn( type_safe::narrow_cast<LineColumn::UnderlyingType>( std::min(
-              lineText.size(), static_cast<decltype( lineText.size() )>(
-                                   std::numeric_limits<LineColumn::UnderlyingType>::max() ) ) ) )
-          - 1_length;
-
-    column = std::clamp( column, 0_lcol, maxColumn );
-
-    LOG_DEBUG << "AbstractLogView::convertCoordToFilePos col=" << column
-              << " line=" << clampedLineIndex;
-    return FilePosition{ clampedLineIndex, column };
+    return viewportLayout().filePositionAtPoint( pos.x(), pos.y() );
 }
 
 // Makes the widget adjust itself to display the passed line.
@@ -2209,7 +2187,8 @@ void AbstractLogView::createMenu()
 void AbstractLogView::considerMouseHovering( int xPos, int yPos )
 {
     const auto line = convertCoordToLine( yPos );
-    if ( ( xPos < leftMarginPx_ ) && ( line.has_value() ) && ( *line < logData_->getNbLine() ) ) {
+    if ( ( xPos < viewportGeometry().leftMarginPx() ) && ( line.has_value() )
+         && ( *line < logData_->getNbLine() ) ) {
         // Mouse moved in the margin, send event up
         // (possibly to highlight the overview)
         if ( line != lastHoveredLine_ ) {
@@ -2255,46 +2234,21 @@ LinesCount AbstractLogView::getNbBottomWrappedVisibleLines() const
 
 void AbstractLogView::updateScrollBars()
 {
-    // Recompute leftMarginPx_ so getNbVisibleCols() returns the correct value
-    // even before the first paint (where drawTextArea() normally sets it).
-    {
-        int contentStartPosX = BulletAreaWidth + SeparatorWidth;
-        if ( lineNumbersVisible_ ) {
-            const int nbDigits = countDigits( maxDisplayLineNumber().get() );
-            const auto lineNumberWidth = charWidth_ * nbDigits;
-            const auto lineNumberAreaWidth = 2 * LineNumberPadding + lineNumberWidth;
-            contentStartPosX += lineNumberAreaWidth;
-        }
-        leftMarginPx_ = contentStartPosX + SeparatorWidth;
-    }
+    // The margin arithmetic the visible column count needs lives in the
+    // layout, so this is right even before the first paint.
+    const auto layout = viewportGeometry();
 
-    const LinesCount visibleLines = getNbVisibleLines();
-    const LineLength visibleColumns = getNbVisibleCols();
-    if ( logData_->getNbLine() < visibleLines ) {
-        verticalScrollBar()->setRange( 0, 0 );
-    }
-    else {
-        const auto visibleWrappedLines = getNbBottomWrappedVisibleLines();
-        const auto wrappedLinesScrollAdjust = ( visibleWrappedLines - visibleLines ).get();
+    const auto totalLines = logData_->getNbLine();
+    const auto visibleLines = layout.visibleLines();
+    const auto bottomWrappedVisibleLines
+        = totalLines < visibleLines ? visibleLines : getNbBottomWrappedVisibleLines();
 
-        verticalScrollBar()->setRange(
-            0, static_cast<int>( std::min( logData_->getNbLine().get() - visibleLines.get()
-                                               + LinesCount::UnderlyingType{ 1 }
-                                               + wrappedLinesScrollAdjust,
-                                           maxValue<LinesCount>().get() ) ) );
-    }
+    verticalScrollBar()->setRange(
+        0, layout.verticalScrollRange( totalLines, bottomWrappedVisibleLines ) );
 
-    int64_t hScrollMaxValue = 0;
-    if ( !useTextWrap_ && logData_->getMaxLength().get() >= visibleColumns.get() ) {
-        hScrollMaxValue = logData_->getMaxLength().get() - visibleColumns.get() + 1;
-    }
-
-    hScrollMaxValue
-        = std::min( hScrollMaxValue, static_cast<int64_t>( std::numeric_limits<int>::max() ) );
-
-    horizontalScrollBar()->setRange( 0, type_safe::narrow_cast<int>( hScrollMaxValue ) );
+    horizontalScrollBar()->setRange( 0, layout.horizontalScrollRange( logData_->getMaxLength() ) );
     horizontalScrollBar()->setPageStep(
-        type_safe::narrow_cast<int>( visibleColumns.get() * 7 / 8 ) );
+        type_safe::narrow_cast<int>( layout.visibleColumns().get() * 7 / 8 ) );
 }
 
 void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
@@ -2328,18 +2282,20 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     // Layout constants moved to anonymous namespace (see top of file).
 
-    // First check the lines to be drawn are within range (might not be the case if
-    // the file has just changed)
+    // The layout owns the margin arithmetic; painting only reads it.
+    const auto layout = viewportGeometry();
+
+    // firstLine_ is kept within range by the scroll path (scrollContentsBy,
+    // updateData); painting a view does not move it.
     const auto linesInFile = logData_->getNbLine();
 
-    if ( firstLine_ >= linesInFile )
-        firstLine_ = LineNumber( linesInFile.get() ? linesInFile.get() - 1 : 0 );
-
-    const auto nbLines = qMin( getNbVisibleLines(), linesInFile - LinesCount( firstLine_.get() ) );
+    const auto paintFirstLine = layout.clampFirstLine( firstLine_, linesInFile );
+    const auto nbLines
+        = qMin( getNbVisibleLines(), linesInFile - LinesCount( paintFirstLine.get() ) );
 
     const int bottomOfTextPx = static_cast<int>( nbLines.get() ) * fontHeight;
 
-    LOG_DEBUG << "drawing lines from " << firstLine_ << " (" << nbLines << " lines)";
+    LOG_DEBUG << "drawing lines from " << paintFirstLine << " (" << nbLines << " lines)";
     LOG_DEBUG << "bottomOfTextPx: " << bottomOfTextPx;
     LOG_DEBUG << "Height: " << paintDeviceHeight;
 
@@ -2351,19 +2307,15 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     painter->fillRect( 0, 0, BulletAreaWidth, paintDeviceHeight, Qt::darkGray );
 
     // Column at which the content should start (pixels)
-    int contentStartPosX = BulletAreaWidth + SeparatorWidth;
-
-    // This is also the bullet zone width, used for marking clicks
-    bulletZoneWidthPx_ = contentStartPosX;
+    int contentStartPosX = layout.bulletZoneWidthPx();
 
     // Update the length of line numbers
-    const int nbDigitsInLineNumber = countDigits( maxDisplayLineNumber().get() );
+    const int nbDigitsInLineNumber = layout.lineNumberDigits();
 
     // Draw the line numbers area
     int lineNumberAreaStartX = 0;
     if ( lineNumbersVisible_ ) {
-        const auto lineNumberWidth = charWidth_ * nbDigitsInLineNumber;
-        const auto lineNumberAreaWidth = 2 * LineNumberPadding + lineNumberWidth;
+        const auto lineNumberAreaWidth = layout.lineNumberAreaWidthPx();
         lineNumberAreaStartX = contentStartPosX;
 
         painter->setPen( palette.color( QPalette::Text ) );
@@ -2385,10 +2337,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     painter->drawLine( BulletAreaWidth, 0, BulletAreaWidth, paintDeviceHeight - 1 );
 
-    // This is the total width of the 'margin' (including line number if any)
-    // used for mouse calculation etc...
-    leftMarginPx_ = contentStartPosX + SeparatorWidth;
-
     const auto searchStartIndex = lineIndex( searchStart_ );
     const auto searchEndIndex = [ this ] {
         auto index = lineIndex( searchEnd_ );
@@ -2402,7 +2350,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     }();
 
     // Lines to write
-    const auto logLines = logData_->getLines( firstLine_, nbLines );
+    const auto logLines = logData_->getLines( paintFirstLine, nbLines );
 
     const auto highlightPatternMatches = Configuration::get().mainSearchHighlight();
     const auto variateHighlightPatternMatches = Configuration::get().variateMainSearchHighlight();
@@ -2472,20 +2420,15 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     // Position in pixel of the base line of the line to print
     int yPos = 0;
-    wrappedLinesInfo_.clear();
-    // Pre-reserve to reduce mimalloc reallocations during the paint loop.
-    // With text wrapping off each visible line produces exactly one entry;
-    // with wrapping the count is higher but this avoids the first N reallocs.
-    wrappedLinesInfo_.reserve( static_cast<size_t>( nbLines.get() ) );
     logsquirl::vector<std::pair<QColor, QColor>> highlightColors;
     for ( auto currentLine = 0_lcount; currentLine < nbLines; ++currentLine ) {
-        const auto lineNumber = firstLine_ + currentLine;
+        const auto lineNumber = paintFirstLine + currentLine;
         if ( currentLine.get() >= logLines.size() ) {
             break; // Guard against stale nbLines after file change
         }
         QString logLine = logLines[ currentLine.get() ];
 
-        const int xPos = contentStartPosX + ContentMarginWidth;
+        const int xPos = layout.textOriginX();
 
         using LineTypeFlags = AbstractLogData::LineTypeFlags;
         const auto currentLineType = lineType( lineNumber );
@@ -2695,14 +2638,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, yPos + fontAscent,
                                lineNumberStr );
         }
-        // Sanity-cap: protect against corrupted wrappedLinesCount values that
-        // could cause an out-of-memory crash inside the mimalloc allocator.
-        const auto wrappedCount = wrappedLineView.wrappedLinesCount();
-        static constexpr size_t kMaxWrappedLines = 10000;
-        for ( size_t i = 0u; i < wrappedCount && i < kMaxWrappedLines; ++i ) {
-            wrappedLinesInfo_.emplace_back( WrappedLineData{ lineNumber, i, wrappedLineView } );
-        }
-
         yPos += finalLineHeight;
         if ( yPos > viewport()->height() ) {
             break;

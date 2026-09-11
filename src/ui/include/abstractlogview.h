@@ -65,6 +65,7 @@
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
 #include "selection.h"
+#include "viewportlayout.h"
 #include "viewtools.h"
 #include "wrappedstring.h"
 
@@ -324,15 +325,6 @@ private:
     static constexpr int HookThreshold = 300;
     static constexpr int PullToFollowHookedHeight = 10;
 
-    // Width of the bullet zone, including decoration. Initialised to the
-    // bullet area plus its separator (matching BulletAreaWidth +
-    // SeparatorWidth in the .cpp) so a click arriving before the first
-    // paint hit-tests against the same boundary paintEvent() will draw.
-    int bulletZoneWidthPx_ = 12;
-
-    // Total size of all margins and decorations in pixels
-    int leftMarginPx_ = 0;
-
     // Digits buffer (for numeric keyboard entry)
     DigitsBuffer digitsBuffer_;
 
@@ -385,12 +377,39 @@ private:
     bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
 
-    struct WrappedLineData {
-        LineNumber lineNumber;
-        size_t wrappedLineIndex;
-        WrappedString wrappedString;
+    // The Log Lines currently on screen, with the rows they occupy. Computed
+    // on demand from the Log File -- not by painting -- and cached until
+    // something it depends on changes.
+    struct ViewportContent {
+        LineNumber firstLine{ 0 };
+        logsquirl::vector<QString> rawLines;
+        logsquirl::vector<QString> expandedLines;
+        logsquirl::vector<WrappedString> wrappedLines;
+        ViewportRows rows;
     };
-    logsquirl::vector<WrappedLineData> wrappedLinesInfo_;
+
+    // Everything a ViewportContent depends on. When this changes, the content
+    // is rebuilt.
+    struct ViewportContentKey {
+        LineNumber firstLine{ 0 };
+        LineColumn firstColumn{ 0 };
+        LinesCount totalLines{ 0 };
+        int viewportWidth = -1;
+        int viewportHeight = -1;
+        int charWidth = -1;
+        int charHeight = -1;
+        bool textWrap = false;
+        bool lineNumbersVisible = false;
+        uint64_t generation = 0;
+
+        bool operator==( const ViewportContentKey& ) const = default;
+    };
+
+    mutable std::optional<ViewportContent> viewportContent_;
+    mutable ViewportContentKey viewportContentKey_;
+    // Bumped whenever the Log File content behind the viewport may have
+    // changed, so the cached content is rebuilt.
+    uint64_t viewportGeneration_ = 0;
 
     LineNumber searchStart_;
     LineNumber searchEnd_;
@@ -436,9 +455,6 @@ private:
     PerfCounter perfCounter_;
 #endif
 
-    // Vertical offset (in pixels) at which the first line of text is written
-    int drawingTopOffset_ = 0;
-
     // Cache pixmap and associated info
     struct TextAreaCache {
         QPixmap pixmap_;
@@ -455,13 +471,30 @@ private:
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
 
+    // The viewport layout, without the rows: enough to answer margins,
+    // visible counts and scroll ranges, and cheap because it touches no
+    // Log Line.
+    ViewportLayout viewportGeometry() const;
+    // The viewport layout including the rows currently on screen, which is
+    // what hit testing and painting need. Built from the Log File, never from
+    // a paint, so it answers before the first paint has happened.
+    ViewportLayout viewportLayout() const;
+
+    const ViewportContent& viewportContent() const;
+    ViewportContent buildViewportContent() const;
+
     LinesCount getNbVisibleLines() const;
     LinesCount getNbBottomWrappedVisibleLines() const;
     LineLength getNbVisibleCols() const;
 
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
     OptionalLineNumber convertCoordToLine( int yPos ) const;
-    LineColumn convertCoordToColumn( int xPos ) const;
+
+    // Vertical offset (pixels) at which the first row is drawn, given the
+    // current pull-to-follow animation state. Pure: reads state, writes
+    // nothing. Painting and hit testing both call it instead of painting
+    // leaving a value behind for hit testing to read later.
+    int pullToFollowOffsetPx() const;
 
     void displayLine( LineNumber line );
     void moveSelection( LinesCount delta, bool isDeltaNegative );

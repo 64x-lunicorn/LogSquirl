@@ -35,6 +35,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedcrawlerwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewinterface.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewtools.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/viewportlayout.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/wrappedstring.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/scratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedscratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chipmunkimporter.h
@@ -99,6 +101,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/signalmux.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedcrawlerwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewtools.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/viewportlayout.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/scratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbedscratchpad.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filterspanel.cpp
