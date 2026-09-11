@@ -321,12 +321,6 @@ private:
     static constexpr int HookThreshold = 300;
     static constexpr int PullToFollowHookedHeight = 10;
 
-    // Width of the bullet zone, including decoration
-    int bulletZoneWidthPx_;
-
-    // Total size of all margins and decorations in pixels
-    int leftMarginPx_ = 0;
-
     // Digits buffer (for numeric keyboard entry)
     DigitsBuffer digitsBuffer_;
 
@@ -378,15 +372,6 @@ private:
     bool lastLineAligned_ = false;
     bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
-
-    struct WrappedLineData {
-        LineNumber lineNumber;
-        size_t wrappedLineIndex;
-        WrappedString wrappedString;
-    };
-    // Written by painting only, and only so the debug cross-check below can
-    // compare it against the rows the layout reports. Goes away with #101.
-    logsquirl::vector<WrappedLineData> wrappedLinesInfo_;
 
     // The Log Lines currently on screen, with the rows they occupy. Computed
     // on demand from the Log File -- not by painting -- and cached until
@@ -466,9 +451,6 @@ private:
     PerfCounter perfCounter_;
 #endif
 
-    // Vertical offset (in pixels) at which the first line of text is written
-    int drawingTopOffset_ = 0;
-
     // Cache pixmap and associated info
     struct TextAreaCache {
         QPixmap pixmap_;
@@ -503,6 +485,12 @@ private:
 
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
     OptionalLineNumber convertCoordToLine( int yPos ) const;
+
+    // Vertical offset (pixels) at which the first row is drawn, given the
+    // current pull-to-follow animation state. Pure: reads state, writes
+    // nothing. Painting and hit testing both call it instead of painting
+    // leaving a value behind for hit testing to read later.
+    int pullToFollowOffsetPx() const;
 
     void displayLine( LineNumber line );
     void moveSelection( LinesCount delta, bool isDeltaNegative );

@@ -1002,14 +1002,20 @@ void AbstractLogView::scrollContentsBy( int dx, int dy )
 
     const auto scrollPosition = verticalScrollToLineNumber( verticalScrollBar()->value() );
 
+    // Bring the target position back into the range the Log File actually
+    // has: scrolling is where firstLine_ gets clamped, painting never moves
+    // it.
+    const auto clampedScrollPosition
+        = viewportGeometry().clampFirstLine( scrollPosition, logData_->getNbLine() );
+
     if ( ( lastTopLine.get() > 0 ) && scrollPosition.get() > lastTopLine.get() ) {
         // The user is going further than the last line, we need to lock the last line at the bottom
         LOG_DEBUG << "scrollContentsBy beyond!";
-        firstLine_ = scrollPosition;
+        firstLine_ = clampedScrollPosition;
         lastLineAligned_ = true;
     }
     else {
-        firstLine_ = scrollPosition;
+        firstLine_ = clampedScrollPosition;
         lastLineAligned_ = false;
     }
 
@@ -1094,7 +1100,9 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     }
 
     QPainter devicePainter( viewport() );
-    int drawingTopPosition = -pullToFollowHeight;
+    // The same pure function hit testing uses: painting no longer computes
+    // this by hand and leaves it behind as a member for hit testing to read.
+    const int drawingTopPosition = pullToFollowOffsetPx();
     int drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
 
     // This is to cover the special case where there is less than a screenful
@@ -1102,20 +1110,13 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     // pushing the first couple of lines above the viewport.
     if ( followElasticHook_.isHooked()
          && ( logData_->getNbLine() + LinesCount( 1 ) < getNbVisibleLines() ) ) {
-        drawingTopOffset_ = 0;
-        drawingTopPosition += ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight;
         drawingPullToFollowTopPosition
             = drawingTopPosition + viewport()->height() - PullToFollowHookedHeight;
     }
     // This is the case where the user is on the 'extra' slot at the end
     // and is aligned on the last line (but no elastic shown)
     else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
-        drawingTopOffset_ = -( wholeHeight - viewport()->height() );
-        drawingTopPosition += drawingTopOffset_;
         drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
-    }
-    else {
-        drawingTopOffset_ = -pullToFollowHeight;
     }
 
     devicePainter.drawPixmap( 0, drawingTopPosition, textAreaCache_.pixmap_ );
@@ -1759,8 +1760,48 @@ ViewportLayout AbstractLogView::viewportGeometry() const
     input.lineNumbersVisible = lineNumbersVisible_;
     input.largestDisplayLineNumber = maxDisplayLineNumber().get();
     input.textWrap = useTextWrap_;
-    input.drawingTopOffsetPx = drawingTopOffset_;
+    input.drawingTopOffsetPx = pullToFollowOffsetPx();
     return ViewportLayout{ input };
+}
+
+// The vertical offset the pull-to-follow animation currently applies to the
+// drawn content, in pixels. Mirrors exactly the position painting blits the
+// text pixmap at (see paintEvent), computed here as a pure function of state
+// so hit testing can call it directly instead of painting leaving a value
+// behind.
+int AbstractLogView::pullToFollowOffsetPx() const
+{
+    // visibleLines() does not depend on drawingTopOffsetPx, so this does not
+    // recurse into viewportGeometry() -> pullToFollowOffsetPx() again; it is
+    // computed directly to avoid that recursion.
+    const int charHeight = std::max( charHeight_, 1 );
+    const int visibleLinesCount = std::max( viewport()->height() / charHeight + 1, 1 );
+    const auto visibleLines = LinesCount(
+        static_cast<LinesCount::UnderlyingType>( visibleLinesCount ) );
+    const int wholeHeight = visibleLinesCount * charHeight_;
+
+    const int pullToFollowHeight
+        = mapPullToFollowLength( followElasticHook_.size() )
+          + ( followElasticHook_.isHooked()
+                  ? ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight
+                  : 0 );
+
+    int drawingTopPosition = -pullToFollowHeight;
+
+    // Special case where there is less than a screenful worth of data: show
+    // the document from the top, rather than pushing the first couple of
+    // lines above the viewport.
+    if ( followElasticHook_.isHooked()
+         && ( logData_->getNbLine() + LinesCount( 1 ) < visibleLines ) ) {
+        drawingTopPosition += ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight;
+    }
+    // The user is on the 'extra' slot at the end and is aligned on the last
+    // line (but no elastic shown).
+    else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
+        drawingTopPosition += -( wholeHeight - viewport()->height() );
+    }
+
+    return drawingTopPosition;
 }
 
 // The viewport layout including the rows on screen. The rows come from the
@@ -2240,18 +2281,20 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     // Layout constants moved to anonymous namespace (see top of file).
 
-    // First check the lines to be drawn are within range (might not be the case if
-    // the file has just changed)
+    // The layout owns the margin arithmetic; painting only reads it.
+    const auto layout = viewportGeometry();
+
+    // firstLine_ is kept within range by the scroll path (scrollContentsBy,
+    // updateData); painting a view does not move it.
     const auto linesInFile = logData_->getNbLine();
 
-    if ( firstLine_ >= linesInFile )
-        firstLine_ = LineNumber( linesInFile.get() ? linesInFile.get() - 1 : 0 );
-
-    const auto nbLines = qMin( getNbVisibleLines(), linesInFile - LinesCount( firstLine_.get() ) );
+    const auto paintFirstLine = layout.clampFirstLine( firstLine_, linesInFile );
+    const auto nbLines
+        = qMin( getNbVisibleLines(), linesInFile - LinesCount( paintFirstLine.get() ) );
 
     const int bottomOfTextPx = static_cast<int>( nbLines.get() ) * fontHeight;
 
-    LOG_DEBUG << "drawing lines from " << firstLine_ << " (" << nbLines << " lines)";
+    LOG_DEBUG << "drawing lines from " << paintFirstLine << " (" << nbLines << " lines)";
     LOG_DEBUG << "bottomOfTextPx: " << bottomOfTextPx;
     LOG_DEBUG << "Height: " << paintDeviceHeight;
 
@@ -2263,19 +2306,15 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     painter->fillRect( 0, 0, BulletAreaWidth, paintDeviceHeight, Qt::darkGray );
 
     // Column at which the content should start (pixels)
-    int contentStartPosX = BulletAreaWidth + SeparatorWidth;
-
-    // This is also the bullet zone width, used for marking clicks
-    bulletZoneWidthPx_ = contentStartPosX;
+    int contentStartPosX = layout.bulletZoneWidthPx();
 
     // Update the length of line numbers
-    const int nbDigitsInLineNumber = countLineNumberDigits( maxDisplayLineNumber().get() );
+    const int nbDigitsInLineNumber = layout.lineNumberDigits();
 
     // Draw the line numbers area
     int lineNumberAreaStartX = 0;
     if ( lineNumbersVisible_ ) {
-        const auto lineNumberWidth = charWidth_ * nbDigitsInLineNumber;
-        const auto lineNumberAreaWidth = 2 * LineNumberPadding + lineNumberWidth;
+        const auto lineNumberAreaWidth = layout.lineNumberAreaWidthPx();
         lineNumberAreaStartX = contentStartPosX;
 
         painter->setPen( palette.color( QPalette::Text ) );
@@ -2297,10 +2336,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     painter->drawLine( BulletAreaWidth, 0, BulletAreaWidth, paintDeviceHeight - 1 );
 
-    // This is the total width of the 'margin' (including line number if any)
-    // used for mouse calculation etc...
-    leftMarginPx_ = contentStartPosX + SeparatorWidth;
-
     const auto searchStartIndex = lineIndex( searchStart_ );
     const auto searchEndIndex = [ this ] {
         auto index = lineIndex( searchEnd_ );
@@ -2314,7 +2349,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     }();
 
     // Lines to write
-    const auto logLines = logData_->getLines( firstLine_, nbLines );
+    const auto logLines = logData_->getLines( paintFirstLine, nbLines );
 
     const auto highlightPatternMatches = Configuration::get().mainSearchHighlight();
     const auto variateHighlightPatternMatches = Configuration::get().variateMainSearchHighlight();
@@ -2384,20 +2419,15 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     // Position in pixel of the base line of the line to print
     int yPos = 0;
-    wrappedLinesInfo_.clear();
-    // Pre-reserve to reduce mimalloc reallocations during the paint loop.
-    // With text wrapping off each visible line produces exactly one entry;
-    // with wrapping the count is higher but this avoids the first N reallocs.
-    wrappedLinesInfo_.reserve( static_cast<size_t>( nbLines.get() ) );
     logsquirl::vector<std::pair<QColor, QColor>> highlightColors;
     for ( auto currentLine = 0_lcount; currentLine < nbLines; ++currentLine ) {
-        const auto lineNumber = firstLine_ + currentLine;
+        const auto lineNumber = paintFirstLine + currentLine;
         if ( currentLine.get() >= logLines.size() ) {
             break; // Guard against stale nbLines after file change
         }
         QString logLine = logLines[ currentLine.get() ];
 
-        const int xPos = contentStartPosX + ContentMarginWidth;
+        const int xPos = layout.textOriginX();
 
         using LineTypeFlags = AbstractLogData::LineTypeFlags;
         const auto currentLineType = lineType( lineNumber );
@@ -2607,36 +2637,11 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, yPos + fontAscent,
                                lineNumberStr );
         }
-        // Sanity-cap: protect against corrupted wrappedLinesCount values that
-        // could cause an out-of-memory crash inside the mimalloc allocator.
-        const auto wrappedCount = wrappedLineView.wrappedLinesCount();
-        static constexpr size_t kMaxWrappedLines = 10000;
-        for ( size_t i = 0u; i < wrappedCount && i < kMaxWrappedLines; ++i ) {
-            wrappedLinesInfo_.emplace_back( WrappedLineData{ lineNumber, i, wrappedLineView } );
-        }
-
         yPos += finalLineHeight;
         if ( yPos > viewport()->height() ) {
             break;
         }
     } // For each line
-
-#ifdef QT_DEBUG
-    // Cross-check: the layout's own wrapping computation (built straight
-    // from the Log File) must agree with what painting just computed by
-    // hand. Once painting stops computing its own copy (#101), this and
-    // wrappedLinesInfo_ both go away.
-    {
-        const auto& layoutRows = viewportContent().rows;
-        Q_ASSERT( layoutRows.size() == wrappedLinesInfo_.size() );
-        const auto count = std::min( layoutRows.size(), wrappedLinesInfo_.size() );
-        for ( size_t i = 0; i < count; ++i ) {
-            Q_ASSERT( layoutRows[ i ].lineNumber == wrappedLinesInfo_[ i ].lineNumber );
-            Q_ASSERT( layoutRows[ i ].wrappedLineIndex
-                     == static_cast<uint32_t>( wrappedLinesInfo_[ i ].wrappedLineIndex ) );
-        }
-    }
-#endif
 }
 
 // Draw the "pull to follow" bar and return a pixmap.
