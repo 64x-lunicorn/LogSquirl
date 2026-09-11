@@ -5,8 +5,15 @@ RUN dnf update -y && \
     openssl-devel boost-devel zlib-devel libcurl-devel \
     gcc gcc-c++ elfutils-devel ninja-build cmake \
     mesa-libGL-devel libxkbcommon-devel fontconfig-devel freetype-devel \
+    dejavu-sans-mono-fonts \
     xcb-util-cursor xcb-util-keysyms xcb-util-wm dbus-devel && \
     dnf clean all
+
+# The Table View paints Log Lines in a fixed-pitch font, so the image has to
+# carry one: without it fontconfig resolves the "monospace" alias to whatever
+# proportional face is present and the font tests fail far from the cause.
+RUN fc-list | grep -qi "DejaVu Sans Mono" \
+    || { echo "No fixed-pitch font in image; fontconfig would alias monospace to a proportional face" >&2; exit 1; }
 
 # Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
 ENV QT_VERSION=6.10.3
