@@ -109,6 +109,11 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     Q_OBJECT
 
 public:
+    // Width of the overview strip, in pixels. Shared with whatever else
+    // lays out an overview beside a view of Log Lines -- the Table View's
+    // overview included -- so there is one declaration to keep in step.
+    static constexpr int OverviewWidth = 27;
+
     // Constructor of the widget, the data set is passed.
     // The caller retains ownership of the data set.
     // The pointer to the QFP is used for colouring and QuickFind searches
@@ -316,12 +321,14 @@ private Q_SLOTS:
 
 private:
     // Graphic parameters
-    static constexpr int OverviewWidth = 27;
     static constexpr int HookThreshold = 300;
     static constexpr int PullToFollowHookedHeight = 10;
 
-    // Width of the bullet zone, including decoration
-    int bulletZoneWidthPx_;
+    // Width of the bullet zone, including decoration. Initialised to the
+    // bullet area plus its separator (matching BulletAreaWidth +
+    // SeparatorWidth in the .cpp) so a click arriving before the first
+    // paint hit-tests against the same boundary paintEvent() will draw.
+    int bulletZoneWidthPx_ = 12;
 
     // Total size of all margins and decorations in pixels
     int leftMarginPx_ = 0;

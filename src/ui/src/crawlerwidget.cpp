@@ -2832,8 +2832,7 @@ int CrawlerWidget::tableCellCharAtX( const QModelIndex& index, int pixelX ) cons
     }
 
     const auto cellRect = logTableView_->visualRect( index );
-    // 4px left padding matches the delegate
-    const int textLeft = cellRect.left() + 4;
+    const int textLeft = cellRect.left() + LogTableHighlightDelegate::HorizontalTextPadding;
     const int relativeX = pixelX - textLeft;
 
     if ( relativeX <= 0 ) {
@@ -2912,8 +2911,6 @@ void CrawlerWidget::updateTableOverview()
         return;
     }
 
-    static constexpr int OverviewWidth = 27;
-
     // Place the overview widget at the right edge of the table view,
     // spanning the full height below the header.
     const int headerHeight = logTableView_->horizontalHeader()->isVisible()
@@ -2928,7 +2925,8 @@ void CrawlerWidget::updateTableOverview()
         return;
     }
 
-    tableOverviewWidget_->setGeometry( tableWidth - OverviewWidth - 1, headerHeight, OverviewWidth,
+    tableOverviewWidget_->setGeometry( tableWidth - AbstractLogView::OverviewWidth - 1,
+                                       headerHeight, AbstractLogView::OverviewWidth,
                                        overviewHeight );
     tableOverviewWidget_->show();
     tableOverviewWidget_->raise();

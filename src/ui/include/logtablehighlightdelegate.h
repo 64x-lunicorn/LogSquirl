@@ -41,6 +41,11 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     Q_OBJECT
 
 public:
+    // Horizontal padding applied on each side of a cell's text, both when
+    // painting it and when hit-testing a click against it. The two must
+    // agree, so both read this single constant.
+    static constexpr int HorizontalTextPadding = 4;
+
     explicit LogTableHighlightDelegate( QObject* parent = nullptr )
         : QStyledItemDelegate( parent )
     {
@@ -222,7 +227,8 @@ public:
             painter->fillRect( opt.rect, backColor );
             const auto cellText = index.data( Qt::DisplayRole ).toString();
             if ( !cellText.isEmpty() ) {
-                const auto textRect = opt.rect.adjusted( 4, 0, -4, 0 );
+                const auto textRect
+                    = opt.rect.adjusted( HorizontalTextPadding, 0, -HorizontalTextPadding, 0 );
                 const auto fm = painter->fontMetrics();
                 const int yOffset = ( opt.rect.height() - fm.height() ) / 2;
                 const int baseline = opt.rect.top() + yOffset + fm.ascent();
@@ -295,7 +301,8 @@ public:
             paintHighlightedText( painter, opt, cellText, decoration.spans(), foreColor );
         }
         else {
-            const auto textRect = opt.rect.adjusted( 4, 0, -4, 0 );
+            const auto textRect
+                = opt.rect.adjusted( HorizontalTextPadding, 0, -HorizontalTextPadding, 0 );
             const auto fm = painter->fontMetrics();
             // Center text vertically: offset = (cellHeight - fontHeight) / 2
             const int yOffset = ( opt.rect.height() - fm.height() ) / 2;
@@ -314,8 +321,7 @@ public:
         const auto cellText = index.data( Qt::DisplayRole ).toString();
         if ( !cellText.isEmpty() ) {
             const auto fm = option.fontMetrics;
-            // 8 = 4px padding on each side
-            hint.setWidth( fm.horizontalAdvance( cellText ) + 8 );
+            hint.setWidth( fm.horizontalAdvance( cellText ) + 2 * HorizontalTextPadding );
         }
         return hint;
     }
@@ -438,7 +444,8 @@ private:
                                       const logsquirl::vector<HighlightedMatch>& cellMatches,
                                       const QColor& foreColor )
     {
-        const auto textRect = opt.rect.adjusted( 4, 0, -4, 0 );
+        const auto textRect
+            = opt.rect.adjusted( HorizontalTextPadding, 0, -HorizontalTextPadding, 0 );
         const auto fm = painter->fontMetrics();
         const int cellY = opt.rect.top();
         const int cellH = opt.rect.height();
