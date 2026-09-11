@@ -1000,7 +1000,7 @@ void AbstractLogView::scrollContentsBy( int dx, int dy )
 {
     LOG_DEBUG << "scrollContentsBy received " << dy << "position " << verticalScrollBar()->value();
 
-    const auto lastTopLine = ( logData_->getNbLine() - getNbVisibleLines() );
+    const auto lastTopLine = viewportGeometry().lastValidFirstLine( logData_->getNbLine() );
 
     const auto scrollPosition = verticalScrollToLineNumber( verticalScrollBar()->value() );
 
