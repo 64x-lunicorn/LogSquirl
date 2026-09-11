@@ -38,18 +38,40 @@ std::optional<QString> findFamily( bool fixedPitch )
     return std::nullopt;
 }
 
+// A family name can claim fixed-pitch in QFontDatabase while itself being a
+// generic alias (e.g. "Monospace") that Qt resolves to something else
+// again -- possibly proportional -- once actually requested. What matters
+// to validatedFixedPitchFont() is the family QFontInfo resolves to, so the
+// fallback this test relies on must be self-consistent under that same
+// resolution, or the assertion is really testing font substitution
+// idiosyncrasies of the host rather than the function under test.
+std::optional<QString> findStableFixedPitchFamily()
+{
+    for ( const auto& family : QFontDatabase::families() ) {
+        if ( !QFontDatabase::isFixedPitch( family ) ) {
+            continue;
+        }
+        const QFont font( family, 10 );
+        const auto resolvedFamily = QFontInfo( font ).family();
+        if ( QFontDatabase::isFixedPitch( resolvedFamily ) ) {
+            return family;
+        }
+    }
+    return std::nullopt;
+}
+
 } // namespace
 
 TEST_CASE( "FontUtils::validatedFixedPitchFont keeps a fixed-pitch font", "[fontutils]" )
 {
-    const auto family = findFamily( true );
+    const auto family = findStableFixedPitchFamily();
     if ( !family.has_value() ) {
-        SUCCEED( "No fixed-pitch font installed on this system to test with" );
+        SUCCEED( "No stable fixed-pitch font installed on this system to test with" );
         return;
     }
 
     const QFont font( *family, 10 );
-    const QFont validated = FontUtils::validatedFixedPitchFont( font, "DejaVu Sans Mono" );
+    const QFont validated = FontUtils::validatedFixedPitchFont( font, *family );
 
     REQUIRE( QFontInfo( validated ).family() == QFontInfo( font ).family() );
 }
@@ -62,9 +84,9 @@ TEST_CASE( "FontUtils::validatedFixedPitchFont substitutes a non-fixed-pitch fon
         return;
     }
 
-    const auto fallbackFamily = findFamily( true );
+    const auto fallbackFamily = findStableFixedPitchFamily();
     if ( !fallbackFamily.has_value() ) {
-        SUCCEED( "No fixed-pitch fallback font installed on this system to test with" );
+        SUCCEED( "No stable fixed-pitch fallback font installed on this system to test with" );
         return;
     }
 
