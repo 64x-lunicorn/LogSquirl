@@ -80,6 +80,7 @@
 
 #include "abstractlogview.h"
 #include "containers.h"
+#include "fontutils.h"
 #include "highlightedmatch.h"
 #include "linetypes.h"
 
@@ -1621,8 +1622,9 @@ void AbstractLogView::updateData()
 
 void AbstractLogView::updateFont( const QFont& font )
 {
-    setFont( font );
-    pixmapFontMetrics_ = pixmapFontMetrics( font );
+    const QFont validatedFont = FontUtils::validatedFixedPitchFont( font );
+    setFont( validatedFont );
+    pixmapFontMetrics_ = pixmapFontMetrics( validatedFont );
     updateDisplaySize();
     update();
 }

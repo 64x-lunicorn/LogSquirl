@@ -72,6 +72,14 @@ public:
     /// Return the cache directory path.
     static QString cacheDir();
 
+    /// Overrides the cache directory, for tests: a test that exercises the
+    /// disk cache needs a location of its own rather than the developer's
+    /// real cache directory, and passing one in is simpler than the cache
+    /// deriving its own location from a Configuration it would otherwise
+    /// have to bootstrap. Pass an empty string to go back to the real
+    /// location.
+    static void setCacheDirOverride( const QString& dir );
+
     /// Enforce the maximum cache size by evicting least-recently-used
     /// entries until total size is below maxBytes.
     static void evict( qint64 maxBytes );

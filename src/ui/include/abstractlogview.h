@@ -110,6 +110,11 @@ class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInter
     Q_OBJECT
 
 public:
+    // Width of the overview strip, in pixels. Shared with whatever else
+    // lays out an overview beside a view of Log Lines -- the Table View's
+    // overview included -- so there is one declaration to keep in step.
+    static constexpr int OverviewWidth = 27;
+
     // Constructor of the widget, the data set is passed.
     // The caller retains ownership of the data set.
     // The pointer to the QFP is used for colouring and QuickFind searches
@@ -317,7 +322,6 @@ private Q_SLOTS:
 
 private:
     // Graphic parameters
-    static constexpr int OverviewWidth = 27;
     static constexpr int HookThreshold = 300;
     static constexpr int PullToFollowHookedHeight = 10;
 
