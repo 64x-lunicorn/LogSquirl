@@ -95,3 +95,44 @@ TEST_CASE( "FontUtils::validatedFixedPitchFont substitutes a non-fixed-pitch fon
 
     REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( validated ).family() ) );
 }
+
+TEST_CASE( "FontUtils::platformFixedPitchFamily resolves to a fixed-pitch family", "[fontutils]" )
+{
+    const auto family = FontUtils::platformFixedPitchFamily();
+
+    REQUIRE( !family.isEmpty() );
+    REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( QFont( family, 10 ) ).family() ) );
+}
+
+TEST_CASE( "FontUtils::validatedFixedPitchFont falls back without a family named", "[fontutils]" )
+{
+    const auto family = findFamily( false );
+    if ( !family.has_value() ) {
+        SUCCEED( "No proportional font installed on this system to test with" );
+        return;
+    }
+
+    const QFont font( *family, 10 );
+    const QFont validated = FontUtils::validatedFixedPitchFont( font );
+
+    REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( validated ).family() ) );
+}
+
+TEST_CASE( "FontUtils::validatedFixedPitchFont rejects a fallback family that is absent",
+           "[fontutils]" )
+{
+    const auto family = findFamily( false );
+    if ( !family.has_value() ) {
+        SUCCEED( "No proportional font installed on this system to test with" );
+        return;
+    }
+
+    // The defect this covers: a fallback family that does not exist on the
+    // host is substituted by Qt just as silently as the original font was,
+    // and the substitute can itself be proportional.
+    const QFont font( *family, 10 );
+    const QFont validated
+        = FontUtils::validatedFixedPitchFont( font, "LogSquirl No Such Font Family" );
+
+    REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( validated ).family() ) );
+}

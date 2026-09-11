@@ -32,26 +32,51 @@
 
 class FontUtils {
 public:
+    // The fixed-pitch family Qt guarantees for this platform. Used as the
+    // last resort, because a hard-coded family name is exactly the thing
+    // that can be absent: "DejaVu Sans Mono" ships with most Linux
+    // distributions and with neither stock Windows nor macOS.
+    static QString platformFixedPitchFamily()
+    {
+        return QFontDatabase::systemFont( QFontDatabase::FixedFont ).family();
+    }
+
     // Falls back to a fixed-pitch family when the font that will actually
     // be used to paint is not fixed-pitch. Checked via QFontInfo rather
     // than the requested family directly, so a family Qt itself
     // substitutes (missing font, stale settings file) is validated after
     // that substitution and not before it -- the request can name a font
     // that does not exist; only what Qt resolves to actually gets painted.
-    static QFont validatedFixedPitchFont( const QFont& font,
-                                          const QString& fallbackFamily = "DejaVu Sans Mono" )
+    //
+    // The fallback is held to the same rule: a family that is missing here
+    // is substituted just as silently as the original was, so what it
+    // resolves to is validated too, and the platform's own fixed font
+    // takes over when it does not hold up.
+    static QFont validatedFixedPitchFont( const QFont& font, const QString& fallbackFamily = {} )
     {
         const QFontInfo resolvedInfo( font );
         if ( QFontDatabase::isFixedPitch( resolvedInfo.family() ) ) {
             return font;
         }
 
-        LOG_WARNING << "Font \"" << resolvedInfo.family().toStdString()
-                    << "\" is not fixed-pitch, falling back to \"" << fallbackFamily.toStdString()
-                    << "\"";
-
         QFont fallback = font;
-        fallback.setFamily( fallbackFamily );
+        if ( !fallbackFamily.isEmpty() ) {
+            fallback.setFamily( fallbackFamily );
+            if ( QFontDatabase::isFixedPitch( QFontInfo( fallback ).family() ) ) {
+                LOG_WARNING << "Font \"" << resolvedInfo.family().toStdString()
+                            << "\" is not fixed-pitch, falling back to \""
+                            << fallbackFamily.toStdString() << "\"";
+                return fallback;
+            }
+            LOG_WARNING << "Fallback font \"" << fallbackFamily.toStdString()
+                        << "\" is not fixed-pitch either";
+        }
+
+        const auto platformFamily = platformFixedPitchFamily();
+        fallback.setFamily( platformFamily );
+        LOG_WARNING << "Font \"" << resolvedInfo.family().toStdString()
+                    << "\" is not fixed-pitch, falling back to the platform fixed font \""
+                    << platformFamily.toStdString() << "\"";
         return fallback;
     }
 
