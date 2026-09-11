@@ -60,6 +60,16 @@ std::optional<QString> findStableFixedPitchFamily()
     return std::nullopt;
 }
 
+// Every assertion that a fallback *resolves to* a fixed-pitch family needs the
+// host to own one in the first place. A system with no monospace font
+// installed -- a minimal container is the usual case -- leaves
+// validatedFixedPitchFont() nothing to fall back to, and the failure would
+// report a host deficiency as a defect in the function.
+bool hostHasFixedPitchFont()
+{
+    return findStableFixedPitchFamily().has_value();
+}
+
 } // namespace
 
 TEST_CASE( "FontUtils::validatedFixedPitchFont keeps a fixed-pitch font", "[fontutils]" )
@@ -101,6 +111,12 @@ TEST_CASE( "FontUtils::platformFixedPitchFamily resolves to a fixed-pitch family
     const auto family = FontUtils::platformFixedPitchFamily();
 
     REQUIRE( !family.isEmpty() );
+
+    if ( !hostHasFixedPitchFont() ) {
+        SUCCEED( "No fixed-pitch font installed on this system to resolve to" );
+        return;
+    }
+
     REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( QFont( family, 10 ) ).family() ) );
 }
 
@@ -109,6 +125,11 @@ TEST_CASE( "FontUtils::validatedFixedPitchFont falls back without a family named
     const auto family = findFamily( false );
     if ( !family.has_value() ) {
         SUCCEED( "No proportional font installed on this system to test with" );
+        return;
+    }
+
+    if ( !hostHasFixedPitchFont() ) {
+        SUCCEED( "No fixed-pitch font installed on this system to fall back to" );
         return;
     }
 
@@ -124,6 +145,11 @@ TEST_CASE( "FontUtils::validatedFixedPitchFont rejects a fallback family that is
     const auto family = findFamily( false );
     if ( !family.has_value() ) {
         SUCCEED( "No proportional font installed on this system to test with" );
+        return;
+    }
+
+    if ( !hostHasFixedPitchFont() ) {
+        SUCCEED( "No fixed-pitch font installed on this system to fall back to" );
         return;
     }
 
