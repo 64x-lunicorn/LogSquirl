@@ -65,6 +65,7 @@
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
 #include "selection.h"
+#include "viewportlayout.h"
 #include "viewtools.h"
 #include "wrappedstring.h"
 
@@ -383,7 +384,43 @@ private:
         size_t wrappedLineIndex;
         WrappedString wrappedString;
     };
+    // Written by painting only, and only so the debug cross-check below can
+    // compare it against the rows the layout reports. Goes away with #101.
     logsquirl::vector<WrappedLineData> wrappedLinesInfo_;
+
+    // The Log Lines currently on screen, with the rows they occupy. Computed
+    // on demand from the Log File -- not by painting -- and cached until
+    // something it depends on changes.
+    struct ViewportContent {
+        LineNumber firstLine{ 0 };
+        logsquirl::vector<QString> rawLines;
+        logsquirl::vector<QString> expandedLines;
+        logsquirl::vector<WrappedString> wrappedLines;
+        ViewportRows rows;
+    };
+
+    // Everything a ViewportContent depends on. When this changes, the content
+    // is rebuilt.
+    struct ViewportContentKey {
+        LineNumber firstLine{ 0 };
+        LineColumn firstColumn{ 0 };
+        LinesCount totalLines{ 0 };
+        int viewportWidth = -1;
+        int viewportHeight = -1;
+        int charWidth = -1;
+        int charHeight = -1;
+        bool textWrap = false;
+        bool lineNumbersVisible = false;
+        uint64_t generation = 0;
+
+        bool operator==( const ViewportContentKey& ) const = default;
+    };
+
+    mutable std::optional<ViewportContent> viewportContent_;
+    mutable ViewportContentKey viewportContentKey_;
+    // Bumped whenever the Log File content behind the viewport may have
+    // changed, so the cached content is rebuilt.
+    uint64_t viewportGeneration_ = 0;
 
     LineNumber searchStart_;
     LineNumber searchEnd_;
@@ -448,13 +485,24 @@ private:
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
 
+    // The viewport layout, without the rows: enough to answer margins,
+    // visible counts and scroll ranges, and cheap because it touches no
+    // Log Line.
+    ViewportLayout viewportGeometry() const;
+    // The viewport layout including the rows currently on screen, which is
+    // what hit testing and painting need. Built from the Log File, never from
+    // a paint, so it answers before the first paint has happened.
+    ViewportLayout viewportLayout() const;
+
+    const ViewportContent& viewportContent() const;
+    ViewportContent buildViewportContent() const;
+
     LinesCount getNbVisibleLines() const;
     LinesCount getNbBottomWrappedVisibleLines() const;
     LineLength getNbVisibleCols() const;
 
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
     OptionalLineNumber convertCoordToLine( int yPos ) const;
-    LineColumn convertCoordToColumn( int xPos ) const;
 
     void displayLine( LineNumber line );
     void moveSelection( LinesCount delta, bool isDeltaNegative );

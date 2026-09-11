@@ -17,16 +17,26 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#pragma once
+
 #include <QString>
+#include <algorithm>
 #include <cstddef>
 #include <qchar.h>
 #include <qglobal.h>
+#include <utility>
 
 #include <QStringView>
 
 #include "containers.h"
 #include "linetypes.h"
 
+// A line broken into the rows it occupies on screen.
+//
+// The wrapped rows are kept as offsets into the one QString this object owns,
+// never as views into a buffer someone else owns. A WrappedString can therefore
+// be copied, moved and outlive the string it was built from, and every view it
+// hands out points into its own storage.
 class WrappedString {
 public:
     using WrappedStringPart = QStringView;
@@ -38,30 +48,37 @@ public:
     }
 
     explicit WrappedString( QString longLine, LineLength visibleColumns )
+        : unwrappedLine_( std::move( longLine ) )
     {
-        unwrappedLine_ = longLine;
-        if ( longLine.isEmpty() ) {
-            wrappedLines_.push_back( WrappedStringPart{} );
+        const auto columns = visibleColumns.get();
+
+        if ( unwrappedLine_.isEmpty() ) {
+            wrappedLines_.push_back( Fragment{ 0, 0 } );
+            return;
         }
-        else {
-            WrappedStringPart lineToWrap( longLine );
-            while ( lineToWrap.size() > visibleColumns.get() ) {
-                WrappedStringPart stringToWrap = lineToWrap.left( visibleColumns.get() );
-                auto lastSpaceIt = std::find_if( stringToWrap.rbegin(), stringToWrap.rend(),
-                                                 []( QChar c ) { return c.isSpace(); } );
-                if ( lastSpaceIt == stringToWrap.rend() ) {
-                    wrappedLines_.push_back( lineToWrap.left( visibleColumns.get() ) );
-                    lineToWrap = lineToWrap.mid( visibleColumns.get() );
-                }
-                else {
-                    auto spacePos = std::distance( stringToWrap.begin(), lastSpaceIt.base() );
-                    wrappedLines_.push_back( lineToWrap.left( spacePos ) );
-                    lineToWrap = lineToWrap.mid( spacePos );
-                }
-            }
-            if ( lineToWrap.size() > 0 ) {
-                wrappedLines_.push_back( lineToWrap );
-            }
+
+        WrappedStringPart lineToWrap( unwrappedLine_ );
+        qsizetype consumed = 0;
+
+        // A non-positive column count would never consume anything: treat the
+        // whole line as one row rather than looping forever.
+        while ( columns > 0 && lineToWrap.size() > columns ) {
+            const WrappedStringPart stringToWrap = lineToWrap.left( columns );
+            const auto lastSpaceIt = std::find_if( stringToWrap.rbegin(), stringToWrap.rend(),
+                                                   []( QChar c ) { return c.isSpace(); } );
+
+            const qsizetype taken
+                = ( lastSpaceIt == stringToWrap.rend() )
+                      ? columns
+                      : std::distance( stringToWrap.begin(), lastSpaceIt.base() );
+
+            wrappedLines_.push_back( Fragment{ consumed, taken } );
+            consumed += taken;
+            lineToWrap = lineToWrap.mid( taken );
+        }
+
+        if ( lineToWrap.size() > 0 ) {
+            wrappedLines_.push_back( Fragment{ consumed, lineToWrap.size() } );
         }
     }
 
@@ -72,22 +89,18 @@ public:
 
     logsquirl::vector<WrappedStringPart> mid( LineColumn start, LineLength length ) const
     {
-        auto getLength = []( const auto& view ) -> LineLength::UnderlyingType {
-            return type_safe::narrow_cast<LineLength::UnderlyingType>( view.size() );
-        };
-
         logsquirl::vector<WrappedStringPart> resultChunks;
         if ( wrappedLines_.size() == 1 ) {
-            auto& wrappedLine = wrappedLines_.front();
-            auto len = std::min( length.get(), getLength( wrappedLine ) - start.get() );
-            resultChunks.push_back( wrappedLine.mid( start.get(), ( len > 0 ? len : 0 ) ) );
+            const auto& wrappedLine = wrappedLines_.front();
+            const auto len = std::min( length.get(), wrappedLine.length - start.get() );
+            resultChunks.push_back( part( wrappedLine, start.get(), ( len > 0 ? len : 0 ) ) );
             return resultChunks;
         }
 
         size_t wrappedLineIndex = 0;
         auto positionInWrappedLine = start.get();
-        while ( positionInWrappedLine > getLength( wrappedLines_[ wrappedLineIndex ] ) ) {
-            positionInWrappedLine -= getLength( wrappedLines_[ wrappedLineIndex ] );
+        while ( positionInWrappedLine > wrappedLines_[ wrappedLineIndex ].length ) {
+            positionInWrappedLine -= wrappedLines_[ wrappedLineIndex ].length;
             wrappedLineIndex++;
             if ( wrappedLineIndex >= wrappedLines_.size() ) {
                 return resultChunks;
@@ -95,23 +108,22 @@ public:
         }
 
         auto chunkLength = length.get();
-        while ( positionInWrappedLine + chunkLength
-                > getLength( wrappedLines_[ wrappedLineIndex ] ) ) {
+        while ( positionInWrappedLine + chunkLength > wrappedLines_[ wrappedLineIndex ].length ) {
             resultChunks.push_back(
-                wrappedLines_[ wrappedLineIndex ].mid( positionInWrappedLine ) );
+                part( wrappedLines_[ wrappedLineIndex ], positionInWrappedLine ) );
             wrappedLineIndex++;
             positionInWrappedLine = 0;
-            chunkLength -= getLength( resultChunks.back() );
+            chunkLength -= resultChunks.back().size();
             if ( wrappedLineIndex >= wrappedLines_.size() ) {
                 return resultChunks;
             }
         }
 
         if ( chunkLength > 0 ) {
-            auto& wrappedLine = wrappedLines_[ wrappedLineIndex ];
-            auto len = std::min( chunkLength, getLength( wrappedLine ) - positionInWrappedLine );
+            const auto& wrappedLine = wrappedLines_[ wrappedLineIndex ];
+            const auto len = std::min( chunkLength, wrappedLine.length - positionInWrappedLine );
             resultChunks.push_back(
-                wrappedLine.mid( positionInWrappedLine, ( len > 0 ? len : 0 ) ) );
+                part( wrappedLine, positionInWrappedLine, ( len > 0 ? len : 0 ) ) );
         }
 
         return resultChunks;
@@ -129,10 +141,34 @@ public:
 
     WrappedStringPart wrappedLine( size_t index ) const
     {
-        return wrappedLines_[ index ];
+        const auto& fragment = wrappedLines_[ index ];
+        return QStringView( unwrappedLine_ ).mid( fragment.start, fragment.length );
+    }
+
+    // Number of display columns of the wrapped row at index.
+    qsizetype wrappedLineLength( size_t index ) const
+    {
+        return wrappedLines_[ index ].length;
     }
 
 private:
-    logsquirl::vector<WrappedStringPart> wrappedLines_;
+    // A wrapped row, as a slice of unwrappedLine_.
+    struct Fragment {
+        qsizetype start = 0;
+        qsizetype length = 0;
+    };
+
+    WrappedStringPart part( const Fragment& fragment, qsizetype offset ) const
+    {
+        return QStringView( unwrappedLine_ )
+            .mid( fragment.start + offset, fragment.length - offset );
+    }
+
+    WrappedStringPart part( const Fragment& fragment, qsizetype offset, qsizetype length ) const
+    {
+        return QStringView( unwrappedLine_ ).mid( fragment.start + offset, length );
+    }
+
+    logsquirl::vector<Fragment> wrappedLines_;
     QString unwrappedLine_;
 };
