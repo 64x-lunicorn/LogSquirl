@@ -48,12 +48,7 @@ std::optional<QString> findFamily( bool fixedPitch )
 std::optional<QString> findStableFixedPitchFamily()
 {
     for ( const auto& family : QFontDatabase::families() ) {
-        if ( !QFontDatabase::isFixedPitch( family ) ) {
-            continue;
-        }
-        const QFont font( family, 10 );
-        const auto resolvedFamily = QFontInfo( font ).family();
-        if ( QFontDatabase::isFixedPitch( resolvedFamily ) ) {
+        if ( FontUtils::resolvesToFixedPitch( family ) ) {
             return family;
         }
     }

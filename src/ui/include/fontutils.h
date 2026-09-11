@@ -32,13 +32,48 @@
 
 class FontUtils {
 public:
-    // The fixed-pitch family Qt guarantees for this platform. Used as the
+    // Whether a family name still names a fixed-pitch font *after* Qt has
+    // resolved it. A name can claim fixed-pitch in QFontDatabase, or be a
+    // generic alias, and resolve to something proportional once requested --
+    // what gets painted is what QFontInfo reports, so that is what counts.
+    static bool resolvesToFixedPitch( const QString& family )
+    {
+        if ( family.isEmpty() ) {
+            return false;
+        }
+        return QFontDatabase::isFixedPitch( QFontInfo( QFont( family ) ).family() );
+    }
+
+    // The fixed-pitch family to fall back on for this platform. Used as the
     // last resort, because a hard-coded family name is exactly the thing
     // that can be absent: "DejaVu Sans Mono" ships with most Linux
     // distributions and with neither stock Windows nor macOS.
+    //
+    // What the platform *names* is not automatically what it paints.
+    // QFontDatabase::systemFont(FixedFont) answers the generic "monospace"
+    // on hosts that resolve it no further -- macOS among them -- and that
+    // name is then substituted as silently as any other missing family, so
+    // it is held to the rule it exists to enforce. Only when the platform's
+    // own answer does not survive that check is the database searched for a
+    // family that does; the scan costs a font enumeration, and it runs only
+    // on the path where the alternative is painting Log Lines proportional.
     static QString platformFixedPitchFamily()
     {
-        return QFontDatabase::systemFont( QFontDatabase::FixedFont ).family();
+        const auto systemFamily = QFontDatabase::systemFont( QFontDatabase::FixedFont ).family();
+        if ( resolvesToFixedPitch( systemFamily ) ) {
+            return systemFamily;
+        }
+
+        const auto families = QFontDatabase::families();
+        for ( const auto& family : families ) {
+            if ( resolvesToFixedPitch( family ) ) {
+                return family;
+            }
+        }
+
+        // Nothing on this host is fixed-pitch once resolved. The platform's
+        // own answer is no worse than any other, and the caller logs it.
+        return systemFamily;
     }
 
     // Falls back to a fixed-pitch family when the font that will actually
