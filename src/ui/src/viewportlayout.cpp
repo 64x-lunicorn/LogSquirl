@@ -46,8 +46,7 @@ int ceilDiv( int a, int b )
 
 int clampToInt( int64_t value )
 {
-    return static_cast<int>(
-        std::clamp<int64_t>( value, 0, std::numeric_limits<int>::max() ) );
+    return static_cast<int>( std::clamp<int64_t>( value, 0, std::numeric_limits<int>::max() ) );
 }
 
 } // namespace
@@ -149,10 +148,9 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
     }
 
     const auto offset = std::abs( ( yPos - input_.drawingTopOffsetPx ) / charHeight() );
-    const auto rowIndex
-        = rows_.size() > 1
-              ? std::clamp( static_cast<size_t>( offset ), size_t{ 0 }, rows_.size() - 1 )
-              : size_t{ 0 };
+    const auto rowIndex = rows_.size() > 1 ? std::clamp( static_cast<size_t>( offset ), size_t{ 0 },
+                                                         rows_.size() - 1 )
+                                           : size_t{ 0 };
 
     const auto& row = rows_[ rowIndex ];
 
@@ -162,10 +160,9 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
 
     // Number of columns of this row that are actually on screen.
     const auto visibleTextLength
-        = input_.textWrap
-              ? row.length.get()
-              : std::clamp( row.lineLength.get() - input_.firstColumn.get(),
-                            LineLength::UnderlyingType{ 0 }, visibleColumns().get() );
+        = input_.textWrap ? row.length.get()
+                          : std::clamp( row.lineLength.get() - input_.firstColumn.get(),
+                                        LineLength::UnderlyingType{ 0 }, visibleColumns().get() );
 
     // The first column whose right edge is at or past xPos, then step back one
     // to land on the column the pixel is actually inside.
@@ -187,10 +184,9 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
 
 ViewportRect ViewportLayout::rectForLine( LineNumber line ) const
 {
-    const auto first = std::find_if( rows_.begin(), rows_.end(),
-                                     [ line ]( const ViewportRow& r ) {
-                                         return r.lineNumber == line;
-                                     } );
+    const auto first = std::find_if( rows_.begin(), rows_.end(), [ line ]( const ViewportRow& r ) {
+        return r.lineNumber == line;
+    } );
     if ( first == rows_.end() ) {
         return ViewportRect{};
     }
@@ -217,9 +213,9 @@ ViewportRect ViewportLayout::rectForColumn( LineNumber line, LineColumn column )
             continue;
         }
 
-        const auto columnInRow
-            = input_.textWrap ? ( column - LineLength{ rowFirst.get() } ).get()
-                              : ( column - LineLength{ input_.firstColumn.get() } ).get();
+        const auto columnInRow = input_.textWrap
+                                     ? ( column - LineLength{ rowFirst.get() } ).get()
+                                     : ( column - LineLength{ input_.firstColumn.get() } ).get();
 
         return ViewportRect{ textOriginX() + static_cast<int>( columnInRow ) * charWidth(),
                              input_.drawingTopOffsetPx + static_cast<int>( index ) * charHeight(),
@@ -247,8 +243,8 @@ int ViewportLayout::verticalScrollRange( LinesCount totalLines,
 
     // A Log File can hold more lines than a scrollbar can address; saturate
     // rather than wrap around into a negative range.
-    return static_cast<int>( std::min<uint64_t>(
-        range, static_cast<uint64_t>( std::numeric_limits<int>::max() ) ) );
+    return static_cast<int>(
+        std::min<uint64_t>( range, static_cast<uint64_t>( std::numeric_limits<int>::max() ) ) );
 }
 
 int ViewportLayout::horizontalScrollRange( LineLength maxLineLength ) const
