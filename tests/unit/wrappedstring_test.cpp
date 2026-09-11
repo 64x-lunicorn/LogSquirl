@@ -100,8 +100,8 @@ SCENARIO( "WrappedString owns the text it was built from", "[wrappedstring]" )
     {
         // This is the case the paint loop hits: the wrapped line is copied into
         // the viewport's row table and the original goes out of scope.
-        auto original = std::make_unique<WrappedString>( QString( "one two three four five" ),
-                                                         9_length );
+        auto original
+            = std::make_unique<WrappedString>( QString( "one two three four five" ), 9_length );
         WrappedString copy = *original;
 
         WHEN( "the original is destroyed" )

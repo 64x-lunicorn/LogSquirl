@@ -49,8 +49,8 @@ ViewportRows unwrappedRows( LineNumber firstLine, size_t count, LineLength lineL
 {
     ViewportRows rows;
     for ( size_t i = 0; i < count; ++i ) {
-        rows.push_back( ViewportRow{ firstLine + LinesCount( i ), 0, 0_lcol, lineLength,
-                                     lineLength } );
+        rows.push_back(
+            ViewportRow{ firstLine + LinesCount( i ), 0, 0_lcol, lineLength, lineLength } );
     }
     return rows;
 }
@@ -139,7 +139,8 @@ SCENARIO( "Viewport layout visible counts", "[viewportlayout]" )
             // The viewport width already excludes the vertical scrollbar, so
             // subtracting anything but the left margin once is the double
             // subtraction bug this pins down.
-            REQUIRE( layout.visibleColumns() == LineLength{ ( 500 - layout.leftMarginPx() ) / 10 } );
+            REQUIRE( layout.visibleColumns()
+                     == LineLength{ ( 500 - layout.leftMarginPx() ) / 10 } );
         }
     }
 
@@ -211,8 +212,7 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
 
         THEN( "a click past the end of the line is clamped to the line" )
         {
-            REQUIRE( layout.filePositionAtPoint( 100000, 0 )
-                     == FilePosition{ 100_lnum, 39_lcol } );
+            REQUIRE( layout.filePositionAtPoint( 100000, 0 ) == FilePosition{ 100_lnum, 39_lcol } );
         }
     }
 
