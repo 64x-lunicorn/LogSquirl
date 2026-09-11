@@ -34,6 +34,12 @@
 
 namespace {
 
+QString& cacheDirOverride()
+{
+    static QString override;
+    return override;
+}
+
 /// Build a hex-encoded SHA-256 of the absolute file path for use as a
 /// cache-file name.  Using the path (not the file contents) is cheap
 /// and deterministic.
@@ -48,8 +54,17 @@ QString pathHash( const QString& filePath )
 
 QString IndexCache::cacheDir()
 {
+    if ( !cacheDirOverride().isEmpty() ) {
+        return cacheDirOverride();
+    }
+
     const auto base = QStandardPaths::writableLocation( QStandardPaths::CacheLocation );
     return base + QStringLiteral( "/index" );
+}
+
+void IndexCache::setCacheDirOverride( const QString& dir )
+{
+    cacheDirOverride() = dir;
 }
 
 QString IndexCache::cacheFilePath( const QString& sourceFilePath )

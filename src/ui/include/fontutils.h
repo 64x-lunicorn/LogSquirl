@@ -24,12 +24,37 @@
 #include "log.h"
 #include <numeric>
 
+#include <QFont>
 #include <QFontDatabase>
+#include <QFontInfo>
 #include <qfontdatabase.h>
 #include <vector>
 
 class FontUtils {
 public:
+    // Falls back to a fixed-pitch family when the font that will actually
+    // be used to paint is not fixed-pitch. Checked via QFontInfo rather
+    // than the requested family directly, so a family Qt itself
+    // substitutes (missing font, stale settings file) is validated after
+    // that substitution and not before it -- the request can name a font
+    // that does not exist; only what Qt resolves to actually gets painted.
+    static QFont validatedFixedPitchFont( const QFont& font,
+                                          const QString& fallbackFamily = "DejaVu Sans Mono" )
+    {
+        const QFontInfo resolvedInfo( font );
+        if ( QFontDatabase::isFixedPitch( resolvedInfo.family() ) ) {
+            return font;
+        }
+
+        LOG_WARNING << "Font \"" << resolvedInfo.family().toStdString()
+                    << "\" is not fixed-pitch, falling back to \"" << fallbackFamily.toStdString()
+                    << "\"";
+
+        QFont fallback = font;
+        fallback.setFamily( fallbackFamily );
+        return fallback;
+    }
+
     static QStringList availableFonts()
     {
         // We only show the fixed fonts

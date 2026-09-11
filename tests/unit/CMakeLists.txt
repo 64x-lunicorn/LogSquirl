@@ -6,6 +6,8 @@ add_executable(logsquirl_tests
     chipmunkimporter_test.cpp
     configuration_test.cpp
     encodingdetector_test.cpp
+    fontutils_test.cpp
+    indexcache_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
     linepositionarray_test.cpp

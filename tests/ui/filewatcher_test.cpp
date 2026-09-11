@@ -95,6 +95,34 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
         }
     }
 
+    GIVEN( "a Policy that watches natively" )
+    {
+        const auto path = writeFile( tempDir, "first line\n" );
+
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = true, .pollingEnabled = false, .pollIntervalMs = 100 } );
+
+        SafeQSignalSpy changedSpy( &FileWatcher::getFileWatcher(),
+                                   SIGNAL( fileChanged( QString ) ) );
+        WatchedFile watched{ path };
+
+        WHEN( "the file grows" )
+        {
+            writeFile( tempDir, "second line\n" );
+
+            THEN( "the change is reported" )
+            {
+                // Native events arrive from the OS's own filesystem
+                // notification service (efsw) rather than a Qt timer, so
+                // delivery can take longer than a poll tick, especially
+                // under a container filesystem -- give it a generous
+                // window rather than the short one polling gets.
+                REQUIRE(
+                    waitUiState( [ &changedSpy ] { return changedSpy.count() >= 1; }, 10000 ) );
+            }
+        }
+    }
+
     GIVEN( "a Policy with neither native watching nor polling" )
     {
         const auto path = writeFile( tempDir, "first line\n" );
