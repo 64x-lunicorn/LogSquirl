@@ -193,6 +193,19 @@ By default, logsquirl will rely on cmake to figure out target MacOS version. Usu
 To override default cmake value pass an option `-DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=<target>` to cmake during configuration step,
 `<target>` is one of `14`, `15`, `16`. LogSquirl's target must be greater or equal to the target used by Qt libraries.
 
+## Code style
+
+Formatting follows the `.clang-format` file at the repository root. CI runs a
+"Format" job (clang-format in dry-run mode over every project-owned `.cpp`,
+`.h` and `.hpp` file) pinned to **clang-format 23** — the config's
+`Standard: c++23` requires that major version. Format locally with a
+matching version before pushing:
+
+```bash
+pip install clang-format==23.1.1
+clang-format -i <file>
+```
+
 ## Running tests
 
 ### C++ unit tests (Catch2)

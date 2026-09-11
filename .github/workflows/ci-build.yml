@@ -54,6 +54,38 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
+  # Format — clang-format dry-run over project-owned C++ sources. No Qt,
+  # no build; just checks the tree matches .clang-format (#120).
+  # -----------------------------------------------------------------------
+  Format:
+    name: Format
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # Pinned to major version 23: the project's .clang-format sets
+      # `Standard: c++23`, an enum value only clang-format >= 23 recognizes.
+      - name: Install clang-format
+        run: pip install clang-format==23.1.1
+
+      - name: Check formatting
+        run: |
+          exit_code=0
+          while IFS= read -r f; do
+            if ! diff -u "$f" <(clang-format "$f") > /tmp/format.diff; then
+              echo "::error file=$f::not clang-format clean"
+              cat /tmp/format.diff
+              exit_code=1
+            fi
+          done < <(git ls-files -- '*.cpp' '*.h' '*.hpp' | grep -vE '^(3rdparty/|cpm_cache/|website/)')
+          exit $exit_code
+
+  # -----------------------------------------------------------------------
   # Stage 1 — Linux (cheapest runners, gates Windows & Mac)
   # -----------------------------------------------------------------------
   Linux:
@@ -425,7 +457,7 @@ jobs:
   # ---------------------------------------------------------------------------
   ci-passed:
     name: CI passed
-    needs: [SaveVersion, Linux, Windows, Mac, e2e-tests]
+    needs: [SaveVersion, Format, Linux, Windows, Mac, e2e-tests]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     steps:
