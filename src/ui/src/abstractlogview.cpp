@@ -1778,8 +1778,8 @@ int AbstractLogView::pullToFollowOffsetPx() const
     // computed directly to avoid that recursion.
     const int charHeight = std::max( charHeight_, 1 );
     const int visibleLinesCount = std::max( viewport()->height() / charHeight + 1, 1 );
-    const auto visibleLines = LinesCount(
-        static_cast<LinesCount::UnderlyingType>( visibleLinesCount ) );
+    const auto visibleLines
+        = LinesCount( static_cast<LinesCount::UnderlyingType>( visibleLinesCount ) );
     const int wholeHeight = visibleLinesCount * charHeight_;
 
     const int pullToFollowHeight
@@ -1816,11 +1816,10 @@ ViewportLayout AbstractLogView::viewportLayout() const
 
 const AbstractLogView::ViewportContent& AbstractLogView::viewportContent() const
 {
-    const ViewportContentKey key{ firstLine_,   firstCol_,
-                                  logData_->getNbLine(), viewport()->width(),
-                                  viewport()->height(),  charWidth_,
-                                  charHeight_,  useTextWrap_,
-                                  lineNumbersVisible_,   viewportGeneration_ };
+    const ViewportContentKey key{
+        firstLine_, firstCol_,   logData_->getNbLine(), viewport()->width(), viewport()->height(),
+        charWidth_, charHeight_, useTextWrap_,          lineNumbersVisible_, viewportGeneration_
+    };
 
     if ( !viewportContent_.has_value() || !( viewportContentKey_ == key ) ) {
         viewportContentKey_ = key;
@@ -1845,8 +1844,8 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
     }
 
     content.firstLine = geometry.clampFirstLine( firstLine_, linesInFile );
-    const auto nbLines = qMin( geometry.visibleLines(),
-                               linesInFile - LinesCount( content.firstLine.get() ) );
+    const auto nbLines
+        = qMin( geometry.visibleLines(), linesInFile - LinesCount( content.firstLine.get() ) );
     const auto visibleColumns = geometry.visibleColumns();
 
     content.rawLines = logData_->getLines( content.firstLine, nbLines );

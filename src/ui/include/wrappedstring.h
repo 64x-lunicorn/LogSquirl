@@ -67,10 +67,9 @@ public:
             const auto lastSpaceIt = std::find_if( stringToWrap.rbegin(), stringToWrap.rend(),
                                                    []( QChar c ) { return c.isSpace(); } );
 
-            const qsizetype taken
-                = ( lastSpaceIt == stringToWrap.rend() )
-                      ? columns
-                      : std::distance( stringToWrap.begin(), lastSpaceIt.base() );
+            const qsizetype taken = ( lastSpaceIt == stringToWrap.rend() )
+                                        ? columns
+                                        : std::distance( stringToWrap.begin(), lastSpaceIt.base() );
 
             wrappedLines_.push_back( Fragment{ consumed, taken } );
             consumed += taken;
