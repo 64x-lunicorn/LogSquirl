@@ -75,8 +75,7 @@ inline QString formatJwtJson( const QByteArray& jsonBytes )
         const auto readable = dt.toString( "yyyy-MM-ddThh:mm:ssZ" );
 
         // Annotate the numeric value in the formatted output with the readable date
-        const auto pattern
-            = QString( "\"%1\": %2" ).arg( field ).arg( epoch );
+        const auto pattern = QString( "\"%1\": %2" ).arg( field ).arg( epoch );
         const auto annotated
             = QString( "\"%1\": %2  // %3" ).arg( field ).arg( epoch ).arg( readable );
         result.replace( pattern, annotated );

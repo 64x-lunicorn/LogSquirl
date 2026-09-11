@@ -51,8 +51,8 @@
 #include "shortcuts.h"
 
 LogMainView::LogMainView( const LogData* newLogData, const QuickFindPattern* const quickFindPattern,
-                          Overview* overview, OverviewWidget* overview_widget,
-                          bool initialTextWrap, QWidget* parent )
+                          Overview* overview, OverviewWidget* overview_widget, bool initialTextWrap,
+                          QWidget* parent )
     : AbstractLogView( newLogData, quickFindPattern, initialTextWrap, parent )
 {
     filteredData_ = nullptr;

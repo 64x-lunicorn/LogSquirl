@@ -31,8 +31,7 @@
 namespace {
 
 // Writes a temporary file with the given lines and returns the file path.
-QString writeTestFile( const QTemporaryDir& dir, const QString& name,
-                       const QStringList& lines )
+QString writeTestFile( const QTemporaryDir& dir, const QString& name, const QStringList& lines )
 {
     const auto path = QDir( dir.path() ).filePath( name );
     QFile f( path );

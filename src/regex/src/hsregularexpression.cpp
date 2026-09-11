@@ -94,9 +94,8 @@ MatchedPatterns HsSingleMatcher::match( const std::string_view& utf8Data ) const
     // scan early after the first match. Any other non-success code indicates a real error
     // (corrupted scratch, invalid arguments, etc.) and would otherwise be silently ignored.
     const hs_error_t err
-        = hs_scan( database_.get(), utf8Data.data(),
-                   static_cast<unsigned int>( utf8Data.size() ), 0, scratch_.get(),
-                   matchSingleCallback, static_cast<void*>( &context_ ) );
+        = hs_scan( database_.get(), utf8Data.data(), static_cast<unsigned int>( utf8Data.size() ),
+                   0, scratch_.get(), matchSingleCallback, static_cast<void*>( &context_ ) );
     if ( err != HS_SUCCESS && err != HS_SCAN_TERMINATED ) {
         LOG_ERROR << "hs_scan (single) failed with code " << err;
     }
@@ -117,9 +116,8 @@ MatchedPatterns HsMultiMatcher::match( const std::string_view& utf8Data ) const
     // here; only HS_SUCCESS indicates a clean scan. Log any other code instead of dropping
     // it silently, which would otherwise produce false negatives in search results.
     const hs_error_t err
-        = hs_scan( database_.get(), utf8Data.data(),
-                   static_cast<unsigned int>( utf8Data.size() ), 0, scratch_.get(),
-                   matchMultiCallback, static_cast<void*>( &context_ ) );
+        = hs_scan( database_.get(), utf8Data.data(), static_cast<unsigned int>( utf8Data.size() ),
+                   0, scratch_.get(), matchMultiCallback, static_cast<void*>( &context_ ) );
     if ( err != HS_SUCCESS ) {
         LOG_ERROR << "hs_scan (multi) failed with code " << err;
     }
@@ -161,7 +159,8 @@ HsRegularExpression::HsRegularExpression( const RegularExpressionPattern& patter
 {
 }
 
-HsRegularExpression::HsRegularExpression( const logsquirl::vector<RegularExpressionPattern>& patterns )
+HsRegularExpression::HsRegularExpression(
+    const logsquirl::vector<RegularExpressionPattern>& patterns )
     : patterns_( patterns )
 {
     auto requiredInstructuins = CpuInstructions::SSE2;
@@ -233,8 +232,9 @@ HsRegularExpression::HsRegularExpression( const logsquirl::vector<RegularExpress
             QString preFilterErrorMessage;
             isPrefilter_ = true;
             database_ = HsDatabase{ makeUniqueResource<hs_database_t, hs_free_database>(
-                [ &compileHsDatabase ]( const logsquirl::vector<RegularExpressionPattern>& expressions,
-                                        QString& errorMessage ) -> hs_database_t* {
+                [ &compileHsDatabase ](
+                    const logsquirl::vector<RegularExpressionPattern>& expressions,
+                    QString& errorMessage ) -> hs_database_t* {
                     return compileHsDatabase( expressions, errorMessage, true );
                 },
                 patterns, preFilterErrorMessage ) };
@@ -272,7 +272,7 @@ HsRegularExpression::HsRegularExpression( const logsquirl::vector<RegularExpress
     }
 
     LOG_DEBUG << "Finished creating pattern database, patterns: " << patterns_.size()
-             << ", is db valid: " << isValid_ << ", is prefilter: " << isPrefilter_;
+              << ", is db valid: " << isValid_ << ", is prefilter: " << isPrefilter_;
 }
 
 bool HsRegularExpression::isValid() const

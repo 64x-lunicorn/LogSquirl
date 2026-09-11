@@ -67,9 +67,8 @@ static int countChecked( QTreeWidget* tree )
 // QTest::mouseDClick on QTreeWidget items.
 static void invokeDoubleClick( FiltersPanel* panel, QTreeWidgetItem* item )
 {
-    const bool invoked = QMetaObject::invokeMethod( panel, "onItemDoubleClicked",
-                                                    Q_ARG( QTreeWidgetItem*, item ),
-                                                    Q_ARG( int, 0 ) );
+    const bool invoked = QMetaObject::invokeMethod(
+        panel, "onItemDoubleClicked", Q_ARG( QTreeWidgetItem*, item ), Q_ARG( int, 0 ) );
     REQUIRE( invoked );
 }
 
@@ -97,7 +96,7 @@ static void clearPinnedFilters()
 }
 
 class FiltersPanelTestStateGuard {
-  public:
+public:
     FiltersPanelTestStateGuard()
         : originalSets_( PredefinedFiltersCollection::getSynced().filterSets() )
     {
@@ -126,7 +125,7 @@ class FiltersPanelTestStateGuard {
         settings.sync();
     }
 
-  private:
+private:
     QList<PredefinedFilterSet> originalSets_;
     QMap<QString, QVariant> pinnedState_;
 };
@@ -137,9 +136,8 @@ static void setupTestFilters()
     clearPinnedFilters();
 
     auto groupA = PredefinedFilterSet::createNewSet( "GroupA" );
-    groupA.setFilters( { { "Error", "ERROR", true },
-                         { "Warning", "WARN", true },
-                         { "Info", "INFO", true } } );
+    groupA.setFilters(
+        { { "Error", "ERROR", true }, { "Warning", "WARN", true }, { "Info", "INFO", true } } );
 
     auto groupB = PredefinedFilterSet::createNewSet( "GroupB" );
     groupB.setFilters( { { "Debug", "DEBUG", true }, { "Trace", "TRACE", true } } );
@@ -149,8 +147,7 @@ static void setupTestFilters()
     collection.save();
 }
 
-SCENARIO( "Double-click on a filter activates only that filter",
-          "[filterspanel][doubleclick]" )
+SCENARIO( "Double-click on a filter activates only that filter", "[filterspanel][doubleclick]" )
 {
     FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
@@ -278,8 +275,7 @@ SCENARIO( "Double-click emits filtersChanged with correct selection",
     }
 }
 
-SCENARIO( "Pinned state survives panel recreation after flush",
-          "[filterspanel][persistence]" )
+SCENARIO( "Pinned state survives panel recreation after flush", "[filterspanel][persistence]" )
 {
     FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();
@@ -316,8 +312,7 @@ SCENARIO( "Pinned state survives panel recreation after flush",
     }
 }
 
-SCENARIO( "flushPendingSaves is a no-op when nothing is pending",
-          "[filterspanel][persistence]" )
+SCENARIO( "flushPendingSaves is a no-op when nothing is pending", "[filterspanel][persistence]" )
 {
     FiltersPanelTestStateGuard stateGuard;
     setupTestFilters();

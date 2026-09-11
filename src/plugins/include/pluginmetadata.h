@@ -34,7 +34,7 @@ namespace logsquirl::plugins {
  * fields and checks API version compatibility.
  */
 class PluginMetadata {
-  public:
+public:
     /**
      * Parse a plugin.json file at the given path.
      * @param jsonPath  Absolute path to the plugin.json file.
@@ -51,19 +51,52 @@ class PluginMetadata {
     static std::expected<PluginMetadata, QString> fromJson( const QByteArray& json,
                                                             const QString& context );
 
-    const QString& id() const { return id_; }
-    const QString& name() const { return name_; }
-    const QString& version() const { return version_; }
-    const QString& description() const { return description_; }
-    const QString& author() const { return author_; }
-    const QString& license() const { return license_; }
-    const QString& library() const { return library_; }
-    const QString& icon() const { return icon_; }
-    LogSquirlPluginType type() const { return type_; }
-    int apiVersion() const { return apiVersion_; }
+    const QString& id() const
+    {
+        return id_;
+    }
+    const QString& name() const
+    {
+        return name_;
+    }
+    const QString& version() const
+    {
+        return version_;
+    }
+    const QString& description() const
+    {
+        return description_;
+    }
+    const QString& author() const
+    {
+        return author_;
+    }
+    const QString& license() const
+    {
+        return license_;
+    }
+    const QString& library() const
+    {
+        return library_;
+    }
+    const QString& icon() const
+    {
+        return icon_;
+    }
+    LogSquirlPluginType type() const
+    {
+        return type_;
+    }
+    int apiVersion() const
+    {
+        return apiVersion_;
+    }
 
     /** Directory containing the plugin.json file (set when loaded from file). */
-    const QString& directory() const { return directory_; }
+    const QString& directory() const
+    {
+        return directory_;
+    }
 
     /** Absolute path to the shared library (directory + library). */
     QString libraryPath() const;
@@ -71,7 +104,7 @@ class PluginMetadata {
     /** Absolute path to the icon file (directory + icon), empty if none. */
     QString iconPath() const;
 
-  private:
+private:
     PluginMetadata() = default;
 
     QString id_;

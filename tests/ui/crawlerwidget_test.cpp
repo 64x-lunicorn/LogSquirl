@@ -65,8 +65,7 @@ bool generateDataFiles( QTemporaryFile& file )
 
 } // namespace
 
-struct CrawlerWidgetPrivate {
-};
+struct CrawlerWidgetPrivate {};
 
 template <>
 struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {

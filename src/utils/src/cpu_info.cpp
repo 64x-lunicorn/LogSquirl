@@ -64,7 +64,7 @@ CpuInstructions supportedCpuInstructions()
         if ( f_1_ECX[ 19 ] ) {
             cpuInstructions |= CpuInstructions::SSE41;
         }
-        
+
         if ( f_1_ECX[ 23 ] ) {
             cpuInstructions |= CpuInstructions::POPCNT;
         }
@@ -85,7 +85,7 @@ CpuInstructions supportedCpuInstructions()
 
     return cpuInstructions;
 }
-#elif defined (Q_OS_LINUX)
+#elif defined( Q_OS_LINUX )
 CpuInstructions supportedCpuInstructions()
 {
     CpuInstructions cpuInstructions = CpuInstructions::NONE;

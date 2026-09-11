@@ -54,7 +54,7 @@ struct PredefinedFilter {
 // Represents a named group of predefined filters, analogous to HighlighterSet.
 // Each set has a unique UUID-based identifier and a display name.
 class PredefinedFilterSet {
-  public:
+public:
     // Create a new set with a generated UUID.
     static PredefinedFilterSet createNewSet( const QString& name );
 
@@ -73,7 +73,7 @@ class PredefinedFilterSet {
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
+private:
     explicit PredefinedFilterSet( const QString& name );
 
     static constexpr int PredefinedFilterSet_VERSION = 1;
@@ -97,7 +97,7 @@ inline const QString& defaultFilterSetId()
 
 // Represents collection of filter sets read from settings file.
 class PredefinedFiltersCollection final : public Persistable<PredefinedFiltersCollection> {
-  public:
+public:
     using Collection = QList<PredefinedFilter>;
 
     static const char* persistableName()
@@ -126,7 +126,7 @@ class PredefinedFiltersCollection final : public Persistable<PredefinedFiltersCo
     void saveToStorage( QSettings& settings ) const;
     void saveToStorage( const Collection& filters );
 
-  private:
+private:
     static constexpr int PredefinedFiltersCollection_VERSION = 3;
     // Version 2 stored a flat array of filters (no groups).
     static constexpr int FLAT_FILTERS_VERSION = 2;

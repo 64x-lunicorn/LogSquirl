@@ -68,8 +68,8 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     const bool isContinuation
         = ( previous.phase == Phase::Running || previous.phase == Phase::Complete
             || previous.phase == Phase::Interrupted )
-          && !previous.fromCache && pattern == previous.pattern
-          && startLine == previous.startLine && endLine > previous.endLine;
+          && !previous.fromCache && pattern == previous.pattern && startLine == previous.startLine
+          && endLine > previous.endLine;
 
     if ( isContinuation ) {
         // Same pattern as the run being continued, already validated and
@@ -106,7 +106,7 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
         const auto cached = searchResultsCache_.find( key );
         if ( cached != std::end( searchResultsCache_ ) ) {
             adoptCacheHit( pattern, startLine, endLine, cached->second.matching_lines,
-                          cached->second.maxLength );
+                           cached->second.maxLength );
             return;
         }
     }
@@ -233,11 +233,10 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
 
     sourceLogData_.attachReader();
 
-    currentSearchId_
-        = isContinuation
-              ? workerThread_.updateSearch( compiledExpression, startLine, endLine,
-                                            LineNumber( nbLinesProcessed_.get() ) )
-              : workerThread_.search( compiledExpression, startLine, endLine );
+    currentSearchId_ = isContinuation
+                           ? workerThread_.updateSearch( compiledExpression, startLine, endLine,
+                                                         LineNumber( nbLinesProcessed_.get() ) )
+                           : workerThread_.search( compiledExpression, startLine, endLine );
 
     Q_EMIT stateChanged( state() );
 }
@@ -344,8 +343,9 @@ void SearchSession::updateSearchResultsCache()
         return;
     }
 
-    LOG_INFO << "SearchSession: caching results for key " << std::get<0>( currentSearchKey_ ).pattern
-             << "_" << std::get<1>( currentSearchKey_ ) << "_" << std::get<2>( currentSearchKey_ );
+    LOG_INFO << "SearchSession: caching results for key "
+             << std::get<0>( currentSearchKey_ ).pattern << "_" << std::get<1>( currentSearchKey_ )
+             << "_" << std::get<2>( currentSearchKey_ );
 
     searchResultsCache_[ currentSearchKey_ ] = { matches_, maxLength_ };
     auto cacheSize = std::accumulate( searchResultsCache_.cbegin(), searchResultsCache_.cend(),

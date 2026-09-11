@@ -53,8 +53,8 @@ QString MergeController::merge( const QStringList& sourcePaths, bool dedup )
     // Create a stable temp file path in the app's temp directory
     const auto tempDir = QStandardPaths::writableLocation( QStandardPaths::TempLocation );
     const auto uniqueId = QUuid::createUuid().toString( QUuid::Id128 ).left( 12 );
-    mergedFilePath_ = QDir( tempDir ).filePath(
-        QString( "logsquirl_merged_%1.log" ).arg( uniqueId ) );
+    mergedFilePath_
+        = QDir( tempDir ).filePath( QString( "logsquirl_merged_%1.log" ).arg( uniqueId ) );
 
     doMerge();
 
@@ -102,8 +102,8 @@ void MergeController::doMerge()
         while ( !in.atEnd() ) {
             const auto line = in.readLine();
             if ( dedup_ ) {
-                const auto hash = QCryptographicHash::hash( line.toUtf8(),
-                                                            QCryptographicHash::Md5 );
+                const auto hash
+                    = QCryptographicHash::hash( line.toUtf8(), QCryptographicHash::Md5 );
                 if ( seen.contains( hash ) ) {
                     continue;
                 }

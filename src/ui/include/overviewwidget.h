@@ -30,7 +30,7 @@ class Overview;
 class OverviewWidget : public QWidget {
     Q_OBJECT
 
-  public:
+public:
     explicit OverviewWidget( QWidget* parent = nullptr );
 
     // Associate the widget with an Overview object.
@@ -39,23 +39,23 @@ class OverviewWidget : public QWidget {
         overview_ = overview;
     }
 
-  public Q_SLOTS:
+public Q_SLOTS:
     // Sent when a match at the line passed must be highlighted in
     // the overview
     void highlightLine( LineNumber line );
     void removeHighlight();
 
-  protected:
+protected:
     void paintEvent( QPaintEvent* paintEvent ) override;
     void mousePressEvent( QMouseEvent* mouseEvent ) override;
     void mouseMoveEvent( QMouseEvent* mouseEvent ) override;
     void timerEvent( QTimerEvent* event ) override;
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent when the user click on a line in the Overview.
     void lineClicked( LineNumber line );
 
-  private:
+private:
     // Constants
     static constexpr int LINE_MARGIN = 4;
     static constexpr int STEP_DURATION_MS = 30;

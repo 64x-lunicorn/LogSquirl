@@ -37,21 +37,21 @@
 class MessageReceiver final : public QObject {
     Q_OBJECT
 
-  public:
+public:
     MessageReceiver()
         : QObject()
     {
     }
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void loadFile( const QString& filename );
 
-  public Q_SLOTS:
+public Q_SLOTS:
     void receiveMessage( const QByteArray& message )
     {
         const auto data = QCborValue::fromCbor( message ).toVariant().toMap();
 
-        LOG_INFO << "Message " << QJsonDocument::fromVariant(data).toJson();
+        LOG_INFO << "Message " << QJsonDocument::fromVariant( data ).toJson();
 
         if ( data[ "version" ].toString() != logsquirlVersion() ) {
             return;

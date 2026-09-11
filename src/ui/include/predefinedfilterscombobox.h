@@ -49,7 +49,7 @@ class QStandardItemModel;
 class PredefinedFiltersComboBox final : public QComboBox {
     Q_OBJECT
 
-  public:
+public:
     explicit PredefinedFiltersComboBox( QWidget* parent );
 
     ~PredefinedFiltersComboBox() = default;
@@ -63,25 +63,25 @@ class PredefinedFiltersComboBox final : public QComboBox {
 
     virtual void showPopup();
 
-  Q_SIGNALS:
-    void filterChanged( const QList<PredefinedFilter>& selectedFilters);
+Q_SIGNALS:
+    void filterChanged( const QList<PredefinedFilter>& selectedFilters );
 
-  private:
+private:
     void setTitle( const QString& title );
     void insertFilters( const PredefinedFiltersCollection::Collection& filters );
     void collectFilters();
 
-  private:
+private:
     PredefinedFiltersCollection filtersCollection_;
 
     QStandardItemModel* model_;
     struct SearchPatternState {
         QString lastOne_;
         QString newOne_;
-        bool useLogicalCombining_{false};
-    }; 
+        bool useLogicalCombining_{ false };
+    };
     SearchPatternState searchPattern_;
-    bool ignoreCollecting_{false};
+    bool ignoreCollecting_{ false };
 };
 
 #endif

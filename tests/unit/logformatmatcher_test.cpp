@@ -226,8 +226,8 @@ SCENARIO( "LogFormatMatcher requires minimum match threshold", "[logformat][matc
             QStringList lines;
             for ( int i = 0; i < 8; ++i ) {
                 lines << QString( "Jun 15 10:21:%1 myhost sshd[12345]: Line %2" )
-                              .arg( i, 2, 10, QChar( '0' ) )
-                              .arg( i );
+                             .arg( i, 2, 10, QChar( '0' ) )
+                             .arg( i );
             }
             lines << "some non-matching continuation line";
             lines << "another continuation";

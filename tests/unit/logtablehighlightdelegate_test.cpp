@@ -42,12 +42,8 @@ HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMat
 
 LineDecorator::Context emptyDecoratorContext()
 {
-    return LineDecorator::Context{ HighlighterSet{},
-                                   std::nullopt,
-                                   {},
-                                   QuickFindMatcher{},
-                                   QColor{ Qt::yellow },
-                                   SearchLimits{} };
+    return LineDecorator::Context{ HighlighterSet{},   std::nullopt,         {},
+                                   QuickFindMatcher{}, QColor{ Qt::yellow }, SearchLimits{} };
 }
 
 } // namespace
@@ -83,8 +79,8 @@ struct TableCellSelection {
             return {};
         }
         const int lo = std::min( startChar, endChar );
-        const int hi = std::min( std::max( startChar, endChar ),
-                                 static_cast<int>( cellText.size() ) );
+        const int hi
+            = std::min( std::max( startChar, endChar ), static_cast<int>( cellText.size() ) );
         return cellText.mid( lo, hi - lo );
     }
 };
@@ -262,7 +258,10 @@ struct PaintFixture {
         option.state = QStyle::State_Enabled;
     }
 
-    ~PaintFixture() { painter.end(); }
+    ~PaintFixture()
+    {
+        painter.end();
+    }
 };
 
 } // namespace
@@ -286,8 +285,7 @@ SCENARIO( "sizeHint returns positive width for non-empty text",
             {
                 REQUIRE( hint.width() > 8 ); // at least padding
                 const auto fm = f.option.fontMetrics;
-                const auto expected
-                    = fm.horizontalAdvance( "Hello World from LogSquirl" ) + 8;
+                const auto expected = fm.horizontalAdvance( "Hello World from LogSquirl" ) + 8;
                 REQUIRE( hint.width() == expected );
             }
         }
@@ -309,8 +307,7 @@ SCENARIO( "sizeHint for empty text falls back to base class",
 
             THEN( "Width comes from the base class (no custom calculation)" )
             {
-                const auto baseHint
-                    = QStyledItemDelegate{}.sizeHint( f.option, index );
+                const auto baseHint = QStyledItemDelegate{}.sizeHint( f.option, index );
                 REQUIRE( hint.width() == baseHint.width() );
             }
         }
@@ -354,7 +351,7 @@ SCENARIO( "A whole-line Highlighter colours the whole row, not just the "
             const auto rowVerdict = rowVerdictFor( context, 0_lnum, rawLine, LineTypeFlags::Plain );
 
             THEN( "the whole-line colour is decided for the row, independently of any one "
-                 "cell's own text" )
+                  "cell's own text" )
             {
                 REQUIRE( rowVerdict.wholeLineHighlight().has_value() );
                 REQUIRE( rowVerdict.wholeLineHighlight()->foreColor == QColor{ Qt::white } );
@@ -367,8 +364,8 @@ SCENARIO( "A whole-line Highlighter colours the whole row, not just the "
                     context, rowVerdict, 0_lnum, LineTypeFlags::Plain, "unrelated field text" );
 
                 THEN( "no bogus span leaks in from the raw line's own coordinate space -- the "
-                     "whole row's colour is applied by paint() from the row verdict above, "
-                     "not by a span here" )
+                      "whole row's colour is applied by paint() from the row verdict above, "
+                      "not by a span here" )
                 {
                     REQUIRE( decoration.spans().empty() );
                 }
@@ -561,7 +558,7 @@ SCENARIO( "A fully selected row overrides Highlighter colour everywhere",
                 context, rowVerdict, 0_lnum, LineTypeFlags::Plain, text, selection );
 
             THEN( "the selection colour covers the whole cell, with nothing left showing "
-                 "the Highlighter's colour" )
+                  "the Highlighter's colour" )
             {
                 for ( const auto& span : decoration.spans() ) {
                     REQUIRE( span.backColor() == QColor{ Qt::blue } );
@@ -636,7 +633,7 @@ SCENARIO( "rowColorsFor gives a Mark+Match line its own distinct colour, "
                 verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
 
             THEN( "the row background is the text view's marked-match bullet colour (violet), "
-                 "not plain match or plain mark" )
+                  "not plain match or plain mark" )
             {
                 REQUIRE( colors.backColor == QColor{ "violet" } );
             }
@@ -765,4 +762,3 @@ SCENARIO( "Marking a line changes the Table View's row background",
         }
     }
 }
-

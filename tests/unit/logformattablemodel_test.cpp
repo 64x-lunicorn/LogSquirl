@@ -31,10 +31,13 @@ namespace {
 
 // Minimal mock of AbstractLogData for testing the table model.
 class MockLogData : public AbstractLogData {
-  public:
-    void setLines( const QStringList& lines ) { lines_ = lines; }
+public:
+    void setLines( const QStringList& lines )
+    {
+        lines_ = lines;
+    }
 
-  protected:
+protected:
     QString doGetLineString( LineNumber line ) const override
     {
         const auto idx = static_cast<int>( line.get() );
@@ -60,19 +63,31 @@ class MockLogData : public AbstractLogData {
     {
         return doGetLines( first, count );
     }
-    LineNumber doGetLineNumber( LineNumber index ) const override { return index; }
+    LineNumber doGetLineNumber( LineNumber index ) const override
+    {
+        return index;
+    }
     LinesCount doGetNbLine() const override
     {
         return LinesCount( static_cast<uint64_t>( lines_.size() ) );
     }
-    LineLength doGetMaxLength() const override { return LineLength( 0 ); }
-    LineLength doGetLineLength( LineNumber ) const override { return LineLength( 0 ); }
+    LineLength doGetMaxLength() const override
+    {
+        return LineLength( 0 );
+    }
+    LineLength doGetLineLength( LineNumber ) const override
+    {
+        return LineLength( 0 );
+    }
     void doSetDisplayEncoding( const char* ) override {}
-    QTextCodec* doGetDisplayEncoding() const override { return nullptr; }
+    QTextCodec* doGetDisplayEncoding() const override
+    {
+        return nullptr;
+    }
     void doAttachReader() const override {}
     void doDetachReader() const override {}
 
-  private:
+private:
     QStringList lines_;
 };
 
@@ -84,8 +99,7 @@ LogFormatDefinition makeTestFormat()
     def.setTitle( "Test Log" );
 
     QHash<QString, QString> regex;
-    regex[ "basic" ]
-        = R"(^(?<timestamp>\w{3}\s+\d+ \d{2}:\d{2}:\d{2}) (?<host>\S+) (?<body>.*)$)";
+    regex[ "basic" ] = R"(^(?<timestamp>\w{3}\s+\d+ \d{2}:\d{2}:\d{2}) (?<host>\S+) (?<body>.*)$)";
     def.setRegexPatterns( regex );
 
     def.setTimestampField( "timestamp" );
@@ -259,8 +273,7 @@ SCENARIO( "LogFormatTableModel data is extracted lazily via setLineCount",
                 REQUIRE( ts == "Jan  1 00:00:01" );
 
                 // body is last column
-                auto body
-                    = model.data( model.index( 0, model.columnCount() - 1 ) ).toString();
+                auto body = model.data( model.index( 0, model.columnCount() - 1 ) ).toString();
                 REQUIRE( body == "first message" );
             }
 
@@ -293,8 +306,7 @@ SCENARIO( "LogFormatTableModel handles non-matching lines", "[logformat][tablemo
 
             THEN( "Body column contains the raw line" )
             {
-                auto body
-                    = model.data( model.index( 0, model.columnCount() - 1 ) ).toString();
+                auto body = model.data( model.index( 0, model.columnCount() - 1 ) ).toString();
                 REQUIRE( body == "this does not match the regex at all" );
             }
         }
@@ -411,14 +423,12 @@ SCENARIO( "Column width computation produces widths that fit all sampled text",
 
             // Compute widths the same way autoSizeTableColumns does
             for ( int col = 0; col < colCount; ++col ) {
-                const auto headerText
-                    = model.headerData( col, Qt::Horizontal ).toString();
+                const auto headerText = model.headerData( col, Qt::Horizontal ).toString();
                 maxWidths[ col ] = fm.horizontalAdvance( headerText ) + cellPadding;
             }
             for ( int row = 0; row < rowCount; ++row ) {
                 for ( int col = 0; col < colCount; ++col ) {
-                    const auto text
-                        = model.data( model.index( row, col ) ).toString();
+                    const auto text = model.data( model.index( row, col ) ).toString();
                     if ( !text.isEmpty() ) {
                         const int w = fm.horizontalAdvance( text ) + cellPadding;
                         if ( w > maxWidths[ col ] ) {
@@ -439,8 +449,7 @@ SCENARIO( "Column width computation produces widths that fit all sampled text",
             }
 
             // Body column must be wider than the header alone
-            const auto bodyHeader
-                = model.headerData( bodyCol, Qt::Horizontal ).toString();
+            const auto bodyHeader = model.headerData( bodyCol, Qt::Horizontal ).toString();
             const int bodyHeaderWidth = fm.horizontalAdvance( bodyHeader ) + cellPadding;
             REQUIRE( maxWidths[ bodyCol ] > bodyHeaderWidth );
         }
@@ -456,8 +465,7 @@ SCENARIO( "Column width computation handles non-matching lines in body column",
         MockLogData logData;
 
         // Non-matching lines (e.g., log file headers) go entirely into body column
-        const QString headerLine
-            = "#----- BEGIN: Logging session 2026-04-20 10:57:52.000 -----";
+        const QString headerLine = "#----- BEGIN: Logging session 2026-04-20 10:57:52.000 -----";
         logData.setLines( { headerLine } );
 
         LogFormatTableModel model( format, &logData );
@@ -469,8 +477,7 @@ SCENARIO( "Column width computation handles non-matching lines in body column",
         THEN( "Body column width accommodates the full non-matching line text" )
         {
             const int bodyCol = model.columnCount() - 1;
-            const auto bodyText
-                = model.data( model.index( 0, bodyCol ) ).toString();
+            const auto bodyText = model.data( model.index( 0, bodyCol ) ).toString();
 
             // Non-matching line should appear in body column
             REQUIRE( bodyText == headerLine );
@@ -482,8 +489,7 @@ SCENARIO( "Column width computation handles non-matching lines in body column",
     }
 }
 
-SCENARIO( "LogFormatTableModel cache invalidation on truncation",
-          "[logformat][tablemodel][cache]" )
+SCENARIO( "LogFormatTableModel cache invalidation on truncation", "[logformat][tablemodel][cache]" )
 {
     GIVEN( "A table model with cached rows" )
     {
@@ -618,8 +624,7 @@ SCENARIO( "LogFormatTableModel handles negative row index", "[logformat][tablemo
 
         THEN( "Column beyond count returns invalid data" )
         {
-            REQUIRE_FALSE(
-                model.data( model.index( 0, model.columnCount() ) ).isValid() );
+            REQUIRE_FALSE( model.data( model.index( 0, model.columnCount() ) ).isValid() );
         }
     }
 }
@@ -667,8 +672,7 @@ SCENARIO( "LogFormatTableModel unsupported role returns empty variant",
 
         THEN( "DecorationRole returns empty variant" )
         {
-            REQUIRE_FALSE(
-                model.data( model.index( 0, 0 ), Qt::DecorationRole ).isValid() );
+            REQUIRE_FALSE( model.data( model.index( 0, 0 ), Qt::DecorationRole ).isValid() );
         }
     }
 }

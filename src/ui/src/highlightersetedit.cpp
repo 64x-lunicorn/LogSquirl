@@ -113,7 +113,7 @@ void HighlighterSetEdit::reset()
     downHighlighterButton->setEnabled( false );
 
     nameEdit->clear();
-    nameEdit->setEnabled(false);
+    nameEdit->setEnabled( false );
     highlighterListWidget->clear();
 
     highlighterEdit_->reset();
@@ -133,9 +133,9 @@ void HighlighterSetEdit::setHighlighters( HighlighterSet set )
         setCurrentRow( 0 );
     }
 
-    nameEdit->setEnabled(true);
+    nameEdit->setEnabled( true );
     nameEdit->setText( highlighterSet_.name() );
-    addHighlighterButton->setEnabled(true);
+    addHighlighterButton->setEnabled( true );
 }
 
 void HighlighterSetEdit::setName( const QString& name )
@@ -251,7 +251,7 @@ void HighlighterSetEdit::updatePropertyFields()
     }
     else {
         highlighterEdit_->reset();
-        
+
         removeHighlighterButton->setEnabled( false );
         upHighlighterButton->setEnabled( false );
         downHighlighterButton->setEnabled( false );
@@ -282,7 +282,8 @@ void HighlighterSetEdit::updateHighlighterProperties()
 void HighlighterSetEdit::populateHighlighterList()
 {
     highlighterListWidget->clear();
-    for ( const Highlighter& highlighter : logsquirl::as_const( highlighterSet_.highlighterList_ ) ) {
+    for ( const Highlighter& highlighter :
+          logsquirl::as_const( highlighterSet_.highlighterList_ ) ) {
         auto* new_item = new QListWidgetItem( highlighter.pattern() );
         // new_item->setFlags( Qt::ItemIsSelectable | Qt::ItemIsEditable | Qt::ItemIsEnabled );
         new_item->setForeground( QBrush( highlighter.foreColor() ) );

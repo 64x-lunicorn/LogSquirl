@@ -363,8 +363,7 @@ SCENARIO( "Configuration plugin settings round-trip", "[configuration][plugins]"
     {
         Configuration config;
         config.setPluginsAutoLoad( false );
-        config.setEnabledPlugins(
-            QStringList{ "com.example.a", "com.example.b" } );
+        config.setEnabledPlugins( QStringList{ "com.example.a", "com.example.b" } );
 
         WHEN( "Saved and restored" )
         {

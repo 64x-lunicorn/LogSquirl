@@ -37,7 +37,7 @@ class PluginManager;
 class WelcomeDashboard : public QWidget {
     Q_OBJECT
 
-  public:
+public:
     explicit WelcomeDashboard( QWidget* parent = nullptr );
 
     /// Refresh the recent files, favorites, and plugin status lists.
@@ -48,7 +48,7 @@ class WelcomeDashboard : public QWidget {
     /// display plugin status. Must be called before the first refresh().
     void setPluginManager( logsquirl::plugins::PluginManager* pm );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     /// Emitted when the user clicks a recent or favorite file entry.
     void openFileRequested( const QString& filePath );
 
@@ -58,11 +58,11 @@ class WelcomeDashboard : public QWidget {
     /// Emitted when the user clicks the "Load Session" button.
     void loadSessionRequested();
 
-  protected:
+protected:
     void dragEnterEvent( QDragEnterEvent* event ) override;
     void dropEvent( QDropEvent* event ) override;
 
-  private:
+private:
     /// Build the full widget layout (called once from constructor).
     void buildUi();
 

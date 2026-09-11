@@ -25,22 +25,22 @@
 
 class Downloader : public QObject {
     Q_OBJECT
-  public:
+public:
     explicit Downloader( QObject* parent = nullptr );
 
     void download( const QUrl& url, QFile* outputFile );
 
     QString lastError() const;
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void downloadProgress( qint64 bytesReceived, qint64 bytesTotal );
     void finished( bool );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void downloadFinished();
     void downloadReadyRead();
 
-  private:
+private:
     QNetworkAccessManager manager_;
     QNetworkReply* currentDownload_ = nullptr;
 

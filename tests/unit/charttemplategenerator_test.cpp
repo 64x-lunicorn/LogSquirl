@@ -38,10 +38,9 @@ LogFormatDefinition makeAndroidFormat()
 
     // A single regex pattern with named capture groups.
     QHash<QString, QString> patterns;
-    patterns[ "basic" ]
-        = R"(^(?<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+)"
-          R"((?<pid>\d+)\s+(?<tid>\d+)\s+(?<level>[VDIWEFS])\s+)"
-          R"((?<tag>[^:]+):\s+(?<body>.*)$)";
+    patterns[ "basic" ] = R"(^(?<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+)"
+                          R"((?<pid>\d+)\s+(?<tid>\d+)\s+(?<level>[VDIWEFS])\s+)"
+                          R"((?<tag>[^:]+):\s+(?<body>.*)$)";
     fmt.setRegexPatterns( patterns );
 
     fmt.setTimestampField( "timestamp" );
@@ -109,8 +108,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%Y-%m-%d becomes yyyy-MM-dd" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%Y-%m-%d" )
-                     == "yyyy-MM-dd" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%Y-%m-%d" ) == "yyyy-MM-dd" );
         }
     }
 
@@ -118,8 +116,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%H:%M:%S becomes HH:mm:ss" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H:%M:%S" )
-                     == "HH:mm:ss" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H:%M:%S" ) == "HH:mm:ss" );
         }
     }
 
@@ -127,8 +124,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%y-%m-%d becomes yy-MM-dd" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%y-%m-%d" )
-                     == "yy-MM-dd" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%y-%m-%d" ) == "yy-MM-dd" );
         }
     }
 
@@ -136,8 +132,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%S.%L becomes ss.zzz" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%S.%L" )
-                     == "ss.zzz" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%S.%L" ) == "ss.zzz" );
         }
     }
 
@@ -145,8 +140,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%S.%f becomes ss.zzz (precision loss accepted)" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%S.%f" )
-                     == "ss.zzz" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%S.%f" ) == "ss.zzz" );
         }
     }
 
@@ -154,8 +148,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%b %d becomes MMM dd" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%b %d" )
-                     == "MMM dd" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%b %d" ) == "MMM dd" );
         }
     }
 
@@ -171,8 +164,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%I:%M:%S %p becomes hh:mm:ss AP" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%I:%M:%S %p" )
-                     == "hh:mm:ss AP" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%I:%M:%S %p" ) == "hh:mm:ss AP" );
         }
     }
 
@@ -188,8 +180,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%z becomes t" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H:%M:%S%z" )
-                     == "HH:mm:sst" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H:%M:%S%z" ) == "HH:mm:sst" );
         }
     }
 
@@ -197,8 +188,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%% becomes a literal %" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H%%:%M" )
-                     == "HH%:mm" );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H%%:%M" ) == "HH%:mm" );
         }
     }
 
@@ -214,8 +204,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "Returns empty string because epoch cannot be parsed" )
         {
-            REQUIRE(
-                ChartTemplateGenerator::strftimeToQtFormat( "%Y-%m-%d %s" ).isEmpty() );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%Y-%m-%d %s" ).isEmpty() );
         }
     }
 
@@ -239,8 +228,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
     {
         THEN( "%Z is silently skipped" )
         {
-            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H:%M %Z" )
-                     == "HH:mm " );
+            REQUIRE( ChartTemplateGenerator::strftimeToQtFormat( "%H:%M %Z" ) == "HH:mm " );
         }
     }
 
@@ -258,8 +246,7 @@ SCENARIO( "strftimeToQtFormat converts strftime specifiers to Qt format",
 // patternContainingGroup
 // ===========================================================================
 
-SCENARIO( "patternContainingGroup finds the correct regex pattern",
-          "[charttemplategenerator]" )
+SCENARIO( "patternContainingGroup finds the correct regex pattern", "[charttemplategenerator]" )
 {
     GIVEN( "A format with a pattern containing the requested named group" )
     {
@@ -267,16 +254,14 @@ SCENARIO( "patternContainingGroup finds the correct regex pattern",
 
         THEN( "The pattern containing 'timestamp' is returned" )
         {
-            const auto result
-                = ChartTemplateGenerator::patternContainingGroup( fmt, "timestamp" );
+            const auto result = ChartTemplateGenerator::patternContainingGroup( fmt, "timestamp" );
             REQUIRE_FALSE( result.isEmpty() );
             REQUIRE( result.contains( "(?<timestamp>" ) );
         }
 
         THEN( "The pattern containing 'pid' is returned" )
         {
-            const auto result
-                = ChartTemplateGenerator::patternContainingGroup( fmt, "pid" );
+            const auto result = ChartTemplateGenerator::patternContainingGroup( fmt, "pid" );
             REQUIRE_FALSE( result.isEmpty() );
             REQUIRE( result.contains( "(?<pid>" ) );
         }
@@ -289,8 +274,7 @@ SCENARIO( "patternContainingGroup finds the correct regex pattern",
         THEN( "Empty string is returned for a non-existent group" )
         {
             REQUIRE(
-                ChartTemplateGenerator::patternContainingGroup( fmt, "nonexistent" )
-                    .isEmpty() );
+                ChartTemplateGenerator::patternContainingGroup( fmt, "nonexistent" ).isEmpty() );
         }
     }
 
@@ -301,9 +285,7 @@ SCENARIO( "patternContainingGroup finds the correct regex pattern",
 
         THEN( "Empty string is returned" )
         {
-            REQUIRE(
-                ChartTemplateGenerator::patternContainingGroup( emptyFmt, "body" )
-                    .isEmpty() );
+            REQUIRE( ChartTemplateGenerator::patternContainingGroup( emptyFmt, "body" ).isEmpty() );
         }
     }
 
@@ -317,8 +299,7 @@ SCENARIO( "patternContainingGroup finds the correct regex pattern",
 
         THEN( "A pattern containing 'fieldB' is found" )
         {
-            const auto result
-                = ChartTemplateGenerator::patternContainingGroup( fmt, "fieldB" );
+            const auto result = ChartTemplateGenerator::patternContainingGroup( fmt, "fieldB" );
             REQUIRE_FALSE( result.isEmpty() );
             REQUIRE( result.contains( "(?<fieldB>" ) );
         }
@@ -334,14 +315,12 @@ SCENARIO( "namedGroupIndex resolves named capture group to numeric index",
 {
     GIVEN( "A pattern with multiple named groups" )
     {
-        const QString pattern
-            = R"(^(?<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+)"
-              R"((?<pid>\d+)\s+(?<tid>\d+)\s+(?<level>[VDIWEFS]))";
+        const QString pattern = R"(^(?<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+)"
+                                R"((?<pid>\d+)\s+(?<tid>\d+)\s+(?<level>[VDIWEFS]))";
 
         THEN( "timestamp is group 1" )
         {
-            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "timestamp" )
-                     == 1 );
+            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "timestamp" ) == 1 );
         }
 
         THEN( "pid is group 2" )
@@ -356,8 +335,7 @@ SCENARIO( "namedGroupIndex resolves named capture group to numeric index",
 
         THEN( "level is group 4" )
         {
-            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "level" )
-                     == 4 );
+            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "level" ) == 4 );
         }
     }
 
@@ -367,8 +345,7 @@ SCENARIO( "namedGroupIndex resolves named capture group to numeric index",
 
         THEN( "-1 is returned" )
         {
-            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "missing" )
-                     == -1 );
+            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "missing" ) == -1 );
         }
     }
 
@@ -378,8 +355,7 @@ SCENARIO( "namedGroupIndex resolves named capture group to numeric index",
 
         THEN( "-1 is returned" )
         {
-            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "anything" )
-                     == -1 );
+            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "anything" ) == -1 );
         }
     }
 
@@ -389,8 +365,7 @@ SCENARIO( "namedGroupIndex resolves named capture group to numeric index",
 
         THEN( "-1 is returned for any group name" )
         {
-            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "timestamp" )
-                     == -1 );
+            REQUIRE( ChartTemplateGenerator::namedGroupIndex( pattern, "timestamp" ) == -1 );
         }
     }
 }
@@ -399,8 +374,7 @@ SCENARIO( "namedGroupIndex resolves named capture group to numeric index",
 // levelFrequencyTemplates
 // ===========================================================================
 
-SCENARIO( "levelFrequencyTemplates generates per-level count series",
-          "[charttemplategenerator]" )
+SCENARIO( "levelFrequencyTemplates generates per-level count series", "[charttemplategenerator]" )
 {
     GIVEN( "An Android format with 5 level mappings" )
     {
@@ -408,8 +382,7 @@ SCENARIO( "levelFrequencyTemplates generates per-level count series",
 
         WHEN( "Templates are generated with default bucket" )
         {
-            const auto templates
-                = ChartTemplateGenerator::levelFrequencyTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::levelFrequencyTemplates( fmt );
 
             THEN( "One series per level is produced" )
             {
@@ -463,8 +436,7 @@ SCENARIO( "levelFrequencyTemplates generates per-level count series",
 
         WHEN( "Templates are generated with a custom bucket size" )
         {
-            const auto templates
-                = ChartTemplateGenerator::levelFrequencyTemplates( fmt, 5000 );
+            const auto templates = ChartTemplateGenerator::levelFrequencyTemplates( fmt, 5000 );
 
             THEN( "The bucket size is applied to all series" )
             {
@@ -484,8 +456,7 @@ SCENARIO( "levelFrequencyTemplates generates per-level count series",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::levelFrequencyTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::levelFrequencyTemplates( fmt );
 
             THEN( "The custom level is included after canonical levels" )
             {
@@ -501,8 +472,7 @@ SCENARIO( "levelFrequencyTemplates generates per-level count series",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::levelFrequencyTemplates( emptyFmt );
+            const auto templates = ChartTemplateGenerator::levelFrequencyTemplates( emptyFmt );
 
             THEN( "The result is empty" )
             {
@@ -520,8 +490,7 @@ SCENARIO( "levelFrequencyTemplates generates per-level count series",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::levelFrequencyTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::levelFrequencyTemplates( fmt );
 
             THEN( "Series are produced but without timestamp X-axis" )
             {
@@ -546,8 +515,7 @@ SCENARIO( "messageRateTemplates generates a single message-rate series",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::messageRateTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::messageRateTemplates( fmt );
 
             THEN( "Exactly one series is returned" )
             {
@@ -583,8 +551,7 @@ SCENARIO( "messageRateTemplates generates a single message-rate series",
 
         WHEN( "A custom bucket size is specified" )
         {
-            const auto templates
-                = ChartTemplateGenerator::messageRateTemplates( fmt, 10000 );
+            const auto templates = ChartTemplateGenerator::messageRateTemplates( fmt, 10000 );
 
             THEN( "The bucket size is applied" )
             {
@@ -599,8 +566,7 @@ SCENARIO( "messageRateTemplates generates a single message-rate series",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::messageRateTemplates( emptyFmt );
+            const auto templates = ChartTemplateGenerator::messageRateTemplates( emptyFmt );
 
             THEN( "The result is empty" )
             {
@@ -623,8 +589,7 @@ SCENARIO( "numericFieldTemplates generates series for integer and float fields",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::numericFieldTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::numericFieldTemplates( fmt );
 
             THEN( "Two series are produced (pid, tid)" )
             {
@@ -679,9 +644,8 @@ SCENARIO( "numericFieldTemplates generates series for integer and float fields",
 
         // Need a pattern with the named group.
         auto patterns = fmt.regexPatterns();
-        patterns[ "extended" ]
-            = R"(^(?<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+)"
-              R"((?<duration>\d+\.\d+)ms$)";
+        patterns[ "extended" ] = R"(^(?<timestamp>\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\s+)"
+                                 R"((?<duration>\d+\.\d+)ms$)";
         fmt.setRegexPatterns( patterns );
 
         auto order = fmt.valueFieldOrder();
@@ -690,8 +654,7 @@ SCENARIO( "numericFieldTemplates generates series for integer and float fields",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::numericFieldTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::numericFieldTemplates( fmt );
 
             THEN( "The duration field is included" )
             {
@@ -712,8 +675,7 @@ SCENARIO( "numericFieldTemplates generates series for integer and float fields",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::numericFieldTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::numericFieldTemplates( fmt );
 
             THEN( "The result is empty" )
             {
@@ -731,8 +693,7 @@ SCENARIO( "numericFieldTemplates generates series for integer and float fields",
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::numericFieldTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::numericFieldTemplates( fmt );
 
             THEN( "The hidden field is excluded" )
             {
@@ -757,8 +718,7 @@ SCENARIO( "fieldOccurrenceTemplates generates count-mode series per visible fiel
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt );
 
             THEN( "body, timestamp, and level fields are skipped" )
             {
@@ -813,8 +773,7 @@ SCENARIO( "fieldOccurrenceTemplates generates count-mode series per visible fiel
 
         WHEN( "A custom bucket size is specified" )
         {
-            const auto templates
-                = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt, 30000 );
+            const auto templates = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt, 30000 );
 
             THEN( "The bucket size is applied" )
             {
@@ -834,8 +793,7 @@ SCENARIO( "fieldOccurrenceTemplates generates count-mode series per visible fiel
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt );
 
             THEN( "The hidden field is excluded" )
             {
@@ -852,8 +810,7 @@ SCENARIO( "fieldOccurrenceTemplates generates count-mode series per visible fiel
 
         WHEN( "Templates are generated" )
         {
-            const auto templates
-                = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt );
+            const auto templates = ChartTemplateGenerator::fieldOccurrenceTemplates( fmt );
 
             THEN( "The result is empty (body is skipped)" )
             {
@@ -867,21 +824,16 @@ SCENARIO( "fieldOccurrenceTemplates generates count-mode series per visible fiel
 // Integration: generated templates match real log lines
 // ===========================================================================
 
-SCENARIO( "Generated level templates match actual Android log lines",
-          "[charttemplategenerator]" )
+SCENARIO( "Generated level templates match actual Android log lines", "[charttemplategenerator]" )
 {
     GIVEN( "An Android format and its level frequency templates" )
     {
         const auto fmt = makeAndroidFormat();
-        const auto templates
-            = ChartTemplateGenerator::levelFrequencyTemplates( fmt, 0 );
+        const auto templates = ChartTemplateGenerator::levelFrequencyTemplates( fmt, 0 );
 
-        const QString errorLine
-            = "04-08 20:02:49.780  3814  6380 E SomeTag: crash happened";
-        const QString infoLine
-            = "04-08 20:02:50.100  3814  6380 I SomeTag: started ok";
-        const QString debugLine
-            = "04-08 20:02:50.200  3814  6380 D SomeTag: checking state";
+        const QString errorLine = "04-08 20:02:49.780  3814  6380 E SomeTag: crash happened";
+        const QString infoLine = "04-08 20:02:50.100  3814  6380 I SomeTag: started ok";
+        const QString debugLine = "04-08 20:02:50.200  3814  6380 D SomeTag: checking state";
 
         WHEN( "The error template is applied" )
         {
@@ -924,8 +876,7 @@ SCENARIO( "Generated level templates match actual Android log lines",
 
             THEN( "It does not match the error line" )
             {
-                REQUIRE_FALSE(
-                    infoSeries->compiledRegex.match( errorLine ).hasMatch() );
+                REQUIRE_FALSE( infoSeries->compiledRegex.match( errorLine ).hasMatch() );
             }
         }
 
@@ -946,17 +897,14 @@ SCENARIO( "Generated level templates match actual Android log lines",
     }
 }
 
-SCENARIO( "Generated numeric templates extract values from log lines",
-          "[charttemplategenerator]" )
+SCENARIO( "Generated numeric templates extract values from log lines", "[charttemplategenerator]" )
 {
     GIVEN( "An Android format and its numeric field templates" )
     {
         const auto fmt = makeAndroidFormat();
-        const auto templates
-            = ChartTemplateGenerator::numericFieldTemplates( fmt );
+        const auto templates = ChartTemplateGenerator::numericFieldTemplates( fmt );
 
-        const QString line
-            = "04-08 20:02:49.780  3814  6380 I SomeTag: hello world";
+        const QString line = "04-08 20:02:49.780  3814  6380 I SomeTag: hello world";
 
         WHEN( "The pid template is applied" )
         {
@@ -975,8 +923,7 @@ SCENARIO( "Generated numeric templates extract values from log lines",
                 REQUIRE( match.hasMatch() );
                 REQUIRE( match.lastCapturedIndex() >= pidSeries->captureGroup );
                 bool ok = false;
-                const double val
-                    = match.captured( pidSeries->captureGroup ).toDouble( &ok );
+                const double val = match.captured( pidSeries->captureGroup ).toDouble( &ok );
                 REQUIRE( ok );
                 REQUIRE( val == Approx( 3814.0 ) );
             }
@@ -998,8 +945,7 @@ SCENARIO( "Generated numeric templates extract values from log lines",
                 const auto match = tidSeries->compiledRegex.match( line );
                 REQUIRE( match.hasMatch() );
                 bool ok = false;
-                const double val
-                    = match.captured( tidSeries->captureGroup ).toDouble( &ok );
+                const double val = match.captured( tidSeries->captureGroup ).toDouble( &ok );
                 REQUIRE( ok );
                 REQUIRE( val == Approx( 6380.0 ) );
             }

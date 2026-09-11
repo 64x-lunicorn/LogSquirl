@@ -48,8 +48,8 @@ HighlighterSet setWithHighlighters( int count )
     for ( int i = 0; i < count; ++i ) {
         // Every pattern except the last is guaranteed not to match, so the
         // benchmark pays the cost of walking the whole set.
-        set.addHighlighter( Highlighter{ QStringLiteral( "NEEDLE_%1_NOT_PRESENT" ).arg( i ),
-                                         false, true, QColor{ Qt::white }, QColor{ Qt::blue } } );
+        set.addHighlighter( Highlighter{ QStringLiteral( "NEEDLE_%1_NOT_PRESENT" ).arg( i ), false,
+                                         true, QColor{ Qt::white }, QColor{ Qt::blue } } );
     }
     set.addHighlighter(
         Highlighter{ "ERROR", false, false, QColor{ Qt::white }, QColor{ Qt::red } } );
@@ -60,8 +60,10 @@ LineDecorator::Context contextWith( HighlighterSet highlighterSet = {},
                                     std::optional<Highlighter> mainSearch = std::nullopt,
                                     QuickFindMatcher quickFind = {} )
 {
-    return LineDecorator::Context{ std::move( highlighterSet ), std::move( mainSearch ), {},
-                                   std::move( quickFind ), QColor{ Qt::cyan }, SearchLimits{} };
+    return LineDecorator::Context{
+        std::move( highlighterSet ), std::move( mainSearch ), {},
+        std::move( quickFind ),      QColor{ Qt::cyan },      SearchLimits{}
+    };
 }
 
 QString repeatedWord( const QString& word, int count, QChar separator = QChar{ ' ' } )
@@ -86,8 +88,9 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         const LineDecorator decorator{ contextWith( setWithHighlighters( 1 ) ) };
         const LogLine line{ 0_lnum, "2026-09-09 12:00:00 INFO connection established" };
 
-        meter.measure( [&] {
-            const auto verdict = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
+        meter.measure( [ & ] {
+            const auto verdict
+                = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
             return decorator.decorate( line.text(), verdict );
         } );
     };
@@ -98,19 +101,22 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         const QString text = repeatedWord( "the quick brown fox jumps over the lazy dog,", 500 );
         const LogLine line{ 0_lnum, text };
 
-        meter.measure( [&] {
-            const auto verdict = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
+        meter.measure( [ & ] {
+            const auto verdict
+                = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
             return decorator.decorate( line.text(), verdict );
         } );
     };
 
-    BENCHMARK_ADVANCED( "many highlighters, one whole-line match" )( Catch::Benchmark::Chronometer meter )
+    BENCHMARK_ADVANCED( "many highlighters, one whole-line match" )(
+        Catch::Benchmark::Chronometer meter )
     {
         const LineDecorator decorator{ contextWith( setWithHighlighters( 200 ) ) };
         const LogLine line{ 0_lnum, "an ERROR occurred while processing the request" };
 
-        meter.measure( [&] {
-            const auto verdict = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
+        meter.measure( [ & ] {
+            const auto verdict
+                = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
             return decorator.decorate( line.text(), verdict );
         } );
     };
@@ -120,14 +126,14 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         Highlighter mainSearch{ "wor", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
         QRegularExpression qfRegex{ "wor" };
         QuickFindMatcher quickFind{ true, qfRegex };
-        const LineDecorator decorator{
-            contextWith( setWithHighlighters( 1 ), mainSearch, quickFind )
-        };
+        const LineDecorator decorator{ contextWith( setWithHighlighters( 1 ), mainSearch,
+                                                    quickFind ) };
         const QString text = repeatedWord( "word", 2000 );
         const LogLine line{ 0_lnum, text };
 
-        meter.measure( [&] {
-            const auto verdict = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
+        meter.measure( [ & ] {
+            const auto verdict
+                = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
             return decorator.decorate( line.text(), verdict );
         } );
     };
@@ -141,8 +147,9 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         }
         const LogLine line{ 0_lnum, text };
 
-        meter.measure( [&] {
-            const auto verdict = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
+        meter.measure( [ & ] {
+            const auto verdict
+                = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
             return decorator.decorate( line.text(), verdict );
         } );
     };
@@ -162,34 +169,33 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         BENCHMARK_ADVANCED( "translate to display space: old per-match re-expansion" )
         ( Catch::Benchmark::Chronometer meter )
         {
-            meter.measure( [&] {
+            meter.measure( [ & ] {
                 auto spans = rawSpans;
-                std::transform( spans.begin(), spans.end(), spans.begin(),
-                                [ &text ]( const HighlightedMatch& match ) {
-                                    const auto prefix
-                                        = QStringView{ text }.left( match.startColumn().get() );
-                                    const auto matchPart = QStringView{ text }.mid(
-                                        match.startColumn().get(), match.size().get() );
-                                    const auto expandedPrefixLength
-                                        = untabify( prefix.toString() ).size();
-                                    const LineLength startDelta
-                                        = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                                            expandedPrefixLength - prefix.size() ) };
-                                    const LineLength expandedMatchLength = LineLength{
-                                        untabify( matchPart.toString(),
-                                                 LineColumn{
-                                                     type_safe::narrow_cast<LineColumn::UnderlyingType>(
-                                                         expandedPrefixLength ) } )
-                                            .size()
-                                    };
-                                    const auto lengthDelta
-                                        = expandedMatchLength
-                                          - LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                                              matchPart.size() ) };
-                                    return HighlightedMatch{ match.startColumn() + startDelta,
-                                                             match.size() + lengthDelta,
-                                                             match.foreColor(), match.backColor() };
-                                } );
+                std::transform(
+                    spans.begin(), spans.end(), spans.begin(),
+                    [ &text ]( const HighlightedMatch& match ) {
+                        const auto prefix = QStringView{ text }.left( match.startColumn().get() );
+                        const auto matchPart = QStringView{ text }.mid( match.startColumn().get(),
+                                                                        match.size().get() );
+                        const auto expandedPrefixLength = untabify( prefix.toString() ).size();
+                        const LineLength startDelta
+                            = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                                expandedPrefixLength - prefix.size() ) };
+                        const LineLength expandedMatchLength = LineLength{
+                            untabify(
+                                matchPart.toString(),
+                                LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
+                                    expandedPrefixLength ) } )
+                                .size()
+                        };
+                        const auto lengthDelta
+                            = expandedMatchLength
+                              - LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                                  matchPart.size() ) };
+                        return HighlightedMatch{ match.startColumn() + startDelta,
+                                                 match.size() + lengthDelta, match.foreColor(),
+                                                 match.backColor() };
+                    } );
                 return spans;
             } );
         };
@@ -197,7 +203,7 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         BENCHMARK_ADVANCED( "translate to display space: rawToDisplayColumns" )
         ( Catch::Benchmark::Chronometer meter )
         {
-            meter.measure( [&] {
+            meter.measure( [ & ] {
                 auto spans = rawSpans;
                 int furthestRawColumn = 0;
                 for ( const auto& match : spans ) {
@@ -207,22 +213,21 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
                 }
                 const auto rawToDisplay
                     = rawToDisplayColumns( QStringView{ text }.left( furthestRawColumn ) );
-                std::transform( spans.begin(), spans.end(), spans.begin(),
-                                [ &rawToDisplay ]( const HighlightedMatch& match ) {
-                                    const auto rawStart
-                                        = static_cast<size_t>( match.startColumn().get() );
-                                    const auto rawEnd
-                                        = rawStart + static_cast<size_t>( match.size().get() );
-                                    const auto displayStart = rawToDisplay[ rawStart ];
-                                    const auto displayEnd = rawToDisplay[ rawEnd ];
-                                    return HighlightedMatch{
-                                        LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-                                            displayStart ) },
-                                        LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                                            displayEnd - displayStart ) },
-                                        match.foreColor(), match.backColor()
-                                    };
-                                } );
+                std::transform(
+                    spans.begin(), spans.end(), spans.begin(),
+                    [ &rawToDisplay ]( const HighlightedMatch& match ) {
+                        const auto rawStart = static_cast<size_t>( match.startColumn().get() );
+                        const auto rawEnd = rawStart + static_cast<size_t>( match.size().get() );
+                        const auto displayStart = rawToDisplay[ rawStart ];
+                        const auto displayEnd = rawToDisplay[ rawEnd ];
+                        return HighlightedMatch{
+                            LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
+                                displayStart ) },
+                            LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                                displayEnd - displayStart ) },
+                            match.foreColor(), match.backColor()
+                        };
+                    } );
                 return spans;
             } );
         };
@@ -239,7 +244,7 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         // "fox" occurs once, a few characters in; the rest of the ~24,000
         // character line has nothing else to match.
         const QString text = QStringLiteral( "the quick brown fox jumps over " )
-                              + repeatedWord( "the lazy dog,", 1700 );
+                             + repeatedWord( "the lazy dog,", 1700 );
         const LogLine line{ 0_lnum, text };
         const auto verdict = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
         const auto rawSpans = decorator.decorate( text, verdict ).spans();
@@ -248,34 +253,33 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         BENCHMARK_ADVANCED( "long line, one early match: old per-match re-expansion" )
         ( Catch::Benchmark::Chronometer meter )
         {
-            meter.measure( [&] {
+            meter.measure( [ & ] {
                 auto spans = rawSpans;
-                std::transform( spans.begin(), spans.end(), spans.begin(),
-                                [ &text ]( const HighlightedMatch& match ) {
-                                    const auto prefix
-                                        = QStringView{ text }.left( match.startColumn().get() );
-                                    const auto matchPart = QStringView{ text }.mid(
-                                        match.startColumn().get(), match.size().get() );
-                                    const auto expandedPrefixLength
-                                        = untabify( prefix.toString() ).size();
-                                    const LineLength startDelta
-                                        = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                                            expandedPrefixLength - prefix.size() ) };
-                                    const LineLength expandedMatchLength = LineLength{
-                                        untabify( matchPart.toString(),
-                                                 LineColumn{
-                                                     type_safe::narrow_cast<LineColumn::UnderlyingType>(
-                                                         expandedPrefixLength ) } )
-                                            .size()
-                                    };
-                                    const auto lengthDelta
-                                        = expandedMatchLength
-                                          - LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                                              matchPart.size() ) };
-                                    return HighlightedMatch{ match.startColumn() + startDelta,
-                                                             match.size() + lengthDelta,
-                                                             match.foreColor(), match.backColor() };
-                                } );
+                std::transform(
+                    spans.begin(), spans.end(), spans.begin(),
+                    [ &text ]( const HighlightedMatch& match ) {
+                        const auto prefix = QStringView{ text }.left( match.startColumn().get() );
+                        const auto matchPart = QStringView{ text }.mid( match.startColumn().get(),
+                                                                        match.size().get() );
+                        const auto expandedPrefixLength = untabify( prefix.toString() ).size();
+                        const LineLength startDelta
+                            = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                                expandedPrefixLength - prefix.size() ) };
+                        const LineLength expandedMatchLength = LineLength{
+                            untabify(
+                                matchPart.toString(),
+                                LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
+                                    expandedPrefixLength ) } )
+                                .size()
+                        };
+                        const auto lengthDelta
+                            = expandedMatchLength
+                              - LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                                  matchPart.size() ) };
+                        return HighlightedMatch{ match.startColumn() + startDelta,
+                                                 match.size() + lengthDelta, match.foreColor(),
+                                                 match.backColor() };
+                    } );
                 return spans;
             } );
         };
@@ -283,7 +287,7 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         BENCHMARK_ADVANCED( "long line, one early match: rawToDisplayColumns (limited)" )
         ( Catch::Benchmark::Chronometer meter )
         {
-            meter.measure( [&] {
+            meter.measure( [ & ] {
                 auto spans = rawSpans;
                 int furthestRawColumn = 0;
                 for ( const auto& match : spans ) {
@@ -293,22 +297,21 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
                 }
                 const auto rawToDisplay
                     = rawToDisplayColumns( QStringView{ text }.left( furthestRawColumn ) );
-                std::transform( spans.begin(), spans.end(), spans.begin(),
-                                [ &rawToDisplay ]( const HighlightedMatch& match ) {
-                                    const auto rawStart
-                                        = static_cast<size_t>( match.startColumn().get() );
-                                    const auto rawEnd
-                                        = rawStart + static_cast<size_t>( match.size().get() );
-                                    const auto displayStart = rawToDisplay[ rawStart ];
-                                    const auto displayEnd = rawToDisplay[ rawEnd ];
-                                    return HighlightedMatch{
-                                        LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-                                            displayStart ) },
-                                        LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                                            displayEnd - displayStart ) },
-                                        match.foreColor(), match.backColor()
-                                    };
-                                } );
+                std::transform(
+                    spans.begin(), spans.end(), spans.begin(),
+                    [ &rawToDisplay ]( const HighlightedMatch& match ) {
+                        const auto rawStart = static_cast<size_t>( match.startColumn().get() );
+                        const auto rawEnd = rawStart + static_cast<size_t>( match.size().get() );
+                        const auto displayStart = rawToDisplay[ rawStart ];
+                        const auto displayEnd = rawToDisplay[ rawEnd ];
+                        return HighlightedMatch{
+                            LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
+                                displayStart ) },
+                            LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                                displayEnd - displayStart ) },
+                            match.foreColor(), match.backColor()
+                        };
+                    } );
                 return spans;
             } );
         };

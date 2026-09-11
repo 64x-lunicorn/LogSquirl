@@ -44,9 +44,9 @@
 #include <string_view>
 #include <thread>
 
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QDir>
 #include <QMessageBox>
 #include <QSemaphore>
 #include <tuple>
@@ -98,7 +98,7 @@ OffsetInFile IndexingData::getEndOfLineOffset( LineNumber line ) const
 }
 
 logsquirl::vector<OffsetInFile> IndexingData::getEndOfLineOffsets( LineNumber line,
-                                                               LinesCount count ) const
+                                                                   LinesCount count ) const
 {
     return std::visit(
         [ line, count ]( const auto& linePosition ) { return linePosition.range( line, count ); },
@@ -276,16 +276,16 @@ void LogDataWorker::indexAdditionalLines()
     LOG_INFO << "PartialIndex requested";
 
     QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, fileName = fileName_,
-                                            indexingPolicy = indexingPolicy_ ] {
-        QThread::currentThread()->setObjectName( "PartialIndex" );
-        LOG_INFO << "PartialIndex thread started";
-        operationStarted.release();
-        ScopedLock operationLock( operationsMutex_ );
-        auto operationRequested = std::make_unique<PartialIndexOperation>(
-            fileName, indexing_data_, interruptRequest_, indexingPolicy );
-        return connectSignalsAndRun( operationRequested.get() );
-    } ) );
+    operationsPool_.start( createRunnable(
+        [ this, &operationStarted, fileName = fileName_, indexingPolicy = indexingPolicy_ ] {
+            QThread::currentThread()->setObjectName( "PartialIndex" );
+            LOG_INFO << "PartialIndex thread started";
+            operationStarted.release();
+            ScopedLock operationLock( operationsMutex_ );
+            auto operationRequested = std::make_unique<PartialIndexOperation>(
+                fileName, indexing_data_, interruptRequest_, indexingPolicy );
+            return connectSignalsAndRun( operationRequested.get() );
+        } ) );
     operationStarted.acquire();
 }
 
@@ -298,15 +298,15 @@ void LogDataWorker::checkFileChanges()
     LOG_INFO << "Check file changes requested";
 
     QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, fileName = fileName_,
-                                            indexingPolicy = indexingPolicy_ ] {
-        operationStarted.release();
-        ScopedLock operationLock( operationsMutex_ );
-        auto operationRequested = std::make_unique<CheckFileChangesOperation>(
-            fileName, indexing_data_, interruptRequest_, indexingPolicy );
+    operationsPool_.start( createRunnable(
+        [ this, &operationStarted, fileName = fileName_, indexingPolicy = indexingPolicy_ ] {
+            operationStarted.release();
+            ScopedLock operationLock( operationsMutex_ );
+            auto operationRequested = std::make_unique<CheckFileChangesOperation>(
+                fileName, indexing_data_, interruptRequest_, indexingPolicy );
 
-        return connectSignalsAndRun( operationRequested.get() );
-    } ) );
+            return connectSignalsAndRun( operationRequested.get() );
+        } ) );
     operationStarted.acquire();
 }
 
@@ -444,8 +444,8 @@ expandTabsInLine( const logsquirl::vector<char>& block, std::string_view blockTo
 }
 
 std::tuple<bool, int, LineLength::UnderlyingType>
-findNextLineFeed( const logsquirl::vector<char>& block, int posWithinBlock, const IndexingState& state,
-                  FindDelimeter findNextDelimeter )
+findNextLineFeed( const logsquirl::vector<char>& block, int posWithinBlock,
+                  const IndexingState& state, FindDelimeter findNextDelimeter )
 {
     const auto searchStart = block.data() + posWithinBlock;
     const auto searchLineSize = static_cast<size_t>( logsquirl::ssize( block ) - posWithinBlock );
@@ -802,7 +802,8 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     if ( scopedAccessor.getMaxLength().get()
          == std::numeric_limits<LineLength::UnderlyingType>::max() ) {
         dispatchToMainThread( [] {
-            QMessageBox::critical( nullptr, "LogSquirl", "Can't index file: some lines are too long",
+            QMessageBox::critical( nullptr, "LogSquirl",
+                                   "Can't index file: some lines are too long",
                                    QMessageBox::Close );
         } );
 
@@ -845,8 +846,7 @@ OperationResult FullIndexOperation::run()
                         bool valid = true;
 
                         // Check header
-                        const auto headerRead
-                            = file.read( buffer.data(), cached->hash.headerSize );
+                        const auto headerRead = file.read( buffer.data(), cached->hash.headerSize );
                         if ( headerRead == cached->hash.headerSize ) {
                             FileDigest headerDigest;
                             headerDigest.addData( buffer.data(),
@@ -862,8 +862,7 @@ OperationResult FullIndexOperation::run()
                         // Check tail
                         if ( valid && cached->hash.tailOffset > 0 ) {
                             file.seek( cached->hash.tailOffset );
-                            const auto tailRead
-                                = file.read( buffer.data(), cached->hash.tailSize );
+                            const auto tailRead = file.read( buffer.data(), cached->hash.tailSize );
                             if ( tailRead == cached->hash.tailSize ) {
                                 FileDigest tailDigest;
                                 tailDigest.addData( buffer.data(),
@@ -880,15 +879,13 @@ OperationResult FullIndexOperation::run()
                         if ( valid ) {
                             LOG_INFO << "Using cached index for " << fileName_;
 
-                            auto* codec
-                                = QTextCodec::codecForName( cached->encodingName );
+                            auto* codec = QTextCodec::codecForName( cached->encodingName );
                             if ( !codec ) {
                                 codec = QTextCodec::codecForLocale();
                             }
 
                             {
-                                IndexingData::MutateAccessor scopedAccessor{
-                                    indexing_data_.get() };
+                                IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
                                 scopedAccessor.loadFromCache(
                                     std::move( cached->linePosition ), cached->maxLength,
                                     cached->hash, codec,
@@ -935,8 +932,7 @@ OperationResult FullIndexOperation::run()
                 const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
 
                 IndexCache::trySave( fileName_, *linePos, accessor.getMaxLength(),
-                                     accessor.getHash(), encodingName,
-                                     linePos->hasFakeFinalLF() );
+                                     accessor.getHash(), encodingName, linePos->hasFakeFinalLF() );
 
                 // Evict old entries if cache is too large
                 const auto maxBytes = static_cast<qint64>( indexCacheMaxSizeMb ) * 1024 * 1024;

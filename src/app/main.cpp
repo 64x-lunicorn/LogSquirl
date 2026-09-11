@@ -62,8 +62,8 @@
 #include "styles.h"
 
 #include "cli.h"
-#include "logsquirlapp.h"
 #include "logsquirl_version.h"
+#include "logsquirlapp.h"
 
 #include <QPainter>
 #include <QPixmap>
@@ -106,7 +106,6 @@ int main( int argc, char* argv[] )
 
     LogSquirlApp app( argc, argv );
 
-
     MainWindow::installLanguage( config.language() );
     CliParameters parameters( app );
 
@@ -121,9 +120,7 @@ int main( int argc, char* argv[] )
         = tbb::global_control::active_value( tbb::global_control::max_allowed_parallelism );
 
     LOG_INFO << "LogSquirl instance"
-             << ", mimalloc v" << mi_version()
-             << ", default concurrency " << maxConcurrency;
-
+             << ", mimalloc v" << mi_version() << ", default concurrency " << maxConcurrency;
 
     roaring_memory_t roaring_memory_allocators;
     roaring_memory_allocators.malloc = mi_malloc;
@@ -132,10 +129,10 @@ int main( int argc, char* argv[] )
     roaring_memory_allocators.free = mi_free;
     roaring_memory_allocators.aligned_malloc = mi_aligned_alloc;
     roaring_memory_allocators.aligned_free = mi_free;
-    roaring_init_memory_hook(roaring_memory_allocators);
+    roaring_init_memory_hook( roaring_memory_allocators );
 
 #ifdef LOGSQUIRL_HAS_HS
-    hs_set_allocator(mi_malloc, mi_free);
+    hs_set_allocator( mi_malloc, mi_free );
 #endif
 
     // Kept alive for the rest of main() (not scoped to this if): a
@@ -150,8 +147,7 @@ int main( int argc, char* argv[] )
     if ( maxConcurrency < 2 ) {
         maxConcurrency = 2;
         LOG_INFO << "Overriding default concurrency to " << maxConcurrency;
-        concurrencyControl.emplace( tbb::global_control::max_allowed_parallelism,
-                                    maxConcurrency );
+        concurrencyControl.emplace( tbb::global_control::max_allowed_parallelism, maxConcurrency );
         QThreadPool::globalInstance()->setMaxThreadCount( static_cast<int>( maxConcurrency ) );
     }
 
@@ -178,23 +174,22 @@ int main( int argc, char* argv[] )
 
             // Draw the app icon centred near the top
             const QPixmap icon( ":/images/logsquirl-logo.png" );
-            const auto scaled = icon.scaled( kIconSize, kIconSize,
-                                             Qt::KeepAspectRatio, Qt::SmoothTransformation );
+            const auto scaled = icon.scaled( kIconSize, kIconSize, Qt::KeepAspectRatio,
+                                             Qt::SmoothTransformation );
             painter.drawPixmap( ( kSplashWidth - kIconSize ) / 2, 36, scaled );
 
             // App name
             QFont nameFont( "Segoe UI", 24, QFont::DemiBold );
             painter.setFont( nameFont );
             painter.setPen( Qt::white );
-            painter.drawText( QRect( 0, 140, kSplashWidth, 36 ),
-                              Qt::AlignHCenter, QStringLiteral( "LogSquirl" ) );
+            painter.drawText( QRect( 0, 140, kSplashWidth, 36 ), Qt::AlignHCenter,
+                              QStringLiteral( "LogSquirl" ) );
 
             // Version
             QFont versionFont( "Segoe UI", 11 );
             painter.setFont( versionFont );
             painter.setPen( QColor( "#808080" ) );
-            painter.drawText( QRect( 0, 174, kSplashWidth, 20 ),
-                              Qt::AlignHCenter,
+            painter.drawText( QRect( 0, 174, kSplashWidth, 20 ), Qt::AlignHCenter,
                               QStringLiteral( "v%1" ).arg( logsquirlVersion() ) );
 
             // Accent bar at the bottom

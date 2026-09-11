@@ -49,7 +49,7 @@
 // It exists to permit LogData to delay the operation if another
 // one is ongoing (operations are asynchronous)
 class LogDataOperation {
-  public:
+public:
     LogDataOperation() = default;
     explicit LogDataOperation( const QString& fileName )
         : filename_( fileName )
@@ -68,14 +68,14 @@ class LogDataOperation {
         return filename_;
     }
 
-  protected:
+protected:
     virtual void doStart( LogDataWorker& workerThread ) const = 0;
     QString filename_;
 };
 
 // Attaching a new file (change name + full index)
 class AttachOperation : public LogDataOperation {
-  public:
+public:
     // The default Encoding comes from the File Access Policy the LogData
     // was built with; negative means "detect it rather than force one".
     AttachOperation( const QString& fileName, int defaultEncodingMib )
@@ -84,42 +84,42 @@ class AttachOperation : public LogDataOperation {
     {
     }
 
-  protected:
+protected:
     void doStart( LogDataWorker& workerThread ) const override;
 
-  private:
+private:
     int defaultEncodingMib_;
 };
 
 // Reindexing the current file
 class FullReindexOperation : public LogDataOperation {
-  public:
+public:
     explicit FullReindexOperation( QTextCodec* forcedEncoding = nullptr )
         : forcedEncoding_( forcedEncoding )
     {
     }
 
-  protected:
+protected:
     void doStart( LogDataWorker& workerThread ) const override;
 
-  private:
+private:
     QTextCodec* forcedEncoding_;
 };
 
 // Indexing part of the current file (from fileSize)
 class PartialReindexOperation : public LogDataOperation {
-  protected:
+protected:
     void doStart( LogDataWorker& workerThread ) const override;
 };
 
 // Attaching a new file (change name + full index)
 class CheckDataChangesOperation : public LogDataOperation {
-  protected:
+protected:
     void doStart( LogDataWorker& workerThread ) const override;
 };
 
 class OperationQueue {
-  public:
+public:
     explicit OperationQueue( std::function<void()> beforeOperationStart );
 
     void setWorker( std::unique_ptr<LogDataWorker>&& worker );
@@ -138,18 +138,18 @@ class OperationQueue {
 
     void finishOperationAndStartNext();
 
-  private:
+private:
     using OperationVariant = std::variant<std::monostate, AttachOperation, FullReindexOperation,
-                                           PartialReindexOperation, CheckDataChangesOperation>;
+                                          PartialReindexOperation, CheckDataChangesOperation>;
 
     void enqueueOperation( OperationVariant&& operation );
     void tryStartPendingOperation();
 
     std::function<void()> beforeOperationStart_;
 
-  private:
+private:
     mutable Mutex mutex_;
-    
+
     OperationVariant executingOperation_;
     OperationVariant pendingOperation_;
 

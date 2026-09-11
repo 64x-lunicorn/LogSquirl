@@ -23,26 +23,23 @@
 
 #include "persistable.h"
 
-
 // Manage the list of recently opened files
-class TabNameMapping final : public Persistable<TabNameMapping, session_settings>
-{
-  public:
+class TabNameMapping final : public Persistable<TabNameMapping, session_settings> {
+public:
     static const char* persistableName()
     {
         return "TabNameMapping";
     }
-    
-    TabNameMapping& setTabName(const QString& path, const QString& name);
-    QString tabName(const QString& path) const;
+
+    TabNameMapping& setTabName( const QString& path, const QString& name );
+    QString tabName( const QString& path ) const;
 
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
-    struct TabName
-    {
+private:
+    struct TabName {
         QString path;
         QString name;
     };

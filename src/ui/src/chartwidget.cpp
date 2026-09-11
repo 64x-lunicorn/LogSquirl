@@ -145,8 +145,7 @@ QPointF ChartWidget::dataToPixel( double lineNum, double value ) const
     const QRectF area = plotArea();
     const double xRatio = ( lineNum - xMin_ ) / ( xMax_ - xMin_ );
     const double yRatio = ( value - yMin_ ) / ( yMax_ - yMin_ );
-    return { area.left() + xRatio * area.width(),
-             area.bottom() - yRatio * area.height() };
+    return { area.left() + xRatio * area.width(), area.bottom() - yRatio * area.height() };
 }
 
 QPointF ChartWidget::pixelToData( const QPointF& pixel ) const
@@ -163,8 +162,7 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
     painter.setPen( axisPen );
 
     // Axes lines.
-    painter.drawLine( QPointF( area.left(), area.top() ),
-                      QPointF( area.left(), area.bottom() ) );
+    painter.drawLine( QPointF( area.left(), area.top() ), QPointF( area.left(), area.bottom() ) );
     painter.drawLine( QPointF( area.left(), area.bottom() ),
                       QPointF( area.right(), area.bottom() ) );
 
@@ -201,8 +199,7 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
             painter.drawText( QRectF( p.x() - 30, area.bottom() + 2, 60, BottomMargin - 2 ),
                               Qt::AlignHCenter | Qt::AlignTop,
                               xAxisIsTimestamp_
-                                  ? QDateTime::fromMSecsSinceEpoch(
-                                        static_cast<qint64>( v ) )
+                                  ? QDateTime::fromMSecsSinceEpoch( static_cast<qint64>( v ) )
                                         .toString( "HH:mm:ss" )
                                   : QString::number( static_cast<qint64>( v ) ) );
         }
@@ -218,14 +215,13 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
             painter.drawLine( QPointF( area.left(), p.y() ), QPointF( area.right(), p.y() ) );
             painter.setPen( axisPen );
             painter.drawText( QRectF( 2, p.y() - 8, LeftMargin - 4, 16 ),
-                              Qt::AlignRight | Qt::AlignVCenter,
-                              QString::number( v, 'g', 4 ) );
+                              Qt::AlignRight | Qt::AlignVCenter, QString::number( v, 'g', 4 ) );
         }
     }
 }
 
 void ChartWidget::drawSeries( QPainter& painter, const QRectF& /*area*/,
-                               const ChartSeriesDefinition& series ) const
+                              const ChartSeriesDefinition& series ) const
 {
     if ( series.points.isEmpty() ) {
         return;
@@ -273,11 +269,9 @@ void ChartWidget::drawTooltip( QPainter& painter ) const
     const auto& pt = s.points[ hoveredPoint_ ];
     const QPointF px = dataToPixel( pt.xValue, pt.value );
 
-    const QString xText = pt.xLabel.isEmpty()
-                              ? QString( "Line %1" ).arg( pt.line.get() + 1 )
-                              : pt.xLabel;
-    const QString text
-        = QString( "%1\n%2: %3" ).arg( s.name, xText ).arg( pt.value );
+    const QString xText
+        = pt.xLabel.isEmpty() ? QString( "Line %1" ).arg( pt.line.get() + 1 ) : pt.xLabel;
+    const QString text = QString( "%1\n%2: %3" ).arg( s.name, xText ).arg( pt.value );
 
     QFont tooltipFont = painter.font();
     tooltipFont.setPointSize( tooltipFont.pointSize() - 1 );
@@ -308,8 +302,7 @@ void ChartWidget::drawTooltip( QPainter& painter ) const
 // Interaction
 // ---------------------------------------------------------------------------
 
-std::pair<int, int> ChartWidget::findNearestPoint( const QPointF& pixelPos,
-                                                    double maxDistPx ) const
+std::pair<int, int> ChartWidget::findNearestPoint( const QPointF& pixelPos, double maxDistPx ) const
 {
     int bestSeries = -1;
     int bestPoint = -1;
@@ -364,7 +357,7 @@ void ChartWidget::mousePressEvent( QMouseEvent* event )
         event->accept();
     }
     else if ( event->button() == Qt::LeftButton ) {
-        const auto [si, pi] = findNearestPoint( event->position() );
+        const auto [ si, pi ] = findNearestPoint( event->position() );
         if ( si >= 0 && pi >= 0 ) {
             Q_EMIT lineSelected( series_[ si ].points[ pi ].line );
         }
@@ -386,7 +379,7 @@ void ChartWidget::mouseMoveEvent( QMouseEvent* event )
         update();
     }
     else {
-        const auto [si, pi] = findNearestPoint( event->position() );
+        const auto [ si, pi ] = findNearestPoint( event->position() );
         if ( si != hoveredSeries_ || pi != hoveredPoint_ ) {
             hoveredSeries_ = si;
             hoveredPoint_ = pi;

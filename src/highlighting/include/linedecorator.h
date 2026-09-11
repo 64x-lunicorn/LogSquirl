@@ -36,7 +36,7 @@
 // verdictFor() needs to look up a whole-line Highlighter match and check the
 // Search Limits.
 class LogLine {
-  public:
+public:
     LogLine( LineNumber number, QString text )
         : number_{ number }
         , text_{ std::move( text ) }
@@ -53,7 +53,7 @@ class LogLine {
         return text_;
     }
 
-  private:
+private:
     LineNumber number_;
     QString text_;
 };
@@ -72,7 +72,7 @@ struct SearchLimits {
 // The facts about a whole Log Line that affect how any part of it looks.
 // Decided once per line by LineDecorator::verdictFor.
 class LineVerdict {
-  public:
+public:
     LineVerdict() = default;
 
     LineVerdict( std::optional<HighlightColor> wholeLineHighlight,
@@ -122,7 +122,7 @@ class LineVerdict {
         return isOutsideSearchLimits_;
     }
 
-  private:
+private:
     std::optional<HighlightColor> wholeLineHighlight_;
     AbstractLogData::LineType lineType_ = AbstractLogData::LineTypeFlags::Plain;
     bool isOutsideSearchLimits_ = false;
@@ -133,7 +133,7 @@ class LineVerdict {
 // non-overlapping sequence of colored spans, in the coordinate space of the
 // text it was decorated from.
 class Decoration {
-  public:
+public:
     Decoration() = default;
 
     explicit Decoration( logsquirl::vector<HighlightedMatch> spans )
@@ -146,7 +146,7 @@ class Decoration {
         return spans_;
     }
 
-  private:
+private:
     logsquirl::vector<HighlightedMatch> spans_;
 };
 
@@ -158,7 +158,7 @@ class Decoration {
 // Highlighter Set, the QuickFind pattern, the Color Labels, the main-search
 // colors and the Search Limits. Nothing is read from a singleton.
 class LineDecorator {
-  public:
+public:
     struct Context {
         HighlighterSet highlighterSet;
         std::optional<Highlighter> mainSearch;
@@ -185,7 +185,7 @@ class LineDecorator {
     Decoration decorate( const QString& text, const LineVerdict& verdict,
                          const std::optional<HighlightedMatch>& selection = std::nullopt ) const;
 
-  private:
+private:
     Context context_;
 };
 

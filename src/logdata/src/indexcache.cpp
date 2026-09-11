@@ -40,8 +40,7 @@ namespace {
 QString pathHash( const QString& filePath )
 {
     const auto canonical = QFileInfo( filePath ).absoluteFilePath().toUtf8();
-    const auto digest
-        = QCryptographicHash::hash( canonical, QCryptographicHash::Sha256 ).toHex();
+    const auto digest = QCryptographicHash::hash( canonical, QCryptographicHash::Sha256 ).toHex();
     return QString::fromLatin1( digest );
 }
 
@@ -245,10 +244,9 @@ void IndexCache::evict( qint64 maxBytes )
     }
 
     // Sort oldest-first (LRU)
-    std::sort( entries.begin(), entries.end(),
-               []( const CacheEntry& a, const CacheEntry& b ) {
-                   return a.lastModified < b.lastModified;
-               } );
+    std::sort( entries.begin(), entries.end(), []( const CacheEntry& a, const CacheEntry& b ) {
+        return a.lastModified < b.lastModified;
+    } );
 
     for ( const auto& entry : entries ) {
         if ( totalSize <= maxBytes ) {

@@ -95,8 +95,7 @@ std::pair<LineColumn, LineColumn> QuickFindMatcher::getLastMatch() const
     return std::make_pair( lastMatchStart_, lastMatchEnd_ );
 }
 
-bool QuickFindMatcher::matchLine( const QString& line,
-                                  logsquirl::vector<HighlightedMatch>& matches,
+bool QuickFindMatcher::matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches,
                                   const QColor& backColor ) const
 {
     matches.clear();
@@ -145,8 +144,7 @@ void QuickFindPattern::changeSearchPattern( const QString& pattern, bool ignoreC
     changeSearchPattern( pattern, useExtendedRegexp, isRegex );
 }
 
-bool QuickFindPattern::matchLine( const QString& line,
-                                  logsquirl::vector<HighlightedMatch>& matches,
+bool QuickFindPattern::matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches,
                                   const QColor& backColor ) const
 {
     return getMatcher().matchLine( line, matches, backColor );

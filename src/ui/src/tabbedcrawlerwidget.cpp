@@ -96,10 +96,9 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
     if ( !backgroundImage.isEmpty() ) {
         const QString backgroundImageTemplate = " image: url(%1);";
         QString tabCloseButtonHoverStyle
-            = isDark
-                  ? " QTabBar::close-button:hover { %1 background-color: #C42B1C;"
-                    " border-radius: 3px; }"
-                  : " QTabBar::close-button:hover { %1 }";
+            = isDark ? " QTabBar::close-button:hover { %1 background-color: #C42B1C;"
+                       " border-radius: 3px; }"
+                     : " QTabBar::close-button:hover { %1 }";
         backgroundImage = backgroundImageTemplate.arg( backgroundImage );
         backgroundHoverImage = backgroundImageTemplate.arg( backgroundHoverImage );
         tabCloseButtonHoverStyle = tabCloseButtonHoverStyle.arg( backgroundHoverImage );
@@ -349,9 +348,8 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     auto* newGroupAction = addToGroupMenu->addAction( tr( "New Group..." ) );
     connect( newGroupAction, &QAction::triggered, this, [ this, tabPath ] {
         bool ok = false;
-        const auto name
-            = QInputDialog::getText( this, tr( "New Tab Group" ), tr( "Group name:" ),
-                                     QLineEdit::Normal, QString{}, &ok );
+        const auto name = QInputDialog::getText( this, tr( "New Tab Group" ), tr( "Group name:" ),
+                                                 QLineEdit::Normal, QString{}, &ok );
         if ( !ok || name.isEmpty() ) {
             return;
         }
@@ -375,16 +373,15 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 
     // Group management submenu (visible only if tab is in a group)
     if ( currentGroup.has_value() ) {
-        auto* groupMenu
-            = menu.addMenu( tr( "Group: %1" ).arg( currentGroup->name ) );
+        auto* groupMenu = menu.addMenu( tr( "Group: %1" ).arg( currentGroup->name ) );
         const auto groupId = currentGroup->id;
 
         auto* renameGroupAction = groupMenu->addAction( tr( "Rename Group..." ) );
         connect( renameGroupAction, &QAction::triggered, this, [ this, groupId, currentGroup ] {
             bool ok = false;
-            const auto newName = QInputDialog::getText(
-                this, tr( "Rename Group" ), tr( "Group name:" ), QLineEdit::Normal,
-                currentGroup->name, &ok );
+            const auto newName
+                = QInputDialog::getText( this, tr( "Rename Group" ), tr( "Group name:" ),
+                                         QLineEdit::Normal, currentGroup->name, &ok );
             if ( ok && !newName.isEmpty() ) {
                 TabGroupInfo::getSynced().renameGroup( groupId, newName ).save();
                 refreshAllTabGroupAppearances();
@@ -393,8 +390,8 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 
         auto* changeColorAction = groupMenu->addAction( tr( "Change Group Color..." ) );
         connect( changeColorAction, &QAction::triggered, this, [ this, groupId, currentGroup ] {
-            const auto color = QColorDialog::getColor( currentGroup->color, this,
-                                                       tr( "Group Color" ) );
+            const auto color
+                = QColorDialog::getColor( currentGroup->color, this, tr( "Group Color" ) );
             if ( color.isValid() ) {
                 TabGroupInfo::getSynced().setGroupColor( groupId, color ).save();
                 refreshAllTabGroupAppearances();

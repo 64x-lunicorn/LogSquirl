@@ -56,18 +56,18 @@ extern "C" {
 /** Describes the capability a plugin provides. */
 typedef enum {
     LOGSQUIRL_PLUGIN_DATASOURCE = 0, /**< Streams log lines from external source */
-    LOGSQUIRL_PLUGIN_CONVERTER  = 1, /**< Converts files into plain-text logs    */
-    LOGSQUIRL_PLUGIN_UI         = 2  /**< Adds UI elements (toolbar, status bar) */
+    LOGSQUIRL_PLUGIN_CONVERTER = 1,  /**< Converts files into plain-text logs    */
+    LOGSQUIRL_PLUGIN_UI = 2          /**< Adds UI elements (toolbar, status bar) */
 } LogSquirlPluginType;
 
 /* ── Log levels (mirroring spdlog) ───────────────────────────────────────── */
 
 typedef enum {
-    LOGSQUIRL_LOG_TRACE    = 0,
-    LOGSQUIRL_LOG_DEBUG    = 1,
-    LOGSQUIRL_LOG_INFO     = 2,
-    LOGSQUIRL_LOG_WARNING  = 3,
-    LOGSQUIRL_LOG_ERROR    = 4,
+    LOGSQUIRL_LOG_TRACE = 0,
+    LOGSQUIRL_LOG_DEBUG = 1,
+    LOGSQUIRL_LOG_INFO = 2,
+    LOGSQUIRL_LOG_WARNING = 3,
+    LOGSQUIRL_LOG_ERROR = 4,
     LOGSQUIRL_LOG_CRITICAL = 5
 } LogSquirlLogLevel;
 
@@ -85,8 +85,8 @@ typedef struct {
     const char* description; /**< One-line description                                         */
     const char* author;      /**< Author / organisation                                        */
     const char* license;     /**< SPDX license identifier, e.g. "MIT" or "GPL-3.0-or-later"    */
-    int         type;        /**< One of LogSquirlPluginType                                   */
-    int         api_version; /**< Must equal LOGSQUIRL_PLUGIN_API_VERSION                      */
+    int type;                /**< One of LogSquirlPluginType                                   */
+    int api_version;         /**< Must equal LOGSQUIRL_PLUGIN_API_VERSION                      */
 } LogSquirlPluginInfo;
 
 /* ── Host API (provided by host, called by plugin) ───────────────────────── */
@@ -107,41 +107,38 @@ typedef struct {
     /* ── DataSource callbacks ─────────────────────────────────────────── */
 
     /** Push a single log line (UTF-8). */
-    void (*push_line)( void* handle, const char* data, size_t len );
+    void ( *push_line )( void* handle, const char* data, size_t len );
 
     /** Push multiple log lines in one call. */
-    void (*push_lines)( void* handle,
-                        const char* const* data,
-                        const size_t* lens,
-                        size_t count );
+    void ( *push_lines )( void* handle, const char* const* data, const size_t* lens, size_t count );
 
     /** Signal that the data source has reached end-of-stream. */
-    void (*signal_eos)( void* handle );
+    void ( *signal_eos )( void* handle );
 
     /** Signal an error in the data source. */
-    void (*signal_error)( void* handle, const char* message );
+    void ( *signal_error )( void* handle, const char* message );
 
     /* ── General utilities ────────────────────────────────────────────── */
 
     /** Write a message to the host log. */
-    void (*log_message)( void* handle, int level, const char* message );
+    void ( *log_message )( void* handle, int level, const char* message );
 
     /**
      * Return the plugin-private configuration directory (UTF-8 path).
      * The host creates the directory if it does not exist.
      * The returned string is valid until the next call to get_config_dir.
      */
-    const char* (*get_config_dir)( void* handle );
+    const char* ( *get_config_dir )( void* handle );
 
     /** Show a transient notification to the user. */
-    void (*show_notification)( void* handle, const char* message );
+    void ( *show_notification )( void* handle, const char* message );
 
     /**
      * Open a file in the main viewer.
      * @param file_path  Absolute UTF-8 path to the file.
      * @param follow     Non-zero to open in follow/tail mode.
      */
-    void (*open_file)( void* handle, const char* file_path, int follow );
+    void ( *open_file )( void* handle, const char* file_path, int follow );
 
     /* ── UI extension callbacks ───────────────────────────────────────── */
 
@@ -150,10 +147,10 @@ typedef struct {
      * The plugin creates and owns the widget; the host parents it.
      * Cast your QWidget* to void* before passing.
      */
-    void (*register_status_widget)( void* handle, void* qwidget_ptr );
+    void ( *register_status_widget )( void* handle, void* qwidget_ptr );
 
     /** Remove a previously registered status bar widget. */
-    void (*unregister_status_widget)( void* handle, void* qwidget_ptr );
+    void ( *unregister_status_widget )( void* handle, void* qwidget_ptr );
 
     /**
      * Add a custom action to the host menu bar.
@@ -162,11 +159,8 @@ typedef struct {
      * @param callback   Function called when the item is triggered.
      * @param user_data  Passed back to callback unchanged.
      */
-    void (*register_menu_action)( void* handle,
-                                  const char* menu_path,
-                                  const char* label,
-                                  void ( *callback )( void* user_data ),
-                                  void* user_data );
+    void ( *register_menu_action )( void* handle, const char* menu_path, const char* label,
+                                    void ( *callback )( void* user_data ), void* user_data );
 
     /**
      * Register a QWidget* as a new tab in the host sidebar.
@@ -175,21 +169,19 @@ typedef struct {
      * @param label         Tab label (UTF-8).
      * @param qwidget_ptr   Cast of a QWidget* to void*.
      */
-    void (*register_sidebar_tab)( void* handle,
-                                  const char* label,
-                                  void* qwidget_ptr );
+    void ( *register_sidebar_tab )( void* handle, const char* label, void* qwidget_ptr );
 
     /** Remove a previously registered sidebar tab. */
-    void (*unregister_sidebar_tab)( void* handle, void* qwidget_ptr );
+    void ( *unregister_sidebar_tab )( void* handle, void* qwidget_ptr );
 
     /**
      * Register a QWidget* for the footer area (bottom of the window).
      * The plugin creates and owns the widget; the host parents it.
      */
-    void (*register_footer_widget)( void* handle, void* qwidget_ptr );
+    void ( *register_footer_widget )( void* handle, void* qwidget_ptr );
 
     /** Remove a previously registered footer widget. */
-    void (*unregister_footer_widget)( void* handle, void* qwidget_ptr );
+    void ( *unregister_footer_widget )( void* handle, void* qwidget_ptr );
 
     /* ── Active file queries ───────────────────────────────────────── */
 
@@ -198,7 +190,7 @@ typedef struct {
      * Returns an empty string if no file is open.
      * The returned pointer is valid until the next host API call.
      */
-    const char* (*get_active_file_path)( void* handle );
+    const char* ( *get_active_file_path )( void* handle );
 
     /**
      * Register a callback invoked whenever the active log file changes
@@ -206,10 +198,10 @@ typedef struct {
      * @param callback   Function called with the new file path (UTF-8).
      * @param user_data  Passed back to callback unchanged.
      */
-    void (*register_active_file_callback)(
-        void* handle,
-        void ( *callback )( void* user_data, const char* file_path ),
-        void* user_data );
+    void ( *register_active_file_callback )( void* handle,
+                                             void ( *callback )( void* user_data,
+                                                                 const char* file_path ),
+                                             void* user_data );
 
 } LogSquirlHostApi;
 
@@ -221,9 +213,9 @@ typedef struct {
  */
 
 #ifdef _WIN32
-#  define LOGSQUIRL_PLUGIN_EXPORT __declspec( dllexport )
+#define LOGSQUIRL_PLUGIN_EXPORT __declspec( dllexport )
 #else
-#  define LOGSQUIRL_PLUGIN_EXPORT __attribute__( ( visibility( "default" ) ) )
+#define LOGSQUIRL_PLUGIN_EXPORT __attribute__( ( visibility( "default" ) ) )
 #endif
 
 /**
@@ -263,8 +255,7 @@ typedef const char* ( *LogSquirlConverterGetExtsFn )( void );
  * @param output_path  Absolute UTF-8 path where plain text must be written.
  * @return 0 on success, non-zero on failure.
  */
-typedef int ( *LogSquirlConverterConvertFn )( const char* input_path,
-                                              const char* output_path );
+typedef int ( *LogSquirlConverterConvertFn )( const char* input_path, const char* output_path );
 
 /* ── Canonical exported symbol names ─────────────────────────────────────── */
 
@@ -281,12 +272,12 @@ typedef int ( *LogSquirlConverterConvertFn )( const char* input_path,
  *   LOGSQUIRL_PLUGIN_EXPORT int         logsquirl_converter_convert( const char*, const char* );
  */
 
-#define LOGSQUIRL_PLUGIN_ENTRY_GET_INFO      "logsquirl_plugin_get_info"
-#define LOGSQUIRL_PLUGIN_ENTRY_INIT          "logsquirl_plugin_init"
-#define LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN      "logsquirl_plugin_shutdown"
-#define LOGSQUIRL_PLUGIN_ENTRY_CONFIGURE     "logsquirl_plugin_configure"
-#define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS   "logsquirl_converter_get_extensions"
-#define LOGSQUIRL_CONVERTER_ENTRY_CONVERT    "logsquirl_converter_convert"
+#define LOGSQUIRL_PLUGIN_ENTRY_GET_INFO "logsquirl_plugin_get_info"
+#define LOGSQUIRL_PLUGIN_ENTRY_INIT "logsquirl_plugin_init"
+#define LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN "logsquirl_plugin_shutdown"
+#define LOGSQUIRL_PLUGIN_ENTRY_CONFIGURE "logsquirl_plugin_configure"
+#define LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS "logsquirl_converter_get_extensions"
+#define LOGSQUIRL_CONVERTER_ENTRY_CONVERT "logsquirl_converter_convert"
 
 #ifdef __cplusplus
 } /* extern "C" */

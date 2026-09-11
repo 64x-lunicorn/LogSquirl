@@ -25,11 +25,11 @@
 #include <QtConcurrent>
 
 #include <configuration.h>
+#include <highlighterset.h>
 #include <linetypes.h>
 #include <logfiltereddataworker.h>
-#include <searchsession.h>
-#include <highlighterset.h>
 #include <persistentinfo.h>
+#include <searchsession.h>
 
 #include <logger.h>
 
@@ -42,7 +42,7 @@ const bool PersistentInfo::ForcePortable = true;
 class TestRunner : public QObject {
     Q_OBJECT
 
-  public:
+public:
     TestRunner( int argc, char** argv )
         : argc_( argc )
         , argv_( argv )
@@ -54,17 +54,17 @@ class TestRunner : public QObject {
         return result_;
     }
 
-  public Q_SLOTS:
+public Q_SLOTS:
     void process()
     {
         result_ = Catch::Session().run( argc_, argv_ );
         Q_EMIT finished( result_ );
     }
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void finished( int );
 
-  private:
+private:
     int argc_;
     char** argv_;
 

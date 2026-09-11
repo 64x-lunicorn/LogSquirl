@@ -202,8 +202,7 @@ Selection::getSelectionWithLineNumbers( const AbstractLogData* logData ) const
         selectionData.emplace(
             logData->getLineNumber( selectedPartial_.line.value() ),
             logData->getExpandedLineString( *selectedPartial_.line )
-                .mid( selectedPartial_.startColumn.get(),
-                      selectedPartial_.size().get() ) );
+                .mid( selectedPartial_.startColumn.get(), selectedPartial_.size().get() ) );
     }
     else if ( selectedRange_.startLine.has_value() ) {
         const auto list = logData->getLines( *selectedRange_.startLine, selectedRange_.size() );

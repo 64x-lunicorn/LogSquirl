@@ -35,8 +35,7 @@
 #include "charttemplategenerator.h"
 #include "logformatdefinition.h"
 
-ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format,
-                                      QWidget* parent )
+ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format, QWidget* parent )
     : QDialog( parent )
     , format_( format )
 {
@@ -45,10 +44,10 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format,
 
     auto* layout = new QVBoxLayout( this );
 
-    auto* introLabel = new QLabel(
-        tr( "Build a chart from the detected log format fields.\n"
-            "Select what to measure (Y-Axis), what to plot against (X-Axis),\n"
-            "and optionally add a filter to narrow down matching lines." ) );
+    auto* introLabel
+        = new QLabel( tr( "Build a chart from the detected log format fields.\n"
+                          "Select what to measure (Y-Axis), what to plot against (X-Axis),\n"
+                          "and optionally add a filter to narrow down matching lines." ) );
     introLabel->setWordWrap( true );
     layout->addWidget( introLabel );
 
@@ -63,20 +62,18 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format,
 
     // Y-Axis field selection
     yFieldCombo_ = new QComboBox;
-    yFieldCombo_->setToolTip(
-        tr( "Select the field to chart.\n"
-            "\"Count occurrences\" counts how often lines match.\n"
-            "Numeric fields extract their value." ) );
-    connect( yFieldCombo_, QOverload<int>::of( &QComboBox::currentIndexChanged ),
-             this, &ChartWizardDialog::onYFieldChanged );
+    yFieldCombo_->setToolTip( tr( "Select the field to chart.\n"
+                                  "\"Count occurrences\" counts how often lines match.\n"
+                                  "Numeric fields extract their value." ) );
+    connect( yFieldCombo_, QOverload<int>::of( &QComboBox::currentIndexChanged ), this,
+             &ChartWizardDialog::onYFieldChanged );
     form->addRow( tr( "Y-Axis (measure):" ), yFieldCombo_ );
 
     // X-Axis field selection
     xFieldCombo_ = new QComboBox;
-    xFieldCombo_->setToolTip(
-        tr( "Select the X-Axis.\n"
-            "\"Timestamp\" uses the log's time field.\n"
-            "\"Line Number\" uses sequential ordering." ) );
+    xFieldCombo_->setToolTip( tr( "Select the X-Axis.\n"
+                                  "\"Timestamp\" uses the log's time field.\n"
+                                  "\"Line Number\" uses sequential ordering." ) );
     form->addRow( tr( "X-Axis (over):" ), xFieldCombo_ );
 
     // Bucket size
@@ -90,11 +87,9 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format,
     bucketSizeCombo_->addItem( tr( "30 seconds" ), 30000 );
     bucketSizeCombo_->addItem( tr( "1 minute" ), 60000 );
     bucketSizeCombo_->addItem( tr( "5 minutes" ), 300000 );
-    bucketSizeCombo_->setCurrentIndex(
-        bucketSizeCombo_->findData( 1000 ) );
-    bucketSizeCombo_->setToolTip(
-        tr( "Group data points into time buckets and sum Y values.\n"
-            "Only applies when X-Axis is Timestamp." ) );
+    bucketSizeCombo_->setCurrentIndex( bucketSizeCombo_->findData( 1000 ) );
+    bucketSizeCombo_->setToolTip( tr( "Group data points into time buckets and sum Y values.\n"
+                                      "Only applies when X-Axis is Timestamp." ) );
     form->addRow( tr( "Bucket size:" ), bucketSizeCombo_ );
 
     // Filter regex (optional)
@@ -110,10 +105,8 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format,
     colorButton_ = new QPushButton;
     colorButton_->setFixedSize( 60, 24 );
     colorButton_->setStyleSheet(
-        QString( "background-color: %1; border: 1px solid gray;" )
-            .arg( selectedColor_.name() ) );
-    connect( colorButton_, &QPushButton::clicked, this,
-             &ChartWizardDialog::chooseColor );
+        QString( "background-color: %1; border: 1px solid gray;" ).arg( selectedColor_.name() ) );
+    connect( colorButton_, &QPushButton::clicked, this, &ChartWizardDialog::chooseColor );
     form->addRow( tr( "Color:" ), colorButton_ );
 
     layout->addLayout( form );
@@ -128,10 +121,8 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format,
     layout->addWidget( previewLabel_ );
 
     // Buttons
-    auto* buttons = new QDialogButtonBox(
-        QDialogButtonBox::Ok | QDialogButtonBox::Cancel );
-    connect( buttons, &QDialogButtonBox::accepted, this,
-             &ChartWizardDialog::validateAndAccept );
+    auto* buttons = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel );
+    connect( buttons, &QDialogButtonBox::accepted, this, &ChartWizardDialog::validateAndAccept );
     connect( buttons, &QDialogButtonBox::rejected, this, &QDialog::reject );
     layout->addWidget( buttons );
 
@@ -154,8 +145,7 @@ void ChartWizardDialog::populateFieldCombos()
             continue;
         }
         if ( def.kind == "integer" || def.kind == "float" ) {
-            yFieldCombo_->addItem(
-                tr( "%1 (numeric value)" ).arg( fieldName ), fieldName );
+            yFieldCombo_->addItem( tr( "%1 (numeric value)" ).arg( fieldName ), fieldName );
         }
     }
 
@@ -165,21 +155,18 @@ void ChartWizardDialog::populateFieldCombos()
         if ( def.hidden ) {
             continue;
         }
-        if ( fieldName == format_->timestampField()
-             || fieldName == format_->bodyField() ) {
+        if ( fieldName == format_->timestampField() || fieldName == format_->bodyField() ) {
             continue;
         }
         if ( def.kind != "integer" && def.kind != "float" ) {
-            yFieldCombo_->addItem(
-                tr( "Count by field: %1" ).arg( fieldName ), fieldName );
+            yFieldCombo_->addItem( tr( "Count by field: %1" ).arg( fieldName ), fieldName );
         }
     }
 
     // --- X-Axis options ---
     xFieldCombo_->addItem( tr( "Timestamp (%1)" ).arg( format_->timestampField() ),
                            QStringLiteral( "__timestamp__" ) );
-    xFieldCombo_->addItem( tr( "Line Number" ),
-                           QStringLiteral( "__linenumber__" ) );
+    xFieldCombo_->addItem( tr( "Line Number" ), QStringLiteral( "__linenumber__" ) );
 
     // Trigger initial state
     onYFieldChanged( 0 );
@@ -197,13 +184,11 @@ void ChartWizardDialog::onYFieldChanged( int index )
     // Show helpful preview
     if ( yField == "__count__" ) {
         if ( filterEdit_->text().trimmed().isEmpty() ) {
-            previewLabel_->setText(
-                tr( "Will count all lines matching the log format pattern." ) );
+            previewLabel_->setText( tr( "Will count all lines matching the log format pattern." ) );
         }
         else {
             previewLabel_->setText(
-                tr( "Will count lines matching: %1" )
-                    .arg( filterEdit_->text() ) );
+                tr( "Will count lines matching: %1" ).arg( filterEdit_->text() ) );
         }
     }
     else {
@@ -213,8 +198,7 @@ void ChartWizardDialog::onYFieldChanged( int index )
         }
         else {
             previewLabel_->setText(
-                tr( "Will count occurrences where field \"%1\" is present." )
-                    .arg( yField ) );
+                tr( "Will count occurrences where field \"%1\" is present." ).arg( yField ) );
         }
     }
 
@@ -267,20 +251,17 @@ ChartSeriesDefinition ChartWizardDialog::series() const
         const auto& valueDefs = format_->valueDefinitions();
         const auto& fieldDef = valueDefs.value( yField );
 
-        const auto pattern
-            = ChartTemplateGenerator::patternContainingGroup( *format_, yField );
+        const auto pattern = ChartTemplateGenerator::patternContainingGroup( *format_, yField );
         if ( pattern.isEmpty() ) {
             // Fallback: use filter or first format pattern
-            basePattern = filter.isEmpty() ? format_->regexPatterns().constBegin().value()
-                                           : filter;
+            basePattern = filter.isEmpty() ? format_->regexPatterns().constBegin().value() : filter;
             captureGroup = 0;
         }
         else {
             if ( fieldDef.kind == "integer" || fieldDef.kind == "float" ) {
                 // Numeric extraction: capture the named group's index
                 basePattern = pattern;
-                captureGroup
-                    = ChartTemplateGenerator::namedGroupIndex( pattern, yField );
+                captureGroup = ChartTemplateGenerator::namedGroupIndex( pattern, yField );
                 if ( captureGroup < 1 ) {
                     captureGroup = 0; // fallback to count mode
                 }
@@ -313,27 +294,23 @@ ChartSeriesDefinition ChartWizardDialog::series() const
     if ( xField == "__timestamp__" ) {
         // Use the format's timestamp field for X-axis.
         const auto& tsField = format_->timestampField();
-        const auto xPattern
-            = ChartTemplateGenerator::patternContainingGroup( *format_, tsField );
+        const auto xPattern = ChartTemplateGenerator::patternContainingGroup( *format_, tsField );
         if ( !xPattern.isEmpty() ) {
-            const int tsGroupIdx
-                = ChartTemplateGenerator::namedGroupIndex( xPattern, tsField );
+            const int tsGroupIdx = ChartTemplateGenerator::namedGroupIndex( xPattern, tsField );
             if ( tsGroupIdx >= 1 ) {
                 def.xPattern = xPattern;
                 def.xCaptureGroup = tsGroupIdx;
 
                 // Find Qt timestamp format
                 for ( const auto& fmt : format_->timestampFormats() ) {
-                    const auto qtFmt
-                        = ChartTemplateGenerator::strftimeToQtFormat( fmt );
+                    const auto qtFmt = ChartTemplateGenerator::strftimeToQtFormat( fmt );
                     if ( !qtFmt.isEmpty() ) {
                         def.xTimestampFormat = qtFmt;
                         break;
                     }
                 }
 
-                def.bucketSizeMs
-                    = bucketSizeCombo_->currentData().toLongLong();
+                def.bucketSizeMs = bucketSizeCombo_->currentData().toLongLong();
             }
         }
     }
@@ -345,21 +322,18 @@ ChartSeriesDefinition ChartWizardDialog::series() const
 
 void ChartWizardDialog::chooseColor()
 {
-    const QColor c
-        = QColorDialog::getColor( selectedColor_, this, tr( "Series Color" ) );
+    const QColor c = QColorDialog::getColor( selectedColor_, this, tr( "Series Color" ) );
     if ( c.isValid() ) {
         selectedColor_ = c;
         colorButton_->setStyleSheet(
-            QString( "background-color: %1; border: 1px solid gray;" )
-                .arg( c.name() ) );
+            QString( "background-color: %1; border: 1px solid gray;" ).arg( c.name() ) );
     }
 }
 
 void ChartWizardDialog::validateAndAccept()
 {
     if ( nameEdit_->text().trimmed().isEmpty() ) {
-        QMessageBox::warning( this, tr( "Validation" ),
-                              tr( "Please enter a series name." ) );
+        QMessageBox::warning( this, tr( "Validation" ), tr( "Please enter a series name." ) );
         return;
     }
 
@@ -368,9 +342,8 @@ void ChartWizardDialog::validateAndAccept()
     if ( !filter.isEmpty() ) {
         const QRegularExpression re( filter );
         if ( !re.isValid() ) {
-            QMessageBox::warning(
-                this, tr( "Validation" ),
-                tr( "Invalid filter regex:\n%1" ).arg( re.errorString() ) );
+            QMessageBox::warning( this, tr( "Validation" ),
+                                  tr( "Invalid filter regex:\n%1" ).arg( re.errorString() ) );
             return;
         }
     }
@@ -385,10 +358,9 @@ void ChartWizardDialog::validateAndAccept()
 
     const QRegularExpression re( def.pattern );
     if ( !re.isValid() ) {
-        QMessageBox::warning(
-            this, tr( "Validation" ),
-            tr( "The generated regex pattern is invalid:\n%1\n\nPattern: %2" )
-                .arg( re.errorString(), def.pattern ) );
+        QMessageBox::warning( this, tr( "Validation" ),
+                              tr( "The generated regex pattern is invalid:\n%1\n\nPattern: %2" )
+                                  .arg( re.errorString(), def.pattern ) );
         return;
     }
 

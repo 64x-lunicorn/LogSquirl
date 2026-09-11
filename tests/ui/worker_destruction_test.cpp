@@ -86,8 +86,7 @@ SCENARIO( "LogData destruction after indexing completes without deadlock",
     }
 }
 
-SCENARIO( "LogData destruction during active search does not deadlock",
-          "[logdata][destruction]" )
+SCENARIO( "LogData destruction during active search does not deadlock", "[logdata][destruction]" )
 {
     GIVEN( "A temporary log file with enough lines to keep search busy" )
     {
@@ -178,8 +177,7 @@ SCENARIO( "Destroying mid-search while the progress throttle is pending does not
     }
 }
 
-SCENARIO( "Repeated LogData create-search-destroy cycles are stable",
-          "[logdata][destruction]" )
+SCENARIO( "Repeated LogData create-search-destroy cycles are stable", "[logdata][destruction]" )
 {
     GIVEN( "A temporary log file" )
     {
@@ -195,11 +193,10 @@ SCENARIO( "Repeated LogData create-search-destroy cycles are stable",
 
                 auto filtered = logData.getNewFilteredData();
 
-                SafeQSignalSpy searchStateSpy{
-                    filtered.get(), &LogFilteredData::searchStateChanged };
+                SafeQSignalSpy searchStateSpy{ filtered.get(),
+                                               &LogFilteredData::searchStateChanged };
 
-                filtered->request(
-                    RegularExpressionPattern( "line [0-9]{4}[13579]" ) );
+                filtered->request( RegularExpressionPattern( "line [0-9]{4}[13579]" ) );
 
                 const bool completed = waitUiState( [ & ]() {
                     if ( searchStateSpy.count() == 0 ) {

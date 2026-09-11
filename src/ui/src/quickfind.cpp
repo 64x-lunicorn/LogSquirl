@@ -172,7 +172,8 @@ void QuickFind::onSearchFutureReady()
         Q_EMIT searchDone( true, selection );
     }
     else if ( incrementalSearchStatus_.direction() != None ) {
-        Q_EMIT searchDone( false, Portion{ incrementalSearchStatus_.position().line(), 0_lcol, 0_lcol } );
+        Q_EMIT searchDone( false,
+                           Portion{ incrementalSearchStatus_.position().line(), 0_lcol, 0_lcol } );
     }
     else {
         Q_EMIT searchDone( false, selection );

@@ -30,8 +30,7 @@ namespace logsquirl::plugins {
 // ── PluginHandle ────────────────────────────────────────────────────────────
 
 PluginHandle::PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
-                            LogSquirlPluginGetInfoFn getInfoFn,
-                            LogSquirlPluginInitFn initFn,
+                            LogSquirlPluginGetInfoFn getInfoFn, LogSquirlPluginInitFn initFn,
                             LogSquirlPluginShutdownFn shutdownFn,
                             LogSquirlPluginConfigureFn configureFn,
                             LogSquirlConverterGetExtsFn converterGetExtsFn,
@@ -141,8 +140,7 @@ void PluginHandle::configure( void* parentWidget )
 
 bool PluginHandle::isConverter() const
 {
-    return metadata_.type() == LOGSQUIRL_PLUGIN_CONVERTER
-           && converterGetExtsFn_ != nullptr
+    return metadata_.type() == LOGSQUIRL_PLUGIN_CONVERTER && converterGetExtsFn_ != nullptr
            && converterConvertFn_ != nullptr;
 }
 
@@ -166,8 +164,8 @@ int PluginHandle::convert( const QString& inputPath, const QString& outputPath )
 
 PluginHandle PluginHandle::createScriptHandle( PluginMetadata meta )
 {
-    return PluginHandle( std::move( meta ), nullptr,
-                         nullptr, nullptr, nullptr, nullptr, nullptr, nullptr );
+    return PluginHandle( std::move( meta ), nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                         nullptr );
 }
 
 // ── PluginLoader ────────────────────────────────────────────────────────────
@@ -195,44 +193,39 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     auto library = std::make_unique<QLibrary>( libPath );
     if ( !library->load() ) {
         return std::unexpected(
-            QString( "Failed to load library '%1': %2" )
-                .arg( libPath, library->errorString() ) );
+            QString( "Failed to load library '%1': %2" ).arg( libPath, library->errorString() ) );
     }
 
     // Resolve required symbols
-    auto getInfoFn = resolveSymbol<LogSquirlPluginGetInfoFn>(
-        *library, LOGSQUIRL_PLUGIN_ENTRY_GET_INFO );
+    auto getInfoFn
+        = resolveSymbol<LogSquirlPluginGetInfoFn>( *library, LOGSQUIRL_PLUGIN_ENTRY_GET_INFO );
     if ( !getInfoFn ) {
-        return std::unexpected(
-            QString( "Plugin '%1' missing symbol: %2" )
-                .arg( metadata.id(), LOGSQUIRL_PLUGIN_ENTRY_GET_INFO ) );
+        return std::unexpected( QString( "Plugin '%1' missing symbol: %2" )
+                                    .arg( metadata.id(), LOGSQUIRL_PLUGIN_ENTRY_GET_INFO ) );
     }
 
-    auto initFn = resolveSymbol<LogSquirlPluginInitFn>(
-        *library, LOGSQUIRL_PLUGIN_ENTRY_INIT );
+    auto initFn = resolveSymbol<LogSquirlPluginInitFn>( *library, LOGSQUIRL_PLUGIN_ENTRY_INIT );
     if ( !initFn ) {
-        return std::unexpected(
-            QString( "Plugin '%1' missing symbol: %2" )
-                .arg( metadata.id(), LOGSQUIRL_PLUGIN_ENTRY_INIT ) );
+        return std::unexpected( QString( "Plugin '%1' missing symbol: %2" )
+                                    .arg( metadata.id(), LOGSQUIRL_PLUGIN_ENTRY_INIT ) );
     }
 
-    auto shutdownFn = resolveSymbol<LogSquirlPluginShutdownFn>(
-        *library, LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN );
+    auto shutdownFn
+        = resolveSymbol<LogSquirlPluginShutdownFn>( *library, LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN );
     if ( !shutdownFn ) {
-        return std::unexpected(
-            QString( "Plugin '%1' missing symbol: %2" )
-                .arg( metadata.id(), LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN ) );
+        return std::unexpected( QString( "Plugin '%1' missing symbol: %2" )
+                                    .arg( metadata.id(), LOGSQUIRL_PLUGIN_ENTRY_SHUTDOWN ) );
     }
 
     // Optional symbols
-    auto configureFn = resolveSymbol<LogSquirlPluginConfigureFn>(
-        *library, LOGSQUIRL_PLUGIN_ENTRY_CONFIGURE );
+    auto configureFn
+        = resolveSymbol<LogSquirlPluginConfigureFn>( *library, LOGSQUIRL_PLUGIN_ENTRY_CONFIGURE );
 
     auto converterGetExtsFn = resolveSymbol<LogSquirlConverterGetExtsFn>(
         *library, LOGSQUIRL_CONVERTER_ENTRY_GET_EXTS );
 
-    auto converterConvertFn = resolveSymbol<LogSquirlConverterConvertFn>(
-        *library, LOGSQUIRL_CONVERTER_ENTRY_CONVERT );
+    auto converterConvertFn
+        = resolveSymbol<LogSquirlConverterConvertFn>( *library, LOGSQUIRL_CONVERTER_ENTRY_CONVERT );
 
     // Validate the plugin's own info against the manifest
     const auto* info = getInfoFn();
@@ -242,20 +235,16 @@ std::expected<PluginHandle, QString> PluginLoader::load( const PluginMetadata& m
     }
 
     if ( info->api_version != LOGSQUIRL_PLUGIN_API_VERSION ) {
-        return std::unexpected(
-            QString( "Plugin '%1' reports api_version %2, host supports %3" )
-                .arg( metadata.id() )
-                .arg( info->api_version )
-                .arg( LOGSQUIRL_PLUGIN_API_VERSION ) );
+        return std::unexpected( QString( "Plugin '%1' reports api_version %2, host supports %3" )
+                                    .arg( metadata.id() )
+                                    .arg( info->api_version )
+                                    .arg( LOGSQUIRL_PLUGIN_API_VERSION ) );
     }
 
-    LOG_INFO << "Plugin loaded successfully: " << metadata.id()
-             << " v" << metadata.version();
+    LOG_INFO << "Plugin loaded successfully: " << metadata.id() << " v" << metadata.version();
 
-    return PluginHandle(
-        metadata, std::move( library ),
-        getInfoFn, initFn, shutdownFn, configureFn,
-        converterGetExtsFn, converterConvertFn );
+    return PluginHandle( metadata, std::move( library ), getInfoFn, initFn, shutdownFn, configureFn,
+                         converterGetExtsFn, converterConvertFn );
 }
 
 } // namespace logsquirl::plugins

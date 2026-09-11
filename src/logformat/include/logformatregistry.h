@@ -28,7 +28,7 @@
 // Formats loaded later override earlier ones with the same name,
 // enabling user formats to override built-in ones.
 class LogFormatRegistry {
-  public:
+public:
     LogFormatRegistry() = default;
 
     // Load all .json files from a directory and add their formats.
@@ -48,7 +48,10 @@ class LogFormatRegistry {
     QStringList formatNames() const;
 
     // Access all loaded formats (for iteration by the matcher).
-    const QHash<QString, LogFormatDefinition>& allFormats() const { return formats_; }
+    const QHash<QString, LogFormatDefinition>& allFormats() const
+    {
+        return formats_;
+    }
 
     // Load built-in formats embedded in the Qt resource system (:/formats/*.json).
     void loadBuiltinFormats();
@@ -60,6 +63,6 @@ class LogFormatRegistry {
     //       %APPDATA%/LogSquirl/formats/ on Windows.
     void loadUserFormats();
 
-  private:
+private:
     QHash<QString, LogFormatDefinition> formats_;
 };

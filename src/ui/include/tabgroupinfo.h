@@ -32,7 +32,7 @@
 // Each group holds a set of tab paths (file paths) and provides
 // CRUD operations for group membership, naming, and colour.
 class TabGroupInfo final : public Persistable<TabGroupInfo, session_settings> {
-  public:
+public:
     static const char* persistableName()
     {
         return "TabGroupInfo";
@@ -73,7 +73,7 @@ class TabGroupInfo final : public Persistable<TabGroupInfo, session_settings> {
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
+private:
     // Returns an iterator to the group with `groupId`, or groups_.end().
     std::vector<TabGroup>::iterator findGroup( const QString& groupId );
     std::vector<TabGroup>::const_iterator findGroup( const QString& groupId ) const;

@@ -33,12 +33,18 @@
 
 // Represents the result of extracting fields from a single log line.
 class ExtractedFields {
-  public:
+public:
     ExtractedFields() = default;
 
     // Whether the extraction matched (i.e., at least one regex pattern matched the line).
-    bool isValid() const { return valid_; }
-    void setValid( bool valid ) { valid_ = valid; }
+    bool isValid() const
+    {
+        return valid_;
+    }
+    void setValid( bool valid )
+    {
+        valid_ = valid;
+    }
 
     // Get the value of a named field. Returns empty string if field not found.
     QString value( const QString& fieldName ) const
@@ -53,9 +59,12 @@ class ExtractedFields {
     }
 
     // All field names present in this extraction.
-    QStringList fieldNames() const { return QStringList( fields_.keys() ); }
+    QStringList fieldNames() const
+    {
+        return QStringList( fields_.keys() );
+    }
 
-  private:
+private:
     bool valid_ = false;
     QHash<QString, QString> fields_;
 };
@@ -63,11 +72,10 @@ class ExtractedFields {
 // Extracts structured fields from raw log lines using a format definition's regex patterns.
 // Includes an LRU cache keyed by line number for efficient re-access during scrolling.
 class LogFieldExtractor {
-  public:
+public:
     // Construct an extractor for the given format definition.
     // cacheCapacity controls the LRU cache size (number of lines cached).
-    explicit LogFieldExtractor( const LogFormatDefinition& format,
-                                int cacheCapacity = 10000 );
+    explicit LogFieldExtractor( const LogFormatDefinition& format, int cacheCapacity = 10000 );
 
     // Extract fields from a raw line.
     // lineNumber is used as the cache key (use -1 or omit for uncached extraction).
@@ -80,7 +88,7 @@ class LogFieldExtractor {
     // Clear the LRU cache (e.g., when file changes).
     void invalidateCache();
 
-  private:
+private:
     // Extract without caching (always runs regex).
     ExtractedFields doExtract( const QString& line ) const;
 

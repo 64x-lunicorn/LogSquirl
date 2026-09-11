@@ -47,48 +47,50 @@
 */
 // Largely inspired by http://doc.qt.digia.com/qq/qq08-action-multiplexer.html
 
-#include <list>
 #include <QPointer>
+#include <list>
 
 class QObject;
 
 class MuxableDocumentInterface {
-  public:
-    virtual ~MuxableDocumentInterface()= default;
+public:
+    virtual ~MuxableDocumentInterface() = default;
 
     // Send all signals refering to a state of the document to update
     // the parent widget.
     void sendAllStateSignals()
-    { doSendAllStateSignals(); }
+    {
+        doSendAllStateSignals();
+    }
 
-  protected:
+protected:
     virtual void doSendAllStateSignals() = 0;
 };
 
 class SignalMux {
-  public:
+public:
     SignalMux();
 
     // Connect an 'downstream' signal
-    void connect(QObject *sender, const char *signal, const char *slot);
-    void disconnect(QObject *sender, const char *signal, const char *slot);
+    void connect( QObject* sender, const char* signal, const char* slot );
+    void disconnect( QObject* sender, const char* signal, const char* slot );
     // Connect an 'upstream' signal
-    void connect(const char *signal, QObject *receiver, const char *slot);
-    void disconnect(const char *signal, QObject *receiver, const char *slot);
+    void connect( const char* signal, QObject* receiver, const char* slot );
+    void disconnect( const char* signal, QObject* receiver, const char* slot );
 
     // Change the current document
     void setCurrentDocument( QObject* current_document );
 
-  private:
+private:
     struct Connection {
-        QPointer<QObject>   source;
-        QPointer<QObject>   sink;
-        const char*         signal;
-        const char*         slot;
+        QPointer<QObject> source;
+        QPointer<QObject> sink;
+        const char* signal;
+        const char* slot;
     };
 
-    void connect( const Connection& connection);
-    void disconnect( const Connection& connection);
+    void connect( const Connection& connection );
+    void disconnect( const Connection& connection );
 
     std::list<Connection> connectionList_;
 

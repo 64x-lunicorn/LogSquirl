@@ -52,18 +52,18 @@
 
 class KeySequencePresenter : public QWidget {
     Q_OBJECT
-  public:
+public:
     explicit KeySequencePresenter( const QString& keySequence );
 
     QString keySequence() const;
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void edited();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void showEditor();
 
-  private:
+private:
     QLabel* keySequenceLabel_;
 };
 
@@ -71,14 +71,14 @@ class KeySequencePresenter : public QWidget {
 class OptionsDialog : public QDialog, public Ui::OptionsDialog {
     Q_OBJECT
 
-  public:
+public:
     explicit OptionsDialog( QWidget* parent = nullptr );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     // Clears and updates the font size box with the sizes allowed
     // by the passed font family.
     void updateFontSize( const QString& fontFamily );
@@ -93,7 +93,7 @@ class OptionsDialog : public QDialog, public Ui::OptionsDialog {
 
     void checkShortcutsOnDuplicate() const;
 
-  private:
+private:
     void setupTabs();
     void setupFontList();
     void setupRegexp();
@@ -109,7 +109,7 @@ class OptionsDialog : public QDialog, public Ui::OptionsDialog {
 
     int updateTranslate();
 
-    void buildShortcutsTable(bool useDefaultsOnly);
+    void buildShortcutsTable( bool useDefaultsOnly );
 
     int getRegexpTypeIndex( SearchRegexpType syntax ) const;
     SearchRegexpType getRegexpTypeFromIndex( int index ) const;

@@ -32,14 +32,14 @@ namespace {
 // Minimal concrete subclass for testing AbstractLogView
 class TestLogView : public AbstractLogView {
     Q_OBJECT
-  public:
+public:
     TestLogView( const AbstractLogData* logData, const QuickFindPattern* qfp,
                  QWidget* parent = nullptr )
         : AbstractLogView( logData, qfp, /* initialTextWrap */ false, parent )
     {
     }
 
-  protected:
+protected:
     AbstractLogData::LineType lineType( LineNumber ) const override
     {
         return {};

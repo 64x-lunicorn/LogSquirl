@@ -40,14 +40,17 @@
 class LogTableHighlightDelegate : public QStyledItemDelegate {
     Q_OBJECT
 
-  public:
+public:
     explicit LogTableHighlightDelegate( QObject* parent = nullptr )
         : QStyledItemDelegate( parent )
     {
     }
 
     // Set the filtered data source for match/mark line type queries.
-    void setFilteredData( LogFilteredData* data ) { filteredData_ = data; }
+    void setFilteredData( LogFilteredData* data )
+    {
+        filteredData_ = data;
+    }
 
     // Set the quickfind pattern for incremental search highlighting.
     void setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
@@ -74,7 +77,10 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     // pattern itself -- call after Configuration changes (paint() does not
     // re-read Configuration on every cell the way AbstractLogView's
     // per-repaint construction does, so this is its equivalent hook).
-    void refreshMainSearchHighlighter() { rebuildMainSearchHighlighter(); }
+    void refreshMainSearchHighlighter()
+    {
+        rebuildMainSearchHighlighter();
+    }
 
     // Set the Search Limits: rows outside this range are shown subdued.
     void setSearchLimits( LineNumber startLine, LineNumber endLine )
@@ -102,10 +108,16 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     }
 
     // Set the row currently under the mouse cursor for hover highlighting.
-    void setHoverRow( int row ) { hoverRow_ = row; }
+    void setHoverRow( int row )
+    {
+        hoverRow_ = row;
+    }
 
     // Clear the hover row.
-    void clearHoverRow() { hoverRow_ = -1; }
+    void clearHoverRow()
+    {
+        hoverRow_ = -1;
+    }
 
     // Compose the Decoration for one cell given an explicit Line Decorator
     // Context and the row-level Line Verdict (decided from the raw Log
@@ -121,7 +133,8 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     static Decoration decorationFor( const LineDecorator::Context& context,
                                      const LineVerdict& rowVerdict, LineNumber lineNumber,
                                      AbstractLogData::LineType lineType, const QString& cellText,
-                                     const std::optional<HighlightedMatch>& selection = std::nullopt )
+                                     const std::optional<HighlightedMatch>& selection
+                                     = std::nullopt )
     {
         const LineDecorator lineDecorator{ context };
         const auto cellHighlighterVerdict
@@ -241,7 +254,7 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
         const auto lineNumber = LineNumber( static_cast<uint64_t>( index.row() ) );
         const auto rawLine = index.data( LogFormatTableModel::RawLineRole ).toString();
         const auto currentLineType = filteredData_ ? filteredData_->lineTypeByLine( lineNumber )
-                                                    : AbstractLogData::LineTypeFlags::Plain;
+                                                   : AbstractLogData::LineTypeFlags::Plain;
 
         const auto context = buildDecoratorContext();
         const LineDecorator lineDecorator{ context };
@@ -253,9 +266,9 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
         // happens to contain the matched word. Mark and Match colour the
         // row background the same way, since this view has no gutter to
         // draw a bullet in.
-        const auto rowColors = rowColorsFor(
-            rowVerdict, foreColor, backColor,
-            opt.palette.brush( QPalette::Disabled, QPalette::Text ).color() );
+        const auto rowColors
+            = rowColorsFor( rowVerdict, foreColor, backColor,
+                            opt.palette.brush( QPalette::Disabled, QPalette::Text ).color() );
         foreColor = rowColors.foreColor;
         backColor = rowColors.backColor;
 
@@ -295,8 +308,7 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     }
 
     // Return a size hint that accounts for the full text width (no clipping).
-    QSize sizeHint( const QStyleOptionViewItem& option,
-                    const QModelIndex& index ) const override
+    QSize sizeHint( const QStyleOptionViewItem& option, const QModelIndex& index ) const override
     {
         auto hint = QStyledItemDelegate::sizeHint( option, index );
         const auto cellText = index.data( Qt::DisplayRole ).toString();
@@ -308,13 +320,22 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
         return hint;
     }
 
-  private:
+private:
     // Row background colours for Mark/Match, consistent with the text
     // view's gutter bullet colours (see AbstractLogView::drawing, where
     // matchBulletBrush/markBrush/markedMatchBrush are the same colours).
-    static QColor matchRowColor() { return QColor{ Qt::red }; }
-    static QColor markRowColor() { return QColor{ "dodgerblue" }; }
-    static QColor markedMatchRowColor() { return QColor{ "violet" }; }
+    static QColor matchRowColor()
+    {
+        return QColor{ Qt::red };
+    }
+    static QColor markRowColor()
+    {
+        return QColor{ "dodgerblue" };
+    }
+    static QColor markedMatchRowColor()
+    {
+        return QColor{ "violet" };
+    }
 
     // Rebuild the cached main-search Highlighter (used by
     // buildDecoratorContext() below) from the current pattern and
@@ -330,7 +351,8 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
              && !searchPattern_.isExclude && !searchPattern_.pattern.isEmpty() ) {
             cachedMainSearch_ = Highlighter{};
             cachedMainSearch_->setHighlightOnlyMatch( true );
-            cachedMainSearch_->setVariateColors( Configuration::get().variateMainSearchHighlight() );
+            cachedMainSearch_->setVariateColors(
+                Configuration::get().variateMainSearchHighlight() );
             cachedMainSearch_->setPattern( searchPattern_.pattern );
             cachedMainSearch_->setIgnoreCase( !searchPattern_.isCaseSensitive );
             cachedMainSearch_->setUseRegex( !searchPattern_.isPlainText );
@@ -388,9 +410,9 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     // so it needs no translating. The row-level Qt selection is handled
     // separately in paint() before this is ever reached.
     std::optional<HighlightedMatch> selectionSpanFor( const QModelIndex& index,
-                                                       const QString& cellText,
-                                                       const QStyleOptionViewItem& opt,
-                                                       bool hasPortionOnRow ) const
+                                                      const QString& cellText,
+                                                      const QStyleOptionViewItem& opt,
+                                                      bool hasPortionOnRow ) const
     {
         if ( !hasPortionOnRow || index.column() != portionCol_
              || portionStartChar_ >= portionEndChar_ ) {
@@ -411,8 +433,7 @@ class LogTableHighlightDelegate : public QStyledItemDelegate {
     // Paint cell text with highlight segments. The spans are already an
     // ordered, non-overlapping Decoration, so no sorting or overlap
     // handling is needed here.
-    static void paintHighlightedText( QPainter* painter,
-                                      const QStyleOptionViewItem& opt,
+    static void paintHighlightedText( QPainter* painter, const QStyleOptionViewItem& opt,
                                       const QString& cellText,
                                       const logsquirl::vector<HighlightedMatch>& cellMatches,
                                       const QColor& foreColor )

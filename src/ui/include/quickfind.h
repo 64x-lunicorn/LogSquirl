@@ -61,7 +61,7 @@ class AbstractLogData;
 class SearchingNotifier : public QObject {
     Q_OBJECT
 
-  public:
+public:
     SearchingNotifier()
         : dotToDisplay_{ 0 }
     {
@@ -80,11 +80,11 @@ class SearchingNotifier : public QObject {
             sendNotification( line, nb_lines, backward );
     }
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent when the UI shall display a message to the user.
     void notify( const QFNotification& message );
 
-  private:
+private:
     void sendNotification( LineNumber current_line, LinesCount nb_lines, bool backward );
 
     QTime startTime_;
@@ -97,7 +97,7 @@ class SearchingNotifier : public QObject {
 class QuickFind : public QObject {
     Q_OBJECT
 
-  public:
+public:
     // Construct a search
     explicit QuickFind( const AbstractLogData& logData );
 
@@ -107,7 +107,7 @@ class QuickFind : public QObject {
     // Make the object forget the 'no more match' flag.
     void resetLimits();
 
-  public Q_SLOTS:
+public Q_SLOTS:
     // Used for incremental searches
     // Return the first occurrence of the passed pattern from the starting
     // point.  These searches don't change the starting point.
@@ -131,7 +131,7 @@ class QuickFind : public QObject {
 
     void stopSearch();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent when the UI shall display a message to the user.
     void notify( const QFNotification& message );
     // Sent when the UI shall clear the notification.
@@ -139,11 +139,11 @@ class QuickFind : public QObject {
     // Sent when search is completed
     void searchDone( bool hasMatch, Portion selection );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void sendNotification( QFNotification notification );
     void onSearchFutureReady();
 
-  private:
+private:
     enum QFDirection {
         None,
         Forward,
@@ -151,13 +151,13 @@ class QuickFind : public QObject {
     };
 
     class LastMatchPosition {
-      public:
+    public:
         void set( LineNumber line, LineColumn column );
         void set( const FilePosition& position );
         void reset()
         {
             line_ = {};
-            column_ = LineColumn{-1};
+            column_ = LineColumn{ -1 };
         }
         // Does the passed position come after the recorded one
         bool isLater( OptionalLineNumber line, LineColumn column ) const;
@@ -166,13 +166,13 @@ class QuickFind : public QObject {
         bool isSooner( OptionalLineNumber line, LineColumn column ) const;
         bool isSooner( const FilePosition& position ) const;
 
-      private:
+    private:
         OptionalLineNumber line_;
         LineColumn column_{ -1 };
     };
 
     class IncrementalSearchStatus {
-      public:
+    public:
         /* Constructors */
         IncrementalSearchStatus() = default;
 
@@ -201,7 +201,7 @@ class QuickFind : public QObject {
             return initialSelection_;
         }
 
-      private:
+    private:
         QFDirection ongoing_{ None };
         FilePosition position_;
         Selection initialSelection_;

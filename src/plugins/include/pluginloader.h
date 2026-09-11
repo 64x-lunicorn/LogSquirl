@@ -39,7 +39,7 @@ namespace logsquirl::plugins {
  * destruction.
  */
 class PluginHandle {
-  public:
+public:
     ~PluginHandle();
 
     PluginHandle( const PluginHandle& ) = delete;
@@ -47,10 +47,16 @@ class PluginHandle {
     PluginHandle( PluginHandle&& ) noexcept;
     PluginHandle& operator=( PluginHandle&& ) noexcept;
 
-    const PluginMetadata& metadata() const { return metadata_; }
+    const PluginMetadata& metadata() const
+    {
+        return metadata_;
+    }
 
     /** True if the plugin has been successfully initialised. */
-    bool isInitialised() const { return initialised_; }
+    bool isInitialised() const
+    {
+        return initialised_;
+    }
 
     /**
      * Initialise the plugin by calling its init entry point.
@@ -64,7 +70,10 @@ class PluginHandle {
     void shutdown();
 
     /** True if the plugin exports a configure entry point. */
-    bool hasConfigureUi() const { return configureFn_ != nullptr; }
+    bool hasConfigureUi() const
+    {
+        return configureFn_ != nullptr;
+    }
 
     /** Open the plugin's configuration dialog with the given parent widget. */
     void configure( void* parentWidget );
@@ -88,14 +97,12 @@ class PluginHandle {
      */
     int convert( const QString& inputPath, const QString& outputPath ) const;
 
-  private:
+private:
     friend class PluginLoader;
 
     PluginHandle( PluginMetadata meta, std::unique_ptr<QLibrary> lib,
-                  LogSquirlPluginGetInfoFn getInfoFn,
-                  LogSquirlPluginInitFn initFn,
-                  LogSquirlPluginShutdownFn shutdownFn,
-                  LogSquirlPluginConfigureFn configureFn,
+                  LogSquirlPluginGetInfoFn getInfoFn, LogSquirlPluginInitFn initFn,
+                  LogSquirlPluginShutdownFn shutdownFn, LogSquirlPluginConfigureFn configureFn,
                   LogSquirlConverterGetExtsFn converterGetExtsFn,
                   LogSquirlConverterConvertFn converterConvertFn );
 
@@ -119,7 +126,7 @@ class PluginHandle {
  * rather than Qt plugin metadata.
  */
 class PluginLoader {
-  public:
+public:
     /**
      * Load a plugin from disk.
      * Resolves all required symbols and validates the info returned by the

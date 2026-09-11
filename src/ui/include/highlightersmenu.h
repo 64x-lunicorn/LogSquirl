@@ -35,7 +35,7 @@ class CrawlerWidget;
 class HighlightersMenu : public HoverMenu {
     Q_OBJECT
 
-  public:
+public:
     using HoverMenu::addAction;
 
     HighlightersMenu( const QString& title, QWidget* parent = nullptr );
@@ -53,18 +53,18 @@ class HighlightersMenu : public HoverMenu {
         applyChange_ = apply;
     }
 
-  private:
+private:
     using HoverMenu::clear;
 
     // save highlighter action
     void saveCurrentHighlighterFromAction( const QAction* action ) const;
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void applySelectionHighlighters( QAction* action ) const;
 
     void updateActionsStatus() const;
 
-  private:
+private:
     QActionGroup* highLighters_;
     std::function<void()> applyChange_;
 };

@@ -35,28 +35,28 @@ class DateTimeBox;
 
 class ScratchPad : public QWidget {
     Q_OBJECT
-  public:
+public:
     explicit ScratchPad( QWidget* parent = nullptr );
 
     ~ScratchPad() = default;
     ScratchPad( const ScratchPad& ) = delete;
     ScratchPad& operator=( const ScratchPad& ) = delete;
 
-  public Q_SLOTS:
+public Q_SLOTS:
     void addData( QString data );
     void replaceData( QString data );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void updateTransformation();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void crc32Hex();
     void crc32Dec();
     void fileTime();
     void decToHex();
     void hexToDec();
 
-  private:
+private:
     void decodeBase64();
     void encodeBase64();
 
@@ -73,7 +73,7 @@ class ScratchPad : public QWidget {
 
     void transformTextInPlace( const std::function<QString( QString )>& transform );
 
-  private:
+private:
     QPlainTextEdit* textEdit_;
     QStatusBar* statusBar_;
 

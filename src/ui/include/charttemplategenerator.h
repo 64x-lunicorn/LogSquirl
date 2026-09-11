@@ -45,8 +45,7 @@ QString strftimeToQtFormat( const QString& strftimeFmt );
 // Pick the first regex pattern from the format that contains the given
 // named capture group.  Returns the full pattern string, or empty if none
 // matches.
-QString patternContainingGroup( const LogFormatDefinition& format,
-                                const QString& groupName );
+QString patternContainingGroup( const LogFormatDefinition& format, const QString& groupName );
 
 // Find the numeric capture-group index for a named group within a compiled
 // QRegularExpression.  Returns -1 if not found.
@@ -57,21 +56,20 @@ int namedGroupIndex( const QString& pattern, const QString& groupName );
 // Each series uses the level's regex from levelMappings().
 // When |bucketMs| > 0 and a timestamp pattern is available, the X-axis
 // is configured for timestamp bucketing.
-QVector<ChartSeriesDefinition> levelFrequencyTemplates(
-    const LogFormatDefinition& format, qint64 bucketMs = 1000 );
+QVector<ChartSeriesDefinition> levelFrequencyTemplates( const LogFormatDefinition& format,
+                                                        qint64 bucketMs = 1000 );
 
 // Generate a single "All Levels" series that counts every line matching
 // the format's first regex pattern.  Useful as a quick message-rate chart.
-QVector<ChartSeriesDefinition> messageRateTemplates(
-    const LogFormatDefinition& format, qint64 bucketMs = 1000 );
+QVector<ChartSeriesDefinition> messageRateTemplates( const LogFormatDefinition& format,
+                                                     qint64 bucketMs = 1000 );
 
 // Generate one series per numeric field (kind == "integer" or "float")
 // that extracts the field's value.  X-axis uses timestamp if available.
-QVector<ChartSeriesDefinition> numericFieldTemplates(
-    const LogFormatDefinition& format );
+QVector<ChartSeriesDefinition> numericFieldTemplates( const LogFormatDefinition& format );
 
 // Generate one count-mode series per non-hidden field.
-QVector<ChartSeriesDefinition> fieldOccurrenceTemplates(
-    const LogFormatDefinition& format, qint64 bucketMs = 1000 );
+QVector<ChartSeriesDefinition> fieldOccurrenceTemplates( const LogFormatDefinition& format,
+                                                         qint64 bucketMs = 1000 );
 
 } // namespace ChartTemplateGenerator

@@ -536,17 +536,18 @@ SCENARIO( "rawToDisplayColumns maps raw columns to display columns", "[linetypes
         const QString line = "field1\tfield2\tfield3\tvalue";
 
         THEN( "translating any sub-range through the map matches untabify-ing that "
-             "sub-range directly (the property the decoration path relies on)" )
+              "sub-range directly (the property the decoration path relies on)" )
         {
             const auto columns = rawToDisplayColumns( line );
 
             for ( int start = 0; start <= line.size(); ++start ) {
                 for ( int len = 0; start + len <= line.size(); ++len ) {
-                    const auto expected = untabify( line.mid( start, len ),
-                                                    LineColumn( columns[ static_cast<size_t>( start ) ] ) )
-                                              .size();
+                    const auto expected
+                        = untabify( line.mid( start, len ),
+                                    LineColumn( columns[ static_cast<size_t>( start ) ] ) )
+                              .size();
                     const auto viaMap = columns[ static_cast<size_t>( start + len ) ]
-                                         - columns[ static_cast<size_t>( start ) ];
+                                        - columns[ static_cast<size_t>( start ) ];
                     REQUIRE( viaMap == expected );
                 }
             }
@@ -643,12 +644,8 @@ SCENARIO( "getUntabifiedLength for QString matches untabify output", "[linetypes
     GIVEN( "Various strings with tabs" )
     {
         logsquirl::vector<QString> inputs = {
-            QString( "hello" ),
-            QString( "\t" ),
-            QString( "abc\t" ),
-            QString( "\t\t" ),
-            QString( "ab\tcd\tefgh" ),
-            QString( "12345678\t" ),
+            QString( "hello" ), QString( "\t" ),           QString( "abc\t" ),
+            QString( "\t\t" ),  QString( "ab\tcd\tefgh" ), QString( "12345678\t" ),
         };
 
         THEN( "getUntabifiedLength equals untabify().size() for each input" )

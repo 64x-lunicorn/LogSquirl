@@ -33,10 +33,10 @@ class LogFilteredData;
 //
 // This class is NOT thread-safe.
 class Overview {
-  public:
+public:
     // A line with a position in pixel and a weight (darkness)
     class WeightedLine {
-      public:
+    public:
         static constexpr int WEIGHT_STEPS = 3;
 
         WeightedLine()
@@ -65,7 +65,7 @@ class Overview {
             weight_ = qMin( weight_ + 1, WEIGHT_STEPS - 1 );
         }
 
-      private:
+    private:
         int pos_;
         int weight_;
     };
@@ -114,7 +114,7 @@ class Overview {
     // Return the y coordinate corresponding to the passed line number.
     int yFromFileLine( LineNumber fileLine ) const;
 
-  private:
+private:
     // List of matches associated with this Overview.
     const LogFilteredData* logFilteredData_;
     // Total number of lines in the file.

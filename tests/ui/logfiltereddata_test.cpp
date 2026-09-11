@@ -256,7 +256,7 @@ SCENARIO( "search for regex", "[logdata]" )
             REQUIRE( filtered_lines.get() == 0 );
 
             SafeQSignalSpy searchStateSpy{ filtered_data.get(),
-                                          &LogFilteredData::searchStateChanged };
+                                           &LogFilteredData::searchStateChanged };
 
             requestSearch( filtered_data.get(), "this is line [0-9]{5}9", searchStateSpy );
 
@@ -295,7 +295,7 @@ SCENARIO( "marks and matches in filtered log data", "[logdata]" )
             REQUIRE( filtered_lines.get() == 0 );
 
             SafeQSignalSpy searchStateSpy{ filtered_data.get(),
-                                          &LogFilteredData::searchStateChanged };
+                                           &LogFilteredData::searchStateChanged };
 
             requestSearch( filtered_data.get(), "this is line [0-9]{5}9", searchStateSpy );
 
@@ -606,7 +606,7 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
             for ( qint64 i = 0; i < nbLines; ++i ) {
                 const char* tag = ( i % 2 == 0 ) ? "EVEN" : "ODD";
                 snprintf( line, sizeof( line ), "SUPERSEDE_TEST %s line %06lld\n", tag,
-                         static_cast<long long>( i ) );
+                          static_cast<long long>( i ) );
                 file.write( line, static_cast<qint64>( qstrlen( line ) ) );
             }
             file.flush();
@@ -628,7 +628,7 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
         WHEN( "a second Search for the other pattern starts while the first is still running" )
         {
             SafeQSignalSpy searchStateSpy{ filtered_data.get(),
-                                          &LogFilteredData::searchStateChanged };
+                                           &LogFilteredData::searchStateChanged };
 
             filtered_data->request( RegularExpressionPattern( "EVEN" ) );
 
@@ -667,7 +667,7 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
 }
 
 SCENARIO( "A request repeating the same pattern and start with a grown end is a continuation",
-         "[logdata][search]" )
+          "[logdata][search]" )
 {
     LogDataLoader logDataLoader;
 
@@ -676,8 +676,7 @@ SCENARIO( "A request repeating the same pattern and start with a grown end is a 
         auto filtered_data = logDataLoader.log_data.getNewFilteredData();
         const RegularExpressionPattern pattern( "LOGDATA" );
 
-        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
-                                      &LogFilteredData::searchStateChanged };
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
 
         filtered_data->request( pattern, 0_lnum, LineNumber( SL_NB_LINES / 2 ) );
         REQUIRE( waitUiState( [ & ]() {
@@ -692,9 +691,8 @@ SCENARIO( "A request repeating the same pattern and start with a grown end is a 
             {
                 REQUIRE( filtered_data->searchState().isContinuation );
 
-                REQUIRE( waitUiState( [ & ]() {
-                    return lastSearchState( searchStateSpy ).progress >= 100;
-                } ) );
+                REQUIRE( waitUiState(
+                    [ & ]() { return lastSearchState( searchStateSpy ).progress >= 100; } ) );
                 REQUIRE( filtered_data->getNbMatches() == LinesCount( SL_NB_LINES ) );
             }
         }
@@ -723,7 +721,7 @@ SCENARIO( "A request repeating the same pattern and start with a grown end is a 
 }
 
 SCENARIO( "Context Lines are correct after a cache hit, and cleared when a Search is cleared",
-         "[logdata][search]" )
+          "[logdata][search]" )
 {
     LogDataLoader logDataLoader;
 
@@ -735,8 +733,7 @@ SCENARIO( "Context Lines are correct after a cache hit, and cleared when a Searc
         logDataLoader.log_data.setSearchPolicy( searchPolicy );
 
         auto filtered_data = logDataLoader.log_data.getNewFilteredData();
-        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
-                                      &LogFilteredData::searchStateChanged };
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
 
         // Matches exactly line 10; caches under this exact pattern/range.
         requestSearch( filtered_data.get(), "this is line 000010", searchStateSpy );
@@ -795,8 +792,7 @@ SCENARIO( "A cache hit is never treated as a base for a continuation", "[logdata
         const RegularExpressionPattern patternA( "this is line 000010" ); // matches only line 10
         const RegularExpressionPattern patternB( "this is line 000200" ); // matches only line 200
 
-        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
-                                      &LogFilteredData::searchStateChanged };
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
 
         auto waitForCompletion = [ & ]() {
             REQUIRE( waitUiState( [ & ]() {
@@ -848,8 +844,7 @@ SCENARIO( "Requesting an invalid pattern discards a previous run's results", "[l
     GIVEN( "a completed search with matches" )
     {
         auto filtered_data = logDataLoader.log_data.getNewFilteredData();
-        SafeQSignalSpy searchStateSpy{ filtered_data.get(),
-                                      &LogFilteredData::searchStateChanged };
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
 
         requestSearch( filtered_data.get(), "this is line [0-9]{5}9", searchStateSpy );
         REQUIRE( filtered_data->getNbMatches() == 50_lcount );
@@ -861,7 +856,8 @@ SCENARIO( "Requesting an invalid pattern discards a previous run's results", "[l
 
             THEN( "the previous results are gone, not just uncounted" )
             {
-                REQUIRE( filtered_data->searchState().phase == SearchSession::Phase::InvalidPattern );
+                REQUIRE( filtered_data->searchState().phase
+                         == SearchSession::Phase::InvalidPattern );
                 REQUIRE( filtered_data->getNbMatches() == 0_lcount );
             }
         }

@@ -26,22 +26,22 @@
 #include <QMimeData>
 #include <QTimer>
 
-static inline void sendTextToClipboard(QString text, bool updateSelection = false) {
+static inline void sendTextToClipboard( QString text, bool updateSelection = false )
+{
     auto clipboard = QApplication::clipboard();
-    if (!clipboard) {
+    if ( !clipboard ) {
         LOG_WARNING << "Unable to access the clipboard.";
         return;
     }
-    
+
     try {
         auto* mime = new QMimeData;
-        mime->setText(text);
-        clipboard->setMimeData(mime, QClipboard::Clipboard);
-        if (updateSelection && clipboard->supportsSelection()) {
-            clipboard->setMimeData(mime, QClipboard::Selection);
+        mime->setText( text );
+        clipboard->setMimeData( mime, QClipboard::Clipboard );
+        if ( updateSelection && clipboard->supportsSelection() ) {
+            clipboard->setMimeData( mime, QClipboard::Selection );
         }
-    }
-    catch(const std::exception& ex) {
+    } catch ( const std::exception& ex ) {
         LOG_ERROR << "Failed to send text to clipboard: " << ex.what();
     }
 }

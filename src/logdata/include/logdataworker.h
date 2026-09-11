@@ -117,7 +117,7 @@ public:
 
     logsquirl::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const
     {
-      return data_->getEndOfLineOffsets(line, count);
+        return data_->getEndOfLineOffsets( line, count );
     }
 
     // Get the guessed encoding for the content.

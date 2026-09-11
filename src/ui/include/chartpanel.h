@@ -47,7 +47,7 @@ class QComboBox;
 class ChartPanel : public QWidget {
     Q_OBJECT
 
-  public:
+public:
     explicit ChartPanel( QWidget* parent = nullptr );
     ~ChartPanel() override;
 
@@ -72,11 +72,11 @@ class ChartPanel : public QWidget {
     // often each search filter matches across the log file.
     void addFilterFrequencySeries( const QStringList& patterns );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Propagated from the chart widget when the user clicks a data point.
     void lineSelected( LineNumber line );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void addSeries();
     void addSeriesWizard();
     void editSeries();
@@ -91,7 +91,7 @@ class ChartPanel : public QWidget {
     void exportPreset();
     void importPreset();
 
-  private:
+private:
     void rebuildSeriesCombo();
     void rebuildTemplatesMenu();
     void addTemplateSeries( const QVector<ChartSeriesDefinition>& defs );

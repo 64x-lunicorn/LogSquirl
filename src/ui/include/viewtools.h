@@ -30,7 +30,7 @@
 class ElasticHook : public QObject {
     Q_OBJECT
 
-  public:
+public:
     explicit ElasticHook( int hook_threshold )
         : hook_threshold_( hook_threshold )
     {
@@ -77,16 +77,16 @@ class ElasticHook : public QObject {
         return hooked_;
     }
 
-  protected:
+protected:
     void timerEvent( QTimerEvent* event ) override;
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent when the length has changed
     void lengthChanged();
     // Sent when the hooked status has changed
     void hooked( bool is_hooked );
 
-  private:
+private:
     void decreasePosition();
 
     static constexpr int TIMER_PERIOD_MS = 10;

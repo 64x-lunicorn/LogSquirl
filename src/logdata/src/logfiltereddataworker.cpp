@@ -227,8 +227,7 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
     LOG_INFO << "Search requested";
     QSemaphore operationStarted;
     operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
-                                             startLine, endLine,
-                                             searchPolicy = searchPolicy_ ] {
+                                             startLine, endLine, searchPolicy = searchPolicy_ ] {
         operationStarted.release();
         // Deliberately not holding operationsMutex_ here: the pool (maxThreadCount 1)
         // already serializes actual execution, and holding it across a run -- which
@@ -257,17 +256,17 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
     LOG_INFO << "Search update requested from " << position.get();
 
     QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
-                                             startLine, endLine, position,
-                                             searchPolicy = searchPolicy_ ] {
-        operationStarted.release();
-        // See the comment in search(): not holding operationsMutex_ here is what
-        // lets a superseding call proceed without waiting for this run to finish.
-        auto operationRequested = std::make_unique<UpdateSearchOperation>(
-            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine, position,
-            searchPolicy );
-        connectSignalsAndRun( operationRequested.get() );
-    } ) );
+    operationsPool_.start(
+        createRunnable( [ this, &operationStarted, id, compiledExpression, startLine, endLine,
+                          position, searchPolicy = searchPolicy_ ] {
+            operationStarted.release();
+            // See the comment in search(): not holding operationsMutex_ here is what
+            // lets a superseding call proceed without waiting for this run to finish.
+            auto operationRequested = std::make_unique<UpdateSearchOperation>(
+                sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
+                position, searchPolicy );
+            connectSignalsAndRun( operationRequested.get() );
+        } ) );
 
     operationStarted.acquire();
 
@@ -337,14 +336,14 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     const auto configuredThreadPoolSize = searchPolicy_.threadPoolSize;
     const auto searchReadBufferSizeLines = searchPolicy_.readBufferSizeLines;
 
-    const auto matchingThreadsCount = static_cast<uint32_t>(
-        [ useParallelSearch, configuredThreadPoolSize ]() {
-            if ( !useParallelSearch ) {
-                return 1;
-            }
-            return qMax( 1, configuredThreadPoolSize == 0 ? tbb::info::default_concurrency()
-                                                          : configuredThreadPoolSize );
-        }() );
+    const auto matchingThreadsCount
+        = static_cast<uint32_t>( [ useParallelSearch, configuredThreadPoolSize ]() {
+              if ( !useParallelSearch ) {
+                  return 1;
+              }
+              return qMax( 1, configuredThreadPoolSize == 0 ? tbb::info::default_concurrency()
+                                                            : configuredThreadPoolSize );
+          }() );
 
     LOG_INFO << "Using " << matchingThreadsCount << " matching threads";
 

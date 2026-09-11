@@ -49,7 +49,7 @@
 // This class holds the configuration options and persistent
 // data for the version checker
 class VersionCheckerConfig final : public Persistable<VersionCheckerConfig, session_settings> {
-  public:
+public:
     static const char* persistableName()
     {
         return "VersionCheckerConfig";
@@ -67,7 +67,7 @@ class VersionCheckerConfig final : public Persistable<VersionCheckerConfig, sess
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
+private:
     std::time_t next_deadline_ = {};
 };
 
@@ -76,7 +76,7 @@ class VersionCheckerConfig final : public Persistable<VersionCheckerConfig, sess
 class VersionChecker : public QObject {
     Q_OBJECT
 
-  public:
+public:
     VersionChecker();
     ~VersionChecker() override = default;
 
@@ -85,18 +85,18 @@ class VersionChecker : public QObject {
     // In case of error or if no new version is found, no signal is emitted.
     void startCheck();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // New version "version" is available
     void newVersionFound( const QString& version, const QString& url, const QStringList& changes );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     // Called when download is finished
     void downloadFinished( QNetworkReply* );
 
-  private:
+private:
     void checkVersionData( QByteArray versionData );
 
-  private:
+private:
     QNetworkAccessManager* manager_ = nullptr;
 };
 

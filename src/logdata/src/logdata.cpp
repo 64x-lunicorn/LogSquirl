@@ -365,7 +365,8 @@ logsquirl::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCoun
     } );
 }
 
-logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line, LinesCount number ) const
+logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
+                                                        LinesCount number ) const
 {
     return getLinesFromFile( first_line, number, []( QString&& lineData ) {
         return untabify( std::move( lineData ) );
@@ -384,7 +385,7 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
 
     try {
         IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-        if ( (firstLine + number).get() > scopedAccessor.getNbLines().get() ) {
+        if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
             LOG_WARNING << "Lines out of bound asked for";
             return {}; /* exception? */
         }
@@ -445,7 +446,7 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
 }
 
 logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, LinesCount number,
-                                                  QString ( *processLine )( QString&& ) ) const
+                                                      QString ( *processLine )( QString&& ) ) const
 {
     LOG_DEBUG << "firstLine:" << firstLine << " nb:" << number;
 
@@ -471,7 +472,8 @@ logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, Line
 
     processedLines.reserve( number.get() - processedLines.size() );
     while ( processedLines.size() < number.get() ) {
-        processedLines.emplace_back( "LOGSQUIRL WARNING: failed to read some lines before this one" );
+        processedLines.emplace_back(
+            "LOGSQUIRL WARNING: failed to read some lines before this one" );
     }
 
     return processedLines;
@@ -540,7 +542,8 @@ logsquirl::vector<QString> LogData::RawLines::decodeLines() const
 
     decodedLines.reserve( this->endOfLines.size() - decodedLines.size() );
     while ( decodedLines.size() < this->endOfLines.size() ) {
-        decodedLines.emplace_back( "LOGSQUIRL WARNING: failed to decode some lines before this one" );
+        decodedLines.emplace_back(
+            "LOGSQUIRL WARNING: failed to decode some lines before this one" );
     }
 
     return decodedLines;
@@ -569,7 +572,8 @@ logsquirl::vector<std::string_view> LogData::RawLines::buildUtf8View() const
                                                   logsquirl::isize( buffer ) / 2 );
             }
             else {
-                utf16Data = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
+                utf16Data
+                    = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
             }
 
             if ( !prefilterPattern.pattern().isEmpty() ) {

@@ -35,19 +35,18 @@ class QSpinBox;
 class ChartWizardDialog : public QDialog {
     Q_OBJECT
 
-  public:
-    explicit ChartWizardDialog( const LogFormatDefinition* format,
-                                QWidget* parent = nullptr );
+public:
+    explicit ChartWizardDialog( const LogFormatDefinition* format, QWidget* parent = nullptr );
 
     // Return the configured series definition ready for extraction.
     ChartSeriesDefinition series() const;
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void onYFieldChanged( int index );
     void chooseColor();
     void validateAndAccept();
 
-  private:
+private:
     void populateFieldCombos();
 
     const LogFormatDefinition* format_;

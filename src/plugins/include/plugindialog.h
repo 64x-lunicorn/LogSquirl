@@ -51,10 +51,10 @@ namespace logsquirl::plugins {
 class PluginDialog : public QDialog {
     Q_OBJECT
 
-  public:
+public:
     explicit PluginDialog( PluginManager& manager, QWidget* parent = nullptr );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void onCatalogReady();
     void onIconReady( const QString& pluginId, const QPixmap& icon );
     void onFetchError( const QString& message );
@@ -63,7 +63,7 @@ class PluginDialog : public QDialog {
     void onDownloadFinished( const QString& archivePath );
     void onDownloadError( const QString& message );
 
-  private:
+private:
     /** Distinct state for each plugin card. */
     enum class PluginState {
         NotInstalled, ///< Available in repo but not on disk
@@ -88,12 +88,15 @@ class PluginDialog : public QDialog {
 
     /** A single plugin card shown in the grid. */
     class PluginCard : public QFrame {
-      public:
+    public:
         explicit PluginCard( const MergedPlugin& plugin, PluginDialog* parent );
 
         void setIcon( const QPixmap& icon );
         void updateState( const MergedPlugin& plugin );
-        const QString& pluginId() const { return pluginId_; }
+        const QString& pluginId() const
+        {
+            return pluginId_;
+        }
 
         QLabel* iconLabel = nullptr;
         QLabel* nameLabel = nullptr;
@@ -105,7 +108,7 @@ class PluginDialog : public QDialog {
         QPushButton* actionButton = nullptr;
         QPushButton* toggleButton = nullptr;
 
-      private:
+    private:
         QString pluginId_;
     };
 

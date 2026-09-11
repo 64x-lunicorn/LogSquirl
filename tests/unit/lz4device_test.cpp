@@ -36,15 +36,14 @@ bool writeLz4File( QTemporaryFile& file, const QByteArray& rawData )
         return false;
     }
 
-    const auto maxDst = LZ4F_compressFrameBound(
-        static_cast<std::size_t>( rawData.size() ), nullptr );
+    const auto maxDst
+        = LZ4F_compressFrameBound( static_cast<std::size_t>( rawData.size() ), nullptr );
 
     QByteArray compressed( static_cast<int>( maxDst ), Qt::Uninitialized );
 
-    const auto compressedSize = LZ4F_compressFrame(
-        compressed.data(), maxDst,
-        rawData.constData(), static_cast<std::size_t>( rawData.size() ),
-        nullptr );
+    const auto compressedSize
+        = LZ4F_compressFrame( compressed.data(), maxDst, rawData.constData(),
+                              static_cast<std::size_t>( rawData.size() ), nullptr );
 
     if ( LZ4F_isError( compressedSize ) ) {
         return false;

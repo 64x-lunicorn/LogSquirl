@@ -19,8 +19,8 @@
 
 #include "chartseriesdialog.h"
 
-#include <QColorDialog>
 #include <QCheckBox>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -91,8 +91,7 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     auto* xForm = new QFormLayout( xAxisGroup_ );
 
     xPatternEdit_ = new QLineEdit;
-    xPatternEdit_->setPlaceholderText(
-        tr( R"(e.g. (\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}))" ) );
+    xPatternEdit_->setPlaceholderText( tr( R"(e.g. (\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}))" ) );
     xForm->addRow( tr( "Pattern:" ), xPatternEdit_ );
 
     xCaptureGroupSpin_ = new QSpinBox;
@@ -109,8 +108,7 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     xTimestampFormatEdit_->setEnabled( false );
     xForm->addRow( tr( "Format:" ), xTimestampFormatEdit_ );
 
-    auto* xHint
-        = new QLabel( tr( "Qt date/time tokens: yyyy, MM, dd, HH, mm, ss, zzz" ) );
+    auto* xHint = new QLabel( tr( "Qt date/time tokens: yyyy, MM, dd, HH, mm, ss, zzz" ) );
     xHint->setWordWrap( true );
     auto xHintFont = xHint->font();
     xHintFont.setPointSize( xHintFont.pointSize() - 1 );
@@ -137,8 +135,7 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     xForm->addRow( tr( "Aggregate:" ), bucketSizeCombo_ );
 
     // Enable bucket combo only when timestamp parsing is active.
-    connect( xTimestampCheckbox_, &QCheckBox::toggled, bucketSizeCombo_,
-             &QWidget::setEnabled );
+    connect( xTimestampCheckbox_, &QCheckBox::toggled, bucketSizeCombo_, &QWidget::setEnabled );
 
     layout->addWidget( xAxisGroup_ );
 
@@ -166,8 +163,7 @@ void ChartSeriesDialog::setSeries( const ChartSeriesDefinition& def )
             xTimestampFormatEdit_->setText( def.xTimestampFormat );
         }
         if ( def.bucketSizeMs > 0 ) {
-            const int idx
-                = bucketSizeCombo_->findData( static_cast<int>( def.bucketSizeMs ) );
+            const int idx = bucketSizeCombo_->findData( static_cast<int>( def.bucketSizeMs ) );
             if ( idx >= 0 ) {
                 bucketSizeCombo_->setCurrentIndex( idx );
             }
@@ -204,14 +200,12 @@ void ChartSeriesDialog::setFormatDefaults( const LogFormatDefinition* format )
     }
 
     // Find a regex pattern that contains the timestamp group.
-    const auto xPattern
-        = ChartTemplateGenerator::patternContainingGroup( *format, tsField );
+    const auto xPattern = ChartTemplateGenerator::patternContainingGroup( *format, tsField );
     if ( xPattern.isEmpty() ) {
         return;
     }
 
-    const int tsGroupIdx
-        = ChartTemplateGenerator::namedGroupIndex( xPattern, tsField );
+    const int tsGroupIdx = ChartTemplateGenerator::namedGroupIndex( xPattern, tsField );
     if ( tsGroupIdx < 1 ) {
         return;
     }
@@ -222,8 +216,7 @@ void ChartSeriesDialog::setFormatDefaults( const LogFormatDefinition* format )
     xCaptureGroupSpin_->setValue( tsGroupIdx );
     xTimestampCheckbox_->setChecked( true );
     xTimestampFormatEdit_->setText( qtFmt );
-    bucketSizeCombo_->setCurrentIndex(
-        bucketSizeCombo_->findData( 1000 ) ); // default 1 second
+    bucketSizeCombo_->setCurrentIndex( bucketSizeCombo_->findData( 1000 ) ); // default 1 second
 }
 
 ChartSeriesDefinition ChartSeriesDialog::series() const
@@ -239,11 +232,9 @@ ChartSeriesDefinition ChartSeriesDialog::series() const
     if ( xAxisGroup_->isChecked() && !xPatternEdit_->text().isEmpty() ) {
         def.xPattern = xPatternEdit_->text();
         def.xCaptureGroup = xCaptureGroupSpin_->value();
-        if ( xTimestampCheckbox_->isChecked()
-             && !xTimestampFormatEdit_->text().isEmpty() ) {
+        if ( xTimestampCheckbox_->isChecked() && !xTimestampFormatEdit_->text().isEmpty() ) {
             def.xTimestampFormat = xTimestampFormatEdit_->text();
-            def.bucketSizeMs
-                = bucketSizeCombo_->currentData().toLongLong();
+            def.bucketSizeMs = bucketSizeCombo_->currentData().toLongLong();
         }
     }
 
@@ -303,9 +294,8 @@ void ChartSeriesDialog::validateAndAccept()
 
         const QRegularExpression xRe( xPatternEdit_->text() );
         if ( !xRe.isValid() ) {
-            QMessageBox::warning(
-                this, tr( "Validation" ),
-                tr( "Invalid X-axis regex:\n%1" ).arg( xRe.errorString() ) );
+            QMessageBox::warning( this, tr( "Validation" ),
+                                  tr( "Invalid X-axis regex:\n%1" ).arg( xRe.errorString() ) );
             return;
         }
 
@@ -318,8 +308,7 @@ void ChartSeriesDialog::validateAndAccept()
             return;
         }
 
-        if ( xTimestampCheckbox_->isChecked()
-             && xTimestampFormatEdit_->text().isEmpty() ) {
+        if ( xTimestampCheckbox_->isChecked() && xTimestampFormatEdit_->text().isEmpty() ) {
             QMessageBox::warning( this, tr( "Validation" ),
                                   tr( "Please enter a timestamp format." ) );
             return;

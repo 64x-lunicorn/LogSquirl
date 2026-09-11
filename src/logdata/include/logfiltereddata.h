@@ -66,7 +66,7 @@ class QTimer;
 class LogFilteredData : public AbstractLogData {
     Q_OBJECT
 
-  public:
+public:
     // Constructor used by LogData, which hands on the Search Policy it was
     // built with: everything this object and its Search Session know about
     // the settings arrives here.
@@ -82,7 +82,7 @@ class LogFilteredData : public AbstractLogData {
     // the currently held run and endLine only grows, continues that run
     // (used when the file on disk has grown) rather than starting over.
     void request( const RegularExpressionPattern& regExp, LineNumber startLine,
-                 LineNumber endLine );
+                  LineNumber endLine );
     // Shortcut for request() on the whole file.
     void request( const RegularExpressionPattern& regExp );
     // Go idle: clears the pattern, the results and (optionally) the cache.
@@ -154,23 +154,25 @@ class LogFilteredData : public AbstractLogData {
     // count, progress, phase, whether results came from cache).
     SearchSession::State searchState() const;
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent whenever the Search Session's state changes: on progress, on
     // completion (from a real run or from cache), when stopped, when
     // going idle, or when the pattern fails to compile.
     void searchStateChanged( SearchSession::State state );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void handleSessionStateChanged( SearchSession::State state );
 
-  private:
+private:
     // Implementation of virtual functions
     QString doGetLineString( LineNumber line ) const override;
     QString doGetExpandedLineString( LineNumber line ) const override;
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
-    logsquirl::vector<QString> doGetExpandedLines( LineNumber first, LinesCount number ) const override;
-    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number,
-                                     const std::function<QString( LineNumber )>& lineGetter ) const;
+    logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
+                                                   LinesCount number ) const override;
+    logsquirl::vector<QString>
+    doGetLines( LineNumber first, LinesCount number,
+                const std::function<QString( LineNumber )>& lineGetter ) const;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
@@ -215,7 +217,7 @@ class LogFilteredData : public AbstractLogData {
     // matching_lines_ must be replaced wholesale instead.
     SearchId lastSyncedSearchId_{ 0 };
 
-  private:
+private:
     // Utility functions
     const SearchResultArray& currentResultArray() const;
     LineNumber findLogDataLine( LineNumber lineNum ) const;

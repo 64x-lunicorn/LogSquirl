@@ -39,7 +39,7 @@
 class FiltersPanel : public QWidget {
     Q_OBJECT
 
-  public:
+public:
     explicit FiltersPanel( QWidget* parent = nullptr );
 
     ~FiltersPanel() = default;
@@ -54,25 +54,25 @@ class FiltersPanel : public QWidget {
     // or in tests to force a synchronous write.
     void flushPendingSaves();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Emitted when the set of checked (active) filters changes.
     void filtersChanged( const QList<PredefinedFilter>& selectedFilters );
 
     // Emitted when the user clicks the "Edit Filters" button.
     void editFiltersRequested();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void onItemChanged( QTreeWidgetItem* item, int column );
     void onItemDoubleClicked( QTreeWidgetItem* item, int column );
     void onSearchTextChanged( const QString& text );
     void selectAll();
     void deselectAll();
 
-  protected:
+protected:
     void showEvent( QShowEvent* event ) override;
     void changeEvent( QEvent* event ) override;
 
-  private:
+private:
     void populateTree( const QList<PredefinedFilterSet>& sets );
     void rebuildFilterIndex();
     void emitCurrentSelection();

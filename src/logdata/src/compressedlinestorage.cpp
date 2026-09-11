@@ -185,7 +185,7 @@ size_t CompressedLinePositionStorage::allocatedSize() const
 }
 
 logsquirl::vector<OffsetInFile> CompressedLinePositionStorage::range( LineNumber firstLine,
-                                                                  LinesCount count ) const
+                                                                      LinesCount count ) const
 {
     const size_t firstBlockIndex = firstLine.get() / SimdIndexBlockSize;
     const size_t indexInFirstBlock = firstLine.get() % SimdIndexBlockSize;

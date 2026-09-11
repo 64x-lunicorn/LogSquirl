@@ -46,31 +46,28 @@
 #include <QKeyEvent>
 
 // Class implementing the filtered (bottom) view widget.
-class FilteredView : public AbstractLogView
-{
-  Q_OBJECT
-  public:
-    FilteredView( LogFilteredData* newLogData,
-            const QuickFindPattern* const quickFindPattern,
-            bool initialTextWrap,
-            QWidget* parent = nullptr );
+class FilteredView : public AbstractLogView {
+    Q_OBJECT
+public:
+    FilteredView( LogFilteredData* newLogData, const QuickFindPattern* const quickFindPattern,
+                  bool initialTextWrap, QWidget* parent = nullptr );
 
     // What is visible in the view.
     using Visibility = LogFilteredData::Visibility;
     void setVisibility( Visibility visi );
     Visibility visibility() const;
 
-  protected:
+protected:
     LogFilteredData::LineType lineType( LineNumber lineNumber ) const override;
 
     // Number of the filtered line relative to the unfiltered source
-    LineNumber displayLineNumber(LineNumber lineNumber ) const override;
+    LineNumber displayLineNumber( LineNumber lineNumber ) const override;
     LineNumber lineIndex( LineNumber lineNumber ) const override;
     LineNumber maxDisplayLineNumber() const override;
 
     void doRegisterShortcuts() override;
 
-  private:
+private:
     LogFilteredData* logFilteredData_;
 };
 

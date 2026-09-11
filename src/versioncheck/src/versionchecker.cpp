@@ -52,15 +52,15 @@ static constexpr QLatin1String OsSuffix = QLatin1String( "-osx", 4 );
 static constexpr QLatin1String OsSuffix = QLatin1String( "-linux", 6 );
 #endif
 
-static constexpr QLatin1String VERSION_URL
-    = QLatin1String( "https://raw.githubusercontent.com/64x-lunicorn/LogSquirl/master/latest.json", 76 );
+static constexpr QLatin1String VERSION_URL = QLatin1String(
+    "https://raw.githubusercontent.com/64x-lunicorn/LogSquirl/master/latest.json", 76 );
 static constexpr std::time_t CHECK_INTERVAL_S = 3600 * 24 * 7; /* 7 days */
 
 bool isVersionNewer( const QString& current_version, const QString& new_version )
 {
     const auto parseVersion = []( const QString& version_string ) {
         qsizetype tweak_index = 0;
-        auto version = QVersionNumber::fromString( QAnyStringView(version_string), &tweak_index );
+        auto version = QVersionNumber::fromString( QAnyStringView( version_string ), &tweak_index );
         return std::make_pair( version, version_string.right( tweak_index + 1 ).toUInt() );
     };
 
@@ -158,11 +158,10 @@ void VersionChecker::checkVersionData( QByteArray versionData )
     const auto stableVersions = latestVersionMap.value( "releases" ).toList();
 
     const auto currentVersion = logsquirlVersion();
-    const bool isStableUser = std::any_of(
-        stableVersions.begin(), stableVersions.end(),
-        [ &currentVersion ]( const auto& version ) {
-            return version.toString() == currentVersion;
-        } );
+    const bool isStableUser = std::any_of( stableVersions.begin(), stableVersions.end(),
+                                           [ &currentVersion ]( const auto& version ) {
+                                               return version.toString() == currentVersion;
+                                           } );
 
     if ( isStableUser ) {
         latestVersion = latestVersionMap.value( "stable" ).toString();
@@ -202,8 +201,7 @@ void VersionChecker::checkVersionData( QByteArray versionData )
     LOG_DEBUG << "Current version: " << currentVersion << ". Latest version is " << latestVersion
               << ", url " << url << ( isBetaNotification ? " (beta)" : "" );
     if ( isVersionNewer( currentVersion, latestVersion ) ) {
-        LOG_INFO << "Sending new version notification"
-                 << ( isBetaNotification ? " (beta)" : "" );
+        LOG_INFO << "Sending new version notification" << ( isBetaNotification ? " (beta)" : "" );
 
         const auto displayVersion
             = isBetaNotification ? QString( "%1 (Beta)" ).arg( latestVersion ) : latestVersion;

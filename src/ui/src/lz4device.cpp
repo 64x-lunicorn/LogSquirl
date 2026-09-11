@@ -104,8 +104,8 @@ qint64 Lz4Device::readData( char* data, qint64 maxSize )
     while ( totalOut < static_cast<std::size_t>( maxSize ) ) {
         // Refill input buffer if exhausted
         if ( inPos_ >= inSize_ ) {
-            const auto bytesRead = file_.read( inBuf_.data(),
-                                               static_cast<qint64>( inBuf_.size() ) );
+            const auto bytesRead
+                = file_.read( inBuf_.data(), static_cast<qint64>( inBuf_.size() ) );
             if ( bytesRead < 0 ) {
                 return -1; // I/O error
             }
@@ -120,11 +120,8 @@ qint64 Lz4Device::readData( char* data, qint64 maxSize )
         auto srcSize = inSize_ - inPos_;
         auto dstSize = static_cast<std::size_t>( maxSize ) - totalOut;
 
-        const auto hint = LZ4F_decompress(
-            dctx_,
-            data + totalOut, &dstSize,
-            inBuf_.data() + inPos_, &srcSize,
-            nullptr );
+        const auto hint = LZ4F_decompress( dctx_, data + totalOut, &dstSize, inBuf_.data() + inPos_,
+                                           &srcSize, nullptr );
 
         inPos_ += srcSize;
         totalOut += dstSize;

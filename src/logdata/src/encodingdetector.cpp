@@ -28,7 +28,7 @@
 namespace {
 
 class UchardetHolder {
-  public:
+public:
     UchardetHolder()
         : ud_{ uchardet_new() }
     {
@@ -59,7 +59,7 @@ class UchardetHolder {
         return uchardet_get_charset( ud_ );
     }
 
-  private:
+private:
     uchardet_t ud_;
 };
 

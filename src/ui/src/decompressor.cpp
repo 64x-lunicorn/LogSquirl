@@ -161,11 +161,10 @@ std::shared_ptr<KArchive> makeExtractor( Archive archiveType, const QString& arc
 
         if ( decompDevice ) {
             // KTar does not own the device — use a custom deleter to clean up both.
-            return std::shared_ptr<KTar>( new KTar( decompDevice ),
-                                          [ decompDevice ]( KTar* tar ) {
-                                              delete tar;
-                                              delete decompDevice;
-                                          } );
+            return std::shared_ptr<KTar>( new KTar( decompDevice ), [ decompDevice ]( KTar* tar ) {
+                delete tar;
+                delete decompDevice;
+            } );
         }
 
         return std::make_shared<KTar>( archiveFilePath );
@@ -177,19 +176,15 @@ std::shared_ptr<KArchive> makeExtractor( Archive archiveType, const QString& arc
 
 /// Creates a QIODevice for streaming decompression. Returns KCompressionDevice
 /// for gz/bz2/xz and custom wrappers for zstd/lz4.
-std::shared_ptr<QIODevice> makeDecompressor( Archive archiveType,
-                                             const QString& archiveFilePath )
+std::shared_ptr<QIODevice> makeDecompressor( Archive archiveType, const QString& archiveFilePath )
 {
     switch ( archiveType ) {
     case Archive::Gz:
-        return std::make_shared<KCompressionDevice>( archiveFilePath,
-                                                     KCompressionDevice::GZip );
+        return std::make_shared<KCompressionDevice>( archiveFilePath, KCompressionDevice::GZip );
     case Archive::Bz2:
-        return std::make_shared<KCompressionDevice>( archiveFilePath,
-                                                     KCompressionDevice::BZip2 );
+        return std::make_shared<KCompressionDevice>( archiveFilePath, KCompressionDevice::BZip2 );
     case Archive::Xz:
-        return std::make_shared<KCompressionDevice>( archiveFilePath,
-                                                     KCompressionDevice::Xz );
+        return std::make_shared<KCompressionDevice>( archiveFilePath, KCompressionDevice::Xz );
     case Archive::Zstd:
         return std::make_shared<ZstdDevice>( archiveFilePath );
     case Archive::Lz4:
@@ -269,15 +264,15 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
             // would otherwise produce a silently truncated output file.
             const auto writtenBytes = outputFile->write( data );
             if ( writtenBytes < 0 ) {
-                LOG_ERROR << "Error decompressing " << archiveFilePath
-                          << ": " << outputFile->errorString();
+                LOG_ERROR << "Error decompressing " << archiveFilePath << ": "
+                          << outputFile->errorString();
                 success = false;
                 break;
             }
             if ( writtenBytes != data.size() ) {
-                LOG_ERROR << "Short write while decompressing " << archiveFilePath
-                          << ": wrote " << writtenBytes << " of " << data.size()
-                          << " bytes (" << outputFile->errorString() << ")";
+                LOG_ERROR << "Short write while decompressing " << archiveFilePath << ": wrote "
+                          << writtenBytes << " of " << data.size() << " bytes ("
+                          << outputFile->errorString() << ")";
                 success = false;
                 break;
             }

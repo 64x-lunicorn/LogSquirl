@@ -109,8 +109,7 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 
 } // namespace
 
-RegularExpression::RegularExpression( const RegularExpressionPattern& pattern,
-                                      RegexpEngine engine )
+RegularExpression::RegularExpression( const RegularExpressionPattern& pattern, RegexpEngine engine )
     : isInverse_( pattern.isExclude )
     , isBooleanCombination_( pattern.isBoolean )
     , engine_( engine )

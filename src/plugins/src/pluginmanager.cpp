@@ -58,17 +58,14 @@ QStringList PluginManager::defaultPluginDirectories()
     // Inside .app bundle: Contents/PlugIns/
     dirs << QDir( appDir + "/../PlugIns" ).absolutePath();
     // User-installed plugins
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation )
-                + "/plugins";
+    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
 #elif defined( Q_OS_WIN )
     dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation )
-                + "/plugins";
+    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
 #else
     // Linux / other Unix
     dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation )
-                + "/plugins";
+    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
 #endif
 
     return dirs;
@@ -116,16 +113,16 @@ void PluginManager::discoverPluginsIn( const QString& directory )
         bool duplicate = false;
         for ( const auto& existing : discovered_ ) {
             if ( existing.id() == meta.id() ) {
-                LOG_WARNING << "Duplicate plugin ID '" << meta.id()
-                            << "' — keeping first found at " << existing.directory();
+                LOG_WARNING << "Duplicate plugin ID '" << meta.id() << "' — keeping first found at "
+                            << existing.directory();
                 duplicate = true;
                 break;
             }
         }
 
         if ( !duplicate ) {
-            LOG_INFO << "Discovered plugin: " << meta.id() << " v" << meta.version()
-                     << " at " << meta.directory();
+            LOG_INFO << "Discovered plugin: " << meta.id() << " v" << meta.version() << " at "
+                     << meta.directory();
             discovered_.push_back( std::move( result.value() ) );
         }
     }
@@ -137,7 +134,7 @@ QStringList PluginManager::loadedPluginIds() const
 {
     QStringList ids;
     ids.reserve( static_cast<int>( loaded_.size() ) );
-    for ( const auto& [id, _] : loaded_ ) {
+    for ( const auto& [ id, _ ] : loaded_ ) {
         ids.append( id );
     }
     return ids;
@@ -305,8 +302,7 @@ void PluginManager::configurePlugin( const QString& pluginId, QWidget* parentWid
     }
 }
 
-void PluginManager::setOpenFileCallback(
-    std::function<void( const QString&, bool )> callback )
+void PluginManager::setOpenFileCallback( std::function<void( const QString&, bool )> callback )
 {
     openFileCallback_ = std::move( callback );
 }
@@ -319,7 +315,7 @@ void PluginManager::setActiveFilePathCallback( std::function<QString()> callback
 void PluginManager::notifyActiveFileChanged( const QString& filePath )
 {
     const auto utf8 = filePath.toUtf8();
-    for ( auto& [id, ctx] : loaded_ ) {
+    for ( auto& [ id, ctx ] : loaded_ ) {
         if ( ctx->activeFileCallback ) {
             ctx->activeFileCallback( ctx->activeFileUserData, utf8.constData() );
         }
@@ -341,15 +337,19 @@ QString PluginManager::loadLuaPlugin( const QString& pluginId, const PluginMetad
 
     // Create context with a script-only PluginHandle (no library loaded).
     // Re-parse the metadata to get an owned copy for the handle.
-    auto metaResult = PluginMetadata::fromJsonFile(
-        QDir( meta.directory() ).filePath( "plugin.json" ) );
+    auto metaResult
+        = PluginMetadata::fromJsonFile( QDir( meta.directory() ).filePath( "plugin.json" ) );
     if ( !metaResult.has_value() ) {
         return metaResult.error();
     }
 
     auto ctx = std::unique_ptr<PluginContext>(
         new PluginContext{ PluginHandle::createScriptHandle( std::move( metaResult.value() ) ),
-                           {}, {}, {}, nullptr, this } );
+                           {},
+                           {},
+                           {},
+                           nullptr,
+                           this } );
     ctx->hostApi = buildHostApi();
 
     ctx->configDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation )
@@ -429,13 +429,12 @@ StreamWriter* PluginManager::streamWriter( const QString& pluginId )
 QString PluginManager::converterForExtension( const QString& extension ) const
 {
     const auto ext = extension.toLower();
-    for ( const auto& [id, ctx] : loaded_ ) {
+    for ( const auto& [ id, ctx ] : loaded_ ) {
         if ( !ctx->handle.isConverter() ) {
             continue;
         }
         // Extensions are semicolon-separated, e.g. ".har;.pcap"
-        const auto exts = ctx->handle.converterExtensions().split(
-            ';', Qt::SkipEmptyParts );
+        const auto exts = ctx->handle.converterExtensions().split( ';', Qt::SkipEmptyParts );
         for ( const auto& e : exts ) {
             if ( e.trimmed().toLower() == ext ) {
                 return id;
@@ -448,7 +447,7 @@ QString PluginManager::converterForExtension( const QString& extension ) const
 QStringList PluginManager::converterFileFilters() const
 {
     QStringList filters;
-    for ( const auto& [id, ctx] : loaded_ ) {
+    for ( const auto& [ id, ctx ] : loaded_ ) {
         if ( !ctx->handle.isConverter() ) {
             continue;
         }
@@ -464,15 +463,14 @@ QStringList PluginManager::converterFileFilters() const
                 }
                 wildcards << trimmed;
             }
-            filters << QString( "%1 (%2)" )
-                           .arg( ctx->handle.metadata().name(), wildcards.join( ' ' ) );
+            filters
+                << QString( "%1 (%2)" ).arg( ctx->handle.metadata().name(), wildcards.join( ' ' ) );
         }
     }
     return filters;
 }
 
-int PluginManager::runConverter( const QString& pluginId,
-                                 const QString& inputPath,
+int PluginManager::runConverter( const QString& pluginId, const QString& inputPath,
                                  const QString& outputPath )
 {
     auto* handle = pluginHandle( pluginId );
@@ -540,8 +538,8 @@ void PluginManager::hostPushLine( void* handle, const char* data, size_t len )
     ctx->stream->pushLine( data, len );
 }
 
-void PluginManager::hostPushLines( void* handle, const char* const* data,
-                                   const size_t* lens, size_t count )
+void PluginManager::hostPushLines( void* handle, const char* const* data, const size_t* lens,
+                                   size_t count )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->stream ) {
@@ -621,8 +619,7 @@ void PluginManager::hostOpenFile( void* handle, const char* filePath, int follow
         return;
     }
     if ( ctx->manager->openFileCallback_ ) {
-        ctx->manager->openFileCallback_(
-            QString::fromUtf8( filePath ), follow != 0 );
+        ctx->manager->openFileCallback_( QString::fromUtf8( filePath ), follow != 0 );
     }
 }
 
@@ -648,26 +645,19 @@ void PluginManager::hostUnregisterStatusWidget( void* handle, void* qwidgetPtr )
     Q_EMIT ctx->manager->statusWidgetRemoved( pluginId, widget );
 }
 
-void PluginManager::hostRegisterMenuAction( void* handle, const char* menuPath,
-                                            const char* label,
-                                            PluginCallbackFn callback,
-                                            void* userData )
+void PluginManager::hostRegisterMenuAction( void* handle, const char* menuPath, const char* label,
+                                            PluginCallbackFn callback, void* userData )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->manager ) {
         return;
     }
     const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->menuActionAdded(
-        pluginId,
-        QString::fromUtf8( menuPath ),
-        QString::fromUtf8( label ),
-        callback,
-        userData );
+    Q_EMIT ctx->manager->menuActionAdded( pluginId, QString::fromUtf8( menuPath ),
+                                          QString::fromUtf8( label ), callback, userData );
 }
 
-void PluginManager::hostRegisterSidebarTab( void* handle, const char* label,
-                                            void* qwidgetPtr )
+void PluginManager::hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->manager ) {
@@ -675,8 +665,7 @@ void PluginManager::hostRegisterSidebarTab( void* handle, const char* label,
     }
     auto* widget = static_cast<QWidget*>( qwidgetPtr );
     const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->sidebarTabAdded(
-        pluginId, QString::fromUtf8( label ), widget );
+    Q_EMIT ctx->manager->sidebarTabAdded( pluginId, QString::fromUtf8( label ), widget );
 }
 
 void PluginManager::hostUnregisterSidebarTab( void* handle, void* qwidgetPtr )
@@ -719,15 +708,12 @@ const char* PluginManager::hostGetActiveFilePath( void* handle )
         return "";
     }
     // Cache the UTF-8 bytes so the returned pointer remains valid
-    ctx->manager->activeFilePathUtf8_
-        = ctx->manager->activeFilePathCallback_().toUtf8();
+    ctx->manager->activeFilePathUtf8_ = ctx->manager->activeFilePathCallback_().toUtf8();
     return ctx->manager->activeFilePathUtf8_.constData();
 }
 
 void PluginManager::hostRegisterActiveFileCallback(
-    void* handle,
-    void ( *callback )( void* user_data, const char* file_path ),
-    void* user_data )
+    void* handle, void ( *callback )( void* user_data, const char* file_path ), void* user_data )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx ) {

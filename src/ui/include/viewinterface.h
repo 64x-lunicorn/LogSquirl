@@ -31,7 +31,7 @@ class QuickFindPattern;
 // the concrete view will be able to save and restore.
 // It can be marshalled to persistent storage.
 class ViewContextInterface {
-  public:
+public:
     virtual ~ViewContextInterface() = default;
 
     virtual QString toString() const = 0;
@@ -41,7 +41,7 @@ class ViewContextInterface {
 // This a pure virtual class (interface) which is subclassed
 // for each type of view.
 class ViewInterface {
-  public:
+public:
     // Set the log data and filtered data to associate to this view
     // Ownership stay with the caller but is shared
     void setData( std::shared_ptr<LogData> log_data,
@@ -76,11 +76,10 @@ class ViewInterface {
     // To allow polymorphic destruction
     virtual ~ViewInterface() = default;
 
-  protected:
+protected:
     // Virtual functions (using NVI)
     virtual void doSetData( std::shared_ptr<LogData> log_data,
-                            std::shared_ptr<LogFilteredData> filtered_data )
-        = 0;
+                            std::shared_ptr<LogFilteredData> filtered_data ) = 0;
     virtual void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) = 0;
     virtual void doSetSavedSearches( SavedSearches* saved_searches ) = 0;
     virtual void doSetViewContext( const QString& view_context ) = 0;

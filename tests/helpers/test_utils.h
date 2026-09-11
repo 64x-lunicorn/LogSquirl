@@ -1,8 +1,8 @@
 #ifndef TEST_UTILS_H
 #define TEST_UTILS_H
 
-#include <string>
 #include <chrono>
+#include <string>
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -13,7 +13,8 @@ struct TestTimer {
     TestTimer()
         : TestTimer(
                 ::testing::UnitTest::GetInstance()->current_test_info()->test_case_name() ) {
-    text_ += std::string {"."} + std::string {::testing::UnitTest::GetInstance()->current_test_info()->name() };
+    text_ += std::string {"."} + std::string
+{::testing::UnitTest::GetInstance()->current_test_info()->name() };
     }
 
     TestTimer(const std::string& text)
@@ -35,15 +36,18 @@ struct TestTimer {
 };
 */
 class SafeQSignalSpy : public QSignalSpy {
-  public:
+public:
     template <typename... Args>
     SafeQSignalSpy( Args&&... agruments )
-        : QSignalSpy( std::forward<Args>(agruments)... ) {}
+        : QSignalSpy( std::forward<Args>( agruments )... )
+    {
+    }
 
-    bool safeWait( int timeout = 10000 ) {
+    bool safeWait( int timeout = 10000 )
+    {
         // If it has already been received
         bool result = count() > 0;
-        if ( ! result ) {
+        if ( !result ) {
             result = wait( timeout );
         }
         return result;
@@ -59,7 +63,7 @@ class SafeQSignalSpy : public QSignalSpy {
 // on slow Windows CI runners where the first wait_for_all() can stall 20+
 // seconds (#50). Pass a shorter one when waiting for something that is
 // expected *not* to happen, where the whole timeout is paid every time.
-template<typename F>
+template <typename F>
 bool waitUiState( F&& checkFunc, int timeoutMs = 120000 )
 {
     QElapsedTimer elapsed;

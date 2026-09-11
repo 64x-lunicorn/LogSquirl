@@ -33,7 +33,7 @@
 class ChartWidget : public QWidget {
     Q_OBJECT
 
-  public:
+public:
     explicit ChartWidget( QWidget* parent = nullptr );
 
     // Set the full list of series definitions (with pre-populated points).
@@ -42,12 +42,12 @@ class ChartWidget : public QWidget {
     // Reset zoom/pan to fit all data.
     void fitView();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Emitted when the user clicks near a data point; the main view
     // should scroll to this line.
     void lineSelected( LineNumber line );
 
-  protected:
+protected:
     void paintEvent( QPaintEvent* event ) override;
     void wheelEvent( QWheelEvent* event ) override;
     void mousePressEvent( QMouseEvent* event ) override;
@@ -55,7 +55,7 @@ class ChartWidget : public QWidget {
     void mouseReleaseEvent( QMouseEvent* event ) override;
     void resizeEvent( QResizeEvent* event ) override;
 
-  private:
+private:
     // Compute the plot area rectangle (excluding axis labels).
     QRectF plotArea() const;
 

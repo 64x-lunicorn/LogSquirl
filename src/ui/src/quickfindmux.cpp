@@ -124,7 +124,8 @@ void QuickFindMux::confirmPattern( const QString& newPattern, bool ignoreCase, b
     const auto& config = Configuration::get();
 
     pattern_->changeSearchPattern( newPattern, ignoreCase, isRegexSearch,
-                                   config.quickfindRegexpType() == SearchRegexpType::ExtendedRegexp );
+                                   config.quickfindRegexpType()
+                                       == SearchRegexpType::ExtendedRegexp );
 
     if ( config.isQuickfindIncremental() ) {
         if ( auto searchable = getSearchableWidget() )
@@ -146,7 +147,7 @@ void QuickFindMux::cancelSearch()
 void QuickFindMux::changeQuickFind( const QString& new_pattern, QFDirection new_direction )
 {
     pattern_->changeSearchPattern( new_pattern, Configuration::get().quickfindRegexpType()
-                                                     == SearchRegexpType::ExtendedRegexp );
+                                                    == SearchRegexpType::ExtendedRegexp );
     setDirection( new_direction );
 }
 

@@ -29,7 +29,7 @@
 #include <vector>
 
 class FontUtils {
-  public:
+public:
     static QStringList availableFonts()
     {
         // We only show the fixed fonts

@@ -45,11 +45,11 @@
 #include "configuration.h"
 #include "crashhandler.h"
 #include "filewatcher.h"
-#include "settingspolicies.h"
-#include "logsquirl_version.h"
 #include "log.h"
+#include "logsquirl_version.h"
 #include "searchsession.h"
 #include "session.h"
+#include "settingspolicies.h"
 #include "uuid.h"
 
 #include <kdsingleapplication.h>
@@ -62,9 +62,9 @@ class LogSquirlApp : public QApplication {
 
     Q_OBJECT
 
-  public:
+public:
     LogSquirlApp( int& argc, char* argv[] )
-        : QApplication( argc, argv)
+        : QApplication( argc, argv )
     {
         QFontDatabase::addApplicationFont( ":/fonts/DejaVuSansMono.ttf" );
 
@@ -94,8 +94,9 @@ class LogSquirlApp : public QApplication {
         FileWatcher::getFileWatcher().setWatchPolicy( settingsPolicies_.watch );
 
         if ( singleApplication_.isPrimaryInstance() ) {
-            QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived, &messageReceiver_,
-                              &MessageReceiver::receiveMessage, Qt::QueuedConnection );
+            QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
+                              &messageReceiver_, &MessageReceiver::receiveMessage,
+                              Qt::QueuedConnection );
 
             QObject::connect( &messageReceiver_, &MessageReceiver::loadFile, this,
                               &LogSquirlApp::loadFileNonInteractive );
@@ -109,7 +110,8 @@ class LogSquirlApp : public QApplication {
         }
     }
 
-    bool isSecondary() const {
+    bool isSecondary() const
+    {
         return !singleApplication_.isPrimaryInstance();
     }
 
@@ -122,7 +124,8 @@ class LogSquirlApp : public QApplication {
         return settingsPolicies_;
     }
 
-    qint64 primaryPid() const {
+    qint64 primaryPid() const
+    {
         return singleApplication_.primaryPid();
     }
 
@@ -252,7 +255,7 @@ class LogSquirlApp : public QApplication {
     }
 #endif
 
-  private:
+private:
     MainWindow* newWindow( WindowSession&& session )
     {
         mainWindows_.emplace_back( session, new MainWindow( session ) );
@@ -336,9 +339,10 @@ class LogSquirlApp : public QApplication {
     {
         LOG_DEBUG << "newVersionNotification( " << new_version << " from " << url << " )";
 
-        QString message = QString( "<p> A new version of logsquirl (%1) is available for download </p>"
-                                   "<a href=\"%2\">%2</a>" )
-                              .arg( new_version, url );
+        QString message
+            = QString( "<p> A new version of logsquirl (%1) is available for download </p>"
+                       "<a href=\"%2\">%2</a>" )
+                  .arg( new_version, url );
 
         if ( !changes.empty() ) {
             message.append( "<p>Important changes:</p><ul>" );
@@ -367,7 +371,7 @@ class LogSquirlApp : public QApplication {
         }
     }
 
-  private:
+private:
     KDSingleApplication singleApplication_;
     std::unique_ptr<CrashHandler> crashHandler_;
 

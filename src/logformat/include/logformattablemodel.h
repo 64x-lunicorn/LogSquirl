@@ -39,7 +39,7 @@ class AbstractLogData;
 class LogFormatTableModel : public QAbstractTableModel {
     Q_OBJECT
 
-  public:
+public:
     // Custom role for retrieving the raw (unparsed) log line text.
     static constexpr int RawLineRole = Qt::UserRole + 1;
 
@@ -52,7 +52,10 @@ class LogFormatTableModel : public QAbstractTableModel {
     void setLineCount( int lineCount );
 
     // Return the raw logData pointer so callers can detect stale references.
-    const AbstractLogData* logDataPtr() const { return logData_; }
+    const AbstractLogData* logDataPtr() const
+    {
+        return logData_;
+    }
 
     // QAbstractTableModel interface
     int rowCount( const QModelIndex& parent = QModelIndex() ) const override;
@@ -61,7 +64,7 @@ class LogFormatTableModel : public QAbstractTableModel {
     QVariant headerData( int section, Qt::Orientation orientation,
                          int role = Qt::DisplayRole ) const override;
 
-  private:
+private:
     // Extracts fields from a single line into a row of column values.
     QVector<QString> extractRow( const QString& line ) const;
 

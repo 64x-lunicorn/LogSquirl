@@ -62,9 +62,9 @@ int main( int argc, const char** argv )
     char newLine[ 90 ];
     for ( int i = 0; i < numberOfLines; i++ ) {
         snprintf( newLine, 89,
-                    "LOGDATA is a part of glogg, we are going to test it thoroughly, this is "
-                    "line %06d\n",
-                    i );
+                  "LOGDATA is a part of glogg, we are going to test it thoroughly, this is "
+                  "line %06d\n",
+                  i );
         file.write( newLine, static_cast<qint64>( qstrlen( newLine ) ) );
 
         if ( flag == WriteFileModification::DelayClosingFile ) {
@@ -75,7 +75,6 @@ int main( int argc, const char** argv )
     if ( flag == WriteFileModification::EndWithPartialLineBegin ) {
         file.write( partial_line_begin, static_cast<qint64>( qstrlen( partial_line_begin ) ) );
     }
-    
 
 #ifdef _WIN32
     FlushFileBuffers( reinterpret_cast<HANDLE>( _get_osfhandle( file.handle() ) ) );

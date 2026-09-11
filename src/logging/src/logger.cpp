@@ -35,13 +35,13 @@
 namespace logging {
 
 void logsquirlFileMessageHandler( QtMsgType type, const QMessageLogContext& context,
-                              const QString& msg );
+                                  const QString& msg );
 void logsquirlConsoleMessageHandler( QtMsgType type, const QMessageLogContext& context,
-                                 const QString& msg );
+                                     const QString& msg );
 void logsquirlNoopMessageHandler( QtMsgType, const QMessageLogContext&, const QString& ) {}
 
 class Logger {
-  public:
+public:
     static Logger& instance()
     {
         static Logger l;
@@ -143,7 +143,7 @@ class Logger {
         return true;
     }
 
-  private:
+private:
     Logger() = default;
 
     void setMessageHandler()
@@ -159,7 +159,7 @@ class Logger {
         }
     }
 
-  private:
+private:
     static LogLevel logLevel( QtMsgType type )
     {
         switch ( type ) {
@@ -180,7 +180,7 @@ class Logger {
         }
     }
 
-  private:
+private:
     mutable std::shared_mutex mutex_;
     using ScopedLock = std::unique_lock<std::shared_mutex>;
 
@@ -203,13 +203,13 @@ void enableFileLogging( bool isEnabled, LogLevel logLevel )
 }
 
 void logsquirlFileMessageHandler( QtMsgType type, const QMessageLogContext& context,
-                              const QString& msg )
+                                  const QString& msg )
 {
     Logger::instance().fileMessageHandler( type, context, msg );
 }
 
 void logsquirlConsoleMessageHandler( QtMsgType type, const QMessageLogContext& context,
-                                 const QString& msg )
+                                     const QString& msg )
 {
     Logger::instance().consoleMessageHandler( type, context, msg );
 }

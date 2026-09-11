@@ -21,12 +21,12 @@
 
 #include "chartseries.h"
 
+#include <QDate>
+#include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
-#include <QDate>
-#include <QDateTime>
 
 SCENARIO( "ChartSeriesDefinition regex extraction", "[chartseries]" )
 {
@@ -160,8 +160,7 @@ SCENARIO( "ChartSeriesDefinition JSON serialization", "[chartseries]" )
 
             THEN( "X-axis fields are preserved" )
             {
-                REQUIRE( restored.xPattern
-                         == "(\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})" );
+                REQUIRE( restored.xPattern == "(\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3})" );
                 REQUIRE( restored.xCaptureGroup == 1 );
                 REQUIRE( restored.xTimestampFormat == "MM-dd HH:mm:ss.zzz" );
                 REQUIRE( restored.hasCustomXAxis() );
@@ -243,9 +242,8 @@ SCENARIO( "X-axis regex extraction from log lines", "[chartseries]" )
 
         WHEN( "A matching log line is tested" )
         {
-            const QString line
-                = "04-08 20:02:49.780  3814  6380 I "
-                  "{CS}TokenRequestExecutor: Submitting token request";
+            const QString line = "04-08 20:02:49.780  3814  6380 I "
+                                 "{CS}TokenRequestExecutor: Submitting token request";
 
             const auto yMatch = def.compiledRegex.match( line );
             const auto xMatch = def.compiledXRegex.match( line );
@@ -259,11 +257,10 @@ SCENARIO( "X-axis regex extraction from log lines", "[chartseries]" )
 
             THEN( "The timestamp parses to a valid QDateTime" )
             {
-                auto dt = QDateTime::fromString(
-                    xMatch.captured( 1 ), def.xTimestampFormat );
+                auto dt = QDateTime::fromString( xMatch.captured( 1 ), def.xTimestampFormat );
                 if ( dt.date().year() < 1970 ) {
-                    dt.setDate( QDate( QDate::currentDate().year(),
-                                       dt.date().month(), dt.date().day() ) );
+                    dt.setDate(
+                        QDate( QDate::currentDate().year(), dt.date().month(), dt.date().day() ) );
                 }
                 REQUIRE( dt.isValid() );
                 REQUIRE( dt.time().hour() == 20 );
@@ -476,8 +473,7 @@ SCENARIO( "Filter frequency series creation pattern", "[chartseries]" )
     }
 }
 
-SCENARIO( "ChartSeriesDefinition compilePattern with X-axis regex",
-          "[chartseries]" )
+SCENARIO( "ChartSeriesDefinition compilePattern with X-axis regex", "[chartseries]" )
 {
     GIVEN( "A series with both Y and X patterns" )
     {
@@ -566,8 +562,7 @@ SCENARIO( "ChartSeriesDefinition fromJson with empty object", "[chartseries]" )
     }
 }
 
-SCENARIO( "ChartSeriesDefinition toJson includes all configured fields",
-          "[chartseries]" )
+SCENARIO( "ChartSeriesDefinition toJson includes all configured fields", "[chartseries]" )
 {
     GIVEN( "A fully configured definition with X-axis and bucketing" )
     {
@@ -595,8 +590,7 @@ SCENARIO( "ChartSeriesDefinition toJson includes all configured fields",
                 REQUIRE( obj[ "pattern" ].toString() == "\\{CS\\}" );
                 REQUIRE( obj[ "captureGroup" ].toInt() == 0 );
                 REQUIRE( obj[ "visible" ].toBool() == false );
-                REQUIRE( obj[ "xPattern" ].toString()
-                         == "(\\d{2}:\\d{2}:\\d{2})" );
+                REQUIRE( obj[ "xPattern" ].toString() == "(\\d{2}:\\d{2}:\\d{2})" );
                 REQUIRE( obj[ "xCaptureGroup" ].toInt() == 1 );
                 REQUIRE( obj[ "xTimestampFormat" ].toString() == "HH:mm:ss" );
                 REQUIRE( obj[ "bucketSizeMs" ].toDouble() == 5000.0 );
@@ -626,8 +620,7 @@ SCENARIO( "ChartSeriesDefinition toJson includes all configured fields",
     }
 }
 
-SCENARIO( "ChartSeriesDefinition JSON round-trip preserves visibility=false",
-          "[chartseries]" )
+SCENARIO( "ChartSeriesDefinition JSON round-trip preserves visibility=false", "[chartseries]" )
 {
     GIVEN( "A hidden series definition" )
     {
@@ -640,8 +633,7 @@ SCENARIO( "ChartSeriesDefinition JSON round-trip preserves visibility=false",
 
         WHEN( "Serialized and deserialized" )
         {
-            const auto restored
-                = ChartSeriesDefinition::fromJson( def.toJson() );
+            const auto restored = ChartSeriesDefinition::fromJson( def.toJson() );
 
             THEN( "visible remains false" )
             {
@@ -651,8 +643,7 @@ SCENARIO( "ChartSeriesDefinition JSON round-trip preserves visibility=false",
     }
 }
 
-SCENARIO( "ChartSeriesDefinition count mode with captureGroup zero",
-          "[chartseries]" )
+SCENARIO( "ChartSeriesDefinition count mode with captureGroup zero", "[chartseries]" )
 {
     GIVEN( "A pattern with no capture groups, captureGroup=0" )
     {
@@ -663,16 +654,14 @@ SCENARIO( "ChartSeriesDefinition count mode with captureGroup zero",
 
         WHEN( "Matched against a line" )
         {
-            const auto match
-                = def.compiledRegex.match( "2026-01-01 ERROR oops" );
+            const auto match = def.compiledRegex.match( "2026-01-01 ERROR oops" );
 
             THEN( "It matches and Y value is implicitly 1.0" )
             {
                 REQUIRE( match.hasMatch() );
                 // captureGroup 0 → count mode → Y = 1.0
                 double yVal = 1.0;
-                if ( def.captureGroup > 0
-                     && match.lastCapturedIndex() >= def.captureGroup ) {
+                if ( def.captureGroup > 0 && match.lastCapturedIndex() >= def.captureGroup ) {
                     yVal = match.captured( def.captureGroup ).toDouble();
                 }
                 REQUIRE( yVal == Approx( 1.0 ) );
@@ -681,8 +670,7 @@ SCENARIO( "ChartSeriesDefinition count mode with captureGroup zero",
     }
 }
 
-SCENARIO( "ChartSeriesDefinition captureGroup exceeds last captured index",
-          "[chartseries]" )
+SCENARIO( "ChartSeriesDefinition captureGroup exceeds last captured index", "[chartseries]" )
 {
     GIVEN( "A pattern with 1 group but captureGroup=3" )
     {

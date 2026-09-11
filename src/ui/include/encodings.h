@@ -20,7 +20,7 @@
 #include <mainwindowtext.h>
 
 class EncodingMenu {
-  public:
+public:
     static std::map<QString, std::vector<int>> supportedEncodings()
     {
         return std::map<QString, std::vector<int>>{
@@ -54,8 +54,8 @@ class EncodingMenu {
 
         auto autoEncoding = encodingsMenu->addAction(
             QApplication::translate( "logsquirl::mainwindow::action", action::autoEncodingText ) );
-        autoEncoding->setStatusTip(
-            QApplication::translate( "logsquirl::mainwindow::action", action::autoEncodingStatusTip ) );
+        autoEncoding->setStatusTip( QApplication::translate( "logsquirl::mainwindow::action",
+                                                             action::autoEncodingStatusTip ) );
         autoEncoding->setCheckable( true );
         autoEncoding->setActionGroup( actionGroup );
         autoEncoding->setChecked( defaultEncodingMib < 0 );

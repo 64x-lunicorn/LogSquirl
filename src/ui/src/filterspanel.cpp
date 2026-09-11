@@ -87,8 +87,7 @@ FiltersPanel::FiltersPanel( QWidget* parent )
              &FiltersPanel::onItemDoubleClicked );
     connect( selectAllButton_, &QPushButton::clicked, this, &FiltersPanel::selectAll );
     connect( deselectAllButton_, &QPushButton::clicked, this, &FiltersPanel::deselectAll );
-    connect( editFiltersButton_, &QPushButton::clicked, this,
-             &FiltersPanel::editFiltersRequested );
+    connect( editFiltersButton_, &QPushButton::clicked, this, &FiltersPanel::editFiltersRequested );
 
     loadPinnedFilters();
     refreshFilters();
@@ -138,8 +137,7 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
         for ( const auto& filter : set.filters() ) {
             // Apply search filter across group name, filter name, and pattern.
-            if ( !searchText.isEmpty()
-                 && !set.name().contains( searchText, Qt::CaseInsensitive )
+            if ( !searchText.isEmpty() && !set.name().contains( searchText, Qt::CaseInsensitive )
                  && !filter.name.contains( searchText, Qt::CaseInsensitive )
                  && !filter.pattern.contains( searchText, Qt::CaseInsensitive ) ) {
                 continue;
@@ -364,12 +362,11 @@ void FiltersPanel::applyCurrentPalette()
         const auto borderHex = textColor.darker( 130 ).name();
         const auto bgHex = baseColor.lighter( 160 ).name();
 
-        const auto indicatorCss = QString(
-            "QTreeWidget::indicator:unchecked {"
-            "  border: 1px solid %1;"
-            "  background: %2;"
-            "}" )
-            .arg( borderHex, bgHex );
+        const auto indicatorCss = QString( "QTreeWidget::indicator:unchecked {"
+                                           "  border: 1px solid %1;"
+                                           "  background: %2;"
+                                           "}" )
+                                      .arg( borderHex, bgHex );
 
         filterTree_->setStyleSheet( indicatorCss );
     }

@@ -36,8 +36,8 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <tuple>
 
 #include <QLocale>

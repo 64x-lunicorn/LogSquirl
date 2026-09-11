@@ -62,7 +62,7 @@ namespace logsquirl::plugins {
  * @endcode
  */
 class LuaPluginWrapper {
-  public:
+public:
     /**
      * Load a Lua plugin from the given script path.
      * @param scriptPath  Absolute path to the .lua file.
@@ -88,9 +88,12 @@ class LuaPluginWrapper {
     int convertFile( const char* inputPath, const char* outputPath );
 
     /** Return the last error message from Lua execution. */
-    QString lastError() const { return lastError_; }
+    QString lastError() const
+    {
+        return lastError_;
+    }
 
-  private:
+private:
     explicit LuaPluginWrapper( std::unique_ptr<sol::state> state );
 
     std::unique_ptr<sol::state> lua_;

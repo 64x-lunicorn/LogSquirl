@@ -31,8 +31,9 @@ class WrappedString {
 public:
     using WrappedStringPart = QStringView;
 
-    static WrappedStringPart makeWrappedStringPart(const QString& lineText, 
-        LineColumn firstCol, LineLength length ) {
+    static WrappedStringPart makeWrappedStringPart( const QString& lineText, LineColumn firstCol,
+                                                    LineLength length )
+    {
         return QStringView( lineText ).mid( firstCol.get(), length.get() );
     }
 
@@ -121,12 +122,14 @@ public:
         return unwrappedLine_.isEmpty();
     }
 
-    WrappedStringPart unwrappedLine() const {
-        return WrappedStringPart{unwrappedLine_};
+    WrappedStringPart unwrappedLine() const
+    {
+        return WrappedStringPart{ unwrappedLine_ };
     }
 
-    WrappedStringPart wrappedLine(size_t index) const {
-        return wrappedLines_[index];
+    WrappedStringPart wrappedLine( size_t index ) const
+    {
+        return wrappedLines_[ index ];
     }
 
 private:

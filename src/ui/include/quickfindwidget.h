@@ -39,8 +39,8 @@
 #ifndef QUICKFINDWIDGET_H
 #define QUICKFINDWIDGET_H
 
-#include <QWidget>
 #include <QTimer>
+#include <QWidget>
 
 class QHBoxLayout;
 class QLineEdit;
@@ -54,18 +54,17 @@ enum QFDirection {
     Backward,
 };
 
-class QuickFindWidget : public QWidget
-{
-  Q_OBJECT
+class QuickFindWidget : public QWidget {
+    Q_OBJECT
 
-  public:
+public:
     QuickFindWidget( QWidget* parent = nullptr );
 
     // Show the widget with the given direction
     // when requested by the user (the widget won't timeout)
     void userActivate();
 
-  public Q_SLOTS:
+public Q_SLOTS:
     // Instructs the widget to change the pattern displayed
     void changeDisplayedPattern( const QString& newPattern, bool isRegex );
 
@@ -74,7 +73,7 @@ class QuickFindWidget : public QWidget
     // Clear the notification
     void clearNotification();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void doSearchForward();
     void doSearchBackward();
     void returnHandler();
@@ -82,7 +81,7 @@ class QuickFindWidget : public QWidget
     void notificationTimeout();
     void textChanged();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent when Return is pressed to confirm the pattern
     // (pattern and ignor_case flag)
     void patternConfirmed( const QString&, bool, bool );
@@ -96,28 +95,28 @@ class QuickFindWidget : public QWidget
     void searchBackward();
     void searchNext();
 
-  private:
+private:
     QHBoxLayout* layout_;
 
     QToolButton* closeButton_;
     QToolButton* nextButton_;
     QToolButton* previousButton_;
-    QLineEdit*   editQuickFind_;
-    QCheckBox*   ignoreCaseCheck_;
-    QLabel*      notificationText_;
+    QLineEdit* editQuickFind_;
+    QCheckBox* ignoreCaseCheck_;
+    QLabel* notificationText_;
 
-    QToolButton* setupToolButton(const QString &text, const QString &icon);
+    QToolButton* setupToolButton( const QString& text, const QString& icon );
     bool isIgnoreCase() const;
     bool isRegexSearch() const;
 
-    QTimer*      notificationTimer_;
+    QTimer* notificationTimer_;
 
-    QFDirection  direction_;
+    QFDirection direction_;
 
     // Whether the user explicitely wants us on the screen
-    bool         userRequested_;
+    bool userRequested_;
 
-    int          patternCursorPosition_;
+    int patternCursorPosition_;
 };
 
 #endif

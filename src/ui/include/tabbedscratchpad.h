@@ -26,24 +26,24 @@
 
 class TabbedScratchPad : public QWidget {
     Q_OBJECT
-  public:
+public:
     explicit TabbedScratchPad( QWidget* parent = nullptr );
 
     ~TabbedScratchPad() = default;
     TabbedScratchPad( const TabbedScratchPad& ) = delete;
     TabbedScratchPad& operator=( const TabbedScratchPad& ) = delete;
 
-  public Q_SLOTS:
+public Q_SLOTS:
     void addData( QString data );
     void replaceData( QString data );
 
-  protected:
+protected:
     void keyPressEvent( QKeyEvent* event ) override;
 
-  private:
+private:
     void addTab();
 
-  private:
+private:
     QTabWidget* tabWidget_{ nullptr };
     int tabCounter_{};
 };

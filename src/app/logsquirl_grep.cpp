@@ -20,13 +20,13 @@
 #include <mimalloc.h>
 
 #include "configuration.h"
+#include "dispatch_to.h"
 #include "filewatcher.h"
 #include "logdata.h"
-#include "settingspolicies.h"
 #include "logfiltereddata.h"
-#include "dispatch_to.h"
 #include "logger.h"
 #include "persistentinfo.h"
+#include "settingspolicies.h"
 
 #include "cli.h"
 

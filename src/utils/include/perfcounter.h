@@ -26,8 +26,7 @@
 // one second it can be used for performance measurement (e.g. FPS)
 
 class PerfCounter {
-  public:
-
+public:
     // Count a new event, returns true if it has been counted.
     // If the function returns false, it indicates the current second is elapsed
     // and the user should read and reset the counter before re-adding the
@@ -57,7 +56,7 @@ class PerfCounter {
         return value;
     }
 
-  private:
+private:
     uint32_t counter_ = 0;
     std::chrono::steady_clock::time_point firstEventDate_;
 };

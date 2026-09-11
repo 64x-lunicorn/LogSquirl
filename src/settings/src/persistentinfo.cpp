@@ -117,8 +117,8 @@ void PersistentInfo::PrepareOsSettings()
 
     appSettings_ = std::make_unique<QSettings>( format, QSettings::UserScope, "logsquirl",
                                                 ApplicationSessionFile );
-    sessionSettings_
-        = std::make_unique<QSettings>( format, QSettings::UserScope, "logsquirl", SessionSettingsFile );
+    sessionSettings_ = std::make_unique<QSettings>( format, QSettings::UserScope, "logsquirl",
+                                                    SessionSettingsFile );
 
 #ifndef Q_OS_MAC
     const auto sessionSettingsPath = makeSessionSettingsPath( appSettings_->fileName() );
