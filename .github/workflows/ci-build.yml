@@ -268,11 +268,11 @@ jobs:
             /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure"
 
   # -----------------------------------------------------------------------
-  # Stage 3 — macOS (most expensive, runs only after Windows succeeds)
+  # Stage 2 — macOS (runs alongside Windows, both gated only on Linux; #121)
   # -----------------------------------------------------------------------
   Mac:
     name: Mac
-    needs: [Windows]
+    needs: [Linux]
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     strategy:
       fail-fast: false
@@ -321,7 +321,8 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
-  # Stage 2 — Windows (2× cost, runs only after Linux succeeds)
+  # Stage 2 — Windows (2× cost, runs alongside Mac, both gated only on
+  # Linux; #121)
   # -----------------------------------------------------------------------
   Windows:
     name: Windows
@@ -394,47 +395,92 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # E2E tests — run after build artifacts are available
+  # E2E tests — one job per platform, each gated only on the build job whose
+  # artifact it downloads, so e.g. Linux E2E starts as soon as the Noble
+  # package exists without waiting on Mac or Windows (#121).
   # ---------------------------------------------------------------------------
-  e2e-tests:
-    name: E2E / ${{ matrix.name }}
-    needs: [Linux, Mac, Windows]
+  e2e-linux:
+    name: E2E / linux
+    needs: [Linux]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux
-            os: ubuntu-24.04
-            artifact: packages-noble
-          - name: mac
-            os: macos-15
-            artifact: packages-mac-arm64
-          - name: windows
-            os: windows-2025
-            artifact: packages-windows-x64
-    runs-on: ${{ matrix.os }}
-
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v8
         with:
-          name: ${{ matrix.artifact }}
+          name: packages-noble
           path: build/output
 
       - name: Install compression tools
         shell: bash
         run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq zstd lz4
-          elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            brew install zstd lz4
-          elif [[ "$RUNNER_OS" == "Windows" ]]; then
-            choco install zstandard --no-progress -y
-            # lz4 has no Chocolatey package; tests skip gracefully
-          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq zstd lz4
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install E2E dependencies
+        working-directory: tests/e2e
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run E2E tests (skip performance)
+        working-directory: tests/e2e
+        run: pytest -v -m "not performance" --binary-dir=../../build/output
+
+  e2e-mac:
+    name: E2E / mac
+    needs: [Mac]
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages-mac-arm64
+          path: build/output
+
+      - name: Install compression tools
+        shell: bash
+        run: brew install zstd lz4
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install E2E dependencies
+        working-directory: tests/e2e
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run E2E tests (skip performance)
+        working-directory: tests/e2e
+        run: pytest -v -m "not performance" --binary-dir=../../build/output
+
+  e2e-windows:
+    name: E2E / windows
+    needs: [Windows]
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages-windows-x64
+          path: build/output
+
+      - name: Install compression tools
+        shell: bash
+        run: |
+          choco install zstandard --no-progress -y
+          # lz4 has no Chocolatey package; tests skip gracefully
 
       - uses: actions/setup-python@v7
         with:
@@ -457,7 +503,7 @@ jobs:
   # ---------------------------------------------------------------------------
   ci-passed:
     name: CI passed
-    needs: [SaveVersion, Format, Linux, Windows, Mac, e2e-tests]
+    needs: [SaveVersion, Format, Linux, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     steps:
