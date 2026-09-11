@@ -46,9 +46,8 @@ void AttachOperation::doStart( LogDataWorker& workerThread ) const
 {
     LOG_INFO << "Attaching " << filename_ << ", encoding " << defaultEncodingMib_;
     workerThread.attachFile( filename_ );
-    workerThread.indexAll( defaultEncodingMib_ >= 0
-                               ? QTextCodec::codecForMib( defaultEncodingMib_ )
-                               : nullptr );
+    workerThread.indexAll( defaultEncodingMib_ >= 0 ? QTextCodec::codecForMib( defaultEncodingMib_ )
+                                                    : nullptr );
 }
 
 void FullReindexOperation::doStart( LogDataWorker& workerThread ) const
@@ -139,7 +138,7 @@ void OperationQueue::enqueueOperation( OperationVariant&& operation )
     LOG_INFO << "Enqueue operation " << operation.index() << ", now executing "
              << executingOperation_.index();
 
-    pendingOperation_ = std::move(operation);
+    pendingOperation_ = std::move( operation );
 
     if ( executingOperation_.index() == 0 ) {
         tryStartPendingOperation();

@@ -29,10 +29,10 @@ class QPushButton;
 class TabGroupManagerDialog : public QDialog {
     Q_OBJECT
 
-  public:
+public:
     explicit TabGroupManagerDialog( QWidget* parent = nullptr );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     // Renames the selected group via QInputDialog.
     void renameSelectedGroup();
 
@@ -42,7 +42,7 @@ class TabGroupManagerDialog : public QDialog {
     // Deletes the selected group after confirmation.
     void deleteSelectedGroup();
 
-  private:
+private:
     // Rebuilds the table from the current TabGroupInfo state.
     void populateTable();
 

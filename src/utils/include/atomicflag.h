@@ -43,7 +43,7 @@
 #include <QAtomicInt>
 
 class AtomicFlag {
-  public:
+public:
     explicit AtomicFlag( bool initialState = false )
     {
         flag_.storeRelease( initialState ? 1 : 0 );
@@ -74,7 +74,7 @@ class AtomicFlag {
         return flag_;
     }
 
-  private:
+private:
     QAtomicInt flag_;
 };
 

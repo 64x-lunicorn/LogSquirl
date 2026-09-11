@@ -50,14 +50,14 @@
 class HighlightersDialog : public QDialog, public Ui::HighlightersDialog {
     Q_OBJECT
 
-  public:
+public:
     explicit HighlightersDialog( QWidget* parent = nullptr );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void addHighlighterSet();
     void removeHighlighterSet();
 
@@ -75,11 +75,11 @@ class HighlightersDialog : public QDialog, public Ui::HighlightersDialog {
     void exportHighlighters();
     void importHighlighters();
 
-  private:
+private:
     void populateHighlighterList();
     void setCurrentRow( int row );
 
-  private:
+private:
     HighlighterSetEdit* highlighterSetEdit_;
 
     // Temporary HighlighterSetCollection modified by the dialog

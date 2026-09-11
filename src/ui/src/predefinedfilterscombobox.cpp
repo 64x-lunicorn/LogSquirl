@@ -48,7 +48,7 @@ constexpr int PatternRole = Qt::UserRole + 1;
 constexpr int RegexRole = PatternRole + 1;
 
 class QCheckListStyledItemDelegate : public QStyledItemDelegate {
-  public:
+public:
     QCheckListStyledItemDelegate( QObject* parent = 0 )
         : QStyledItemDelegate( parent )
     {
@@ -65,7 +65,7 @@ class QCheckListStyledItemDelegate : public QStyledItemDelegate {
 
 PredefinedFiltersComboBox::PredefinedFiltersComboBox( QWidget* parent )
     : QComboBox( parent )
-    , model_( new QStandardItemModel(this) )
+    , model_( new QStandardItemModel( this ) )
     , ignoreCollecting_( false )
 {
     setFocusPolicy( Qt::ClickFocus );
@@ -107,14 +107,15 @@ void PredefinedFiltersComboBox::populatePredefinedFilters()
     model_->clear();
     const auto filters = filtersCollection_.getAllFilters();
 
-    setTitle( tr("Predefined filters") );
+    setTitle( tr( "Predefined filters" ) );
 
     insertFilters( filters );
 
     this->setModel( model_ );
 }
 
-void PredefinedFiltersComboBox::updateSearchPattern( const QString newSearchPattern, bool useLogicalCombining )
+void PredefinedFiltersComboBox::updateSearchPattern( const QString newSearchPattern,
+                                                     bool useLogicalCombining )
 {
     searchPattern_.newOne_ = newSearchPattern;
     searchPattern_.useLogicalCombining_ = useLogicalCombining;
@@ -158,7 +159,7 @@ void PredefinedFiltersComboBox::showPopup()
         }
     }
 
-    for ( auto &l : list ) {
+    for ( auto& l : list ) {
         for ( auto filterIndex = 0; filterIndex < totalRows; ++filterIndex ) {
             const auto item = model_->item( filterIndex );
             if ( !item->isCheckable() ) {

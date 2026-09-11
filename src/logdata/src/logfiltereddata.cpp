@@ -456,7 +456,8 @@ QString LogFilteredData::doGetExpandedLineString( LineNumber index ) const
 }
 
 // Implementation of the virtual function.
-logsquirl::vector<QString> LogFilteredData::doGetLines( LineNumber first_line, LinesCount number ) const
+logsquirl::vector<QString> LogFilteredData::doGetLines( LineNumber first_line,
+                                                        LinesCount number ) const
 {
     return doGetLines( first_line, number,
                        [ this ]( const auto& line ) { return doGetLineString( line ); } );
@@ -464,7 +465,7 @@ logsquirl::vector<QString> LogFilteredData::doGetLines( LineNumber first_line, L
 
 // Implementation of the virtual function.
 logsquirl::vector<QString> LogFilteredData::doGetExpandedLines( LineNumber first_line,
-                                                          LinesCount number ) const
+                                                                LinesCount number ) const
 {
     return doGetLines( first_line, number,
                        [ this ]( const auto& line ) { return doGetExpandedLineString( line ); } );
@@ -485,9 +486,9 @@ LogFilteredData::doGetLines( LineNumber first_line, LinesCount number,
     return lines;
 }
 
-LineNumber LogFilteredData::doGetLineNumber(LineNumber index) const
+LineNumber LogFilteredData::doGetLineNumber( LineNumber index ) const
 {
-    return getMatchingLineNumber(index);
+    return getMatchingLineNumber( index );
 }
 
 // Implementation of the virtual function.

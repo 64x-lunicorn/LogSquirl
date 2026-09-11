@@ -119,8 +119,8 @@ qint64 ZstdDevice::readData( char* data, qint64 maxSize )
                 inSize_ = 0;
             }
             else {
-                const auto bytesRead = file_.read( inBuf_.data(),
-                                                   static_cast<qint64>( inBuf_.size() ) );
+                const auto bytesRead
+                    = file_.read( inBuf_.data(), static_cast<qint64>( inBuf_.size() ) );
                 if ( bytesRead < 0 ) {
                     return -1; // I/O error
                 }

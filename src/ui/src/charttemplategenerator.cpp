@@ -28,10 +28,9 @@ namespace {
 
 // Predefined palette for auto-assigned series colors (same as in ChartPanel).
 const QColor kPalette[] = {
-    QColor( "#e6194b" ), QColor( "#3cb44b" ), QColor( "#4363d8" ),
-    QColor( "#f58231" ), QColor( "#911eb4" ), QColor( "#42d4f4" ),
-    QColor( "#f032e6" ), QColor( "#bfef45" ), QColor( "#fabebe" ),
-    QColor( "#469990" ),
+    QColor( "#e6194b" ), QColor( "#3cb44b" ), QColor( "#4363d8" ), QColor( "#f58231" ),
+    QColor( "#911eb4" ), QColor( "#42d4f4" ), QColor( "#f032e6" ), QColor( "#bfef45" ),
+    QColor( "#fabebe" ), QColor( "#469990" ),
 };
 constexpr int kPaletteSize = sizeof( kPalette ) / sizeof( kPalette[ 0 ] );
 
@@ -44,8 +43,7 @@ QColor colorForIndex( int idx )
 // Build the X-axis fields for a series definition using the format's
 // timestamp.  Modifies |def| in place.  Returns true if timestamp
 // X-axis was configured successfully.
-bool configureTimestampXAxis( ChartSeriesDefinition& def,
-                              const LogFormatDefinition& format,
+bool configureTimestampXAxis( ChartSeriesDefinition& def, const LogFormatDefinition& format,
                               qint64 bucketMs )
 {
     const auto& tsField = format.timestampField();
@@ -71,14 +69,12 @@ bool configureTimestampXAxis( ChartSeriesDefinition& def,
     }
 
     // Find a regex pattern containing the timestamp group.
-    const auto xPattern
-        = ChartTemplateGenerator::patternContainingGroup( format, tsField );
+    const auto xPattern = ChartTemplateGenerator::patternContainingGroup( format, tsField );
     if ( xPattern.isEmpty() ) {
         return false;
     }
 
-    const int tsGroupIdx
-        = ChartTemplateGenerator::namedGroupIndex( xPattern, tsField );
+    const int tsGroupIdx = ChartTemplateGenerator::namedGroupIndex( xPattern, tsField );
     if ( tsGroupIdx < 1 ) {
         return false;
     }
@@ -179,8 +175,8 @@ QString ChartTemplateGenerator::strftimeToQtFormat( const QString& strftimeFmt )
     return result;
 }
 
-QString ChartTemplateGenerator::patternContainingGroup(
-    const LogFormatDefinition& format, const QString& groupName )
+QString ChartTemplateGenerator::patternContainingGroup( const LogFormatDefinition& format,
+                                                        const QString& groupName )
 {
     const auto& patterns = format.regexPatterns();
     const QString needle = QString( "(?<%1>" ).arg( groupName );
@@ -192,8 +188,7 @@ QString ChartTemplateGenerator::patternContainingGroup(
     return {};
 }
 
-int ChartTemplateGenerator::namedGroupIndex( const QString& pattern,
-                                             const QString& groupName )
+int ChartTemplateGenerator::namedGroupIndex( const QString& pattern, const QString& groupName )
 {
     const QRegularExpression re( pattern );
     if ( !re.isValid() ) {
@@ -208,8 +203,9 @@ int ChartTemplateGenerator::namedGroupIndex( const QString& pattern,
     return -1;
 }
 
-QVector<ChartSeriesDefinition> ChartTemplateGenerator::levelFrequencyTemplates(
-    const LogFormatDefinition& format, qint64 bucketMs )
+QVector<ChartSeriesDefinition>
+ChartTemplateGenerator::levelFrequencyTemplates( const LogFormatDefinition& format,
+                                                 qint64 bucketMs )
 {
     const auto& levelMappings = format.levelMappings();
     if ( levelMappings.isEmpty() ) {
@@ -222,10 +218,10 @@ QVector<ChartSeriesDefinition> ChartTemplateGenerator::levelFrequencyTemplates(
 
     // Specific colors for well-known levels.
     static const QHash<QString, QColor> kLevelColors = {
-        { "fatal", QColor( "#b71c1c" ) },    { "critical", QColor( "#c62828" ) },
-        { "error", QColor( "#e6194b" ) },     { "warning", QColor( "#f58231" ) },
-        { "notice", QColor( "#4363d8" ) },    { "info", QColor( "#3cb44b" ) },
-        { "debug", QColor( "#42d4f4" ) },     { "trace", QColor( "#9e9e9e" ) },
+        { "fatal", QColor( "#b71c1c" ) },  { "critical", QColor( "#c62828" ) },
+        { "error", QColor( "#e6194b" ) },  { "warning", QColor( "#f58231" ) },
+        { "notice", QColor( "#4363d8" ) }, { "info", QColor( "#3cb44b" ) },
+        { "debug", QColor( "#42d4f4" ) },  { "trace", QColor( "#9e9e9e" ) },
     };
 
     QVector<ChartSeriesDefinition> result;
@@ -275,8 +271,8 @@ QVector<ChartSeriesDefinition> ChartTemplateGenerator::levelFrequencyTemplates(
     return result;
 }
 
-QVector<ChartSeriesDefinition> ChartTemplateGenerator::messageRateTemplates(
-    const LogFormatDefinition& format, qint64 bucketMs )
+QVector<ChartSeriesDefinition>
+ChartTemplateGenerator::messageRateTemplates( const LogFormatDefinition& format, qint64 bucketMs )
 {
     // Use the first regex pattern that contains the body or timestamp field.
     const auto& patterns = format.regexPatterns();
@@ -303,8 +299,8 @@ QVector<ChartSeriesDefinition> ChartTemplateGenerator::messageRateTemplates(
     return { def };
 }
 
-QVector<ChartSeriesDefinition> ChartTemplateGenerator::numericFieldTemplates(
-    const LogFormatDefinition& format )
+QVector<ChartSeriesDefinition>
+ChartTemplateGenerator::numericFieldTemplates( const LogFormatDefinition& format )
 {
     const auto& valueDefs = format.valueDefinitions();
     const auto& fieldOrder = format.valueFieldOrder();
@@ -353,15 +349,15 @@ QVector<ChartSeriesDefinition> ChartTemplateGenerator::numericFieldTemplates(
     return result;
 }
 
-QVector<ChartSeriesDefinition> ChartTemplateGenerator::fieldOccurrenceTemplates(
-    const LogFormatDefinition& format, qint64 bucketMs )
+QVector<ChartSeriesDefinition>
+ChartTemplateGenerator::fieldOccurrenceTemplates( const LogFormatDefinition& format,
+                                                  qint64 bucketMs )
 {
     const auto& valueDefs = format.valueDefinitions();
     const auto& fieldOrder = format.valueFieldOrder();
 
     // Skip common fields that are not interesting for occurrence counting.
-    static const QStringList kSkipFields
-        = { "body", "timestamp", "level" };
+    static const QStringList kSkipFields = { "body", "timestamp", "level" };
 
     QVector<ChartSeriesDefinition> result;
     int colorIdx = 0;

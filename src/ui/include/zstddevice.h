@@ -30,7 +30,7 @@ struct ZSTD_DCtx_s;
 
 /// Read-only sequential QIODevice that decompresses a .zst file via libzstd.
 class ZstdDevice : public QIODevice {
-  public:
+public:
     explicit ZstdDevice( const QString& filePath, QObject* parent = nullptr );
     ~ZstdDevice() override;
 
@@ -43,11 +43,11 @@ class ZstdDevice : public QIODevice {
     bool atEnd() const override;
     qint64 bytesAvailable() const override;
 
-  protected:
+protected:
     qint64 readData( char* data, qint64 maxSize ) override;
     qint64 writeData( const char* data, qint64 maxSize ) override;
 
-  private:
+private:
     QString filePath_;
     QFile file_;
 

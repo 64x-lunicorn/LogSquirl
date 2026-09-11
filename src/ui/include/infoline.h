@@ -48,7 +48,7 @@
 // used for the file name and the search results.
 class InfoLine : public QLabel {
     Q_OBJECT
-  public:
+public:
     InfoLine();
 
     // Display the gauge in the background with the passed value (0-100)
@@ -57,11 +57,11 @@ class InfoLine : public QLabel {
     // Hide the gauge and make the widget like a normal QLabel
     void hideGauge();
 
-  protected:
+protected:
     void paintEvent( QPaintEvent* paintEvent ) override;
     void contextMenuEvent( QContextMenuEvent* event ) override;
 
-  private:
+private:
     // The original palette of the QLabel
     std::optional<QPalette> origPalette_;
 };

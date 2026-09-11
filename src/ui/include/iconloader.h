@@ -19,11 +19,11 @@
 class QWidget;
 
 class IconLoader {
-  public:
+public:
     explicit IconLoader( QWidget* widget );
     QIcon load( QString name );
 
-  private:
+private:
     bool shouldInvert() const;
     bool shouldAutoInvert( QString ) const;
 
@@ -33,7 +33,7 @@ class IconLoader {
 
     QString makeNonScalableFilename( QString, int, bool ) const;
 
-  private:
+private:
     QWidget* widget_;
 };
 

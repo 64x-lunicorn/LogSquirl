@@ -35,12 +35,8 @@ HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMat
 
 LineDecorator::Context emptyContext()
 {
-    return LineDecorator::Context{ HighlighterSet{},
-                                   std::nullopt,
-                                   {},
-                                   QuickFindMatcher{},
-                                   QColor{ Qt::yellow },
-                                   SearchLimits{} };
+    return LineDecorator::Context{ HighlighterSet{},   std::nullopt,         {},
+                                   QuickFindMatcher{}, QColor{ Qt::yellow }, SearchLimits{} };
 }
 
 } // namespace
@@ -106,8 +102,8 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
 
         WHEN( "the line matches the highlighter" )
         {
-            const auto verdict = decorator.verdictFor(
-                LogLine{ 0_lnum, "an ERROR occurred" }, LineTypeFlags::Plain );
+            const auto verdict = decorator.verdictFor( LogLine{ 0_lnum, "an ERROR occurred" },
+                                                       LineTypeFlags::Plain );
 
             THEN( "the whole-line highlight is reported with the highlighter's colors" )
             {
@@ -138,8 +134,8 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
 
         WHEN( "the line matches the highlighter's word" )
         {
-            const auto verdict = decorator.verdictFor(
-                LogLine{ 0_lnum, "an ERROR occurred" }, LineTypeFlags::Plain );
+            const auto verdict = decorator.verdictFor( LogLine{ 0_lnum, "an ERROR occurred" },
+                                                       LineTypeFlags::Plain );
 
             THEN( "it is not a whole-line highlight, but the matched word is reported" )
             {
@@ -164,8 +160,8 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
 
         WHEN( "asked about a line before the limits" )
         {
-            const auto verdict
-                = decorator.verdictFor( LogLine{ 4_lnum, "an ERROR occurred" }, LineTypeFlags::Plain );
+            const auto verdict = decorator.verdictFor( LogLine{ 4_lnum, "an ERROR occurred" },
+                                                       LineTypeFlags::Plain );
 
             THEN( "it falls outside the Search Limits and highlighting is suppressed" )
             {
@@ -176,8 +172,8 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
 
         WHEN( "asked about a line inside the limits" )
         {
-            const auto verdict
-                = decorator.verdictFor( LogLine{ 7_lnum, "an ERROR occurred" }, LineTypeFlags::Plain );
+            const auto verdict = decorator.verdictFor( LogLine{ 7_lnum, "an ERROR occurred" },
+                                                       LineTypeFlags::Plain );
 
             THEN( "it is inside the Search Limits and highlighting still applies" )
             {
@@ -188,8 +184,8 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
 
         WHEN( "asked about a line after the limits" )
         {
-            const auto verdict
-                = decorator.verdictFor( LogLine{ 11_lnum, "an ERROR occurred" }, LineTypeFlags::Plain );
+            const auto verdict = decorator.verdictFor( LogLine{ 11_lnum, "an ERROR occurred" },
+                                                       LineTypeFlags::Plain );
 
             THEN( "it falls outside the Search Limits" )
             {
@@ -199,7 +195,8 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
     }
 }
 
-SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decoration", "[linedecorator]" )
+SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decoration",
+          "[linedecorator]" )
 {
     GIVEN( "a decorator with no context at all" )
     {
@@ -219,8 +216,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
     GIVEN( "a decorator whose context provides all five color sources" )
     {
         auto context = emptyContext();
-        context.mainSearch = Highlighter{ "wor", false, true, QColor{ Qt::black },
-                                          QColor{ Qt::yellow } };
+        context.mainSearch
+            = Highlighter{ "wor", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
         context.colorLabels.push_back(
             Highlighter{ "wor", false, true, QColor{ Qt::black }, QColor{ Qt::green } } );
         {
@@ -235,9 +232,11 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
         // match: the whole-line colour, plus the single full-line span
         // HighlighterSet::matchLine returns for it.
         const LineVerdict wholeLineVerdict{
-            HighlightColor{ QColor{ Qt::white }, QColor{ Qt::red } }, LineTypeFlags::Plain, false,
+            HighlightColor{ QColor{ Qt::white }, QColor{ Qt::red } },
+            LineTypeFlags::Plain,
+            false,
             { HighlightedMatch{ 0_lcol, LineLength{ text.size() }, QColor{ Qt::white },
-                               QColor{ Qt::red } } }
+                                QColor{ Qt::red } } }
         };
 
         WHEN( "only a whole-line highlight applies" )
@@ -256,7 +255,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
             }
         }
 
-        WHEN( "the whole-line highlight, main search, Color Labels and QuickFind all overlap the same word" )
+        WHEN( "the whole-line highlight, main search, Color Labels and QuickFind all overlap the "
+              "same word" )
         {
             const auto decoration = decorator.decorate( text, wholeLineVerdict );
 
@@ -288,8 +288,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
         WHEN( "Color Labels overlap the main search but QuickFind is inactive" )
         {
             auto localContext = emptyContext();
-            localContext.mainSearch = Highlighter{ "wor", false, true, QColor{ Qt::black },
-                                                    QColor{ Qt::yellow } };
+            localContext.mainSearch
+                = Highlighter{ "wor", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
             localContext.colorLabels.push_back(
                 Highlighter{ "wor", false, true, QColor{ Qt::black }, QColor{ Qt::green } } );
             LineDecorator localDecorator{ std::move( localContext ) };
@@ -312,8 +312,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
         WHEN( "main search overlaps a whole-line Highlighter, with no Color Labels or QuickFind" )
         {
             auto localContext = emptyContext();
-            localContext.mainSearch = Highlighter{ "wor", false, true, QColor{ Qt::black },
-                                                    QColor{ Qt::yellow } };
+            localContext.mainSearch
+                = Highlighter{ "wor", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
             LineDecorator localDecorator{ std::move( localContext ) };
 
             const auto decoration = localDecorator.decorate( text, wholeLineVerdict );
@@ -402,7 +402,7 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
             const auto decoration = decorator.decorate( "hello world", outsideVerdict );
 
             THEN( "the whole-line highlight, main search and Color Labels are suppressed, "
-                 "but QuickFind still shows" )
+                  "but QuickFind still shows" )
             {
                 REQUIRE( decoration.spans().size() == 1 );
                 const auto& span = decoration.spans().front();
@@ -509,7 +509,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
 // characters -- these two scenarios pin down exactly what changed, using
 // "a\tb" (one raw tab between two letters, expanding to "a" followed by
 // 7 spaces up to the next tab stop, then "b").
-SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line", "[linedecorator][quickfind-raw-space]" )
+SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line",
+          "[linedecorator][quickfind-raw-space]" )
 {
     const QString rawLine = "a\tb";
 
@@ -527,7 +528,7 @@ SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line"
             const auto decoration = decorator.decorate( rawLine, verdict );
 
             THEN( "the tab character itself is found -- before #80, matching against the "
-                 "expanded line (all spaces) never found a tab at all" )
+                  "expanded line (all spaces) never found a tab at all" )
             {
                 REQUIRE( decoration.spans().size() == 1 );
                 const auto& span = decoration.spans().front();
@@ -551,7 +552,7 @@ SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line"
             const auto decoration = decorator.decorate( rawLine, verdict );
 
             THEN( "there is no match -- before #80, matching against the expanded line found "
-                 "one, even though the file contains no run of spaces at all, only a tab" )
+                  "one, even though the file contains no run of spaces at all, only a tab" )
             {
                 REQUIRE( decoration.spans().empty() );
             }

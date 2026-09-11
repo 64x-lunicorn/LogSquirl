@@ -26,16 +26,16 @@
 
 class QTimer;
 class CrashHandler {
-  public:
+public:
     CrashHandler();
     ~CrashHandler();
 
-  private:
+private:
     std::unique_ptr<QTimer> memoryUsageTimer_;
 };
 #else
 class CrashHandler {
-  public:
+public:
     CrashHandler() = default;
     ~CrashHandler() = default;
 };

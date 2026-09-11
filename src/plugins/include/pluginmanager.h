@@ -54,7 +54,7 @@ using PluginCallbackFn = void ( * )( void* );
 class PluginManager : public QObject {
     Q_OBJECT
 
-  public:
+public:
     explicit PluginManager( QObject* parent = nullptr );
     ~PluginManager() override;
 
@@ -77,7 +77,10 @@ class PluginManager : public QObject {
     void discoverPluginsIn( const QString& directory );
 
     /** Return metadata for all discovered plugins. */
-    const std::vector<PluginMetadata>& discoveredPlugins() const { return discovered_; }
+    const std::vector<PluginMetadata>& discoveredPlugins() const
+    {
+        return discovered_;
+    }
 
     /** Return the set of currently loaded (initialised) plugin IDs. */
     QStringList loadedPluginIds() const;
@@ -162,11 +165,10 @@ class PluginManager : public QObject {
      * Run a converter plugin.
      * @return 0 on success, non-zero on failure.
      */
-    int runConverter( const QString& pluginId,
-                      const QString& inputPath,
+    int runConverter( const QString& pluginId, const QString& inputPath,
                       const QString& outputPath );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     /** Emitted when a plugin is loaded and initialised successfully. */
     void pluginLoaded( const QString& pluginId );
 
@@ -183,16 +185,11 @@ class PluginManager : public QObject {
     void statusWidgetRemoved( const QString& pluginId, QWidget* widget );
 
     /** Emitted when a plugin registers a menu action. */
-    void menuActionAdded( const QString& pluginId,
-                          const QString& menuPath,
-                          const QString& label,
-                          PluginCallbackFn callback,
-                          void* userData );
+    void menuActionAdded( const QString& pluginId, const QString& menuPath, const QString& label,
+                          PluginCallbackFn callback, void* userData );
 
     /** Emitted when a plugin registers a sidebar tab. */
-    void sidebarTabAdded( const QString& pluginId,
-                          const QString& label,
-                          QWidget* widget );
+    void sidebarTabAdded( const QString& pluginId, const QString& label, QWidget* widget );
 
     /** Emitted when a plugin unregisters a sidebar tab. */
     void sidebarTabRemoved( const QString& pluginId, QWidget* widget );
@@ -207,14 +204,13 @@ class PluginManager : public QObject {
     void notificationRequested( const QString& message );
 
     /** Emitted when a DataSource plugin stream is ready to be opened. */
-    void dataSourceStarted( const QString& pluginId,
-                            const QString& displayName,
+    void dataSourceStarted( const QString& pluginId, const QString& displayName,
                             const QString& filePath );
 
     /** Emitted when a DataSource plugin stream has ended. */
     void dataSourceStopped( const QString& pluginId );
 
-  private:
+private:
     /** Build a LogSquirlHostApi struct for a specific plugin instance. */
     LogSquirlHostApi buildHostApi();
 
@@ -259,8 +255,8 @@ class PluginManager : public QObject {
     // These are the actual C function pointers stored in LogSquirlHostApi.
     // The void* handle is a PluginContext* which routes back to this manager.
     static void hostPushLine( void* handle, const char* data, size_t len );
-    static void hostPushLines( void* handle, const char* const* data,
-                               const size_t* lens, size_t count );
+    static void hostPushLines( void* handle, const char* const* data, const size_t* lens,
+                               size_t count );
     static void hostSignalEos( void* handle );
     static void hostSignalError( void* handle, const char* message );
     static void hostLogMessage( void* handle, int level, const char* message );
@@ -269,20 +265,17 @@ class PluginManager : public QObject {
     static void hostOpenFile( void* handle, const char* filePath, int follow );
     static void hostRegisterStatusWidget( void* handle, void* qwidgetPtr );
     static void hostUnregisterStatusWidget( void* handle, void* qwidgetPtr );
-    static void hostRegisterMenuAction( void* handle, const char* menuPath,
-                                        const char* label,
-                                        PluginCallbackFn callback,
-                                        void* userData );
-    static void hostRegisterSidebarTab( void* handle, const char* label,
-                                        void* qwidgetPtr );
+    static void hostRegisterMenuAction( void* handle, const char* menuPath, const char* label,
+                                        PluginCallbackFn callback, void* userData );
+    static void hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr );
     static void hostUnregisterSidebarTab( void* handle, void* qwidgetPtr );
     static void hostRegisterFooterWidget( void* handle, void* qwidgetPtr );
     static void hostUnregisterFooterWidget( void* handle, void* qwidgetPtr );
     static const char* hostGetActiveFilePath( void* handle );
-    static void hostRegisterActiveFileCallback(
-        void* handle,
-        void ( *callback )( void* user_data, const char* file_path ),
-        void* user_data );
+    static void hostRegisterActiveFileCallback( void* handle,
+                                                void ( *callback )( void* user_data,
+                                                                    const char* file_path ),
+                                                void* user_data );
 };
 
 } // namespace logsquirl::plugins

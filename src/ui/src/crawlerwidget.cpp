@@ -106,8 +106,8 @@ public:
     // Construct from the value passsed
     CrawlerWidgetContext( QList<int> sizes, bool ignoreCase, bool autoRefresh, bool followFile,
                           bool useRegexp, bool inverseRegexp, bool useBooleanCombination,
-                          QList<LineNumber> markedLines,
-                          QJsonArray chartSeriesJson = {}, bool chartVisible = false )
+                          QList<LineNumber> markedLines, QJsonArray chartSeriesJson = {},
+                          bool chartVisible = false )
         : sizes_( sizes )
         , ignoreCase_( ignoreCase )
         , autoRefresh_( autoRefresh )
@@ -207,8 +207,8 @@ QString CrawlerWidget::getSelectedText() const
 {
     // Table view with active portion selection
     if ( tableViewActive_ && tableCellSelection_.active && tableModel_ ) {
-        const auto index = tableModel_->index( tableCellSelection_.row,
-                                               tableCellSelection_.column );
+        const auto index
+            = tableModel_->index( tableCellSelection_.row, tableCellSelection_.column );
         const auto cellText = index.data( Qt::DisplayRole ).toString();
         const auto selected = tableCellSelection_.selectedText( cellText );
         if ( !selected.isEmpty() ) {
@@ -418,8 +418,8 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     auto context = std::make_shared<const CrawlerWidgetContext>(
         sizes(), ( !matchCaseButton_->isChecked() ), searchRefreshButton_->isChecked(),
         logMainView_->isFollowEnabled(), useRegexpButton_->isChecked(), inverseButton_->isChecked(),
-        booleanButton_->isChecked(), logFilteredData_->getMarks(),
-        chartJson, chartPanel_->isVisible() );
+        booleanButton_->isChecked(), logFilteredData_->getMarks(), chartJson,
+        chartPanel_->isVisible() );
 
     return static_cast<std::shared_ptr<const ViewContextInterface>>( context );
 }
@@ -1163,10 +1163,9 @@ void CrawlerWidget::setup()
         VisibilityFlags::Marks | VisibilityFlags::Matches | VisibilityFlags::Context ) );
     visibilityModel_->appendRow( marksMatchesBreadcrumbsItem );
 
-    QStandardItem* matchesBreadcrumbsItem
-        = new QStandardItem( tr( "Matches + breadcrumbs" ) );
-    matchesBreadcrumbsItem->setData( QVariant::fromValue(
-        VisibilityFlags::Matches | VisibilityFlags::Context ) );
+    QStandardItem* matchesBreadcrumbsItem = new QStandardItem( tr( "Matches + breadcrumbs" ) );
+    matchesBreadcrumbsItem->setData(
+        QVariant::fromValue( VisibilityFlags::Matches | VisibilityFlags::Context ) );
     visibilityModel_->appendRow( matchesBreadcrumbsItem );
 
     QStandardItem* marksItem = new QStandardItem( tr( "Marks" ) );
@@ -1340,8 +1339,7 @@ void CrawlerWidget::setup()
     tableViewToggle_->setVisible( false );
     searchLineLayout->addWidget( tableViewToggle_ );
 
-    connect( tableViewToggle_, &QToolButton::toggled, this,
-             &CrawlerWidget::toggleTableView );
+    connect( tableViewToggle_, &QToolButton::toggled, this, &CrawlerWidget::toggleTableView );
 
     // Construct the bottom window
     tabbedFilteredView_ = new QTabWidget;
@@ -1409,10 +1407,10 @@ void CrawlerWidget::setup()
 
     // Update overview position when the table view scrolls
     connect( logTableView_->verticalScrollBar(), &QScrollBar::valueChanged, this,
-             [this]() { updateTableOverview(); } );
+             [ this ]() { updateTableOverview(); } );
 
-    mainViewStack_->addWidget( logMainView_ );   // index 0 = text view
-    mainViewStack_->addWidget( logTableView_ );   // index 1 = table view
+    mainViewStack_->addWidget( logMainView_ );  // index 0 = text view
+    mainViewStack_->addWidget( logTableView_ ); // index 1 = table view
     mainViewStack_->setCurrentIndex( 0 );
 
     addWidget( mainViewStack_ );
@@ -1556,17 +1554,14 @@ void CrawlerWidget::setup()
     // Wire chart panel — provide log data and connect click-to-navigate.
     chartPanel_->setLogData( logData_ );
     connect( chartPanel_, &ChartPanel::lineSelected, this,
-             [ this ]( LineNumber line ) {
-                 logMainView_->selectAndDisplayLine( line );
-             } );
+             [ this ]( LineNumber line ) { logMainView_->selectAndDisplayLine( line ); } );
 
     // Refresh chart data when the file finishes loading.
-    connect( logData_.get(), &LogData::loadingFinished, this,
-             [ this ]( auto ) {
-                 if ( chartPanel_->isVisible() ) {
-                     chartPanel_->extractData();
-                 }
-             } );
+    connect( logData_.get(), &LogData::loadingFinished, this, [ this ]( auto ) {
+        if ( chartPanel_->isVisible() ) {
+            chartPanel_->extractData();
+        }
+    } );
 
     const auto defaultEncodingMib = config.defaultEncodingMib();
     if ( defaultEncodingMib >= 0 ) {
@@ -2286,8 +2281,8 @@ void CrawlerWidgetContext::loadFromJson( const QString& json )
     }
 
     if ( properties.contains( "CS" ) ) {
-        chartSeriesJson_ = QJsonDocument::fromJson(
-            properties.value( "CS" ).toString().toUtf8() ).array();
+        chartSeriesJson_
+            = QJsonDocument::fromJson( properties.value( "CS" ).toString().toUtf8() ).array();
     }
     chartVisible_ = properties.value( "CV" ).toBool();
 }
@@ -2334,7 +2329,7 @@ void CrawlerWidget::toggleTableView()
     if ( tableViewActive_ ) {
         mainViewStack_->setCurrentIndex( 1 );
         // Defer model population so the view switch renders immediately
-        QTimer::singleShot( 0, this, [this]() {
+        QTimer::singleShot( 0, this, [ this ]() {
             populateTableModel();
             updateTableOverview();
         } );
@@ -2465,8 +2460,8 @@ void CrawlerWidget::populateTableModel()
                  &CrawlerWidget::saveTableColumnWidths );
 
         // Sync table view selection changes to the filtered view / current line
-        connect( logTableView_->selectionModel(), &QItemSelectionModel::selectionChanged,
-                 this, [this]() { tableViewSelectionChanged(); } );
+        connect( logTableView_->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+                 [ this ]() { tableViewSelectionChanged(); } );
 
         // Flag: column widths need initial sizing after first data arrives
         tableColumnsNeedSizing_ = true;
@@ -2696,8 +2691,7 @@ bool CrawlerWidget::eventFilter( QObject* obj, QEvent* event )
                     if ( index.isValid() ) {
                         const int charPos = tableCellCharAtX( index, me->pos().x() );
 
-                        if ( me->modifiers() & Qt::ShiftModifier
-                             && tableCellSelection_.active
+                        if ( me->modifiers() & Qt::ShiftModifier && tableCellSelection_.active
                              && tableCellSelection_.row == index.row()
                              && tableCellSelection_.column == index.column() ) {
                             // Shift-click extends the existing selection
@@ -2879,12 +2873,11 @@ void CrawlerWidget::tableSelectWordAt( const QModelIndex& index, int charPos )
     int start = charPos;
     int end = charPos;
 
-    while ( start > 0 && ( cellText[ start - 1 ].isLetterOrNumber()
-                           || cellText[ start - 1 ] == '_' ) ) {
+    while ( start > 0
+            && ( cellText[ start - 1 ].isLetterOrNumber() || cellText[ start - 1 ] == '_' ) ) {
         --start;
     }
-    while ( end < textLen && ( cellText[ end ].isLetterOrNumber()
-                               || cellText[ end ] == '_' ) ) {
+    while ( end < textLen && ( cellText[ end ].isLetterOrNumber() || cellText[ end ] == '_' ) ) {
         ++end;
     }
 
@@ -2935,8 +2928,8 @@ void CrawlerWidget::updateTableOverview()
         return;
     }
 
-    tableOverviewWidget_->setGeometry(
-        tableWidth - OverviewWidth - 1, headerHeight, OverviewWidth, overviewHeight );
+    tableOverviewWidget_->setGeometry( tableWidth - OverviewWidth - 1, headerHeight, OverviewWidth,
+                                       overviewHeight );
     tableOverviewWidget_->show();
     tableOverviewWidget_->raise();
 
@@ -2948,9 +2941,8 @@ void CrawlerWidget::updateTableOverview()
         const int visibleRows = ( rowHeight > 0 ) ? ( overviewHeight / rowHeight ) : 1;
         const int lastVisibleRow = firstVisibleRow + visibleRows;
 
-        overview_.updateCurrentPosition(
-            LineNumber( static_cast<uint64_t>( firstVisibleRow ) ),
-            LineNumber( static_cast<uint64_t>( lastVisibleRow ) ) );
+        overview_.updateCurrentPosition( LineNumber( static_cast<uint64_t>( firstVisibleRow ) ),
+                                         LineNumber( static_cast<uint64_t>( lastVisibleRow ) ) );
     }
 
     tableOverviewWidget_->update();
@@ -3025,8 +3017,8 @@ void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
     // Prefer the portion-selected text when a sub-cell selection is active
     if ( tableCellSelection_.active
          && tableCellSelection_.startChar != tableCellSelection_.endChar ) {
-        const auto selIdx = tableModel_->index( tableCellSelection_.row,
-                                                tableCellSelection_.column );
+        const auto selIdx
+            = tableModel_->index( tableCellSelection_.row, tableCellSelection_.column );
         const auto selText
             = tableCellSelection_.selectedText( selIdx.data( Qt::DisplayRole ).toString() );
         if ( !selText.isEmpty() ) {
@@ -3040,7 +3032,7 @@ void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
     auto* highlightersMenu = new HighlightersMenu( tr( "Highlighters" ), &menu );
     highlightersMenu->createHighlightersMenu();
     highlightersMenu->populateHighlightersMenu();
-    highlightersMenu->setApplyChange( [this]() {
+    highlightersMenu->setApplyChange( [ this ]() {
         logMainView_->update();
         filteredView_->update();
         if ( logTableView_ && tableViewActive_ ) {
@@ -3059,8 +3051,7 @@ void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
         colorLabelsActionGroup = new QActionGroup( &menu );
 
         // Determine current label for the cell text
-        const auto& quickHighlighters
-            = HighlighterSetCollection::get().quickHighlighters();
+        const auto& quickHighlighters = HighlighterSetCollection::get().quickHighlighters();
         const auto& currentLabels = colorLabelsManager_.colorLabels();
         std::optional<size_t> currentLabel;
         for ( size_t i = 0; i < currentLabels.size(); ++i ) {
@@ -3079,8 +3070,8 @@ void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
         }
 
         colorLabelsMenu->addSeparator();
-        const auto maxLabel = std::min( currentLabels.size(),
-                                        static_cast<size_t>( quickHighlighters.size() ) );
+        const auto maxLabel
+            = std::min( currentLabels.size(), static_cast<size_t>( quickHighlighters.size() ) );
         for ( size_t i = 0; i < maxLabel; ++i ) {
             const auto& cfg = quickHighlighters.at( static_cast<int>( i ) );
             auto* action = colorLabelsMenu->addAction( cfg.name );
@@ -3101,7 +3092,7 @@ void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
         connect( clearAllAction, &QAction::triggered, this, &CrawlerWidget::clearColorLabels );
 
         connect( colorLabelsActionGroup, &QActionGroup::triggered, this,
-                 [this, cellText]( QAction* action ) {
+                 [ this, cellText ]( QAction* action ) {
                      if ( action->data().isValid() ) {
                          updateColorLabels( colorLabelsManager_.setColorLabel(
                              static_cast<size_t>( action->data().toInt() ), cellText ) );
@@ -3133,12 +3124,12 @@ void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
     auto* sendToScratchpadAction = menu.addAction( tr( "Send to scratchpad" ) );
     sendToScratchpadAction->setEnabled( hasText );
     connect( sendToScratchpadAction, &QAction::triggered, this,
-             [this, cellText]() { Q_EMIT sendToScratchpad( cellText ); } );
+             [ this, cellText ]() { Q_EMIT sendToScratchpad( cellText ); } );
 
     auto* replaceInScratchpadAction = menu.addAction( tr( "Replace scratchpad" ) );
     replaceInScratchpadAction->setEnabled( hasText );
     connect( replaceInScratchpadAction, &QAction::triggered, this,
-             [this, cellText]() { Q_EMIT replaceDataInScratchpad( cellText ); } );
+             [ this, cellText ]() { Q_EMIT replaceDataInScratchpad( cellText ); } );
 
     menu.addSeparator();
 
@@ -3147,42 +3138,36 @@ void CrawlerWidget::showTableViewContextMenu( const QPoint& pos )
         const auto escapedCell = QRegularExpression::escape( cellText );
 
         auto* replaceSearchAction
-            = menu.addAction( tr( "Replace search with \"%1\"" )
-                                  .arg( cellText.left( 30 ) ) );
+            = menu.addAction( tr( "Replace search with \"%1\"" ).arg( cellText.left( 30 ) ) );
         connect( replaceSearchAction, &QAction::triggered, this,
-                 [this, escapedCell]() { replaceSearch( escapedCell ); } );
+                 [ this, escapedCell ]() { replaceSearch( escapedCell ); } );
 
         auto* addToSearchAction
-            = menu.addAction( tr( "Add \"%1\" to search" )
-                                  .arg( cellText.left( 30 ) ) );
+            = menu.addAction( tr( "Add \"%1\" to search" ).arg( cellText.left( 30 ) ) );
         connect( addToSearchAction, &QAction::triggered, this,
-                 [this, escapedCell]() { addToSearch( escapedCell ); } );
+                 [ this, escapedCell ]() { addToSearch( escapedCell ); } );
 
         auto* excludeSearchAction
-            = menu.addAction( tr( "Exclude \"%1\" from search" )
-                                  .arg( cellText.left( 30 ) ) );
+            = menu.addAction( tr( "Exclude \"%1\" from search" ).arg( cellText.left( 30 ) ) );
         connect( excludeSearchAction, &QAction::triggered, this,
-                 [this, escapedCell]() { excludeFromSearch( escapedCell ); } );
+                 [ this, escapedCell ]() { excludeFromSearch( escapedCell ); } );
     }
 
     menu.addSeparator();
 
     // ── Splitter position ──
     auto* saveSplitterAction = menu.addAction( tr( "Save splitter position" ) );
-    connect( saveSplitterAction, &QAction::triggered, this,
-             &CrawlerWidget::saveSplitterSizes );
+    connect( saveSplitterAction, &QAction::triggered, this, &CrawlerWidget::saveSplitterSizes );
 
     // ── Save to file ──
     auto* saveToFileAction = menu.addAction( tr( "Save to file" ) );
-    connect( saveToFileAction, &QAction::triggered, this, [this]() {
-        QMetaObject::invokeMethod( logMainView_, "saveToFile" );
-    } );
+    connect( saveToFileAction, &QAction::triggered, this,
+             [ this ]() { QMetaObject::invokeMethod( logMainView_, "saveToFile" ); } );
 
     auto* saveSelectedToFileAction = menu.addAction( tr( "Save selected to file" ) );
     saveSelectedToFileAction->setEnabled( hasSelection );
-    connect( saveSelectedToFileAction, &QAction::triggered, this, [this]() {
-        QMetaObject::invokeMethod( logMainView_, "saveSelectedToFile" );
-    } );
+    connect( saveSelectedToFileAction, &QAction::triggered, this,
+             [ this ]() { QMetaObject::invokeMethod( logMainView_, "saveSelectedToFile" ); } );
 
     menu.exec( logTableView_->viewport()->mapToGlobal( pos ) );
 
@@ -3198,9 +3183,10 @@ void CrawlerWidget::copyTableSelection()
     }
 
     // If there is an active portion selection, copy just that text
-    if ( tableCellSelection_.active && tableCellSelection_.startChar != tableCellSelection_.endChar ) {
-        const auto index = tableModel_->index( tableCellSelection_.row,
-                                               tableCellSelection_.column );
+    if ( tableCellSelection_.active
+         && tableCellSelection_.startChar != tableCellSelection_.endChar ) {
+        const auto index
+            = tableModel_->index( tableCellSelection_.row, tableCellSelection_.column );
         const auto cellText = index.data( Qt::DisplayRole ).toString();
         const auto selected = tableCellSelection_.selectedText( cellText );
         if ( !selected.isEmpty() ) {

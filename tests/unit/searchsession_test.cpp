@@ -47,7 +47,7 @@ SCENARIO( "A Search Session starts idle", "[searchsession]" )
 }
 
 SCENARIO( "Requesting an invalid pattern goes to InvalidPattern without running anything",
-         "[searchsession]" )
+          "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
     LogData logData{ policies.indexing, policies.search, policies.fileAccess };

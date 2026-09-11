@@ -44,9 +44,8 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     setLineWidth( 1 );
     setFixedHeight( 135 );
     setObjectName( "PluginCard" );
-    setStyleSheet(
-        "#PluginCard { background: palette(base); border: 1px solid palette(mid); "
-        "border-radius: 8px; }" );
+    setStyleSheet( "#PluginCard { background: palette(base); border: 1px solid palette(mid); "
+                   "border-radius: 8px; }" );
 
     auto* mainLayout = new QHBoxLayout( this );
     mainLayout->setContentsMargins( 12, 10, 12, 10 );
@@ -56,9 +55,8 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     iconLabel = new QLabel( this );
     iconLabel->setFixedSize( 48, 48 );
     iconLabel->setAlignment( Qt::AlignCenter );
-    iconLabel->setPixmap(
-        QPixmap( ":/images/logsquirl.png" ).scaled( 48, 48, Qt::KeepAspectRatio,
-                                                     Qt::SmoothTransformation ) );
+    iconLabel->setPixmap( QPixmap( ":/images/logsquirl.png" )
+                              .scaled( 48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation ) );
     mainLayout->addWidget( iconLabel, 0, Qt::AlignTop );
 
     // Center column: name, author, description
@@ -269,12 +267,10 @@ PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
     footerLayout->addStretch();
 
     auto* pluginFolderButton = new QPushButton( tr( "Plugin Folder" ), this );
-    pluginFolderButton->setToolTip(
-        tr( "Open the user plugin directory in the file manager" ) );
+    pluginFolderButton->setToolTip( tr( "Open the user plugin directory in the file manager" ) );
     connect( pluginFolderButton, &QPushButton::clicked, this, []() {
-        const auto dir = QStandardPaths::writableLocation(
-                             QStandardPaths::AppDataLocation )
-                         + "/plugins";
+        const auto dir
+            = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
         QDir().mkpath( dir );
         showPathInFileExplorer( dir );
     } );
@@ -293,12 +289,9 @@ PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
     connect( tabInstalled_, &QToolButton::clicked, this, [ this ]() { onTabChanged( 1 ); } );
     connect( tabUpdates_, &QToolButton::clicked, this, [ this ]() { onTabChanged( 2 ); } );
 
-    connect( &repository_, &PluginRepository::catalogReady, this,
-             &PluginDialog::onCatalogReady );
-    connect( &repository_, &PluginRepository::fetchError, this,
-             &PluginDialog::onFetchError );
-    connect( &repository_, &PluginRepository::iconReady, this,
-             &PluginDialog::onIconReady );
+    connect( &repository_, &PluginRepository::catalogReady, this, &PluginDialog::onCatalogReady );
+    connect( &repository_, &PluginRepository::fetchError, this, &PluginDialog::onFetchError );
+    connect( &repository_, &PluginRepository::iconReady, this, &PluginDialog::onIconReady );
     connect( &repository_, &PluginRepository::downloadProgress, this,
              [ this ]( qint64 recv, qint64 total ) {
                  progressBar_->setVisible( true );
@@ -309,8 +302,7 @@ PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
              } );
     connect( &repository_, &PluginRepository::downloadFinished, this,
              &PluginDialog::onDownloadFinished );
-    connect( &repository_, &PluginRepository::downloadError, this,
-             &PluginDialog::onDownloadError );
+    connect( &repository_, &PluginRepository::downloadError, this, &PluginDialog::onDownloadError );
 
     // Build initial cards from locally discovered plugins
     rebuildMergedList();
@@ -324,8 +316,7 @@ PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
 
 void PluginDialog::onCatalogReady()
 {
-    statusLabel_->setText(
-        tr( "%1 plugins available" ).arg( repository_.catalog().size() ) );
+    statusLabel_->setText( tr( "%1 plugins available" ).arg( repository_.catalog().size() ) );
     rebuildMergedList();
     rebuildCards();
 }
@@ -380,11 +371,10 @@ void PluginDialog::onDownloadFinished( const QString& archivePath )
     }
 
     statusLabel_->setText( tr( "%1 installed and activated." ).arg( pluginName ) );
-    QMessageBox::information(
-        this, tr( "Plugin Installed" ),
-        tr( "%1 has been installed and activated.\n\n"
-            "You can now use it from the Plugins menu." )
-            .arg( pluginName ) );
+    QMessageBox::information( this, tr( "Plugin Installed" ),
+                              tr( "%1 has been installed and activated.\n\n"
+                                  "You can now use it from the Plugins menu." )
+                                  .arg( pluginName ) );
 
     rebuildMergedList();
     rebuildCards();
@@ -446,8 +436,7 @@ void PluginDialog::rebuildMergedList()
             const auto* latest = repository_.latestRelease( ce.id );
             if ( latest ) {
                 mp.latestVersion = latest->version;
-                if ( !mp.installedVersion.isEmpty()
-                     && mp.installedVersion != latest->version ) {
+                if ( !mp.installedVersion.isEmpty() && mp.installedVersion != latest->version ) {
                     mp.state = PluginState::UpdateReady;
                 }
             }
@@ -586,8 +575,8 @@ void PluginDialog::updateTabBadges()
 
     tabAll_->setText( tr( "All (%1)" ).arg( mergedPlugins_.size() ) );
     tabInstalled_->setText( tr( "Installed (%1)" ).arg( installedCount ) );
-    tabUpdates_->setText(
-        updateCount > 0 ? tr( "Updates (%1)" ).arg( updateCount ) : tr( "Updates" ) );
+    tabUpdates_->setText( updateCount > 0 ? tr( "Updates (%1)" ).arg( updateCount )
+                                          : tr( "Updates" ) );
 }
 
 // ── Install / toggle ──────────────────────────────────────────────────
@@ -596,9 +585,9 @@ void PluginDialog::installPlugin( const QString& pluginId )
 {
     const auto* latest = repository_.latestRelease( pluginId );
     if ( !latest || latest->assets.empty() ) {
-        QMessageBox::warning( this, tr( "Install Error" ),
-                              tr( "No compatible download available for %1 on this platform." )
-                                  .arg( pluginId ) );
+        QMessageBox::warning(
+            this, tr( "Install Error" ),
+            tr( "No compatible download available for %1 on this platform." ).arg( pluginId ) );
         return;
     }
 
@@ -699,8 +688,7 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
         }
         statusLabel_->setText( tr( "Installation failed." ) );
         QMessageBox::warning( this, tr( "Install Error" ),
-                              tr( "Failed to extract plugin archive:\n%1" )
-                                  .arg( extractError ) );
+                              tr( "Failed to extract plugin archive:\n%1" ).arg( extractError ) );
         return false;
     }
 

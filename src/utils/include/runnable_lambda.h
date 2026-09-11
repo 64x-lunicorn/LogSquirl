@@ -24,7 +24,7 @@
 
 template <typename TRunnable>
 class RunnableWrapper : public QRunnable {
-  public:
+public:
     RunnableWrapper( TRunnable&& runnable )
         : runnable_( std::move( runnable ) )
     {
@@ -36,7 +36,7 @@ class RunnableWrapper : public QRunnable {
         runnable_();
     }
 
-  private:
+private:
     TRunnable runnable_;
 };
 

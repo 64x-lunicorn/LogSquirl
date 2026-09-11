@@ -51,7 +51,7 @@ class LogData;
 class SearchSession : public QObject {
     Q_OBJECT
 
-  public:
+public:
     enum class Phase {
         Idle,          // no pattern requested (or request() with no pattern)
         Running,       // a run is in flight
@@ -91,7 +91,7 @@ class SearchSession : public QObject {
     // match the currently held run and endLine only grows, continues that
     // run from where it left off rather than starting over.
     void request( const RegularExpressionPattern& pattern, LineNumber startLine,
-                 LineNumber endLine );
+                  LineNumber endLine );
     // Shortcut: the whole file.
     void request( const RegularExpressionPattern& pattern );
     // Go idle: no pattern, no results, no Context Lines.
@@ -143,24 +143,24 @@ class SearchSession : public QObject {
     // apply incrementally on every progress tick, unlike matches().
     SearchResultArray takeNewMatches();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void stateChanged( SearchSession::State state );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void handleSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine,
                                  SearchId searchId );
     void handleSearchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
                                bool interrupted );
     void emitThrottledStateChanged();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Internal: feeds the throttler. Not for external use.
     void resultsReady();
 
-  private:
+private:
     void startRun( const RegularExpressionPattern& pattern, LineNumber startLine,
-                  LineNumber endLine, bool isContinuation,
-                  std::shared_ptr<const RegularExpression> compiledExpression );
+                   LineNumber endLine, bool isContinuation,
+                   std::shared_ptr<const RegularExpression> compiledExpression );
     // Absorbs a worker result batch into matches_/pendingDelta_/maxLength_/
     // nbLinesProcessed_. Shared by handleSearchProgressed and
     // handleSearchFinished, which otherwise duplicate this exactly.

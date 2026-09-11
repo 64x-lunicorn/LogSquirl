@@ -25,7 +25,7 @@
 #include "regularexpressionpattern.h"
 
 class BooleanExpressionEvaluator {
-  public:
+public:
     BooleanExpressionEvaluator( const std::string& expression,
                                 const logsquirl::vector<RegularExpressionPattern>& patterns );
 
@@ -41,11 +41,9 @@ class BooleanExpressionEvaluator {
 
     bool evaluate( std::string_view variables );
 
-  private:
+private:
     bool isValid_ = true;
     std::string errorString_;
-
-    
 
     exprtk::symbol_table<double> symbols_;
     exprtk::expression<double> expression_;
@@ -53,5 +51,5 @@ class BooleanExpressionEvaluator {
 
     logsquirl::vector<double*> variables_;
 
-    double precomputedResults_[16];
+    double precomputedResults_[ 16 ];
 };

@@ -49,15 +49,16 @@
 
 #include "cpu_info.h"
 #include "issuereporter.h"
-#include "logsquirl_version.h"
 #include "log.h"
+#include "logsquirl_version.h"
 #include "memory_info.h"
 #include "openfilehelper.h"
 
 namespace {
 
 constexpr const char* DSN
-    = "https://1efd12558459df096d7774f048927775@o4511077090459648.ingest.de.sentry.io/4511083891916880";
+    = "https://1efd12558459df096d7774f048927775@o4511077090459648.ingest.de.sentry.io/"
+      "4511083891916880";
 
 QString sentryDatabasePath()
 {
@@ -120,7 +121,8 @@ QDialog::DialogCode askUserConfirmation( const QString& formattedReport, const Q
 
     auto privacyPolicy = std::make_unique<QLabel>();
     privacyPolicy->setText(
-        "<a href=\"https://github.com/64x-lunicorn/LogSquirl/blob/master/SECURITY.md\">Privacy policy</a>" );
+        "<a href=\"https://github.com/64x-lunicorn/LogSquirl/blob/master/SECURITY.md\">Privacy "
+        "policy</a>" );
 
     privacyPolicy->setTextFormat( Qt::RichText );
     privacyPolicy->setTextInteractionFlags( Qt::TextBrowserInteraction );
@@ -181,7 +183,8 @@ bool checkCrashpadReports( const QString& databasePath )
     LOG_INFO << "Pending reports " << pendingReports.size();
 
 #ifdef Q_OS_WIN
-    const auto stackwalker = QCoreApplication::applicationDirPath() + "/logsquirl_minidump_dump.exe";
+    const auto stackwalker
+        = QCoreApplication::applicationDirPath() + "/logsquirl_minidump_dump.exe";
 #else
     const auto stackwalker = QCoreApplication::applicationDirPath() + "/logsquirl_minidump_dump";
 #endif
@@ -233,7 +236,8 @@ CrashHandler::CrashHandler()
     sentry_options_set_debug( sentryOptions, 1 );
 
 #ifdef Q_OS_WIN
-    const auto handlerPath = QCoreApplication::applicationDirPath() + "/logsquirl_crashpad_handler.exe";
+    const auto handlerPath
+        = QCoreApplication::applicationDirPath() + "/logsquirl_crashpad_handler.exe";
     sentry_options_set_database_pathw( sentryOptions, dumpPath.toStdWString().c_str() );
     sentry_options_set_handler_pathw( sentryOptions, handlerPath.toStdWString().c_str() );
 #else

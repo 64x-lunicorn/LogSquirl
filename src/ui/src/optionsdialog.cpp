@@ -264,8 +264,7 @@ void OptionsDialog::setupLogFormats()
     formatsTreeWidget->resizeColumnToContents( 0 );
 
     connect( openFormatsFolderButton, &QPushButton::clicked, this, []() {
-        const auto dataDir
-            = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
+        const auto dataDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
         const auto formatsDir = dataDir + "/formats";
         QDir().mkpath( formatsDir );
         QDesktopServices::openUrl( QUrl::fromLocalFile( formatsDir ) );

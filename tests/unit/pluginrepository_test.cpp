@@ -35,8 +35,7 @@ namespace {
 
 // Helper: create a minimal ZIP archive containing a plugin.json and a dummy library file.
 // Returns the path to the created archive on success, empty string on failure.
-QString createTestPluginZip( const QString& archivePath,
-                             const QString& pluginJsonContent,
+QString createTestPluginZip( const QString& archivePath, const QString& pluginJsonContent,
                              const QString& libraryName )
 {
     KZip zip( archivePath );
@@ -98,8 +97,7 @@ SCENARIO( "extractPluginArchive extracts a valid ZIP to the destination",
                 REQUIRE( result );
                 REQUIRE( errorMessage.isEmpty() );
                 REQUIRE( QFile::exists( QDir( destDir ).filePath( "plugin.json" ) ) );
-                REQUIRE(
-                    QFile::exists( QDir( destDir ).filePath( "liblogsquirl_test.dylib" ) ) );
+                REQUIRE( QFile::exists( QDir( destDir ).filePath( "liblogsquirl_test.dylib" ) ) );
             }
 
             THEN( "the extracted plugin.json has the expected content" )
@@ -108,8 +106,7 @@ SCENARIO( "extractPluginArchive extracts a valid ZIP to the destination",
                 REQUIRE( f.open( QIODevice::ReadOnly ) );
                 const auto doc = QJsonDocument::fromJson( f.readAll() );
                 REQUIRE( doc.isObject() );
-                REQUIRE( doc.object().value( "id" ).toString()
-                         == QString( "io.test.plugin" ) );
+                REQUIRE( doc.object().value( "id" ).toString() == QString( "io.test.plugin" ) );
             }
         }
     }
@@ -132,8 +129,7 @@ SCENARIO( "extractPluginArchive creates the destination directory if it does not
 
         WHEN( "extractPluginArchive is called" )
         {
-            const auto result
-                = PluginRepository::extractPluginArchive( archivePath, destDir );
+            const auto result = PluginRepository::extractPluginArchive( archivePath, destDir );
 
             THEN( "the directory is created and files are extracted" )
             {
@@ -237,8 +233,7 @@ SCENARIO( "extractPluginArchive overwrites existing files in the destination",
 
         WHEN( "extractPluginArchive is called on the existing directory" )
         {
-            const auto result
-                = PluginRepository::extractPluginArchive( archivePath, destDir );
+            const auto result = PluginRepository::extractPluginArchive( archivePath, destDir );
 
             THEN( "files are overwritten with the new content" )
             {

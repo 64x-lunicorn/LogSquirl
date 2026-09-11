@@ -76,10 +76,9 @@ TabbedScratchPad::TabbedScratchPad( QWidget* parent )
     if ( !backgroundImage.isEmpty() ) {
         const QString backgroundImageTemplate = " image: url(%1);";
         QString tabCloseButtonHoverStyle
-            = isDark
-                  ? " QTabBar::close-button:hover { %1 background-color: #C42B1C;"
-                    " border-radius: 3px; }"
-                  : " QTabBar::close-button:hover { %1 }";
+            = isDark ? " QTabBar::close-button:hover { %1 background-color: #C42B1C;"
+                       " border-radius: 3px; }"
+                     : " QTabBar::close-button:hover { %1 }";
         backgroundImage = backgroundImageTemplate.arg( backgroundImage );
         backgroundHoverImage = backgroundImageTemplate.arg( backgroundHoverImage );
         tabCloseButtonHoverStyle = tabCloseButtonHoverStyle.arg( backgroundHoverImage );
@@ -96,7 +95,7 @@ TabbedScratchPad::TabbedScratchPad( QWidget* parent )
              [ this ]( const auto index ) { tabWidget_->removeTab( index ); } );
 
     auto addTabButton = std::make_unique<QToolButton>();
-    addTabButton->setObjectName("tabAddButton");
+    addTabButton->setObjectName( "tabAddButton" );
     addTabButton->setText( "+" );
     addTabButton->setAutoRaise( true );
 
@@ -171,7 +170,7 @@ void TabbedScratchPad::addData( QString newData )
 {
     auto curretScratchPad = qobject_cast<ScratchPad*>( tabWidget_->currentWidget() );
     if ( curretScratchPad ) {
-        curretScratchPad->addData( std::move(newData) );
+        curretScratchPad->addData( std::move( newData ) );
     }
 }
 
@@ -179,6 +178,6 @@ void TabbedScratchPad::replaceData( QString newData )
 {
     auto curretScratchPad = qobject_cast<ScratchPad*>( tabWidget_->currentWidget() );
     if ( curretScratchPad ) {
-        curretScratchPad->replaceData( std::move(newData) );
+        curretScratchPad->replaceData( std::move( newData ) );
     }
 }

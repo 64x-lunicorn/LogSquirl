@@ -36,7 +36,7 @@ namespace {
 // The watcher is a process-wide singleton shared with every other test in
 // this binary, so each test leaves it watching nothing.
 class WatchedFile {
-  public:
+public:
     explicit WatchedFile( const QString& path )
         : path_( path )
     {
@@ -52,7 +52,7 @@ class WatchedFile {
     WatchedFile( const WatchedFile& ) = delete;
     WatchedFile& operator=( const WatchedFile& ) = delete;
 
-  private:
+private:
     QString path_;
 };
 
@@ -77,9 +77,8 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
     {
         const auto path = writeFile( tempDir, "first line\n" );
 
-        FileWatcher::getFileWatcher().setWatchPolicy(
-            WatchPolicy{ .nativeWatchEnabled = false, .pollingEnabled = true,
-                         .pollIntervalMs = 100 } );
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = false, .pollingEnabled = true, .pollIntervalMs = 100 } );
 
         SafeQSignalSpy changedSpy( &FileWatcher::getFileWatcher(),
                                    SIGNAL( fileChanged( QString ) ) );
@@ -100,9 +99,8 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
     {
         const auto path = writeFile( tempDir, "first line\n" );
 
-        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{ .nativeWatchEnabled = false,
-                                                                   .pollingEnabled = false,
-                                                                   .pollIntervalMs = 100 } );
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = false, .pollingEnabled = false, .pollIntervalMs = 100 } );
 
         SafeQSignalSpy changedSpy( &FileWatcher::getFileWatcher(),
                                    SIGNAL( fileChanged( QString ) ) );
@@ -124,9 +122,8 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
     {
         const auto path = writeFile( tempDir, "first line\n" );
 
-        FileWatcher::getFileWatcher().setWatchPolicy(
-            WatchPolicy{ .nativeWatchEnabled = false, .pollingEnabled = true,
-                         .pollIntervalMs = 100 } );
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = false, .pollingEnabled = true, .pollIntervalMs = 100 } );
 
         WatchedFile watched{ path };
 

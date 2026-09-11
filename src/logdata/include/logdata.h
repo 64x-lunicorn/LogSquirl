@@ -63,15 +63,14 @@
 class LogFilteredData;
 
 // Thrown when trying to attach an already attached LogData
-class CantReattachErr {
-};
+class CantReattachErr {};
 
 // Represents a complete set of data to be displayed (ie. a log file content)
 // This class is thread-safe.
 class LogData : public AbstractLogData {
     Q_OBJECT
 
-  public:
+public:
     // The three Policies are everything this object knows about the
     // settings: what indexing a Log File needs, what running a Search on
     // it needs (handed on to every LogFilteredData built from it), and how
@@ -110,7 +109,7 @@ class LogData : public AbstractLogData {
     // Get the auto-detected encoding for the indexed text.
     QTextCodec* getDetectedEncoding() const;
 
-    void setPrefilter(const QString& prefilterPattern);
+    void setPrefilter( const QString& prefilterPattern );
 
     // Replaces the Indexing Policy: the operations requested from now on
     // use it, one already in flight keeps the one it started with.
@@ -137,17 +136,17 @@ class LogData : public AbstractLogData {
 
         QRegularExpression prefilterPattern;
 
-      public:
+    public:
         logsquirl::vector<QString> decodeLines() const;
         logsquirl::vector<std::string_view> buildUtf8View() const;
 
-      private:
+    private:
         mutable logsquirl::vector<char> utf8Data_;
     };
 
     RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent during the 'attach' process to signal progress
     // percent being the percentage of completion.
     void loadingProgressed( int percent );
@@ -157,7 +156,7 @@ class LogData : public AbstractLogData {
     // by loadingProgressed if needed and then a loadingFinished.
     void fileChanged( MonitoredFileStatus status );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     // Consider reloading the file when it changes on disk updated
     void fileChangedOnDisk( const QString& filename );
     // Called when the worker thread signals the current operation ended
@@ -165,12 +164,13 @@ class LogData : public AbstractLogData {
     // Called when the worker thread signals the current operation ended
     void checkFileChangesFinished( MonitoredFileStatus status );
 
-  private:
+private:
     // Implementation of virtual functions
     QString doGetLineString( LineNumber line ) const override;
     QString doGetExpandedLineString( LineNumber line ) const override;
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
-    logsquirl::vector<QString> doGetExpandedLines( LineNumber first, LinesCount number ) const override;
+    logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
+                                                   LinesCount number ) const override;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
@@ -183,9 +183,9 @@ class LogData : public AbstractLogData {
     void reOpenFile() const;
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
-                                           QString ( *processLine )( QString&& ) ) const;
+                                                 QString ( *processLine )( QString&& ) ) const;
 
-  private:
+private:
     mutable std::unique_ptr<FileHolder> attached_file_;
 
     // Indexing data, read by us, written by the worker thread

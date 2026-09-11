@@ -227,8 +227,7 @@ SCENARIO( "LogFieldExtractor includes opid-field in columns", "[logformat][extra
         LogFormatDefinition def;
         def.setName( "opid_test" );
         QHash<QString, QString> regex;
-        regex[ "std" ]
-            = R"(^(?<timestamp>\S+) (?<level>\w+) (?<request_id>\S+) (?<body>.*)$)";
+        regex[ "std" ] = R"(^(?<timestamp>\S+) (?<level>\w+) (?<request_id>\S+) (?<body>.*)$)";
         def.setRegexPatterns( regex );
         def.setTimestampField( "timestamp" );
         def.setLevelField( "level" );
@@ -255,14 +254,11 @@ SCENARIO( "LogFieldExtractor LRU cache works correctly", "[logformat][extractor]
 
         LogFieldExtractor extractor( formats[ 0 ], 3 ); // Small cache for testing
 
-        const QString line1
-            = "2024-01-15 12:30:45.123 INFO [main] com.example.App - Message 1";
+        const QString line1 = "2024-01-15 12:30:45.123 INFO [main] com.example.App - Message 1";
         const QString line2
             = "2024-01-15 12:30:46.123 DEBUG [worker] com.example.Worker - Message 2";
-        const QString line3
-            = "2024-01-15 12:30:47.123 ERROR [io] com.example.IO - Message 3";
-        const QString line4
-            = "2024-01-15 12:30:48.123 WARN [net] com.example.Net - Message 4";
+        const QString line3 = "2024-01-15 12:30:47.123 ERROR [io] com.example.IO - Message 3";
+        const QString line4 = "2024-01-15 12:30:48.123 WARN [net] com.example.Net - Message 4";
 
         WHEN( "Lines are extracted and then re-extracted" )
         {
@@ -319,8 +315,8 @@ SCENARIO( "LogFieldExtractor cache can be invalidated", "[logformat][extractor]"
 
         LogFieldExtractor extractor( formats[ 0 ], 100 );
 
-        extractor.extractFields(
-            "2024-01-15 12:30:45.123 INFO [main] com.example.App - Cached", 0 );
+        extractor.extractFields( "2024-01-15 12:30:45.123 INFO [main] com.example.App - Cached",
+                                 0 );
 
         WHEN( "Cache is invalidated" )
         {

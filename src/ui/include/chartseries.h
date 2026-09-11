@@ -31,10 +31,10 @@
 
 // A single extracted data point for a chart series.
 struct ChartPoint {
-    LineNumber line;      // Line number in the log file (for click-to-navigate).
-    double xValue;        // X-axis coordinate (line number or extracted value).
-    double value;         // Y-axis value (extracted numeric or 1.0 for count mode).
-    QString xLabel;       // Optional display label for X-axis (raw timestamp text).
+    LineNumber line; // Line number in the log file (for click-to-navigate).
+    double xValue;   // X-axis coordinate (line number or extracted value).
+    double value;    // Y-axis value (extracted numeric or 1.0 for count mode).
+    QString xLabel;  // Optional display label for X-axis (raw timestamp text).
 };
 
 // Defines how to extract numeric values from log lines using a regex.
@@ -75,7 +75,10 @@ struct ChartSeriesDefinition {
     }
 
     // Whether a custom X-axis regex is configured.
-    bool hasCustomXAxis() const { return !xPattern.isEmpty(); }
+    bool hasCustomXAxis() const
+    {
+        return !xPattern.isEmpty();
+    }
 
     // Whether the X-axis uses timestamp parsing.
     bool isTimestampXAxis() const
@@ -84,7 +87,10 @@ struct ChartSeriesDefinition {
     }
 
     // Whether time-based aggregation (bucketing) is enabled.
-    bool isBucketed() const { return bucketSizeMs > 0 && isTimestampXAxis(); }
+    bool isBucketed() const
+    {
+        return bucketSizeMs > 0 && isTimestampXAxis();
+    }
 
     // Serialize to JSON for persistence.
     QJsonObject toJson() const

@@ -41,7 +41,7 @@ namespace logsquirl::plugins {
  * The temporary file is automatically cleaned up on destruction.
  */
 class StreamWriter {
-  public:
+public:
     /**
      * Create a stream writer with the given display name.
      * @param displayName  Human-readable label shown in the tab title.
@@ -56,7 +56,10 @@ class StreamWriter {
     QString filePath() const;
 
     /** Return the display name for this stream. */
-    const QString& displayName() const { return displayName_; }
+    const QString& displayName() const
+    {
+        return displayName_;
+    }
 
     /**
      * Append a single line to the stream.
@@ -76,9 +79,12 @@ class StreamWriter {
     void signalEos();
 
     /** Return true if end-of-stream has been signalled. */
-    bool isFinished() const { return finished_; }
+    bool isFinished() const
+    {
+        return finished_;
+    }
 
-  private:
+private:
     QString displayName_;
     QTemporaryDir tempDir_;
     QFile file_;

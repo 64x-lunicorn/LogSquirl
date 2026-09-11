@@ -29,7 +29,7 @@
 class AbstractLogData;
 
 class Portion {
-  public:
+public:
     Portion()
         : line_{}
         , startColumn_{ -1 }
@@ -67,7 +67,7 @@ class Portion {
         return ( endColumn_ - startColumn_ ) + 1_length;
     }
 
-  private:
+private:
     OptionalLineNumber line_;
     LineColumn startColumn_;
     LineColumn endColumn_;
@@ -75,7 +75,7 @@ class Portion {
 
 // Represents a selection in an AbstractLogView
 class Selection {
-  public:
+public:
     // Construct an empty selection
     Selection();
 
@@ -161,11 +161,11 @@ class Selection {
     // Idem from the position immediately before selection.
     FilePosition getPreviousPosition() const;
 
-  private:
+private:
     std::map<LineNumber, QString>
     getSelectionWithLineNumbers( const AbstractLogData* logData ) const;
 
-  private:
+private:
     // Line number currently selected, or -1 if none selected
     OptionalLineNumber selectedLine_;
 

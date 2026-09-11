@@ -29,12 +29,12 @@
 // Keeps track of the previously used searches and allows the application
 // to retrieve them.
 class SavedSearches final : public Persistable<SavedSearches, session_settings> {
-  public:
+public:
     static const char* persistableName()
     {
         return "SavedSearches";
     }
-    
+
     // Adds the passed search to the list of recently used searches
     void addRecent( const QString& text );
 
@@ -42,7 +42,7 @@ class SavedSearches final : public Persistable<SavedSearches, session_settings> 
     QStringList recentSearches() const;
 
     int historySize() const;
-    void setHistorySize(int historySize);
+    void setHistorySize( int historySize );
 
     void clear();
 
@@ -50,10 +50,10 @@ class SavedSearches final : public Persistable<SavedSearches, session_settings> 
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
+private:
     void trim();
 
-  private:
+private:
     static constexpr int SAVEDSEARCHES_VERSION = 1;
 
     static constexpr int MaxNumberOfRecentSearches = 50;

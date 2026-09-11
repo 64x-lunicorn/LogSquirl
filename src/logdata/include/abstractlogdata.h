@@ -51,7 +51,7 @@
 class AbstractLogData : public QObject {
     Q_OBJECT
 
-  public:
+public:
     // Returns the line passed as a QString
     QString getLineString( LineNumber line ) const;
     // Returns the line passed as a QString, with tabs expanded
@@ -92,16 +92,17 @@ class AbstractLogData : public QObject {
     };
     Q_DECLARE_FLAGS( LineType, LineTypeFlags )
 
-  protected:
+protected:
     // Internal function called to get a given line
     virtual QString doGetLineString( LineNumber line ) const = 0;
     // Internal function called to get a given line
     virtual QString doGetExpandedLineString( LineNumber line ) const = 0;
     // Internal function called to get a set of lines
-    virtual logsquirl::vector<QString> doGetLines( LineNumber first_line, LinesCount number ) const = 0;
+    virtual logsquirl::vector<QString> doGetLines( LineNumber first_line, LinesCount number ) const
+        = 0;
     // Internal function called to get a set of expanded lines
     virtual logsquirl::vector<QString> doGetExpandedLines( LineNumber first_line,
-                                                     LinesCount number ) const = 0;
+                                                           LinesCount number ) const = 0;
 
     // Internal function called to get the index of given line
     virtual LineNumber doGetLineNumber( LineNumber index ) const = 0;

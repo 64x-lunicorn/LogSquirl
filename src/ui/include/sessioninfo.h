@@ -50,7 +50,7 @@
 // Simple component class containing information related to the session
 // to be persisted and reloaded upon start
 class SessionInfo : public Persistable<SessionInfo, session_settings> {
-  public:
+public:
     static const char* persistableName()
     {
         return "SessionInfo";
@@ -149,7 +149,7 @@ class SessionInfo : public Persistable<SessionInfo, session_settings> {
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
+private:
     Window* findWindow( const QString& windowId ) const
     {
         auto window = std::find_if( windows_.begin(), windows_.end(),
@@ -164,7 +164,7 @@ class SessionInfo : public Persistable<SessionInfo, session_settings> {
         }
     }
 
-  private:
+private:
     mutable std::vector<Window> windows_;
 };
 

@@ -40,23 +40,23 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-#include "crc32.h"
 #include "clipboard.h"
+#include "crc32.h"
 #include "jwtdecoder.h"
 
 namespace logsquirl {
 
 class DateTimeBox : public QFormLayout {
-  public:
+public:
     DateTimeBox();
     ~DateTimeBox() = default;
 
     QString displayTime( const QString& text );
 
-  private:
+private:
     QString displayTime();
 
-  private:
+private:
     std::optional<qint64> timestamp_;
     QLineEdit* timeLine_;
     QComboBox* tzComboBox_;
@@ -365,8 +365,7 @@ void ScratchPad::formatXml()
 
 void ScratchPad::decodeJwt()
 {
-    transformTextInPlace(
-        []( QString text ) { return logsquirl::jwt::decodeToken( text ); } );
+    transformTextInPlace( []( QString text ) { return logsquirl::jwt::decodeToken( text ); } );
 }
 
 logsquirl::DateTimeBox::DateTimeBox()

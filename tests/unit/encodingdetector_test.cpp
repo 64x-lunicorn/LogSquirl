@@ -182,8 +182,7 @@ SCENARIO( "EncodingParameters CR offset helpers", "[encoding]" )
 
         THEN( "getAfterCrOffset is lineFeedWidth - lineFeedIndex - 1" )
         {
-            REQUIRE( params.getAfterCrOffset()
-                     == params.lineFeedWidth - params.lineFeedIndex - 1 );
+            REQUIRE( params.getAfterCrOffset() == params.lineFeedWidth - params.lineFeedIndex - 1 );
         }
     }
 }
@@ -210,15 +209,15 @@ SCENARIO( "EncodingDetector detects encoding from byte content", "[encoding]" )
             QString name = QString::fromLatin1( codec->name() ).toLower();
             bool isAsciiCompatible = name.contains( "utf-8" ) || name.contains( "ascii" )
                                      || name.contains( "iso-8859" )
-                                     || name.contains( "windows-1252" )
-                                     || name.contains( "latin" );
+                                     || name.contains( "windows-1252" ) || name.contains( "latin" );
             REQUIRE( isAsciiCompatible );
         }
     }
 
     GIVEN( "A block with UTF-8 BOM" )
     {
-        std::string text = "\xEF\xBB\xBF" "UTF-8 with BOM\n";
+        std::string text = "\xEF\xBB\xBF"
+                           "UTF-8 with BOM\n";
         logsquirl::vector<char> block( text.begin(), text.end() );
 
         auto* codec = EncodingDetector::getInstance().detectEncoding( block );

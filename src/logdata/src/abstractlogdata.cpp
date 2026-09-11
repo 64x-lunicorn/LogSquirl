@@ -57,14 +57,15 @@ QString AbstractLogData::getExpandedLineString( LineNumber line ) const
 }
 
 // Simple wrapper in order to use a clean Template Method
-logsquirl::vector<QString> AbstractLogData::getLines( LineNumber first_line, LinesCount number ) const
+logsquirl::vector<QString> AbstractLogData::getLines( LineNumber first_line,
+                                                      LinesCount number ) const
 {
     return doGetLines( first_line, number );
 }
 
 // Simple wrapper in order to use a clean Template Method
 logsquirl::vector<QString> AbstractLogData::getExpandedLines( LineNumber first_line,
-                                                        LinesCount number ) const
+                                                              LinesCount number ) const
 {
     return doGetExpandedLines( first_line, number );
 }

@@ -58,29 +58,25 @@ void registerHostApi( sol::state& lua, const LogSquirlHostApi* api, void* handle
     } );
 
     // log_message(level, message) — level: 0=debug, 1=info, 2=warning, 3=error
-    hostTable.set_function( "log_message",
-                            [ api, handle ]( int level, const std::string& msg ) {
-                                if ( api && api->log_message ) {
-                                    api->log_message( handle, level, msg.c_str() );
-                                }
-                            } );
+    hostTable.set_function( "log_message", [ api, handle ]( int level, const std::string& msg ) {
+        if ( api && api->log_message ) {
+            api->log_message( handle, level, msg.c_str() );
+        }
+    } );
 
     // show_notification(message)
-    hostTable.set_function( "show_notification",
-                            [ api, handle ]( const std::string& msg ) {
-                                if ( api && api->show_notification ) {
-                                    api->show_notification( handle, msg.c_str() );
-                                }
-                            } );
+    hostTable.set_function( "show_notification", [ api, handle ]( const std::string& msg ) {
+        if ( api && api->show_notification ) {
+            api->show_notification( handle, msg.c_str() );
+        }
+    } );
 
     // open_file(path, follow)
-    hostTable.set_function( "open_file",
-                            [ api, handle ]( const std::string& path, bool follow ) {
-                                if ( api && api->open_file ) {
-                                    api->open_file( handle, path.c_str(),
-                                                    follow ? 1 : 0 );
-                                }
-                            } );
+    hostTable.set_function( "open_file", [ api, handle ]( const std::string& path, bool follow ) {
+        if ( api && api->open_file ) {
+            api->open_file( handle, path.c_str(), follow ? 1 : 0 );
+        }
+    } );
 
     // get_config_dir() → string
     hostTable.set_function( "get_config_dir", [ api, handle ]() -> std::string {
@@ -100,8 +96,8 @@ std::unique_ptr<LuaPluginWrapper> LuaPluginWrapper::load( const QString& scriptP
     lua->open_libraries( sol::lib::base, sol::lib::string, sol::lib::table, sol::lib::math,
                          sol::lib::io, sol::lib::os );
 
-    const auto result = lua->safe_script_file( scriptPath.toStdString(),
-                                                sol::script_pass_on_error );
+    const auto result
+        = lua->safe_script_file( scriptPath.toStdString(), sol::script_pass_on_error );
     if ( !result.valid() ) {
         sol::error err = result;
         LOG_ERROR << "Failed to load Lua plugin " << scriptPath << ": " << err.what();

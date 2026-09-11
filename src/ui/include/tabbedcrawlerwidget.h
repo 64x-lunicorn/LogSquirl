@@ -34,19 +34,18 @@
 // a particular style.
 
 class CrawlerTabBar : public QTabBar {
-  Q_OBJECT
+    Q_OBJECT
 
-  Q_SIGNALS:
-    void showTabContextMenu(int tab, QPoint point);
+Q_SIGNALS:
+    void showTabContextMenu( int tab, QPoint point );
 
-  protected:
+protected:
     void mouseReleaseEvent( QMouseEvent* ) override;
-
 };
 
 class TabbedCrawlerWidget : public QTabWidget {
     Q_OBJECT
-  public:
+public:
     TabbedCrawlerWidget();
 
     // Emitted when multiple tabs should be closed at once (indices in order).
@@ -78,16 +77,16 @@ class TabbedCrawlerWidget : public QTabWidget {
 
     void removeCrawler( int index );
 
-  protected:
+protected:
     void keyPressEvent( QKeyEvent* event ) override;
     void mouseReleaseEvent( QMouseEvent* event ) override;
     void changeEvent( QEvent* event ) override;
 
-  public:
+public:
     // Re-applies group styling (bullet prefix + text colour) to all tabs.
     void refreshAllTabGroupAppearances();
 
-  private:
+private:
     void addTabBarItem( int index, const QString& fileName );
     QString tabPathAt( int index ) const;
 
@@ -103,10 +102,10 @@ class TabbedCrawlerWidget : public QTabWidget {
     void loadIcons();
     void updateIcon( int index );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void showContextMenu( int tab, QPoint globalPoint );
 
-  private:
+private:
     QIcon olddata_icon_;
     QIcon newdata_icon_;
     QIcon newfiltered_icon_;

@@ -23,25 +23,25 @@
 #include <QString>
 
 class DisplayFilePath {
-  public:
+public:
     explicit DisplayFilePath( const QString& fullPath );
 
     QString fullPath() const;
     QString nativeFullPath() const;
     QString displayName() const;
 
-  private:
+private:
     QString fullPath_;
     QString nativeFullPath_;
     QString displayName_;
 };
 
 class FullPathComparator {
-  public:
+public:
     explicit FullPathComparator( const QString& path );
     bool operator()( const DisplayFilePath& f ) const;
 
-  private:
+private:
     QString fullPath_;
 };
 

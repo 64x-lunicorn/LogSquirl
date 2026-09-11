@@ -69,8 +69,7 @@ void PluginRepository::fetchCatalog()
         reply->deleteLater();
 
         if ( reply->error() != QNetworkReply::NoError ) {
-            const auto msg = tr( "Failed to fetch plugin catalog: %1" )
-                                 .arg( reply->errorString() );
+            const auto msg = tr( "Failed to fetch plugin catalog: %1" ).arg( reply->errorString() );
             LOG_ERROR << msg;
             Q_EMIT fetchError( msg );
             return;
@@ -86,8 +85,8 @@ void PluginRepository::parseCatalog( const QByteArray& data )
     const auto doc = QJsonDocument::fromJson( data, &parseError );
 
     if ( parseError.error != QJsonParseError::NoError ) {
-        Q_EMIT fetchError( tr( "Failed to parse plugin catalog: %1" )
-                               .arg( parseError.errorString() ) );
+        Q_EMIT fetchError(
+            tr( "Failed to parse plugin catalog: %1" ).arg( parseError.errorString() ) );
         return;
     }
 
@@ -187,8 +186,8 @@ void PluginRepository::parseCatalogV1( const QJsonArray& plugins )
         catalog_.push_back( std::move( ce ) );
     }
 
-    LOG_INFO << "Plugin catalog (v1): " << catalog_.size() << " plugins, "
-             << legacyEntries_.size() << " entries for " << platform;
+    LOG_INFO << "Plugin catalog (v1): " << catalog_.size() << " plugins, " << legacyEntries_.size()
+             << " entries for " << platform;
 
     Q_EMIT catalogReady();
     Q_EMIT indexReady();
@@ -327,8 +326,8 @@ void PluginRepository::fetchIcon( const CatalogEntry& entry )
         if ( reply->error() == QNetworkReply::NoError ) {
             QPixmap pixmap;
             if ( pixmap.loadFromData( reply->readAll() ) ) {
-                iconCache_[ pluginId ] = pixmap.scaled( 48, 48, Qt::KeepAspectRatio,
-                                                        Qt::SmoothTransformation );
+                iconCache_[ pluginId ]
+                    = pixmap.scaled( 48, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation );
                 Q_EMIT iconReady( pluginId, iconCache_[ pluginId ] );
             }
         }
@@ -383,7 +382,7 @@ QPixmap PluginRepository::pluginIcon( const QString& pluginId ) const
 // ── Download ──────────────────────────────────────────────────────────
 
 void PluginRepository::downloadPlugin( const ReleaseAsset& asset, const QString& pluginId,
-                                        const QString& destDir )
+                                       const QString& destDir )
 {
     if ( asset.downloadUrl.isEmpty() ) {
         Q_EMIT downloadError( tr( "No download URL for plugin %1" ).arg( pluginId ) );
@@ -394,8 +393,7 @@ void PluginRepository::downloadPlugin( const ReleaseAsset& asset, const QString&
     request.setHeader( QNetworkRequest::UserAgentHeader, "LogSquirl-PluginRepo/2.0" );
 
     auto* reply = network_.get( request );
-    connect( reply, &QNetworkReply::downloadProgress, this,
-             &PluginRepository::downloadProgress );
+    connect( reply, &QNetworkReply::downloadProgress, this, &PluginRepository::downloadProgress );
 
     const auto expectedSha256 = asset.sha256.toLower();
     const auto fileName = QFileInfo( asset.downloadUrl.path() ).fileName();
@@ -406,8 +404,7 @@ void PluginRepository::downloadPlugin( const ReleaseAsset& asset, const QString&
 
                  if ( reply->error() != QNetworkReply::NoError ) {
                      Q_EMIT downloadError(
-                         tr( "Download failed for %1: %2" )
-                             .arg( pluginId, reply->errorString() ) );
+                         tr( "Download failed for %1: %2" ).arg( pluginId, reply->errorString() ) );
                      return;
                  }
 
@@ -419,10 +416,9 @@ void PluginRepository::downloadPlugin( const ReleaseAsset& asset, const QString&
                                .toHex()
                                .toLower();
                      if ( actualHash != expectedSha256 ) {
-                         Q_EMIT downloadError(
-                             tr( "Checksum mismatch for %1: expected %2, got %3" )
-                                 .arg( pluginId, expectedSha256,
-                                       QString::fromLatin1( actualHash ) ) );
+                         Q_EMIT downloadError( tr( "Checksum mismatch for %1: expected %2, got %3" )
+                                                   .arg( pluginId, expectedSha256,
+                                                         QString::fromLatin1( actualHash ) ) );
                          return;
                      }
                  }
@@ -466,8 +462,7 @@ QString PluginRepository::currentPlatform()
 
 // ── Archive extraction ────────────────────────────────────────────────
 
-bool PluginRepository::extractPluginArchive( const QString& archivePath,
-                                             const QString& destDir,
+bool PluginRepository::extractPluginArchive( const QString& archivePath, const QString& destDir,
                                              QString* errorMessage )
 {
     KZip zip( archivePath );

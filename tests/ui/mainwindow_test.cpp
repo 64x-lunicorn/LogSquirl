@@ -40,7 +40,7 @@ SCENARIO( "Main window tests", "[ui]" )
     std::unique_ptr<MainWindow> mainWindow;
     std::unique_ptr<SafeQSignalSpy> activateSpy;
     std::unique_ptr<SafeQSignalSpy> exitSpy;
-    QTimer::singleShot( 0, [&] {
+    QTimer::singleShot( 0, [ & ] {
         LOG_INFO << "Initialize main window";
         mainWindow.reset( new MainWindow( windowSession ) );
         exitSpy.reset( new SafeQSignalSpy( mainWindow.get(), SIGNAL( exitRequested() ) ) );
@@ -52,7 +52,7 @@ SCENARIO( "Main window tests", "[ui]" )
     QTest::qWait( 100 );
     REQUIRE( activateSpy->safeWait() );
 
-    auto runInUiThread = [uiObject = mainWindow.get()]( auto&& func ) {
+    auto runInUiThread = [ uiObject = mainWindow.get() ]( auto&& func ) {
         QTimer::singleShot( 0, Qt::VeryCoarseTimer, uiObject,
                             std::forward<decltype( func )>( func ) );
         QTest::qWait( 100 );
@@ -85,7 +85,7 @@ SCENARIO( "Main window tests", "[ui]" )
 
         WHEN( "Exit hotkey pressed" )
         {
-            runInUiThread( [&mainWindow] {
+            runInUiThread( [ &mainWindow ] {
                 LOG_INFO << "ExitFromMainMenu";
                 QTest::keyPress( mainWindow.get(), Qt::Key_Q, Qt::ControlModifier );
             } );
@@ -98,36 +98,37 @@ SCENARIO( "Main window tests", "[ui]" )
 
         WHEN( "Load file" )
         {
-            runInUiThread( [&mainWindow] {
+            runInUiThread( [ &mainWindow ] {
                 LOG_INFO << "Load file";
                 mainWindow->loadInitialFile( "logsquirl.conf", false );
             } );
 
             THEN( "Path line has file name" )
             {
-                REQUIRE(
-                    waitUiState( [&] { return filePathLabel->text().contains( "logsquirl.conf" ); } ) );
+                REQUIRE( waitUiState(
+                    [ & ] { return filePathLabel->text().contains( "logsquirl.conf" ); } ) );
 
                 AND_THEN( "Has one tab" )
                 {
-                    REQUIRE( waitUiState( [&] { return tabArea->count() == baseTabCount + 1; } ) );
+                    REQUIRE(
+                        waitUiState( [ & ] { return tabArea->count() == baseTabCount + 1; } ) );
                 }
             }
 
             AND_WHEN( "Close tab hotkey pressed" )
             {
-                runInUiThread( [&mainWindow] {
+                runInUiThread( [ &mainWindow ] {
                     LOG_INFO << "Close tab";
                     QTest::keyPress( mainWindow.get(), Qt::Key_W, Qt::ControlModifier );
                 } );
 
                 THEN( "Has no tabs" )
                 {
-                    REQUIRE( waitUiState( [&] { return tabArea->count() == baseTabCount; } ) );
+                    REQUIRE( waitUiState( [ & ] { return tabArea->count() == baseTabCount; } ) );
 
                     AND_THEN( "Path label empty" )
                     {
-                        REQUIRE( waitUiState( [&] { return filePathLabel->text().isEmpty(); } ) );
+                        REQUIRE( waitUiState( [ & ] { return filePathLabel->text().isEmpty(); } ) );
                     }
                 }
             }

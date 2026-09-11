@@ -21,7 +21,7 @@
 #include "xxhash.h"
 
 class DigestInternalState {
-  public:
+public:
     DigestInternalState()
     {
         m_state = XXH64_createState();
@@ -48,7 +48,7 @@ class DigestInternalState {
         return XXH64_digest( m_state );
     }
 
-  private:
+private:
     XXH64_state_t* m_state;
 };
 

@@ -98,8 +98,7 @@ SCENARIO( "PluginManager autoLoadPlugins respects auto-load=false", "[pluginmana
     }
 }
 
-SCENARIO( "PluginManager discovers plugins in a temporary directory",
-          "[pluginmanager][plugins]" )
+SCENARIO( "PluginManager discovers plugins in a temporary directory", "[pluginmanager][plugins]" )
 {
     GIVEN( "A temporary directory with a valid plugin.json" )
     {

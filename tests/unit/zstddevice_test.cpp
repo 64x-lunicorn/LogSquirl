@@ -39,10 +39,9 @@ bool writeZstdFile( QTemporaryFile& file, const QByteArray& rawData )
     const auto maxDst = ZSTD_compressBound( static_cast<std::size_t>( rawData.size() ) );
     QByteArray compressed( static_cast<int>( maxDst ), Qt::Uninitialized );
 
-    const auto compressedSize = ZSTD_compress(
-        compressed.data(), maxDst,
-        rawData.constData(), static_cast<std::size_t>( rawData.size() ),
-        1 /* compression level */ );
+    const auto compressedSize
+        = ZSTD_compress( compressed.data(), maxDst, rawData.constData(),
+                         static_cast<std::size_t>( rawData.size() ), 1 /* compression level */ );
 
     if ( ZSTD_isError( compressedSize ) ) {
         return false;

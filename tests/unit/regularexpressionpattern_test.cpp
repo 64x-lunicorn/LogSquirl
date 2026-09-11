@@ -49,7 +49,7 @@ RegularExpressionPattern makePattern( const QString& text = "error", bool caseSe
 } // namespace
 
 SCENARIO( "RegularExpressionPattern equality compares every field against the other pattern",
-         "[regex][pattern]" )
+          "[regex][pattern]" )
 {
     GIVEN( "two patterns identical in every field" )
     {
@@ -82,7 +82,8 @@ SCENARIO( "RegularExpressionPattern equality compares every field against the ot
     {
         THEN( "they are not equal" )
         {
-            REQUIRE_FALSE( makePattern( "error", true, false ) == makePattern( "error", true, true ) );
+            REQUIRE_FALSE( makePattern( "error", true, false )
+                           == makePattern( "error", true, true ) );
         }
     }
 
@@ -115,7 +116,7 @@ SCENARIO( "RegularExpressionPattern equality compares every field against the ot
 }
 
 SCENARIO( "A cache keyed on RegularExpressionPattern does not conflate two modes",
-         "[regex][pattern][cache]" )
+          "[regex][pattern][cache]" )
 {
     GIVEN( "a cache whose key is a RegularExpressionPattern, all colliding into one bucket" )
     {

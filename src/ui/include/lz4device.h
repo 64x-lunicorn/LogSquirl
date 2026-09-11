@@ -30,7 +30,7 @@ struct LZ4F_dctx_s;
 
 /// Read-only sequential QIODevice that decompresses a .lz4 file via liblz4 frame API.
 class Lz4Device : public QIODevice {
-  public:
+public:
     explicit Lz4Device( const QString& filePath, QObject* parent = nullptr );
     ~Lz4Device() override;
 
@@ -43,11 +43,11 @@ class Lz4Device : public QIODevice {
     bool atEnd() const override;
     qint64 bytesAvailable() const override;
 
-  protected:
+protected:
     qint64 readData( char* data, qint64 maxSize ) override;
     qint64 writeData( const char* data, qint64 maxSize ) override;
 
-  private:
+private:
     QString filePath_;
     QFile file_;
 

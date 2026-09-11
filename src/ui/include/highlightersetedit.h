@@ -50,7 +50,7 @@
 class HighlighterSetEdit : public QWidget, public Ui::HighlighterSetEdit {
     Q_OBJECT
 
-  public:
+public:
     explicit HighlighterSetEdit( QWidget* parent = nullptr );
 
     HighlighterSet highlighters() const;
@@ -58,10 +58,10 @@ class HighlighterSetEdit : public QWidget, public Ui::HighlighterSetEdit {
 
     void reset();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void changed();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void setName( const QString& name );
 
     void addHighlighter();
@@ -77,11 +77,11 @@ class HighlighterSetEdit : public QWidget, public Ui::HighlighterSetEdit {
     // Update the selected Highlighter from the values in the property fields.
     void updateHighlighterProperties();
 
-  private:
+private:
     void populateHighlighterList();
     void setCurrentRow( int row );
 
-  private:
+private:
     HighlighterEdit* highlighterEdit_;
 
     // Temporary HighlighterSet modified by the dialog

@@ -99,9 +99,7 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     forceFontAntialiasing_
         = settings.value( "mainFont.antialiasing", DefaultConfiguration.forceFontAntialiasing_ )
               .toBool();
-    useBoldFont_
-        = settings.value( "mainFont.bold", DefaultConfiguration.useBoldFont_ )
-              .toBool();
+    useBoldFont_ = settings.value( "mainFont.bold", DefaultConfiguration.useBoldFont_ ).toBool();
 
     language_ = settings.value( "view.language", DefaultConfiguration.language_ ).toString();
 
@@ -141,19 +139,16 @@ void Configuration::retrieveFromStorage( QSettings& settings )
                       DefaultConfiguration.enableMainSearchHighlightVariance_ )
               .toBool();
 
-    mainSearchBackColor_
-        .fromString(
-            settings
-                .value( "regexpType.mainBackColor",
-                        DefaultConfiguration.mainSearchBackColor_.name( QColor::HexArgb ) )
-                .toString() );
+    mainSearchBackColor_.fromString(
+        settings
+            .value( "regexpType.mainBackColor",
+                    DefaultConfiguration.mainSearchBackColor_.name( QColor::HexArgb ) )
+            .toString() );
 
-    qfBackColor_
-        .fromString(
-            settings
-                .value( "regexpType.quickfindBackColor",
-                        DefaultConfiguration.qfBackColor_.name( QColor::HexArgb ) )
-                .toString() );
+    qfBackColor_.fromString( settings
+                                 .value( "regexpType.quickfindBackColor",
+                                         DefaultConfiguration.qfBackColor_.name( QColor::HexArgb ) )
+                                 .toString() );
 
     qfIgnoreCase_
         = settings.value( "quickfind.ignore_case", DefaultConfiguration.qfIgnoreCase_ ).toBool();
@@ -195,8 +190,7 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         = settings.value( "view.fastScrollEnabled", DefaultConfiguration.fastScrollEnabled_ )
               .toBool();
     fastScrollMultiplier_
-        = settings
-              .value( "view.fastScrollMultiplier", DefaultConfiguration.fastScrollMultiplier_ )
+        = settings.value( "view.fastScrollMultiplier", DefaultConfiguration.fastScrollMultiplier_ )
               .toInt();
 
     loadLastSession_
@@ -218,10 +212,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     enableVersionChecking_
         = settings.value( "versionchecker.enabled", DefaultConfiguration.enableVersionChecking_ )
               .toBool();
-    enableBetaVersionChecking_
-        = settings.value( "versionchecker.betaEnabled",
-                          DefaultConfiguration.enableBetaVersionChecking_ )
-              .toBool();
+    enableBetaVersionChecking_ = settings
+                                     .value( "versionchecker.betaEnabled",
+                                             DefaultConfiguration.enableBetaVersionChecking_ )
+                                     .toBool();
 
     extractArchives_
         = settings.value( "archives.extract", DefaultConfiguration.extractArchives_ ).toBool();
@@ -325,9 +319,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     searchIgnoreCase_
         = settings.value( "defaultView.searchIgnoreCase", DefaultConfiguration.searchIgnoreCase_ )
               .toBool();
-    searchLogicalCombining_
-        = settings.value( "defaultView.searchLogicalCombining", DefaultConfiguration.searchLogicalCombining_ )
-              .toBool();
+    searchLogicalCombining_ = settings
+                                  .value( "defaultView.searchLogicalCombining",
+                                          DefaultConfiguration.searchLogicalCombining_ )
+                                  .toBool();
 
     defaultEncodingMib_
         = settings.value( "defaultView.encodingMib", DefaultConfiguration.defaultEncodingMib_ )
@@ -375,12 +370,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
               .toBool();
 
     showDashboard_
-        = settings.value( "view.showDashboard", DefaultConfiguration.showDashboard_ )
-              .toBool();
+        = settings.value( "view.showDashboard", DefaultConfiguration.showDashboard_ ).toBool();
 
     toolbarIconSize_
-        = settings.value( "view.toolbarIconSize", DefaultConfiguration.toolbarIconSize_ )
-              .toInt();
+        = settings.value( "view.toolbarIconSize", DefaultConfiguration.toolbarIconSize_ ).toInt();
 
     autoDetectLogFormats_
         = settings.value( "logformat.autoDetect", DefaultConfiguration.autoDetectLogFormats_ )

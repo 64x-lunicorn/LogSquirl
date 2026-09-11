@@ -108,8 +108,8 @@ ViewInterface* Session::openAlways( const QString& file_name,
                                     const QString& view_context )
 {
     // Create the data objects
-    auto log_data = std::make_shared<LogData>( policies_.indexing, policies_.search,
-                                              policies_.fileAccess );
+    auto log_data
+        = std::make_shared<LogData>( policies_.indexing, policies_.search, policies_.fileAccess );
     auto log_filtered_data = std::shared_ptr<LogFilteredData>( log_data->getNewFilteredData() );
 
     ViewInterface* view = view_factory();

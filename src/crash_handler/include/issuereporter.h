@@ -25,7 +25,7 @@
 enum class IssueTemplate { Crash, Exception, Bug };
 
 class IssueReporter {
-  public:
+public:
     static void askUserAndReportIssue( IssueTemplate issueTemplate,
                                        const QString& information = {} );
     static void reportIssue( IssueTemplate issueTemplate, const QString& information = {} );

@@ -107,8 +107,7 @@ QVariant LogFormatTableModel::data( const QModelIndex& index, int role ) const
     return cached.columns[ col ];
 }
 
-QVariant LogFormatTableModel::headerData( int section, Qt::Orientation orientation,
-                                          int role ) const
+QVariant LogFormatTableModel::headerData( int section, Qt::Orientation orientation, int role ) const
 {
     if ( role != Qt::DisplayRole || orientation != Qt::Horizontal ) {
         return {};

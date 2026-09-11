@@ -60,7 +60,6 @@
 #include "chartpanel.h"
 #include "colorlabelsmanager.h"
 #include "filteredview.h"
-#include "predefinedfilters.h"
 #include "iconloader.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
@@ -68,6 +67,7 @@
 #include "logfiltereddata.h"
 #include "logmainview.h"
 #include "overview.h"
+#include "predefinedfilters.h"
 #include "signalmux.h"
 #include "viewinterface.h"
 
@@ -91,7 +91,7 @@ class CrawlerWidget : public QSplitter,
                       public MuxableDocumentInterface {
     Q_OBJECT
 
-  public:
+public:
     CrawlerWidget( QWidget* parent = nullptr );
 
     // Get the line number of the first line displayed.
@@ -122,7 +122,7 @@ class CrawlerWidget : public QSplitter,
 
     void registerShortcuts();
 
-  public Q_SLOTS:
+public Q_SLOTS:
     // Stop the asynchoronous loading of the file if one is in progress
     // The file is identified by the view attached to it.
     void stopLoading();
@@ -137,11 +137,11 @@ class CrawlerWidget : public QSplitter,
     // Instructs the widget to reconfigure itself because Config() has changed.
     void applyConfiguration();
 
-  public:
+public:
     template <class T>
     struct access_by;
 
-  protected:
+protected:
     // Implementation of the ViewInterface functions
     void doSetData( std::shared_ptr<LogData> logData,
                     std::shared_ptr<LogFilteredData> filteredData ) override;
@@ -160,7 +160,7 @@ class CrawlerWidget : public QSplitter,
 
     void changeEvent( QEvent* event ) override;
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent to signal the client load has progressed,
     // passing the completion percentage.
     void loadingProgressed( int progress );
@@ -194,14 +194,14 @@ class CrawlerWidget : public QSplitter,
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
 
-  public Q_SLOTS:
+public Q_SLOTS:
     // Apply a list of predefined filters as the current search pattern.
     void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
 
     // Start a new search using the current search line content.
     void startNewSearch();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
@@ -283,23 +283,23 @@ class CrawlerWidget : public QSplitter,
     // Toggle between text view and table view (if format detected)
     void toggleTableView();
 
-  public Q_SLOTS:
+public Q_SLOTS:
     void toggleChartPanel();
     // Create chart series from the current search filter patterns and show
     // them in the chart panel.
     void showFilterFrequency();
 
-  private Q_SLOTS:
+private Q_SLOTS:
 
-    void changeFilteredView(int tabIndex);
-    void closeFilteredView(int tabIndex);
-    void filteredViewDestroyed(QObject* view);
+    void changeFilteredView( int tabIndex );
+    void closeFilteredView( int tabIndex );
+    void filteredViewDestroyed( QObject* view );
 
-  private:
+private:
     // State machine holding the state of the search, used to allow/disallow
     // auto-refresh and inform the user via the info line.
     class SearchState {
-      public:
+    public:
         enum State {
             NoSearch,
             Static,
@@ -342,7 +342,7 @@ class CrawlerWidget : public QSplitter,
             return ( state_ == FileTruncated || state_ == TruncatedAutorefreshing );
         }
 
-      private:
+    private:
         State state_;
         bool autoRefreshRequested_;
     };
@@ -358,7 +358,6 @@ class CrawlerWidget : public QSplitter,
     void updateEncoding();
     void changeTopViewSize( int32_t delta );
 
-
     QString escapeSearchPattern( const QString& searchPattern, bool isRegex = false ) const;
     QString& combinePatterns( QString& currentPattern, const QString& newPattern ) const;
     void setSearchPattern( const QString& searchPattern );
@@ -367,7 +366,7 @@ class CrawlerWidget : public QSplitter,
 
     void updateColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
 
-    void connectAllFilteredViewSlots( FilteredView* view);
+    void connectAllFilteredViewSlots( FilteredView* view );
 
     void saveSplitterSizes() const;
 
@@ -515,11 +514,11 @@ class CrawlerWidget : public QSplitter,
     // Portion (in-cell text) selection state for the table view.
     // Tracks a drag-selection of characters within a single cell.
     struct TableCellSelection {
-        bool active = false;       // Is a portion selection in progress / completed?
-        int row = -1;              // Row of the selected cell
-        int column = -1;           // Column of the selected cell
-        int startChar = 0;         // Start character index (inclusive)
-        int endChar = 0;           // End character index (exclusive)
+        bool active = false; // Is a portion selection in progress / completed?
+        int row = -1;        // Row of the selected cell
+        int column = -1;     // Column of the selected cell
+        int startChar = 0;   // Start character index (inclusive)
+        int endChar = 0;     // End character index (exclusive)
 
         // Clear the selection.
         void clear()
@@ -538,15 +537,15 @@ class CrawlerWidget : public QSplitter,
                 return {};
             }
             const int lo = std::min( startChar, endChar );
-            const int hi = std::min( std::max( startChar, endChar ),
-                                     static_cast<int>( cellText.size() ) );
+            const int hi
+                = std::min( std::max( startChar, endChar ), static_cast<int>( cellText.size() ) );
             return cellText.mid( lo, hi - lo );
         }
     };
 
     TableCellSelection tableCellSelection_;
-    bool tableSelectionDragging_ = false;  // Mouse drag in progress?
-    int tableHoverRow_ = -1;               // Row under the mouse for hover highlight
+    bool tableSelectionDragging_ = false; // Mouse drag in progress?
+    int tableHoverRow_ = -1;              // Row under the mouse for hover highlight
 
     // Convert a pixel X position within a cell to a character index.
     int tableCellCharAtX( const QModelIndex& index, int pixelX ) const;

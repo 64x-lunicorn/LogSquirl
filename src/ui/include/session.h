@@ -41,8 +41,7 @@ class LogFilteredData;
 class SavedSearches;
 
 // File unreadable error
-class FileUnreadableErr {
-};
+class FileUnreadableErr {};
 
 // The session is responsible for maintaining the list of open log files
 // and their association with Views.
@@ -52,7 +51,7 @@ class FileUnreadableErr {
 class WindowSession;
 
 class Session : public std::enable_shared_from_this<Session> {
-  public:
+public:
     // The Policies the application derived. The Session does not consume
     // them itself: it is the place that builds a Log File's data objects,
     // so it is the place that has to hand each one what it is allowed to
@@ -119,7 +118,7 @@ class Session : public std::enable_shared_from_this<Session> {
         exitRequested_ = isRequested;
     }
 
-  private:
+private:
     struct OpenFile {
         QString fileName;
         std::shared_ptr<LogData> logData;
@@ -159,7 +158,7 @@ using SaveFileInfo
     = std::tuple<const ViewInterface*, uint64_t, std::shared_ptr<const ViewContextInterface>>;
 
 class WindowSession {
-  public:
+public:
     WindowSession( std::shared_ptr<Session> appSession, const QString& id, size_t index );
 
     ViewInterface* getViewIfOpen( const QString& file_name ) const
@@ -177,8 +176,8 @@ class WindowSession {
     void close( const ViewInterface* view )
     {
         auto it = std::find( openedFiles_.begin(), openedFiles_.end(), getFilename( view ) );
-        if (it != openedFiles_.end()) {
-            openedFiles_.erase(it);
+        if ( it != openedFiles_.end() ) {
+            openedFiles_.erase( it );
         }
 
         appSession_->close( view );
@@ -236,7 +235,7 @@ class WindowSession {
     // returns true if caller needs to save settings
     bool close();
 
-  private:
+private:
     std::shared_ptr<Session> appSession_;
     QString windowId_;
     size_t windowIndex_;

@@ -51,14 +51,14 @@
 class PredefinedFiltersDialog : public QDialog, public Ui::PredefinedFiltersDialog {
     Q_OBJECT
 
-  public:
+public:
     explicit PredefinedFiltersDialog( QWidget* parent = nullptr );
     PredefinedFiltersDialog( const QString& newFilter, QWidget* parent = nullptr );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void optionsChanged();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void addFilterSet();
     void removeFilterSet();
 
@@ -76,7 +76,7 @@ class PredefinedFiltersDialog : public QDialog, public Ui::PredefinedFiltersDial
     // Write changes from the embedded editor back to the selected group.
     void updateFilterSetProperties();
 
-  private:
+private:
     void populateSetList();
     void setCurrentRow( int row );
 

@@ -35,21 +35,21 @@ class QPoint;
 class MenuActionToolTipBehavior : public QObject {
     Q_OBJECT
 
-  public:
+public:
     MenuActionToolTipBehavior( QAction* menuAction, QMenu* menuParent, QObject* parent );
 
     // Time in ms that mouse needs to stay unmoved for tooltip to be shown
     int toolTipDelay(); /* ms */
     void setToolTipDelay( int ms );
 
-  private:
+private:
     void timerEvent( QTimerEvent* event ) override;
     void showToolTip( const QPoint& position );
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void onActionHovered();
 
-  private:
+private:
     QAction* action;
     QMenu* parentMenu;
     int toolTipDelayMs;
@@ -58,19 +58,19 @@ class MenuActionToolTipBehavior : public QObject {
 };
 
 class HoverMenu : public QMenu {
-  public:
+public:
     explicit HoverMenu( const QString& title, QWidget* parent = nullptr );
 
     void mouseMoveEvent( QMouseEvent* ) override;
     void mouseReleaseEvent( QMouseEvent* ) override;
 
-  private:
+private:
     inline bool mouseInMenu( const QPoint& pos )
     {
         return this->rect().contains( pos );
     }
 
-  private:
+private:
     bool mouseInMenu_;
 };
 

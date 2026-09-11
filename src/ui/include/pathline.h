@@ -22,19 +22,17 @@
 
 #include "infoline.h"
 
-class PathLine : public InfoLine
-{
-  Q_OBJECT
+class PathLine : public InfoLine {
+    Q_OBJECT
 
 public:
-    void setPath(const QString& path);
+    void setPath( const QString& path );
 
-  protected:
-    void contextMenuEvent(QContextMenuEvent *event) override;
+protected:
+    void contextMenuEvent( QContextMenuEvent* event ) override;
 
-  private:
+private:
     QString path_;
 };
-
 
 #endif // LOGSQUIRL_PATHLINE_H

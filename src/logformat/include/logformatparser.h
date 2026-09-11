@@ -29,7 +29,7 @@
 //   level, sample, file-pattern, timestamp-format, ordered-by-time,
 //   thread-id-field, opid-field, title, description
 class LogFormatParser {
-  public:
+public:
     // Parse a JSON string that may contain one or more format definitions.
     // Returns a list of successfully parsed formats.
     // Keys like "$schema" are ignored.

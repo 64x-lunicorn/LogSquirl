@@ -33,13 +33,12 @@
 #include "hsregularexpression.h"
 #include "regularexpressionpattern.h"
 
-
 class PatternMatcher;
 class MultiPatternMatcher;
 class BooleanExpressionEvaluator;
 
 class RegularExpression {
-  public:
+public:
     // The engine is the caller's choice, not this module's: resolved once
     // where the object graph is built and handed in here, so that nothing
     // under regex/ has to reach for the ambient settings object -- and so
@@ -51,7 +50,7 @@ class RegularExpression {
     bool isValid() const;
     QString errorString() const;
 
-  private:
+private:
     bool isInverse_ = false;
     bool isBooleanCombination_ = false;
     RegexpEngine engine_;
@@ -68,17 +67,18 @@ class RegularExpression {
 };
 
 class PatternMatcher {
-  public:
+public:
     explicit PatternMatcher( const RegularExpression& expression );
     ~PatternMatcher();
 
     bool hasMatch( std::string_view line ) const;
 
-  private:
-    using MatchFunc = bool ( * )( std::string_view line, const MatcherVariant& matcher, BooleanExpressionEvaluator* evaluator );
+private:
+    using MatchFunc = bool ( * )( std::string_view line, const MatcherVariant& matcher,
+                                  BooleanExpressionEvaluator* evaluator );
     MatchFunc hasMatchImpl_;
 
-  private:
+private:
     bool isInverse_ = false;
     bool isBooleanCombination_ = false;
 
@@ -89,7 +89,7 @@ class PatternMatcher {
 };
 
 class MultiRegularExpression {
-  public:
+public:
     explicit MultiRegularExpression( const logsquirl::vector<RegularExpressionPattern>& patterns );
 
     std::unique_ptr<MultiPatternMatcher> createMatcher() const;
@@ -97,7 +97,7 @@ class MultiRegularExpression {
     bool isValid() const;
     QString errorString() const;
 
-  private:
+private:
     logsquirl::vector<RegularExpressionPattern> patterns_;
 
     bool isValid_ = false;
@@ -109,13 +109,14 @@ class MultiRegularExpression {
 };
 
 class MultiPatternMatcher {
-  public:
+public:
     explicit MultiPatternMatcher( const MultiRegularExpression& expression );
     ~MultiPatternMatcher();
 
-    logsquirl::vector<std::pair<RegularExpressionPattern, bool>> match( std::string_view line ) const;
+    logsquirl::vector<std::pair<RegularExpressionPattern, bool>>
+    match( std::string_view line ) const;
 
-  private:
+private:
     MatcherVariant matcher_;
     logsquirl::vector<RegularExpressionPattern> patterns_;
 };

@@ -28,7 +28,7 @@
 enum class DecompressAction { None, Extract, Decompress };
 class Decompressor : public QObject {
     Q_OBJECT
-  public:
+public:
     explicit Decompressor( QObject* parent = nullptr );
 
     bool decompress( const QString& path, QFile* outputFile, AtomicFlag& interrupt );
@@ -39,10 +39,10 @@ class Decompressor : public QObject {
 
     static DecompressAction action( const QString& archiveFilePath );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void finished( bool );
 
-  private:
+private:
     QFuture<bool> future_;
     QFutureWatcher<bool> watcher_;
 };

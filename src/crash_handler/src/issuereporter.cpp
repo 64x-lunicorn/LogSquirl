@@ -99,12 +99,12 @@ void IssueReporter::reportIssue( IssueTemplate issueTemplate, const QString& inf
     const auto kernelVersion = QSysInfo::kernelVersion();
     const auto arch = QSysInfo::currentCpuArchitecture();
     const auto builtAbi = QSysInfo::buildAbi();
-    
+
     const auto concurrency = QThreadPool::globalInstance()->maxThreadCount();
 
     body.append( QString( DetailsFooter )
                      .arg( version, buildDate, commit, builtAbi, os, kernelType, kernelVersion,
-                           arch, std::to_string(concurrency).c_str() ) );
+                           arch, std::to_string( concurrency ).c_str() ) );
     body.append( QString( LibraryVersionsFooter ).arg( qVersion(), TBB_runtime_version() ) );
 
     QByteArray urlBytes = "https://github.com/64x-lunicorn/LogSquirl/issues/new?body=";

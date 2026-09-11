@@ -33,7 +33,8 @@ static bool isMetaKey( const QString& key )
 
 // Parse a single format definition from a JSON object.
 // Returns true on success, filling 'def'. Returns false if the format lacks a "regex" section.
-static bool parseSingleFormat( const QString& name, const QJsonObject& obj, LogFormatDefinition& def )
+static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
+                               LogFormatDefinition& def )
 {
     // "regex" is required — without it we cannot match log lines
     if ( !obj.contains( "regex" ) || !obj.value( "regex" ).isObject() ) {

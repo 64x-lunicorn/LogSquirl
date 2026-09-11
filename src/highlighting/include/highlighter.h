@@ -62,7 +62,7 @@ struct HighlightColor {
 // Represents a filter, i.e. a regexp and the colors matching text
 // should be rendered in.
 class Highlighter {
-  public:
+public:
     // Construct an uninitialized Highlighter (when reading from a config file)
     Highlighter() = default;
     Highlighter( const QString& pattern, bool ignoreCase, bool onlyMatch, const QColor& foreColor,
@@ -101,10 +101,10 @@ class Highlighter {
 
     void compile() const;
 
-  private:
+private:
     std::pair<QColor, QColor> vairateColors( const QString& match ) const;
 
-  private:
+private:
     QRegularExpression regexp_;
 
     mutable std::optional<QRegularExpression> optimizedRegexp_;
@@ -124,7 +124,7 @@ class HighlighterSetCollection;
 
 // Represents an ordered set of filters to be applied to each line displayed.
 class HighlighterSet {
-  public:
+public:
     static const char* persistableName()
     {
         return "HighlighterSet";
@@ -142,8 +142,7 @@ class HighlighterSet {
 
     // Returns weither the passed line match a filter of the set,
     // if so, it returns the fore/back colors the line should use.
-    HighlighterMatchType matchLine( const QString& line,
-                                    HighlightedMatchRanges& matches ) const;
+    HighlighterMatchType matchLine( const QString& line, HighlightedMatchRanges& matches ) const;
 
     bool isEmpty() const;
 
@@ -153,10 +152,10 @@ class HighlighterSet {
 
     void compile() const;
 
-  private:
+private:
     explicit HighlighterSet( const QString& name );
 
-  private:
+private:
     static constexpr int HighlighterSet_VERSION = 3;
     static constexpr int FilterSet_VERSION = 2;
 

@@ -20,8 +20,8 @@
 #ifndef LOGSQUIRL_PERSISTABLE_H
 #define LOGSQUIRL_PERSISTABLE_H
 
-#include <type_traits>
 #include <stdexcept>
+#include <type_traits>
 
 #include "log.h"
 #include "persistentinfo.h"
@@ -31,7 +31,7 @@ class QSettings;
 template <typename T, typename SettingsType = app_settings>
 class Persistable {
 
-  public:
+public:
     static T& get()
     {
         return getPersistable( false );
@@ -50,7 +50,7 @@ class Persistable {
         static_cast<const T&>( *this ).saveToStorage( settings );
     }
 
-  private:
+private:
     static T& getPersistable( bool willBeInitialized = false )
     {
         static bool persistableInitialized = false;

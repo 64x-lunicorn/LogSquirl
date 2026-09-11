@@ -27,7 +27,7 @@
 #include <vector>
 
 class ColorLabelsManager {
-  public:
+public:
     using QuickHighlightersCollection = std::vector<AbstractLogView::QuickHighlighters>;
 
     QuickHighlightersCollection colorLabels() const;
@@ -37,11 +37,11 @@ class ColorLabelsManager {
 
     QuickHighlightersCollection clear();
 
-  private:
+private:
     QuickHighlightersCollection updateColorLabel( size_t label, const QString& text,
                                                   bool replaceCurrent );
 
-    QuickHighlightersCollection quickHighlighters_ = QuickHighlightersCollection{9};
+    QuickHighlightersCollection quickHighlighters_ = QuickHighlightersCollection{ 9 };
     std::optional<size_t> currentLabel_;
 };
 

@@ -89,9 +89,9 @@ QStringList LogFieldExtractor::columnNames() const
             }
 
             // Accept special fields and value definitions
-            const bool isSpecial = ( fieldName == tsField || fieldName == lvlField
-                                     || fieldName == bodyField || fieldName == threadField
-                                     || fieldName == opidField );
+            const bool isSpecial
+                = ( fieldName == tsField || fieldName == lvlField || fieldName == bodyField
+                    || fieldName == threadField || fieldName == opidField );
             const bool isValueDef = ( valIt != valueDefs.end() );
 
             if ( isSpecial || isValueDef ) {

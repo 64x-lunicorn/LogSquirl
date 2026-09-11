@@ -27,7 +27,7 @@
 // Notifications sent by the QF for displaying to the user
 // and their translation in UI text.
 class QFNotification {
-  public:
+public:
     explicit QFNotification( const QString& message = "" )
         : message_{ message }
     {
@@ -46,17 +46,17 @@ class QFNotification {
                      fm.size( Qt::TextSingleLine, REACHED_EOF ).width() );
     }
 
-  protected:
+protected:
     static const QString REACHED_EOF;
     static const QString REACHED_BOF;
     static const QString INTERRUPTED;
 
-  private:
+private:
     QString message_;
 };
 
 class QFNotificationReachedEndOfFile : public QFNotification {
-  public:
+public:
     QFNotificationReachedEndOfFile()
         : QFNotification( REACHED_EOF )
     {
@@ -64,7 +64,7 @@ class QFNotificationReachedEndOfFile : public QFNotification {
 };
 
 class QFNotificationReachedBegininningOfFile : public QFNotification {
-  public:
+public:
     QFNotificationReachedBegininningOfFile()
         : QFNotification( REACHED_BOF )
     {
@@ -72,7 +72,7 @@ class QFNotificationReachedBegininningOfFile : public QFNotification {
 };
 
 class QFNotificationInterrupted : public QFNotification {
-  public:
+public:
     QFNotificationInterrupted()
         : QFNotification( INTERRUPTED )
     {
@@ -80,7 +80,7 @@ class QFNotificationInterrupted : public QFNotification {
 };
 
 class QFNotificationProgress : public QFNotification {
-  public:
+public:
     // Constructor taking the progress (in percent)
     explicit QFNotificationProgress( int progress_percent = 0 )
         : QFNotification( QObject::tr( "Searching (position %1 %)" ).arg( progress_percent ) )

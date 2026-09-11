@@ -27,7 +27,7 @@ QString TabNameMapping::tabName( const QString& path ) const
 {
     auto nameMapping
         = std::find_if( tabNames_.cbegin(), tabNames_.cend(),
-                        [&path]( const auto& mapping ) { return mapping.path == path; } );
+                        [ &path ]( const auto& mapping ) { return mapping.path == path; } );
 
     if ( nameMapping != tabNames_.cend() ) {
         return nameMapping->name;
@@ -41,7 +41,7 @@ TabNameMapping& TabNameMapping::setTabName( const QString& path, const QString& 
 {
     auto nameMapping
         = std::find_if( tabNames_.begin(), tabNames_.end(),
-                        [&path]( const auto& mapping ) { return mapping.path == path; } );
+                        [ &path ]( const auto& mapping ) { return mapping.path == path; } );
 
     if ( nameMapping == tabNames_.end() && !name.isEmpty() ) {
         tabNames_.emplace_back( TabName{ path, name } );

@@ -89,8 +89,7 @@ void LogFormatRegistry::loadBuiltinFormats()
 
 void LogFormatRegistry::loadUserFormats()
 {
-    const auto dataDir
-        = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
+    const auto dataDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
     if ( dataDir.isEmpty() ) {
         return;
     }

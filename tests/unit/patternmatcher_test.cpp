@@ -39,15 +39,18 @@ SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
     WHEN( "Using complex pattern" )
     {
         RegularExpression expression(
-            RegularExpressionPattern( "\"not_match\" | \"match\"", false, false, true, true ), TestEngine );
+            RegularExpressionPattern( "\"not_match\" | \"match\"", false, false, true, true ),
+            TestEngine );
         const auto matcher = expression.createMatcher();
         REQUIRE( matcher->hasMatch( matchLine ) );
     }
 
     WHEN( "Using complex pattern with ()" )
     {
-        RegularExpression expression( RegularExpressionPattern(
-            "(\"not_match\" | \"match\") & !(\"pattern\")", false, false, true, false ), TestEngine );
+        RegularExpression expression(
+            RegularExpressionPattern( "(\"not_match\" | \"match\") & !(\"pattern\")", false, false,
+                                      true, false ),
+            TestEngine );
         const auto matcher = expression.createMatcher();
         REQUIRE_FALSE( matcher->hasMatch( matchLine ) );
     }
@@ -63,7 +66,8 @@ SCENARIO( "Pattern matcher in boolean mode", "[patternmatcher]" )
     WHEN( "Using pattern with not matched quotes" )
     {
         RegularExpression expression(
-            RegularExpressionPattern( "\"not_match\" | \"match", false, false, true, false ), TestEngine );
+            RegularExpressionPattern( "\"not_match\" | \"match", false, false, true, false ),
+            TestEngine );
 
         REQUIRE_FALSE( expression.isValid() );
     }

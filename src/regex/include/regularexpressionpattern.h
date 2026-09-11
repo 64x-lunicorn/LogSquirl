@@ -79,13 +79,12 @@ struct RegularExpressionPattern {
 
     bool operator==( const RegularExpressionPattern& other ) const
     {
-        return std::tie( pattern, isCaseSensitive, isExclude, isBoolean, isPlainText,
-                         isPrefilter )
-               == std::tie( other.pattern, other.isCaseSensitive, other.isExclude,
-                            other.isBoolean, other.isPlainText, other.isPrefilter );
+        return std::tie( pattern, isCaseSensitive, isExclude, isBoolean, isPlainText, isPrefilter )
+               == std::tie( other.pattern, other.isCaseSensitive, other.isExclude, other.isBoolean,
+                            other.isPlainText, other.isPrefilter );
     }
 
-  private:
+private:
     static std::string nextId()
     {
         static std::atomic<uint> counter_ = 0;

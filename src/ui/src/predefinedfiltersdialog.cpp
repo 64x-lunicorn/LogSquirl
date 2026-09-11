@@ -203,8 +203,7 @@ void PredefinedFiltersDialog::exportFilters()
 void PredefinedFiltersDialog::importFilters()
 {
     const QStringList files = QFileDialog::getOpenFileNames(
-        this, tr( "Select one or more files to open" ), "",
-        tr( "Predefined filters (*.conf)" ) );
+        this, tr( "Select one or more files to open" ), "", tr( "Predefined filters (*.conf)" ) );
 
     for ( const auto& file : files ) {
         LOG_INFO << "Loading filters from " << file;

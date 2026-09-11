@@ -50,8 +50,7 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJsonFile( const QStri
 {
     QFile file( jsonPath );
     if ( !file.open( QIODevice::ReadOnly | QIODevice::Text ) ) {
-        return std::unexpected(
-            QString( "Cannot open plugin manifest: %1" ).arg( jsonPath ) );
+        return std::unexpected( QString( "Cannot open plugin manifest: %1" ).arg( jsonPath ) );
     }
 
     auto result = fromJson( file.readAll(), jsonPath );
@@ -62,14 +61,13 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJsonFile( const QStri
 }
 
 std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArray& json,
-                                                                  const QString& context )
+                                                                 const QString& context )
 {
     QJsonParseError parseError;
     const auto doc = QJsonDocument::fromJson( json, &parseError );
     if ( doc.isNull() ) {
         return std::unexpected(
-            QString( "%1: JSON parse error: %2" )
-                .arg( context, parseError.errorString() ) );
+            QString( "%1: JSON parse error: %2" ).arg( context, parseError.errorString() ) );
     }
 
     if ( !doc.isObject() ) {
@@ -79,37 +77,32 @@ std::expected<PluginMetadata, QString> PluginMetadata::fromJson( const QByteArra
     const auto obj = doc.object();
 
     // Validate required string fields
-    static constexpr const char* requiredStrings[]
-        = { "id", "name", "version", "type", "library" };
+    static constexpr const char* requiredStrings[] = { "id", "name", "version", "type", "library" };
 
     for ( const auto* field : requiredStrings ) {
         if ( !obj.contains( field ) || !obj[ field ].isString() ) {
             return std::unexpected(
-                QString( "%1: missing or invalid required field '%2'" )
-                    .arg( context, field ) );
+                QString( "%1: missing or invalid required field '%2'" ).arg( context, field ) );
         }
     }
 
     // Validate api_version
     if ( !obj.contains( "api_version" ) || !obj[ "api_version" ].isDouble() ) {
-        return std::unexpected(
-            QString( "%1: missing or invalid 'api_version'" ).arg( context ) );
+        return std::unexpected( QString( "%1: missing or invalid 'api_version'" ).arg( context ) );
     }
 
     const int apiVer = obj[ "api_version" ].toInt();
     if ( apiVer != LOGSQUIRL_PLUGIN_API_VERSION ) {
-        return std::unexpected(
-            QString( "%1: incompatible api_version %2 (host supports %3)" )
-                .arg( context )
-                .arg( apiVer )
-                .arg( LOGSQUIRL_PLUGIN_API_VERSION ) );
+        return std::unexpected( QString( "%1: incompatible api_version %2 (host supports %3)" )
+                                    .arg( context )
+                                    .arg( apiVer )
+                                    .arg( LOGSQUIRL_PLUGIN_API_VERSION ) );
     }
 
     // Parse type
     auto typeResult = parsePluginType( obj[ "type" ].toString() );
     if ( !typeResult.has_value() ) {
-        return std::unexpected(
-            QString( "%1: %2" ).arg( context, typeResult.error() ) );
+        return std::unexpected( QString( "%1: %2" ).arg( context, typeResult.error() ) );
     }
 
     PluginMetadata meta;

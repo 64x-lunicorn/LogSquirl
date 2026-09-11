@@ -91,8 +91,7 @@ void StyleManager::applyStyle( const QString& style )
 
         const auto textColor = QColor( palette.at( "Text" ) );
         darkPalette.setColor( QPalette::PlaceholderText,
-                              QColor( textColor.red(), textColor.green(), textColor.blue(),
-                                      128 ) );
+                              QColor( textColor.red(), textColor.green(), textColor.blue(), 128 ) );
 
         qApp->setStyle( QStyleFactory::create( FusionEngine ) );
 

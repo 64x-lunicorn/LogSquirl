@@ -30,7 +30,7 @@
 
 // Interface representing a widget searchable in both direction.
 class SearchableWidgetInterface {
-  public:
+public:
     virtual ~SearchableWidgetInterface() = default;
 
     virtual void searchForward() = 0;
@@ -45,18 +45,23 @@ class SearchableWidgetInterface {
 // Interface representing the selector. It will be called and asked
 // who the search have to be forwarded to.
 class QuickFindMuxSelectorInterface {
-  public:
+public:
     virtual ~QuickFindMuxSelectorInterface() = default;
 
     // Return the searchable widget to use.
     SearchableWidgetInterface* getActiveSearchable() const
-    { return doGetActiveSearchable(); }
+    {
+        return doGetActiveSearchable();
+    }
     // Return the list of all possible searchables, this
     // is done on registration in order to establish
     // listeners on all searchables.
     std::vector<QObject*> getAllSearchables() const
-    { return doGetAllSearchables(); }
-  protected:
+    {
+        return doGetAllSearchables();
+    }
+
+protected:
     virtual SearchableWidgetInterface* doGetActiveSearchable() const = 0;
     virtual std::vector<QObject*> doGetAllSearchables() const = 0;
 };
@@ -67,12 +72,10 @@ class QFNotification;
 // Quick Find search from the UI to the relevant view.
 // It is also its responsability to determine if an incremental search
 // must be performed and to react accordingly.
-class QuickFindMux : public QObject
-{
-  Q_OBJECT
+class QuickFindMux : public QObject {
+    Q_OBJECT
 
-  public:
-
+public:
     enum QFDirection {
         Forward,
         Backward,
@@ -95,12 +98,12 @@ class QuickFindMux : public QObject
     // forward.
     void setDirection( QFDirection direction );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     void patternChanged( const QString& );
     void notify( const QFNotification& );
     void clearNotification();
 
-  public Q_SLOTS:
+public Q_SLOTS:
     // Signal the current pattern must be altered (will start an incremental
     // search if the options are configured in such a way).
     void setNewPattern( const QString& newPattern, bool ignoreCase, bool isRegexSearch );
@@ -122,12 +125,11 @@ class QuickFindMux : public QObject
     void searchForward();
     void searchBackward();
 
-  private Q_SLOTS:
-    void changeQuickFind( const QString& newPattern,
-            QuickFindMux::QFDirection newDirection );
+private Q_SLOTS:
+    void changeQuickFind( const QString& newPattern, QuickFindMux::QFDirection newDirection );
     void notifyPatternChanged();
 
-  private:
+private:
     const QuickFindMuxSelectorInterface* selector_;
 
     // The (application wide) quick find pattern

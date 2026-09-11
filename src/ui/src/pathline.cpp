@@ -25,9 +25,9 @@
 #include <QContextMenuEvent>
 #include <QMenu>
 
+#include "clipboard.h"
 #include "containers.h"
 #include "openfilehelper.h"
-#include "clipboard.h"
 
 void PathLine::setPath( const QString& path )
 {
@@ -49,9 +49,8 @@ void PathLine::contextMenuEvent( QContextMenuEvent* event )
     connect( copyFullPath, &QAction::triggered, this,
              [ this ]( auto ) { sendTextToClipboard( this->path_ ); } );
 
-    connect( copyFileName, &QAction::triggered, this, [ this ]( auto ) {
-        sendTextToClipboard( QFileInfo( this->path_ ).fileName() );
-    } );
+    connect( copyFileName, &QAction::triggered, this,
+             [ this ]( auto ) { sendTextToClipboard( QFileInfo( this->path_ ).fileName() ); } );
 
     connect( openContainingFolder, &QAction::triggered, this,
              [ this ]( auto ) { showPathInFileExplorer( this->path_ ); } );

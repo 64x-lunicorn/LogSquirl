@@ -61,7 +61,7 @@ struct EncodingParameters {
 };
 
 class EncodingDetector {
-  public:
+public:
     static EncodingDetector& getInstance()
     {
         static EncodingDetector instance;
@@ -75,7 +75,7 @@ class EncodingDetector {
 
     QTextCodec* detectEncoding( const logsquirl::vector<char>& block ) const;
 
-  private:
+private:
     EncodingDetector() = default;
     ~EncodingDetector() = default;
 
@@ -88,7 +88,7 @@ struct TextDecoder {
 };
 
 class TextCodecHolder {
-  public:
+public:
     explicit TextCodecHolder( QTextCodec* codec );
 
     void setCodec( QTextCodec* codec );
@@ -99,7 +99,7 @@ class TextCodecHolder {
 
     TextDecoder makeDecoder() const;
 
-  private:
+private:
     QTextCodec* codec_;
     EncodingParameters encodingParams_;
     mutable SharedMutex mutex_;

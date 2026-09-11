@@ -66,7 +66,7 @@ bool isOnlyForPolling( const WatchedDirectory& wd )
 } // namespace
 
 class EfswFileWatcher final : public efsw::FileWatchListener {
-  public:
+public:
     explicit EfswFileWatcher( FileWatcher* parent )
         : parent_{ parent }
     {
@@ -309,7 +309,7 @@ class EfswFileWatcher final : public efsw::FileWatchListener {
         return QString{};
     }
 
-  private:
+private:
     efsw::FileWatcher watcher_;
     std::vector<WatchedDirectory> watchedPaths_;
     FileWatcher* parent_;

@@ -18,8 +18,9 @@ struct FileId {
     static FileId getFileId( const QString& filename );
 };
 
-template <typename T> class ScopedFileHolder {
-  public:
+template <typename T>
+class ScopedFileHolder {
+public:
     explicit ScopedFileHolder( T* file )
         : file_holder_( file )
     {
@@ -38,7 +39,7 @@ template <typename T> class ScopedFileHolder {
         return file_holder_->getFile();
     }
 
-  private:
+private:
     ScopedFileHolder( const ScopedFileHolder& ) = delete;
     ScopedFileHolder& operator=( const ScopedFileHolder& ) = delete;
 
@@ -48,7 +49,7 @@ template <typename T> class ScopedFileHolder {
 class FileHolder {
     friend class ScopedFileHolder<FileHolder>;
 
-  public:
+public:
     explicit FileHolder( bool keepClosed );
     ~FileHolder();
     FileId getFileId();
@@ -66,12 +67,12 @@ class FileHolder {
 
     void reOpenFile();
 
-  private:
+private:
     Q_DISABLE_COPY( FileHolder )
 
     QFile* getFile();
 
-  private:
+private:
     RecursiveMutex file_mutex_;
 
     QString file_name_;

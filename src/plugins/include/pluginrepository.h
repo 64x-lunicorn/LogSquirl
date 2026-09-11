@@ -36,32 +36,32 @@ namespace logsquirl::plugins {
  * Contains only identification and pointers to the plugin's own release manifest.
  */
 struct CatalogEntry {
-    QString id;           ///< Unique plugin identifier (reverse-DNS)
-    QString name;         ///< Human-readable name
-    QString author;       ///< Plugin author
-    QString description;  ///< Short plugin description
-    QString license;      ///< SPDX license identifier
-    QUrl repoUrl;         ///< URL to the plugin's source repository
-    QUrl releasesUrl;     ///< URL to the plugin's releases.json
-    QUrl iconUrl;         ///< URL to the plugin icon (PNG/SVG, optional)
+    QString id;          ///< Unique plugin identifier (reverse-DNS)
+    QString name;        ///< Human-readable name
+    QString author;      ///< Plugin author
+    QString description; ///< Short plugin description
+    QString license;     ///< SPDX license identifier
+    QUrl repoUrl;        ///< URL to the plugin's source repository
+    QUrl releasesUrl;    ///< URL to the plugin's releases.json
+    QUrl iconUrl;        ///< URL to the plugin icon (PNG/SVG, optional)
 };
 
 /**
  * A single downloadable asset within a release (one per platform).
  */
 struct ReleaseAsset {
-    QString platform;     ///< "macos", "linux", or "windows"
-    QUrl downloadUrl;     ///< Direct HTTPS URL to the ZIP archive
-    QString sha256;       ///< SHA-256 checksum of the archive
+    QString platform; ///< "macos", "linux", or "windows"
+    QUrl downloadUrl; ///< Direct HTTPS URL to the ZIP archive
+    QString sha256;   ///< SHA-256 checksum of the archive
 };
 
 /**
  * A single version/release of a plugin, parsed from the plugin's releases.json.
  */
 struct ReleaseEntry {
-    QString version;         ///< Semantic version string
-    int apiVersion = 1;      ///< Host API version required
-    QString releaseNotes;    ///< Optional markdown release notes
+    QString version;                  ///< Semantic version string
+    int apiVersion = 1;               ///< Host API version required
+    QString releaseNotes;             ///< Optional markdown release notes
     std::vector<ReleaseAsset> assets; ///< Per-platform download assets
 };
 
@@ -93,14 +93,17 @@ struct RepositoryEntry {
 class PluginRepository : public QObject {
     Q_OBJECT
 
-  public:
+public:
     explicit PluginRepository( QObject* parent = nullptr );
 
     /** Set the URL of the plugins.json catalog. */
     void setIndexUrl( const QUrl& url );
 
     /** Return the currently configured catalog URL. */
-    QUrl indexUrl() const { return indexUrl_; }
+    QUrl indexUrl() const
+    {
+        return indexUrl_;
+    }
 
     /**
      * Fetch the central catalog.  For schema v2, also fetches releases.json
@@ -110,10 +113,16 @@ class PluginRepository : public QObject {
     void fetchCatalog();
 
     /** Legacy alias — calls fetchCatalog(). */
-    void fetchIndex() { fetchCatalog(); }
+    void fetchIndex()
+    {
+        fetchCatalog();
+    }
 
     /** Return the catalog entries from the last successful fetch. */
-    const std::vector<CatalogEntry>& catalog() const { return catalog_; }
+    const std::vector<CatalogEntry>& catalog() const
+    {
+        return catalog_;
+    }
 
     /** Return releases for a given plugin ID.  Empty if not yet fetched. */
     const std::vector<ReleaseEntry>& releases( const QString& pluginId ) const;
@@ -125,7 +134,10 @@ class PluginRepository : public QObject {
     QPixmap pluginIcon( const QString& pluginId ) const;
 
     /** Legacy: return flattened entries for schema v1. */
-    const std::vector<RepositoryEntry>& entries() const { return legacyEntries_; }
+    const std::vector<RepositoryEntry>& entries() const
+    {
+        return legacyEntries_;
+    }
 
     /**
      * Download a plugin archive to the given directory.
@@ -143,11 +155,10 @@ class PluginRepository : public QObject {
     /**
      * Extract a plugin archive (ZIP) into the given directory.
      */
-    static bool extractPluginArchive( const QString& archivePath,
-                                      const QString& destDir,
+    static bool extractPluginArchive( const QString& archivePath, const QString& destDir,
                                       QString* errorMessage = nullptr );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     /** Emitted when catalog + all releases are fetched and ready. */
     void catalogReady();
 
@@ -169,7 +180,7 @@ class PluginRepository : public QObject {
     /** Emitted when download verification fails. */
     void downloadError( const QString& errorMessage );
 
-  private:
+private:
     void parseCatalog( const QByteArray& data );
     void parseCatalogV1( const QJsonArray& plugins );
     void parseCatalogV2( const QJsonArray& plugins );
@@ -185,10 +196,10 @@ class PluginRepository : public QObject {
     std::vector<CatalogEntry> catalog_;
     std::map<QString, std::vector<ReleaseEntry>> releases_;
     std::map<QString, QPixmap> iconCache_;
-    std::vector<RepositoryEntry> legacyEntries_;  ///< Schema v1 fallback
+    std::vector<RepositoryEntry> legacyEntries_; ///< Schema v1 fallback
 
     int schemaVersion_ = 0;
-    int pendingFetches_ = 0;  ///< Counter for outstanding release/icon fetches
+    int pendingFetches_ = 0; ///< Counter for outstanding release/icon fetches
 };
 
 } // namespace logsquirl::plugins

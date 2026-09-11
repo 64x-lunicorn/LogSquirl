@@ -25,8 +25,7 @@ using namespace logsquirl::chipmunk;
 
 // Helper to build a minimal Chipmunk JSON export with one group containing given filter entries.
 // Each entry is specified as {pattern, foreColor, backColor, active, regexFlag, casesFlag}.
-static QByteArray buildChipmunkJson( const QString& groupName,
-                                     const QJsonArray& entries )
+static QByteArray buildChipmunkJson( const QString& groupName, const QJsonArray& entries )
 {
     // Build the inner "content" JSON string
     QJsonObject contentObj;
@@ -49,8 +48,7 @@ static QByteArray buildChipmunkJson( const QString& groupName,
 
 // Helper to build a single entry's "filters" JSON string
 static QJsonObject buildEntry( const QString& pattern, const QString& fgColor,
-                               const QString& bgColor, bool active, bool regexFlag,
-                               bool casesFlag )
+                               const QString& bgColor, bool active, bool regexFlag, bool casesFlag )
 {
     QJsonObject flagsObj;
     flagsObj[ "reg" ] = regexFlag;

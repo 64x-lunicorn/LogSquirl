@@ -56,9 +56,9 @@
 #include <windows.h>
 #endif // Q_OS_WIN
 
+#include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
-#include <QCheckBox>
 #include <QDialogButtonBox>
 #include <QFile>
 #include <QFileDialog>
@@ -70,12 +70,12 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QMimeData>
+#include <QPointer>
 #include <QProgressDialog>
 #include <QResource>
 #include <QScreen>
 #include <QScrollArea>
 #include <QSettings>
-#include <QPointer>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStringListModel>
@@ -99,12 +99,12 @@
 #include "downloader.h"
 #include "encodings.h"
 #include "favoritefiles.h"
-#include "indexcache.h"
 #include "highlightersdialog.h"
 #include "highlightersmenu.h"
+#include "indexcache.h"
 #include "issuereporter.h"
-#include "logsquirl_version.h"
 #include "logger.h"
+#include "logsquirl_version.h"
 #include "mainwindowtext.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
@@ -233,13 +233,11 @@ MainWindow::MainWindow( WindowSession session )
 
         // Pick icon variant based on configured style — at construction time
         // the dark palette is not yet applied, so IconLoader cannot detect it.
-        const bool isDarkStyle
-            = Configuration::get().style() == StyleManager::DarkStyleKey;
+        const bool isDarkStyle = Configuration::get().style() == StyleManager::DarkStyleKey;
 
         auto* floatButton = new QToolButton( titleBar );
-        floatButton->setIcon(
-            isDarkStyle ? QIcon( ":/images/icons8-undock-16_inverse.png" )
-                        : QIcon( ":/images/icons8-undock-16.png" ) );
+        floatButton->setIcon( isDarkStyle ? QIcon( ":/images/icons8-undock-16_inverse.png" )
+                                          : QIcon( ":/images/icons8-undock-16.png" ) );
         floatButton->setFixedSize( kButtonSize, kButtonSize );
         floatButton->setIconSize( QSize( kIconSize, kIconSize ) );
         floatButton->setAutoRaise( true );
@@ -247,9 +245,8 @@ MainWindow::MainWindow( WindowSession session )
         titleLayout->addWidget( floatButton );
 
         auto* closeButton = new QToolButton( titleBar );
-        closeButton->setIcon(
-            isDarkStyle ? QIcon( ":/images/icons8-close-window-16_inverse.png" )
-                        : QIcon( ":/images/icons8-close-window-16.png" ) );
+        closeButton->setIcon( isDarkStyle ? QIcon( ":/images/icons8-close-window-16_inverse.png" )
+                                          : QIcon( ":/images/icons8-close-window-16.png" ) );
         closeButton->setFixedSize( kButtonSize, kButtonSize );
         closeButton->setIconSize( QSize( kIconSize, kIconSize ) );
         closeButton->setAutoRaise( true );
@@ -353,39 +350,35 @@ MainWindow::MainWindow( WindowSession session )
     // Connect plugin manager signals — wired up before autoLoadPlugins() so
     // that signals emitted during loading (status widgets, menu actions) are
     // delivered immediately.
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStarted,
-             this, &MainWindow::handleDataSourceStarted );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStopped,
-             this, &MainWindow::handleDataSourceStopped );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetAdded,
-             this, &MainWindow::handlePluginStatusWidget );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetRemoved,
-             this, &MainWindow::handlePluginStatusWidgetRemoved );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::menuActionAdded,
-             this, &MainWindow::handlePluginMenuAction );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::sidebarTabAdded,
-             this, &MainWindow::handlePluginSidebarTab );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::sidebarTabRemoved,
-             this, &MainWindow::handlePluginSidebarTabRemoved );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::footerWidgetAdded,
-             this, &MainWindow::handlePluginFooterWidget );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::footerWidgetRemoved,
-             this, &MainWindow::handlePluginFooterWidgetRemoved );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::pluginUnloaded,
-             this, &MainWindow::removePluginMenuActions );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested,
-             this, []( const QString& msg ) {
-                 LOG_INFO << "Plugin notification: " << msg;
-             } );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStarted, this,
+             &MainWindow::handleDataSourceStarted );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStopped, this,
+             &MainWindow::handleDataSourceStopped );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetAdded, this,
+             &MainWindow::handlePluginStatusWidget );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::statusWidgetRemoved, this,
+             &MainWindow::handlePluginStatusWidgetRemoved );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::menuActionAdded, this,
+             &MainWindow::handlePluginMenuAction );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::sidebarTabAdded, this,
+             &MainWindow::handlePluginSidebarTab );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::sidebarTabRemoved, this,
+             &MainWindow::handlePluginSidebarTabRemoved );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::footerWidgetAdded, this,
+             &MainWindow::handlePluginFooterWidget );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::footerWidgetRemoved, this,
+             &MainWindow::handlePluginFooterWidgetRemoved );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::pluginUnloaded, this,
+             &MainWindow::removePluginMenuActions );
+    connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested, this,
+             []( const QString& msg ) { LOG_INFO << "Plugin notification: " << msg; } );
 
     // Let plugins request opening files
     pluginManager_.setOpenFileCallback(
-        [this]( const QString& path, bool follow ) {
-            loadFile( path, follow );
-        } );
+        [ this ]( const QString& path, bool follow ) { loadFile( path, follow ); } );
 
     // Let plugins query the currently active file path
-    pluginManager_.setActiveFilePathCallback( [this]() -> QString {
+    pluginManager_.setActiveFilePathCallback( [ this ]() -> QString {
         auto* crawler = currentCrawlerWidget();
         return crawler ? session_.getFilename( crawler ) : QString();
     } );
@@ -576,8 +569,7 @@ void MainWindow::reTranslateUI()
     toggleChartPanelAction->setStatusTip( transAction( action::toggleChartPanelStatusTip ) );
 
     showFilterFrequencyAction->setText( transAction( action::showFilterFrequencyText ) );
-    showFilterFrequencyAction->setStatusTip(
-        transAction( action::showFilterFrequencyStatusTip ) );
+    showFilterFrequencyAction->setStatusTip( transAction( action::showFilterFrequencyStatusTip ) );
 
     importChipmunkFiltersAction->setText( transAction( action::importChipmunkFiltersText ) );
     importChipmunkFiltersAction->setStatusTip(
@@ -598,8 +590,8 @@ void MainWindow::reTranslateUI()
         transAction( action::predefinedFiltersDialogStatusTip ) );
 
     // trayIcon
-    trayIcon_->setToolTip( QApplication::translate( "logsquirl::mainwindow::trayicon",
-                                                    logsquirl::mainwindow::trayicon::trayiconTip ) );
+    trayIcon_->setToolTip( QApplication::translate(
+        "logsquirl::mainwindow::trayicon", logsquirl::mainwindow::trayicon::trayiconTip ) );
 }
 
 int MainWindow::installLanguage( QString lang )
@@ -1252,7 +1244,8 @@ void MainWindow::openRemoteFile( const QUrl& url )
             loadFile( tempFile->fileName() );
         }
         else {
-            QMessageBox::critical( this, tr( "LogSquirl - File download" ), downloader.lastError() );
+            QMessageBox::critical( this, tr( "LogSquirl - File download" ),
+                                   downloader.lastError() );
         }
     }
     else {
@@ -1525,9 +1518,8 @@ void MainWindow::startPluginDataSource( const QString& pluginId )
     }
 }
 
-void MainWindow::handleDataSourceStarted( const QString& pluginId,
-                                           const QString& displayName,
-                                           const QString& filePath )
+void MainWindow::handleDataSourceStarted( const QString& pluginId, const QString& displayName,
+                                          const QString& filePath )
 {
     LOG_INFO << "DataSource started: " << pluginId << " -> " << filePath;
 
@@ -1539,8 +1531,7 @@ void MainWindow::handleDataSourceStarted( const QString& pluginId,
         if ( tabIndex >= 0 ) {
             mainTabWidget_.setTabText( tabIndex, displayName );
             mainTabWidget_.setTabToolTip( tabIndex,
-                                          tr( "DataSource: %1\n%2" )
-                                              .arg( displayName, filePath ) );
+                                          tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) );
         }
     }
 }
@@ -1602,11 +1593,10 @@ void MainWindow::handlePluginFooterWidgetRemoved( const QString& pluginId, QWidg
     }
 }
 
-void MainWindow::handlePluginMenuAction( const QString& pluginId,
-                                          const QString& /* menuPath */,
-                                          const QString& label,
-                                          logsquirl::plugins::PluginCallbackFn callback,
-                                          void* userData )
+void MainWindow::handlePluginMenuAction( const QString& pluginId, const QString& /* menuPath */,
+                                         const QString& label,
+                                         logsquirl::plugins::PluginCallbackFn callback,
+                                         void* userData )
 {
     if ( !pluginsMenu ) {
         return;
@@ -1648,9 +1638,8 @@ void MainWindow::removePluginMenuActions( const QString& pluginId )
     pluginMenuActions_.erase( it );
 }
 
-void MainWindow::handlePluginSidebarTab( const QString& pluginId,
-                                          const QString& label,
-                                          QWidget* widget )
+void MainWindow::handlePluginSidebarTab( const QString& pluginId, const QString& label,
+                                         QWidget* widget )
 {
     if ( !sidebarTabs_ || !widget ) {
         return;
@@ -1667,8 +1656,7 @@ void MainWindow::handlePluginSidebarTab( const QString& pluginId,
     LOG_INFO << "Plugin " << pluginId << " registered sidebar tab: " << label;
 }
 
-void MainWindow::handlePluginSidebarTabRemoved( const QString& pluginId,
-                                                 QWidget* widget )
+void MainWindow::handlePluginSidebarTabRemoved( const QString& pluginId, QWidget* widget )
 {
     if ( !sidebarTabs_ || !widget ) {
         return;
@@ -1689,7 +1677,9 @@ void MainWindow::about()
         tr( "<h2>LogSquirl %1</h2>"
             "<p>A fast, advanced log explorer.</p>"
             "<p>Built %2 from %3</p>"
-            "<p><a href=\"https://github.com/64x-lunicorn/LogSquirl\">https://github.com/64x-lunicorn/LogSquirl</a></p>"
+            "<p><a "
+            "href=\"https://github.com/64x-lunicorn/LogSquirl\">https://github.com/64x-lunicorn/"
+            "LogSquirl</a></p>"
             "<p>This is a fork of <a href=\"https://github.com/variar/klogg\">klogg</a> "
             "by Anton Filimonov, which is a fork of "
             "<a href=\"https://github.com/nickbnf/glogg\">glogg</a> "
@@ -1758,8 +1748,8 @@ void MainWindow::clearIndexCache()
 {
     const auto freed = IndexCache::clearAll();
     const auto freedMb = static_cast<double>( freed ) / ( 1024.0 * 1024.0 );
-    statusBar()->showMessage(
-        tr( "Index cache cleared (%1 MB freed)" ).arg( freedMb, 0, 'f', 1 ), 5000 );
+    statusBar()->showMessage( tr( "Index cache cleared (%1 MB freed)" ).arg( freedMb, 0, 'f', 1 ),
+                              5000 );
 }
 
 void MainWindow::showCommandPalette()
@@ -1771,8 +1761,8 @@ void MainWindow::showCommandPalette()
     // Collect commands from the menu bar.
     std::vector<CommandEntry> entries;
 
-    const auto collectFromMenu = [&entries]( QMenu* menu, const QString& category,
-                                             auto&& self ) -> void {
+    const auto collectFromMenu
+        = [ &entries ]( QMenu* menu, const QString& category, auto&& self ) -> void {
         for ( QAction* action : menu->actions() ) {
             if ( action->isSeparator() || !action->isEnabled() ) {
                 continue;
@@ -1858,9 +1848,9 @@ void MainWindow::showSidebar( int tabIndex )
 
 void MainWindow::importChipmunkFilters()
 {
-    const auto file = QFileDialog::getOpenFileName(
-        this, tr( "Import Chipmunk filters" ), "",
-        tr( "Chipmunk filters (*.json);;All files (*)" ) );
+    const auto file
+        = QFileDialog::getOpenFileName( this, tr( "Import Chipmunk filters" ), "",
+                                        tr( "Chipmunk filters (*.json);;All files (*)" ) );
 
     if ( file.isEmpty() ) {
         return;
@@ -1894,8 +1884,7 @@ void MainWindow::importChipmunkFilters()
                 .arg( groupName ) );
     }
     else {
-        auto filterSet
-            = logsquirl::chipmunk::toFilterSet( chipmunkFilters, groupName );
+        auto filterSet = logsquirl::chipmunk::toFilterSet( chipmunkFilters, groupName );
         filtersAdded = static_cast<int>( filterSet.filters().size() );
         auto sets = filtersCollection.filterSets();
         sets.append( filterSet );
@@ -1905,8 +1894,7 @@ void MainWindow::importChipmunkFilters()
 
     // Import as HighlighterSet
     const auto setName = groupName;
-    const auto highlighterSet
-        = logsquirl::chipmunk::toHighlighterSet( chipmunkFilters, setName );
+    const auto highlighterSet = logsquirl::chipmunk::toHighlighterSet( chipmunkFilters, setName );
 
     auto& highlighterCollection = HighlighterSetCollection::getSynced();
     auto sets = highlighterCollection.highlighterSets();
@@ -1923,11 +1911,10 @@ void MainWindow::importChipmunkFilters()
     // Refresh the filters panel if visible
     filtersPanel_.refreshFilters();
 
-    QMessageBox::information(
-        this, tr( "Import result" ),
-        tr( "Imported %1 filter(s) and %2 highlighter set." )
-            .arg( filtersAdded )
-            .arg( highlighterAdded ? 1 : 0 ) );
+    QMessageBox::information( this, tr( "Import result" ),
+                              tr( "Imported %1 filter(s) and %2 highlighter set." )
+                                  .arg( filtersAdded )
+                                  .arg( highlighterAdded ? 1 : 0 ) );
 
     // Notify active crawler to refresh its configuration
     if ( auto crawler = currentCrawlerWidget() ) {
@@ -2041,8 +2028,7 @@ void MainWindow::updateLoadingProgress( int progress )
         return;
     }
 
-    QString current_file
-        = QDir::toNativeSeparators( session_.getFilename( crawler ) );
+    QString current_file = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     // We ignore 0% and 100% to avoid a flash when the file (or update)
     // is very short.
@@ -2235,8 +2221,7 @@ void MainWindow::currentTabChanged( int index )
         editMenu->setEnabled( true );
 
         // Notify plugins about the active file change
-        pluginManager_.notifyActiveFileChanged(
-            session_.getFilename( crawler_widget ) );
+        pluginManager_.notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
     }
     else {
         // Dashboard tab or no tab — clear the document state
@@ -2424,8 +2409,8 @@ bool MainWindow::extractAndLoadFile( const QString& fileName )
     }
 
     if ( !config.extractArchivesAlways() ) {
-        const auto userChoice
-            = QMessageBox::question( this, tr( "logsquirl" ), tr( "Extract archive to temp folder?" ) );
+        const auto userChoice = QMessageBox::question( this, tr( "logsquirl" ),
+                                                       tr( "Extract archive to temp folder?" ) );
         if ( userChoice == QMessageBox::No ) {
             return false;
         }
@@ -2523,8 +2508,8 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
         auto* tempFile = new QTemporaryFile(
             tempDir_.filePath( QFileInfo( fileName ).fileName() + ".txt" ), this );
         if ( tempFile->open() ) {
-            const auto rc = pluginManager_.runConverter( converterId,
-                                                         fileName, tempFile->fileName() );
+            const auto rc
+                = pluginManager_.runConverter( converterId, fileName, tempFile->fileName() );
             if ( rc == 0 ) {
                 return loadFile( tempFile->fileName(), followFile );
             }
@@ -2630,8 +2615,8 @@ void MainWindow::updateTitleBar( const QString& file_name )
         indexPart = QString( " #%1" ).arg( session_.windowIndex() + 1 );
     }
 
-    setWindowTitle( tr( "%1 - %2%3" ).arg( shownName, tr( "logsquirl" ), indexPart ) + tr( " (build " )
-                    + logsquirlVersion() + ")" );
+    setWindowTitle( tr( "%1 - %2%3" ).arg( shownName, tr( "logsquirl" ), indexPart )
+                    + tr( " (build " ) + logsquirlVersion() + ")" );
 }
 
 void MainWindow::addRecentFile( const QString& fileName )
@@ -2717,8 +2702,7 @@ void MainWindow::updateInfoLine()
         return;
     }
 
-    QString current_file
-        = QDir::toNativeSeparators( session_.getFilename( crawler ) );
+    QString current_file = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     uint64_t fileSize;
     uint64_t fileNbLine;

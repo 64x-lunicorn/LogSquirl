@@ -20,13 +20,13 @@
 #ifndef LOGSQUIRL_FILEDIGEST_H
 #define LOGSQUIRL_FILEDIGEST_H
 
-#include <memory>
 #include <QByteArray>
+#include <memory>
 
 class DigestInternalState;
 
 class FileDigest {
-  public:
+public:
     FileDigest();
     ~FileDigest();
 
@@ -38,7 +38,7 @@ class FileDigest {
 
     void reset();
 
-  private:
+private:
     std::unique_ptr<DigestInternalState> m_state;
 };
 

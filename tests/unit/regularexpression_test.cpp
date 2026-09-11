@@ -234,8 +234,9 @@ SCENARIO( "RegularExpression boolean operators", "[regex][boolean]" )
     GIVEN( "Boolean NOT operation" )
     {
         // Uses 'and' and 'not' keywords, which are more portable with exprtk
-        RegularExpression expression( RegularExpressionPattern(
-            "(\"error\") and not (\"debug\")", false, false, true, false ), TestEngine );
+        RegularExpression expression( RegularExpressionPattern( "(\"error\") and not (\"debug\")",
+                                                                false, false, true, false ),
+                                      TestEngine );
         REQUIRE( expression.isValid() );
 
         auto matcher = expression.createMatcher();

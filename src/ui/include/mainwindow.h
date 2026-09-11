@@ -55,18 +55,18 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "downloader.h"
+#include "filterspanel.h"
 #include "iconloader.h"
+#include "mergecontroller.h"
 #include "pathline.h"
+#include "pluginmanager.h"
 #include "quickfindmux.h"
 #include "quickfindwidget.h"
 #include "session.h"
 #include "signalmux.h"
 #include "tabbedcrawlerwidget.h"
-#include "filterspanel.h"
-#include "pluginmanager.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
-#include "mergecontroller.h"
 #include "welcomedashboard.h"
 
 class CommandPalette;
@@ -81,7 +81,7 @@ class HighlightersMenu;
 class MainWindow : public QMainWindow {
     Q_OBJECT
 
-  public:
+public:
     explicit MainWindow( WindowSession session );
 
     // Re-install the geometry stored in config file
@@ -96,12 +96,12 @@ class MainWindow : public QMainWindow {
 
     static int installLanguage( QString lang );
 
-  public Q_SLOTS:
+public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
     // (for use from e.g. IPC)
     void loadFileNonInteractive( const QString& file_name );
 
-  protected:
+protected:
     void closeEvent( QCloseEvent* event ) override;
     void changeEvent( QEvent* event ) override;
 
@@ -111,10 +111,10 @@ class MainWindow : public QMainWindow {
 
     bool event( QEvent* event ) override;
 
-  private:
+private:
     enum class ActionInitiator { User, App };
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void open();
     void openFileFromRecent( QAction* action );
     void openFileFromFavorites( QAction* action );
@@ -149,20 +149,16 @@ class MainWindow : public QMainWindow {
     void replaceDataInScratchpad( QString );
     void showPluginDialog();
     void startPluginDataSource( const QString& pluginId );
-    void handleDataSourceStarted( const QString& pluginId,
-                                  const QString& displayName,
+    void handleDataSourceStarted( const QString& pluginId, const QString& displayName,
                                   const QString& filePath );
     void handleDataSourceStopped( const QString& pluginId );
     void handlePluginStatusWidget( const QString& pluginId, QWidget* widget );
     void handlePluginStatusWidgetRemoved( const QString& pluginId, QWidget* widget );
-    void handlePluginMenuAction( const QString& pluginId,
-                                 const QString& menuPath,
+    void handlePluginMenuAction( const QString& pluginId, const QString& menuPath,
                                  const QString& label,
-                                 logsquirl::plugins::PluginCallbackFn callback,
-                                 void* userData );
+                                 logsquirl::plugins::PluginCallbackFn callback, void* userData );
     void removePluginMenuActions( const QString& pluginId );
-    void handlePluginSidebarTab( const QString& pluginId, const QString& label,
-                                 QWidget* widget );
+    void handlePluginSidebarTab( const QString& pluginId, const QString& label, QWidget* widget );
     void handlePluginSidebarTabRemoved( const QString& pluginId, QWidget* widget );
     void handlePluginFooterWidget( const QString& pluginId, QWidget* widget );
     void handlePluginFooterWidgetRemoved( const QString& pluginId, QWidget* widget );
@@ -210,7 +206,7 @@ class MainWindow : public QMainWindow {
     // and confirm it.
     void changeQFPattern( const QString& newPattern );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
     // Is emitted when the settings store has been written, so that the
@@ -234,7 +230,7 @@ class MainWindow : public QMainWindow {
     void windowClosed();
     void exitRequested();
 
-  private:
+private:
     void createActions();
     void loadIcons();
     void createMenus();

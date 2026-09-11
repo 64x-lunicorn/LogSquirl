@@ -30,7 +30,7 @@
 class MergeController : public QObject {
     Q_OBJECT
 
-  public:
+public:
     explicit MergeController( QObject* parent = nullptr );
     ~MergeController() override;
 
@@ -47,11 +47,11 @@ class MergeController : public QObject {
     // Triggers a re-merge of the source files (debounced, 300ms).
     void scheduleRebuild();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Emitted after the merged temp file has been rewritten.
     void mergedFileUpdated();
 
-  private:
+private:
     // Actually performs the merge (writes the temp file).
     void doMerge();
 

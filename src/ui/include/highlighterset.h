@@ -54,7 +54,7 @@ struct QuickHighlighter {
 };
 
 class HighlighterSetCollection final : public Persistable<HighlighterSetCollection> {
-  public:
+public:
     static const char* persistableName()
     {
         return "HighlighterSetCollection";
@@ -80,12 +80,12 @@ class HighlighterSetCollection final : public Persistable<HighlighterSetCollecti
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
+private:
     static constexpr int HighlighterSetCollection_VERSION = 2;
 
     void updateCombinedSet();
 
-  private:
+private:
     QList<HighlighterSet> highlighters_;
     QStringList activeSets_;
     HighlighterSet combinedActiveSet_;

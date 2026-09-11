@@ -19,13 +19,15 @@
 
 #ifndef LOGSQUIRL_ACTIVE_SCREEN_H
 
+#include <QScreen>
 #include <QWidget>
 #include <QWindow>
-#include <QScreen>
 
-static inline QScreen* activeScreen(QWidget* widget) {
-    if (widget == nullptr) return nullptr;
-    
+static inline QScreen* activeScreen( QWidget* widget )
+{
+    if ( widget == nullptr )
+        return nullptr;
+
     QScreen* screen = widget->screen();
     return screen;
 }

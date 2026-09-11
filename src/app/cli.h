@@ -29,8 +29,8 @@
 #include <QFileInfo>
 #include <QString>
 
-#include "logsquirl_version.h"
 #include "log.h"
+#include "logsquirl_version.h"
 
 struct CliParameters {
     bool new_session = false;
@@ -118,7 +118,7 @@ struct CliParameters {
             exit( EXIT_SUCCESS );
         }
 
-        if (parser.value( debugOption ).toInt() > 0) {
+        if ( parser.value( debugOption ).toInt() > 0 ) {
             enable_logging = true;
         }
 
@@ -161,8 +161,8 @@ struct CliParameters {
     static void print_version()
     {
         std::cout << "logsquirl " << logsquirlVersion().data() << "\n";
-        std::cout << "Built " << logsquirlBuildDate().data() << " from " << logsquirlCommit().data() << "("
-                  << logsquirlGitVersion().data() << ")\n";
+        std::cout << "Built " << logsquirlBuildDate().data() << " from " << logsquirlCommit().data()
+                  << "(" << logsquirlGitVersion().data() << ")\n";
 
         std::cout
             << "Copyright (C) 2020 Nicolas Bonnefon, Anton Filimonov and other contributors\n";

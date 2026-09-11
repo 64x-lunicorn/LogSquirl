@@ -43,18 +43,18 @@ namespace {
 constexpr int kMaxListEntries = 8;
 
 /// Stylesheet for clickable file-link buttons (uses palette for theme awareness).
-const QString kLinkButtonStyle = QStringLiteral(
-    "QPushButton { color: palette(link); border: none; text-align: left;"
-    " padding: 3px 0px; font-size: 12px; }"
-    "QPushButton:hover { text-decoration: underline; }" );
+const QString kLinkButtonStyle
+    = QStringLiteral( "QPushButton { color: palette(link); border: none; text-align: left;"
+                      " padding: 3px 0px; font-size: 12px; }"
+                      "QPushButton:hover { text-decoration: underline; }" );
 
 /// Stylesheet for section headings.
-const QString kSectionHeadingStyle = QStringLiteral(
-    "QLabel { font-weight: bold; font-size: 13px; padding-top: 12px; }" );
+const QString kSectionHeadingStyle
+    = QStringLiteral( "QLabel { font-weight: bold; font-size: 13px; padding-top: 12px; }" );
 
 /// Stylesheet for shortcut hint text (uses palette for theme awareness).
-const QString kHintStyle = QStringLiteral(
-    "QLabel { color: palette(dark); font-size: 11px; padding: 2px 0px; }" );
+const QString kHintStyle
+    = QStringLiteral( "QLabel { color: palette(dark); font-size: 11px; padding: 2px 0px; }" );
 
 /// Create a clickable QPushButton styled as a link.
 /// Clicking emits the dashboard's openFileRequested signal.
@@ -66,8 +66,9 @@ QPushButton* createFileLink( const QString& displayText, const QString& fullPath
     btn->setCursor( Qt::PointingHandCursor );
     btn->setToolTip( fullPath );
     btn->setFlat( true );
-    QObject::connect( btn, &QPushButton::clicked, dashboard,
-                      [ dashboard, fullPath ] { Q_EMIT dashboard->openFileRequested( fullPath ); } );
+    QObject::connect( btn, &QPushButton::clicked, dashboard, [ dashboard, fullPath ] {
+        Q_EMIT dashboard->openFileRequested( fullPath );
+    } );
     return btn;
 }
 
@@ -131,8 +132,7 @@ void WelcomeDashboard::buildUi()
     rootLayout->addWidget( logoLabel_ );
 
     // ---- Version ----
-    auto* versionLabel = new QLabel(
-        QStringLiteral( "v%1" ).arg( logsquirlVersion() ), content );
+    auto* versionLabel = new QLabel( QStringLiteral( "v%1" ).arg( logsquirlVersion() ), content );
     versionLabel->setAlignment( Qt::AlignCenter );
     versionLabel->setStyleSheet( QStringLiteral( "color: palette(dark); font-size: 12px;" ) );
     rootLayout->addWidget( versionLabel );
@@ -146,14 +146,12 @@ void WelcomeDashboard::buildUi()
 
     auto* openBtn = new QPushButton( tr( "Open File" ), content );
     openBtn->setMinimumWidth( 110 );
-    connect( openBtn, &QPushButton::clicked, this,
-             &WelcomeDashboard::openFileDialogRequested );
+    connect( openBtn, &QPushButton::clicked, this, &WelcomeDashboard::openFileDialogRequested );
     actionsLayout->addWidget( openBtn );
 
     auto* sessionBtn = new QPushButton( tr( "Load Session" ), content );
     sessionBtn->setMinimumWidth( 110 );
-    connect( sessionBtn, &QPushButton::clicked, this,
-             &WelcomeDashboard::loadSessionRequested );
+    connect( sessionBtn, &QPushButton::clicked, this, &WelcomeDashboard::loadSessionRequested );
     actionsLayout->addWidget( sessionBtn );
 
     rootLayout->addLayout( actionsLayout );
@@ -218,8 +216,8 @@ void WelcomeDashboard::buildUi()
 
     // ---- Drop hint ----
     auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), content );
-    dropHint->setStyleSheet(
-        QStringLiteral( "color: palette(dark); font-size: 11px; font-style: italic; padding-top: 8px;" ) );
+    dropHint->setStyleSheet( QStringLiteral(
+        "color: palette(dark); font-size: 11px; font-style: italic; padding-top: 8px;" ) );
     dropHint->setAlignment( Qt::AlignCenter );
     rootLayout->addWidget( dropHint );
 
@@ -314,15 +312,16 @@ void WelcomeDashboard::refreshPluginStatus()
 
     for ( const auto& plugin : discovered ) {
         const bool isLoaded = loaded.contains( plugin.id() );
-        const QString statusDot = isLoaded ? QStringLiteral( "\u25CF " ) // ● filled circle
+        const QString statusDot = isLoaded ? QStringLiteral( "\u25CF " )  // ● filled circle
                                            : QStringLiteral( "\u25CB " ); // ○ empty circle
-        const QString color = isLoaded ? QStringLiteral( "#4CAF50" )  // green
-                                       : QStringLiteral( "#808080" ); // gray
+        const QString color = isLoaded ? QStringLiteral( "#4CAF50" )      // green
+                                       : QStringLiteral( "#808080" );     // gray
         // The plugin name and version come from the plugin's plugin.json on
         // disk and could contain HTML special characters.  Escape them before
         // they end up in the rich-text label.
         auto* row = new QLabel(
-            QStringLiteral( "<span style='color:%1'>%2</span>%3 <span style='color:#808080'>v%4</span>" )
+            QStringLiteral(
+                "<span style='color:%1'>%2</span>%3 <span style='color:#808080'>v%4</span>" )
                 .arg( color, statusDot, plugin.name().toHtmlEscaped(),
                       plugin.version().toHtmlEscaped() ),
             this );

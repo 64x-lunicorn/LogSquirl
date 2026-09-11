@@ -21,13 +21,13 @@
 
 #include <iostream>
 
+#include <QFileInfo>
 #include <QProcess>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
 #include <QThread>
-#include <QFileInfo>
 
 #include "file_write_helper.h"
 #include "log.h"
@@ -44,7 +44,7 @@ namespace {
 
 class WriteFileThread : public QThread {
     Q_OBJECT
-  public:
+public:
     WriteFileThread( QFile* file, int numberOfLines = 200,
                      WriteFileModification flag = WriteFileModification::None )
         : file_{ file }
@@ -58,7 +58,7 @@ class WriteFileThread : public QThread {
         return result_ == 0;
     }
 
-  protected:
+protected:
     void run() override
     {
         QString writeHelper = QCoreApplication::applicationDirPath() + QDir::separator()
@@ -76,7 +76,7 @@ class WriteFileThread : public QThread {
                  << writeHelperProcess.exitStatus();
     }
 
-  private:
+private:
     QFile* file_;
     int numberOfLines_;
     WriteFileModification flag_;
@@ -284,7 +284,8 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
 
             THEN( "Throws" )
             {
-                CHECK_THROWS_AS( log_data.attachFile( QFileInfo{ bigFile }.absoluteFilePath() ), CantReattachErr );
+                CHECK_THROWS_AS( log_data.attachFile( QFileInfo{ bigFile }.absoluteFilePath() ),
+                                 CantReattachErr );
             }
         }
     }

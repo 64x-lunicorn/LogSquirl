@@ -458,11 +458,9 @@ AbstractLogView::~AbstractLogView()
     if ( quickFind_ != nullptr ) {
         try {
             quickFind_->stopSearch();
-        }
-        catch ( const std::exception& e ) {
+        } catch ( const std::exception& e ) {
             LOG_ERROR << "Failed to stop search: " << e.what();
-        }
-        catch ( ... ) {
+        } catch ( ... ) {
             LOG_ERROR << "Failed to stop search: unknown exception";
         }
         delete quickFind_;
@@ -1588,8 +1586,8 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
                 // Use IgnoreHeader to prevent codec from inserting its own BOM
                 // per line — we already wrote the BOM once at the start of the file.
                 QTextCodec::ConverterState state( QTextCodec::IgnoreHeader );
-                const auto encodedLine = codec->fromUnicode(
-                    l.constData(), static_cast<int>( l.length() ), &state );
+                const auto encodedLine
+                    = codec->fromUnicode( l.constData(), static_cast<int>( l.length() ), &state );
                 const auto written = saveFile.write( encodedLine );
 
                 if ( written != encodedLine.size() ) {
@@ -2535,9 +2533,9 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             // mapped past where any of them need it.
             int furthestRawColumn = 0;
             for ( const auto& match : rawSpans ) {
-                furthestRawColumn = std::max<int>(
-                    furthestRawColumn,
-                    static_cast<int>( match.startColumn().get() + match.size().get() ) );
+                furthestRawColumn
+                    = std::max<int>( furthestRawColumn, static_cast<int>( match.startColumn().get()
+                                                                          + match.size().get() ) );
             }
             const auto rawToDisplay
                 = rawToDisplayColumns( QStringView{ logLine }.left( furthestRawColumn ) );
@@ -2549,8 +2547,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                     const auto displayStart = rawToDisplay[ rawStart ];
                     const auto displayEnd = rawToDisplay[ rawEnd ];
                     return HighlightedMatch{
-                        LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-                            displayStart ) },
+                        LineColumn{
+                            type_safe::narrow_cast<LineColumn::UnderlyingType>( displayStart ) },
                         LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
                             displayEnd - displayStart ) },
                         match.foreColor(), match.backColor()
@@ -2586,10 +2584,11 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                            backColor );
 
         LineDrawer lineDrawer( backColor );
-        const auto firstVisibleColumn = std::clamp( useTextWrap_ ? 0_lcol : firstCol_, 0_lcol,
-                                                    LineColumn{ logsquirl::isize( expandedLine ) } );
-        const auto lastVisibleColumn
-            = useTextWrap_ ? LineColumn{ logsquirl::isize( expandedLine ) } : firstCol_ + nbVisibleCols;
+        const auto firstVisibleColumn
+            = std::clamp( useTextWrap_ ? 0_lcol : firstCol_, 0_lcol,
+                          LineColumn{ logsquirl::isize( expandedLine ) } );
+        const auto lastVisibleColumn = useTextWrap_ ? LineColumn{ logsquirl::isize( expandedLine ) }
+                                                    : firstCol_ + nbVisibleCols;
         allHighlights.clamp( firstVisibleColumn, lastVisibleColumn );
 
         if ( !allHighlights.empty() && !expandedLine.isEmpty() ) {
@@ -2612,8 +2611,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                 const auto matchEnd = match.endColumn();
                 auto matchLengthInString = match.size();
                 if ( matchEnd >= LineColumn{ expandedLine.size() } ) {
-                    matchLengthInString
-                        = LineLength{ logsquirl::isize( expandedLine ) - match.startColumn().get() };
+                    matchLengthInString = LineLength{ logsquirl::isize( expandedLine )
+                                                      - match.startColumn().get() };
                 }
                 if ( matchLengthInString > 0_length ) {
                     lineDrawer.addChunk( match.startColumn(), matchEnd, match.foreColor(),
@@ -2645,8 +2644,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             auto selectionPen = QPen( palette.color( QPalette::Highlight ) );
             selectionPen.setWidth( 1 );
             painter->setPen( selectionPen );
-            painter->drawLine( xPos - ContentMarginWidth + 1, yPos,
-                               viewport()->width() - 1, yPos );
+            painter->drawLine( xPos - ContentMarginWidth + 1, yPos, viewport()->width() - 1, yPos );
             painter->drawLine( xPos - ContentMarginWidth + 1, yPos + finalLineHeight - 1,
                                viewport()->width() - 1, yPos + finalLineHeight - 1 );
         }

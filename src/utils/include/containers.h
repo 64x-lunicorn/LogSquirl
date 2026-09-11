@@ -44,9 +44,8 @@ constexpr int isize( const C& c )
     return type_safe::narrow_cast<int>( logsquirl::ssize( c ) );
 }
 
-
-template<class C>
-constexpr std::add_const_t<C>& as_const(C& c) noexcept
+template <class C>
+constexpr std::add_const_t<C>& as_const( C& c ) noexcept
 {
     return c;
 }

@@ -37,7 +37,7 @@ class QSpinBox;
 class ChartSeriesDialog : public QDialog {
     Q_OBJECT
 
-  public:
+public:
     explicit ChartSeriesDialog( QWidget* parent = nullptr );
 
     // Pre-populate the dialog fields for editing an existing series.
@@ -50,11 +50,11 @@ class ChartSeriesDialog : public QDialog {
     // Return the configured series definition.
     ChartSeriesDefinition series() const;
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void chooseColor();
     void validateAndAccept();
 
-  private:
+private:
     QLineEdit* nameEdit_;
     QLineEdit* patternEdit_;
     QSpinBox* captureGroupSpin_;

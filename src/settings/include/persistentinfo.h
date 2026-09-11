@@ -46,17 +46,15 @@
 // Singleton class managing the saving of persistent data to permanent storage
 // Clients must implement Persistable
 
-struct app_settings {
-};
-struct session_settings {
-};
+struct app_settings {};
+struct session_settings {};
 
 class PersistentInfo {
-  public:
+public:
     static QSettings& getSettings( app_settings );
     static QSettings& getSettings( session_settings );
 
-  private:
+private:
     static const bool ForcePortable;
 
     explicit PersistentInfo();

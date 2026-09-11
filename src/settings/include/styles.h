@@ -20,9 +20,9 @@
 #ifndef LOGSQUIRL_STYLES
 #define LOGSQUIRL_STYLES
 
+#include <QLatin1String>
 #include <QString>
 #include <QStringList>
-#include <QLatin1String>
 
 struct StyleManager {
 

@@ -90,8 +90,7 @@ public:
             painter->setFont( shortcutFont );
 
             const auto palette = option.palette;
-            painter->setPen(
-                palette.color( QPalette::Active, QPalette::Text ).lighter( 140 ) );
+            painter->setPen( palette.color( QPalette::Active, QPalette::Text ).lighter( 140 ) );
 
             QRect shortcutRect = rect;
             shortcutRect.setRight( rect.right() - 8 );
@@ -140,14 +139,14 @@ CommandPalette::CommandPalette( QWidget* parent )
     layout->addWidget( list_ );
 
     // Styling
-    setStyleSheet( QStringLiteral(
-        "CommandPalette { border: 1px solid palette(mid); border-radius: 6px; }"
-        "QLineEdit { border: none; border-bottom: 1px solid palette(mid);"
-        "  padding: 8px 12px; background: palette(base); }"
-        "QListWidget { border: none; background: palette(base); }"
-        "QListWidget::item { padding: 4px 12px; }"
-        "QListWidget::item:selected { background: palette(highlight);"
-        "  color: palette(highlighted-text); }" ) );
+    setStyleSheet(
+        QStringLiteral( "CommandPalette { border: 1px solid palette(mid); border-radius: 6px; }"
+                        "QLineEdit { border: none; border-bottom: 1px solid palette(mid);"
+                        "  padding: 8px 12px; background: palette(base); }"
+                        "QListWidget { border: none; background: palette(base); }"
+                        "QListWidget::item { padding: 4px 12px; }"
+                        "QListWidget::item:selected { background: palette(highlight);"
+                        "  color: palette(highlighted-text); }" ) );
 
     // Connect filter updates
     connect( input_, &QLineEdit::textChanged, this, &CommandPalette::updateFilter );

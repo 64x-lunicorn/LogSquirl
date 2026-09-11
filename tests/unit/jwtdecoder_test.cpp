@@ -230,10 +230,9 @@ SCENARIO( "Full JWT token decoding", "[jwtdecoder]" )
 
     GIVEN( "A token with leading and trailing whitespace" )
     {
-        const QString token
-            = "  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-              "eyJzdWIiOiIxMjM0NTY3ODkwIn0."
-              "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U  \n";
+        const QString token = "  eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+                              "eyJzdWIiOiIxMjM0NTY3ODkwIn0."
+                              "dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U  \n";
 
         WHEN( "It is decoded" )
         {
@@ -343,10 +342,9 @@ SCENARIO( "JWT extraction from log lines", "[jwtdecoder]" )
 
     GIVEN( "A multi-line text with a JWT on one of the lines" )
     {
-        const QString text
-            = "Some log prefix\n"
-              "token=eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.\n"
-              "Some other text";
+        const QString text = "Some log prefix\n"
+                             "token=eyJhbGciOiJub25lIn0.eyJzdWIiOiJ0ZXN0In0.\n"
+                             "Some other text";
 
         WHEN( "decodeToken is called on the full text" )
         {

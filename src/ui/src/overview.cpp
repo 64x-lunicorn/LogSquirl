@@ -91,7 +91,8 @@ std::pair<int, int> Overview::getViewLines() const
 LineNumber Overview::fileLineFromY( int position ) const
 {
     const auto line = static_cast<LineNumber::UnderlyingType>(
-        static_cast<LineNumber::UnderlyingType>( position ) * linesInFile_.get() / static_cast<LineNumber::UnderlyingType>( height_ ) );
+        static_cast<LineNumber::UnderlyingType>( position ) * linesInFile_.get()
+        / static_cast<LineNumber::UnderlyingType>( height_ ) );
 
     return LineNumber{ line };
 }

@@ -27,7 +27,7 @@
 
 // Manage the list of recently opened files
 class RecentFiles final : public Persistable<RecentFiles, session_settings> {
-  public:
+public:
     static const char* persistableName()
     {
         return "RecentFiles";
@@ -46,7 +46,7 @@ class RecentFiles final : public Persistable<RecentFiles, session_settings> {
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-  private:
+private:
     static constexpr int RECENTFILES_VERSION = 1;
     static constexpr int DEFAULT_MAX_ITEMS_TO_SHOW = 5;
 

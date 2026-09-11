@@ -29,7 +29,7 @@
 class PredefinedFilterSetEdit : public QWidget, public Ui::PredefinedFilterSetEdit {
     Q_OBJECT
 
-  public:
+public:
     explicit PredefinedFilterSetEdit( QWidget* parent = nullptr );
 
     // Return the currently edited filter set.
@@ -41,11 +41,11 @@ class PredefinedFilterSetEdit : public QWidget, public Ui::PredefinedFilterSetEd
     // Clear all fields and disable editing controls.
     void reset();
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Emitted whenever the set name or any filter changes.
     void changed();
 
-  private Q_SLOTS:
+private Q_SLOTS:
     void setName( const QString& name );
 
     void addFilter();
@@ -58,7 +58,7 @@ class PredefinedFilterSetEdit : public QWidget, public Ui::PredefinedFilterSetEd
                                int previousColumn );
     void onCellChanged( int row, int column );
 
-  private:
+private:
     void populateTable();
     void syncTableToSet();
     void updateButtons( int currentRow );

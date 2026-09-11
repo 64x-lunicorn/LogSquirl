@@ -23,14 +23,12 @@
 #include <QString>
 #include <vector>
 
-#include "persistable.h"
 #include "displayfilepath.h"
+#include "persistable.h"
 
 // Manage the list of recently opened files
-class FavoriteFiles final : public Persistable<FavoriteFiles, session_settings>
-{
-  public:
-
+class FavoriteFiles final : public Persistable<FavoriteFiles, session_settings> {
+public:
     void add( const QString& path );
     void remove( const QString& path );
 
@@ -40,12 +38,12 @@ class FavoriteFiles final : public Persistable<FavoriteFiles, session_settings>
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
 
-    static const char* persistableName() 
+    static const char* persistableName()
     {
-      return "FavoriteFiles";
+        return "FavoriteFiles";
     }
 
-  private:
+private:
     std::vector<DisplayFilePath> files_;
 };
 

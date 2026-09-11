@@ -56,8 +56,8 @@
 #include <type_safe/strong_typedef.hpp>
 
 #include "linetypes.h"
-#include "settingspolicies.h"
 #include "regularexpression.h"
+#include "settingspolicies.h"
 #include "synchronization.h"
 
 class LogData;
@@ -202,8 +202,8 @@ public:
                          const std::atomic<uint64_t>& activeSearchId,
                          std::shared_ptr<const RegularExpression> compiledExpression,
                          LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy )
-        : SearchOperation( sourceLogData, searchId, activeSearchId,
-                           std::move( compiledExpression ), startLine, endLine, searchPolicy )
+        : SearchOperation( sourceLogData, searchId, activeSearchId, std::move( compiledExpression ),
+                           startLine, endLine, searchPolicy )
     {
     }
 
@@ -218,8 +218,8 @@ public:
                            std::shared_ptr<const RegularExpression> compiledExpression,
                            LineNumber startLine, LineNumber endLine, LineNumber position,
                            SearchPolicy searchPolicy )
-        : SearchOperation( sourceLogData, searchId, activeSearchId,
-                           std::move( compiledExpression ), startLine, endLine, searchPolicy )
+        : SearchOperation( sourceLogData, searchId, activeSearchId, std::move( compiledExpression ),
+                           startLine, endLine, searchPolicy )
         , initialPosition_( position )
     {
     }

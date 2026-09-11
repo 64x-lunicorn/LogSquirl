@@ -202,7 +202,8 @@ void Highlighter::compile() const
     optimizedRegexp_->optimize();
 }
 
-bool Highlighter::matchLine( const QString& line, logsquirl::vector<HighlightedMatch>& matches ) const
+bool Highlighter::matchLine( const QString& line,
+                             logsquirl::vector<HighlightedMatch>& matches ) const
 {
     matches.clear();
 
@@ -317,7 +318,7 @@ HighlighterMatchType HighlighterSet::matchLine( const QString& line,
             continue;
         }
 
-        if (hl.highlightOnlyMatch()) {
+        if ( hl.highlightOnlyMatch() ) {
             if ( matchType != HighlighterMatchType::LineMatch ) {
                 matchType = HighlighterMatchType::WordMatch;
             }

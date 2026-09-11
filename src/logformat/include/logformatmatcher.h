@@ -28,7 +28,7 @@
 // Uses specificity-based ordering: a format that matches only its own lines
 // is preferred over one that matches everything.
 class LogFormatMatcher {
-  public:
+public:
     // Construct a matcher backed by the given registry.
     explicit LogFormatMatcher( const LogFormatRegistry& registry );
 
@@ -37,6 +37,6 @@ class LogFormatMatcher {
     // above the minimum threshold (50% of lines must match).
     const LogFormatDefinition* detectFormat( const QStringList& lines ) const;
 
-  private:
+private:
     const LogFormatRegistry& registry_;
 };

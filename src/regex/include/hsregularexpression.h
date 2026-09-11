@@ -44,7 +44,7 @@
 using MatchedPatterns = std::string;
 
 class DefaultRegularExpressionMatcher {
-  public:
+public:
     explicit DefaultRegularExpressionMatcher(
         const logsquirl::vector<RegularExpressionPattern>& patterns )
     {
@@ -56,19 +56,19 @@ class DefaultRegularExpressionMatcher {
     MatchedPatterns match( const std::string_view& utf8Data ) const
     {
         MatchedPatterns matchedPatterns( regexp_.size(), 0 );
-        std::transform( regexp_.cbegin(), regexp_.cend(), matchedPatterns.begin(),
-                        [ utf8Data ]( const auto& regexp ) {
-                            return regexp
-                                .match(
-                                    QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) ) )
-                                .hasMatch();
-                            ;
-                        } );
+        std::transform(
+            regexp_.cbegin(), regexp_.cend(), matchedPatterns.begin(),
+            [ utf8Data ]( const auto& regexp ) {
+                return regexp
+                    .match( QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) ) )
+                    .hasMatch();
+                ;
+            } );
 
         return matchedPatterns;
     }
 
-  private:
+private:
     logsquirl::vector<QRegularExpression> regexp_;
 };
 
@@ -85,12 +85,12 @@ struct HsMatcherContext {
 
     MatchedPatterns matchingPatterns;
 
-  private:
+private:
     MatchedPatterns matchingPatternsTemplate_;
 };
 
 class HsMatcher {
-  public:
+public:
     HsMatcher() = default;
     HsMatcher( HsDatabase database, HsScratch scratch, std::size_t numberOfPatterns );
 
@@ -100,7 +100,7 @@ class HsMatcher {
     HsMatcher( HsMatcher&& other ) = default;
     HsMatcher& operator=( HsMatcher&& other ) = default;
 
-  protected:
+protected:
     HsDatabase database_;
     HsScratch scratch_;
 
@@ -108,7 +108,7 @@ class HsMatcher {
 };
 
 class HsSingleMatcher : public HsMatcher {
-  public:
+public:
     HsSingleMatcher() = default;
     HsSingleMatcher( HsDatabase database, HsScratch scratch );
 
@@ -116,7 +116,7 @@ class HsSingleMatcher : public HsMatcher {
 };
 
 class HsMultiMatcher : public HsMatcher {
-  public:
+public:
     HsMultiMatcher() = default;
     HsMultiMatcher( HsDatabase database, HsScratch scratch, std::size_t numberOfPatterns );
 
@@ -124,27 +124,27 @@ class HsMultiMatcher : public HsMatcher {
 };
 
 class HsNoopMatcher {
-  public:
+public:
     MatchedPatterns match( const std::string_view& utf8Data ) const;
 };
 
 class HsPrefilterMatcher {
-  public:
-    HsPrefilterMatcher(const logsquirl::vector<RegularExpressionPattern>& patterns, HsMultiMatcher&& hsMatcher);
+public:
+    HsPrefilterMatcher( const logsquirl::vector<RegularExpressionPattern>& patterns,
+                        HsMultiMatcher&& hsMatcher );
 
     MatchedPatterns match( const std::string_view& utf8Data ) const;
-  
-  private:
+
+private:
     logsquirl::vector<RegularExpressionPattern> patterns_;
     HsMultiMatcher hsMatcher_;
 };
 
-using MatcherVariant
-    = std::variant<DefaultRegularExpressionMatcher, HsNoopMatcher, HsSingleMatcher, HsMultiMatcher, HsPrefilterMatcher>;
-
+using MatcherVariant = std::variant<DefaultRegularExpressionMatcher, HsNoopMatcher, HsSingleMatcher,
+                                    HsMultiMatcher, HsPrefilterMatcher>;
 
 class HsRegularExpression {
-  public:
+public:
     HsRegularExpression() = default;
     explicit HsRegularExpression( const RegularExpressionPattern& includePattern );
     explicit HsRegularExpression( const logsquirl::vector<RegularExpressionPattern>& patterns );
@@ -160,10 +160,10 @@ class HsRegularExpression {
 
     MatcherVariant createMatcher() const;
 
-  private:
+private:
     bool isHsValid() const;
 
-  private:
+private:
     HsDatabase database_;
     HsScratch scratch_;
 
@@ -179,7 +179,7 @@ class HsRegularExpression {
 using MatcherVariant = std::variant<DefaultRegularExpressionMatcher>;
 
 class HsRegularExpression {
-  public:
+public:
     HsRegularExpression() = default;
 
     explicit HsRegularExpression( const RegularExpressionPattern& includePattern )
@@ -215,7 +215,7 @@ class HsRegularExpression {
         return MatcherVariant{ DefaultRegularExpressionMatcher( patterns_ ) };
     }
 
-  private:
+private:
     bool isValid_ = true;
     QString errorString_;
 

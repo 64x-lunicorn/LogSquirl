@@ -102,7 +102,8 @@ const LogFormatDefinition* LogFormatMatcher::detectFormat( const QStringList& li
 
     // Check if the best candidate passes the minimum threshold
     const auto& best = scores.first();
-    const double ratio = static_cast<double>( best.matchCount ) / static_cast<double>( lines.size() );
+    const double ratio
+        = static_cast<double>( best.matchCount ) / static_cast<double>( lines.size() );
 
     if ( ratio < MinMatchRatio ) {
         return nullptr;

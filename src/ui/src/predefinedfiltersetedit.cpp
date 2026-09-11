@@ -30,7 +30,7 @@ namespace {
 
 // Centered checkbox widget reused from predefinedfiltersdialog.cpp pattern.
 class CenteredCheckbox : public QWidget {
-  public:
+public:
     explicit CenteredCheckbox( QWidget* parent = nullptr )
         : QWidget( parent )
     {
@@ -45,10 +45,16 @@ class CenteredCheckbox : public QWidget {
         checkbox_->setPalette( pal );
     }
 
-    bool isChecked() const { return checkbox_->isChecked(); }
-    void setChecked( bool checked ) { checkbox_->setChecked( checked ); }
+    bool isChecked() const
+    {
+        return checkbox_->isChecked();
+    }
+    void setChecked( bool checked )
+    {
+        checkbox_->setChecked( checked );
+    }
 
-  private:
+private:
     QCheckBox* checkbox_;
 };
 
@@ -132,8 +138,8 @@ void PredefinedFilterSetEdit::populateTable()
     const auto& filters = filterSet_.filters_;
     filtersTableWidget->setRowCount( static_cast<int>( filters.size() ) );
     filtersTableWidget->setColumnCount( 3 );
-    filtersTableWidget->setHorizontalHeaderLabels(
-        QStringList() << tr( "Name" ) << tr( "Pattern" ) << tr( "Regex" ) );
+    filtersTableWidget->setHorizontalHeaderLabels( QStringList() << tr( "Name" ) << tr( "Pattern" )
+                                                                 << tr( "Regex" ) );
 
     for ( int i = 0; i < filters.size(); ++i ) {
         filtersTableWidget->setItem( i, 0, new QTableWidgetItem( filters[ i ].name ) );

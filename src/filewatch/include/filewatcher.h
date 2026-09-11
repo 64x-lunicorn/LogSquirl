@@ -58,7 +58,7 @@ struct EfswFileWatcherDeleter {
 
 class FileWatcher : public QObject {
     Q_OBJECT
-  public:
+public:
     FileWatcher( const FileWatcher& ) = delete;
     FileWatcher( FileWatcher&& ) = delete;
 
@@ -88,20 +88,19 @@ class FileWatcher : public QObject {
     // first file is added.
     void setWatchPolicy( const WatchPolicy& policy );
 
-  public Q_SLOTS:
+public Q_SLOTS:
     void fileChangedOnDisk( const QString& );
 
-  Q_SIGNALS:
+Q_SIGNALS:
     // Sent when the file on disk has changed in any way.
     void fileChanged( const QString& );
     void notifyFileChangedOnDisk();
 
-
-  private Q_SLOTS:
+private Q_SLOTS:
     void checkWatches();
     void sendChangesNotifications();
 
-  private:
+private:
     // Create an empty object
     FileWatcher();
     ~FileWatcher() override; // for complete EfswFileWatcher
