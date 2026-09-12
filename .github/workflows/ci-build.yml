@@ -503,7 +503,8 @@ jobs:
   # ---------------------------------------------------------------------------
   ci-passed:
     name: CI passed
-    needs: [SaveVersion, Format, Linux, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
+    needs:
+      [SaveVersion, Format, Linux, Sanitizers, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     steps:

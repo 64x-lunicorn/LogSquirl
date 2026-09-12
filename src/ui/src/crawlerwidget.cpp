@@ -2639,7 +2639,10 @@ void CrawlerWidget::autoSizeTableColumns()
     // the user can resize manually if needed.
     const int sampleRows = std::min( rowCount, 50 );
     const auto fm = logTableView_->fontMetrics();
-    constexpr int cellPadding = 16; // 4px padding each side + some margin
+    // The delegate's padding on both sides, plus a little margin so the
+    // widest cell does not sit flush against the column edge.
+    constexpr int cellMargin = 8;
+    constexpr int cellPadding = 2 * LogTableHighlightDelegate::HorizontalTextPadding + cellMargin;
 
     QVector<int> maxWidths( colCount, 0 );
 

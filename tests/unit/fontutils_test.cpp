@@ -48,16 +48,21 @@ std::optional<QString> findFamily( bool fixedPitch )
 std::optional<QString> findStableFixedPitchFamily()
 {
     for ( const auto& family : QFontDatabase::families() ) {
-        if ( !QFontDatabase::isFixedPitch( family ) ) {
-            continue;
-        }
-        const QFont font( family, 10 );
-        const auto resolvedFamily = QFontInfo( font ).family();
-        if ( QFontDatabase::isFixedPitch( resolvedFamily ) ) {
+        if ( FontUtils::resolvesToFixedPitch( family ) ) {
             return family;
         }
     }
     return std::nullopt;
+}
+
+// Every assertion that a fallback *resolves to* a fixed-pitch family needs the
+// host to own one in the first place. A system with no monospace font
+// installed -- a minimal container is the usual case -- leaves
+// validatedFixedPitchFont() nothing to fall back to, and the failure would
+// report a host deficiency as a defect in the function.
+bool hostHasFixedPitchFont()
+{
+    return findStableFixedPitchFamily().has_value();
 }
 
 } // namespace
@@ -92,6 +97,63 @@ TEST_CASE( "FontUtils::validatedFixedPitchFont substitutes a non-fixed-pitch fon
 
     const QFont font( *family, 10 );
     const QFont validated = FontUtils::validatedFixedPitchFont( font, *fallbackFamily );
+
+    REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( validated ).family() ) );
+}
+
+TEST_CASE( "FontUtils::platformFixedPitchFamily resolves to a fixed-pitch family", "[fontutils]" )
+{
+    const auto family = FontUtils::platformFixedPitchFamily();
+
+    REQUIRE( !family.isEmpty() );
+
+    if ( !hostHasFixedPitchFont() ) {
+        SUCCEED( "No fixed-pitch font installed on this system to resolve to" );
+        return;
+    }
+
+    REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( QFont( family, 10 ) ).family() ) );
+}
+
+TEST_CASE( "FontUtils::validatedFixedPitchFont falls back without a family named", "[fontutils]" )
+{
+    const auto family = findFamily( false );
+    if ( !family.has_value() ) {
+        SUCCEED( "No proportional font installed on this system to test with" );
+        return;
+    }
+
+    if ( !hostHasFixedPitchFont() ) {
+        SUCCEED( "No fixed-pitch font installed on this system to fall back to" );
+        return;
+    }
+
+    const QFont font( *family, 10 );
+    const QFont validated = FontUtils::validatedFixedPitchFont( font );
+
+    REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( validated ).family() ) );
+}
+
+TEST_CASE( "FontUtils::validatedFixedPitchFont rejects a fallback family that is absent",
+           "[fontutils]" )
+{
+    const auto family = findFamily( false );
+    if ( !family.has_value() ) {
+        SUCCEED( "No proportional font installed on this system to test with" );
+        return;
+    }
+
+    if ( !hostHasFixedPitchFont() ) {
+        SUCCEED( "No fixed-pitch font installed on this system to fall back to" );
+        return;
+    }
+
+    // The defect this covers: a fallback family that does not exist on the
+    // host is substituted by Qt just as silently as the original font was,
+    // and the substitute can itself be proportional.
+    const QFont font( *family, 10 );
+    const QFont validated
+        = FontUtils::validatedFixedPitchFont( font, "LogSquirl No Such Font Family" );
 
     REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( validated ).family() ) );
 }
