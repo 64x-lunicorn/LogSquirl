@@ -10,6 +10,7 @@ add_executable(logsquirl_tests
     indexcache_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
+    linessaver_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
     logfieldextractor_test.cpp

@@ -59,6 +59,7 @@
 #endif
 
 #include "abstractlogdata.h"
+#include "linessaver.h"
 #include "linetypes.h"
 #include "overviewwidget.h"
 #include "quickfind.h"
@@ -200,6 +201,12 @@ protected:
     // copy of what the view displays, taken on the UI thread when the
     // QuickFind starts. Every Log Line unless overridden.
     virtual QuickFindLines quickFindLines() const;
+
+    // Reads the lines a save from this view writes, by their position in the
+    // view, off the UI thread: taken on the UI thread when the save starts,
+    // it doesn't see what the view displays afterwards. Reads the view's data
+    // unless overridden.
+    virtual DisplayedLinesReader linesToSave() const;
 
     // Get the overview associated with this view, or NULL if there is none
     Overview* getOverview() const

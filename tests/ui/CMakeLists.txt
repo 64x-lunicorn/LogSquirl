@@ -6,6 +6,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/logfiltereddata_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewscrolling_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewquickfind_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewsave_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/crawlerwidget_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/worker_destruction_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/policy_change_test.cpp

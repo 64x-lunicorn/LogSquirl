@@ -44,6 +44,8 @@ public:
     {
     }
 
+    using AbstractLogView::linesToSave;
+
 protected:
     AbstractLogData::LineType lineType( LineNumber ) const override
     {
@@ -563,6 +565,25 @@ SCENARIO( "QuickFind in the main view searches every Log Line", "[abstractlogvie
 
         view.incrementalSearchAbort();
         REQUIRE( view.getSelectedText() == QStringLiteral( "alpha" ) );
+    }
+}
+
+SCENARIO( "a save from the main view reads the lines of its data", "[abstractlogview][linessaver]" )
+{
+    QStringList lines;
+    for ( int line = 0; line < 7001; ++line ) {
+        lines.append( QStringLiteral( "line %1" ).arg( line ) );
+    }
+    FakeLogData logData{ lines };
+    QuickFindPattern qfp;
+    TestLogView view( &logData, &qfp );
+
+    const auto readLines = view.linesToSave();
+
+    THEN( "it reads the lines at the positions asked for" )
+    {
+        REQUIRE( readLines( 0_lnum, 7001_lcount ) == logData.getLines( 0_lnum, 7001_lcount ) );
+        REQUIRE( readLines( 4998_lnum, 3_lcount ) == logData.getLines( 4998_lnum, 3_lcount ) );
     }
 }
 

@@ -76,8 +76,6 @@
 #include <QStringView>
 #include <QtCore>
 
-#include <tbb/flow_graph.h>
-
 #include "abstractlogview.h"
 #include "containers.h"
 #include "fontutils.h"
@@ -1639,118 +1637,41 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
         return;
     }
 
+    // The lines are read, encoded and written off the UI thread, while the UI
+    // thread runs the progress dialog: the save's progress and its end reach
+    // the dialog as signals on the UI thread, and leaving the dialog any other
+    // way (Cancel, Escape) interrupts the save. The dialog is application
+    // modal, so the user can't change the view while the save runs, and the
+    // lines are read through a copy of what the view displays now.
+    AtomicFlag interruptRequest;
+    LinesSaver linesSaver;
+
     QProgressDialog progressDialog( this );
     progressDialog.setLabelText( tr( "Saving content to %1" ).arg( filename ) );
-    logsquirl::vector<std::pair<LineNumber, LinesCount>> offsets;
-    auto lineOffset = begin;
-    const auto chunkSize = 5000_lcount;
-    offsets.reserve( ( end - ( lineOffset + chunkSize ) ).get() );
-
-    for ( ; lineOffset + chunkSize < end; lineOffset += LinesCount( chunkSize.get() ) ) {
-        offsets.emplace_back( lineOffset, chunkSize );
-    }
-    offsets.emplace_back( lineOffset, LinesCount( ( end - lineOffset ).get() % chunkSize.get() ) );
-
-    const QTextCodec* codec = logData_->getDisplayEncoding();
-    if ( !codec ) {
-        codec = QTextCodec::codecForName( "utf-8" );
-    }
-
-    // Write BOM (Byte Order Mark) for Unicode encodings so other applications
-    // can detect the encoding when reopening the saved file.
-    const int mib = codec->mibEnum();
-    static constexpr int Utf8Mib = 106;
-    static constexpr int Utf16Mib = 1015;
-    static constexpr int Utf16BEMib = 1013;
-    static constexpr int Utf16LEMib = 1014;
-    if ( mib == Utf16LEMib || mib == Utf16Mib ) {
-        // UTF-16 LE BOM: FF FE
-        saveFile.write( "\xFF\xFE", 2 );
-    }
-    else if ( mib == Utf16BEMib ) {
-        // UTF-16 BE BOM: FE FF
-        saveFile.write( "\xFE\xFF", 2 );
-    }
-    else if ( mib == Utf8Mib ) {
-        // UTF-8 BOM: EF BB BF
-        saveFile.write( "\xEF\xBB\xBF", 3 );
-    }
-
-    AtomicFlag interruptRequest;
-
     progressDialog.setRange( 0, 1000 );
-    connect( &progressDialog, &QProgressDialog::canceled,
-             [ &interruptRequest ]() { interruptRequest.set(); } );
-
-    tbb::flow::graph saveFileGraph;
-    using LinesData = std::pair<logsquirl::vector<QString>, bool>;
-    auto lineReader = tbb::flow::input_node<LinesData>(
-        saveFileGraph,
-        [ this, &offsets, &interruptRequest, &progressDialog, offsetIndex = 0u,
-          finalLine = false ]( tbb::flow_control& fc ) mutable -> LinesData {
-            if ( !interruptRequest && offsetIndex < offsets.size() ) {
-                const auto& offset = offsets.at( offsetIndex );
-                LinesData lines{ logData_->getLines( offset.first, offset.second ), true };
-                for ( auto& l : lines.first ) {
-#if !defined( Q_OS_WIN )
-                    l.append( QChar::CarriageReturn );
-#endif
-                    l.append( QChar::LineFeed );
-                }
-
-                offsetIndex++;
-                progressDialog.setValue( static_cast<int>(
-                    std::floor( static_cast<float>( offsetIndex )
-                                / static_cast<float>( offsets.size() + 1 ) * 1000.f ) ) );
-                return lines;
-            }
-            else if ( !finalLine ) {
-                finalLine = true;
-            }
-            else {
-                fc.stop();
-            }
-
-            return {};
-        } );
-
-    auto lineWriter = tbb::flow::function_node<LinesData, tbb::flow::continue_msg>(
-        saveFileGraph, 1,
-        [ &interruptRequest, &codec, &saveFile,
-          &progressDialog ]( const LinesData& lines ) mutable {
-            if ( !lines.second ) {
-                if ( !interruptRequest ) {
-                    saveFile.commit();
-                }
-
-                progressDialog.finished( 0 );
-                return tbb::flow::continue_msg{};
-            }
-
-            for ( const auto& l : lines.first ) {
-                // Use IgnoreHeader to prevent codec from inserting its own BOM
-                // per line — we already wrote the BOM once at the start of the file.
-                QTextCodec::ConverterState state( QTextCodec::IgnoreHeader );
-                const auto encodedLine
-                    = codec->fromUnicode( l.constData(), static_cast<int>( l.length() ), &state );
-                const auto written = saveFile.write( encodedLine );
-
-                if ( written != encodedLine.size() ) {
-                    LOG_ERROR << "Saving file write failed";
-                    interruptRequest.set();
-                    return tbb::flow::continue_msg{};
-                }
-            }
-            return tbb::flow::continue_msg{};
-        } );
-
-    tbb::flow::make_edge( lineReader, lineWriter );
-
     progressDialog.setWindowModality( Qt::ApplicationModal );
-    progressDialog.open();
 
-    lineReader.activate();
-    saveFileGraph.wait_for_all();
+    connect( &linesSaver, &LinesSaver::progressed, &progressDialog, &QProgressDialog::setValue );
+    connect( &linesSaver, &LinesSaver::finished, &progressDialog,
+             [ &progressDialog ]() { progressDialog.done( QDialog::Accepted ); } );
+
+    linesSaver.save( linesToSave(), begin, end, logData_->getDisplayEncoding(), &saveFile,
+                     interruptRequest );
+
+    if ( progressDialog.exec() != QDialog::Accepted ) {
+        interruptRequest.set();
+    }
+
+    if ( linesSaver.waitForResult() ) {
+        saveFile.commit();
+    }
+}
+
+DisplayedLinesReader AbstractLogView::linesToSave() const
+{
+    return [ logFile = logData_ ]( LineNumber first, LinesCount count ) {
+        return logFile->getLines( first, count );
+    };
 }
 
 void AbstractLogView::updateSearchLimits()
