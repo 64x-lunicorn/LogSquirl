@@ -446,15 +446,19 @@ cpmaddpackage(
   efsw
   GITHUB_REPOSITORY
   SpartanJ/efsw
-  # 1.7.0 or later: 1.4.1's Windows backend freed a removed directory watch
+  # At least 1.7.0: 1.4.1's Windows backend freed a removed directory watch
   # while its cancelled read could still complete into it, corrupting the
-  # heap (#116). Later releases free it only once that read has completed.
+  # heap (#116); 1.7.0 frees it only once that read has completed. Pinned to
+  # 1.7.2, whose FileWatchListener signature filewatcher.cpp overrides.
   GIT_TAG
   1.7.2
   EXCLUDE_FROM_ALL
   YES
   OPTIONS
   "BUILD_TEST_APP OFF"
+  # Since 1.7 efsw also builds an efsw-static target by default; the efsw
+  # target is already static here (BUILD_SHARED_LIBS is OFF), so nothing
+  # links the second one.
   "BUILD_STATIC_LIBS OFF"
 )
 if(efsw_ADDED)

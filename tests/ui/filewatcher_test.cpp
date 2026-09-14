@@ -69,10 +69,12 @@ QString writeFile( const QTemporaryDir& dir, const QString& content,
     return path;
 }
 
-// Whether a change to the file named fileName was reported within the window
-// native watching gets. Matched by name, not by count: a change to some other
-// file in the same directory may still be on its way.
-bool nativeChangeReported( SafeQSignalSpy& changedSpy, const QString& fileName )
+// Requires a change to the file named fileName to be reported within the
+// window native watching gets -- except on macOS, where an environment that
+// cannot register a native watch only warns (see below). Matched by name, not
+// by count: a change to some other file in the same directory may still be on
+// its way.
+void requireNativeChangeReported( SafeQSignalSpy& changedSpy, const QString& fileName )
 {
     const auto changeReported = [ &changedSpy, &fileName ] {
         return std::any_of( changedSpy.cbegin(), changedSpy.cend(),
@@ -104,9 +106,8 @@ bool nativeChangeReported( SafeQSignalSpy& changedSpy, const QString& fileName )
               "log); native watching also runs behind polling in the shipped "
               "defaults on this platform." );
     }
-    return true;
 #else
-    return reported;
+    REQUIRE( reported );
 #endif
 }
 
@@ -156,7 +157,7 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
 
             THEN( "the change is reported" )
             {
-                REQUIRE( nativeChangeReported( changedSpy, QFileInfo( path ).fileName() ) );
+                requireNativeChangeReported( changedSpy, QFileInfo( path ).fileName() );
             }
         }
     }
@@ -224,33 +225,39 @@ SCENARIO( "File watching survives its directory watch being torn down and re-cre
     QTemporaryDir tempDir;
     REQUIRE( tempDir.isValid() );
 
-    GIVEN( "a Policy that watches natively" )
-    {
+    // WatchedFile hands the watcher back watching nothing, so every watch
+    // below starts by handing it this Policy again.
+    const auto watchNatively = [] {
         FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
             .nativeWatchEnabled = true, .pollingEnabled = false, .pollIntervalMs = 100 } );
+    };
 
+    GIVEN( "a Policy that watches natively" )
+    {
         WHEN( "files in one directory are watched, changed and unwatched many times over" )
         {
             for ( int round = 0; round < 200; ++round ) {
                 const auto fileName = QStringLiteral( "churn_%1.log" ).arg( round );
                 const auto path = writeFile( tempDir, "first line\n", fileName );
-
-                FileWatcher::getFileWatcher().addFile( path );
-                writeFile( tempDir, "second line\n", fileName );
-                FileWatcher::getFileWatcher().removeFile( path );
+                {
+                    watchNatively();
+                    WatchedFile watched{ path };
+                    writeFile( tempDir, "second line\n", fileName );
+                }
                 QFile::remove( path );
             }
 
             const auto path = writeFile( tempDir, "first line\n" );
             SafeQSignalSpy changedSpy( &FileWatcher::getFileWatcher(),
                                        SIGNAL( fileChanged( QString ) ) );
+            watchNatively();
             WatchedFile watched{ path };
 
             writeFile( tempDir, "second line\n" );
 
             THEN( "a change to a file watched afterwards is still reported" )
             {
-                REQUIRE( nativeChangeReported( changedSpy, QFileInfo( path ).fileName() ) );
+                requireNativeChangeReported( changedSpy, QFileInfo( path ).fileName() );
             }
         }
     }
