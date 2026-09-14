@@ -22,6 +22,8 @@
 #include "logtablehighlightdelegate.h"
 
 #include <QApplication>
+#include <QFontMetrics>
+#include <QImage>
 #include <QPainter>
 #include <QPixmap>
 #include <QStandardItemModel>
@@ -759,6 +761,171 @@ SCENARIO( "Marking a line changes the Table View's row background",
                 REQUIRE( beforeColors.backColor != afterColors.backColor );
                 REQUIRE( afterColors.backColor == QColor{ "dodgerblue" } );
             }
+        }
+    }
+}
+
+// ── Cell hit test (#134) ────────────────────────────────────────────────────
+//
+// A click in a cell has to resolve to the character drawn under it. The hit
+// test and paint() each apply the cell's horizontal padding, and only a test
+// keeps them agreeing. So the expectation below is not computed from the
+// padding constant; it is read back from what paint() actually drew. A
+// one-character portion selection makes paint() fill exactly that
+// character's cell in the highlight colour, and the hit test is asked about
+// the pixels either side of that cell's midpoint: a click on the left half
+// of a character is a caret before it, on the right half a caret after it.
+// If the two paddings differ by even one pixel, one of those probes lands on
+// the wrong side of the midpoint.
+
+namespace {
+
+const QColor HitTestHighlightColor{ 0, 200, 0 };
+
+struct PaintedCharacter {
+    int left = 0;
+    int width = 0;
+    QFontMetrics fontMetrics;
+};
+
+// Paints cellText into cellRect with the given character portion-selected,
+// and returns the horizontal extent paint() filled for that character along
+// the top pixel row of the cell, where no glyph reaches.
+std::optional<PaintedCharacter> paintCharacter( const QString& cellText, int character,
+                                                const QRect& cellRect, const QFont& font )
+{
+    QStandardItemModel model( 1, 1 );
+    model.setData( model.index( 0, 0 ), cellText );
+
+    LogTableHighlightDelegate delegate;
+    delegate.setPortionSelection( 0, 0, character, character + 1 );
+
+    QImage image( cellRect.right() + 1, cellRect.bottom() + 1, QImage::Format_ARGB32 );
+    image.fill( Qt::white );
+
+    QStyleOptionViewItem option;
+    option.rect = cellRect;
+    option.font = font;
+    option.state = QStyle::State_Enabled;
+    option.palette.setColor( QPalette::Base, Qt::white );
+    option.palette.setColor( QPalette::Text, Qt::black );
+    option.palette.setColor( QPalette::Highlight, HitTestHighlightColor );
+    option.palette.setColor( QPalette::HighlightedText, Qt::black );
+
+    QPainter painter( &image );
+    painter.setFont( font );
+    delegate.paint( &painter, option, model.index( 0, 0 ) );
+    const auto fontMetrics = painter.fontMetrics();
+    painter.end();
+
+    const auto highlight = HitTestHighlightColor.rgb();
+    int left = -1;
+    int width = 0;
+    for ( int x = cellRect.left(); x <= cellRect.right(); ++x ) {
+        if ( image.pixel( x, cellRect.top() ) == highlight ) {
+            if ( left < 0 ) {
+                left = x;
+            }
+            ++width;
+        }
+    }
+
+    if ( left < 0 ) {
+        return std::nullopt;
+    }
+    return PaintedCharacter{ left, width, fontMetrics };
+}
+
+void requireClicksResolveToPaintedCharacter( const QString& cellText, int character )
+{
+    // A cell that does not start at x = 0, so the hit test has to honour the
+    // cell's own left edge as well as the padding.
+    const QRect cellRect( 37, 0, 300, 24 );
+    auto font = QApplication::font();
+    font.setPixelSize( 16 );
+
+    const auto painted = paintCharacter( cellText, character, cellRect, font );
+    REQUIRE( painted.has_value() );
+    // Narrower than two pixels, a character has no left and right half to
+    // tell apart.
+    REQUIRE( painted->width >= 2 );
+
+    const auto hit = [ & ]( int pixelX ) {
+        return LogTableHighlightDelegate::charIndexAtX( cellText, painted->fontMetrics,
+                                                        cellRect.left(), pixelX );
+    };
+    const int firstRightHalfPx = painted->left + ( painted->width + 1 ) / 2;
+    const int lastPx = painted->left + painted->width - 1;
+
+    REQUIRE( hit( painted->left ) == character );
+    REQUIRE( hit( firstRightHalfPx - 1 ) == character );
+    REQUIRE( hit( firstRightHalfPx ) == character + 1 );
+    REQUIRE( hit( lastPx ) == character + 1 );
+}
+
+} // namespace
+
+SCENARIO( "A click in a Table View cell resolves to the character painted under it",
+          "[logtablehighlightdelegate][hittest]" )
+{
+    const QString cellText = "abcdefghij";
+
+    GIVEN( "the first character of a cell" )
+    {
+        THEN( "its left half is before it and its right half after it" )
+        {
+            requireClicksResolveToPaintedCharacter( cellText, 0 );
+        }
+    }
+
+    GIVEN( "a character in the middle of a cell" )
+    {
+        THEN( "its left half is before it and its right half after it" )
+        {
+            requireClicksResolveToPaintedCharacter( cellText, 5 );
+        }
+    }
+
+    GIVEN( "the last character of a cell" )
+    {
+        THEN( "its left half is before it and its right half after it" )
+        {
+            requireClicksResolveToPaintedCharacter( cellText, 9 );
+        }
+    }
+}
+
+SCENARIO( "A click in a Table View cell with no text under it resolves to the start",
+          "[logtablehighlightdelegate][hittest]" )
+{
+    const QFontMetrics fontMetrics( QApplication::font() );
+    const int cellLeft = 37;
+
+    GIVEN( "an empty cell" )
+    {
+        THEN( "any click is the first position" )
+        {
+            REQUIRE( LogTableHighlightDelegate::charIndexAtX( QString{}, fontMetrics, cellLeft,
+                                                              cellLeft + 50 )
+                     == 0 );
+        }
+    }
+
+    GIVEN( "a cell with text" )
+    {
+        const QString cellText = "abcdefghij";
+
+        THEN( "a click in the padding left of the text is the first position" )
+        {
+            REQUIRE( LogTableHighlightDelegate::charIndexAtX( cellText, fontMetrics, cellLeft,
+                                                              cellLeft + 1 )
+                     == 0 );
+        }
+
+        THEN( "a click left of the cell altogether is the first position" )
+        {
+            REQUIRE( LogTableHighlightDelegate::charIndexAtX( cellText, fontMetrics, cellLeft, 0 )
+                     == 0 );
         }
     }
 }

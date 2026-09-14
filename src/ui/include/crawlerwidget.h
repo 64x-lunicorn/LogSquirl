@@ -547,7 +547,8 @@ private:
     bool tableSelectionDragging_ = false; // Mouse drag in progress?
     int tableHoverRow_ = -1;              // Row under the mouse for hover highlight
 
-    // Convert a pixel X position within a cell to a character index.
+    // Convert a pixel X position within a cell to a character index
+    // (LogTableHighlightDelegate::charIndexAtX() does the conversion).
     int tableCellCharAtX( const QModelIndex& index, int pixelX ) const;
 
     // Select the word at the given character position in a cell.
