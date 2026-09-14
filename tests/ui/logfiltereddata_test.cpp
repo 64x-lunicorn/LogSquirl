@@ -24,6 +24,8 @@
 #include <QTest>
 #include <qglobal.h>
 
+#include <tbb/global_control.h>
+
 #include "log.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -661,6 +663,73 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
                     REQUIRE( l.contains( "ODD" ) );
                     REQUIRE_FALSE( l.contains( "EVEN" ) );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "a Search completes even when TBB has no worker thread to spare", "[logdata][search]" )
+{
+    GIVEN( "a log file loaded under a Search Policy that reads it in 2000 small blocks" )
+    {
+        static const qint64 nbLines = 20000;
+
+        QTemporaryFile file{ "no_worker_search_XXXXXX" };
+        REQUIRE( [ & ]() {
+            if ( !file.open() ) {
+                return false;
+            }
+            char line[ 96 ];
+            for ( qint64 i = 0; i < nbLines; ++i ) {
+                const char* tag = ( i % 2 == 0 ) ? "EVEN" : "ODD";
+                snprintf( line, sizeof( line ), "NO_WORKER_TEST %s line %06lld\n", tag,
+                          static_cast<long long>( i ) );
+                file.write( line, static_cast<qint64>( qstrlen( line ) ) );
+            }
+            file.flush();
+            return true;
+        }() );
+
+        // The settings of the CI run that stalled for 120 s (#142).
+        auto policies = testSettingsPolicies();
+        policies.search.useParallelSearch = true;
+        policies.search.threadPoolSize = 2;
+        policies.search.readBufferSizeLines = 10;
+        policies.search.useResultsCache = false;
+
+        LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
+        SafeQSignalSpy loadEndSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        log_data.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+
+        auto filtered_data = log_data.getNewFilteredData();
+        SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
+
+        WHEN( "a Search runs while no TBB worker thread is available to its graph" )
+        {
+            // TBB shares its workers between every graph in the process, so a
+            // graph can find none free, as the one in #142 did for 120 s. A
+            // parallelism of 1 makes that certain: only the thread running the
+            // Search is left to process its blocks.
+            tbb::global_control noWorkers( tbb::global_control::max_allowed_parallelism, 1 );
+
+            filtered_data->request( RegularExpressionPattern( "ODD" ) );
+
+            const bool searchCompleted = waitUiState(
+                [ & ]() {
+                    if ( searchStateSpy.count() == 0 ) {
+                        return false;
+                    }
+                    return lastSearchState( searchStateSpy ).progress >= 100;
+                },
+                20000 );
+            REQUIRE( searchCompleted );
+
+            THEN( "it finds every match" )
+            {
+                REQUIRE( lastSearchState( searchStateSpy ).phase
+                         == SearchSession::Phase::Complete );
+                REQUIRE( filtered_data->getNbMatches() == 10000_lcount );
             }
         }
     }
