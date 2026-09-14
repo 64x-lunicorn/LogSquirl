@@ -388,6 +388,41 @@ inline void requireScrollingDownFromTheTopReachesTheBottom( AbstractLogView& vie
     REQUIRE( view.scrollPosition() == reachedByPages );
 }
 
+// The view, one column wide and showing tallLastLogLines().
+inline void requireScrollbarMovedToItsMaximumLandsAtTheBottom( AbstractLogView& view )
+{
+    auto* scrollBar = view.verticalScrollBar();
+    dragToScrollbarMaximum( view );
+    const auto bottom = view.scrollPosition();
+    REQUIRE( bottom.visualLineIndex > 5 );
+
+    // Partway up the last Log Line, where the scrollbar is at its maximum already.
+    const auto moveUpToFifthVisualLine = [ & ]() {
+        while ( view.scrollPosition().visualLineIndex > 5 ) {
+            pressKey( view, Qt::Key_Up );
+        }
+        REQUIRE( view.scrollPosition() == ScrollPosition{ bottom.lineNumber, 5 } );
+        REQUIRE( scrollBar->value() == scrollBar->maximum() );
+    };
+
+    moveUpToFifthVisualLine();
+    scrollBar->triggerAction( QAbstractSlider::SliderToMaximum );
+    REQUIRE( view.scrollPosition() == bottom );
+    REQUIRE( wordOnLastRow( view ) == LastWord );
+
+    // The thumb pressed, dragged down to where it already is, and released.
+    moveUpToFifthVisualLine();
+    scrollBar->setSliderDown( true );
+    scrollBar->setSliderPosition( scrollBar->maximum() );
+    scrollBar->setSliderDown( false );
+    REQUIRE( view.scrollPosition() == bottom );
+
+    // Moving between Visual Lines still leaves the scrollbar out of it.
+    pressKey( view, Qt::Key_Up );
+    REQUIRE( view.scrollPosition()
+             == ScrollPosition{ bottom.lineNumber, bottom.visualLineIndex - 1 } );
+}
+
 inline void requireFewerVisualLinesThanRowsShowFromTheTop( AbstractLogView& view )
 {
     const PinnedWheelScrollLines pinned;

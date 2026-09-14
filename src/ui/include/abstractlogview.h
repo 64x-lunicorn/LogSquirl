@@ -208,6 +208,11 @@ protected:
     // unless overridden.
     virtual DisplayedLinesReader linesToSave() const;
 
+    // Saves the lines in range [begin, end) to filename, behind an application
+    // modal progress dialog. filename is replaced only when every line was
+    // written: a cancelled or failed save leaves it as it was.
+    void saveLinesTo( const QString& filename, LineNumber begin, LineNumber end );
+
     // Get the overview associated with this view, or NULL if there is none
     Overview* getOverview() const
     {
@@ -384,16 +389,16 @@ private:
 
     // Position of the view, those are crucial to control drawing
     // scrollPosition_ gives the position of the view; only scrolling moves it.
-    // lastLineAligned_ == true draws the last Visual Line of the Log File on
-    // the Viewport's last row rather than the first Visual Line on the top
-    // row: the view is at the bottom Scroll Position. Scrolling updates it, so
-    // Log Lines added below a view that is not following leave it as it is.
+    // atBottom_: the view is at the bottom Scroll Position, and draws the last
+    // Visual Line of the Log File on the Viewport's last row rather than the
+    // first Visual Line on the top row. Scrolling updates it, so Log Lines
+    // added below a view that is not following leave it as it is.
     ScrollPosition scrollPosition_;
     // The text columns scrollPosition_'s Visual Line was counted at. When the
     // view re-wraps to another width, rewrapScrollPosition() finds the same
     // character again from it.
     LineLength scrollPositionColumns_{ 0 };
-    bool lastLineAligned_ = false;
+    bool atBottom_ = false;
     // The fraction of a Visual Line the wheel has turned but not yet scrolled.
     double wheelVisualLinesPending_ = 0;
     bool useTextWrap_;
@@ -575,7 +580,7 @@ private:
 
     LineLength maxLineLength( const logsquirl::vector<LineNumber>& lines ) const;
 
-    // Save specified lines in range [begin, end) to a file
+    // Asks for a file, and saves the lines in range [begin, end) to it
     void saveLinesToFile( LineNumber begin, LineNumber end );
 
     // Search functions (for n/N)
@@ -617,6 +622,10 @@ private:
     size_t visualLineCount( LineNumber line ) const;
     // How many Visual Lines line wraps into, columns wide.
     size_t visualLineCount( LineNumber line, LineLength columns ) const;
+    // The text of a Log Line as the view draws it: tabs expanded, and split
+    // into Visual Lines columns wide, or one without text wrapping. Always at
+    // least one Visual Line.
+    WrappedString wrapLogLine( QString text, LineLength columns ) const;
     // position, with a Visual Line a re-wrap or a change to the Log File has
     // left past the end of its Log Line brought back to that Log Line's last.
     ScrollPosition withinLogLine( ScrollPosition position ) const;
@@ -629,7 +638,7 @@ private:
     ScrollPosition visualLineOf( FilePosition position ) const;
     // Aligns the last Visual Line on the last row when the view is at the
     // bottom Scroll Position, and the first on the top row otherwise.
-    void updateLastLineAligned();
+    void updateAtBottom();
     // What follows any move of the Scroll Position: the overview, the
     // hovered line and a repaint.
     void scrollPositionMoved();

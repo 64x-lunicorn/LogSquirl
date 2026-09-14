@@ -105,17 +105,15 @@ QuickFindLines FilteredView::quickFindLines() const
 DisplayedLinesReader FilteredView::linesToSave() const
 {
     // As for QuickFind, the save reads the Log File's text and never the
-    // LogFilteredData, which the UI thread goes on changing (#157).
+    // LogFilteredData, which the UI thread goes on changing.
     return [ logFile = &logFilteredData_->sourceLogData(),
              lines = std::make_shared<const SearchResultArray>(
                  logFilteredData_->copyDisplayedLines() ) ]( LineNumber first, LinesCount count ) {
         logsquirl::vector<QString> text;
         text.reserve( count.get() );
         for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
-            LineNumber::UnderlyingType logLine = {};
-            text.push_back( lines->select( position, &logLine )
-                                ? logFile->getLineString( LineNumber( logLine ) )
-                                : QString{} );
+            const auto logLine = lineAtPosition( *lines, LineNumber( position ) );
+            text.push_back( logLine.has_value() ? logFile->getLineString( *logLine ) : QString{} );
         }
         return text;
     };

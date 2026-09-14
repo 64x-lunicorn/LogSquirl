@@ -19,7 +19,17 @@
 
 #include <catch2/catch.hpp>
 
+#include <atomic>
+#include <chrono>
+#include <functional>
+#include <thread>
+
+#include <QCursor>
+#include <QFile>
 #include <QFont>
+#include <QProgressDialog>
+#include <QTemporaryFile>
+#include <QTimer>
 #include <QWidget>
 
 #include "abstractlogview.h"
@@ -29,6 +39,7 @@
 #include "qfnotifications.h"
 #include "quickfindpattern.h"
 #include "test_policies.h"
+#include "test_utils.h"
 
 #include <QSignalSpy>
 
@@ -236,6 +247,12 @@ SCENARIO( "The bottom of a wrapped text view shows exactly the last Visual Line 
         THEN( "pages and the wheel scroll through it down to that same bottom" )
         {
             requireScrollingDownFromTheTopReachesTheBottom( view );
+        }
+
+        THEN( "moving the scrollbar to its maximum from partway up that Log Line lands at the "
+              "bottom" )
+        {
+            requireScrollbarMovedToItsMaximumLandsAtTheBottom( view );
         }
 
         THEN( "keys and the wheel go no further" )
@@ -566,6 +583,16 @@ SCENARIO( "QuickFind in the main view searches every Log Line", "[abstractlogvie
         view.incrementalSearchAbort();
         REQUIRE( view.getSelectedText() == QStringLiteral( "alpha" ) );
     }
+
+    SECTION( "a stopped incremental QuickFind keeps its match selected" )
+    {
+        view.incrementallySearchForward();
+        REQUIRE( waitForSelection( 1 ) );
+        REQUIRE( selectedLine( 0 ) == 1_lnum );
+
+        view.incrementalSearchStop();
+        REQUIRE( view.getSelectedText() == QStringLiteral( "found" ) );
+    }
 }
 
 SCENARIO( "a save from the main view reads the lines of its data", "[abstractlogview][linessaver]" )
@@ -584,6 +611,155 @@ SCENARIO( "a save from the main view reads the lines of its data", "[abstractlog
     {
         REQUIRE( readLines( 0_lnum, 7001_lcount ) == logData.getLines( 0_lnum, 7001_lcount ) );
         REQUIRE( readLines( 4998_lnum, 3_lcount ) == logData.getLines( 4998_lnum, 3_lcount ) );
+    }
+}
+
+SCENARIO( "Selection autoscroll moves a wrapped text view in Visual Lines",
+          "[abstractlogview][scrollposition]" )
+{
+    using namespace logviewscrolling;
+
+    const FakeLogData logData{ tallLogLines() };
+    QuickFindPattern qfp;
+    TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+    showOneColumnWide( view );
+
+    const ScrollPosition start{ TallLine, 150 };
+    moveTo( view, start );
+
+    GIVEN( "a selection started on the top row, and the mouse dragged just below the Viewport" )
+    {
+        const auto onText = topRowText();
+        QMouseEvent press( QEvent::MouseButtonPress, onText, view.viewport()->mapToGlobal( onText ),
+                           Qt::LeftButton, Qt::LeftButton, Qt::NoModifier );
+        QCoreApplication::sendEvent( view.viewport(), &press );
+
+        const QPointF below{ onText.x(), static_cast<qreal>( view.viewport()->height() + 8 ) };
+        QCursor::setPos( view.viewport()->mapToGlobal( below.toPoint() ) );
+        QMouseEvent move( QEvent::MouseMove, below, view.viewport()->mapToGlobal( below ),
+                          Qt::NoButton, Qt::LeftButton, Qt::NoModifier );
+        QCoreApplication::sendEvent( view.viewport(), &move );
+
+        const auto moved = waitUiState( [ & ]() { return view.scrollPosition() != start; }, 5000 );
+
+        QMouseEvent release( QEvent::MouseButtonRelease, below,
+                             view.viewport()->mapToGlobal( below ), Qt::LeftButton, Qt::NoButton,
+                             Qt::NoModifier );
+        QCoreApplication::sendEvent( view.viewport(), &release );
+
+        THEN( "the view scrolls down Visual Lines of the tall Log Line, not to the next Log Line" )
+        {
+            REQUIRE( moved );
+            REQUIRE( view.scrollPosition().lineNumber == TallLine );
+            REQUIRE( view.scrollPosition().visualLineIndex > start.visualLineIndex );
+        }
+    }
+}
+
+namespace {
+
+// A TestLogView whose saves read through readLines.
+class SavingLogView : public TestLogView {
+public:
+    using AbstractLogView::saveLinesTo;
+    using TestLogView::TestLogView;
+
+    DisplayedLinesReader readLines;
+
+protected:
+    DisplayedLinesReader linesToSave() const override
+    {
+        return readLines;
+    }
+};
+
+QByteArray contentOf( const QString& fileName )
+{
+    QFile file{ fileName };
+    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    return file.readAll();
+}
+
+} // namespace
+
+SCENARIO( "a save from a text view replaces the file only when every line was written",
+          "[abstractlogview][linessaver]" )
+{
+    QStringList lines;
+    for ( int line = 0; line < 50001; ++line ) {
+        lines.append( QStringLiteral( "line %1" ).arg( line ) );
+    }
+    const FakeLogData logData{ lines };
+    QuickFindPattern qfp;
+    SavingLogView view( &logData, &qfp );
+
+    const QByteArray previousContent = "previous content\n";
+    QTemporaryFile file{ "abstractlogview_save_test_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( previousContent );
+    file.close();
+
+    GIVEN( "a save that runs to its end" )
+    {
+        view.readLines = [ &logData ]( LineNumber first, LinesCount count ) {
+            return logData.getLines( first, count );
+        };
+
+        view.saveLinesTo( file.fileName(), 0_lnum, 50001_lnum );
+
+        THEN( "the file holds every line, encoded as UTF-8" )
+        {
+#if defined( Q_OS_WIN )
+            const QByteArray lineEnding = "\n";
+#else
+            const QByteArray lineEnding = "\r\n";
+#endif
+            QByteArray expected = "\xEF\xBB\xBF";
+            for ( const auto& line : lines ) {
+                expected += line.toUtf8() + lineEnding;
+            }
+            REQUIRE( contentOf( file.fileName() ) == expected );
+        }
+    }
+
+    GIVEN( "a save whose progress dialog is cancelled while it reads its second chunk" )
+    {
+        std::atomic<bool> dialogCancelled = false;
+        std::atomic<int> chunksRead = 0;
+        view.readLines = [ & ]( LineNumber first, LinesCount count ) {
+            if ( ++chunksRead > 1 ) {
+                // Holds the save until the dialog is cancelled, and then long
+                // enough for the interrupt to follow.
+                const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds( 10 );
+                while ( !dialogCancelled && std::chrono::steady_clock::now() < deadline ) {
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+                }
+                std::this_thread::sleep_for( std::chrono::milliseconds( 200 ) );
+            }
+            return logData.getLines( first, count );
+        };
+
+        bool dialogWasShown = false;
+        QTimer poll;
+        QObject::connect( &poll, &QTimer::timeout, &poll, [ & ]() {
+            auto* dialog = view.findChild<QProgressDialog*>();
+            if ( dialog != nullptr && dialog->isVisible() ) {
+                poll.stop();
+                dialogWasShown = true;
+                dialog->cancel();
+                dialogCancelled = true;
+            }
+        } );
+        poll.start( 10 );
+
+        view.saveLinesTo( file.fileName(), 0_lnum, 50001_lnum );
+
+        THEN( "the save stops, and the file keeps its previous content" )
+        {
+            REQUIRE( dialogWasShown );
+            REQUIRE( chunksRead < 11 );
+            REQUIRE( contentOf( file.fileName() ) == previousContent );
+        }
     }
 }
 

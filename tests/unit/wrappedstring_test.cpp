@@ -138,7 +138,7 @@ SCENARIO( "WrappedString owns the text it was built from", "[wrappedstring]" )
         {
             source.reset();
 
-            THEN( "the wrapped rows still read correctly" )
+            THEN( "the Visual Lines still read correctly" )
             {
                 REQUIRE( wrapped->wrappedLinesCount() == 2 );
                 REQUIRE( wrapped->wrappedLine( 0 ) == QStringView( u"alpha beta " ) );

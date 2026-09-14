@@ -392,7 +392,7 @@ PullToFollowGeometry ViewportLayout::pullToFollowGeometry( const PullToFollowSta
         geometry.textTopPx += overhang + PullToFollowHookedHeight;
         geometry.barTopPx = geometry.textTopPx + input_.viewportHeightPx - PullToFollowHookedHeight;
     }
-    else if ( state.lastLineAligned && !state.hooked ) {
+    else if ( state.atBottom && !state.hooked ) {
         // At the bottom Scroll Position: the last Visual Line ends at the
         // bottom of the viewport.
         geometry.textTopPx -= overhang;

@@ -55,10 +55,7 @@ struct ScrollPosition {
     // Index, within lineNumber, of the Visual Line on the top row.
     size_t visualLineIndex = 0;
 
-    bool operator==( const ScrollPosition& other ) const
-    {
-        return lineNumber == other.lineNumber && visualLineIndex == other.visualLineIndex;
-    }
+    bool operator==( const ScrollPosition& ) const = default;
 
     // Ordered by Log Line, then by Visual Line: the order they appear in going
     // down the Log File.
@@ -174,7 +171,7 @@ struct PullToFollowState {
     bool hooked = false;
     // Whether the last Visual Line is aligned with the bottom of the Viewport
     // rather than the first one with its top (LogFileBottom::alignsLastVisualLineAt).
-    bool lastLineAligned = false;
+    bool atBottom = false;
     // Visual Lines from the bottom Scroll Position to the end of the Log File
     // (LogFileBottom::visualLines).
     LinesCount bottomVisualLines{ 0 };

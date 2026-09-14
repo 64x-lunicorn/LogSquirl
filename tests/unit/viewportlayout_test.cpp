@@ -61,10 +61,9 @@ VisualLines unwrappedVisualLines( LineNumber firstLine, size_t count, LineLength
 // aligned on its last Visual Line. Each pull-to-follow case changes what it is about.
 PullToFollowState restingPullToFollowState()
 {
-    return PullToFollowState{ .elasticHookLength = 0,
-                              .hooked = false,
-                              .lastLineAligned = false,
-                              .bottomVisualLines = 20_lcount };
+    return PullToFollowState{
+        .elasticHookLength = 0, .hooked = false, .atBottom = false, .bottomVisualLines = 20_lcount
+    };
 }
 
 } // namespace
@@ -972,7 +971,7 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
     GIVEN( "The last Visual Line aligned to the bottom, not hooked" )
     {
         auto state = restingPullToFollowState();
-        state.lastLineAligned = true;
+        state.atBottom = true;
         const auto geometry = layout.pullToFollowGeometry( state );
 
         THEN( "nothing overhangs, so the text stays where it is" )
@@ -987,7 +986,7 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
     {
         auto state = restingPullToFollowState();
         state.hooked = true;
-        state.lastLineAligned = true;
+        state.atBottom = true;
         const auto geometry = layout.pullToFollowGeometry( state );
 
         THEN( "the hook wins over the alignment" )
@@ -1008,7 +1007,7 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
         THEN( "aligned, the text moves up by the overhang: the last Visual Line ends at the "
               "bottom of the Viewport" )
         {
-            state.lastLineAligned = true;
+            state.atBottom = true;
             const auto geometry = partlyLayout.pullToFollowGeometry( state );
             REQUIRE( geometry.textTopPx == -10 );
             REQUIRE( geometry.textTopPx + 21 * 20 == 410 );
@@ -1017,7 +1016,7 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
 
         THEN( "hooked, the bar starts right below the last Visual Line" )
         {
-            state.lastLineAligned = true;
+            state.atBottom = true;
             state.hooked = true;
             const auto geometry = partlyLayout.pullToFollowGeometry( state );
             REQUIRE( geometry.textTopPx == -20 );

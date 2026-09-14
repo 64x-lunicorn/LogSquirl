@@ -53,7 +53,7 @@ bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin
                          const std::function<void( int )>& progress );
 
 // Runs saveDisplayedLines off the UI thread, and reports its progress and its
-// end on the thread the LinesSaver lives in (#157).
+// end on the thread the LinesSaver lives in.
 class LinesSaver : public QObject {
     Q_OBJECT
 public:

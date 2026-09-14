@@ -25,6 +25,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <QShortcut>
 #include <QSignalSpy>
 #include <QTemporaryFile>
 
@@ -34,8 +35,11 @@
 #include "logfiltereddata.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
+#include "shortcuts.h"
 #include "test_policies.h"
 #include "test_utils.h"
+
+#include "configuration.h"
 
 namespace {
 
@@ -46,9 +50,9 @@ struct FilteredLogFile {
         : logData( policies.indexing, policies.search, policies.fileAccess )
     {
         REQUIRE( file.open() );
-        for ( const auto& line : lines ) {
-            file.write( line.toLatin1() + '\n' );
-        }
+        // The last Log Line has no line ending, so text appended to the file
+        // goes on it.
+        file.write( lines.join( QLatin1Char( '\n' ) ).toLatin1() );
         file.flush();
 
         SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
@@ -73,6 +77,22 @@ struct FilteredLogFile {
         QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
 
         REQUIRE( filteredData->getNbLine().get() == static_cast<uint64_t>( searchedLines ) );
+    }
+
+    // Appends text to the last Log Line, reloads the Log File and searches it
+    // all again.
+    void appendToLastLogLine( const QString& text )
+    {
+        const auto nbLines = logData.getNbLine();
+        file.write( text.toLatin1() );
+        file.flush();
+
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.reload();
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+        REQUIRE( logData.getNbLine() == nbLines );
+
+        searchUpTo( static_cast<qsizetype>( nbLines.get() ) );
     }
 
     SettingsPolicies policies = testSettingsPolicies();
@@ -161,6 +181,22 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
         {
             requireScrollingDownFromTheTopReachesTheBottom( view );
         }
+
+        THEN( "moving the scrollbar to its maximum from partway up that Match lands at the "
+              "bottom" )
+        {
+            requireScrollbarMovedToItsMaximumLandsAtTheBottom( view );
+        }
+
+        THEN( "follow mode keeps its new last Visual Line on the last row as it grows" )
+        {
+            const auto extendLastLine = [ & ]() {
+                logFile.appendToLastLogLine( QStringLiteral( " x x x w" ) );
+                view.updateData();
+            };
+            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, extendLastLine,
+                                                             QStringLiteral( "w" ) );
+        }
     }
 
     GIVEN( "Search results with fewer Visual Lines than the Viewport has rows" )
@@ -215,6 +251,16 @@ SCENARIO( "A re-wrap keeps the text on the top row of the Filtered View",
         THEN( "widening and narrowing the view keep the text at the top on the top row" )
         {
             requireResizingKeepsTheTopRowText( view );
+        }
+
+        THEN( "a larger font keeps the text at the top on the top row" )
+        {
+            showWide( view );
+            requireRewrapKeepsTheTopRowText( view, [ &view ]() {
+                auto font = view.font();
+                font.setPointSize( font.pointSize() > 0 ? font.pointSize() * 2 : 24 );
+                view.updateFont( font );
+            } );
         }
 
         THEN( "showing line numbers keeps the text at the top on the top row" )
@@ -280,5 +326,75 @@ SCENARIO( "A jump moves the Filtered View only when its target is off screen",
         {
             requireQuickFindOnAWhollyVisibleVisualLineDoesNotScroll( view, quickFindPattern );
         }
+    }
+}
+
+SCENARIO( "Jumping to a Mark moves the Filtered View only when the Mark is off screen",
+          "[filteredview][scrollposition][jump]" )
+{
+    using namespace logviewscrolling;
+
+    FilteredLogFile logFile{ tallLogLines() };
+    QuickFindPattern quickFindPattern;
+    FilteredView view( logFile.filteredData.get(), &quickFindPattern, true );
+    showOneColumnWide( view );
+    view.registerShortcuts();
+
+    QSignalSpy selected( &view, &AbstractLogView::newSelection );
+
+    // Marks line, selects the Log Line on the top row by clicking it, and goes
+    // from there to the Mark: down to the next one or up to the previous one.
+    const auto jumpToMark = [ & ]( LineNumber line ) {
+        logFile.filteredData->addMark( line );
+
+        const auto onText = topRowText();
+        const auto global = view.viewport()->mapToGlobal( onText );
+        QMouseEvent press( QEvent::MouseButtonPress, onText, global, Qt::LeftButton, Qt::LeftButton,
+                           Qt::NoModifier );
+        QCoreApplication::sendEvent( view.viewport(), &press );
+        QMouseEvent release( QEvent::MouseButtonRelease, onText, global, Qt::LeftButton,
+                             Qt::NoButton, Qt::NoModifier );
+        QCoreApplication::sendEvent( view.viewport(), &release );
+
+        // The Filtered View's "previous mark" goes down, its "next mark" up.
+        const auto action = line > view.scrollPosition().lineNumber
+                                ? ShortcutAction::LogViewPrevMark
+                                : ShortcutAction::LogViewNextMark;
+        const auto keys = ShortcutAction::shortcutKeys( action, Configuration::get().shortcuts() );
+        REQUIRE_FALSE( keys.isEmpty() );
+
+        QShortcut* shortcut = nullptr;
+        for ( auto* candidate : view.findChildren<QShortcut*>() ) {
+            if ( candidate->key() == keys.first() ) {
+                shortcut = candidate;
+            }
+        }
+        REQUIRE( shortcut != nullptr );
+
+        selected.clear();
+        Q_EMIT shortcut->activated();
+        REQUIRE( selected.count() > 0 );
+        REQUIRE( qvariant_cast<LineNumber>( selected.last().at( 0 ) ) == line );
+    };
+
+    THEN( "a Mark already wholly visible does not scroll" )
+    {
+        moveTo( view, ScrollPosition{ 5_lnum, 0 } );
+        jumpToMark( 7_lnum );
+        REQUIRE( view.scrollPosition() == ScrollPosition{ 5_lnum, 0 } );
+    }
+
+    THEN( "a Mark below the Viewport puts its first Visual Line on the top row" )
+    {
+        moveTo( view, ScrollPosition{} );
+        jumpToMark( TallLine + 50_lcount );
+        REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine + 50_lcount, 0 } );
+    }
+
+    THEN( "a Mark above the Viewport puts its first Visual Line on the top row" )
+    {
+        moveTo( view, ScrollPosition{ TallLine + 1_lcount, 0 } );
+        jumpToMark( TallLine );
+        REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine, 0 } );
     }
 }

@@ -111,9 +111,7 @@ LineNumber QuickFindLines::logLineAt( LineNumber position ) const
     if ( !lines_ ) {
         return position;
     }
-    LineNumber::UnderlyingType logLine = {};
-    lines_->select( position.get(), &logLine );
-    return LineNumber( logLine );
+    return lineAtPosition( *lines_, position ).value_or( 0_lnum );
 }
 
 QString QuickFindLines::expandedLineString( LineNumber logLine ) const
@@ -321,6 +319,9 @@ void QuickFind::startSearch( QFDirection direction, const FilePosition& start_po
 {
     interruptRequested_.set();
     operationWatcher_.waitForFinished();
+    // Cleared here, before the worker starts, so a stopSearch() that comes
+    // before the worker has begun still interrupts it.
+    interruptRequested_.clear();
 
     runningSearch_ = RunningSearch{ direction, selection, matcher, limitsGeneration_ };
 
@@ -348,8 +349,6 @@ QuickFind::SearchResult QuickFind::doSearchForward( const QuickFindLines& lines,
                                                     const QuickFindMatcher& matcher,
                                                     bool afterLastMatch )
 {
-    interruptRequested_.clear();
-
     bool found = false;
     LineColumn found_start_col{};
     LineColumn found_end_col{};
@@ -429,8 +428,6 @@ QuickFind::SearchResult QuickFind::doSearchBackward( const QuickFindLines& lines
                                                      const QuickFindMatcher& matcher,
                                                      bool beforeFirstMatch )
 {
-    interruptRequested_.clear();
-
     bool found = false;
     LineColumn start_col{};
     LineColumn end_col{};

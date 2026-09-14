@@ -395,6 +395,22 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
             disableFollow();
         }
     } );
+
+    // Moving the scrollbar to the maximum it is already at changes no value,
+    // so scrollContentsBy() never hears of it. Such a move still lands at the
+    // bottom Scroll Position, also from partway up the last Log Line. Only the
+    // scrollbar's own actions and releasing its thumb count: a move between
+    // Visual Lines sets no value and triggers neither.
+    const auto landAtBottomOnMaximum = [ this ]() {
+        const auto* scrollBar = verticalScrollBar();
+        if ( scrollBar->sliderPosition() == scrollBar->maximum()
+             && scrollBar->value() == scrollBar->maximum()
+             && scrollPosition_ != bottomScrollPosition() ) {
+            scrollTo( bottomScrollPosition() );
+        }
+    };
+    connect( verticalScrollBar(), &QAbstractSlider::actionTriggered, this, landAtBottomOnMaximum );
+    connect( verticalScrollBar(), &QAbstractSlider::sliderReleased, this, landAtBottomOnMaximum );
 }
 
 AbstractLogView::~AbstractLogView()
@@ -1084,16 +1100,16 @@ void AbstractLogView::scrollContentsBy( int dx, int dy )
         scrollPosition_ = viewportGeometry().clampScrollPosition(
             ScrollPosition{ scrollBarLine, 0 }, logData_->getNbLine() );
     }
-    updateLastLineAligned();
+    updateAtBottom();
 
     firstCol_ = ( firstCol_.get() - dx ) >= 0 ? LineColumn{ firstCol_.get() - dx } : 0_lcol;
 
     scrollPositionMoved();
 }
 
-void AbstractLogView::updateLastLineAligned()
+void AbstractLogView::updateAtBottom()
 {
-    lastLineAligned_ = logFileBottom().alignsLastVisualLineAt( scrollPosition_ );
+    atBottom_ = logFileBottom().alignsLastVisualLineAt( scrollPosition_ );
 }
 
 void AbstractLogView::scrollPositionMoved()
@@ -1124,7 +1140,7 @@ void AbstractLogView::scrollTo( ScrollPosition position )
         verticalScrollBar()->setValue( scrollBarValue );
     }
     else {
-        updateLastLineAligned();
+        updateAtBottom();
         scrollPositionMoved();
     }
 }
@@ -1186,9 +1202,18 @@ size_t AbstractLogView::visualLineCount( LineNumber line, LineLength columns ) c
         return 1;
     }
 
-    // Expanded and wrapped as buildViewportContent() does it.
-    return WrappedString{ untabify( logData_->getLineString( line ) ), columns }
-        .wrappedLinesCount();
+    return wrapLogLine( logData_->getLineString( line ), columns ).wrappedLinesCount();
+}
+
+WrappedString AbstractLogView::wrapLogLine( QString text, LineLength columns ) const
+{
+    auto expandedText = untabify( std::move( text ) );
+    const auto wrapColumns
+        = useTextWrap_ ? columns : LineLength{ logsquirl::isize( expandedText ) } + 1_length;
+    WrappedString visualLines{ std::move( expandedText ), wrapColumns };
+    // What finds a Scroll Position's last Visual Line relies on it.
+    assert( visualLines.wrappedLinesCount() > 0 );
+    return visualLines;
 }
 
 ScrollPosition AbstractLogView::withinLogLine( ScrollPosition position ) const
@@ -1206,14 +1231,13 @@ void AbstractLogView::rewrapScrollPosition()
     const auto before = scrollPosition_;
     if ( useTextWrap_ && columns != scrollPositionColumns_ && scrollPosition_.visualLineIndex > 0
          && scrollPosition_.lineNumber < logData_->getNbLine() ) {
-        // Expanded and wrapped as buildViewportContent() does it, at the width
-        // the Visual Line was counted at and at the new one.
-        const auto expandedLine = untabify( logData_->getLineString( scrollPosition_.lineNumber ) );
-        const WrappedString countedAt{ expandedLine, scrollPositionColumns_ };
+        // Wrapped at the width the Visual Line was counted at and at the new one.
+        const auto text = logData_->getLineString( scrollPosition_.lineNumber );
+        const auto countedAt = wrapLogLine( text, scrollPositionColumns_ );
         const auto firstOnTopRow = countedAt.wrappedLineStart(
             std::min( scrollPosition_.visualLineIndex, countedAt.wrappedLinesCount() - 1 ) );
         scrollPosition_.visualLineIndex
-            = WrappedString{ expandedLine, columns }.wrappedLineIndexOf( firstOnTopRow );
+            = wrapLogLine( text, columns ).wrappedLineIndexOf( firstOnTopRow );
     }
     else {
         // The same width, but the Log Line at the top may now wrap into fewer
@@ -1224,7 +1248,7 @@ void AbstractLogView::rewrapScrollPosition()
     // Only a move changes what is aligned: Log Lines appended below a view
     // that is not following leave it as it is.
     if ( scrollPosition_ != before ) {
-        updateLastLineAligned();
+        updateAtBottom();
     }
 }
 
@@ -1235,10 +1259,9 @@ ScrollPosition AbstractLogView::visualLineOf( FilePosition position ) const
         return ScrollPosition{ position.line(), 0 };
     }
 
-    // Expanded and wrapped as buildViewportContent() does it.
-    const WrappedString wrappedLine{ untabify( logData_->getLineString( position.line() ) ),
-                                     getNbVisibleCols() };
-    return ScrollPosition{ position.line(), wrappedLine.wrappedLineIndexOf( position.column() ) };
+    const auto visualLines
+        = wrapLogLine( logData_->getLineString( position.line() ), getNbVisibleCols() );
+    return ScrollPosition{ position.line(), visualLines.wrappedLineIndexOf( position.column() ) };
 }
 
 void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
@@ -1248,7 +1271,7 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
         return;
 
     LOG_DEBUG << "paintEvent received, scrollPosition_=" << scrollPosition_.lineNumber << ":"
-              << scrollPosition_.visualLineIndex << " lastLineAligned_=" << lastLineAligned_
+              << scrollPosition_.visualLineIndex << " atBottom_=" << atBottom_
               << " rect: " << invalidRect.topLeft().x() << ", " << invalidRect.topLeft().y() << ", "
               << invalidRect.bottomRight().x() << ", " << invalidRect.bottomRight().y();
 
@@ -1626,11 +1649,16 @@ void AbstractLogView::saveSelectedToFile()
 
 void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
 {
-    auto filename = QFileDialog::getSaveFileName( this, "Save content" );
+    const auto filename = QFileDialog::getSaveFileName( this, "Save content" );
     if ( filename.isEmpty() ) {
         return;
     }
 
+    saveLinesTo( filename, begin, end );
+}
+
+void AbstractLogView::saveLinesTo( const QString& filename, LineNumber begin, LineNumber end )
+{
     QSaveFile saveFile{ filename };
     if ( !saveFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
         LOG_ERROR << "Failed to open file to save";
@@ -1936,7 +1964,7 @@ PullToFollowState AbstractLogView::pullToFollowState() const
 {
     return PullToFollowState{ .elasticHookLength = followElasticHook_.size(),
                               .hooked = followElasticHook_.isHooked(),
-                              .lastLineAligned = lastLineAligned_,
+                              .atBottom = atBottom_,
                               .bottomVisualLines = logFileBottom().visualLines };
 }
 
@@ -1975,28 +2003,26 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
     }
 
     const auto scrollPosition = geometry.clampScrollPosition( scrollPosition_, linesInFile );
-    const auto firstLine = scrollPosition.lineNumber;
     // Every Log Line is at least one Visual Line, so this many Log Lines
     // always fill the Viewport.
-    const auto nbLines
-        = qMin( geometry.visibleLines(), linesInFile - LinesCount( firstLine.get() ) );
+    const auto nbLines = qMin( geometry.visibleLines(),
+                               linesInFile - LinesCount( scrollPosition.lineNumber.get() ) );
     const auto visibleColumns = geometry.visibleColumns();
     // The Visual Lines from the Scroll Position down to the bottom of the
     // Viewport, and no more, however many a Log Line wraps into.
     const auto maxVisualLines = static_cast<size_t>( geometry.visibleLines().get() );
 
-    auto rawLines = logData_->getLines( firstLine, nbLines );
+    auto rawLines = logData_->getLines( scrollPosition.lineNumber, nbLines );
     content.logLines.reserve( rawLines.size() );
     content.visualLines.reserve( maxVisualLines );
 
     for ( size_t index = 0; index < rawLines.size() && content.visualLines.size() < maxVisualLines;
           ++index ) {
-        QString expandedLine = untabify( QString{ rawLines[ index ] } );
-        const auto lineLength = LineLength{ logsquirl::isize( expandedLine ) };
-        const auto wrappedLineLength = useTextWrap_ ? visibleColumns : lineLength + 1_length;
-        WrappedString wrappedLine{ std::move( expandedLine ), wrappedLineLength };
+        auto wrappedLine = wrapLogLine( rawLines[ index ], visibleColumns );
+        const auto lineLength = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+            wrappedLine.unwrappedLine().size() ) };
 
-        const auto lineNumber = firstLine + LinesCount( index );
+        const auto lineNumber = scrollPosition.lineNumber + LinesCount( index );
         const auto wrappedCount = wrappedLine.wrappedLinesCount();
         const auto visualLineLength = [ &wrappedLine ]( size_t wrappedLineIndex ) {
             return LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
