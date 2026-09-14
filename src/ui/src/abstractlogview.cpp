@@ -1748,7 +1748,7 @@ void AbstractLogView::setSearchLimits( LineNumber startLine, LineNumber endLine 
 // Private functions
 //
 
-// The viewport layout without the rows. Everything it answers -- margins,
+// The viewport layout without the Visual Lines. Everything it answers -- margins,
 // visible counts, scroll ranges -- is pure arithmetic over the widget's own
 // geometry, so this is cheap enough to build on every call.
 ViewportLayout AbstractLogView::viewportGeometry() const
@@ -1807,12 +1807,12 @@ int AbstractLogView::pullToFollowOffsetPx() const
     return drawingTopPosition;
 }
 
-// The viewport layout including the rows on screen. The rows come from the
+// The viewport layout including the Visual Lines on screen. They come from the
 // Log File, never from a paint, so a click or a hover before the first paint
 // resolves correctly.
 ViewportLayout AbstractLogView::viewportLayout() const
 {
-    return ViewportLayout{ viewportGeometry().input(), viewportContent().rows };
+    return ViewportLayout{ viewportGeometry().input(), viewportContent().visualLines };
 }
 
 const AbstractLogView::ViewportContent& AbstractLogView::viewportContent() const
@@ -1834,7 +1834,7 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
 {
     // Sanity cap against a corrupted wrapped line count causing an
     // out-of-memory crash inside the allocator.
-    static constexpr size_t MaxWrappedRowsPerLine = 10000;
+    static constexpr size_t MaxVisualLinesPerLogLine = 10000;
 
     ViewportContent content;
 
@@ -1850,7 +1850,7 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
     const auto visibleColumns = geometry.visibleColumns();
 
     const auto rawLines = logData_->getLines( content.firstLine, nbLines );
-    content.rows.reserve( rawLines.size() );
+    content.visualLines.reserve( rawLines.size() );
 
     int yPos = 0;
     for ( size_t index = 0; index < rawLines.size(); ++index ) {
@@ -1863,13 +1863,17 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
         const auto lineLength = LineLength{ logsquirl::isize( expandedLine ) };
         const auto wrappedCount = wrappedLine.wrappedLinesCount();
 
-        LineColumn rowStart = 0_lcol;
-        for ( size_t row = 0; row < wrappedCount && row < MaxWrappedRowsPerLine; ++row ) {
-            const auto rowLength = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                wrappedLine.wrappedLineLength( row ) ) };
-            content.rows.push_back( ViewportRow{ lineNumber, static_cast<uint32_t>( row ), rowStart,
-                                                 rowLength, lineLength } );
-            rowStart += rowLength;
+        LineColumn visualLineStart = 0_lcol;
+        for ( size_t wrappedLineIndex = 0;
+              wrappedLineIndex < wrappedCount && wrappedLineIndex < MaxVisualLinesPerLogLine;
+              ++wrappedLineIndex ) {
+            const auto visualLineLength
+                = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
+                    wrappedLine.wrappedLineLength( wrappedLineIndex ) ) };
+            content.visualLines.push_back(
+                VisualLine{ lineNumber, static_cast<uint32_t>( wrappedLineIndex ), visualLineStart,
+                            visualLineLength, lineLength } );
+            visualLineStart += visualLineLength;
         }
 
         yPos += charHeight_ * static_cast<int>( wrappedCount );

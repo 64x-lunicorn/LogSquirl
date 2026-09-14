@@ -44,15 +44,15 @@ ViewportLayoutInput fixedWidthInput()
     return input;
 }
 
-// One row per Log Line, as an unwrapped view produces.
-ViewportRows unwrappedRows( LineNumber firstLine, size_t count, LineLength lineLength )
+// One Visual Line per Log Line, as an unwrapped view produces.
+VisualLines unwrappedVisualLines( LineNumber firstLine, size_t count, LineLength lineLength )
 {
-    ViewportRows rows;
+    VisualLines visualLines;
     for ( size_t i = 0; i < count; ++i ) {
-        rows.push_back(
-            ViewportRow{ firstLine + LinesCount( i ), 0, 0_lcol, lineLength, lineLength } );
+        visualLines.push_back(
+            VisualLine{ firstLine + LinesCount( i ), 0, 0_lcol, lineLength, lineLength } );
     }
-    return rows;
+    return visualLines;
 }
 
 } // namespace
@@ -171,17 +171,19 @@ SCENARIO( "Viewport layout visible counts", "[viewportlayout]" )
 
         THEN( "hit testing still answers" )
         {
-            const ViewportLayout rowsLayout{ input, unwrappedRows( 0_lnum, 3, 10_length ) };
-            REQUIRE( rowsLayout.lineAtPoint( 2 ) == LineNumber( 2 ) );
+            const ViewportLayout visualLinesLayout{ input,
+                                                    unwrappedVisualLines( 0_lnum, 3, 10_length ) };
+            REQUIRE( visualLinesLayout.lineAtPoint( 2 ) == LineNumber( 2 ) );
         }
     }
 }
 
 SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
 {
-    GIVEN( "Three unwrapped rows starting at line 100" )
+    GIVEN( "Three unwrapped Visual Lines starting at line 100" )
     {
-        const ViewportLayout layout{ fixedWidthInput(), unwrappedRows( 100_lnum, 3, 40_length ) };
+        const ViewportLayout layout{ fixedWidthInput(),
+                                     unwrappedVisualLines( 100_lnum, 3, 40_length ) };
 
         THEN( "each 20 pixel band maps to its own Log Line" )
         {
@@ -191,7 +193,7 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
             REQUIRE( layout.lineAtPoint( 59 ) == LineNumber( 102 ) );
         }
 
-        THEN( "a point below the last row resolves to nothing" )
+        THEN( "a point below the last Visual Line resolves to nothing" )
         {
             REQUIRE_FALSE( layout.lineAtPoint( 60 ).has_value() );
         }
@@ -220,7 +222,7 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
     {
         auto input = fixedWidthInput();
         input.firstColumn = 30_lcol;
-        const ViewportLayout layout{ input, unwrappedRows( 0_lnum, 2, 200_length ) };
+        const ViewportLayout layout{ input, unwrappedVisualLines( 0_lnum, 2, 200_length ) };
 
         THEN( "the first visible column is added to the hit column" )
         {
@@ -229,23 +231,23 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
         }
     }
 
-    GIVEN( "A wrapped Log Line spanning three rows" )
+    GIVEN( "A wrapped Log Line spanning three Visual Lines" )
     {
         auto input = fixedWidthInput();
         input.textWrap = true;
-        ViewportRows rows;
-        rows.push_back( ViewportRow{ 7_lnum, 0, 0_lcol, 40_length, 100_length } );
-        rows.push_back( ViewportRow{ 7_lnum, 1, 40_lcol, 40_length, 100_length } );
-        rows.push_back( ViewportRow{ 7_lnum, 2, 80_lcol, 20_length, 100_length } );
-        const ViewportLayout layout{ input, rows };
+        VisualLines visualLines;
+        visualLines.push_back( VisualLine{ 7_lnum, 0, 0_lcol, 40_length, 100_length } );
+        visualLines.push_back( VisualLine{ 7_lnum, 1, 40_lcol, 40_length, 100_length } );
+        visualLines.push_back( VisualLine{ 7_lnum, 2, 80_lcol, 20_length, 100_length } );
+        const ViewportLayout layout{ input, visualLines };
 
-        THEN( "every row belongs to the same Log Line" )
+        THEN( "every Visual Line belongs to the same Log Line" )
         {
             REQUIRE( layout.lineAtPoint( 0 ) == LineNumber( 7 ) );
             REQUIRE( layout.lineAtPoint( 45 ) == LineNumber( 7 ) );
         }
 
-        THEN( "the columns of earlier rows are added in" )
+        THEN( "the columns of earlier Visual Lines are added in" )
         {
             const auto x = layout.leftMarginPx() + 11;
             REQUIRE( layout.filePositionAtPoint( x, 0 ) == FilePosition{ 7_lnum, 1_lcol } );
@@ -258,16 +260,16 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
     {
         auto input = fixedWidthInput();
         input.drawingTopOffsetPx = -20;
-        const ViewportLayout layout{ input, unwrappedRows( 0_lnum, 3, 10_length ) };
+        const ViewportLayout layout{ input, unwrappedVisualLines( 0_lnum, 3, 10_length ) };
 
-        THEN( "the offset shifts which row a pixel falls in" )
+        THEN( "the offset shifts which Visual Line a pixel falls in" )
         {
             REQUIRE( layout.lineAtPoint( 0 ) == LineNumber( 1 ) );
             REQUIRE( layout.lineAtPoint( 20 ) == LineNumber( 2 ) );
         }
     }
 
-    GIVEN( "A layout with no rows at all" )
+    GIVEN( "A layout with no Visual Lines at all" )
     {
         const ViewportLayout layout{ fixedWidthInput() };
 
@@ -280,7 +282,8 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
 
     GIVEN( "An empty Log Line" )
     {
-        const ViewportLayout layout{ fixedWidthInput(), unwrappedRows( 3_lnum, 1, 0_length ) };
+        const ViewportLayout layout{ fixedWidthInput(),
+                                     unwrappedVisualLines( 3_lnum, 1, 0_length ) };
 
         THEN( "any point in it is the first column" )
         {
@@ -291,22 +294,22 @@ SCENARIO( "Viewport layout hit testing without any paint", "[viewportlayout]" )
 
 SCENARIO( "Viewport layout rectangles", "[viewportlayout]" )
 {
-    GIVEN( "A wrapped Log Line spanning two rows below an unwrapped one" )
+    GIVEN( "A wrapped Log Line spanning two Visual Lines below an unwrapped one" )
     {
         auto input = fixedWidthInput();
         input.textWrap = true;
-        ViewportRows rows;
-        rows.push_back( ViewportRow{ 4_lnum, 0, 0_lcol, 10_length, 10_length } );
-        rows.push_back( ViewportRow{ 5_lnum, 0, 0_lcol, 40_length, 60_length } );
-        rows.push_back( ViewportRow{ 5_lnum, 1, 40_lcol, 20_length, 60_length } );
-        const ViewportLayout layout{ input, rows };
+        VisualLines visualLines;
+        visualLines.push_back( VisualLine{ 4_lnum, 0, 0_lcol, 10_length, 10_length } );
+        visualLines.push_back( VisualLine{ 5_lnum, 0, 0_lcol, 40_length, 60_length } );
+        visualLines.push_back( VisualLine{ 5_lnum, 1, 40_lcol, 20_length, 60_length } );
+        const ViewportLayout layout{ input, visualLines };
 
-        THEN( "the line rectangle covers both of its rows" )
+        THEN( "the line rectangle covers both of its Visual Lines" )
         {
             REQUIRE( layout.rectForLine( 5_lnum ) == ViewportRect{ 0, 20, 500, 40 } );
         }
 
-        THEN( "a column rectangle is one character cell on its own row" )
+        THEN( "a column rectangle is one character cell on its own Visual Line" )
         {
             REQUIRE( layout.rectForColumn( 5_lnum, 42_lcol )
                      == ViewportRect{ layout.textOriginX() + 20, 40, 10, 20 } );
@@ -342,7 +345,7 @@ SCENARIO( "Viewport layout scroll ranges", "[viewportlayout]" )
                      == static_cast<int>( 1000 - visible.get() + 1 ) );
         }
 
-        THEN( "wrapping at the bottom adds the extra rows" )
+        THEN( "wrapping at the bottom adds the extra Visual Lines" )
         {
             REQUIRE( layout.verticalScrollRange( 1000_lcount, visible + 7_lcount )
                      == static_cast<int>( 1000 - visible.get() + 1 + 7 ) );
