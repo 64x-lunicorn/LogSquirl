@@ -446,12 +446,16 @@ cpmaddpackage(
   efsw
   GITHUB_REPOSITORY
   SpartanJ/efsw
+  # 1.7.0 or later: 1.4.1's Windows backend freed a removed directory watch
+  # while its cancelled read could still complete into it, corrupting the
+  # heap (#116). Later releases free it only once that read has completed.
   GIT_TAG
-  1.4.1
+  1.7.2
   EXCLUDE_FROM_ALL
   YES
   OPTIONS
   "BUILD_TEST_APP OFF"
+  "BUILD_STATIC_LIBS OFF"
 )
 if(efsw_ADDED)
   target_compile_definitions(efsw PRIVATE EFSW_FSEVENTS_NOT_SUPPORTED)
