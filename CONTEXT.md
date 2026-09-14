@@ -41,6 +41,11 @@ One line of text as drawn in the Viewport. Without text wrapping a Visual Line s
 whole Log Line; with text wrapping a long Log Line is drawn as several Visual Lines.
 _Avoid_: row (row belongs to the Table View), wrapped row, fragment, screen line
 
+**Scroll Position**:
+Where a text view stands in its Log File: the Log Line at the top of the Viewport together
+with which of its Visual Lines is shown first. Scrolling moves it; nothing else does.
+_Avoid_: first line, top line, anchor
+
 ### Searching and filtering
 
 **Search**:
