@@ -325,6 +325,108 @@ SCENARIO( "A wrapped text view at the bottom as its Log File grows",
     }
 }
 
+SCENARIO( "A re-wrap keeps the text on the top row of a wrapped text view",
+          "[abstractlogview][scrollposition][rewrap]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern qfp;
+
+    GIVEN( "a Log Line of numbered words taller than the Viewport" )
+    {
+        const FakeLogData logData{ numberedWordsLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        THEN( "widening and narrowing the view keep the text at the top on the top row" )
+        {
+            requireResizingKeepsTheTopRowText( view );
+        }
+
+        THEN( "a larger font keeps the text at the top on the top row" )
+        {
+            showWide( view );
+            requireRewrapKeepsTheTopRowText( view, [ &view ]() {
+                auto font = view.font();
+                font.setPointSize( font.pointSize() > 0 ? font.pointSize() * 2 : 24 );
+                view.updateFont( font );
+            } );
+        }
+
+        THEN( "showing and hiding line numbers keep the text at the top on the top row" )
+        {
+            showWide( view );
+            requireRewrapKeepsTheTopRowText( view,
+                                             [ &view ]() { view.setLineNumbersVisible( true ); } );
+            requireRewrapKeepsTheTopRowText( view,
+                                             [ &view ]() { view.setLineNumbersVisible( false ); } );
+        }
+    }
+
+    GIVEN( "a view at the bottom of a Log File whose last Log Line is taller than the Viewport" )
+    {
+        const FakeLogData logData{ tallLastLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        THEN( "it stays at the bottom through a resize" )
+        {
+            requireResizingKeepsTheViewAtTheBottom( view );
+        }
+    }
+}
+
+SCENARIO( "A jump moves a wrapped text view only when its target is off screen",
+          "[abstractlogview][scrollposition][jump]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern qfp;
+
+    GIVEN( "a Log Line taller than the Viewport in the middle of the Log File" )
+    {
+        const FakeLogData logData{ tallLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        const JumpToLogLine selectLine
+            = [ &view ]( LineNumber line ) { view.selectAndDisplayLine( line ); };
+        // What selecting a Match in the Filtered View does to the main view.
+        const JumpToLogLine selectMatch = [ &view ]( LineNumber line ) {
+            view.selectPortionAndDisplayLine( line, 1_lcount, 0_lcol, 1_length );
+        };
+
+        THEN( "going to a Match or Mark already wholly visible does not scroll" )
+        {
+            requireJumpToAWhollyVisibleLogLineDoesNotScroll( view, selectLine );
+            requireJumpToAWhollyVisibleLogLineDoesNotScroll( view, selectMatch );
+        }
+
+        THEN( "going to a Match or Mark off screen puts its first Visual Line on the top row" )
+        {
+            requireJumpOffScreenPutsTheFirstVisualLineOnTheTopRow( view, selectLine );
+            requireJumpOffScreenPutsTheFirstVisualLineOnTheTopRow( view, selectMatch );
+        }
+    }
+
+    GIVEN( "text QuickFind finds in the 40th Visual Line of a tall Log Line" )
+    {
+        const FakeLogData logData{ quickFindLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        THEN( "off screen, that Visual Line is put on the top row" )
+        {
+            requireQuickFindPutsTheVisualLineOfTheFoundTextOnTheTopRow( view, qfp );
+        }
+
+        THEN( "already wholly visible, the view does not scroll" )
+        {
+            requireQuickFindOnAWhollyVisibleVisualLineDoesNotScroll( view, qfp );
+        }
+    }
+}
+
 namespace {
 
 // A FakeLogData that counts the Log Lines read from it.

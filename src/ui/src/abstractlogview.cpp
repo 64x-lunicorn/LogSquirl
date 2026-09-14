@@ -1197,6 +1197,47 @@ ScrollPosition AbstractLogView::withinLogLine( ScrollPosition position ) const
     return position;
 }
 
+void AbstractLogView::rewrapScrollPosition()
+{
+    const auto columns = getNbVisibleCols();
+    const auto before = scrollPosition_;
+    if ( useTextWrap_ && columns != scrollPositionColumns_ && scrollPosition_.visualLineIndex > 0
+         && scrollPosition_.lineNumber < logData_->getNbLine() ) {
+        // Expanded and wrapped as buildViewportContent() does it, at the width
+        // the Visual Line was counted at and at the new one.
+        const auto expandedLine = untabify( logData_->getLineString( scrollPosition_.lineNumber ) );
+        const WrappedString countedAt{ expandedLine, scrollPositionColumns_ };
+        const auto firstOnTopRow = countedAt.wrappedLineStart(
+            std::min( scrollPosition_.visualLineIndex, countedAt.wrappedLinesCount() - 1 ) );
+        scrollPosition_.visualLineIndex
+            = WrappedString{ expandedLine, columns }.wrappedLineIndexOf( firstOnTopRow );
+    }
+    else {
+        // The same width, but the Log Line at the top may now wrap into fewer
+        // Visual Lines.
+        scrollPosition_ = withinLogLine( scrollPosition_ );
+    }
+    scrollPositionColumns_ = columns;
+    // Only a move changes what is aligned: Log Lines appended below a view
+    // that is not following leave it as it is.
+    if ( scrollPosition_ != before ) {
+        updateLastLineAligned();
+    }
+}
+
+ScrollPosition AbstractLogView::visualLineOf( FilePosition position ) const
+{
+    if ( !useTextWrap_ || position.column() <= 0_lcol
+         || position.line() >= logData_->getNbLine() ) {
+        return ScrollPosition{ position.line(), 0 };
+    }
+
+    // Expanded and wrapped as buildViewportContent() does it.
+    const WrappedString wrappedLine{ untabify( logData_->getLineString( position.line() ) ),
+                                     getNbVisibleCols() };
+    return ScrollPosition{ position.line(), wrappedLine.wrappedLineIndexOf( position.column() ) };
+}
+
 void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
 {
     const QRect invalidRect = paintEvent->rect();
@@ -1319,7 +1360,8 @@ void AbstractLogView::setQuickFindResult( bool hasMatch, const Portion& portion 
 {
     if ( portion.isValid() ) {
         LOG_DEBUG << "search " << portion.line();
-        displayLine( portion.line() );
+        // The Visual Line holding the start of the found text.
+        displayPosition( FilePosition{ portion.line(), portion.startColumn() } );
         selection_.selectPortion( portion );
         Q_EMIT newSelection( portion.line(), 1_lcount, 0_lcol, 0_length );
     }
@@ -1396,6 +1438,7 @@ void AbstractLogView::textWrapSet( bool checked )
     // The Log Line at the top stays. Without text wrapping it is a single
     // Visual Line, and with it the view starts again at its first one.
     scrollPosition_.visualLineIndex = 0;
+    rewrapScrollPosition();
     updateScrollBars();
     forceRefresh();
 }
@@ -1730,10 +1773,9 @@ void AbstractLogView::updateData()
         verticalScrollBar()->setValue( 0 );
         horizontalScrollBar()->setValue( 0 );
     }
-    else {
-        // The Log Line at the top may now wrap into fewer Visual Lines.
-        scrollPosition_ = withinLogLine( scrollPosition_ );
-    }
+    // The Log Line at the top may now wrap into fewer Visual Lines, and more
+    // Log Lines can take columns from the text for their line numbers.
+    rewrapScrollPosition();
 
     // Crop selection if it become out of range
     selection_.crop( lastLineNumber - 1_lcount );
@@ -1769,18 +1811,24 @@ void AbstractLogView::updateFont( const QFont& font )
 
 void AbstractLogView::updateDisplaySize()
 {
+    // Whether the view is at the bottom, taken from the bottom as it was
+    // before the new size, font or margins move it.
+    const bool atBottom
+        = logFileBottom_.has_value() && logFileBottom_->alignsLastVisualLineAt( scrollPosition_ );
+
     // Font is assumed to be mono-space (is restricted by options dialog)
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
     charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
 
-    // A new width can wrap the Log Line at the top into fewer Visual Lines.
-    scrollPosition_ = withinLogLine( scrollPosition_ );
+    // A new width re-wraps the Log Line at the top: keep the character that
+    // was first on the top row there.
+    rewrapScrollPosition();
 
     // Update the scroll bars
     updateScrollBars();
     verticalScrollBar()->setPageStep( static_cast<int>( getNbVisibleLines().get() ) );
 
-    if ( followMode_ )
+    if ( followMode_ || atBottom )
         jumpToBottom();
 
     LOG_DEBUG << "viewport.width()=" << viewport()->width();
@@ -1869,7 +1917,13 @@ void AbstractLogView::jumpToLine( LineNumber line )
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
 {
+    if ( lineNumbersVisible_ == lineNumbersVisible ) {
+        return;
+    }
+
     lineNumbersVisible_ = lineNumbersVisible;
+    // Line numbers take their columns from the text, which re-wraps it.
+    updateDisplaySize();
 }
 
 void AbstractLogView::forceRefresh()
@@ -2046,21 +2100,25 @@ FilePosition AbstractLogView::convertCoordToFilePos( const QPoint& pos ) const
     return viewportLayout().filePositionAtPoint( pos.x(), pos.y() );
 }
 
-// Makes the widget adjust itself to display the passed line.
-// Doing so, it will throw itself a scrollContents event.
 void AbstractLogView::displayLine( LineNumber line )
 {
-    // If the line is already the screen
-    const auto topLine = scrollPosition_.lineNumber;
-    if ( ( line >= topLine ) && ( line < ( topLine + getNbVisibleLines() ) ) ) {
+    displayPosition( FilePosition{ line, 0_lcol } );
+}
+
+// Makes the widget adjust itself to display the passed position.
+// Doing so, it may throw itself a scrollContents event.
+void AbstractLogView::displayPosition( FilePosition position )
+{
+    const auto target = visualLineOf( position );
+    if ( viewportLayout().showsWholeVisualLine( target ) ) {
         // Invalidate our cache
         forceRefresh();
     }
     else {
-        jumpToLine( line );
+        scrollTo( target );
     }
 
-    const auto portion = selection_.getPortionForLine( line );
+    const auto portion = selection_.getPortionForLine( position.line() );
     if ( portion.isValid() ) {
         horizontalScrollBar()->setValue( type_safe::narrow_cast<int>(
             portion.endColumn().get() - getNbVisibleCols().get() + 1 ) );

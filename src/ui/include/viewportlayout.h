@@ -272,6 +272,10 @@ public:
     ViewportRect rectForLine( LineNumber line ) const;
     // The single character cell of a display column of a Log Line.
     ViewportRect rectForColumn( LineNumber line, LineColumn column ) const;
+    // Whether the Visual Line visualLine names -- a Log Line and the index of
+    // one of its Visual Lines -- is drawn with none of it outside the
+    // Viewport. What decides whether a jump to it moves the view.
+    bool showsWholeVisualLine( ScrollPosition visualLine ) const;
 
     // --- scroll ranges -------------------------------------------------
 

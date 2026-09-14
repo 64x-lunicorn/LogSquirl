@@ -20,8 +20,9 @@
 #ifndef LOG_VIEW_SCROLLING_H
 #define LOG_VIEW_SCROLLING_H
 
-// Scrolling a text view by Visual Lines, and its bottom, checked the same way
-// for the main view and the Filtered View (#153, #154).
+// Scrolling a text view by Visual Lines, its bottom, re-wrapping it and jumping
+// in it, checked the same way for the main view and the Filtered View (#153,
+// #154, #155).
 //
 // The view is shown one column wide, so every character of a Log Line is one
 // Visual Line whatever font the platform picks, and every expected Scroll
@@ -42,10 +43,12 @@
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QScrollBar>
+#include <QSignalSpy>
 #include <QStringList>
 #include <QWheelEvent>
 
 #include "abstractlogview.h"
+#include "quickfindpattern.h"
 #include "viewportlayout.h"
 
 namespace logviewscrolling {
@@ -294,14 +297,20 @@ inline void requireWrapToggleKeepsTheLogLineAtTheTop( AbstractLogView& view )
 // The word on the Viewport row at y, as double-clicking it selects it. When
 // there is no word there -- a space, or no Visual Line at all -- the whole Log
 // File stays selected instead.
-inline QString wordAtRow( AbstractLogView& view, int y )
+inline QString wordAt( AbstractLogView& view, int x, int y )
 {
     view.selectAll();
-    const QPointF onText{ topRowText().x(), static_cast<qreal>( y ) };
+    const QPointF onText{ static_cast<qreal>( x ), static_cast<qreal>( y ) };
     QMouseEvent click( QEvent::MouseButtonDblClick, onText, view.viewport()->mapToGlobal( onText ),
                        Qt::LeftButton, Qt::LeftButton, Qt::NoModifier );
     QCoreApplication::sendEvent( view.viewport(), &click );
     return view.getSelectedText();
+}
+
+// The word at the start of the Viewport row at y.
+inline QString wordAtRow( AbstractLogView& view, int y )
+{
+    return wordAt( view, static_cast<int>( topRowText().x() ), y );
 }
 
 inline QString wordOnLastRow( AbstractLogView& view )
@@ -425,6 +434,210 @@ inline void requireGrowthWithoutFollowLeavesTheBottomView( AbstractLogView& view
     REQUIRE( view.scrollPosition() == before );
     REQUIRE( wordOnLastRow( view ) == lastWordBefore );
     REQUIRE( view.verticalScrollBar()->maximum() > static_cast<int>( before.lineNumber.get() ) );
+}
+
+// --- re-wrapping and jumps (#155) ------------------------------------------
+
+// How many pixels wider than one column showWide() makes the text: at least
+// six columns of any font up to 33 pixels wide, so no numbered word below is
+// ever split.
+constexpr int WideTextPx = 200;
+
+inline void resizeText( AbstractLogView& view, int extraWidthPx )
+{
+    view.resize( ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth + 7
+                     + extraWidthPx,
+                 view.height() );
+    QCoreApplication::processEvents();
+}
+
+// From one column wide, WideTextPx wider.
+inline void showWide( AbstractLogView& view )
+{
+    resizeText( view, WideTextPx );
+}
+
+// Back to one column wide.
+inline void showNarrow( AbstractLogView& view )
+{
+    resizeText( view, 0 );
+}
+
+// The word numbered n: five digits.
+inline QString numberedWord( int n )
+{
+    return QStringLiteral( "%1" ).arg( n, 5, 10, QLatin1Char( '0' ) );
+}
+
+constexpr int WordLength = 6;
+constexpr int NumberedWords = 400;
+inline const LineNumber WordsLine{ LinesBeforeTallLine };
+
+// Log Lines of one Visual Line around a Log Line of NumberedWords words, each
+// with the space after it WordLength characters.
+inline QStringList numberedWordsLogLines()
+{
+    QStringList lines;
+    for ( uint64_t i = 0; i < LinesBeforeTallLine; ++i ) {
+        lines << QStringLiteral( "a" );
+    }
+    QString words;
+    for ( int word = 0; word < NumberedWords; ++word ) {
+        words += numberedWord( word ) + QLatin1Char( ' ' );
+    }
+    lines << words;
+    for ( uint64_t i = 1; i < LinesAfterTallLine; ++i ) {
+        lines << QStringLiteral( "b" );
+    }
+    lines << LastWord;
+    return lines;
+}
+
+// Every word on the Viewport row at y, left to right.
+inline QStringList wordsOnRow( AbstractLogView& view, int y )
+{
+    QStringList words;
+    for ( int x = static_cast<int>( topRowText().x() ); x < view.viewport()->width(); ++x ) {
+        const auto word = wordAt( view, x, y );
+        if ( !word.contains( QChar::LineFeed ) && ( words.isEmpty() || words.last() != word ) ) {
+            words << word;
+        }
+    }
+    return words;
+}
+
+// The view, WideTextPx wider than one column and showing numberedWordsLogLines(),
+// partway through the Log Line of words; rewrap changes how many columns its
+// text has.
+inline void requireRewrapKeepsTheTopRowText( AbstractLogView& view,
+                                             const std::function<void()>& rewrap )
+{
+    moveTo( view, ScrollPosition{ WordsLine, 5 } );
+    const auto topWord = wordAt( view, static_cast<int>( topRowText().x() ), 1 );
+    REQUIRE( topWord.size() == WordLength - 1 );
+
+    rewrap();
+
+    REQUIRE( view.scrollPosition().lineNumber == WordsLine );
+    REQUIRE( view.scrollPosition().visualLineIndex > 0 );
+    REQUIRE( wordsOnRow( view, 1 ).contains( topWord ) );
+}
+
+// The view, one column wide and showing numberedWordsLogLines().
+inline void requireResizingKeepsTheTopRowText( AbstractLogView& view )
+{
+    // Inside word 37, on its third digit.
+    moveTo( view, ScrollPosition{ WordsLine, 37 * WordLength + 2 } );
+    REQUIRE( wordAtRow( view, 1 ) == numberedWord( 37 ) );
+
+    showWide( view );
+    REQUIRE( view.scrollPosition().lineNumber == WordsLine );
+    REQUIRE( view.scrollPosition().visualLineIndex > 0 );
+    const auto wideTopRow = wordsOnRow( view, 1 );
+    REQUIRE( wideTopRow.contains( numberedWord( 37 ) ) );
+
+    // Narrowed again, the top row holds the first character of the wide one.
+    showNarrow( view );
+    REQUIRE( view.scrollPosition()
+             == ScrollPosition{ WordsLine,
+                                static_cast<size_t>( wideTopRow.first().toInt() * WordLength ) } );
+    REQUIRE( wordAtRow( view, 1 ) == wideTopRow.first() );
+}
+
+// The view, one column wide and showing tallLastLogLines().
+inline void requireResizingKeepsTheViewAtTheBottom( AbstractLogView& view )
+{
+    const auto lastRow = [ &view ]() { return view.viewport()->height() - 1; };
+
+    showWide( view );
+    dragToScrollbarMaximum( view );
+    REQUIRE( wordsOnRow( view, lastRow() ).contains( LastWord ) );
+
+    showNarrow( view );
+    REQUIRE( wordOnLastRow( view ) == LastWord );
+    REQUIRE( view.verticalScrollBar()->value() == view.verticalScrollBar()->maximum() );
+
+    showWide( view );
+    REQUIRE( wordsOnRow( view, lastRow() ).contains( LastWord ) );
+    REQUIRE( view.verticalScrollBar()->value() == view.verticalScrollBar()->maximum() );
+}
+
+using JumpToLogLine = std::function<void( LineNumber )>;
+
+// The view, one column wide and showing tallLogLines().
+inline void requireJumpToAWhollyVisibleLogLineDoesNotScroll( AbstractLogView& view,
+                                                             const JumpToLogLine& jump )
+{
+    moveTo( view, ScrollPosition{ 5_lnum, 0 } );
+    jump( 7_lnum );
+    REQUIRE( view.scrollPosition() == ScrollPosition{ 5_lnum, 0 } );
+}
+
+// The view, one column wide and showing tallLogLines().
+inline void requireJumpOffScreenPutsTheFirstVisualLineOnTheTopRow( AbstractLogView& view,
+                                                                   const JumpToLogLine& jump )
+{
+    moveTo( view, ScrollPosition{} );
+    jump( TallLine + 50_lcount );
+    REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine + 50_lcount, 0 } );
+
+    // Its first Visual Line is above the Viewport, the rest of it below.
+    moveTo( view, ScrollPosition{ TallLine, 150 } );
+    jump( TallLine );
+    REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine, 0 } );
+
+    // The last Log Line goes no further than the bottom.
+    dragToScrollbarMaximum( view );
+    const auto bottom = view.scrollPosition();
+    moveTo( view, ScrollPosition{} );
+    jump( LineNumber( LinesBeforeTallLine + LinesAfterTallLine ) );
+    REQUIRE( view.scrollPosition() == bottom );
+}
+
+inline const QString FoundText = QStringLiteral( "found" );
+constexpr size_t FoundVisualLine = 39;
+
+// tallLogLines(), with FoundText starting at the 40th character of the tall Log Line.
+inline QStringList quickFindLogLines()
+{
+    auto lines = tallLogLines();
+    lines[ static_cast<qsizetype>( TallLine.get() ) ]
+        = QString( static_cast<qsizetype>( FoundVisualLine ), QLatin1Char( 'x' ) ) + FoundText
+          + QString( 256, QLatin1Char( 'x' ) );
+    return lines;
+}
+
+// Searches forward for FoundText with QuickFind, and waits for its result.
+inline void quickFindFoundText( AbstractLogView& view, QuickFindPattern& quickFindPattern )
+{
+    quickFindPattern.changeSearchPattern( FoundText, /* useExtendedRegexp */ false );
+    QSignalSpy selected( &view, &AbstractLogView::newSelection );
+    view.searchForward();
+    REQUIRE( ( selected.count() > 0 || selected.wait( 10000 ) ) );
+}
+
+// The view, one column wide and showing quickFindLogLines().
+inline void
+requireQuickFindPutsTheVisualLineOfTheFoundTextOnTheTopRow( AbstractLogView& view,
+                                                            QuickFindPattern& quickFindPattern )
+{
+    moveTo( view, ScrollPosition{} );
+    quickFindFoundText( view, quickFindPattern );
+    REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine, FoundVisualLine } );
+    REQUIRE( wordAtRow( view, 1 )
+             == QString( static_cast<qsizetype>( FoundVisualLine ), QLatin1Char( 'x' ) ) + FoundText
+                    + QString( 256, QLatin1Char( 'x' ) ) );
+}
+
+// The view, one column wide and showing quickFindLogLines().
+inline void
+requireQuickFindOnAWhollyVisibleVisualLineDoesNotScroll( AbstractLogView& view,
+                                                         QuickFindPattern& quickFindPattern )
+{
+    const ScrollPosition twoAbove{ TallLine, FoundVisualLine - 2 };
+    moveTo( view, twoAbove );
+    quickFindFoundText( view, quickFindPattern );
+    REQUIRE( view.scrollPosition() == twoAbove );
 }
 
 } // namespace logviewscrolling

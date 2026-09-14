@@ -362,6 +362,59 @@ SCENARIO( "Viewport layout rectangles", "[viewportlayout]" )
     }
 }
 
+SCENARIO( "Whether a Visual Line is wholly in the Viewport", "[viewportlayout][jump]" )
+{
+    GIVEN( "A 50 px Viewport of 20 px Visual Lines: two whole rows and part of a third" )
+    {
+        auto input = fixedWidthInput();
+        input.textWrap = true;
+        input.viewportHeightPx = 50;
+        VisualLines visualLines;
+        visualLines.push_back( VisualLine{ 5_lnum, 3, 30_lcol, 10_length, 60_length } );
+        visualLines.push_back( VisualLine{ 5_lnum, 4, 40_lcol, 10_length, 60_length } );
+        visualLines.push_back( VisualLine{ 6_lnum, 0, 0_lcol, 10_length, 10_length } );
+        const ViewportLayout layout{ input, visualLines };
+
+        THEN( "the Visual Lines on the whole rows are" )
+        {
+            REQUIRE( layout.showsWholeVisualLine( ScrollPosition{ 5_lnum, 3 } ) );
+            REQUIRE( layout.showsWholeVisualLine( ScrollPosition{ 5_lnum, 4 } ) );
+        }
+
+        THEN( "the one on the partly visible row is not" )
+        {
+            REQUIRE_FALSE( layout.showsWholeVisualLine( ScrollPosition{ 6_lnum, 0 } ) );
+        }
+
+        THEN( "Visual Lines above or below the Viewport are not" )
+        {
+            REQUIRE_FALSE( layout.showsWholeVisualLine( ScrollPosition{ 5_lnum, 2 } ) );
+            REQUIRE_FALSE( layout.showsWholeVisualLine( ScrollPosition{ 5_lnum, 0 } ) );
+            REQUIRE_FALSE( layout.showsWholeVisualLine( ScrollPosition{ 7_lnum, 0 } ) );
+        }
+    }
+
+    GIVEN( "The same Visual Lines drawn 10 px higher, as at the bottom of the Log File" )
+    {
+        auto input = fixedWidthInput();
+        input.textWrap = true;
+        input.viewportHeightPx = 50;
+        input.drawingTopOffsetPx = -10;
+        VisualLines visualLines;
+        visualLines.push_back( VisualLine{ 5_lnum, 3, 30_lcol, 10_length, 60_length } );
+        visualLines.push_back( VisualLine{ 5_lnum, 4, 40_lcol, 10_length, 60_length } );
+        visualLines.push_back( VisualLine{ 6_lnum, 0, 0_lcol, 10_length, 10_length } );
+        const ViewportLayout layout{ input, visualLines };
+
+        THEN( "the one cut by the top edge is not, and the last row now is" )
+        {
+            REQUIRE_FALSE( layout.showsWholeVisualLine( ScrollPosition{ 5_lnum, 3 } ) );
+            REQUIRE( layout.showsWholeVisualLine( ScrollPosition{ 5_lnum, 4 } ) );
+            REQUIRE( layout.showsWholeVisualLine( ScrollPosition{ 6_lnum, 0 } ) );
+        }
+    }
+}
+
 SCENARIO( "Viewport layout scroll ranges", "[viewportlayout]" )
 {
     GIVEN( "A Log File whose bottom Scroll Position is its top" )

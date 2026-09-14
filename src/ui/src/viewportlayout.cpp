@@ -231,6 +231,23 @@ ViewportRect ViewportLayout::rectForColumn( LineNumber line, LineColumn column )
     return ViewportRect{};
 }
 
+bool ViewportLayout::showsWholeVisualLine( ScrollPosition visualLine ) const
+{
+    const auto found = std::find_if(
+        visualLines_.begin(), visualLines_.end(), [ visualLine ]( const VisualLine& candidate ) {
+            return candidate.lineNumber == visualLine.lineNumber
+                   && candidate.wrappedLineIndex == visualLine.visualLineIndex;
+        } );
+    if ( found == visualLines_.end() ) {
+        return false;
+    }
+
+    const auto top
+        = input_.drawingTopOffsetPx
+          + static_cast<int>( std::distance( visualLines_.begin(), found ) ) * charHeight();
+    return top >= 0 && top + charHeight() <= input_.viewportHeightPx;
+}
+
 int ViewportLayout::verticalScrollRange( ScrollPosition bottom ) const
 {
     // A Log File can hold more lines than a scrollbar can address; saturate

@@ -377,6 +377,10 @@ private:
     // row: the view is at the bottom Scroll Position. Scrolling updates it, so
     // Log Lines added below a view that is not following leave it as it is.
     ScrollPosition scrollPosition_;
+    // The text columns scrollPosition_'s Visual Line was counted at. When the
+    // view re-wraps to another width, rewrapScrollPosition() finds the same
+    // character again from it.
+    LineLength scrollPositionColumns_{ 0 };
     bool lastLineAligned_ = false;
     // The fraction of a Visual Line the wheel has turned but not yet scrolled.
     double wheelVisualLinesPending_ = 0;
@@ -535,7 +539,12 @@ private:
     // of their own.
     PullToFollowState pullToFollowState() const;
 
+    // Brings the first Visual Line of line into view (see displayPosition()).
     void displayLine( LineNumber line );
+    // Brings the Visual Line holding position into view. A Visual Line already
+    // wholly in the Viewport leaves the view where it is; otherwise the view
+    // moves to put it on the top row, going no further than the bottom.
+    void displayPosition( FilePosition position );
     void moveSelection( LinesCount delta, bool isDeltaNegative );
     void moveSelectionUp();
     void moveSelectionDown();
@@ -591,6 +600,13 @@ private:
     // position, with a Visual Line a re-wrap or a change to the Log File has
     // left past the end of its Log Line brought back to that Log Line's last.
     ScrollPosition withinLogLine( ScrollPosition position ) const;
+    // What every change that re-wraps the view (its width, the font, line
+    // numbers) does before the layout is rebuilt: the Scroll Position keeps its
+    // Log Line, and its Visual Line becomes the one holding the character that
+    // was first on the top row at the width it was counted at.
+    void rewrapScrollPosition();
+    // The Visual Line of the Log Line holding position, at the current width.
+    ScrollPosition visualLineOf( FilePosition position ) const;
     // Aligns the last Visual Line on the last row when the view is at the
     // bottom Scroll Position, and the first on the top row otherwise.
     void updateLastLineAligned();

@@ -150,6 +150,27 @@ public:
         return wrappedLines_[ index ].length;
     }
 
+    // Display column of the line at which the wrapped row at index starts.
+    LineColumn wrappedLineStart( size_t index ) const
+    {
+        return LineColumn{ static_cast<LineColumn::UnderlyingType>(
+            wrappedLines_[ index ].start ) };
+    }
+
+    // Index of the wrapped row holding column; the last row for a column past
+    // the end of the line.
+    size_t wrappedLineIndexOf( LineColumn column ) const
+    {
+        const auto startsAfter
+            = std::upper_bound( wrappedLines_.begin(), wrappedLines_.end(), column.get(),
+                                []( auto columnValue, const Fragment& fragment ) {
+                                    return columnValue < fragment.start;
+                                } );
+        return startsAfter == wrappedLines_.begin()
+                   ? size_t{ 0 }
+                   : static_cast<size_t>( std::distance( wrappedLines_.begin(), startsAfter ) - 1 );
+    }
+
 private:
     // A wrapped row, as a slice of unwrappedLine_.
     struct Fragment {

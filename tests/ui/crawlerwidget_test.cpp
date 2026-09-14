@@ -19,6 +19,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QTemporaryFile>
 #include <QTest>
@@ -148,6 +149,29 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     {
         crawler->grab();
     }
+
+    void showSized()
+    {
+        crawler->resize( 800, 600 );
+        crawler->show();
+        QCoreApplication::processEvents();
+    }
+
+    ScrollPosition mainViewScrollPosition()
+    {
+        return crawler->logMainView_->scrollPosition();
+    }
+
+    // Rows of the main view, a partly visible one included.
+    int mainViewRows()
+    {
+        return crawler->logMainView_->verticalScrollBar()->pageStep();
+    }
+
+    void selectInFilteredView( LineNumber line )
+    {
+        crawler->filteredView_->selectAndDisplayLine( line );
+    }
 };
 
 using CrawlerWidgetVisitor = CrawlerWidget::access_by<CrawlerWidgetPrivate>;
@@ -262,6 +286,54 @@ SCENARIO( "Crawler widget search", "[ui]" )
             THEN( "has lines matched" )
             {
                 REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() >= 2 );
+            }
+        }
+    }
+}
+
+SCENARIO( "Selecting a Match in the Filtered View moves the main view only when it is off screen",
+          "[ui][jump]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    Session session{ testSettingsPolicies() };
+    session.savedSearches().clear();
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+
+    waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
+    waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+    crawlerVisitor.showSized();
+
+    crawlerVisitor.setSearchPattern( "this is line" );
+    crawlerVisitor.runSearch();
+    REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+        return crawlerVisitor.getLogFilteredNbLines().get() == SL_NB_LINES;
+    } ) );
+
+    // Line 50 is off screen, and not so near the end that the bottom stops it.
+    REQUIRE( crawlerVisitor.mainViewScrollPosition().lineNumber < 10_lnum );
+    REQUIRE( crawlerVisitor.mainViewRows() < 40 );
+
+    WHEN( "a Match off screen in the main view is selected" )
+    {
+        crawlerVisitor.selectInFilteredView( 50_lnum );
+
+        THEN( "its Log Line is put on the main view's top row" )
+        {
+            REQUIRE( crawlerVisitor.mainViewScrollPosition() == ScrollPosition{ 50_lnum, 0 } );
+        }
+
+        AND_WHEN( "a Match already wholly visible in the main view is selected" )
+        {
+            crawlerVisitor.selectInFilteredView( 51_lnum );
+
+            THEN( "the main view does not scroll" )
+            {
+                REQUIRE( crawlerVisitor.mainViewScrollPosition() == ScrollPosition{ 50_lnum, 0 } );
             }
         }
     }

@@ -17,8 +17,9 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// The Filtered View scrolls by Visual Lines and stops at its bottom exactly as
-// the main view does (#153, #154): the same checks as
+// The Filtered View scrolls by Visual Lines, stops at its bottom, keeps its
+// reading position through a re-wrap and jumps exactly as the main view does
+// (#153, #154, #155): the same checks as
 // tests/unit/abstractlogview_test.cpp, run on a FilteredView showing the Matches
 // of a Search over a real Log File.
 
@@ -194,6 +195,90 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
         THEN( "without follow mode, a view at the bottom stays where it is" )
         {
             requireGrowthWithoutFollowLeavesTheBottomView( view, searchTheRest );
+        }
+    }
+}
+
+SCENARIO( "A re-wrap keeps the text on the top row of the Filtered View",
+          "[filteredview][scrollposition][rewrap]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern quickFindPattern;
+
+    GIVEN( "a Match of numbered words taller than the Viewport" )
+    {
+        FilteredLogFile logFile{ numberedWordsLogLines() };
+        FilteredView view( logFile.filteredData.get(), &quickFindPattern, true );
+        showOneColumnWide( view );
+
+        THEN( "widening and narrowing the view keep the text at the top on the top row" )
+        {
+            requireResizingKeepsTheTopRowText( view );
+        }
+
+        THEN( "showing line numbers keeps the text at the top on the top row" )
+        {
+            showWide( view );
+            requireRewrapKeepsTheTopRowText( view,
+                                             [ &view ]() { view.setLineNumbersVisible( true ); } );
+        }
+    }
+
+    GIVEN( "a Filtered View at the bottom of Matches whose last one is taller than the Viewport" )
+    {
+        FilteredLogFile logFile{ tallLastLogLines() };
+        FilteredView view( logFile.filteredData.get(), &quickFindPattern, true );
+        showOneColumnWide( view );
+
+        THEN( "it stays at the bottom through a resize" )
+        {
+            requireResizingKeepsTheViewAtTheBottom( view );
+        }
+    }
+}
+
+SCENARIO( "A jump moves the Filtered View only when its target is off screen",
+          "[filteredview][scrollposition][jump]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern quickFindPattern;
+
+    GIVEN( "a Match taller than the Viewport in the middle of the Search results" )
+    {
+        FilteredLogFile logFile{ tallLogLines() };
+        FilteredView view( logFile.filteredData.get(), &quickFindPattern, true );
+        showOneColumnWide( view );
+
+        const JumpToLogLine selectLine
+            = [ &view ]( LineNumber line ) { view.selectAndDisplayLine( line ); };
+
+        THEN( "going to a Match already wholly visible does not scroll" )
+        {
+            requireJumpToAWhollyVisibleLogLineDoesNotScroll( view, selectLine );
+        }
+
+        THEN( "going to a Match off screen puts its first Visual Line on the top row" )
+        {
+            requireJumpOffScreenPutsTheFirstVisualLineOnTheTopRow( view, selectLine );
+        }
+    }
+
+    GIVEN( "text QuickFind finds in the 40th Visual Line of a tall Match" )
+    {
+        FilteredLogFile logFile{ quickFindLogLines() };
+        FilteredView view( logFile.filteredData.get(), &quickFindPattern, true );
+        showOneColumnWide( view );
+
+        THEN( "off screen, that Visual Line is put on the top row" )
+        {
+            requireQuickFindPutsTheVisualLineOfTheFoundTextOnTheTopRow( view, quickFindPattern );
+        }
+
+        THEN( "already wholly visible, the view does not scroll" )
+        {
+            requireQuickFindOnAWhollyVisibleVisualLineDoesNotScroll( view, quickFindPattern );
         }
     }
 }
