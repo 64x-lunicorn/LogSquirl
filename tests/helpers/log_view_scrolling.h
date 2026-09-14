@@ -20,16 +20,22 @@
 #ifndef LOG_VIEW_SCROLLING_H
 #define LOG_VIEW_SCROLLING_H
 
-// Scrolling a text view by Visual Lines, checked the same way for the main
-// view and the Filtered View (#153).
+// Scrolling a text view by Visual Lines, and its bottom, checked the same way
+// for the main view and the Filtered View (#153, #154).
 //
 // The view is shown one column wide, so every character of a Log Line is one
 // Visual Line whatever font the platform picks, and every expected Scroll
 // Position follows from the text alone.
+//
+// What is on a row of the Viewport is found by double-clicking it: the word
+// under the click gets selected. A Log Line that ends in "x z" has a space as
+// the Visual Line above its last one, so a word on the last row is exact to
+// the row whatever the font.
 
 #include <catch2/catch.hpp>
 
 #include <cstdint>
+#include <functional>
 
 #include <QApplication>
 #include <QCoreApplication>
@@ -50,6 +56,10 @@ constexpr uint64_t TallLineVisualLines = 300;
 constexpr uint64_t LinesAfterTallLine = 100;
 inline const LineNumber TallLine{ LinesBeforeTallLine };
 
+// The word the Log Files below end in.
+inline const QString LastWord = QStringLiteral( "z" );
+
+// Log Lines of one Visual Line after the tall one, the last of them LastWord.
 inline QStringList tallLogLines()
 {
     QStringList lines;
@@ -57,10 +67,42 @@ inline QStringList tallLogLines()
         lines << QStringLiteral( "a" );
     }
     lines << QString( static_cast<qsizetype>( TallLineVisualLines ), QLatin1Char( 'x' ) );
-    for ( uint64_t i = 0; i < LinesAfterTallLine; ++i ) {
+    for ( uint64_t i = 1; i < LinesAfterTallLine; ++i ) {
         lines << QStringLiteral( "b" );
     }
+    lines << LastWord;
     return lines;
+}
+
+// A Log Line of 301 Visual Lines, far taller than the Viewport: "x x ... x"
+// ending in lastWord.
+inline QString tallLineEndingIn( const QString& lastWord )
+{
+    return QStringLiteral( "x " ).repeated( 150 ) + lastWord;
+}
+
+// A Log File whose last Log Line is taller than the Viewport.
+inline QStringList tallLastLogLines()
+{
+    QStringList lines;
+    for ( uint64_t i = 0; i < LinesBeforeTallLine; ++i ) {
+        lines << QStringLiteral( "a" );
+    }
+    lines << tallLineEndingIn( LastWord );
+    return lines;
+}
+
+// Fewer Log Lines than the Viewport has rows, one of them taller than the Viewport.
+inline QStringList fewLogLinesOneTallerThanTheViewport()
+{
+    return QStringList{ QStringLiteral( "a" ), tallLineEndingIn( QStringLiteral( "y" ) ),
+                        LastWord };
+}
+
+// Four Visual Lines: fewer than any Viewport 200 px high has rows.
+inline QStringList fewerVisualLinesThanRows()
+{
+    return QStringList{ QStringLiteral( "a" ), QStringLiteral( "bb" ), LastWord };
 }
 
 // How many Visual Lines of tallLogLines() are above position.
@@ -245,6 +287,144 @@ inline void requireWrapToggleKeepsTheLogLineAtTheTop( AbstractLogView& view )
 
     view.textWrapSet( true );
     REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine, 0 } );
+}
+
+// --- the bottom (#154) ----------------------------------------------------
+
+// The word on the Viewport row at y, as double-clicking it selects it. When
+// there is no word there -- a space, or no Visual Line at all -- the whole Log
+// File stays selected instead.
+inline QString wordAtRow( AbstractLogView& view, int y )
+{
+    view.selectAll();
+    const QPointF onText{ topRowText().x(), static_cast<qreal>( y ) };
+    QMouseEvent click( QEvent::MouseButtonDblClick, onText, view.viewport()->mapToGlobal( onText ),
+                       Qt::LeftButton, Qt::LeftButton, Qt::NoModifier );
+    QCoreApplication::sendEvent( view.viewport(), &click );
+    return view.getSelectedText();
+}
+
+inline QString wordOnLastRow( AbstractLogView& view )
+{
+    return wordAtRow( view, view.viewport()->height() - 1 );
+}
+
+// The row right above the bar follow mode hooks at the bottom of the Viewport.
+inline QString wordAbovePullToFollowBar( AbstractLogView& view )
+{
+    return wordAtRow( view,
+                      view.viewport()->height() - 1 - ViewportLayout::PullToFollowHookedHeight );
+}
+
+// Drags the thumb to the top, then all the way down.
+inline void dragToScrollbarMaximum( AbstractLogView& view )
+{
+    auto* scrollBar = view.verticalScrollBar();
+    scrollBar->setSliderPosition( 0 );
+    scrollBar->setSliderPosition( scrollBar->maximum() );
+}
+
+inline void requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( AbstractLogView& view )
+{
+    auto* scrollBar = view.verticalScrollBar();
+    REQUIRE( scrollBar->maximum() > 0 );
+
+    dragToScrollbarMaximum( view );
+
+    // The Log Line of the bottom Scroll Position, and on the last row, the
+    // last Visual Line of the Log File.
+    REQUIRE( view.scrollPosition().lineNumber.get()
+             == static_cast<uint64_t>( scrollBar->maximum() ) );
+    REQUIRE( wordOnLastRow( view ) == LastWord );
+}
+
+inline void requireScrollingStopsAtTheBottom( AbstractLogView& view )
+{
+    const PinnedWheelScrollLines pinned;
+    dragToScrollbarMaximum( view );
+    const auto bottom = view.scrollPosition();
+
+    pressKey( view, Qt::Key_Down );
+    REQUIRE( view.scrollPosition() == bottom );
+    pressKey( view, Qt::Key_PageDown );
+    REQUIRE( view.scrollPosition() == bottom );
+    REQUIRE( wordOnLastRow( view ) == LastWord );
+
+    turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
+    REQUIRE( view.scrollPosition() == bottom );
+}
+
+inline void requireScrollingDownFromTheTopReachesTheBottom( AbstractLogView& view )
+{
+    const PinnedWheelScrollLines pinned;
+
+    moveTo( view, ScrollPosition{} );
+    for ( int page = 0; page < 1000; ++page ) {
+        const auto before = view.scrollPosition();
+        pressKey( view, Qt::Key_PageDown );
+        if ( view.scrollPosition() == before ) {
+            break;
+        }
+    }
+    const auto reachedByPages = view.scrollPosition();
+    REQUIRE( wordOnLastRow( view ) == LastWord );
+
+    moveTo( view, ScrollPosition{} );
+    for ( int notch = 0; notch < 1000 && view.scrollPosition() != reachedByPages; ++notch ) {
+        turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
+    }
+    REQUIRE( view.scrollPosition() == reachedByPages );
+
+    dragToScrollbarMaximum( view );
+    REQUIRE( view.scrollPosition() == reachedByPages );
+}
+
+inline void requireFewerVisualLinesThanRowsShowFromTheTop( AbstractLogView& view )
+{
+    const PinnedWheelScrollLines pinned;
+
+    REQUIRE( view.verticalScrollBar()->maximum() == 0 );
+    REQUIRE( view.scrollPosition() == ScrollPosition{} );
+
+    pressKey( view, Qt::Key_PageDown );
+    turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
+    REQUIRE( view.scrollPosition() == ScrollPosition{} );
+    REQUIRE( wordAtRow( view, 1 ) == QStringLiteral( "a" ) );
+}
+
+// grow adds to the Log Lines the view shows, ending them in newLastWord, and
+// tells the view.
+inline void requireFollowKeepsTheLastVisualLineOnTheLastRow( AbstractLogView& view,
+                                                             const std::function<void()>& grow,
+                                                             const QString& newLastWord )
+{
+    view.followSet( true );
+    grow();
+    const auto followed = view.scrollPosition();
+
+    // Follow mode hooks the pull-to-follow bar under the last Visual Line.
+    REQUIRE( wordAbovePullToFollowBar( view ) == newLastWord );
+
+    // Where it follows to is the bottom Scroll Position.
+    view.followSet( false );
+    dragToScrollbarMaximum( view );
+    REQUIRE( view.scrollPosition() == followed );
+    REQUIRE( wordOnLastRow( view ) == newLastWord );
+}
+
+// grow adds Log Lines below the last one the view shows, and tells the view.
+inline void requireGrowthWithoutFollowLeavesTheBottomView( AbstractLogView& view,
+                                                           const std::function<void()>& grow )
+{
+    dragToScrollbarMaximum( view );
+    const auto before = view.scrollPosition();
+    const auto lastWordBefore = wordOnLastRow( view );
+
+    grow();
+
+    REQUIRE( view.scrollPosition() == before );
+    REQUIRE( wordOnLastRow( view ) == lastWordBefore );
+    REQUIRE( view.verticalScrollBar()->maximum() > static_cast<int>( before.lineNumber.get() ) );
 }
 
 } // namespace logviewscrolling

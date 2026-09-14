@@ -193,4 +193,207 @@ SCENARIO( "Every Visual Line of a Log Line with more than 10,000 of them can be 
     }
 }
 
+SCENARIO( "The bottom of a wrapped text view shows exactly the last Visual Line of the Log File",
+          "[abstractlogview][scrollposition][bottom]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern qfp;
+
+    GIVEN( "a Log File whose last Log Lines are one Visual Line each" )
+    {
+        const FakeLogData logData{ tallLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        THEN( "at the scrollbar's maximum its last Visual Line is on the last row" )
+        {
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
+        }
+
+        THEN( "keys and the wheel go no further" )
+        {
+            requireScrollingStopsAtTheBottom( view );
+        }
+    }
+
+    GIVEN( "a Log File whose last Log Line is taller than the Viewport" )
+    {
+        const FakeLogData logData{ tallLastLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        THEN( "at the scrollbar's maximum its last Visual Line is on the last row" )
+        {
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
+        }
+
+        THEN( "pages and the wheel scroll through it down to that same bottom" )
+        {
+            requireScrollingDownFromTheTopReachesTheBottom( view );
+        }
+
+        THEN( "keys and the wheel go no further" )
+        {
+            requireScrollingStopsAtTheBottom( view );
+        }
+    }
+
+    GIVEN( "a Log File of fewer Log Lines than rows, one of them taller than the Viewport" )
+    {
+        const FakeLogData logData{ fewLogLinesOneTallerThanTheViewport() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        THEN( "it can be scrolled, down to its last Visual Line on the last row" )
+        {
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
+            requireScrollingDownFromTheTopReachesTheBottom( view );
+        }
+    }
+
+    GIVEN( "a Log File with fewer Visual Lines than the Viewport has rows" )
+    {
+        const FakeLogData logData{ fewerVisualLinesThanRows() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        THEN( "it shows from its top, with no scroll range" )
+        {
+            requireFewerVisualLinesThanRowsShowFromTheTop( view );
+        }
+    }
+}
+
+SCENARIO( "A wrapped text view at the bottom as its Log File grows",
+          "[abstractlogview][scrollposition][bottom][follow]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern qfp;
+
+    GIVEN( "Log Lines appended to the Log File" )
+    {
+        FakeLogData logData{ tallLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        const auto appendLines = [ & ]() {
+            auto lines = tallLogLines();
+            lines << QStringLiteral( "b" ) << tallLineEndingIn( QStringLiteral( "w" ) );
+            logData.setLines( lines );
+            view.updateData();
+        };
+
+        THEN( "follow mode keeps the new last Visual Line on the last row" )
+        {
+            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, appendLines,
+                                                             QStringLiteral( "w" ) );
+        }
+
+        THEN( "without follow mode, a view at the bottom stays where it is" )
+        {
+            requireGrowthWithoutFollowLeavesTheBottomView( view, appendLines );
+        }
+
+        THEN( "without follow mode, a view partway through a Log Line stays where it is" )
+        {
+            moveTo( view, ScrollPosition{ TallLine, 150 } );
+            appendLines();
+            REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine, 150 } );
+        }
+    }
+
+    GIVEN( "the last Log Line of the Log File growing longer" )
+    {
+        FakeLogData logData{ tallLastLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        const auto extendLastLine = [ & ]() {
+            auto lines = tallLastLogLines();
+            lines.last() += QStringLiteral( " x x x w" );
+            logData.setLines( lines );
+            view.updateData();
+        };
+
+        THEN( "follow mode keeps its new last Visual Line on the last row" )
+        {
+            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, extendLastLine,
+                                                             QStringLiteral( "w" ) );
+        }
+    }
+}
+
+namespace {
+
+// A FakeLogData that counts the Log Lines read from it.
+class CountingLogData : public FakeLogData {
+public:
+    using FakeLogData::FakeLogData;
+
+    mutable uint64_t linesRead = 0;
+
+protected:
+    // Every other read of FakeLogData goes through this one.
+    QString doGetLineString( LineNumber line ) const override
+    {
+        ++linesRead;
+        return FakeLogData::doGetLineString( line );
+    }
+};
+
+} // namespace
+
+SCENARIO( "Updating the scroll bars reads no more than one Viewport height of Log Lines",
+          "[abstractlogview][scrollposition][bottom]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern qfp;
+
+    GIVEN( "a wrapped view of 10,000 Log Lines of one Visual Line each" )
+    {
+        QStringList lines;
+        for ( int line = 0; line < 10000; ++line ) {
+            lines << QStringLiteral( "b" );
+        }
+        const CountingLogData logData{ lines };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        WHEN( "the Log File changes" )
+        {
+            logData.linesRead = 0;
+            view.updateData();
+
+            THEN( "no more Log Lines are read than the Viewport has rows" )
+            {
+                // Every row plus a partly hidden one: at least as many as it has rows.
+                REQUIRE( logData.linesRead > 0 );
+                REQUIRE( logData.linesRead
+                         <= static_cast<uint64_t>( view.verticalScrollBar()->pageStep() ) );
+            }
+        }
+    }
+
+    GIVEN( "a wrapped view whose last Log Line is taller than the Viewport" )
+    {
+        const CountingLogData logData{ tallLastLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( view );
+
+        WHEN( "the Log File changes" )
+        {
+            logData.linesRead = 0;
+            view.updateData();
+
+            THEN( "only that last Log Line is read" )
+            {
+                REQUIRE( logData.linesRead == 1 );
+            }
+        }
+    }
+}
+
 #include "abstractlogview_test.moc"

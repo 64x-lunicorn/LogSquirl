@@ -372,8 +372,10 @@ private:
 
     // Position of the view, those are crucial to control drawing
     // scrollPosition_ gives the position of the view; only scrolling moves it.
-    // lastLineAligned == true make the bottom of the last line aligned
-    // rather than the top of the top one.
+    // lastLineAligned_ == true draws the last Visual Line of the Log File on
+    // the Viewport's last row rather than the first Visual Line on the top
+    // row: the view is at the bottom Scroll Position. Scrolling updates it, so
+    // Log Lines added below a view that is not following leave it as it is.
     ScrollPosition scrollPosition_;
     bool lastLineAligned_ = false;
     // The fraction of a Visual Line the wheel has turned but not yet scrolled.
@@ -428,6 +430,23 @@ private:
     // Bumped whenever the Log File content behind the viewport may have
     // changed, so the cached content is rebuilt.
     uint64_t viewportGeneration_ = 0;
+
+    // Everything the bottom of the Log File depends on but its Log Lines. A
+    // change to those comes through updateData(), which wraps the bottom again.
+    struct LogFileBottomKey {
+        LinesCount totalLines{ 0 };
+        int viewportWidth = -1;
+        int viewportHeight = -1;
+        int charWidth = -1;
+        int charHeight = -1;
+        bool textWrap = false;
+        bool lineNumbersVisible = false;
+
+        bool operator==( const LogFileBottomKey& ) const = default;
+    };
+
+    mutable std::optional<LogFileBottom> logFileBottom_;
+    mutable LogFileBottomKey logFileBottomKey_;
 
     LineNumber searchStart_;
     LineNumber searchEnd_;
@@ -489,6 +508,9 @@ private:
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
 
+    // Everything the viewport layout is built from but the drawing offset,
+    // which the pull-to-follow geometry derives from the rest.
+    ViewportLayoutInput viewportInput() const;
     // The viewport layout, without the Visual Lines: enough to answer margins,
     // visible counts and scroll ranges, and cheap because it touches no
     // Log Line.
@@ -502,7 +524,6 @@ private:
     ViewportContent buildViewportContent() const;
 
     LinesCount getNbVisibleLines() const;
-    LinesCount getNbBottomWrappedVisibleLines() const;
     LineLength getNbVisibleCols() const;
 
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
@@ -555,16 +576,24 @@ private:
     // How many Visual Lines a wheel event scrolls down (up when negative).
     int64_t wheelVisualLines( const QWheelEvent& wheelEvent );
     int64_t visualLinesPerPage() const;
-    // The Scroll Position at the vertical scrollbar's maximum. Scrolling by
-    // Visual Lines goes no further down.
-    ScrollPosition lastScrollPosition() const;
+    // Where the last Visual Line of the Log File sits on the Viewport's last
+    // row. Wrapped backwards from the end of the Log File, no more Log Lines
+    // than the Viewport has rows, when something it depends on changed.
+    const LogFileBottom& logFileBottom() const;
+    // The bottom Scroll Position: where follow mode and the vertical
+    // scrollbar's maximum put the view, and scrolling goes no further down.
+    ScrollPosition bottomScrollPosition() const;
     // How many Visual Lines line wraps into at the current width. Reads and
     // wraps that one Log Line.
     size_t visualLineCount( LineNumber line ) const;
+    // How many Visual Lines line wraps into, columns wide.
+    size_t visualLineCount( LineNumber line, LineLength columns ) const;
     // position, with a Visual Line a re-wrap or a change to the Log File has
     // left past the end of its Log Line brought back to that Log Line's last.
     ScrollPosition withinLogLine( ScrollPosition position ) const;
-    void updateLastLineAligned( LineNumber topLine );
+    // Aligns the last Visual Line on the last row when the view is at the
+    // bottom Scroll Position, and the first on the top row otherwise.
+    void updateLastLineAligned();
     // What follows any move of the Scroll Position: the overview, the
     // hovered line and a repaint.
     void scrollPositionMoved();

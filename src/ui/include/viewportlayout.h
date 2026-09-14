@@ -144,16 +144,40 @@ struct ViewportLayoutInput {
     int drawingTopOffsetPx = 0;
 };
 
+// The bottom of a Log File in the Viewport: where the view stands when the last
+// Visual Line of the last Log Line sits on the Viewport's last row.
+struct LogFileBottom {
+    // The bottom Scroll Position. The top of the Log File when the whole Log
+    // File has no more Visual Lines than the Viewport has rows.
+    ScrollPosition scrollPosition;
+    // Visual Lines from scrollPosition to the end of the Log File: the
+    // Viewport's rows, or fewer when the whole Log File has fewer.
+    LinesCount visualLines{ 0 };
+
+    // Whether a view standing at position draws its last Visual Line on the
+    // Viewport's last row, rather than its first Visual Line on the top row.
+    // Only at the bottom Scroll Position, and only when that is not the top of
+    // the Log File: a Log File that fits is shown from its top.
+    bool alignsLastVisualLineAt( ScrollPosition position ) const
+    {
+        return position == scrollPosition && scrollPosition != ScrollPosition{};
+    }
+
+    bool operator==( const LogFileBottom& ) const = default;
+};
+
 // The follow mode state the pull-to-follow geometry depends on.
 struct PullToFollowState {
     // How far the elastic hook has been pulled, in its own units.
     int elasticHookLength = 0;
     // Whether the elastic hook has hooked, i.e. follow mode is about to engage.
     bool hooked = false;
-    // Whether the bottom of the last Log Line is aligned with the bottom of the
-    // viewport rather than the top of the first one with its top.
+    // Whether the last Visual Line is aligned with the bottom of the Viewport
+    // rather than the first one with its top (LogFileBottom::alignsLastVisualLineAt).
     bool lastLineAligned = false;
-    LinesCount totalLines{ 0 };
+    // Visual Lines from the bottom Scroll Position to the end of the Log File
+    // (LogFileBottom::visualLines).
+    LinesCount bottomVisualLines{ 0 };
 };
 
 // Where the text and the pull-to-follow bar are drawn, in viewport pixels.
@@ -218,6 +242,19 @@ public:
     // Visual Lines a page moves: the ones that fit wholly in the Viewport
     // height, and at least one.
     LinesCount visualLinesPerPage() const;
+    // Rows of the Viewport a Visual Line can be drawn on: its height in Visual
+    // Lines, a partly visible last row included, and at least one.
+    LinesCount viewportRows() const;
+
+    // --- the bottom of the Log File ------------------------------------
+
+    // Where the last Visual Line of the Log File's totalLines Log Lines sits on
+    // the Viewport's last row. Wraps backwards from the last Log Line, asking
+    // visualLineCount about no more Log Lines than the Viewport has rows, so
+    // the cost is bounded by the Viewport, never by the Log File. A count of
+    // zero is taken as one.
+    LogFileBottom logFileBottom( LinesCount totalLines,
+                                 const VisualLineCounter& visualLineCount ) const;
 
     // --- hit testing ---------------------------------------------------
 
@@ -238,15 +275,11 @@ public:
 
     // --- scroll ranges -------------------------------------------------
 
-    // Maximum value of the vertical scrollbar.
-    // bottomWrappedVisibleLines is how many Visual Lines the last screenful of Log
-    // Lines needs once wrapped; it equals visibleLines() without wrapping.
-    int verticalScrollRange( LinesCount totalLines, LinesCount bottomWrappedVisibleLines ) const;
+    // Maximum value of the vertical scrollbar: the Log Line of the bottom
+    // Scroll Position. The scrollbar counts Log Lines only (docs/adr/0001).
+    int verticalScrollRange( ScrollPosition bottom ) const;
     // Maximum value of the horizontal scrollbar.
     int horizontalScrollRange( LineLength maxLineLength ) const;
-    // The largest Scroll Position whose unwrapped Log Lines still fill the
-    // viewport.
-    ScrollPosition lastValidScrollPosition( LinesCount totalLines ) const;
     // position, brought back into the Log Lines the Log File actually has. A
     // Scroll Position moved to another Log Line starts at its first Visual
     // Line, and without text wrapping every Scroll Position does. Whether the

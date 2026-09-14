@@ -23,6 +23,7 @@
 #include <catch2/catch.hpp>
 
 #include <limits>
+#include <map>
 #include <vector>
 
 #include "viewportlayout.h"
@@ -57,12 +58,13 @@ VisualLines unwrappedVisualLines( LineNumber firstLine, size_t count, LineLength
 }
 
 // A Log File longer than the viewport, with no elastic pull, not hooked and not
-// aligned on its last Log Line. Each pull-to-follow case changes what it is about.
+// aligned on its last Visual Line. Each pull-to-follow case changes what it is about.
 PullToFollowState restingPullToFollowState()
 {
-    return PullToFollowState{
-        .elasticHookLength = 0, .hooked = false, .lastLineAligned = false, .totalLines = 1000_lcount
-    };
+    return PullToFollowState{ .elasticHookLength = 0,
+                              .hooked = false,
+                              .lastLineAligned = false,
+                              .bottomVisualLines = 20_lcount };
 }
 
 } // namespace
@@ -362,38 +364,31 @@ SCENARIO( "Viewport layout rectangles", "[viewportlayout]" )
 
 SCENARIO( "Viewport layout scroll ranges", "[viewportlayout]" )
 {
-    GIVEN( "A Log File shorter than the viewport" )
+    GIVEN( "A Log File whose bottom Scroll Position is its top" )
     {
         const ViewportLayout layout{ fixedWidthInput() };
 
         THEN( "there is nothing to scroll vertically" )
         {
-            REQUIRE( layout.verticalScrollRange( 5_lcount, 5_lcount ) == 0 );
+            REQUIRE( layout.verticalScrollRange( ScrollPosition{} ) == 0 );
         }
     }
 
     GIVEN( "A Log File longer than the viewport" )
     {
         const ViewportLayout layout{ fixedWidthInput() };
-        const auto visible = layout.visibleLines();
 
-        THEN( "the range reaches the last screenful" )
+        THEN( "the range ends at the Log Line of the bottom Scroll Position, whatever its Visual "
+              "Line" )
         {
-            REQUIRE( layout.verticalScrollRange( 1000_lcount, visible )
-                     == static_cast<int>( 1000 - visible.get() + 1 ) );
+            REQUIRE( layout.verticalScrollRange( ScrollPosition{ 980_lnum, 0 } ) == 980 );
+            REQUIRE( layout.verticalScrollRange( ScrollPosition{ 999_lnum, 37 } ) == 999 );
         }
 
-        THEN( "wrapping at the bottom adds the extra Visual Lines" )
+        THEN( "a line number that overflows the scrollbar saturates" )
         {
-            REQUIRE( layout.verticalScrollRange( 1000_lcount, visible + 7_lcount )
-                     == static_cast<int>( 1000 - visible.get() + 1 + 7 ) );
-        }
-
-        THEN( "a line count that overflows the scrollbar saturates" )
-        {
-            const auto huge = LinesCount( std::numeric_limits<uint64_t>::max() - 1 );
-            const auto range = layout.verticalScrollRange( huge, visible );
-            REQUIRE( range == std::numeric_limits<int>::max() );
+            const ScrollPosition huge{ LineNumber( std::numeric_limits<uint64_t>::max() - 1 ), 0 };
+            REQUIRE( layout.verticalScrollRange( huge ) == std::numeric_limits<int>::max() );
         }
     }
 
@@ -429,24 +424,6 @@ SCENARIO( "Viewport layout scroll ranges", "[viewportlayout]" )
 SCENARIO( "Viewport layout Scroll Position range", "[viewportlayout][scrollposition]" )
 {
     const ViewportLayout layout{ fixedWidthInput() };
-    const auto visible = layout.visibleLines();
-
-    GIVEN( "A Log File longer than the viewport" )
-    {
-        THEN( "the last valid Scroll Position leaves a full screen below it" )
-        {
-            REQUIRE( layout.lastValidScrollPosition( 1000_lcount )
-                     == ScrollPosition{ LineNumber( 1000 - visible.get() ), 0 } );
-        }
-    }
-
-    GIVEN( "A Log File shorter than the viewport" )
-    {
-        THEN( "the view starts at the top" )
-        {
-            REQUIRE( layout.lastValidScrollPosition( 3_lcount ) == ScrollPosition{} );
-        }
-    }
 
     GIVEN( "A Scroll Position past the end of the Log File" )
     {
@@ -650,14 +627,220 @@ SCENARIO( "Moving a Scroll Position by Visual Lines", "[viewportlayout][scrollpo
     }
 }
 
+SCENARIO( "The Viewport's rows", "[viewportlayout][bottom]" )
+{
+    GIVEN( "A viewport a whole number of Visual Lines high" )
+    {
+        THEN( "it has that many rows" )
+        {
+            REQUIRE( ViewportLayout{ fixedWidthInput() }.viewportRows() == 20_lcount );
+        }
+    }
+
+    GIVEN( "A viewport with a partly visible last row" )
+    {
+        auto input = fixedWidthInput();
+        input.viewportHeightPx = 410;
+
+        THEN( "the partly visible row counts" )
+        {
+            REQUIRE( ViewportLayout{ input }.viewportRows() == 21_lcount );
+        }
+    }
+
+    GIVEN( "A viewport lower than one Visual Line, or of no height at all" )
+    {
+        auto input = fixedWidthInput();
+        input.viewportHeightPx = 5;
+        auto empty = fixedWidthInput();
+        empty.viewportHeightPx = 0;
+
+        THEN( "it still has one row" )
+        {
+            REQUIRE( ViewportLayout{ input }.viewportRows() == 1_lcount );
+            REQUIRE( ViewportLayout{ empty }.viewportRows() == 1_lcount );
+        }
+    }
+}
+
+namespace {
+
+// A Log File of a given number of Log Lines, each wrapping into one Visual
+// Line unless listed. Remembers which Log Lines it was asked about, in order.
+struct CountedLogFile {
+    std::map<LineNumber::UnderlyingType, size_t> wrapped;
+    std::vector<LineNumber::UnderlyingType> asked;
+
+    VisualLineCounter counter()
+    {
+        return [ this ]( LineNumber line ) -> size_t {
+            asked.push_back( line.get() );
+            const auto found = wrapped.find( line.get() );
+            return found == wrapped.end() ? 1 : found->second;
+        };
+    }
+};
+
+} // namespace
+
+// With a 400 px viewport and 20 px Visual Lines, the Viewport has 20 rows.
+SCENARIO( "The bottom Scroll Position of a Log File", "[viewportlayout][scrollposition][bottom]" )
+{
+    const ViewportLayout layout{ fixedWidthInput() };
+    CountedLogFile file;
+
+    GIVEN( "A Log File that ends in Log Lines of one Visual Line each" )
+    {
+        const auto bottom = layout.logFileBottom( 100_lcount, file.counter() );
+
+        THEN( "the last 20 Log Lines are shown, the last on the last row" )
+        {
+            REQUIRE( bottom.scrollPosition == ScrollPosition{ 80_lnum, 0 } );
+            REQUIRE( bottom.visualLines == 20_lcount );
+        }
+
+        THEN( "only those Log Lines are wrapped, from the last one up" )
+        {
+            std::vector<LineNumber::UnderlyingType> lastTwenty;
+            for ( LineNumber::UnderlyingType line = 99; line >= 80; --line ) {
+                lastTwenty.push_back( line );
+            }
+            REQUIRE( file.asked == lastTwenty );
+        }
+    }
+
+    GIVEN( "A Log File whose last Log Lines wrap" )
+    {
+        file.wrapped = { { 98, 5 }, { 99, 3 } };
+        const auto bottom = layout.logFileBottom( 100_lcount, file.counter() );
+
+        THEN( "the Visual Lines of the wrapped Log Lines count, not the Log Lines" )
+        {
+            // 3 + 5 Visual Lines, then the 12 Log Lines 86 to 97.
+            REQUIRE( bottom.scrollPosition == ScrollPosition{ 86_lnum, 0 } );
+            REQUIRE( bottom.visualLines == 20_lcount );
+        }
+    }
+
+    GIVEN( "A Log File whose bottom is partway through a wrapped Log Line" )
+    {
+        file.wrapped = { { 98, 30 }, { 99, 3 } };
+        const auto bottom = layout.logFileBottom( 100_lcount, file.counter() );
+
+        THEN( "the bottom Scroll Position starts at the Visual Line that fills the top row" )
+        {
+            // Visual Lines 13 to 29 of Log Line 98, then the 3 of Log Line 99.
+            REQUIRE( bottom.scrollPosition == ScrollPosition{ 98_lnum, 13 } );
+            REQUIRE( file.asked == std::vector<LineNumber::UnderlyingType>{ 99, 98 } );
+        }
+    }
+
+    GIVEN( "A Log File whose last Log Line is taller than the Viewport" )
+    {
+        file.wrapped = { { 99, 50 } };
+        const auto bottom = layout.logFileBottom( 100_lcount, file.counter() );
+
+        THEN( "its last 20 Visual Lines are shown, and no other Log Line is wrapped" )
+        {
+            REQUIRE( bottom.scrollPosition == ScrollPosition{ 99_lnum, 30 } );
+            REQUIRE( bottom.visualLines == 20_lcount );
+            REQUIRE( file.asked == std::vector<LineNumber::UnderlyingType>{ 99 } );
+        }
+    }
+
+    GIVEN( "A Log File with fewer Visual Lines than the Viewport has rows" )
+    {
+        file.wrapped = { { 2, 4 } };
+        const auto bottom = layout.logFileBottom( 5_lcount, file.counter() );
+
+        THEN( "the bottom Scroll Position is the top of the Log File" )
+        {
+            REQUIRE( bottom.scrollPosition == ScrollPosition{} );
+            REQUIRE( bottom.visualLines == 8_lcount );
+        }
+    }
+
+    GIVEN( "A Log File with fewer Log Lines than rows, one of them taller than the Viewport" )
+    {
+        file.wrapped = { { 2, 30 } };
+        const auto bottom = layout.logFileBottom( 5_lcount, file.counter() );
+
+        THEN( "the bottom Scroll Position is partway through the tall Log Line" )
+        {
+            // Visual Lines 12 to 29 of Log Line 2, then Log Lines 3 and 4.
+            REQUIRE( bottom.scrollPosition == ScrollPosition{ 2_lnum, 12 } );
+            REQUIRE( bottom.visualLines == 20_lcount );
+        }
+    }
+
+    GIVEN( "A Log File that exactly fills the Viewport" )
+    {
+        const auto bottom = layout.logFileBottom( 20_lcount, file.counter() );
+
+        THEN( "its bottom is its top" )
+        {
+            REQUIRE( bottom.scrollPosition == ScrollPosition{} );
+            REQUIRE( bottom.visualLines == 20_lcount );
+        }
+    }
+
+    GIVEN( "An empty Log File" )
+    {
+        const auto bottom = layout.logFileBottom( 0_lcount, file.counter() );
+
+        THEN( "its bottom is its top, and nothing is wrapped" )
+        {
+            REQUIRE( bottom.scrollPosition == ScrollPosition{} );
+            REQUIRE( bottom.visualLines == 0_lcount );
+            REQUIRE( file.asked.empty() );
+        }
+    }
+
+    GIVEN( "A viewport with a partly visible last row" )
+    {
+        auto input = fixedWidthInput();
+        input.viewportHeightPx = 410;
+        const auto bottom = ViewportLayout{ input }.logFileBottom( 100_lcount, file.counter() );
+
+        THEN( "the partly visible row is filled too" )
+        {
+            REQUIRE( bottom.scrollPosition == ScrollPosition{ 79_lnum, 0 } );
+            REQUIRE( bottom.visualLines == 21_lcount );
+        }
+    }
+}
+
+SCENARIO( "The last Visual Line is aligned on the Viewport's last row only at the bottom",
+          "[viewportlayout][scrollposition][bottom]" )
+{
+    const LogFileBottom bottom{ ScrollPosition{ 98_lnum, 13 }, 20_lcount };
+
+    THEN( "at the bottom Scroll Position the last Visual Line is aligned" )
+    {
+        REQUIRE( bottom.alignsLastVisualLineAt( ScrollPosition{ 98_lnum, 13 } ) );
+    }
+
+    THEN( "anywhere above it the first Visual Line is aligned on the top row" )
+    {
+        REQUIRE_FALSE( bottom.alignsLastVisualLineAt( ScrollPosition{ 98_lnum, 12 } ) );
+        REQUIRE_FALSE( bottom.alignsLastVisualLineAt( ScrollPosition{} ) );
+    }
+
+    THEN( "a Log File whose bottom is its top is shown from its top" )
+    {
+        const LogFileBottom shortBottom{ ScrollPosition{}, 20_lcount };
+        REQUIRE_FALSE( shortBottom.alignsLastVisualLineAt( ScrollPosition{} ) );
+    }
+}
+
 // The expected pixels below are the positions painting placed the text and the
-// pull-to-follow bar at before their geometry had one definition (#138). With a
-// 400 px viewport and 20 px Visual Lines, 21 Visual Lines are visible, so the
-// whole height is 420 px and the partly hidden last Visual Line overhangs by 20.
+// pull-to-follow bar at since their geometry had one definition (#138), with
+// the bottom Scroll Position filling exactly the Viewport's rows (#154). A 400 px
+// viewport of 20 px Visual Lines has 20 rows and nothing overhangs its bottom.
 SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
 {
     const ViewportLayout layout{ fixedWidthInput() };
-    REQUIRE( layout.visibleLines() == 21_lcount );
+    REQUIRE( layout.viewportRows() == 20_lcount );
 
     GIVEN( "No elastic pull and the view not hooked" )
     {
@@ -667,7 +850,7 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
         {
             REQUIRE( geometry.barHeightPx == 0 );
             REQUIRE( geometry.textTopPx == 0 );
-            REQUIRE( geometry.barTopPx == 420 );
+            REQUIRE( geometry.barTopPx == 400 );
         }
     }
 
@@ -681,7 +864,7 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
         {
             REQUIRE( geometry.barHeightPx == 10 );
             REQUIRE( geometry.textTopPx == -10 );
-            REQUIRE( geometry.barTopPx == 410 );
+            REQUIRE( geometry.barTopPx == 390 );
         }
     }
 
@@ -693,8 +876,8 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
 
         THEN( "the hooked bar shows below the last Visual Line" )
         {
-            REQUIRE( geometry.barHeightPx == 20 + ViewportLayout::PullToFollowHookedHeight );
-            REQUIRE( geometry.textTopPx == -30 );
+            REQUIRE( geometry.barHeightPx == ViewportLayout::PullToFollowHookedHeight );
+            REQUIRE( geometry.textTopPx == -10 );
             REQUIRE( geometry.barTopPx == 390 );
         }
     }
@@ -704,12 +887,12 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
         auto state = restingPullToFollowState();
         state.elasticHookLength = 70;
         state.hooked = true;
-        state.totalLines = 5_lcount;
+        state.bottomVisualLines = 5_lcount;
         const auto geometry = layout.pullToFollowGeometry( state );
 
         THEN( "the text stays at the top, moved only by the pull" )
         {
-            REQUIRE( geometry.barHeightPx == 35 );
+            REQUIRE( geometry.barHeightPx == 15 );
             REQUIRE( geometry.textTopPx == -5 );
         }
 
@@ -719,35 +902,35 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
         }
     }
 
-    GIVEN( "The elastic hooked on a Log File exactly one Visual Line short of a screenful" )
+    GIVEN( "The elastic hooked on a Log File that exactly fills the Viewport's rows" )
     {
         auto state = restingPullToFollowState();
         state.hooked = true;
-        state.totalLines = 20_lcount;
+        state.bottomVisualLines = 20_lcount;
         const auto geometry = layout.pullToFollowGeometry( state );
 
         THEN( "it is placed like a longer Log File" )
         {
-            REQUIRE( geometry.textTopPx == -30 );
+            REQUIRE( geometry.textTopPx == -10 );
             REQUIRE( geometry.barTopPx == 390 );
         }
     }
 
-    GIVEN( "The last Log Line aligned to the bottom, not hooked" )
+    GIVEN( "The last Visual Line aligned to the bottom, not hooked" )
     {
         auto state = restingPullToFollowState();
         state.lastLineAligned = true;
         const auto geometry = layout.pullToFollowGeometry( state );
 
-        THEN( "the text moves up by the overhang of the last Visual Line" )
+        THEN( "nothing overhangs, so the text stays where it is" )
         {
             REQUIRE( geometry.barHeightPx == 0 );
-            REQUIRE( geometry.textTopPx == -20 );
+            REQUIRE( geometry.textTopPx == 0 );
             REQUIRE( geometry.barTopPx == 400 );
         }
     }
 
-    GIVEN( "The last Log Line aligned and the elastic hooked" )
+    GIVEN( "The last Visual Line aligned and the elastic hooked" )
     {
         auto state = restingPullToFollowState();
         state.hooked = true;
@@ -756,8 +939,37 @@ SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
 
         THEN( "the hook wins over the alignment" )
         {
-            REQUIRE( geometry.textTopPx == -30 );
+            REQUIRE( geometry.textTopPx == -10 );
             REQUIRE( geometry.barTopPx == 390 );
+        }
+    }
+
+    GIVEN( "A 410 px viewport, whose partly visible last row overhangs by 10 px" )
+    {
+        auto input = fixedWidthInput();
+        input.viewportHeightPx = 410;
+        const ViewportLayout partlyLayout{ input };
+        auto state = restingPullToFollowState();
+        state.bottomVisualLines = 21_lcount;
+
+        THEN( "aligned, the text moves up by the overhang: the last Visual Line ends at the "
+              "bottom of the Viewport" )
+        {
+            state.lastLineAligned = true;
+            const auto geometry = partlyLayout.pullToFollowGeometry( state );
+            REQUIRE( geometry.textTopPx == -10 );
+            REQUIRE( geometry.textTopPx + 21 * 20 == 410 );
+            REQUIRE( geometry.barTopPx == 410 );
+        }
+
+        THEN( "hooked, the bar starts right below the last Visual Line" )
+        {
+            state.lastLineAligned = true;
+            state.hooked = true;
+            const auto geometry = partlyLayout.pullToFollowGeometry( state );
+            REQUIRE( geometry.textTopPx == -20 );
+            REQUIRE( geometry.barTopPx == geometry.textTopPx + 21 * 20 );
+            REQUIRE( geometry.barTopPx == 410 - ViewportLayout::PullToFollowHookedHeight );
         }
     }
 

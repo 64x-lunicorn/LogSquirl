@@ -231,26 +231,12 @@ ViewportRect ViewportLayout::rectForColumn( LineNumber line, LineColumn column )
     return ViewportRect{};
 }
 
-int ViewportLayout::verticalScrollRange( LinesCount totalLines,
-                                         LinesCount bottomWrappedVisibleLines ) const
+int ViewportLayout::verticalScrollRange( ScrollPosition bottom ) const
 {
-    const auto visible = visibleLines();
-    if ( totalLines < visible ) {
-        return 0;
-    }
-
-    // Wrapping makes the last screenful taller than a screenful of unwrapped
-    // Log Lines; the extra Visual Lines have to be reachable.
-    const auto wrappedAdjust = bottomWrappedVisibleLines.get() > visible.get()
-                                   ? bottomWrappedVisibleLines.get() - visible.get()
-                                   : LinesCount::UnderlyingType{ 0 };
-
-    const auto range = totalLines.get() - visible.get() + 1 + wrappedAdjust;
-
     // A Log File can hold more lines than a scrollbar can address; saturate
     // rather than wrap around into a negative range.
-    return static_cast<int>(
-        std::min<uint64_t>( range, static_cast<uint64_t>( std::numeric_limits<int>::max() ) ) );
+    return static_cast<int>( std::min<uint64_t>(
+        bottom.lineNumber.get(), static_cast<uint64_t>( std::numeric_limits<int>::max() ) ) );
 }
 
 int ViewportLayout::horizontalScrollRange( LineLength maxLineLength ) const
@@ -266,15 +252,6 @@ int ViewportLayout::horizontalScrollRange( LineLength maxLineLength ) const
 
     return clampToInt( static_cast<int64_t>( maxLineLength.get() )
                        - static_cast<int64_t>( visible.get() ) + 1 );
-}
-
-ScrollPosition ViewportLayout::lastValidScrollPosition( LinesCount totalLines ) const
-{
-    const auto visible = visibleLines();
-    if ( totalLines.get() <= visible.get() ) {
-        return ScrollPosition{};
-    }
-    return ScrollPosition{ LineNumber( totalLines.get() - visible.get() ), 0 };
 }
 
 ScrollPosition ViewportLayout::clampScrollPosition( ScrollPosition position,
@@ -297,6 +274,37 @@ LinesCount ViewportLayout::visualLinesPerPage() const
 {
     const int lines = input_.viewportHeightPx / charHeight();
     return LinesCount( static_cast<LinesCount::UnderlyingType>( std::max( lines, 1 ) ) );
+}
+
+LinesCount ViewportLayout::viewportRows() const
+{
+    const int rows = ceilDiv( input_.viewportHeightPx, charHeight() );
+    return LinesCount( static_cast<LinesCount::UnderlyingType>( std::max( rows, 1 ) ) );
+}
+
+LogFileBottom ViewportLayout::logFileBottom( LinesCount totalLines,
+                                             const VisualLineCounter& visualLineCount ) const
+{
+    if ( totalLines.get() == 0 ) {
+        return LogFileBottom{};
+    }
+
+    const auto rows = viewportRows().get();
+    // Rows not yet filled, counting up from the last one.
+    auto unfilled = rows;
+    auto line = LineNumber( totalLines.get() - 1 );
+    while ( true ) {
+        const auto count = std::max( visualLineCount( line ), size_t{ 1 } );
+        if ( count >= unfilled ) {
+            return LogFileBottom{ ScrollPosition{ line, count - static_cast<size_t>( unfilled ) },
+                                  LinesCount( rows ) };
+        }
+        unfilled -= count;
+        if ( line == 0_lnum ) {
+            return LogFileBottom{ ScrollPosition{}, LinesCount( rows - unfilled ) };
+        }
+        line = line - 1_lcount;
+    }
 }
 
 ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, ScrollPosition last,
@@ -347,29 +355,31 @@ ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, Scr
 
 PullToFollowGeometry ViewportLayout::pullToFollowGeometry( const PullToFollowState& state ) const
 {
-    // Height including the partly hidden last Visual Line.
-    const int wholeHeight = static_cast<int>( visibleLines().get() ) * charHeight();
-    // How far the partly hidden last Visual Line reaches below the viewport.
-    const int overhang = wholeHeight - input_.viewportHeightPx;
+    // Height of every row, the partly visible last one included: at the
+    // bottom Scroll Position, the Visual Lines down to the end of the Log File.
+    const int rowsHeight = static_cast<int>( viewportRows().get() ) * charHeight();
+    // How far the partly visible last row reaches below the viewport.
+    const int overhang = rowsHeight - input_.viewportHeightPx;
     const int elasticHeight = state.elasticHookLength / ElasticHookLengthPerPx;
 
     PullToFollowGeometry geometry;
     geometry.barHeightPx
         = elasticHeight + ( state.hooked ? overhang + PullToFollowHookedHeight : 0 );
     geometry.textTopPx = -geometry.barHeightPx;
-    geometry.barTopPx = geometry.textTopPx + wholeHeight;
+    geometry.barTopPx = geometry.textTopPx + rowsHeight;
 
-    if ( state.hooked && state.totalLines + LinesCount( 1 ) < visibleLines() ) {
-        // Less than a screenful of Log Lines: show the Log File from the top
-        // rather than pushing its first lines above the viewport, with the bar
-        // at the bottom of the viewport.
+    if ( state.hooked && state.bottomVisualLines < visualLinesPerPage() ) {
+        // Fewer Visual Lines than fit: show the Log File from the top rather
+        // than pushing its first lines above the viewport, with the bar at the
+        // bottom of the viewport.
         geometry.textTopPx += overhang + PullToFollowHookedHeight;
         geometry.barTopPx = geometry.textTopPx + input_.viewportHeightPx - PullToFollowHookedHeight;
     }
     else if ( state.lastLineAligned && !state.hooked ) {
-        // On the extra slot at the end, aligned on the last Log Line.
+        // At the bottom Scroll Position: the last Visual Line ends at the
+        // bottom of the viewport.
         geometry.textTopPx -= overhang;
-        geometry.barTopPx = geometry.textTopPx + wholeHeight;
+        geometry.barTopPx = geometry.textTopPx + rowsHeight;
     }
 
     return geometry;
