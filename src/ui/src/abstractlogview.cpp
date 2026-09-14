@@ -104,8 +104,6 @@
 
 namespace {
 
-int mapPullToFollowLength( int length );
-
 // The margin geometry has one definition, in ViewportLayout. Hit testing, the
 // scrollbars and painting all read it from there.
 constexpr int SeparatorWidth = ViewportLayout::SeparatorWidth;
@@ -1085,16 +1083,10 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
         // Use the cache as is: nothing to do!
     }
 
-    // Height including the potentially invisible last line
-    const auto wholeHeight = static_cast<int>( getNbVisibleLines().get() ) * charHeight_;
-    // Height in pixels of the "pull to follow" bottom bar.
-    const auto pullToFollowHeight
-        = mapPullToFollowLength( followElasticHook_.size() )
-          + ( followElasticHook_.isHooked()
-                  ? ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight
-                  : 0 );
+    // The same geometry hit testing places the text by.
+    const auto pullToFollow = viewportGeometry().pullToFollowGeometry( pullToFollowState() );
 
-    if ( pullToFollowHeight && ( pullToFollowCache_.nb_columns_ != getNbVisibleCols() ) ) {
+    if ( pullToFollow.barHeightPx && ( pullToFollowCache_.nb_columns_ != getNbVisibleCols() ) ) {
         LOG_DEBUG << "Drawing pull to follow bar";
         pullToFollowCache_.pixmap_
             = drawPullToFollowBar( viewport()->width(), viewport()->devicePixelRatio() );
@@ -1102,30 +1094,11 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     }
 
     QPainter devicePainter( viewport() );
-    // The same pure function hit testing uses: painting no longer computes
-    // this by hand and leaves it behind as a member for hit testing to read.
-    const int drawingTopPosition = pullToFollowOffsetPx();
-    int drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
-
-    // This is to cover the special case where there is less than a screenful
-    // worth of data, we want to see the document from the top, rather than
-    // pushing the first couple of lines above the viewport.
-    if ( followElasticHook_.isHooked()
-         && ( logData_->getNbLine() + LinesCount( 1 ) < getNbVisibleLines() ) ) {
-        drawingPullToFollowTopPosition
-            = drawingTopPosition + viewport()->height() - PullToFollowHookedHeight;
-    }
-    // This is the case where the user is on the 'extra' slot at the end
-    // and is aligned on the last line (but no elastic shown)
-    else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
-        drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
-    }
-
-    devicePainter.drawPixmap( 0, drawingTopPosition, textAreaCache_.pixmap_ );
+    devicePainter.drawPixmap( 0, pullToFollow.textTopPx, textAreaCache_.pixmap_ );
 
     // Draw the "pull to follow" zone if needed
-    if ( pullToFollowHeight ) {
-        devicePainter.drawPixmap( 0, drawingPullToFollowTopPosition, pullToFollowCache_.pixmap_ );
+    if ( pullToFollow.barHeightPx ) {
+        devicePainter.drawPixmap( 0, pullToFollow.barTopPx, pullToFollowCache_.pixmap_ );
     }
 
     LOG_DEBUG << "End of repaint "
@@ -1763,48 +1736,19 @@ ViewportLayout AbstractLogView::viewportGeometry() const
     input.lineNumbersVisible = lineNumbersVisible_;
     input.largestDisplayLineNumber = maxDisplayLineNumber().get();
     input.textWrap = useTextWrap_;
-    input.drawingTopOffsetPx = pullToFollowOffsetPx();
+    // The pull-to-follow geometry does not read the offset, so the layout
+    // built so far can already say what the offset is.
+    input.drawingTopOffsetPx
+        = ViewportLayout{ input }.pullToFollowGeometry( pullToFollowState() ).textTopPx;
     return ViewportLayout{ input };
 }
 
-// The vertical offset the pull-to-follow animation currently applies to the
-// drawn content, in pixels. Mirrors exactly the position painting blits the
-// text pixmap at (see paintEvent), computed here as a pure function of state
-// so hit testing can call it directly instead of painting leaving a value
-// behind.
-int AbstractLogView::pullToFollowOffsetPx() const
+PullToFollowState AbstractLogView::pullToFollowState() const
 {
-    // visibleLines() does not depend on drawingTopOffsetPx, so this does not
-    // recurse into viewportGeometry() -> pullToFollowOffsetPx() again; it is
-    // computed directly to avoid that recursion.
-    const int charHeight = std::max( charHeight_, 1 );
-    const int visibleLinesCount = std::max( viewport()->height() / charHeight + 1, 1 );
-    const auto visibleLines
-        = LinesCount( static_cast<LinesCount::UnderlyingType>( visibleLinesCount ) );
-    const int wholeHeight = visibleLinesCount * charHeight_;
-
-    const int pullToFollowHeight
-        = mapPullToFollowLength( followElasticHook_.size() )
-          + ( followElasticHook_.isHooked()
-                  ? ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight
-                  : 0 );
-
-    int drawingTopPosition = -pullToFollowHeight;
-
-    // Special case where there is less than a screenful worth of data: show
-    // the document from the top, rather than pushing the first couple of
-    // lines above the viewport.
-    if ( followElasticHook_.isHooked()
-         && ( logData_->getNbLine() + LinesCount( 1 ) < visibleLines ) ) {
-        drawingTopPosition += ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight;
-    }
-    // The user is on the 'extra' slot at the end and is aligned on the last
-    // line (but no elastic shown).
-    else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
-        drawingTopPosition += -( wholeHeight - viewport()->height() );
-    }
-
-    return drawingTopPosition;
+    return PullToFollowState{ .elasticHookLength = followElasticHook_.size(),
+                              .hooked = followElasticHook_.isHooked(),
+                              .lastLineAligned = lastLineAligned_,
+                              .totalLines = logData_->getNbLine() };
 }
 
 // The viewport layout including the Visual Lines in the Viewport. They come from the
@@ -2685,13 +2629,3 @@ void AbstractLogView::setColorLabel( QAction* action )
         Q_EMIT clearColorLabels();
     }
 }
-
-namespace {
-
-// Convert the length of the pull to follow bar to pixels
-int mapPullToFollowLength( int length )
-{
-    return length / 14;
-}
-
-} // namespace

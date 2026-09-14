@@ -322,7 +322,6 @@ private Q_SLOTS:
 private:
     // Graphic parameters
     static constexpr int HookThreshold = 300;
-    static constexpr int PullToFollowHookedHeight = 10;
 
     // Digits buffer (for numeric keyboard entry)
     DigitsBuffer digitsBuffer_;
@@ -486,11 +485,11 @@ private:
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
     OptionalLineNumber convertCoordToLine( int yPos ) const;
 
-    // Vertical offset (pixels) at which the first Visual Line is drawn, given the
-    // current pull-to-follow animation state. Pure: reads state, writes
-    // nothing. Painting and hit testing both call it instead of painting
-    // leaving a value behind for hit testing to read later.
-    int pullToFollowOffsetPx() const;
+    // The follow mode state the layout places the text and the pull-to-follow
+    // bar from. Painting and hit testing both hand it to the same
+    // ViewportLayout::pullToFollowGeometry() instead of computing positions
+    // of their own.
+    PullToFollowState pullToFollowState() const;
 
     void displayLine( LineNumber line );
     void moveSelection( LinesCount delta, bool isDeltaNegative );
