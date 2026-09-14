@@ -82,8 +82,6 @@ QByteArray save( const DisplayedLinesReader& readLines, LineNumber begin, LineNu
 
 } // namespace
 
-// The line counts avoid multiples of the 5,000-line chunks, whose last chunk
-// is lost (#158).
 SCENARIO( "saving lines writes each line encoded, with its line ending, after the Byte Order "
           "Mark",
           "[linessaver]" )
@@ -131,6 +129,27 @@ SCENARIO( "saving lines writes each line encoded, with its line ending, after th
             REQUIRE( save( readerOf( latinFile ), 0_lnum, 2_lnum,
                            QTextCodec::codecForName( "ISO-8859-1" ) )
                      == QByteArray( "caf\xE9" ) + LineEnding + "b" + LineEnding );
+        }
+    }
+}
+
+SCENARIO( "saving lines writes every line of the range, whatever its size", "[linessaver]" )
+{
+    GIVEN( "a Log File of two chunks of 5,000 lines and some more" )
+    {
+        const auto lines = logLines( 12345 );
+        FakeLogData logFile{ lines };
+
+        const auto [ begin, end ]
+            = GENERATE( std::pair{ 0, 0 }, std::pair{ 0, 4999 }, std::pair{ 0, 5000 },
+                        std::pair{ 0, 5001 }, std::pair{ 0, 10000 }, std::pair{ 2000, 12000 } );
+
+        THEN( "saving lines " << begin << " to " << end << " writes exactly those lines" )
+        {
+            REQUIRE( save( readerOf( logFile ),
+                           LineNumber( static_cast<LineNumber::UnderlyingType>( begin ) ),
+                           LineNumber( static_cast<LineNumber::UnderlyingType>( end ) ) )
+                     == utf8File( lines, begin, end ) );
         }
     }
 }

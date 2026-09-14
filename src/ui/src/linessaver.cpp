@@ -19,6 +19,7 @@
 
 #include "linessaver.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <utility>
@@ -36,15 +37,16 @@ bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin
                          const QTextCodec* codec, QIODevice& output, const AtomicFlag& interrupt,
                          const std::function<void( int )>& progress )
 {
-    logsquirl::vector<std::pair<LineNumber, LinesCount>> offsets;
-    auto lineOffset = begin;
+    // The lines are read and written in chunks of chunkSize lines; only the
+    // last chunk may be shorter, and an empty range has no chunk.
     const auto chunkSize = 5000_lcount;
-    offsets.reserve( ( end - ( lineOffset + chunkSize ) ).get() );
+    const auto lineCount = ( end - begin ).get();
+    logsquirl::vector<std::pair<LineNumber, LinesCount>> offsets;
+    offsets.reserve( ( lineCount + chunkSize.get() - 1 ) / chunkSize.get() );
 
-    for ( ; lineOffset + chunkSize < end; lineOffset += LinesCount( chunkSize.get() ) ) {
-        offsets.emplace_back( lineOffset, chunkSize );
+    for ( auto lineOffset = begin; lineOffset < end; lineOffset += chunkSize ) {
+        offsets.emplace_back( lineOffset, std::min( chunkSize, end - lineOffset ) );
     }
-    offsets.emplace_back( lineOffset, LinesCount( ( end - lineOffset ).get() % chunkSize.get() ) );
 
     if ( !codec ) {
         codec = QTextCodec::codecForName( "utf-8" );
