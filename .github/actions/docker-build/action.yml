@@ -42,15 +42,40 @@ runs:
       shell: sh
       run: docker exec logsquirl_build sccache --show-stats
 
+    # sccache runs as root in the container, so the cache it writes into the
+    # bind-mounted workspace is root-owned and unreadable for the runner user;
+    # hand it back (to the host's uid:gid) before the cache save reads it. The
+    # container is removed even when that fails.
     - name: stop container
       if: always()
       shell: sh
       run: |
+        docker inspect logsquirl_build > /dev/null 2>&1 || exit 0
         docker exec logsquirl_build sccache --stop-server || true
+        status=0
+        docker exec logsquirl_build sh -c '[ ! -d "$SCCACHE_DIR" ] || chown -R "$1" "$SCCACHE_DIR"' sh "$(id -u):$(id -g)" || status=$?
         docker rm -f logsquirl_build
+        exit $status
+
+    # actions/cache/save only warns when it cannot read the cache and still
+    # succeeds, which left every run cold without anyone noticing (#140).
+    - name: check sccache cache readable
+      id: sccache_readable
+      if: always()
+      shell: sh
+      run: |
+        if [ ! -d sccache_cache ]; then
+          echo "::error::The build left no sccache cache to save"
+          exit 1
+        fi
+        unreadable=$(find sccache_cache \( ! -readable -o -type d ! -executable \) -print -quit 2>&1) || true
+        if [ -n "$unreadable" ]; then
+          echo "::error::The sccache cache is not readable by the runner user: $unreadable"
+          exit 1
+        fi
 
     - name: Save sccache cache
-      if: always()
+      if: always() && steps.sccache_readable.outcome == 'success'
       uses: actions/cache/save@v6
       with:
         path: sccache_cache
