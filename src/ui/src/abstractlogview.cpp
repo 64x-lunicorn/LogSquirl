@@ -2437,7 +2437,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         HighlightedMatchRanges allHighlights{ std::move( rawSpans ) };
 
-        const auto& wrappedLineView = viewportLogLine.expanded;
+        const auto& wrappedLineView = viewportLogLine.wrapped;
         const QStringView expandedLine = wrappedLineView.unwrappedLine();
 
         // Is there something selected in the line? Selection columns come
@@ -2568,7 +2568,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, yPos + fontAscent,
                                lineNumberStr );
         }
-        // The viewport content already ends at the bottom of the viewport.
         yPos += finalLineHeight;
     } // For each line
 }

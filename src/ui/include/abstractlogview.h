@@ -382,7 +382,7 @@ private:
         // The text as the Log File holds it, which the Line Decorator matches against.
         QString text;
         // The text with its tabs expanded, split into the Visual Lines it is drawn as.
-        WrappedString expanded;
+        WrappedString wrapped;
     };
 
     // The Log Lines currently in the Viewport, with the Visual Lines they occupy.
