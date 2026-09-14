@@ -51,9 +51,9 @@ int clampToInt( int64_t value )
 
 } // namespace
 
-ViewportLayout::ViewportLayout( ViewportLayoutInput input, ViewportRows rows )
+ViewportLayout::ViewportLayout( ViewportLayoutInput input, VisualLines visualLines )
     : input_{ input }
-    , rows_{ std::move( rows ) }
+    , visualLines_{ std::move( visualLines ) }
 {
 }
 
@@ -122,11 +122,11 @@ LineLength ViewportLayout::visibleColumns() const
     return LineLength{ std::max( columns, 1 ) };
 }
 
-std::optional<size_t> ViewportLayout::rowAtPoint( int yPos ) const
+std::optional<size_t> ViewportLayout::visualLineAtPoint( int yPos ) const
 {
     const auto offset = std::abs( ( yPos - input_.drawingTopOffsetPx ) / charHeight() );
     const auto index = static_cast<size_t>( offset );
-    if ( index < rows_.size() ) {
+    if ( index < visualLines_.size() ) {
         return index;
     }
     return std::nullopt;
@@ -134,34 +134,35 @@ std::optional<size_t> ViewportLayout::rowAtPoint( int yPos ) const
 
 OptionalLineNumber ViewportLayout::lineAtPoint( int yPos ) const
 {
-    const auto row = rowAtPoint( yPos );
-    if ( !row.has_value() ) {
+    const auto visualLine = visualLineAtPoint( yPos );
+    if ( !visualLine.has_value() ) {
         return OptionalLineNumber{};
     }
-    return rows_[ *row ].lineNumber;
+    return visualLines_[ *visualLine ].lineNumber;
 }
 
 FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
 {
-    if ( rows_.empty() ) {
+    if ( visualLines_.empty() ) {
         return FilePosition{ 0_lnum, 0_lcol };
     }
 
     const auto offset = std::abs( ( yPos - input_.drawingTopOffsetPx ) / charHeight() );
-    const auto rowIndex = rows_.size() > 1 ? std::clamp( static_cast<size_t>( offset ), size_t{ 0 },
-                                                         rows_.size() - 1 )
-                                           : size_t{ 0 };
+    const auto visualLineIndex
+        = visualLines_.size() > 1
+              ? std::clamp( static_cast<size_t>( offset ), size_t{ 0 }, visualLines_.size() - 1 )
+              : size_t{ 0 };
 
-    const auto& row = rows_[ rowIndex ];
+    const auto& visualLine = visualLines_[ visualLineIndex ];
 
-    if ( row.lineLength.get() <= 1 ) {
-        return FilePosition{ row.lineNumber, 0_lcol };
+    if ( visualLine.lineLength.get() <= 1 ) {
+        return FilePosition{ visualLine.lineNumber, 0_lcol };
     }
 
-    // Number of columns of this row that are actually on screen.
+    // Number of columns of this Visual Line that are actually in the Viewport.
     const auto visibleTextLength
-        = input_.textWrap ? row.length.get()
-                          : std::clamp( row.lineLength.get() - input_.firstColumn.get(),
+        = input_.textWrap ? visualLine.length.get()
+                          : std::clamp( visualLine.lineLength.get() - input_.firstColumn.get(),
                                         LineLength::UnderlyingType{ 0 }, visibleColumns().get() );
 
     // The first column whose right edge is at or past xPos, then step back one
@@ -172,52 +173,54 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
     auto column
         = LineColumn{ static_cast<LineColumn::UnderlyingType>( firstColumnPastX ) } - 1_length;
 
-    // Move from the row's own columns to the Log Line's columns.
-    column += input_.textWrap ? LineLength{ row.firstColumn.get() }
+    // Move from the Visual Line's own columns to the Log Line's columns.
+    column += input_.textWrap ? LineLength{ visualLine.firstColumn.get() }
                               : LineLength{ input_.firstColumn.get() };
 
-    const auto maxColumn = LineColumn{ row.lineLength.get() } - 1_length;
+    const auto maxColumn = LineColumn{ visualLine.lineLength.get() } - 1_length;
     column = std::clamp( column, 0_lcol, maxColumn );
 
-    return FilePosition{ row.lineNumber, column };
+    return FilePosition{ visualLine.lineNumber, column };
 }
 
 ViewportRect ViewportLayout::rectForLine( LineNumber line ) const
 {
-    const auto first = std::find_if( rows_.begin(), rows_.end(), [ line ]( const ViewportRow& r ) {
-        return r.lineNumber == line;
-    } );
-    if ( first == rows_.end() ) {
+    const auto first = std::find_if(
+        visualLines_.begin(), visualLines_.end(),
+        [ line ]( const VisualLine& visualLine ) { return visualLine.lineNumber == line; } );
+    if ( first == visualLines_.end() ) {
         return ViewportRect{};
     }
 
-    const auto rowCount = static_cast<int>( std::count_if(
-        first, rows_.end(), [ line ]( const ViewportRow& r ) { return r.lineNumber == line; } ) );
+    const auto visualLineCount = static_cast<int>(
+        std::count_if( first, visualLines_.end(), [ line ]( const VisualLine& visualLine ) {
+            return visualLine.lineNumber == line;
+        } ) );
 
-    const auto firstIndex = static_cast<int>( std::distance( rows_.begin(), first ) );
+    const auto firstIndex = static_cast<int>( std::distance( visualLines_.begin(), first ) );
     return ViewportRect{ 0, input_.drawingTopOffsetPx + firstIndex * charHeight(),
-                         input_.viewportWidthPx, rowCount * charHeight() };
+                         input_.viewportWidthPx, visualLineCount * charHeight() };
 }
 
 ViewportRect ViewportLayout::rectForColumn( LineNumber line, LineColumn column ) const
 {
-    for ( size_t index = 0; index < rows_.size(); ++index ) {
-        const auto& row = rows_[ index ];
-        if ( row.lineNumber != line ) {
+    for ( size_t index = 0; index < visualLines_.size(); ++index ) {
+        const auto& visualLine = visualLines_[ index ];
+        if ( visualLine.lineNumber != line ) {
             continue;
         }
 
-        const auto rowFirst = row.firstColumn;
-        const auto rowLast = rowFirst + row.length;
-        if ( input_.textWrap && !( column >= rowFirst && column < rowLast ) ) {
+        const auto visualLineFirst = visualLine.firstColumn;
+        const auto visualLineLast = visualLineFirst + visualLine.length;
+        if ( input_.textWrap && !( column >= visualLineFirst && column < visualLineLast ) ) {
             continue;
         }
 
-        const auto columnInRow = input_.textWrap
-                                     ? ( column - LineLength{ rowFirst.get() } ).get()
-                                     : ( column - LineLength{ input_.firstColumn.get() } ).get();
+        const auto columnInVisualLine
+            = input_.textWrap ? ( column - LineLength{ visualLineFirst.get() } ).get()
+                              : ( column - LineLength{ input_.firstColumn.get() } ).get();
 
-        return ViewportRect{ textOriginX() + static_cast<int>( columnInRow ) * charWidth(),
+        return ViewportRect{ textOriginX() + static_cast<int>( columnInVisualLine ) * charWidth(),
                              input_.drawingTopOffsetPx + static_cast<int>( index ) * charHeight(),
                              charWidth(), charHeight() };
     }
@@ -234,7 +237,7 @@ int ViewportLayout::verticalScrollRange( LinesCount totalLines,
     }
 
     // Wrapping makes the last screenful taller than a screenful of unwrapped
-    // Log Lines; the extra rows have to be reachable.
+    // Log Lines; the extra Visual Lines have to be reachable.
     const auto wrappedAdjust = bottomWrappedVisibleLines.get() > visible.get()
                                    ? bottomWrappedVisibleLines.get() - visible.get()
                                    : LinesCount::UnderlyingType{ 0 };

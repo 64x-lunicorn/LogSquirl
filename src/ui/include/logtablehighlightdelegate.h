@@ -314,6 +314,40 @@ public:
         painter->restore();
     }
 
+    // The character position a click at pixelX resolves to, in a cell whose
+    // left edge is at cellLeft: the caret position nearest the click, so the
+    // left half of a character is before it and the right half after it.
+    // 0 for an empty cell or a click left of the text.
+    //
+    // This is the Table View's hit test. It lives here, beside paint(),
+    // rather than in the CrawlerWidget that handles the click, because it
+    // has to agree with where paint() draws each character -- both apply
+    // HorizontalTextPadding -- and as a static of the delegate a test can
+    // check the two against each other without standing up a CrawlerWidget.
+    static int charIndexAtX( const QString& cellText, const QFontMetrics& fm, int cellLeft,
+                             int pixelX )
+    {
+        if ( cellText.isEmpty() ) {
+            return 0;
+        }
+
+        const int relativeX = pixelX - ( cellLeft + HorizontalTextPadding );
+        if ( relativeX <= 0 ) {
+            return 0;
+        }
+
+        const int textLen = static_cast<int>( cellText.size() );
+        for ( int i = 1; i <= textLen; ++i ) {
+            const int charRight = fm.horizontalAdvance( cellText.left( i ) );
+            if ( relativeX < charRight ) {
+                // Before or after this character, whichever edge is closer
+                const int charLeft = fm.horizontalAdvance( cellText.left( i - 1 ) );
+                return ( relativeX - charLeft < charRight - relativeX ) ? i - 1 : i;
+            }
+        }
+        return textLen;
+    }
+
     // Return a size hint that accounts for the full text width (no clipping).
     QSize sizeHint( const QStyleOptionViewItem& option, const QModelIndex& index ) const override
     {

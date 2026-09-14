@@ -21,6 +21,7 @@
 
 #include <optional>
 
+#include <QFileInfo>
 #include <QString>
 
 #include "compressedlinestorage.h"
@@ -40,9 +41,13 @@ struct CachedIndex {
 ///
 /// Each cache file stores the compressed line positions, the file hash
 /// (used for validation), the maximum line length, and the detected
-/// encoding.  Cache files are stored under
-/// `QStandardPaths::CacheLocation / "index"` with a filename derived
-/// from a hash of the absolute source file path.
+/// encoding.  Cache files live in the directory the cache is given, with
+/// a filename derived from a hash of the absolute source file path.
+///
+/// The cache is told its directory rather than finding one for itself:
+/// the application passes the location from its Indexing Policy, and
+/// anything else -- a test included -- passes a location of its own. A
+/// cache given an empty directory stores nothing and finds nothing.
 ///
 /// The cache is validated by comparing the stored IndexedHash with the
 /// current file: header hash (first 5 MB) and tail hash (last 5 MB).
@@ -51,45 +56,41 @@ struct CachedIndex {
 /// re-index.
 class IndexCache {
 public:
+    explicit IndexCache( QString directory );
+
     /// Try to load a cached index for the given file.
     /// Returns std::nullopt if the cache does not exist or is invalid.
-    static std::optional<CachedIndex> tryLoad( const QString& filePath );
+    std::optional<CachedIndex> tryLoad( const QString& filePath ) const;
 
     /// Save an index to the disk cache.
-    static bool trySave( const QString& filePath, const LinePositionArray& linePosition,
-                         LineLength maxLength, const IndexedHash& hash,
-                         const QByteArray& encodingName, bool fakeFinalLF );
+    bool trySave( const QString& filePath, const LinePositionArray& linePosition,
+                  LineLength maxLength, const IndexedHash& hash, const QByteArray& encodingName,
+                  bool fakeFinalLF ) const;
 
     /// Remove the cached index for a specific file.
-    static void remove( const QString& filePath );
+    void remove( const QString& filePath ) const;
 
     /// Remove all cached indices and return the number of bytes freed.
-    static qint64 clearAll();
+    qint64 clearAll() const;
 
     /// Return the total size of all cached index files in bytes.
-    static qint64 totalCacheSize();
-
-    /// Return the cache directory path.
-    static QString cacheDir();
-
-    /// Overrides the cache directory, for tests: a test that exercises the
-    /// disk cache needs a location of its own rather than the developer's
-    /// real cache directory, and passing one in is simpler than the cache
-    /// deriving its own location from a Configuration it would otherwise
-    /// have to bootstrap. Pass an empty string to go back to the real
-    /// location.
-    static void setCacheDirOverride( const QString& dir );
+    qint64 totalCacheSize() const;
 
     /// Enforce the maximum cache size by evicting least-recently-used
     /// entries until total size is below maxBytes.
-    static void evict( qint64 maxBytes );
+    void evict( qint64 maxBytes ) const;
 
 private:
     /// Compute the cache file path for a source file.
-    static QString cacheFilePath( const QString& sourceFilePath );
+    QString cacheFilePath( const QString& sourceFilePath ) const;
+
+    /// The cache files in the directory; none when there is no directory.
+    QFileInfoList cacheFiles() const;
 
     /// Magic bytes at the start of every cache file.
     static constexpr quint32 kMagic = 0x4C534149; // "LSAI"
     /// Format version — increment when the on-disk layout changes.
     static constexpr quint32 kVersion = 1;
+
+    QString directory_;
 };

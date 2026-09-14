@@ -30,28 +30,11 @@
 #include "indexcache.h"
 #include "linetypes.h"
 
-// The Index cache hard-wires its own location on disk in production (a
-// path derived from QStandardPaths), so these tests redirect it to a
-// QTemporaryDir via IndexCache::setCacheDirOverride() rather than touching
-// the developer's real cache directory.
+// The Index cache is told its directory, so every test here builds its own
+// cache on a QTemporaryDir of its own: nothing is shared between tests, and
+// the developer's real cache directory is never touched.
 
 namespace {
-
-class CacheDirOverride {
-public:
-    explicit CacheDirOverride( const QString& dir )
-    {
-        IndexCache::setCacheDirOverride( dir );
-    }
-
-    ~CacheDirOverride()
-    {
-        IndexCache::setCacheDirOverride( QString() );
-    }
-
-    CacheDirOverride( const CacheDirOverride& ) = delete;
-    CacheDirOverride& operator=( const CacheDirOverride& ) = delete;
-};
 
 LinePositionArray makeLinePositions( std::initializer_list<qint64> offsets )
 {
@@ -81,7 +64,8 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
 {
     QTemporaryDir tempDir;
     REQUIRE( tempDir.isValid() );
-    CacheDirOverride override( tempDir.filePath( "index-cache" ) );
+    const auto cacheDirectory = tempDir.filePath( "index-cache" );
+    const IndexCache cache{ cacheDirectory };
 
     GIVEN( "a saved index" )
     {
@@ -89,12 +73,12 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
         const auto linePositions = makeLinePositions( { 4, 8, 20 } );
         const auto hash = makeHash( 20 );
 
-        REQUIRE( IndexCache::trySave( sourcePath, linePositions, LineLength( 8 ), hash, "UTF-8",
-                                      false ) );
+        REQUIRE(
+            cache.trySave( sourcePath, linePositions, LineLength( 8 ), hash, "UTF-8", false ) );
 
         WHEN( "the same path is loaded back" )
         {
-            const auto loaded = IndexCache::tryLoad( sourcePath );
+            const auto loaded = cache.tryLoad( sourcePath );
 
             THEN( "a hit returns the data that was saved" )
             {
@@ -112,7 +96,7 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
 
         WHEN( "the cache is asked for a path that was never saved" )
         {
-            const auto loaded = IndexCache::tryLoad( "/some/other/file.log" );
+            const auto loaded = cache.tryLoad( "/some/other/file.log" );
 
             THEN( "it is a miss" )
             {
@@ -122,8 +106,8 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
 
         WHEN( "the entry is invalidated and removed, as the caller does on a hash mismatch" )
         {
-            IndexCache::remove( sourcePath );
-            const auto loaded = IndexCache::tryLoad( sourcePath );
+            cache.remove( sourcePath );
+            const auto loaded = cache.tryLoad( sourcePath );
 
             THEN( "it is a miss from then on" )
             {
@@ -146,23 +130,22 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
         // directory listing afterwards -- the cache filename is a hash of
         // the source path, unrelated to save order or path spelling, so
         // there is no other reliable way to know which file is which.
-        const auto cacheDir = IndexCache::cacheDir();
         const auto baseTime = QDateTime::currentDateTime();
         for ( int i = 0; i < sourcePaths.size(); ++i ) {
             QStringList before;
             {
-                QDirIterator it( cacheDir, { "*.idx" }, QDir::Files );
+                QDirIterator it( cacheDirectory, { "*.idx" }, QDir::Files );
                 while ( it.hasNext() ) {
                     before << it.next();
                 }
             }
 
-            REQUIRE( IndexCache::trySave( sourcePaths[ i ], linePositions, LineLength( 30 ), hash,
-                                          "UTF-8", false ) );
+            REQUIRE( cache.trySave( sourcePaths[ i ], linePositions, LineLength( 30 ), hash,
+                                    "UTF-8", false ) );
 
             QStringList after;
             {
-                QDirIterator it( cacheDir, { "*.idx" }, QDir::Files );
+                QDirIterator it( cacheDirectory, { "*.idx" }, QDir::Files );
                 while ( it.hasNext() ) {
                     after << it.next();
                 }
@@ -178,21 +161,64 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
             file.close();
         }
 
-        const auto totalSizeBeforeEviction = IndexCache::totalCacheSize();
+        const auto totalSizeBeforeEviction = cache.totalCacheSize();
         REQUIRE( totalSizeBeforeEviction > 0 );
 
         WHEN( "eviction runs with a budget that fits only the newest entry" )
         {
             const auto perEntrySize = totalSizeBeforeEviction / sourcePaths.size();
-            IndexCache::evict( perEntrySize + perEntrySize / 2 );
+            cache.evict( perEntrySize + perEntrySize / 2 );
 
             THEN( "the oldest entries are gone and the newest survives" )
             {
-                REQUIRE_FALSE( IndexCache::tryLoad( "/oldest.log" ).has_value() );
-                REQUIRE_FALSE( IndexCache::tryLoad( "/middle.log" ).has_value() );
-                REQUIRE( IndexCache::tryLoad( "/newest.log" ).has_value() );
-                REQUIRE( IndexCache::totalCacheSize() <= totalSizeBeforeEviction );
+                REQUIRE_FALSE( cache.tryLoad( "/oldest.log" ).has_value() );
+                REQUIRE_FALSE( cache.tryLoad( "/middle.log" ).has_value() );
+                REQUIRE( cache.tryLoad( "/newest.log" ).has_value() );
+                REQUIRE( cache.totalCacheSize() <= totalSizeBeforeEviction );
             }
         }
+    }
+}
+
+SCENARIO( "Index caches at different locations do not see each other", "[indexcache]" )
+{
+    QTemporaryDir firstDir;
+    QTemporaryDir secondDir;
+    REQUIRE( firstDir.isValid() );
+    REQUIRE( secondDir.isValid() );
+
+    const IndexCache first{ firstDir.path() };
+    const IndexCache second{ secondDir.path() };
+
+    GIVEN( "an index saved to the first cache" )
+    {
+        const QString sourcePath = "/shared/name.log";
+        REQUIRE( first.trySave( sourcePath, makeLinePositions( { 4, 8 } ), LineLength( 4 ),
+                                makeHash( 8 ), "UTF-8", false ) );
+
+        THEN( "the second cache misses it, holds nothing and clears nothing of the first" )
+        {
+            REQUIRE_FALSE( second.tryLoad( sourcePath ).has_value() );
+            REQUIRE( second.totalCacheSize() == 0 );
+            REQUIRE( second.clearAll() == 0 );
+            REQUIRE( first.tryLoad( sourcePath ).has_value() );
+        }
+    }
+}
+
+SCENARIO( "An Index cache given no directory stores nothing", "[indexcache]" )
+{
+    // An underived Indexing Policy carries an empty directory. Resolving
+    // that against the working directory, or the filesystem root, would
+    // scatter cache files wherever the process happens to run.
+    const IndexCache cache{ QString{} };
+
+    THEN( "saving fails and loading misses" )
+    {
+        REQUIRE_FALSE( cache.trySave( "/some/file.log", makeLinePositions( { 4 } ), LineLength( 4 ),
+                                      makeHash( 4 ), "UTF-8", false ) );
+        REQUIRE_FALSE( cache.tryLoad( "/some/file.log" ).has_value() );
+        REQUIRE( cache.totalCacheSize() == 0 );
+        REQUIRE( cache.clearAll() == 0 );
     }
 }

@@ -828,11 +828,12 @@ OperationResult FullIndexOperation::run()
         // necessarily the same run's.
         const auto useIndexCache = indexingPolicy_.useIndexCache;
         const auto indexCacheMaxSizeMb = indexingPolicy_.cacheMaxSizeMb;
+        const IndexCache indexCache{ indexingPolicy_.indexCacheDirectory };
 
         // Try loading cached index from disk (skip temp files)
         const bool isTempFile = fileName_.startsWith( QDir::tempPath() );
         if ( useIndexCache && !isTempFile ) {
-            auto cached = IndexCache::tryLoad( fileName_ );
+            auto cached = indexCache.tryLoad( fileName_ );
             if ( cached ) {
                 // Validate the cached hash against the current file
                 QFileInfo fi( fileName_ );
@@ -903,7 +904,7 @@ OperationResult FullIndexOperation::run()
                 }
 
                 LOG_INFO << "Cached index stale for " << fileName_ << ", re-indexing";
-                IndexCache::remove( fileName_ );
+                indexCache.remove( fileName_ );
             }
         }
 
@@ -931,12 +932,12 @@ OperationResult FullIndexOperation::run()
                 const auto* codec = accessor.getEncodingGuess();
                 const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
 
-                IndexCache::trySave( fileName_, *linePos, accessor.getMaxLength(),
-                                     accessor.getHash(), encodingName, linePos->hasFakeFinalLF() );
+                indexCache.trySave( fileName_, *linePos, accessor.getMaxLength(),
+                                    accessor.getHash(), encodingName, linePos->hasFakeFinalLF() );
 
                 // Evict old entries if cache is too large
                 const auto maxBytes = static_cast<qint64>( indexCacheMaxSizeMb ) * 1024 * 1024;
-                IndexCache::evict( maxBytes );
+                indexCache.evict( maxBytes );
             }
         }
 

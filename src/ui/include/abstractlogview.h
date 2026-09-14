@@ -376,12 +376,12 @@ private:
     bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
 
-    // The Log Lines currently on screen, with the rows they occupy. Computed
+    // The Log Lines currently in the Viewport, with the Visual Lines they occupy. Computed
     // on demand from the Log File -- not by painting -- and cached until
     // something it depends on changes.
     struct ViewportContent {
         LineNumber firstLine{ 0 };
-        ViewportRows rows;
+        VisualLines visualLines;
     };
 
     // Everything a ViewportContent depends on. When this changes, the content
@@ -467,11 +467,11 @@ private:
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
 
-    // The viewport layout, without the rows: enough to answer margins,
+    // The viewport layout, without the Visual Lines: enough to answer margins,
     // visible counts and scroll ranges, and cheap because it touches no
     // Log Line.
     ViewportLayout viewportGeometry() const;
-    // The viewport layout including the rows currently on screen, which is
+    // The viewport layout including the Visual Lines currently in the Viewport, which is
     // what hit testing and painting need. Built from the Log File, never from
     // a paint, so it answers before the first paint has happened.
     ViewportLayout viewportLayout() const;
@@ -486,7 +486,7 @@ private:
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
     OptionalLineNumber convertCoordToLine( int yPos ) const;
 
-    // Vertical offset (pixels) at which the first row is drawn, given the
+    // Vertical offset (pixels) at which the first Visual Line is drawn, given the
     // current pull-to-follow animation state. Pure: reads state, writes
     // nothing. Painting and hit testing both call it instead of painting
     // leaving a value behind for hit testing to read later.

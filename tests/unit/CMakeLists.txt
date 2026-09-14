@@ -18,6 +18,7 @@ add_executable(logsquirl_tests
     logformatregistry_test.cpp
     logformattablemodel_test.cpp
     logtablehighlightdelegate_test.cpp
+    logviewpainting_test.cpp
     lz4device_test.cpp
     mergecontroller_test.cpp
     patternmatcher_test.cpp
@@ -37,6 +38,11 @@ add_executable(logsquirl_tests
 
 target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_highlighting logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings logsquirl_zstd logsquirl_lz4 Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
+
+# The painting test reads its font and golden images from the source tree,
+# and rewrites the golden images there when asked to (#135).
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_PAINTING_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/painting")
 
 add_test(
     NAME logsquirl_tests

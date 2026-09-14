@@ -1746,7 +1746,7 @@ void MainWindow::manageTabGroups()
 
 void MainWindow::clearIndexCache()
 {
-    const auto freed = IndexCache::clearAll();
+    const auto freed = IndexCache{ Configuration::get().indexCacheDirectory() }.clearAll();
     const auto freedMb = static_cast<double>( freed ) / ( 1024.0 * 1024.0 );
     statusBar()->showMessage( tr( "Index cache cleared (%1 MB freed)" ).arg( freedMb, 0, 'f', 1 ),
                               5000 );

@@ -2829,33 +2829,9 @@ bool CrawlerWidget::eventFilter( QObject* obj, QEvent* event )
 // Convert a pixel X position to a character index within a table cell.
 int CrawlerWidget::tableCellCharAtX( const QModelIndex& index, int pixelX ) const
 {
-    const auto cellText = index.data( Qt::DisplayRole ).toString();
-    if ( cellText.isEmpty() ) {
-        return 0;
-    }
-
-    const auto cellRect = logTableView_->visualRect( index );
-    const int textLeft = cellRect.left() + LogTableHighlightDelegate::HorizontalTextPadding;
-    const int relativeX = pixelX - textLeft;
-
-    if ( relativeX <= 0 ) {
-        return 0;
-    }
-
-    const QFontMetrics fm( logTableView_->font() );
-
-    const int textLen = static_cast<int>( cellText.size() );
-
-    // Binary search for the character position
-    for ( int i = 1; i <= textLen; ++i ) {
-        const int charRight = fm.horizontalAdvance( cellText.left( i ) );
-        if ( relativeX < charRight ) {
-            // Check if click is closer to left or right edge of this character
-            const int charLeft = fm.horizontalAdvance( cellText.left( i - 1 ) );
-            return ( relativeX - charLeft < charRight - relativeX ) ? i - 1 : i;
-        }
-    }
-    return textLen;
+    return LogTableHighlightDelegate::charIndexAtX(
+        index.data( Qt::DisplayRole ).toString(), QFontMetrics( logTableView_->font() ),
+        logTableView_->visualRect( index ).left(), pixelX );
 }
 
 // Select the word at the given character position in a table cell.

@@ -27,6 +27,20 @@ _Avoid_: offset table, line map
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 
+### Displaying
+
+**Viewport**:
+The visible area of a text view of a Log File — the main view or the Filtered View — with
+its margins: the bullet zone, the optional line numbers and the text. One layout decides
+where every Log Line is drawn in it and what sits under any point of it, before anything
+has been painted.
+_Avoid_: screen, canvas, page
+
+**Visual Line**:
+One line of text as drawn in the Viewport. Without text wrapping a Visual Line shows a
+whole Log Line; with text wrapping a long Log Line is drawn as several Visual Lines.
+_Avoid_: row (row belongs to the Table View), wrapped row, fragment, screen line
+
 ### Searching and filtering
 
 **Search**:

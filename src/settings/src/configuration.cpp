@@ -41,6 +41,7 @@
 
 #include <QFontInfo>
 #include <QKeySequence>
+#include <QStandardPaths>
 #include <qcolor.h>
 #include <qglobal.h>
 #include <qvariant.h>
@@ -59,6 +60,12 @@ static const Configuration DefaultConfiguration = {};
 Configuration::Configuration()
 {
     splitterSizes_ << 400 << 100;
+}
+
+QString Configuration::indexCacheDirectory() const
+{
+    return QStandardPaths::writableLocation( QStandardPaths::CacheLocation )
+           + QStringLiteral( "/index" );
 }
 
 // Accessor functions

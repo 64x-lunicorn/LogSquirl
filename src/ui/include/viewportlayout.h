@@ -27,35 +27,35 @@
 #include "containers.h"
 #include "linetypes.h"
 
-// Where a Log Line sits on screen, and what sits at a given pixel.
+// Where a Log Line sits in the Viewport, and what sits at a given pixel.
 //
 // This is a value: it is built from plain integers, it reads its inputs and it
 // returns answers. It writes nothing -- in particular it never moves the view.
 // It knows nothing about widgets, fonts or paint devices, which is what lets it
 // answer before anything has ever been painted.
 //
-// All arithmetic is in characters: a column is charWidthPx wide and a row is
+// All arithmetic is in characters: a column is charWidthPx wide and a Visual Line is
 // charHeightPx tall. That holds exactly for the fixed-width fonts LogSquirl
 // supports.
 //
 // Every computation here is bounded by the size of the viewport. Nothing in it
 // is proportional to the number of Log Lines in the Log File.
 
-// One displayed row of the viewport: a whole Log Line when text wrapping is
-// off, one wrapped fragment of a Log Line when it is on.
-struct ViewportRow {
-    // The Log Line this row shows part of.
+// One Visual Line of the Viewport: a whole Log Line when text wrapping is
+// off, one wrapped part of a Log Line when it is on.
+struct VisualLine {
+    // The Log Line this Visual Line shows part of.
     LineNumber lineNumber{ 0 };
-    // Index of this fragment within that Log Line (0 without wrapping).
+    // Index of this Visual Line within its Log Line (0 without wrapping).
     uint32_t wrappedLineIndex = 0;
-    // Display column of the Log Line at which this row starts.
+    // Display column of the Log Line at which this Visual Line starts.
     LineColumn firstColumn{ 0 };
-    // Number of display columns this row holds.
+    // Number of display columns this Visual Line holds.
     LineLength length{ 0 };
     // Number of display columns of the whole Log Line.
     LineLength lineLength{ 0 };
 
-    bool operator==( const ViewportRow& other ) const
+    bool operator==( const VisualLine& other ) const
     {
         return lineNumber == other.lineNumber && wrappedLineIndex == other.wrappedLineIndex
                && firstColumn == other.firstColumn && length == other.length
@@ -63,7 +63,7 @@ struct ViewportRow {
     }
 };
 
-using ViewportRows = logsquirl::vector<ViewportRow>;
+using VisualLines = logsquirl::vector<VisualLine>;
 
 // A rectangle in viewport pixels. Deliberately not a QRect: the layout has no
 // Qt in its interface.
@@ -94,7 +94,7 @@ struct ViewportLayoutInput {
     // line number area.
     LineNumber::UnderlyingType largestDisplayLineNumber = 0;
     bool textWrap = false;
-    // Vertical offset (pixels) at which the first row is drawn. Negative when
+    // Vertical offset (pixels) at which the first Visual Line is drawn. Negative when
     // the view is pulled up (last line aligned, or pull to follow).
     int drawingTopOffsetPx = 0;
 };
@@ -108,16 +108,16 @@ public:
     static constexpr int ContentMarginWidth = 1;
     static constexpr int LineNumberPadding = 3;
 
-    explicit ViewportLayout( ViewportLayoutInput input, ViewportRows rows = {} );
+    explicit ViewportLayout( ViewportLayoutInput input, VisualLines visualLines = {} );
 
     const ViewportLayoutInput& input() const
     {
         return input_;
     }
 
-    const ViewportRows& rows() const
+    const VisualLines& visualLines() const
     {
-        return rows_;
+        return visualLines_;
     }
 
     // --- margins -------------------------------------------------------
@@ -135,7 +135,7 @@ public:
     int contentStartPosX() const;
     // Total width of all margins and decorations.
     int leftMarginPx() const;
-    // Pixel column of the first character of a row.
+    // Pixel column of the first character of a Visual Line.
     int textOriginX() const;
 
     // --- visible counts ------------------------------------------------
@@ -145,17 +145,17 @@ public:
 
     // --- hit testing ---------------------------------------------------
 
-    // Index into rows() of the row at yPos, or nothing if outside.
-    std::optional<size_t> rowAtPoint( int yPos ) const;
-    // The Log Line at yPos, or nothing if no row lives there.
+    // Index into visualLines() of the Visual Line at yPos, or nothing if outside.
+    std::optional<size_t> visualLineAtPoint( int yPos ) const;
+    // The Log Line at yPos, or nothing if no Visual Line lives there.
     OptionalLineNumber lineAtPoint( int yPos ) const;
     // The position in the Log File at a viewport point. Always inside the
-    // known rows; returns the first position when there are none.
+    // known Visual Lines; returns the first position when there are none.
     FilePosition filePositionAtPoint( int xPos, int yPos ) const;
 
     // --- rectangles ----------------------------------------------------
 
-    // The full-width band a Log Line occupies (all its wrapped rows).
+    // The full-width band a Log Line occupies (all its Visual Lines).
     ViewportRect rectForLine( LineNumber line ) const;
     // The single character cell of a display column of a Log Line.
     ViewportRect rectForColumn( LineNumber line, LineColumn column ) const;
@@ -163,7 +163,7 @@ public:
     // --- scroll ranges -------------------------------------------------
 
     // Maximum value of the vertical scrollbar.
-    // bottomWrappedVisibleLines is how many rows the last screenful of Log
+    // bottomWrappedVisibleLines is how many Visual Lines the last screenful of Log
     // Lines needs once wrapped; it equals visibleLines() without wrapping.
     int verticalScrollRange( LinesCount totalLines, LinesCount bottomWrappedVisibleLines ) const;
     // Maximum value of the horizontal scrollbar.
@@ -180,7 +180,7 @@ private:
     int charHeight() const;
 
     ViewportLayoutInput input_;
-    ViewportRows rows_;
+    VisualLines visualLines_;
 };
 
 // Number of decimal digits of x (x == 0 counts as one digit).

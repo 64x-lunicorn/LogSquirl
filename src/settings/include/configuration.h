@@ -267,6 +267,11 @@ public:
         indexCacheMaxSizeMb_ = sizeMb;
     }
 
+    // The platform's cache location for Index cache files. Not a stored
+    // setting and not user-editable: it is derived from the environment,
+    // and this is its one definition.
+    QString indexCacheDirectory() const;
+
     RegexpEngine regexpEngine() const
     {
         return regexpEngine_;
