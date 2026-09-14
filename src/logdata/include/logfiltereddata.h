@@ -154,6 +154,13 @@ public:
     // count, progress, phase, whether results came from cache).
     SearchSession::State searchState() const;
 
+    // A copy of the lines the Filtered View displays now, as Log Line
+    // numbers. Take it on the UI thread: the copy can then be read on another
+    // thread (QuickFind's worker) while this object keeps changing.
+    SearchResultArray copyDisplayedLines() const;
+    // The Log File this was built from.
+    const LogData& sourceLogData() const;
+
 Q_SIGNALS:
     // Sent whenever the Search Session's state changes: on progress, on
     // completion (from a real run or from cache), when stopped, when

@@ -39,6 +39,10 @@
 #ifndef QUICKFIND_H
 #define QUICKFIND_H
 
+#include <cstdint>
+#include <functional>
+#include <memory>
+
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QObject>
@@ -47,6 +51,7 @@
 
 #include "atomicflag.h"
 #include "linetypes.h"
+#include "logfiltereddataworker.h"
 #include "qfnotifications.h"
 #include "quickfindpattern.h"
 #include "selection.h"
@@ -91,15 +96,64 @@ private:
     int dotToDisplay_;
 };
 
-// Represents a search made with Quick Find (without its results)
-// it keeps a pointer to a set of data and to a QuickFindPattern which
-// are used for the searches. (the caller retains ownership of both).
+// The Log Lines one QuickFind searches, in order, and the Log File their text
+// is read from.
+//
+// A text view hands one over each time a QuickFind starts, taken on the UI
+// thread. It is a value: nothing the UI thread changes afterwards reaches it,
+// so the worker thread can search it while Marks change, a Search adds
+// Matches or Context Lines are rebuilt. See
+// docs/adr/0002-quickfind-searches-a-copy-of-the-displayed-lines.md.
+class QuickFindLines {
+public:
+    // Every Log Line of logFile, as many as it has now.
+    static QuickFindLines everyLogLine( const AbstractLogData& logFile );
+    // The Log Lines in lines, whose text is read from logFile. Reading
+    // logFile must be safe off the UI thread.
+    static QuickFindLines someLogLines( const AbstractLogData& logFile, SearchResultArray lines );
+
+    // How many Log Lines there are to search.
+    LinesCount count() const;
+    // How many of them come before logLine: the position of logLine if it is
+    // one of them, otherwise of the first one after it.
+    LineNumber positionOf( LineNumber logLine ) const;
+    // The Log Line at a position, below count().
+    LineNumber logLineAt( LineNumber position ) const;
+    // The text of a Log Line, with tabs expanded.
+    QString expandedLineString( LineNumber logLine ) const;
+
+private:
+    QuickFindLines( const AbstractLogData& logFile, LinesCount count,
+                    std::shared_ptr<const SearchResultArray> lines );
+
+    const AbstractLogData* logFile_;
+    LinesCount count_;
+    // Null when every Log Line is searched.
+    std::shared_ptr<const SearchResultArray> lines_;
+};
+
+// Represents a search made with Quick Find (without its results).
+//
+// QuickFind works in Log Line numbers: its positions, the selections it is
+// given and returns, and the Portion of searchDone(). A view whose lines are
+// numbered differently (the Filtered View) converts on the way in and out.
+//
+// Each search runs on a worker thread over the QuickFindLines the view hands
+// over when it starts, including each restart of an incremental search. When
+// the lines the view displays change while a search runs, the search keeps
+// running on its copy. When its result arrives on a Log Line the view no
+// longer displays, QuickFind does not report it: it goes on from that Log Line
+// in the same direction, over a fresh copy, so it never reports a line that
+// isn't a displayed match.
 class QuickFind : public QObject {
     Q_OBJECT
 
 public:
-    // Construct a search
-    explicit QuickFind( const AbstractLogData& logData );
+    // Construct a search. Both functions are only called on the UI thread:
+    // copyDisplayedLines when a search starts, isDisplayed when its result
+    // arrives.
+    QuickFind( std::function<QuickFindLines()> copyDisplayedLines,
+               std::function<bool( LineNumber )> isDisplayed );
 
     // Set the starting point that will be used by the next search
     void setSearchStartPoint( QPoint startPoint );
@@ -136,7 +190,10 @@ Q_SIGNALS:
     void notify( const QFNotification& message );
     // Sent when the UI shall clear the notification.
     void clearNotification();
-    // Sent when search is completed
+    // Sent when search is completed, with selection on a Log Line. Sent on
+    // the UI thread right after checking that the Log Line is displayed:
+    // connect it directly, so nothing changes the displayed lines before the
+    // receiver converts it.
     void searchDone( bool hasMatch, Portion selection );
 
 private Q_SLOTS:
@@ -207,32 +264,58 @@ private:
         Selection initialSelection_;
     };
 
-    // Pointers to external objects
-    const AbstractLogData& logData_;
+    // What the worker thread hands back.
+    struct SearchResult {
+        // Valid when a match was found.
+        Portion match;
+        // Whether the search went all the way to the end (or the beginning)
+        // without a match, and wasn't interrupted.
+        bool reachedLimit = false;
+    };
+
+    // The search running, or the last one run. Only touched on the UI thread.
+    struct RunningSearch {
+        QFDirection direction = None;
+        Selection selection;
+        QuickFindMatcher matcher;
+        // limitsGeneration_ when the search started.
+        uint64_t limitsGeneration = 0;
+    };
+
+    std::function<QuickFindLines()> copyDisplayedLines_;
+    std::function<bool( LineNumber )> isDisplayed_;
 
     // Owned objects
 
     // Position of the last match in the file
     // (to avoid searching multiple times where there is no result)
+    // Both only read and written on the UI thread.
     LastMatchPosition lastMatch_;
     LastMatchPosition firstMatch_;
+    // Counts resetLimits() calls, so a search that started before one does
+    // not record a limit that no longer holds.
+    uint64_t limitsGeneration_ = 0;
 
     SearchingNotifier searchingNotifier_;
 
     // Incremental search status
     IncrementalSearchStatus incrementalSearchStatus_;
 
+    RunningSearch runningSearch_;
+
     // Private functions
-    Portion doSearchForward( const Selection& selection, const QuickFindMatcher& matcher );
-    Portion doSearchForward( const FilePosition& start_position, const Selection& selection,
-                             const QuickFindMatcher& matcher );
-    Portion doSearchBackward( const Selection& selection, const QuickFindMatcher& matcher );
-    Portion doSearchBackward( const FilePosition& start_position, const Selection& selection,
-                              const QuickFindMatcher& matcher );
+    // Starts a search on the worker thread over a fresh copy of the displayed
+    // lines, from start_position.
+    void startSearch( QFDirection direction, const FilePosition& start_position,
+                      const Selection& selection, const QuickFindMatcher& matcher );
+    SearchResult doSearchForward( const QuickFindLines& lines, const FilePosition& start_position,
+                                  const QuickFindMatcher& matcher, bool afterLastMatch );
+    SearchResult doSearchBackward( const QuickFindLines& lines, const FilePosition& start_position,
+                                   const QuickFindMatcher& matcher, bool beforeFirstMatch );
 
     AtomicFlag interruptRequested_;
-    QFuture<Portion> operationFuture_;
-    QFutureWatcher<Portion> operationWatcher_;
+    QFuture<SearchResult> operationFuture_;
+    QFutureWatcher<SearchResult> operationWatcher_;
 };
 
 #endif

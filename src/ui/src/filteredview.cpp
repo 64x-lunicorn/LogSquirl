@@ -43,6 +43,7 @@
 #include <cassert>
 
 #include "filteredview.h"
+#include "logdata.h"
 #include "shortcuts.h"
 
 FilteredView::FilteredView( LogFilteredData* newLogData,
@@ -91,6 +92,14 @@ LineNumber FilteredView::lineIndex( LineNumber lineNumber ) const
 LineNumber FilteredView::maxDisplayLineNumber() const
 {
     return LineNumber( logFilteredData_->getNbTotalLines().get() );
+}
+
+QuickFindLines FilteredView::quickFindLines() const
+{
+    // The worker reads the Log File's text, which is safe off the UI thread,
+    // and never the LogFilteredData, which the UI thread goes on changing.
+    return QuickFindLines::someLogLines( logFilteredData_->sourceLogData(),
+                                         logFilteredData_->copyDisplayedLines() );
 }
 
 void FilteredView::doRegisterShortcuts()

@@ -65,6 +65,9 @@ protected:
     LineNumber lineIndex( LineNumber lineNumber ) const override;
     LineNumber maxDisplayLineNumber() const override;
 
+    // A copy of the displayed lines, read from the Log File they come from.
+    QuickFindLines quickFindLines() const override;
+
     void doRegisterShortcuts() override;
 
 private:

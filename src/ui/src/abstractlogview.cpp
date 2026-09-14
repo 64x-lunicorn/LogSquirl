@@ -353,7 +353,9 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     , useTextWrap_( initialTextWrap )
     , searchEnd_( newLogData->getNbLine().get() )
     , quickFindPattern_( quickFindPattern )
-    , quickFind_( new QuickFind( *newLogData ) )
+    , quickFind_(
+          new QuickFind( [ this ]() { return quickFindLines(); },
+                         [ this ]( LineNumber logLine ) { return displaysLogLine( logLine ); } ) )
     , pixmapFontMetrics_( pixmapFontMetrics( parent ? parent->font() : QFont() ) )
 {
     setViewport( nullptr );
@@ -375,8 +377,11 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     connect( quickFind_, SIGNAL( clearNotification() ), this,
              SIGNAL( clearQuickFindNotification() ) );
 
+    // Direct: QuickFind checked that the result's Log Line is displayed in the
+    // same call, so the displayed lines cannot change before it is converted
+    // to this view's line numbers.
     connect( quickFind_, &QuickFind::searchDone, this, &AbstractLogView::setQuickFindResult,
-             Qt::QueuedConnection );
+             Qt::DirectConnection );
 
     connect( &followElasticHook_, SIGNAL( lengthChanged() ), this, SLOT( repaint() ) );
     connect( &followElasticHook_, SIGNAL( hooked( bool ) ), this,
@@ -1353,11 +1358,43 @@ LineNumber AbstractLogView::getViewPosition() const
 void AbstractLogView::searchUsingFunction( QuickFindSearchFn searchFunction )
 {
     disableFollow();
-    ( quickFind_->*searchFunction )( selection_, quickFindPattern_->getMatcher() );
+    ( quickFind_->*searchFunction )( toLogLines( selection_ ), quickFindPattern_->getMatcher() );
 }
 
-void AbstractLogView::setQuickFindResult( bool hasMatch, const Portion& portion )
+QuickFindLines AbstractLogView::quickFindLines() const
 {
+    return QuickFindLines::everyLogLine( *logData_ );
+}
+
+Selection AbstractLogView::toLogLines( const Selection& selection ) const
+{
+    return selection.mapLines( [ this ]( LineNumber line ) { return logLineAt( line ); } );
+}
+
+Selection AbstractLogView::toViewLines( const Selection& selection ) const
+{
+    return selection.mapLines( [ this ]( LineNumber logLine ) { return lineIndex( logLine ); } );
+}
+
+bool AbstractLogView::displaysLogLine( LineNumber logLine ) const
+{
+    // lineIndex() gives the nearest displayed line for one that isn't.
+    return logLineAt( lineIndex( logLine ) ) == logLine;
+}
+
+LineNumber AbstractLogView::logLineAt( LineNumber viewLine ) const
+{
+    // displayLineNumber() is the 1-based number shown in the margin.
+    return displayLineNumber( viewLine ) - 1_lcount;
+}
+
+void AbstractLogView::setQuickFindResult( bool hasMatch, const Portion& logLinePortion )
+{
+    // QuickFind reports a Log Line; this view may number it differently.
+    const auto portion = logLinePortion.isValid()
+                             ? Portion{ lineIndex( logLinePortion.line() ),
+                                        logLinePortion.startColumn(), logLinePortion.endColumn() }
+                             : logLinePortion;
     if ( portion.isValid() ) {
         LOG_DEBUG << "search " << portion.line();
         // The Visual Line holding the start of the found text.
@@ -1392,13 +1429,13 @@ void AbstractLogView::incrementallySearchBackward()
 
 void AbstractLogView::incrementalSearchAbort()
 {
-    selection_ = quickFind_->incrementalSearchAbort();
+    selection_ = toViewLines( quickFind_->incrementalSearchAbort() );
     Q_EMIT changeQuickFind( "", QuickFindMux::Forward );
 }
 
 void AbstractLogView::incrementalSearchStop()
 {
-    auto oldSelection = quickFind_->incrementalSearchStop();
+    auto oldSelection = toViewLines( quickFind_->incrementalSearchStop() );
     if ( selection_.isEmpty() ) {
         selection_ = oldSelection;
     }

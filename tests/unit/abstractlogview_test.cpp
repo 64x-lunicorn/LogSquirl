@@ -26,8 +26,11 @@
 #include "fake_log_data.h"
 #include "log_view_scrolling.h"
 #include "logdata.h"
+#include "qfnotifications.h"
 #include "quickfindpattern.h"
 #include "test_policies.h"
+
+#include <QSignalSpy>
 
 namespace {
 
@@ -495,6 +498,71 @@ SCENARIO( "Updating the scroll bars reads no more than one Viewport height of Lo
                 REQUIRE( logData.linesRead == 1 );
             }
         }
+    }
+}
+
+SCENARIO( "QuickFind in the main view searches every Log Line", "[abstractlogview][quickfind]" )
+{
+    const FakeLogData logData{ QStringList{
+        QStringLiteral( "alpha" ), QStringLiteral( "found one" ), QStringLiteral( "beta" ),
+        QStringLiteral( "found two" ), QStringLiteral( "gamma" ) } };
+    QuickFindPattern qfp;
+    qfp.changeSearchPattern( QStringLiteral( "found" ), /* useExtendedRegexp */ false );
+    TestLogView view( &logData, &qfp );
+    view.selectAndDisplayLine( 0_lnum );
+
+    QSignalSpy selected( &view, &AbstractLogView::newSelection );
+    const auto waitForSelection
+        = [ & ]( qsizetype count ) { return selected.count() >= count || selected.wait( 10000 ); };
+    const auto selectedLine = [ & ]( qsizetype index ) {
+        return qvariant_cast<LineNumber>( selected.at( index ).at( 0 ) );
+    };
+
+    SECTION( "searching forward selects each match, then reports the end of the file" )
+    {
+        QSignalSpy notifications( &view, &AbstractLogView::notifyQuickFind );
+
+        view.searchForward();
+        REQUIRE( waitForSelection( 1 ) );
+        REQUIRE( selectedLine( 0 ) == 1_lnum );
+
+        view.searchForward();
+        REQUIRE( waitForSelection( 2 ) );
+        REQUIRE( selectedLine( 1 ) == 3_lnum );
+
+        view.searchForward();
+        const auto reachedEndOfFile = [ & ]() {
+            for ( const auto& arguments : notifications ) {
+                if ( qvariant_cast<QFNotification>( arguments.at( 0 ) ).message()
+                     == QFNotificationReachedEndOfFile{}.message() ) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        REQUIRE( ( reachedEndOfFile() || notifications.wait( 10000 ) ) );
+        QCoreApplication::processEvents();
+        REQUIRE( reachedEndOfFile() );
+        REQUIRE( selected.count() == 2 );
+    }
+
+    SECTION( "searching backward from the last Log Line selects the last match" )
+    {
+        view.selectAndDisplayLine( 4_lnum );
+        selected.clear();
+        view.searchBackward();
+        REQUIRE( waitForSelection( 1 ) );
+        REQUIRE( selectedLine( 0 ) == 3_lnum );
+    }
+
+    SECTION( "an aborted incremental QuickFind restores the initial selection" )
+    {
+        view.incrementallySearchForward();
+        REQUIRE( waitForSelection( 1 ) );
+        REQUIRE( selectedLine( 0 ) == 1_lnum );
+
+        view.incrementalSearchAbort();
+        REQUIRE( view.getSelectedText() == QStringLiteral( "alpha" ) );
     }
 }
 

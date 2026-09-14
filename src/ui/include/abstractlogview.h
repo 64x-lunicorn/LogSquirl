@@ -196,6 +196,11 @@ protected:
     virtual LineNumber lineIndex( LineNumber lineNumber ) const;
     virtual LineNumber maxDisplayLineNumber() const;
 
+    // The lines a QuickFind in this view searches, in Log Line numbers: a
+    // copy of what the view displays, taken on the UI thread when the
+    // QuickFind starts. Every Log Line unless overridden.
+    virtual QuickFindLines quickFindLines() const;
+
     // Get the overview associated with this view, or NULL if there is none
     Overview* getOverview() const
     {
@@ -569,6 +574,14 @@ private:
     // Search functions (for n/N)
     using QuickFindSearchFn = void ( QuickFind::* )( Selection, QuickFindMatcher );
     void searchUsingFunction( QuickFindSearchFn searchFunction );
+    // QuickFind works in Log Line numbers: these convert a selection from
+    // this view's line numbers and back.
+    Selection toLogLines( const Selection& selection ) const;
+    Selection toViewLines( const Selection& selection ) const;
+    // Whether this view displays the Log Line.
+    bool displaysLogLine( LineNumber logLine ) const;
+    // The Log Line this view shows at its line viewLine.
+    LineNumber logLineAt( LineNumber viewLine ) const;
 
     void updateScrollBars();
 

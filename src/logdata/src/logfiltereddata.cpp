@@ -148,6 +148,16 @@ LinesCount LogFilteredData::getNbMarks() const
     return LinesCount( marks_.cardinality() );
 }
 
+SearchResultArray LogFilteredData::copyDisplayedLines() const
+{
+    return currentResultArray();
+}
+
+const LogData& LogFilteredData::sourceLogData() const
+{
+    return *sourceLogData_;
+}
+
 LogFilteredData::LineType LogFilteredData::lineTypeByIndex( LineNumber index ) const
 {
     return lineTypeByLine( findLogDataLine( index ) );
