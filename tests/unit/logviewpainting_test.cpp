@@ -56,8 +56,10 @@
 #include <QFontInfo>
 #include <QFontMetrics>
 #include <QImage>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPalette>
+#include <QScrollBar>
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
@@ -109,6 +111,23 @@ const std::vector<PaintedLine>& paintedLines()
         { "10:00:12 INFO  idle", LineTypeFlags::Plain },
         { "10:00:13 INFO  idle", LineTypeFlags::Plain },
         { "10:00:14 INFO  idle", LineTypeFlags::Plain },
+        // Below the first screen: enough Log Lines that a Scroll Position on
+        // Log Line 4 is in the middle of the Log File, not at its bottom.
+        { "10:00:15 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:16 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:17 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:18 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:19 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:20 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:21 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:22 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:23 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:24 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:25 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:26 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:27 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:28 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:29 INFO  idle", LineTypeFlags::Plain },
     };
     return lines;
 }
@@ -231,6 +250,8 @@ std::optional<QFont> paintingTestFont()
 struct PaintingConfiguration {
     bool textWrap = false;
     bool lineNumbersVisible = false;
+    // Where the view is scrolled to before it is painted.
+    ScrollPosition scrollPosition;
 };
 
 QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
@@ -252,6 +273,16 @@ QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
     view.setSearchPattern( RegularExpressionPattern{ QStringLiteral( "ERROR" ) } );
     view.setSearchLimits( 0_lnum, LineNumber( logData.getNbLine().get() ) );
     view.updateData();
+
+    // The scrollbar lands on the Log Line, a step of the arrow key moves one
+    // Visual Line further.
+    view.verticalScrollBar()->setValue(
+        static_cast<int>( configuration.scrollPosition.lineNumber.get() ) );
+    for ( size_t step = 0; step < configuration.scrollPosition.visualLineIndex; ++step ) {
+        QKeyEvent down( QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier );
+        QCoreApplication::sendEvent( &view, &down );
+    }
+    REQUIRE( view.scrollPosition() == configuration.scrollPosition );
 
     // The view must actually be painting with the test font; a platform
     // that substituted another one would produce images of that font.
@@ -381,6 +412,33 @@ SCENARIO( "The log view paints exactly what it painted before", "[logviewpaintin
             {
                 requirePaintingMatchesGolden( { .textWrap = true, .lineNumbersVisible = true },
                                               QStringLiteral( "wrapped-line-numbers" ) );
+            }
+        }
+
+        // Log Line 4 wraps into three Visual Lines; the view shows it from its
+        // second. Its bullet and line number sit beside its first Visual Line,
+        // above the Viewport, so the top row has neither.
+        WHEN( "the Scroll Position is partway through a wrapped Log Line and line numbers are "
+              "hidden" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden( { .textWrap = true,
+                                                .lineNumbersVisible = false,
+                                                .scrollPosition = ScrollPosition{ 4_lnum, 1 } },
+                                              QStringLiteral( "wrapped-partway" ) );
+            }
+        }
+
+        WHEN( "the Scroll Position is partway through a wrapped Log Line and line numbers are "
+              "shown" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden( { .textWrap = true,
+                                                .lineNumbersVisible = true,
+                                                .scrollPosition = ScrollPosition{ 4_lnum, 1 } },
+                                              QStringLiteral( "wrapped-partway-line-numbers" ) );
             }
         }
     }

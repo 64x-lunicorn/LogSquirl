@@ -268,22 +268,81 @@ int ViewportLayout::horizontalScrollRange( LineLength maxLineLength ) const
                        - static_cast<int64_t>( visible.get() ) + 1 );
 }
 
-LineNumber ViewportLayout::lastValidFirstLine( LinesCount totalLines ) const
+ScrollPosition ViewportLayout::lastValidScrollPosition( LinesCount totalLines ) const
 {
     const auto visible = visibleLines();
     if ( totalLines.get() <= visible.get() ) {
-        return 0_lnum;
+        return ScrollPosition{};
     }
-    return LineNumber( totalLines.get() - visible.get() );
+    return ScrollPosition{ LineNumber( totalLines.get() - visible.get() ), 0 };
 }
 
-LineNumber ViewportLayout::clampFirstLine( LineNumber line, LinesCount totalLines ) const
+ScrollPosition ViewportLayout::clampScrollPosition( ScrollPosition position,
+                                                    LinesCount totalLines ) const
 {
     if ( totalLines.get() == 0 ) {
-        return 0_lnum;
+        return ScrollPosition{};
     }
     const auto lastLine = LineNumber( totalLines.get() - 1 );
-    return line > lastLine ? lastLine : line;
+    if ( position.lineNumber > lastLine ) {
+        return ScrollPosition{ lastLine, 0 };
+    }
+    if ( !input_.textWrap ) {
+        position.visualLineIndex = 0;
+    }
+    return position;
+}
+
+LinesCount ViewportLayout::visualLinesPerPage() const
+{
+    const int lines = input_.viewportHeightPx / charHeight();
+    return LinesCount( static_cast<LinesCount::UnderlyingType>( std::max( lines, 1 ) ) );
+}
+
+ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, ScrollPosition last,
+                                   const VisualLineCounter& visualLineCount )
+{
+    const auto countOf = [ &visualLineCount ]( LineNumber line ) {
+        return std::max( visualLineCount( line ), size_t{ 1 } );
+    };
+
+    auto position = std::min( from, last );
+
+    if ( visualLines > 0 ) {
+        auto remaining = static_cast<uint64_t>( visualLines );
+        while ( remaining > 0 && position < last ) {
+            const auto count = countOf( position.lineNumber );
+            // Visual Lines of this Log Line still below the top row. None when
+            // a re-wrap left the index past the end of the Log Line.
+            const auto below = position.visualLineIndex + 1 < count
+                                   ? count - 1 - position.visualLineIndex
+                                   : size_t{ 0 };
+            if ( remaining <= below ) {
+                position.visualLineIndex += static_cast<size_t>( remaining );
+                break;
+            }
+            remaining -= below + 1;
+            position = ScrollPosition{ position.lineNumber + 1_lcount, 0 };
+        }
+    }
+    else {
+        auto remaining = static_cast<uint64_t>( -( visualLines + 1 ) ) + 1;
+        while ( remaining > 0 && position > ScrollPosition{} ) {
+            if ( remaining <= position.visualLineIndex ) {
+                position.visualLineIndex -= static_cast<size_t>( remaining );
+                break;
+            }
+            remaining -= position.visualLineIndex + 1;
+            if ( position.lineNumber == 0_lnum ) {
+                position.visualLineIndex = 0;
+                break;
+            }
+            const auto previousLine = position.lineNumber - 1_lcount;
+            position = ScrollPosition{ previousLine, countOf( previousLine ) - 1 };
+        }
+    }
+
+    return std::min( position, last );
 }
 
 PullToFollowGeometry ViewportLayout::pullToFollowGeometry( const PullToFollowState& state ) const

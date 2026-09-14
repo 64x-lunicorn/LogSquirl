@@ -144,6 +144,9 @@ public:
     void updateDisplaySize();
     // Return the line number of the top line of the view
     LineNumber getTopLine() const;
+    // Where the view stands: the Log Line at the top and which of its Visual
+    // Lines is shown first.
+    ScrollPosition scrollPosition() const;
     // Return the text of the current selection.
     QString getSelectedText() const;
     // True for partial selection
@@ -368,11 +371,13 @@ private:
     std::vector<QuickHighlighters> quickHighlighters_ = std::vector<QuickHighlighters>{ 9 };
 
     // Position of the view, those are crucial to control drawing
-    // firstLine gives the position of the view,
+    // scrollPosition_ gives the position of the view; only scrolling moves it.
     // lastLineAligned == true make the bottom of the last line aligned
     // rather than the top of the top one.
-    LineNumber firstLine_;
+    ScrollPosition scrollPosition_;
     bool lastLineAligned_ = false;
+    // The fraction of a Visual Line the wheel has turned but not yet scrolled.
+    double wheelVisualLinesPending_ = 0;
     bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
 
@@ -383,6 +388,11 @@ private:
         QString text;
         // The text with its tabs expanded, split into the Visual Lines it is drawn as.
         WrappedString wrapped;
+        // The first of its Visual Lines in the Viewport. Past 0 only for the Log
+        // Line at the top, when the Scroll Position is partway through it.
+        size_t firstVisualLine = 0;
+        // How many of its Visual Lines, from firstVisualLine on, are in the Viewport.
+        size_t visualLineCount = 0;
     };
 
     // The Log Lines currently in the Viewport, with the Visual Lines they occupy.
@@ -399,7 +409,7 @@ private:
     // Everything a ViewportContent depends on. When this changes, the content
     // is rebuilt.
     struct ViewportContentKey {
-        LineNumber firstLine{ 0 };
+        ScrollPosition scrollPosition;
         LineColumn firstColumn{ 0 };
         LinesCount totalLines{ 0 };
         int viewportWidth = -1;
@@ -467,7 +477,7 @@ private:
     struct TextAreaCache {
         QPixmap pixmap_;
         bool invalid_;
-        LineNumber first_line_;
+        ScrollPosition scroll_position_;
         LineNumber last_line_;
         LineColumn first_column_;
     };
@@ -475,7 +485,7 @@ private:
         QPixmap pixmap_;
         LineLength nb_columns_;
     };
-    TextAreaCache textAreaCache_ = { {}, true, 0_lnum, 0_lnum, 0_lcol };
+    TextAreaCache textAreaCache_ = { {}, true, {}, 0_lnum, 0_lcol };
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
 
@@ -531,6 +541,33 @@ private:
     void searchUsingFunction( QuickFindSearchFn searchFunction );
 
     void updateScrollBars();
+
+    // Moves the view to position, brought into the Log File, and the vertical
+    // scrollbar to its Log Line. Moving between Visual Lines of one Log Line
+    // leaves the scrollbar where it is.
+    void scrollTo( ScrollPosition position );
+    // Moves the view visualLines Visual Lines down, or up when negative,
+    // wrapping only the Log Lines it passes over.
+    void scrollByVisualLines( int64_t visualLines );
+    // A scroll step taken by a key or by selection autoscroll. As the
+    // scrollbar's own steps do, a step up leaves follow mode.
+    void stepVisualLines( int64_t visualLines );
+    // How many Visual Lines a wheel event scrolls down (up when negative).
+    int64_t wheelVisualLines( const QWheelEvent& wheelEvent );
+    int64_t visualLinesPerPage() const;
+    // The Scroll Position at the vertical scrollbar's maximum. Scrolling by
+    // Visual Lines goes no further down.
+    ScrollPosition lastScrollPosition() const;
+    // How many Visual Lines line wraps into at the current width. Reads and
+    // wraps that one Log Line.
+    size_t visualLineCount( LineNumber line ) const;
+    // position, with a Visual Line a re-wrap or a change to the Log File has
+    // left past the end of its Log Line brought back to that Log Line's last.
+    ScrollPosition withinLogLine( ScrollPosition position ) const;
+    void updateLastLineAligned( LineNumber topLine );
+    // What follows any move of the Scroll Position: the overview, the
+    // hovered line and a repaint.
+    void scrollPositionMoved();
 
     LineNumber verticalScrollToLineNumber( int scrollPosition ) const;
     int lineNumberToVerticalScroll( LineNumber line ) const;

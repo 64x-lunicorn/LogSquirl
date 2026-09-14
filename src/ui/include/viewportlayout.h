@@ -20,8 +20,10 @@
 #ifndef VIEWPORTLAYOUT_H
 #define VIEWPORTLAYOUT_H
 
+#include <compare>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 
 #include "containers.h"
@@ -41,13 +43,55 @@
 // Every computation here is bounded by the size of the viewport. Nothing in it
 // is proportional to the number of Log Lines in the Log File.
 
+// Where a text view stands in its Log File: the Log Line at the top of the
+// Viewport, and which of its Visual Lines is shown first. Without text wrapping
+// that is always the first one.
+//
+// The vertical scrollbar counts whole Log Lines (docs/adr/0001), so it knows
+// only lineNumber; visualLineIndex is what lets every Visual Line of a Log Line
+// taller than the Viewport be reached.
+struct ScrollPosition {
+    LineNumber lineNumber{ 0 };
+    // Index, within lineNumber, of the Visual Line on the top row.
+    size_t visualLineIndex = 0;
+
+    bool operator==( const ScrollPosition& other ) const
+    {
+        return lineNumber == other.lineNumber && visualLineIndex == other.visualLineIndex;
+    }
+
+    // Ordered by Log Line, then by Visual Line: the order they appear in going
+    // down the Log File.
+    std::strong_ordering operator<=>( const ScrollPosition& other ) const
+    {
+        if ( const auto byLine = lineNumber.get() <=> other.lineNumber.get(); byLine != 0 ) {
+            return byLine;
+        }
+        return visualLineIndex <=> other.visualLineIndex;
+    }
+};
+
+// How many Visual Lines a Log Line wraps into.
+using VisualLineCounter = std::function<size_t( LineNumber )>;
+
+// The Scroll Position visualLines Visual Lines below from (above it when
+// negative), kept between the top of the Log File and last.
+//
+// Every Visual Line passed counts once, whether or not it belongs to the same
+// Log Line, so a step moves the same distance anywhere in the Log File.
+// visualLineCount is asked only about the Log Lines the move passes over, which
+// keeps the cost of a step bounded by its length, never by the Log File. A
+// count of zero is taken as one.
+ScrollPosition moveScrollPosition( ScrollPosition from, int64_t visualLines, ScrollPosition last,
+                                   const VisualLineCounter& visualLineCount );
+
 // One Visual Line of the Viewport: a whole Log Line when text wrapping is
 // off, one wrapped part of a Log Line when it is on.
 struct VisualLine {
     // The Log Line this Visual Line shows part of.
     LineNumber lineNumber{ 0 };
     // Index of this Visual Line within its Log Line (0 without wrapping).
-    uint32_t wrappedLineIndex = 0;
+    size_t wrappedLineIndex = 0;
     // Display column of the Log Line at which this Visual Line starts.
     LineColumn firstColumn{ 0 };
     // Number of display columns this Visual Line holds.
@@ -85,8 +129,9 @@ struct ViewportLayoutInput {
     int charHeightPx = 1;
     int viewportWidthPx = 0;
     int viewportHeightPx = 0;
-    // First Log Line shown at the top of the viewport.
-    LineNumber firstLine{ 0 };
+    // Where the view stands. The first Visual Line laid out is the one it
+    // names, so visualLines() starts there.
+    ScrollPosition scrollPosition;
     // First display column shown at the left edge (text wrapping off only).
     LineColumn firstColumn{ 0 };
     bool lineNumbersVisible = false;
@@ -166,8 +211,13 @@ public:
 
     // --- visible counts ------------------------------------------------
 
+    // Visual Lines with any part in the Viewport, the partly hidden last one
+    // included. This is how many Visual Lines the layout holds at most.
     LinesCount visibleLines() const;
     LineLength visibleColumns() const;
+    // Visual Lines a page moves: the ones that fit wholly in the Viewport
+    // height, and at least one.
+    LinesCount visualLinesPerPage() const;
 
     // --- hit testing ---------------------------------------------------
 
@@ -194,10 +244,14 @@ public:
     int verticalScrollRange( LinesCount totalLines, LinesCount bottomWrappedVisibleLines ) const;
     // Maximum value of the horizontal scrollbar.
     int horizontalScrollRange( LineLength maxLineLength ) const;
-    // The largest first visible line that still fills the viewport.
-    LineNumber lastValidFirstLine( LinesCount totalLines ) const;
-    // line, brought back into the range the Log File actually has.
-    LineNumber clampFirstLine( LineNumber line, LinesCount totalLines ) const;
+    // The largest Scroll Position whose unwrapped Log Lines still fill the
+    // viewport.
+    ScrollPosition lastValidScrollPosition( LinesCount totalLines ) const;
+    // position, brought back into the Log Lines the Log File actually has. A
+    // Scroll Position moved to another Log Line starts at its first Visual
+    // Line, and without text wrapping every Scroll Position does. Whether the
+    // Visual Line exists is not known here: that needs the Log Line wrapped.
+    ScrollPosition clampScrollPosition( ScrollPosition position, LinesCount totalLines ) const;
 
     // --- pull to follow ------------------------------------------------
 
