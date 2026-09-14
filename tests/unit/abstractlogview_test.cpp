@@ -28,7 +28,7 @@
 #include <QFile>
 #include <QFont>
 #include <QProgressDialog>
-#include <QTemporaryFile>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QWidget>
 
@@ -693,10 +693,15 @@ SCENARIO( "a save from a text view replaces the file only when every line was wr
     QuickFindPattern qfp;
     SavingLogView view( &logData, &qfp );
 
+    // The destination is a plain file that nothing holds open: a QTemporaryFile
+    // keeps its handle open even after close(), and Windows can't replace an
+    // open file, so the save's commit would fail there.
     const QByteArray previousContent = "previous content\n";
-    QTemporaryFile file{ "abstractlogview_save_test_XXXXXX" };
-    REQUIRE( file.open() );
-    file.write( previousContent );
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    QFile file{ dir.filePath( "abstractlogview_save_test.log" ) };
+    REQUIRE( file.open( QIODevice::WriteOnly ) );
+    REQUIRE( file.write( previousContent ) == previousContent.size() );
     file.close();
 
     GIVEN( "a save that runs to its end" )

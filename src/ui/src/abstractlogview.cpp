@@ -1690,8 +1690,8 @@ void AbstractLogView::saveLinesTo( const QString& filename, LineNumber begin, Li
         interruptRequest.set();
     }
 
-    if ( linesSaver.waitForResult() ) {
-        saveFile.commit();
+    if ( linesSaver.waitForResult() && !saveFile.commit() ) {
+        LOG_ERROR << "Failed to replace the saved file: " << saveFile.errorString();
     }
 }
 
