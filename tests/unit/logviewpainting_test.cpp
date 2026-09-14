@@ -258,7 +258,7 @@ struct PaintingConfiguration {
     bool textWrap = false;
     bool lineNumbersVisible = false;
     // Where the view is scrolled to before it is painted.
-    ScrollPosition scrollPosition;
+    ScrollPosition scrollPosition{};
     // Scrolled to the scrollbar's maximum instead: the bottom Scroll Position.
     bool atScrollbarMaximum = false;
     int viewHeight = ViewHeight;

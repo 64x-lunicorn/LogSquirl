@@ -43,11 +43,13 @@ namespace {
 
 bool generateDataFiles( QTemporaryFile& file, qint64 nbLines = SL_NB_LINES )
 {
-    char newLine[ 90 ];
+    // Room for the widest int: the line count is no longer a constant GCC can
+    // bound to six digits.
+    char newLine[ 128 ];
 
     if ( file.open() ) {
         for ( int i = 0; i < nbLines; i++ ) {
-            snprintf( newLine, 89,
+            snprintf( newLine, sizeof( newLine ),
                       "LOGDATA \t is a part of glogg, we are going to test it thoroughly, this is "
                       "line %06d\n",
                       i );
