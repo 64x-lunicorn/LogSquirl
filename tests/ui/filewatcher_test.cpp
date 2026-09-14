@@ -19,6 +19,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
+
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
@@ -56,14 +58,56 @@ private:
     QString path_;
 };
 
-QString writeFile( const QTemporaryDir& dir, const QString& content )
+QString writeFile( const QTemporaryDir& dir, const QString& content,
+                   const QString& fileName = QStringLiteral( "watched.log" ) )
 {
-    const auto path = dir.filePath( "watched.log" );
+    const auto path = dir.filePath( fileName );
     QFile file{ path };
     REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
     file.write( content.toLatin1() );
     file.close();
     return path;
+}
+
+// Whether a change to the file named fileName was reported within the window
+// native watching gets. Matched by name, not by count: a change to some other
+// file in the same directory may still be on its way.
+bool nativeChangeReported( SafeQSignalSpy& changedSpy, const QString& fileName )
+{
+    const auto changeReported = [ &changedSpy, &fileName ] {
+        return std::any_of( changedSpy.cbegin(), changedSpy.cend(),
+                            [ &fileName ]( const QList<QVariant>& arguments ) {
+                                return QFileInfo( arguments.at( 0 ).toString() ).fileName()
+                                       == fileName;
+                            } );
+    };
+
+    // Native events arrive from the OS's own filesystem notification
+    // service (efsw) rather than a Qt timer, so delivery can take longer
+    // than a poll tick, especially under a container filesystem -- give it
+    // a generous window rather than the short one polling gets.
+    const bool reported = waitUiState( changeReported, 10000 );
+
+#ifdef Q_OS_MAC
+    // FSEvents -- efsw's native backend on this platform -- fails to
+    // register a watch at all in some sandboxed CI and local dev
+    // environments (observed error -111, not specific to a Log File or this
+    // test), independently of this codebase: it is why the shipped default
+    // already pairs native watching with polling on macOS (see
+    // qtests_main.cpp / Configuration's platform defaults) rather than
+    // relying on native watching alone. Assert when the platform delivers,
+    // but do not fail the build over an environment that cannot register
+    // the watch.
+    if ( !reported ) {
+        WARN( "Native watch event not observed -- FSEvents unavailable in this "
+              "environment (see EfswFileWatcher::addFile's \"failed to add watch\" "
+              "log); native watching also runs behind polling in the shipped "
+              "defaults on this platform." );
+    }
+    return true;
+#else
+    return reported;
+#endif
 }
 
 } // namespace
@@ -112,34 +156,7 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
 
             THEN( "the change is reported" )
             {
-                // Native events arrive from the OS's own filesystem
-                // notification service (efsw) rather than a Qt timer, so
-                // delivery can take longer than a poll tick, especially
-                // under a container filesystem -- give it a generous
-                // window rather than the short one polling gets.
-                const bool reported
-                    = waitUiState( [ &changedSpy ] { return changedSpy.count() >= 1; }, 10000 );
-
-#ifdef Q_OS_MAC
-                // FSEvents -- efsw's native backend on this platform --
-                // fails to register a watch at all in some sandboxed CI
-                // and local dev environments (observed error -111, not
-                // specific to a Log File or this test), independently of
-                // this codebase: it is why the shipped default already
-                // pairs native watching with polling on macOS (see
-                // qtests_main.cpp / Configuration's platform defaults)
-                // rather than relying on native watching alone. Assert
-                // when the platform delivers, but do not fail the build
-                // over an environment that cannot register the watch.
-                if ( !reported ) {
-                    WARN( "Native watch event not observed -- FSEvents unavailable in this "
-                          "environment (see EfswFileWatcher::addFile's \"failed to add watch\" "
-                          "log); native watching also runs behind polling in the shipped "
-                          "defaults on this platform." );
-                }
-#else
-                REQUIRE( reported );
-#endif
+                REQUIRE( nativeChangeReported( changedSpy, QFileInfo( path ).fileName() ) );
             }
         }
     }
@@ -189,6 +206,51 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
             {
                 REQUIRE_FALSE(
                     waitUiState( [ &changedSpy ] { return changedSpy.count() >= 1; }, 1000 ) );
+            }
+        }
+    }
+}
+
+// #116: every Log File closed removes the native watch on its directory once
+// no other watched file is left there, and the next one opened re-creates it
+// -- while the directory is still changing (the closed Log File's temporary
+// file being deleted, the next one being written). efsw 1.4.1 freed a Windows
+// directory watch while its cancelled read could still complete into it, so
+// this churn corrupted the heap and crashed the test binary somewhere
+// unrelated, long after the fact.
+SCENARIO( "File watching survives its directory watch being torn down and re-created",
+          "[filewatch]" )
+{
+    QTemporaryDir tempDir;
+    REQUIRE( tempDir.isValid() );
+
+    GIVEN( "a Policy that watches natively" )
+    {
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = true, .pollingEnabled = false, .pollIntervalMs = 100 } );
+
+        WHEN( "files in one directory are watched, changed and unwatched many times over" )
+        {
+            for ( int round = 0; round < 200; ++round ) {
+                const auto fileName = QStringLiteral( "churn_%1.log" ).arg( round );
+                const auto path = writeFile( tempDir, "first line\n", fileName );
+
+                FileWatcher::getFileWatcher().addFile( path );
+                writeFile( tempDir, "second line\n", fileName );
+                FileWatcher::getFileWatcher().removeFile( path );
+                QFile::remove( path );
+            }
+
+            const auto path = writeFile( tempDir, "first line\n" );
+            SafeQSignalSpy changedSpy( &FileWatcher::getFileWatcher(),
+                                       SIGNAL( fileChanged( QString ) ) );
+            WatchedFile watched{ path };
+
+            writeFile( tempDir, "second line\n" );
+
+            THEN( "a change to a file watched afterwards is still reported" )
+            {
+                REQUIRE( nativeChangeReported( changedSpy, QFileInfo( path ).fileName() ) );
             }
         }
     }
