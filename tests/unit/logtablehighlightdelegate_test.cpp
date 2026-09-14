@@ -846,16 +846,24 @@ void requireClicksResolveToPaintedCharacter( const QString& cellText, int charac
 
     const auto painted = paintCharacter( cellText, character, cellRect, font );
     REQUIRE( painted.has_value() );
+
+    // Where the character starts is read from the image: that is the edge
+    // both paddings decide. How wide it is comes from the same prefix
+    // advances the hit test uses -- with a proportional font, the advance
+    // of a character on its own and the difference of the advances of the
+    // prefixes either side of it can round one pixel apart.
+    const auto& fm = painted->fontMetrics;
+    const int width = fm.horizontalAdvance( cellText.left( character + 1 ) )
+                      - fm.horizontalAdvance( cellText.left( character ) );
     // Narrower than two pixels, a character has no left and right half to
     // tell apart.
-    REQUIRE( painted->width >= 2 );
+    REQUIRE( width >= 2 );
 
     const auto hit = [ & ]( int pixelX ) {
-        return LogTableHighlightDelegate::charIndexAtX( cellText, painted->fontMetrics,
-                                                        cellRect.left(), pixelX );
+        return LogTableHighlightDelegate::charIndexAtX( cellText, fm, cellRect.left(), pixelX );
     };
-    const int firstRightHalfPx = painted->left + ( painted->width + 1 ) / 2;
-    const int lastPx = painted->left + painted->width - 1;
+    const int firstRightHalfPx = painted->left + ( width + 1 ) / 2;
+    const int lastPx = painted->left + width - 1;
 
     REQUIRE( hit( painted->left ) == character );
     REQUIRE( hit( firstRightHalfPx - 1 ) == character );

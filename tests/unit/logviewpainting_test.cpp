@@ -27,8 +27,10 @@
 //
 // - The font is not the host's. The test loads its own font from
 //   data/painting/logsquirl-painting-test.ttf (see make_test_font.py there):
-//   fixed-width, 8 x 16 px, with every glyph edge on a pixel boundary and no
-//   antialiasing, so each platform's rasteriser produces the same pixels.
+//   fixed-width, 8 x 16 px, with every glyph edge on a pixel boundary, so a
+//   glyph covers each pixel fully or not at all. Each platform draws it in
+//   the rendering mode that keeps it that way (see paintingTestFont()), and
+//   so each platform's rasteriser produces the same pixels.
 //   Nothing needs to be installed on the host. If the platform cannot load
 //   that font, or does not honour its metrics, the test fails and says so:
 //   without its font it would verify nothing.
@@ -208,7 +210,19 @@ std::optional<QFont> paintingTestFont()
 
     QFont font( families.first() );
     font.setPixelSize( FontPixelSize );
+    // Each platform's text rasteriser has one mode that draws these
+    // pixel-aligned glyphs exactly, and it is not the same mode everywhere.
+#ifdef Q_OS_MACOS
+    // CoreText smooths antialiased glyphs even where their edges sit exactly
+    // on pixel boundaries, so macOS draws them unantialiased.
     font.setStyleStrategy( QFont::NoAntialias );
+#else
+    // Elsewhere an unantialiased glyph is a one-bit bitmap, which Qt copies
+    // without the pen's transparency -- the dimmed Context Lines would not be
+    // dimmed. Antialiased, a pixel-aligned glyph still covers every pixel
+    // fully or not at all; subpixel rendering would color its edges.
+    font.setStyleStrategy( QFont::NoSubpixelAntialias );
+#endif
     font.setHintingPreference( QFont::PreferNoHinting );
     return font;
 }
@@ -288,17 +302,19 @@ void requirePaintingMatchesGolden( PaintingConfiguration configuration, const QS
     const PinnedPaintingSettings settings;
 
     const auto font = paintingTestFont();
-    INFO( "The painting test could not load its own font from " << PaintingTestDataDir.toStdString()
-                                                                << "; without it there is nothing "
-                                                                   "portable to compare against." );
-    REQUIRE( font.has_value() );
+    if ( !font.has_value() ) {
+        FAIL( "The painting test could not load its own font from "
+              << PaintingTestDataDir.toStdString()
+              << "; without it there is nothing portable to compare against." );
+    }
 
     const QFontMetrics metrics( *font );
-    INFO( "The test font must measure "
-          << ExpectedCharWidth << "x" << ExpectedCharHeight << " px, this platform measures it "
-          << metrics.horizontalAdvance( QLatin1Char( 'm' ) ) << "x" << metrics.height() );
-    REQUIRE( metrics.horizontalAdvance( QLatin1Char( 'm' ) ) == ExpectedCharWidth );
-    REQUIRE( metrics.height() == ExpectedCharHeight );
+    const auto charWidth = metrics.horizontalAdvance( QLatin1Char( 'm' ) );
+    if ( charWidth != ExpectedCharWidth || metrics.height() != ExpectedCharHeight ) {
+        FAIL( "The test font must measure " << ExpectedCharWidth << "x" << ExpectedCharHeight
+                                            << " px, this platform measures it " << charWidth << "x"
+                                            << metrics.height() );
+    }
 
     const auto painted = paintLogView( *font, configuration );
     const auto goldenPath
