@@ -26,6 +26,10 @@
 
 #include <tbb/global_control.h>
 
+#include <atomic>
+#include <thread>
+#include <vector>
+
 #include "log.h"
 #include "test_policies.h"
 #include "test_utils.h"
@@ -37,12 +41,12 @@ static const qint64 SL_NB_LINES = 500LL;
 
 namespace {
 
-bool generateDataFiles( QTemporaryFile& file )
+bool generateDataFiles( QTemporaryFile& file, qint64 nbLines = SL_NB_LINES )
 {
     char newLine[ 90 ];
 
     if ( file.open() ) {
-        for ( int i = 0; i < SL_NB_LINES; i++ ) {
+        for ( int i = 0; i < nbLines; i++ ) {
             snprintf( newLine, 89,
                       "LOGDATA \t is a part of glogg, we are going to test it thoroughly, this is "
                       "line %06d\n",
@@ -103,14 +107,15 @@ static LogFilteredData::LineTypeFlags toFlags( LogFilteredData::LineType type )
 }
 
 struct LogDataLoader {
-    explicit LogDataLoader( SettingsPolicies policies = testSettingsPolicies() )
+    explicit LogDataLoader( SettingsPolicies policies = testSettingsPolicies(),
+                            qint64 nbLines = SL_NB_LINES )
         : log_data( policies.indexing, policies.search, policies.fileAccess )
     {
         static int counter = 0;
         counter++;
         LOG_INFO << "Test run " << counter;
 
-        REQUIRE( generateDataFiles( file ) );
+        REQUIRE( generateDataFiles( file, nbLines ) );
         SafeQSignalSpy loadEndSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
         log_data.attachFile( file.fileName() );
@@ -931,4 +936,228 @@ SCENARIO( "Requesting an invalid pattern discards a previous run's results", "[l
             }
         }
     }
+}
+
+namespace {
+
+using LineNumbers = std::vector<LineNumber::UnderlyingType>;
+
+// The Log Lines the Filtered View shows, read through its own line mapping,
+// checking on the way that mapping a Log Line back gives the same index.
+LineNumbers displayedLines( const LogFilteredData& filtered )
+{
+    LineNumbers lines;
+    const auto nbLines = filtered.getNbLine().get();
+    for ( LineNumber::UnderlyingType index = 0; index < nbLines; ++index ) {
+        const auto line = filtered.getMatchingLineNumber( LineNumber( index ) );
+        REQUIRE( filtered.getLineIndexNumber( line ) == LineNumber( index ) );
+        REQUIRE( toFlags( filtered.lineTypeByIndex( LineNumber( index ) ) )
+                 == toFlags( filtered.lineTypeByLine( line ) ) );
+        lines.push_back( line.get() );
+    }
+    return lines;
+}
+
+// The Log Lines the Filtered View should show, worked out line by line from
+// each Log Line's type and the visibility, without the combined line set.
+LineNumbers expectedDisplayedLines( const LogFilteredData& filtered )
+{
+    const auto visibility = filtered.visibility();
+    const bool matchesShown = visibility.testFlag( VisibilityFlags::Matches );
+    // With Matches hidden the Filtered View shows Marks.
+    const bool marksShown = visibility.testFlag( VisibilityFlags::Marks ) || !matchesShown;
+    const bool contextShown = visibility.testFlag( VisibilityFlags::Context );
+
+    LineNumbers lines;
+    const auto nbTotalLines = filtered.getNbTotalLines().get();
+    for ( LineNumber::UnderlyingType line = 0; line < nbTotalLines; ++line ) {
+        const auto type = filtered.lineTypeByLine( LineNumber( line ) );
+        if ( ( matchesShown && type.testFlag( LineTypeFlags::Match ) )
+             || ( marksShown && type.testFlag( LineTypeFlags::Mark ) )
+             || ( contextShown && type.testFlag( LineTypeFlags::Context ) ) ) {
+            lines.push_back( line );
+        }
+    }
+    return lines;
+}
+
+const auto AllVisible
+    = VisibilityFlags::Matches | VisibilityFlags::Marks | VisibilityFlags::Context;
+
+// A Log File of 2,000 lines whose Search Policy shows 2 Context Lines around
+// each Match and Mark, and reads the file in small blocks so a Search reports
+// progress before it completes.
+SettingsPolicies contextLinesPolicies()
+{
+    auto policies = testSettingsPolicies();
+    policies.search.contextLinesCount = 2;
+    policies.search.useResultsCache = true;
+    policies.search.useParallelSearch = false;
+    policies.search.threadPoolSize = 1;
+    policies.search.readBufferSizeLines = 10;
+    return policies;
+}
+
+const qint64 ContextLinesFileLines = 2000;
+
+// Matches every 10th Log Line.
+const QString EveryTenthLine = "this is line [0-9]{5}0";
+
+} // namespace
+
+SCENARIO( "the Filtered View shows the right lines with Context Lines after each change to its "
+          "inputs",
+          "[logdata][search][context]" )
+{
+    const auto policies = contextLinesPolicies();
+    LogDataLoader logDataLoader{ policies, ContextLinesFileLines };
+
+    auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+    filtered_data->setVisibility( AllVisible );
+
+    const auto checkDisplayedLines = [ & ]( const char* step ) {
+        INFO( step );
+        REQUIRE( displayedLines( *filtered_data ) == expectedDisplayedLines( *filtered_data ) );
+    };
+
+    // Checked at every notification, so a Search is checked while it
+    // progresses as well as once it completes.
+    int notifications = 0;
+    int wrongNotifications = 0;
+    QObject::connect( filtered_data.get(), &LogFilteredData::searchStateChanged,
+                      filtered_data.get(), [ & ]( const SearchSession::State& ) {
+                          ++notifications;
+                          if ( displayedLines( *filtered_data )
+                               != expectedDisplayedLines( *filtered_data ) ) {
+                              ++wrongNotifications;
+                          }
+                      } );
+
+    SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
+
+    requestSearch( filtered_data.get(), EveryTenthLine, searchStateSpy );
+    REQUIRE( notifications > 0 );
+    REQUIRE( wrongNotifications == 0 );
+    checkDisplayedLines( "a Search completed" );
+    REQUIRE( filtered_data->getNbLine() > filtered_data->getNbMatches() );
+
+    filtered_data->addMark( 5_lnum );
+    checkDisplayedLines( "a Mark was added" );
+
+    filtered_data->toggleMark( 15_lnum );
+    checkDisplayedLines( "a Mark was toggled on" );
+    filtered_data->toggleMark( 15_lnum );
+    checkDisplayedLines( "a Mark was toggled off" );
+
+    filtered_data->deleteMark( 5_lnum );
+    checkDisplayedLines( "a Mark was deleted" );
+
+    filtered_data->addMark( 5_lnum );
+    filtered_data->addMark( 25_lnum );
+    filtered_data->clearMarks();
+    checkDisplayedLines( "Marks were cleared" );
+
+    auto searchPolicy = policies.search;
+    searchPolicy.contextLinesCount = 1;
+    logDataLoader.log_data.setSearchPolicy( searchPolicy );
+    checkDisplayedLines( "the Context Lines count changed" );
+
+    filtered_data->addMark( 5_lnum );
+    for ( const auto visibility :
+          { LogFilteredData::Visibility{ VisibilityFlags::Matches },
+            LogFilteredData::Visibility{ VisibilityFlags::Marks },
+            LogFilteredData::Visibility{ VisibilityFlags::Context },
+            VisibilityFlags::Matches | VisibilityFlags::Marks,
+            VisibilityFlags::Matches | VisibilityFlags::Context,
+            VisibilityFlags::Marks | VisibilityFlags::Context, AllVisible } ) {
+        filtered_data->setVisibility( visibility );
+        checkDisplayedLines( "the visibility changed" );
+    }
+
+    requestSearch( filtered_data.get(), "this is line [0-9]{5}5", searchStateSpy );
+    checkDisplayedLines( "a second Search completed" );
+
+    requestSearch( filtered_data.get(), EveryTenthLine, searchStateSpy );
+    REQUIRE( filtered_data->searchState().fromCache );
+    checkDisplayedLines( "a Search hit the cache" );
+
+    filtered_data->request();
+    checkDisplayedLines( "the Search was cleared" );
+
+    REQUIRE( wrongNotifications == 0 );
+}
+
+SCENARIO( "iterating over the Filtered View's lines while making lookups from the callback",
+          "[logdata][search][context]" )
+{
+    LogDataLoader logDataLoader{ contextLinesPolicies(), ContextLinesFileLines };
+
+    auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+    filtered_data->setVisibility( AllVisible );
+    SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
+    requestSearch( filtered_data.get(), EveryTenthLine, searchStateSpy );
+    filtered_data->addMark( 5_lnum );
+
+    const auto expected = expectedDisplayedLines( *filtered_data );
+    REQUIRE( filtered_data->getNbLine() > filtered_data->getNbMatches() );
+
+    LineNumbers iterated;
+    LineNumbers lookedUp;
+    filtered_data->iterateOverLines( [ & ]( LineNumber line ) {
+        iterated.push_back( line.get() );
+        const auto index = filtered_data->getLineIndexNumber( line );
+        lookedUp.push_back( filtered_data->getMatchingLineNumber( index ).get() );
+        static_cast<void>( filtered_data->getNbLine() );
+        static_cast<void>( filtered_data->lineTypeByIndex( index ) );
+    } );
+
+    REQUIRE( iterated == expected );
+    REQUIRE( lookedUp == expected );
+}
+
+SCENARIO( "the Filtered View's lines can be read from a second thread while the UI thread reads "
+          "them",
+          "[logdata][search][context][threading]" )
+{
+    LogDataLoader logDataLoader{ contextLinesPolicies(), ContextLinesFileLines };
+
+    auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+    filtered_data->setVisibility( AllVisible );
+    SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
+    requestSearch( filtered_data.get(), EveryTenthLine, searchStateSpy );
+    REQUIRE( filtered_data->getNbLine() > filtered_data->getNbMatches() );
+
+    // No change is in progress from here on: only reads.
+    std::atomic<bool> stop{ false };
+    std::atomic<int> workerErrors{ 0 };
+
+    // Reads the way the Filtered View's QuickFind does on its worker thread.
+    std::thread quickFindThread( [ & ]() {
+        do {
+            const auto nbLines = filtered_data->getNbLine().get();
+            for ( LineNumber::UnderlyingType index = 0; index < nbLines; ++index ) {
+                if ( filtered_data->getExpandedLineString( LineNumber( index ) ).isEmpty() ) {
+                    ++workerErrors;
+                }
+            }
+        } while ( !stop );
+    } );
+
+    // Reads the way painting and selection do on the UI thread.
+    int uiErrors = 0;
+    const auto nbLines = filtered_data->getNbLine().get();
+    for ( int round = 0; round < 20; ++round ) {
+        for ( LineNumber::UnderlyingType index = 0; index < nbLines; ++index ) {
+            const auto line = filtered_data->getMatchingLineNumber( LineNumber( index ) );
+            if ( filtered_data->getLineIndexNumber( line ) != LineNumber( index ) ) {
+                ++uiErrors;
+            }
+        }
+    }
+
+    stop = true;
+    quickFindThread.join();
+
+    REQUIRE( uiErrors == 0 );
+    REQUIRE( workerErrors == 0 );
 }

@@ -196,8 +196,14 @@ private:
     SearchResultArray matching_lines_;
     SearchResultArray marks_;
     SearchResultArray marks_and_matches_;
-    // Combined result including Context Lines (session_.contextLines()).
-    mutable SearchResultArray with_context_;
+    // The displayed lines when Context Lines are shown: the base set chosen
+    // by the visibility united with session_.contextLines(). Built by
+    // refreshDisplayedLines() when one of its inputs changes, so a lookup
+    // only ever reads it.
+    SearchResultArray lines_with_context_;
+    // Whether lines_with_context_ is what the Filtered View shows, rather
+    // than the base set on its own (Context Lines hidden or empty).
+    bool context_lines_shown_ = false;
 
     const LogData* sourceLogData_;
 
@@ -219,7 +225,14 @@ private:
 
 private:
     // Utility functions
+    // The displayed lines. A pure read: never builds anything.
     const SearchResultArray& currentResultArray() const;
+    // The Matches, the Marks or both, as the visibility chooses.
+    const SearchResultArray& baseResultArray() const;
+    // Rebuilds lines_with_context_ from the base set and the Search
+    // Session's Context Lines. Called on every change to either, or to the
+    // visibility.
+    void refreshDisplayedLines();
     LineNumber findLogDataLine( LineNumber lineNum ) const;
     LineNumber findFilteredLine( LineNumber lineNum ) const;
 
