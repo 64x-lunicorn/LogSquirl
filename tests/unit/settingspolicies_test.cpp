@@ -40,7 +40,8 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
                                        .useCompressedIndex = false,
                                        .useIndexCache = true,
                                        .cacheMaxSizeMb = 64,
-                                       .fastModificationDetection = true };
+                                       .fastModificationDetection = true,
+                                       .indexCacheDirectory = "/tmp/index-cache" };
         const WatchPolicy watch{ .nativeWatchEnabled = false,
                                  .pollingEnabled = true,
                                  .pollIntervalMs = 250 };
@@ -64,6 +65,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( indexing.useIndexCache );
             REQUIRE( indexing.cacheMaxSizeMb == 64 );
             REQUIRE( indexing.fastModificationDetection );
+            REQUIRE( indexing.indexCacheDirectory == "/tmp/index-cache" );
 
             REQUIRE_FALSE( watch.nativeWatchEnabled );
             REQUIRE( watch.pollingEnabled );
@@ -106,6 +108,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( indexing.readBufferSizeMb == 0 );
             REQUIRE( indexing.cacheMaxSizeMb == 0 );
             REQUIRE_FALSE( indexing.useCompressedIndex );
+            REQUIRE( indexing.indexCacheDirectory.isEmpty() );
 
             REQUIRE( watch.pollIntervalMs == 0 );
             REQUIRE_FALSE( watch.nativeWatchEnabled );
@@ -156,6 +159,8 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.indexing.useIndexCache );
                 REQUIRE( policies.indexing.cacheMaxSizeMb == 123 );
                 REQUIRE( policies.indexing.fastModificationDetection );
+                REQUIRE_FALSE( policies.indexing.indexCacheDirectory.isEmpty() );
+                REQUIRE( policies.indexing.indexCacheDirectory == config.indexCacheDirectory() );
             }
 
             THEN( "the Search Policy carries the search settings" )

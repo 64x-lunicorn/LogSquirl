@@ -20,6 +20,8 @@
 #ifndef LOGSQUIRL_SETTINGS_POLICIES_H
 #define LOGSQUIRL_SETTINGS_POLICIES_H
 
+#include <QString>
+
 #include "regexpengine.h"
 
 class Configuration;
@@ -54,6 +56,9 @@ struct IndexingPolicy {
     bool useIndexCache{};
     int cacheMaxSizeMb{};
     bool fastModificationDetection{};
+    // Where the Index cache keeps its files. Empty in an underived Policy,
+    // and an Index cache given no directory stores nothing.
+    QString indexCacheDirectory{};
 
     // Compared so that a settings change can be applied per axis: only the
     // consumers of an axis that actually changed are disturbed.

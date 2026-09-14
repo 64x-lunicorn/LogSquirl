@@ -28,7 +28,8 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                       .useCompressedIndex = config.useCompressedIndex(),
                       .useIndexCache = config.useIndexCache(),
                       .cacheMaxSizeMb = config.indexCacheMaxSizeMb(),
-                      .fastModificationDetection = config.fastModificationDetection() },
+                      .fastModificationDetection = config.fastModificationDetection(),
+                      .indexCacheDirectory = config.indexCacheDirectory() },
 
         .search = { .useParallelSearch = config.useParallelSearch(),
                     .threadPoolSize = config.searchThreadPoolSize(),

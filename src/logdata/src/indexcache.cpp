@@ -20,6 +20,7 @@
 #include "indexcache.h"
 
 #include <algorithm>
+#include <utility>
 
 #include <QCryptographicHash>
 #include <QDataStream>
@@ -28,17 +29,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
-#include <QStandardPaths>
 
 #include "log.h"
 
 namespace {
-
-QString& cacheDirOverride()
-{
-    static QString override;
-    return override;
-}
 
 /// Build a hex-encoded SHA-256 of the absolute file path for use as a
 /// cache-file name.  Using the path (not the file contents) is cheap
@@ -52,29 +46,23 @@ QString pathHash( const QString& filePath )
 
 } // namespace
 
-QString IndexCache::cacheDir()
+IndexCache::IndexCache( QString directory )
+    : directory_( std::move( directory ) )
 {
-    if ( !cacheDirOverride().isEmpty() ) {
-        return cacheDirOverride();
-    }
-
-    const auto base = QStandardPaths::writableLocation( QStandardPaths::CacheLocation );
-    return base + QStringLiteral( "/index" );
 }
 
-void IndexCache::setCacheDirOverride( const QString& dir )
+QString IndexCache::cacheFilePath( const QString& sourceFilePath ) const
 {
-    cacheDirOverride() = dir;
-}
-
-QString IndexCache::cacheFilePath( const QString& sourceFilePath )
-{
-    return cacheDir() + QStringLiteral( "/" ) + pathHash( sourceFilePath )
+    return directory_ + QStringLiteral( "/" ) + pathHash( sourceFilePath )
            + QStringLiteral( ".idx" );
 }
 
-std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath )
+std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
 {
+    if ( directory_.isEmpty() ) {
+        return std::nullopt;
+    }
+
     const auto path = cacheFilePath( filePath );
     QFile file( path );
     if ( !file.open( QIODevice::ReadOnly ) ) {
@@ -146,11 +134,14 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath )
 
 bool IndexCache::trySave( const QString& filePath, const LinePositionArray& linePosition,
                           LineLength maxLength, const IndexedHash& hash,
-                          const QByteArray& encodingName, bool fakeFinalLF )
+                          const QByteArray& encodingName, bool fakeFinalLF ) const
 {
-    const auto dir = cacheDir();
-    if ( !QDir().mkpath( dir ) ) {
-        LOG_WARNING << "Cannot create index cache directory: " << dir;
+    if ( directory_.isEmpty() ) {
+        return false;
+    }
+
+    if ( !QDir().mkpath( directory_ ) ) {
+        LOG_WARNING << "Cannot create index cache directory: " << directory_;
         return false;
     }
 
@@ -199,17 +190,24 @@ bool IndexCache::trySave( const QString& filePath, const LinePositionArray& line
     return true;
 }
 
-void IndexCache::remove( const QString& filePath )
+void IndexCache::remove( const QString& filePath ) const
 {
+    if ( directory_.isEmpty() ) {
+        return;
+    }
+
     QFile::remove( cacheFilePath( filePath ) );
 }
 
-qint64 IndexCache::clearAll()
+qint64 IndexCache::clearAll() const
 {
-    const auto dir = cacheDir();
+    if ( directory_.isEmpty() ) {
+        return 0;
+    }
+
     qint64 freedBytes = 0;
 
-    QDirIterator it( dir, { "*.idx" }, QDir::Files );
+    QDirIterator it( directory_, { "*.idx" }, QDir::Files );
     while ( it.hasNext() ) {
         it.next();
         freedBytes += it.fileInfo().size();
@@ -220,12 +218,15 @@ qint64 IndexCache::clearAll()
     return freedBytes;
 }
 
-qint64 IndexCache::totalCacheSize()
+qint64 IndexCache::totalCacheSize() const
 {
-    const auto dir = cacheDir();
+    if ( directory_.isEmpty() ) {
+        return 0;
+    }
+
     qint64 total = 0;
 
-    QDirIterator it( dir, { "*.idx" }, QDir::Files );
+    QDirIterator it( directory_, { "*.idx" }, QDir::Files );
     while ( it.hasNext() ) {
         it.next();
         total += it.fileInfo().size();
@@ -233,9 +234,11 @@ qint64 IndexCache::totalCacheSize()
     return total;
 }
 
-void IndexCache::evict( qint64 maxBytes )
+void IndexCache::evict( qint64 maxBytes ) const
 {
-    const auto dir = cacheDir();
+    if ( directory_.isEmpty() ) {
+        return;
+    }
 
     struct CacheEntry {
         QString path;
@@ -246,7 +249,7 @@ void IndexCache::evict( qint64 maxBytes )
     QList<CacheEntry> entries;
     qint64 totalSize = 0;
 
-    QDirIterator it( dir, { "*.idx" }, QDir::Files );
+    QDirIterator it( directory_, { "*.idx" }, QDir::Files );
     while ( it.hasNext() ) {
         it.next();
         const auto info = it.fileInfo();
