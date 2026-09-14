@@ -67,6 +67,7 @@
 #include "selection.h"
 #include "viewportlayout.h"
 #include "viewtools.h"
+#include "wrappedstring.h"
 
 class QMenu;
 class QAction;
@@ -375,11 +376,23 @@ private:
     bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
 
-    // The Log Lines currently in the Viewport, with the Visual Lines they occupy. Computed
-    // on demand from the Log File -- not by painting -- and cached until
-    // something it depends on changes.
+    // A Log Line in the Viewport, both as the Log File holds it and as it is drawn.
+    struct ViewportLogLine {
+        LineNumber lineNumber{ 0 };
+        // The text as the Log File holds it, which the Line Decorator matches against.
+        QString text;
+        // The text with its tabs expanded, split into the Visual Lines it is drawn as.
+        WrappedString expanded;
+    };
+
+    // The Log Lines currently in the Viewport, with the Visual Lines they occupy.
+    // Computed on demand from the Log File -- not by painting -- and cached until
+    // something it depends on changes. Each Log Line is expanded and wrapped once
+    // here, for hit testing and painting alike.
     struct ViewportContent {
-        LineNumber firstLine{ 0 };
+        // What painting draws.
+        logsquirl::vector<ViewportLogLine> logLines;
+        // What hit testing resolves a point against.
         VisualLines visualLines;
     };
 

@@ -1788,23 +1788,23 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
         return content;
     }
 
-    content.firstLine = geometry.clampFirstLine( firstLine_, linesInFile );
+    const auto firstLine = geometry.clampFirstLine( firstLine_, linesInFile );
     const auto nbLines
-        = qMin( geometry.visibleLines(), linesInFile - LinesCount( content.firstLine.get() ) );
+        = qMin( geometry.visibleLines(), linesInFile - LinesCount( firstLine.get() ) );
     const auto visibleColumns = geometry.visibleColumns();
 
-    const auto rawLines = logData_->getLines( content.firstLine, nbLines );
+    auto rawLines = logData_->getLines( firstLine, nbLines );
+    content.logLines.reserve( rawLines.size() );
     content.visualLines.reserve( rawLines.size() );
 
     int yPos = 0;
     for ( size_t index = 0; index < rawLines.size(); ++index ) {
-        const QString expandedLine = untabify( QString{ rawLines[ index ] } );
-        const auto wrappedLineLength
-            = useTextWrap_ ? visibleColumns : LineLength{ logsquirl::isize( expandedLine ) + 1 };
-        WrappedString wrappedLine{ expandedLine, wrappedLineLength };
-
-        const auto lineNumber = content.firstLine + LinesCount( index );
+        QString expandedLine = untabify( QString{ rawLines[ index ] } );
         const auto lineLength = LineLength{ logsquirl::isize( expandedLine ) };
+        const auto wrappedLineLength = useTextWrap_ ? visibleColumns : lineLength + 1_length;
+        WrappedString wrappedLine{ std::move( expandedLine ), wrappedLineLength };
+
+        const auto lineNumber = firstLine + LinesCount( index );
         const auto wrappedCount = wrappedLine.wrappedLinesCount();
 
         LineColumn visualLineStart = 0_lcol;
@@ -1819,6 +1819,9 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
                             visualLineLength, lineLength } );
             visualLineStart += visualLineLength;
         }
+
+        content.logLines.push_back( ViewportLogLine{ lineNumber, std::move( rawLines[ index ] ),
+                                                     std::move( wrappedLine ) } );
 
         yPos += charHeight_ * static_cast<int>( wrappedCount );
         if ( yPos > viewport()->height() ) {
@@ -2229,18 +2232,11 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     // The layout owns the margin arithmetic; painting only reads it.
     const auto layout = viewportGeometry();
 
-    // firstLine_ is kept within range by the scroll path (scrollContentsBy,
-    // updateData); painting a view does not move it.
-    const auto linesInFile = logData_->getNbLine();
+    // The Log Lines to draw, already expanded and wrapped into the same Visual
+    // Lines hit testing resolves points against. Painting builds none of its own.
+    const auto& content = viewportContent();
 
-    const auto paintFirstLine = layout.clampFirstLine( firstLine_, linesInFile );
-    const auto nbLines
-        = qMin( getNbVisibleLines(), linesInFile - LinesCount( paintFirstLine.get() ) );
-
-    const int bottomOfTextPx = static_cast<int>( nbLines.get() ) * fontHeight;
-
-    LOG_DEBUG << "drawing lines from " << paintFirstLine << " (" << nbLines << " lines)";
-    LOG_DEBUG << "bottomOfTextPx: " << bottomOfTextPx;
+    LOG_DEBUG << "drawing " << content.logLines.size() << " Log Lines";
     LOG_DEBUG << "Height: " << paintDeviceHeight;
 
     painter->fillRect( 0, 0, paintDeviceWidth, paintDeviceHeight,
@@ -2292,9 +2288,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         return index;
     }();
-
-    // Lines to write
-    const auto logLines = logData_->getLines( paintFirstLine, nbLines );
 
     const auto highlightPatternMatches = Configuration::get().mainSearchHighlight();
     const auto variateHighlightPatternMatches = Configuration::get().variateMainSearchHighlight();
@@ -2365,12 +2358,9 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     // Position in pixel of the base line of the line to print
     int yPos = 0;
     logsquirl::vector<std::pair<QColor, QColor>> highlightColors;
-    for ( auto currentLine = 0_lcount; currentLine < nbLines; ++currentLine ) {
-        const auto lineNumber = paintFirstLine + currentLine;
-        if ( currentLine.get() >= logLines.size() ) {
-            break; // Guard against stale nbLines after file change
-        }
-        QString logLine = logLines[ currentLine.get() ];
+    for ( const auto& viewportLogLine : content.logLines ) {
+        const auto lineNumber = viewportLogLine.lineNumber;
+        const QString& logLine = viewportLogLine.text;
 
         const int xPos = layout.textOriginX();
 
@@ -2447,8 +2437,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         HighlightedMatchRanges allHighlights{ std::move( rawSpans ) };
 
-        // string to print, cut to fit the length and position of the view
-        const QString& expandedLine = untabify( std::move( logLine ) );
+        const auto& wrappedLineView = viewportLogLine.expanded;
+        const QStringView expandedLine = wrappedLineView.unwrappedLine();
 
         // Is there something selected in the line? Selection columns come
         // from mouse/pixel positions against the rendered (tab-expanded)
@@ -2461,12 +2451,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                                                       palette.color( QPalette::Highlight ) } );
         }
 
-        const auto wrappedLineLength
-            = useTextWrap_ ? nbVisibleCols : LineLength{ logsquirl::isize( expandedLine ) + 1 };
-        const WrappedString wrappedLineView{ expandedLine, wrappedLineLength };
         const auto finalLineHeight
             = fontHeight * static_cast<int>( wrappedLineView.wrappedLinesCount() );
-        // LOG_INFO << "Draw line " << lineNumber << ": " << expandedLine;
 
         painter->fillRect( xPos - ContentMarginWidth, yPos,
                            viewport()->width() - xPos + ContentMarginWidth, finalLineHeight,
@@ -2582,10 +2568,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, yPos + fontAscent,
                                lineNumberStr );
         }
+        // The viewport content already ends at the bottom of the viewport.
         yPos += finalLineHeight;
-        if ( yPos > viewport()->height() ) {
-            break;
-        }
     } // For each line
 }
 
