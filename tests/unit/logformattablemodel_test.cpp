@@ -19,7 +19,7 @@
 
 #include <catch2/catch.hpp>
 
-#include "abstractlogdata.h"
+#include "fake_log_data.h"
 #include "logformatdefinition.h"
 #include "logformattablemodel.h"
 
@@ -28,68 +28,6 @@
 #include <QFontMetrics>
 
 namespace {
-
-// Minimal mock of AbstractLogData for testing the table model.
-class MockLogData : public AbstractLogData {
-public:
-    void setLines( const QStringList& lines )
-    {
-        lines_ = lines;
-    }
-
-protected:
-    QString doGetLineString( LineNumber line ) const override
-    {
-        const auto idx = static_cast<int>( line.get() );
-        if ( idx >= 0 && idx < lines_.size() ) {
-            return lines_[ idx ];
-        }
-        return {};
-    }
-    QString doGetExpandedLineString( LineNumber line ) const override
-    {
-        return doGetLineString( line );
-    }
-    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
-    {
-        logsquirl::vector<QString> result;
-        for ( uint64_t i = 0; i < count.get(); ++i ) {
-            result.push_back( doGetLineString( LineNumber( first.get() + i ) ) );
-        }
-        return result;
-    }
-    logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
-                                                   LinesCount count ) const override
-    {
-        return doGetLines( first, count );
-    }
-    LineNumber doGetLineNumber( LineNumber index ) const override
-    {
-        return index;
-    }
-    LinesCount doGetNbLine() const override
-    {
-        return LinesCount( static_cast<uint64_t>( lines_.size() ) );
-    }
-    LineLength doGetMaxLength() const override
-    {
-        return LineLength( 0 );
-    }
-    LineLength doGetLineLength( LineNumber ) const override
-    {
-        return LineLength( 0 );
-    }
-    void doSetDisplayEncoding( const char* ) override {}
-    QTextCodec* doGetDisplayEncoding() const override
-    {
-        return nullptr;
-    }
-    void doAttachReader() const override {}
-    void doDetachReader() const override {}
-
-private:
-    QStringList lines_;
-};
 
 // Build a simple syslog-like format for testing
 LogFormatDefinition makeTestFormat()
@@ -120,7 +58,7 @@ SCENARIO( "LogFormatTableModel provides correct column count", "[logformat][tabl
     GIVEN( "A table model with a format defining timestamp, body and one value" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
         LogFormatTableModel model( format, &logData );
 
         THEN( "Column count is 4: timestamp, level, host, body" )
@@ -135,7 +73,7 @@ SCENARIO( "LogFormatTableModel returns proper column headers", "[logformat][tabl
     GIVEN( "A table model with a syslog-like format" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
         LogFormatTableModel model( format, &logData );
 
         THEN( "Column headers match the field names in deterministic order" )
@@ -172,7 +110,7 @@ SCENARIO( "LogFormatTableModel column order is stable with multiple value fields
         def.setValueDefinitions( values );
         // No valueFieldOrder set → falls back to alphabetical
 
-        MockLogData logData;
+        FakeLogData logData;
         LogFormatTableModel model( def, &logData );
 
         THEN( "Value field columns are sorted alphabetically (fallback)" )
@@ -213,7 +151,7 @@ SCENARIO( "LogFormatTableModel preserves JSON field order when valueFieldOrder i
         def.setValueFieldOrder(
             QStringList{ "timestamp", "level", "zebra", "alpha", "middle", "body" } );
 
-        MockLogData logData;
+        FakeLogData logData;
         LogFormatTableModel model( def, &logData );
 
         THEN( "Value field columns follow JSON insertion order" )
@@ -235,7 +173,7 @@ SCENARIO( "LogFormatTableModel row count starts at zero", "[logformat][tablemode
     GIVEN( "A newly constructed table model" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
         LogFormatTableModel model( format, &logData );
 
         THEN( "Row count is 0" )
@@ -251,7 +189,7 @@ SCENARIO( "LogFormatTableModel data is extracted lazily via setLineCount",
     GIVEN( "A table model with a syslog-like format" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
         LogFormatTableModel model( format, &logData );
 
         WHEN( "Lines are set in the log data and line count is updated" )
@@ -291,7 +229,7 @@ SCENARIO( "LogFormatTableModel handles non-matching lines", "[logformat][tablemo
     GIVEN( "A table model with a syslog-like format" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
         LogFormatTableModel model( format, &logData );
 
         WHEN( "A non-matching line is set" )
@@ -318,7 +256,7 @@ SCENARIO( "LogFormatTableModel passes Qt model tester", "[logformat][tablemodel]
     GIVEN( "A table model with lines" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
         logData.setLines( {
             "Jan  1 00:00:01 myhost first message",
             "Jan  1 00:00:02 myhost second message",
@@ -342,7 +280,7 @@ SCENARIO( "LogFormatTableModel body column returns full untruncated text",
     GIVEN( "A model with lines containing very long body text" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         // Create a line with a very long body (200+ characters)
         const QString longBody
@@ -372,7 +310,7 @@ SCENARIO( "LogFormatTableModel RawLineRole returns full original line",
     GIVEN( "A model with lines" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         const QString line = "Jan  1 12:00:00 myhost some body text here";
         logData.setLines( { line } );
@@ -395,7 +333,7 @@ SCENARIO( "Column width computation produces widths that fit all sampled text",
     GIVEN( "A model with lines of varying lengths including a very long body" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         // Short body
         const QString shortLine = "Jan  1 00:00:01 host1 short";
@@ -462,7 +400,7 @@ SCENARIO( "Column width computation handles non-matching lines in body column",
     GIVEN( "A model with lines that do not match the regex" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         // Non-matching lines (e.g., log file headers) go entirely into body column
         const QString headerLine = "#----- BEGIN: Logging session 2026-04-20 10:57:52.000 -----";
@@ -494,7 +432,7 @@ SCENARIO( "LogFormatTableModel cache invalidation on truncation", "[logformat][t
     GIVEN( "A table model with cached rows" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         logData.setLines( {
             "Jan  1 00:00:01 host1 first message",
@@ -533,7 +471,7 @@ SCENARIO( "LogFormatTableModel handles setLineCount(0)", "[logformat][tablemodel
     GIVEN( "A table model with data" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         logData.setLines( { "Jan  1 00:00:01 host1 msg" } );
         LogFormatTableModel model( format, &logData );
@@ -563,7 +501,7 @@ SCENARIO( "LogFormatTableModel RawLineRole uses cache consistently",
     GIVEN( "A table model with lines" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         const QString line = "Jan  1 12:00:00 myhost some body text here";
         logData.setLines( { line } );
@@ -606,7 +544,7 @@ SCENARIO( "LogFormatTableModel handles negative row index", "[logformat][tablemo
     GIVEN( "A table model with one line" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         logData.setLines( { "Jan  1 00:00:01 host1 msg" } );
         LogFormatTableModel model( format, &logData );
@@ -634,7 +572,7 @@ SCENARIO( "LogFormatTableModel setLineCount is idempotent", "[logformat][tablemo
     GIVEN( "A table model with data" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         logData.setLines( { "Jan  1 00:00:01 host1 msg" } );
         LogFormatTableModel model( format, &logData );
@@ -659,7 +597,7 @@ SCENARIO( "LogFormatTableModel unsupported role returns empty variant",
     GIVEN( "A table model with lines" )
     {
         auto format = makeTestFormat();
-        MockLogData logData;
+        FakeLogData logData;
 
         logData.setLines( { "Jan  1 00:00:01 host1 msg" } );
         LogFormatTableModel model( format, &logData );

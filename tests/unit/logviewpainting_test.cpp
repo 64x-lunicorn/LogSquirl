@@ -59,6 +59,7 @@
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
+#include "fake_log_data.h"
 #include "highlighterset.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
@@ -109,60 +110,14 @@ const std::vector<PaintedLine>& paintedLines()
     return lines;
 }
 
-class PaintingLogData : public AbstractLogData {
-protected:
-    QString doGetLineString( LineNumber line ) const override
-    {
-        const auto& lines = paintedLines();
-        return line.get() < lines.size() ? lines[ line.get() ].text : QString{};
+QStringList paintedTexts()
+{
+    QStringList texts;
+    for ( const auto& line : paintedLines() ) {
+        texts << line.text;
     }
-    QString doGetExpandedLineString( LineNumber line ) const override
-    {
-        return doGetLineString( line );
-    }
-    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
-    {
-        logsquirl::vector<QString> result;
-        for ( auto i = 0u; i < count.get() && first.get() + i < paintedLines().size(); ++i ) {
-            result.push_back( doGetLineString( LineNumber( first.get() + i ) ) );
-        }
-        return result;
-    }
-    logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
-                                                   LinesCount count ) const override
-    {
-        return doGetLines( first, count );
-    }
-    LineNumber doGetLineNumber( LineNumber index ) const override
-    {
-        return index;
-    }
-    LinesCount doGetNbLine() const override
-    {
-        return LinesCount( static_cast<LinesCount::UnderlyingType>( paintedLines().size() ) );
-    }
-    LineLength doGetMaxLength() const override
-    {
-        LineLength::UnderlyingType maxLength = 0;
-        for ( const auto& line : paintedLines() ) {
-            maxLength = std::max( maxLength,
-                                  static_cast<LineLength::UnderlyingType>( line.text.size() ) );
-        }
-        return LineLength( maxLength );
-    }
-    LineLength doGetLineLength( LineNumber line ) const override
-    {
-        return LineLength(
-            static_cast<LineLength::UnderlyingType>( doGetLineString( line ).size() ) );
-    }
-    void doSetDisplayEncoding( const char* ) override {}
-    QTextCodec* doGetDisplayEncoding() const override
-    {
-        return nullptr;
-    }
-    void doAttachReader() const override {}
-    void doDetachReader() const override {}
-};
+    return texts;
+}
 
 class PaintingLogView : public AbstractLogView {
 public:
@@ -265,7 +220,7 @@ struct PaintingConfiguration {
 
 QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
 {
-    const PaintingLogData logData;
+    const FakeLogData logData{ paintedTexts() };
     const QuickFindPattern quickFindPattern;
 
     PaintingLogView view( &logData, &quickFindPattern, configuration.textWrap );
