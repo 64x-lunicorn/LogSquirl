@@ -27,7 +27,7 @@
 #include "containers.h"
 #include "linetypes.h"
 
-// Where a Log Line sits on screen, and what sits at a given pixel.
+// Where a Log Line sits in the Viewport, and what sits at a given pixel.
 //
 // This is a value: it is built from plain integers, it reads its inputs and it
 // returns answers. It writes nothing -- in particular it never moves the view.
@@ -42,11 +42,11 @@
 // is proportional to the number of Log Lines in the Log File.
 
 // One Visual Line of the Viewport: a whole Log Line when text wrapping is
-// off, one wrapped fragment of a Log Line when it is on.
+// off, one wrapped part of a Log Line when it is on.
 struct VisualLine {
     // The Log Line this Visual Line shows part of.
     LineNumber lineNumber{ 0 };
-    // Index of this fragment within that Log Line (0 without wrapping).
+    // Index of this Visual Line within its Log Line (0 without wrapping).
     uint32_t wrappedLineIndex = 0;
     // Display column of the Log Line at which this Visual Line starts.
     LineColumn firstColumn{ 0 };

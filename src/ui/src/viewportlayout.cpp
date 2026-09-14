@@ -159,7 +159,7 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
         return FilePosition{ visualLine.lineNumber, 0_lcol };
     }
 
-    // Number of columns of this Visual Line that are actually on screen.
+    // Number of columns of this Visual Line that are actually in the Viewport.
     const auto visibleTextLength
         = input_.textWrap ? visualLine.length.get()
                           : std::clamp( visualLine.lineLength.get() - input_.firstColumn.get(),
@@ -185,16 +185,17 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
 
 ViewportRect ViewportLayout::rectForLine( LineNumber line ) const
 {
-    const auto first
-        = std::find_if( visualLines_.begin(), visualLines_.end(),
-                        [ line ]( const VisualLine& r ) { return r.lineNumber == line; } );
+    const auto first = std::find_if(
+        visualLines_.begin(), visualLines_.end(),
+        [ line ]( const VisualLine& visualLine ) { return visualLine.lineNumber == line; } );
     if ( first == visualLines_.end() ) {
         return ViewportRect{};
     }
 
     const auto visualLineCount = static_cast<int>(
-        std::count_if( first, visualLines_.end(),
-                       [ line ]( const VisualLine& r ) { return r.lineNumber == line; } ) );
+        std::count_if( first, visualLines_.end(), [ line ]( const VisualLine& visualLine ) {
+            return visualLine.lineNumber == line;
+        } ) );
 
     const auto firstIndex = static_cast<int>( std::distance( visualLines_.begin(), first ) );
     return ViewportRect{ 0, input_.drawingTopOffsetPx + firstIndex * charHeight(),

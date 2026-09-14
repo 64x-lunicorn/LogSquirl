@@ -19,7 +19,7 @@
 
 // What the log view paints, verified pixel for pixel against golden images
 // (#135). This is the safety net for changes to painting: anything that
-// alters what is drawn -- a colour, a margin, a glyph position, a bullet --
+// alters what is drawn -- a color, a margin, a glyph position, a bullet --
 // turns it red.
 //
 // A pixel comparison is only as portable as its inputs, so every input
@@ -34,8 +34,8 @@
 //   without its font it would verify nothing.
 // - The palette, the frame, the scroll bars and the viewport size are set
 //   explicitly, so no platform style leaks in.
-// - The settings painting reads -- main search highlighting and its colours,
-//   the QuickFind colour, the active Highlighter Sets -- are set for the
+// - The settings painting reads -- main search highlighting and its colors,
+//   the QuickFind color, the active Highlighter Sets -- are set for the
 //   duration of the test and restored afterwards.
 //
 // To accept a deliberate change to painting, run the test with

@@ -1807,7 +1807,7 @@ int AbstractLogView::pullToFollowOffsetPx() const
     return drawingTopPosition;
 }
 
-// The viewport layout including the Visual Lines on screen. They come from the
+// The viewport layout including the Visual Lines in the Viewport. They come from the
 // Log File, never from a paint, so a click or a hover before the first paint
 // resolves correctly.
 ViewportLayout AbstractLogView::viewportLayout() const

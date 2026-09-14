@@ -64,7 +64,8 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
 {
     QTemporaryDir tempDir;
     REQUIRE( tempDir.isValid() );
-    const IndexCache cache{ tempDir.filePath( "index-cache" ) };
+    const auto cacheDirectory = tempDir.filePath( "index-cache" );
+    const IndexCache cache{ cacheDirectory };
 
     GIVEN( "a saved index" )
     {
@@ -133,7 +134,7 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
         for ( int i = 0; i < sourcePaths.size(); ++i ) {
             QStringList before;
             {
-                QDirIterator it( cache.directory(), { "*.idx" }, QDir::Files );
+                QDirIterator it( cacheDirectory, { "*.idx" }, QDir::Files );
                 while ( it.hasNext() ) {
                     before << it.next();
                 }
@@ -144,7 +145,7 @@ SCENARIO( "The Index cache stores and retrieves indices at a temporary location"
 
             QStringList after;
             {
-                QDirIterator it( cache.directory(), { "*.idx" }, QDir::Files );
+                QDirIterator it( cacheDirectory, { "*.idx" }, QDir::Files );
                 while ( it.hasNext() ) {
                     after << it.next();
                 }

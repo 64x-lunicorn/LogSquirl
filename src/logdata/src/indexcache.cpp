@@ -25,7 +25,6 @@
 #include <QCryptographicHash>
 #include <QDataStream>
 #include <QDir>
-#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
@@ -199,19 +198,22 @@ void IndexCache::remove( const QString& filePath ) const
     QFile::remove( cacheFilePath( filePath ) );
 }
 
-qint64 IndexCache::clearAll() const
+QFileInfoList IndexCache::cacheFiles() const
 {
     if ( directory_.isEmpty() ) {
-        return 0;
+        return {};
     }
 
+    return QDir( directory_ ).entryInfoList( { QStringLiteral( "*.idx" ) }, QDir::Files );
+}
+
+qint64 IndexCache::clearAll() const
+{
     qint64 freedBytes = 0;
 
-    QDirIterator it( directory_, { "*.idx" }, QDir::Files );
-    while ( it.hasNext() ) {
-        it.next();
-        freedBytes += it.fileInfo().size();
-        QFile::remove( it.filePath() );
+    for ( const auto& file : cacheFiles() ) {
+        freedBytes += file.size();
+        QFile::remove( file.filePath() );
     }
 
     LOG_INFO << "Cleared index cache: freed " << freedBytes << " bytes";
@@ -220,26 +222,16 @@ qint64 IndexCache::clearAll() const
 
 qint64 IndexCache::totalCacheSize() const
 {
-    if ( directory_.isEmpty() ) {
-        return 0;
-    }
-
     qint64 total = 0;
 
-    QDirIterator it( directory_, { "*.idx" }, QDir::Files );
-    while ( it.hasNext() ) {
-        it.next();
-        total += it.fileInfo().size();
+    for ( const auto& file : cacheFiles() ) {
+        total += file.size();
     }
     return total;
 }
 
 void IndexCache::evict( qint64 maxBytes ) const
 {
-    if ( directory_.isEmpty() ) {
-        return;
-    }
-
     struct CacheEntry {
         QString path;
         qint64 size;
@@ -249,12 +241,9 @@ void IndexCache::evict( qint64 maxBytes ) const
     QList<CacheEntry> entries;
     qint64 totalSize = 0;
 
-    QDirIterator it( directory_, { "*.idx" }, QDir::Files );
-    while ( it.hasNext() ) {
-        it.next();
-        const auto info = it.fileInfo();
-        entries.append( { it.filePath(), info.size(), info.lastModified() } );
-        totalSize += info.size();
+    for ( const auto& file : cacheFiles() ) {
+        entries.append( { file.filePath(), file.size(), file.lastModified() } );
+        totalSize += file.size();
     }
 
     if ( totalSize <= maxBytes ) {

@@ -21,6 +21,7 @@
 
 #include <optional>
 
+#include <QFileInfo>
 #include <QString>
 
 #include "compressedlinestorage.h"
@@ -57,12 +58,6 @@ class IndexCache {
 public:
     explicit IndexCache( QString directory );
 
-    /// The directory this cache reads and writes.
-    const QString& directory() const
-    {
-        return directory_;
-    }
-
     /// Try to load a cached index for the given file.
     /// Returns std::nullopt if the cache does not exist or is invalid.
     std::optional<CachedIndex> tryLoad( const QString& filePath ) const;
@@ -88,6 +83,9 @@ public:
 private:
     /// Compute the cache file path for a source file.
     QString cacheFilePath( const QString& sourceFilePath ) const;
+
+    /// The cache files in the directory; none when there is no directory.
+    QFileInfoList cacheFiles() const;
 
     /// Magic bytes at the start of every cache file.
     static constexpr quint32 kMagic = 0x4C534149; // "LSAI"

@@ -376,7 +376,7 @@ private:
     bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
 
-    // The Log Lines currently on screen, with the Visual Lines they occupy. Computed
+    // The Log Lines currently in the Viewport, with the Visual Lines they occupy. Computed
     // on demand from the Log File -- not by painting -- and cached until
     // something it depends on changes.
     struct ViewportContent {
@@ -471,7 +471,7 @@ private:
     // visible counts and scroll ranges, and cheap because it touches no
     // Log Line.
     ViewportLayout viewportGeometry() const;
-    // The viewport layout including the Visual Lines currently on screen, which is
+    // The viewport layout including the Visual Lines currently in the Viewport, which is
     // what hit testing and painting need. Built from the Log File, never from
     // a paint, so it answers before the first paint has happened.
     ViewportLayout viewportLayout() const;

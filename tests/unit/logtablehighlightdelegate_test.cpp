@@ -772,7 +772,7 @@ SCENARIO( "Marking a line changes the Table View's row background",
 // keeps them agreeing. So the expectation below is not computed from the
 // padding constant; it is read back from what paint() actually drew. A
 // one-character portion selection makes paint() fill exactly that
-// character's cell in the highlight colour, and the hit test is asked about
+// character's cell in the highlight color, and the hit test is asked about
 // the pixels either side of that cell's midpoint: a click on the left half
 // of a character is a caret before it, on the right half a caret after it.
 // If the two paddings differ by even one pixel, one of those probes lands on
@@ -895,7 +895,7 @@ SCENARIO( "A click in a Table View cell resolves to the character painted under 
     }
 }
 
-SCENARIO( "A click in a Table View cell with no text under it resolves to the start",
+SCENARIO( "A click in a Table View cell away from its text resolves to the nearest end",
           "[logtablehighlightdelegate][hittest]" )
 {
     const QFontMetrics fontMetrics( QApplication::font() );
@@ -926,6 +926,13 @@ SCENARIO( "A click in a Table View cell with no text under it resolves to the st
         {
             REQUIRE( LogTableHighlightDelegate::charIndexAtX( cellText, fontMetrics, cellLeft, 0 )
                      == 0 );
+        }
+
+        THEN( "a click past the end of the text is the position after the last character" )
+        {
+            REQUIRE( LogTableHighlightDelegate::charIndexAtX( cellText, fontMetrics, cellLeft,
+                                                              cellLeft + 10000 )
+                     == static_cast<int>( cellText.size() ) );
         }
     }
 }
