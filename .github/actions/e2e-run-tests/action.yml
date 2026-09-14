@@ -1,0 +1,38 @@
+name: "Run E2E tests"
+description: "Download a build job's packages and run the E2E suite (without performance benchmarks) against them"
+inputs:
+  artifact_name:
+    description: "Name of the build artifact holding the binaries, e.g. packages-noble"
+    required: true
+  install_tools:
+    description: "Shell command installing the compression tools the E2E suite exercises on this runner"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/download-artifact@v8
+      with:
+        name: ${{ inputs.artifact_name }}
+        path: build/output
+
+    - name: Install compression tools
+      shell: bash
+      env:
+        INSTALL_TOOLS: ${{ inputs.install_tools }}
+      run: bash -euo pipefail -c "$INSTALL_TOOLS"
+
+    - uses: actions/setup-python@v7
+      with:
+        python-version: '3.12'
+
+    - name: Install E2E dependencies
+      shell: bash
+      working-directory: tests/e2e
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Run E2E tests (skip performance)
+      shell: bash
+      working-directory: tests/e2e
+      run: pytest -v -m "not performance" --binary-dir=../../build/output

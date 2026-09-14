@@ -26,13 +26,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - context: docker/oracle10
+          - container_root: docker/oracle10
             image_name: oracle10
-          - context: docker/ubuntu24.04
+          - container_root: docker/ubuntu24.04
             image_name: ubuntu-noble
-          - context: docker/ubuntu22.04
+          - container_root: docker/ubuntu22.04
             image_name: ubuntu-jammy
-          - context: docker/fedora43
+          - container_root: docker/fedora43
             image_name: fedora43
 
     steps:
@@ -45,17 +45,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Compute Dockerfile hash
-        id: df_hash
-        run: echo "sha256=$(sha256sum ${{ matrix.context }}/Dockerfile | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      # The label keeps its historical name; it covers the image directory
+      # and docker/shared (see docker/image-hash.sh).
+      - name: Compute image inputs hash
+        id: image_hash
+        env:
+          CONTAINER_ROOT: ${{ matrix.container_root }}
+        run: echo "sha256=$(sh docker/image-hash.sh "$CONTAINER_ROOT")" >> "$GITHUB_OUTPUT"
 
+      # The context is docker/ so every image can copy docker/shared.
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.context }}
+          context: docker
+          file: ${{ matrix.container_root }}/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:latest
             ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ github.sha }}
           labels: |
-            dockerfile.sha256=${{ steps.df_hash.outputs.sha256 }}
+            dockerfile.sha256=${{ steps.image_hash.outputs.sha256 }}
