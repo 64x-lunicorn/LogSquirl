@@ -104,8 +104,6 @@
 
 namespace {
 
-int mapPullToFollowLength( int length );
-
 // The margin geometry has one definition, in ViewportLayout. Hit testing, the
 // scrollbars and painting all read it from there.
 constexpr int SeparatorWidth = ViewportLayout::SeparatorWidth;
@@ -1085,16 +1083,10 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
         // Use the cache as is: nothing to do!
     }
 
-    // Height including the potentially invisible last line
-    const auto wholeHeight = static_cast<int>( getNbVisibleLines().get() ) * charHeight_;
-    // Height in pixels of the "pull to follow" bottom bar.
-    const auto pullToFollowHeight
-        = mapPullToFollowLength( followElasticHook_.size() )
-          + ( followElasticHook_.isHooked()
-                  ? ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight
-                  : 0 );
+    // The same geometry hit testing places the text by.
+    const auto pullToFollow = viewportGeometry().pullToFollowGeometry( pullToFollowState() );
 
-    if ( pullToFollowHeight && ( pullToFollowCache_.nb_columns_ != getNbVisibleCols() ) ) {
+    if ( pullToFollow.barHeightPx && ( pullToFollowCache_.nb_columns_ != getNbVisibleCols() ) ) {
         LOG_DEBUG << "Drawing pull to follow bar";
         pullToFollowCache_.pixmap_
             = drawPullToFollowBar( viewport()->width(), viewport()->devicePixelRatio() );
@@ -1102,30 +1094,11 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     }
 
     QPainter devicePainter( viewport() );
-    // The same pure function hit testing uses: painting no longer computes
-    // this by hand and leaves it behind as a member for hit testing to read.
-    const int drawingTopPosition = pullToFollowOffsetPx();
-    int drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
-
-    // This is to cover the special case where there is less than a screenful
-    // worth of data, we want to see the document from the top, rather than
-    // pushing the first couple of lines above the viewport.
-    if ( followElasticHook_.isHooked()
-         && ( logData_->getNbLine() + LinesCount( 1 ) < getNbVisibleLines() ) ) {
-        drawingPullToFollowTopPosition
-            = drawingTopPosition + viewport()->height() - PullToFollowHookedHeight;
-    }
-    // This is the case where the user is on the 'extra' slot at the end
-    // and is aligned on the last line (but no elastic shown)
-    else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
-        drawingPullToFollowTopPosition = drawingTopPosition + wholeHeight;
-    }
-
-    devicePainter.drawPixmap( 0, drawingTopPosition, textAreaCache_.pixmap_ );
+    devicePainter.drawPixmap( 0, pullToFollow.textTopPx, textAreaCache_.pixmap_ );
 
     // Draw the "pull to follow" zone if needed
-    if ( pullToFollowHeight ) {
-        devicePainter.drawPixmap( 0, drawingPullToFollowTopPosition, pullToFollowCache_.pixmap_ );
+    if ( pullToFollow.barHeightPx ) {
+        devicePainter.drawPixmap( 0, pullToFollow.barTopPx, pullToFollowCache_.pixmap_ );
     }
 
     LOG_DEBUG << "End of repaint "
@@ -1763,48 +1736,19 @@ ViewportLayout AbstractLogView::viewportGeometry() const
     input.lineNumbersVisible = lineNumbersVisible_;
     input.largestDisplayLineNumber = maxDisplayLineNumber().get();
     input.textWrap = useTextWrap_;
-    input.drawingTopOffsetPx = pullToFollowOffsetPx();
+    // The pull-to-follow geometry does not read the offset, so the layout
+    // built so far can already say what the offset is.
+    input.drawingTopOffsetPx
+        = ViewportLayout{ input }.pullToFollowGeometry( pullToFollowState() ).textTopPx;
     return ViewportLayout{ input };
 }
 
-// The vertical offset the pull-to-follow animation currently applies to the
-// drawn content, in pixels. Mirrors exactly the position painting blits the
-// text pixmap at (see paintEvent), computed here as a pure function of state
-// so hit testing can call it directly instead of painting leaving a value
-// behind.
-int AbstractLogView::pullToFollowOffsetPx() const
+PullToFollowState AbstractLogView::pullToFollowState() const
 {
-    // visibleLines() does not depend on drawingTopOffsetPx, so this does not
-    // recurse into viewportGeometry() -> pullToFollowOffsetPx() again; it is
-    // computed directly to avoid that recursion.
-    const int charHeight = std::max( charHeight_, 1 );
-    const int visibleLinesCount = std::max( viewport()->height() / charHeight + 1, 1 );
-    const auto visibleLines
-        = LinesCount( static_cast<LinesCount::UnderlyingType>( visibleLinesCount ) );
-    const int wholeHeight = visibleLinesCount * charHeight_;
-
-    const int pullToFollowHeight
-        = mapPullToFollowLength( followElasticHook_.size() )
-          + ( followElasticHook_.isHooked()
-                  ? ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight
-                  : 0 );
-
-    int drawingTopPosition = -pullToFollowHeight;
-
-    // Special case where there is less than a screenful worth of data: show
-    // the document from the top, rather than pushing the first couple of
-    // lines above the viewport.
-    if ( followElasticHook_.isHooked()
-         && ( logData_->getNbLine() + LinesCount( 1 ) < visibleLines ) ) {
-        drawingTopPosition += ( wholeHeight - viewport()->height() ) + PullToFollowHookedHeight;
-    }
-    // The user is on the 'extra' slot at the end and is aligned on the last
-    // line (but no elastic shown).
-    else if ( lastLineAligned_ && !followElasticHook_.isHooked() ) {
-        drawingTopPosition += -( wholeHeight - viewport()->height() );
-    }
-
-    return drawingTopPosition;
+    return PullToFollowState{ .elasticHookLength = followElasticHook_.size(),
+                              .hooked = followElasticHook_.isHooked(),
+                              .lastLineAligned = lastLineAligned_,
+                              .totalLines = logData_->getNbLine() };
 }
 
 // The viewport layout including the Visual Lines in the Viewport. They come from the
@@ -1844,23 +1788,23 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
         return content;
     }
 
-    content.firstLine = geometry.clampFirstLine( firstLine_, linesInFile );
+    const auto firstLine = geometry.clampFirstLine( firstLine_, linesInFile );
     const auto nbLines
-        = qMin( geometry.visibleLines(), linesInFile - LinesCount( content.firstLine.get() ) );
+        = qMin( geometry.visibleLines(), linesInFile - LinesCount( firstLine.get() ) );
     const auto visibleColumns = geometry.visibleColumns();
 
-    const auto rawLines = logData_->getLines( content.firstLine, nbLines );
+    auto rawLines = logData_->getLines( firstLine, nbLines );
+    content.logLines.reserve( rawLines.size() );
     content.visualLines.reserve( rawLines.size() );
 
     int yPos = 0;
     for ( size_t index = 0; index < rawLines.size(); ++index ) {
-        const QString expandedLine = untabify( QString{ rawLines[ index ] } );
-        const auto wrappedLineLength
-            = useTextWrap_ ? visibleColumns : LineLength{ logsquirl::isize( expandedLine ) + 1 };
-        WrappedString wrappedLine{ expandedLine, wrappedLineLength };
-
-        const auto lineNumber = content.firstLine + LinesCount( index );
+        QString expandedLine = untabify( QString{ rawLines[ index ] } );
         const auto lineLength = LineLength{ logsquirl::isize( expandedLine ) };
+        const auto wrappedLineLength = useTextWrap_ ? visibleColumns : lineLength + 1_length;
+        WrappedString wrappedLine{ std::move( expandedLine ), wrappedLineLength };
+
+        const auto lineNumber = firstLine + LinesCount( index );
         const auto wrappedCount = wrappedLine.wrappedLinesCount();
 
         LineColumn visualLineStart = 0_lcol;
@@ -1875,6 +1819,9 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
                             visualLineLength, lineLength } );
             visualLineStart += visualLineLength;
         }
+
+        content.logLines.push_back( ViewportLogLine{ lineNumber, std::move( rawLines[ index ] ),
+                                                     std::move( wrappedLine ) } );
 
         yPos += charHeight_ * static_cast<int>( wrappedCount );
         if ( yPos > viewport()->height() ) {
@@ -2285,18 +2232,11 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     // The layout owns the margin arithmetic; painting only reads it.
     const auto layout = viewportGeometry();
 
-    // firstLine_ is kept within range by the scroll path (scrollContentsBy,
-    // updateData); painting a view does not move it.
-    const auto linesInFile = logData_->getNbLine();
+    // The Log Lines to draw, already expanded and wrapped into the same Visual
+    // Lines hit testing resolves points against. Painting builds none of its own.
+    const auto& content = viewportContent();
 
-    const auto paintFirstLine = layout.clampFirstLine( firstLine_, linesInFile );
-    const auto nbLines
-        = qMin( getNbVisibleLines(), linesInFile - LinesCount( paintFirstLine.get() ) );
-
-    const int bottomOfTextPx = static_cast<int>( nbLines.get() ) * fontHeight;
-
-    LOG_DEBUG << "drawing lines from " << paintFirstLine << " (" << nbLines << " lines)";
-    LOG_DEBUG << "bottomOfTextPx: " << bottomOfTextPx;
+    LOG_DEBUG << "drawing " << content.logLines.size() << " Log Lines";
     LOG_DEBUG << "Height: " << paintDeviceHeight;
 
     painter->fillRect( 0, 0, paintDeviceWidth, paintDeviceHeight,
@@ -2348,9 +2288,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         return index;
     }();
-
-    // Lines to write
-    const auto logLines = logData_->getLines( paintFirstLine, nbLines );
 
     const auto highlightPatternMatches = Configuration::get().mainSearchHighlight();
     const auto variateHighlightPatternMatches = Configuration::get().variateMainSearchHighlight();
@@ -2421,12 +2358,9 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     // Position in pixel of the base line of the line to print
     int yPos = 0;
     logsquirl::vector<std::pair<QColor, QColor>> highlightColors;
-    for ( auto currentLine = 0_lcount; currentLine < nbLines; ++currentLine ) {
-        const auto lineNumber = paintFirstLine + currentLine;
-        if ( currentLine.get() >= logLines.size() ) {
-            break; // Guard against stale nbLines after file change
-        }
-        QString logLine = logLines[ currentLine.get() ];
+    for ( const auto& viewportLogLine : content.logLines ) {
+        const auto lineNumber = viewportLogLine.lineNumber;
+        const QString& logLine = viewportLogLine.text;
 
         const int xPos = layout.textOriginX();
 
@@ -2503,8 +2437,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         HighlightedMatchRanges allHighlights{ std::move( rawSpans ) };
 
-        // string to print, cut to fit the length and position of the view
-        const QString& expandedLine = untabify( std::move( logLine ) );
+        const auto& wrappedLineView = viewportLogLine.wrapped;
+        const QStringView expandedLine = wrappedLineView.unwrappedLine();
 
         // Is there something selected in the line? Selection columns come
         // from mouse/pixel positions against the rendered (tab-expanded)
@@ -2517,12 +2451,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                                                       palette.color( QPalette::Highlight ) } );
         }
 
-        const auto wrappedLineLength
-            = useTextWrap_ ? nbVisibleCols : LineLength{ logsquirl::isize( expandedLine ) + 1 };
-        const WrappedString wrappedLineView{ expandedLine, wrappedLineLength };
         const auto finalLineHeight
             = fontHeight * static_cast<int>( wrappedLineView.wrappedLinesCount() );
-        // LOG_INFO << "Draw line " << lineNumber << ": " << expandedLine;
 
         painter->fillRect( xPos - ContentMarginWidth, yPos,
                            viewport()->width() - xPos + ContentMarginWidth, finalLineHeight,
@@ -2639,9 +2569,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                                lineNumberStr );
         }
         yPos += finalLineHeight;
-        if ( yPos > viewport()->height() ) {
-            break;
-        }
     } // For each line
 }
 
@@ -2685,13 +2612,3 @@ void AbstractLogView::setColorLabel( QAction* action )
         Q_EMIT clearColorLabels();
     }
 }
-
-namespace {
-
-// Convert the length of the pull to follow bar to pixels
-int mapPullToFollowLength( int length )
-{
-    return length / 14;
-}
-
-} // namespace

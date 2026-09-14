@@ -56,6 +56,7 @@
 #include <QFontInfo>
 #include <QFontMetrics>
 #include <QImage>
+#include <QMouseEvent>
 #include <QPalette>
 
 #include "abstractlogdata.h"
@@ -380,6 +381,64 @@ SCENARIO( "The log view paints exactly what it painted before", "[logviewpaintin
             {
                 requirePaintingMatchesGolden( { .textWrap = true, .lineNumbersVisible = true },
                                               QStringLiteral( "wrapped-line-numbers" ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// A FakeLogData that counts how often the Log Lines of a viewport are fetched.
+class CountingLogData : public FakeLogData {
+public:
+    using FakeLogData::FakeLogData;
+
+    mutable int linesFetched = 0;
+
+protected:
+    logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
+    {
+        ++linesFetched;
+        return FakeLogData::doGetLines( first, count );
+    }
+};
+
+} // namespace
+
+SCENARIO( "The log view expands and wraps a viewport once per change", "[logviewpainting]" )
+{
+    const PinnedPaintingSettings settings;
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a painted view with text wrapping " << ( textWrap ? "on" : "off" ) )
+        {
+            const CountingLogData logData{ paintedTexts() };
+            const QuickFindPattern quickFindPattern;
+
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            view.setFrameShape( QFrame::NoFrame );
+            view.resize( ViewWidth, ViewHeight );
+            view.show();
+            QCoreApplication::processEvents();
+            view.updateData();
+            view.viewport()->grab();
+
+            WHEN( "the Log File changes, and the view is painted and hovered over" )
+            {
+                logData.linesFetched = 0;
+                view.forceRefresh();
+                view.viewport()->grab();
+
+                const QPoint overText{ ViewWidth / 2, ViewHeight / 2 };
+                QMouseEvent hover( QEvent::MouseMove, overText,
+                                   view.viewport()->mapToGlobal( overText ), Qt::NoButton,
+                                   Qt::NoButton, Qt::NoModifier );
+                QCoreApplication::sendEvent( view.viewport(), &hover );
+
+                THEN( "painting and hit testing read the Log Lines of one expansion" )
+                {
+                    REQUIRE( logData.linesFetched == 1 );
+                }
             }
         }
     }

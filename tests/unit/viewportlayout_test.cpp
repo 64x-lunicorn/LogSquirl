@@ -55,6 +55,15 @@ VisualLines unwrappedVisualLines( LineNumber firstLine, size_t count, LineLength
     return visualLines;
 }
 
+// A Log File longer than the viewport, with no elastic pull, not hooked and not
+// aligned on its last Log Line. Each pull-to-follow case changes what it is about.
+PullToFollowState restingPullToFollowState()
+{
+    return PullToFollowState{
+        .elasticHookLength = 0, .hooked = false, .lastLineAligned = false, .totalLines = 1000_lcount
+    };
+}
+
 } // namespace
 
 SCENARIO( "Viewport layout margin arithmetic", "[viewportlayout]" )
@@ -417,6 +426,134 @@ SCENARIO( "Viewport layout first visible line range", "[viewportlayout]" )
             REQUIRE( layout.clampFirstLine( 50_lnum, 10_lcount ) == 9_lnum );
             REQUIRE( layout.clampFirstLine( 50_lnum, 0_lcount ) == 0_lnum );
             REQUIRE( layout.clampFirstLine( 3_lnum, 10_lcount ) == 3_lnum );
+        }
+    }
+}
+
+// The expected pixels below are the positions painting placed the text and the
+// pull-to-follow bar at before their geometry had one definition (#138). With a
+// 400 px viewport and 20 px Visual Lines, 21 Visual Lines are visible, so the
+// whole height is 420 px and the partly hidden last Visual Line overhangs by 20.
+SCENARIO( "Viewport layout pull-to-follow geometry", "[viewportlayout]" )
+{
+    const ViewportLayout layout{ fixedWidthInput() };
+    REQUIRE( layout.visibleLines() == 21_lcount );
+
+    GIVEN( "No elastic pull and the view not hooked" )
+    {
+        const auto geometry = layout.pullToFollowGeometry( restingPullToFollowState() );
+
+        THEN( "there is no bar and the text is drawn from the top" )
+        {
+            REQUIRE( geometry.barHeightPx == 0 );
+            REQUIRE( geometry.textTopPx == 0 );
+            REQUIRE( geometry.barTopPx == 420 );
+        }
+    }
+
+    GIVEN( "An elastic pull that has not hooked yet" )
+    {
+        auto state = restingPullToFollowState();
+        state.elasticHookLength = 140;
+        const auto geometry = layout.pullToFollowGeometry( state );
+
+        THEN( "the text moves up by the pull and the bar follows below it" )
+        {
+            REQUIRE( geometry.barHeightPx == 10 );
+            REQUIRE( geometry.textTopPx == -10 );
+            REQUIRE( geometry.barTopPx == 410 );
+        }
+    }
+
+    GIVEN( "The elastic hooked on a Log File longer than the viewport" )
+    {
+        auto state = restingPullToFollowState();
+        state.hooked = true;
+        const auto geometry = layout.pullToFollowGeometry( state );
+
+        THEN( "the hooked bar shows below the last Visual Line" )
+        {
+            REQUIRE( geometry.barHeightPx == 20 + ViewportLayout::PullToFollowHookedHeight );
+            REQUIRE( geometry.textTopPx == -30 );
+            REQUIRE( geometry.barTopPx == 390 );
+        }
+    }
+
+    GIVEN( "The elastic hooked on a Log File shorter than a screenful" )
+    {
+        auto state = restingPullToFollowState();
+        state.elasticHookLength = 70;
+        state.hooked = true;
+        state.totalLines = 5_lcount;
+        const auto geometry = layout.pullToFollowGeometry( state );
+
+        THEN( "the text stays at the top, moved only by the pull" )
+        {
+            REQUIRE( geometry.barHeightPx == 35 );
+            REQUIRE( geometry.textTopPx == -5 );
+        }
+
+        THEN( "the bar sits at the bottom of the viewport" )
+        {
+            REQUIRE( geometry.barTopPx == -5 + 400 - ViewportLayout::PullToFollowHookedHeight );
+        }
+    }
+
+    GIVEN( "The elastic hooked on a Log File exactly one Visual Line short of a screenful" )
+    {
+        auto state = restingPullToFollowState();
+        state.hooked = true;
+        state.totalLines = 20_lcount;
+        const auto geometry = layout.pullToFollowGeometry( state );
+
+        THEN( "it is placed like a longer Log File" )
+        {
+            REQUIRE( geometry.textTopPx == -30 );
+            REQUIRE( geometry.barTopPx == 390 );
+        }
+    }
+
+    GIVEN( "The last Log Line aligned to the bottom, not hooked" )
+    {
+        auto state = restingPullToFollowState();
+        state.lastLineAligned = true;
+        const auto geometry = layout.pullToFollowGeometry( state );
+
+        THEN( "the text moves up by the overhang of the last Visual Line" )
+        {
+            REQUIRE( geometry.barHeightPx == 0 );
+            REQUIRE( geometry.textTopPx == -20 );
+            REQUIRE( geometry.barTopPx == 400 );
+        }
+    }
+
+    GIVEN( "The last Log Line aligned and the elastic hooked" )
+    {
+        auto state = restingPullToFollowState();
+        state.hooked = true;
+        state.lastLineAligned = true;
+        const auto geometry = layout.pullToFollowGeometry( state );
+
+        THEN( "the hook wins over the alignment" )
+        {
+            REQUIRE( geometry.textTopPx == -30 );
+            REQUIRE( geometry.barTopPx == 390 );
+        }
+    }
+
+    GIVEN( "A layout that already carries a drawing offset" )
+    {
+        auto input = fixedWidthInput();
+        input.drawingTopOffsetPx = -123;
+        const ViewportLayout offsetLayout{ input };
+
+        THEN( "the geometry does not depend on it, since it is what produces it" )
+        {
+            auto state = restingPullToFollowState();
+            state.elasticHookLength = 140;
+            state.hooked = true;
+            REQUIRE( offsetLayout.pullToFollowGeometry( state )
+                     == layout.pullToFollowGeometry( state ) );
         }
     }
 }

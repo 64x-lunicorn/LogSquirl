@@ -99,6 +99,30 @@ struct ViewportLayoutInput {
     int drawingTopOffsetPx = 0;
 };
 
+// The follow mode state the pull-to-follow geometry depends on.
+struct PullToFollowState {
+    // How far the elastic hook has been pulled, in its own units.
+    int elasticHookLength = 0;
+    // Whether the elastic hook has hooked, i.e. follow mode is about to engage.
+    bool hooked = false;
+    // Whether the bottom of the last Log Line is aligned with the bottom of the
+    // viewport rather than the top of the first one with its top.
+    bool lastLineAligned = false;
+    LinesCount totalLines{ 0 };
+};
+
+// Where the text and the pull-to-follow bar are drawn, in viewport pixels.
+struct PullToFollowGeometry {
+    // Height of the pull-to-follow bar, 0 when there is none to draw.
+    int barHeightPx = 0;
+    // Vertical offset of the first Visual Line; what drawingTopOffsetPx is set to.
+    int textTopPx = 0;
+    // Top of the pull-to-follow bar.
+    int barTopPx = 0;
+
+    bool operator==( const PullToFollowGeometry& ) const = default;
+};
+
 class ViewportLayout {
 public:
     // Margin geometry. One definition, used by hit testing, the scrollbars and
@@ -107,6 +131,8 @@ public:
     static constexpr int BulletAreaWidth = 11;
     static constexpr int ContentMarginWidth = 1;
     static constexpr int LineNumberPadding = 3;
+    // Extra height of the pull-to-follow bar once the elastic hook has hooked.
+    static constexpr int PullToFollowHookedHeight = 10;
 
     explicit ViewportLayout( ViewportLayoutInput input, VisualLines visualLines = {} );
 
@@ -172,6 +198,14 @@ public:
     LineNumber lastValidFirstLine( LinesCount totalLines ) const;
     // line, brought back into the range the Log File actually has.
     LineNumber clampFirstLine( LineNumber line, LinesCount totalLines ) const;
+
+    // --- pull to follow ------------------------------------------------
+
+    // Where the text and the pull-to-follow bar go. The one definition that
+    // painting and hit testing both read, so they cannot place the text at
+    // different positions. Independent of drawingTopOffsetPx, which is derived
+    // from it.
+    PullToFollowGeometry pullToFollowGeometry( const PullToFollowState& state ) const;
 
 private:
     // Never zero: a degenerate font metric must not divide by zero, and a

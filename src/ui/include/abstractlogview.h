@@ -67,6 +67,7 @@
 #include "selection.h"
 #include "viewportlayout.h"
 #include "viewtools.h"
+#include "wrappedstring.h"
 
 class QMenu;
 class QAction;
@@ -322,7 +323,6 @@ private Q_SLOTS:
 private:
     // Graphic parameters
     static constexpr int HookThreshold = 300;
-    static constexpr int PullToFollowHookedHeight = 10;
 
     // Digits buffer (for numeric keyboard entry)
     DigitsBuffer digitsBuffer_;
@@ -376,11 +376,23 @@ private:
     bool useTextWrap_;
     LineColumn firstCol_ = 0_lcol;
 
-    // The Log Lines currently in the Viewport, with the Visual Lines they occupy. Computed
-    // on demand from the Log File -- not by painting -- and cached until
-    // something it depends on changes.
+    // A Log Line in the Viewport, both as the Log File holds it and as it is drawn.
+    struct ViewportLogLine {
+        LineNumber lineNumber{ 0 };
+        // The text as the Log File holds it, which the Line Decorator matches against.
+        QString text;
+        // The text with its tabs expanded, split into the Visual Lines it is drawn as.
+        WrappedString wrapped;
+    };
+
+    // The Log Lines currently in the Viewport, with the Visual Lines they occupy.
+    // Computed on demand from the Log File -- not by painting -- and cached until
+    // something it depends on changes. Each Log Line is expanded and wrapped once
+    // here, for hit testing and painting alike.
     struct ViewportContent {
-        LineNumber firstLine{ 0 };
+        // What painting draws.
+        logsquirl::vector<ViewportLogLine> logLines;
+        // What hit testing resolves a point against.
         VisualLines visualLines;
     };
 
@@ -486,11 +498,11 @@ private:
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
     OptionalLineNumber convertCoordToLine( int yPos ) const;
 
-    // Vertical offset (pixels) at which the first Visual Line is drawn, given the
-    // current pull-to-follow animation state. Pure: reads state, writes
-    // nothing. Painting and hit testing both call it instead of painting
-    // leaving a value behind for hit testing to read later.
-    int pullToFollowOffsetPx() const;
+    // The follow mode state the layout places the text and the pull-to-follow
+    // bar from. Painting and hit testing both hand it to the same
+    // ViewportLayout::pullToFollowGeometry() instead of computing positions
+    // of their own.
+    PullToFollowState pullToFollowState() const;
 
     void displayLine( LineNumber line );
     void moveSelection( LinesCount delta, bool isDeltaNegative );

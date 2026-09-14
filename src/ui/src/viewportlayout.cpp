@@ -36,6 +36,9 @@ int countLineNumberDigits( uint64_t x )
 
 namespace {
 
+// How many units of elastic hook pull make one pixel of the pull-to-follow bar.
+constexpr int ElasticHookLengthPerPx = 14;
+
 // Round up a / b for a possibly negative numerator and a positive divisor.
 int ceilDiv( int a, int b )
 {
@@ -281,4 +284,34 @@ LineNumber ViewportLayout::clampFirstLine( LineNumber line, LinesCount totalLine
     }
     const auto lastLine = LineNumber( totalLines.get() - 1 );
     return line > lastLine ? lastLine : line;
+}
+
+PullToFollowGeometry ViewportLayout::pullToFollowGeometry( const PullToFollowState& state ) const
+{
+    // Height including the partly hidden last Visual Line.
+    const int wholeHeight = static_cast<int>( visibleLines().get() ) * charHeight();
+    // How far the partly hidden last Visual Line reaches below the viewport.
+    const int overhang = wholeHeight - input_.viewportHeightPx;
+    const int elasticHeight = state.elasticHookLength / ElasticHookLengthPerPx;
+
+    PullToFollowGeometry geometry;
+    geometry.barHeightPx
+        = elasticHeight + ( state.hooked ? overhang + PullToFollowHookedHeight : 0 );
+    geometry.textTopPx = -geometry.barHeightPx;
+    geometry.barTopPx = geometry.textTopPx + wholeHeight;
+
+    if ( state.hooked && state.totalLines + LinesCount( 1 ) < visibleLines() ) {
+        // Less than a screenful of Log Lines: show the Log File from the top
+        // rather than pushing its first lines above the viewport, with the bar
+        // at the bottom of the viewport.
+        geometry.textTopPx += overhang + PullToFollowHookedHeight;
+        geometry.barTopPx = geometry.textTopPx + input_.viewportHeightPx - PullToFollowHookedHeight;
+    }
+    else if ( state.lastLineAligned && !state.hooked ) {
+        // On the extra slot at the end, aligned on the last Log Line.
+        geometry.textTopPx -= overhang;
+        geometry.barTopPx = geometry.textTopPx + wholeHeight;
+    }
+
+    return geometry;
 }
