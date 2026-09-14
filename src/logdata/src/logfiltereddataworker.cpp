@@ -347,19 +347,11 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     LOG_INFO << "Using " << matchingThreadsCount << " matching threads";
 
-    // A persistent, explicitly entered tbb::task_arena around this whole
-    // section (constructing the graph, feeding it and wait_for_all()) was
-    // tried here as a fix for the #85 CI-only ~120s stall (theory: rapid
-    // back-to-back graph construction/teardown on the same thread, since
-    // 80f08072 removed the blocking wait between runs, could leave a fresh
-    // implicit arena's task demand unregistered). It had zero effect -- CI
-    // reproduced the identical stall with it in place -- so it was reverted
-    // rather than left as unexplained complexity. See the per-chunk
-    // checkpoints below for the next round of narrowing: qtests_main.cpp
-    // deliberately sets a 10-line read buffer for this binary, so a 20000-line
-    // test file means ~2000 chunks and heavy churn through the limiter's
-    // capacity of matchingThreadsCount * 3 -- plenty of iterations for a
-    // rare per-iteration race to surface, if that's what this is.
+    // The graph pulls its blocks from an input_node while this thread waits in
+    // wait_for_all(), which makes this thread one of those running the graph.
+    // Pushing blocks in from here instead, sleeping whenever the limiter was
+    // full, only worked while TBB had a worker free for this graph: the blocks
+    // already accepted sat queued for as long as it had none, 120 s in CI (#142).
     tbb::flow::graph searchGraph;
 
     if ( initialLine < startLine_ ) {
@@ -389,13 +381,6 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     // compiledExpression_ was already compiled by whoever validated the
     // pattern before starting this run (see SearchOperation's ctor) --
     // reused here rather than recompiled.
-    // Diagnostic for the #85 CI-only ~120s stall (see logfiltereddata_test.cpp's
-    // "a Search superseded by a later one" scenario): bisects doSearch's overall
-    // duration so a failing CI run pins down which phase actually ate the time,
-    // rather than guessing between regex compilation, graph setup, the feed loop
-    // and wait_for_all(). Remove once that investigation concludes.
-    LOG_INFO << "doSearch checkpoint: pattern compiled after "
-             << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
     for ( auto index = 0u; index < matchingThreadsCount; ++index ) {
         regexMatchers.emplace_back(
             compiledExpression_->createMatcher(), microseconds{ 0 },
@@ -505,75 +490,34 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     tbb::flow::make_edge( resultsQueue, matchProcessor );
     tbb::flow::make_edge( matchProcessor, blockPrefetcher.decrementer() );
 
-    LOG_INFO << "doSearch checkpoint: graph wired after "
-             << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
-
+    // blockReader's body reads one block per call. Once it stops, the Search
+    // ends as soon as the blocks already read have gone through the graph.
     auto chunkStart = initialLine;
-    int chunkIndex = 0;
-    while ( chunkStart < endLine && !isSuperseded() ) {
-        const auto lineSourceStartTime = high_resolution_clock::now();
-        LOG_DEBUG << "Reading chunk starting at " << chunkStart;
-
-        // Diagnostic for #85 (see the comment above the graph construction
-        // above): narrows the CI-only ~120s stall further than "somewhere in
-        // the feed loop" by bracketing the two things that loop actually
-        // does per chunk -- reading it, and handing it to the graph. Remove
-        // once that investigation concludes.
-        LOG_INFO << "doSearch checkpoint: chunk " << chunkIndex << " read starting after "
-                 << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
-
-        const auto linesInChunk
-            = LinesCount( qMin( nbLinesInChunk.get(), ( endLine - chunkStart ).get() ) );
-        auto lines = sourceLogData_.getLinesRaw( chunkStart, linesInChunk );
-
-        LOG_INFO << "doSearch checkpoint: chunk " << chunkIndex << " read done after "
-                 << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
-
-        /*LOG_DEBUG << "Sending chunk starting at " << chunkStart << ", " <<
-            lines.second.size()
-                << " lines read.";*/
-        BlockDataType blockData = new SearchBlockData{ chunkStart, std::move( lines ) };
-
-        const auto lineSourceEndTime = high_resolution_clock::now();
-        const auto chunkReadTime
-            = duration_cast<microseconds>( lineSourceEndTime - lineSourceStartTime );
-
-        /*LOG_DEBUG << "Sent chunk starting at " << chunkStart << ", " <<
-        blockData->lines.second.size()
-                << " lines read in " << static_cast<float>( chunkReadTime.count() )
-        / 1000.f
-                << " ms";*/
-
-        chunkStart = chunkStart + nbLinesInChunk;
-        fileReadingDuration += chunkReadTime;
-
-        // Wait until the prefetcher accepts the block or the search is interrupted. If the
-        // block was never published it is still owned by us, so it must be freed here to
-        // avoid leaking the SearchBlockData.
-        bool blockAccepted = false;
-        int putAttempts = 0;
-        while ( !isSuperseded() ) {
-            ++putAttempts;
-            if ( blockPrefetcher.try_put( blockData ) ) {
-                blockAccepted = true;
-                break;
+    auto blockReader = tbb::flow::input_node<BlockDataType>(
+        searchGraph, [ & ]( tbb::flow_control& control ) -> BlockDataType {
+            if ( chunkStart >= endLine || isSuperseded() ) {
+                control.stop();
+                return nullptr;
             }
-            std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-        }
-        LOG_INFO << "doSearch checkpoint: chunk " << chunkIndex << " put "
-                 << ( blockAccepted ? "accepted" : "superseded" ) << " after " << putAttempts
-                 << " attempt(s), "
-                 << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
-        if ( !blockAccepted ) {
-            delete blockData;
-            break;
-        }
-        ++chunkIndex;
-    }
 
-    LOG_INFO << "doSearch checkpoint: feed loop done after "
-             << duration_cast<milliseconds>( high_resolution_clock::now() - t1 );
+            const auto lineSourceStartTime = high_resolution_clock::now();
+            LOG_DEBUG << "Reading chunk starting at " << chunkStart;
 
+            const auto linesInChunk
+                = LinesCount( qMin( nbLinesInChunk.get(), ( endLine - chunkStart ).get() ) );
+            BlockDataType blockData
+                = new SearchBlockData{ chunkStart,
+                                       sourceLogData_.getLinesRaw( chunkStart, linesInChunk ) };
+
+            chunkStart = chunkStart + nbLinesInChunk;
+            fileReadingDuration += duration_cast<microseconds>( high_resolution_clock::now()
+                                                                - lineSourceStartTime );
+            return blockData;
+        } );
+
+    tbb::flow::make_edge( blockReader, blockPrefetcher );
+
+    blockReader.activate();
     searchGraph.wait_for_all();
 
     high_resolution_clock::time_point t2 = high_resolution_clock::now();
