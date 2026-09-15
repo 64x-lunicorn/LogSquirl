@@ -155,13 +155,18 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
         ->setEnabled( hasSelection );
 
     menu->addSeparator();
-    // The shortcuts are the Text View's, shown here as a reminder.
+    // The shortcuts are the Text View's, shown there as a reminder; the Table
+    // View does not bind them.
     auto* findNext = addEntry( *menu, tr( "Find &next" ), entries.findNext );
-    findNext->setShortcut( Qt::Key_Asterisk );
+    if ( report.drawnLikeTextView ) {
+        findNext->setShortcut( Qt::Key_Asterisk );
+    }
     findNext->setStatusTip( tr( "Find the next occurrence" ) );
     findNext->setEnabled( textWithinLogLine );
     auto* findPrevious = addEntry( *menu, tr( "Find &previous" ), entries.findPrevious );
-    findPrevious->setShortcut( QKeySequence( tr( "/" ) ) );
+    if ( report.drawnLikeTextView ) {
+        findPrevious->setShortcut( QKeySequence( tr( "/" ) ) );
+    }
     findPrevious->setStatusTip( tr( "Find the previous occurrence" ) );
     findPrevious->setEnabled( textWithinLogLine );
 

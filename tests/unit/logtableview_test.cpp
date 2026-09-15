@@ -481,6 +481,18 @@ QStringList entriesOf( const QMenu& menu )
     return entries;
 }
 
+// The shortcut shown with an entry of a context menu.
+QKeySequence shortcutOf( const QMenu& menu, const QString& entry )
+{
+    for ( const auto* action : menu.actions() ) {
+        if ( action->text() == entry ) {
+            return action->shortcut();
+        }
+    }
+    FAIL( "no entry " << entry.toStdString() );
+    return {};
+}
+
 QPoint centerOfRow( const LogTableView& view, int row )
 {
     return view.visualRect( view.model()->index( row, 0 ) ).center();
@@ -539,6 +551,15 @@ SCENARIO( "The Text View and the Table View offer one context menu", "[logtablev
 
                 REQUIRE( entriesOf( *tableMenu ) == tableEntries );
                 REQUIRE( entriesOf( *textMenu ) == textEntries );
+            }
+
+            THEN( "only the Text View, where * and / find, shows them as the shortcuts of Find "
+                  "next and Find previous" )
+            {
+                REQUIRE( shortcutOf( *textMenu, "Find &next" ) == QKeySequence( "*" ) );
+                REQUIRE( shortcutOf( *textMenu, "Find &previous" ) == QKeySequence( "/" ) );
+                REQUIRE( shortcutOf( *tableMenu, "Find &next" ).isEmpty() );
+                REQUIRE( shortcutOf( *tableMenu, "Find &previous" ).isEmpty() );
             }
         }
     }
