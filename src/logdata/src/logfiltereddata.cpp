@@ -148,6 +148,16 @@ LinesCount LogFilteredData::getNbMarks() const
     return LinesCount( marks_.cardinality() );
 }
 
+SearchResultArray LogFilteredData::copyDisplayedLines() const
+{
+    return currentResultArray();
+}
+
+const LogData& LogFilteredData::sourceLogData() const
+{
+    return *sourceLogData_;
+}
+
 LogFilteredData::LineType LogFilteredData::lineTypeByIndex( LineNumber index ) const
 {
     return lineTypeByLine( findLogDataLine( index ) );
@@ -190,6 +200,7 @@ void LogFilteredData::setSearchPolicy( const SearchPolicy& searchPolicy )
     // rebuild them.
     session_.setMarks( marks_ );
     session_.setSearchPolicy( searchPolicy );
+    refreshDisplayedLines();
 }
 
 void LogFilteredData::rebuildContextLines()
@@ -198,6 +209,7 @@ void LogFilteredData::rebuildContextLines()
     // push the current set before asking it to recompute.
     session_.setMarks( marks_ );
     session_.rebuildContextLines();
+    refreshDisplayedLines();
 }
 
 // Delegation to our Marks object
@@ -301,6 +313,7 @@ void LogFilteredData::updateMaxLengthMarks( OptionalLineNumber added_line,
 void LogFilteredData::clearMarks()
 {
     marks_ = {};
+    marks_and_matches_ = matching_lines_;
     maxLengthMarks_ = 0_length;
     rebuildContextLines();
 }
@@ -321,6 +334,7 @@ QList<LineNumber> LogFilteredData::getMarks() const
 void LogFilteredData::setVisibility( Visibility visi )
 {
     visibility_ = visi;
+    refreshDisplayedLines();
 }
 
 LogFilteredData::Visibility LogFilteredData::visibility() const
@@ -371,6 +385,11 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
     maxLength_ = session_.maxLength();
     nbLinesProcessed_ = session_.processedLines();
 
+    // Matches changed, and so may have the Context Lines: the Session
+    // rebuilds or clears them on completion, on a cache hit, on going idle
+    // and on an invalid pattern, and every one of those reaches us here.
+    refreshDisplayedLines();
+
     if ( state.phase == Phase::Complete ) {
         // Caching and the Context Lines rebuild (for a cache hit too, so
         // Context Lines never belong to whatever ran previously) already
@@ -403,26 +422,35 @@ LineNumber LogFilteredData::findLogDataLine( LineNumber index ) const
 
 const SearchResultArray& LogFilteredData::currentResultArray() const
 {
-    const SearchResultArray* base = nullptr;
+    return context_lines_shown_ ? lines_with_context_ : baseResultArray();
+}
+
+const SearchResultArray& LogFilteredData::baseResultArray() const
+{
     if ( visibility_.testFlag( VisibilityFlags::Marks )
          && visibility_.testFlag( VisibilityFlags::Matches ) ) {
-        base = &marks_and_matches_;
+        return marks_and_matches_;
     }
     else if ( visibility_.testFlag( VisibilityFlags::Matches ) ) {
-        base = &matching_lines_;
+        return matching_lines_;
     }
     else {
-        base = &marks_;
+        return marks_;
     }
+}
 
+void LogFilteredData::refreshDisplayedLines()
+{
     const auto& contextLines = session_.contextLines();
-    if ( contextLines.isEmpty() || !visibility_.testFlag( VisibilityFlags::Context ) ) {
-        return *base;
-    }
+    context_lines_shown_
+        = visibility_.testFlag( VisibilityFlags::Context ) && !contextLines.isEmpty();
 
-    // Rebuild the combined array with context lines included
-    with_context_ = *base | contextLines;
-    return with_context_;
+    if ( context_lines_shown_ ) {
+        lines_with_context_ = baseResultArray() | contextLines;
+    }
+    else {
+        lines_with_context_ = SearchResultArray();
+    }
 }
 
 LineNumber LogFilteredData::findFilteredLine( LineNumber lineNum ) const

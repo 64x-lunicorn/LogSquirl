@@ -39,6 +39,25 @@ Selection::Selection()
     selectedRange_.endLine = 0_lnum;
 }
 
+Selection Selection::mapLines( const std::function<LineNumber( LineNumber )>& map ) const
+{
+    Selection mapped = *this;
+
+    if ( selectedLine_.has_value() ) {
+        mapped.selectedLine_ = map( *selectedLine_ );
+    }
+    if ( selectedPartial_.line.has_value() ) {
+        mapped.selectedPartial_.line = map( *selectedPartial_.line );
+    }
+    if ( selectedRange_.startLine.has_value() ) {
+        mapped.selectedRange_.startLine = map( *selectedRange_.startLine );
+        mapped.selectedRange_.endLine = map( selectedRange_.endLine );
+        mapped.selectedRange_.firstLine = map( selectedRange_.firstLine );
+    }
+
+    return mapped;
+}
+
 void Selection::selectPortion( LineNumber line, LineColumn startColumn, LineColumn endColumn )
 {
     // First unselect any whole line or range

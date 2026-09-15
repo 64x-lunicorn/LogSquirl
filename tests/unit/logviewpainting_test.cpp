@@ -56,8 +56,10 @@
 #include <QFontInfo>
 #include <QFontMetrics>
 #include <QImage>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPalette>
+#include <QScrollBar>
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
@@ -109,6 +111,30 @@ const std::vector<PaintedLine>& paintedLines()
         { "10:00:12 INFO  idle", LineTypeFlags::Plain },
         { "10:00:13 INFO  idle", LineTypeFlags::Plain },
         { "10:00:14 INFO  idle", LineTypeFlags::Plain },
+        // Below the first screen: enough Log Lines that a Scroll Position on
+        // Log Line 4 is in the middle of the Log File, not at its bottom.
+        { "10:00:15 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:16 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:17 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:18 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:19 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:20 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:21 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:22 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:23 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:24 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:25 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:26 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:27 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:28 INFO  idle", LineTypeFlags::Plain },
+        { "10:00:29 INFO  idle", LineTypeFlags::Plain },
+        // The end of the Log File: Log Lines that wrap, so the bottom Scroll
+        // Position is counted in Visual Lines.
+        { "10:00:30 ERROR the last failure, long enough to be wrapped onto a second Visual Line "
+          "at the bottom",
+          LineTypeFlags::Match },
+        { "10:00:31 INFO  shutting down: the last Log Line of the file, which wraps as well",
+          LineTypeFlags::Plain },
     };
     return lines;
 }
@@ -231,6 +257,11 @@ std::optional<QFont> paintingTestFont()
 struct PaintingConfiguration {
     bool textWrap = false;
     bool lineNumbersVisible = false;
+    // Where the view is scrolled to before it is painted.
+    ScrollPosition scrollPosition{};
+    // Scrolled to the scrollbar's maximum instead: the bottom Scroll Position.
+    bool atScrollbarMaximum = false;
+    int viewHeight = ViewHeight;
 };
 
 QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
@@ -243,7 +274,7 @@ QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
     view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.setPalette( fixedPalette() );
-    view.resize( ViewWidth, ViewHeight );
+    view.resize( ViewWidth, configuration.viewHeight );
     view.show();
     QCoreApplication::processEvents();
 
@@ -253,12 +284,27 @@ QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
     view.setSearchLimits( 0_lnum, LineNumber( logData.getNbLine().get() ) );
     view.updateData();
 
+    if ( configuration.atScrollbarMaximum ) {
+        view.verticalScrollBar()->setValue( view.verticalScrollBar()->maximum() );
+    }
+    else {
+        // The scrollbar lands on the Log Line, a step of the arrow key moves one
+        // Visual Line further.
+        view.verticalScrollBar()->setValue(
+            static_cast<int>( configuration.scrollPosition.lineNumber.get() ) );
+        for ( size_t step = 0; step < configuration.scrollPosition.visualLineIndex; ++step ) {
+            QKeyEvent down( QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier );
+            QCoreApplication::sendEvent( &view, &down );
+        }
+        REQUIRE( view.scrollPosition() == configuration.scrollPosition );
+    }
+
     // The view must actually be painting with the test font; a platform
     // that substituted another one would produce images of that font.
     INFO( "The view resolved the font to \"" << QFontInfo( view.font() ).family().toStdString()
                                              << "\"" );
     REQUIRE( QFontInfo( view.font() ).family() == font.family() );
-    REQUIRE( view.viewport()->size() == QSize( ViewWidth, ViewHeight ) );
+    REQUIRE( view.viewport()->size() == QSize( ViewWidth, configuration.viewHeight ) );
 
     return view.viewport()->grab().toImage().convertToFormat( QImage::Format_ARGB32 );
 }
@@ -381,6 +427,63 @@ SCENARIO( "The log view paints exactly what it painted before", "[logviewpaintin
             {
                 requirePaintingMatchesGolden( { .textWrap = true, .lineNumbersVisible = true },
                                               QStringLiteral( "wrapped-line-numbers" ) );
+            }
+        }
+
+        // Log Line 4 wraps into three Visual Lines; the view shows it from its
+        // second. Its bullet and line number sit beside its first Visual Line,
+        // above the Viewport, so the top row has neither.
+        WHEN( "the Scroll Position is partway through a wrapped Log Line and line numbers are "
+              "hidden" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden( { .textWrap = true,
+                                                .lineNumbersVisible = false,
+                                                .scrollPosition = ScrollPosition{ 4_lnum, 1 } },
+                                              QStringLiteral( "wrapped-partway" ) );
+            }
+        }
+
+        WHEN( "the Scroll Position is partway through a wrapped Log Line and line numbers are "
+              "shown" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden( { .textWrap = true,
+                                                .lineNumbersVisible = true,
+                                                .scrollPosition = ScrollPosition{ 4_lnum, 1 } },
+                                              QStringLiteral( "wrapped-partway-line-numbers" ) );
+            }
+        }
+
+        // The last two Log Lines wrap into two Visual Lines each. 224 px is 14
+        // rows of 16 px, and the last Visual Line of the Log File is on the
+        // last of them.
+        WHEN( "the view is at the scrollbar's maximum and the last Log Lines wrap" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden(
+                    { .textWrap = true, .lineNumbersVisible = false, .atScrollbarMaximum = true },
+                    QStringLiteral( "wrapped-bottom" ) );
+            }
+        }
+
+        // 232 px is 14 rows and half a row. At the bottom the text is drawn 8 px
+        // up, so the last Visual Line ends at the bottom of the Viewport and the
+        // one on the top row is cut in half.
+        WHEN( "the view is at the scrollbar's maximum with a partly visible row and line numbers "
+              "shown" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden(
+                    { .textWrap = true,
+                      .lineNumbersVisible = true,
+                      .atScrollbarMaximum = true,
+                      .viewHeight = ViewHeight + 8 },
+                    QStringLiteral( "wrapped-bottom-partial-row-line-numbers" ) );
             }
         }
     }

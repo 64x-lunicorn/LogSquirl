@@ -76,6 +76,57 @@ SCENARIO( "WrappedString wraps on word boundaries", "[wrappedstring]" )
     }
 }
 
+SCENARIO( "WrappedString knows which of its rows holds a column", "[wrappedstring]" )
+{
+    GIVEN( "A line wrapped into rows of different lengths" )
+    {
+        // "hello " "wonderful " "world"
+        const WrappedString wrapped{ QString( "hello wonderful world" ), 12_length };
+
+        THEN( "each row starts at the column after the end of the one before" )
+        {
+            REQUIRE( wrapped.wrappedLineStart( 0 ) == 0_lcol );
+            REQUIRE( wrapped.wrappedLineStart( 1 ) == 6_lcol );
+            REQUIRE( wrapped.wrappedLineStart( 2 ) == 16_lcol );
+        }
+
+        THEN( "a column is on the row that starts at or before it" )
+        {
+            REQUIRE( wrapped.wrappedLineIndexOf( 0_lcol ) == 0 );
+            REQUIRE( wrapped.wrappedLineIndexOf( 5_lcol ) == 0 );
+            REQUIRE( wrapped.wrappedLineIndexOf( 6_lcol ) == 1 );
+            REQUIRE( wrapped.wrappedLineIndexOf( 15_lcol ) == 1 );
+            REQUIRE( wrapped.wrappedLineIndexOf( 16_lcol ) == 2 );
+            REQUIRE( wrapped.wrappedLineIndexOf( 20_lcol ) == 2 );
+        }
+
+        THEN( "a column past the end of the line is on the last row" )
+        {
+            REQUIRE( wrapped.wrappedLineIndexOf( 21_lcol ) == 2 );
+            REQUIRE( wrapped.wrappedLineIndexOf( 5000_lcol ) == 2 );
+        }
+
+        THEN( "the start of a row is on that row" )
+        {
+            for ( size_t row = 0; row < wrapped.wrappedLinesCount(); ++row ) {
+                REQUIRE( wrapped.wrappedLineIndexOf( wrapped.wrappedLineStart( row ) ) == row );
+            }
+        }
+    }
+
+    GIVEN( "An empty line" )
+    {
+        const WrappedString wrapped{ QString(), 10_length };
+
+        THEN( "every column is on its one row" )
+        {
+            REQUIRE( wrapped.wrappedLineStart( 0 ) == 0_lcol );
+            REQUIRE( wrapped.wrappedLineIndexOf( 0_lcol ) == 0 );
+            REQUIRE( wrapped.wrappedLineIndexOf( 7_lcol ) == 0 );
+        }
+    }
+}
+
 SCENARIO( "WrappedString owns the text it was built from", "[wrappedstring]" )
 {
     GIVEN( "A WrappedString built from a string that is then destroyed" )
@@ -87,7 +138,7 @@ SCENARIO( "WrappedString owns the text it was built from", "[wrappedstring]" )
         {
             source.reset();
 
-            THEN( "the wrapped rows still read correctly" )
+            THEN( "the Visual Lines still read correctly" )
             {
                 REQUIRE( wrapped->wrappedLinesCount() == 2 );
                 REQUIRE( wrapped->wrappedLine( 0 ) == QStringView( u"alpha beta " ) );

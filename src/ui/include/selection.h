@@ -23,6 +23,7 @@
 #include <QList>
 #include <QString>
 #include <cstddef>
+#include <functional>
 
 #include "linetypes.h"
 
@@ -160,6 +161,10 @@ public:
 
     // Idem from the position immediately before selection.
     FilePosition getPreviousPosition() const;
+
+    // The same selection with every line number passed through map, for
+    // converting between a view's lines and Log Lines.
+    Selection mapLines( const std::function<LineNumber( LineNumber )>& map ) const;
 
 private:
     std::map<LineNumber, QString>

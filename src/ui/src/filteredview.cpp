@@ -43,6 +43,7 @@
 #include <cassert>
 
 #include "filteredview.h"
+#include "logdata.h"
 #include "shortcuts.h"
 
 FilteredView::FilteredView( LogFilteredData* newLogData,
@@ -91,6 +92,31 @@ LineNumber FilteredView::lineIndex( LineNumber lineNumber ) const
 LineNumber FilteredView::maxDisplayLineNumber() const
 {
     return LineNumber( logFilteredData_->getNbTotalLines().get() );
+}
+
+QuickFindLines FilteredView::quickFindLines() const
+{
+    // The worker reads the Log File's text, which is safe off the UI thread,
+    // and never the LogFilteredData, which the UI thread goes on changing.
+    return QuickFindLines::someLogLines( logFilteredData_->sourceLogData(),
+                                         logFilteredData_->copyDisplayedLines() );
+}
+
+DisplayedLinesReader FilteredView::linesToSave() const
+{
+    // As for QuickFind, the save reads the Log File's text and never the
+    // LogFilteredData, which the UI thread goes on changing.
+    return [ logFile = &logFilteredData_->sourceLogData(),
+             lines = std::make_shared<const SearchResultArray>(
+                 logFilteredData_->copyDisplayedLines() ) ]( LineNumber first, LinesCount count ) {
+        logsquirl::vector<QString> text;
+        text.reserve( count.get() );
+        for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
+            const auto logLine = lineAtPosition( *lines, LineNumber( position ) );
+            text.push_back( logLine.has_value() ? logFile->getLineString( *logLine ) : QString{} );
+        }
+        return text;
+    };
 }
 
 void FilteredView::doRegisterShortcuts()

@@ -59,6 +59,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/decompressor.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/zstddevice.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/lz4device.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fontutils.h
@@ -120,6 +121,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/decompressor.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/linessaver.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/zstddevice.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/lz4device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp

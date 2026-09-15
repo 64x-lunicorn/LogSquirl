@@ -107,6 +107,17 @@ private:
 // a fixed "in-place" array (vector) is probably fine.
 using SearchResultArray = roaring::Roaring64Map;
 
+// The line at position in lines, counting from 0 in their order; none at or
+// past their end.
+inline OptionalLineNumber lineAtPosition( const SearchResultArray& lines, LineNumber position )
+{
+    LineNumber::UnderlyingType line = {};
+    if ( !lines.select( position.get(), &line ) ) {
+        return {};
+    }
+    return LineNumber( line );
+}
+
 struct SearchResults {
     SearchResultArray newMatches;
     LineLength maxLength;

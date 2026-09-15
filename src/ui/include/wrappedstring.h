@@ -31,9 +31,9 @@
 #include "containers.h"
 #include "linetypes.h"
 
-// A line broken into the rows it occupies on screen.
+// A line broken into the Visual Lines it is drawn as.
 //
-// The wrapped rows are kept as offsets into the one QString this object owns,
+// Its Visual Lines are kept as offsets into the one QString this object owns,
 // never as views into a buffer someone else owns. A WrappedString can therefore
 // be copied, moved and outlive the string it was built from, and every view it
 // hands out points into its own storage.
@@ -61,7 +61,7 @@ public:
         qsizetype consumed = 0;
 
         // A non-positive column count would never consume anything: treat the
-        // whole line as one row rather than looping forever.
+        // whole line as one Visual Line rather than looping forever.
         while ( columns > 0 && lineToWrap.size() > columns ) {
             const WrappedStringPart stringToWrap = lineToWrap.left( columns );
             const auto lastSpaceIt = std::find_if( stringToWrap.rbegin(), stringToWrap.rend(),
@@ -144,14 +144,35 @@ public:
         return QStringView( unwrappedLine_ ).mid( fragment.start, fragment.length );
     }
 
-    // Number of display columns of the wrapped row at index.
+    // Number of display columns of the Visual Line at index.
     qsizetype wrappedLineLength( size_t index ) const
     {
         return wrappedLines_[ index ].length;
     }
 
+    // Display column of the line at which the Visual Line at index starts.
+    LineColumn wrappedLineStart( size_t index ) const
+    {
+        return LineColumn{ static_cast<LineColumn::UnderlyingType>(
+            wrappedLines_[ index ].start ) };
+    }
+
+    // Index of the Visual Line holding column; the last one for a column past
+    // the end of the line.
+    size_t wrappedLineIndexOf( LineColumn column ) const
+    {
+        const auto startsAfter
+            = std::upper_bound( wrappedLines_.begin(), wrappedLines_.end(), column.get(),
+                                []( auto columnValue, const Fragment& fragment ) {
+                                    return columnValue < fragment.start;
+                                } );
+        return startsAfter == wrappedLines_.begin()
+                   ? size_t{ 0 }
+                   : static_cast<size_t>( std::distance( wrappedLines_.begin(), startsAfter ) - 1 );
+    }
+
 private:
-    // A wrapped row, as a slice of unwrappedLine_.
+    // A Visual Line, as a slice of unwrappedLine_.
     struct Fragment {
         qsizetype start = 0;
         qsizetype length = 0;
