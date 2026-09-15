@@ -22,6 +22,7 @@ add_executable(logsquirl_tests
     logtableview_test.cpp
     logviewpainting_test.cpp
     mergecontroller_test.cpp
+    optionsdialog_test.cpp
     patternmatcher_test.cpp
     plugindialog_test.cpp
     pluginmanager_test.cpp
@@ -39,6 +40,15 @@ add_executable(logsquirl_tests
 
 target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_highlighting logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
+
+# The Options Dialog test needs the dialog's generated form header, and the
+# dialog lists its languages from the application's resources (#108).
+target_include_directories(logsquirl_tests PRIVATE
+    "$<TARGET_PROPERTY:logsquirl_ui,BINARY_DIR>/logsquirl_ui_autogen/include")
+qt_add_resources(logsquirl_tests "optionsdialog_languages"
+    PREFIX "/"
+    BASE "${CMAKE_SOURCE_DIR}/src/app"
+    FILES "${CMAKE_SOURCE_DIR}/src/app/i18n/Languages.xml")
 
 # The painting test reads its font and golden images from the source tree,
 # and rewrites the golden images there when asked to (#135).
