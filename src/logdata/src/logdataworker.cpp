@@ -851,7 +851,7 @@ std::optional<FileDigest> digestOfPrefix( const QString& fileName, OffsetInFile 
     }
     FileDigest digest;
     QByteArray buffer( IndexingBlockSize, Qt::Uninitialized );
-    for ( auto remaining = end.get(); remaining > 0; ) {
+    for ( qint64 remaining = end.get(); remaining > 0; ) {
         if ( interruptRequest ) {
             return std::nullopt;
         }
