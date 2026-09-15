@@ -29,6 +29,16 @@ The character encoding a Log File is interpreted with, either detected or chosen
 
 ### Displaying
 
+**Presentation**:
+The way the upper pane shows the Log Lines of a Log File: either the Text View or the
+Table View. A Presentation owns its own selection.
+_Avoid_: view mode, renderer, display
+
+**Text View**:
+The Presentation that paints Log Lines as Visual Lines of plain text. The Filtered View is
+drawn the same way.
+_Avoid_: plain view, painted view, main view
+
 **Viewport**:
 The visible area of a text view of a Log File — the main view or the Filtered View — with
 its margins: the bullet zone, the optional line numbers and the text. One layout decides
@@ -130,9 +140,14 @@ columns. Either detected automatically from the file's first lines or supplied b
 _Avoid_: schema, parser, layout
 
 **Table View**:
-The presentation of a Log File as one column per Log Format field, as an alternative to
-the plain text presentation.
+The Presentation of a Log File as one column per Log Format field, as an alternative to
+the Text View.
 _Avoid_: grid, structured view
+
+**Row**:
+One Log Line as shown in the Table View. A Row is always addressed through its Log Line,
+never through its position in the table.
+_Avoid_: record, entry
 
 **Chart Preset**:
 A saved configuration of which Log Format fields to plot and how.
