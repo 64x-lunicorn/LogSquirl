@@ -27,7 +27,6 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QStandardPaths>
-#include <QWidget>
 
 namespace logsquirl::plugins {
 
@@ -214,6 +213,10 @@ QString PluginManager::loadPlugin( const QString& pluginId )
     const auto error = ctx->handle.init( &ctx->hostApi, ctx.get() );
     if ( !error.isEmpty() ) {
         LOG_ERROR << "Failed to init plugin '" << pluginId << "': " << error;
+        // A plugin may have registered contributions before its init failed.
+        if ( uiPort_ ) {
+            uiPort_->removeContributions( pluginId );
+        }
         Q_EMIT pluginError( pluginId, error );
         return error;
     }
@@ -247,7 +250,14 @@ void PluginManager::unloadPlugin( const QString& pluginId )
         Q_EMIT dataSourceStopped( pluginId );
     }
 
-    // PluginHandle destructor calls shutdown
+    // Shut the plugin down while it is still loaded: it unregisters its
+    // widgets through the host callbacks. Whatever it left behind is taken
+    // away before its context and library go.
+    it->second->handle.shutdown();
+    if ( uiPort_ ) {
+        uiPort_->removeContributions( pluginId );
+    }
+
     loaded_.erase( it );
     Q_EMIT pluginUnloaded( pluginId );
 }
@@ -266,6 +276,11 @@ bool PluginManager::isLoaded( const QString& pluginId ) const
     return loaded_.contains( pluginId );
 }
 
+void PluginManager::setUiPort( PluginUiPort* uiPort )
+{
+    uiPort_ = uiPort;
+}
+
 PluginHandle* PluginManager::pluginHandle( const QString& pluginId )
 {
     auto it = loaded_.find( pluginId );
@@ -275,11 +290,12 @@ PluginHandle* PluginManager::pluginHandle( const QString& pluginId )
     return nullptr;
 }
 
-void PluginManager::configurePlugin( const QString& pluginId, QWidget* parentWidget )
+void PluginManager::configurePlugin( const QString& pluginId )
 {
     auto* handle = pluginHandle( pluginId );
     if ( handle && handle->hasConfigureUi() ) {
-        handle->configure( static_cast<void*>( parentWidget ) );
+        const auto parent = uiPort_ ? uiPort_->configurationParent() : PluginWidgetHandle{};
+        handle->configure( parent.widget );
     }
 }
 
@@ -551,82 +567,68 @@ void PluginManager::hostOpenFile( void* handle, const char* filePath, int follow
     }
 }
 
+auto PluginManager::uiPortFor( void* handle ) -> std::pair<PluginUiPort*, QString>
+{
+    const auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->manager || !ctx->manager->uiPort_ ) {
+        return { nullptr, {} };
+    }
+    return { ctx->manager->uiPort_, ctx->handle.metadata().id() };
+}
+
+// The widget trampolines wrap the plugin's void* in a PluginWidgetHandle
+// without looking at it; only the port's implementation knows it is a widget.
+
 void PluginManager::hostRegisterStatusWidget( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addStatusWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->statusWidgetAdded( pluginId, widget );
 }
 
 void PluginManager::hostUnregisterStatusWidget( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->removeStatusWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->statusWidgetRemoved( pluginId, widget );
 }
 
 void PluginManager::hostRegisterMenuAction( void* handle, const char* menuPath, const char* label,
                                             PluginCallbackFn callback, void* userData )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
+                             callback, userData );
     }
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->menuActionAdded( pluginId, QString::fromUtf8( menuPath ),
-                                          QString::fromUtf8( label ), callback, userData );
 }
 
 void PluginManager::hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addSidebarTab( pluginId, QString::fromUtf8( label ),
+                             PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->sidebarTabAdded( pluginId, QString::fromUtf8( label ), widget );
 }
 
 void PluginManager::hostUnregisterSidebarTab( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->removeSidebarTab( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->sidebarTabRemoved( pluginId, widget );
 }
 
 void PluginManager::hostRegisterFooterWidget( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addFooterWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->footerWidgetAdded( pluginId, widget );
 }
 
 void PluginManager::hostUnregisterFooterWidget( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->removeFooterWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->footerWidgetRemoved( pluginId, widget );
 }
 
 const char* PluginManager::hostGetActiveFilePath( void* handle )

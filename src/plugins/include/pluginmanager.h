@@ -22,19 +22,19 @@
 #include "logsquirl_plugin_api.h"
 #include "pluginloader.h"
 #include "pluginmetadata.h"
+#include "pluginuiport.h"
 #include "streamwriter.h"
 
 #include <QObject>
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <map>
+#include <memory>
 #include <vector>
 
 namespace logsquirl::plugins {
-
-/// C-style callback function pointer used in the plugin host API.
-using PluginCallbackFn = void ( * )( void* );
 
 /**
  * Central manager for plugin discovery, loading, lifecycle, and host API.
@@ -43,9 +43,12 @@ using PluginCallbackFn = void ( * )( void* );
  * loads and initialises plugins, and provides the LogSquirlHostApi callbacks
  * that bridge plugin calls into the host application.
  *
- * Must be created on the main (GUI) thread.  Host API callbacks are safe to
- * call from any thread — they use queued connections internally to dispatch
- * to the main thread when needed.
+ * What plugins contribute to the user interface goes to the PluginUiPort set
+ * with setUiPort(); the manager itself knows no widgets.
+ *
+ * Must be created on the main (GUI) thread.  Host API callbacks may be called
+ * from any thread: the PluginUiPort is called on the plugin's thread and moves
+ * widget work to the GUI thread itself, signals use queued connections.
  */
 class PluginManager : public QObject {
     Q_OBJECT
@@ -82,12 +85,22 @@ public:
     QStringList loadedPluginIds() const;
 
     /**
+     * Set the Plugin UI Port the host callbacks show plugin contributions
+     * through. Set it before loading plugins; it must outlive the manager's
+     * loaded plugins. Without a port, UI contributions are ignored.
+     */
+    void setUiPort( PluginUiPort* uiPort );
+
+    /**
      * Load and initialise a plugin by its ID.
      * @return Empty string on success, error message on failure.
      */
     QString loadPlugin( const QString& pluginId );
 
-    /** Shut down and unload a plugin by its ID. */
+    /**
+     * Shut down and unload a plugin by its ID. What the plugin still
+     * contributes to the user interface is removed through the port.
+     */
     void unloadPlugin( const QString& pluginId );
 
     /** Shut down and unload all plugins. */
@@ -107,11 +120,11 @@ public:
     PluginHandle* pluginHandle( const QString& pluginId );
 
     /**
-     * Open a plugin's configuration dialog.
-     * @param pluginId      The plugin to configure.
-     * @param parentWidget  Parent widget for the dialog.
+     * Open a plugin's configuration dialog on the parent the Plugin UI Port
+     * chooses.
+     * @param pluginId  The plugin to configure.
      */
-    void configurePlugin( const QString& pluginId, QWidget* parentWidget );
+    void configurePlugin( const QString& pluginId );
 
     /**
      * Set the callback used by open_file host API.
@@ -174,28 +187,6 @@ Q_SIGNALS:
     /** Emitted when a plugin is unloaded. */
     void pluginUnloaded( const QString& pluginId );
 
-    /** Emitted when a plugin registers a status bar widget. */
-    void statusWidgetAdded( const QString& pluginId, QWidget* widget );
-
-    /** Emitted when a plugin unregisters a status bar widget. */
-    void statusWidgetRemoved( const QString& pluginId, QWidget* widget );
-
-    /** Emitted when a plugin registers a menu action. */
-    void menuActionAdded( const QString& pluginId, const QString& menuPath, const QString& label,
-                          PluginCallbackFn callback, void* userData );
-
-    /** Emitted when a plugin registers a sidebar tab. */
-    void sidebarTabAdded( const QString& pluginId, const QString& label, QWidget* widget );
-
-    /** Emitted when a plugin unregisters a sidebar tab. */
-    void sidebarTabRemoved( const QString& pluginId, QWidget* widget );
-
-    /** Emitted when a plugin registers a footer widget. */
-    void footerWidgetAdded( const QString& pluginId, QWidget* widget );
-
-    /** Emitted when a plugin unregisters a footer widget. */
-    void footerWidgetRemoved( const QString& pluginId, QWidget* widget );
-
     /** Emitted when a user-visible notification is requested. */
     void notificationRequested( const QString& message );
 
@@ -231,8 +222,16 @@ private:
     /** Extract a PluginContext from the opaque handle passed through host API. */
     static PluginContext* contextFromHandle( void* handle );
 
+    /**
+     * The Plugin UI Port and plugin ID for a host callback, or a null port
+     * when the handle is unusable or no port is set.
+     */
+    static std::pair<PluginUiPort*, QString> uiPortFor( void* handle );
+
     std::vector<PluginMetadata> discovered_;
     std::map<QString, std::unique_ptr<PluginContext>> loaded_;
+
+    PluginUiPort* uiPort_ = nullptr;
 
     std::function<void( const QString&, bool )> openFileCallback_;
     std::function<QString()> activeFilePathCallback_;

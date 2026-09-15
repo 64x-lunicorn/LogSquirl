@@ -5,18 +5,20 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginrepository.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugindialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiport.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/streamwriter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginmetadata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginrepository.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugindialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/streamwriter.cpp
 )
 
 set_target_properties(logsquirl_plugins PROPERTIES AUTOMOC ON)
 
+# The plugin layer knows no widgets: what plugins show goes through the
+# Plugin UI Port, which the UI library implements (#175).
+# tests/plugins_no_qt_widgets.cmake guards the includes.
 target_include_directories(logsquirl_plugins PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(
   logsquirl_plugins
@@ -26,8 +28,8 @@ target_link_libraries(
          logsquirl_settings
          logsquirl_karchive
          Qt6::Core
+         Qt6::Gui
          Qt6::Network
-         Qt6::Widgets
 )
 
 # Install the MIT-licensed C ABI header as part of the Plugin SDK.

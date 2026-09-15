@@ -17,6 +17,17 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/logdata_public_headers_no_tbb.cmake
 )
 
+# The plugin layer builds without Qt Widgets: no file of it may include a Qt
+# Widgets header, and the library may not link Qt Widgets (#175).
+add_test(
+    NAME plugins_no_qt_widgets
+    COMMAND ${CMAKE_COMMAND}
+            -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src/plugins
+            "-DWIDGETS_INCLUDE_DIRS=$<JOIN:$<TARGET_PROPERTY:Qt6::Widgets,INTERFACE_INCLUDE_DIRECTORIES>,|>"
+            "-DLINK_LIBRARIES=$<JOIN:$<TARGET_PROPERTY:logsquirl_plugins,LINK_LIBRARIES>,|>"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/plugins_no_qt_widgets.cmake
+)
+
 
 
 

@@ -66,6 +66,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fontutils.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/colorlabelsmanager.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugindialog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiadapter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighteredit.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersetedit.ui
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersdialog.ui
@@ -129,6 +131,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linessaver.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugindialog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginuiadapter.cpp
 )
 
 set_target_properties(logsquirl_ui PROPERTIES AUTOUIC ON)
