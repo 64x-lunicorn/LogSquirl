@@ -65,6 +65,8 @@ inline SettingsPolicies testSettingsPolicies()
                         .extractArchivesAlways = false },
 
         .recognition = { .enabled = false },
+
+        .decoding = { .hideAnsiColorSequences = false },
     };
 }
 

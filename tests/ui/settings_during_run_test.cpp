@@ -118,7 +118,8 @@ SCENARIO( "Changing settings during a Search cannot alter the run in flight",
         policies.search.useResultsCache = false;
         policies.search.regexpEngine = RegexpEngine::Vectorscan;
 
-        LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+        LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                         policies.decoding };
         {
             SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
             logData.attachFile( file.fileName() );
@@ -184,7 +185,8 @@ SCENARIO( "Changing settings during indexing cannot alter the run in flight",
 
         WHEN( "every setting the indexing worker used to read is rewritten mid-run" )
         {
-            LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+            LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                             policies.decoding };
             SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             logData.attachFile( file.fileName() );

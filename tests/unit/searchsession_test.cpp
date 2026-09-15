@@ -34,7 +34,7 @@ using Phase = SearchSession::Phase;
 SCENARIO( "A Search Session starts idle", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
     SearchSession session( logData, policies.search );
 
     THEN( "its phase is Idle with no matches" )
@@ -50,7 +50,7 @@ SCENARIO( "Requesting an invalid pattern goes to InvalidPattern without running 
           "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
     SearchSession session( logData, policies.search );
 
     GIVEN( "a pattern that fails to compile as a regex" )
@@ -76,7 +76,7 @@ SCENARIO( "Requesting an invalid pattern goes to InvalidPattern without running 
 SCENARIO( "Requesting with no pattern goes idle", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
     SearchSession session( logData, policies.search );
 
     GIVEN( "a Session that was left in InvalidPattern" )
@@ -102,7 +102,7 @@ SCENARIO( "Requesting with no pattern goes idle", "[searchsession]" )
 SCENARIO( "stop() is a no-op when nothing is running", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
     SearchSession session( logData, policies.search );
 
     WHEN( "stop() is called on an idle Session" )

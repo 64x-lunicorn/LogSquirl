@@ -114,6 +114,16 @@ struct RecognitionPolicy {
     bool operator==( const RecognitionPolicy& ) const = default;
 };
 
+// What turning the bytes of a Log File into the text of its Log Lines
+// needs, beyond the Encoding, and nothing else. It applies to every read:
+// the Log Lines a view paints and the ones a Search matches.
+struct DecodingPolicy {
+    // Whether ANSI color sequences are removed from every Log Line.
+    bool hideAnsiColorSequences{};
+
+    bool operator==( const DecodingPolicy& ) const = default;
+};
+
 // The Policies as one bundle, so the place that builds the application's
 // long-lived objects derives and carries them together.
 struct SettingsPolicies {
@@ -122,6 +132,7 @@ struct SettingsPolicies {
     WatchPolicy watch;
     FileAccessPolicy fileAccess;
     RecognitionPolicy recognition;
+    DecodingPolicy decoding;
 
     bool operator==( const SettingsPolicies& ) const = default;
 };

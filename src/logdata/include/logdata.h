@@ -71,13 +71,14 @@ class LogData : public AbstractLogData {
     Q_OBJECT
 
 public:
-    // The three Policies are everything this object knows about the
+    // The four Policies are everything this object knows about the
     // settings: what indexing a Log File needs, what running a Search on
-    // it needs (handed on to every LogFilteredData built from it), and how
-    // the file itself is opened and decoded. It reads no setting of its
-    // own -- the log data library does not link the settings library.
+    // it needs (handed on to every LogFilteredData built from it), how the
+    // file itself is opened, and how its bytes become the text of its Log
+    // Lines. It reads no setting of its own -- the log data library does
+    // not link the settings library.
     LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
-             const FileAccessPolicy& fileAccessPolicy );
+             const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy );
     ~LogData();
 
     LogData( const LogData& ) = delete;
@@ -109,7 +110,10 @@ public:
     // Get the auto-detected encoding for the indexed text.
     QTextCodec* getDetectedEncoding() const;
 
-    void setPrefilter( const QString& prefilterPattern );
+    // Replaces the Decoding Policy: every Log Line read from now on, for a
+    // view or for a Search, is decoded under it. Lines read before are not
+    // read again.
+    void setDecodingPolicy( const DecodingPolicy& decodingPolicy );
 
     // Replaces the Indexing Policy: the operations requested from now on
     // use it, one already in flight keeps the one it started with.
@@ -217,7 +221,9 @@ private:
     TextCodecHolder codec_;
     MonitoredFileStatus fileChangedOnDisk_;
 
-    QString prefilterPattern_;
+    // Read by getLinesRaw() on the Search's threads, so it is only ever
+    // touched under the indexing data's lock.
+    DecodingPolicy decodingPolicy_;
 };
 
 #endif

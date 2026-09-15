@@ -57,7 +57,7 @@ struct SaveLogFile {
 
     SaveLogFile()
         : policies( testSettingsPolicies() )
-        , logData( policies.indexing, policies.search, policies.fileAccess )
+        , logData( policies.indexing, policies.search, policies.fileAccess, policies.decoding )
     {
         REQUIRE( file.open() );
         for ( int line = 0; line < NbLines; ++line ) {

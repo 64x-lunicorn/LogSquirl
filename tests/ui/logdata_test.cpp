@@ -121,7 +121,7 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
     writeDataToFile( file, 199, WriteFileModification::EndWithPartialLineBegin );
 
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
 
     auto finishedSpy
         = std::make_unique<SafeQSignalSpy>( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
@@ -152,7 +152,7 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
         WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
 
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
 
     SafeQSignalSpy changedSpy( &logData, SIGNAL( fileChanged( MonitoredFileStatus ) ) );
 
@@ -248,7 +248,8 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
         WHEN( "Interrupt loading" )
         {
             const auto policies = testSettingsPolicies();
-            LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
+            LogData log_data{ policies.indexing, policies.search, policies.fileAccess,
+                              policies.decoding };
             SafeQSignalSpy endSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             // Start loading the VBL
@@ -276,7 +277,8 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
         WHEN( "Try to reattach" )
         {
             const auto policies = testSettingsPolicies();
-            LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
+            LogData log_data{ policies.indexing, policies.search, policies.fileAccess,
+                              policies.decoding };
             SafeQSignalSpy endSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
 
             log_data.attachFile( QFileInfo{ smallFile }.absoluteFilePath() );

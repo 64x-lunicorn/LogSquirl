@@ -1022,7 +1022,7 @@ void MainWindow::createMenus()
     highlightersMenu->setApplyChange( [ this ]() {
         auto crawler = currentCrawlerWidget();
         if ( crawler != nullptr ) {
-            crawler->applyConfiguration();
+            crawler->applyHighlighterSetChange();
         }
     } );
 
@@ -1439,13 +1439,14 @@ void MainWindow::openUrl()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyHighlighterSetChange() ) );
 
     connect( &dialog, &HighlightersDialog::optionsChanged,
              [ this ]() { updateHighlightersMenu(); } );
 
     dialog.exec();
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ),
+                           SLOT( applyHighlighterSetChange() ) );
 }
 
 // Opens dialog to configure predefined filters
@@ -1915,9 +1916,10 @@ void MainWindow::importChipmunkFilters()
                                   .arg( filtersAdded )
                                   .arg( highlighterAdded ? 1 : 0 ) );
 
-    // Notify active crawler to refresh its configuration
+    // The imported Highlighter Set may be active: paint the current Log File
+    // again with it.
     if ( auto crawler = currentCrawlerWidget() ) {
-        crawler->applyConfiguration();
+        crawler->applyHighlighterSetChange();
     }
 }
 

@@ -58,7 +58,9 @@ int main( int argc, char* argv[] )
     // Policy before that happens, exactly as LogSquirlApp does for the GUI.
     FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
 
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    // Hiding ANSI color sequences is not applied here: this tool has always
+    // matched the Log Lines as they are in the file, and still does.
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, DecodingPolicy{} };
     auto filteredData = logData.getNewFilteredData();
 
     filteredData->connect(

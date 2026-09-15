@@ -73,7 +73,8 @@ SCENARIO( "LogData destruction after indexing completes without deadlock",
         {
             {
                 LogData logData{ testSettingsPolicies().indexing, testSettingsPolicies().search,
-                                 testSettingsPolicies().fileAccess };
+                                 testSettingsPolicies().fileAccess,
+                                 testSettingsPolicies().decoding };
                 attachAndWaitForIndexing( logData, file.fileName() );
                 // LogData destroyed here — must not deadlock or crash
             }
@@ -102,7 +103,8 @@ SCENARIO( "LogData destruction during active search does not deadlock", "[logdat
             policies.search.useParallelSearch = threadPoolSize > 0;
 
             {
-                LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+                LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                                 policies.decoding };
                 attachAndWaitForIndexing( logData, file.fileName() );
 
                 auto filtered = logData.getNewFilteredData();
@@ -150,7 +152,8 @@ SCENARIO( "Destroying mid-search while the progress throttle is pending does not
             policies.search.useParallelSearch = threadPoolSize > 0;
 
             {
-                LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+                LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                                 policies.decoding };
                 attachAndWaitForIndexing( logData, file.fileName() );
 
                 auto filtered = logData.getNewFilteredData();
@@ -188,7 +191,8 @@ SCENARIO( "Repeated LogData create-search-destroy cycles are stable", "[logdata]
         {
             for ( int cycle = 0; cycle < 5; ++cycle ) {
                 LogData logData{ testSettingsPolicies().indexing, testSettingsPolicies().search,
-                                 testSettingsPolicies().fileAccess };
+                                 testSettingsPolicies().fileAccess,
+                                 testSettingsPolicies().decoding };
                 attachAndWaitForIndexing( logData, file.fileName() );
 
                 auto filtered = logData.getNewFilteredData();

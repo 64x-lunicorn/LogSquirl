@@ -79,7 +79,7 @@ SCENARIO( "Indexing follows the Indexing Policy it was built with", "[indexing]"
 
         WHEN( "the file is indexed" )
         {
-            LogData logData{ policy.indexing, policy.search, policy.fileAccess };
+            LogData logData{ policy.indexing, policy.search, policy.fileAccess, policy.decoding };
             attachAndWaitForIndexing( logData, fileName );
 
             THEN( "every line is indexed and readable back" )
@@ -102,7 +102,7 @@ SCENARIO( "Indexing follows the Indexing Policy it was built with", "[indexing]"
 
         WHEN( "the file is indexed" )
         {
-            LogData logData{ policy.indexing, policy.search, policy.fileAccess };
+            LogData logData{ policy.indexing, policy.search, policy.fileAccess, policy.decoding };
             attachAndWaitForIndexing( logData, fileName );
 
             THEN( "every line is indexed and readable back" )
@@ -130,7 +130,7 @@ SCENARIO( "Indexing follows the Indexing Policy it was built with", "[indexing]"
 
         WHEN( "the file is indexed with a single-block prefetch buffer" )
         {
-            LogData logData{ policy.indexing, policy.search, policy.fileAccess };
+            LogData logData{ policy.indexing, policy.search, policy.fileAccess, policy.decoding };
             attachAndWaitForIndexing( logData, fileName );
 
             THEN( "the whole file is still indexed correctly" )
@@ -144,7 +144,7 @@ SCENARIO( "Indexing follows the Indexing Policy it was built with", "[indexing]"
         WHEN( "the same file is indexed with a larger prefetch buffer" )
         {
             policy.indexing.readBufferSizeMb = 16;
-            LogData logData{ policy.indexing, policy.search, policy.fileAccess };
+            LogData logData{ policy.indexing, policy.search, policy.fileAccess, policy.decoding };
             attachAndWaitForIndexing( logData, fileName );
 
             THEN( "the result matches the single-block run" )
@@ -386,7 +386,8 @@ SCENARIO( "Reopening a grown Log File indexes only what was added to it", "[inde
             THEN( "it reads back as one Log Line" )
             {
                 LogData logData{ policy, testSettingsPolicies().search,
-                                 testSettingsPolicies().fileAccess };
+                                 testSettingsPolicies().fileAccess,
+                                 testSettingsPolicies().decoding };
                 attachAndWaitForIndexing( logData, logFile );
                 REQUIRE( logData.getNbLine().get() == 4 );
                 REQUIRE( logData.getLineString( LineNumber( 2 ) )
@@ -457,7 +458,7 @@ SCENARIO( "An indexing pass completes even when TBB has no worker thread to spar
             // indexing pass is left to process its blocks (#146).
             tbb::global_control noWorkers( tbb::global_control::max_allowed_parallelism, 1 );
 
-            LogData logData{ policy.indexing, policy.search, policy.fileAccess };
+            LogData logData{ policy.indexing, policy.search, policy.fileAccess, policy.decoding };
             attachAndWaitForIndexing( logData, fileName );
 
             THEN( "every line is indexed and readable back" )
