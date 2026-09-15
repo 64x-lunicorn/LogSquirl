@@ -26,9 +26,10 @@ add_executable(logsquirl_tests
     optionsdialog_test.cpp
     patternmatcher_test.cpp
     plugindialog_test.cpp
-    pluginmanager_test.cpp
+    pluginhost_test.cpp
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
+    pluginuiadapter_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
     searchsession_test.cpp
@@ -59,6 +60,15 @@ target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_PAINTING_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/painting"
     LOGSQUIRL_CONFIGURATION_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/configuration")
 
+# The Plugin UI Port test loads a real plugin library that hands its host
+# callback table back to the test (#175).
+add_library(logsquirl_ui_port_probe MODULE plugins/uiportprobe.cpp)
+target_include_directories(logsquirl_ui_port_probe PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+set_target_properties(logsquirl_ui_port_probe PROPERTIES CXX_VISIBILITY_PRESET hidden)
+add_dependencies(logsquirl_tests logsquirl_ui_port_probe)
+target_compile_definitions(logsquirl_tests PRIVATE
+    LOGSQUIRL_UI_PORT_PROBE_PATH="$<TARGET_FILE:logsquirl_ui_port_probe>")
+
 add_test(
     NAME logsquirl_tests
     COMMAND logsquirl_tests -platform offscreen
@@ -80,3 +90,18 @@ add_test(
     COMMAND logsquirl_compression_tests
 )
 set_tests_properties(logsquirl_compression_tests PROPERTIES TIMEOUT 60)
+
+# The Plugin Catalog is tested on its own: it reads plugin manifests without
+# loading a plugin library, the plugin host, or a Qt GUI (#178).
+add_executable(logsquirl_plugin_catalog_tests
+    plugin_catalog_tests_main.cpp
+    plugincatalog_test.cpp
+)
+
+target_link_libraries(logsquirl_plugin_catalog_tests logsquirl_plugin_catalog Catch2)
+
+add_test(
+    NAME logsquirl_plugin_catalog_tests
+    COMMAND logsquirl_plugin_catalog_tests
+)
+set_tests_properties(logsquirl_plugin_catalog_tests PROPERTIES TIMEOUT 60)

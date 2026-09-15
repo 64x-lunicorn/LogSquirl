@@ -22,7 +22,8 @@
 #include "displayfilepath.h"
 #include "favoritefiles.h"
 #include "logsquirl_version.h"
-#include "pluginmanager.h"
+#include "plugincatalog.h"
+#include "pluginhost.h"
 #include "recentfiles.h"
 #include "theme.h"
 
@@ -227,9 +228,11 @@ void WelcomeDashboard::buildUi()
     rootLayout->addStretch();
 }
 
-void WelcomeDashboard::setPluginManager( logsquirl::plugins::PluginManager* pm )
+void WelcomeDashboard::setPlugins( const logsquirl::plugins::PluginCatalog* catalog,
+                                   const logsquirl::plugins::PluginHost* host )
 {
-    pluginManager_ = pm;
+    pluginCatalog_ = catalog;
+    pluginHost_ = host;
 }
 
 void WelcomeDashboard::refresh()
@@ -294,16 +297,16 @@ void WelcomeDashboard::refreshPluginStatus()
 {
     clearLayout( pluginStatusLayout_ );
 
-    if ( !pluginManager_ ) {
-        auto* none = new QLabel( tr( "No plugin manager available" ), this );
+    if ( !pluginCatalog_ || !pluginHost_ ) {
+        auto* none = new QLabel( tr( "No plugins available" ), this );
         none->setStyleSheet( kHintStyle );
         none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );
         return;
     }
 
-    const auto& discovered = pluginManager_->discoveredPlugins();
-    const auto loaded = pluginManager_->loadedPluginIds();
+    const auto& discovered = pluginCatalog_->discoveredPlugins();
+    const auto loaded = pluginHost_->loadedPluginIds();
 
     if ( discovered.empty() ) {
         auto* none = new QLabel( tr( "No plugins installed" ), this );

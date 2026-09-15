@@ -23,6 +23,16 @@
   `StatusInactive`, `StatusInfo`, `StatusText`), so High Contrast gets its own
   colors for them.
 
+## Bug fixes
+
+- **Plugin widgets at exit**: A status or footer widget a plugin had removed
+  was still deleted with the main window. That could crash LogSquirl on exit
+  when the plugin deleted the widget itself or its library was already
+  unloaded, and each disable/enable of a plugin left a toolbar entry behind.
+- **Widgets of a disabled plugin**: A widget or menu action a plugin
+  registered from a background thread just before it was disabled no longer
+  shows up after it is gone.
+
 ## Removed
 
 - **Lua plugin support**: The optional Lua scripting layer
@@ -31,6 +41,14 @@
   points were never called. Plugins are native shared libraries using the C
   ABI; a manifest whose `library` ends in `.lua` is now loaded like any other
   library and fails with the normal load error.
+
+## Internal
+
+- **Plugin Catalog and Plugin Host**: The former plugin manager class is split
+  in two. `PluginCatalog` finds the installed plugins from their manifests
+  without loading a library and needs Qt Core only; `PluginHost` loads the
+  enabled plugins from the catalog and serves their host callbacks. The plugin
+  ABI is unchanged, so published plugins work as before.
 
 ## Documentation
 

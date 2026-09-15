@@ -60,7 +60,9 @@
 #include "iconloader.h"
 #include "mergecontroller.h"
 #include "pathline.h"
-#include "pluginmanager.h"
+#include "plugincatalog.h"
+#include "pluginhost.h"
+#include "pluginuiadapter.h"
 #include "quickfindmux.h"
 #include "quickfindwidget.h"
 #include "session.h"
@@ -153,16 +155,6 @@ private Q_SLOTS:
     void handleDataSourceStarted( const QString& pluginId, const QString& displayName,
                                   const QString& filePath );
     void handleDataSourceStopped( const QString& pluginId );
-    void handlePluginStatusWidget( const QString& pluginId, QWidget* widget );
-    void handlePluginStatusWidgetRemoved( const QString& pluginId, QWidget* widget );
-    void handlePluginMenuAction( const QString& pluginId, const QString& menuPath,
-                                 const QString& label,
-                                 logsquirl::plugins::PluginCallbackFn callback, void* userData );
-    void removePluginMenuActions( const QString& pluginId );
-    void handlePluginSidebarTab( const QString& pluginId, const QString& label, QWidget* widget );
-    void handlePluginSidebarTabRemoved( const QString& pluginId, QWidget* widget );
-    void handlePluginFooterWidget( const QString& pluginId, QWidget* widget );
-    void handlePluginFooterWidgetRemoved( const QString& pluginId, QWidget* widget );
     void encodingChanged( QAction* action );
     void addToFavorites();
     void removeFromFavorites();
@@ -387,16 +379,16 @@ private:
 
     std::once_flag screenChangesConnect_;
 
-    logsquirl::plugins::PluginManager pluginManager_;
+    // Which plugins are installed. Declared before pluginHost_, which looks
+    // plugins up in it.
+    logsquirl::plugins::PluginCatalog pluginCatalog_;
 
-    // Plugin-contributed toolbar (shown below the main toolbar)
-    QToolBar* pluginToolBar_ = nullptr;
+    // Shows what plugins contribute. Declared before pluginHost_ so it
+    // outlives it: unloading the plugins on destruction still reaches it.
+    std::unique_ptr<PluginUiAdapter> pluginUi_;
 
-    // Plugin-contributed footer toolbar (shown at the bottom of the window)
-    QToolBar* pluginFooterBar_ = nullptr;
-
-    // Tracks menu actions added by each plugin so they can be removed on unload.
-    std::map<QString, std::vector<QAction*>> pluginMenuActions_;
+    // Loads the enabled plugins from the catalog and serves their callbacks.
+    logsquirl::plugins::PluginHost pluginHost_{ pluginCatalog_ };
 
     // Separator between plugin actions (top) and management actions (bottom).
     QAction* pluginMenuSeparator_ = nullptr;

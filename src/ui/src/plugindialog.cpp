@@ -33,7 +33,9 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 
-namespace logsquirl::plugins {
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginRepository;
 
 // ── PluginCard ────────────────────────────────────────────────────────
 
@@ -183,9 +185,10 @@ void PluginDialog::PluginCard::updateState( const MergedPlugin& plugin )
 
 // ── PluginDialog ──────────────────────────────────────────────────────
 
-PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
+PluginDialog::PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* parent )
     : QDialog( parent )
-    , manager_( manager )
+    , catalog_( catalog )
+    , host_( host )
 {
     setWindowTitle( tr( "Plugin Management" ) );
     resize( 750, 550 );
@@ -401,7 +404,7 @@ void PluginDialog::rebuildMergedList()
     // Start with discovered (local) plugins
     std::map<QString, MergedPlugin> byId;
 
-    for ( const auto& meta : manager_.discoveredPlugins() ) {
+    for ( const auto& meta : catalog_.discoveredPlugins() ) {
         MergedPlugin mp;
         mp.id = meta.id();
         mp.name = meta.name();
@@ -615,7 +618,7 @@ void PluginDialog::installPlugin( const QString& pluginId )
         it->second->actionButton->setText( tr( "Installing..." ) );
     }
 
-    const auto dirs = PluginManager::defaultPluginDirectories();
+    const auto dirs = PluginCatalog::defaultPluginDirectories();
     const auto destDir = dirs.isEmpty() ? QDir::tempPath() : dirs.first();
     repository_.downloadPlugin( latest->assets.front(), pluginId, destDir );
 }
@@ -631,8 +634,8 @@ void PluginDialog::togglePlugin( const QString& pluginId )
         config.setEnabledPlugins( enabled );
         config.save();
 
-        if ( manager_.isLoaded( pluginId ) ) {
-            manager_.unloadPlugin( pluginId );
+        if ( host_.isLoaded( pluginId ) ) {
+            host_.unloadPlugin( pluginId );
         }
         statusLabel_->setText( tr( "Plugin disabled." ) );
     }
@@ -642,7 +645,7 @@ void PluginDialog::togglePlugin( const QString& pluginId )
         config.setEnabledPlugins( enabled );
         config.save();
 
-        const auto error = manager_.loadPlugin( pluginId );
+        const auto error = host_.loadPlugin( pluginId );
         if ( !error.isEmpty() ) {
             QMessageBox::warning( this, tr( "Plugin Error" ),
                                   tr( "Failed to load %1:\n%2" ).arg( pluginId, error ) );
@@ -658,7 +661,7 @@ void PluginDialog::togglePlugin( const QString& pluginId )
 
 bool PluginDialog::extractAndInstall( const QString& archivePath, const QString& pluginId )
 {
-    const auto dirs = PluginManager::defaultPluginDirectories();
+    const auto dirs = PluginCatalog::defaultPluginDirectories();
     if ( dirs.isEmpty() ) {
         QMessageBox::warning( this, tr( "Install Error" ),
                               tr( "No plugin directory configured." ) );
@@ -669,9 +672,9 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
     const auto backupDir = pluginDir + ".bak";
 
     // Unload existing plugin before overwriting
-    if ( manager_.isLoaded( pluginId ) ) {
+    if ( host_.isLoaded( pluginId ) ) {
         LOG_INFO << "Unloading existing plugin " << pluginId << " for update";
-        manager_.unloadPlugin( pluginId );
+        host_.unloadPlugin( pluginId );
     }
 
     // Back up existing directory
@@ -703,8 +706,8 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
     QFile::remove( archivePath );
 
     // Re-discover and load
-    manager_.discoverPlugins();
-    const auto loadError = manager_.loadPlugin( pluginId );
+    catalog_.discoverPlugins();
+    const auto loadError = host_.loadPlugin( pluginId );
     if ( !loadError.isEmpty() ) {
         LOG_WARNING << "Plugin extracted but failed to load: " << loadError;
         statusLabel_->setText( tr( "Extracted but failed to load." ) );
@@ -766,5 +769,3 @@ QString PluginDialog::badgeText( PluginState state )
     }
     return {};
 }
-
-} // namespace logsquirl::plugins

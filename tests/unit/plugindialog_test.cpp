@@ -19,21 +19,23 @@
 
 #include <catch2/catch.hpp>
 
+#include "plugincatalog.h"
 #include "plugindialog.h"
-#include "pluginmanager.h"
+#include "pluginhost.h"
 
 #include <QCheckBox>
 #include <QPushButton>
 
-using logsquirl::plugins::PluginDialog;
-using logsquirl::plugins::PluginManager;
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
 
 SCENARIO( "PluginDialog footer contains expected buttons", "[plugindialog][plugins]" )
 {
     GIVEN( "A freshly constructed PluginDialog" )
     {
-        PluginManager manager;
-        PluginDialog dialog( manager );
+        PluginCatalog catalog;
+        PluginHost host( catalog );
+        PluginDialog dialog( catalog, host );
 
         THEN( "The dialog contains a 'Plugin Folder' button" )
         {

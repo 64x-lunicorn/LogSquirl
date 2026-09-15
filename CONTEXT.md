@@ -187,6 +187,31 @@ _Avoid_: record, entry
 **Chart Preset**:
 A saved configuration of which Log Format fields to plot and how.
 
+### Plugins
+
+**Plugin Catalog**:
+Which plugins are installed: the metadata read from the `plugin.json` manifests found in
+the plugin directories, one entry per plugin id. The catalog never loads a plugin library;
+it is what the plugin dialog and the welcome dashboard list, and where the Plugin Host
+looks a plugin up by id.
+_Avoid_: plugin manager, plugin registry, plugin list
+
+**Plugin Host**:
+Loads and initialises the plugins the Plugin Catalog lists, shuts them down again, and
+answers what a loaded plugin calls back: its data-source stream, its converter, the active
+file, opening files and notifications. What a plugin shows goes through the Plugin UI Port.
+A plugin is loaded when the host has initialised it, and enabled when the configuration
+says to load it.
+_Avoid_: plugin manager, plugin loader (the loader only opens one library)
+
+**Plugin UI Port**:
+Everything the plugin layer needs from the user interface to show what a plugin
+contributes — status widgets, sidebar tabs, footer widgets, menu actions and the parent
+of its configuration dialog. The plugin layer calls it and knows no widgets; the main
+window implements it. Every contribution belongs to one plugin, and all of them are
+taken away again when that plugin is unloaded.
+_Avoid_: plugin UI bridge, widget signals, UI host
+
 ### Session and settings
 
 **Settings Policy**:

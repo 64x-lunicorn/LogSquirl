@@ -17,116 +17,33 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "pluginmanager.h"
+#include "pluginhost.h"
 
 #include "configuration.h"
 #include "log.h"
 #include "streamwriter.h"
 
-#include <QCoreApplication>
 #include <QDir>
-#include <QDirIterator>
 #include <QStandardPaths>
-#include <QWidget>
 
 namespace logsquirl::plugins {
 
 // ── Construction / destruction ──────────────────────────────────────────────
 
-PluginManager::PluginManager( QObject* parent )
+PluginHost::PluginHost( const PluginCatalog& catalog, QObject* parent )
     : QObject( parent )
+    , catalog_( catalog )
 {
 }
 
-PluginManager::~PluginManager()
+PluginHost::~PluginHost()
 {
     unloadAll();
 }
 
-// ── Platform-specific plugin directories ────────────────────────────────────
-
-QStringList PluginManager::defaultPluginDirectories()
-{
-    QStringList dirs;
-    const auto appDir = QCoreApplication::applicationDirPath();
-
-#if defined( Q_OS_MACOS )
-    // Inside .app bundle: Contents/PlugIns/
-    dirs << QDir( appDir + "/../PlugIns" ).absolutePath();
-    // User-installed plugins
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
-#elif defined( Q_OS_WIN )
-    dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
-#else
-    // Linux / other Unix
-    dirs << appDir + "/plugins";
-    dirs << QStandardPaths::writableLocation( QStandardPaths::AppDataLocation ) + "/plugins";
-#endif
-
-    return dirs;
-}
-
-// ── Discovery ───────────────────────────────────────────────────────────────
-
-void PluginManager::discoverPlugins()
-{
-    discovered_.clear();
-    for ( const auto& dir : defaultPluginDirectories() ) {
-        discoverPluginsIn( dir );
-    }
-    LOG_INFO << "Plugin discovery complete: " << discovered_.size() << " plugin(s) found";
-}
-
-void PluginManager::discoverPluginsIn( const QString& directory )
-{
-    const QDir dir( directory );
-    if ( !dir.exists() ) {
-        LOG_DEBUG << "Plugin directory does not exist: " << directory;
-        return;
-    }
-
-    LOG_INFO << "Scanning for plugins in: " << directory;
-
-    // Look for plugin.json in immediate subdirectories
-    QDirIterator it( directory, QDir::Dirs | QDir::NoDotAndDotDot );
-    while ( it.hasNext() ) {
-        const auto subDir = it.next();
-        const auto manifestPath = QDir( subDir ).filePath( "plugin.json" );
-
-        if ( !QFile::exists( manifestPath ) ) {
-            continue;
-        }
-
-        auto result = PluginMetadata::fromJsonFile( manifestPath );
-        if ( !result.has_value() ) {
-            LOG_WARNING << "Skipping invalid plugin manifest: " << result.error();
-            continue;
-        }
-
-        // Check for duplicate IDs — keep the first one found
-        const auto& meta = result.value();
-        bool duplicate = false;
-        for ( const auto& existing : discovered_ ) {
-            if ( existing.id() == meta.id() ) {
-                LOG_WARNING << "Duplicate plugin ID '" << meta.id() << "' — keeping first found at "
-                            << existing.directory();
-                duplicate = true;
-                break;
-            }
-        }
-
-        if ( !duplicate ) {
-            LOG_INFO << "Discovered plugin: " << meta.id() << " v" << meta.version() << " at "
-                     << meta.directory();
-            discovered_.push_back( std::move( result.value() ) );
-        }
-    }
-}
-
 // ── Loading / unloading ─────────────────────────────────────────────────────
 
-QStringList PluginManager::loadedPluginIds() const
+QStringList PluginHost::loadedPluginIds() const
 {
     QStringList ids;
     ids.reserve( static_cast<int>( loaded_.size() ) );
@@ -136,7 +53,7 @@ QStringList PluginManager::loadedPluginIds() const
     return ids;
 }
 
-QStringList PluginManager::autoLoadPlugins()
+QStringList PluginHost::autoLoadPlugins()
 {
     const auto& config = Configuration::get();
     if ( !config.pluginsAutoLoad() ) {
@@ -147,8 +64,8 @@ QStringList PluginManager::autoLoadPlugins()
 
     // First run: if no plugins have been explicitly configured yet, enable
     // all discovered plugins by default so they are visible immediately.
-    if ( enabledIds.isEmpty() && !discovered_.empty() ) {
-        for ( const auto& meta : discovered_ ) {
+    if ( enabledIds.isEmpty() && !catalog_.discoveredPlugins().empty() ) {
+        for ( const auto& meta : catalog_.discoveredPlugins() ) {
             enabledIds.append( meta.id() );
         }
         // Persist so this only triggers once
@@ -163,7 +80,7 @@ QStringList PluginManager::autoLoadPlugins()
         if ( isLoaded( pluginId ) ) {
             continue;
         }
-        if ( !findDiscovered( pluginId ) ) {
+        if ( !catalog_.findDiscovered( pluginId ) ) {
             LOG_WARNING << "Auto-load: plugin '" << pluginId << "' not found, skipping";
             continue;
         }
@@ -178,13 +95,13 @@ QStringList PluginManager::autoLoadPlugins()
     return errors;
 }
 
-QString PluginManager::loadPlugin( const QString& pluginId )
+QString PluginHost::loadPlugin( const QString& pluginId )
 {
     if ( loaded_.contains( pluginId ) ) {
         return QStringLiteral( "Plugin already loaded" );
     }
 
-    const auto* meta = findDiscovered( pluginId );
+    const auto* meta = catalog_.findDiscovered( pluginId );
     if ( !meta ) {
         return QString( "Plugin '%1' not found in discovered plugins" ).arg( pluginId );
     }
@@ -210,10 +127,14 @@ QString PluginManager::loadPlugin( const QString& pluginId )
     QDir().mkpath( ctx->configDir );
 
     // Initialise — pass the context pointer as the opaque handle so that
-    // host API trampolines can route back to this manager
+    // host API trampolines can route back to this host
     const auto error = ctx->handle.init( &ctx->hostApi, ctx.get() );
     if ( !error.isEmpty() ) {
         LOG_ERROR << "Failed to init plugin '" << pluginId << "': " << error;
+        // A plugin may have registered contributions before its init failed.
+        if ( uiPort_ ) {
+            uiPort_->removeContributions( pluginId );
+        }
         Q_EMIT pluginError( pluginId, error );
         return error;
     }
@@ -231,7 +152,7 @@ QString PluginManager::loadPlugin( const QString& pluginId )
     return {};
 }
 
-void PluginManager::unloadPlugin( const QString& pluginId )
+void PluginHost::unloadPlugin( const QString& pluginId )
 {
     auto it = loaded_.find( pluginId );
     if ( it == loaded_.end() ) {
@@ -247,12 +168,19 @@ void PluginManager::unloadPlugin( const QString& pluginId )
         Q_EMIT dataSourceStopped( pluginId );
     }
 
-    // PluginHandle destructor calls shutdown
+    // Shut the plugin down while it is still loaded: it unregisters its
+    // widgets through the host callbacks. Whatever it left behind is taken
+    // away before its context and library go.
+    it->second->handle.shutdown();
+    if ( uiPort_ ) {
+        uiPort_->removeContributions( pluginId );
+    }
+
     loaded_.erase( it );
     Q_EMIT pluginUnloaded( pluginId );
 }
 
-void PluginManager::unloadAll()
+void PluginHost::unloadAll()
 {
     // Collect IDs first to avoid iterator invalidation during signal emission
     const auto ids = loadedPluginIds();
@@ -261,12 +189,17 @@ void PluginManager::unloadAll()
     }
 }
 
-bool PluginManager::isLoaded( const QString& pluginId ) const
+bool PluginHost::isLoaded( const QString& pluginId ) const
 {
     return loaded_.contains( pluginId );
 }
 
-PluginHandle* PluginManager::pluginHandle( const QString& pluginId )
+void PluginHost::setUiPort( PluginUiPort* uiPort )
+{
+    uiPort_ = uiPort;
+}
+
+PluginHandle* PluginHost::pluginHandle( const QString& pluginId )
 {
     auto it = loaded_.find( pluginId );
     if ( it != loaded_.end() ) {
@@ -275,25 +208,26 @@ PluginHandle* PluginManager::pluginHandle( const QString& pluginId )
     return nullptr;
 }
 
-void PluginManager::configurePlugin( const QString& pluginId, QWidget* parentWidget )
+void PluginHost::configurePlugin( const QString& pluginId )
 {
     auto* handle = pluginHandle( pluginId );
     if ( handle && handle->hasConfigureUi() ) {
-        handle->configure( static_cast<void*>( parentWidget ) );
+        const auto parent = uiPort_ ? uiPort_->configurationParent() : PluginWidgetHandle{};
+        handle->configure( parent.widget );
     }
 }
 
-void PluginManager::setOpenFileCallback( std::function<void( const QString&, bool )> callback )
+void PluginHost::setOpenFileCallback( std::function<void( const QString&, bool )> callback )
 {
     openFileCallback_ = std::move( callback );
 }
 
-void PluginManager::setActiveFilePathCallback( std::function<QString()> callback )
+void PluginHost::setActiveFilePathCallback( std::function<QString()> callback )
 {
     activeFilePathCallback_ = std::move( callback );
 }
 
-void PluginManager::notifyActiveFileChanged( const QString& filePath )
+void PluginHost::notifyActiveFileChanged( const QString& filePath )
 {
     const auto utf8 = filePath.toUtf8();
     for ( auto& [ id, ctx ] : loaded_ ) {
@@ -305,7 +239,7 @@ void PluginManager::notifyActiveFileChanged( const QString& filePath )
 
 // ── DataSource (Phase 2) ─────────────────────────────────────────────────────────
 
-QString PluginManager::startDataSource( const QString& pluginId )
+QString PluginHost::startDataSource( const QString& pluginId )
 {
     auto it = loaded_.find( pluginId );
     if ( it == loaded_.end() ) {
@@ -330,7 +264,7 @@ QString PluginManager::startDataSource( const QString& pluginId )
     return {};
 }
 
-void PluginManager::stopDataSource( const QString& pluginId )
+void PluginHost::stopDataSource( const QString& pluginId )
 {
     auto it = loaded_.find( pluginId );
     if ( it == loaded_.end() || !it->second->stream ) {
@@ -343,7 +277,7 @@ void PluginManager::stopDataSource( const QString& pluginId )
     Q_EMIT dataSourceStopped( pluginId );
 }
 
-StreamWriter* PluginManager::streamWriter( const QString& pluginId )
+StreamWriter* PluginHost::streamWriter( const QString& pluginId )
 {
     auto it = loaded_.find( pluginId );
     if ( it != loaded_.end() && it->second->stream ) {
@@ -354,7 +288,7 @@ StreamWriter* PluginManager::streamWriter( const QString& pluginId )
 
 // ── Converter registry (Phase 4) ───────────────────────────────────────────────
 
-QString PluginManager::converterForExtension( const QString& extension ) const
+QString PluginHost::converterForExtension( const QString& extension ) const
 {
     const auto ext = extension.toLower();
     for ( const auto& [ id, ctx ] : loaded_ ) {
@@ -372,7 +306,7 @@ QString PluginManager::converterForExtension( const QString& extension ) const
     return {};
 }
 
-QStringList PluginManager::converterFileFilters() const
+QStringList PluginHost::converterFileFilters() const
 {
     QStringList filters;
     for ( const auto& [ id, ctx ] : loaded_ ) {
@@ -398,8 +332,8 @@ QStringList PluginManager::converterFileFilters() const
     return filters;
 }
 
-int PluginManager::runConverter( const QString& pluginId, const QString& inputPath,
-                                 const QString& outputPath )
+int PluginHost::runConverter( const QString& pluginId, const QString& inputPath,
+                              const QString& outputPath )
 {
     auto* handle = pluginHandle( pluginId );
     if ( !handle || !handle->isConverter() ) {
@@ -410,54 +344,44 @@ int PluginManager::runConverter( const QString& pluginId, const QString& inputPa
 
 // ── Host API construction ───────────────────────────────────────────────────
 
-LogSquirlHostApi PluginManager::buildHostApi()
+LogSquirlHostApi PluginHost::buildHostApi()
 {
     LogSquirlHostApi api{};
     api.api_version = LOGSQUIRL_PLUGIN_API_VERSION;
 
-    api.push_line = &PluginManager::hostPushLine;
-    api.push_lines = &PluginManager::hostPushLines;
-    api.signal_eos = &PluginManager::hostSignalEos;
-    api.signal_error = &PluginManager::hostSignalError;
-    api.log_message = &PluginManager::hostLogMessage;
-    api.get_config_dir = &PluginManager::hostGetConfigDir;
-    api.show_notification = &PluginManager::hostShowNotification;
-    api.open_file = &PluginManager::hostOpenFile;
-    api.register_status_widget = &PluginManager::hostRegisterStatusWidget;
-    api.unregister_status_widget = &PluginManager::hostUnregisterStatusWidget;
-    api.register_menu_action = &PluginManager::hostRegisterMenuAction;
-    api.register_sidebar_tab = &PluginManager::hostRegisterSidebarTab;
-    api.unregister_sidebar_tab = &PluginManager::hostUnregisterSidebarTab;
-    api.register_footer_widget = &PluginManager::hostRegisterFooterWidget;
-    api.unregister_footer_widget = &PluginManager::hostUnregisterFooterWidget;
-    api.get_active_file_path = &PluginManager::hostGetActiveFilePath;
-    api.register_active_file_callback = &PluginManager::hostRegisterActiveFileCallback;
+    api.push_line = &PluginHost::hostPushLine;
+    api.push_lines = &PluginHost::hostPushLines;
+    api.signal_eos = &PluginHost::hostSignalEos;
+    api.signal_error = &PluginHost::hostSignalError;
+    api.log_message = &PluginHost::hostLogMessage;
+    api.get_config_dir = &PluginHost::hostGetConfigDir;
+    api.show_notification = &PluginHost::hostShowNotification;
+    api.open_file = &PluginHost::hostOpenFile;
+    api.register_status_widget = &PluginHost::hostRegisterStatusWidget;
+    api.unregister_status_widget = &PluginHost::hostUnregisterStatusWidget;
+    api.register_menu_action = &PluginHost::hostRegisterMenuAction;
+    api.register_sidebar_tab = &PluginHost::hostRegisterSidebarTab;
+    api.unregister_sidebar_tab = &PluginHost::hostUnregisterSidebarTab;
+    api.register_footer_widget = &PluginHost::hostRegisterFooterWidget;
+    api.unregister_footer_widget = &PluginHost::hostUnregisterFooterWidget;
+    api.get_active_file_path = &PluginHost::hostGetActiveFilePath;
+    api.register_active_file_callback = &PluginHost::hostRegisterActiveFileCallback;
 
     return api;
-}
-
-const PluginMetadata* PluginManager::findDiscovered( const QString& pluginId ) const
-{
-    for ( const auto& meta : discovered_ ) {
-        if ( meta.id() == pluginId ) {
-            return &meta;
-        }
-    }
-    return nullptr;
 }
 
 // ── Host API trampolines ────────────────────────────────────────────────────
 //
 // Each trampoline receives a void* handle that is actually a PluginContext*.
-// From there we can access the PluginManager and route the call.
+// From there we can access the PluginHost and route the call.
 
 // Extract the PluginContext from the opaque handle.
-auto PluginManager::contextFromHandle( void* handle ) -> PluginContext*
+auto PluginHost::contextFromHandle( void* handle ) -> PluginContext*
 {
     return static_cast<PluginContext*>( handle );
 }
 
-void PluginManager::hostPushLine( void* handle, const char* data, size_t len )
+void PluginHost::hostPushLine( void* handle, const char* data, size_t len )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->stream ) {
@@ -466,8 +390,8 @@ void PluginManager::hostPushLine( void* handle, const char* data, size_t len )
     ctx->stream->pushLine( data, len );
 }
 
-void PluginManager::hostPushLines( void* handle, const char* const* data, const size_t* lens,
-                                   size_t count )
+void PluginHost::hostPushLines( void* handle, const char* const* data, const size_t* lens,
+                                size_t count )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->stream ) {
@@ -476,7 +400,7 @@ void PluginManager::hostPushLines( void* handle, const char* const* data, const 
     ctx->stream->pushLines( data, lens, count );
 }
 
-void PluginManager::hostSignalEos( void* handle )
+void PluginHost::hostSignalEos( void* handle )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx || !ctx->stream ) {
@@ -484,13 +408,13 @@ void PluginManager::hostSignalEos( void* handle )
     }
     ctx->stream->signalEos();
     LOG_INFO << "DataSource EOS from plugin";
-    if ( ctx->manager ) {
+    if ( ctx->host ) {
         const auto pluginId = ctx->handle.metadata().id();
-        Q_EMIT ctx->manager->dataSourceStopped( pluginId );
+        Q_EMIT ctx->host->dataSourceStopped( pluginId );
     }
 }
 
-void PluginManager::hostSignalError( void* handle, const char* message )
+void PluginHost::hostSignalError( void* handle, const char* message )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx ) {
@@ -499,7 +423,7 @@ void PluginManager::hostSignalError( void* handle, const char* message )
     LOG_ERROR << "Plugin error: " << message;
 }
 
-void PluginManager::hostLogMessage( void* handle, int level, const char* message )
+void PluginHost::hostLogMessage( void* handle, int level, const char* message )
 {
     Q_UNUSED( handle );
     switch ( static_cast<LogSquirlLogLevel>( level ) ) {
@@ -520,7 +444,7 @@ void PluginManager::hostLogMessage( void* handle, int level, const char* message
     }
 }
 
-const char* PluginManager::hostGetConfigDir( void* handle )
+const char* PluginHost::hostGetConfigDir( void* handle )
 {
     auto* ctx = contextFromHandle( handle );
     if ( !ctx ) {
@@ -529,118 +453,104 @@ const char* PluginManager::hostGetConfigDir( void* handle )
     return ctx->configDirUtf8.constData();
 }
 
-void PluginManager::hostShowNotification( void* handle, const char* message )
+void PluginHost::hostShowNotification( void* handle, const char* message )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
+    if ( !ctx || !ctx->host ) {
         return;
     }
     const auto msg = QString::fromUtf8( message );
     LOG_INFO << "[plugin notification] " << msg;
-    Q_EMIT ctx->manager->notificationRequested( msg );
+    Q_EMIT ctx->host->notificationRequested( msg );
 }
 
-void PluginManager::hostOpenFile( void* handle, const char* filePath, int follow )
+void PluginHost::hostOpenFile( void* handle, const char* filePath, int follow )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
+    if ( !ctx || !ctx->host ) {
         return;
     }
-    if ( ctx->manager->openFileCallback_ ) {
-        ctx->manager->openFileCallback_( QString::fromUtf8( filePath ), follow != 0 );
+    if ( ctx->host->openFileCallback_ ) {
+        ctx->host->openFileCallback_( QString::fromUtf8( filePath ), follow != 0 );
     }
 }
 
-void PluginManager::hostRegisterStatusWidget( void* handle, void* qwidgetPtr )
+auto PluginHost::uiPortFor( void* handle ) -> std::pair<PluginUiPort*, QString>
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    const auto* ctx = contextFromHandle( handle );
+    if ( !ctx || !ctx->host || !ctx->host->uiPort_ ) {
+        return { nullptr, {} };
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->statusWidgetAdded( pluginId, widget );
+    return { ctx->host->uiPort_, ctx->handle.metadata().id() };
 }
 
-void PluginManager::hostUnregisterStatusWidget( void* handle, void* qwidgetPtr )
+// The widget trampolines wrap the plugin's void* in a PluginWidgetHandle
+// without looking at it; only the port's implementation knows it is a widget.
+
+void PluginHost::hostRegisterStatusWidget( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addStatusWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->statusWidgetRemoved( pluginId, widget );
 }
 
-void PluginManager::hostRegisterMenuAction( void* handle, const char* menuPath, const char* label,
-                                            PluginCallbackFn callback, void* userData )
+void PluginHost::hostUnregisterStatusWidget( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->removeStatusWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->menuActionAdded( pluginId, QString::fromUtf8( menuPath ),
-                                          QString::fromUtf8( label ), callback, userData );
 }
 
-void PluginManager::hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr )
+void PluginHost::hostRegisterMenuAction( void* handle, const char* menuPath, const char* label,
+                                         PluginCallbackFn callback, void* userData )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addMenuAction( pluginId, QString::fromUtf8( menuPath ), QString::fromUtf8( label ),
+                             callback, userData );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->sidebarTabAdded( pluginId, QString::fromUtf8( label ), widget );
 }
 
-void PluginManager::hostUnregisterSidebarTab( void* handle, void* qwidgetPtr )
+void PluginHost::hostRegisterSidebarTab( void* handle, const char* label, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addSidebarTab( pluginId, QString::fromUtf8( label ),
+                             PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->sidebarTabRemoved( pluginId, widget );
 }
 
-void PluginManager::hostRegisterFooterWidget( void* handle, void* qwidgetPtr )
+void PluginHost::hostUnregisterSidebarTab( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->removeSidebarTab( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->footerWidgetAdded( pluginId, widget );
 }
 
-void PluginManager::hostUnregisterFooterWidget( void* handle, void* qwidgetPtr )
+void PluginHost::hostRegisterFooterWidget( void* handle, void* qwidgetPtr )
 {
-    auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager ) {
-        return;
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->addFooterWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
     }
-    auto* widget = static_cast<QWidget*>( qwidgetPtr );
-    const auto pluginId = ctx->handle.metadata().id();
-    Q_EMIT ctx->manager->footerWidgetRemoved( pluginId, widget );
 }
 
-const char* PluginManager::hostGetActiveFilePath( void* handle )
+void PluginHost::hostUnregisterFooterWidget( void* handle, void* qwidgetPtr )
+{
+    if ( const auto [ port, pluginId ] = uiPortFor( handle ); port ) {
+        port->removeFooterWidget( pluginId, PluginWidgetHandle{ qwidgetPtr } );
+    }
+}
+
+const char* PluginHost::hostGetActiveFilePath( void* handle )
 {
     auto* ctx = contextFromHandle( handle );
-    if ( !ctx || !ctx->manager || !ctx->manager->activeFilePathCallback_ ) {
+    if ( !ctx || !ctx->host || !ctx->host->activeFilePathCallback_ ) {
         return "";
     }
     // Cache the UTF-8 bytes so the returned pointer remains valid
-    ctx->manager->activeFilePathUtf8_ = ctx->manager->activeFilePathCallback_().toUtf8();
-    return ctx->manager->activeFilePathUtf8_.constData();
+    ctx->host->activeFilePathUtf8_ = ctx->host->activeFilePathCallback_().toUtf8();
+    return ctx->host->activeFilePathUtf8_.constData();
 }
 
-void PluginManager::hostRegisterActiveFileCallback(
+void PluginHost::hostRegisterActiveFileCallback(
     void* handle, void ( *callback )( void* user_data, const char* file_path ), void* user_data )
 {
     auto* ctx = contextFromHandle( handle );
