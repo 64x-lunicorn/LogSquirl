@@ -186,7 +186,9 @@ std::unique_ptr<QMenu> PresentationMenu::create( QWidget* parent, const Report& 
                                  : oneWholeLogLine
                                      ? OptionalLineNumber{ report.selectedLogLines.front() }
                                      : OptionalLineNumber{};
-    const bool canSetSearchLimit = oneWholeLogLine && searchLimitLine.has_value();
+    // The Text View sets them only while one whole Log Line is selected.
+    const bool canSetSearchLimit
+        = searchLimitLine.has_value() && ( !report.drawnLikeTextView || oneWholeLogLine );
     addEntry( *menu, tr( "Set search start" ),
               [ searchLimitLine, setSearchStart = entries.setSearchStart ]() {
                   if ( searchLimitLine && setSearchStart ) {

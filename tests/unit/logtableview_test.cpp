@@ -571,9 +571,10 @@ SCENARIO( "Search Limits set from the Table View's context menu are those of the
     InspectedTableView view( std::make_shared<RowsFromLogLine100>() );
     open( view, format, logData );
 
-    GIVEN( "the Row showing Log Line 102 selected" )
+    GIVEN( "the Rows showing Log Lines 101 and 103 selected, and the cursor over the Row showing "
+           "Log Line 102" )
     {
-        selectRows( view, { 2 } );
+        selectRows( view, { 1, 3 } );
         QSignalSpy changeSearchLimits( &view, &LogTableView::changeSearchLimits );
         const auto menu = view.createContextMenu( centerOfRow( view, 2 ) );
 

@@ -2150,6 +2150,7 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     } );
     report.colorLabels = quickHighlighters_;
     report.selectionStartSet = selectionStart_.has_value();
+    report.drawnLikeTextView = true;
 
     PresentationMenu::Entries entries;
     entries.highlightersChange = [ this ]() { Q_EMIT highlightersChange(); };

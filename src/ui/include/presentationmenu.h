@@ -61,6 +61,12 @@ public:
         std::vector<QStringList> colorLabels;
         // Whether a selection start has been set (see Entries).
         bool selectionStartSet = false;
+        // Whether the Presentation is drawn like the Text View (the Text View
+        // or the Filtered View). There Find next and Find previous have the
+        // shortcuts * and /, and the Search Limits are set only while one
+        // whole Log Line is selected; elsewhere they are set whenever there is
+        // a Log Line under the cursor.
+        bool drawnLikeTextView = false;
     };
 
     // What each entry does, on the Presentation the menu was opened on.
