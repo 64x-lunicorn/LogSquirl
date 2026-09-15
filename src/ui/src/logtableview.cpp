@@ -131,7 +131,7 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
         model_ = nullptr;
     }
 
-    format_ = format ? std::make_optional( *format ) : std::nullopt;
+    format_ = format;
     logData_ = logData;
     columnsNeedSizing_ = false;
 

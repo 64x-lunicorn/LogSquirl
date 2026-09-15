@@ -46,8 +46,8 @@ public:
     static constexpr int RawLineRole = Qt::UserRole + 1;
 
     // Construct the model from a log format definition and log data source.
-    // The model does NOT own logData — the caller must ensure it outlives the model.
-    // Each Row shows one Log Line.
+    // The model owns neither format nor logData — the caller must ensure both
+    // outlive the model. Each Row shows one Log Line.
     LogFormatTableModel( const LogFormatDefinition& format, AbstractLogData* logData,
                          QObject* parent = nullptr );
     // Each Row shows the Log Line rows maps it onto.
@@ -74,7 +74,6 @@ private:
     // Extracts fields from a single line into a row of column values.
     QVector<QString> extractRow( const QString& line ) const;
 
-    LogFormatDefinition format_;
     LogFieldExtractor extractor_;
     QStringList columnNames_;
     AbstractLogData* logData_;

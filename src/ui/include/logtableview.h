@@ -178,7 +178,8 @@ private:
     void repaintIfActive();
 
     std::shared_ptr<const RowMapping> rows_;
-    std::optional<LogFormatDefinition> format_;
+    // Not owned: the coordinator holds the Log Format for as long as it is set
+    const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
     LogFormatTableModel* model_ = nullptr;
     LogTableHighlightDelegate* delegate_ = nullptr;

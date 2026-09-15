@@ -32,7 +32,6 @@ LogFormatTableModel::LogFormatTableModel( const LogFormatDefinition& format,
                                           AbstractLogData* logData,
                                           std::shared_ptr<const RowMapping> rows, QObject* parent )
     : QAbstractTableModel( parent )
-    , format_( format )
     , extractor_( format )
     , columnNames_( extractor_.columnNames() )
     , logData_( logData )

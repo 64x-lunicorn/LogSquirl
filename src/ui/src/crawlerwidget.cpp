@@ -2312,7 +2312,9 @@ void CrawlerWidget::recognizeFormat()
     }
 
     LOG_INFO << "Recognized log format: " << recognized->name().toStdString();
-    detectedFormat_ = std::move( recognized );
+    // The Table View still points at the previous Log Format until it is
+    // handed the new one, so the previous one stays alive until then.
+    const auto previousFormat = std::exchange( detectedFormat_, std::move( recognized ) );
     logTableView_->setLogFormat( detectedFormat_.get(), logData_.get() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
