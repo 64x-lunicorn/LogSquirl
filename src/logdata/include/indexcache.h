@@ -54,8 +54,13 @@ struct CachedIndex {
 /// The cache owns its rules; whoever indexes a Log File only asks it for an
 /// Index and hands it one afterwards:
 ///  - An Index is handed out only while it still fits its Log File: the
-///    same size, and the same header and tail digests (the first and last
-///    5 MB). An entry that no longer fits, or cannot be read, is deleted.
+///    bytes it was built from are unchanged. The Log File is no shorter,
+///    and the header and tail digests (the first and last 5 MB it was
+///    built from, re-hashed at their stored offsets) match. An entry that
+///    no longer fits, or cannot be read, is deleted.
+///  - An Index is always complete for the byte size it was built at. The
+///    Log File may have grown since; whether the Index is used as it is or
+///    indexing goes on from it is for whoever indexes the Log File to decide.
 ///  - Nothing is kept for a Log File under the excluded directory, nor for
 ///    an empty Index.
 ///  - The cache never grows past its budget. After storing an entry it
@@ -71,7 +76,8 @@ public:
     IndexCache( QString directory, QString excludedDirectory, qint64 budgetBytes );
 
     /// The Index cached for the given Log File, if there is one that still
-    /// fits it. Deletes a stale or unreadable entry.
+    /// fits it, for the size recorded in its hash. Deletes a stale or
+    /// unreadable entry.
     std::optional<CachedIndex> tryLoad( const QString& filePath ) const;
 
     /// Keeps an Index for the given Log File, unless the cache's rules say

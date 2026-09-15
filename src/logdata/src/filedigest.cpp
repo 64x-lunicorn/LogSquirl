@@ -59,6 +59,9 @@ FileDigest::FileDigest()
 
 FileDigest::~FileDigest() = default;
 
+FileDigest::FileDigest( FileDigest&& ) noexcept = default;
+FileDigest& FileDigest::operator=( FileDigest&& ) noexcept = default;
+
 FileDigest& FileDigest::addData( const char* data, size_t length )
 {
     m_state->addData( data, length );
