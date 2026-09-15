@@ -42,6 +42,7 @@
 #include "filterspanel.h"
 #include "highlightersdialog.h"
 #include "logformatcatalog.h"
+#include "logtableview.h"
 #include "mainwindow.h"
 #include "optionsdialog.h"
 #include "predefinedfiltersdialog.h"
@@ -67,7 +68,12 @@ bool writeLogFile( QTemporaryFile& file )
         return false;
     }
     for ( int i = 0; i < 2000; ++i ) {
-        file.write( QStringLiteral( "INFO theme switch test line %1\n" ).arg( i ).toUtf8() );
+        // spdlog lines, so that a built-in Log Format recognizes the Log File
+        // and its Table View can be shown.
+        file.write( QStringLiteral( "[2026-01-01 12:00:00.000] [theme] [info] theme switch test "
+                                    "line %1\n" )
+                        .arg( i )
+                        .toUtf8() );
     }
     file.flush();
     return true;
@@ -103,6 +109,24 @@ void addFilteredViewTab( CrawlerWidget* crawler )
     REQUIRE( search != nullptr );
     keep->setChecked( true );
     search->click();
+}
+
+// Waits for the Log File to be recognized, then shows its Table View.
+void showTableView( CrawlerWidget* crawler )
+{
+    QToolButton* toggle = nullptr;
+    for ( auto* button : crawler->findChildren<QToolButton*>() ) {
+        if ( button->accessibleName() == QStringLiteral( "Toggle table view" ) ) {
+            toggle = button;
+        }
+    }
+    REQUIRE( toggle != nullptr );
+    REQUIRE( waitUiState( [ toggle, crawler ] { return toggle->isVisibleTo( crawler ); } ) );
+    toggle->setChecked( true );
+
+    auto* tableView = crawler->findChild<LogTableView*>();
+    REQUIRE( tableView != nullptr );
+    REQUIRE( waitUiState( [ tableView, crawler ] { return tableView->isVisibleTo( crawler ); } ) );
 }
 
 void closeLogFiles( TabbedCrawlerWidget* tabArea, int baseTabCount )
@@ -152,10 +176,28 @@ private:
     bool seen_ = false;
 };
 
+// Settings Policies under which a Log File is recognized against the Log
+// Format Catalog.
+SettingsPolicies recognitionEnabled()
+{
+    auto policies = testSettingsPolicies();
+    policies.recognition.enabled = true;
+    return policies;
+}
+
+// A Log Format Catalog holding the built-in Log Formats.
+std::shared_ptr<LogFormatCatalog> builtInLogFormats()
+{
+    auto catalog = std::make_shared<LogFormatCatalog>();
+    catalog->rebuild();
+    return catalog;
+}
+
 struct MainWindowFixture {
-    MainWindowFixture()
-        : session( std::make_shared<Session>( testSettingsPolicies(),
-                                              std::make_shared<LogFormatCatalog>() ) )
+    explicit MainWindowFixture( const SettingsPolicies& policies = testSettingsPolicies(),
+                                std::shared_ptr<LogFormatCatalog> catalog
+                                = std::make_shared<LogFormatCatalog>() )
+        : session( std::make_shared<Session>( policies, std::move( catalog ) ) )
         , mainWindow( std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 } ) )
     {
         mainWindow->show();
@@ -180,7 +222,8 @@ struct MainWindowFixture {
 
 } // namespace
 
-SCENARIO( "Switching the Theme with Log Files, Filtered Views, a floating sidebar and dialogs open",
+SCENARIO( "Switching the Theme with Log Files, Filtered Views, the Table View, a floating sidebar "
+          "and dialogs open",
           "[ui][theme]" )
 {
     QTemporaryFile firstFile{ QDir::tempPath() + "/theme_switch_test_XXXXXX" };
@@ -188,7 +231,7 @@ SCENARIO( "Switching the Theme with Log Files, Filtered Views, a floating sideba
     REQUIRE( writeLogFile( firstFile ) );
     REQUIRE( writeLogFile( secondFile ) );
 
-    MainWindowFixture fixture;
+    MainWindowFixture fixture( recognitionEnabled(), builtInLogFormats() );
     auto& mainWindow = *fixture.mainWindow;
     const auto themes = Theme::availableThemes();
 
@@ -201,6 +244,7 @@ SCENARIO( "Switching the Theme with Log Files, Filtered Views, a floating sideba
         for ( auto* crawler : mainWindow.findChildren<CrawlerWidget*>() ) {
             addFilteredViewTab( crawler );
             addFilteredViewTab( crawler );
+            showTableView( crawler );
         }
 
         auto* sidebar = mainWindow.findChild<QDockWidget*>( "sidebarDock" );
