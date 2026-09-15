@@ -124,6 +124,8 @@ public:
     {
     }
 
+    using AbstractLogView::createContextMenu;
+
 protected:
     AbstractLogData::LineType lineType( LineNumber ) const override
     {
@@ -455,5 +457,255 @@ SCENARIO( "A Table View whose Rows are not its Log Lines hands out Log Lines",
     {
         const auto point = view.visualRect( view.model()->index( 2, 0 ) ).center();
         REQUIRE( view.logLineAt( point ) == OptionalLineNumber{ 102_lnum } );
+    }
+}
+
+namespace {
+
+// A Table View whose context menu can be looked at without opening it.
+class InspectedTableView : public LogTableView {
+public:
+    using LogTableView::createContextMenu;
+    using LogTableView::LogTableView;
+};
+
+// The entries of a context menu, in order, without its separators.
+QStringList entriesOf( const QMenu& menu )
+{
+    QStringList entries;
+    for ( const auto* action : menu.actions() ) {
+        if ( !action->isSeparator() ) {
+            entries << action->text();
+        }
+    }
+    return entries;
+}
+
+QPoint centerOfRow( const LogTableView& view, int row )
+{
+    return view.visualRect( view.model()->index( row, 0 ) ).center();
+}
+
+} // namespace
+
+SCENARIO( "The Text View and the Table View offer one context menu", "[logtableview][contextmenu]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( SaveLines );
+
+    GIVEN( "one Log Line selected in the Text View and one Row in the Table View" )
+    {
+        QuickFindPattern quickFindPattern;
+        TextView textView( &logData, &quickFindPattern );
+        textView.resize( 800, 400 );
+        textView.selectAndDisplayLine( 0_lnum );
+
+        InspectedTableView tableView;
+        open( tableView, format, logData );
+        selectRows( tableView, { 0 } );
+
+        WHEN( "each context menu is opened over the selected Log Line" )
+        {
+            const auto textMenu = textView.createContextMenu( QPoint( 100, 2 ) );
+            const auto tableMenu = tableView.createContextMenu( centerOfRow( tableView, 0 ) );
+
+            THEN( "both offer the same entries in the same order, and only the Text View lets "
+                  "a selection start and end be set" )
+            {
+                const QStringList tableEntries = {
+                    "Highlighters",
+                    "Color labels",
+                    "&Mark",
+                    "&Copy this line",
+                    "Copy this line with line number",
+                    "Send to scratchpad",
+                    "Replace scratchpad",
+                    "Find &next",
+                    "Find &previous",
+                    "&Replace search",
+                    "&Add to search",
+                    "&Exclude from search",
+                    "Set search start",
+                    "Set search end",
+                    "Clear search limits",
+                    "Save splitter position",
+                    "Save to file",
+                    "Save selected to file",
+                };
+                auto textEntries = tableEntries;
+                const auto beforeSplitter = textEntries.indexOf( "Save splitter position" );
+                textEntries.insert( beforeSplitter, "Set selection end" );
+                textEntries.insert( beforeSplitter, "Set selection start" );
+
+                REQUIRE( entriesOf( *tableMenu ) == tableEntries );
+                REQUIRE( entriesOf( *textMenu ) == textEntries );
+            }
+        }
+    }
+}
+
+namespace {
+
+// Chooses the entry of a context menu, as if the user had.
+void choose( const QMenu& menu, const QString& entry )
+{
+    for ( auto* action : menu.actions() ) {
+        if ( action->text() == entry ) {
+            REQUIRE( action->isEnabled() );
+            action->trigger();
+            return;
+        }
+    }
+    FAIL( "no entry " << entry.toStdString() );
+}
+
+} // namespace
+
+SCENARIO( "Search Limits set from the Table View's context menu are those of the Log Line under "
+          "the cursor",
+          "[logtableview][contextmenu]" )
+{
+    const auto format = makeFormat();
+    const auto lines = offsetLines();
+    FakeLogData logData( lines );
+    InspectedTableView view( std::make_shared<RowsFromLogLine100>() );
+    open( view, format, logData );
+
+    GIVEN( "the Row showing Log Line 102 selected" )
+    {
+        selectRows( view, { 2 } );
+        QSignalSpy changeSearchLimits( &view, &LogTableView::changeSearchLimits );
+        const auto menu = view.createContextMenu( centerOfRow( view, 2 ) );
+
+        WHEN( "Set search start is chosen" )
+        {
+            choose( *menu, "Set search start" );
+
+            THEN( "the Search Limits start at Log Line 102 and end with the Log File" )
+            {
+                REQUIRE( changeSearchLimits.size() == 1 );
+                REQUIRE( changeSearchLimits.first().at( 0 ).value<LineNumber>() == 102_lnum );
+                REQUIRE( changeSearchLimits.first().at( 1 ).value<LineNumber>() == 105_lnum );
+            }
+        }
+
+        WHEN( "Set search end is chosen" )
+        {
+            choose( *menu, "Set search end" );
+
+            THEN( "the Search Limits start with the Log File and end after Log Line 102" )
+            {
+                REQUIRE( changeSearchLimits.size() == 1 );
+                REQUIRE( changeSearchLimits.first().at( 0 ).value<LineNumber>() == 0_lnum );
+                REQUIRE( changeSearchLimits.first().at( 1 ).value<LineNumber>() == 103_lnum );
+            }
+        }
+
+        AND_GIVEN( "Search Limits from Log Line 101 to Log Line 104 already" )
+        {
+            view.setSearchLimits( 101_lnum, 104_lnum );
+
+            WHEN( "Set search end is chosen" )
+            {
+                choose( *menu, "Set search end" );
+
+                THEN( "the Search Limits keep their start" )
+                {
+                    REQUIRE( changeSearchLimits.size() == 1 );
+                    REQUIRE( changeSearchLimits.first().at( 0 ).value<LineNumber>() == 101_lnum );
+                    REQUIRE( changeSearchLimits.first().at( 1 ).value<LineNumber>() == 103_lnum );
+                }
+            }
+        }
+    }
+}
+
+namespace {
+
+// 105 Log Lines; Log Line 99 mentions a needle, but only the ones from Log
+// Line 100 on have the Log Format's shape, and there Log Lines 101 and 103 do.
+QStringList needleLines()
+{
+    QStringList lines;
+    for ( int line = 0; line < 99; ++line ) {
+        lines << QString( "noise %1" ).arg( line );
+    }
+    lines << "noise needle";
+    lines << "Jan  1 12:00:00 host0 alpha" << "Jan  1 12:00:01 host1 needle one"
+          << "Jan  1 12:00:02 host2 beta" << "Jan  1 12:00:03 host3 needle two"
+          << "Jan  1 12:00:04 host4 gamma";
+    return lines;
+}
+
+// Double-clicks the first word of the cell of the Row whose text starts with it.
+void doubleClickWord( LogTableView& view, int row, const QString& word )
+{
+    for ( int column = 0; column < view.model()->columnCount(); ++column ) {
+        const auto index = view.model()->index( row, column );
+        if ( index.data( Qt::DisplayRole ).toString().startsWith( word ) ) {
+            const auto rect = view.visualRect( index );
+            QTest::mouseDClick( view.viewport(), Qt::LeftButton, {},
+                                QPoint( rect.left() + 6, rect.center().y() ) );
+            return;
+        }
+    }
+    FAIL( "no cell starting with " << word.toStdString() );
+}
+
+} // namespace
+
+SCENARIO( "Find next and previous in the Table View's context menu select the Log Line matching "
+          "the selected text",
+          "[logtableview][contextmenu]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( needleLines() );
+    InspectedTableView view( std::make_shared<RowsFromLogLine100>() );
+    open( view, format, logData );
+    view.setActive( true );
+    view.show();
+    QCoreApplication::processEvents();
+
+    QSignalSpy newSelection( &view, &LogTableView::newSelection );
+    const auto selectedLogLineAfterChoosing = [ & ]( const QString& entry ) {
+        newSelection.clear();
+        const auto menu = view.createContextMenu( centerOfRow( view, 0 ) );
+        choose( *menu, entry );
+        REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
+        return newSelection.last().at( 0 ).value<LineNumber>();
+    };
+
+    GIVEN( "the word needle selected in the Row showing Log Line 101" )
+    {
+        doubleClickWord( view, 1, "needle" );
+        REQUIRE( view.selectedText() == "needle" );
+
+        WHEN( "Find next is chosen" )
+        {
+            const auto selected = selectedLogLineAfterChoosing( "Find &next" );
+
+            THEN( "the next Log Line mentioning a needle is selected" )
+            {
+                REQUIRE( selected == 103_lnum );
+                REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 103_lnum } );
+            }
+        }
+    }
+
+    GIVEN( "the word needle selected in the Row showing Log Line 103" )
+    {
+        doubleClickWord( view, 3, "needle" );
+        REQUIRE( view.selectedText() == "needle" );
+
+        WHEN( "Find previous is chosen" )
+        {
+            const auto selected = selectedLogLineAfterChoosing( "Find &previous" );
+
+            THEN( "the previous Log Line the Table View shows mentioning a needle is selected" )
+            {
+                REQUIRE( selected == 101_lnum );
+                REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 101_lnum } );
+            }
+        }
     }
 }

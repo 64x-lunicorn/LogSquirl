@@ -69,6 +69,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPalette>
+#include <QPointer>
 #include <QProgressDialog>
 #include <QRect>
 #include <QScrollBar>
@@ -81,6 +82,7 @@
 #include "fontutils.h"
 #include "highlightedmatch.h"
 #include "linetypes.h"
+#include "presentationmenu.h"
 
 #include "active_screen.h"
 #include "clipboard.h"
@@ -367,8 +369,6 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     // Hovering
     setMouseTracking( true );
 
-    createMenu();
-
     connect( quickFindPattern_, SIGNAL( patternUpdated() ), this, SLOT( handlePatternUpdated() ) );
     connect( quickFind_, SIGNAL( notify( const QFNotification& ) ), this,
              SIGNAL( notifyQuickFind( const QFNotification& ) ) );
@@ -495,116 +495,11 @@ void AbstractLogView::mousePressEvent( QMouseEvent* mouseEvent )
             textAreaCache_.invalid_ = true;
         }
 
-        if ( selection_.isSingleLine() ) {
-            copyAction_->setText( tr( "&Copy this line" ) );
-            copyWithLineNumbersAction_->setText( tr( "Copy this line with line number" ) );
-
-            setSearchStartAction_->setEnabled( true );
-            setSearchEndAction_->setEnabled( true );
-
-            setSelectionStartAction_->setEnabled( true );
-            setSelectionEndAction_->setEnabled( !!selectionStart_ );
-        }
-        else {
-            copyAction_->setText( tr( "&Copy" ) );
-            copyAction_->setStatusTip( tr( "Copy the selection" ) );
-
-            copyWithLineNumbersAction_->setText( tr( "Copy with line numbers" ) );
-
-            setSearchStartAction_->setEnabled( false );
-            setSearchEndAction_->setEnabled( false );
-
-            setSelectionStartAction_->setEnabled( false );
-            setSelectionEndAction_->setEnabled( false );
-        }
-
-        bool hasUnmarkedLines = false;
-        auto lines = selection_.getLines();
-        for ( auto i = 0u; i < lines.size(); ++i ) {
-            using LineTypeFlags = AbstractLogData::LineTypeFlags;
-            const auto currentLineType = lineType( lines[ i ] );
-            if ( !currentLineType.testFlag( LineTypeFlags::Mark ) ) {
-                hasUnmarkedLines = true;
-                break;
-            }
-        }
-        markAction_->setText( hasUnmarkedLines ? tr( "&Mark" ) : tr( "Unmark" ) );
-
-        if ( selection_.isPortion() ) {
-            findNextAction_->setEnabled( true );
-            findPreviousAction_->setEnabled( true );
-            addToSearchAction_->setEnabled( true );
-            replaceSearchAction_->setEnabled( true );
-        }
-        else {
-            findNextAction_->setEnabled( false );
-            findPreviousAction_->setEnabled( false );
-            addToSearchAction_->setEnabled( false );
-            replaceSearchAction_->setEnabled( false );
-        }
-
-        highlightersMenu_->createHighlightersMenu();
-        highlightersMenu_->populateHighlightersMenu();
-        highlightersMenu_->setApplyChange( [ this ]() { Q_EMIT highlightersChange(); } );
-
-        auto colorLabelsActionGroup = new QActionGroup( this );
-        connect( colorLabelsActionGroup, &QActionGroup::triggered, this,
-                 &AbstractLogView::setColorLabel );
-        colorLabelsMenu_->clear();
-        colorLabelsMenu_->setEnabled( selection_.isPortion() || selection_.isSingleLine() );
-        if ( colorLabelsMenu_->isEnabled() ) {
-            auto selectedText = selection_.getSelectedText( logData_ );
-            std::optional<size_t> currentLabel;
-            for ( auto i = 0u; i < quickHighlighters_.size(); ++i ) {
-                if ( quickHighlighters_[ i ].contains( selectedText ) ) {
-                    currentLabel = i;
-                    break;
-                }
-            }
-
-            auto noneAction = colorLabelsMenu_->addAction( tr( "None" ) );
-            noneAction->setActionGroup( colorLabelsActionGroup );
-            noneAction->setCheckable( true );
-            noneAction->setChecked( !currentLabel.has_value() );
-            if ( currentLabel ) {
-                noneAction->setData( static_cast<unsigned>( *currentLabel ) );
-            }
-
-            const auto& quickHighlightersConfiguration
-                = HighlighterSetCollection::get().quickHighlighters();
-
-            colorLabelsMenu_->addSeparator();
-            const auto maxLabel
-                = std::min( quickHighlighters_.size(),
-                            static_cast<size_t>( quickHighlightersConfiguration.size() ) );
-            for ( auto i = 0u; i < maxLabel; ++i ) {
-
-                const auto& currentLabelConfiguration
-                    = quickHighlightersConfiguration.at( static_cast<int>( i ) );
-                auto colorLabelAction
-                    = colorLabelsMenu_->addAction( currentLabelConfiguration.name );
-                colorLabelAction->setActionGroup( colorLabelsActionGroup );
-                colorLabelAction->setCheckable( true );
-                colorLabelAction->setChecked( currentLabel == i );
-                colorLabelAction->setData( i );
-
-                QPixmap pixmap( 20, 10 );
-                auto fillColor = currentLabelConfiguration.color.backColor;
-                fillColor.setAlphaF( 1.0 );
-                pixmap.fill( fillColor );
-                colorLabelAction->setIcon( QIcon( pixmap ) );
-                colorLabelAction->setIconVisibleInMenu( true );
-            }
-            colorLabelsMenu_->addSeparator();
-            auto clearAllAction = colorLabelsMenu_->addAction( tr( "Clear all" ) );
-            connect( clearAllAction, &QAction::triggered, this,
-                     &AbstractLogView::clearColorLabels );
-        }
-        // Display the popup (blocking)
-        popupMenu_->exec( QCursor::pos( activeScreen( this ) ) );
-
-        highlightersMenu_->clearHighlightersMenu();
-        colorLabelsActionGroup->deleteLater();
+        // Display the popup (blocking). Chosen entries may destroy the view,
+        // and the menu with it.
+        QPointer<QMenu> menu = createContextMenu( mouseEvent->pos() ).release();
+        menu->exec( QCursor::pos( activeScreen( this ) ) );
+        delete menu;
     }
 
     Q_EMIT activity();
@@ -1697,19 +1592,16 @@ void AbstractLogView::updateSearchLimits()
     Q_EMIT changeSearchLimits( searchStart_, searchEnd_ );
 }
 
-void AbstractLogView::setSearchStart()
+void AbstractLogView::setSearchStart( LineNumber logLine )
 {
-    const auto selectedLine = selection_.selectedLine();
-    searchStart_
-        = selectedLine.has_value() ? displayLineNumber( *selectedLine ) - 1_lcount : 0_lnum;
+    searchStart_ = logLine;
     updateSearchLimits();
 }
 
-void AbstractLogView::setSearchEnd()
+void AbstractLogView::setSearchEnd( LineNumber logLine )
 {
-    const auto selectedLine = selection_.selectedLine();
-    searchEnd_ = selectedLine.has_value() ? displayLineNumber( *selectedLine )
-                                          : LineNumber( logData_->getNbLine().get() );
+    // The end is the Log Line after the last one searched.
+    searchEnd_ = logLine + 1_lcount;
     updateSearchLimits();
 }
 
@@ -2234,121 +2126,55 @@ void AbstractLogView::selectAndDisplayRange( FilePosition pos )
                          LineLength{ getSelectedText().size() } );
 }
 
-// Create the pop-up menu
-void AbstractLogView::createMenu()
+std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
 {
-    copyAction_ = new QAction( tr( "&Copy" ), this );
-    // No text as this action title depends on the type of selection
-    connect( copyAction_, &QAction::triggered, this, [ this ]( auto ) { this->copy(); } );
+    PresentationMenu::Report report;
 
-    copyWithLineNumbersAction_ = new QAction( tr( "Copy with line numbers" ), this );
-    // No text as this action title depends on the type of selection
-    connect( copyWithLineNumbersAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->copyWithLineNumbers(); } );
+    const auto lines = selection_.getLines();
+    report.selectedLogLines.reserve( lines.size() );
+    for ( const auto line : lines ) {
+        report.selectedLogLines.push_back( logLineAt( line ) );
+    }
+    report.textWithinLogLine = selection_.isPortion();
+    if ( selection_.isPortion() || selection_.isSingleLine() ) {
+        report.selectedText = selection_.getSelectedText( logData_ );
+    }
 
-    markAction_ = new QAction( tr( "&Mark" ), this );
-    connect( markAction_, &QAction::triggered, this, [ this ]( auto ) { this->markSelected(); } );
+    const auto lineUnderCursor = convertCoordToLine( pos.y() );
+    if ( lineUnderCursor && *lineUnderCursor < logData_->getNbLine() ) {
+        report.logLineUnderCursor = logLineAt( *lineUnderCursor );
+    }
 
-    saveToFileAction_ = new QAction( tr( "Save to file" ), this );
-    connect( saveToFileAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->saveToFile(); } );
+    report.hasUnmarkedLogLines = std::any_of( lines.begin(), lines.end(), [ this ]( auto line ) {
+        return !lineType( line ).testFlag( AbstractLogData::LineTypeFlags::Mark );
+    } );
+    report.colorLabels = quickHighlighters_;
+    report.selectionStartSet = selectionStart_.has_value();
 
-    saveSelectedToFileAction_ = new QAction( tr( "Save selected to file" ), this );
-    connect( saveSelectedToFileAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->saveSelectedToFile(); } );
+    PresentationMenu::Entries entries;
+    entries.highlightersChange = [ this ]() { Q_EMIT highlightersChange(); };
+    entries.addColorLabel = [ this ]( size_t label ) { Q_EMIT addColorLabel( label ); };
+    entries.clearColorLabels = [ this ]() { Q_EMIT clearColorLabels(); };
+    entries.mark = [ this ]() { markSelected(); };
+    entries.copy = [ this ]() { copy(); };
+    entries.copyWithLineNumbers = [ this ]() { copyWithLineNumbers(); };
+    entries.sendToScratchpad = [ this ]() { Q_EMIT sendSelectionToScratchpad(); };
+    entries.replaceScratchpad = [ this ]() { Q_EMIT replaceScratchpadWithSelection(); };
+    entries.findNext = [ this ]() { findNextSelected(); };
+    entries.findPrevious = [ this ]() { findPreviousSelected(); };
+    entries.replaceSearch = [ this ]() { replaceSearch(); };
+    entries.addToSearch = [ this ]() { addToSearch(); };
+    entries.excludeFromSearch = [ this ]() { excludeFromSearch(); };
+    entries.setSearchStart = [ this ]( LineNumber logLine ) { setSearchStart( logLine ); };
+    entries.setSearchEnd = [ this ]( LineNumber logLine ) { setSearchEnd( logLine ); };
+    entries.clearSearchLimits = [ this ]() { Q_EMIT clearSearchLimits(); };
+    entries.setSelectionStart = [ this ]() { setSelectionStart(); };
+    entries.setSelectionEnd = [ this ]() { setSelectionEnd(); };
+    entries.saveSplitterPosition = [ this ]() { Q_EMIT saveDefaultSplitterSizes(); };
+    entries.saveToFile = [ this ]() { saveToFile(); };
+    entries.saveSelectedToFile = [ this ]() { saveSelectedToFile(); };
 
-    // For '#' and '*', shortcuts doesn't seem to work but
-    // at least it displays them in the menu, we manually handle those keys
-    // as keys event anyway (in keyPressEvent).
-    findNextAction_ = new QAction( tr( "Find &next" ), this );
-    findNextAction_->setShortcut( Qt::Key_Asterisk );
-    findNextAction_->setStatusTip( tr( "Find the next occurrence" ) );
-    connect( findNextAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->findNextSelected(); } );
-
-    findPreviousAction_ = new QAction( tr( "Find &previous" ), this );
-    findPreviousAction_->setShortcut( tr( "/" ) );
-    findPreviousAction_->setStatusTip( tr( "Find the previous occurrence" ) );
-    connect( findPreviousAction_, &QAction::triggered,
-             [ this ]( auto ) { this->findPreviousSelected(); } );
-
-    replaceSearchAction_ = new QAction( tr( "&Replace search" ), this );
-    replaceSearchAction_->setStatusTip( tr( "Replace the search expression with the selection" ) );
-    connect( replaceSearchAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->replaceSearch(); } );
-
-    addToSearchAction_ = new QAction( tr( "&Add to search" ), this );
-    addToSearchAction_->setStatusTip( tr( "Add the selection to the current search" ) );
-    connect( addToSearchAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->addToSearch(); } );
-
-    excludeFromSearchAction_ = new QAction( tr( "&Exclude from search" ), this );
-    excludeFromSearchAction_->setStatusTip( tr( "Excludes the selection from search" ) );
-    connect( excludeFromSearchAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->excludeFromSearch(); } );
-
-    setSearchStartAction_ = new QAction( tr( "Set search start" ), this );
-    connect( setSearchStartAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->setSearchStart(); } );
-
-    setSearchEndAction_ = new QAction( tr( "Set search end" ), this );
-    connect( setSearchEndAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->setSearchEnd(); } );
-
-    clearSearchLimitAction_ = new QAction( tr( "Clear search limits" ), this );
-    connect( clearSearchLimitAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->clearSearchLimits(); } );
-
-    setSelectionStartAction_ = new QAction( tr( "Set selection start" ), this );
-    connect( setSelectionStartAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->setSelectionStart(); } );
-
-    setSelectionEndAction_ = new QAction( tr( "Set selection end" ), this );
-    connect( setSelectionEndAction_, &QAction::triggered, this,
-             [ this ]( auto ) { this->setSelectionEnd(); } );
-
-    saveDefaultSplitterSizesAction_ = new QAction( tr( "Save splitter position" ), this );
-    connect( saveDefaultSplitterSizesAction_, &QAction::triggered, this,
-             [ this ]( auto ) { Q_EMIT saveDefaultSplitterSizes(); } );
-
-    sendToScratchpadAction_ = new QAction( tr( "Send to scratchpad" ), this );
-    connect( sendToScratchpadAction_, &QAction::triggered, this,
-             [ this ]( auto ) { Q_EMIT sendSelectionToScratchpad(); } );
-
-    replaceInScratchpadAction_ = new QAction( tr( "Replace scratchpad" ), this );
-    connect( replaceInScratchpadAction_, &QAction::triggered, this,
-             [ this ]( auto ) { Q_EMIT replaceScratchpadWithSelection(); } );
-
-    popupMenu_ = new QMenu( this );
-    highlightersMenu_ = new HighlightersMenu( tr( "Highlighters" ) );
-    popupMenu_->addMenu( highlightersMenu_ );
-    colorLabelsMenu_ = popupMenu_->addMenu( tr( "Color labels" ) );
-
-    popupMenu_->addSeparator();
-    popupMenu_->addAction( markAction_ );
-    popupMenu_->addSeparator();
-    popupMenu_->addAction( copyAction_ );
-    popupMenu_->addAction( copyWithLineNumbersAction_ );
-    popupMenu_->addAction( sendToScratchpadAction_ );
-    popupMenu_->addAction( replaceInScratchpadAction_ );
-    popupMenu_->addSeparator();
-    popupMenu_->addAction( findNextAction_ );
-    popupMenu_->addAction( findPreviousAction_ );
-    popupMenu_->addSeparator();
-    popupMenu_->addAction( replaceSearchAction_ );
-    popupMenu_->addAction( addToSearchAction_ );
-    popupMenu_->addAction( excludeFromSearchAction_ );
-    popupMenu_->addSeparator();
-    popupMenu_->addAction( setSearchStartAction_ );
-    popupMenu_->addAction( setSearchEndAction_ );
-    popupMenu_->addAction( clearSearchLimitAction_ );
-    popupMenu_->addSeparator();
-    popupMenu_->addAction( setSelectionStartAction_ );
-    popupMenu_->addAction( setSelectionEndAction_ );
-    popupMenu_->addSeparator();
-    popupMenu_->addAction( saveDefaultSplitterSizesAction_ );
-    popupMenu_->addAction( saveToFileAction_ );
-    popupMenu_->addAction( saveSelectedToFileAction_ );
+    return PresentationMenu::create( this, report, entries );
 }
 
 void AbstractLogView::considerMouseHovering( int xPos, int yPos )
@@ -2821,14 +2647,4 @@ void AbstractLogView::disableFollow()
 {
     Q_EMIT followModeChanged( false );
     followElasticHook_.hook( false );
-}
-
-void AbstractLogView::setColorLabel( QAction* action )
-{
-    if ( action->data().isValid() ) {
-        Q_EMIT addColorLabel( static_cast<size_t>( action->data().toInt() ) );
-    }
-    else {
-        Q_EMIT clearColorLabels();
-    }
 }
