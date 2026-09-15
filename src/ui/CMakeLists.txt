@@ -165,6 +165,9 @@ target_link_libraries(
          Qt6::Xml
          Qt6::Concurrent
 )
+# linessaver.cpp saves through a TBB flow graph; the log data library no
+# longer hands TBB on (#168).
+target_link_libraries(logsquirl_ui PRIVATE tbb)
 
 if(WIN32)
   target_link_libraries(logsquirl_ui PUBLIC user32)
