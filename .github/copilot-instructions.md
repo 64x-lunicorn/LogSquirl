@@ -104,7 +104,8 @@ with clang-format before committing.
 
 - Libraries: `logsquirl_<module>` (e.g., `logsquirl_ui`, `logsquirl_logdata`, `logsquirl_utils`)
 - Executables: `logsquirl`, `logsquirl_portable`, `logsquirl_grep`
-- Test targets: `logsquirl_tests`, `logsquirl_compression_tests`, `logsquirl_itests`
+- Test targets: `logsquirl_tests`, `logsquirl_compression_tests`, `logsquirl_plugin_catalog_tests`,
+  `logsquirl_itests`
 
 ### Module Structure
 
