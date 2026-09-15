@@ -84,7 +84,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
             {
                 auto* toolBar = qobject_cast<QToolBar*>( widget->parentWidget() );
                 REQUIRE( toolBar != nullptr );
-                CHECK( window.toolBarArea( toolBar ) == Qt::TopToolBarArea );
+                REQUIRE( window.toolBarArea( toolBar ) == Qt::TopToolBarArea );
             }
 
             AND_WHEN( "The plugin removes it again" )
@@ -93,7 +93,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
                 THEN( "The widget is no longer part of the window" )
                 {
-                    CHECK( widget->parentWidget() == nullptr );
+                    REQUIRE( widget->parentWidget() == nullptr );
                 }
             }
         }
@@ -106,7 +106,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
             {
                 auto* toolBar = qobject_cast<QToolBar*>( widget->parentWidget() );
                 REQUIRE( toolBar != nullptr );
-                CHECK( window.toolBarArea( toolBar ) == Qt::BottomToolBarArea );
+                REQUIRE( window.toolBarArea( toolBar ) == Qt::BottomToolBarArea );
             }
 
             AND_WHEN( "The plugin removes it again" )
@@ -115,7 +115,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
                 THEN( "The widget is no longer part of the window" )
                 {
-                    CHECK( widget->parentWidget() == nullptr );
+                    REQUIRE( widget->parentWidget() == nullptr );
                 }
             }
         }
@@ -128,7 +128,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
             {
                 const auto index = sidebarTabs.indexOf( widget );
                 REQUIRE( index >= 0 );
-                CHECK( sidebarTabs.tabText( index ) == "Plugin tab" );
+                REQUIRE( sidebarTabs.tabText( index ) == "Plugin tab" );
             }
 
             AND_WHEN( "The plugin removes it again" )
@@ -137,8 +137,8 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
                 THEN( "The sidebar no longer shows the widget" )
                 {
-                    CHECK( sidebarTabs.indexOf( widget ) == -1 );
-                    CHECK( widget->parentWidget() == nullptr );
+                    REQUIRE( sidebarTabs.indexOf( widget ) == -1 );
+                    REQUIRE( widget->parentWidget() == nullptr );
                 }
             }
         }
@@ -156,8 +156,8 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
             {
                 const auto actions = pluginsMenu.actions();
                 REQUIRE( actions.size() == 3 );
-                CHECK( actions[ 0 ]->text() == "Plugin action" );
-                CHECK( actions[ 1 ] == separator );
+                REQUIRE( actions[ 0 ]->text() == "Plugin action" );
+                REQUIRE( actions[ 1 ] == separator );
             }
 
             AND_WHEN( "The user triggers it" )
@@ -166,7 +166,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
                 THEN( "The plugin's callback runs with its user data" )
                 {
-                    CHECK( triggeredCount == 1 );
+                    REQUIRE( triggeredCount == 1 );
                 }
             }
         }
@@ -186,17 +186,17 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
             THEN( "Its menu actions and the widgets it left behind are gone" )
             {
-                CHECK( menuActionNamed( pluginsMenu, QStringLiteral( "Plugin action" ) )
-                       == nullptr );
-                CHECK( widget->parentWidget() == nullptr );
-                CHECK( sidebarTabs.indexOf( sidebarWidget ) == -1 );
-                CHECK( sidebarWidget->parentWidget() == nullptr );
+                REQUIRE( menuActionNamed( pluginsMenu, QStringLiteral( "Plugin action" ) )
+                         == nullptr );
+                REQUIRE( widget->parentWidget() == nullptr );
+                REQUIRE( sidebarTabs.indexOf( sidebarWidget ) == -1 );
+                REQUIRE( sidebarWidget->parentWidget() == nullptr );
             }
 
             THEN( "Other plugins keep their menu actions" )
             {
-                CHECK( menuActionNamed( pluginsMenu, QStringLiteral( "Other action" ) )
-                       != nullptr );
+                REQUIRE( menuActionNamed( pluginsMenu, QStringLiteral( "Other action" ) )
+                         != nullptr );
             }
 
             delete sidebarWidget;
@@ -210,7 +210,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
             THEN( "The widget reaches the toolbar on the window's thread" )
             {
-                CHECK( QTest::qWaitFor( [ & ] { return widget->parentWidget() != nullptr; } ) );
+                REQUIRE( QTest::qWaitFor( [ & ] { return widget->parentWidget() != nullptr; } ) );
             }
         }
 
@@ -218,7 +218,7 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
         {
             THEN( "It gets the main window" )
             {
-                CHECK( adapter.configurationParent().widget == static_cast<void*>( &window ) );
+                REQUIRE( adapter.configurationParent().widget == static_cast<void*>( &window ) );
             }
         }
 

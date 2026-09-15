@@ -280,11 +280,11 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
             THEN( "The port adds and removes that widget for the plugin" )
             {
                 REQUIRE( port.calls.size() == 2 );
-                CHECK( port.calls[ 0 ].kind == PortCall::Kind::AddStatusWidget );
-                CHECK( port.calls[ 1 ].kind == PortCall::Kind::RemoveStatusWidget );
+                REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::AddStatusWidget );
+                REQUIRE( port.calls[ 1 ].kind == PortCall::Kind::RemoveStatusWidget );
                 for ( const auto& call : port.calls ) {
-                    CHECK( call.pluginId == ProbeId );
-                    CHECK( call.widget.widget == &statusWidget );
+                    REQUIRE( call.pluginId == ProbeId );
+                    REQUIRE( call.widget.widget == &statusWidget );
                 }
             }
         }
@@ -297,12 +297,12 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
             THEN( "The port adds the tab with its label and removes it for the plugin" )
             {
                 REQUIRE( port.calls.size() == 2 );
-                CHECK( port.calls[ 0 ].kind == PortCall::Kind::AddSidebarTab );
-                CHECK( port.calls[ 0 ].label == "Probe tab" );
-                CHECK( port.calls[ 1 ].kind == PortCall::Kind::RemoveSidebarTab );
+                REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::AddSidebarTab );
+                REQUIRE( port.calls[ 0 ].label == "Probe tab" );
+                REQUIRE( port.calls[ 1 ].kind == PortCall::Kind::RemoveSidebarTab );
                 for ( const auto& call : port.calls ) {
-                    CHECK( call.pluginId == ProbeId );
-                    CHECK( call.widget.widget == &sidebarWidget );
+                    REQUIRE( call.pluginId == ProbeId );
+                    REQUIRE( call.widget.widget == &sidebarWidget );
                 }
             }
         }
@@ -315,11 +315,11 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
             THEN( "The port adds and removes that widget for the plugin" )
             {
                 REQUIRE( port.calls.size() == 2 );
-                CHECK( port.calls[ 0 ].kind == PortCall::Kind::AddFooterWidget );
-                CHECK( port.calls[ 1 ].kind == PortCall::Kind::RemoveFooterWidget );
+                REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::AddFooterWidget );
+                REQUIRE( port.calls[ 1 ].kind == PortCall::Kind::RemoveFooterWidget );
                 for ( const auto& call : port.calls ) {
-                    CHECK( call.pluginId == ProbeId );
-                    CHECK( call.widget.widget == &footerWidget );
+                    REQUIRE( call.pluginId == ProbeId );
+                    REQUIRE( call.widget.widget == &footerWidget );
                 }
             }
         }
@@ -333,12 +333,12 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
             {
                 REQUIRE( port.calls.size() == 1 );
                 const auto& call = port.calls[ 0 ];
-                CHECK( call.kind == PortCall::Kind::AddMenuAction );
-                CHECK( call.pluginId == ProbeId );
-                CHECK( call.menuPath == "Plugins" );
-                CHECK( call.label == "Probe action" );
-                CHECK( call.callback == &menuCallback );
-                CHECK( call.userData == &menuUserData );
+                REQUIRE( call.kind == PortCall::Kind::AddMenuAction );
+                REQUIRE( call.pluginId == ProbeId );
+                REQUIRE( call.menuPath == "Plugins" );
+                REQUIRE( call.label == "Probe action" );
+                REQUIRE( call.callback == &menuCallback );
+                REQUIRE( call.userData == &menuUserData );
             }
         }
 
@@ -350,7 +350,7 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
 
             THEN( "The plugin gets the parent the port chose" )
             {
-                CHECK( probe.configureParent() == &parentWidget );
+                REQUIRE( probe.configureParent() == &parentWidget );
             }
         }
 
@@ -363,11 +363,11 @@ SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
                   "contributions are" )
             {
                 REQUIRE( port.calls.size() == 2 );
-                CHECK( port.calls[ 0 ].kind == PortCall::Kind::RemoveFooterWidget );
-                CHECK( port.calls[ 0 ].pluginId == ProbeId );
-                CHECK( port.calls[ 0 ].widget.widget == shutdownFooter );
-                CHECK( port.calls[ 1 ].kind == PortCall::Kind::RemoveContributions );
-                CHECK( port.calls[ 1 ].pluginId == ProbeId );
+                REQUIRE( port.calls[ 0 ].kind == PortCall::Kind::RemoveFooterWidget );
+                REQUIRE( port.calls[ 0 ].pluginId == ProbeId );
+                REQUIRE( port.calls[ 0 ].widget.widget == shutdownFooter );
+                REQUIRE( port.calls[ 1 ].kind == PortCall::Kind::RemoveContributions );
+                REQUIRE( port.calls[ 1 ].pluginId == ProbeId );
             }
         }
 
@@ -409,7 +409,7 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
 
             THEN( "The callback receives each active file, an empty path when none is" )
             {
-                CHECK( activeFiles.paths == QStringList{ "/logs/app.log", "" } );
+                REQUIRE( activeFiles.paths == QStringList{ "/logs/app.log", "" } );
             }
         }
 
@@ -421,7 +421,7 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
 
             THEN( "The callback is not called any more" )
             {
-                CHECK( activeFiles.paths.isEmpty() );
+                REQUIRE( activeFiles.paths.isEmpty() );
             }
         }
 
@@ -431,8 +431,8 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
 
             THEN( "It gets the path the host's callback returns" )
             {
-                CHECK( QString::fromUtf8( api->get_active_file_path( handle ) )
-                       == "/logs/current.log" );
+                REQUIRE( QString::fromUtf8( api->get_active_file_path( handle ) )
+                         == "/logs/current.log" );
             }
         }
 
@@ -448,8 +448,8 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
 
             THEN( "The host's open-file callback gets the path and the follow flag" )
             {
-                CHECK( openedPath == "/logs/opened.log" );
-                CHECK( openedFollowing );
+                REQUIRE( openedPath == "/logs/opened.log" );
+                REQUIRE( openedFollowing );
             }
         }
 
@@ -462,7 +462,7 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
 
             THEN( "The host requests that notification" )
             {
-                CHECK( notifications == QStringList{ "Probe says hello" } );
+                REQUIRE( notifications == QStringList{ "Probe says hello" } );
             }
         }
 
@@ -472,8 +472,8 @@ SCENARIO( "The Plugin Host answers a plugin's calls about files and notification
 
             THEN( "It gets a directory of its own that exists" )
             {
-                CHECK( configDir.endsWith( "/plugin_config/" + ProbeId ) );
-                CHECK( QDir( configDir ).exists() );
+                REQUIRE( configDir.endsWith( "/plugin_config/" + ProbeId ) );
+                REQUIRE( QDir( configDir ).exists() );
             }
         }
 
@@ -499,8 +499,8 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
             THEN( "Nothing is loaded and there are no errors" )
             {
-                CHECK( errors.isEmpty() );
-                CHECK( host.loadedPluginIds().isEmpty() );
+                REQUIRE( errors.isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
             }
         }
 
@@ -512,8 +512,8 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
             THEN( "They are skipped without an error" )
             {
-                CHECK( errors.isEmpty() );
-                CHECK( host.loadedPluginIds().isEmpty() );
+                REQUIRE( errors.isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
             }
         }
     }
@@ -546,8 +546,8 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
             THEN( "Nothing is loaded and there are no errors" )
             {
-                CHECK( errors.isEmpty() );
-                CHECK( host.loadedPluginIds().isEmpty() );
+                REQUIRE( errors.isEmpty() );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
             }
         }
 
@@ -558,10 +558,10 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
             THEN( "It is loaded and announced" )
             {
-                CHECK( errors.isEmpty() );
-                CHECK( host.isLoaded( ProbeId ) );
-                CHECK( host.loadedPluginIds() == QStringList{ ProbeId } );
-                CHECK( loadedSignals == QStringList{ ProbeId } );
+                REQUIRE( errors.isEmpty() );
+                REQUIRE( host.isLoaded( ProbeId ) );
+                REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
+                REQUIRE( loadedSignals == QStringList{ ProbeId } );
             }
 
             AND_WHEN( "The plugins are loaded again" )
@@ -570,8 +570,8 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
                 THEN( "The loaded plugin is skipped" )
                 {
-                    CHECK( againErrors.isEmpty() );
-                    CHECK( loadedSignals == QStringList{ ProbeId } );
+                    REQUIRE( againErrors.isEmpty() );
+                    REQUIRE( loadedSignals == QStringList{ ProbeId } );
                 }
             }
         }
@@ -584,8 +584,8 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
             THEN( "Loading it fails with an error naming the plugin" )
             {
                 REQUIRE( errors.size() == 1 );
-                CHECK( errors[ 0 ].contains( missingId ) );
-                CHECK_FALSE( host.isLoaded( missingId ) );
+                REQUIRE( errors[ 0 ].contains( missingId ) );
+                REQUIRE_FALSE( host.isLoaded( missingId ) );
             }
         }
 
@@ -601,9 +601,9 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
                 enabled.sort();
                 auto expected = QStringList{ ProbeId, missingId };
                 expected.sort();
-                CHECK( enabled == expected );
-                CHECK( errors.size() == 1 );
-                CHECK( host.loadedPluginIds() == QStringList{ ProbeId } );
+                REQUIRE( enabled == expected );
+                REQUIRE( errors.size() == 1 );
+                REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
             }
         }
 
@@ -638,9 +638,9 @@ SCENARIO( "The Plugin Host loads only plugins from its catalog", "[pluginhost][p
 
             THEN( "Loading fails with the normal shared-library load error" )
             {
-                CHECK( error.startsWith( "Failed to load library" ) );
-                CHECK( error.contains( "script.lua" ) );
-                CHECK_FALSE( host.isLoaded( "com.test.script" ) );
+                REQUIRE( error.startsWith( "Failed to load library" ) );
+                REQUIRE( error.contains( "script.lua" ) );
+                REQUIRE_FALSE( host.isLoaded( "com.test.script" ) );
             }
         }
 
@@ -650,8 +650,8 @@ SCENARIO( "The Plugin Host loads only plugins from its catalog", "[pluginhost][p
 
             THEN( "Loading fails and nothing is loaded" )
             {
-                CHECK( error.contains( "not found" ) );
-                CHECK( host.loadedPluginIds().isEmpty() );
+                REQUIRE( error.contains( "not found" ) );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
             }
         }
     }
