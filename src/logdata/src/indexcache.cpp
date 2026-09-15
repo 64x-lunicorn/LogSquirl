@@ -88,9 +88,11 @@ bool digestMatches( QFile& logFile, qint64 offset, qint64 size, quint64 expected
 enum class Fit { Fits, Stale, LogFileUnreadable };
 
 /// Whether an Index recorded with this hash still fits the Log File: the
-/// same size, and the same header and tail digests. A Log File that exists
-/// but cannot be opened right now -- locked by another program, say -- says
-/// nothing about the Index either way.
+/// bytes it was built from are still there, unchanged. The Log File is no
+/// shorter, and the header and tail digests, taken again at their stored
+/// offsets, match; a grown Log File still contains the stored tail range. A
+/// Log File that exists but cannot be opened right now -- locked by another
+/// program, say -- says nothing about the Index either way.
 Fit fitOf( const IndexedHash& hash, const QString& filePath )
 {
     QFile logFile( filePath );
@@ -100,7 +102,7 @@ Fit fitOf( const IndexedHash& hash, const QString& filePath )
     if ( !logFile.open( QIODevice::ReadOnly ) ) {
         return Fit::LogFileUnreadable;
     }
-    if ( logFile.size() != hash.size
+    if ( logFile.size() < hash.size
          || !digestMatches( logFile, 0, hash.headerSize, hash.headerDigest ) ) {
         return Fit::Stale;
     }

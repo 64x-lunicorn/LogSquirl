@@ -52,7 +52,7 @@
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "theme.h"
 
 #include "optionsdialog.h"
 
@@ -167,7 +167,7 @@ void OptionsDialog::setupRegexp()
 
 void OptionsDialog::setupStyles()
 {
-    styleComboBox->addItems( StyleManager::availableStyles() );
+    styleComboBox->addItems( Theme::availableThemes() );
 }
 
 void OptionsDialog::setupEncodings()

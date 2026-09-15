@@ -51,6 +51,8 @@
 #include <QSemaphore>
 #include <tuple>
 
+#include <tbb/flow_graph.h>
+
 #include "containers.h"
 #include "dispatch_to.h"
 #include "encodingdetector.h"
@@ -187,6 +189,29 @@ void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength m
     encodingGuess_ = encoding;
     encodingForced_ = nullptr;
     progress_ = 100;
+}
+
+void IndexingData::resumeFromCache( LinePositionArray&& linePosition, LineLength maxLength,
+                                    qint64 resumeOffset, FileDigest&& digestBeforeResumeOffset,
+                                    QTextCodec* encoding, bool fastModificationDetection )
+{
+    useFastModificationDetection_ = fastModificationDetection;
+
+    linePosition_ = std::move( linePosition );
+    // The dropped last Log Line cannot have been longer than it is once it
+    // is indexed again, so the longest line so far stays a lower bound.
+    maxLength_ = maxLength;
+
+    // The header and tail digests are taken again once indexing is done.
+    hash_ = {};
+    hash_.size = resumeOffset;
+    hashBuilder_ = std::move( digestBeforeResumeOffset );
+    if ( !useFastModificationDetection_ ) {
+        hash_.fullDigest = hashBuilder_.digest();
+    }
+
+    encodingGuess_ = encoding;
+    encodingForced_ = nullptr;
 }
 
 const LinePositionArray* IndexingData::getCompressedLinePosition() const
@@ -575,6 +600,7 @@ IndexOperation::readNextBlock( QFile& file, std::chrono::microseconds& ioDuratio
     if ( readBytes < logsquirl::ssize( *blockData.second ) ) {
         blockData.second->resize( static_cast<size_t>( readBytes ) );
     }
+    bytesIndexed_ += readBytes;
 
     ioDuration += duration_cast<microseconds>( clock::now() - ioStartTime );
 
@@ -676,7 +702,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     const auto indexingStartTime = clock::now();
 
     tbb::flow::graph indexingGraph;
-    auto blockPrefetcher = BlockPrefetcher( indexingGraph, prefetchBufferSize );
+    auto blockPrefetcher = tbb::flow::limiter_node<BlockData>( indexingGraph, prefetchBufferSize );
     auto blockQueue = tbb::flow::queue_node<BlockData>( indexingGraph );
 
     auto blockParser = tbb::flow::function_node<BlockData, tbb::flow::continue_msg>(
@@ -799,7 +825,110 @@ IndexCache indexCacheFor( const IndexingPolicy& policy )
                        static_cast<qint64>( policy.cacheMaxSizeMb ) * 1024 * 1024 };
 }
 
+// The encoding a full re-index of the Log File detects: the one its first
+// indexing block is taken for. Nothing when the file cannot be read.
+QTextCodec* detectedEncodingOf( const QString& fileName, qint64 fileSize )
+{
+    QFile file( fileName );
+    if ( !file.open( QIODevice::ReadOnly ) ) {
+        return nullptr;
+    }
+    logsquirl::vector<char> block(
+        static_cast<size_t>( std::min( fileSize, qint64{ IndexingBlockSize } ) ) );
+    const auto readBytes = file.read( block.data(), logsquirl::ssize( block ) );
+    if ( readBytes != logsquirl::ssize( block ) ) {
+        return nullptr;
+    }
+    return EncodingDetector::getInstance().detectEncoding( block );
+}
+
+// The digest of the Log File's first `size` bytes, as indexing them would
+// have built it. Nothing when reading fails or the run is interrupted.
+std::optional<FileDigest> digestOfPrefix( const QString& fileName, qint64 size,
+                                          const AtomicFlag& interruptRequest )
+{
+    QFile file( fileName );
+    if ( !file.open( QIODevice::ReadOnly ) ) {
+        return std::nullopt;
+    }
+    FileDigest digest;
+    QByteArray buffer( IndexingBlockSize, Qt::Uninitialized );
+    for ( auto remaining = size; remaining > 0; ) {
+        if ( interruptRequest ) {
+            return std::nullopt;
+        }
+        const auto readBytes
+            = file.read( buffer.data(), std::min( remaining, qint64{ buffer.size() } ) );
+        if ( readBytes <= 0 ) {
+            return std::nullopt;
+        }
+        digest.addData( buffer.data(), static_cast<size_t>( readBytes ) );
+        remaining -= readBytes;
+    }
+    return digest;
+}
+
 } // namespace
+
+bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
+{
+    auto& linePosition = cached.linePosition;
+    const auto lines = linePosition.size().get();
+    if ( lines == 0 || cached.hash.size >= fileSize ) {
+        return false;
+    }
+
+    // Going on from a cached Index only keeps its line positions right if
+    // the appended bytes are read with the encoding they were read with.
+    auto* codec = QTextCodec::codecForName( cached.encodingName );
+    if ( !codec || ( forcedEncoding_ && forcedEncoding_->name() != codec->name() ) ) {
+        return false;
+    }
+
+    // A full re-index detects the encoding from the first indexing block.
+    // Unless the Index was built from at least that block, what was appended
+    // since may lead to another encoding.
+    if ( cached.hash.size < IndexingBlockSize ) {
+        const auto* detected = detectedEncodingOf( fileName_, fileSize );
+        if ( !detected || detected->name() != codec->name() ) {
+            LOG_INFO << "Encoding of " << fileName_ << " changed as it grew, indexing it again";
+            return false;
+        }
+    }
+
+    // The last cached Log Line may have had no newline yet, and continued
+    // since: indexing goes on from where it starts.
+    const qint64 resumeOffset = lines > 1 ? linePosition.at( lines - 2 ).get() : 0;
+    if ( resumeOffset > cached.hash.size ) {
+        return false;
+    }
+
+    FileDigest digestBeforeResumeOffset;
+    if ( !indexingPolicy_.fastModificationDetection ) {
+        auto digest = digestOfPrefix( fileName_, resumeOffset, interruptRequest_ );
+        if ( !digest ) {
+            return false;
+        }
+        digestBeforeResumeOffset = std::move( *digest );
+    }
+
+    LOG_INFO << "Resuming cached index for " << fileName_ << " at " << resumeOffset << " of "
+             << fileSize << " bytes";
+
+    linePosition.pop_back();
+    const auto progress = calculateProgress( resumeOffset, fileSize );
+    {
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        scopedAccessor.resumeFromCache( std::move( linePosition ), cached.maxLength, resumeOffset,
+                                        std::move( digestBeforeResumeOffset ), codec,
+                                        indexingPolicy_.fastModificationDetection );
+        scopedAccessor.forceEncoding( forcedEncoding_ );
+        scopedAccessor.setProgress( progress );
+    }
+    Q_EMIT indexingProgressed( progress );
+
+    return true;
+}
 
 // Called in the worker thread's context
 OperationResult FullIndexOperation::run()
@@ -807,14 +936,18 @@ OperationResult FullIndexOperation::run()
     try {
         LOG_INFO << "FullIndexOperation::run(), file " << fileName_.toStdString();
 
-        Q_EMIT indexingProgressed( 0 );
-
         // From this run's own Indexing Policy, so the cache asked for an
         // Index here and the one handed the new Index afterwards are
         // necessarily the same run's.
         const auto indexCache = indexCacheFor( indexingPolicy_ );
 
-        if ( auto cached = indexCache.tryLoad( fileName_ ) ) {
+        // The cache hands out an Index only while the bytes it was built from
+        // are unchanged, complete for the size it was built at. Whether that
+        // is all of the Log File, or it has grown since, is decided here.
+        auto cached = indexCache.tryLoad( fileName_ );
+        const auto fileSize = cached ? QFileInfo( fileName_ ).size() : qint64{ 0 };
+
+        if ( cached && cached->hash.size == fileSize ) {
             LOG_INFO << "Using cached index for " << fileName_;
 
             auto* codec = QTextCodec::codecForName( cached->encodingName );
@@ -837,13 +970,23 @@ OperationResult FullIndexOperation::run()
             return true;
         }
 
-        {
-            IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-            scopedAccessor.clear( indexingPolicy_ );
-            scopedAccessor.forceEncoding( forcedEncoding_ );
+        if ( cached && resumeFrom( *cached, fileSize ) ) {
+            // Read into a local first: an accessor held for the duration of
+            // doIndex() would keep indexing from taking its own.
+            const auto resumeOffset
+                = IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize();
+            doIndex( OffsetInFile( resumeOffset ) );
         }
+        else {
+            Q_EMIT indexingProgressed( 0 );
+            {
+                IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+                scopedAccessor.clear( indexingPolicy_ );
+                scopedAccessor.forceEncoding( forcedEncoding_ );
+            }
 
-        doIndex( 0_offset );
+            doIndex( 0_offset );
+        }
 
         LOG_INFO << "FullIndexOperation: ... finished, interrupt = "
                  << static_cast<bool>( interruptRequest_ );

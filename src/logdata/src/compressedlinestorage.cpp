@@ -45,11 +45,14 @@ void CompressedLinePositionStorage::move_from( CompressedLinePositionStorage&& o
     packedLinesStorage_ = std::move( orig.packedLinesStorage_ );
     currentLinesBlock_ = std::move( orig.currentLinesBlock_ );
     currentLinesBlockShifted_ = std::move( orig.currentLinesBlockShifted_ );
+    // Without it, the next compressed block would be written over the first.
+    packedLinesStorageUsedSize_ = orig.packedLinesStorageUsedSize_;
 
     nbLines_ = orig.nbLines_;
     lastPos_ = orig.lastPos_;
     canUseSimdSelect_ = orig.canUseSimdSelect_;
 
+    orig.packedLinesStorageUsedSize_ = 0;
     orig.nbLines_ = 0_lcount;
     orig.lastPos_ = 0_offset;
 }

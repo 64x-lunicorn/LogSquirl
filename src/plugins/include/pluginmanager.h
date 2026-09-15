@@ -31,10 +31,6 @@
 #include <map>
 #include <vector>
 
-#if LOGSQUIRL_HAS_LUA
-#include "luapluginwrapper.h"
-#endif
-
 namespace logsquirl::plugins {
 
 /// C-style callback function pointer used in the plugin host API.
@@ -230,19 +226,10 @@ private:
         // Active-file-change callback registered by plugin (optional)
         void ( *activeFileCallback )( void* user_data, const char* file_path ) = nullptr;
         void* activeFileUserData = nullptr;
-#if LOGSQUIRL_HAS_LUA
-        // Lua script wrapper — non-null for Lua-based plugins
-        std::unique_ptr<LuaPluginWrapper> luaWrapper;
-#endif
     };
 
     /** Extract a PluginContext from the opaque handle passed through host API. */
     static PluginContext* contextFromHandle( void* handle );
-
-#if LOGSQUIRL_HAS_LUA
-    /** Load a Lua-based plugin (library field ends with .lua). */
-    QString loadLuaPlugin( const QString& pluginId, const PluginMetadata& meta );
-#endif
 
     std::vector<PluginMetadata> discovered_;
     std::map<QString, std::unique_ptr<PluginContext>> loaded_;

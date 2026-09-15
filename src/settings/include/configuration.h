@@ -596,6 +596,8 @@ public:
         defaultEncodingMib_ = mib;
     }
 
+    // Stored overrides of Dark Tokens, by Token name (e.g. "Window" ->
+    // "#101010"), from the [dark] settings group. See Theme::fromName().
     std::map<QString, QString> darkPalette() const
     {
         return darkPalette_;

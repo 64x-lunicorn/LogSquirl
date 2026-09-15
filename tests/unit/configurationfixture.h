@@ -35,7 +35,7 @@
 #include "configuration.h"
 #include "fontutils.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "theme.h"
 
 namespace configuration_fixture {
 
@@ -218,7 +218,7 @@ inline Configuration nonDefaultConfiguration()
     config.setContextLinesCount( 10 );
     config.setHideAnsiColorSequences( true );
     config.setUseTextWrap( true );
-    config.setStyle( StyleManager::DarkStyleKey );
+    config.setStyle( Theme::DarkKey );
 
     config.setSearchAutoRefreshDefault( true );
     config.setSearchIgnoreCaseDefault( true );
@@ -241,7 +241,7 @@ inline Configuration nonDefaultConfiguration()
     config.setChartPreset( "Latency", R"({"series": [{"field": "duration", "unit": "ms"}]})" );
     config.setChartPreset( "Errors", "[]" );
 
-    // The dark palette has no setter; it is covered by the settings file test.
+    // Dark Token overrides have no setter; the settings file test covers them.
     return config;
 }
 

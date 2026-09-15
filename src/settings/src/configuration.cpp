@@ -48,7 +48,7 @@
 #include "configuration.h"
 #include "log.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "theme.h"
 
 namespace {
 std::once_flag fontInitFlag;
@@ -326,8 +326,8 @@ private:
     static constexpr auto DefinitionsKey = "definitions";
 };
 
-// The dark palette is stored as a group of colour names; only the roles the
-// default palette has are read.
+// Overrides of Dark Tokens are stored as a group of colour names by Token
+// name; exactly the stored entries are overrides (see Theme::fromName()).
 template <>
 struct Codec<DarkPalette> {
     static DarkPalette read( QSettings& settings, const SettingKey& key,
@@ -336,8 +336,9 @@ struct Codec<DarkPalette> {
         auto palette = defaultValue;
 
         settings.beginGroup( key.name );
-        for ( auto& [ role, color ] : palette ) {
-            color = settings.value( role, color ).toString();
+        const auto tokens = settings.childKeys();
+        for ( const auto& token : tokens ) {
+            palette[ token ] = settings.value( token ).toString();
         }
         settings.endGroup();
 
@@ -347,8 +348,8 @@ struct Codec<DarkPalette> {
     static void write( QSettings& settings, const SettingKey& key, const DarkPalette& palette )
     {
         settings.beginGroup( key.name );
-        for ( const auto& [ role, color ] : palette ) {
-            settings.setValue( role, color );
+        for ( const auto& [ token, color ] : palette ) {
+            settings.setValue( token, color );
         }
         settings.endGroup();
     }
@@ -411,9 +412,9 @@ int withinIndexCacheSizeLimits( int sizeMb )
 
 QString availableStyle( QString style )
 {
-    const auto styles = StyleManager::availableStyles();
+    const auto styles = Theme::availableThemes();
     if ( !styles.contains( style ) ) {
-        style = StyleManager::defaultPlatformStyle();
+        style = Theme::defaultTheme();
     }
     if ( !styles.contains( style ) ) {
         style = styles.front();
@@ -512,27 +513,8 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
 
     visit( "chartPresets", config.chartPresets_, ChartPresets{} );
 
-    // based on https://gist.github.com/QuantumCD/6245215
-    visit( "dark", config.darkPalette_,
-           DarkPalette{
-               { "Window", "#121212" },
-               { "WindowText", "#E0E0E0" },
-               { "Base", "#1E1E1E" },
-               { "AlternateBase", "#252526" },
-               { "ToolTipBase", "#2D2D30" },
-               { "ToolTipText", "#E0E0E0" },
-               { "Text", "#E0E0E0" },
-               { "Button", "#2D2D30" },
-               { "ButtonText", "#E0E0E0" },
-               { "Link", "#4D90FE" },
-               { "Highlight", "#4D90FE" },
-               { "HighlightedText", "#FFFFFF" },
-               { "ActiveButton", "#252526" },
-               { "DisabledButtonText", "#666666" },
-               { "DisabledWindowText", "#666666" },
-               { "DisabledText", "#666666" },
-               { "DisabledLight", "#252526" },
-           } );
+    // Only overrides are stored; the Dark Theme holds the Tokens themselves.
+    visit( "dark", config.darkPalette_, DarkPalette{} );
 }
 
 Configuration::Configuration()

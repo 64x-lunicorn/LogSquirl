@@ -457,15 +457,69 @@ SCENARIO( "Log format settings round-trip through QSettings", "[configuration]" 
     }
 }
 
+SCENARIO( "Dark palette overrides round-trip through QSettings", "[configuration]" )
+{
+    GIVEN( "A freshly constructed Configuration" )
+    {
+        Configuration config;
+
+        THEN( "No Dark Token is overridden" )
+        {
+            REQUIRE( config.darkPalette().empty() );
+        }
+    }
+
+    GIVEN( "Settings with stored dark palette entries" )
+    {
+        QTemporaryDir tmpDir;
+        REQUIRE( tmpDir.isValid() );
+        const QString tmpPath = QDir( tmpDir.path() ).filePath( "test.ini" );
+        {
+            QSettings settings( tmpPath, QSettings::IniFormat );
+            settings.beginGroup( "dark" );
+            settings.setValue( "Window", "#101010" );
+            settings.setValue( "Chrome", "#202020" );
+            settings.endGroup();
+        }
+
+        WHEN( "Loaded, saved and loaded again" )
+        {
+            Configuration loaded;
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                loaded.retrieveFromStorage( settings );
+            }
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                loaded.saveToStorage( settings );
+            }
+            Configuration restored;
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                restored.retrieveFromStorage( settings );
+            }
+
+            THEN( "Exactly the stored entries are overrides" )
+            {
+                const std::map<QString, QString> expected{ { "Chrome", "#202020" },
+                                                           { "Window", "#101010" } };
+                REQUIRE( loaded.darkPalette() == expected );
+                REQUIRE( restored.darkPalette() == expected );
+            }
+        }
+    }
+}
+
 namespace {
 
 // Every setting the Configuration stores. A setting missing from the write
-// path, or stored under a new key, changes this list.
+// path, or stored under a new key, changes this list. Dark Token overrides
+// ("dark") are only stored when there are some; the settings file test and
+// the dark palette scenario cover them.
 const QStringList StoredSettingNames = {
     "archives.extract",
     "archives.extractAlways",
     "chartPresets",
-    "dark",
     "defaultView.encodingMib",
     "defaultView.searchAutoRefresh",
     "defaultView.searchIgnoreCase",
@@ -639,9 +693,6 @@ SCENARIO( "Every stored setting survives a save and a load", "[configuration]" )
         THEN( "No stored value is the default one" )
         {
             for ( const auto& key : stored.keys() ) {
-                if ( settingName( key ) == "dark" ) {
-                    continue; // no setter; covered by the settings file test
-                }
                 INFO( key.toStdString() );
                 CHECK( stored.value( key ) != defaults.value( key ) );
             }
@@ -721,7 +772,7 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                 CHECK( config.mainSearchBackColor() == QColor( 0x12, 0x34, 0x56, 0x80 ) );
                 CHECK( config.qfBackColor() == QColor( 0xab, 0xcd, 0xef ) );
                 CHECK( config.searchResultsCacheLines() == 500000u );
-                CHECK( config.style() == StyleManager::DarkStyleKey );
+                CHECK( config.style() == Theme::DarkKey );
                 CHECK( config.defaultEncodingMib() == 106 );
                 CHECK( config.splitterSizes() == QList<int>{ 300, 200 } );
                 CHECK( config.enabledPlugins() == QStringList{ "com.example.a", "com.example.b" } );
@@ -731,8 +782,8 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
                        == R"({"series": [{"field": "duration", "unit": "ms"}]})" );
                 CHECK( config.darkPalette().at( "Window" )
                        == release.value( "dark/Window" ).toString() );
-                CHECK( config.darkPalette().at( "Window" )
-                       != Configuration{}.darkPalette().at( "Window" ) );
+                // Exactly the stored entries are Dark Token overrides.
+                CHECK( config.darkPalette().size() == 17 );
             }
         }
     }
@@ -831,7 +882,7 @@ SCENARIO( "Stored values outside their range are corrected on load", "[configura
         file.setValue( "view.style", "No Such Style" );
         THEN( "The platform's default style is loaded" )
         {
-            CHECK( file.load().style() == StyleManager::defaultPlatformStyle() );
+            CHECK( file.load().style() == Theme::defaultTheme() );
         }
     }
 }

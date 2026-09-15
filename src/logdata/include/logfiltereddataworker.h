@@ -50,7 +50,6 @@
 #ifndef Q_MOC_RUN
 #include <roaring.hh>
 #include <roaring64map.hh>
-#include <tbb/task_group.h>
 #endif
 
 #include <type_safe/strong_typedef.hpp>

@@ -39,9 +39,9 @@
 #include "iconloader.h"
 #include "log.h"
 #include "openfilehelper.h"
-#include "styles.h"
 #include "tabgroupinfo.h"
 #include "tabnamemapping.h"
+#include "theme.h"
 
 namespace {
 constexpr QLatin1String PathKey = QLatin1String( "path", 4 );
@@ -63,7 +63,7 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
 {
 
     const auto& config = Configuration::get();
-    const bool isDark = ( config.style() == StyleManager::DarkStyleKey );
+    const bool isDark = ( config.style() == Theme::DarkKey );
 
     QString tabStyle = QStringLiteral( "QTabBar::tab { height: 28px; }" );
 
@@ -87,7 +87,7 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
             = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-hover-16.png";
     }
 #elif defined( Q_OS_WIN )
-    if ( config.style() == StyleManager::LightKey ) {
+    if ( config.style() == Theme::LightKey ) {
         backgroundImage = ":/images/icons8-close-window-16.png";
         backgroundHoverImage = ":/images/icons8-close-window-hover-16.png";
     }

@@ -16,10 +16,11 @@ target_link_libraries(
          project_warnings
          logsquirl_version
          logsquirl_utils
-         tbb
          Qt6::Gui
          Qt6::Widgets
 )
+# Only issuereporter.cpp reads the TBB version (#168).
+target_link_libraries(logsquirl_crash_handler PRIVATE tbb)
 
 if(LOGSQUIRL_USE_SENTRY)
   target_compile_definitions(logsquirl_crash_handler PUBLIC -DLOGSQUIRL_USE_SENTRY)

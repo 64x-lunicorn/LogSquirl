@@ -162,12 +162,6 @@ int PluginHandle::convert( const QString& inputPath, const QString& outputPath )
     return converterConvertFn_( inUtf8.constData(), outUtf8.constData() );
 }
 
-PluginHandle PluginHandle::createScriptHandle( PluginMetadata meta )
-{
-    return PluginHandle( std::move( meta ), nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-                         nullptr );
-}
-
 // ── PluginLoader ────────────────────────────────────────────────────────────
 
 namespace {
