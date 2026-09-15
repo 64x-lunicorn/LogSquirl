@@ -26,13 +26,16 @@
 #include "logformatdefinition.h"
 #include "logtableview.h"
 #include "quickfindpattern.h"
+#include "rowmapping.h"
 
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QFile>
 #include <QHeaderView>
 #include <QMenu>
 #include <QSettings>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
@@ -295,5 +298,162 @@ SCENARIO( "Save selected to file in the Table View's context menu needs a select
                 REQUIRE( entryEnabled == true );
             }
         }
+    }
+}
+
+namespace {
+
+// Rows showing the Log File from Log Line 100 on: Row 0 is Log Line 100.
+class RowsFromLogLine100 : public RowMapping {
+public:
+    static constexpr uint64_t FirstLogLine = 100;
+
+    int rowCount( LinesCount logLines ) const override
+    {
+        return logLines.get() > FirstLogLine ? static_cast<int>( logLines.get() - FirstLogLine )
+                                             : 0;
+    }
+
+    LineNumber logLineAt( int row ) const override
+    {
+        return LineNumber( FirstLogLine + static_cast<uint64_t>( row ) );
+    }
+
+    std::optional<int> rowOf( LineNumber logLine ) const override
+    {
+        if ( logLine.get() < FirstLogLine ) {
+            return std::nullopt;
+        }
+        return static_cast<int>( logLine.get() - FirstLogLine );
+    }
+};
+
+// 105 Log Lines; the ones from Log Line 100 on have the Log Format's shape.
+QStringList offsetLines()
+{
+    QStringList lines;
+    for ( int line = 0; line < 100; ++line ) {
+        lines << QString( "noise %1" ).arg( line );
+    }
+    for ( int line = 100; line < 105; ++line ) {
+        lines << QString( "Jan  1 12:00:%1 host%1 message %1" )
+                     .arg( line - 100, 2, 10, QChar( '0' ) );
+    }
+    return lines;
+}
+
+// Opens the context menu over the first Row and triggers the entry with the
+// given text.
+void triggerContextMenuEntry( LogTableView& view, const QString& entry )
+{
+    QTimer poll;
+    QObject::connect( &poll, &QTimer::timeout, &poll, [ & ]() {
+        auto* menu = qobject_cast<QMenu*>( QApplication::activePopupWidget() );
+        if ( menu == nullptr ) {
+            return;
+        }
+        poll.stop();
+        QAction* found = nullptr;
+        for ( auto* action : menu->actions() ) {
+            if ( action->text() == entry ) {
+                found = action;
+            }
+        }
+        menu->close();
+        if ( found != nullptr ) {
+            found->trigger();
+        }
+    } );
+    poll.start( 10 );
+
+    Q_EMIT view.customContextMenuRequested(
+        view.visualRect( view.model()->index( 0, 0 ) ).center() );
+}
+
+} // namespace
+
+SCENARIO( "A Table View whose Rows are not its Log Lines hands out Log Lines",
+          "[logtableview][rowmapping]" )
+{
+    const auto format = makeFormat();
+    const auto lines = offsetLines();
+    FakeLogData logData( lines );
+    LogTableView view( std::make_shared<RowsFromLogLine100>() );
+    open( view, format, logData );
+    view.setActive( true );
+    view.show();
+    QCoreApplication::processEvents();
+
+    REQUIRE( view.model()->rowCount() == 5 );
+
+    GIVEN( "the Rows 1 and 3 selected" )
+    {
+        QSignalSpy newSelection( &view, &LogTableView::newSelection );
+        selectRows( view, { 1, 3 } );
+
+        THEN( "the new selection is reported as the Log Line of the first Row" )
+        {
+            REQUIRE( !newSelection.isEmpty() );
+            REQUIRE( newSelection.last().at( 0 ).value<LineNumber>() == 101_lnum );
+        }
+
+        WHEN( "they are marked" )
+        {
+            QSignalSpy markLines( &view, &LogTableView::markLines );
+            QTest::keyClick( &view, Qt::Key_M );
+
+            THEN( "their Log Lines are marked" )
+            {
+                REQUIRE( markLines.size() == 1 );
+                REQUIRE( markLines.first().at( 0 ).value<logsquirl::vector<LineNumber>>()
+                         == logsquirl::vector<LineNumber>{ 101_lnum, 103_lnum } );
+            }
+        }
+
+        WHEN( "they are copied with line numbers" )
+        {
+            QApplication::clipboard()->clear();
+            triggerContextMenuEntry( view, "Copy with line numbers" );
+
+            THEN( "each is numbered with its Log Line, counted from 1" )
+            {
+                const auto copied = QApplication::clipboard()->text().split( '\n' );
+                REQUIRE( copied.size() == 2 );
+                REQUIRE( copied[ 0 ].startsWith( "102\t" ) );
+                REQUIRE( copied[ 0 ].endsWith( "message 01" ) );
+                REQUIRE( copied[ 1 ].startsWith( "104\t" ) );
+                REQUIRE( copied[ 1 ].endsWith( "message 03" ) );
+            }
+        }
+
+        WHEN( "they are saved" )
+        {
+            const QTemporaryDir dir;
+            REQUIRE( dir.isValid() );
+            const auto fileName = dir.filePath( "logtableview_rowmapping_test.log" );
+            view.saveSelectedTo( fileName );
+
+            THEN( "the file holds their Log Lines" )
+            {
+                REQUIRE( contentOf( fileName ) == utf8File( { lines[ 101 ], lines[ 103 ] } ) );
+            }
+        }
+    }
+
+    WHEN( "a Log Line is shown" )
+    {
+        view.showLogLine( 104_lnum );
+
+        THEN( "the Row showing it is selected" )
+        {
+            REQUIRE( view.selectionModel()->isRowSelected( 4, {} ) );
+            REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 104_lnum } );
+        }
+    }
+
+    THEN( "the Log Line at a point is the one its Row shows" )
+    {
+        const auto point = view.visualRect( view.model()->index( 2, 0 ) ).center();
+        REQUIRE( view.logLineAt( point ) == OptionalLineNumber{ 102_lnum } );
     }
 }
