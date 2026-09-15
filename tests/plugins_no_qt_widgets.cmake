@@ -7,6 +7,9 @@
 #              -DLINK_LIBRARIES=<logsquirl_plugins link libraries, |-separated>
 #              -P plugins_no_qt_widgets.cmake
 
+# Script mode sets no policies; if(IN_LIST) needs CMP0057.
+cmake_minimum_required(VERSION 3.16)
+
 if(NOT SOURCES_DIR OR NOT IS_DIRECTORY "${SOURCES_DIR}")
   message(FATAL_ERROR "SOURCES_DIR is not a directory: '${SOURCES_DIR}'")
 endif()
