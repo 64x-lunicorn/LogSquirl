@@ -71,7 +71,9 @@
 #include "viewinterface.h"
 
 #include "logformatdefinition.h"
+#include "settingspolicies.h"
 
+class LogFormatCatalog;
 class LogTableView;
 class InfoLine;
 class QuickFindPattern;
@@ -145,6 +147,9 @@ protected:
                     std::shared_ptr<LogFilteredData> filteredData ) override;
     void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) override;
     void doSetSavedSearches( SavedSearches* savedSearches ) override;
+    void doSetFormatRecognition( const RecognitionPolicy& policy,
+                                 std::shared_ptr<const LogFormatCatalog> catalog ) override;
+    void doSetRecognitionPolicy( const RecognitionPolicy& policy ) override;
     void doSetViewContext( const QString& viewContext ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
@@ -370,10 +375,11 @@ private:
 
     void changeFontSize( bool increase );
 
-    // Try auto-detecting a log format from the first lines after loading.
-    void tryAutoDetectFormat();
+    // Decide which Log Format applies to the Log File, now that it has loaded.
+    // Only ever called from the load-finished path.
+    void recognizeFormat();
 
-    // Forget the detected Log Format so it is detected again, back in the text view.
+    // Forget the recognized Log Format, back in the text view.
     void resetLogFormat();
 
     // Whether the upper pane shows the Table View rather than the text view.
@@ -460,8 +466,20 @@ private:
 
     ChartPanel* chartPanel_ = nullptr;
 
-    // The Log Format detected for the Log File, if any
-    std::unique_ptr<LogFormatDefinition> detectedFormat_;
+    // What Format Recognition runs on
+    RecognitionPolicy recognitionPolicy_;
+    std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
+
+    // Whether the next load to finish is to recognize the Log Format: the
+    // first load, and the one after a manual reload or a truncation.
+    bool formatRecognitionPending_ = true;
+
+    // How many times Format Recognition has run, so a test can tell.
+    int formatRecognitionCount_ = 0;
+
+    // The Log Format recognized for the Log File, if any: one of the
+    // Catalog's own, kept even when the Catalog is rebuilt.
+    std::shared_ptr<const LogFormatDefinition> detectedFormat_;
 
     // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;

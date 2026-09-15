@@ -19,24 +19,40 @@
 
 #pragma once
 
+#include "logformatcatalog.h"
 #include "logformatdefinition.h"
-#include "logformatregistry.h"
+#include "settingspolicies.h"
 
 #include <QStringList>
 
-// Detects which log format (if any) matches a set of sample lines from a file.
-// Uses specificity-based ordering: a format that matches only its own lines
-// is preferred over one that matches everything.
-class LogFormatMatcher {
-public:
-    // Construct a matcher backed by the given registry.
-    explicit LogFormatMatcher( const LogFormatRegistry& registry );
+#include <memory>
 
-    // Try to detect a format from the given lines (typically the first ~1000 lines of a file).
-    // Returns a pointer to the best matching format, or nullptr if no format matches
-    // above the minimum threshold (50% of lines must match).
-    const LogFormatDefinition* detectFormat( const QStringList& lines ) const;
+class AbstractLogData;
 
-private:
-    const LogFormatRegistry& registry_;
-};
+// Format Recognition: the decision which Log Format, if any, applies to a
+// Log File, taken from its first Log Lines against the Log Format Catalog.
+//
+// The answer is one of the Catalog's own Log Formats -- the very object the
+// Catalog holds, never a copy -- or nullptr. A disabled Recognition Policy
+// answers nullptr without looking at a single Log Line.
+//
+// Among the Log Formats that match, the one matching the most sample lines
+// wins, and on a tie the more specific one (more capture groups); at least
+// half of the sample lines must match.
+namespace FormatRecognition {
+
+// How many Log Lines, from the first one, Format Recognition looks at.
+inline constexpr int SampleDepth = 50;
+
+// Recognizes the Log Format of a Log File from its first SampleDepth Log Lines.
+std::shared_ptr<const LogFormatDefinition> recognize( const AbstractLogData& logFile,
+                                                      const RecognitionPolicy& policy,
+                                                      const LogFormatCatalog& catalog );
+
+// Recognizes a Log Format from sample Log Lines already read; only the first
+// SampleDepth of them are looked at.
+std::shared_ptr<const LogFormatDefinition> recognize( const QStringList& firstLogLines,
+                                                      const RecognitionPolicy& policy,
+                                                      const LogFormatCatalog& catalog );
+
+} // namespace FormatRecognition

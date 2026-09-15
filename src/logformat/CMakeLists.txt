@@ -2,13 +2,13 @@ add_library(
   logsquirl_logformat STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformatdefinition.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformatparser.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/logformatregistry.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/logformatmatcher.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logformatcatalog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/formatrecognition.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfieldextractor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformattablemodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatparser.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatregistry.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatmatcher.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatcatalog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/formatrecognition.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfieldextractor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformattablemodel.cpp
   ${CMAKE_SOURCE_DIR}/Resources/formats/formats.qrc

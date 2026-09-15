@@ -1470,7 +1470,8 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
 // Opens the 'Options' modal dialog box
 void MainWindow::options()
 {
-    OptionsDialog dialog( this );
+    const auto logFormatCatalog = session_.logFormatCatalog();
+    OptionsDialog dialog( *logFormatCatalog, this );
     signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 
     connect( &dialog, &OptionsDialog::optionsChanged, [ this ]() {

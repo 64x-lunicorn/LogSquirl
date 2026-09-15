@@ -37,6 +37,7 @@
 class ViewInterface;
 class ViewContextInterface;
 class LogData;
+class LogFormatCatalog;
 class LogFilteredData;
 class SavedSearches;
 
@@ -56,7 +57,11 @@ public:
     // them itself: it is the place that builds a Log File's data objects,
     // so it is the place that has to hand each one what it is allowed to
     // know about the settings.
-    explicit Session( const SettingsPolicies& policies );
+    //
+    // The Log Format Catalog is the application's one Catalog, already
+    // built. Every view is handed this same instance, and the Session
+    // rebuilds it whenever settings are applied.
+    Session( const SettingsPolicies& policies, std::shared_ptr<LogFormatCatalog> logFormatCatalog );
     ~Session();
 
     // No copy/assignment please
@@ -98,12 +103,23 @@ public:
         return *savedSearches_;
     }
 
+    // The application's Log Format Catalog, the one every view is handed.
+    std::shared_ptr<const LogFormatCatalog> logFormatCatalog() const
+    {
+        return logFormatCatalog_;
+    }
+
     // Takes the Policies re-derived after a settings change: stores them
     // for the Log Files opened from now on, and hands the axes that
     // actually changed to the Log Files already open -- every one of them,
     // not only the one the active tab is showing. An axis that did not
     // change is not handed to anybody, so changing (say) a Highlighter Set
     // does not make every open file rebuild its Context Lines.
+    //
+    // The Log Format Catalog is rebuilt on every call, whether or not any
+    // Policy changed: a user's Log Format can change on disk without any
+    // setting changing, and applying the settings is how it is picked up.
+    // Open Log Files keep the Log Format they were recognized with.
     void applyPolicies( const SettingsPolicies& policies );
 
     std::vector<WindowSession> windowSessions();
@@ -147,6 +163,9 @@ private:
 
     // Handed to every Log File opened from now on.
     SettingsPolicies policies_;
+
+    // Handed to every view, for Format Recognition.
+    std::shared_ptr<LogFormatCatalog> logFormatCatalog_;
 
     bool exitRequested_ = false;
 
@@ -203,6 +222,12 @@ public:
     std::shared_ptr<QuickFindPattern> getQuickFindPattern() const
     {
         return appSession_->quickFindPattern();
+    }
+
+    // The application's Log Format Catalog.
+    std::shared_ptr<const LogFormatCatalog> logFormatCatalog() const
+    {
+        return appSession_->logFormatCatalog();
     }
 
     QString windowId() const
