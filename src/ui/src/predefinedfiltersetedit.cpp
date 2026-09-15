@@ -22,9 +22,9 @@
 #include <QCheckBox>
 #include <QHBoxLayout>
 
-#include "dispatch_to.h"
 #include "iconloader.h"
 #include "log.h"
+#include "theme.h"
 
 namespace {
 
@@ -79,15 +79,19 @@ PredefinedFilterSetEdit::PredefinedFilterSetEdit( QWidget* parent )
     connect( filtersTableWidget, &QTableWidget::cellChanged, this,
              &PredefinedFilterSetEdit::onCellChanged );
 
-    dispatchToMainThread( [ this ] {
-        IconLoader iconLoader;
-        addFilterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-        removeFilterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-        upFilterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-        downFilterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
-    } );
+    loadIcons();
+    Theme::whenApplied( this, [ this ] { loadIcons(); } );
 
     reset();
+}
+
+void PredefinedFilterSetEdit::loadIcons()
+{
+    IconLoader iconLoader;
+    addFilterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
+    removeFilterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
+    upFilterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
+    downFilterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
 }
 
 void PredefinedFilterSetEdit::reset()

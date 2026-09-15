@@ -116,6 +116,7 @@
 #include "sessioninfo.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
+#include "theme.h"
 
 namespace {
 
@@ -385,6 +386,12 @@ MainWindow::MainWindow( WindowSession session )
 
     updateTitleBar( "" );
     loadIcons();
+    Theme::whenApplied( this, [ this ] {
+        loadIcons();
+        updateOpenedFilesMenu();
+        updateFavoritesMenu();
+        updateHighlightersMenu();
+    } );
     reTranslateUI();
 
     // Accessibility: set accessible names on main widgets
@@ -2342,14 +2349,6 @@ void MainWindow::changeEvent( QEvent* event )
                 } );
             }
         }
-    }
-    else if ( event->type() == QEvent::StyleChange ) {
-        dispatchToMainThread( [ this ] {
-            loadIcons();
-            updateOpenedFilesMenu();
-            updateFavoritesMenu();
-            updateHighlightersMenu();
-        } );
     }
     else if ( event->type() == QEvent::LanguageChange ) {
         reTranslateUI();

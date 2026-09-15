@@ -157,6 +157,7 @@ int main( int argc, char* argv[] )
     }
     else {
         Theme::apply( config.style() );
+        Theme::followSystemColorScheme();
 
         // Show a splash screen while the application is initialising.
         QSplashScreen* splash = nullptr;

@@ -22,6 +22,7 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <initializer_list>
 #include <map>
 #include <utility>
@@ -31,6 +32,8 @@
 #include <QPalette>
 #include <QString>
 #include <QStringList>
+
+class QObject;
 
 // The Tokens of a Theme. Each entry is one name: the enumerator, the
 // placeholder @Name@ in the stylesheet template, and the key under which a
@@ -57,6 +60,7 @@
     X( Light )                                                                                     \
     X( Midlight )                                                                                  \
     X( Mid )                                                                                       \
+    X( Dark )                                                                                      \
     X( Shadow )                                                                                    \
     X( Chrome )                                                                                    \
     X( Pane )                                                                                      \
@@ -181,9 +185,25 @@ public:
 
     // Makes the Theme a stored `style` setting stands for the application's
     // look: Fusion style, platform color scheme, palette, and stylesheet with
-    // the user's stylesheet from AppConfigLocation/themes/ on top. Call once
-    // at startup, before widgets are created.
+    // the user's stylesheet from AppConfigLocation/themes/ on top. Can be
+    // called again at any time, with windows open; afterwards every refresh
+    // registered with whenApplied() runs.
     static void apply( const QString& name );
+
+    // Runs refresh after every apply() for as long as context lives, once the
+    // palette and stylesheet are in place. For what a widget derives from the
+    // Theme and Qt does not update by itself: icons, and stylesheets built
+    // from Tokens or palette roles. Never refresh from a StyleChange or
+    // PaletteChange handler instead: those run while Qt repolishes (#173).
+    static void whenApplied( QObject* context, std::function<void()> refresh );
+
+    // Applies System again whenever the operating system's color scheme
+    // changes while System is chosen. Call once at startup.
+    static void followSystemColorScheme();
+
+    // What followSystemColorScheme() connects QStyleHints::colorSchemeChanged
+    // to.
+    static void systemColorSchemeChanged( Qt::ColorScheme scheme );
 
     // The Theme last applied, or the default Theme before apply().
     static const Theme& active();

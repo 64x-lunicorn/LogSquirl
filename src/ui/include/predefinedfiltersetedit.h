@@ -60,6 +60,7 @@ private Q_SLOTS:
 
 private:
     void populateTable();
+    void loadIcons();
     void syncTableToSet();
     void updateButtons( int currentRow );
 

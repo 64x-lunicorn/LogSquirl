@@ -48,6 +48,7 @@ private Q_SLOTS:
 
 private:
     void populateFieldCombos();
+    void updateColorButton();
 
     const LogFormatDefinition* format_;
 

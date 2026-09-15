@@ -52,6 +52,7 @@
 #include "highlighterset.h"
 #include "iconloader.h"
 #include "log.h"
+#include "theme.h"
 
 static constexpr QLatin1String DEFAULT_NAME = QLatin1String( "New Highlighter set", 19 );
 
@@ -174,14 +175,18 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
         quickHighlightLayout->addWidget( cycleCheckbox, row, 3, Qt::AlignCenter );
     }
 
-    dispatchToMainThread( [ this ] {
-        IconLoader iconLoader;
+    loadIcons();
+    Theme::whenApplied( this, [ this ] { loadIcons(); } );
+}
 
-        addHighlighterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-        removeHighlighterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-        upHighlighterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-        downHighlighterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
-    } );
+void HighlightersDialog::loadIcons()
+{
+    IconLoader iconLoader;
+
+    addHighlighterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
+    removeHighlighterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
+    upHighlighterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
+    downHighlighterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
 }
 
 //

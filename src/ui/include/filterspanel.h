@@ -70,7 +70,6 @@ private Q_SLOTS:
 
 protected:
     void showEvent( QShowEvent* event ) override;
-    void changeEvent( QEvent* event ) override;
 
 private:
     void populateTree( const QList<PredefinedFilterSet>& sets );
@@ -79,7 +78,6 @@ private:
     void savePinnedFilters();
     void savePinnedFiltersNow();
     void loadPinnedFilters();
-    void applyCurrentPalette();
 
     QLineEdit* searchBox_{ nullptr };
     QTreeWidget* filterTree_{ nullptr };

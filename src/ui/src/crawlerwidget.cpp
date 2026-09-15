@@ -91,6 +91,7 @@
 #include "quickfindpattern.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
+#include "theme.h"
 
 // Palette for error signaling (yellow background)
 const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
@@ -260,18 +261,6 @@ void CrawlerWidget::doSendAllStateSignals()
     Q_EMIT newSelection( currentLineNumber_, 0_lcount, 0_lcol, 0_length );
     if ( !loadingInProgress_ )
         Q_EMIT loadingFinished( LoadingStatus::Successful );
-}
-
-void CrawlerWidget::changeEvent( QEvent* event )
-{
-    if ( event->type() == QEvent::StyleChange ) {
-        dispatchToMainThread( [ this ] {
-            loadIcons();
-            searchInfoLineDefaultPalette_ = this->palette();
-        } );
-    }
-
-    QWidget::changeEvent( event );
 }
 
 //
@@ -1428,6 +1417,10 @@ void CrawlerWidget::setup()
 
     registerShortcuts();
     loadIcons();
+    Theme::whenApplied( this, [ this ] {
+        loadIcons();
+        searchInfoLineDefaultPalette_ = palette();
+    } );
 
     // Connect the signals
     connect( searchLineEdit_->lineEdit(), &QLineEdit::returnPressed, searchButton_,

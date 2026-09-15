@@ -42,6 +42,7 @@ TabbedScratchPad::TabbedScratchPad( QWidget* parent )
     tabWidget_->setTabsClosable( true );
 
     applyTheme();
+    Theme::whenApplied( this, [ this ] { applyTheme(); } );
 
     connect( tabWidget_, &QTabWidget::tabCloseRequested,
              [ this ]( const auto index ) { tabWidget_->removeTab( index ); } );

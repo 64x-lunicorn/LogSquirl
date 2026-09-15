@@ -78,6 +78,7 @@ private Q_SLOTS:
 private:
     void populateHighlighterList();
     void setCurrentRow( int row );
+    void loadIcons();
 
 private:
     HighlighterSetEdit* highlighterSetEdit_;

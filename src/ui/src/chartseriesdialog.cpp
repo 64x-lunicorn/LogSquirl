@@ -36,6 +36,7 @@
 
 #include "charttemplategenerator.h"
 #include "logformatdefinition.h"
+#include "theme.h"
 
 ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
     : QDialog( parent )
@@ -74,8 +75,8 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
 
     colorButton_ = new QPushButton;
     colorButton_->setFixedSize( 60, 24 );
-    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
-                                     .arg( selectedColor_.name() ) );
+    updateColorButton();
+    Theme::whenApplied( this, [ this ] { updateColorButton(); } );
     connect( colorButton_, &QPushButton::clicked, this, &ChartSeriesDialog::chooseColor );
     form->addRow( tr( "Color:" ), colorButton_ );
 
@@ -151,8 +152,7 @@ void ChartSeriesDialog::setSeries( const ChartSeriesDefinition& def )
     patternEdit_->setText( def.pattern );
     captureGroupSpin_->setValue( def.captureGroup );
     selectedColor_ = def.color;
-    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
-                                     .arg( selectedColor_.name() ) );
+    updateColorButton();
 
     if ( !def.xPattern.isEmpty() ) {
         xAxisGroup_->setChecked( true );
@@ -247,9 +247,15 @@ void ChartSeriesDialog::chooseColor()
     const QColor c = QColorDialog::getColor( selectedColor_, this, tr( "Series Color" ) );
     if ( c.isValid() ) {
         selectedColor_ = c;
-        colorButton_->setStyleSheet(
-            QString( "background-color: %1; border: 1px solid palette(mid);" ).arg( c.name() ) );
+        updateColorButton();
     }
+}
+
+void ChartSeriesDialog::updateColorButton()
+{
+    // palette(mid) is resolved when the stylesheet is set.
+    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
+                                     .arg( selectedColor_.name() ) );
 }
 
 void ChartSeriesDialog::validateAndAccept()
