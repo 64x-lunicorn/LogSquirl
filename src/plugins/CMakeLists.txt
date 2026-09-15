@@ -1,15 +1,32 @@
+# The Plugin Catalog: what plugins are installed, read from their manifests.
+# It loads no library and needs only Qt Core, so it is tested on its own (#178).
+add_library(
+  logsquirl_plugin_catalog STATIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logsquirl_plugin_api.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/plugincatalog.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginmetadata.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/plugincatalog.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginmetadata.cpp
+)
+
+target_include_directories(logsquirl_plugin_catalog PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(
+  logsquirl_plugin_catalog
+  PUBLIC project_options
+         project_warnings
+         logsquirl_logging
+         Qt6::Core
+)
+
 add_library(
   logsquirl_plugins STATIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/logsquirl_plugin_api.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginmetadata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginloader.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginmanager.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginhost.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginrepository.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiport.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/streamwriter.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginmetadata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginloader.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginmanager.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginhost.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginrepository.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/streamwriter.cpp
 )
@@ -24,6 +41,7 @@ target_link_libraries(
   logsquirl_plugins
   PUBLIC project_options
          project_warnings
+         logsquirl_plugin_catalog
          logsquirl_logging
          logsquirl_settings
          logsquirl_karchive

@@ -60,7 +60,8 @@
 #include "iconloader.h"
 #include "mergecontroller.h"
 #include "pathline.h"
-#include "pluginmanager.h"
+#include "plugincatalog.h"
+#include "pluginhost.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
 #include "quickfindwidget.h"
@@ -378,11 +379,16 @@ private:
 
     std::once_flag screenChangesConnect_;
 
-    // Shows what plugins contribute. Declared before pluginManager_ so it
+    // Which plugins are installed. Declared before pluginHost_, which looks
+    // plugins up in it.
+    logsquirl::plugins::PluginCatalog pluginCatalog_;
+
+    // Shows what plugins contribute. Declared before pluginHost_ so it
     // outlives it: unloading the plugins on destruction still reaches it.
     std::unique_ptr<PluginUiAdapter> pluginUi_;
 
-    logsquirl::plugins::PluginManager pluginManager_;
+    // Loads the enabled plugins from the catalog and serves their callbacks.
+    logsquirl::plugins::PluginHost pluginHost_{ pluginCatalog_ };
 
     // Separator between plugin actions (top) and management actions (bottom).
     QAction* pluginMenuSeparator_ = nullptr;

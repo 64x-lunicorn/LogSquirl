@@ -19,7 +19,8 @@
 
 #pragma once
 
-#include "pluginmanager.h"
+#include "plugincatalog.h"
+#include "pluginhost.h"
 #include "pluginrepository.h"
 
 #include <QCheckBox>
@@ -52,7 +53,11 @@ class PluginDialog : public QDialog {
     Q_OBJECT
 
 public:
-    explicit PluginDialog( PluginManager& manager, QWidget* parent = nullptr );
+    /**
+     * Create the dialog for the plugins the catalog lists; enabling and
+     * disabling one loads and unloads it in the host.
+     */
+    PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* parent = nullptr );
 
 private Q_SLOTS:
     void onCatalogReady();
@@ -143,7 +148,8 @@ private:
 
     // ── Members ──────────────────────────────────────────────────────
 
-    PluginManager& manager_;
+    PluginCatalog& catalog_;
+    PluginHost& host_;
     PluginRepository repository_;
 
     QLineEdit* searchEdit_ = nullptr;

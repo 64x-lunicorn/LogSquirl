@@ -144,7 +144,7 @@ MainWindow::MainWindow( WindowSession session )
 
     // Discover plugins before createMenus() so the Sources and Plugins
     // menus can list discovered plugins immediately.
-    pluginManager_.discoverPlugins();
+    pluginCatalog_.discoverPlugins();
 
     createMenus();
     createToolBars();
@@ -308,7 +308,7 @@ MainWindow::MainWindow( WindowSession session )
 
     if ( config.showDashboard() ) {
         welcomeDashboard_ = new WelcomeDashboard();
-        welcomeDashboard_->setPluginManager( &pluginManager_ );
+        welcomeDashboard_->setPlugins( &pluginCatalog_, &pluginHost_ );
 
         // Insert dashboard as the permanent first tab (index 0)
         mainTabWidget_.insertTab( 0, welcomeDashboard_, tr( "Dashboard" ) );
@@ -341,33 +341,33 @@ MainWindow::MainWindow( WindowSession session )
         welcomeDashboard_->refresh();
     }
 
-    // Wire the Plugin UI Port and the plugin manager signals before
+    // Wire the Plugin UI Port and the plugin host signals before
     // autoLoadPlugins(), so what plugins register while they load (status
     // widgets, menu actions) is shown immediately.
     pluginUi_ = std::make_unique<PluginUiAdapter>( *this, *pluginsMenu, pluginMenuSeparator_,
                                                    *sidebarTabs_ );
-    pluginManager_.setUiPort( pluginUi_.get() );
+    pluginHost_.setUiPort( pluginUi_.get() );
 
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStarted, this,
+    connect( &pluginHost_, &logsquirl::plugins::PluginHost::dataSourceStarted, this,
              &MainWindow::handleDataSourceStarted );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::dataSourceStopped, this,
+    connect( &pluginHost_, &logsquirl::plugins::PluginHost::dataSourceStopped, this,
              &MainWindow::handleDataSourceStopped );
-    connect( &pluginManager_, &logsquirl::plugins::PluginManager::notificationRequested, this,
+    connect( &pluginHost_, &logsquirl::plugins::PluginHost::notificationRequested, this,
              []( const QString& msg ) { LOG_INFO << "Plugin notification: " << msg; } );
 
     // Let plugins request opening files
-    pluginManager_.setOpenFileCallback(
+    pluginHost_.setOpenFileCallback(
         [ this ]( const QString& path, bool follow ) { loadFile( path, follow ); } );
 
     // Let plugins query the currently active file path
-    pluginManager_.setActiveFilePathCallback( [ this ]() -> QString {
+    pluginHost_.setActiveFilePathCallback( [ this ]() -> QString {
         auto* crawler = currentCrawlerWidget();
         return crawler ? session_.getFilename( crawler ) : QString();
     } );
 
     // Auto-load previously enabled plugins (signals are now connected, so
     // register_status_widget / register_menu_action will be delivered).
-    const auto pluginErrors = pluginManager_.autoLoadPlugins();
+    const auto pluginErrors = pluginHost_.autoLoadPlugins();
     for ( const auto& error : pluginErrors ) {
         LOG_WARNING << "Plugin auto-load error: " << error;
     }
@@ -1044,7 +1044,7 @@ void MainWindow::createMenus()
 
     // Build Sources sub-menu from DataSource plugins
     sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
-    for ( const auto& meta : pluginManager_.discoveredPlugins() ) {
+    for ( const auto& meta : pluginCatalog_.discoveredPlugins() ) {
         if ( meta.type() == LOGSQUIRL_PLUGIN_DATASOURCE ) {
             auto* action = new QAction( meta.name(), this );
             action->setStatusTip( tr( "Start %1 data source" ).arg( meta.name() ) );
@@ -1188,7 +1188,7 @@ void MainWindow::open()
     // Build file filter including converter plugins
     QStringList filters;
     filters << tr( "All files (*)" );
-    filters << pluginManager_.converterFileFilters();
+    filters << pluginHost_.converterFileFilters();
     const auto filter = filters.join( ";;" );
 
     const auto selectedFiles = QFileDialog::getOpenFileUrls(
@@ -1488,15 +1488,15 @@ void MainWindow::options()
 
 void MainWindow::showPluginDialog()
 {
-    logsquirl::plugins::PluginDialog dialog( pluginManager_, this );
+    logsquirl::plugins::PluginDialog dialog( pluginCatalog_, pluginHost_, this );
     dialog.exec();
 }
 
 void MainWindow::startPluginDataSource( const QString& pluginId )
 {
     // Auto-load the plugin if it is not yet loaded
-    if ( !pluginManager_.isLoaded( pluginId ) ) {
-        const auto loadError = pluginManager_.loadPlugin( pluginId );
+    if ( !pluginHost_.isLoaded( pluginId ) ) {
+        const auto loadError = pluginHost_.loadPlugin( pluginId );
         if ( !loadError.isEmpty() ) {
             QMessageBox::warning( this, tr( "Plugin Error" ),
                                   tr( "Failed to load plugin:\n%1" ).arg( loadError ) );
@@ -1504,7 +1504,7 @@ void MainWindow::startPluginDataSource( const QString& pluginId )
         }
     }
 
-    const auto error = pluginManager_.startDataSource( pluginId );
+    const auto error = pluginHost_.startDataSource( pluginId );
     if ( !error.isEmpty() ) {
         QMessageBox::warning( this, tr( "DataSource Error" ), error );
     }
@@ -2090,7 +2090,7 @@ void MainWindow::currentTabChanged( int index )
         editMenu->setEnabled( true );
 
         // Notify plugins about the active file change
-        pluginManager_.notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
+        pluginHost_.notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
     }
     else {
         // Dashboard tab or no tab — clear the document state
@@ -2115,7 +2115,7 @@ void MainWindow::currentTabChanged( int index )
         addToFavoritesMenuAction->setEnabled( false );
 
         // Notify plugins that no file is active
-        pluginManager_.notifyActiveFileChanged( QString() );
+        pluginHost_.notifyActiveFileChanged( QString() );
 
         // Refresh dashboard when it becomes visible
         if ( isDashboardTab( mainTabWidget_, index ) ) {
@@ -2364,13 +2364,12 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
 
     // Check if a converter plugin handles this file extension (Phase 4)
     const auto ext = QFileInfo( fileName ).suffix().toLower();
-    const auto converterId = pluginManager_.converterForExtension( ext );
+    const auto converterId = pluginHost_.converterForExtension( ext );
     if ( !converterId.isEmpty() ) {
         auto* tempFile = new QTemporaryFile(
             tempDir_.filePath( QFileInfo( fileName ).fileName() + ".txt" ), this );
         if ( tempFile->open() ) {
-            const auto rc
-                = pluginManager_.runConverter( converterId, fileName, tempFile->fileName() );
+            const auto rc = pluginHost_.runConverter( converterId, fileName, tempFile->fileName() );
             if ( rc == 0 ) {
                 return loadFile( tempFile->fileName(), followFile );
             }

@@ -32,6 +32,14 @@
   ABI; a manifest whose `library` ends in `.lua` is now loaded like any other
   library and fails with the normal load error.
 
+## Internal
+
+- **Plugin Catalog and Plugin Host**: The former plugin manager class is split
+  in two. `PluginCatalog` finds the installed plugins from their manifests
+  without loading a library and needs Qt Core only; `PluginHost` loads the
+  enabled plugins from the catalog and serves their host callbacks. The plugin
+  ABI is unchanged, so published plugins work as before.
+
 ## Documentation
 
 - **README refresh**: Add a branded introduction, prominent download links, a

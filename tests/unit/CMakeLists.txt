@@ -26,11 +26,10 @@ add_executable(logsquirl_tests
     optionsdialog_test.cpp
     patternmatcher_test.cpp
     plugindialog_test.cpp
-    pluginmanager_test.cpp
+    pluginhost_test.cpp
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
-    pluginuiport_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
     searchsession_test.cpp
@@ -91,3 +90,18 @@ add_test(
     COMMAND logsquirl_compression_tests
 )
 set_tests_properties(logsquirl_compression_tests PROPERTIES TIMEOUT 60)
+
+# The Plugin Catalog is tested on its own: it reads plugin manifests without
+# loading a plugin library, the plugin host, or a Qt GUI (#178).
+add_executable(logsquirl_plugin_catalog_tests
+    plugin_catalog_tests_main.cpp
+    plugincatalog_test.cpp
+)
+
+target_link_libraries(logsquirl_plugin_catalog_tests logsquirl_plugin_catalog Catch2)
+
+add_test(
+    NAME logsquirl_plugin_catalog_tests
+    COMMAND logsquirl_plugin_catalog_tests
+)
+set_tests_properties(logsquirl_plugin_catalog_tests PROPERTIES TIMEOUT 60)

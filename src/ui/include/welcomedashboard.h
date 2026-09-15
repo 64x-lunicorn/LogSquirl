@@ -26,8 +26,9 @@ class QLabel;
 class QVBoxLayout;
 
 namespace logsquirl::plugins {
-class PluginManager;
-}
+class PluginCatalog;
+class PluginHost;
+} // namespace logsquirl::plugins
 
 /// Dashboard widget shown in the main window when no log tabs are open.
 ///
@@ -44,9 +45,11 @@ public:
     /// Call this every time the dashboard becomes visible.
     void refresh();
 
-    /// Provide a pointer to the PluginManager so the dashboard can
-    /// display plugin status. Must be called before the first refresh().
-    void setPluginManager( logsquirl::plugins::PluginManager* pm );
+    /// Provide the Plugin Catalog and the Plugin Host so the dashboard can
+    /// show which plugins are installed and loaded. Both must outlive the
+    /// dashboard. Must be called before the first refresh().
+    void setPlugins( const logsquirl::plugins::PluginCatalog* catalog,
+                     const logsquirl::plugins::PluginHost* host );
 
 Q_SIGNALS:
     /// Emitted when the user clicks a recent or favorite file entry.
@@ -80,7 +83,8 @@ private:
     QVBoxLayout* pluginStatusLayout_ = nullptr;
     QLabel* logoLabel_ = nullptr;
 
-    logsquirl::plugins::PluginManager* pluginManager_ = nullptr;
+    const logsquirl::plugins::PluginCatalog* pluginCatalog_ = nullptr;
+    const logsquirl::plugins::PluginHost* pluginHost_ = nullptr;
 };
 
 #endif // LOGSQUIRL_WELCOMEDASHBOARD_H
