@@ -57,6 +57,12 @@ public:
         filteredData_ = data;
     }
 
+    // Set which Log Line each Row shows.
+    void setRowMapping( std::shared_ptr<const RowMapping> rows )
+    {
+        rows_ = std::move( rows );
+    }
+
     // Set the quickfind pattern for incremental search highlighting.
     void setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
     {
@@ -257,7 +263,7 @@ public:
         // not about one field of it -- so this needs the row's line number
         // and raw text even before we know whether this particular cell
         // has any text of its own.
-        const auto lineNumber = LineNumber( static_cast<uint64_t>( index.row() ) );
+        const auto lineNumber = rows_->logLineAt( index.row() );
         const auto rawLine = index.data( LogFormatTableModel::RawLineRole ).toString();
         const auto currentLineType = filteredData_ ? filteredData_->lineTypeByLine( lineNumber )
                                                    : AbstractLogData::LineTypeFlags::Plain;
@@ -524,6 +530,7 @@ private:
     }
 
     LogFilteredData* filteredData_ = nullptr;
+    std::shared_ptr<const RowMapping> rows_ = std::make_shared<OneRowPerLogLine>();
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
     std::vector<QStringList> colorLabelWords_;
 

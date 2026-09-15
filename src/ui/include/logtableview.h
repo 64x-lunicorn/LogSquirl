@@ -29,7 +29,9 @@
 #include "containers.h"
 #include "linetypes.h"
 #include "logformatdefinition.h"
+#include "logpresentation.h"
 #include "regularexpressionpattern.h"
+#include "rowmapping.h"
 #include "tableviewselection.h"
 
 class AbstractLogData;
@@ -47,11 +49,17 @@ class QuickFindPattern;
 //
 // Which Log Format applies is decided by whoever holds the Table View, and
 // handed to it through setLogFormat().
-class LogTableView : public QTableView {
+//
+// Which Log Line each Row shows is its RowMapping's to say; everything the
+// Table View hands out is a Log Line obtained through it.
+class LogTableView : public QTableView, public LogPresentation {
     Q_OBJECT
 
 public:
+    // Each Row shows one Log Line.
     explicit LogTableView( QWidget* parent = nullptr );
+    // Each Row shows the Log Line rows maps it onto.
+    explicit LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* parent = nullptr );
     ~LogTableView() override;
 
     // Show the Log Lines of logData with the given Log Format, or nothing
@@ -75,43 +83,62 @@ public:
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
     // Pick up a Configuration change affecting the main search colours.
     void refreshMainSearchHighlighter();
-    void updateFont( const QFont& font );
 
-    // Repaint after Marks or Matches changed.
-    void updateDecorations();
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();
 
+    // LogPresentation
+    // The characters selected inside a cell if there are any, otherwise the
+    // selected Rows, each as its cells separated by tabs.
+    QString selectedText() const override;
+    OptionalLineNumber logLineAt( const QPoint& pos ) const override;
     // Scroll the Log Line's Row to the middle and select it.
-    void showLogLine( LineNumber line );
+    void showLogLine( LineNumber line ) override;
+    // Selects the Log Line's Row: the Table View selects no characters for
+    // a Log Line.
+    void showLogLinePortion( LineNumber line, LinesCount nLines, LineColumn startCol,
+                             LineLength nSymbols ) override;
+    // Repaints, if the Table View is active.
+    void updateDecorations() override;
+    void updateFont( const QFont& font ) override;
+    // Saves the Log Lines of the selected Rows, in Log Line order.
+    void saveSelectedTo( const QString& filename ) override;
 
     TableViewSelection selection() const;
-    QString selectedText() const;
-
-    // Saves the Log Lines of the selected Rows, in Log Line order, to
-    // filename, behind a progress dialog. Nothing is saved without a Row
-    // selected.
-    void saveSelectedTo( const QString& filename );
+    // The Log Lines of the selected Rows.
+    logsquirl::vector<LineNumber> selectedLogLines() const;
 
 public Q_SLOTS:
     void highlightOverviewLine( LineNumber line );
     void removeOverviewHighlight();
 
 Q_SIGNALS:
+    // The signals every Presentation emits, named and meant as the Text
+    // View's (see LogPresentation). Those the Table View offers the user
+    // nothing to send yet are declared all the same, so its holder connects
+    // them as it does the Text View's.
+
     // Sent when a new Row is selected: the Log Line of the first selected Row.
-    void newSelection( LineNumber line, LinesCount nLines, LineColumn startCol,
+    void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
                        LineLength nSymbols );
     void markLines( const logsquirl::vector<LineNumber>& lines );
     void highlightersChange();
-    void addToSearch( const QString& text );
-    void excludeFromSearch( const QString& text );
-    void replaceSearch( const QString& text );
-    void setColorLabel( size_t label, const QString& text );
+    void addToSearch( const QString& selection );
+    void excludeFromSearch( const QString& selection );
+    void replaceSearch( const QString& selection );
+    void changeSearchLimits( LineNumber startLine, LineNumber endLine );
+    void clearSearchLimits();
+    // Label the selected text; the holder asks selectedText() for it.
+    void addColorLabel( size_t label );
     void clearColorLabels();
-    void sendToScratchpad( const QString& text );
-    void replaceScratchpad( const QString& text );
+    // Send the selected text; the holder asks selectedText() for it.
+    void sendSelectionToScratchpad();
+    void replaceScratchpadWithSelection();
     void saveDefaultSplitterSizes();
-    void saveToFile();
+    void followModeChanged( bool enabled );
+    void activity();
+    void changeFontSize( bool increase );
+    void exitView();
 
 protected:
     void mousePressEvent( QMouseEvent* event ) override;
@@ -129,6 +156,11 @@ private:
     void markSelection();
     // Asks for a file, and saves the Log Lines of the selected Rows to it.
     void saveSelectedToFile();
+    // Asks for a file, and saves the Log Lines of every Row to it.
+    void saveToFile();
+    // Makes the whole text of the cell at index the selected text, unless
+    // characters are selected inside a cell already.
+    void selectCellTextUnlessInCell( const QModelIndex& index );
 
     // Column widths
     void saveColumnWidths();
@@ -145,6 +177,7 @@ private:
     bool handlesMouse() const;
     void repaintIfActive();
 
+    std::shared_ptr<const RowMapping> rows_;
     std::optional<LogFormatDefinition> format_;
     AbstractLogData* logData_ = nullptr;
     LogFormatTableModel* model_ = nullptr;

@@ -28,13 +28,14 @@
 #include "linetypes.h"
 
 class QAbstractItemModel;
+class RowMapping;
 
 // What is selected in the Table View: whole Rows, and possibly a run of
 // characters inside one cell. It answers the two questions anyone asks of a
 // selection -- which Log Lines are selected, and what text is selected -- and
 // it is the one place deciding that an in-cell selection wins over the Rows.
 //
-// Rows map one-to-one onto Log Lines for now: a Row's index is its Log Line.
+// Which Log Line a Row shows is the RowMapping's to say, never a Row's index.
 class TableViewSelection {
 public:
     // A run of characters inside one cell. The ends are caret positions and
@@ -63,8 +64,8 @@ public:
     // True when at least one character is selected inside a cell.
     bool hasInCellSelection() const;
 
-    // The Log Lines of the selected Rows.
-    logsquirl::vector<LineNumber> selectedLogLines() const;
+    // The Log Lines of the selected Rows, as rows maps them.
+    logsquirl::vector<LineNumber> selectedLogLines( const RowMapping& rows ) const;
 
     // The characters of the in-cell selection if there are any, otherwise the
     // selected Rows, each as its cells separated by tabs, one Row per line.

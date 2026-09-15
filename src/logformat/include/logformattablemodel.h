@@ -21,6 +21,7 @@
 
 #include "logfieldextractor.h"
 #include "logformatdefinition.h"
+#include "rowmapping.h"
 
 #include <QAbstractTableModel>
 #include <QHash>
@@ -28,6 +29,7 @@
 #include <QVector>
 
 #include <list>
+#include <memory>
 
 class AbstractLogData;
 
@@ -45,10 +47,14 @@ public:
 
     // Construct the model from a log format definition and log data source.
     // The model does NOT own logData — the caller must ensure it outlives the model.
+    // Each Row shows one Log Line.
     LogFormatTableModel( const LogFormatDefinition& format, AbstractLogData* logData,
                          QObject* parent = nullptr );
+    // Each Row shows the Log Line rows maps it onto.
+    LogFormatTableModel( const LogFormatDefinition& format, AbstractLogData* logData,
+                         std::shared_ptr<const RowMapping> rows, QObject* parent = nullptr );
 
-    // Notify the model that the underlying line count has changed.
+    // Notify the model that the Log File now has lineCount Log Lines.
     void setLineCount( int lineCount );
 
     // Return the raw logData pointer so callers can detect stale references.
@@ -72,6 +78,8 @@ private:
     mutable LogFieldExtractor extractor_;
     QStringList columnNames_;
     AbstractLogData* logData_;
+    std::shared_ptr<const RowMapping> rows_;
+    // The number of Rows
     int lineCount_ = 0;
 
     // Cached row entry: stores both the raw line (for RawLineRole) and

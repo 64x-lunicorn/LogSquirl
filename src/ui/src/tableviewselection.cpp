@@ -24,6 +24,8 @@
 #include <QAbstractItemModel>
 #include <QStringList>
 
+#include "rowmapping.h"
+
 void TableViewSelection::setRows( std::vector<int> rows )
 {
     rows_ = std::move( rows );
@@ -63,12 +65,12 @@ bool TableViewSelection::hasInCellSelection() const
     return inCell_ && inCell_->startChar != inCell_->endChar;
 }
 
-logsquirl::vector<LineNumber> TableViewSelection::selectedLogLines() const
+logsquirl::vector<LineNumber> TableViewSelection::selectedLogLines( const RowMapping& rows ) const
 {
     logsquirl::vector<LineNumber> lines;
     lines.reserve( rows_.size() );
     for ( const auto row : rows_ ) {
-        lines.push_back( LineNumber( static_cast<uint64_t>( row ) ) );
+        lines.push_back( rows.logLineAt( row ) );
     }
     return lines;
 }

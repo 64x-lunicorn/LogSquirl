@@ -204,18 +204,10 @@ LineNumber CrawlerWidget::getTopLine() const
 
 QString CrawlerWidget::getSelectedText() const
 {
-    // Characters selected inside a Table View cell
-    if ( isTableViewActive() && logTableView_->selection().hasInCellSelection() ) {
-        const auto selected = logTableView_->selectedText();
-        if ( !selected.isEmpty() ) {
-            return selected;
-        }
-    }
-
     if ( filteredView_->hasFocus() )
         return filteredView_->getSelectedText();
     else
-        return logMainView_->getSelectedText();
+        return presentation_->selectedText();
 }
 
 bool CrawlerWidget::isPartialSelection() const
@@ -338,7 +330,12 @@ void CrawlerWidget::goToLine()
         const auto selectedLine
             = LineNumber( static_cast<LineNumber::UnderlyingType>( newLine - 1 ) );
         filteredView_->trySelectLine( logFilteredData_->getLineIndexNumber( selectedLine ) );
-        logMainView_->trySelectLine( selectedLine );
+
+        const auto nbLines = logData_->getNbLine();
+        if ( nbLines.get() > 0 ) {
+            presentation_->showLogLine(
+                std::min( selectedLine, LineNumber( nbLines.get() ) - 1_lcount ) );
+        }
     }
 }
 
@@ -616,11 +613,11 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
             changeDataStatus( DataStatus::NEW_FILTERED_DATA );
         }
 
-        // Also update the top window for the coloured bullets.
+        // Also update the Presentations for the coloured bullets.
         update();
-
-        // Repaint the table view so match/mark highlights are updated
-        logTableView_->updateDecorations();
+        for ( auto* presentation : presentations() ) {
+            presentation->updateDecorations();
+        }
     }
 
     // Try to restore the filtered window selection close to where it was
@@ -643,19 +640,29 @@ void CrawlerWidget::jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nL
                                         LineColumn startCol, LineLength nSymbols )
 {
     const auto mainViewLine = logFilteredData_->getMatchingLineNumber( filteredLineNb );
-    logMainView_->selectPortionAndDisplayLine( mainViewLine, nLines, startCol,
-                                               nSymbols ); // FIXME: should be done with a signal.
-
-    // Also scroll the table view to the matching row when it is active
-    if ( isTableViewActive() ) {
-        logTableView_->showLogLine( mainViewLine );
-    }
+    presentation_->showLogLinePortion( mainViewLine, nLines, startCol, nSymbols );
 }
 
 void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
                                              LineColumn startCol, LineLength nSymbols )
 {
+    // A Presentation not shown follows the one shown, and reports nothing
+    // of its own.
+    const auto* reporter = dynamic_cast<const LogPresentation*>( sender() );
+    if ( reporter != nullptr && reporter != presentation_ ) {
+        return;
+    }
+
     currentLineNumber_ = line;
+
+    // Keep the Presentations not shown on the same Log Line, so switching
+    // shows it
+    for ( auto* presentation : presentations() ) {
+        if ( presentation != presentation_ ) {
+            presentation->showLogLine( line );
+        }
+    }
+
     Q_EMIT newSelection( line, nLines, startCol, nSymbols );
 }
 
@@ -686,18 +693,17 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
         }
     }
 
-    // Recompute the content of both window.
+    // Recompute the content of the filtered window.
     filteredView_->updateData();
-    logMainView_->updateData();
 
     // Update the match overview
     overview_.updateData( logData_->getNbLine() );
 
-    // Also update the top window for the coloured bullets.
+    // Also update the Presentations for the coloured bullets.
     update();
-
-    // Repaint the table view so mark highlights are updated
-    logTableView_->updateDecorations();
+    for ( auto* presentation : presentations() ) {
+        presentation->updateDecorations();
+    }
 }
 
 void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines )
@@ -755,10 +761,9 @@ void CrawlerWidget::applyConfiguration()
     logMainView_->allowFollowMode( isFollowModeAllowed );
     overview_.setVisible( config.isOverviewVisible() );
     logMainView_->refreshOverview();
-    logMainView_->updateFont( font );
-
-    // Apply the same font to the table view
-    logTableView_->updateFont( font );
+    for ( auto* presentation : presentations() ) {
+        presentation->updateFont( font );
+    }
 
     // Refresh the table overview visibility to match the overview setting
     logTableView_->updateOverview();
@@ -853,7 +858,7 @@ void CrawlerWidget::loadingFinishedHandler( LoadingStatus status )
     if ( !detectedFormat_ ) {
         tryAutoDetectFormat();
     }
-    else if ( isTableViewActive() ) {
+    else {
         // File was updated — refresh table model contents
         logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
     }
@@ -1328,9 +1333,9 @@ void CrawlerWidget::setup()
     logTableView_->setOverview( &overview_, new OverviewWidget() );
     logTableView_->setColorLabels( colorLabelsManager_.colorLabels() );
 
-    mainViewStack_->addWidget( logMainView_ );  // index 0 = text view
-    mainViewStack_->addWidget( logTableView_ ); // index 1 = table view
-    mainViewStack_->setCurrentIndex( 0 );
+    mainViewStack_->addWidget( logMainView_ );
+    mainViewStack_->addWidget( logTableView_ );
+    showPresentation( false );
 
     addWidget( mainViewStack_ );
     addWidget( bottomWindow );
@@ -1380,52 +1385,20 @@ void CrawlerWidget::setup()
     connect( visibilityBox_, QOverload<int>::of( &QComboBox::currentIndexChanged ), this,
              &CrawlerWidget::changeFilteredViewVisibility );
 
-    connect( logMainView_, &LogMainView::newSelection,
-             [ this ]( auto ) { logMainView_->update(); } );
+    // What the user does in either Presentation
+    connectPresentation( logMainView_ );
+    connectPresentation( logTableView_ );
 
-    connect( logMainView_, &LogMainView::newSelection, this,
-             &CrawlerWidget::updateLineNumberHandler );
-
-    connect( logMainView_, &LogMainView::markLines, this, &CrawlerWidget::markLinesFromMain );
-
-    connect( logMainView_, &LogMainView::highlightersChange, this,
-             &CrawlerWidget::applyConfiguration );
-
-    connect( logMainView_, QOverload<const QString&>::of( &LogMainView::addToSearch ), this,
-             &CrawlerWidget::addToSearch );
-
-    connect( logMainView_, QOverload<const QString&>::of( &LogMainView::excludeFromSearch ), this,
-             &CrawlerWidget::excludeFromSearch );
-
-    connect( logMainView_, QOverload<const QString&>::of( &LogMainView::replaceSearch ), this,
-             &CrawlerWidget::replaceSearch );
-
-    // Follow option (up and down)
+    // Follow option (down): the Text View follows
     connect( this, &CrawlerWidget::followSet, logMainView_, &LogMainView::followSet );
-    connect( logMainView_, &LogMainView::followModeChanged, this,
-             &CrawlerWidget::followModeChanged );
 
     connect( this, &CrawlerWidget::textWrapSet, logMainView_, &LogMainView::textWrapSet );
-
-    // Detect activity in the views
-    connect( logMainView_, &LogMainView::activity, this, &CrawlerWidget::activityDetected );
-
-    connect( logMainView_, &LogMainView::changeSearchLimits, this,
-             &CrawlerWidget::setSearchLimits );
-
-    connect( logMainView_, &LogMainView::clearSearchLimits, this,
-             &CrawlerWidget::clearSearchLimits );
 
     connect( tabbedFilteredView_, &QTabWidget::currentChanged, this,
              &CrawlerWidget::changeFilteredView );
 
     connect( tabbedFilteredView_, &QTabWidget::tabCloseRequested, this,
              &CrawlerWidget::closeFilteredView );
-
-    connect( logMainView_, &LogMainView::saveDefaultSplitterSizes, this,
-             &CrawlerWidget::saveSplitterSizes );
-
-    connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
 
     connect( logFilteredData_.get(), &LogFilteredData::searchStateChanged, this,
              &CrawlerWidget::updateFilteredView, Qt::QueuedConnection );
@@ -1455,73 +1428,12 @@ void CrawlerWidget::setup()
              &CrawlerWidget::searchRefreshChanged );
     connect( matchCaseButton_, &QPushButton::toggled, this, &CrawlerWidget::matchCaseChanged );
 
-    // Switch between views
-    connect( logMainView_, &AbstractLogView::clearColorLabels, this,
-             &CrawlerWidget::clearColorLabels );
-
-    connect( logMainView_, &AbstractLogView::addColorLabel, this,
-             &CrawlerWidget::addColorLabelToSelection );
-
-    connect( logMainView_, &AbstractLogView::sendSelectionToScratchpad, this,
-             [ this ]() { Q_EMIT sendToScratchpad( logMainView_->getSelectedText() ); } );
-
-    connect( logMainView_, &AbstractLogView::replaceScratchpadWithSelection, this,
-             [ this ]() { Q_EMIT replaceDataInScratchpad( logMainView_->getSelectedText() ); } );
-
-    // The table view reports what the user does in it
-    connect(
-        logTableView_, &LogTableView::newSelection, this,
-        [ this ]( LineNumber line, LinesCount nLines, LineColumn startCol, LineLength nSymbols ) {
-            updateLineNumberHandler( line, nLines, startCol, nSymbols );
-
-            // Keep the text view in sync so switching back shows the same line
-            logMainView_->selectAndDisplayLine( line );
-
-            // If there is a match in the filtered view, select it there too
-            if ( logFilteredData_ && logFilteredData_->getNbLine().get() > 0 ) {
-                const auto filteredIndex = logFilteredData_->getLineIndexNumber( line );
-                if ( filteredIndex < logFilteredData_->getNbLine() ) {
-                    filteredView_->selectAndDisplayLine( filteredIndex );
-                }
-            }
-        } );
-
-    connect( logTableView_, &LogTableView::markLines, this, &CrawlerWidget::markLinesFromMain );
-
-    connect( logTableView_, &LogTableView::highlightersChange, this, [ this ]() {
-        logMainView_->update();
-        filteredView_->update();
-        logTableView_->updateDecorations();
-    } );
-
-    connect( logTableView_, &LogTableView::addToSearch, this, &CrawlerWidget::addToSearch );
-    connect( logTableView_, &LogTableView::excludeFromSearch, this,
-             &CrawlerWidget::excludeFromSearch );
-    connect( logTableView_, &LogTableView::replaceSearch, this, &CrawlerWidget::replaceSearch );
-
-    connect( logTableView_, &LogTableView::setColorLabel, this,
-             [ this ]( size_t label, const QString& text ) {
-                 updateColorLabels( colorLabelsManager_.setColorLabel( label, text ) );
-             } );
-    connect( logTableView_, &LogTableView::clearColorLabels, this,
-             &CrawlerWidget::clearColorLabels );
-
-    connect( logTableView_, &LogTableView::sendToScratchpad, this,
-             &CrawlerWidget::sendToScratchpad );
-    connect( logTableView_, &LogTableView::replaceScratchpad, this,
-             &CrawlerWidget::replaceDataInScratchpad );
-
-    connect( logTableView_, &LogTableView::saveDefaultSplitterSizes, this,
-             &CrawlerWidget::saveSplitterSizes );
-    connect( logTableView_, &LogTableView::saveToFile, this,
-             [ this ]() { QMetaObject::invokeMethod( logMainView_, "saveToFile" ); } );
-
     connectAllFilteredViewSlots( filteredView_ );
 
     // Wire chart panel — provide log data and connect click-to-navigate.
     chartPanel_->setLogData( logData_ );
     connect( chartPanel_, &ChartPanel::lineSelected, this,
-             [ this ]( LineNumber line ) { logMainView_->selectAndDisplayLine( line ); } );
+             [ this ]( LineNumber line ) { presentation_->showLogLine( line ); } );
 
     // Refresh chart data when the file finishes loading.
     connect( logData_.get(), &LogData::loadingFinished, this, [ this ]( auto ) {
@@ -1534,6 +1446,60 @@ void CrawlerWidget::setup()
     if ( defaultEncodingMib >= 0 ) {
         encodingMib_ = defaultEncodingMib;
     }
+}
+
+template <class Presentation>
+void CrawlerWidget::connectPresentation( Presentation* presentation )
+{
+    connect( presentation, &Presentation::newSelection, presentation,
+             [ presentation ]() { presentation->update(); } );
+
+    connect( presentation, &Presentation::newSelection, this,
+             &CrawlerWidget::updateLineNumberHandler );
+
+    connect( presentation, &Presentation::markLines, this, &CrawlerWidget::markLinesFromMain );
+
+    connect( presentation, &Presentation::highlightersChange, this,
+             &CrawlerWidget::applyConfiguration );
+
+    connect( presentation, QOverload<const QString&>::of( &Presentation::addToSearch ), this,
+             &CrawlerWidget::addToSearch );
+
+    connect( presentation, QOverload<const QString&>::of( &Presentation::excludeFromSearch ), this,
+             &CrawlerWidget::excludeFromSearch );
+
+    connect( presentation, QOverload<const QString&>::of( &Presentation::replaceSearch ), this,
+             &CrawlerWidget::replaceSearch );
+
+    // Follow option (up)
+    connect( presentation, &Presentation::followModeChanged, this,
+             &CrawlerWidget::followModeChanged );
+
+    // Detect activity in the views
+    connect( presentation, &Presentation::activity, this, &CrawlerWidget::activityDetected );
+
+    connect( presentation, &Presentation::changeSearchLimits, this,
+             &CrawlerWidget::setSearchLimits );
+
+    connect( presentation, &Presentation::clearSearchLimits, this,
+             &CrawlerWidget::clearSearchLimits );
+
+    connect( presentation, &Presentation::saveDefaultSplitterSizes, this,
+             &CrawlerWidget::saveSplitterSizes );
+
+    connect( presentation, &Presentation::changeFontSize, this, &CrawlerWidget::changeFontSize );
+
+    connect( presentation, &Presentation::clearColorLabels, this,
+             &CrawlerWidget::clearColorLabels );
+
+    connect( presentation, &Presentation::addColorLabel, this,
+             &CrawlerWidget::addColorLabelToSelection );
+
+    connect( presentation, &Presentation::sendSelectionToScratchpad, this,
+             [ this ]() { Q_EMIT sendToScratchpad( presentation_->selectedText() ); } );
+
+    connect( presentation, &Presentation::replaceScratchpadWithSelection, this,
+             [ this ]() { Q_EMIT replaceDataInScratchpad( presentation_->selectedText() ); } );
 }
 
 void CrawlerWidget::changeFilteredView( int tabIndex )
@@ -1666,10 +1632,10 @@ void CrawlerWidget::changeFontSize( bool increase )
         QFont newFont{ fontInfo.family(), *currentSize };
 
         fontConfig.setMainFont( newFont );
-        logMainView_->updateFont( newFont );
+        for ( auto* presentation : presentations() ) {
+            presentation->updateFont( newFont );
+        }
         filteredView_->updateFont( newFont );
-
-        logTableView_->updateFont( newFont );
     }
 }
 
@@ -1733,6 +1699,9 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     connect( view, &AbstractLogView::clearColorLabels, this, &CrawlerWidget::clearColorLabels );
 
     connect( logMainView_, &LogMainView::exitView, view,
+             QOverload<>::of( &FilteredView::setFocus ) );
+
+    connect( logTableView_, &LogTableView::exitView, view,
              QOverload<>::of( &FilteredView::setFocus ) );
 }
 
@@ -2267,8 +2236,7 @@ void CrawlerWidget::toggleTableView()
     }
 
     const bool showTable = tableViewToggle_->isChecked();
-    mainViewStack_->setCurrentIndex( showTable ? 1 : 0 );
-    logTableView_->setActive( showTable );
+    showPresentation( showTable );
 
     if ( showTable ) {
         // Defer model population so the view switch renders immediately
@@ -2278,9 +2246,22 @@ void CrawlerWidget::toggleTableView()
     }
 }
 
-bool CrawlerWidget::isTableViewActive() const
+void CrawlerWidget::showPresentation( bool tableView )
 {
-    return mainViewStack_ && mainViewStack_->currentWidget() == logTableView_;
+    if ( tableView ) {
+        presentation_ = logTableView_;
+        mainViewStack_->setCurrentWidget( logTableView_ );
+    }
+    else {
+        presentation_ = logMainView_;
+        mainViewStack_->setCurrentWidget( logMainView_ );
+    }
+    logTableView_->setActive( tableView );
+}
+
+std::array<LogPresentation*, 2> CrawlerWidget::presentations() const
+{
+    return { logMainView_, logTableView_ };
 }
 
 // Try auto-detecting a log format from the first lines of the file.
@@ -2335,7 +2316,7 @@ void CrawlerWidget::tryAutoDetectFormat()
 void CrawlerWidget::resetLogFormat()
 {
     logTableView_->setLogFormat( nullptr, nullptr );
-    logTableView_->setActive( false );
+    showPresentation( false );
     detectedFormat_.reset();
 
     // Clear format info from chart panel.
@@ -2344,8 +2325,5 @@ void CrawlerWidget::resetLogFormat()
     if ( tableViewToggle_ ) {
         tableViewToggle_->setChecked( false );
         tableViewToggle_->setVisible( false );
-    }
-    if ( mainViewStack_ ) {
-        mainViewStack_->setCurrentIndex( 0 );
     }
 }

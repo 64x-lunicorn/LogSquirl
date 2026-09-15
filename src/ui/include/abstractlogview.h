@@ -154,6 +154,9 @@ public:
     bool isPartialSelection() const;
     // Instructs the widget to select the whole text.
     void selectAll();
+    // Saves the lines from the first to the last selected one to filename,
+    // behind a progress dialog. Nothing is saved without a selection.
+    void saveSelectedTo( const QString& filename );
 
     bool isFollowEnabled() const
     {
@@ -224,6 +227,9 @@ protected:
     // Returns the current "position" of the view as a line number,
     // it is either the selected line or the middle of the view.
     LineNumber getViewPosition() const;
+
+    // The Log Line drawn at pos, in viewport coordinates, if any.
+    OptionalLineNumber logLineAtPoint( const QPoint& pos ) const;
 
     virtual void doRegisterShortcuts();
     void registerShortcut( const std::string& action, std::function<void()> func );

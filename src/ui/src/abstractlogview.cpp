@@ -1647,6 +1647,25 @@ void AbstractLogView::saveSelectedToFile()
     saveLinesToFile( start, end );
 }
 
+void AbstractLogView::saveSelectedTo( const QString& filename )
+{
+    const auto selectedLines = selection_.getLines();
+    if ( selectedLines.empty() ) {
+        return;
+    }
+
+    saveLinesTo( filename, selectedLines.front(), selectedLines.back() + 1_lcount );
+}
+
+OptionalLineNumber AbstractLogView::logLineAtPoint( const QPoint& pos ) const
+{
+    const auto viewLine = convertCoordToLine( pos.y() );
+    if ( !viewLine ) {
+        return std::nullopt;
+    }
+    return logLineAt( *viewLine );
+}
+
 void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
 {
     const auto filename = QFileDialog::getSaveFileName( this, "Save content" );

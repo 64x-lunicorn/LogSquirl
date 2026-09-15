@@ -67,7 +67,13 @@ QString columnWidthsGroup( const LogFormatDefinition& format )
 } // namespace
 
 LogTableView::LogTableView( QWidget* parent )
+    : LogTableView( std::make_shared<OneRowPerLogLine>(), parent )
+{
+}
+
+LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* parent )
     : QTableView( parent )
+    , rows_( std::move( rows ) )
 {
     setSelectionBehavior( QAbstractItemView::SelectRows );
     setAlternatingRowColors( true );
@@ -100,6 +106,7 @@ LogTableView::LogTableView( QWidget* parent )
 
     // Highlight delegate for match/mark row coloring and text highlighting
     delegate_ = new LogTableHighlightDelegate( this );
+    delegate_->setRowMapping( rows_ );
     setItemDelegate( delegate_ );
 
     setContextMenuPolicy( Qt::CustomContextMenu );
@@ -145,7 +152,7 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
     }
 
     if ( !model_ ) {
-        model_ = new LogFormatTableModel( *format_, logData_, this );
+        model_ = new LogFormatTableModel( *format_, logData_, rows_, this );
         setModel( model_ );
 
         // Save column widths when the user resizes a column
@@ -167,8 +174,9 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
     const int lineCountInt
         = static_cast<int>( std::min( lineCount, static_cast<uint64_t>( INT_MAX ) ) );
     model_->setLineCount( lineCountInt );
+    const bool hasRows = model_->rowCount() > 0;
 
-    if ( columnsNeedSizing_ && lineCountInt > 0 ) {
+    if ( columnsNeedSizing_ && hasRows ) {
         columnsNeedSizing_ = false;
 
         // Widths the user saved for this Log Format win; auto-sizing them
@@ -186,7 +194,7 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
         }
     }
 
-    if ( follow && lineCountInt > 0 ) {
+    if ( follow && hasRows ) {
         scrollToBottom();
     }
 
@@ -302,8 +310,8 @@ void LogTableView::updateOverview()
         const int visibleRows = ( rowHeight > 0 ) ? ( overviewHeight / rowHeight ) : 1;
         const int lastVisibleRow = firstVisibleRow + visibleRows;
 
-        overview_->updateCurrentPosition( LineNumber( static_cast<uint64_t>( firstVisibleRow ) ),
-                                          LineNumber( static_cast<uint64_t>( lastVisibleRow ) ) );
+        overview_->updateCurrentPosition( rows_->logLineAt( firstVisibleRow ),
+                                          rows_->logLineAt( lastVisibleRow ) );
     }
 
     overviewWidget_->update();
@@ -329,11 +337,25 @@ void LogTableView::showLogLine( LineNumber line )
         return;
     }
 
-    const auto row = static_cast<int>( line.get() );
-    if ( row >= 0 && row < model_->rowCount() ) {
-        scrollTo( model_->index( row, 0 ), QAbstractItemView::PositionAtCenter );
-        selectRow( row );
+    const auto row = rows_->rowOf( line );
+    if ( row && *row >= 0 && *row < model_->rowCount() ) {
+        scrollTo( model_->index( *row, 0 ), QAbstractItemView::PositionAtCenter );
+        selectRow( *row );
     }
+}
+
+void LogTableView::showLogLinePortion( LineNumber line, LinesCount, LineColumn, LineLength )
+{
+    showLogLine( line );
+}
+
+OptionalLineNumber LogTableView::logLineAt( const QPoint& pos ) const
+{
+    const auto index = indexAt( pos );
+    if ( !model_ || !index.isValid() ) {
+        return std::nullopt;
+    }
+    return rows_->logLineAt( index.row() );
 }
 
 TableViewSelection LogTableView::selection() const
@@ -356,6 +378,11 @@ QString LogTableView::selectedText() const
     return model_ ? selection().selectedText( *model_ ) : QString{};
 }
 
+logsquirl::vector<LineNumber> LogTableView::selectedLogLines() const
+{
+    return selection().selectedLogLines( *rows_ );
+}
+
 // A new Row selection: tell the holder the Log Line now selected.
 void LogTableView::rowSelectionChanged()
 {
@@ -363,7 +390,7 @@ void LogTableView::rowSelectionChanged()
         return;
     }
 
-    const auto lines = selection().selectedLogLines();
+    const auto lines = selectedLogLines();
     if ( lines.empty() ) {
         return;
     }
@@ -393,6 +420,10 @@ void LogTableView::showInCellSelection()
 
 void LogTableView::mousePressEvent( QMouseEvent* event )
 {
+    if ( handlesMouse() ) {
+        Q_EMIT activity();
+    }
+
     if ( handlesMouse() && event->button() == Qt::LeftButton ) {
         const auto index = indexAt( event->pos() );
         if ( index.isValid() ) {
@@ -485,6 +516,8 @@ bool LogTableView::viewportEvent( QEvent* event )
 void LogTableView::keyPressEvent( QKeyEvent* event )
 {
     if ( active_ ) {
+        Q_EMIT activity();
+
         if ( event->matches( QKeySequence::Copy ) ) {
             copySelection();
             return;
@@ -558,7 +591,7 @@ void LogTableView::selectWordAt( const QModelIndex& index, int charPos )
 void LogTableView::showContextMenu( const QPoint& pos )
 {
     const auto currentSelection = selection();
-    const bool hasSelection = !currentSelection.selectedLogLines().empty();
+    const bool hasSelection = !currentSelection.selectedLogLines( *rows_ ).empty();
 
     // The cell the user right-clicked on
     const auto clickedIdx = indexAt( pos );
@@ -635,10 +668,10 @@ void LogTableView::showContextMenu( const QPoint& pos )
                  [ this ]() { Q_EMIT clearColorLabels(); } );
 
         connect( colorLabelsActionGroup, &QActionGroup::triggered, this,
-                 [ this, cellText ]( QAction* action ) {
+                 [ this, clickedIdx ]( QAction* action ) {
                      if ( action->data().isValid() ) {
-                         Q_EMIT setColorLabel( static_cast<size_t>( action->data().toInt() ),
-                                               cellText );
+                         selectCellTextUnlessInCell( clickedIdx );
+                         Q_EMIT addColorLabel( static_cast<size_t>( action->data().toInt() ) );
                      }
                  } );
     }
@@ -666,13 +699,17 @@ void LogTableView::showContextMenu( const QPoint& pos )
     // ── Scratchpad ──
     auto* sendToScratchpadAction = menu.addAction( tr( "Send to scratchpad" ) );
     sendToScratchpadAction->setEnabled( hasText );
-    connect( sendToScratchpadAction, &QAction::triggered, this,
-             [ this, cellText ]() { Q_EMIT sendToScratchpad( cellText ); } );
+    connect( sendToScratchpadAction, &QAction::triggered, this, [ this, clickedIdx ]() {
+        selectCellTextUnlessInCell( clickedIdx );
+        Q_EMIT sendSelectionToScratchpad();
+    } );
 
     auto* replaceInScratchpadAction = menu.addAction( tr( "Replace scratchpad" ) );
     replaceInScratchpadAction->setEnabled( hasText );
-    connect( replaceInScratchpadAction, &QAction::triggered, this,
-             [ this, cellText ]() { Q_EMIT replaceScratchpad( cellText ); } );
+    connect( replaceInScratchpadAction, &QAction::triggered, this, [ this, clickedIdx ]() {
+        selectCellTextUnlessInCell( clickedIdx );
+        Q_EMIT replaceScratchpadWithSelection();
+    } );
 
     menu.addSeparator();
 
@@ -705,7 +742,7 @@ void LogTableView::showContextMenu( const QPoint& pos )
 
     // ── Save to file ──
     auto* saveToFileAction = menu.addAction( tr( "Save to file" ) );
-    connect( saveToFileAction, &QAction::triggered, this, [ this ]() { Q_EMIT saveToFile(); } );
+    connect( saveToFileAction, &QAction::triggered, this, &LogTableView::saveToFile );
 
     auto* saveSelectedToFileAction = menu.addAction( tr( "Save selected to file" ) );
     saveSelectedToFileAction->setEnabled( hasSelection );
@@ -734,7 +771,7 @@ void LogTableView::copySelectionWithLineNumbers()
         return;
     }
 
-    const auto lines = selection().selectedLogLines();
+    const auto lines = selectedLogLines();
     if ( lines.empty() ) {
         return;
     }
@@ -744,7 +781,7 @@ void LogTableView::copySelectionWithLineNumbers()
     const int colCount = model_->columnCount();
 
     for ( const auto& line : lines ) {
-        const auto row = static_cast<int>( line.get() );
+        const auto row = rows_->rowOf( line ).value_or( -1 );
         QStringList cells;
         cells.reserve( colCount );
         for ( int c = 0; c < colCount; ++c ) {
@@ -757,9 +794,48 @@ void LogTableView::copySelectionWithLineNumbers()
     QApplication::clipboard()->setText( copied.join( '\n' ) );
 }
 
+void LogTableView::selectCellTextUnlessInCell( const QModelIndex& index )
+{
+    if ( !index.isValid() || selection_.hasInCellSelection() ) {
+        return;
+    }
+
+    const auto cellText = index.data( Qt::DisplayRole ).toString();
+    selection_.selectInCell( index.row(), index.column(), 0, static_cast<int>( cellText.size() ) );
+    showInCellSelection();
+}
+
+void LogTableView::saveToFile()
+{
+    if ( !model_ || !logData_ ) {
+        return;
+    }
+
+    const auto filename = QFileDialog::getSaveFileName( this, "Save content" );
+    if ( filename.isEmpty() ) {
+        return;
+    }
+
+    // The save writes positions [0, number of Rows): position n is the
+    // Log Line of Row n.
+    const auto end = LineNumber( static_cast<uint64_t>( model_->rowCount() ) );
+    auto readLines = [ logFile = logData_, rows = rows_ ]( LineNumber first, LinesCount count ) {
+        logsquirl::vector<QString> text;
+        text.reserve( static_cast<size_t>( count.get() ) );
+        for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
+            text.push_back(
+                logFile->getLineString( rows->logLineAt( static_cast<int>( position ) ) ) );
+        }
+        return text;
+    };
+
+    saveLinesWithProgress( this, filename, std::move( readLines ), 0_lnum, end,
+                           logData_->getDisplayEncoding() );
+}
+
 void LogTableView::saveSelectedToFile()
 {
-    if ( selection().selectedLogLines().empty() ) {
+    if ( selectedLogLines().empty() ) {
         return;
     }
 
@@ -771,7 +847,7 @@ void LogTableView::saveSelectedToFile()
 
 void LogTableView::saveSelectedTo( const QString& filename )
 {
-    auto lines = selection().selectedLogLines();
+    auto lines = selectedLogLines();
     if ( !logData_ || lines.empty() ) {
         return;
     }
@@ -798,7 +874,7 @@ void LogTableView::saveSelectedTo( const QString& filename )
 // Mark or unmark the Log Lines of the selected Rows.
 void LogTableView::markSelection()
 {
-    const auto lines = selection().selectedLogLines();
+    const auto lines = selectedLogLines();
     if ( lines.empty() ) {
         return;
     }
