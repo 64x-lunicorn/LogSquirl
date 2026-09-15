@@ -54,15 +54,33 @@ PluginUiAdapter::PluginUiAdapter( QMainWindow& window, QMenu& pluginsMenu, QActi
 {
 }
 
-void PluginUiAdapter::onWindowThread( std::function<void()> work )
+void PluginUiAdapter::onWindowThread( const QString& pluginId, std::function<void()> work )
 {
     if ( QThread::currentThread() == window_.thread() ) {
         work();
         return;
     }
     // Plugins may call the host from threads of their own; widgets may only
-    // be touched on the thread they live on.
-    QMetaObject::invokeMethod( &window_, std::move( work ), Qt::QueuedConnection );
+    // be touched on the thread they live on. The plugin may be unloaded, and
+    // its contributions removed, before the queued work runs: then it must
+    // not show anything of the unloaded plugin.
+    QMetaObject::invokeMethod(
+        &window_,
+        [ this, pluginId, generation = generationOf( pluginId ), work = std::move( work ) ] {
+            if ( generationOf( pluginId ) != generation ) {
+                LOG_INFO << "Plugin " << pluginId << " was unloaded; dropping its queued call";
+                return;
+            }
+            work();
+        },
+        Qt::QueuedConnection );
+}
+
+std::uint64_t PluginUiAdapter::generationOf( const QString& pluginId ) const
+{
+    const std::scoped_lock lock( generationsMutex_ );
+    const auto it = generations_.find( pluginId );
+    return it == generations_.end() ? 0 : it->second;
 }
 
 void PluginUiAdapter::placeInToolBar( PluginToolBar& bar, const QString& pluginId, QWidget* widget )
@@ -132,7 +150,7 @@ void PluginUiAdapter::removeFromSidebar( const QString& pluginId, const QWidget*
 
 void PluginUiAdapter::addStatusWidget( const QString& pluginId, PluginWidgetHandle handle )
 {
-    onWindowThread( [ this, pluginId, handle ] {
+    onWindowThread( pluginId, [ this, pluginId, handle ] {
         auto* widget = widgetFrom( handle );
         if ( !widget ) {
             return;
@@ -144,7 +162,7 @@ void PluginUiAdapter::addStatusWidget( const QString& pluginId, PluginWidgetHand
 
 void PluginUiAdapter::removeStatusWidget( const QString& pluginId, PluginWidgetHandle handle )
 {
-    onWindowThread( [ this, pluginId, handle ] {
+    onWindowThread( pluginId, [ this, pluginId, handle ] {
         auto* widget = widgetFrom( handle );
         if ( !widget ) {
             return;
@@ -156,7 +174,7 @@ void PluginUiAdapter::removeStatusWidget( const QString& pluginId, PluginWidgetH
 
 void PluginUiAdapter::addFooterWidget( const QString& pluginId, PluginWidgetHandle handle )
 {
-    onWindowThread( [ this, pluginId, handle ] {
+    onWindowThread( pluginId, [ this, pluginId, handle ] {
         auto* widget = widgetFrom( handle );
         if ( !widget ) {
             return;
@@ -168,7 +186,7 @@ void PluginUiAdapter::addFooterWidget( const QString& pluginId, PluginWidgetHand
 
 void PluginUiAdapter::removeFooterWidget( const QString& pluginId, PluginWidgetHandle handle )
 {
-    onWindowThread( [ this, pluginId, handle ] {
+    onWindowThread( pluginId, [ this, pluginId, handle ] {
         auto* widget = widgetFrom( handle );
         if ( !widget ) {
             return;
@@ -181,7 +199,7 @@ void PluginUiAdapter::removeFooterWidget( const QString& pluginId, PluginWidgetH
 void PluginUiAdapter::addSidebarTab( const QString& pluginId, const QString& label,
                                      PluginWidgetHandle handle )
 {
-    onWindowThread( [ this, pluginId, label, handle ] {
+    onWindowThread( pluginId, [ this, pluginId, label, handle ] {
         auto* widget = widgetFrom( handle );
         if ( !widget ) {
             return;
@@ -200,7 +218,7 @@ void PluginUiAdapter::addSidebarTab( const QString& pluginId, const QString& lab
 
 void PluginUiAdapter::removeSidebarTab( const QString& pluginId, PluginWidgetHandle handle )
 {
-    onWindowThread( [ this, pluginId, handle ] {
+    onWindowThread( pluginId, [ this, pluginId, handle ] {
         auto* widget = widgetFrom( handle );
         if ( !widget ) {
             return;
@@ -214,7 +232,7 @@ void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& /* 
                                      const QString& label, PluginCallbackFn callback,
                                      void* userData )
 {
-    onWindowThread( [ this, pluginId, label, callback, userData ] {
+    onWindowThread( pluginId, [ this, pluginId, label, callback, userData ] {
         auto& actions = menuActions_[ pluginId ];
 
         // Prevent duplicate entries when a plugin is re-enabled without restart.
@@ -243,7 +261,14 @@ void PluginUiAdapter::addMenuAction( const QString& pluginId, const QString& /* 
 
 void PluginUiAdapter::removeContributions( const QString& pluginId )
 {
-    onWindowThread( [ this, pluginId ] {
+    // Right away, not on the window's thread: calls of the plugin still
+    // queued there are dropped from now on.
+    {
+        const std::scoped_lock lock( generationsMutex_ );
+        ++generations_[ pluginId ];
+    }
+
+    onWindowThread( pluginId, [ this, pluginId ] {
         if ( const auto it = menuActions_.find( pluginId ); it != menuActions_.end() ) {
             for ( const auto& action : it->second ) {
                 if ( action ) {

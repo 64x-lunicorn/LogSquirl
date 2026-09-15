@@ -217,6 +217,38 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
             }
         }
 
+        WHEN( "A plugin adds a widget and a menu action from a thread of its own and is "
+              "unloaded before the window's thread gets to them" )
+        {
+            std::thread worker( [ & ] {
+                adapter.addStatusWidget( pluginId, handleOf( widget ) );
+                adapter.addMenuAction( pluginId, QStringLiteral( "Plugins" ),
+                                       QStringLiteral( "Late action" ), nullptr, nullptr );
+            } );
+            worker.join();
+            adapter.removeContributions( pluginId );
+            QCoreApplication::sendPostedEvents();
+            QCoreApplication::processEvents();
+
+            THEN( "Neither reaches the window" )
+            {
+                REQUIRE( widget->parentWidget() == nullptr );
+                REQUIRE( window.findChild<QToolBar*>() == nullptr );
+                REQUIRE( menuActionNamed( pluginsMenu, QStringLiteral( "Late action" ) )
+                         == nullptr );
+            }
+
+            AND_WHEN( "The plugin is loaded again and adds the widget" )
+            {
+                adapter.addStatusWidget( pluginId, handleOf( widget ) );
+
+                THEN( "The widget reaches the window" )
+                {
+                    REQUIRE( widget->parentWidget() != nullptr );
+                }
+            }
+        }
+
         WHEN( "A plugin asks for a parent for its configuration dialog" )
         {
             THEN( "It gets the main window" )

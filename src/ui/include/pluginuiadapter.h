@@ -26,8 +26,10 @@
 #include <QString>
 #include <QWidget>
 
+#include <cstdint>
 #include <functional>
 #include <map>
+#include <mutex>
 #include <vector>
 
 class QMainWindow;
@@ -96,8 +98,15 @@ private:
         std::vector<PlacedWidget> placed{};
     };
 
-    /// Runs work now when called on the window's thread, otherwise queues it there.
-    void onWindowThread( std::function<void()> work );
+    /**
+     * Runs work for a plugin now when called on the window's thread, otherwise
+     * queues it there. Queued work is dropped when the plugin's contributions
+     * have been removed in the meantime.
+     */
+    void onWindowThread( const QString& pluginId, std::function<void()> work );
+
+    /// How often the contributions of the plugin have been removed.
+    std::uint64_t generationOf( const QString& pluginId ) const;
 
     /// Adds a widget of a plugin to a toolbar, creating the toolbar on first use.
     void placeInToolBar( PluginToolBar& bar, const QString& pluginId, QWidget* widget );
@@ -126,4 +135,8 @@ private:
 
     // Tracks menu actions added by each plugin so they can be removed on unload.
     std::map<QString, std::vector<QPointer<QAction>>> menuActions_;
+
+    // Bumped by removeContributions(); read from the threads plugins call from.
+    mutable std::mutex generationsMutex_;
+    std::map<QString, std::uint64_t> generations_;
 };
