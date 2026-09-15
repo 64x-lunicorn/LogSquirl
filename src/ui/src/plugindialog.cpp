@@ -33,7 +33,9 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 
-namespace logsquirl::plugins {
+using logsquirl::plugins::PluginCatalog;
+using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginRepository;
 
 // ── PluginCard ────────────────────────────────────────────────────────
 
@@ -767,5 +769,3 @@ QString PluginDialog::badgeText( PluginState state )
     }
     return {};
 }
-
-} // namespace logsquirl::plugins

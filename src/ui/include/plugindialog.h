@@ -39,8 +39,6 @@
 #include <optional>
 #include <vector>
 
-namespace logsquirl::plugins {
-
 /**
  * Unified plugin management dialog.
  *
@@ -57,7 +55,8 @@ public:
      * Create the dialog for the plugins the catalog lists; enabling and
      * disabling one loads and unloads it in the host.
      */
-    PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* parent = nullptr );
+    PluginDialog( logsquirl::plugins::PluginCatalog& catalog, logsquirl::plugins::PluginHost& host,
+                  QWidget* parent = nullptr );
 
 private Q_SLOTS:
     void onCatalogReady();
@@ -148,9 +147,9 @@ private:
 
     // ── Members ──────────────────────────────────────────────────────
 
-    PluginCatalog& catalog_;
-    PluginHost& host_;
-    PluginRepository repository_;
+    logsquirl::plugins::PluginCatalog& catalog_;
+    logsquirl::plugins::PluginHost& host_;
+    logsquirl::plugins::PluginRepository repository_;
 
     QLineEdit* searchEdit_ = nullptr;
     QToolButton* tabAll_ = nullptr;
@@ -169,5 +168,3 @@ private:
     std::map<QString, PluginCard*> cards_;
     QString currentInstallId_;
 };
-
-} // namespace logsquirl::plugins

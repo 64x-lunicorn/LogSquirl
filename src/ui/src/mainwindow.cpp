@@ -1488,7 +1488,7 @@ void MainWindow::options()
 
 void MainWindow::showPluginDialog()
 {
-    logsquirl::plugins::PluginDialog dialog( pluginCatalog_, pluginHost_, this );
+    PluginDialog dialog( pluginCatalog_, pluginHost_, this );
     dialog.exec();
 }
 

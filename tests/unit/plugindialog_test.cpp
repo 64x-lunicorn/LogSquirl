@@ -27,7 +27,6 @@
 #include <QPushButton>
 
 using logsquirl::plugins::PluginCatalog;
-using logsquirl::plugins::PluginDialog;
 using logsquirl::plugins::PluginHost;
 
 SCENARIO( "PluginDialog footer contains expected buttons", "[plugindialog][plugins]" )
