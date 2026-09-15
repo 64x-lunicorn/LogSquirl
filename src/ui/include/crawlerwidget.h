@@ -286,7 +286,7 @@ private Q_SLOTS:
     void addNextColorLabelToSelection();
     void clearColorLabels();
 
-    // Toggle between text view and table view (if format detected)
+    // Toggle between text view and table view (if a Log Format was recognized)
     void toggleTableView();
 
 public Q_SLOTS:
@@ -489,7 +489,7 @@ private:
 
     // The Log Format recognized for the Log File, if any: one of the
     // Catalog's own, kept even when the Catalog is rebuilt.
-    std::shared_ptr<const LogFormatDefinition> detectedFormat_;
+    std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
 
     // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;

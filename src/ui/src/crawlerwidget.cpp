@@ -629,7 +629,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
             changeDataStatus( DataStatus::NEW_FILTERED_DATA );
         }
 
-        // Also update the Presentations for the coloured bullets.
+        // Also update the Presentations for the colored bullets.
         update();
         for ( auto* presentation : presentations() ) {
             presentation->updateDecorations();
@@ -715,7 +715,7 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
     // Update the match overview
     overview_.updateData( logData_->getNbLine() );
 
-    // Also update the Presentations for the coloured bullets.
+    // Also update the Presentations for the colored bullets.
     update();
     for ( auto* presentation : presentations() ) {
         presentation->updateDecorations();
@@ -1319,7 +1319,7 @@ void CrawlerWidget::setup()
     searchLineLayout->addWidget( stopButton_ );
     searchLineLayout->addWidget( searchInfoLine_ );
 
-    // Table view toggle button (hidden until format is detected)
+    // Table view toggle button (hidden until a Log Format is recognized)
     tableViewToggle_ = new QToolButton();
     tableViewToggle_->setToolTip( tr( "Toggle table/text view" ) );
     tableViewToggle_->setAccessibleName( tr( "Toggle table view" ) );
@@ -2252,7 +2252,7 @@ QString CrawlerWidgetContext::toString() const
 // Toggle between text view and table view
 void CrawlerWidget::toggleTableView()
 {
-    if ( !detectedFormat_ ) {
+    if ( !recognizedFormat_ ) {
         return;
     }
 
@@ -2298,13 +2298,13 @@ void CrawlerWidget::recognizeFormat()
         = FormatRecognition::recognize( *logData_, recognitionPolicy_, *logFormatCatalog_ );
 
     if ( !recognized ) {
-        if ( detectedFormat_ ) {
+        if ( recognizedFormat_ ) {
             resetLogFormat();
         }
         return;
     }
 
-    if ( recognized == detectedFormat_ ) {
+    if ( recognized == recognizedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
         logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
@@ -2314,14 +2314,14 @@ void CrawlerWidget::recognizeFormat()
     LOG_INFO << "Recognized log format: " << recognized->name().toStdString();
     // The Table View still points at the previous Log Format until it is
     // handed the new one, so the previous one stays alive until then.
-    const auto previousFormat = std::exchange( detectedFormat_, std::move( recognized ) );
-    logTableView_->setLogFormat( detectedFormat_.get(), logData_.get() );
+    const auto previousFormat = std::exchange( recognizedFormat_, std::move( recognized ) );
+    logTableView_->setLogFormat( recognizedFormat_.get(), logData_.get() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
-        tr( "Toggle table/text view (%1)" ).arg( detectedFormat_->title() ) );
+        tr( "Toggle table/text view (%1)" ).arg( recognizedFormat_->title() ) );
 
     // Provide format info to the chart panel for template series.
-    chartPanel_->setLogFormat( detectedFormat_.get() );
+    chartPanel_->setLogFormat( recognizedFormat_.get() );
 
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
@@ -2337,7 +2337,7 @@ void CrawlerWidget::resetLogFormat()
 {
     logTableView_->setLogFormat( nullptr, nullptr );
     showPresentation( false );
-    detectedFormat_.reset();
+    recognizedFormat_.reset();
 
     // Clear format info from chart panel.
     chartPanel_->setLogFormat( nullptr );

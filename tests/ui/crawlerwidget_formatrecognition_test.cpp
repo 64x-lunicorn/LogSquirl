@@ -121,7 +121,7 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     const LogFormatDefinition* logFormat() const
     {
-        return crawler->detectedFormat_.get();
+        return crawler->recognizedFormat_.get();
     }
 
     const LogFormatCatalog* logFormatCatalog() const

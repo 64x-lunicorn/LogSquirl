@@ -950,7 +950,7 @@ void LogTableView::autoSizeColumns()
 
     // Sample a small number of rows from the beginning of the file to find
     // the maximum text width per column.  We only read from the start because
-    // those lines are already in the OS page cache (format detection reads the
+    // those lines are already in the OS page cache (Format Recognition reads the
     // first 50).  Reading from the middle/end of a multi-GB file causes heavy
     // random I/O that freezes the UI.  The column widths are approximate —
     // the user can resize manually if needed.

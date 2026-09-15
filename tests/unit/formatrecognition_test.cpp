@@ -116,7 +116,7 @@ SCENARIO( "Format Recognition recognizes syslog format", "[logformat][recognitio
 
             auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
-            THEN( "Syslog format is detected" )
+            THEN( "Syslog format is recognized" )
             {
                 REQUIRE( result != nullptr );
                 REQUIRE( result->name() == "syslog_log" );
@@ -133,7 +133,7 @@ SCENARIO( "Format Recognition recognizes syslog format", "[logformat][recognitio
 
             auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
-            THEN( "Java log format is detected" )
+            THEN( "Java log format is recognized" )
             {
                 REQUIRE( result != nullptr );
                 REQUIRE( result->name() == "java_log" );
@@ -150,7 +150,7 @@ SCENARIO( "Format Recognition recognizes syslog format", "[logformat][recognitio
 
             auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
-            THEN( "No format is detected" )
+            THEN( "No format is recognized" )
             {
                 REQUIRE( result == nullptr );
             }
@@ -213,7 +213,7 @@ SCENARIO( "Format Recognition requires minimum match threshold", "[logformat][re
 
             auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
-            THEN( "No format is detected (below threshold)" )
+            THEN( "No format is recognized (below threshold)" )
             {
                 REQUIRE( result == nullptr );
             }
@@ -255,7 +255,7 @@ SCENARIO( "Format Recognition handles empty input", "[logformat][recognition]" )
         {
             auto result = FormatRecognition::recognize( QStringList{}, Enabled, catalog );
 
-            THEN( "No format is detected" )
+            THEN( "No format is recognized" )
             {
                 REQUIRE( result == nullptr );
             }
@@ -274,7 +274,7 @@ SCENARIO( "Format Recognition handles empty Catalog", "[logformat][recognition]"
             QStringList lines = { "Jun 15 10:21:04 myhost sshd[12345]: test" };
             auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
-            THEN( "No format is detected" )
+            THEN( "No format is recognized" )
             {
                 REQUIRE( result == nullptr );
             }

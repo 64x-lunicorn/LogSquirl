@@ -84,7 +84,7 @@ public:
     void setSearchPattern( const RegularExpressionPattern& pattern );
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
-    // Pick up a Configuration change affecting the main search colours.
+    // Pick up a Configuration change affecting the main search colors.
     void refreshMainSearchHighlighter();
 
     // Place the Overview strip and its current-view indicator anew.

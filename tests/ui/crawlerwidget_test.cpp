@@ -181,7 +181,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     // Table View or the Text View.
     void showTableView( bool tableView )
     {
-        if ( !crawler->detectedFormat_ ) {
+        if ( !crawler->recognizedFormat_ ) {
             LogFormatDefinition format;
             format.setName( "crawlerwidget_test_presentations" );
             format.setTitle( "Presentations test" );
@@ -190,8 +190,8 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
             format.setRegexPatterns( regex );
             format.setBodyField( "body" );
 
-            crawler->detectedFormat_ = std::make_unique<LogFormatDefinition>( format );
-            crawler->logTableView_->setLogFormat( crawler->detectedFormat_.get(),
+            crawler->recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
+            crawler->logTableView_->setLogFormat( crawler->recognizedFormat_.get(),
                                                   crawler->logData_.get() );
             crawler->tableViewToggle_->setVisible( true );
         }
