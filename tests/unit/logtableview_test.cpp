@@ -25,6 +25,7 @@
 #include "fake_log_data.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
+#include "persistentinfo.h"
 #include "quickfindpattern.h"
 #include "rowmapping.h"
 
@@ -34,7 +35,6 @@
 #include <QFile>
 #include <QHeaderView>
 #include <QMenu>
-#include <QSettings>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -87,7 +87,7 @@ SCENARIO( "Column widths saved for a Log Format are restored when its Log File i
     const auto format = makeFormat();
     FakeLogData logData( Lines );
     const QString settingsGroup = "logformat/columns/" + format.name();
-    QSettings{}.remove( settingsGroup );
+    PersistentInfo::getSettings( app_settings{} ).remove( settingsGroup );
 
     GIVEN( "a Table View in which the user widened the first column" )
     {
@@ -111,7 +111,7 @@ SCENARIO( "Column widths saved for a Log Format are restored when its Log File i
         }
     }
 
-    QSettings{}.remove( settingsGroup );
+    PersistentInfo::getSettings( app_settings{} ).remove( settingsGroup );
 }
 
 namespace {

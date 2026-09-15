@@ -43,6 +43,7 @@
 #include "logtablehighlightdelegate.h"
 #include "overview.h"
 #include "overviewwidget.h"
+#include "persistentinfo.h"
 #include "presentationmenu.h"
 #include "quickfind.h"
 #include "quickfindpattern.h"
@@ -845,7 +846,7 @@ void LogTableView::saveColumnWidths()
         return;
     }
 
-    QSettings settings;
+    auto& settings = PersistentInfo::getSettings( app_settings{} );
     settings.beginGroup( columnWidthsGroup( *format_ ) );
 
     const auto* header = horizontalHeader();
@@ -873,7 +874,7 @@ bool LogTableView::applySavedColumnWidths()
         return false;
     }
 
-    QSettings settings;
+    auto& settings = PersistentInfo::getSettings( app_settings{} );
     settings.beginGroup( columnWidthsGroup( *format_ ) );
 
     const int savedColCount = settings.value( "_columnCount", -1 ).toInt();
