@@ -6,6 +6,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/formatrecognition.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfieldextractor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformattablemodel.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/rowmapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatparser.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformatcatalog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/formatrecognition.cpp

@@ -42,9 +42,10 @@
 
 #include "abstractlogview.h"
 #include "logdata.h"
+#include "logpresentation.h"
 
-// Class implementing the main (top) view widget.
-class LogMainView : public AbstractLogView {
+// Class implementing the main (top) view widget: the Text View.
+class LogMainView : public AbstractLogView, public LogPresentation {
     Q_OBJECT
 public:
     LogMainView( const LogData* newLogData, const QuickFindPattern* const quickFindPattern,
@@ -55,6 +56,16 @@ public:
     // (used for couloured bullets)
     // Should be NULL or the empty LFD if no filtering is used
     void useNewFiltering( LogFilteredData* filteredData );
+
+    // LogPresentation
+    QString selectedText() const override;
+    OptionalLineNumber logLineAt( const QPoint& pos ) const override;
+    void showLogLine( LineNumber line ) override;
+    void showLogLinePortion( LineNumber line, LinesCount nLines, LineColumn startCol,
+                             LineLength nSymbols ) override;
+    void updateDecorations() override;
+    void updateFont( const QFont& font ) override;
+    void saveSelectedTo( const QString& filename ) override;
 
 protected:
     // Implements the virtual function

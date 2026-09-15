@@ -19,6 +19,7 @@
 
 #include <catch2/catch.hpp>
 
+#include "rowmapping.h"
 #include "tableviewselection.h"
 
 #include <QStandardItemModel>
@@ -51,7 +52,7 @@ SCENARIO( "An empty Table View selection selects nothing", "[tableviewselection]
 
         THEN( "no Log Line is selected" )
         {
-            REQUIRE( selection.selectedLogLines().empty() );
+            REQUIRE( selection.selectedLogLines( OneRowPerLogLine{} ).empty() );
         }
 
         THEN( "no text is selected" )
@@ -75,7 +76,7 @@ SCENARIO( "Several selected Rows select their Log Lines and their whole text",
 
         THEN( "both Log Lines are selected, in order" )
         {
-            REQUIRE( selection.selectedLogLines()
+            REQUIRE( selection.selectedLogLines( OneRowPerLogLine{} )
                      == logsquirl::vector<LineNumber>{ 0_lnum, 2_lnum } );
         }
 
@@ -106,7 +107,7 @@ SCENARIO( "An in-cell selection wins over whole Rows", "[tableviewselection]" )
 
         THEN( "the selected Log Lines are still the Rows'" )
         {
-            REQUIRE( selection.selectedLogLines()
+            REQUIRE( selection.selectedLogLines( OneRowPerLogLine{} )
                      == logsquirl::vector<LineNumber>{ 0_lnum, 1_lnum } );
         }
 

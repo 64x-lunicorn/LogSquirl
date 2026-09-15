@@ -9,6 +9,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logpresentation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtableview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilters.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilterscombobox.h

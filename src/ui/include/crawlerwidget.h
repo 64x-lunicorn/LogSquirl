@@ -40,6 +40,7 @@
 #ifndef CRAWLERWIDGET_H
 #define CRAWLERWIDGET_H
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -65,6 +66,7 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logmainview.h"
+#include "logpresentation.h"
 #include "overview.h"
 #include "predefinedfilters.h"
 #include "signalmux.h"
@@ -218,10 +220,11 @@ private Q_SLOTS:
     // to instruct the main view to jump to the matching line.
     void jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols );
-    // Called when the main view is on a new line number
+    // Called when the Presentation shown is on a new Log Line; the
+    // Presentations not shown follow it.
     void updateLineNumberHandler( LineNumber line, LinesCount nLines, LineColumn startCol,
                                   LineLength nSymbols );
-    // Mark a line that has been clicked on the main (top) view.
+    // Mark Log Lines from a Presentation.
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
     // Mark a line that has been clicked on the filtered (bottom) view.
     void markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines );
@@ -382,8 +385,15 @@ private:
     // Forget the recognized Log Format, back in the text view.
     void resetLogFormat();
 
-    // Whether the upper pane shows the Table View rather than the text view.
-    bool isTableViewActive() const;
+    // Show the Table View in the upper pane, or else the Text View.
+    void showPresentation( bool tableView );
+
+    // Both Presentations, the one shown and the one not.
+    std::array<LogPresentation*, 2> presentations() const;
+
+    // Connect the signals every Presentation emits to the same slots.
+    template <class Presentation>
+    void connectPresentation( Presentation* presentation );
 
     // Palette for error notification (yellow background)
     static const QPalette ErrorPalette;
@@ -485,6 +495,8 @@ private:
     QStackedWidget* mainViewStack_ = nullptr;
     LogTableView* logTableView_ = nullptr;
     QToolButton* tableViewToggle_ = nullptr;
+    // The Presentation the upper pane shows: logMainView_ or logTableView_
+    LogPresentation* presentation_ = nullptr;
 };
 
 #endif

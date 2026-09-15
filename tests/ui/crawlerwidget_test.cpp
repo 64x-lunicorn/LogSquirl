@@ -21,6 +21,7 @@
 
 #include <QScrollBar>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
 #include <QTimer>
@@ -38,6 +39,8 @@
 #include "logfiltereddata.h"
 
 #include "crawlerwidget.h"
+#include "logformatdefinition.h"
+#include "logtableview.h"
 
 static const qint64 SL_NB_LINES = 100LL;
 
@@ -172,6 +175,55 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     void selectInFilteredView( LineNumber line )
     {
         crawler->filteredView_->selectAndDisplayLine( line );
+    }
+
+    // Recognizes the Log File with a Log Format of its own, and shows the
+    // Table View or the Text View.
+    void showTableView( bool tableView )
+    {
+        if ( !crawler->detectedFormat_ ) {
+            LogFormatDefinition format;
+            format.setName( "crawlerwidget_test_presentations" );
+            format.setTitle( "Presentations test" );
+            QHash<QString, QString> regex;
+            regex[ "basic" ] = R"(^(?<source>\w+)\s+(?<body>.*)$)";
+            format.setRegexPatterns( regex );
+            format.setBodyField( "body" );
+
+            crawler->detectedFormat_ = std::make_unique<LogFormatDefinition>( format );
+            crawler->logTableView_->setLogFormat( crawler->detectedFormat_.get(),
+                                                  crawler->logData_.get() );
+            crawler->tableViewToggle_->setVisible( true );
+        }
+
+        crawler->tableViewToggle_->setChecked( tableView );
+        QTest::qWait( 50 );
+    }
+
+    LogMainView* textView()
+    {
+        return crawler->logMainView_;
+    }
+
+    LogTableView* tableView()
+    {
+        return crawler->logTableView_;
+    }
+
+    LogPresentation* presentation()
+    {
+        return crawler->presentation_;
+    }
+
+    bool isMarked( LineNumber line )
+    {
+        return crawler->logFilteredData_->lineTypeByLine( line ).testFlag(
+            AbstractLogData::LineTypeFlags::Mark );
+    }
+
+    QString searchText()
+    {
+        return crawler->searchLineEdit_->currentText();
     }
 };
 
@@ -336,6 +388,135 @@ SCENARIO( "Selecting a Match in the Filtered View moves the main view only when 
             {
                 REQUIRE( crawlerVisitor.mainViewScrollPosition() == ScrollPosition{ 50_lnum, 0 } );
             }
+        }
+    }
+}
+
+namespace {
+
+QStringList savedLines( const QString& fileName )
+{
+    QFile file{ fileName };
+    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    return QString::fromUtf8( file.readAll() ).split( '\n', Qt::SkipEmptyParts );
+}
+
+// Opens a Log File of SL_NB_LINES Log Lines in a shown CrawlerWidget.
+void openCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& crawlerVisitor )
+{
+    REQUIRE( generateDataFiles( file ) );
+    session.savedSearches().clear();
+
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+
+    waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
+    waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+    crawlerVisitor.showSized();
+}
+
+} // namespace
+
+SCENARIO( "Save selected to file writes the selection of the Presentation shown",
+          "[ui][presentation]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    Session session{ testSettingsPolicies() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto fileName = dir.filePath( "crawlerwidget_save_selected_test.log" );
+
+    GIVEN( "Log Line 3 selected in the Table View and Log Line 10 in the Text View" )
+    {
+        crawlerVisitor.showTableView( true );
+        REQUIRE( crawlerVisitor.tableView()->model() != nullptr );
+        crawlerVisitor.tableView()->selectRow( 3 );
+        crawlerVisitor.textView()->selectAndDisplayLine( 10_lnum );
+
+        WHEN( "the Table View is shown and the selection is saved" )
+        {
+            REQUIRE( crawlerVisitor.presentation() == crawlerVisitor.tableView() );
+            crawlerVisitor.presentation()->saveSelectedTo( fileName );
+
+            THEN( "the file holds the Table View's Log Line" )
+            {
+                const auto lines = savedLines( fileName );
+                REQUIRE( lines.size() == 1 );
+                REQUIRE( lines[ 0 ].contains( "line 000003" ) );
+            }
+        }
+
+        WHEN( "the Text View is shown and the selection is saved" )
+        {
+            crawlerVisitor.showTableView( false );
+            REQUIRE( crawlerVisitor.presentation() == crawlerVisitor.textView() );
+            crawlerVisitor.presentation()->saveSelectedTo( fileName );
+
+            THEN( "the file holds the Text View's Log Line" )
+            {
+                const auto lines = savedLines( fileName );
+                REQUIRE( lines.size() == 1 );
+                REQUIRE( lines[ 0 ].contains( "line 000010" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Both Presentations report to the CrawlerWidget alike", "[ui][presentation]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    Session session{ testSettingsPolicies() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+
+    // Sends the reports through whichever Presentation is shown, and checks
+    // what the CrawlerWidget made of them.
+    const auto reportThroughShownPresentation = [ & ]( QObject* shown ) {
+        QSignalSpy newSelection( crawlerVisitor.crawler.get(), &CrawlerWidget::newSelection );
+        QSignalSpy scratchpad( crawlerVisitor.crawler.get(), &CrawlerWidget::sendToScratchpad );
+
+        if ( auto* textView = qobject_cast<LogMainView*>( shown ) ) {
+            Q_EMIT textView->newSelection( 7_lnum, 1_lcount, 0_lcol, 0_length );
+            Q_EMIT textView->markLines( { 5_lnum } );
+            Q_EMIT textView->addToSearch( "needle" );
+            Q_EMIT textView->sendSelectionToScratchpad();
+        }
+        else if ( auto* tableView = qobject_cast<LogTableView*>( shown ) ) {
+            Q_EMIT tableView->newSelection( 7_lnum, 1_lcount, 0_lcol, 0_length );
+            Q_EMIT tableView->markLines( { 5_lnum } );
+            Q_EMIT tableView->addToSearch( "needle" );
+            Q_EMIT tableView->sendSelectionToScratchpad();
+        }
+
+        REQUIRE( newSelection.size() == 1 );
+        REQUIRE( newSelection.first().at( 0 ).value<LineNumber>() == 7_lnum );
+        REQUIRE( crawlerVisitor.isMarked( 5_lnum ) );
+        REQUIRE( crawlerVisitor.searchText().contains( "needle" ) );
+        REQUIRE( scratchpad.size() == 1 );
+        REQUIRE( scratchpad.first().at( 0 ).toString()
+                 == crawlerVisitor.presentation()->selectedText() );
+    };
+
+    WHEN( "the Text View is shown" )
+    {
+        crawlerVisitor.showTableView( false );
+
+        THEN( "its selection, Marks, Search and scratchpad reports reach the CrawlerWidget" )
+        {
+            reportThroughShownPresentation( crawlerVisitor.textView() );
+        }
+    }
+
+    WHEN( "the Table View is shown" )
+    {
+        crawlerVisitor.showTableView( true );
+
+        THEN( "its selection, Marks, Search and scratchpad reports reach the CrawlerWidget" )
+        {
+            reportThroughShownPresentation( crawlerVisitor.tableView() );
         }
     }
 }
