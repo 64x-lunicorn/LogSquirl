@@ -210,12 +210,15 @@ public:
     static void whenApplied( QObject* context, std::function<void()> refresh );
 
     // Applies System again whenever the operating system's color scheme
-    // changes while System is chosen. Call once at startup.
+    // changes while System is chosen, once Qt's event handling for the change
+    // is over. Call once at startup.
     static void followSystemColorScheme();
 
-    // What followSystemColorScheme() connects QStyleHints::colorSchemeChanged
-    // to.
-    static void systemColorSchemeChanged( Qt::ColorScheme scheme );
+    // Replaces where System reads the operating system's color scheme from,
+    // QStyleHints::colorScheme() by default; an empty source restores that.
+    // Exists for tests: no platform lets a test change the operating system's
+    // color scheme.
+    static void setSystemColorSchemeSource( std::function<Qt::ColorScheme()> source );
 
     // The Theme last applied, or the default Theme before apply().
     static const Theme& active();

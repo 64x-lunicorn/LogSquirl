@@ -355,32 +355,80 @@ SCENARIO( "Icons and widget styles follow a Theme switch", "[ui][theme]" )
 
 SCENARIO( "System follows the operating system's color scheme while running", "[ui][theme]" )
 {
+    // Stands in for the operating system, whose color scheme a test cannot
+    // change. Shared, so the source stays valid even if a REQUIRE aborts.
+    const auto systemScheme = std::make_shared<Qt::ColorScheme>( Qt::ColorScheme::Light );
+    Theme::setSystemColorSchemeSource( [ systemScheme ] { return *systemScheme; } );
     Theme::followSystemColorScheme();
     auto* hints = QGuiApplication::styleHints();
+
+    // What a platform does when the operating system changes its scheme.
+    const auto systemTurns = [ systemScheme, hints ]( Qt::ColorScheme scheme ) {
+        *systemScheme = scheme;
+        Q_EMIT hints->colorSchemeChanged( scheme );
+    };
 
     GIVEN( "the System Theme is chosen" )
     {
         Theme::apply( Theme::SystemKey );
+        REQUIRE( Theme::active().name() == Theme::LightKey );
 
         WHEN( "the operating system turns dark" )
         {
+            systemTurns( Qt::ColorScheme::Dark );
+
+            THEN( "nothing is applied inside Qt's handling of the change" )
+            {
+                REQUIRE( Theme::active().name() == Theme::LightKey );
+            }
+
+            AND_WHEN( "the event loop runs" )
+            {
+                QCoreApplication::processEvents();
+
+                THEN( "the application shows the Dark Theme" )
+                {
+                    REQUIRE( Theme::active().name() == Theme::DarkKey );
+                    REQUIRE( qApp->palette().color( QPalette::Window )
+                             == Theme::active().color( ColorToken::Window ) );
+                }
+
+                AND_WHEN( "it turns light again" )
+                {
+                    systemTurns( Qt::ColorScheme::Light );
+                    QCoreApplication::processEvents();
+
+                    THEN( "the application shows the Light Theme" )
+                    {
+                        REQUIRE( Theme::active().name() == Theme::LightKey );
+                    }
+                }
+            }
+        }
+
+        WHEN( "a late signal reports a scheme the operating system no longer has" )
+        {
             Q_EMIT hints->colorSchemeChanged( Qt::ColorScheme::Dark );
+            QCoreApplication::processEvents();
+
+            THEN( "the application keeps the Theme of the current scheme" )
+            {
+                REQUIRE( Theme::active().name() == Theme::LightKey );
+            }
+        }
+    }
+
+    GIVEN( "the operating system is dark" )
+    {
+        *systemScheme = Qt::ColorScheme::Dark;
+
+        WHEN( "the System Theme is chosen" )
+        {
+            Theme::apply( Theme::SystemKey );
 
             THEN( "the application shows the Dark Theme" )
             {
                 REQUIRE( Theme::active().name() == Theme::DarkKey );
-                REQUIRE( qApp->palette().color( QPalette::Window )
-                         == Theme::active().color( ColorToken::Window ) );
-            }
-
-            AND_WHEN( "it turns light again" )
-            {
-                Q_EMIT hints->colorSchemeChanged( Qt::ColorScheme::Light );
-
-                THEN( "the application shows the Light Theme" )
-                {
-                    REQUIRE( Theme::active().name() == Theme::LightKey );
-                }
             }
         }
     }
@@ -400,6 +448,7 @@ SCENARIO( "System follows the operating system's color scheme while running", "[
         }
     }
 
+    Theme::setSystemColorSchemeSource( {} );
     Theme::apply( Theme::defaultTheme() );
 }
 

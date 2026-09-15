@@ -139,9 +139,13 @@ QPointer<QStyle>& installedFusion()
     return style;
 }
 
-// True while apply() sets the application's own color scheme: the
-// colorSchemeChanged that follows is not a change of the system's.
-bool settingOwnColorScheme = false;
+// Where System reads the operating system's color scheme from; empty for
+// QStyleHints. Only tests replace it.
+std::function<Qt::ColorScheme()>& systemColorSchemeSource()
+{
+    static std::function<Qt::ColorScheme()> source;
+    return source;
+}
 
 } // namespace
 
@@ -658,19 +662,16 @@ QString Theme::styleSheetWithUserFile( const QString& userThemesDirectory ) cons
 
 namespace {
 
-class OwnColorSchemeChange {
-public:
-    OwnColorSchemeChange()
-    {
-        settingOwnColorScheme = true;
-    }
-    ~OwnColorSchemeChange()
-    {
-        settingOwnColorScheme = false;
-    }
-    OwnColorSchemeChange( const OwnColorSchemeChange& ) = delete;
-    OwnColorSchemeChange& operator=( const OwnColorSchemeChange& ) = delete;
-};
+// The operating system's color scheme as Qt reports it now. Right after
+// unsetColorScheme() a platform may still report the application's former
+// override, and report the system's own scheme later with
+// colorSchemeChanged; followSystemColorScheme() applies System again then.
+// QPlatformTheme, which knows the system's scheme directly, is private API.
+Qt::ColorScheme systemColorScheme()
+{
+    const auto& source = systemColorSchemeSource();
+    return source ? source() : qApp->styleHints()->colorScheme();
+}
 
 void runRefreshes()
 {
@@ -706,7 +707,6 @@ void applyResolved( const QString& name, Qt::ColorScheme systemScheme )
     // Tells the platform which title bar / window chrome to use. System
     // leaves it to the operating system.
     if ( name != Theme::SystemKey ) {
-        const OwnColorSchemeChange own;
         qApp->styleHints()->setColorScheme( theme.isDark() ? Qt::ColorScheme::Dark
                                                            : Qt::ColorScheme::Light );
     }
@@ -720,6 +720,23 @@ void applyResolved( const QString& name, Qt::ColorScheme systemScheme )
     runRefreshes();
 }
 
+// Applies System again if the operating system's color scheme now resolves
+// to another Theme than the one shown. It reads the current state rather
+// than a signal's argument: it runs queued, and a platform may deliver a
+// change late, after a newer one -- including the application's own
+// setColorScheme() calls, which also emit colorSchemeChanged.
+void followSystemColorSchemeChange()
+{
+    if ( chosenName() != Theme::SystemKey ) {
+        return;
+    }
+    const auto scheme = systemColorScheme();
+    if ( Theme::fromName( Theme::SystemKey, scheme ).name() == Theme::active().name() ) {
+        return;
+    }
+    applyResolved( Theme::SystemKey, scheme );
+}
+
 } // namespace
 
 void Theme::apply( const QString& name )
@@ -729,11 +746,10 @@ void Theme::apply( const QString& name )
     if ( name == SystemKey ) {
         // An earlier apply() set the application's color scheme, which hides
         // the system's until it is unset.
-        const OwnColorSchemeChange own;
         qApp->styleHints()->unsetColorScheme();
     }
 
-    applyResolved( name, qApp->styleHints()->colorScheme() );
+    applyResolved( name, systemColorScheme() );
 }
 
 void Theme::whenApplied( QObject* context, std::function<void()> refresh )
@@ -744,22 +760,20 @@ void Theme::whenApplied( QObject* context, std::function<void()> refresh )
 void Theme::followSystemColorScheme()
 {
     static const bool connected = [] {
-        QObject::connect( qApp->styleHints(), &QStyleHints::colorSchemeChanged, qApp,
-                          &Theme::systemColorSchemeChanged );
+        // Queued: Qt emits colorSchemeChanged from its own theme-change
+        // handling, and applying a Theme repolishes every widget, which must
+        // not run inside it.
+        QObject::connect(
+            qApp->styleHints(), &QStyleHints::colorSchemeChanged, qApp,
+            [] { followSystemColorSchemeChange(); }, Qt::QueuedConnection );
         return true;
     }();
     Q_UNUSED( connected );
 }
 
-void Theme::systemColorSchemeChanged( Qt::ColorScheme scheme )
+void Theme::setSystemColorSchemeSource( std::function<Qt::ColorScheme()> source )
 {
-    if ( settingOwnColorScheme || chosenName() != SystemKey ) {
-        return;
-    }
-    if ( fromName( SystemKey, scheme ).name() == active().name() ) {
-        return;
-    }
-    applyResolved( SystemKey, scheme );
+    systemColorSchemeSource() = std::move( source );
 }
 
 const Theme& Theme::active()
