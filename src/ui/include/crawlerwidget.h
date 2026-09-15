@@ -163,8 +163,6 @@ protected:
     // Implementation of the MuxableDocumentInterface
     void doSendAllStateSignals() override;
 
-    void changeEvent( QEvent* event ) override;
-
 Q_SIGNALS:
     // Sent to signal the client load has progressed,
     // passing the completion percentage.

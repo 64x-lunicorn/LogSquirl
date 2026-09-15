@@ -80,7 +80,6 @@ public:
 protected:
     void keyPressEvent( QKeyEvent* event ) override;
     void mouseReleaseEvent( QMouseEvent* event ) override;
-    void changeEvent( QEvent* event ) override;
 
 public:
     // Re-applies group styling (bullet prefix + text colour) to all tabs.

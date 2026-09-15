@@ -55,6 +55,8 @@ private Q_SLOTS:
     void validateAndAccept();
 
 private:
+    void updateColorButton();
+
     QLineEdit* nameEdit_;
     QLineEdit* patternEdit_;
     QSpinBox* captureGroupSpin_;

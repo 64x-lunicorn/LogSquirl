@@ -34,7 +34,6 @@
 #include "crawlerwidget.h"
 
 #include "clipboard.h"
-#include "dispatch_to.h"
 #include "iconloader.h"
 #include "log.h"
 #include "openfilehelper.h"
@@ -70,7 +69,11 @@ TabbedCrawlerWidget::TabbedCrawlerWidget()
     connect( &myTabBar_, &CrawlerTabBar::showTabContextMenu, this,
              &TabbedCrawlerWidget::showContextMenu );
 
-    dispatchToMainThread( [ this ] { loadIcons(); } );
+    loadIcons();
+    Theme::whenApplied( this, [ this ] {
+        applyTheme();
+        loadIcons();
+    } );
 }
 
 void TabbedCrawlerWidget::applyTheme()
@@ -85,15 +88,6 @@ void TabbedCrawlerWidget::loadIcons()
     for ( int tab = 0; tab < count(); ++tab ) {
         updateIcon( tab );
     }
-}
-
-void TabbedCrawlerWidget::changeEvent( QEvent* event )
-{
-    if ( event->type() == QEvent::StyleChange ) {
-        dispatchToMainThread( [ this ] { loadIcons(); } );
-    }
-
-    QWidget::changeEvent( event );
 }
 
 void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )

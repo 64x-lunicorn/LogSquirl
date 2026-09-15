@@ -34,6 +34,7 @@
 
 #include "charttemplategenerator.h"
 #include "logformatdefinition.h"
+#include "theme.h"
 
 ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format, QWidget* parent )
     : QDialog( parent )
@@ -104,8 +105,8 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format, QWidget
     // Color
     colorButton_ = new QPushButton;
     colorButton_->setFixedSize( 60, 24 );
-    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
-                                     .arg( selectedColor_.name() ) );
+    updateColorButton();
+    Theme::whenApplied( this, [ this ] { updateColorButton(); } );
     connect( colorButton_, &QPushButton::clicked, this, &ChartWizardDialog::chooseColor );
     form->addRow( tr( "Color:" ), colorButton_ );
 
@@ -325,9 +326,15 @@ void ChartWizardDialog::chooseColor()
     const QColor c = QColorDialog::getColor( selectedColor_, this, tr( "Series Color" ) );
     if ( c.isValid() ) {
         selectedColor_ = c;
-        colorButton_->setStyleSheet(
-            QString( "background-color: %1; border: 1px solid palette(mid);" ).arg( c.name() ) );
+        updateColorButton();
     }
+}
+
+void ChartWizardDialog::updateColorButton()
+{
+    // palette(mid) is resolved when the stylesheet is set.
+    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
+                                     .arg( selectedColor_.name() ) );
 }
 
 void ChartWizardDialog::validateAndAccept()

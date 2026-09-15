@@ -309,6 +309,9 @@ PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
     rebuildMergedList();
     rebuildCards();
 
+    // A card's status badge is styled with Tokens when the card is built.
+    Theme::whenApplied( this, [ this ] { rebuildCards(); } );
+
     // Start fetching the remote catalog
     repository_.fetchCatalog();
 }

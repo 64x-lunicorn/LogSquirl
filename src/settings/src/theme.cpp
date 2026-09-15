@@ -20,12 +20,15 @@
 #include "theme.h"
 
 #include <algorithm>
+#include <vector>
 
 #include <QApplication>
 #include <QDir>
 #include <QFile>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QStandardPaths>
+#include <QStyle>
 #include <QStyleFactory>
 #include <QStyleHints>
 #include <QTextStream>
@@ -110,6 +113,36 @@ Theme& activeTheme()
     return theme;
 }
 
+// The stored name last applied: unlike the active Theme, it can be System.
+QString& chosenName()
+{
+    static QString name = Theme::defaultTheme();
+    return name;
+}
+
+struct Refresh {
+    QPointer<QObject> context;
+    std::function<void()> refresh;
+};
+
+std::vector<Refresh>& refreshes()
+{
+    static std::vector<Refresh> list;
+    return list;
+}
+
+// The Fusion style apply() installed. Null before the first apply(), and
+// again if something else replaced the application style since.
+QPointer<QStyle>& installedFusion()
+{
+    static QPointer<QStyle> style;
+    return style;
+}
+
+// True while apply() sets the application's own color scheme: the
+// colorSchemeChanged that follows is not a change of the system's.
+bool settingOwnColorScheme = false;
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -146,6 +179,7 @@ Theme Theme::light()
         { Light, "#FFFFFF" },
         { Midlight, "#E9ECEF" },
         { Mid, "#ADB5BD" },
+        { Dark, "#6C757D" },
         { Shadow, "#868E96" },
 
         { Chrome, "#F8F9FA" },
@@ -249,6 +283,7 @@ Theme Theme::dark()
         { Light, "#FFFFFF" },
         { Midlight, "#CACACA" },
         { Mid, "#B8B8B8" },
+        { Dark, "#A0A0A0" },
         { Shadow, "#767676" },
 
         { Chrome, "#171717" },
@@ -354,6 +389,7 @@ Theme Theme::highContrast()
         { Light, "#FFFFFF" },
         { Midlight, "#CACACA" },
         { Mid, "#B8B8B8" },
+        { Dark, "#FFFFFF" },
         { Shadow, "#767676" },
 
         { Chrome, "#000000" },
@@ -553,6 +589,7 @@ QPalette Theme::palette() const
     inEveryGroup( QPalette::Light, ColorToken::Light );
     inEveryGroup( QPalette::Midlight, ColorToken::Midlight );
     inEveryGroup( QPalette::Mid, ColorToken::Mid );
+    inEveryGroup( QPalette::Dark, ColorToken::Dark );
     inEveryGroup( QPalette::Shadow, ColorToken::Shadow );
 
     palette.setColor( QPalette::Active, QPalette::Button, color( ColorToken::ActiveButton ) );
@@ -619,26 +656,110 @@ QString Theme::styleSheetWithUserFile( const QString& userThemesDirectory ) cons
     return result;
 }
 
-void Theme::apply( const QString& name )
+namespace {
+
+class OwnColorSchemeChange {
+public:
+    OwnColorSchemeChange()
+    {
+        settingOwnColorScheme = true;
+    }
+    ~OwnColorSchemeChange()
+    {
+        settingOwnColorScheme = false;
+    }
+    OwnColorSchemeChange( const OwnColorSchemeChange& ) = delete;
+    OwnColorSchemeChange& operator=( const OwnColorSchemeChange& ) = delete;
+};
+
+void runRefreshes()
+{
+    auto& list = refreshes();
+    list.erase( std::remove_if( list.begin(), list.end(),
+                                []( const Refresh& entry ) { return entry.context.isNull(); } ),
+                list.end() );
+
+    // A refresh may register further refreshes or destroy other contexts.
+    const auto current = list;
+    for ( const auto& entry : current ) {
+        if ( entry.context ) {
+            entry.refresh();
+        }
+    }
+}
+
+void applyResolved( const QString& name, Qt::ColorScheme systemScheme )
 {
     LOG_INFO << "Setting theme to " << name;
 
-    // Read before anything below sets the application's color scheme.
-    const auto systemScheme = qApp->styleHints()->colorScheme();
-
     auto& theme = activeTheme();
-    theme = fromName( name, systemScheme, Configuration::get().darkPalette() );
+    theme = Theme::fromName( name, systemScheme, Configuration::get().darkPalette() );
 
-    qApp->setStyle( QStyleFactory::create( QStringLiteral( "Fusion" ) ) );
+    // Installed once: replacing the application style on every switch would
+    // delete the style every widget is polished with.
+    auto& fusion = installedFusion();
+    if ( fusion.isNull() ) {
+        fusion = QStyleFactory::create( QStringLiteral( "Fusion" ) );
+        qApp->setStyle( fusion );
+    }
 
-    // Tells the platform which title bar / window chrome to use.
-    qApp->styleHints()->setColorScheme( theme.isDark() ? Qt::ColorScheme::Dark
-                                                       : Qt::ColorScheme::Light );
+    // Tells the platform which title bar / window chrome to use. System
+    // leaves it to the operating system.
+    if ( name != Theme::SystemKey ) {
+        const OwnColorSchemeChange own;
+        qApp->styleHints()->setColorScheme( theme.isDark() ? Qt::ColorScheme::Dark
+                                                           : Qt::ColorScheme::Light );
+    }
 
     qApp->setPalette( theme.palette() );
     qApp->setStyleSheet( theme.styleSheetWithUserFile(
         QStandardPaths::writableLocation( QStandardPaths::AppConfigLocation )
         + QStringLiteral( "/themes/" ) ) );
+
+    // Only now, with Qt's repolish over, may widgets touch their styles.
+    runRefreshes();
+}
+
+} // namespace
+
+void Theme::apply( const QString& name )
+{
+    chosenName() = name;
+
+    if ( name == SystemKey ) {
+        // An earlier apply() set the application's color scheme, which hides
+        // the system's until it is unset.
+        const OwnColorSchemeChange own;
+        qApp->styleHints()->unsetColorScheme();
+    }
+
+    applyResolved( name, qApp->styleHints()->colorScheme() );
+}
+
+void Theme::whenApplied( QObject* context, std::function<void()> refresh )
+{
+    refreshes().push_back( { context, std::move( refresh ) } );
+}
+
+void Theme::followSystemColorScheme()
+{
+    static const bool connected = [] {
+        QObject::connect( qApp->styleHints(), &QStyleHints::colorSchemeChanged, qApp,
+                          &Theme::systemColorSchemeChanged );
+        return true;
+    }();
+    Q_UNUSED( connected );
+}
+
+void Theme::systemColorSchemeChanged( Qt::ColorScheme scheme )
+{
+    if ( settingOwnColorScheme || chosenName() != SystemKey ) {
+        return;
+    }
+    if ( fromName( SystemKey, scheme ).name() == active().name() ) {
+        return;
+    }
+    applyResolved( SystemKey, scheme );
 }
 
 const Theme& Theme::active()

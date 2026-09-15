@@ -7,7 +7,10 @@
   application stylesheet are generated (one stylesheet template replaces the
   three hand-written `.qss` files). Their look is unchanged.
 - **System theme**: The new "System" style follows the operating system's
-  light or dark color scheme at startup.
+  light or dark color scheme, also when it changes while LogSquirl runs.
+- **Theme changes without a restart**: Choosing a theme in the Options dialog
+  applies it at once to every open window, including icons, tab bars, dialogs
+  and a floating sidebar; only a language change still asks for a restart.
 - **User stylesheets apply on top**: A `dark.qss`, `fusion-light.qss` or
   `high-contrast.qss` in `<AppConfigDir>/themes/` is now added after the
   built-in stylesheet instead of replacing it, so it only needs the rules it

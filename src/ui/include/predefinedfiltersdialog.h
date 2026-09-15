@@ -79,6 +79,7 @@ private Q_SLOTS:
 private:
     void populateSetList();
     void setCurrentRow( int row );
+    void loadIcons();
 
     PredefinedFilterSetEdit* filterSetEdit_;
 

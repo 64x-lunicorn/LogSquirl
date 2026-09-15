@@ -622,9 +622,11 @@ void OptionsDialog::updateConfigFromDialog()
 
     config.setVerifySslPeers( verifySslCheckBox->isChecked() );
 
-    restartAppMessage = config.style() != styleComboBox->currentText();
-
+    const auto themeChanged = config.style() != styleComboBox->currentText();
     config.setStyle( styleComboBox->currentText() );
+    if ( themeChanged ) {
+        Theme::apply( config.style() );
+    }
     config.setHideAnsiColorSequences( hideAnsiColorsCheckBox->isChecked() );
 
     config.setContextLinesCount( contextLinesSpinBox->value() );

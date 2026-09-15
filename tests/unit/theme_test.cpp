@@ -82,6 +82,7 @@ std::vector<RoleToken> paletteRoleTokens()
         { QPalette::Light, ColorToken::Light },
         { QPalette::Midlight, ColorToken::Midlight },
         { QPalette::Mid, ColorToken::Mid },
+        { QPalette::Dark, ColorToken::Dark },
         { QPalette::Shadow, ColorToken::Shadow },
     };
     const std::vector<RoleToken> perGroup{

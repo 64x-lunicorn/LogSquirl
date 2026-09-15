@@ -94,6 +94,8 @@ WelcomeDashboard::WelcomeDashboard( QWidget* parent )
 {
     setAcceptDrops( true );
     buildUi();
+    // The plugin status colors come from Tokens.
+    Theme::whenApplied( this, [ this ] { refresh(); } );
 }
 
 void WelcomeDashboard::buildUi()
