@@ -1,5 +1,14 @@
 # Unreleased
 
+## Removed
+
+- **Lua plugin support**: The optional Lua scripting layer
+  (`LOGSQUIRL_USE_LUA`) has been removed together with its Lua and sol2
+  dependencies. It was off by default and its data-source and converter entry
+  points were never called. Plugins are native shared libraries using the C
+  ABI; a manifest whose `library` ends in `.lua` is now loaded like any other
+  library and fails with the normal load error.
+
 ## Documentation
 
 - **README refresh**: Add a branded introduction, prominent download links, a

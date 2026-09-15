@@ -78,13 +78,6 @@ public:
     /** Open the plugin's configuration dialog with the given parent widget. */
     void configure( void* parentWidget );
 
-    /**
-     * Create a minimal handle for script-based plugins (e.g. Lua).
-     * No library is loaded; all function pointers are null.
-     * The metadata is stored for identification purposes.
-     */
-    static PluginHandle createScriptHandle( PluginMetadata meta );
-
     /** True if this is a converter plugin with extension/convert entry points. */
     bool isConverter() const;
 
