@@ -548,84 +548,38 @@ void IndexOperation::guessEncoding( const logsquirl::vector<char>& block,
               << state.encodingParams.lineFeedWidth;
 }
 
-std::chrono::microseconds IndexOperation::readFileInBlocks( QFile& file,
-                                                            BlockPrefetcher& blockPrefetcher )
+std::optional<IndexOperation::BlockData>
+IndexOperation::readNextBlock( QFile& file, std::chrono::microseconds& ioDuration )
 {
     using namespace std::chrono;
     using clock = high_resolution_clock;
 
-    LOG_INFO << "Starting IO thread";
-
-    int sentBlocksCount = 0;
-
-    microseconds ioDuration{};
-    while ( !file.atEnd() ) {
-
-        if ( interruptRequest_ ) {
-            break;
-        }
-
-        BlockData blockData{ file.pos(), new logsquirl::vector<char>( IndexingBlockSize ) };
-
-        clock::time_point ioT1 = clock::now();
-        const auto readBytes
-            = file.read( blockData.second->data(), logsquirl::ssize( *blockData.second ) );
-
-        if ( readBytes < 0 ) {
-            LOG_ERROR << "Reading past the end of file";
-            // The buffer was never published to the prefetcher; release it here so
-            // the consumer (which would otherwise free it) does not leak it.
-            delete blockData.second;
-            blockData.second = nullptr;
-            break;
-        }
-
-        if ( readBytes < logsquirl::ssize( *blockData.second ) ) {
-            blockData.second->resize( static_cast<size_t>( readBytes ) );
-        }
-
-        clock::time_point ioT2 = clock::now();
-
-        ioDuration += duration_cast<microseconds>( ioT2 - ioT1 );
-
-        if ( sentBlocksCount % 10 == 0 ) {
-            LOG_INFO << "Sending block " << blockData.first << " size " << blockData.second->size();
-        }
-
-        // try_put may legitimately fail forever if the indexing was interrupted while we
-        // were waiting for capacity. In that case the buffer is still owned by us; free it
-        // before exiting the loop to avoid a leak.
-        bool blockAccepted = false;
-        while ( !interruptRequest_ ) {
-            if ( blockPrefetcher.try_put( std::move( blockData ) ) ) {
-                blockAccepted = true;
-                break;
-            }
-            std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-        }
-        if ( !blockAccepted ) {
-            delete blockData.second;
-            blockData.second = nullptr;
-            break;
-        }
-        sentBlocksCount++;
+    if ( interruptRequest_ || file.atEnd() ) {
+        return std::nullopt;
     }
 
-    auto lastBlock = std::make_pair( -1, new logsquirl::vector<char>{} );
-    bool lastBlockAccepted = false;
-    while ( !interruptRequest_ ) {
-        if ( blockPrefetcher.try_put( lastBlock ) ) {
-            lastBlockAccepted = true;
-            break;
-        }
-        std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-    }
-    if ( !lastBlockAccepted ) {
-        delete lastBlock.second;
+    BlockData blockData{ file.pos(), new BlockBuffer( IndexingBlockSize ) };
+
+    const auto ioStartTime = clock::now();
+    const auto readBytes
+        = file.read( blockData.second->data(), logsquirl::ssize( *blockData.second ) );
+
+    if ( readBytes < 0 ) {
+        LOG_ERROR << "Reading past the end of file";
+        // The buffer never reaches the graph, whose consumer would otherwise
+        // free it; release it here so it does not leak.
+        delete blockData.second;
+        return std::nullopt;
     }
 
-    LOG_INFO << "IO thread done";
-    return ioDuration;
+    if ( readBytes < logsquirl::ssize( *blockData.second ) ) {
+        blockData.second->resize( static_cast<size_t>( readBytes ) );
+    }
+
+    ioDuration += duration_cast<microseconds>( clock::now() - ioStartTime );
+
+    LOG_DEBUG << "Read block " << blockData.first << " size " << blockData.second->size();
+    return blockData;
 }
 
 void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& blockData )
@@ -634,10 +588,6 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
     const auto& block = *blockData.second;
 
     LOG_DEBUG << "Indexing block " << blockBeginning << " start";
-
-    if ( blockBeginning < 0 ) {
-        return;
-    }
 
     IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
@@ -726,7 +676,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     const auto indexingStartTime = clock::now();
 
     tbb::flow::graph indexingGraph;
-    auto blockPrefetcher = tbb::flow::limiter_node<BlockData>( indexingGraph, prefetchBufferSize );
+    auto blockPrefetcher = BlockPrefetcher( indexingGraph, prefetchBufferSize );
     auto blockQueue = tbb::flow::queue_node<BlockData>( indexingGraph );
 
     auto blockParser = tbb::flow::function_node<BlockData, tbb::flow::continue_msg>(
@@ -740,9 +690,31 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     tbb::flow::make_edge( blockQueue, blockParser );
     tbb::flow::make_edge( blockParser, blockPrefetcher.decrementer() );
 
+    // The graph pulls its blocks from an input_node while this thread waits in
+    // wait_for_all(), which makes this thread one of those running the graph.
+    // Pushing blocks in from here instead, sleeping whenever the limiter was
+    // full, only worked while TBB had a worker free for this graph (#146; the
+    // same stall hit Search in #142). Once blockReader stops, reading at the
+    // end of the file, on a read error or on an interrupt, the pass ends as
+    // soon as the blocks already read have gone through the graph.
     file.seek( state.pos );
-    ioDuration = readFileInBlocks( file, blockPrefetcher );
+
+    auto blockReader = tbb::flow::input_node<BlockData>(
+        indexingGraph, [ this, &file, &ioDuration ]( tbb::flow_control& control ) -> BlockData {
+            auto blockData = readNextBlock( file, ioDuration );
+            if ( !blockData ) {
+                control.stop();
+                return {};
+            }
+            return *blockData;
+        } );
+
+    tbb::flow::make_edge( blockReader, blockPrefetcher );
+
+    LOG_INFO << "Reading blocks";
+    blockReader.activate();
     indexingGraph.wait_for_all();
+    LOG_INFO << "Reading blocks done";
 
     IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
