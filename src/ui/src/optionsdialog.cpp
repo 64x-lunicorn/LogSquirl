@@ -544,8 +544,9 @@ void OptionsDialog::checkShortcutsOnDuplicate() const
 
 int OptionsDialog::updateTranslate()
 {
+    // Without a main window there is no user interface to translate.
     auto mw = dynamic_cast<MainWindow*>( parent() );
-    return mw->installLanguage( languageComboBox->currentData().toString() );
+    return mw ? mw->installLanguage( languageComboBox->currentData().toString() ) : 0;
 }
 
 void OptionsDialog::updateConfigFromDialog()
