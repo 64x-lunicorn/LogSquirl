@@ -59,6 +59,9 @@ struct IndexingPolicy {
     // Where the Index cache keeps its files. Empty in an underived Policy,
     // and an Index cache given no directory stores nothing.
     QString indexCacheDirectory{};
+    // The Index cache keeps nothing for a Log File under this directory.
+    // Empty in an underived Policy, which excludes nothing.
+    QString indexCacheExcludedDirectory{};
 
     // Compared so that a settings change can be applied per axis: only the
     // consumers of an axis that actually changed are disturbed.

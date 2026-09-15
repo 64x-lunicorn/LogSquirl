@@ -24,11 +24,13 @@
 
 #include <QCryptographicHash>
 #include <QDataStream>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
 
+#include "filedigest.h"
 #include "log.h"
 
 namespace {
@@ -43,10 +45,55 @@ QString pathHash( const QString& filePath )
     return QString::fromLatin1( digest );
 }
 
+/// Whether the given range of the Log File has the given digest, computed
+/// with the same FileDigest the indexer records it with. Read in chunks, so
+/// a corrupt size in a cache file cannot make this allocate without bound.
+bool digestMatches( QFile& logFile, qint64 offset, qint64 size, quint64 expectedDigest )
+{
+    if ( offset < 0 || size < 0 || !logFile.seek( offset ) ) {
+        return false;
+    }
+
+    constexpr qint64 ChunkSize = 1024 * 1024;
+    QByteArray buffer( static_cast<qsizetype>( std::min( size, ChunkSize ) ), Qt::Uninitialized );
+    FileDigest digest;
+    for ( auto remaining = size; remaining > 0; ) {
+        const auto readBytes
+            = logFile.read( buffer.data(), std::min( remaining, qint64{ buffer.size() } ) );
+        if ( readBytes <= 0 ) {
+            return false;
+        }
+        digest.addData( buffer.data(), static_cast<size_t>( readBytes ) );
+        remaining -= readBytes;
+    }
+    return digest.digest() == expectedDigest;
+}
+
+/// Whether an Index recorded with this hash still fits the Log File: the
+/// same size, and the same header and tail digests.
+bool fitsLogFile( const IndexedHash& hash, const QString& filePath )
+{
+    QFile logFile( filePath );
+    if ( !logFile.open( QIODevice::ReadOnly ) || logFile.size() != hash.size ) {
+        return false;
+    }
+
+    if ( !digestMatches( logFile, 0, hash.headerSize, hash.headerDigest ) ) {
+        return false;
+    }
+
+    // A Log File no longer than one digest block has its tail digest taken
+    // at offset 0, which is its header digest again.
+    return hash.tailOffset == 0
+           || digestMatches( logFile, hash.tailOffset, hash.tailSize, hash.tailDigest );
+}
+
 } // namespace
 
-IndexCache::IndexCache( QString directory )
+IndexCache::IndexCache( QString directory, QString excludedDirectory, qint64 budgetBytes )
     : directory_( std::move( directory ) )
+    , excludedDirectory_( std::move( excludedDirectory ) )
+    , budgetBytes_( budgetBytes )
 {
 }
 
@@ -56,77 +103,121 @@ QString IndexCache::cacheFilePath( const QString& sourceFilePath ) const
            + QStringLiteral( ".idx" );
 }
 
+bool IndexCache::isExcluded( const QString& filePath ) const
+{
+    if ( excludedDirectory_.isEmpty() ) {
+        return false;
+    }
+
+    auto excludedPrefix = QDir::cleanPath( QFileInfo( excludedDirectory_ ).absoluteFilePath() );
+    if ( !excludedPrefix.endsWith( QLatin1Char( '/' ) ) ) {
+        excludedPrefix += QLatin1Char( '/' );
+    }
+    return QDir::cleanPath( QFileInfo( filePath ).absoluteFilePath() ).startsWith( excludedPrefix );
+}
+
 std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
 {
-    if ( directory_.isEmpty() ) {
+    if ( directory_.isEmpty() || isExcluded( filePath ) ) {
         return std::nullopt;
     }
 
     const auto path = cacheFilePath( filePath );
-    QFile file( path );
-    if ( !file.open( QIODevice::ReadOnly ) ) {
+
+    const auto readEntry = [ & ]( QFile& file ) -> std::optional<CachedIndex> {
+        QDataStream in( &file );
+        in.setVersion( QDataStream::Qt_6_0 );
+
+        // Header
+        quint32 magic = 0;
+        quint32 version = 0;
+        in >> magic >> version;
+        if ( magic != kMagic || version != kVersion ) {
+            LOG_INFO << "Index cache version mismatch for " << filePath;
+            return std::nullopt;
+        }
+
+        // IndexedHash
+        IndexedHash hash;
+        in >> hash.size >> hash.fullDigest;
+        in >> hash.headerSize >> hash.headerDigest;
+        in >> hash.tailSize >> hash.tailOffset >> hash.tailDigest;
+        if ( in.status() != QDataStream::Ok ) {
+            return std::nullopt;
+        }
+
+        // Checked before the line positions are read: a stale entry is
+        // found out without deserializing the Index it holds.
+        if ( !fitsLogFile( hash, filePath ) ) {
+            LOG_INFO << "Cached index stale for " << filePath;
+            return std::nullopt;
+        }
+
+        // maxLength
+        qint32 maxLen = 0;
+        in >> maxLen;
+
+        // Encoding
+        QByteArray encodingName;
+        in >> encodingName;
+
+        // fakeFinalLF flag
+        bool fakeLF = false;
+        in >> fakeLF;
+
+        // Compressed line positions
+        CompressedLinePositionStorage storage;
+        if ( !storage.deserialize( in ) ) {
+            LOG_WARNING << "Index cache deserialization failed for " << filePath;
+            return std::nullopt;
+        }
+
+        if ( in.status() != QDataStream::Ok ) {
+            return std::nullopt;
+        }
+
+        // Build LinePositionArray from the deserialized storage
+        LinePositionArray linePosition( std::move( storage ) );
+        if ( fakeLF ) {
+            linePosition.setFakeFinalLF( true );
+        }
+
+        CachedIndex result;
+        result.linePosition = std::move( linePosition );
+        result.maxLength = LineLength( maxLen );
+        result.hash = hash;
+        result.encodingName = encodingName;
+        result.fakeFinalLF = fakeLF;
+        return result;
+    };
+
+    std::optional<CachedIndex> result;
+    {
+        QFile file( path );
+        // No entry, or one evicted by a concurrent run since: a miss either way.
+        if ( !file.open( QIODevice::ReadOnly ) ) {
+            return std::nullopt;
+        }
+        result = readEntry( file );
+    }
+
+    if ( !result ) {
+        QFile::remove( path );
         return std::nullopt;
     }
 
-    QDataStream in( &file );
-    in.setVersion( QDataStream::Qt_6_0 );
-
-    // Header
-    quint32 magic = 0;
-    quint32 version = 0;
-    in >> magic >> version;
-    if ( magic != kMagic || version != kVersion ) {
-        LOG_INFO << "Index cache version mismatch for " << filePath;
-        return std::nullopt;
+    // Eviction goes by modification time, so marking the entry as used now
+    // makes it evict the least recently used entry rather than the least
+    // recently written. Opened again for writing, as some platforms refuse
+    // to set the time through a read-only handle; ExistingOnly so that an
+    // entry evicted in the meantime is not recreated empty.
+    QFile touched( path );
+    if ( touched.open( QIODevice::ReadWrite | QIODevice::ExistingOnly ) ) {
+        touched.setFileTime( QDateTime::currentDateTime(), QFileDevice::FileModificationTime );
     }
 
-    // IndexedHash
-    IndexedHash hash;
-    in >> hash.size >> hash.fullDigest;
-    in >> hash.headerSize >> hash.headerDigest;
-    in >> hash.tailSize >> hash.tailOffset >> hash.tailDigest;
-    if ( in.status() != QDataStream::Ok ) {
-        return std::nullopt;
-    }
-
-    // maxLength
-    qint32 maxLen = 0;
-    in >> maxLen;
-
-    // Encoding
-    QByteArray encodingName;
-    in >> encodingName;
-
-    // fakeFinalLF flag
-    bool fakeLF = false;
-    in >> fakeLF;
-
-    // Compressed line positions
-    CompressedLinePositionStorage storage;
-    if ( !storage.deserialize( in ) ) {
-        LOG_WARNING << "Index cache deserialization failed for " << filePath;
-        return std::nullopt;
-    }
-
-    if ( in.status() != QDataStream::Ok ) {
-        return std::nullopt;
-    }
-
-    // Build LinePositionArray from the deserialized storage
-    LinePositionArray linePosition( std::move( storage ) );
-    if ( fakeLF ) {
-        linePosition.setFakeFinalLF( true );
-    }
-
-    CachedIndex result;
-    result.linePosition = std::move( linePosition );
-    result.maxLength = LineLength( maxLen );
-    result.hash = hash;
-    result.encodingName = encodingName;
-    result.fakeFinalLF = fakeLF;
-
-    LOG_INFO << "Loaded index cache for " << filePath << " (" << result.hash.size << " bytes, "
-             << result.linePosition.size() << " lines)";
+    LOG_INFO << "Loaded index cache for " << filePath << " (" << result->hash.size << " bytes, "
+             << result->linePosition.size() << " lines)";
 
     return result;
 }
@@ -135,7 +226,11 @@ bool IndexCache::trySave( const QString& filePath, const LinePositionArray& line
                           LineLength maxLength, const IndexedHash& hash,
                           const QByteArray& encodingName, bool fakeFinalLF ) const
 {
-    if ( directory_.isEmpty() ) {
+    // An empty Index has no value, wastes disk space, and exercises the
+    // empty-storage code paths in CompressedLinePositionStorage::serialize()
+    // unnecessarily.
+    if ( directory_.isEmpty() || budgetBytes_ <= 0 || linePosition.size().get() == 0
+         || isExcluded( filePath ) ) {
         return false;
     }
 
@@ -174,8 +269,18 @@ bool IndexCache::trySave( const QString& filePath, const LinePositionArray& line
     // Compressed line positions via direct storage serialization
     linePosition.storage().serialize( out );
 
-    if ( out.status() != QDataStream::Ok ) {
+    if ( out.status() != QDataStream::Ok || !file.flush() ) {
         LOG_WARNING << "Failed to write index cache for " << filePath;
+        file.cancelWriting();
+        return false;
+    }
+
+    // The budget is hard: rather than evicting everything else and still not
+    // fitting, an entry that alone exceeds it is dropped before it replaces
+    // anything.
+    if ( file.size() > budgetBytes_ ) {
+        LOG_INFO << "Index for " << filePath << " (" << file.size()
+                 << " bytes) exceeds the index cache budget of " << budgetBytes_ << " bytes";
         file.cancelWriting();
         return false;
     }
@@ -186,16 +291,9 @@ bool IndexCache::trySave( const QString& filePath, const LinePositionArray& line
     }
 
     LOG_INFO << "Saved index cache for " << filePath << " (" << linePosition.size() << " lines)";
+
+    evict( path );
     return true;
-}
-
-void IndexCache::remove( const QString& filePath ) const
-{
-    if ( directory_.isEmpty() ) {
-        return;
-    }
-
-    QFile::remove( cacheFilePath( filePath ) );
 }
 
 QFileInfoList IndexCache::cacheFiles() const
@@ -230,33 +328,36 @@ qint64 IndexCache::totalCacheSize() const
     return total;
 }
 
-void IndexCache::evict( qint64 maxBytes ) const
+void IndexCache::evict( const QString& keptPath ) const
 {
     struct CacheEntry {
         QString path;
         qint64 size;
-        QDateTime lastModified;
+        QDateTime lastUsed;
     };
+
+    const auto keptName = QFileInfo( keptPath ).fileName();
 
     QList<CacheEntry> entries;
     qint64 totalSize = 0;
 
     for ( const auto& file : cacheFiles() ) {
-        entries.append( { file.filePath(), file.size(), file.lastModified() } );
         totalSize += file.size();
+        if ( file.fileName() != keptName ) {
+            entries.append( { file.filePath(), file.size(), file.lastModified() } );
+        }
     }
 
-    if ( totalSize <= maxBytes ) {
+    if ( totalSize <= budgetBytes_ ) {
         return;
     }
 
-    // Sort oldest-first (LRU)
-    std::sort( entries.begin(), entries.end(), []( const CacheEntry& a, const CacheEntry& b ) {
-        return a.lastModified < b.lastModified;
-    } );
+    // Least recently used first: a load refreshes the modification time.
+    std::sort( entries.begin(), entries.end(),
+               []( const CacheEntry& a, const CacheEntry& b ) { return a.lastUsed < b.lastUsed; } );
 
     for ( const auto& entry : entries ) {
-        if ( totalSize <= maxBytes ) {
+        if ( totalSize <= budgetBytes_ ) {
             break;
         }
         if ( QFile::remove( entry.path ) ) {
