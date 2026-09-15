@@ -21,7 +21,6 @@ add_executable(logsquirl_tests
     logtablehighlightdelegate_test.cpp
     logtableview_test.cpp
     logviewpainting_test.cpp
-    lz4device_test.cpp
     mergecontroller_test.cpp
     patternmatcher_test.cpp
     plugindialog_test.cpp
@@ -35,11 +34,10 @@ add_executable(logsquirl_tests
     tableviewselection_test.cpp
     viewportlayout_test.cpp
     wrappedstring_test.cpp
-    zstddevice_test.cpp
     tests_main.cpp
 )
 
-target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_highlighting logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings logsquirl_zstd logsquirl_lz4 Catch2 Qt6::Test test_utils)
+target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_highlighting logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 # The painting test reads its font and golden images from the source tree,
@@ -52,3 +50,19 @@ add_test(
     COMMAND logsquirl_tests -platform offscreen
 )
 set_tests_properties(logsquirl_tests PROPERTIES TIMEOUT 120)
+
+# The compression library is tested on its own, without the UI library or
+# Qt Widgets (#169).
+add_executable(logsquirl_compression_tests
+    compression_tests_main.cpp
+    lz4device_test.cpp
+    zstddevice_test.cpp
+)
+
+target_link_libraries(logsquirl_compression_tests logsquirl_compression Catch2)
+
+add_test(
+    NAME logsquirl_compression_tests
+    COMMAND logsquirl_compression_tests
+)
+set_tests_properties(logsquirl_compression_tests PROPERTIES TIMEOUT 60)

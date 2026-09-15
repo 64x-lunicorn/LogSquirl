@@ -104,7 +104,7 @@ with clang-format before committing.
 
 - Libraries: `logsquirl_<module>` (e.g., `logsquirl_ui`, `logsquirl_logdata`, `logsquirl_utils`)
 - Executables: `logsquirl`, `logsquirl_portable`, `logsquirl_grep`
-- Test targets: `logsquirl_tests`, `logsquirl_itests`
+- Test targets: `logsquirl_tests`, `logsquirl_compression_tests`, `logsquirl_itests`
 
 ### Module Structure
 
@@ -128,6 +128,7 @@ src/<module>/
 ```
 src/
 ├── app/                  # Application entry points (main, CLI, portable)
+├── compression/          # Decompression of .gz/.zst/.lz4 files and archives (no Widgets)
 ├── crash_handler/        # Crash handling and issue reporting
 ├── filewatch/            # File system watching
 ├── logdata/              # Core log data model

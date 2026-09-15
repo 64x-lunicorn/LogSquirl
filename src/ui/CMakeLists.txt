@@ -62,10 +62,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/decompressor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/zstddevice.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/lz4device.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fontutils.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/colorlabelsmanager.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighteredit.ui
@@ -127,10 +124,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/iconloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/decompressor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linessaver.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/zstddevice.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/lz4device.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/colorlabelsmanager.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/commandpalette.cpp
 )
@@ -158,9 +152,7 @@ target_link_libraries(
          logsquirl_versioncheck
          logsquirl_plugins
          logsquirl_highlighting
-         logsquirl_karchive
-         logsquirl_zstd
-         logsquirl_lz4
+         logsquirl_compression
          Qt6::Widgets
          Qt6::Xml
          Qt6::Concurrent
