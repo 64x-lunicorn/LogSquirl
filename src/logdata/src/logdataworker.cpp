@@ -979,6 +979,15 @@ OperationResult FullIndexOperation::run()
                 = IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize();
             doIndex( OffsetInFile( resumeOffset ) );
         }
+        else if ( cached && interruptRequest_ ) {
+            // Checking the cached Index was interrupted, which is not a sign
+            // it cannot be gone on from: stop, rather than throw away what
+            // there is and start indexing the whole Log File over.
+            LOG_INFO << "FullIndexOperation: interrupted while checking the cached index of "
+                     << fileName_;
+            Q_EMIT indexingFinished( false );
+            return false;
+        }
         else {
             Q_EMIT indexingProgressed( 0 );
             {

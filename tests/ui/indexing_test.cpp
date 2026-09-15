@@ -439,6 +439,53 @@ SCENARIO( "Reopening a grown Log File indexes only what was added to it", "[inde
     }
 }
 
+SCENARIO( "An interrupt while a cached Index is checked stops indexing", "[indexing][resume]" )
+{
+    QTemporaryDir cacheDir;
+    QTemporaryDir logDir;
+    REQUIRE( cacheDir.isValid() );
+    REQUIRE( logDir.isValid() );
+
+    auto policy = testSettingsPolicies().indexing;
+    policy.useIndexCache = true;
+    policy.indexCacheDirectory = cacheDir.path();
+    // Going on from the cached Index first reads the bytes before the last
+    // cached Log Line again, to build their digest.
+    policy.fastModificationDetection = false;
+
+    const auto logFile = logDir.filePath( "grown.log" );
+
+    GIVEN( "a cached Index of a Log File that has grown since" )
+    {
+        writeContent( logFile, linesOf( 0, 20 ) );
+        runFullIndex( logFile, policy );
+        appendContent( logFile, linesOf( 20, 20 ) );
+
+        WHEN( "it is reopened by a run interrupted before it starts" )
+        {
+            auto data = std::make_shared<IndexingData>();
+            AtomicFlag interruptRequest{ true };
+            FullIndexOperation operation{ logFile, data, interruptRequest, policy };
+
+            std::vector<int> progress;
+            QObject::connect( &operation, &IndexOperation::indexingProgressed,
+                              [ &progress ]( int percent ) { progress.push_back( percent ); } );
+            const auto result = operation.run();
+
+            THEN( "it reports not having finished" )
+            {
+                REQUIRE_FALSE( std::get<bool>( result ) );
+            }
+
+            THEN( "it stops there: no indexing of the whole Log File is started" )
+            {
+                REQUIRE( progress.empty() );
+                REQUIRE( operation.bytesIndexed() == 0 );
+            }
+        }
+    }
+}
+
 SCENARIO( "An indexing pass completes even when TBB has no worker thread to spare", "[indexing]" )
 {
     GIVEN( "a file spanning several indexing blocks and a Policy with a one-block read buffer" )
