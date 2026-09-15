@@ -19,12 +19,16 @@
 
 #include <catch2/catch.hpp>
 
-#include "logformatmatcher.h"
+#include "fake_log_data.h"
+#include "formatrecognition.h"
+#include "logformatcatalog.h"
 #include "logformatparser.h"
-#include "logformatregistry.h"
 
 #include <QDir>
 #include <QTemporaryDir>
+
+constexpr RecognitionPolicy Enabled{ .enabled = true };
+constexpr RecognitionPolicy Disabled{ .enabled = false };
 
 // Syslog format
 static const char* SyslogJson = R"({
@@ -86,23 +90,21 @@ static const char* GenericJson = R"({
     }
 })";
 
-SCENARIO( "LogFormatMatcher detects syslog format", "[logformat][matcher]" )
+SCENARIO( "Format Recognition recognizes syslog format", "[logformat][recognition]" )
 {
-    GIVEN( "A registry with syslog and java log formats" )
+    GIVEN( "A Catalog with syslog and java log formats" )
     {
-        LogFormatRegistry registry;
+        LogFormatCatalog catalog;
 
         auto syslogFormats = LogFormatParser::parseJsonString( SyslogJson );
         for ( auto& f : syslogFormats ) {
-            registry.addFormat( std::move( f ) );
+            catalog.addFormat( std::move( f ) );
         }
 
         auto javaFormats = LogFormatParser::parseJsonString( JavaLogJson );
         for ( auto& f : javaFormats ) {
-            registry.addFormat( std::move( f ) );
+            catalog.addFormat( std::move( f ) );
         }
-
-        LogFormatMatcher matcher( registry );
 
         WHEN( "Given syslog lines" )
         {
@@ -112,7 +114,7 @@ SCENARIO( "LogFormatMatcher detects syslog format", "[logformat][matcher]" )
                 "Jun 15 10:21:06 myhost cron[99]: (root) CMD (/usr/bin/some_job)",
             };
 
-            auto result = matcher.detectFormat( lines );
+            auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
             THEN( "Syslog format is detected" )
             {
@@ -129,7 +131,7 @@ SCENARIO( "LogFormatMatcher detects syslog format", "[logformat][matcher]" )
                 "2024-01-15 12:30:45.789 INFO [worker-1] com.example.Worker - Processing task",
             };
 
-            auto result = matcher.detectFormat( lines );
+            auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
             THEN( "Java log format is detected" )
             {
@@ -146,7 +148,7 @@ SCENARIO( "LogFormatMatcher detects syslog format", "[logformat][matcher]" )
                 "1234567890",
             };
 
-            auto result = matcher.detectFormat( lines );
+            auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
             THEN( "No format is detected" )
             {
@@ -156,23 +158,21 @@ SCENARIO( "LogFormatMatcher detects syslog format", "[logformat][matcher]" )
     }
 }
 
-SCENARIO( "LogFormatMatcher prefers more specific format", "[logformat][matcher]" )
+SCENARIO( "Format Recognition prefers more specific format", "[logformat][recognition]" )
 {
-    GIVEN( "A registry with a specific and a generic format" )
+    GIVEN( "A Catalog with a specific and a generic format" )
     {
-        LogFormatRegistry registry;
+        LogFormatCatalog catalog;
 
         auto syslogFormats = LogFormatParser::parseJsonString( SyslogJson );
         for ( auto& f : syslogFormats ) {
-            registry.addFormat( std::move( f ) );
+            catalog.addFormat( std::move( f ) );
         }
 
         auto genericFormats = LogFormatParser::parseJsonString( GenericJson );
         for ( auto& f : genericFormats ) {
-            registry.addFormat( std::move( f ) );
+            catalog.addFormat( std::move( f ) );
         }
-
-        LogFormatMatcher matcher( registry );
 
         WHEN( "Given syslog lines (match both formats)" )
         {
@@ -181,7 +181,7 @@ SCENARIO( "LogFormatMatcher prefers more specific format", "[logformat][matcher]
                 "Jun 15 10:21:05 myhost sshd[12345]: pam_unix(sshd:session): session opened",
             };
 
-            auto result = matcher.detectFormat( lines );
+            auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
             THEN( "The more specific format (syslog) wins over generic" )
             {
@@ -192,18 +192,16 @@ SCENARIO( "LogFormatMatcher prefers more specific format", "[logformat][matcher]
     }
 }
 
-SCENARIO( "LogFormatMatcher requires minimum match threshold", "[logformat][matcher]" )
+SCENARIO( "Format Recognition requires minimum match threshold", "[logformat][recognition]" )
 {
-    GIVEN( "A registry with a format" )
+    GIVEN( "A Catalog with a format" )
     {
-        LogFormatRegistry registry;
+        LogFormatCatalog catalog;
 
         auto syslogFormats = LogFormatParser::parseJsonString( SyslogJson );
         for ( auto& f : syslogFormats ) {
-            registry.addFormat( std::move( f ) );
+            catalog.addFormat( std::move( f ) );
         }
-
-        LogFormatMatcher matcher( registry );
 
         WHEN( "Only 1 out of 10 lines match" )
         {
@@ -213,7 +211,7 @@ SCENARIO( "LogFormatMatcher requires minimum match threshold", "[logformat][matc
                 lines << "random garbage line";
             }
 
-            auto result = matcher.detectFormat( lines );
+            auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
             THEN( "No format is detected (below threshold)" )
             {
@@ -232,7 +230,7 @@ SCENARIO( "LogFormatMatcher requires minimum match threshold", "[logformat][matc
             lines << "some non-matching continuation line";
             lines << "another continuation";
 
-            auto result = matcher.detectFormat( lines );
+            auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
             THEN( "Format is detected (above threshold)" )
             {
@@ -243,21 +241,19 @@ SCENARIO( "LogFormatMatcher requires minimum match threshold", "[logformat][matc
     }
 }
 
-SCENARIO( "LogFormatMatcher handles empty input", "[logformat][matcher]" )
+SCENARIO( "Format Recognition handles empty input", "[logformat][recognition]" )
 {
-    GIVEN( "A registry with formats" )
+    GIVEN( "A Catalog with formats" )
     {
-        LogFormatRegistry registry;
+        LogFormatCatalog catalog;
         auto formats = LogFormatParser::parseJsonString( SyslogJson );
         for ( auto& f : formats ) {
-            registry.addFormat( std::move( f ) );
+            catalog.addFormat( std::move( f ) );
         }
-
-        LogFormatMatcher matcher( registry );
 
         WHEN( "Given an empty line list" )
         {
-            auto result = matcher.detectFormat( QStringList{} );
+            auto result = FormatRecognition::recognize( QStringList{}, Enabled, catalog );
 
             THEN( "No format is detected" )
             {
@@ -267,21 +263,161 @@ SCENARIO( "LogFormatMatcher handles empty input", "[logformat][matcher]" )
     }
 }
 
-SCENARIO( "LogFormatMatcher handles empty registry", "[logformat][matcher]" )
+SCENARIO( "Format Recognition handles empty Catalog", "[logformat][recognition]" )
 {
-    GIVEN( "An empty registry" )
+    GIVEN( "An empty Catalog" )
     {
-        LogFormatRegistry registry;
-        LogFormatMatcher matcher( registry );
+        LogFormatCatalog catalog;
 
         WHEN( "Given lines" )
         {
             QStringList lines = { "Jun 15 10:21:04 myhost sshd[12345]: test" };
-            auto result = matcher.detectFormat( lines );
+            auto result = FormatRecognition::recognize( lines, Enabled, catalog );
 
             THEN( "No format is detected" )
             {
                 REQUIRE( result == nullptr );
+            }
+        }
+    }
+}
+
+namespace {
+
+// A Log File in memory that counts how many of its Log Lines are read.
+// FakeLogData serves every read, a range of Log Lines included, through
+// doGetLineString(), so counting there counts them all.
+class CountingLogData : public FakeLogData {
+public:
+    using FakeLogData::FakeLogData;
+
+    mutable int linesRead = 0;
+
+protected:
+    QString doGetLineString( LineNumber line ) const override
+    {
+        ++linesRead;
+        return FakeLogData::doGetLineString( line );
+    }
+};
+
+QStringList syslogLines( int count )
+{
+    QStringList lines;
+    for ( int i = 0; i < count; ++i ) {
+        lines << QString( "Jun 15 10:21:%1 myhost sshd[12345]: Line %2" )
+                     .arg( i % 60, 2, 10, QChar( '0' ) )
+                     .arg( i );
+    }
+    return lines;
+}
+
+LogFormatCatalog catalogOf( std::initializer_list<const char*> formatsJson )
+{
+    LogFormatCatalog catalog;
+    for ( const auto* json : formatsJson ) {
+        for ( auto& format : LogFormatParser::parseJsonString( json ) ) {
+            catalog.addFormat( std::move( format ) );
+        }
+    }
+    return catalog;
+}
+
+} // namespace
+
+SCENARIO( "Format Recognition answers with the Catalog's own Log Format",
+          "[logformat][recognition]" )
+{
+    GIVEN( "a Catalog with syslog and Java Log Formats and a Log File of syslog lines" )
+    {
+        const auto catalog = catalogOf( { SyslogJson, JavaLogJson } );
+        CountingLogData logFile{ syslogLines( 10 ) };
+
+        WHEN( "its Log Format is recognized under an enabled Recognition Policy" )
+        {
+            const auto recognized = FormatRecognition::recognize( logFile, Enabled, catalog );
+
+            THEN( "the answer is the very Log Format the Catalog holds, not a copy" )
+            {
+                REQUIRE( recognized != nullptr );
+                REQUIRE( recognized.get() == catalog.formatByName( "syslog_log" ).get() );
+            }
+        }
+
+        WHEN( "its Log Format is recognized under a disabled Recognition Policy" )
+        {
+            const auto recognized = FormatRecognition::recognize( logFile, Disabled, catalog );
+
+            THEN( "nothing is recognized" )
+            {
+                REQUIRE( recognized == nullptr );
+            }
+
+            THEN( "not a single Log Line was read to match against" )
+            {
+                REQUIRE( logFile.linesRead == 0 );
+            }
+        }
+
+        WHEN( "sample lines are recognized under a disabled Recognition Policy" )
+        {
+            const auto recognized
+                = FormatRecognition::recognize( syslogLines( 10 ), Disabled, catalog );
+
+            THEN( "nothing is recognized" )
+            {
+                REQUIRE( recognized == nullptr );
+            }
+        }
+    }
+
+    GIVEN( "a Log File whose Log Lines match no Log Format" )
+    {
+        const auto catalog = catalogOf( { SyslogJson } );
+        const FakeLogData logFile{ QStringList{ "just some random text", "1234567890" } };
+
+        THEN( "nothing is recognized" )
+        {
+            REQUIRE( FormatRecognition::recognize( logFile, Enabled, catalog ) == nullptr );
+        }
+    }
+
+    GIVEN( "an empty Log File" )
+    {
+        const auto catalog = catalogOf( { SyslogJson } );
+        const FakeLogData logFile;
+
+        THEN( "nothing is recognized" )
+        {
+            REQUIRE( FormatRecognition::recognize( logFile, Enabled, catalog ) == nullptr );
+        }
+    }
+}
+
+SCENARIO( "Format Recognition looks at the first 50 Log Lines only", "[logformat][recognition]" )
+{
+    GIVEN( "a Log File that is syslog for its first 50 Log Lines and something else after" )
+    {
+        const auto catalog = catalogOf( { SyslogJson } );
+
+        auto lines = syslogLines( 50 );
+        for ( int i = 0; i < 500; ++i ) {
+            lines << "random garbage line";
+        }
+        CountingLogData logFile{ lines };
+
+        WHEN( "its Log Format is recognized" )
+        {
+            const auto recognized = FormatRecognition::recognize( logFile, Enabled, catalog );
+
+            THEN( "the Log Lines past the sample depth do not count against the match" )
+            {
+                REQUIRE( recognized == catalog.formatByName( "syslog_log" ) );
+            }
+
+            THEN( "no more than the sample depth was read" )
+            {
+                REQUIRE( logFile.linesRead == 50 );
             }
         }
     }

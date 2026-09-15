@@ -69,7 +69,7 @@ private:
     QVector<QString> extractRow( const QString& line ) const;
 
     LogFormatDefinition format_;
-    mutable LogFieldExtractor extractor_;
+    LogFieldExtractor extractor_;
     QStringList columnNames_;
     AbstractLogData* logData_;
     int lineCount_ = 0;

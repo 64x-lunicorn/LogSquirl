@@ -102,18 +102,28 @@ struct FileAccessPolicy {
     bool operator==( const FileAccessPolicy& ) const = default;
 };
 
-// The four Policies as one bundle, so the place that builds the
-// application's long-lived objects derives and carries them together.
+// What Format Recognition needs, and nothing else. Whether a recognized
+// Log Format is shown as a Table View straight away is a Presentation
+// choice, not part of it.
+struct RecognitionPolicy {
+    bool enabled{};
+
+    bool operator==( const RecognitionPolicy& ) const = default;
+};
+
+// The Policies as one bundle, so the place that builds the application's
+// long-lived objects derives and carries them together.
 struct SettingsPolicies {
     IndexingPolicy indexing;
     SearchPolicy search;
     WatchPolicy watch;
     FileAccessPolicy fileAccess;
+    RecognitionPolicy recognition;
 
     bool operator==( const SettingsPolicies& ) const = default;
 };
 
-// Derives all four Policies from a Configuration. Called once, where the
+// Derives all the Policies from a Configuration. Called once, where the
 // application's long-lived objects are built -- not wherever a setting
 // happens to be needed.
 SettingsPolicies deriveSettingsPolicies( const Configuration& config );

@@ -19,9 +19,8 @@
 
 #include "logfieldextractor.h"
 
-LogFieldExtractor::LogFieldExtractor( const LogFormatDefinition& format, int cacheCapacity )
+LogFieldExtractor::LogFieldExtractor( const LogFormatDefinition& format )
     : format_( format )
-    , cacheCapacity_( cacheCapacity )
 {
     // Pre-compile all regex patterns from the format definition
     const auto& patterns = format_.regexPatterns();
@@ -32,38 +31,6 @@ LogFieldExtractor::LogFieldExtractor( const LogFormatDefinition& format, int cac
             compiledPatterns_.append( std::move( re ) );
         }
     }
-}
-
-ExtractedFields LogFieldExtractor::extractFields( const QString& line, int64_t lineNumber )
-{
-    // If lineNumber is valid, check the LRU cache
-    if ( lineNumber >= 0 ) {
-        auto cacheIt = cacheMap_.find( lineNumber );
-        if ( cacheIt != cacheMap_.end() ) {
-            // Move to front of LRU list (most recently used)
-            cacheList_.splice( cacheList_.begin(), cacheList_, cacheIt->second );
-            return cacheIt->second->second;
-        }
-    }
-
-    // Not in cache — perform extraction
-    auto result = doExtract( line );
-
-    // Store in cache if lineNumber is valid
-    if ( lineNumber >= 0 ) {
-        // Evict oldest if cache is full
-        if ( static_cast<int>( cacheMap_.size() ) >= cacheCapacity_ ) {
-            auto oldest = cacheList_.back().first;
-            cacheMap_.erase( oldest );
-            cacheList_.pop_back();
-        }
-
-        // Insert at front
-        cacheList_.emplace_front( lineNumber, result );
-        cacheMap_[ lineNumber ] = cacheList_.begin();
-    }
-
-    return result;
 }
 
 QStringList LogFieldExtractor::columnNames() const
@@ -154,13 +121,7 @@ QStringList LogFieldExtractor::columnNames() const
     return columns;
 }
 
-void LogFieldExtractor::invalidateCache()
-{
-    cacheList_.clear();
-    cacheMap_.clear();
-}
-
-ExtractedFields LogFieldExtractor::doExtract( const QString& line ) const
+ExtractedFields LogFieldExtractor::extractFields( const QString& line ) const
 {
     ExtractedFields result;
 

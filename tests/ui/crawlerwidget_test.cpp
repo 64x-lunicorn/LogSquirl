@@ -28,6 +28,7 @@
 #include <qnamespace.h>
 #include <qtestmouse.h>
 
+#include "logformatcatalog.h"
 #include "savedsearches.h"
 #include "session.h"
 #include "test_policies.h"
@@ -181,7 +182,7 @@ SCENARIO( "Crawler widget search", "[ui]" )
     QTemporaryFile file{ "crawler_test_XXXXXX" };
     REQUIRE( generateDataFiles( file ) );
 
-    Session session{ testSettingsPolicies() };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     session.savedSearches().clear();
 
     REQUIRE( session.savedSearches().recentSearches().empty() );
@@ -297,7 +298,7 @@ SCENARIO( "Selecting a Match in the Filtered View moves the main view only when 
     QTemporaryFile file{ "crawler_test_XXXXXX" };
     REQUIRE( generateDataFiles( file ) );
 
-    Session session{ testSettingsPolicies() };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     session.savedSearches().clear();
 
     CrawlerWidgetVisitor crawlerVisitor;

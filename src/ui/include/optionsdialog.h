@@ -50,6 +50,8 @@
 
 #include "ui_optionsdialog.h"
 
+class LogFormatCatalog;
+
 class KeySequencePresenter : public QWidget {
     Q_OBJECT
 public:
@@ -72,7 +74,8 @@ class OptionsDialog : public QDialog, public Ui::OptionsDialog {
     Q_OBJECT
 
 public:
-    explicit OptionsDialog( QWidget* parent = nullptr );
+    // The Log Formats tab lists the application's Log Format Catalog.
+    explicit OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget* parent = nullptr );
 
 Q_SIGNALS:
     // Is emitted when new settings must be used
@@ -105,7 +108,7 @@ private:
     void setupStyles();
     void setupEncodings();
     void setupLanguageList();
-    void setupLogFormats();
+    void setupLogFormats( const LogFormatCatalog& logFormatCatalog );
 
     int updateTranslate();
 

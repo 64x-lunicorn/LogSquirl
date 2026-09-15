@@ -95,6 +95,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
         const IndexingPolicy indexing{};
         const WatchPolicy watch{};
         const FileAccessPolicy fileAccess{};
+        const RecognitionPolicy recognition{};
 
         THEN( "every field is value-initialised" )
         {
@@ -115,6 +116,8 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
 
             REQUIRE( fileAccess.defaultEncodingMib == 0 );
             REQUIRE_FALSE( fileAccess.extractArchives );
+
+            REQUIRE_FALSE( recognition.enabled );
         }
     }
 }
@@ -147,6 +150,9 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         config.setDefaultEncodingMib( 106 );
         config.setExtractArchives( false );
         config.setExtractArchivesAlways( true );
+
+        // Shipped disabled, so enabling it is the distinctive value.
+        config.setAutoDetectLogFormats( true );
 
         WHEN( "the Policies are derived from it" )
         {
@@ -187,6 +193,33 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.fileAccess.defaultEncodingMib == 106 );
                 REQUIRE_FALSE( policies.fileAccess.extractArchives );
                 REQUIRE( policies.fileAccess.extractArchivesAlways );
+            }
+
+            THEN( "the Recognition Policy carries whether Format Recognition is enabled" )
+            {
+                REQUIRE( policies.recognition.enabled );
+            }
+        }
+
+        WHEN( "Format Recognition is disabled and the Policies are derived again" )
+        {
+            config.setAutoDetectLogFormats( false );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the Recognition Policy says so" )
+            {
+                REQUIRE_FALSE( policies.recognition.enabled );
+            }
+
+            THEN( "only the Recognition axis differs from the enabled derivation" )
+            {
+                config.setAutoDetectLogFormats( true );
+                const auto enabled = deriveSettingsPolicies( config );
+                REQUIRE( policies.recognition != enabled.recognition );
+                REQUIRE( policies.indexing == enabled.indexing );
+                REQUIRE( policies.search == enabled.search );
+                REQUIRE( policies.watch == enabled.watch );
+                REQUIRE( policies.fileAccess == enabled.fileAccess );
             }
         }
     }

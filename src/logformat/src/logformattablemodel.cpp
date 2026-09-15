@@ -148,7 +148,7 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
 
 QVector<QString> LogFormatTableModel::extractRow( const QString& line ) const
 {
-    auto fields = extractor_.extractFields( line, -1 );
+    auto fields = extractor_.extractFields( line );
 
     QVector<QString> row( columnNames_.size() );
 

@@ -81,11 +81,11 @@
 #include "configuration.h"
 #include "dispatch_to.h"
 #include "fontutils.h"
+#include "formatrecognition.h"
 #include "highlightersmenu.h"
 #include "infoline.h"
+#include "logformatcatalog.h"
 #include "logformatdefinition.h"
-#include "logformatmatcher.h"
-#include "logformatregistry.h"
 #include "logtableview.h"
 #include "overviewwidget.h"
 #include "quickfindpattern.h"
@@ -304,6 +304,10 @@ void CrawlerWidget::reload()
     filteredView_->updateData();
     printSearchInfoMessage();
 
+    // A manual reload recognizes the Log Format again, so an edited user
+    // Log Format is picked up by reloading.
+    formatRecognitionPending_ = true;
+
     logData_->reload();
 
     // A reload is considered as a first load,
@@ -355,6 +359,18 @@ void CrawlerWidget::doSetData( std::shared_ptr<LogData> logData,
 void CrawlerWidget::doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp )
 {
     quickFindPattern_ = std::move( qfp );
+}
+
+void CrawlerWidget::doSetFormatRecognition( const RecognitionPolicy& policy,
+                                            std::shared_ptr<const LogFormatCatalog> catalog )
+{
+    recognitionPolicy_ = policy;
+    logFormatCatalog_ = std::move( catalog );
+}
+
+void CrawlerWidget::doSetRecognitionPolicy( const RecognitionPolicy& policy )
+{
+    recognitionPolicy_ = policy;
 }
 
 void CrawlerWidget::doSetSavedSearches( SavedSearches* saved_searches )
@@ -849,9 +865,12 @@ void CrawlerWidget::loadingFinishedHandler( LoadingStatus status )
 
     loadingInProgress_ = false;
 
-    // Try auto-detecting log format after first load
-    if ( !detectedFormat_ ) {
-        tryAutoDetectFormat();
+    // Recognize the Log Format after the first load, a manual reload or a
+    // truncation. A Log File with no Log Lines yet has nothing to recognize
+    // from, so it waits for a load that brings some.
+    if ( formatRecognitionPending_ && logData_->getNbLine().get() > 0 ) {
+        formatRecognitionPending_ = false;
+        recognizeFormat();
     }
     else if ( isTableViewActive() ) {
         // File was updated — refresh table model contents
@@ -877,8 +896,10 @@ void CrawlerWidget::fileChangedHandler( MonitoredFileStatus status )
             nbMatches_ = 0_lcount;
         }
 
-        // Forget the Log Format so it is detected again after reload
+        // Forget the Log Format so it is recognized again once the
+        // truncated Log File has loaded
         resetLogFormat();
+        formatRecognitionPending_ = true;
     }
 }
 
@@ -2283,55 +2304,56 @@ bool CrawlerWidget::isTableViewActive() const
     return mainViewStack_ && mainViewStack_->currentWidget() == logTableView_;
 }
 
-// Try auto-detecting a log format from the first lines of the file.
-// Called after loading finishes, only if the config setting is enabled.
-void CrawlerWidget::tryAutoDetectFormat()
+// Decide which Log Format applies to the Log File. Called from the
+// load-finished path only, once per first load, manual reload or truncation.
+void CrawlerWidget::recognizeFormat()
 {
-    const auto& config = Configuration::get();
-    if ( !config.autoDetectLogFormats() ) {
+    if ( !logData_ || !logFormatCatalog_ ) {
         return;
     }
 
-    if ( !logData_ || logData_->getNbLine().get() == 0 ) {
-        return;
-    }
+    ++formatRecognitionCount_;
+    auto recognized
+        = FormatRecognition::recognize( *logData_, recognitionPolicy_, *logFormatCatalog_ );
 
-    // Sample the first 50 lines for detection
-    const auto totalLines = logData_->getNbLine().get();
-    const int sampleCount = static_cast<int>( std::min( totalLines, uint64_t{ 50 } ) );
-    QStringList sampleLines;
-    sampleLines.reserve( sampleCount );
-    for ( int i = 0; i < sampleCount; ++i ) {
-        sampleLines << logData_->getLineString( LineNumber( static_cast<uint64_t>( i ) ) );
-    }
-
-    // Load built-in formats, then user formats (user overrides built-in)
-    LogFormatRegistry registry;
-    registry.loadBuiltinFormats();
-    registry.loadUserFormats();
-
-    LogFormatMatcher matcher( registry );
-    const auto* match = matcher.detectFormat( sampleLines );
-
-    if ( match ) {
-        LOG_INFO << "Auto-detected log format: " << match->name().toStdString();
-        detectedFormat_ = std::make_unique<LogFormatDefinition>( *match );
-        logTableView_->setLogFormat( detectedFormat_.get(), logData_.get() );
-        tableViewToggle_->setVisible( true );
-        tableViewToggle_->setToolTip(
-            tr( "Toggle table/text view (%1)" ).arg( detectedFormat_->title() ) );
-
-        // Provide format info to the chart panel for template series.
-        chartPanel_->setLogFormat( detectedFormat_.get() );
-
-        // Automatically activate table view if the user opted in
-        if ( config.autoShowTableView() && !tableViewToggle_->isChecked() ) {
-            tableViewToggle_->setChecked( true );
+    if ( !recognized ) {
+        if ( detectedFormat_ ) {
+            resetLogFormat();
         }
+        return;
+    }
+
+    if ( recognized == detectedFormat_ ) {
+        // Still the very same Log Format: nothing to switch, only the Table
+        // View to bring up to date with what was loaded.
+        if ( isTableViewActive() ) {
+            logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
+        }
+        return;
+    }
+
+    LOG_INFO << "Recognized log format: " << recognized->name().toStdString();
+    detectedFormat_ = std::move( recognized );
+    logTableView_->setLogFormat( detectedFormat_.get(), logData_.get() );
+    tableViewToggle_->setVisible( true );
+    tableViewToggle_->setToolTip(
+        tr( "Toggle table/text view (%1)" ).arg( detectedFormat_->title() ) );
+
+    // Provide format info to the chart panel for template series.
+    chartPanel_->setLogFormat( detectedFormat_.get() );
+
+    if ( isTableViewActive() ) {
+        // A reload recognized a different Log Format while the Table View
+        // was shown: it stays shown, with the new columns.
+        logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
+    }
+    else if ( Configuration::get().autoShowTableView() && !tableViewToggle_->isChecked() ) {
+        // Automatically activate table view if the user opted in
+        tableViewToggle_->setChecked( true );
     }
 }
 
-// Forget the detected Log Format so it can be re-detected from scratch.
+// Forget the recognized Log Format, back in the text view.
 void CrawlerWidget::resetLogFormat()
 {
     logTableView_->setLogFormat( nullptr, nullptr );

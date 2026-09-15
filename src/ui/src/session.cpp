@@ -26,12 +26,15 @@
 
 #include "logdata.h"
 #include "logfiltereddata.h"
+#include "logformatcatalog.h"
 #include "savedsearches.h"
 #include "sessioninfo.h"
 #include "viewinterface.h"
 
-Session::Session( const SettingsPolicies& policies )
+Session::Session( const SettingsPolicies& policies,
+                  std::shared_ptr<LogFormatCatalog> logFormatCatalog )
     : policies_( policies )
+    , logFormatCatalog_( std::move( logFormatCatalog ) )
 {
     // Get the global search history (it remains the property
     // of the Persistent)
@@ -115,6 +118,7 @@ ViewInterface* Session::openAlways( const QString& file_name,
     ViewInterface* view = view_factory();
     view->setData( log_data, log_filtered_data );
     view->setQuickFindPattern( quickFindPattern_ );
+    view->setFormatRecognition( policies_.recognition, logFormatCatalog_ );
     view->setSavedSearches( savedSearches_ );
 
     if ( !view_context.isEmpty() )
@@ -157,18 +161,31 @@ void Session::applyPolicies( const SettingsPolicies& policies )
 {
     const auto indexingChanged = policies.indexing != policies_.indexing;
     const auto searchChanged = policies.search != policies_.search;
+    const auto recognitionChanged = policies.recognition != policies_.recognition;
+
+    // Every time, changed Policies or not: the user's Log Formats are read
+    // again. Log Formats handed out before stay valid for whoever holds them.
+    if ( logFormatCatalog_ ) {
+        logFormatCatalog_->rebuild();
+    }
 
     // Stored whether or not anything is open: the File Access Policy in
     // particular reaches a Log File only when one is built, so this is the
     // only thing a change to it can do.
     policies_ = policies;
 
-    if ( !indexingChanged && !searchChanged ) {
+    if ( !indexingChanged && !searchChanged && !recognitionChanged ) {
         return;
     }
 
     for ( auto& [ view, openFile ] : openFiles_ ) {
         Q_UNUSED( view );
+
+        if ( recognitionChanged ) {
+            // Takes effect at the view's next Format Recognition; an open
+            // Table View is not torn down.
+            openFile.view->setRecognitionPolicy( policies_.recognition );
+        }
 
         if ( indexingChanged ) {
             openFile.logData->setIndexingPolicy( policies_.indexing );

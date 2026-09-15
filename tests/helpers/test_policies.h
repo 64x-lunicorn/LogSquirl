@@ -63,6 +63,8 @@ inline SettingsPolicies testSettingsPolicies()
                         .defaultEncodingMib = -1,
                         .extractArchives = true,
                         .extractArchivesAlways = false },
+
+        .recognition = { .enabled = false },
     };
 }
 
