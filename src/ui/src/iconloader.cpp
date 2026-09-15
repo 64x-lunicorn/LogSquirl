@@ -11,6 +11,7 @@
     COPYING included with this distribution for more information.
 */
 
+#include <QAbstractButton>
 #include <QFile>
 #include <QPainter>
 #include <QPixmap>
@@ -22,6 +23,16 @@
 #include <array>
 
 constexpr std::array<int, 8> IconSizes{ 0, 16 };
+
+void loadListEditIcons( QAbstractButton* add, QAbstractButton* remove, QAbstractButton* up,
+                        QAbstractButton* down )
+{
+    IconLoader iconLoader;
+    add->setIcon( iconLoader.load( "icons8-plus-16" ) );
+    remove->setIcon( iconLoader.load( "icons8-minus-16" ) );
+    up->setIcon( iconLoader.load( "icons8-up-16" ) );
+    down->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
+}
 
 QIcon IconLoader::load( QString name )
 {

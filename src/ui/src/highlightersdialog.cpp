@@ -181,12 +181,8 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
 
 void HighlightersDialog::loadIcons()
 {
-    IconLoader iconLoader;
-
-    addHighlighterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-    removeHighlighterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-    upHighlighterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-    downHighlighterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
+    loadListEditIcons( addHighlighterButton, removeHighlighterButton, upHighlighterButton,
+                       downHighlighterButton );
 }
 
 //

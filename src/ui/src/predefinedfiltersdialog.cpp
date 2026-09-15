@@ -97,11 +97,7 @@ PredefinedFiltersDialog::PredefinedFiltersDialog( QWidget* parent )
 
 void PredefinedFiltersDialog::loadIcons()
 {
-    IconLoader iconLoader;
-    addSetButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-    removeSetButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-    upSetButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-    downSetButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
+    loadListEditIcons( addSetButton, removeSetButton, upSetButton, downSetButton );
 }
 
 PredefinedFiltersDialog::PredefinedFiltersDialog( const QString& newFilter, QWidget* parent )

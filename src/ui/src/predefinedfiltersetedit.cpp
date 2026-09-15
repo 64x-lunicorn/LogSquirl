@@ -87,11 +87,7 @@ PredefinedFilterSetEdit::PredefinedFilterSetEdit( QWidget* parent )
 
 void PredefinedFilterSetEdit::loadIcons()
 {
-    IconLoader iconLoader;
-    addFilterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-    removeFilterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-    upFilterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-    downFilterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
+    loadListEditIcons( addFilterButton, removeFilterButton, upFilterButton, downFilterButton );
 }
 
 void PredefinedFilterSetEdit::reset()
