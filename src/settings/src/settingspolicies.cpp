@@ -47,5 +47,7 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                         .defaultEncodingMib = config.defaultEncodingMib(),
                         .extractArchives = config.extractArchives(),
                         .extractArchivesAlways = config.extractArchivesAlways() },
+
+        .recognition = { .enabled = config.autoDetectLogFormats() },
     };
 }
