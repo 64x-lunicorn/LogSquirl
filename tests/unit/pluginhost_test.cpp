@@ -56,10 +56,10 @@ struct PortCall {
     };
 
     Kind kind = Kind::AddStatusWidget;
-    QString pluginId;
-    QString menuPath;
-    QString label;
-    PluginWidgetHandle widget;
+    QString pluginId{};
+    QString menuPath{};
+    QString label{};
+    PluginWidgetHandle widget{};
     PluginCallbackFn callback = nullptr;
     void* userData = nullptr;
 };
