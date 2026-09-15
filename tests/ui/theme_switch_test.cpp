@@ -30,6 +30,8 @@
 #include "predefinedfilterscombobox.h"
 #include "predefinedfiltersdialog.h"
 #include "predefinedfiltersetedit.h"
+#include "recentfiles.h"
+#include "savedsearches.h"
 #include "session.h"
 #include "tabbarstyle.h"
 #include "tabbedcrawlerwidget.h"
@@ -601,6 +603,10 @@ SCENARIO( "Widgets that adjust a palette role follow a Theme switch", "[ui][them
 
 SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart", "[ui][theme]" )
 {
+    // The dialog reads and writes these. Synced here, so the scenario does
+    // not depend on another test having synced them first.
+    SavedSearches::getSynced();
+    RecentFiles::getSynced();
     auto& config = Configuration::get();
     const auto storedStyle = config.style();
     const auto storedLanguage = config.language();
