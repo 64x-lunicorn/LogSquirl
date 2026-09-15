@@ -191,26 +191,24 @@ void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength m
     progress_ = 100;
 }
 
-void IndexingData::resumeFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                                    qint64 resumeOffset, FileDigest&& digestBeforeResumeOffset,
-                                    QTextCodec* encoding, bool fastModificationDetection )
+void IndexingData::resumeFromCache( ResumedIndex&& resumed )
 {
-    useFastModificationDetection_ = fastModificationDetection;
+    useFastModificationDetection_ = resumed.fastModificationDetection;
 
-    linePosition_ = std::move( linePosition );
+    linePosition_ = std::move( resumed.linePosition );
     // The dropped last Log Line cannot have been longer than it is once it
     // is indexed again, so the longest line so far stays a lower bound.
-    maxLength_ = maxLength;
+    maxLength_ = resumed.maxLength;
 
     // The header and tail digests are taken again once indexing is done.
     hash_ = {};
-    hash_.size = resumeOffset;
-    hashBuilder_ = std::move( digestBeforeResumeOffset );
+    hash_.size = resumed.offset.get();
+    hashBuilder_ = std::move( resumed.digestBeforeOffset );
     if ( !useFastModificationDetection_ ) {
         hash_.fullDigest = hashBuilder_.digest();
     }
 
-    encodingGuess_ = encoding;
+    encodingGuess_ = resumed.encoding;
     encodingForced_ = nullptr;
 }
 
@@ -842,9 +840,9 @@ QTextCodec* detectedEncodingOf( const QString& fileName, qint64 fileSize )
     return EncodingDetector::getInstance().detectEncoding( block );
 }
 
-// The digest of the Log File's first `size` bytes, as indexing them would
+// The digest of the Log File's bytes before `end`, as indexing them would
 // have built it. Nothing when reading fails or the run is interrupted.
-std::optional<FileDigest> digestOfPrefix( const QString& fileName, qint64 size,
+std::optional<FileDigest> digestOfPrefix( const QString& fileName, OffsetInFile end,
                                           const AtomicFlag& interruptRequest )
 {
     QFile file( fileName );
@@ -853,7 +851,7 @@ std::optional<FileDigest> digestOfPrefix( const QString& fileName, qint64 size,
     }
     FileDigest digest;
     QByteArray buffer( IndexingBlockSize, Qt::Uninitialized );
-    for ( auto remaining = size; remaining > 0; ) {
+    for ( auto remaining = end.get(); remaining > 0; ) {
         if ( interruptRequest ) {
             return std::nullopt;
         }
@@ -898,8 +896,8 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
 
     // The last cached Log Line may have had no newline yet, and continued
     // since: indexing goes on from where it starts.
-    const qint64 resumeOffset = lines > 1 ? linePosition.at( lines - 2 ).get() : 0;
-    if ( resumeOffset > cached.hash.size ) {
+    const auto resumeOffset = lines > 1 ? linePosition.at( lines - 2 ) : 0_offset;
+    if ( resumeOffset.get() > cached.hash.size ) {
         return false;
     }
 
@@ -912,16 +910,20 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
         digestBeforeResumeOffset = std::move( *digest );
     }
 
-    LOG_INFO << "Resuming cached index for " << fileName_ << " at " << resumeOffset << " of "
+    LOG_INFO << "Resuming cached index for " << fileName_ << " at " << resumeOffset.get() << " of "
              << fileSize << " bytes";
 
     linePosition.pop_back();
-    const auto progress = calculateProgress( resumeOffset, fileSize );
+    const auto progress = calculateProgress( resumeOffset.get(), fileSize );
     {
         IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-        scopedAccessor.resumeFromCache( std::move( linePosition ), cached.maxLength, resumeOffset,
-                                        std::move( digestBeforeResumeOffset ), codec,
-                                        indexingPolicy_.fastModificationDetection );
+        scopedAccessor.resumeFromCache( ResumedIndex{
+            .linePosition = std::move( linePosition ),
+            .maxLength = cached.maxLength,
+            .offset = resumeOffset,
+            .digestBeforeOffset = std::move( digestBeforeResumeOffset ),
+            .encoding = codec,
+            .fastModificationDetection = indexingPolicy_.fastModificationDetection } );
         scopedAccessor.forceEncoding( forcedEncoding_ );
         scopedAccessor.setProgress( progress );
     }
@@ -976,6 +978,15 @@ OperationResult FullIndexOperation::run()
             const auto resumeOffset
                 = IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize();
             doIndex( OffsetInFile( resumeOffset ) );
+        }
+        else if ( cached && interruptRequest_ ) {
+            // Checking the cached Index was interrupted, which is not a sign
+            // it cannot be gone on from: stop, rather than throw away what
+            // there is and start indexing the whole Log File over.
+            LOG_INFO << "FullIndexOperation: interrupted while checking the cached index of "
+                     << fileName_;
+            Q_EMIT indexingFinished( false );
+            return false;
         }
         else {
             Q_EMIT indexingProgressed( 0 );

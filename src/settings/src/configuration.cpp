@@ -162,7 +162,7 @@ struct Codec<Enum> {
     }
 };
 
-// Colours are stored as #AARRGGBB.
+// Colors are stored as #AARRGGBB.
 template <>
 struct Codec<QColor> {
     static QColor read( QSettings& settings, const SettingKey& key, const QColor& defaultValue )
@@ -326,7 +326,7 @@ private:
     static constexpr auto DefinitionsKey = "definitions";
 };
 
-// Overrides of Dark Tokens are stored as a group of colour names by Token
+// Overrides of Dark Tokens are stored as a group of color names by Token
 // name; exactly the stored entries are overrides (see Theme::fromName()).
 template <>
 struct Codec<DarkPalette> {

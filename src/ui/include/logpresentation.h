@@ -59,6 +59,10 @@ public:
     // Repaint after Marks, Matches, Highlighters or Color Labels changed.
     virtual void updateDecorations() = 0;
 
+    // Read the Log Lines shown again and repaint: their text changed while
+    // the Log File did not, as under a new Decoding Policy.
+    virtual void rereadLogLines() = 0;
+
     virtual void updateFont( const QFont& font ) = 0;
 
     // Save the selected Log Lines to filename, behind a progress dialog.

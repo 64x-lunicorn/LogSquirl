@@ -829,6 +829,24 @@ void CrawlerWidget::applyHighlighterSetChange()
     }
 }
 
+void CrawlerWidget::applyDecodingPolicyChange()
+{
+    LOG_DEBUG << "CrawlerWidget::applyDecodingPolicyChange";
+
+    // The views keep the Log Lines they read until told otherwise, and every
+    // Log Line may read differently now -- the Filtered Views of kept
+    // Searches included.
+    for ( auto* presentation : presentations() ) {
+        presentation->rereadLogLines();
+    }
+
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->forceRefresh();
+        }
+    }
+}
+
 void CrawlerWidget::enteringQuickFind()
 {
     LOG_DEBUG << "CrawlerWidget::enteringQuickFind";
@@ -1455,6 +1473,10 @@ void CrawlerWidget::setup()
     connect( logData_.get(), &LogData::loadingFinished, this,
              &CrawlerWidget::loadingFinishedHandler );
     connect( logData_.get(), &LogData::fileChanged, this, &CrawlerWidget::fileChangedHandler );
+    // From the Log File rather than from the Session, so a CrawlerWidget in
+    // a tab that is not current is reached too.
+    connect( logData_.get(), &LogData::decodingPolicyChanged, this,
+             &CrawlerWidget::applyDecodingPolicyChange );
 
     // Search auto-refresh
     connect( searchRefreshButton_, &QPushButton::toggled, this,

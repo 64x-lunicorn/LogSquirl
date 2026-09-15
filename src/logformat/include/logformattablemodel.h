@@ -57,6 +57,10 @@ public:
     // Notify the model that the Log File now has lineCount Log Lines.
     void setLineCount( int lineCount );
 
+    // Forget the Rows read so far, and tell the views every Row changed: the
+    // Log Lines read differently now, though there are as many of them.
+    void rereadRows();
+
     // Return the raw logData pointer so callers can detect stale references.
     const AbstractLogData* logDataPtr() const
     {

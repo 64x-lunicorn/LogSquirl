@@ -64,6 +64,7 @@ public:
     void showLogLinePortion( LineNumber line, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols ) override;
     void updateDecorations() override;
+    void rereadLogLines() override;
     void updateFont( const QFont& font ) override;
     void saveSelectedTo( const QString& filename ) override;
 

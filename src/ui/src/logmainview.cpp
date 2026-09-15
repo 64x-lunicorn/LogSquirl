@@ -98,6 +98,12 @@ void LogMainView::updateDecorations()
     forceRefresh();
 }
 
+void LogMainView::rereadLogLines()
+{
+    // Invalidates the Viewport's content, which is what holds the text.
+    forceRefresh();
+}
+
 void LogMainView::updateFont( const QFont& font )
 {
     AbstractLogView::updateFont( font );

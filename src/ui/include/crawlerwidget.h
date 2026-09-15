@@ -144,6 +144,10 @@ public Q_SLOTS:
     // read from the Configuration.
     void applyHighlighterSetChange();
 
+    // Makes every view of this Log File read the Log Lines it shows again,
+    // after the Log File's Decoding Policy was replaced.
+    void applyDecodingPolicyChange();
+
 public:
     template <class T>
     struct access_by;
