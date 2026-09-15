@@ -75,6 +75,22 @@ struct IndexedHash {
     quint64 tailDigest = 0;
 };
 
+// A cached Index that indexing goes on from, rather than starting over.
+struct ResumedIndex {
+    // The cached line positions, their last Log Line already dropped: it may
+    // have had no newline yet, and continued since.
+    LinePositionArray linePosition;
+    // The longest Log Line so far, a lower bound for the whole Log File.
+    LineLength maxLength;
+    // Where indexing goes on: where the dropped Log Line began.
+    OffsetInFile offset;
+    // The digest of the bytes before offset, needed only without fast
+    // modification detection.
+    FileDigest digestBeforeOffset;
+    QTextCodec* encoding = nullptr;
+    bool fastModificationDetection = true;
+};
+
 template <typename Data, typename LockGuard>
 class IndexingDataAccessor {
 public:
@@ -196,17 +212,10 @@ public:
                               fastModificationDetection );
     }
 
-    /// Start from a cached Index whose last Log Line has already been
-    /// dropped, so that indexing goes on from resumeOffset, where that line
-    /// began. digestBeforeResumeOffset is the digest of the bytes before it,
-    /// needed only without fast modification detection.
-    void resumeFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                          qint64 resumeOffset, FileDigest&& digestBeforeResumeOffset,
-                          QTextCodec* encoding, bool fastModificationDetection )
+    /// Start from a cached Index, so that indexing goes on from its offset.
+    void resumeFromCache( ResumedIndex&& resumed )
     {
-        data_->resumeFromCache( std::move( linePosition ), maxLength, resumeOffset,
-                                std::move( digestBeforeResumeOffset ), encoding,
-                                fastModificationDetection );
+        data_->resumeFromCache( std::move( resumed ) );
     }
 
     size_t allocatedSize() const
@@ -261,10 +270,8 @@ private:
                         const IndexedHash& hash, QTextCodec* encoding,
                         bool fastModificationDetection );
 
-    // Start from a cached Index, going on from resumeOffset.
-    void resumeFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                          qint64 resumeOffset, FileDigest&& digestBeforeResumeOffset,
-                          QTextCodec* encoding, bool fastModificationDetection );
+    // Start from a cached Index, going on from its offset.
+    void resumeFromCache( ResumedIndex&& resumed );
 
     /// Returns the compressed line position array, or nullptr if using fast (uncompressed) storage.
     const LinePositionArray* getCompressedLinePosition() const;
