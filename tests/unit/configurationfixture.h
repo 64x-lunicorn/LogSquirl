@@ -135,11 +135,18 @@ inline QStringList settingNames( const QVariantMap& values )
 
 // A fixed-pitch family the Options Dialog offers that does not resolve to
 // the same font as the default one, so a stored font is not the default.
-// The painting tests' own font is registered first: a host with a single
-// fixed-pitch font (the Linux CI containers) would otherwise offer none.
+// The tests' own fixed-pitch fonts are registered first: the Linux CI
+// containers have one fixed-pitch family and Windows' offscreen platform none,
+// so the default could otherwise be the only family on offer. With two
+// registered families, at least one differs from whatever the default resolves
+// to (data/painting/make_test_font.py generates both).
 inline QString nonDefaultFontFamily()
 {
     paintingtestfont::loadPaintingTestFont();
+    static const auto settingsFontId
+        = QFontDatabase::addApplicationFont( QStringLiteral( LOGSQUIRL_CONFIGURATION_TEST_DATA_DIR )
+                                             + QStringLiteral( "/logsquirl-settings-test.ttf" ) );
+    Q_UNUSED( settingsFontId );
     const auto defaultFamily = QFontInfo( Configuration{}.mainFont() ).family();
     for ( const auto& family : FontUtils::availableFonts() ) {
         const auto resolved = QFontInfo( QFont( family, 14 ) ).family();

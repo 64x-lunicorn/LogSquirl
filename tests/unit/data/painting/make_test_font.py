@@ -34,9 +34,16 @@ see it. The space is empty, and anything without a glyph gets a solid box.
 
 Run it again only to change the font; the output is byte-for-byte
 reproducible. Needs fontTools (pip install fonttools).
+
+The settings tests need a second fixed-pitch family that differs from the
+default one on every host, so the same glyphs are also written under
+another family name:
+
+    make_test_font.py "LogSquirl Settings Test" ../configuration/logsquirl-settings-test.ttf
 """
 
 import os
+import sys
 
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
@@ -91,6 +98,9 @@ def empty_glyph():
 
 
 def main():
+    family_name = sys.argv[1] if len(sys.argv) > 1 else FAMILY_NAME
+    output = os.path.abspath(sys.argv[2]) if len(sys.argv) > 2 else OUTPUT
+
     glyph_order = [".notdef", "space"]
     glyphs = {".notdef": box_glyph(), "space": empty_glyph()}
     cmap = {0x20: "space"}
@@ -116,7 +126,7 @@ def main():
     fb.setupHorizontalMetrics(metrics)
 
     fb.setupHorizontalHeader(ascent=ASCENT_PX * PIXEL, descent=-DESCENT_PX * PIXEL, lineGap=0)
-    fb.setupNameTable({"familyName": FAMILY_NAME, "styleName": "Regular"})
+    fb.setupNameTable({"familyName": family_name, "styleName": "Regular"})
 
     panose = Panose()
     panose.bFamilyType = 2
@@ -135,8 +145,8 @@ def main():
         panose=panose,
     )
     fb.setupPost(isFixedPitch=1)
-    fb.save(OUTPUT)
-    print("wrote", OUTPUT)
+    fb.save(output)
+    print("wrote", output)
 
 
 if __name__ == "__main__":
