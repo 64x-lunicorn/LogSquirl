@@ -37,14 +37,13 @@
  */
 
 #include <algorithm>
+#include <map>
 #include <mutex>
+#include <type_traits>
 
 #include <QFontInfo>
-#include <QKeySequence>
 #include <QStandardPaths>
-#include <qcolor.h>
-#include <qglobal.h>
-#include <qvariant.h>
+#include <QVariant>
 
 #include "configuration.h"
 #include "log.h"
@@ -53,13 +52,492 @@
 
 namespace {
 std::once_flag fontInitFlag;
-static const Configuration DefaultConfiguration = {};
+
+#ifdef Q_OS_WIN
+constexpr bool PollingEnabledByDefault = true;
+#else
+constexpr bool PollingEnabledByDefault = false;
+#endif
+
+using Shortcuts = std::map<std::string, QStringList>;
+using ChartPresets = QMap<QString, QString>;
+using DarkPalette = std::map<QString, QString>;
+
+// The key a setting is stored under, and the key an older release stored it
+// under, if there was one.
+struct SettingKey {
+    constexpr SettingKey( const char* keyName, const char* retiredKeyName = nullptr )
+        : name( keyName )
+        , retiredName( retiredKeyName )
+    {
+    }
+
+    const char* name;
+    const char* retiredName;
+};
+
+// Corrects a value just read from storage.
+template <typename T>
+using Correction = T ( * )( T );
+
+// The stored value of a setting, or its default when nothing is stored. A
+// value stored under the retired key counts when the current key has none;
+// the retired key is removed.
+QVariant storedValue( QSettings& settings, const SettingKey& key, const QVariant& defaultValue )
+{
+    auto fallback = defaultValue;
+    if ( key.retiredName != nullptr ) {
+        fallback = settings.value( key.retiredName, defaultValue );
+        settings.remove( key.retiredName );
+    }
+    return settings.value( key.name, fallback );
+}
+
+// How a value of each type is read from and written to storage.
+template <typename T>
+struct Codec;
+
+template <typename T>
+struct VariantCodec {
+    static void write( QSettings& settings, const SettingKey& key, const T& value )
+    {
+        settings.setValue( key.name, QVariant::fromValue( value ) );
+    }
+};
+
+template <>
+struct Codec<bool> : VariantCodec<bool> {
+    static bool read( QSettings& settings, const SettingKey& key, bool defaultValue )
+    {
+        return storedValue( settings, key, defaultValue ).toBool();
+    }
+};
+
+template <>
+struct Codec<int> : VariantCodec<int> {
+    static int read( QSettings& settings, const SettingKey& key, int defaultValue )
+    {
+        return storedValue( settings, key, defaultValue ).toInt();
+    }
+};
+
+template <>
+struct Codec<unsigned> : VariantCodec<unsigned> {
+    static unsigned read( QSettings& settings, const SettingKey& key, unsigned defaultValue )
+    {
+        return storedValue( settings, key, defaultValue ).toUInt();
+    }
+};
+
+template <>
+struct Codec<QString> : VariantCodec<QString> {
+    static QString read( QSettings& settings, const SettingKey& key, const QString& defaultValue )
+    {
+        return storedValue( settings, key, defaultValue ).toString();
+    }
+};
+
+template <>
+struct Codec<QStringList> : VariantCodec<QStringList> {
+    static QStringList read( QSettings& settings, const SettingKey& key,
+                             const QStringList& defaultValue )
+    {
+        return storedValue( settings, key, defaultValue ).toStringList();
+    }
+};
+
+// Enumerations are stored as their numeric value.
+template <typename Enum>
+    requires std::is_enum_v<Enum>
+struct Codec<Enum> {
+    static Enum read( QSettings& settings, const SettingKey& key, Enum defaultValue )
+    {
+        return static_cast<Enum>(
+            storedValue( settings, key, static_cast<int>( defaultValue ) ).toInt() );
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, Enum value )
+    {
+        settings.setValue( key.name, static_cast<int>( value ) );
+    }
+};
+
+// Colours are stored as #AARRGGBB.
+template <>
+struct Codec<QColor> {
+    static QColor read( QSettings& settings, const SettingKey& key, const QColor& defaultValue )
+    {
+        return QColor::fromString(
+            storedValue( settings, key, defaultValue.name( QColor::HexArgb ) ).toString() );
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const QColor& value )
+    {
+        settings.setValue( key.name, value.name( QColor::HexArgb ) );
+    }
+};
+
+// A font is stored as <key>.family and <key>.size; the family stored is the
+// one the platform resolves.
+template <>
+struct Codec<QFont> {
+    static QFont read( QSettings& settings, const SettingKey& key, const QFont& defaultValue )
+    {
+        const auto family = settings.value( familyKey( key ), defaultValue.family() ).toString();
+        const auto size = settings.value( sizeKey( key ), defaultValue.pointSize() ).toInt();
+
+        return family.isNull() ? defaultValue : QFont( family, size );
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const QFont& value )
+    {
+        const QFontInfo fontInfo( value );
+        settings.setValue( familyKey( key ), fontInfo.family() );
+        settings.setValue( sizeKey( key ), fontInfo.pointSize() );
+    }
+
+private:
+    static QString familyKey( const SettingKey& key )
+    {
+        return QString( key.name ) + QStringLiteral( ".family" );
+    }
+
+    static QString sizeKey( const SettingKey& key )
+    {
+        return QString( key.name ) + QStringLiteral( ".size" );
+    }
+};
+
+template <>
+struct Codec<QList<int>> {
+    static QList<int> read( QSettings& settings, const SettingKey& key,
+                            const QList<int>& defaultValue )
+    {
+        if ( !settings.contains( key.name ) ) {
+            return defaultValue;
+        }
+
+        QList<int> values;
+        const auto variants = settings.value( key.name ).toList();
+        for ( const auto& variant : variants ) {
+            values << variant.toInt();
+        }
+        return values;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const QList<int>& values )
+    {
+        QVariantList variants;
+        for ( const auto value : values ) {
+            variants << value;
+        }
+        settings.setValue( key.name, variants );
+    }
+};
+
+// Shortcuts are stored as an array of actions with their keys. The retired
+// key held them as one map from action to keys.
+template <>
+struct Codec<Shortcuts> {
+    static Shortcuts read( QSettings& settings, const SettingKey& key,
+                           const Shortcuts& defaultValue )
+    {
+        const auto currentActionName = []( const QString& action ) {
+            return action == ShortcutAction::LogViewJumpToButtom
+                       ? std::string{ ShortcutAction::LogViewJumpToBottom }
+                       : action.toStdString();
+        };
+
+        auto shortcuts = defaultValue;
+
+        if ( key.retiredName != nullptr && settings.contains( key.retiredName ) ) {
+            const auto mapping = settings.value( key.retiredName ).toMap();
+            for ( auto keys = mapping.begin(); keys != mapping.end(); ++keys ) {
+                shortcuts.emplace( currentActionName( keys.key() ), keys.value().toStringList() );
+            }
+            settings.remove( key.retiredName );
+        }
+
+        const auto count = settings.beginReadArray( key.name );
+        for ( auto index = 0; index < count; ++index ) {
+            settings.setArrayIndex( index );
+            const auto action = settings.value( ActionKey, "" ).toString();
+            if ( !action.isEmpty() ) {
+                shortcuts.emplace( currentActionName( action ),
+                                   settings.value( KeysKey, QStringList() ).toStringList() );
+            }
+        }
+        settings.endArray();
+
+        return shortcuts;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const Shortcuts& shortcuts )
+    {
+        settings.beginWriteArray( key.name );
+        auto index = 0;
+        for ( const auto& [ action, keys ] : shortcuts ) {
+            settings.setArrayIndex( index++ );
+            settings.setValue( ActionKey, QString::fromStdString( action ) );
+            settings.setValue( KeysKey, keys );
+        }
+        settings.endArray();
+    }
+
+private:
+    static constexpr auto ActionKey = "action";
+    static constexpr auto KeysKey = "keys";
+};
+
+template <>
+struct Codec<ChartPresets> {
+    static ChartPresets read( QSettings& settings, const SettingKey& key,
+                              const ChartPresets& defaultValue )
+    {
+        auto presets = defaultValue;
+
+        const auto count = settings.beginReadArray( key.name );
+        for ( auto index = 0; index < count; ++index ) {
+            settings.setArrayIndex( index );
+            const auto name = settings.value( NameKey ).toString();
+            if ( !name.isEmpty() ) {
+                presets[ name ] = settings.value( DefinitionsKey ).toString();
+            }
+        }
+        settings.endArray();
+
+        return presets;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const ChartPresets& presets )
+    {
+        settings.beginWriteArray( key.name );
+        auto index = 0;
+        for ( auto preset = presets.cbegin(); preset != presets.cend(); ++preset ) {
+            settings.setArrayIndex( index++ );
+            settings.setValue( NameKey, preset.key() );
+            settings.setValue( DefinitionsKey, preset.value() );
+        }
+        settings.endArray();
+    }
+
+private:
+    static constexpr auto NameKey = "name";
+    static constexpr auto DefinitionsKey = "definitions";
+};
+
+// The dark palette is stored as a group of colour names; only the roles the
+// default palette has are read.
+template <>
+struct Codec<DarkPalette> {
+    static DarkPalette read( QSettings& settings, const SettingKey& key,
+                             const DarkPalette& defaultValue )
+    {
+        auto palette = defaultValue;
+
+        settings.beginGroup( key.name );
+        for ( auto& [ role, color ] : palette ) {
+            color = settings.value( role, color ).toString();
+        }
+        settings.endGroup();
+
+        return palette;
+    }
+
+    static void write( QSettings& settings, const SettingKey& key, const DarkPalette& palette )
+    {
+        settings.beginGroup( key.name );
+        for ( const auto& [ role, color ] : palette ) {
+            settings.setValue( role, color );
+        }
+        settings.endGroup();
+    }
+};
+
+class ApplyDefault {
+public:
+    template <typename T>
+    void operator()( const SettingKey&, T& member, const std::type_identity_t<T>& defaultValue,
+                     Correction<std::type_identity_t<T>> = nullptr ) const
+    {
+        member = defaultValue;
+    }
+};
+
+class ReadSetting {
+public:
+    explicit ReadSetting( QSettings& settings )
+        : settings_( settings )
+    {
+    }
+
+    template <typename T>
+    void operator()( const SettingKey& key, T& member, const std::type_identity_t<T>& defaultValue,
+                     Correction<std::type_identity_t<T>> correction = nullptr ) const
+    {
+        member = Codec<T>::read( settings_, key, defaultValue );
+        if ( correction != nullptr ) {
+            member = correction( member );
+        }
+    }
+
+private:
+    QSettings& settings_;
+};
+
+class WriteSetting {
+public:
+    explicit WriteSetting( QSettings& settings )
+        : settings_( settings )
+    {
+    }
+
+    template <typename T>
+    void operator()( const SettingKey& key, const T& member, const std::type_identity_t<T>&,
+                     Correction<std::type_identity_t<T>> = nullptr ) const
+    {
+        Codec<T>::write( settings_, key, member );
+    }
+
+private:
+    QSettings& settings_;
+};
+
+// Keeps the size in megabytes small enough to count in bytes in a qint64.
+int withinIndexCacheSizeLimits( int sizeMb )
+{
+    return std::clamp( sizeMb, 0, 8'000'000 ); // ~8 TB, a generous upper bound
+}
+
+QString availableStyle( QString style )
+{
+    const auto styles = StyleManager::availableStyles();
+    if ( !styles.contains( style ) ) {
+        style = StyleManager::defaultPlatformStyle();
+    }
+    if ( !styles.contains( style ) ) {
+        style = styles.front();
+    }
+    return style;
+}
 
 } // namespace
 
+// Every stored setting, declared once: the key it is stored under, the member
+// that holds it, and its default. The declarations drive the defaults, the
+// read path and the write path alike.
+template <typename Self, typename Visit>
+void Configuration::forEachSetting( Self& config, Visit&& visit )
+{
+    // Stored as mainFont.family and mainFont.size.
+    visit( "mainFont", config.mainFont_, QFont{ "DejaVu Sans Mono", 10 } );
+    visit( "mainFont.antialiasing", config.forceFontAntialiasing_, false );
+    visit( "mainFont.bold", config.useBoldFont_, false );
+    visit( "view.language", config.language_, "en" );
+    visit( "view.qtHiDpi", config.enableQtHighDpi_, true );
+    visit( "view.scaleFactorRounding", config.scaleFactorRounding_, 1 );
+
+    visit( "regexpType.main", config.mainRegexpType_, SearchRegexpType::ExtendedRegexp );
+    visit( "regexpType.quickfind", config.quickfindRegexpType_, SearchRegexpType::FixedString );
+    visit( "regexpType.engine", config.regexpEngine_, RegexpEngine::Vectorscan );
+    visit( "quickfind.incremental", config.quickfindIncremental_, true );
+    visit( "regexpType.mainHighlight", config.enableMainSearchHighlight_, false );
+    visit( "regexpType.mainHighlightVariate", config.enableMainSearchHighlightVariance_, false );
+    visit( "regexpType.mainBackColor", config.mainSearchBackColor_, QColor{ Qt::lightGray } );
+    visit( "regexpType.quickfindBackColor", config.qfBackColor_, QColor{ Qt::yellow } );
+    visit( "quickfind.ignore_case", config.qfIgnoreCase_, false );
+    visit( "regexpType.autoRunSearch", config.autoRunSearchOnPatternChange_, false );
+
+    visit( { "filewatch.useNative", "nativeFileWatch.enabled" }, config.nativeFileWatchEnabled_,
+           true );
+    visit( { "filewatch.usePolling", "polling.enabled" }, config.pollingEnabled_,
+           PollingEnabledByDefault );
+    visit( { "filewatch.pollingIntervalMs", "polling.intervalMs" }, config.pollIntervalMs_, 2000 );
+    visit( "filewatch.fastModificationDetection", config.fastModificationDetection_, false );
+    visit( "filewatch.allowFollowOnScroll", config.allowFollowOnScroll_, true );
+    visit( "view.fastScrollEnabled", config.fastScrollEnabled_, true );
+    visit( "view.fastScrollMultiplier", config.fastScrollMultiplier_, 5 );
+
+    visit( "session.loadLast", config.loadLastSession_, true );
+    visit( "session.multipleWindows", config.allowMultipleWindows_, false );
+    visit( "session.followOnLoad", config.followFileOnLoad_, false );
+    visit( "session.confirmTabClose", config.confirmTabClose_, true );
+
+    visit( "logging.enableLogging", config.enableLogging_, false );
+    visit( "logging.verbosity", config.loggingLevel_, 4 );
+    visit( "versionchecker.enabled", config.enableVersionChecking_, true );
+    visit( "versionchecker.betaEnabled", config.enableBetaVersionChecking_, false );
+    visit( "archives.extract", config.extractArchives_, true );
+    visit( "archives.extractAlways", config.extractArchivesAlways_, false );
+
+    visit( "perf.useParallelSearch", config.useParallelSearch_, true );
+    visit( "perf.useSearchResultsCache", config.useSearchResultsCache_, true );
+    visit( "perf.searchResultsCacheLines", config.searchResultsCacheLines_, 1'000'000u );
+    visit( "perf.indexReadBufferSizeMb", config.indexReadBufferSizeMb_, 16 );
+    visit( "perf.searchReadBufferSizeLines", config.searchReadBufferSizeLines_, 10'000 );
+    visit( "perf.searchThreadPoolSize", config.searchThreadPoolSize_, 0 );
+    visit( "perf.keepFileClosed", config.keepFileClosed_, false );
+    visit( "perf.optimizeForNotLatinEncodings", config.optimizeForNotLatinEncodings_, false );
+    visit( "perf.useCompressedIndex", config.useCompressedIndex_, true );
+    visit( "perf.useIndexCache", config.useIndexCache_, false );
+    visit( "perf.indexCacheMaxSizeMb", config.indexCacheMaxSizeMb_, 500,
+           withinIndexCacheSizeLimits );
+    visit( "net.verifySslPeers", config.verifySslPeers_, true );
+
+    visit( "view.overviewVisible", config.overviewVisible_, true );
+    visit( "view.lineNumbersVisibleInMain", config.lineNumbersVisibleInMain_, false );
+    visit( "view.lineNumbersVisibleInFiltered", config.lineNumbersVisibleInFiltered_, true );
+    visit( "view.minimizeToTray", config.minimizeToTray_, false );
+    visit( "view.contextLinesCount", config.contextLinesCount_, 5 );
+    visit( "view.hideAnsiColorSequences", config.hideAnsiColorSequences_, false );
+    visit( "view.textWrap", config.useTextWrap_, false );
+    visit( "view.style", config.style_, QString{}, availableStyle );
+    visit( "view.showSplashScreen", config.showSplashScreen_, false );
+    visit( "view.showDashboard", config.showDashboard_, true );
+    visit( "view.toolbarIconSize", config.toolbarIconSize_, 24 );
+
+    visit( "defaultView.searchAutoRefresh", config.searchAutoRefresh_, false );
+    visit( "defaultView.searchIgnoreCase", config.searchIgnoreCase_, false );
+    visit( "defaultView.searchLogicalCombining", config.searchLogicalCombining_, false );
+    visit( "defaultView.encodingMib", config.defaultEncodingMib_, -1 );
+    visit( "defaultView.splitterSizes", config.splitterSizes_, QList<int>{ 400, 100 } );
+
+    visit( { "shortcuts", "shortcuts.mapping" }, config.shortcuts_, Shortcuts{} );
+
+    visit( "logformat.autoDetect", config.autoDetectLogFormats_, false );
+    visit( "logformat.autoShowTable", config.autoShowTableView_, false );
+
+    visit( "plugins.autoLoad", config.pluginsAutoLoad_, true );
+    visit( "plugins.enabledPlugins", config.enabledPlugins_, QStringList{} );
+
+    visit( "chartPresets", config.chartPresets_, ChartPresets{} );
+
+    // based on https://gist.github.com/QuantumCD/6245215
+    visit( "dark", config.darkPalette_,
+           DarkPalette{
+               { "Window", "#121212" },
+               { "WindowText", "#E0E0E0" },
+               { "Base", "#1E1E1E" },
+               { "AlternateBase", "#252526" },
+               { "ToolTipBase", "#2D2D30" },
+               { "ToolTipText", "#E0E0E0" },
+               { "Text", "#E0E0E0" },
+               { "Button", "#2D2D30" },
+               { "ButtonText", "#E0E0E0" },
+               { "Link", "#4D90FE" },
+               { "Highlight", "#4D90FE" },
+               { "HighlightedText", "#FFFFFF" },
+               { "ActiveButton", "#252526" },
+               { "DisabledButtonText", "#666666" },
+               { "DisabledWindowText", "#666666" },
+               { "DisabledText", "#666666" },
+               { "DisabledLight", "#252526" },
+           } );
+}
+
 Configuration::Configuration()
 {
-    splitterSizes_ << 400 << 100;
+    forEachSetting( *this, ApplyDefault{} );
 }
 
 QString Configuration::indexCacheDirectory() const
@@ -75,8 +553,7 @@ QFont Configuration::mainFont() const
         mainFont_.setStyleHint( QFont::Courier, QFont::PreferOutline );
 
         QFontInfo fi( mainFont_ );
-        LOG_INFO << "DefaultConfiguration font is " << fi.family().toStdString() << ": "
-                 << fi.pointSize();
+        LOG_INFO << "Main font is " << fi.family().toStdString() << ": " << fi.pointSize();
     } );
 
     return mainFont_;
@@ -93,448 +570,12 @@ void Configuration::retrieveFromStorage( QSettings& settings )
 {
     LOG_DEBUG << "Configuration::retrieveFromStorage";
 
-    // Fonts
-    QString family
-        = settings.value( "mainFont.family", DefaultConfiguration.mainFont_.family() ).toString();
-    int size
-        = settings.value( "mainFont.size", DefaultConfiguration.mainFont_.pointSize() ).toInt();
-
-    // If no config read, keep the DefaultConfiguration
-    if ( !family.isNull() )
-        mainFont_ = QFont( family, size );
-
-    forceFontAntialiasing_
-        = settings.value( "mainFont.antialiasing", DefaultConfiguration.forceFontAntialiasing_ )
-              .toBool();
-    useBoldFont_ = settings.value( "mainFont.bold", DefaultConfiguration.useBoldFont_ ).toBool();
-
-    language_ = settings.value( "view.language", DefaultConfiguration.language_ ).toString();
-
-    enableQtHighDpi_
-        = settings.value( "view.qtHiDpi", DefaultConfiguration.enableQtHighDpi_ ).toBool();
-
-    scaleFactorRounding_
-        = settings.value( "view.scaleFactorRounding", DefaultConfiguration.scaleFactorRounding_ )
-              .toInt();
-
-    // Regexp types
-    mainRegexpType_ = static_cast<SearchRegexpType>(
-        settings
-            .value( "regexpType.main", static_cast<int>( DefaultConfiguration.mainRegexpType_ ) )
-            .toInt() );
-    quickfindRegexpType_ = static_cast<SearchRegexpType>(
-        settings
-            .value( "regexpType.quickfind",
-                    static_cast<int>( DefaultConfiguration.quickfindRegexpType_ ) )
-            .toInt() );
-    regexpEngine_ = static_cast<RegexpEngine>(
-        settings
-            .value( "regexpType.engine", static_cast<int>( DefaultConfiguration.regexpEngine_ ) )
-            .toInt() );
-    quickfindIncremental_
-        = settings.value( "quickfind.incremental", DefaultConfiguration.quickfindIncremental_ )
-              .toBool();
-
-    enableMainSearchHighlight_
-        = settings
-              .value( "regexpType.mainHighlight", DefaultConfiguration.enableMainSearchHighlight_ )
-              .toBool();
-
-    enableMainSearchHighlightVariance_
-        = settings
-              .value( "regexpType.mainHighlightVariate",
-                      DefaultConfiguration.enableMainSearchHighlightVariance_ )
-              .toBool();
-
-    mainSearchBackColor_ = QColor::fromString(
-        settings
-            .value( "regexpType.mainBackColor",
-                    DefaultConfiguration.mainSearchBackColor_.name( QColor::HexArgb ) )
-            .toString() );
-
-    qfBackColor_ = QColor::fromString(
-        settings
-            .value( "regexpType.quickfindBackColor",
-                    DefaultConfiguration.qfBackColor_.name( QColor::HexArgb ) )
-            .toString() );
-
-    qfIgnoreCase_
-        = settings.value( "quickfind.ignore_case", DefaultConfiguration.qfIgnoreCase_ ).toBool();
-
-    autoRunSearchOnPatternChange_ = settings
-                                        .value( "regexpType.autoRunSearch",
-                                                DefaultConfiguration.autoRunSearchOnPatternChange_ )
-                                        .toBool();
-
-    // "Advanced" settings
-    nativeFileWatchEnabled_
-        = settings.value( "nativeFileWatch.enabled", DefaultConfiguration.nativeFileWatchEnabled_ )
-              .toBool();
-    settings.remove( "nativeFileWatch.enabled" );
-    nativeFileWatchEnabled_
-        = settings.value( "filewatch.useNative", nativeFileWatchEnabled_ ).toBool();
-
-    pollingEnabled_
-        = settings.value( "polling.enabled", DefaultConfiguration.pollingEnabled_ ).toBool();
-    settings.remove( "polling.enabled" );
-    pollingEnabled_ = settings.value( "filewatch.usePolling", pollingEnabled_ ).toBool();
-
-    pollIntervalMs_
-        = settings.value( "polling.intervalMs", DefaultConfiguration.pollIntervalMs_ ).toInt();
-    settings.remove( "polling.intervalMs" );
-    pollIntervalMs_ = settings.value( "filewatch.pollingIntervalMs", pollIntervalMs_ ).toInt();
-
-    fastModificationDetection_ = settings
-                                     .value( "filewatch.fastModificationDetection",
-                                             DefaultConfiguration.fastModificationDetection_ )
-                                     .toBool();
-
-    allowFollowOnScroll_
-        = settings
-              .value( "filewatch.allowFollowOnScroll", DefaultConfiguration.allowFollowOnScroll_ )
-              .toBool();
-
-    fastScrollEnabled_
-        = settings.value( "view.fastScrollEnabled", DefaultConfiguration.fastScrollEnabled_ )
-              .toBool();
-    fastScrollMultiplier_
-        = settings.value( "view.fastScrollMultiplier", DefaultConfiguration.fastScrollMultiplier_ )
-              .toInt();
-
-    loadLastSession_
-        = settings.value( "session.loadLast", DefaultConfiguration.loadLastSession_ ).toBool();
-    allowMultipleWindows_
-        = settings.value( "session.multipleWindows", DefaultConfiguration.allowMultipleWindows_ )
-              .toBool();
-    followFileOnLoad_
-        = settings.value( "session.followOnLoad", DefaultConfiguration.followFileOnLoad_ ).toBool();
-    confirmTabClose_
-        = settings.value( "session.confirmTabClose", DefaultConfiguration.confirmTabClose_ )
-              .toBool();
-
-    enableLogging_
-        = settings.value( "logging.enableLogging", DefaultConfiguration.enableLogging_ ).toBool();
-    loggingLevel_
-        = settings.value( "logging.verbosity", DefaultConfiguration.loggingLevel_ ).toInt();
-
-    enableVersionChecking_
-        = settings.value( "versionchecker.enabled", DefaultConfiguration.enableVersionChecking_ )
-              .toBool();
-    enableBetaVersionChecking_ = settings
-                                     .value( "versionchecker.betaEnabled",
-                                             DefaultConfiguration.enableBetaVersionChecking_ )
-                                     .toBool();
-
-    extractArchives_
-        = settings.value( "archives.extract", DefaultConfiguration.extractArchives_ ).toBool();
-    extractArchivesAlways_
-        = settings.value( "archives.extractAlways", DefaultConfiguration.extractArchivesAlways_ )
-              .toBool();
-
-    // "Perf" settings
-    useParallelSearch_
-        = settings.value( "perf.useParallelSearch", DefaultConfiguration.useParallelSearch_ )
-              .toBool();
-    useSearchResultsCache_
-        = settings
-              .value( "perf.useSearchResultsCache", DefaultConfiguration.useSearchResultsCache_ )
-              .toBool();
-    searchResultsCacheLines_ = settings
-                                   .value( "perf.searchResultsCacheLines",
-                                           DefaultConfiguration.searchResultsCacheLines_ )
-                                   .toUInt();
-    indexReadBufferSizeMb_
-        = settings
-              .value( "perf.indexReadBufferSizeMb", DefaultConfiguration.indexReadBufferSizeMb_ )
-              .toInt();
-    searchReadBufferSizeLines_ = settings
-                                     .value( "perf.searchReadBufferSizeLines",
-                                             DefaultConfiguration.searchReadBufferSizeLines_ )
-                                     .toInt();
-    searchThreadPoolSize_
-        = settings.value( "perf.searchThreadPoolSize", DefaultConfiguration.searchThreadPoolSize_ )
-              .toInt();
-    keepFileClosed_
-        = settings.value( "perf.keepFileClosed", DefaultConfiguration.keepFileClosed_ ).toBool();
-
-    optimizeForNotLatinEncodings_ = settings
-                                        .value( "perf.optimizeForNotLatinEncodings",
-                                                DefaultConfiguration.optimizeForNotLatinEncodings_ )
-                                        .toBool();
-
-    useCompressedIndex_
-        = settings.value( "perf.useCompressedIndex", DefaultConfiguration.useCompressedIndex_ )
-              .toBool();
-
-    useIndexCache_
-        = settings.value( "perf.useIndexCache", DefaultConfiguration.useIndexCache_ ).toBool();
-
-    indexCacheMaxSizeMb_
-        = settings.value( "perf.indexCacheMaxSizeMb", DefaultConfiguration.indexCacheMaxSizeMb_ )
-              .toInt();
-
-    // Clamp to a sane range to prevent integer overflow when converting to bytes
-    // (value * 1024 * 1024 must fit in qint64).
-    if ( indexCacheMaxSizeMb_ < 0 ) {
-        indexCacheMaxSizeMb_ = 0;
-    }
-    else if ( indexCacheMaxSizeMb_ > 8'000'000 ) {
-        indexCacheMaxSizeMb_ = 8'000'000; // ~8 TB — generous upper bound
-    }
-
-    verifySslPeers_
-        = settings.value( "net.verifySslPeers", DefaultConfiguration.verifySslPeers_ ).toBool();
-
-    // View settings
-    overviewVisible_
-        = settings.value( "view.overviewVisible", DefaultConfiguration.overviewVisible_ ).toBool();
-    lineNumbersVisibleInMain_ = settings
-                                    .value( "view.lineNumbersVisibleInMain",
-                                            DefaultConfiguration.lineNumbersVisibleInMain_ )
-                                    .toBool();
-    lineNumbersVisibleInFiltered_ = settings
-                                        .value( "view.lineNumbersVisibleInFiltered",
-                                                DefaultConfiguration.lineNumbersVisibleInFiltered_ )
-                                        .toBool();
-    minimizeToTray_
-        = settings.value( "view.minimizeToTray", DefaultConfiguration.minimizeToTray_ ).toBool();
-
-    contextLinesCount_
-        = settings.value( "view.contextLinesCount", DefaultConfiguration.contextLinesCount_ )
-              .toInt();
-
-    hideAnsiColorSequences_
-        = settings
-              .value( "view.hideAnsiColorSequences", DefaultConfiguration.hideAnsiColorSequences_ )
-              .toBool();
-
-    useTextWrap_ = settings.value( "view.textWrap", DefaultConfiguration.useTextWrap() ).toBool();
-
-    style_ = settings.value( "view.style", DefaultConfiguration.style_ ).toString();
-
-    auto styles = StyleManager::availableStyles();
-    if ( !styles.contains( style_ ) ) {
-        style_ = StyleManager::defaultPlatformStyle();
-    }
-    if ( !styles.contains( style_ ) ) {
-        style_ = styles.front();
-    }
-
-    // DefaultConfiguration crawler settings
-    searchAutoRefresh_
-        = settings.value( "defaultView.searchAutoRefresh", DefaultConfiguration.searchAutoRefresh_ )
-              .toBool();
-    searchIgnoreCase_
-        = settings.value( "defaultView.searchIgnoreCase", DefaultConfiguration.searchIgnoreCase_ )
-              .toBool();
-    searchLogicalCombining_ = settings
-                                  .value( "defaultView.searchLogicalCombining",
-                                          DefaultConfiguration.searchLogicalCombining_ )
-                                  .toBool();
-
-    defaultEncodingMib_
-        = settings.value( "defaultView.encodingMib", DefaultConfiguration.defaultEncodingMib_ )
-              .toInt();
-
-    if ( settings.contains( "defaultView.splitterSizes" ) ) {
-        splitterSizes_.clear();
-
-        const auto sizes = settings.value( "defaultView.splitterSizes" ).toList();
-        std::transform( sizes.cbegin(), sizes.cend(), std::back_inserter( splitterSizes_ ),
-                        []( auto v ) { return v.toInt(); } );
-    }
-
-    if ( settings.contains( "shortcuts.mapping" ) ) {
-        shortcuts_.clear();
-
-        const auto mapping = settings.value( "shortcuts.mapping" ).toMap();
-        for ( auto keys = mapping.begin(); keys != mapping.end(); ++keys ) {
-            auto action = keys.key().toStdString();
-            if ( action == ShortcutAction::LogViewJumpToButtom ) {
-                action = ShortcutAction::LogViewJumpToBottom;
-            }
-            shortcuts_.emplace( action, keys.value().toStringList() );
-        }
-
-        settings.remove( "shortcuts.mapping" );
-    }
-
-    const auto shortcutsCount = settings.beginReadArray( "shortcuts" );
-    for ( auto shortcutIndex = 0; shortcutIndex < shortcutsCount; ++shortcutIndex ) {
-        settings.setArrayIndex( static_cast<int>( shortcutIndex ) );
-        auto action = settings.value( "action", "" ).toString();
-        if ( !action.isEmpty() ) {
-            if ( action == ShortcutAction::LogViewJumpToButtom ) {
-                action = ShortcutAction::LogViewJumpToBottom;
-            }
-            const auto keys = settings.value( "keys", QStringList() ).toStringList();
-            shortcuts_.emplace( action.toStdString(), keys );
-        }
-    }
-    settings.endArray();
-
-    showSplashScreen_
-        = settings.value( "view.showSplashScreen", DefaultConfiguration.showSplashScreen_ )
-              .toBool();
-
-    showDashboard_
-        = settings.value( "view.showDashboard", DefaultConfiguration.showDashboard_ ).toBool();
-
-    toolbarIconSize_
-        = settings.value( "view.toolbarIconSize", DefaultConfiguration.toolbarIconSize_ ).toInt();
-
-    autoDetectLogFormats_
-        = settings.value( "logformat.autoDetect", DefaultConfiguration.autoDetectLogFormats_ )
-              .toBool();
-    autoShowTableView_
-        = settings.value( "logformat.autoShowTable", DefaultConfiguration.autoShowTableView_ )
-              .toBool();
-
-    pluginsAutoLoad_
-        = settings.value( "plugins.autoLoad", DefaultConfiguration.pluginsAutoLoad_ ).toBool();
-    enabledPlugins_
-        = settings.value( "plugins.enabledPlugins", DefaultConfiguration.enabledPlugins_ )
-              .toStringList();
-
-    settings.beginGroup( "dark" );
-    for ( auto& color : darkPalette_ ) {
-        color.second = settings.value( color.first, color.second ).toString();
-    }
-    settings.endGroup();
-
-    const auto presetsCount = settings.beginReadArray( "chartPresets" );
-    for ( auto i = 0; i < presetsCount; ++i ) {
-        settings.setArrayIndex( i );
-        const auto name = settings.value( "name" ).toString();
-        const auto defs = settings.value( "definitions" ).toString();
-        if ( !name.isEmpty() ) {
-            chartPresets_[ name ] = defs;
-        }
-    }
-    settings.endArray();
+    forEachSetting( *this, ReadSetting{ settings } );
 }
 
 void Configuration::saveToStorage( QSettings& settings ) const
 {
     LOG_DEBUG << "Configuration::saveToStorage";
 
-    QFontInfo fi( mainFont_ );
-
-    settings.setValue( "mainFont.family", fi.family() );
-    settings.setValue( "mainFont.size", fi.pointSize() );
-    settings.setValue( "mainFont.antialiasing", forceFontAntialiasing_ );
-    settings.setValue( "mainFont.bold", useBoldFont_ );
-
-    settings.setValue( "regexpType.engine", static_cast<int>( regexpEngine_ ) );
-
-    settings.setValue( "regexpType.main", static_cast<int>( mainRegexpType_ ) );
-    settings.setValue( "regexpType.mainBackColor", mainSearchBackColor_.name( QColor::HexArgb ) );
-    settings.setValue( "regexpType.mainHighlight", enableMainSearchHighlight_ );
-    settings.setValue( "regexpType.mainHighlightVariate", enableMainSearchHighlightVariance_ );
-    settings.setValue( "regexpType.autoRunSearch", autoRunSearchOnPatternChange_ );
-
-    settings.setValue( "regexpType.quickfind", static_cast<int>( quickfindRegexpType_ ) );
-    settings.setValue( "regexpType.quickfindBackColor", qfBackColor_.name( QColor::HexArgb ) );
-
-    settings.setValue( "quickfind.incremental", quickfindIncremental_ );
-    settings.setValue( "quickfind.ignore_case", qfIgnoreCase_ );
-
-    settings.setValue( "filewatch.useNative", nativeFileWatchEnabled_ );
-    settings.setValue( "filewatch.usePolling", pollingEnabled_ );
-    settings.setValue( "filewatch.pollingIntervalMs", pollIntervalMs_ );
-    settings.setValue( "filewatch.fastModificationDetection", fastModificationDetection_ );
-    settings.setValue( "filewatch.allowFollowOnScroll", allowFollowOnScroll_ );
-
-    settings.setValue( "view.fastScrollEnabled", fastScrollEnabled_ );
-    settings.setValue( "view.fastScrollMultiplier", fastScrollMultiplier_ );
-
-    settings.setValue( "session.loadLast", loadLastSession_ );
-    settings.setValue( "session.multipleWindows", allowMultipleWindows_ );
-    settings.setValue( "session.followOnLoad", followFileOnLoad_ );
-    settings.setValue( "session.confirmTabClose", confirmTabClose_ );
-
-    settings.setValue( "logging.enableLogging", enableLogging_ );
-    settings.setValue( "logging.verbosity", loggingLevel_ );
-
-    settings.setValue( "versionchecker.enabled", enableVersionChecking_ );
-    settings.setValue( "versionchecker.betaEnabled", enableBetaVersionChecking_ );
-
-    settings.setValue( "archives.extract", extractArchives_ );
-    settings.setValue( "archives.extractAlways", extractArchivesAlways_ );
-
-    settings.setValue( "perf.useParallelSearch", useParallelSearch_ );
-    settings.setValue( "perf.useSearchResultsCache", useSearchResultsCache_ );
-    settings.setValue( "perf.searchResultsCacheLines", searchResultsCacheLines_ );
-    settings.setValue( "perf.indexReadBufferSizeMb", indexReadBufferSizeMb_ );
-    settings.setValue( "perf.searchReadBufferSizeLines", searchReadBufferSizeLines_ );
-    settings.setValue( "perf.searchThreadPoolSize", searchThreadPoolSize_ );
-    settings.setValue( "perf.keepFileClosed", keepFileClosed_ );
-    settings.setValue( "perf.useCompressedIndex", useCompressedIndex_ );
-    settings.setValue( "perf.useIndexCache", useIndexCache_ );
-    settings.setValue( "perf.indexCacheMaxSizeMb", indexCacheMaxSizeMb_ );
-    settings.setValue( "perf.optimizeForNotLatinEncodings", optimizeForNotLatinEncodings_ );
-
-    settings.setValue( "net.verifySslPeers", verifySslPeers_ );
-
-    settings.setValue( "view.overviewVisible", overviewVisible_ );
-    settings.setValue( "view.lineNumbersVisibleInMain", lineNumbersVisibleInMain_ );
-    settings.setValue( "view.lineNumbersVisibleInFiltered", lineNumbersVisibleInFiltered_ );
-    settings.setValue( "view.minimizeToTray", minimizeToTray_ );
-    settings.setValue( "view.contextLinesCount", contextLinesCount_ );
-    settings.setValue( "view.style", style_ );
-    settings.setValue( "view.language", language_ );
-    settings.setValue( "view.textWrap", useTextWrap_ );
-
-    settings.setValue( "view.qtHiDpi", enableQtHighDpi_ );
-    settings.setValue( "view.scaleFactorRounding", scaleFactorRounding_ );
-
-    settings.setValue( "view.hideAnsiColorSequences", hideAnsiColorSequences_ );
-
-    settings.setValue( "defaultView.searchAutoRefresh", searchAutoRefresh_ );
-    settings.setValue( "defaultView.searchIgnoreCase", searchIgnoreCase_ );
-    settings.setValue( "defaultView.searchLogicalCombining", searchLogicalCombining_ );
-    settings.setValue( "defaultView.encodingMib", defaultEncodingMib_ );
-
-    QList<QVariant> splitterSizes;
-    std::transform( splitterSizes_.cbegin(), splitterSizes_.cend(),
-                    std::back_inserter( splitterSizes ),
-                    []( auto s ) { return QVariant::fromValue( s ); } );
-
-    settings.setValue( "defaultView.splitterSizes", splitterSizes );
-
-    settings.beginWriteArray( "shortcuts" );
-    auto shortcutIndex = 0;
-    for ( const auto& mapping : shortcuts_ ) {
-        settings.setArrayIndex( shortcutIndex );
-        settings.setValue( "action", QString::fromStdString( mapping.first ) );
-        settings.setValue( "keys", mapping.second );
-        shortcutIndex++;
-    }
-    settings.endArray();
-
-    settings.setValue( "view.showSplashScreen", showSplashScreen_ );
-    settings.setValue( "view.showDashboard", showDashboard_ );
-    settings.setValue( "view.toolbarIconSize", toolbarIconSize_ );
-
-    settings.setValue( "logformat.autoDetect", autoDetectLogFormats_ );
-    settings.setValue( "logformat.autoShowTable", autoShowTableView_ );
-
-    settings.setValue( "plugins.autoLoad", pluginsAutoLoad_ );
-    settings.setValue( "plugins.enabledPlugins", enabledPlugins_ );
-
-    settings.beginGroup( "dark" );
-    for ( const auto& color : darkPalette_ ) {
-        settings.setValue( color.first, color.second );
-    }
-    settings.endGroup();
-
-    settings.beginWriteArray( "chartPresets" );
-    auto presetIndex = 0;
-    for ( auto it = chartPresets_.cbegin(); it != chartPresets_.cend(); ++it ) {
-        settings.setArrayIndex( presetIndex );
-        settings.setValue( "name", it.key() );
-        settings.setValue( "definitions", it.value() );
-        presetIndex++;
-    }
-    settings.endArray();
+    forEachSetting( *this, WriteSetting{ settings } );
 }
