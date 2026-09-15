@@ -150,7 +150,10 @@ public:
     static constexpr QLatin1String HighContrastKey = QLatin1String( "High Contrast" );
     static constexpr QLatin1String SystemKey = QLatin1String( "System" );
 
+    // Every value the `style` setting can take, sorted by name.
     static QStringList availableThemes();
+
+    // The `style` setting used when none or an unknown one is stored.
     static QString defaultTheme();
 
     // The Theme a stored `style` setting stands for. System becomes Dark when
@@ -162,15 +165,22 @@ public:
 
     // Light, Dark or High Contrast -- never System.
     QString name() const;
+
+    // Whether the Theme has dark backgrounds and light text.
     bool isDark() const;
 
     // Whether two-tone icons show their inverse (light) variant, which a dark
     // Theme needs. Every choice between the two icon variants asks this.
     bool usesInverseIcons() const;
 
+    // The color this Theme gives token.
     QColor color( ColorToken token ) const;
+
+    // The stylesheet value (a size, padding or icon image) this Theme gives
+    // token.
     QString value( StyleToken token ) const;
 
+    // The QPalette derived from the palette-role Tokens, for every color group.
     QPalette palette() const;
 
     // The stylesheet template with every Token filled in.
@@ -180,6 +190,8 @@ public:
     // userThemesDirectory, if there is one.
     QString styleSheetWithUserFile( const QString& userThemesDirectory ) const;
 
+    // The name of token: its placeholder in the stylesheet template without
+    // the @ signs, and its key in the stored Dark overrides.
     static QString tokenName( ColorToken token );
     static QString tokenName( StyleToken token );
 
