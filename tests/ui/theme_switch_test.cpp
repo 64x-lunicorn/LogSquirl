@@ -617,7 +617,7 @@ SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart",
         const auto chosen = current == Theme::DarkKey ? QString( Theme::HighContrastKey )
                                                       : QString( Theme::DarkKey );
         dialog.styleComboBox->setCurrentText( chosen );
-        QMetaObject::invokeMethod( &dialog, "updateConfigFromDialog", Qt::DirectConnection );
+        dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
         QTest::qWait( 50 );
 
         THEN( "the Theme is in use and no restart is asked for" )
@@ -632,7 +632,7 @@ SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart",
         if ( dialog.languageComboBox->count() > 1 ) {
             dialog.languageComboBox->setCurrentIndex(
                 dialog.languageComboBox->currentIndex() == 0 ? 1 : 0 );
-            QMetaObject::invokeMethod( &dialog, "updateConfigFromDialog", Qt::DirectConnection );
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
             QTest::qWait( 100 );
 
             THEN( "a restart is still asked for" )
