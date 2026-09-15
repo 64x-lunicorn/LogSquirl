@@ -23,6 +23,16 @@
   `StatusInactive`, `StatusInfo`, `StatusText`), so High Contrast gets its own
   colors for them.
 
+## Bug fixes
+
+- **Plugin widgets at exit**: A status or footer widget a plugin had removed
+  was still deleted with the main window. That could crash LogSquirl on exit
+  when the plugin deleted the widget itself or its library was already
+  unloaded, and each disable/enable of a plugin left a toolbar entry behind.
+- **Widgets of a disabled plugin**: A widget or menu action a plugin
+  registered from a background thread just before it was disabled no longer
+  shows up after it is gone.
+
 ## Removed
 
 - **Lua plugin support**: The optional Lua scripting layer
