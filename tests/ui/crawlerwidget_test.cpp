@@ -520,3 +520,49 @@ SCENARIO( "Both Presentations report to the CrawlerWidget alike", "[ui][presenta
         }
     }
 }
+
+SCENARIO( "A Row selected in the Table View is selected in the Filtered View too",
+          "[ui][presentation]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+
+    GIVEN( "the Table View shown and Log Lines 10 to 19 matching the search" )
+    {
+        crawlerVisitor.showTableView( true );
+        REQUIRE( crawlerVisitor.presentation() == crawlerVisitor.tableView() );
+
+        crawlerVisitor.setSearchPattern( "this is line 00001" );
+        crawlerVisitor.runSearch();
+        REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+            return crawlerVisitor.getLogFilteredNbLines().get() == 10;
+        } ) );
+
+        WHEN( "the Row of the matching Log Line 15 is selected" )
+        {
+            crawlerVisitor.tableView()->selectRow( 15 );
+
+            THEN( "the Filtered View selects Log Line 15" )
+            {
+                REQUIRE( crawlerVisitor.filteredViewSelectedText().contains( "line 000015" ) );
+                REQUIRE( crawlerVisitor.tableView()->selectedLogLines()
+                         == logsquirl::vector<LineNumber>{ 15_lnum } );
+            }
+        }
+
+        WHEN( "the Row of Log Line 30, which does not match, is selected" )
+        {
+            crawlerVisitor.tableView()->selectRow( 30 );
+
+            THEN( "the Filtered View selects the Match before it, and the Table View keeps "
+                  "its selection" )
+            {
+                REQUIRE( crawlerVisitor.filteredViewSelectedText().contains( "line 000019" ) );
+                REQUIRE( crawlerVisitor.tableView()->selectedLogLines()
+                         == logsquirl::vector<LineNumber>{ 30_lnum } );
+            }
+        }
+    }
+}

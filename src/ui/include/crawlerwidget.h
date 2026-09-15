@@ -455,6 +455,10 @@ private:
     // Last main line number received
     LineNumber currentLineNumber_;
 
+    // Whether a selection is being passed between the Table View and the
+    // Filtered View, so neither passes it back.
+    bool syncingSelection_ = false;
+
     // Current number of matches
     LinesCount nbMatches_;
 

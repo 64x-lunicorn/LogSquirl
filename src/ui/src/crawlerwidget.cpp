@@ -655,8 +655,14 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
 void CrawlerWidget::jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nLines,
                                         LineColumn startCol, LineLength nSymbols )
 {
+    if ( syncingSelection_ ) {
+        return;
+    }
+
     const auto mainViewLine = logFilteredData_->getMatchingLineNumber( filteredLineNb );
+    syncingSelection_ = true;
     presentation_->showLogLinePortion( mainViewLine, nLines, startCol, nSymbols );
+    syncingSelection_ = false;
 }
 
 void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
@@ -676,6 +682,18 @@ void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
     for ( auto* presentation : presentations() ) {
         if ( presentation != presentation_ ) {
             presentation->showLogLine( line );
+        }
+    }
+
+    // A Row selected in the Table View selects its Log Line, or the Match
+    // before it, in the Filtered View too.
+    if ( reporter != nullptr && reporter == logTableView_ && !syncingSelection_ && logFilteredData_
+         && logFilteredData_->getNbLine().get() > 0 ) {
+        const auto filteredIndex = logFilteredData_->getLineIndexNumber( line );
+        if ( filteredIndex < logFilteredData_->getNbLine() ) {
+            syncingSelection_ = true;
+            filteredView_->selectAndDisplayLine( filteredIndex );
+            syncingSelection_ = false;
         }
     }
 
