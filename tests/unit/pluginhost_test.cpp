@@ -209,9 +209,10 @@ void installManifest( const QString& root, const QString& id, const QString& lib
                         .toUtf8() );
 }
 
-/// Sets the plugin settings autoLoadPlugins() reads, and restores the defaults when it goes.
+/// Sets the plugin settings autoLoadPlugins() reads, and puts the configuration back when it goes.
 struct PluginSettings {
     PluginSettings( bool autoLoad, const QStringList& enabled )
+        : saved_( Configuration::get() )
     {
         auto& config = Configuration::get();
         config.setPluginsAutoLoad( autoLoad );
@@ -220,15 +221,21 @@ struct PluginSettings {
 
     ~PluginSettings()
     {
-        auto& config = Configuration::get();
-        config.setPluginsAutoLoad( true );
-        config.setEnabledPlugins( {} );
-        // autoLoadPlugins() saves the plugins it enables on a first run.
-        config.save();
+        Configuration::get() = saved_;
+        if ( restoreSettingsFile ) {
+            Configuration::get().save();
+        }
     }
 
     PluginSettings( const PluginSettings& ) = delete;
     PluginSettings& operator=( const PluginSettings& ) = delete;
+
+    /// Set when the scenario makes the host save the configuration to the settings
+    /// file: that file then gets the configuration from before the scenario back.
+    bool restoreSettingsFile = false;
+
+private:
+    Configuration saved_;
 };
 
 void menuCallback( void* ) {}
@@ -611,7 +618,9 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
         WHEN( "No plugin has been enabled yet" )
         {
-            const PluginSettings settings( true, {} );
+            PluginSettings settings( true, {} );
+            // autoLoadPlugins() saves the plugins it enables on a first run.
+            settings.restoreSettingsFile = true;
             const auto errors = host.autoLoadPlugins();
 
             THEN( "Every plugin in the catalog is enabled and those that can be are loaded" )
