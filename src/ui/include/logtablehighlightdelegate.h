@@ -320,10 +320,10 @@ public:
     // 0 for an empty cell or a click left of the text.
     //
     // This is the Table View's hit test. It lives here, beside paint(),
-    // rather than in the CrawlerWidget that handles the click, because it
+    // rather than in the LogTableView that handles the click, because it
     // has to agree with where paint() draws each character -- both apply
     // HorizontalTextPadding -- and as a static of the delegate a test can
-    // check the two against each other without standing up a CrawlerWidget.
+    // check the two against each other without standing up a LogTableView.
     static int charIndexAtX( const QString& cellText, const QFontMetrics& fm, int cellLeft,
                              int pixelX )
     {
@@ -527,7 +527,7 @@ private:
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
     std::vector<QStringList> colorLabelWords_;
 
-    // Main search pattern and Search Limits (set by CrawlerWidget, mirroring
+    // Main search pattern and Search Limits (set by LogTableView, mirroring
     // what it hands the text view)
     RegularExpressionPattern searchPattern_;
     LineNumber searchStart_{ 0_lnum };
@@ -538,12 +538,12 @@ private:
     std::optional<Highlighter> cachedMainSearch_;
     logsquirl::vector<Highlighter> cachedColorLabels_;
 
-    // Portion selection state (set by CrawlerWidget from mouse events)
+    // Portion selection state (set by LogTableView from mouse events)
     int portionRow_ = -1;
     int portionCol_ = -1;
     int portionStartChar_ = 0;
     int portionEndChar_ = 0;
 
-    // Hover row (set by CrawlerWidget from mouse tracking)
+    // Hover row (set by LogTableView from mouse tracking)
     int hoverRow_ = -1;
 };

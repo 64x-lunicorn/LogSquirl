@@ -9,6 +9,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logtableview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilters.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilterscombobox.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersdialog.h
@@ -86,6 +87,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/infoline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pathline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logtableview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindow.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindowtext.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/menu.cpp
