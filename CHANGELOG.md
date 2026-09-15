@@ -1,5 +1,18 @@
 # Unreleased
 
+## Changes
+
+- **Themes are token sets**: Light, Dark and High Contrast are each defined
+  by one set of named tokens, from which both the Qt palette and the
+  application stylesheet are generated (one stylesheet template replaces the
+  three hand-written `.qss` files). Their look is unchanged.
+- **System theme**: The new "System" style follows the operating system's
+  light or dark color scheme at startup.
+- **User stylesheets apply on top**: A `dark.qss`, `fusion-light.qss` or
+  `high-contrast.qss` in `<AppConfigDir>/themes/` is now added after the
+  built-in stylesheet instead of replacing it, so it only needs the rules it
+  changes. The `[dark]` settings group can override any Dark token by name.
+
 ## Removed
 
 - **Lua plugin support**: The optional Lua scripting layer

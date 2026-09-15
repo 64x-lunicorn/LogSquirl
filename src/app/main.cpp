@@ -59,7 +59,7 @@
 #include "configuration.h"
 #include "logger.h"
 #include "mainwindow.h"
-#include "styles.h"
+#include "theme.h"
 
 #include "cli.h"
 #include "logsquirl_version.h"
@@ -156,7 +156,7 @@ int main( int argc, char* argv[] )
         app.sendFilesToPrimaryInstance( parameters.filenames );
     }
     else {
-        StyleManager::applyStyle( config.style() );
+        Theme::apply( config.style() );
 
         // Show a splash screen while the application is initialising.
         QSplashScreen* splash = nullptr;

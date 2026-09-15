@@ -115,8 +115,8 @@
 #include "recentfiles.h"
 #include "sessioninfo.h"
 #include "shortcuts.h"
-#include "styles.h"
 #include "tabbedcrawlerwidget.h"
+#include "theme.h"
 
 namespace {
 
@@ -233,7 +233,7 @@ MainWindow::MainWindow( WindowSession session )
 
         // Pick icon variant based on configured style — at construction time
         // the dark palette is not yet applied, so IconLoader cannot detect it.
-        const bool isDarkStyle = Configuration::get().style() == StyleManager::DarkStyleKey;
+        const bool isDarkStyle = Configuration::get().style() == Theme::DarkKey;
 
         auto* floatButton = new QToolButton( titleBar );
         floatButton->setIcon( isDarkStyle ? QIcon( ":/images/icons8-undock-16_inverse.png" )

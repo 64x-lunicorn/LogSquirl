@@ -138,6 +138,21 @@ The single owner of the precedence rule that turns a Line Verdict plus a piece o
 into a Decoration. It decides which color wins where; it does not draw.
 _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not this)
 
+### Appearance
+
+**Theme**:
+The look of the application around the Log Lines: Light, Dark or High Contrast, or System,
+which becomes Light or Dark from the operating system's color scheme at startup. A Theme is
+exactly one set of Tokens; the application's palette and stylesheet are both derived from
+it. A Theme does not color Log Lines — that is the Highlighter Set's job.
+_Avoid_: style, skin, palette (a palette is derived from a Theme)
+
+**Token**:
+One named value of a Theme — a color such as the border or hover color, or a size or icon
+used by the stylesheet. Every Theme sets every Token. A user can override Dark Tokens by
+name in the settings, and add a stylesheet of their own on top.
+_Avoid_: variable, constant, design value
+
 ### Structure
 
 **Log Format**:
