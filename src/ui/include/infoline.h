@@ -40,9 +40,6 @@
 #define INFOLINE_H
 
 #include <QLabel>
-#include <QPalette>
-
-#include <optional>
 
 // Information line with integrated completion gauge
 // used for the file name and the search results.
@@ -62,8 +59,8 @@ protected:
     void contextMenuEvent( QContextMenuEvent* event ) override;
 
 private:
-    // The original palette of the QLabel
-    std::optional<QPalette> origPalette_;
+    // Whether displayGauge() set the background since the last hideGauge().
+    bool gaugeShown_ = false;
 };
 
 #endif

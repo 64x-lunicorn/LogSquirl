@@ -17,15 +17,38 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include "configuration.h"
+#include "crawlerwidget.h"
+#include "filteredview.h"
+#include "filterspanel.h"
+#include "highlightersdialog.h"
+#include "infoline.h"
+#include "logformatcatalog.h"
+#include "logtableview.h"
+#include "mainwindow.h"
+#include "optionsdialog.h"
+#include "predefinedfilterscombobox.h"
+#include "predefinedfiltersdialog.h"
+#include "predefinedfiltersetedit.h"
+#include "session.h"
+#include "tabbarstyle.h"
+#include "tabbedcrawlerwidget.h"
+#include "test_policies.h"
+#include "test_utils.h"
+#include "theme.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QDockWidget>
 #include <QGuiApplication>
 #include <QImage>
+#include <QLabel>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QStyleHints>
 #include <QTabBar>
@@ -36,21 +59,7 @@
 #include <QToolBar>
 #include <QToolButton>
 
-#include "configuration.h"
-#include "crawlerwidget.h"
-#include "filteredview.h"
-#include "filterspanel.h"
-#include "highlightersdialog.h"
-#include "logformatcatalog.h"
-#include "mainwindow.h"
-#include "optionsdialog.h"
-#include "predefinedfiltersdialog.h"
-#include "session.h"
-#include "tabbarstyle.h"
-#include "tabbedcrawlerwidget.h"
-#include "test_policies.h"
-#include "test_utils.h"
-#include "theme.h"
+#include <catch2/catch.hpp>
 
 // Changing the Theme while the application runs (#173).
 //
@@ -67,7 +76,12 @@ bool writeLogFile( QTemporaryFile& file )
         return false;
     }
     for ( int i = 0; i < 2000; ++i ) {
-        file.write( QStringLiteral( "INFO theme switch test line %1\n" ).arg( i ).toUtf8() );
+        // spdlog lines, so that a built-in Log Format recognizes the Log File
+        // and its Table View can be shown.
+        file.write( QStringLiteral( "[2026-01-01 12:00:00.000] [theme] [info] theme switch test "
+                                    "line %1\n" )
+                        .arg( i )
+                        .toUtf8() );
     }
     file.flush();
     return true;
@@ -103,6 +117,24 @@ void addFilteredViewTab( CrawlerWidget* crawler )
     REQUIRE( search != nullptr );
     keep->setChecked( true );
     search->click();
+}
+
+// Waits for the Log File to be recognized, then shows its Table View.
+void showTableView( CrawlerWidget* crawler )
+{
+    QToolButton* toggle = nullptr;
+    for ( auto* button : crawler->findChildren<QToolButton*>() ) {
+        if ( button->accessibleName() == QStringLiteral( "Toggle table view" ) ) {
+            toggle = button;
+        }
+    }
+    REQUIRE( toggle != nullptr );
+    REQUIRE( waitUiState( [ toggle, crawler ] { return toggle->isVisibleTo( crawler ); } ) );
+    toggle->setChecked( true );
+
+    auto* tableView = crawler->findChild<LogTableView*>();
+    REQUIRE( tableView != nullptr );
+    REQUIRE( waitUiState( [ tableView, crawler ] { return tableView->isVisibleTo( crawler ); } ) );
 }
 
 void closeLogFiles( TabbedCrawlerWidget* tabArea, int baseTabCount )
@@ -152,10 +184,28 @@ private:
     bool seen_ = false;
 };
 
+// Settings Policies under which a Log File is recognized against the Log
+// Format Catalog.
+SettingsPolicies recognitionEnabled()
+{
+    auto policies = testSettingsPolicies();
+    policies.recognition.enabled = true;
+    return policies;
+}
+
+// A Log Format Catalog holding the built-in Log Formats.
+std::shared_ptr<LogFormatCatalog> builtInLogFormats()
+{
+    auto catalog = std::make_shared<LogFormatCatalog>();
+    catalog->rebuild();
+    return catalog;
+}
+
 struct MainWindowFixture {
-    MainWindowFixture()
-        : session( std::make_shared<Session>( testSettingsPolicies(),
-                                              std::make_shared<LogFormatCatalog>() ) )
+    explicit MainWindowFixture( const SettingsPolicies& policies = testSettingsPolicies(),
+                                std::shared_ptr<LogFormatCatalog> catalog
+                                = std::make_shared<LogFormatCatalog>() )
+        : session( std::make_shared<Session>( policies, std::move( catalog ) ) )
         , mainWindow( std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 } ) )
     {
         mainWindow->show();
@@ -180,7 +230,8 @@ struct MainWindowFixture {
 
 } // namespace
 
-SCENARIO( "Switching the Theme with Log Files, Filtered Views, a floating sidebar and dialogs open",
+SCENARIO( "Switching the Theme with Log Files, Filtered Views, the Table View, a floating sidebar "
+          "and dialogs open",
           "[ui][theme]" )
 {
     QTemporaryFile firstFile{ QDir::tempPath() + "/theme_switch_test_XXXXXX" };
@@ -188,7 +239,7 @@ SCENARIO( "Switching the Theme with Log Files, Filtered Views, a floating sideba
     REQUIRE( writeLogFile( firstFile ) );
     REQUIRE( writeLogFile( secondFile ) );
 
-    MainWindowFixture fixture;
+    MainWindowFixture fixture( recognitionEnabled(), builtInLogFormats() );
     auto& mainWindow = *fixture.mainWindow;
     const auto themes = Theme::availableThemes();
 
@@ -201,6 +252,7 @@ SCENARIO( "Switching the Theme with Log Files, Filtered Views, a floating sideba
         for ( auto* crawler : mainWindow.findChildren<CrawlerWidget*>() ) {
             addFilteredViewTab( crawler );
             addFilteredViewTab( crawler );
+            showTableView( crawler );
         }
 
         auto* sidebar = mainWindow.findChild<QDockWidget*>( "sidebarDock" );
@@ -311,32 +363,80 @@ SCENARIO( "Icons and widget styles follow a Theme switch", "[ui][theme]" )
 
 SCENARIO( "System follows the operating system's color scheme while running", "[ui][theme]" )
 {
+    // Stands in for the operating system, whose color scheme a test cannot
+    // change. Shared, so the source stays valid even if a REQUIRE aborts.
+    const auto systemScheme = std::make_shared<Qt::ColorScheme>( Qt::ColorScheme::Light );
+    Theme::setSystemColorSchemeSource( [ systemScheme ] { return *systemScheme; } );
     Theme::followSystemColorScheme();
     auto* hints = QGuiApplication::styleHints();
+
+    // What a platform does when the operating system changes its scheme.
+    const auto systemTurns = [ systemScheme, hints ]( Qt::ColorScheme scheme ) {
+        *systemScheme = scheme;
+        Q_EMIT hints->colorSchemeChanged( scheme );
+    };
 
     GIVEN( "the System Theme is chosen" )
     {
         Theme::apply( Theme::SystemKey );
+        REQUIRE( Theme::active().name() == Theme::LightKey );
 
         WHEN( "the operating system turns dark" )
         {
+            systemTurns( Qt::ColorScheme::Dark );
+
+            THEN( "nothing is applied inside Qt's handling of the change" )
+            {
+                REQUIRE( Theme::active().name() == Theme::LightKey );
+            }
+
+            AND_WHEN( "the event loop runs" )
+            {
+                QCoreApplication::processEvents();
+
+                THEN( "the application shows the Dark Theme" )
+                {
+                    REQUIRE( Theme::active().name() == Theme::DarkKey );
+                    REQUIRE( qApp->palette().color( QPalette::Window )
+                             == Theme::active().color( ColorToken::Window ) );
+                }
+
+                AND_WHEN( "it turns light again" )
+                {
+                    systemTurns( Qt::ColorScheme::Light );
+                    QCoreApplication::processEvents();
+
+                    THEN( "the application shows the Light Theme" )
+                    {
+                        REQUIRE( Theme::active().name() == Theme::LightKey );
+                    }
+                }
+            }
+        }
+
+        WHEN( "a late signal reports a scheme the operating system no longer has" )
+        {
             Q_EMIT hints->colorSchemeChanged( Qt::ColorScheme::Dark );
+            QCoreApplication::processEvents();
+
+            THEN( "the application keeps the Theme of the current scheme" )
+            {
+                REQUIRE( Theme::active().name() == Theme::LightKey );
+            }
+        }
+    }
+
+    GIVEN( "the operating system is dark" )
+    {
+        *systemScheme = Qt::ColorScheme::Dark;
+
+        WHEN( "the System Theme is chosen" )
+        {
+            Theme::apply( Theme::SystemKey );
 
             THEN( "the application shows the Dark Theme" )
             {
                 REQUIRE( Theme::active().name() == Theme::DarkKey );
-                REQUIRE( qApp->palette().color( QPalette::Window )
-                         == Theme::active().color( ColorToken::Window ) );
-            }
-
-            AND_WHEN( "it turns light again" )
-            {
-                Q_EMIT hints->colorSchemeChanged( Qt::ColorScheme::Light );
-
-                THEN( "the application shows the Light Theme" )
-                {
-                    REQUIRE( Theme::active().name() == Theme::LightKey );
-                }
             }
         }
     }
@@ -347,7 +447,8 @@ SCENARIO( "System follows the operating system's color scheme while running", "[
 
         WHEN( "the operating system turns dark" )
         {
-            Q_EMIT hints->colorSchemeChanged( Qt::ColorScheme::Dark );
+            systemTurns( Qt::ColorScheme::Dark );
+            QCoreApplication::processEvents();
 
             THEN( "the application keeps the Light Theme" )
             {
@@ -356,6 +457,7 @@ SCENARIO( "System follows the operating system's color scheme while running", "[
         }
     }
 
+    Theme::setSystemColorSchemeSource( {} );
     Theme::apply( Theme::defaultTheme() );
 }
 
@@ -371,6 +473,130 @@ SCENARIO( "A widget refreshes after a switch until it is destroyed", "[ui][theme
     context.reset();
     Theme::apply( Theme::LightKey );
     REQUIRE( refreshes == 1 );
+}
+
+SCENARIO( "Widgets that adjust a palette role follow a Theme switch", "[ui][theme]" )
+{
+    Theme::apply( Theme::LightKey );
+    const auto darkColor = []( ColorToken token ) {
+        return Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light ).color( token );
+    };
+
+    GIVEN( "a Predefined Filters combo box built under the Light Theme" )
+    {
+        PredefinedFiltersComboBox combo( nullptr );
+        const auto lightBase = combo.view()->palette().color( QPalette::Base );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+
+            THEN( "its list shows the combo box's new window color as its base" )
+            {
+                const auto base = combo.view()->palette().color( QPalette::Base );
+                REQUIRE( base == combo.palette().color( QPalette::Window ) );
+                REQUIRE( base != lightBase );
+            }
+        }
+    }
+
+    GIVEN( "a filter set editor showing a filter under the Light Theme" )
+    {
+        PredefinedFilterSetEdit edit;
+        auto set = PredefinedFilterSet::createNewSet( QStringLiteral( "theme" ) );
+        set.addFilter( { QStringLiteral( "name" ), QStringLiteral( "pattern" ), false } );
+        edit.setFilterSet( set );
+        REQUIRE_FALSE( edit.findChildren<QCheckBox*>().isEmpty() );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+
+            THEN( "its regex check boxes show the Dark window color as their base" )
+            {
+                for ( auto* checkBox : edit.findChildren<QCheckBox*>() ) {
+                    REQUIRE( checkBox->palette().color( QPalette::Base )
+                             == darkColor( ColorToken::Window ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "an info line showing its gauge under the Light Theme" )
+    {
+        InfoLine line;
+        line.displayGauge( 10 );
+
+        WHEN( "the Dark Theme is applied and the gauge advances" )
+        {
+            Theme::apply( Theme::DarkKey );
+            line.displayGauge( 20 );
+
+            THEN( "the gauge is drawn in the Dark highlight color" )
+            {
+                const auto* gradient = line.palette().brush( line.backgroundRole() ).gradient();
+                REQUIRE( gradient != nullptr );
+                REQUIRE( gradient->stops().front().second == darkColor( ColorToken::Highlight ) );
+            }
+
+            AND_WHEN( "the gauge is hidden" )
+            {
+                line.hideGauge();
+
+                THEN( "the line shows the Dark window color" )
+                {
+                    REQUIRE( line.palette().color( line.backgroundRole() )
+                             == darkColor( ColorToken::Window ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a label whose own stylesheet names a palette role" )
+    {
+        QWidget window;
+        auto* label = new QLabel( QStringLiteral( "text" ), &window );
+        label->setStyleSheet( QStringLiteral( "color: palette(dark);" ) );
+        window.show();
+        QTest::qWait( 20 );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+
+            THEN( "the role is resolved against the Dark palette" )
+            {
+                REQUIRE( label->palette().color( QPalette::WindowText )
+                         == darkColor( ColorToken::Dark ) );
+            }
+        }
+    }
+
+    GIVEN( "a button whose own stylesheet draws its border in a palette role" )
+    {
+        QWidget window;
+        auto* button = new QPushButton( &window );
+        button->setFixedSize( 60, 24 );
+        button->setStyleSheet(
+            QStringLiteral( "background-color: #ff0000; border: 1px solid palette(mid);" ) );
+        window.show();
+        QTest::qWait( 20 );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+
+            THEN( "the border is drawn in the Dark mid color" )
+            {
+                const auto image = button->grab().toImage();
+                REQUIRE( image.pixelColor( 0, 12 ).rgb() == darkColor( ColorToken::Mid ).rgb() );
+            }
+        }
+    }
+
+    Theme::apply( Theme::defaultTheme() );
 }
 
 SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart", "[ui][theme]" )
@@ -391,7 +617,7 @@ SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart",
         const auto chosen = current == Theme::DarkKey ? QString( Theme::HighContrastKey )
                                                       : QString( Theme::DarkKey );
         dialog.styleComboBox->setCurrentText( chosen );
-        QMetaObject::invokeMethod( &dialog, "updateConfigFromDialog", Qt::DirectConnection );
+        dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
         QTest::qWait( 50 );
 
         THEN( "the Theme is in use and no restart is asked for" )
@@ -406,7 +632,7 @@ SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart",
         if ( dialog.languageComboBox->count() > 1 ) {
             dialog.languageComboBox->setCurrentIndex(
                 dialog.languageComboBox->currentIndex() == 0 ? 1 : 0 );
-            QMetaObject::invokeMethod( &dialog, "updateConfigFromDialog", Qt::DirectConnection );
+            dialog.buttonBox->button( QDialogButtonBox::Apply )->click();
             QTest::qWait( 100 );
 
             THEN( "a restart is still asked for" )

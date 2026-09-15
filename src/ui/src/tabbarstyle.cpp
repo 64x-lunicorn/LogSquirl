@@ -19,9 +19,9 @@
 
 #include "tabbarstyle.h"
 
-#include <QtGlobal>
-
 #include "theme.h"
+
+#include <QtGlobal>
 
 QString closableTabBarStyleSheet( const Theme& theme )
 {

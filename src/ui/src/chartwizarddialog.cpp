@@ -34,7 +34,6 @@
 
 #include "charttemplategenerator.h"
 #include "logformatdefinition.h"
-#include "theme.h"
 
 ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format, QWidget* parent )
     : QDialog( parent )
@@ -106,7 +105,6 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format, QWidget
     colorButton_ = new QPushButton;
     colorButton_->setFixedSize( 60, 24 );
     updateColorButton();
-    Theme::whenApplied( this, [ this ] { updateColorButton(); } );
     connect( colorButton_, &QPushButton::clicked, this, &ChartWizardDialog::chooseColor );
     form->addRow( tr( "Color:" ), colorButton_ );
 
@@ -332,7 +330,8 @@ void ChartWizardDialog::chooseColor()
 
 void ChartWizardDialog::updateColorButton()
 {
-    // palette(mid) is resolved when the stylesheet is set.
+    // Qt resolves palette(mid) again whenever it repolishes the button, which
+    // every Theme switch does, so only a color change sets the stylesheet.
     colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
                                      .arg( selectedColor_.name() ) );
 }

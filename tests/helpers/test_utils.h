@@ -7,6 +7,7 @@
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
+#include <QSignalSpy>
 #include <QTimer>
 /*
 struct TestTimer {

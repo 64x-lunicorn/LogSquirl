@@ -150,7 +150,10 @@ public:
     static constexpr QLatin1String HighContrastKey = QLatin1String( "High Contrast" );
     static constexpr QLatin1String SystemKey = QLatin1String( "System" );
 
+    // Every value the `style` setting can take, sorted by name.
     static QStringList availableThemes();
+
+    // The `style` setting used when none or an unknown one is stored.
     static QString defaultTheme();
 
     // The Theme a stored `style` setting stands for. System becomes Dark when
@@ -162,15 +165,22 @@ public:
 
     // Light, Dark or High Contrast -- never System.
     QString name() const;
+
+    // Whether the Theme has dark backgrounds and light text.
     bool isDark() const;
 
     // Whether two-tone icons show their inverse (light) variant, which a dark
     // Theme needs. Every choice between the two icon variants asks this.
     bool usesInverseIcons() const;
 
+    // The color this Theme gives token.
     QColor color( ColorToken token ) const;
+
+    // The stylesheet value (a size, padding or icon image) this Theme gives
+    // token.
     QString value( StyleToken token ) const;
 
+    // The QPalette derived from the palette-role Tokens, for every color group.
     QPalette palette() const;
 
     // The stylesheet template with every Token filled in.
@@ -180,6 +190,8 @@ public:
     // userThemesDirectory, if there is one.
     QString styleSheetWithUserFile( const QString& userThemesDirectory ) const;
 
+    // The name of token: its placeholder in the stylesheet template without
+    // the @ signs, and its key in the stored Dark overrides.
     static QString tokenName( ColorToken token );
     static QString tokenName( StyleToken token );
 
@@ -192,18 +204,23 @@ public:
 
     // Runs refresh after every apply() for as long as context lives, once the
     // palette and stylesheet are in place. For what a widget derives from the
-    // Theme and Qt does not update by itself: icons, and stylesheets built
-    // from Tokens or palette roles. Never refresh from a StyleChange or
-    // PaletteChange handler instead: those run while Qt repolishes (#173).
+    // Theme and Qt does not update by itself: icons, stylesheets built from
+    // Tokens, and palette roles set from colors read off a palette. A
+    // stylesheet that names palette(role) needs none: Qt resolves it again
+    // on every repolish. Never refresh from a StyleChange or PaletteChange
+    // handler instead: those run while Qt repolishes (#173).
     static void whenApplied( QObject* context, std::function<void()> refresh );
 
     // Applies System again whenever the operating system's color scheme
-    // changes while System is chosen. Call once at startup.
+    // changes while System is chosen, once Qt's event handling for the change
+    // is over. Call once at startup.
     static void followSystemColorScheme();
 
-    // What followSystemColorScheme() connects QStyleHints::colorSchemeChanged
-    // to.
-    static void systemColorSchemeChanged( Qt::ColorScheme scheme );
+    // Replaces where System reads the operating system's color scheme from,
+    // QStyleHints::colorScheme() by default; an empty source restores that.
+    // Exists for tests: no platform lets a test change the operating system's
+    // color scheme.
+    static void setSystemColorSchemeSource( std::function<Qt::ColorScheme()> source );
 
     // The Theme last applied, or the default Theme before apply().
     static const Theme& active();

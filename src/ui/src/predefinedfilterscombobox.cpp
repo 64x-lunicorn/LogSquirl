@@ -43,6 +43,7 @@
 #include <qabstractitemview.h>
 
 #include "log.h"
+#include "theme.h"
 
 constexpr int PatternRole = Qt::UserRole + 1;
 constexpr int RegexRole = PatternRole + 1;
@@ -94,9 +95,16 @@ PredefinedFiltersComboBox::PredefinedFiltersComboBox( QWidget* parent )
     connect( view(), &QAbstractItemView::pressed, this, changeCheckState );
     connect( view(), &QAbstractItemView::doubleClicked, this, changeCheckState );
 
-    QPalette palette = this->palette();
-    palette.setColor( QPalette::Base, palette.color( QPalette::Window ) );
-    view()->setPalette( palette );
+    // The list shows the combo box's window color as its base. A role set
+    // explicitly no longer follows the application palette, so it is set
+    // again after every Theme switch.
+    const auto useWindowColorAsBase = [ this ] {
+        QPalette listPalette;
+        listPalette.setColor( QPalette::Base, palette().color( QPalette::Window ) );
+        view()->setPalette( listPalette );
+    };
+    useWindowColorAsBase();
+    Theme::whenApplied( this, useWindowColorAsBase );
 
     view()->setTextElideMode( Qt::ElideNone );
     setSizeAdjustPolicy( QComboBox::AdjustToContents );

@@ -16,6 +16,8 @@
 
 #include <QIcon>
 
+class QAbstractButton;
+
 // Loads an icon from the resources in the variant the active Theme asks for:
 // the inverse variant when Theme::usesInverseIcons().
 class IconLoader {
@@ -32,5 +34,10 @@ private:
 
     QString makeNonScalableFilename( QString, int, bool ) const;
 };
+
+// Sets the plus, minus, up and down arrow icons of a list editor's add,
+// remove, move up and move down buttons, in the active Theme's variant.
+void loadListEditIcons( QAbstractButton* add, QAbstractButton* remove, QAbstractButton* up,
+                        QAbstractButton* down );
 
 #endif // LOGSQUIRL_ICONLOADER_H
