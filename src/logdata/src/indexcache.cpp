@@ -45,6 +45,22 @@ QString pathHash( const QString& filePath )
     return QString::fromLatin1( digest );
 }
 
+#if defined( Q_OS_WIN ) || defined( Q_OS_MACOS )
+constexpr auto PathCaseSensitivity = Qt::CaseInsensitive;
+#else
+constexpr auto PathCaseSensitivity = Qt::CaseSensitive;
+#endif
+
+/// The path with symbolic links resolved where it exists, so one directory
+/// reached by two spellings -- macOS's /var and /private/var, say -- compares
+/// equal.
+QString resolvedPath( const QString& path )
+{
+    const QFileInfo info( path );
+    const auto canonical = info.canonicalFilePath();
+    return canonical.isEmpty() ? QDir::cleanPath( info.absoluteFilePath() ) : canonical;
+}
+
 /// Whether the given range of the Log File has the given digest, computed
 /// with the same FileDigest the indexer records it with. Read in chunks, so
 /// a corrupt size in a cache file cannot make this allocate without bound.
@@ -69,23 +85,32 @@ bool digestMatches( QFile& logFile, qint64 offset, qint64 size, quint64 expected
     return digest.digest() == expectedDigest;
 }
 
+enum class Fit { Fits, Stale, LogFileUnreadable };
+
 /// Whether an Index recorded with this hash still fits the Log File: the
-/// same size, and the same header and tail digests.
-bool fitsLogFile( const IndexedHash& hash, const QString& filePath )
+/// same size, and the same header and tail digests. A Log File that exists
+/// but cannot be opened right now -- locked by another program, say -- says
+/// nothing about the Index either way.
+Fit fitOf( const IndexedHash& hash, const QString& filePath )
 {
     QFile logFile( filePath );
-    if ( !logFile.open( QIODevice::ReadOnly ) || logFile.size() != hash.size ) {
-        return false;
+    if ( !logFile.exists() ) {
+        return Fit::Stale;
     }
-
-    if ( !digestMatches( logFile, 0, hash.headerSize, hash.headerDigest ) ) {
-        return false;
+    if ( !logFile.open( QIODevice::ReadOnly ) ) {
+        return Fit::LogFileUnreadable;
+    }
+    if ( logFile.size() != hash.size
+         || !digestMatches( logFile, 0, hash.headerSize, hash.headerDigest ) ) {
+        return Fit::Stale;
     }
 
     // A Log File no longer than one digest block has its tail digest taken
     // at offset 0, which is its header digest again.
     return hash.tailOffset == 0
-           || digestMatches( logFile, hash.tailOffset, hash.tailSize, hash.tailDigest );
+                   || digestMatches( logFile, hash.tailOffset, hash.tailSize, hash.tailDigest )
+               ? Fit::Fits
+               : Fit::Stale;
 }
 
 } // namespace
@@ -109,11 +134,11 @@ bool IndexCache::isExcluded( const QString& filePath ) const
         return false;
     }
 
-    auto excludedPrefix = QDir::cleanPath( QFileInfo( excludedDirectory_ ).absoluteFilePath() );
+    auto excludedPrefix = resolvedPath( excludedDirectory_ );
     if ( !excludedPrefix.endsWith( QLatin1Char( '/' ) ) ) {
         excludedPrefix += QLatin1Char( '/' );
     }
-    return QDir::cleanPath( QFileInfo( filePath ).absoluteFilePath() ).startsWith( excludedPrefix );
+    return resolvedPath( filePath ).startsWith( excludedPrefix, PathCaseSensitivity );
 }
 
 std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
@@ -123,6 +148,9 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
     }
 
     const auto path = cacheFilePath( filePath );
+
+    // Set when the entry yields nothing yet may still be good.
+    bool keepEntry = false;
 
     const auto readEntry = [ & ]( QFile& file ) -> std::optional<CachedIndex> {
         QDataStream in( &file );
@@ -148,8 +176,14 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
 
         // Checked before the line positions are read: a stale entry is
         // found out without deserializing the Index it holds.
-        if ( !fitsLogFile( hash, filePath ) ) {
+        switch ( fitOf( hash, filePath ) ) {
+        case Fit::Fits:
+            break;
+        case Fit::Stale:
             LOG_INFO << "Cached index stale for " << filePath;
+            return std::nullopt;
+        case Fit::LogFileUnreadable:
+            keepEntry = true;
             return std::nullopt;
         }
 
@@ -202,7 +236,9 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
     }
 
     if ( !result ) {
-        QFile::remove( path );
+        if ( !keepEntry ) {
+            QFile::remove( path );
+        }
         return std::nullopt;
     }
 
@@ -212,8 +248,11 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
     // to set the time through a read-only handle; ExistingOnly so that an
     // entry evicted in the meantime is not recreated empty.
     QFile touched( path );
-    if ( touched.open( QIODevice::ReadWrite | QIODevice::ExistingOnly ) ) {
-        touched.setFileTime( QDateTime::currentDateTime(), QFileDevice::FileModificationTime );
+    if ( !touched.open( QIODevice::ReadWrite | QIODevice::ExistingOnly )
+         || !touched.setFileTime( QDateTime::currentDateTime(),
+                                  QFileDevice::FileModificationTime ) ) {
+        LOG_DEBUG << "Cannot mark index cache entry as used, eviction treats it as written: "
+                  << path;
     }
 
     LOG_INFO << "Loaded index cache for " << filePath << " (" << result->hash.size << " bytes, "

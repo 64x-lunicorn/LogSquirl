@@ -208,6 +208,30 @@ SCENARIO( "The Index cache hands out an Index only while it fits its Log File", 
             }
         }
 
+#ifndef Q_OS_WIN
+        WHEN( "the Log File exists but cannot be opened for now" )
+        {
+            REQUIRE( QFile::setPermissions( logFile, QFileDevice::Permissions{} ) );
+            // A process running with root privileges opens it all the same.
+            const bool lockedOut = !QFile( logFile ).open( QIODevice::ReadOnly );
+            const auto loaded = cache.tryLoad( logFile );
+            REQUIRE( QFile::setPermissions( logFile,
+                                            QFileDevice::ReadOwner | QFileDevice::WriteOwner ) );
+
+            THEN( "nothing is loaded, but the entry is kept for when it can be" )
+            {
+                if ( lockedOut ) {
+                    REQUIRE_FALSE( loaded.has_value() );
+                    REQUIRE( cacheFiles( cacheDir.path() ).size() == 1 );
+                    REQUIRE( cache.tryLoad( logFile ).has_value() );
+                }
+                else {
+                    WARN( "the Log File stayed readable, so there is nothing to check" );
+                }
+            }
+        }
+#endif
+
         WHEN( "the Log File is deleted" )
         {
             REQUIRE( QFile::remove( logFile ) );
@@ -299,6 +323,24 @@ SCENARIO( "The Index cache decides for itself what it does not keep", "[indexcac
                 REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
             }
         }
+
+#ifndef Q_OS_WIN
+        WHEN( "an Index is stored for a Log File reached through a link to the excluded directory" )
+        {
+            const auto link = logDir.filePath( "link-to-excluded" );
+            REQUIRE( QFile::link( excludedDir.path(), link ) );
+            writeFile( excludedDir.filePath( "linked.log" ), "line\n" );
+            const auto logFile = link + QStringLiteral( "/linked.log" );
+            const auto stored = store( cache, logFile );
+
+            THEN(
+                "nothing is written, as the Log File is under the excluded directory all the same" )
+            {
+                REQUIRE_FALSE( stored );
+                REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
+            }
+        }
+#endif
 
         WHEN( "an Index is stored for a Log File in a sibling directory sharing the name's prefix" )
         {
