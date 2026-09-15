@@ -453,3 +453,56 @@ SCENARIO( "Log format settings round-trip through QSettings", "[configuration]" 
         }
     }
 }
+
+SCENARIO( "Dark palette overrides round-trip through QSettings", "[configuration]" )
+{
+    GIVEN( "A freshly constructed Configuration" )
+    {
+        Configuration config;
+
+        THEN( "No Dark Token is overridden" )
+        {
+            REQUIRE( config.darkPalette().empty() );
+        }
+    }
+
+    GIVEN( "Settings with stored dark palette entries" )
+    {
+        QTemporaryDir tmpDir;
+        REQUIRE( tmpDir.isValid() );
+        const QString tmpPath = QDir( tmpDir.path() ).filePath( "test.ini" );
+        {
+            QSettings settings( tmpPath, QSettings::IniFormat );
+            settings.beginGroup( "dark" );
+            settings.setValue( "Window", "#101010" );
+            settings.setValue( "Chrome", "#202020" );
+            settings.endGroup();
+        }
+
+        WHEN( "Loaded, saved and loaded again" )
+        {
+            Configuration loaded;
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                loaded.retrieveFromStorage( settings );
+            }
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                loaded.saveToStorage( settings );
+            }
+            Configuration restored;
+            {
+                QSettings settings( tmpPath, QSettings::IniFormat );
+                restored.retrieveFromStorage( settings );
+            }
+
+            THEN( "Exactly the stored entries are overrides" )
+            {
+                const std::map<QString, QString> expected{ { "Chrome", "#202020" },
+                                                           { "Window", "#101010" } };
+                REQUIRE( loaded.darkPalette() == expected );
+                REQUIRE( restored.darkPalette() == expected );
+            }
+        }
+    }
+}

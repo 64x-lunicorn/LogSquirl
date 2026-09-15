@@ -21,7 +21,7 @@
 #include "scratchpad.h"
 
 #include "configuration.h"
-#include "styles.h"
+#include "theme.h"
 
 #include <QLabel>
 #include <QTabBar>
@@ -43,7 +43,7 @@ TabbedScratchPad::TabbedScratchPad( QWidget* parent )
 
     // Apply tab height and close-button icons to match the main tab bar
     const auto& config = Configuration::get();
-    const bool isDark = ( config.style() == StyleManager::DarkStyleKey );
+    const bool isDark = ( config.style() == Theme::DarkKey );
 
     QString tabStyle = QStringLiteral( "QTabBar::tab { height: 28px; }" );
 
@@ -67,7 +67,7 @@ TabbedScratchPad::TabbedScratchPad( QWidget* parent )
             = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-hover-16.png";
     }
 #elif defined( Q_OS_WIN )
-    if ( config.style() == StyleManager::LightKey ) {
+    if ( config.style() == Theme::LightKey ) {
         backgroundImage = ":/images/icons8-close-window-16.png";
         backgroundHoverImage = ":/images/icons8-close-window-hover-16.png";
     }

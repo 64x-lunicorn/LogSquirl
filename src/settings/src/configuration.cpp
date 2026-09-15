@@ -49,7 +49,7 @@
 #include "configuration.h"
 #include "log.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "theme.h"
 
 namespace {
 std::once_flag fontInitFlag;
@@ -311,9 +311,9 @@ void Configuration::retrieveFromStorage( QSettings& settings )
 
     style_ = settings.value( "view.style", DefaultConfiguration.style_ ).toString();
 
-    auto styles = StyleManager::availableStyles();
+    auto styles = Theme::availableThemes();
     if ( !styles.contains( style_ ) ) {
-        style_ = StyleManager::defaultPlatformStyle();
+        style_ = Theme::defaultTheme();
     }
     if ( !styles.contains( style_ ) ) {
         style_ = styles.front();
@@ -395,9 +395,10 @@ void Configuration::retrieveFromStorage( QSettings& settings )
         = settings.value( "plugins.enabledPlugins", DefaultConfiguration.enabledPlugins_ )
               .toStringList();
 
+    darkPalette_.clear();
     settings.beginGroup( "dark" );
-    for ( auto& color : darkPalette_ ) {
-        color.second = settings.value( color.first, color.second ).toString();
+    for ( const auto& key : settings.childKeys() ) {
+        darkPalette_[ key ] = settings.value( key ).toString();
     }
     settings.endGroup();
 

@@ -596,6 +596,8 @@ public:
         defaultEncodingMib_ = mib;
     }
 
+    // Stored overrides of Dark Tokens, by Token name (e.g. "Window" ->
+    // "#101010"), from the [dark] settings group. See Theme::fromName().
     std::map<QString, QString> darkPalette() const
     {
         return darkPalette_;
@@ -794,26 +796,7 @@ private:
 
     QMap<QString, QString> chartPresets_;
 
-    // based on https://gist.github.com/QuantumCD/6245215
-    std::map<QString, QString> darkPalette_ = {
-        { "Window", "#121212" },
-        { "WindowText", "#E0E0E0" },
-        { "Base", "#1E1E1E" },
-        { "AlternateBase", "#252526" },
-        { "ToolTipBase", "#2D2D30" },
-        { "ToolTipText", "#E0E0E0" },
-        { "Text", "#E0E0E0" },
-        { "Button", "#2D2D30" },
-        { "ButtonText", "#E0E0E0" },
-        { "Link", "#4D90FE" },
-        { "Highlight", "#4D90FE" },
-        { "HighlightedText", "#FFFFFF" },
-        { "ActiveButton", "#252526" },
-        { "DisabledButtonText", "#666666" },
-        { "DisabledWindowText", "#666666" },
-        { "DisabledText", "#666666" },
-        { "DisabledLight", "#252526" },
-    };
+    std::map<QString, QString> darkPalette_;
 };
 
 #endif
