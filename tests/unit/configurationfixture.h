@@ -34,6 +34,7 @@
 
 #include "configuration.h"
 #include "fontutils.h"
+#include "painting_test_font.h"
 #include "shortcuts.h"
 #include "theme.h"
 
@@ -134,8 +135,11 @@ inline QStringList settingNames( const QVariantMap& values )
 
 // A fixed-pitch family the Options Dialog offers that does not resolve to
 // the same font as the default one, so a stored font is not the default.
+// The painting tests' own font is registered first: a host with a single
+// fixed-pitch font (the Linux CI containers) would otherwise offer none.
 inline QString nonDefaultFontFamily()
 {
+    paintingtestfont::loadPaintingTestFont();
     const auto defaultFamily = QFontInfo( Configuration{}.mainFont() ).family();
     for ( const auto& family : FontUtils::availableFonts() ) {
         const auto resolved = QFontInfo( QFont( family, 14 ) ).family();
