@@ -49,11 +49,9 @@
 #include <QObject>
 #include <QTextCodec>
 
-#if !defined( Q_MOC_RUN )
-#include <tbb/enumerable_thread_specific.h>
-#include <tbb/flow_graph.h>
-#include <tbb/task_group.h>
-#endif
+// No TBB here: the indexing graph is an implementation detail of
+// logdataworker.cpp, and TBB is a private dependency of the log data
+// library (#168).
 
 #include "atomicflag.h"
 #include "filedigest.h"
@@ -323,7 +321,6 @@ Q_SIGNALS:
 protected:
     using BlockBuffer = logsquirl::vector<char>;
     using BlockData = std::pair<OffsetInFile::UnderlyingType, BlockBuffer*>;
-    using BlockPrefetcher = tbb::flow::limiter_node<BlockData>;
 
     // Returns the total size indexed
     // Modify the passed linePosition and maxLength

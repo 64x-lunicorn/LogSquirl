@@ -45,6 +45,7 @@
 
 #include <robin_hood.h>
 #include <tbb/flow_graph.h>
+#include <tbb/info.h>
 #include <vector>
 
 #include "dispatch_to.h"

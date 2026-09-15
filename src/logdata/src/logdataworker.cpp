@@ -51,6 +51,8 @@
 #include <QSemaphore>
 #include <tuple>
 
+#include <tbb/flow_graph.h>
+
 #include "containers.h"
 #include "dispatch_to.h"
 #include "encodingdetector.h"
@@ -676,7 +678,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     const auto indexingStartTime = clock::now();
 
     tbb::flow::graph indexingGraph;
-    auto blockPrefetcher = BlockPrefetcher( indexingGraph, prefetchBufferSize );
+    auto blockPrefetcher = tbb::flow::limiter_node<BlockData>( indexingGraph, prefetchBufferSize );
     auto blockQueue = tbb::flow::queue_node<BlockData>( indexingGraph );
 
     auto blockParser = tbb::flow::function_node<BlockData, tbb::flow::continue_msg>(
