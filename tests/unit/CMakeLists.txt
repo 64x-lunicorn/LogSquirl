@@ -32,6 +32,7 @@ add_executable(logsquirl_tests
     searchsession_test.cpp
     settingspolicies_test.cpp
     tableviewselection_test.cpp
+    theme_test.cpp
     viewportlayout_test.cpp
     wrappedstring_test.cpp
     tests_main.cpp
