@@ -19,6 +19,7 @@ add_executable(logsquirl_tests
     logformatregistry_test.cpp
     logformattablemodel_test.cpp
     logtablehighlightdelegate_test.cpp
+    logtableview_test.cpp
     logviewpainting_test.cpp
     lz4device_test.cpp
     mergecontroller_test.cpp

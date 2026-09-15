@@ -168,8 +168,8 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
     if ( columnsNeedSizing_ && lineCountInt > 0 ) {
         columnsNeedSizing_ = false;
 
-        // Apply saved widths immediately (fast, no I/O) so the table is usable
-        // right away, then refine from actual data asynchronously.
+        // Widths the user saved for this Log Format win; auto-sizing them
+        // afterwards would throw the user's widths away.
         if ( !applySavedColumnWidths() ) {
             // No saved widths — use a reasonable default until auto-sizing finishes
             programmaticColumnResize_ = true;
@@ -177,10 +177,10 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
                 setColumnWidth( col, 120 );
             }
             programmaticColumnResize_ = false;
-        }
 
-        // Defer the expensive auto-sizing so the UI stays responsive
-        QTimer::singleShot( 0, this, &LogTableView::autoSizeColumns );
+            // Defer the expensive auto-sizing so the UI stays responsive
+            QTimer::singleShot( 0, this, &LogTableView::autoSizeColumns );
+        }
     }
 
     if ( follow && lineCountInt > 0 ) {
