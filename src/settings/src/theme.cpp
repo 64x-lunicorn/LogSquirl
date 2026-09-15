@@ -19,8 +19,8 @@
 
 #include "theme.h"
 
-#include <algorithm>
-#include <vector>
+#include "configuration.h"
+#include "log.h"
 
 #include <QApplication>
 #include <QDir>
@@ -33,8 +33,8 @@
 #include <QStyleHints>
 #include <QTextStream>
 
-#include "configuration.h"
-#include "log.h"
+#include <algorithm>
+#include <vector>
 
 // The stylesheet template is compiled into this static library. Nothing else
 // references that resource object, so a linker may drop it unless it is

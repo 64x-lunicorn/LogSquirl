@@ -17,7 +17,22 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include "configuration.h"
+#include "crawlerwidget.h"
+#include "filteredview.h"
+#include "filterspanel.h"
+#include "highlightersdialog.h"
+#include "logformatcatalog.h"
+#include "logtableview.h"
+#include "mainwindow.h"
+#include "optionsdialog.h"
+#include "predefinedfiltersdialog.h"
+#include "session.h"
+#include "tabbarstyle.h"
+#include "tabbedcrawlerwidget.h"
+#include "test_policies.h"
+#include "test_utils.h"
+#include "theme.h"
 
 #include <QApplication>
 #include <QComboBox>
@@ -36,22 +51,7 @@
 #include <QToolBar>
 #include <QToolButton>
 
-#include "configuration.h"
-#include "crawlerwidget.h"
-#include "filteredview.h"
-#include "filterspanel.h"
-#include "highlightersdialog.h"
-#include "logformatcatalog.h"
-#include "logtableview.h"
-#include "mainwindow.h"
-#include "optionsdialog.h"
-#include "predefinedfiltersdialog.h"
-#include "session.h"
-#include "tabbarstyle.h"
-#include "tabbedcrawlerwidget.h"
-#include "test_policies.h"
-#include "test_utils.h"
-#include "theme.h"
+#include <catch2/catch.hpp>
 
 // Changing the Theme while the application runs (#173).
 //
