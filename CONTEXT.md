@@ -136,8 +136,21 @@ _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not thi
 
 **Log Format**:
 A description of how a Log Line is composed of named fields, used to present the file as
-columns. Either detected automatically from the file's first lines or supplied by the user.
+columns. Either built in or supplied by the user; which one applies to a Log File is decided
+by Format Recognition.
 _Avoid_: schema, parser, layout
+
+**Log Format Catalog**:
+Every Log Format available to choose from, built in and supplied by the user. A user's
+Log Format replaces a built-in one of the same name. One Catalog serves the whole application.
+_Avoid_: registry, library
+
+**Format Recognition**:
+The decision which Log Format, if any, applies to a Log File, taken from its first Log
+Lines against the Log Format Catalog. Taken when a Log File has loaded, and again after it
+is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
+with, even when the Catalog changes.
+_Avoid_: detection, sniffing
 
 **Table View**:
 The Presentation of a Log File as one column per Log Format field, as an alternative to
@@ -157,7 +170,7 @@ A saved configuration of which Log Format fields to plot and how.
 **Settings Policy**:
 The small set of settings one part of the application actually needs, taken as a snapshot
 and handed to it when it is built — an Indexing Policy, a Search Policy, a Watch Policy, a
-File Access Policy. A part that holds a Policy cannot reach for a setting it did not declare.
+File Access Policy, a Recognition Policy. A part that holds a Policy cannot reach for a setting it did not declare.
 _Avoid_: config object, options, preferences
 
 **Axis**:
