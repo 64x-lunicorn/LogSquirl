@@ -204,9 +204,11 @@ public:
 
     // Runs refresh after every apply() for as long as context lives, once the
     // palette and stylesheet are in place. For what a widget derives from the
-    // Theme and Qt does not update by itself: icons, and stylesheets built
-    // from Tokens or palette roles. Never refresh from a StyleChange or
-    // PaletteChange handler instead: those run while Qt repolishes (#173).
+    // Theme and Qt does not update by itself: icons, stylesheets built from
+    // Tokens, and palette roles set from colors read off a palette. A
+    // stylesheet that names palette(role) needs none: Qt resolves it again
+    // on every repolish. Never refresh from a StyleChange or PaletteChange
+    // handler instead: those run while Qt repolishes (#173).
     static void whenApplied( QObject* context, std::function<void()> refresh );
 
     // Applies System again whenever the operating system's color scheme

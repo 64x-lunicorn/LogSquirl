@@ -22,11 +22,14 @@
 #include "filteredview.h"
 #include "filterspanel.h"
 #include "highlightersdialog.h"
+#include "infoline.h"
 #include "logformatcatalog.h"
 #include "logtableview.h"
 #include "mainwindow.h"
 #include "optionsdialog.h"
+#include "predefinedfilterscombobox.h"
 #include "predefinedfiltersdialog.h"
+#include "predefinedfiltersetedit.h"
 #include "session.h"
 #include "tabbarstyle.h"
 #include "tabbedcrawlerwidget.h"
@@ -34,13 +37,18 @@
 #include "test_utils.h"
 #include "theme.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QDockWidget>
 #include <QGuiApplication>
 #include <QImage>
+#include <QLabel>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QStyleHints>
 #include <QTabBar>
@@ -439,7 +447,8 @@ SCENARIO( "System follows the operating system's color scheme while running", "[
 
         WHEN( "the operating system turns dark" )
         {
-            Q_EMIT hints->colorSchemeChanged( Qt::ColorScheme::Dark );
+            systemTurns( Qt::ColorScheme::Dark );
+            QCoreApplication::processEvents();
 
             THEN( "the application keeps the Light Theme" )
             {
@@ -464,6 +473,130 @@ SCENARIO( "A widget refreshes after a switch until it is destroyed", "[ui][theme
     context.reset();
     Theme::apply( Theme::LightKey );
     REQUIRE( refreshes == 1 );
+}
+
+SCENARIO( "Widgets that adjust a palette role follow a Theme switch", "[ui][theme]" )
+{
+    Theme::apply( Theme::LightKey );
+    const auto darkColor = []( ColorToken token ) {
+        return Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light ).color( token );
+    };
+
+    GIVEN( "a Predefined Filters combo box built under the Light Theme" )
+    {
+        PredefinedFiltersComboBox combo( nullptr );
+        const auto lightBase = combo.view()->palette().color( QPalette::Base );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+
+            THEN( "its list shows the combo box's new window color as its base" )
+            {
+                const auto base = combo.view()->palette().color( QPalette::Base );
+                REQUIRE( base == combo.palette().color( QPalette::Window ) );
+                REQUIRE( base != lightBase );
+            }
+        }
+    }
+
+    GIVEN( "a filter set editor showing a filter under the Light Theme" )
+    {
+        PredefinedFilterSetEdit edit;
+        auto set = PredefinedFilterSet::createNewSet( QStringLiteral( "theme" ) );
+        set.addFilter( { QStringLiteral( "name" ), QStringLiteral( "pattern" ), false } );
+        edit.setFilterSet( set );
+        REQUIRE_FALSE( edit.findChildren<QCheckBox*>().isEmpty() );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+
+            THEN( "its regex check boxes show the Dark window color as their base" )
+            {
+                for ( auto* checkBox : edit.findChildren<QCheckBox*>() ) {
+                    REQUIRE( checkBox->palette().color( QPalette::Base )
+                             == darkColor( ColorToken::Window ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "an info line showing its gauge under the Light Theme" )
+    {
+        InfoLine line;
+        line.displayGauge( 10 );
+
+        WHEN( "the Dark Theme is applied and the gauge advances" )
+        {
+            Theme::apply( Theme::DarkKey );
+            line.displayGauge( 20 );
+
+            THEN( "the gauge is drawn in the Dark highlight color" )
+            {
+                const auto* gradient = line.palette().brush( line.backgroundRole() ).gradient();
+                REQUIRE( gradient != nullptr );
+                REQUIRE( gradient->stops().front().second == darkColor( ColorToken::Highlight ) );
+            }
+
+            AND_WHEN( "the gauge is hidden" )
+            {
+                line.hideGauge();
+
+                THEN( "the line shows the Dark window color" )
+                {
+                    REQUIRE( line.palette().color( line.backgroundRole() )
+                             == darkColor( ColorToken::Window ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a label whose own stylesheet names a palette role" )
+    {
+        QWidget window;
+        auto* label = new QLabel( QStringLiteral( "text" ), &window );
+        label->setStyleSheet( QStringLiteral( "color: palette(dark);" ) );
+        window.show();
+        QTest::qWait( 20 );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+
+            THEN( "the role is resolved against the Dark palette" )
+            {
+                REQUIRE( label->palette().color( QPalette::WindowText )
+                         == darkColor( ColorToken::Dark ) );
+            }
+        }
+    }
+
+    GIVEN( "a button whose own stylesheet draws its border in a palette role" )
+    {
+        QWidget window;
+        auto* button = new QPushButton( &window );
+        button->setFixedSize( 60, 24 );
+        button->setStyleSheet(
+            QStringLiteral( "background-color: #ff0000; border: 1px solid palette(mid);" ) );
+        window.show();
+        QTest::qWait( 20 );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+
+            THEN( "the border is drawn in the Dark mid color" )
+            {
+                const auto image = button->grab().toImage();
+                REQUIRE( image.pixelColor( 0, 12 ).rgb() == darkColor( ColorToken::Mid ).rgb() );
+            }
+        }
+    }
+
+    Theme::apply( Theme::defaultTheme() );
 }
 
 SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart", "[ui][theme]" )
