@@ -83,17 +83,24 @@ private:
         QPointer<QAction> toolBarAction;
     };
 
+    /// A toolbar of the window that shows plugin widgets; created when the first one arrives.
+    struct PluginToolBar {
+        /// Untranslated title, in the "MainWindow" translation context.
+        const char* title = nullptr;
+        Qt::ToolBarArea area = Qt::TopToolBarArea;
+        QPointer<QToolBar> toolBar{};
+        std::vector<PlacedWidget> placed{};
+    };
+
     /// Runs work now when called on the window's thread, otherwise queues it there.
     void onWindowThread( std::function<void()> work );
 
-    /// Adds a widget to a toolbar in area, creating the toolbar with title on first use.
-    void placeInToolBar( QPointer<QToolBar>& toolBar, const QString& title, Qt::ToolBarArea area,
-                         std::vector<PlacedWidget>& placed, const QString& pluginId,
-                         QWidget* widget );
+    /// Adds a widget of a plugin to a toolbar, creating the toolbar on first use.
+    void placeInToolBar( PluginToolBar& bar, const QString& pluginId, QWidget* widget );
 
     /// Takes widgets of a plugin out of a toolbar; all of them when widget is null.
-    void removeFromToolBar( QToolBar* toolBar, std::vector<PlacedWidget>& placed,
-                            const QString& pluginId, const QWidget* widget );
+    static void removeFromToolBar( PluginToolBar& bar, const QString& pluginId,
+                                   const QWidget* widget );
 
     /// Takes sidebar tabs of a plugin away; all of them when widget is null.
     void removeFromSidebar( const QString& pluginId, const QWidget* widget );
@@ -103,14 +110,14 @@ private:
     QPointer<QAction> menuSeparator_;
     QTabWidget& sidebarTabs_;
 
-    // Plugin-contributed toolbar (shown below the main toolbar)
-    QPointer<QToolBar> statusToolBar_;
+    // Plugin status widgets, in a toolbar below the main toolbar.
+    PluginToolBar statusToolBar_{ .title = QT_TRANSLATE_NOOP( "MainWindow", "Plugins" ),
+                                  .area = Qt::TopToolBarArea };
 
-    // Plugin-contributed footer toolbar (shown at the bottom of the window)
-    QPointer<QToolBar> footerToolBar_;
+    // Plugin footer widgets, in a toolbar at the bottom of the window.
+    PluginToolBar footerToolBar_{ .title = QT_TRANSLATE_NOOP( "MainWindow", "Plugin Footer" ),
+                                  .area = Qt::BottomToolBarArea };
 
-    std::vector<PlacedWidget> statusWidgets_;
-    std::vector<PlacedWidget> footerWidgets_;
     std::vector<PlacedWidget> sidebarWidgets_;
 
     // Tracks menu actions added by each plugin so they can be removed on unload.

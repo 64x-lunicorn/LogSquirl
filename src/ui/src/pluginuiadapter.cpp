@@ -64,30 +64,29 @@ void PluginUiAdapter::onWindowThread( std::function<void()> work )
     QMetaObject::invokeMethod( &window_, std::move( work ), Qt::QueuedConnection );
 }
 
-void PluginUiAdapter::placeInToolBar( QPointer<QToolBar>& toolBar, const QString& title,
-                                      Qt::ToolBarArea area, std::vector<PlacedWidget>& placed,
-                                      const QString& pluginId, QWidget* widget )
+void PluginUiAdapter::placeInToolBar( PluginToolBar& bar, const QString& pluginId, QWidget* widget )
 {
-    if ( !toolBar ) {
-        toolBar = new QToolBar( title, &window_ );
-        toolBar->setMovable( false );
-        toolBar->setFloatable( false );
-        window_.addToolBar( area, toolBar );
+    if ( !bar.toolBar ) {
+        bar.toolBar
+            = new QToolBar( QCoreApplication::translate( "MainWindow", bar.title ), &window_ );
+        bar.toolBar->setMovable( false );
+        bar.toolBar->setFloatable( false );
+        window_.addToolBar( bar.area, bar.toolBar );
     }
-    placed.push_back( { pluginId, widget, toolBar->addWidget( widget ) } );
+    bar.placed.push_back( { pluginId, widget, bar.toolBar->addWidget( widget ) } );
 }
 
-void PluginUiAdapter::removeFromToolBar( QToolBar* toolBar, std::vector<PlacedWidget>& placed,
-                                         const QString& pluginId, const QWidget* widget )
+void PluginUiAdapter::removeFromToolBar( PluginToolBar& bar, const QString& pluginId,
+                                         const QWidget* widget )
 {
-    std::erase_if( placed, [ & ]( const PlacedWidget& entry ) {
+    std::erase_if( bar.placed, [ & ]( const PlacedWidget& entry ) {
         if ( entry.pluginId != pluginId || ( widget && entry.widget != widget ) ) {
             return false;
         }
-        if ( toolBar && entry.toolBarAction ) {
+        if ( bar.toolBar && entry.toolBarAction ) {
             // The action stays alive: deleting it would delete the widget,
             // which the plugin owns.
-            toolBar->removeAction( entry.toolBarAction );
+            bar.toolBar->removeAction( entry.toolBarAction );
         }
         if ( entry.widget ) {
             entry.widget->setParent( nullptr );
@@ -120,8 +119,7 @@ void PluginUiAdapter::addStatusWidget( const QString& pluginId, PluginWidgetHand
         if ( !widget ) {
             return;
         }
-        placeInToolBar( statusToolBar_, QCoreApplication::translate( "MainWindow", "Plugins" ),
-                        Qt::TopToolBarArea, statusWidgets_, pluginId, widget );
+        placeInToolBar( statusToolBar_, pluginId, widget );
         LOG_INFO << "Plugin " << pluginId << " registered status widget";
     } );
 }
@@ -133,7 +131,7 @@ void PluginUiAdapter::removeStatusWidget( const QString& pluginId, PluginWidgetH
         if ( !widget ) {
             return;
         }
-        removeFromToolBar( statusToolBar_, statusWidgets_, pluginId, widget );
+        removeFromToolBar( statusToolBar_, pluginId, widget );
         LOG_INFO << "Plugin " << pluginId << " unregistered status widget";
     } );
 }
@@ -145,9 +143,7 @@ void PluginUiAdapter::addFooterWidget( const QString& pluginId, PluginWidgetHand
         if ( !widget ) {
             return;
         }
-        placeInToolBar( footerToolBar_,
-                        QCoreApplication::translate( "MainWindow", "Plugin Footer" ),
-                        Qt::BottomToolBarArea, footerWidgets_, pluginId, widget );
+        placeInToolBar( footerToolBar_, pluginId, widget );
         LOG_INFO << "Plugin " << pluginId << " registered footer widget";
     } );
 }
@@ -159,7 +155,7 @@ void PluginUiAdapter::removeFooterWidget( const QString& pluginId, PluginWidgetH
         if ( !widget ) {
             return;
         }
-        removeFromToolBar( footerToolBar_, footerWidgets_, pluginId, widget );
+        removeFromToolBar( footerToolBar_, pluginId, widget );
         LOG_INFO << "Plugin " << pluginId << " unregistered footer widget";
     } );
 }
@@ -242,8 +238,8 @@ void PluginUiAdapter::removeContributions( const QString& pluginId )
 
         // Normally a plugin removes its widgets itself when it is shut down;
         // anything it left behind must not outlive its library in the window.
-        removeFromToolBar( statusToolBar_, statusWidgets_, pluginId, nullptr );
-        removeFromToolBar( footerToolBar_, footerWidgets_, pluginId, nullptr );
+        removeFromToolBar( statusToolBar_, pluginId, nullptr );
+        removeFromToolBar( footerToolBar_, pluginId, nullptr );
         removeFromSidebar( pluginId, nullptr );
     } );
 }
