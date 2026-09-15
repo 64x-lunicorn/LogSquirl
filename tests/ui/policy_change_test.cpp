@@ -87,7 +87,8 @@ SCENARIO( "A changed Search Policy reaches every Filtered View of a Log File",
         policies.search.useResultsCache = false;
         policies.search.contextLinesCount = 1;
 
-        LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+        LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                         policies.decoding };
         {
             SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
             logData.attachFile( file.fileName() );
@@ -167,7 +168,8 @@ SCENARIO( "A changed Indexing Policy reaches a Log File that is already open",
         auto policies = testSettingsPolicies();
         policies.indexing.useCompressedIndex = true;
 
-        LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+        LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                         policies.decoding };
         {
             SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
             logData.attachFile( file.fileName() );
@@ -190,6 +192,62 @@ SCENARIO( "A changed Indexing Policy reaches a Log File that is already open",
             THEN( "the reindex ran under the new Policy and the file is complete" )
             {
                 REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A changed Decoding Policy reaches a Log File that is already open",
+          "[logdata][settings]" )
+{
+    QTemporaryFile file{ "policy_change_decoding_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( "plain line\n" );
+    file.write( "\x1B[31mERROR\x1B[0m: disk full\n" );
+    file.write( "another plain line\n" );
+    file.flush();
+
+    GIVEN( "a Log File with ANSI color sequences, opened showing them" )
+    {
+        auto policies = testSettingsPolicies();
+        policies.search.useResultsCache = false;
+        policies.decoding.hideAnsiColorSequences = false;
+
+        LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                         policies.decoding };
+        {
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            logData.attachFile( file.fileName() );
+            REQUIRE( loadEndSpy.safeWait( 10000 ) );
+        }
+        REQUIRE( logData.getLineString( 1_lnum ).contains( "\x1B[31m" ) );
+
+        WHEN( "a Decoding Policy hiding them arrives" )
+        {
+            auto changed = policies.decoding;
+            changed.hideAnsiColorSequences = true;
+            logData.setDecodingPolicy( changed );
+
+            THEN( "the Log Line reads without them" )
+            {
+                REQUIRE( logData.getLineString( 1_lnum ) == "ERROR: disk full" );
+            }
+
+            THEN( "a Search matches the text they interrupted" )
+            {
+                auto filtered = logData.getNewFilteredData();
+                searchForSingleLine( filtered.get(), "ERROR: disk full" );
+                REQUIRE( lineTypeOf( *filtered, 1_lnum ) == LineTypeFlags::Match );
+            }
+
+            AND_WHEN( "a Decoding Policy showing them arrives again" )
+            {
+                logData.setDecodingPolicy( policies.decoding );
+
+                THEN( "the Log Line reads with them again" )
+                {
+                    REQUIRE( logData.getLineString( 1_lnum ).contains( "\x1B[31m" ) );
+                }
             }
         }
     }

@@ -51,9 +51,12 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
                                            .defaultEncodingMib = 106,
                                            .extractArchives = false,
                                            .extractArchivesAlways = true };
+        const DecodingPolicy decoding{ .hideAnsiColorSequences = true };
 
         THEN( "each field holds what was written" )
         {
+            REQUIRE( decoding.hideAnsiColorSequences );
+
             REQUIRE_FALSE( search.useParallelSearch );
             REQUIRE( search.threadPoolSize == 3 );
             REQUIRE( search.readBufferSizeLines == 512 );
@@ -98,9 +101,12 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
         const WatchPolicy watch{};
         const FileAccessPolicy fileAccess{};
         const RecognitionPolicy recognition{};
+        const DecodingPolicy decoding{};
 
         THEN( "every field is value-initialised" )
         {
+            REQUIRE_FALSE( decoding.hideAnsiColorSequences );
+
             REQUIRE_FALSE( search.useParallelSearch );
             REQUIRE( search.threadPoolSize == 0 );
             REQUIRE( search.readBufferSizeLines == 0 );
@@ -157,6 +163,9 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         // Shipped disabled, so enabling it is the distinctive value.
         config.setAutoDetectLogFormats( true );
 
+        // Shipped showing them, so hiding them is the distinctive value.
+        config.setHideAnsiColorSequences( true );
+
         WHEN( "the Policies are derived from it" )
         {
             const auto policies = deriveSettingsPolicies( config );
@@ -203,6 +212,34 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
             {
                 REQUIRE( policies.recognition.enabled );
             }
+
+            THEN( "the Decoding Policy carries whether ANSI color sequences are hidden" )
+            {
+                REQUIRE( policies.decoding.hideAnsiColorSequences );
+            }
+        }
+
+        WHEN( "ANSI color sequences are shown and the Policies are derived again" )
+        {
+            config.setHideAnsiColorSequences( false );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the Decoding Policy says so" )
+            {
+                REQUIRE_FALSE( policies.decoding.hideAnsiColorSequences );
+            }
+
+            THEN( "only the Decoding axis differs from the hiding derivation" )
+            {
+                config.setHideAnsiColorSequences( true );
+                const auto hiding = deriveSettingsPolicies( config );
+                REQUIRE( policies.decoding != hiding.decoding );
+                REQUIRE( policies.indexing == hiding.indexing );
+                REQUIRE( policies.search == hiding.search );
+                REQUIRE( policies.watch == hiding.watch );
+                REQUIRE( policies.fileAccess == hiding.fileAccess );
+                REQUIRE( policies.recognition == hiding.recognition );
+            }
         }
 
         WHEN( "Format Recognition is disabled and the Policies are derived again" )
@@ -224,6 +261,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.search == enabled.search );
                 REQUIRE( policies.watch == enabled.watch );
                 REQUIRE( policies.fileAccess == enabled.fileAccess );
+                REQUIRE( policies.decoding == enabled.decoding );
             }
         }
     }

@@ -47,7 +47,7 @@ namespace {
 // one of its first searchedLines Log Lines (all of them by default).
 struct FilteredLogFile {
     explicit FilteredLogFile( const QStringList& lines, qsizetype searchedLines = -1 )
-        : logData( policies.indexing, policies.search, policies.fileAccess )
+        : logData( policies.indexing, policies.search, policies.fileAccess, policies.decoding )
     {
         REQUIRE( file.open() );
         // The last Log Line has no line ending, so text appended to the file

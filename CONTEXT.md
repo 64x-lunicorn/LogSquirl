@@ -191,7 +191,7 @@ A saved configuration of which Log Format fields to plot and how.
 **Settings Policy**:
 The small set of settings one part of the application actually needs, taken as a snapshot
 and handed to it when it is built — an Indexing Policy, a Search Policy, a Watch Policy, a
-File Access Policy, a Recognition Policy. A part that holds a Policy cannot reach for a setting it did not declare.
+File Access Policy, a Recognition Policy, a Decoding Policy. A part that holds a Policy cannot reach for a setting it did not declare.
 _Avoid_: config object, options, preferences
 
 **Axis**:

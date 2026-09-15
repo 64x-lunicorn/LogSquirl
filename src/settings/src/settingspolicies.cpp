@@ -55,5 +55,7 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                         .extractArchivesAlways = config.extractArchivesAlways() },
 
         .recognition = { .enabled = config.autoDetectLogFormats() },
+
+        .decoding = { .hideAnsiColorSequences = config.hideAnsiColorSequences() },
     };
 }

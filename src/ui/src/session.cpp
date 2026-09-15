@@ -111,8 +111,8 @@ ViewInterface* Session::openAlways( const QString& file_name,
                                     const QString& view_context )
 {
     // Create the data objects
-    auto log_data
-        = std::make_shared<LogData>( policies_.indexing, policies_.search, policies_.fileAccess );
+    auto log_data = std::make_shared<LogData>( policies_.indexing, policies_.search,
+                                               policies_.fileAccess, policies_.decoding );
     auto log_filtered_data = std::shared_ptr<LogFilteredData>( log_data->getNewFilteredData() );
 
     ViewInterface* view = view_factory();
@@ -162,6 +162,7 @@ void Session::applyPolicies( const SettingsPolicies& policies )
     const auto indexingChanged = policies.indexing != policies_.indexing;
     const auto searchChanged = policies.search != policies_.search;
     const auto recognitionChanged = policies.recognition != policies_.recognition;
+    const auto decodingChanged = policies.decoding != policies_.decoding;
 
     // Every time, changed Policies or not: the user's Log Formats are read
     // again. Log Formats handed out before stay valid for whoever holds them.
@@ -174,7 +175,7 @@ void Session::applyPolicies( const SettingsPolicies& policies )
     // only thing a change to it can do.
     policies_ = policies;
 
-    if ( !indexingChanged && !searchChanged && !recognitionChanged ) {
+    if ( !indexingChanged && !searchChanged && !recognitionChanged && !decodingChanged ) {
         return;
     }
 
@@ -196,6 +197,12 @@ void Session::applyPolicies( const SettingsPolicies& policies )
             // it, which is more than the one this Session holds: a tab that
             // kept an earlier Search has its own.
             openFile.logData->setSearchPolicy( policies_.search );
+        }
+
+        if ( decodingChanged ) {
+            // Log Lines read from now on are decoded under it; a view shows
+            // them at its next repaint.
+            openFile.logData->setDecodingPolicy( policies_.decoding );
         }
     }
 }
