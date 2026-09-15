@@ -157,3 +157,48 @@ SCENARIO( "PluginManager discovers plugins in a temporary directory", "[pluginma
         }
     }
 }
+
+SCENARIO( "PluginManager treats a .lua library as a native library", "[pluginmanager][plugins]" )
+{
+    GIVEN( "A plugin whose manifest names a .lua script as its library" )
+    {
+        QTemporaryDir tmpDir;
+        REQUIRE( tmpDir.isValid() );
+
+        const auto pluginDir = tmpDir.path() + QDir::separator() + "script-plugin";
+        QDir().mkpath( pluginDir );
+
+        QFile manifest( pluginDir + QDir::separator() + "plugin.json" );
+        REQUIRE( manifest.open( QIODevice::WriteOnly ) );
+        manifest.write( R"({
+            "id": "com.test.script",
+            "name": "Script Test",
+            "version": "1.0.0",
+            "type": "datasource",
+            "library": "script.lua",
+            "api_version": 1
+        })" );
+        manifest.close();
+
+        QFile script( pluginDir + QDir::separator() + "script.lua" );
+        REQUIRE( script.open( QIODevice::WriteOnly ) );
+        script.write( "function plugin_init(host) end\n" );
+        script.close();
+
+        PluginManager manager;
+        manager.discoverPluginsIn( tmpDir.path() );
+        REQUIRE( manager.discoveredPlugins().size() == 1 );
+
+        WHEN( "The plugin is loaded" )
+        {
+            const auto error = manager.loadPlugin( "com.test.script" );
+
+            THEN( "Loading fails with the normal shared-library load error" )
+            {
+                REQUIRE( error.startsWith( "Failed to load library" ) );
+                REQUIRE( error.contains( "script.lua" ) );
+                REQUIRE_FALSE( manager.isLoaded( "com.test.script" ) );
+            }
+        }
+    }
+}
