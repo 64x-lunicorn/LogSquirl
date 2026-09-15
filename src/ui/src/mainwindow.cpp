@@ -116,7 +116,6 @@
 #include "sessioninfo.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
-#include "theme.h"
 
 namespace {
 
@@ -135,7 +134,6 @@ QTranslator MainWindow::mQtTranslator;
 MainWindow::MainWindow( WindowSession session )
     : session_( std::move( session ) )
     , mainIcon_()
-    , iconLoader_( this )
     , signalMux_()
     , quickFindMux_( session_.getQuickFindPattern() )
     , mainTabWidget_()
@@ -231,13 +229,9 @@ MainWindow::MainWindow( WindowSession session )
         constexpr int kButtonSize = 24;
         constexpr int kIconSize = 16;
 
-        // Pick icon variant based on configured style — at construction time
-        // the dark palette is not yet applied, so IconLoader cannot detect it.
-        const bool isDarkStyle = Configuration::get().style() == Theme::DarkKey;
-
+        // Their icons are set by loadIcons().
         auto* floatButton = new QToolButton( titleBar );
-        floatButton->setIcon( isDarkStyle ? QIcon( ":/images/icons8-undock-16_inverse.png" )
-                                          : QIcon( ":/images/icons8-undock-16.png" ) );
+        sidebarFloatButton_ = floatButton;
         floatButton->setFixedSize( kButtonSize, kButtonSize );
         floatButton->setIconSize( QSize( kIconSize, kIconSize ) );
         floatButton->setAutoRaise( true );
@@ -245,8 +239,7 @@ MainWindow::MainWindow( WindowSession session )
         titleLayout->addWidget( floatButton );
 
         auto* closeButton = new QToolButton( titleBar );
-        closeButton->setIcon( isDarkStyle ? QIcon( ":/images/icons8-close-window-16_inverse.png" )
-                                          : QIcon( ":/images/icons8-close-window-16.png" ) );
+        sidebarCloseButton_ = closeButton;
         closeButton->setFixedSize( kButtonSize, kButtonSize );
         closeButton->setIconSize( QSize( kIconSize, kIconSize ) );
         closeButton->setAutoRaise( true );
@@ -957,6 +950,8 @@ void MainWindow::loadIcons()
     showFilterFrequencyAction->setIcon( iconLoader_.load( "icons8-frequency" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
+    sidebarFloatButton_->setIcon( iconLoader_.load( "icons8-undock-16" ) );
+    sidebarCloseButton_->setIcon( iconLoader_.load( "icons8-close-window-16" ) );
 }
 
 void MainWindow::createMenus()

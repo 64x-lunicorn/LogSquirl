@@ -93,7 +93,12 @@
     X( IndicatorBorder )                                                                           \
     X( IndicatorIndeterminate )                                                                    \
     X( IndicatorDisabled )                                                                         \
-    X( IndicatorDisabledBorder )
+    X( IndicatorDisabledBorder )                                                                   \
+    X( StatusOk )                                                                                  \
+    X( StatusWarning )                                                                             \
+    X( StatusInactive )                                                                            \
+    X( StatusInfo )                                                                                \
+    X( StatusText )
 
 // Non-color Tokens: sizes, paddings and icon images, as stylesheet values.
 #define LOGSQUIRL_STYLE_TOKENS( X )                                                                \
@@ -154,6 +159,10 @@ public:
     // Light, Dark or High Contrast -- never System.
     QString name() const;
     bool isDark() const;
+
+    // Whether two-tone icons show their inverse (light) variant, which a dark
+    // Theme needs. Every choice between the two icon variants asks this.
+    bool usesInverseIcons() const;
 
     QColor color( ColorToken token ) const;
     QString value( StyleToken token ) const;

@@ -349,48 +349,16 @@ void FiltersPanel::loadPinnedFilters()
 
 void FiltersPanel::applyCurrentPalette()
 {
+    // The Theme's stylesheet draws the check box indicators and its palette
+    // has a readable placeholder text color, so the panel only passes the
+    // application palette on to the widgets that keep their own.
     const auto appPal = qApp->palette();
-    const auto baseColor = appPal.color( QPalette::Base );
-    const bool isDark = baseColor.lightnessF() < 0.5f;
-
-    if ( isDark ) {
-        // Fusion derives the checkbox outline from palette roles (Mid, Dark,
-        // Shadow, Window) that the app dark palette leaves near-black.
-        // Only override the unchecked border so the box is visible; leave
-        // checked/indeterminate to Fusion so it draws proper checkmarks.
-        const auto textColor = appPal.color( QPalette::Text );
-        const auto borderHex = textColor.darker( 130 ).name();
-        const auto bgHex = baseColor.lighter( 160 ).name();
-
-        const auto indicatorCss = QString( "QTreeWidget::indicator:unchecked {"
-                                           "  border: 1px solid %1;"
-                                           "  background: %2;"
-                                           "}" )
-                                      .arg( borderHex, bgHex );
-
-        filterTree_->setStyleSheet( indicatorCss );
-    }
-    else {
-        filterTree_->setStyleSheet( QString() );
-    }
-
-    // Ensure the tree uses the app palette for text and background.
     filterTree_->setPalette( appPal );
     filterTree_->viewport()->setPalette( appPal );
-
-    // Fix placeholder text colour for the search box in dark mode.
-    // The app dark palette omits PlaceholderText, so it falls back to a
-    // near-black default that is unreadable on the dark Base background.
-    auto searchPal = appPal;
-    if ( isDark ) {
-        const auto textColor = searchPal.color( QPalette::Text );
-        searchPal.setColor( QPalette::PlaceholderText,
-                            QColor( textColor.red(), textColor.green(), textColor.blue(), 128 ) );
-    }
-    searchBox_->setPalette( searchPal );
+    searchBox_->setPalette( appPal );
 
     // Sync the widget-level style with the app style so that
-    // Fusion (used by the dark theme) draws correctly.
+    // Fusion draws correctly.
     filterTree_->setStyle( qApp->style() );
     filterTree_->viewport()->update();
 }

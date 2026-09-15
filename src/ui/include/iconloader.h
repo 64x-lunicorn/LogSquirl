@@ -16,11 +16,10 @@
 
 #include <QIcon>
 
-class QWidget;
-
+// Loads an icon from the resources in the variant the active Theme asks for:
+// the inverse variant when Theme::usesInverseIcons().
 class IconLoader {
 public:
-    explicit IconLoader( QWidget* widget );
     QIcon load( QString name );
 
 private:
@@ -32,9 +31,6 @@ private:
     QPixmap invertPixmap( QPixmap ) const;
 
     QString makeNonScalableFilename( QString, int, bool ) const;
-
-private:
-    QWidget* widget_;
 };
 
 #endif // LOGSQUIRL_ICONLOADER_H

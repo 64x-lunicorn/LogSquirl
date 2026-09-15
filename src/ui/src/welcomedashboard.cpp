@@ -24,6 +24,7 @@
 #include "logsquirl_version.h"
 #include "pluginmanager.h"
 #include "recentfiles.h"
+#include "theme.h"
 
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -310,19 +311,21 @@ void WelcomeDashboard::refreshPluginStatus()
         return;
     }
 
+    const auto& theme = Theme::active();
+    const auto versionColor = theme.color( ColorToken::SecondaryText ).name( QColor::HexRgb );
     for ( const auto& plugin : discovered ) {
         const bool isLoaded = loaded.contains( plugin.id() );
         const QString statusDot = isLoaded ? QStringLiteral( "\u25CF " )  // ● filled circle
                                            : QStringLiteral( "\u25CB " ); // ○ empty circle
-        const QString color = isLoaded ? QStringLiteral( "#4CAF50" )      // green
-                                       : QStringLiteral( "#808080" );     // gray
+        const QString color
+            = theme.color( isLoaded ? ColorToken::StatusOk : ColorToken::StatusInactive )
+                  .name( QColor::HexRgb );
         // The plugin name and version come from the plugin's plugin.json on
         // disk and could contain HTML special characters.  Escape them before
         // they end up in the rich-text label.
         auto* row = new QLabel(
-            QStringLiteral(
-                "<span style='color:%1'>%2</span>%3 <span style='color:#808080'>v%4</span>" )
-                .arg( color, statusDot, plugin.name().toHtmlEscaped(),
+            QStringLiteral( "<span style='color:%1'>%2</span>%3 <span style='color:%4'>v%5</span>" )
+                .arg( color, statusDot, plugin.name().toHtmlEscaped(), versionColor,
                       plugin.version().toHtmlEscaped() ),
             this );
         row->setAlignment( Qt::AlignCenter );

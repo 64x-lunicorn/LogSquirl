@@ -192,7 +192,6 @@ private:
 // the data is attached.
 CrawlerWidget::CrawlerWidget( QWidget* parent )
     : QSplitter( parent )
-    , iconLoader_{ this }
 {
 }
 
