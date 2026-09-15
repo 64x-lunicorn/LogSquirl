@@ -146,16 +146,17 @@ void Configuration::retrieveFromStorage( QSettings& settings )
                       DefaultConfiguration.enableMainSearchHighlightVariance_ )
               .toBool();
 
-    mainSearchBackColor_.fromString(
+    mainSearchBackColor_ = QColor::fromString(
         settings
             .value( "regexpType.mainBackColor",
                     DefaultConfiguration.mainSearchBackColor_.name( QColor::HexArgb ) )
             .toString() );
 
-    qfBackColor_.fromString( settings
-                                 .value( "regexpType.quickfindBackColor",
-                                         DefaultConfiguration.qfBackColor_.name( QColor::HexArgb ) )
-                                 .toString() );
+    qfBackColor_ = QColor::fromString(
+        settings
+            .value( "regexpType.quickfindBackColor",
+                    DefaultConfiguration.qfBackColor_.name( QColor::HexArgb ) )
+            .toString() );
 
     qfIgnoreCase_
         = settings.value( "quickfind.ignore_case", DefaultConfiguration.qfIgnoreCase_ ).toBool();

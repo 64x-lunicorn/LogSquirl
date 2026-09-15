@@ -43,7 +43,8 @@ set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 # The painting test reads its font and golden images from the source tree,
 # and rewrites the golden images there when asked to (#135).
 target_compile_definitions(logsquirl_tests PRIVATE
-    LOGSQUIRL_PAINTING_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/painting")
+    LOGSQUIRL_PAINTING_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/painting"
+    LOGSQUIRL_CONFIGURATION_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/configuration")
 
 add_test(
     NAME logsquirl_tests
