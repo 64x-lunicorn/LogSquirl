@@ -142,7 +142,8 @@ _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not thi
 
 **Theme**:
 The look of the application around the Log Lines: Light, Dark or High Contrast, or System,
-which becomes Light or Dark from the operating system's color scheme at startup. A Theme is
+which becomes Light or Dark from the operating system's color scheme and follows it while the
+application runs. Choosing a Theme takes effect at once, in every open window. A Theme is
 exactly one set of Tokens; the application's palette and stylesheet are both derived from
 it. A Theme does not color Log Lines — that is the Highlighter Set's job.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
