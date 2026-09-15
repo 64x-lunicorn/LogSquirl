@@ -41,6 +41,7 @@
 
 #include "containers.h"
 #include "linetypes.h"
+#include <optional>
 #include <qthreadpool.h>
 #include <variant>
 
@@ -340,7 +341,10 @@ private:
     void guessEncoding( const BlockBuffer& block, IndexingData::MutateAccessor& scopedAccessor,
                         IndexingState& state ) const;
 
-    std::chrono::microseconds readFileInBlocks( QFile& file, BlockPrefetcher& blockPrefetcher );
+    // The next block of the file for the indexing graph, with the time spent
+    // reading it added to ioDuration; nothing once the file is read, reading
+    // fails or the indexing is interrupted.
+    std::optional<BlockData> readNextBlock( QFile& file, std::chrono::microseconds& ioDuration );
     void indexNextBlock( IndexingState& state, const BlockData& blockData );
 };
 

@@ -19,6 +19,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <QDir>
+
 #include "configuration.h"
 #include "settingspolicies.h"
 
@@ -110,6 +112,7 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( indexing.cacheMaxSizeMb == 0 );
             REQUIRE_FALSE( indexing.useCompressedIndex );
             REQUIRE( indexing.indexCacheDirectory.isEmpty() );
+            REQUIRE( indexing.indexCacheExcludedDirectory.isEmpty() );
 
             REQUIRE( watch.pollIntervalMs == 0 );
             REQUIRE_FALSE( watch.nativeWatchEnabled );
@@ -167,6 +170,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.indexing.fastModificationDetection );
                 REQUIRE_FALSE( policies.indexing.indexCacheDirectory.isEmpty() );
                 REQUIRE( policies.indexing.indexCacheDirectory == config.indexCacheDirectory() );
+                REQUIRE( policies.indexing.indexCacheExcludedDirectory == QDir::tempPath() );
             }
 
             THEN( "the Search Policy carries the search settings" )

@@ -24,6 +24,12 @@ The mapping from line numbers to byte offsets that makes a Log File navigable wi
 reading it end to end. Built once per file and cached across sessions.
 _Avoid_: offset table, line map
 
+**Index Cache**:
+The Indexes of earlier sessions, kept on disk so a Log File opened again need not be
+indexed again. It hands out an Index only while that Index still fits its Log File, and
+it decides for itself what it keeps and what it lets go.
+_Avoid_: index store, cache file
+
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 

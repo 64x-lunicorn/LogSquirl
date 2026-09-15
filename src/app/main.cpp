@@ -139,10 +139,10 @@ int main( int argc, char* argv[] )
     // tbb::global_control's constraint only applies while the object itself is
     // alive, so a block-scoped instance here would revert the moment this if
     // exits -- before app.exec() ever runs -- silently undoing the override it
-    // claims to make. With only one thread allowed, a TBB flow graph (search,
-    // indexing, ...) has no worker thread free to make progress whenever its
-    // driving thread is busy elsewhere (e.g. polling for buffer space), and
-    // can stall indefinitely; two is the minimum that avoids that.
+    // claims to make. Two threads let indexing and a Search make progress at
+    // the same time. A flow graph itself does not need a second thread: the
+    // indexing and Search graphs are run by the thread waiting on them (#142,
+    // #146).
     std::optional<tbb::global_control> concurrencyControl;
     if ( maxConcurrency < 2 ) {
         maxConcurrency = 2;

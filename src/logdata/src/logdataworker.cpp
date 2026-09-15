@@ -548,84 +548,38 @@ void IndexOperation::guessEncoding( const logsquirl::vector<char>& block,
               << state.encodingParams.lineFeedWidth;
 }
 
-std::chrono::microseconds IndexOperation::readFileInBlocks( QFile& file,
-                                                            BlockPrefetcher& blockPrefetcher )
+std::optional<IndexOperation::BlockData>
+IndexOperation::readNextBlock( QFile& file, std::chrono::microseconds& ioDuration )
 {
     using namespace std::chrono;
     using clock = high_resolution_clock;
 
-    LOG_INFO << "Starting IO thread";
-
-    int sentBlocksCount = 0;
-
-    microseconds ioDuration{};
-    while ( !file.atEnd() ) {
-
-        if ( interruptRequest_ ) {
-            break;
-        }
-
-        BlockData blockData{ file.pos(), new logsquirl::vector<char>( IndexingBlockSize ) };
-
-        clock::time_point ioT1 = clock::now();
-        const auto readBytes
-            = file.read( blockData.second->data(), logsquirl::ssize( *blockData.second ) );
-
-        if ( readBytes < 0 ) {
-            LOG_ERROR << "Reading past the end of file";
-            // The buffer was never published to the prefetcher; release it here so
-            // the consumer (which would otherwise free it) does not leak it.
-            delete blockData.second;
-            blockData.second = nullptr;
-            break;
-        }
-
-        if ( readBytes < logsquirl::ssize( *blockData.second ) ) {
-            blockData.second->resize( static_cast<size_t>( readBytes ) );
-        }
-
-        clock::time_point ioT2 = clock::now();
-
-        ioDuration += duration_cast<microseconds>( ioT2 - ioT1 );
-
-        if ( sentBlocksCount % 10 == 0 ) {
-            LOG_INFO << "Sending block " << blockData.first << " size " << blockData.second->size();
-        }
-
-        // try_put may legitimately fail forever if the indexing was interrupted while we
-        // were waiting for capacity. In that case the buffer is still owned by us; free it
-        // before exiting the loop to avoid a leak.
-        bool blockAccepted = false;
-        while ( !interruptRequest_ ) {
-            if ( blockPrefetcher.try_put( std::move( blockData ) ) ) {
-                blockAccepted = true;
-                break;
-            }
-            std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-        }
-        if ( !blockAccepted ) {
-            delete blockData.second;
-            blockData.second = nullptr;
-            break;
-        }
-        sentBlocksCount++;
+    if ( interruptRequest_ || file.atEnd() ) {
+        return std::nullopt;
     }
 
-    auto lastBlock = std::make_pair( -1, new logsquirl::vector<char>{} );
-    bool lastBlockAccepted = false;
-    while ( !interruptRequest_ ) {
-        if ( blockPrefetcher.try_put( lastBlock ) ) {
-            lastBlockAccepted = true;
-            break;
-        }
-        std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
-    }
-    if ( !lastBlockAccepted ) {
-        delete lastBlock.second;
+    BlockData blockData{ file.pos(), new BlockBuffer( IndexingBlockSize ) };
+
+    const auto ioStartTime = clock::now();
+    const auto readBytes
+        = file.read( blockData.second->data(), logsquirl::ssize( *blockData.second ) );
+
+    if ( readBytes < 0 ) {
+        LOG_ERROR << "Reading past the end of file";
+        // The buffer never reaches the graph, whose consumer would otherwise
+        // free it; release it here so it does not leak.
+        delete blockData.second;
+        return std::nullopt;
     }
 
-    LOG_INFO << "IO thread done";
-    return ioDuration;
+    if ( readBytes < logsquirl::ssize( *blockData.second ) ) {
+        blockData.second->resize( static_cast<size_t>( readBytes ) );
+    }
+
+    ioDuration += duration_cast<microseconds>( clock::now() - ioStartTime );
+
+    LOG_DEBUG << "Read block " << blockData.first << " size " << blockData.second->size();
+    return blockData;
 }
 
 void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& blockData )
@@ -634,10 +588,6 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
     const auto& block = *blockData.second;
 
     LOG_DEBUG << "Indexing block " << blockBeginning << " start";
-
-    if ( blockBeginning < 0 ) {
-        return;
-    }
 
     IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
@@ -726,7 +676,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     const auto indexingStartTime = clock::now();
 
     tbb::flow::graph indexingGraph;
-    auto blockPrefetcher = tbb::flow::limiter_node<BlockData>( indexingGraph, prefetchBufferSize );
+    auto blockPrefetcher = BlockPrefetcher( indexingGraph, prefetchBufferSize );
     auto blockQueue = tbb::flow::queue_node<BlockData>( indexingGraph );
 
     auto blockParser = tbb::flow::function_node<BlockData, tbb::flow::continue_msg>(
@@ -740,9 +690,31 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     tbb::flow::make_edge( blockQueue, blockParser );
     tbb::flow::make_edge( blockParser, blockPrefetcher.decrementer() );
 
+    // The graph pulls its blocks from an input_node while this thread waits in
+    // wait_for_all(), which makes this thread one of those running the graph.
+    // Pushing blocks in from here instead, sleeping whenever the limiter was
+    // full, only worked while TBB had a worker free for this graph (#146; the
+    // same stall hit Search in #142). Once blockReader stops, reading at the
+    // end of the file, on a read error or on an interrupt, the pass ends as
+    // soon as the blocks already read have gone through the graph.
     file.seek( state.pos );
-    ioDuration = readFileInBlocks( file, blockPrefetcher );
+
+    auto blockReader = tbb::flow::input_node<BlockData>(
+        indexingGraph, [ this, &file, &ioDuration ]( tbb::flow_control& control ) -> BlockData {
+            auto blockData = readNextBlock( file, ioDuration );
+            if ( !blockData ) {
+                control.stop();
+                return {};
+            }
+            return *blockData;
+        } );
+
+    tbb::flow::make_edge( blockReader, blockPrefetcher );
+
+    LOG_INFO << "Reading blocks";
+    blockReader.activate();
     indexingGraph.wait_for_all();
+    LOG_INFO << "Reading blocks done";
 
     IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
@@ -815,6 +787,20 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     }
 }
 
+namespace {
+
+// The Index Cache as an Indexing Policy describes it. A Policy with the
+// cache turned off yields a cache with no directory, which keeps nothing and
+// finds nothing: that is the only place "off" is expressed.
+IndexCache indexCacheFor( const IndexingPolicy& policy )
+{
+    return IndexCache{ policy.useIndexCache ? policy.indexCacheDirectory : QString{},
+                       policy.indexCacheExcludedDirectory,
+                       static_cast<qint64>( policy.cacheMaxSizeMb ) * 1024 * 1024 };
+}
+
+} // namespace
+
 // Called in the worker thread's context
 OperationResult FullIndexOperation::run()
 {
@@ -823,89 +809,32 @@ OperationResult FullIndexOperation::run()
 
         Q_EMIT indexingProgressed( 0 );
 
-        // From this run's own Indexing Policy, so the decision to consult
-        // the cache and the budget used to evict from it afterwards are
+        // From this run's own Indexing Policy, so the cache asked for an
+        // Index here and the one handed the new Index afterwards are
         // necessarily the same run's.
-        const auto useIndexCache = indexingPolicy_.useIndexCache;
-        const auto indexCacheMaxSizeMb = indexingPolicy_.cacheMaxSizeMb;
-        const IndexCache indexCache{ indexingPolicy_.indexCacheDirectory };
+        const auto indexCache = indexCacheFor( indexingPolicy_ );
 
-        // Try loading cached index from disk (skip temp files)
-        const bool isTempFile = fileName_.startsWith( QDir::tempPath() );
-        if ( useIndexCache && !isTempFile ) {
-            auto cached = indexCache.tryLoad( fileName_ );
-            if ( cached ) {
-                // Validate the cached hash against the current file
-                QFileInfo fi( fileName_ );
-                const auto realFileSize = fi.size();
+        if ( auto cached = indexCache.tryLoad( fileName_ ) ) {
+            LOG_INFO << "Using cached index for " << fileName_;
 
-                if ( realFileSize == cached->hash.size ) {
-                    // File size matches — verify header+tail hashes
-                    QFile file( fileName_ );
-                    if ( file.open( QIODevice::ReadOnly ) ) {
-                        QByteArray buffer( IndexingBlockSize, Qt::Uninitialized );
-                        bool valid = true;
-
-                        // Check header
-                        const auto headerRead = file.read( buffer.data(), cached->hash.headerSize );
-                        if ( headerRead == cached->hash.headerSize ) {
-                            FileDigest headerDigest;
-                            headerDigest.addData( buffer.data(),
-                                                  static_cast<size_t>( headerRead ) );
-                            if ( headerDigest.digest() != cached->hash.headerDigest ) {
-                                valid = false;
-                            }
-                        }
-                        else {
-                            valid = false;
-                        }
-
-                        // Check tail
-                        if ( valid && cached->hash.tailOffset > 0 ) {
-                            file.seek( cached->hash.tailOffset );
-                            const auto tailRead = file.read( buffer.data(), cached->hash.tailSize );
-                            if ( tailRead == cached->hash.tailSize ) {
-                                FileDigest tailDigest;
-                                tailDigest.addData( buffer.data(),
-                                                    static_cast<size_t>( tailRead ) );
-                                if ( tailDigest.digest() != cached->hash.tailDigest ) {
-                                    valid = false;
-                                }
-                            }
-                            else {
-                                valid = false;
-                            }
-                        }
-
-                        if ( valid ) {
-                            LOG_INFO << "Using cached index for " << fileName_;
-
-                            auto* codec = QTextCodec::codecForName( cached->encodingName );
-                            if ( !codec ) {
-                                codec = QTextCodec::codecForLocale();
-                            }
-
-                            {
-                                IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-                                scopedAccessor.loadFromCache(
-                                    std::move( cached->linePosition ), cached->maxLength,
-                                    cached->hash, codec,
-                                    indexingPolicy_.fastModificationDetection );
-                                if ( forcedEncoding_ ) {
-                                    scopedAccessor.forceEncoding( forcedEncoding_ );
-                                }
-                            }
-
-                            Q_EMIT indexingProgressed( 100 );
-                            Q_EMIT indexingFinished( true );
-                            return true;
-                        }
-                    }
-                }
-
-                LOG_INFO << "Cached index stale for " << fileName_ << ", re-indexing";
-                indexCache.remove( fileName_ );
+            auto* codec = QTextCodec::codecForName( cached->encodingName );
+            if ( !codec ) {
+                codec = QTextCodec::codecForLocale();
             }
+
+            {
+                IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+                scopedAccessor.loadFromCache( std::move( cached->linePosition ), cached->maxLength,
+                                              cached->hash, codec,
+                                              indexingPolicy_.fastModificationDetection );
+                if ( forcedEncoding_ ) {
+                    scopedAccessor.forceEncoding( forcedEncoding_ );
+                }
+            }
+
+            Q_EMIT indexingProgressed( 100 );
+            Q_EMIT indexingFinished( true );
+            return true;
         }
 
         {
@@ -921,23 +850,15 @@ OperationResult FullIndexOperation::run()
 
         const auto result = interruptRequest_ ? false : true;
 
-        // Save to cache if indexing succeeded (and not a temp file)
-        if ( result && useIndexCache && !isTempFile ) {
+        // The cache decides for itself whether it keeps this Index.
+        if ( result ) {
             IndexingData::ConstAccessor accessor{ indexing_data_.get() };
-            const auto* linePos = accessor.getCompressedLinePosition();
-            // Don't cache empty indexes — they have no value, waste disk
-            // space, and exercise the empty-storage code paths in
-            // CompressedLinePositionStorage::serialize() unnecessarily.
-            if ( linePos && linePos->size().get() > 0 ) {
+            if ( const auto* linePos = accessor.getCompressedLinePosition() ) {
                 const auto* codec = accessor.getEncodingGuess();
                 const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
 
                 indexCache.trySave( fileName_, *linePos, accessor.getMaxLength(),
                                     accessor.getHash(), encodingName, linePos->hasFakeFinalLF() );
-
-                // Evict old entries if cache is too large
-                const auto maxBytes = static_cast<qint64>( indexCacheMaxSizeMb ) * 1024 * 1024;
-                indexCache.evict( maxBytes );
             }
         }
 

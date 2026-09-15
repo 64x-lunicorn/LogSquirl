@@ -1747,7 +1747,10 @@ void MainWindow::manageTabGroups()
 
 void MainWindow::clearIndexCache()
 {
-    const auto freed = IndexCache{ Configuration::get().indexCacheDirectory() }.clearAll();
+    // Only cleared, so which Log Files it would exclude and how large it may
+    // grow do not matter here.
+    const auto freed
+        = IndexCache{ Configuration::get().indexCacheDirectory(), QString{}, 0 }.clearAll();
     const auto freedMb = static_cast<double>( freed ) / ( 1024.0 * 1024.0 );
     statusBar()->showMessage( tr( "Index cache cleared (%1 MB freed)" ).arg( freedMb, 0, 'f', 1 ),
                               5000 );

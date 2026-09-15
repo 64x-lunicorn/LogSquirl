@@ -19,6 +19,8 @@
 
 #include "settingspolicies.h"
 
+#include <QDir>
+
 #include "configuration.h"
 
 SettingsPolicies deriveSettingsPolicies( const Configuration& config )
@@ -29,7 +31,11 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                       .useIndexCache = config.useIndexCache(),
                       .cacheMaxSizeMb = config.indexCacheMaxSizeMb(),
                       .fastModificationDetection = config.fastModificationDetection(),
-                      .indexCacheDirectory = config.indexCacheDirectory() },
+                      .indexCacheDirectory = config.indexCacheDirectory(),
+                      // A temporary file is not worth an Index kept across
+                      // sessions: it is rarely opened again, and its path is
+                      // soon reused by an unrelated file.
+                      .indexCacheExcludedDirectory = QDir::tempPath() },
 
         .search = { .useParallelSearch = config.useParallelSearch(),
                     .threadPoolSize = config.searchThreadPoolSize(),

@@ -37,7 +37,8 @@ struct CachedIndex {
     bool fakeFinalLF = false;
 };
 
-/// Persistent disk cache for line-offset indices.
+/// The Index Cache: the Indexes of earlier sessions, kept on disk so a Log
+/// File opened again need not be indexed again.
 ///
 /// Each cache file stores the compressed line positions, the file hash
 /// (used for validation), the maximum line length, and the detected
@@ -47,38 +48,44 @@ struct CachedIndex {
 /// The cache is told its directory rather than finding one for itself:
 /// the application passes the location from its Indexing Policy, and
 /// anything else -- a test included -- passes a location of its own. A
-/// cache given an empty directory stores nothing and finds nothing.
+/// cache given an empty directory stores nothing and finds nothing, which
+/// is how a cache that is turned off is expressed.
 ///
-/// The cache is validated by comparing the stored IndexedHash with the
-/// current file: header hash (first 5 MB) and tail hash (last 5 MB).
-/// If the file has grown but the indexed portion is unchanged, the
-/// cached index can be used as the starting point for a partial
-/// re-index.
+/// The cache owns its rules; whoever indexes a Log File only asks it for an
+/// Index and hands it one afterwards:
+///  - An Index is handed out only while it still fits its Log File: the
+///    same size, and the same header and tail digests (the first and last
+///    5 MB). An entry that no longer fits, or cannot be read, is deleted.
+///  - Nothing is kept for a Log File under the excluded directory, nor for
+///    an empty Index.
+///  - The cache never grows past its budget. After storing an entry it
+///    evicts the least recently used entries, by the cache file's
+///    modification time, which a successful load refreshes. An entry that
+///    alone exceeds the budget is not written at all.
+///
+/// A cache holds no state in memory, so several may share a directory:
+/// writes are atomic, and a load that loses a race against an eviction of
+/// the same entry is a miss.
 class IndexCache {
 public:
-    explicit IndexCache( QString directory );
+    IndexCache( QString directory, QString excludedDirectory, qint64 budgetBytes );
 
-    /// Try to load a cached index for the given file.
-    /// Returns std::nullopt if the cache does not exist or is invalid.
+    /// The Index cached for the given Log File, if there is one that still
+    /// fits it. Deletes a stale or unreadable entry.
     std::optional<CachedIndex> tryLoad( const QString& filePath ) const;
 
-    /// Save an index to the disk cache.
+    /// Keeps an Index for the given Log File, unless the cache's rules say
+    /// otherwise, then evicts older entries until the cache fits its budget.
+    /// Returns whether the Index was written.
     bool trySave( const QString& filePath, const LinePositionArray& linePosition,
                   LineLength maxLength, const IndexedHash& hash, const QByteArray& encodingName,
                   bool fakeFinalLF ) const;
-
-    /// Remove the cached index for a specific file.
-    void remove( const QString& filePath ) const;
 
     /// Remove all cached indices and return the number of bytes freed.
     qint64 clearAll() const;
 
     /// Return the total size of all cached index files in bytes.
     qint64 totalCacheSize() const;
-
-    /// Enforce the maximum cache size by evicting least-recently-used
-    /// entries until total size is below maxBytes.
-    void evict( qint64 maxBytes ) const;
 
 private:
     /// Compute the cache file path for a source file.
@@ -87,10 +94,19 @@ private:
     /// The cache files in the directory; none when there is no directory.
     QFileInfoList cacheFiles() const;
 
+    /// Whether the Log File lies under the excluded directory.
+    bool isExcluded( const QString& filePath ) const;
+
+    /// Evicts the least recently used entries, never the one at keptPath,
+    /// until the cache fits its budget.
+    void evict( const QString& keptPath ) const;
+
     /// Magic bytes at the start of every cache file.
     static constexpr quint32 kMagic = 0x4C534149; // "LSAI"
     /// Format version — increment when the on-disk layout changes.
     static constexpr quint32 kVersion = 1;
 
     QString directory_;
+    QString excludedDirectory_;
+    qint64 budgetBytes_;
 };

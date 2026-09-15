@@ -22,6 +22,8 @@
 #include <QSignalSpy>
 #include <QTemporaryFile>
 
+#include <tbb/global_control.h>
+
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -140,6 +142,37 @@ SCENARIO( "Indexing follows the Indexing Policy it was built with", "[indexing]"
             {
                 REQUIRE( logData.getNbLine().get() == 20000 );
                 REQUIRE( logData.getLineString( LineNumber( 0 ) ).startsWith( "line 0 " ) );
+                REQUIRE( logData.getLineString( LineNumber( 19999 ) ).startsWith( "line 19999 " ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "An indexing pass completes even when TBB has no worker thread to spare", "[indexing]" )
+{
+    GIVEN( "a file spanning several indexing blocks and a Policy with a one-block read buffer" )
+    {
+        auto policy = testSettingsPolicies();
+        policy.indexing.readBufferSizeMb = 1;
+        policy.indexing.useIndexCache = false;
+
+        QTemporaryFile file{ "indexing_no_worker_XXXXXX" };
+        const auto fileName = writeLines( file, 20000, 1024 );
+
+        WHEN( "the file is indexed while no TBB worker thread is available to its graph" )
+        {
+            // TBB shares its workers between every graph in the process, so a
+            // graph can find none free, as the Search in #142 did for 120 s. A
+            // parallelism of 1 makes that certain: only the thread running the
+            // indexing pass is left to process its blocks (#146).
+            tbb::global_control noWorkers( tbb::global_control::max_allowed_parallelism, 1 );
+
+            LogData logData{ policy.indexing, policy.search, policy.fileAccess };
+            attachAndWaitForIndexing( logData, fileName );
+
+            THEN( "every line is indexed and readable back" )
+            {
+                REQUIRE( logData.getNbLine().get() == 20000 );
                 REQUIRE( logData.getLineString( LineNumber( 19999 ) ).startsWith( "line 19999 " ) );
             }
         }
