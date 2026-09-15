@@ -271,6 +271,11 @@ formats can be placed in the platform data directory:
 | macOS     | `~/Library/Application Support/LogSquirl/formats/`       |
 | Windows   | `%APPDATA%/LogSquirl/formats/`                            |
 
+Format definitions are read when *logsquirl* starts and again whenever the
+Options dialog is applied. A file that is already open keeps the format it
+was recognized with; reload it (or reopen it) to have an added or edited
+user format picked up.
+
 #### Column order
 
 Columns appear in the order their corresponding named capture groups are

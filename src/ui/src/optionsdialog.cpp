@@ -47,7 +47,7 @@
 #include "fontutils.h"
 #include "highlighteredit.h"
 #include "log.h"
-#include "logformatregistry.h"
+#include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "recentfiles.h"
 #include "savedsearches.h"
@@ -60,7 +60,7 @@ static constexpr int PollIntervalMin = 10;
 static constexpr int PollIntervalMax = 3600000;
 
 // Constructor
-OptionsDialog::OptionsDialog( QWidget* parent )
+OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget* parent )
     : QDialog( parent )
 {
     setupUi( this );
@@ -117,7 +117,7 @@ OptionsDialog::OptionsDialog( QWidget* parent )
     setupLogging();
     setupArchives();
     setupIndexCache();
-    setupLogFormats();
+    setupLogFormats( logFormatCatalog );
 }
 
 //
@@ -237,20 +237,16 @@ void OptionsDialog::setupIndexCache()
     indexCacheMaxSizeSpinBox->setEnabled( indexCacheCheckBox->isChecked() );
 }
 
-// Populate the Log Formats tab with available format definitions
+// Populate the Log Formats tab from the application's Log Format Catalog
 // and wire the "Open Formats Folder" button.
-void OptionsDialog::setupLogFormats()
+void OptionsDialog::setupLogFormats( const LogFormatCatalog& logFormatCatalog )
 {
-    LogFormatRegistry registry;
-    registry.loadBuiltinFormats();
-    registry.loadUserFormats();
-
     formatsTreeWidget->clear();
-    auto names = registry.formatNames();
+    auto names = logFormatCatalog.formatNames();
     names.sort( Qt::CaseInsensitive );
 
     for ( const auto& name : names ) {
-        const auto* fmt = registry.formatByName( name );
+        const auto fmt = logFormatCatalog.formatByName( name );
         if ( !fmt ) {
             continue;
         }
@@ -264,8 +260,7 @@ void OptionsDialog::setupLogFormats()
     formatsTreeWidget->resizeColumnToContents( 0 );
 
     connect( openFormatsFolderButton, &QPushButton::clicked, this, []() {
-        const auto dataDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
-        const auto formatsDir = dataDir + "/formats";
+        const auto formatsDir = LogFormatCatalog::defaultUserFormatsDirectory();
         QDir().mkpath( formatsDir );
         QDesktopServices::openUrl( QUrl::fromLocalFile( formatsDir ) );
     } );

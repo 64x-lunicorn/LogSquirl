@@ -13,12 +13,13 @@ add_executable(logsquirl_tests
     linessaver_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
+    formatrecognition_test.cpp
     logfieldextractor_test.cpp
-    logformatmatcher_test.cpp
+    logformatcatalog_test.cpp
     logformatparser_test.cpp
-    logformatregistry_test.cpp
     logformattablemodel_test.cpp
     logtablehighlightdelegate_test.cpp
+    logtableview_test.cpp
     logviewpainting_test.cpp
     lz4device_test.cpp
     mergecontroller_test.cpp
@@ -31,6 +32,7 @@ add_executable(logsquirl_tests
     regularexpressionpattern_test.cpp
     searchsession_test.cpp
     settingspolicies_test.cpp
+    tableviewselection_test.cpp
     viewportlayout_test.cpp
     wrappedstring_test.cpp
     zstddevice_test.cpp

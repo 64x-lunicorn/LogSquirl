@@ -17,15 +17,52 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "logformatregistry.h"
+#include "logformatcatalog.h"
 #include "logformatparser.h"
 
 #include <QDir>
-#include <QDirIterator>
 #include <QFile>
 #include <QStandardPaths>
 
-void LogFormatRegistry::loadFromDirectory( const QString& directoryPath )
+#include <utility>
+
+// The built-in Log Formats are compiled into this static library. Nothing
+// else in an executable references that resource object, so a linker may
+// drop it -- and with it every built-in Log Format -- unless it is
+// initialized explicitly. Q_INIT_RESOURCE must be used outside a namespace.
+static void initBuiltinFormatsResource()
+{
+    static const bool initialized = [] {
+        Q_INIT_RESOURCE( formats );
+        return true;
+    }();
+    Q_UNUSED( initialized );
+}
+
+LogFormatCatalog::LogFormatCatalog( QString userFormatsDirectory )
+    : userFormatsDirectory_( std::move( userFormatsDirectory ) )
+{
+}
+
+QString LogFormatCatalog::defaultUserFormatsDirectory()
+{
+    const auto dataDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
+    if ( dataDir.isEmpty() ) {
+        return {};
+    }
+    return dataDir + "/formats";
+}
+
+void LogFormatCatalog::rebuild()
+{
+    formats_.clear();
+    loadBuiltinFormats();
+    if ( !userFormatsDirectory_.isEmpty() ) {
+        loadFromDirectory( userFormatsDirectory_ );
+    }
+}
+
+void LogFormatCatalog::loadFromDirectory( const QString& directoryPath )
 {
     QDir dir( directoryPath );
     if ( !dir.exists() ) {
@@ -42,33 +79,32 @@ void LogFormatRegistry::loadFromDirectory( const QString& directoryPath )
     }
 }
 
-void LogFormatRegistry::addFormat( LogFormatDefinition format )
+void LogFormatCatalog::addFormat( LogFormatDefinition format )
 {
     const auto name = format.name();
-    formats_.insert( name, std::move( format ) );
+    formats_.insert( name, std::make_shared<const LogFormatDefinition>( std::move( format ) ) );
 }
 
-const LogFormatDefinition* LogFormatRegistry::formatByName( const QString& name ) const
+std::shared_ptr<const LogFormatDefinition>
+LogFormatCatalog::formatByName( const QString& name ) const
 {
-    auto it = formats_.find( name );
-    if ( it != formats_.end() ) {
-        return &it.value();
-    }
-    return nullptr;
+    return formats_.value( name );
 }
 
-int LogFormatRegistry::formatCount() const
+int LogFormatCatalog::formatCount() const
 {
     return static_cast<int>( formats_.size() );
 }
 
-QStringList LogFormatRegistry::formatNames() const
+QStringList LogFormatCatalog::formatNames() const
 {
     return QStringList( formats_.keys() );
 }
 
-void LogFormatRegistry::loadBuiltinFormats()
+void LogFormatCatalog::loadBuiltinFormats()
 {
+    initBuiltinFormatsResource();
+
     QDir resourceDir( ":/formats" );
     const auto jsonFiles = resourceDir.entryList( { "*.json" }, QDir::Files );
     for ( const auto& fileName : jsonFiles ) {
@@ -85,14 +121,4 @@ void LogFormatRegistry::loadBuiltinFormats()
             addFormat( std::move( format ) );
         }
     }
-}
-
-void LogFormatRegistry::loadUserFormats()
-{
-    const auto dataDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
-    if ( dataDir.isEmpty() ) {
-        return;
-    }
-    const auto formatsDir = dataDir + "/formats";
-    loadFromDirectory( formatsDir );
 }

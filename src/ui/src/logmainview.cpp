@@ -72,6 +72,42 @@ void LogMainView::useNewFiltering( LogFilteredData* filteredData )
     forceRefresh();
 }
 
+QString LogMainView::selectedText() const
+{
+    return getSelectedText();
+}
+
+OptionalLineNumber LogMainView::logLineAt( const QPoint& pos ) const
+{
+    return logLineAtPoint( pos );
+}
+
+void LogMainView::showLogLine( LineNumber line )
+{
+    selectAndDisplayLine( line );
+}
+
+void LogMainView::showLogLinePortion( LineNumber line, LinesCount nLines, LineColumn startCol,
+                                      LineLength nSymbols )
+{
+    selectPortionAndDisplayLine( line, nLines, startCol, nSymbols );
+}
+
+void LogMainView::updateDecorations()
+{
+    forceRefresh();
+}
+
+void LogMainView::updateFont( const QFont& font )
+{
+    AbstractLogView::updateFont( font );
+}
+
+void LogMainView::saveSelectedTo( const QString& filename )
+{
+    AbstractLogView::saveSelectedTo( filename );
+}
+
 AbstractLogData::LineType LogMainView::lineType( LineNumber lineNumber ) const
 {
     if ( filteredData_ ) {

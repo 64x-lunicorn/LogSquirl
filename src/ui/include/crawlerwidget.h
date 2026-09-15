@@ -40,6 +40,7 @@
 #ifndef CRAWLERWIDGET_H
 #define CRAWLERWIDGET_H
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -53,7 +54,6 @@
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
-#include <QTableView>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -66,15 +66,17 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logmainview.h"
+#include "logpresentation.h"
 #include "overview.h"
 #include "predefinedfilters.h"
 #include "signalmux.h"
 #include "viewinterface.h"
 
 #include "logformatdefinition.h"
+#include "settingspolicies.h"
 
-class LogFormatTableModel;
-class LogTableHighlightDelegate;
+class LogFormatCatalog;
+class LogTableView;
 class InfoLine;
 class QuickFindPattern;
 class SavedSearches;
@@ -147,6 +149,9 @@ protected:
                     std::shared_ptr<LogFilteredData> filteredData ) override;
     void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) override;
     void doSetSavedSearches( SavedSearches* savedSearches ) override;
+    void doSetFormatRecognition( const RecognitionPolicy& policy,
+                                 std::shared_ptr<const LogFormatCatalog> catalog ) override;
+    void doSetRecognitionPolicy( const RecognitionPolicy& policy ) override;
     void doSetViewContext( const QString& viewContext ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
@@ -215,10 +220,11 @@ private Q_SLOTS:
     // to instruct the main view to jump to the matching line.
     void jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols );
-    // Called when the main view is on a new line number
+    // Called when the Presentation shown is on a new Log Line; the
+    // Presentations not shown follow it.
     void updateLineNumberHandler( LineNumber line, LinesCount nLines, LineColumn startCol,
                                   LineLength nSymbols );
-    // Mark a line that has been clicked on the main (top) view.
+    // Mark Log Lines from a Presentation.
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
     // Mark a line that has been clicked on the filtered (bottom) view.
     void markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines );
@@ -280,7 +286,7 @@ private Q_SLOTS:
     void addNextColorLabelToSelection();
     void clearColorLabels();
 
-    // Toggle between text view and table view (if format detected)
+    // Toggle between text view and table view (if a Log Format was recognized)
     void toggleTableView();
 
 public Q_SLOTS:
@@ -372,52 +378,22 @@ private:
 
     void changeFontSize( bool increase );
 
-    // Try auto-detecting a log format from the first lines after loading.
-    void tryAutoDetectFormat();
+    // Decide which Log Format applies to the Log File, now that it has loaded.
+    // Only ever called from the load-finished path.
+    void recognizeFormat();
 
-    // Populate the table model from the current logData_ contents.
-    void populateTableModel();
+    // Forget the recognized Log Format, back in the text view.
+    void resetLogFormat();
 
-    // Reset table view state (model, format, delegate) for re-detection.
-    void resetTableViewState();
+    // Show the Table View in the upper pane, or else the Text View.
+    void showPresentation( bool tableView );
 
-    // Save/restore column widths for the active log format.
-    void saveTableColumnWidths();
-    bool restoreTableColumnWidths();
-    bool applySavedColumnWidths();
+    // Both Presentations, the one shown and the one not.
+    std::array<LogPresentation*, 2> presentations() const;
 
-    // Return a sanitized format name safe for use as a QSettings group key.
-    static QString sanitizedFormatName( const QString& name );
-
-    // Compute column widths by sampling the first N rows of data.
-    void autoSizeTableColumns();
-
-    // Stretch the last table column to fill remaining viewport space.
-    void stretchLastTableColumn();
-
-    // Update the table view's overview widget position and current-view indicator.
-    void updateTableOverview();
-
-    // Handle a row selection change in the table view.
-    void tableViewSelectionChanged();
-
-    // Show context menu for the table view.
-    void showTableViewContextMenu( const QPoint& pos );
-
-    // Handle table view overview click — jump to the clicked line.
-    void tableOverviewLineClicked( LineNumber line );
-
-    // Copy selected table rows to clipboard.
-    void copyTableSelection();
-
-    // Copy selected table rows with line numbers to clipboard.
-    void copyTableSelectionWithLineNumbers();
-
-    // Mark/unmark the selected table row(s).
-    void markTableSelection();
-
-    // Event filter for table viewport resize handling.
-    bool eventFilter( QObject* obj, QEvent* event ) override;
+    // Connect the signals every Presentation emits to the same slots.
+    template <class Presentation>
+    void connectPresentation( Presentation* presentation );
 
     // Palette for error notification (yellow background)
     static const QPalette ErrorPalette;
@@ -479,6 +455,10 @@ private:
     // Last main line number received
     LineNumber currentLineNumber_;
 
+    // Whether a selection is being passed between the Table View and the
+    // Filtered View, so neither passes it back.
+    bool syncingSelection_ = false;
+
     // Current number of matches
     LinesCount nbMatches_;
 
@@ -500,62 +480,27 @@ private:
 
     ChartPanel* chartPanel_ = nullptr;
 
-    // Table view for auto-detected log formats
+    // What Format Recognition runs on
+    RecognitionPolicy recognitionPolicy_;
+    std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
+
+    // Whether the next load to finish is to recognize the Log Format: the
+    // first load, and the one after a manual reload or a truncation.
+    bool formatRecognitionPending_ = true;
+
+    // How many times Format Recognition has run, so a test can tell.
+    int formatRecognitionCount_ = 0;
+
+    // The Log Format recognized for the Log File, if any: one of the
+    // Catalog's own, kept even when the Catalog is rebuilt.
+    std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
+
+    // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;
-    QTableView* logTableView_ = nullptr;
-    LogFormatTableModel* tableModel_ = nullptr;
-    LogTableHighlightDelegate* tableHighlightDelegate_ = nullptr;
+    LogTableView* logTableView_ = nullptr;
     QToolButton* tableViewToggle_ = nullptr;
-    std::unique_ptr<LogFormatDefinition> detectedFormat_;
-    bool tableViewActive_ = false;
-    bool tableColumnsNeedSizing_ = false;
-    bool programmaticColumnResize_ = false;
-
-    // Portion (in-cell text) selection state for the table view.
-    // Tracks a drag-selection of characters within a single cell.
-    struct TableCellSelection {
-        bool active = false; // Is a portion selection in progress / completed?
-        int row = -1;        // Row of the selected cell
-        int column = -1;     // Column of the selected cell
-        int startChar = 0;   // Start character index (inclusive)
-        int endChar = 0;     // End character index (exclusive)
-
-        // Clear the selection.
-        void clear()
-        {
-            active = false;
-            row = -1;
-            column = -1;
-            startChar = 0;
-            endChar = 0;
-        }
-
-        // Return the selected substring from the given cell text.
-        QString selectedText( const QString& cellText ) const
-        {
-            if ( !active || startChar == endChar ) {
-                return {};
-            }
-            const int lo = std::min( startChar, endChar );
-            const int hi
-                = std::min( std::max( startChar, endChar ), static_cast<int>( cellText.size() ) );
-            return cellText.mid( lo, hi - lo );
-        }
-    };
-
-    TableCellSelection tableCellSelection_;
-    bool tableSelectionDragging_ = false; // Mouse drag in progress?
-    int tableHoverRow_ = -1;              // Row under the mouse for hover highlight
-
-    // Convert a pixel X position within a cell to a character index
-    // (LogTableHighlightDelegate::charIndexAtX() does the conversion).
-    int tableCellCharAtX( const QModelIndex& index, int pixelX ) const;
-
-    // Select the word at the given character position in a cell.
-    void tableSelectWordAt( const QModelIndex& index, int charPos );
-
-    // Overview (minimap) widget for the table view
-    OverviewWidget* tableOverviewWidget_ = nullptr;
+    // The Presentation the upper pane shows: logMainView_ or logTableView_
+    LogPresentation* presentation_ = nullptr;
 };
 
 #endif

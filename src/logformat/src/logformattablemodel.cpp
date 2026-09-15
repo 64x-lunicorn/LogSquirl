@@ -24,16 +24,26 @@
 
 LogFormatTableModel::LogFormatTableModel( const LogFormatDefinition& format,
                                           AbstractLogData* logData, QObject* parent )
-    : QAbstractTableModel( parent )
-    , format_( format )
-    , extractor_( format )
-    , columnNames_( extractor_.columnNames() )
-    , logData_( logData )
+    : LogFormatTableModel( format, logData, std::make_shared<OneRowPerLogLine>(), parent )
 {
 }
 
-void LogFormatTableModel::setLineCount( int lineCount )
+LogFormatTableModel::LogFormatTableModel( const LogFormatDefinition& format,
+                                          AbstractLogData* logData,
+                                          std::shared_ptr<const RowMapping> rows, QObject* parent )
+    : QAbstractTableModel( parent )
+    , extractor_( format )
+    , columnNames_( extractor_.columnNames() )
+    , logData_( logData )
+    , rows_( std::move( rows ) )
 {
+}
+
+void LogFormatTableModel::setLineCount( int logLineCount )
+{
+    const int lineCount
+        = rows_->rowCount( LinesCount( static_cast<uint64_t>( std::max( logLineCount, 0 ) ) ) );
+
     if ( lineCount == lineCount_ ) {
         return;
     }
@@ -130,7 +140,7 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
     }
 
     // Extract from logData_ — read the line once from disk
-    auto line = logData_->getLineString( LineNumber( static_cast<uint64_t>( row ) ) );
+    auto line = logData_->getLineString( rows_->logLineAt( row ) );
     auto extracted = extractRow( line );
 
     // Evict oldest if cache is full
@@ -148,7 +158,7 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
 
 QVector<QString> LogFormatTableModel::extractRow( const QString& line ) const
 {
-    auto fields = extractor_.extractFields( line, -1 );
+    auto fields = extractor_.extractFields( line );
 
     QVector<QString> row( columnNames_.size() );
 

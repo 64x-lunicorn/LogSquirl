@@ -27,10 +27,6 @@
 #include <QString>
 #include <QStringList>
 
-#include <cstdint>
-#include <list>
-#include <unordered_map>
-
 // Represents the result of extracting fields from a single log line.
 class ExtractedFields {
 public:
@@ -70,35 +66,21 @@ private:
 };
 
 // Extracts structured fields from raw log lines using a format definition's regex patterns.
-// Includes an LRU cache keyed by line number for efficient re-access during scrolling.
+// It keeps no cache of its own: the table model caches the Rows it shows.
 class LogFieldExtractor {
 public:
-    // Construct an extractor for the given format definition.
-    // cacheCapacity controls the LRU cache size (number of lines cached).
-    explicit LogFieldExtractor( const LogFormatDefinition& format, int cacheCapacity = 10000 );
+    // Construct an extractor for the given format definition, which must
+    // outlive the extractor.
+    explicit LogFieldExtractor( const LogFormatDefinition& format );
 
-    // Extract fields from a raw line.
-    // lineNumber is used as the cache key (use -1 or omit for uncached extraction).
-    ExtractedFields extractFields( const QString& line, int64_t lineNumber = -1 );
+    // Extract fields from a raw line (always runs the regex).
+    ExtractedFields extractFields( const QString& line ) const;
 
     // Get the ordered list of column names for table display.
     // Order: timestamp, level, [value fields ordered by definition], body
     QStringList columnNames() const;
 
-    // Clear the LRU cache (e.g., when file changes).
-    void invalidateCache();
-
 private:
-    // Extract without caching (always runs regex).
-    ExtractedFields doExtract( const QString& line ) const;
-
     const LogFormatDefinition& format_;
     QVector<QRegularExpression> compiledPatterns_;
-    int cacheCapacity_;
-
-    // LRU cache: line number -> extracted fields
-    // Using a list for O(1) move-to-front and a map for O(1) lookup.
-    using CacheList = std::list<std::pair<int64_t, ExtractedFields>>;
-    CacheList cacheList_;
-    std::unordered_map<int64_t, CacheList::iterator> cacheMap_;
 };

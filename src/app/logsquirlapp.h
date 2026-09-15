@@ -46,6 +46,7 @@
 #include "crashhandler.h"
 #include "filewatcher.h"
 #include "log.h"
+#include "logformatcatalog.h"
 #include "logsquirl_version.h"
 #include "searchsession.h"
 #include "session.h"
@@ -115,7 +116,7 @@ public:
         return !singleApplication_.isPrimaryInstance();
     }
 
-    // The four Settings Policies, derived once here -- this is the place
+    // The Settings Policies, derived once here -- this is the place
     // that already owns the session and the windows, so it is the place
     // that resolves what each part of the application is allowed to know
     // about the settings.
@@ -159,7 +160,7 @@ public:
     MainWindow* reloadSession()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>( settingsPolicies_ );
+            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -201,7 +202,7 @@ public:
     MainWindow* newWindow()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>( settingsPolicies_ );
+            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_ );
         }
 
         const auto previousSessions = session_->windowSessions();
@@ -281,13 +282,13 @@ private:
     // -- but only the axes that actually changed: changing a Highlighter
     // Set must not restart file watching or rebuild Context Lines, and
     // changing the poll interval must not disturb a Search.
+    //
+    // The Session is reached even when no Policy changed: it rebuilds the
+    // Log Format Catalog on every apply, so an edited user Log Format is
+    // picked up without any setting having changed.
     void onSettingsChanged()
     {
         const auto policies = deriveSettingsPolicies( Configuration::get() );
-
-        if ( policies == settingsPolicies_ ) {
-            return;
-        }
 
         if ( policies.watch != settingsPolicies_.watch ) {
             FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
@@ -295,11 +296,15 @@ private:
 
         settingsPolicies_ = policies;
 
-        // Indexing and Search reach every open Log File through the
-        // Session, which is what holds them; the File Access Policy
-        // reaches only the ones opened from now on, which is all it can do.
+        // Indexing, Search and Recognition reach every open Log File
+        // through the Session, which is what holds them; the File Access
+        // Policy reaches only the ones opened from now on, which is all it
+        // can do.
         if ( session_ ) {
             session_->applyPolicies( settingsPolicies_ );
+        }
+        else {
+            logFormatCatalog_->rebuild();
         }
     }
 
@@ -384,6 +389,16 @@ private:
     // high-DPI attributes have to be set before the QApplication is
     // built), so the settings are loaded and this snapshot is complete.
     SettingsPolicies settingsPolicies_ = deriveSettingsPolicies( Configuration::get() );
+
+    // The application's one Log Format Catalog, built once here, beside
+    // the Policies, and handed to the Session -- and through it to every
+    // window, view and options dialog. Nothing else builds one.
+    std::shared_ptr<LogFormatCatalog> logFormatCatalog_ = [] {
+        auto catalog
+            = std::make_shared<LogFormatCatalog>( LogFormatCatalog::defaultUserFormatsDirectory() );
+        catalog->rebuild();
+        return catalog;
+    }();
 
     std::list<std::pair<WindowSession, MainWindow*>> mainWindows_;
     std::stack<QPointer<MainWindow>> activeWindows_;

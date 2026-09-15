@@ -21,8 +21,12 @@
 #define VIEWINTERFACE_H
 
 #include <memory>
+#include <utility>
+
+#include "settingspolicies.h"
 
 class LogData;
+class LogFormatCatalog;
 class LogFilteredData;
 class SavedSearches;
 class QuickFindPattern;
@@ -62,6 +66,21 @@ public:
         doSetSavedSearches( saved_searches );
     }
 
+    // Set what Format Recognition needs: the Recognition Policy and the
+    // application's (shared) Log Format Catalog
+    void setFormatRecognition( const RecognitionPolicy& policy,
+                               std::shared_ptr<const LogFormatCatalog> catalog )
+    {
+        doSetFormatRecognition( policy, std::move( catalog ) );
+    }
+
+    // Hand over a changed Recognition Policy; it takes effect at the next
+    // Format Recognition
+    void setRecognitionPolicy( const RecognitionPolicy& policy )
+    {
+        doSetRecognitionPolicy( policy );
+    }
+
     // For save/restore of the context
     void setViewContext( const QString& view_context )
     {
@@ -82,6 +101,9 @@ protected:
                             std::shared_ptr<LogFilteredData> filtered_data ) = 0;
     virtual void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) = 0;
     virtual void doSetSavedSearches( SavedSearches* saved_searches ) = 0;
+    virtual void doSetFormatRecognition( const RecognitionPolicy& policy,
+                                         std::shared_ptr<const LogFormatCatalog> catalog ) = 0;
+    virtual void doSetRecognitionPolicy( const RecognitionPolicy& policy ) = 0;
     virtual void doSetViewContext( const QString& view_context ) = 0;
     virtual std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const = 0;
 };

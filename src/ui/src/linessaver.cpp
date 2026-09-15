@@ -26,6 +26,8 @@
 
 #include <QIODevice>
 #include <QMetaObject>
+#include <QProgressDialog>
+#include <QSaveFile>
 #include <QTextCodec>
 #include <QtConcurrent>
 
@@ -167,4 +169,44 @@ void LinesSaver::save( DisplayedLinesReader readLines, LineNumber begin, LineNum
 bool LinesSaver::waitForResult()
 {
     return future_.result();
+}
+
+void saveLinesWithProgress( QWidget* parent, const QString& filename,
+                            DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
+                            const QTextCodec* codec )
+{
+    QSaveFile saveFile{ filename };
+    if ( !saveFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
+        LOG_ERROR << "Failed to open file to save";
+        return;
+    }
+
+    // The lines are read, encoded and written off the UI thread, while the UI
+    // thread runs the progress dialog: the save's progress and its end reach
+    // the dialog as signals on the UI thread, and leaving the dialog any other
+    // way (Cancel, Escape) interrupts the save. The dialog is application
+    // modal, so the user can't change the view while the save runs, and the
+    // lines are read through what readLines copied when the save started.
+    AtomicFlag interruptRequest;
+    LinesSaver linesSaver;
+
+    QProgressDialog progressDialog( parent );
+    progressDialog.setLabelText( QObject::tr( "Saving content to %1" ).arg( filename ) );
+    progressDialog.setRange( 0, 1000 );
+    progressDialog.setWindowModality( Qt::ApplicationModal );
+
+    QObject::connect( &linesSaver, &LinesSaver::progressed, &progressDialog,
+                      &QProgressDialog::setValue );
+    QObject::connect( &linesSaver, &LinesSaver::finished, &progressDialog,
+                      [ &progressDialog ]() { progressDialog.done( QDialog::Accepted ); } );
+
+    linesSaver.save( std::move( readLines ), begin, end, codec, &saveFile, interruptRequest );
+
+    if ( progressDialog.exec() != QDialog::Accepted ) {
+        interruptRequest.set();
+    }
+
+    if ( linesSaver.waitForResult() && !saveFile.commit() ) {
+        LOG_ERROR << "Failed to replace the saved file: " << saveFile.errorString();
+    }
 }
