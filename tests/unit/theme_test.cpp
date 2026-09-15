@@ -196,6 +196,20 @@ TEST_CASE( "A Theme is chosen by its stored name", "[theme]" )
     }
 }
 
+TEST_CASE( "A dark Theme shows the inverse icons", "[theme]" )
+{
+    REQUIRE_FALSE( Theme::fromName( Theme::LightKey, Qt::ColorScheme::Dark ).usesInverseIcons() );
+    REQUIRE( Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light ).usesInverseIcons() );
+    REQUIRE( Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light ).usesInverseIcons() );
+
+    SECTION( "System follows the system color scheme" )
+    {
+        REQUIRE( Theme::fromName( Theme::SystemKey, Qt::ColorScheme::Dark ).usesInverseIcons() );
+        REQUIRE_FALSE(
+            Theme::fromName( Theme::SystemKey, Qt::ColorScheme::Light ).usesInverseIcons() );
+    }
+}
+
 TEST_CASE( "A stored dark palette overrides Dark Tokens", "[theme]" )
 {
     const std::map<QString, QString> overrides{ { "Base", "#101010" }, { "Text", "#C0C0C0" } };

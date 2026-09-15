@@ -99,6 +99,9 @@ private:
     // Set the data status (icon) for the tab number 'index'
     void setTabDataStatus( int index, DataStatus status );
 
+    // Styles the tab bar for the active Theme.
+    void applyTheme();
+
     void loadIcons();
     void updateIcon( int index );
 

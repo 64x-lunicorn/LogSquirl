@@ -80,7 +80,7 @@ PredefinedFilterSetEdit::PredefinedFilterSetEdit( QWidget* parent )
              &PredefinedFilterSetEdit::onCellChanged );
 
     dispatchToMainThread( [ this ] {
-        IconLoader iconLoader( this );
+        IconLoader iconLoader;
         addFilterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
         removeFilterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
         upFilterButton->setIcon( iconLoader.load( "icons8-up-16" ) );

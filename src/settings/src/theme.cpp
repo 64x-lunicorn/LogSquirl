@@ -184,6 +184,11 @@ Theme Theme::light()
         { IndicatorIndeterminate, "#CFE2FF" },
         { IndicatorDisabled, "#F1F3F5" },
         { IndicatorDisabledBorder, "#CED4DA" },
+        { StatusOk, "#2EA043" },
+        { StatusWarning, "#D29922" },
+        { StatusInactive, "#6E7681" },
+        { StatusInfo, "#388BFD" },
+        { StatusText, "#FFFFFF" },
     } );
 
     using enum StyleToken;
@@ -272,7 +277,7 @@ Theme Theme::dark()
         { TabAddButtonPressed, "#1A1A1E" },
         { TabAddButtonPressedBorder, "#555555" },
         { TabUnderline, "#333333" },
-        { CloseButtonHover, "#E74C3C" },
+        { CloseButtonHover, "#C42B1C" },
         { SecondaryText, "#A0A0A0" },
         { ScrollBarTrack, "#1A1A1A" },
         { Handle, "#555555" },
@@ -282,6 +287,11 @@ Theme Theme::dark()
         { IndicatorIndeterminate, "#1E3A5F" },
         { IndicatorDisabled, "#252526" },
         { IndicatorDisabledBorder, "#555555" },
+        { StatusOk, "#2EA043" },
+        { StatusWarning, "#D29922" },
+        { StatusInactive, "#6E7681" },
+        { StatusInfo, "#388BFD" },
+        { StatusText, "#FFFFFF" },
     } );
 
     using enum StyleToken;
@@ -382,6 +392,11 @@ Theme Theme::highContrast()
         { IndicatorIndeterminate, "#1F1F1F" },
         { IndicatorDisabled, "#000000" },
         { IndicatorDisabledBorder, "#808080" },
+        { StatusOk, "#00FF00" },
+        { StatusWarning, "#FFFF00" },
+        { StatusInactive, "#A6A6A6" },
+        { StatusInfo, "#00FFFF" },
+        { StatusText, "#000000" },
     } );
 
     using enum StyleToken;
@@ -486,6 +501,11 @@ QString Theme::name() const
 }
 
 bool Theme::isDark() const
+{
+    return isDark_;
+}
+
+bool Theme::usesInverseIcons() const
 {
     return isDark_;
 }

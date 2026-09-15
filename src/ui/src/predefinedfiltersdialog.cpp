@@ -91,7 +91,7 @@ PredefinedFiltersDialog::PredefinedFiltersDialog( QWidget* parent )
     }
 
     dispatchToMainThread( [ this ] {
-        IconLoader iconLoader( this );
+        IconLoader iconLoader;
         addSetButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
         removeSetButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
         upSetButton->setIcon( iconLoader.load( "icons8-up-16" ) );

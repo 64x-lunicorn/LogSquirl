@@ -12,6 +12,13 @@
   `high-contrast.qss` in `<AppConfigDir>/themes/` is now added after the
   built-in stylesheet instead of replacing it, so it only needs the rules it
   changes. The `[dark]` settings group can override any Dark token by name.
+- **Widgets follow the theme**: High Contrast and System (on a dark operating
+  system) now show the light icons in the toolbar, the tab close buttons and
+  the sidebar title bar, like Dark does. The tab close-button hover color, the
+  plugin status badges and the welcome page's plugin status come from the
+  theme's tokens (`CloseButtonHover`, `StatusOk`, `StatusWarning`,
+  `StatusInactive`, `StatusInfo`, `StatusText`), so High Contrast gets its own
+  colors for them.
 
 ## Removed
 

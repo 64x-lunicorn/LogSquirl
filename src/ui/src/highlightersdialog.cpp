@@ -175,7 +175,7 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
     }
 
     dispatchToMainThread( [ this ] {
-        IconLoader iconLoader( this );
+        IconLoader iconLoader;
 
         addHighlighterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
         removeHighlighterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );

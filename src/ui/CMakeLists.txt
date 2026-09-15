@@ -60,6 +60,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartwizarddialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/charttemplategenerator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/iconloader.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbarstyle.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayfilepath.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/downloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linessaver.h
@@ -122,6 +123,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwizarddialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/charttemplategenerator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/iconloader.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/tabbarstyle.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayfilepath.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/downloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linessaver.cpp

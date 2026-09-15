@@ -47,6 +47,7 @@
 
 #include <QDockWidget>
 #include <QTabWidget>
+#include <QToolButton>
 #include <QTranslator>
 #include <array>
 #include <memory>
@@ -373,6 +374,8 @@ private:
 
     // Right sidebar dock with tabbed panels
     QDockWidget* sidebarDock_{ nullptr };
+    QToolButton* sidebarFloatButton_{ nullptr };
+    QToolButton* sidebarCloseButton_{ nullptr };
     QTabWidget* sidebarTabs_{ nullptr };
     static constexpr int SidebarFiltersPanelTab = 0;
     static constexpr int SidebarScratchPadTab = 1;

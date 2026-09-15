@@ -74,8 +74,8 @@ ChartSeriesDialog::ChartSeriesDialog( QWidget* parent )
 
     colorButton_ = new QPushButton;
     colorButton_->setFixedSize( 60, 24 );
-    colorButton_->setStyleSheet(
-        QString( "background-color: %1; border: 1px solid gray;" ).arg( selectedColor_.name() ) );
+    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
+                                     .arg( selectedColor_.name() ) );
     connect( colorButton_, &QPushButton::clicked, this, &ChartSeriesDialog::chooseColor );
     form->addRow( tr( "Color:" ), colorButton_ );
 
@@ -151,8 +151,8 @@ void ChartSeriesDialog::setSeries( const ChartSeriesDefinition& def )
     patternEdit_->setText( def.pattern );
     captureGroupSpin_->setValue( def.captureGroup );
     selectedColor_ = def.color;
-    colorButton_->setStyleSheet(
-        QString( "background-color: %1; border: 1px solid gray;" ).arg( selectedColor_.name() ) );
+    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
+                                     .arg( selectedColor_.name() ) );
 
     if ( !def.xPattern.isEmpty() ) {
         xAxisGroup_->setChecked( true );
@@ -248,7 +248,7 @@ void ChartSeriesDialog::chooseColor()
     if ( c.isValid() ) {
         selectedColor_ = c;
         colorButton_->setStyleSheet(
-            QString( "background-color: %1; border: 1px solid gray;" ).arg( c.name() ) );
+            QString( "background-color: %1; border: 1px solid palette(mid);" ).arg( c.name() ) );
     }
 }
 

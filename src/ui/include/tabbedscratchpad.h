@@ -41,6 +41,8 @@ protected:
     void keyPressEvent( QKeyEvent* event ) override;
 
 private:
+    // Styles the tabs for the active Theme.
+    void applyTheme();
     void addTab();
 
 private:
