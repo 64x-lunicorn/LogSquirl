@@ -298,7 +298,7 @@ void WelcomeDashboard::refreshPluginStatus()
     clearLayout( pluginStatusLayout_ );
 
     if ( !pluginCatalog_ || !pluginHost_ ) {
-        auto* none = new QLabel( tr( "No plugin manager available" ), this );
+        auto* none = new QLabel( tr( "No plugins available" ), this );
         none->setStyleSheet( kHintStyle );
         none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );
