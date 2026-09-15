@@ -111,8 +111,9 @@ public:
     QTextCodec* getDetectedEncoding() const;
 
     // Replaces the Decoding Policy: every Log Line read from now on, for a
-    // view or for a Search, is decoded under it. Lines read before are not
-    // read again.
+    // view or for a Search, is decoded under it, and decodingPolicyChanged()
+    // tells the views to read what they show again. Search results already
+    // found are not searched for again.
     void setDecodingPolicy( const DecodingPolicy& decodingPolicy );
 
     // Replaces the Indexing Policy: the operations requested from now on
@@ -159,6 +160,9 @@ Q_SIGNALS:
     // Sent when the file on disk has changed, will be followed
     // by loadingProgressed if needed and then a loadingFinished.
     void fileChanged( MonitoredFileStatus status );
+    // Sent when the Decoding Policy was replaced: every Log Line may read
+    // differently now, though the Log File itself did not change.
+    void decodingPolicyChanged();
 
 private Q_SLOTS:
     // Consider reloading the file when it changes on disk updated

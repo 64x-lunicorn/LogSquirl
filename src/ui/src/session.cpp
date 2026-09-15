@@ -200,8 +200,9 @@ void Session::applyPolicies( const SettingsPolicies& policies )
         }
 
         if ( decodingChanged ) {
-            // Log Lines read from now on are decoded under it; a view shows
-            // them at its next repaint.
+            // Log Lines read from now on are decoded under it, and the Log
+            // File tells its views to read what they show again. Search
+            // results already found stay as they were.
             openFile.logData->setDecodingPolicy( policies_.decoding );
         }
     }

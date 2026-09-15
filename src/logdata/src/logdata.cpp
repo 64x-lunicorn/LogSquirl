@@ -129,8 +129,14 @@ void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
 
 void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
 {
-    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-    decodingPolicy_ = decodingPolicy;
+    {
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        decodingPolicy_ = decodingPolicy;
+    }
+
+    // Views paint what they read before until they are told to read again;
+    // the lock is released first, as they read Log Lines straight away.
+    Q_EMIT decodingPolicyChanged();
 }
 
 void LogData::attachFile( const QString& fileName )

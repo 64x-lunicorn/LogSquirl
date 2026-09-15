@@ -240,6 +240,29 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     {
         return crawler->logData_->getLineString( line );
     }
+
+    void clearSearchPattern()
+    {
+        crawler->searchLineEdit_->clearEditText();
+    }
+
+    // What the Keep Results button does: the next Search opens a tab of its
+    // own, and the current one keeps its results.
+    void keepSearchResults()
+    {
+        crawler->keepSearchResultsButton_->setChecked( true );
+    }
+
+    // The Filtered View in tab index, current or not.
+    FilteredView* filteredViewInTab( int index )
+    {
+        return qobject_cast<FilteredView*>( crawler->tabbedFilteredView_->widget( index ) );
+    }
+
+    int currentFilteredViewTab()
+    {
+        return crawler->tabbedFilteredView_->currentIndex();
+    }
 };
 
 using CrawlerWidgetVisitor = CrawlerWidget::access_by<CrawlerWidgetPrivate>;
@@ -769,6 +792,116 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
             THEN( "the Log Line still reads without them: only the Policy decides" )
             {
                 REQUIRE( crawlerVisitor.logLineString( 1_lnum ) == "ERROR: disk full" );
+            }
+        }
+    }
+}
+
+namespace {
+
+void writeAnsiLogFile( QTemporaryFile& file )
+{
+    REQUIRE( file.open() );
+    file.write( "plain line\n" );
+    file.write( "\x1B[31mERROR\x1B[0m: disk full\n" );
+    file.write( "another plain line\n" );
+    file.flush();
+}
+
+void openAnsiCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& crawlerVisitor )
+{
+    writeAnsiLogFile( file );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+        return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
+    } ) );
+    crawlerVisitor.showSized();
+}
+
+void searchFor( CrawlerWidgetVisitor& crawlerVisitor, const QString& pattern )
+{
+    crawlerVisitor.clearSearchPattern();
+    crawlerVisitor.setSearchPattern( pattern );
+    crawlerVisitor.runSearch();
+    REQUIRE( waitUiState(
+        [ &crawlerVisitor ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
+    QTest::qWait( 50 );
+}
+
+} // namespace
+
+SCENARIO( "Every view of every open Log File shows its Log Lines under a changed Decoding Policy",
+          "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_ansi_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_ansi_second_XXXXXX" };
+
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = false;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+
+    const PinnedHighlighterSets pinnedSets;
+    auto& collection = HighlighterSetCollection::get();
+    collection.deactivateAll();
+
+    // The ANSI color sequences split this text in the Log File, so a view
+    // is painted with the color only once it shows the Log Line without them.
+    const QColor highlightColor{ 0x65, 0x43, 0x21 };
+    auto set = HighlighterSet::createNewSet( "crawlerwidget_test_decoding" );
+    set.addHighlighter(
+        Highlighter{ "ERROR: disk full", false, false, Qt::white, highlightColor } );
+    auto sets = collection.highlighterSets();
+    sets.append( set );
+    collection.setHighlighterSets( sets );
+    collection.activateSet( set.id() );
+
+    CrawlerWidgetVisitor first;
+    CrawlerWidgetVisitor second;
+    openAnsiCrawler( session, firstFile, first );
+    openAnsiCrawler( session, secondFile, second );
+
+    GIVEN( "two Log Files shown with their sequences, one with a kept Search in a tab not current" )
+    {
+        searchFor( first, "disk full" );
+        first.keepSearchResults();
+        searchFor( first, "ERROR" );
+        REQUIRE( first.currentFilteredViewTab() == 1 );
+        REQUIRE( first.filteredViewInTab( 0 ) != nullptr );
+        REQUIRE( first.filteredViewInTab( 1 ) != nullptr );
+
+        searchFor( second, "disk full" );
+
+        // Every view has painted the Log Lines as they read now.
+        REQUIRE( first.logLineString( 1_lnum ).contains( "\x1B[31m" ) );
+        REQUIRE_FALSE( showsColor( first.textView(), highlightColor ) );
+        REQUIRE_FALSE( showsColor( first.filteredViewInTab( 0 ), highlightColor ) );
+        REQUIRE_FALSE( showsColor( first.filteredViewInTab( 1 ), highlightColor ) );
+        REQUIRE_FALSE( showsColor( second.textView(), highlightColor ) );
+        REQUIRE_FALSE( showsColor( second.filteredView(), highlightColor ) );
+
+        // As in a window's tabs: the second Log File is not the current one.
+        second.crawler->hide();
+
+        WHEN( "the Policies re-derived after hiding ANSI color sequences was ticked are applied" )
+        {
+            policies.decoding.hideAnsiColorSequences = true;
+            session.applyPolicies( policies );
+            QTest::qWait( 50 );
+
+            THEN( "the main view and both Filtered Views of the first Log File show them hidden" )
+            {
+                REQUIRE( showsColor( first.textView(), highlightColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), highlightColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 1 ), highlightColor ) );
+            }
+
+            THEN( "the views of the Log File in the tab not current show them hidden too" )
+            {
+                second.showSized();
+                REQUIRE( showsColor( second.textView(), highlightColor ) );
+                REQUIRE( showsColor( second.filteredView(), highlightColor ) );
             }
         }
     }
