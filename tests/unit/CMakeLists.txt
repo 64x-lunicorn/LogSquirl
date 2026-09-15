@@ -31,6 +31,7 @@ add_executable(logsquirl_tests
     regularexpressionpattern_test.cpp
     searchsession_test.cpp
     settingspolicies_test.cpp
+    tableviewselection_test.cpp
     viewportlayout_test.cpp
     wrappedstring_test.cpp
     zstddevice_test.cpp
