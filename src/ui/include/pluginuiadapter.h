@@ -76,7 +76,11 @@ public:
     logsquirl::plugins::PluginWidgetHandle configurationParent() override;
 
 private:
-    /// A widget a plugin placed in the window, with the toolbar action holding it, if any.
+    /**
+     * A widget a plugin placed in the window. In a toolbar, toolBarAction is
+     * the action showing the host's container the widget sits in; the action
+     * and the container belong to the host, the widget to the plugin.
+     */
     struct PlacedWidget {
         QString pluginId;
         QPointer<QWidget> widget;

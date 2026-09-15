@@ -29,6 +29,7 @@
 #include <QTabWidget>
 #include <QTest>
 #include <QToolBar>
+#include <QWidgetAction>
 
 #include <thread>
 
@@ -82,8 +83,9 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
             THEN( "The widget sits in a toolbar at the top of the window" )
             {
-                auto* toolBar = qobject_cast<QToolBar*>( widget->parentWidget() );
+                auto* toolBar = window.findChild<QToolBar*>();
                 REQUIRE( toolBar != nullptr );
+                REQUIRE( toolBar->isAncestorOf( widget ) );
                 REQUIRE( window.toolBarArea( toolBar ) == Qt::TopToolBarArea );
             }
 
@@ -104,8 +106,9 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
 
             THEN( "The widget sits in a toolbar at the bottom of the window" )
             {
-                auto* toolBar = qobject_cast<QToolBar*>( widget->parentWidget() );
+                auto* toolBar = window.findChild<QToolBar*>();
                 REQUIRE( toolBar != nullptr );
+                REQUIRE( toolBar->isAncestorOf( widget ) );
                 REQUIRE( window.toolBarArea( toolBar ) == Qt::BottomToolBarArea );
             }
 
@@ -223,5 +226,99 @@ SCENARIO( "The main window shows what plugins contribute through the Plugin UI P
         }
 
         delete widget;
+    }
+}
+
+SCENARIO( "The widgets a plugin places in the window stay the plugin's own",
+          "[pluginuiadapter][plugins]" )
+{
+    GIVEN( "A main window with a sidebar and a Plugin UI adapter, and plugin widgets" )
+    {
+        QPointer<QMainWindow> window = new QMainWindow;
+        QMenu pluginsMenu;
+        auto* separator = pluginsMenu.addSeparator();
+        auto* sidebarTabs = new QTabWidget;
+        window->setCentralWidget( sidebarTabs );
+        PluginUiAdapter adapter( *window, pluginsMenu, separator, *sidebarTabs );
+
+        const auto pluginId = QStringLiteral( "com.test.plugin" );
+        QPointer<QLabel> statusWidget = new QLabel( QStringLiteral( "status" ) );
+        QPointer<QLabel> footerWidget = new QLabel( QStringLiteral( "footer" ) );
+        QPointer<QLabel> sidebarWidget = new QLabel( QStringLiteral( "sidebar" ) );
+
+        const auto widgetActionsOf
+            = []( const QWidget* widget ) { return widget->findChildren<QWidgetAction*>().size(); };
+
+        WHEN( "The plugin removes its widgets and the window is destroyed" )
+        {
+            adapter.addStatusWidget( pluginId, handleOf( statusWidget ) );
+            adapter.addFooterWidget( pluginId, handleOf( footerWidget ) );
+            adapter.addSidebarTab( pluginId, QStringLiteral( "tab" ), handleOf( sidebarWidget ) );
+            adapter.removeStatusWidget( pluginId, handleOf( statusWidget ) );
+            adapter.removeFooterWidget( pluginId, handleOf( footerWidget ) );
+            adapter.removeSidebarTab( pluginId, handleOf( sidebarWidget ) );
+            delete window;
+
+            THEN( "The window did not delete the widgets: the plugin still owns them" )
+            {
+                REQUIRE( statusWidget != nullptr );
+                REQUIRE( footerWidget != nullptr );
+                REQUIRE( sidebarWidget != nullptr );
+            }
+        }
+
+        WHEN( "The plugin's contributions are removed, it deletes its widgets and the window "
+              "is destroyed" )
+        {
+            adapter.addStatusWidget( pluginId, handleOf( statusWidget ) );
+            adapter.addFooterWidget( pluginId, handleOf( footerWidget ) );
+            adapter.addSidebarTab( pluginId, QStringLiteral( "tab" ), handleOf( sidebarWidget ) );
+            adapter.removeContributions( pluginId );
+            delete statusWidget;
+            delete footerWidget;
+            delete sidebarWidget;
+            delete window;
+
+            THEN( "Each widget was deleted once, by the plugin" )
+            {
+                REQUIRE( window == nullptr );
+            }
+        }
+
+        WHEN( "The plugin deletes a widget while the window still shows it, and its "
+              "contributions are removed" )
+        {
+            adapter.addStatusWidget( pluginId, handleOf( statusWidget ) );
+            auto* toolBar = window->findChild<QToolBar*>();
+            REQUIRE( toolBar != nullptr );
+            delete statusWidget;
+            adapter.removeContributions( pluginId );
+
+            THEN( "The toolbar holds nothing of the plugin any more" )
+            {
+                REQUIRE( widgetActionsOf( toolBar ) == 0 );
+            }
+        }
+
+        WHEN( "The plugin adds and removes its status widget again and again" )
+        {
+            for ( int i = 0; i < 5; ++i ) {
+                adapter.addStatusWidget( pluginId, handleOf( statusWidget ) );
+                adapter.removeStatusWidget( pluginId, handleOf( statusWidget ) );
+            }
+
+            THEN( "The toolbar keeps no action for the widget" )
+            {
+                auto* toolBar = window->findChild<QToolBar*>();
+                REQUIRE( toolBar != nullptr );
+                REQUIRE( widgetActionsOf( toolBar ) == 0 );
+                REQUIRE( statusWidget->parentWidget() == nullptr );
+            }
+        }
+
+        delete window;
+        delete statusWidget;
+        delete footerWidget;
+        delete sidebarWidget;
     }
 }

@@ -22,6 +22,7 @@
 #include "log.h"
 
 #include <QCoreApplication>
+#include <QHBoxLayout>
 #include <QMainWindow>
 #include <QMenu>
 #include <QMetaObject>
@@ -73,7 +74,21 @@ void PluginUiAdapter::placeInToolBar( PluginToolBar& bar, const QString& pluginI
         bar.toolBar->setFloatable( false );
         window_.addToolBar( bar.area, bar.toolBar );
     }
-    bar.placed.push_back( { pluginId, widget, bar.toolBar->addWidget( widget ) } );
+    const auto alreadyPlaced = std::ranges::any_of(
+        bar.placed, [ widget ]( const PlacedWidget& entry ) { return entry.widget == widget; } );
+    if ( alreadyPlaced ) {
+        return;
+    }
+
+    // The action QToolBar::addWidget() creates owns the widget it shows and
+    // deletes it with the toolbar, even after removeAction(). So the toolbar
+    // shows a container of the host's: the plugin's widget stays the plugin's,
+    // and the action and container go when the widget is removed.
+    auto* container = new QWidget;
+    auto* layout = new QHBoxLayout( container );
+    layout->setContentsMargins( 0, 0, 0, 0 );
+    layout->addWidget( widget );
+    bar.placed.push_back( { pluginId, widget, bar.toolBar->addWidget( container ) } );
 }
 
 void PluginUiAdapter::removeFromToolBar( PluginToolBar& bar, const QString& pluginId,
@@ -83,13 +98,16 @@ void PluginUiAdapter::removeFromToolBar( PluginToolBar& bar, const QString& plug
         if ( entry.pluginId != pluginId || ( widget && entry.widget != widget ) ) {
             return false;
         }
-        if ( bar.toolBar && entry.toolBarAction ) {
-            // The action stays alive: deleting it would delete the widget,
-            // which the plugin owns.
-            bar.toolBar->removeAction( entry.toolBarAction );
-        }
+        // Take the plugin's widget out of the container first: deleting the
+        // action deletes the container, and must not reach the widget.
         if ( entry.widget ) {
             entry.widget->setParent( nullptr );
+        }
+        if ( entry.toolBarAction ) {
+            if ( bar.toolBar ) {
+                bar.toolBar->removeAction( entry.toolBarAction );
+            }
+            delete entry.toolBarAction.data();
         }
         return true;
     } );
