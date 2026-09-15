@@ -105,7 +105,7 @@ Use **Plugins → Browse Plugins…** to discover and download plugins, and
 **Plugins → Manage Plugins…** to manage them.
 
 Want to build your own? The C ABI supports **DataSource**, **Converter**, and **UI Extension**
-plugins. Lua scripting is also available in builds configured with `LOGSQUIRL_USE_LUA=ON`.
+plugins.
 
 [Explore the registry](https://github.com/64x-lunicorn/LogSquirl-Plugins) ·
 [Read the Plugin SDK guide](docs/plugin-sdk.md) ·

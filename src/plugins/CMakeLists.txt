@@ -37,13 +37,3 @@ install(
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/logsquirl
   COMPONENT sdk
 )
-
-# ── Lua scripting support (Phase 6, optional) ──────────────────────
-if(LOGSQUIRL_USE_LUA)
-  target_sources(logsquirl_plugins PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/luapluginwrapper.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/luapluginwrapper.cpp
-  )
-  target_link_libraries(logsquirl_plugins PUBLIC sol2 lua_static)
-  target_compile_definitions(logsquirl_plugins PUBLIC LOGSQUIRL_HAS_LUA=1)
-endif()

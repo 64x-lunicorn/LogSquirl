@@ -69,19 +69,6 @@ The plugin C ABI header (`logsquirl_plugin_api.h`) is installed alongside the
 application during `cmake --install`. To develop plugins, see
 [docs/plugin-sdk.md](docs/plugin-sdk.md) for the complete developer guide.
 
-#### Lua scripting support
-
-Plugins can be written as Lua scripts instead of compiled shared libraries.
-This is disabled by default and can be enabled with:
-
-```
-cmake -DLOGSQUIRL_USE_LUA=ON ..
-```
-
-This fetches Lua 5.4 and sol2 via CPM during the configure step. Lua plugin
-scripts use the same `plugin.json` manifest but set `"library": "script.lua"`
-instead of a shared library filename.
-
 ### Building on Linux
 
 Here is how to build logsquirl on Ubuntu 24.04.

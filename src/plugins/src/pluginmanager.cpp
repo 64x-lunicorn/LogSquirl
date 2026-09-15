@@ -29,10 +29,6 @@
 #include <QStandardPaths>
 #include <QWidget>
 
-#if LOGSQUIRL_HAS_LUA
-#include "luapluginwrapper.h"
-#endif
-
 namespace logsquirl::plugins {
 
 // ── Construction / destruction ──────────────────────────────────────────────
@@ -193,13 +189,6 @@ QString PluginManager::loadPlugin( const QString& pluginId )
         return QString( "Plugin '%1' not found in discovered plugins" ).arg( pluginId );
     }
 
-#if LOGSQUIRL_HAS_LUA
-    // Lua-based plugins: library field ends with .lua
-    if ( meta->library().endsWith( ".lua", Qt::CaseInsensitive ) ) {
-        return loadLuaPlugin( pluginId, *meta );
-    }
-#endif
-
     // Load the shared library
     auto loadResult = PluginLoader::load( *meta );
     if ( !loadResult.has_value() ) {
@@ -258,14 +247,6 @@ void PluginManager::unloadPlugin( const QString& pluginId )
         Q_EMIT dataSourceStopped( pluginId );
     }
 
-#if LOGSQUIRL_HAS_LUA
-    // Shut down Lua wrapper if this is a script-based plugin
-    if ( it->second->luaWrapper ) {
-        it->second->luaWrapper->shutdown();
-        it->second->luaWrapper.reset();
-    }
-#endif
-
     // PluginHandle destructor calls shutdown
     loaded_.erase( it );
     Q_EMIT pluginUnloaded( pluginId );
@@ -321,59 +302,6 @@ void PluginManager::notifyActiveFileChanged( const QString& filePath )
         }
     }
 }
-
-#if LOGSQUIRL_HAS_LUA
-QString PluginManager::loadLuaPlugin( const QString& pluginId, const PluginMetadata& meta )
-{
-    const auto scriptPath = meta.libraryPath(); // e.g. /path/to/plugin/script.lua
-
-    auto wrapper = LuaPluginWrapper::load( scriptPath );
-    if ( !wrapper ) {
-        const auto error = QString( "Failed to load Lua script '%1'" ).arg( scriptPath );
-        LOG_ERROR << error;
-        Q_EMIT pluginError( pluginId, error );
-        return error;
-    }
-
-    // Create context with a script-only PluginHandle (no library loaded).
-    // Re-parse the metadata to get an owned copy for the handle.
-    auto metaResult
-        = PluginMetadata::fromJsonFile( QDir( meta.directory() ).filePath( "plugin.json" ) );
-    if ( !metaResult.has_value() ) {
-        return metaResult.error();
-    }
-
-    auto ctx = std::unique_ptr<PluginContext>(
-        new PluginContext{ PluginHandle::createScriptHandle( std::move( metaResult.value() ) ),
-                           {},
-                           {},
-                           {},
-                           nullptr,
-                           this } );
-    ctx->hostApi = buildHostApi();
-
-    ctx->configDir = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation )
-                     + "/plugin_config/" + pluginId;
-    ctx->configDirUtf8 = ctx->configDir.toUtf8();
-    QDir().mkpath( ctx->configDir );
-
-    // Initialise the Lua plugin via its wrapper
-    const auto rc = wrapper->init( &ctx->hostApi, ctx.get() );
-    if ( rc != 0 ) {
-        const auto error = wrapper->lastError();
-        LOG_ERROR << "Lua plugin init failed: " << error;
-        Q_EMIT pluginError( pluginId, error );
-        return error;
-    }
-
-    ctx->luaWrapper = std::move( wrapper );
-    loaded_[ pluginId ] = std::move( ctx );
-
-    LOG_INFO << "Loaded Lua plugin: " << pluginId;
-    Q_EMIT pluginLoaded( pluginId );
-    return {};
-}
-#endif
 
 // ── DataSource (Phase 2) ─────────────────────────────────────────────────────────
 
