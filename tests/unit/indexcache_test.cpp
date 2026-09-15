@@ -34,7 +34,8 @@
 // cache on a QTemporaryDir of its own: nothing is shared between tests, and
 // the developer's real cache directory is never touched.
 //
-// The cache only hands out an Index that still fits its Log File, so the
+// The cache only hands out an Index while the bytes of the Log File it was
+// built from are unchanged (the file may have grown since), so the
 // Log Files here are real files, and the hash stored with each Index is
 // computed from them the way the indexer computes it.
 
@@ -196,9 +197,35 @@ SCENARIO( "The Index cache hands out an Index only while it fits its Log File", 
             }
         }
 
-        WHEN( "the Log File's size changes" )
+        WHEN( "the Log File grows and the bytes it was indexed from are unchanged" )
         {
             writeFile( logFile, "first line\nsecond line\nthird line\nfourth line\n" );
+            const auto loaded = cache.tryLoad( logFile );
+
+            THEN( "the Index is loaded back, for the size it was built at" )
+            {
+                REQUIRE( loaded.has_value() );
+                REQUIRE( loaded->hash.size == hash.size );
+                REQUIRE( loaded->linePosition.size() == SomeLinePositions.size() );
+                REQUIRE( cacheFiles( cacheDir.path() ).size() == 1 );
+            }
+        }
+
+        WHEN( "the Log File grows and its header changes" )
+        {
+            writeFile( logFile, "FIRST line\nsecond line\nthird line\nfourth line\n" );
+            const auto loaded = cache.tryLoad( logFile );
+
+            THEN( "nothing is loaded and the stale entry is gone" )
+            {
+                REQUIRE_FALSE( loaded.has_value() );
+                REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
+            }
+        }
+
+        WHEN( "the Log File shrinks" )
+        {
+            writeFile( logFile, "first line\nsecond line\n" );
             const auto loaded = cache.tryLoad( logFile );
 
             THEN( "nothing is loaded and the stale entry is gone" )
@@ -279,6 +306,31 @@ SCENARIO( "The Index cache hands out an Index only while it fits its Log File", 
         THEN( "it is loaded back while the Log File is unchanged" )
         {
             REQUIRE( cache.tryLoad( logFile ).has_value() );
+        }
+
+        WHEN( "the Log File grows and its stored tail range is unchanged" )
+        {
+            writeFile( logFile, content + QByteArray( 1000, 'z' ) );
+            const auto loaded = cache.tryLoad( logFile );
+
+            THEN( "the Index is loaded back, for the size it was built at" )
+            {
+                REQUIRE( loaded.has_value() );
+                REQUIRE( loaded->hash.size == content.size() );
+            }
+        }
+
+        WHEN( "the Log File grows and a byte in its stored tail range changes" )
+        {
+            content[ content.size() - 1 ] = 'y';
+            writeFile( logFile, content + QByteArray( 1000, 'z' ) );
+            const auto loaded = cache.tryLoad( logFile );
+
+            THEN( "nothing is loaded and the stale entry is gone" )
+            {
+                REQUIRE_FALSE( loaded.has_value() );
+                REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
+            }
         }
 
         WHEN( "only the Log File's tail changes" )

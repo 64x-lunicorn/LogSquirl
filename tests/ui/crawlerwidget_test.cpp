@@ -19,7 +19,9 @@
 
 #include <catch2/catch.hpp>
 
+#include <QPointer>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
@@ -38,7 +40,10 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 
+#include "configuration.h"
 #include "crawlerwidget.h"
+#include "filteredview.h"
+#include "highlighterset.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
 
@@ -224,6 +229,39 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     QString searchText()
     {
         return crawler->searchLineEdit_->currentText();
+    }
+
+    FilteredView* filteredView()
+    {
+        return crawler->filteredView_;
+    }
+
+    QString logLineString( LineNumber line )
+    {
+        return crawler->logData_->getLineString( line );
+    }
+
+    void clearSearchPattern()
+    {
+        crawler->searchLineEdit_->clearEditText();
+    }
+
+    // What the Keep Results button does: the next Search opens a tab of its
+    // own, and the current one keeps its results.
+    void keepSearchResults()
+    {
+        crawler->keepSearchResultsButton_->setChecked( true );
+    }
+
+    // The Filtered View in tab index, current or not.
+    FilteredView* filteredViewInTab( int index )
+    {
+        return qobject_cast<FilteredView*>( crawler->tabbedFilteredView_->widget( index ) );
+    }
+
+    int currentFilteredViewTab()
+    {
+        return crawler->tabbedFilteredView_->currentIndex();
     }
 };
 
@@ -562,6 +600,308 @@ SCENARIO( "A Row selected in the Table View is selected in the Filtered View too
                 REQUIRE( crawlerVisitor.filteredViewSelectedText().contains( "line 000019" ) );
                 REQUIRE( crawlerVisitor.tableView()->selectedLogLines()
                          == logsquirl::vector<LineNumber>{ 30_lnum } );
+            }
+        }
+    }
+}
+
+namespace {
+
+// The Highlighter Sets, and which of them are active, restored when this
+// object goes: nothing a test ticks leaks into the tests that run next.
+class PinnedHighlighterSets {
+public:
+    PinnedHighlighterSets()
+        : sets_( HighlighterSetCollection::get().highlighterSets() )
+        , activeSetIds_( HighlighterSetCollection::get().activeSetIds() )
+    {
+    }
+
+    ~PinnedHighlighterSets()
+    {
+        auto& collection = HighlighterSetCollection::get();
+        collection.setHighlighterSets( sets_ );
+        collection.deactivateAll();
+        for ( const auto& setId : activeSetIds_ ) {
+            collection.activateSet( setId );
+        }
+    }
+
+    PinnedHighlighterSets( const PinnedHighlighterSets& ) = delete;
+    PinnedHighlighterSets& operator=( const PinnedHighlighterSets& ) = delete;
+
+private:
+    QList<HighlighterSet> sets_;
+    QStringList activeSetIds_;
+};
+
+bool showsColor( QWidget* view, const QColor& color )
+{
+    const auto image = view->grab().toImage();
+    for ( auto y = 0; y < image.height(); ++y ) {
+        for ( auto x = 0; x < image.width(); ++x ) {
+            if ( image.pixelColor( x, y ).rgb() == color.rgb() ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+std::vector<QPointer<QShortcut>> shortcutsOf( const QObject& crawler )
+{
+    std::vector<QPointer<QShortcut>> shortcuts;
+    for ( auto* shortcut : crawler.findChildren<QShortcut*>() ) {
+        shortcuts.emplace_back( shortcut );
+    }
+    return shortcuts;
+}
+
+bool allAlive( const std::vector<QPointer<QShortcut>>& shortcuts )
+{
+    return std::all_of( shortcuts.cbegin(), shortcuts.cend(),
+                        []( const auto& shortcut ) { return !shortcut.isNull(); } );
+}
+
+} // namespace
+
+SCENARIO( "A Highlighter Set change re-highlights the views and nothing else",
+          "[ui][highlighters]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+
+    const PinnedHighlighterSets pinnedSets;
+    auto& collection = HighlighterSetCollection::get();
+    collection.deactivateAll();
+
+    // A color nothing else in the views is painted with.
+    const QColor highlightColor{ 0x12, 0x34, 0x56 };
+    auto set = HighlighterSet::createNewSet( "crawlerwidget_test_highlighters" );
+    set.addHighlighter( Highlighter{ "line 000003", false, false, Qt::white, highlightColor } );
+    auto sets = collection.highlighterSets();
+    sets.append( set );
+    collection.setHighlighterSets( sets );
+
+    GIVEN( "Log Line 3 shown in the main and the Filtered View, with no Highlighter Set active" )
+    {
+        crawlerVisitor.setSearchPattern( "this is line 000003" );
+        crawlerVisitor.runSearch();
+        REQUIRE( waitUiState(
+            [ &crawlerVisitor ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
+        QTest::qWait( 50 );
+
+        REQUIRE_FALSE( showsColor( crawlerVisitor.textView(), highlightColor ) );
+        REQUIRE_FALSE( showsColor( crawlerVisitor.filteredView(), highlightColor ) );
+
+        // What a view's Highlighters menu does when a set is ticked: the set
+        // is activated, then the view reports the change.
+        collection.activateSet( set.id() );
+        const auto shortcuts = shortcutsOf( *crawlerVisitor.crawler );
+        REQUIRE_FALSE( shortcuts.empty() );
+
+        WHEN( "the set is ticked in the Filtered View" )
+        {
+            Q_EMIT crawlerVisitor.filteredView()->highlightersChange();
+            QTest::qWait( 50 );
+
+            THEN( "the main and the Filtered View are painted with it" )
+            {
+                REQUIRE( showsColor( crawlerVisitor.textView(), highlightColor ) );
+                REQUIRE( showsColor( crawlerVisitor.filteredView(), highlightColor ) );
+            }
+
+            THEN( "the Configuration is not applied again: no shortcut is registered anew" )
+            {
+                REQUIRE( allAlive( shortcuts ) );
+            }
+        }
+
+        WHEN( "the set is ticked in the Text View" )
+        {
+            Q_EMIT crawlerVisitor.textView()->highlightersChange();
+            QTest::qWait( 50 );
+
+            THEN( "the main and the Filtered View are painted with it" )
+            {
+                REQUIRE( showsColor( crawlerVisitor.textView(), highlightColor ) );
+                REQUIRE( showsColor( crawlerVisitor.filteredView(), highlightColor ) );
+            }
+
+            THEN( "the Configuration is not applied again: no shortcut is registered anew" )
+            {
+                REQUIRE( allAlive( shortcuts ) );
+            }
+        }
+
+        WHEN( "the set is ticked in the Table View" )
+        {
+            Q_EMIT crawlerVisitor.tableView()->highlightersChange();
+            QTest::qWait( 50 );
+
+            THEN( "the Configuration is not applied again: no shortcut is registered anew" )
+            {
+                REQUIRE( allAlive( shortcuts ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Decoding Policy",
+          "[ui][settings]" )
+{
+    QTemporaryFile file{ "crawler_ansi_test_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( "plain line\n" );
+    file.write( "\x1B[31mERROR\x1B[0m: disk full\n" );
+    file.write( "another plain line\n" );
+    file.flush();
+
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = false;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+        return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
+    } ) );
+
+    REQUIRE( crawlerVisitor.logLineString( 1_lnum ).contains( "\x1B[31m" ) );
+
+    WHEN( "the Policies re-derived after the setting was ticked are applied" )
+    {
+        policies.decoding.hideAnsiColorSequences = true;
+        session.applyPolicies( policies );
+
+        THEN( "the Log Line reads without them" )
+        {
+            REQUIRE( crawlerVisitor.logLineString( 1_lnum ) == "ERROR: disk full" );
+        }
+
+        AND_WHEN( "the CrawlerWidget applies a Configuration that still shows them" )
+        {
+            auto& config = Configuration::get();
+            const auto hideAnsiColorSequences = config.hideAnsiColorSequences();
+            config.setHideAnsiColorSequences( false );
+            crawlerVisitor.crawler->applyConfiguration();
+            config.setHideAnsiColorSequences( hideAnsiColorSequences );
+
+            THEN( "the Log Line still reads without them: only the Policy decides" )
+            {
+                REQUIRE( crawlerVisitor.logLineString( 1_lnum ) == "ERROR: disk full" );
+            }
+        }
+    }
+}
+
+namespace {
+
+void writeAnsiLogFile( QTemporaryFile& file )
+{
+    REQUIRE( file.open() );
+    file.write( "plain line\n" );
+    file.write( "\x1B[31mERROR\x1B[0m: disk full\n" );
+    file.write( "another plain line\n" );
+    file.flush();
+}
+
+void openAnsiCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& crawlerVisitor )
+{
+    writeAnsiLogFile( file );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+        return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
+    } ) );
+    crawlerVisitor.showSized();
+}
+
+void searchFor( CrawlerWidgetVisitor& crawlerVisitor, const QString& pattern )
+{
+    crawlerVisitor.clearSearchPattern();
+    crawlerVisitor.setSearchPattern( pattern );
+    crawlerVisitor.runSearch();
+    REQUIRE( waitUiState(
+        [ &crawlerVisitor ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
+    QTest::qWait( 50 );
+}
+
+} // namespace
+
+SCENARIO( "Every view of every open Log File shows its Log Lines under a changed Decoding Policy",
+          "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_ansi_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_ansi_second_XXXXXX" };
+
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = false;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+
+    const PinnedHighlighterSets pinnedSets;
+    auto& collection = HighlighterSetCollection::get();
+    collection.deactivateAll();
+
+    // The ANSI color sequences split this text in the Log File, so a view
+    // is painted with the color only once it shows the Log Line without them.
+    const QColor highlightColor{ 0x65, 0x43, 0x21 };
+    auto set = HighlighterSet::createNewSet( "crawlerwidget_test_decoding" );
+    set.addHighlighter(
+        Highlighter{ "ERROR: disk full", false, false, Qt::white, highlightColor } );
+    auto sets = collection.highlighterSets();
+    sets.append( set );
+    collection.setHighlighterSets( sets );
+    collection.activateSet( set.id() );
+
+    CrawlerWidgetVisitor first;
+    CrawlerWidgetVisitor second;
+    openAnsiCrawler( session, firstFile, first );
+    openAnsiCrawler( session, secondFile, second );
+
+    GIVEN( "two Log Files shown with their sequences, one with a kept Search in a tab not current" )
+    {
+        searchFor( first, "disk full" );
+        first.keepSearchResults();
+        searchFor( first, "ERROR" );
+        REQUIRE( first.currentFilteredViewTab() == 1 );
+        REQUIRE( first.filteredViewInTab( 0 ) != nullptr );
+        REQUIRE( first.filteredViewInTab( 1 ) != nullptr );
+
+        searchFor( second, "disk full" );
+
+        // Every view has painted the Log Lines as they read now.
+        REQUIRE( first.logLineString( 1_lnum ).contains( "\x1B[31m" ) );
+        REQUIRE_FALSE( showsColor( first.textView(), highlightColor ) );
+        REQUIRE_FALSE( showsColor( first.filteredViewInTab( 0 ), highlightColor ) );
+        REQUIRE_FALSE( showsColor( first.filteredViewInTab( 1 ), highlightColor ) );
+        REQUIRE_FALSE( showsColor( second.textView(), highlightColor ) );
+        REQUIRE_FALSE( showsColor( second.filteredView(), highlightColor ) );
+
+        // As in a window's tabs: the second Log File is not the current one.
+        second.crawler->hide();
+
+        WHEN( "the Policies re-derived after hiding ANSI color sequences was ticked are applied" )
+        {
+            policies.decoding.hideAnsiColorSequences = true;
+            session.applyPolicies( policies );
+            QTest::qWait( 50 );
+
+            THEN( "the main view and both Filtered Views of the first Log File show them hidden" )
+            {
+                REQUIRE( showsColor( first.textView(), highlightColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), highlightColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 1 ), highlightColor ) );
+            }
+
+            THEN( "the views of the Log File in the tab not current show them hidden too" )
+            {
+                second.showSized();
+                REQUIRE( showsColor( second.textView(), highlightColor ) );
+                REQUIRE( showsColor( second.filteredView(), highlightColor ) );
             }
         }
     }

@@ -41,6 +41,7 @@
 
 #include "containers.h"
 #include "linetypes.h"
+#include <atomic>
 #include <optional>
 #include <qthreadpool.h>
 #include <variant>
@@ -49,11 +50,9 @@
 #include <QObject>
 #include <QTextCodec>
 
-#if !defined( Q_MOC_RUN )
-#include <tbb/enumerable_thread_specific.h>
-#include <tbb/flow_graph.h>
-#include <tbb/task_group.h>
-#endif
+// No TBB here: the indexing graph is an implementation detail of
+// logdataworker.cpp, and TBB is a private dependency of the log data
+// library (#168).
 
 #include "atomicflag.h"
 #include "filedigest.h"
@@ -74,6 +73,22 @@ struct IndexedHash {
     qint64 tailSize = 0;
     qint64 tailOffset = 0;
     quint64 tailDigest = 0;
+};
+
+// A cached Index that indexing goes on from, rather than starting over.
+struct ResumedIndex {
+    // The cached line positions, their last Log Line already dropped: it may
+    // have had no newline yet, and continued since.
+    LinePositionArray linePosition;
+    // The longest Log Line so far, a lower bound for the whole Log File.
+    LineLength maxLength;
+    // Where indexing goes on: where the dropped Log Line began.
+    OffsetInFile offset;
+    // The digest of the bytes before offset, needed only without fast
+    // modification detection.
+    FileDigest digestBeforeOffset;
+    QTextCodec* encoding = nullptr;
+    bool fastModificationDetection = true;
 };
 
 template <typename Data, typename LockGuard>
@@ -197,6 +212,12 @@ public:
                               fastModificationDetection );
     }
 
+    /// Start from a cached Index, so that indexing goes on from its offset.
+    void resumeFromCache( ResumedIndex&& resumed )
+    {
+        data_->resumeFromCache( std::move( resumed ) );
+    }
+
     size_t allocatedSize() const
     {
         return data_->allocatedSize();
@@ -249,6 +270,9 @@ private:
                         const IndexedHash& hash, QTextCodec* encoding,
                         bool fastModificationDetection );
 
+    // Start from a cached Index, going on from its offset.
+    void resumeFromCache( ResumedIndex&& resumed );
+
     /// Returns the compressed line position array, or nullptr if using fast (uncompressed) storage.
     const LinePositionArray* getCompressedLinePosition() const;
 
@@ -294,6 +318,8 @@ struct IndexingState {
 
 using OperationResult = std::variant<bool, MonitoredFileStatus>;
 
+struct CachedIndex;
+
 class IndexOperation : public QObject {
     Q_OBJECT
 public:
@@ -315,6 +341,12 @@ public:
     // and false if it has been cancelled (results not copied)
     virtual OperationResult run() = 0;
 
+    // How many bytes of the Log File this operation has read to index them.
+    qint64 bytesIndexed() const
+    {
+        return bytesIndexed_.load();
+    }
+
 Q_SIGNALS:
     void indexingProgressed( int );
     void indexingFinished( bool );
@@ -323,7 +355,6 @@ Q_SIGNALS:
 protected:
     using BlockBuffer = logsquirl::vector<char>;
     using BlockData = std::pair<OffsetInFile::UnderlyingType, BlockBuffer*>;
-    using BlockPrefetcher = tbb::flow::limiter_node<BlockData>;
 
     // Returns the total size indexed
     // Modify the passed linePosition and maxLength
@@ -346,6 +377,8 @@ private:
     // fails or the indexing is interrupted.
     std::optional<BlockData> readNextBlock( QFile& file, std::chrono::microseconds& ioDuration );
     void indexNextBlock( IndexingState& state, const BlockData& blockData );
+
+    std::atomic<qint64> bytesIndexed_{ 0 };
 };
 
 class FullIndexOperation : public IndexOperation {
@@ -361,6 +394,12 @@ public:
     OperationResult run() override;
 
 private:
+    // Sets up the indexing data to go on from a cached Index built when the
+    // Log File was shorter, and reports the progress already made. Returns
+    // false, leaving the indexing data alone, when that would not give the
+    // Index a full re-index builds.
+    bool resumeFrom( CachedIndex& cached, qint64 fileSize );
+
     QTextCodec* forcedEncoding_;
 };
 

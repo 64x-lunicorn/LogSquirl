@@ -69,7 +69,7 @@ protected:
 SCENARIO( "AbstractLogView updateDisplaySize keeps charWidth_ safe", "[abstractlogview][viewport]" )
 {
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess };
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
     QuickFindPattern qfp;
 
     GIVEN( "A log view widget created with default font" )

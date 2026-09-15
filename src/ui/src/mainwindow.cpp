@@ -115,8 +115,8 @@
 #include "recentfiles.h"
 #include "sessioninfo.h"
 #include "shortcuts.h"
-#include "styles.h"
 #include "tabbedcrawlerwidget.h"
+#include "theme.h"
 
 namespace {
 
@@ -135,7 +135,6 @@ QTranslator MainWindow::mQtTranslator;
 MainWindow::MainWindow( WindowSession session )
     : session_( std::move( session ) )
     , mainIcon_()
-    , iconLoader_( this )
     , signalMux_()
     , quickFindMux_( session_.getQuickFindPattern() )
     , mainTabWidget_()
@@ -231,13 +230,9 @@ MainWindow::MainWindow( WindowSession session )
         constexpr int kButtonSize = 24;
         constexpr int kIconSize = 16;
 
-        // Pick icon variant based on configured style — at construction time
-        // the dark palette is not yet applied, so IconLoader cannot detect it.
-        const bool isDarkStyle = Configuration::get().style() == StyleManager::DarkStyleKey;
-
+        // Their icons are set by loadIcons().
         auto* floatButton = new QToolButton( titleBar );
-        floatButton->setIcon( isDarkStyle ? QIcon( ":/images/icons8-undock-16_inverse.png" )
-                                          : QIcon( ":/images/icons8-undock-16.png" ) );
+        sidebarFloatButton_ = floatButton;
         floatButton->setFixedSize( kButtonSize, kButtonSize );
         floatButton->setIconSize( QSize( kIconSize, kIconSize ) );
         floatButton->setAutoRaise( true );
@@ -245,8 +240,7 @@ MainWindow::MainWindow( WindowSession session )
         titleLayout->addWidget( floatButton );
 
         auto* closeButton = new QToolButton( titleBar );
-        closeButton->setIcon( isDarkStyle ? QIcon( ":/images/icons8-close-window-16_inverse.png" )
-                                          : QIcon( ":/images/icons8-close-window-16.png" ) );
+        sidebarCloseButton_ = closeButton;
         closeButton->setFixedSize( kButtonSize, kButtonSize );
         closeButton->setIconSize( QSize( kIconSize, kIconSize ) );
         closeButton->setAutoRaise( true );
@@ -392,6 +386,12 @@ MainWindow::MainWindow( WindowSession session )
 
     updateTitleBar( "" );
     loadIcons();
+    Theme::whenApplied( this, [ this ] {
+        loadIcons();
+        updateOpenedFilesMenu();
+        updateFavoritesMenu();
+        updateHighlightersMenu();
+    } );
     reTranslateUI();
 
     // Accessibility: set accessible names on main widgets
@@ -957,6 +957,8 @@ void MainWindow::loadIcons()
     showFilterFrequencyAction->setIcon( iconLoader_.load( "icons8-frequency" ) );
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
+    sidebarFloatButton_->setIcon( iconLoader_.load( "icons8-undock-16" ) );
+    sidebarCloseButton_->setIcon( iconLoader_.load( "icons8-close-window-16" ) );
 }
 
 void MainWindow::createMenus()
@@ -1027,7 +1029,7 @@ void MainWindow::createMenus()
     highlightersMenu->setApplyChange( [ this ]() {
         auto crawler = currentCrawlerWidget();
         if ( crawler != nullptr ) {
-            crawler->applyConfiguration();
+            crawler->applyHighlighterSetChange();
         }
     } );
 
@@ -1444,13 +1446,14 @@ void MainWindow::openUrl()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyHighlighterSetChange() ) );
 
     connect( &dialog, &HighlightersDialog::optionsChanged,
              [ this ]() { updateHighlightersMenu(); } );
 
     dialog.exec();
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ),
+                           SLOT( applyHighlighterSetChange() ) );
 }
 
 // Opens dialog to configure predefined filters
@@ -1920,9 +1923,10 @@ void MainWindow::importChipmunkFilters()
                                   .arg( filtersAdded )
                                   .arg( highlighterAdded ? 1 : 0 ) );
 
-    // Notify active crawler to refresh its configuration
+    // The imported Highlighter Set may be active: paint the current Log File
+    // again with it.
     if ( auto crawler = currentCrawlerWidget() ) {
-        crawler->applyConfiguration();
+        crawler->applyHighlighterSetChange();
     }
 }
 
@@ -2345,14 +2349,6 @@ void MainWindow::changeEvent( QEvent* event )
                 } );
             }
         }
-    }
-    else if ( event->type() == QEvent::StyleChange ) {
-        dispatchToMainThread( [ this ] {
-            loadIcons();
-            updateOpenedFilesMenu();
-            updateFavoritesMenu();
-            updateHighlightersMenu();
-        } );
     }
     else if ( event->type() == QEvent::LanguageChange ) {
         reTranslateUI();

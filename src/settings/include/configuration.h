@@ -596,6 +596,8 @@ public:
         defaultEncodingMib_ = mib;
     }
 
+    // Stored overrides of Dark Tokens, by Token name (e.g. "Window" ->
+    // "#101010"), from the [dark] settings group. See Theme::fromName().
     std::map<QString, QString> darkPalette() const
     {
         return darkPalette_;
@@ -688,132 +690,114 @@ public:
     void retrieveFromStorage( QSettings& settings );
 
 private:
-    // Configuration settings
-    mutable QFont mainFont_ = { "DejaVu Sans Mono", 10 };
-    SearchRegexpType mainRegexpType_ = SearchRegexpType::ExtendedRegexp;
-    SearchRegexpType quickfindRegexpType_ = SearchRegexpType::FixedString;
-    bool quickfindIncremental_ = true;
+    // Calls visit( key, member, default[, correction] ) for every stored
+    // setting. Defined once in configuration.cpp, it is the only place that
+    // names a setting's key and its default.
+    template <typename Self, typename Visit>
+    static void forEachSetting( Self& config, Visit&& visit );
 
-    QString language_{ "en" };
+    // Stored settings; their keys and defaults are declared in forEachSetting.
+    mutable QFont mainFont_;
+    SearchRegexpType mainRegexpType_{};
+    SearchRegexpType quickfindRegexpType_{};
+    bool quickfindIncremental_{};
 
-    bool nativeFileWatchEnabled_ = true;
-#ifdef Q_OS_WIN
-    bool pollingEnabled_ = true;
-#else
-    bool pollingEnabled_ = false;
-#endif
+    QString language_;
 
-    int pollIntervalMs_ = 2000;
+    bool nativeFileWatchEnabled_{};
+    bool pollingEnabled_{};
+    int pollIntervalMs_{};
 
-    bool fastModificationDetection_ = false;
+    bool fastModificationDetection_{};
 
-    bool loadLastSession_ = true;
-    bool followFileOnLoad_ = false;
-    bool allowMultipleWindows_ = false;
-    bool confirmTabClose_ = true;
+    bool loadLastSession_{};
+    bool followFileOnLoad_{};
+    bool allowMultipleWindows_{};
+    bool confirmTabClose_{};
 
     // View settings
-    bool overviewVisible_ = true;
-    bool lineNumbersVisibleInMain_ = false;
-    bool lineNumbersVisibleInFiltered_ = true;
-    bool minimizeToTray_ = false;
-    int contextLinesCount_ = 5;
+    bool overviewVisible_{};
+    bool lineNumbersVisibleInMain_{};
+    bool lineNumbersVisibleInFiltered_{};
+    bool minimizeToTray_{};
+    int contextLinesCount_{};
     QString style_;
 
     // Default settings for new views
-    bool searchAutoRefresh_ = false;
-    bool searchIgnoreCase_ = false;
-    bool searchLogicalCombining_ = false;
+    bool searchAutoRefresh_{};
+    bool searchIgnoreCase_{};
+    bool searchLogicalCombining_{};
     QList<int> splitterSizes_;
 
     // Performance settings
-    bool useSearchResultsCache_ = true;
-    unsigned searchResultsCacheLines_ = 1000000;
-    bool useParallelSearch_ = true;
-    int indexReadBufferSizeMb_ = 16;
-    int searchReadBufferSizeLines_ = 10000;
-    int searchThreadPoolSize_ = 0;
-    bool keepFileClosed_ = false;
-    bool useCompressedIndex_ = true;
-    bool useIndexCache_ = false;
-    int indexCacheMaxSizeMb_ = 500;
+    bool useSearchResultsCache_{};
+    unsigned searchResultsCacheLines_{};
+    bool useParallelSearch_{};
+    int indexReadBufferSizeMb_{};
+    int searchReadBufferSizeLines_{};
+    int searchThreadPoolSize_{};
+    bool keepFileClosed_{};
+    bool useCompressedIndex_{};
+    bool useIndexCache_{};
+    int indexCacheMaxSizeMb_{};
 
-    bool enableLogging_ = false;
-    int loggingLevel_ = 4;
+    bool enableLogging_{};
+    int loggingLevel_{};
 
-    bool enableVersionChecking_ = true;
-    bool enableBetaVersionChecking_ = false;
+    bool enableVersionChecking_{};
+    bool enableBetaVersionChecking_{};
 
-    bool extractArchives_ = true;
-    bool extractArchivesAlways_ = false;
+    bool extractArchives_{};
+    bool extractArchivesAlways_{};
 
-    bool verifySslPeers_ = true;
+    bool verifySslPeers_{};
 
-    bool forceFontAntialiasing_ = false;
-    bool enableQtHighDpi_ = true;
-    bool useBoldFont_ = false;
+    bool forceFontAntialiasing_{};
+    bool enableQtHighDpi_{};
+    bool useBoldFont_{};
 
-    int scaleFactorRounding_ = 1;
+    int scaleFactorRounding_{};
 
-    RegexpEngine regexpEngine_ = RegexpEngine::Vectorscan;
+    RegexpEngine regexpEngine_{};
 
-    QColor qfBackColor_ = Qt::yellow;
-    QColor mainSearchBackColor_ = Qt::lightGray;
-    bool enableMainSearchHighlight_ = false;
-    bool enableMainSearchHighlightVariance_ = false;
+    QColor qfBackColor_;
+    QColor mainSearchBackColor_;
+    bool enableMainSearchHighlight_{};
+    bool enableMainSearchHighlightVariance_{};
 
-    bool allowFollowOnScroll_ = true;
-    bool autoRunSearchOnPatternChange_ = false;
+    bool allowFollowOnScroll_{};
+    bool autoRunSearchOnPatternChange_{};
 
-    bool fastScrollEnabled_ = true;
-    int fastScrollMultiplier_ = 5;
+    bool fastScrollEnabled_{};
+    int fastScrollMultiplier_{};
 
-    bool optimizeForNotLatinEncodings_ = false;
+    bool optimizeForNotLatinEncodings_{};
 
-    bool hideAnsiColorSequences_ = false;
+    bool hideAnsiColorSequences_{};
 
-    int defaultEncodingMib_ = -1;
+    int defaultEncodingMib_{};
 
-    bool showSplashScreen_ = false;
+    bool showSplashScreen_{};
 
-    bool showDashboard_ = true;
+    bool showDashboard_{};
 
-    int toolbarIconSize_ = 24;
+    int toolbarIconSize_{};
 
-    bool autoDetectLogFormats_ = false;
-    bool autoShowTableView_ = false;
+    bool autoDetectLogFormats_{};
+    bool autoShowTableView_{};
 
-    bool pluginsAutoLoad_ = true;
+    bool pluginsAutoLoad_{};
     QStringList enabledPlugins_;
 
-    bool qfIgnoreCase_ = false;
+    bool qfIgnoreCase_{};
 
-    bool useTextWrap_ = false;
+    bool useTextWrap_{};
 
     std::map<std::string, QStringList> shortcuts_;
 
     QMap<QString, QString> chartPresets_;
 
-    // based on https://gist.github.com/QuantumCD/6245215
-    std::map<QString, QString> darkPalette_ = {
-        { "Window", "#121212" },
-        { "WindowText", "#E0E0E0" },
-        { "Base", "#1E1E1E" },
-        { "AlternateBase", "#252526" },
-        { "ToolTipBase", "#2D2D30" },
-        { "ToolTipText", "#E0E0E0" },
-        { "Text", "#E0E0E0" },
-        { "Button", "#2D2D30" },
-        { "ButtonText", "#E0E0E0" },
-        { "Link", "#4D90FE" },
-        { "Highlight", "#4D90FE" },
-        { "HighlightedText", "#FFFFFF" },
-        { "ActiveButton", "#252526" },
-        { "DisabledButtonText", "#666666" },
-        { "DisabledWindowText", "#666666" },
-        { "DisabledText", "#666666" },
-        { "DisabledLight", "#252526" },
-    };
+    std::map<QString, QString> darkPalette_;
 };
 
 #endif

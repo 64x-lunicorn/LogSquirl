@@ -22,6 +22,7 @@
 #include "configuration.h"
 #include "log.h"
 #include "openfilehelper.h"
+#include "theme.h"
 
 #include <QButtonGroup>
 #include <QDialogButtonBox>
@@ -307,6 +308,9 @@ PluginDialog::PluginDialog( PluginManager& manager, QWidget* parent )
     // Build initial cards from locally discovered plugins
     rebuildMergedList();
     rebuildCards();
+
+    // A card's status badge is styled with Tokens when the card is built.
+    Theme::whenApplied( this, [ this ] { rebuildCards(); } );
 
     // Start fetching the remote catalog
     repository_.fetchCatalog();
@@ -727,21 +731,25 @@ bool PluginDialog::extractAndInstall( const QString& archivePath, const QString&
 
 QString PluginDialog::badgeStyleSheet( PluginState state )
 {
-    switch ( state ) {
-    case PluginState::Installed:
-        return "background-color: #2ea043; color: white; border-radius: 4px; "
-               "padding: 2px 8px; font-size: 10px; font-weight: bold;";
-    case PluginState::UpdateReady:
-        return "background-color: #d29922; color: white; border-radius: 4px; "
-               "padding: 2px 8px; font-size: 10px; font-weight: bold;";
-    case PluginState::Disabled:
-        return "background-color: #6e7681; color: white; border-radius: 4px; "
-               "padding: 2px 8px; font-size: 10px; font-weight: bold;";
-    case PluginState::NotInstalled:
-        return "background-color: #388bfd; color: white; border-radius: 4px; "
-               "padding: 2px 8px; font-size: 10px; font-weight: bold;";
-    }
-    return {};
+    const auto background = [ state ] {
+        switch ( state ) {
+        case PluginState::Installed:
+            return ColorToken::StatusOk;
+        case PluginState::UpdateReady:
+            return ColorToken::StatusWarning;
+        case PluginState::Disabled:
+            return ColorToken::StatusInactive;
+        case PluginState::NotInstalled:
+            return ColorToken::StatusInfo;
+        }
+        return ColorToken::StatusInactive;
+    }();
+
+    const auto& theme = Theme::active();
+    return QStringLiteral( "background-color: %1; color: %2; border-radius: 4px; "
+                           "padding: 2px 8px; font-size: 10px; font-weight: bold;" )
+        .arg( theme.color( background ).name( QColor::HexRgb ),
+              theme.color( ColorToken::StatusText ).name( QColor::HexRgb ) );
 }
 
 QString PluginDialog::badgeText( PluginState state )

@@ -289,6 +289,13 @@ void LogTableView::updateDecorations()
     }
 }
 
+void LogTableView::rereadLogLines()
+{
+    if ( model_ ) {
+        model_->rereadRows();
+    }
+}
+
 void LogTableView::repaintIfActive()
 {
     if ( active_ ) {

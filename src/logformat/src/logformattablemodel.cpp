@@ -70,6 +70,19 @@ void LogFormatTableModel::setLineCount( int logLineCount )
     }
 }
 
+void LogFormatTableModel::rereadRows()
+{
+    rowCacheList_.clear();
+    rowCacheMap_.clear();
+
+    // Not a reset: the Rows stay where they are, and so do the selection and
+    // the scroll position.
+    if ( lineCount_ > 0 && !columnNames_.isEmpty() ) {
+        const auto lastColumn = static_cast<int>( columnNames_.size() ) - 1;
+        Q_EMIT dataChanged( index( 0, 0 ), index( lineCount_ - 1, lastColumn ) );
+    }
+}
+
 int LogFormatTableModel::rowCount( const QModelIndex& parent ) const
 {
     if ( parent.isValid() ) {

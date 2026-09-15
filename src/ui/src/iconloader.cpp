@@ -11,23 +11,27 @@
     COPYING included with this distribution for more information.
 */
 
-#include <QApplication>
+#include <QAbstractButton>
 #include <QFile>
 #include <QPainter>
 #include <QPixmap>
-#include <QStyleOption>
-#include <QWidget>
 
 #include "iconloader.h"
 #include "log.h"
+#include "theme.h"
 
 #include <array>
 
 constexpr std::array<int, 8> IconSizes{ 0, 16 };
 
-IconLoader::IconLoader( QWidget* widget )
-    : widget_{ widget }
+void loadListEditIcons( QAbstractButton* add, QAbstractButton* remove, QAbstractButton* up,
+                        QAbstractButton* down )
 {
+    IconLoader iconLoader;
+    add->setIcon( iconLoader.load( "icons8-plus-16" ) );
+    remove->setIcon( iconLoader.load( "icons8-minus-16" ) );
+    up->setIcon( iconLoader.load( "icons8-up-16" ) );
+    down->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
 }
 
 QIcon IconLoader::load( QString name )
@@ -42,11 +46,7 @@ QIcon IconLoader::load( QString name )
 }
 bool IconLoader::shouldInvert() const
 {
-    QStyleOption style;
-    style.initFrom( widget_ );
-    auto bg = style.palette.window().color();
-    bool darkBackground = ( bg.red() + bg.green() + bg.blue() <= 384 );
-    return darkBackground;
+    return Theme::active().usesInverseIcons();
 }
 
 bool IconLoader::shouldAutoInvert( QString /*name*/ ) const

@@ -111,7 +111,7 @@ static LogFilteredData::LineTypeFlags toFlags( LogFilteredData::LineType type )
 struct LogDataLoader {
     explicit LogDataLoader( SettingsPolicies policies = testSettingsPolicies(),
                             qint64 nbLines = SL_NB_LINES )
-        : log_data( policies.indexing, policies.search, policies.fileAccess )
+        : log_data( policies.indexing, policies.search, policies.fileAccess, policies.decoding )
     {
         static int counter = 0;
         counter++;
@@ -627,7 +627,8 @@ SCENARIO( "a Search superseded by a later one applies no stale results", "[logda
         policies.search.useParallelSearch = false;
         policies.search.useResultsCache = false;
 
-        LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
+        LogData log_data{ policies.indexing, policies.search, policies.fileAccess,
+                          policies.decoding };
         SafeQSignalSpy loadEndSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
         log_data.attachFile( file.fileName() );
         REQUIRE( loadEndSpy.safeWait( 10000 ) );
@@ -704,7 +705,8 @@ SCENARIO( "a Search completes even when TBB has no worker thread to spare", "[lo
         policies.search.readBufferSizeLines = 10;
         policies.search.useResultsCache = false;
 
-        LogData log_data{ policies.indexing, policies.search, policies.fileAccess };
+        LogData log_data{ policies.indexing, policies.search, policies.fileAccess,
+                          policies.decoding };
         SafeQSignalSpy loadEndSpy( &log_data, SIGNAL( loadingFinished( LoadingStatus ) ) );
         log_data.attachFile( file.fileName() );
         REQUIRE( loadEndSpy.safeWait( 10000 ) );

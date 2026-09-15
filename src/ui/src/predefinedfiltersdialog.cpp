@@ -45,6 +45,7 @@
 #include "iconloader.h"
 #include "log.h"
 #include "predefinedfilters.h"
+#include "theme.h"
 
 static constexpr QLatin1String DEFAULT_SET_NAME = QLatin1String( "New filter group", 16 );
 
@@ -90,13 +91,13 @@ PredefinedFiltersDialog::PredefinedFiltersDialog( QWidget* parent )
         setCurrentRow( 0 );
     }
 
-    dispatchToMainThread( [ this ] {
-        IconLoader iconLoader( this );
-        addSetButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-        removeSetButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-        upSetButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-        downSetButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
-    } );
+    loadIcons();
+    Theme::whenApplied( this, [ this ] { loadIcons(); } );
+}
+
+void PredefinedFiltersDialog::loadIcons()
+{
+    loadListEditIcons( addSetButton, removeSetButton, upSetButton, downSetButton );
 }
 
 PredefinedFiltersDialog::PredefinedFiltersDialog( const QString& newFilter, QWidget* parent )

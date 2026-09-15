@@ -51,7 +51,7 @@ const QString EveryTenthLine = QStringLiteral( "this is line [0-9]{5}0" );
 struct QuickFindLogFile {
     explicit QuickFindLogFile( int nbLines, SettingsPolicies filePolicies = testSettingsPolicies() )
         : policies( filePolicies )
-        , logData( policies.indexing, policies.search, policies.fileAccess )
+        , logData( policies.indexing, policies.search, policies.fileAccess, policies.decoding )
     {
         REQUIRE( file.open() );
         for ( int line = 0; line < nbLines; ++line ) {

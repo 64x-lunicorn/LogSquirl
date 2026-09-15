@@ -199,6 +199,13 @@ public:
         return array.range( firstLine, count );
     }
 
+    // Remove the last line position, whether its LF was real or fake.
+    void pop_back()
+    {
+        array.pop_back();
+        fakeFinalLF_ = false;
+    }
+
     // Set the presence of a fake final LF
     // Must be used after 'append'-ing a fake LF at the end.
     void setFakeFinalLF( bool finalLF = true )

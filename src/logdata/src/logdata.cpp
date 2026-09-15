@@ -58,8 +58,14 @@
 
 #include "logdata.h"
 
+namespace {
+// What a Decoding Policy that hides ANSI color sequences removes from every
+// Log Line: the color (SGR) and erase-in-line sequences.
+constexpr char AnsiColorSequencePattern[] = "\\x1B\\[([0-9]{1,4}((;|:)[0-9]{1,3})*)?[mK]";
+} // namespace
+
 LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
-                  const FileAccessPolicy& fileAccessPolicy )
+                  const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy )
     : AbstractLogData()
     , indexing_data_( std::make_shared<IndexingData>() )
     , operationQueue_( [ this ] { attached_file_->attachReader(); } )
@@ -67,6 +73,7 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     , searchPolicy_( searchPolicy )
     , fileAccessPolicy_( fileAccessPolicy )
     , codec_( QTextCodec::codecForName( "ISO-8859-1" ) )
+    , decodingPolicy_( decodingPolicy )
 {
     // Initialise the file watcher
     connect( &FileWatcher::getFileWatcher(), &FileWatcher::fileChanged, this,
@@ -120,10 +127,16 @@ void LogData::setSearchPolicy( const SearchPolicy& searchPolicy )
     }
 }
 
-void LogData::setPrefilter( const QString& prefilterPattern )
+void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
 {
-    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-    prefilterPattern_ = prefilterPattern;
+    {
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        decodingPolicy_ = decodingPolicy;
+    }
+
+    // Views paint what they read before until they are told to read again;
+    // the lock is released first, as they read Log Lines straight away.
+    Q_EMIT decodingPolicyChanged();
 }
 
 void LogData::attachFile( const QString& fileName )
@@ -392,8 +405,8 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
 
         rawLines.endOfLines.reserve( number.get() );
         rawLines.prefilterPattern
-            = !prefilterPattern_.isEmpty()
-                  ? QRegularExpression( prefilterPattern_,
+            = decodingPolicy_.hideAnsiColorSequences
+                  ? QRegularExpression( AnsiColorSequencePattern,
                                         QRegularExpression::CaseInsensitiveOption )
                   : QRegularExpression{};
 

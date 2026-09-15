@@ -30,6 +30,9 @@ public:
     FileDigest();
     ~FileDigest();
 
+    FileDigest( FileDigest&& ) noexcept;
+    FileDigest& operator=( FileDigest&& ) noexcept;
+
     FileDigest& addData( const char* data, size_t length );
     FileDigest& addData( const QByteArray& data );
     uint64_t digest() const;

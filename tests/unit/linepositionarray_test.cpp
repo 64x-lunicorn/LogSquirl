@@ -32,6 +32,38 @@
 
 #include <configuration.h>
 
+SCENARIO( "A moved LinePositionArray keeps growing correctly", "[linepositionarray]" )
+{
+    GIVEN( "an array holding several compressed blocks, moved into another" )
+    {
+        LinePositionArray original;
+        std::vector<OffsetInFile> offsets;
+        for ( auto line = 1; line <= 1000; ++line ) {
+            offsets.push_back( OffsetInFile( line * 16 + ( line % 13 ) ) );
+            original.append( offsets.back() );
+        }
+        LinePositionArray moved( std::move( original ) );
+
+        WHEN( "its last line is dropped and more lines are appended, filling new blocks" )
+        {
+            moved.pop_back();
+            offsets.pop_back();
+            for ( auto line = 1000; line <= 1600; ++line ) {
+                offsets.push_back( OffsetInFile( line * 16 + ( line % 13 ) ) );
+                moved.append( offsets.back() );
+            }
+
+            THEN( "every line position, old and new, reads back as appended" )
+            {
+                REQUIRE( moved.size().get() == offsets.size() );
+                for ( auto i = 0u; i < offsets.size(); ++i ) {
+                    REQUIRE( moved.at( i ) == offsets[ i ] );
+                }
+            }
+        }
+    }
+}
+
 SCENARIO( "LinePositionArray with small number of lines", "[linepositionarray]" )
 {
 

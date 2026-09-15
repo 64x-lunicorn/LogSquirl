@@ -22,9 +22,9 @@
 #include <QCheckBox>
 #include <QHBoxLayout>
 
-#include "dispatch_to.h"
 #include "iconloader.h"
 #include "log.h"
+#include "theme.h"
 
 namespace {
 
@@ -40,9 +40,8 @@ public:
         layout->addWidget( checkbox_ );
         this->setLayout( layout );
 
-        QPalette pal = this->palette();
-        pal.setColor( QPalette::Base, pal.color( QPalette::Window ) );
-        checkbox_->setPalette( pal );
+        useWindowColorAsBase();
+        Theme::whenApplied( this, [ this ] { useWindowColorAsBase(); } );
     }
 
     bool isChecked() const
@@ -55,6 +54,16 @@ public:
     }
 
 private:
+    // The check box shows its cell's window color as its base. A role set
+    // explicitly no longer follows the application palette, so it is set
+    // again after every Theme switch.
+    void useWindowColorAsBase()
+    {
+        QPalette checkBoxPalette;
+        checkBoxPalette.setColor( QPalette::Base, palette().color( QPalette::Window ) );
+        checkbox_->setPalette( checkBoxPalette );
+    }
+
     QCheckBox* checkbox_;
 };
 
@@ -79,15 +88,15 @@ PredefinedFilterSetEdit::PredefinedFilterSetEdit( QWidget* parent )
     connect( filtersTableWidget, &QTableWidget::cellChanged, this,
              &PredefinedFilterSetEdit::onCellChanged );
 
-    dispatchToMainThread( [ this ] {
-        IconLoader iconLoader( this );
-        addFilterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-        removeFilterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-        upFilterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-        downFilterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
-    } );
+    loadIcons();
+    Theme::whenApplied( this, [ this ] { loadIcons(); } );
 
     reset();
+}
+
+void PredefinedFilterSetEdit::loadIcons()
+{
+    loadListEditIcons( addFilterButton, removeFilterButton, upFilterButton, downFilterButton );
 }
 
 void PredefinedFilterSetEdit::reset()

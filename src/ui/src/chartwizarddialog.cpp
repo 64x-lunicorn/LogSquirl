@@ -104,8 +104,7 @@ ChartWizardDialog::ChartWizardDialog( const LogFormatDefinition* format, QWidget
     // Color
     colorButton_ = new QPushButton;
     colorButton_->setFixedSize( 60, 24 );
-    colorButton_->setStyleSheet(
-        QString( "background-color: %1; border: 1px solid gray;" ).arg( selectedColor_.name() ) );
+    updateColorButton();
     connect( colorButton_, &QPushButton::clicked, this, &ChartWizardDialog::chooseColor );
     form->addRow( tr( "Color:" ), colorButton_ );
 
@@ -325,9 +324,16 @@ void ChartWizardDialog::chooseColor()
     const QColor c = QColorDialog::getColor( selectedColor_, this, tr( "Series Color" ) );
     if ( c.isValid() ) {
         selectedColor_ = c;
-        colorButton_->setStyleSheet(
-            QString( "background-color: %1; border: 1px solid gray;" ).arg( c.name() ) );
+        updateColorButton();
     }
+}
+
+void ChartWizardDialog::updateColorButton()
+{
+    // Qt resolves palette(mid) again whenever it repolishes the button, which
+    // every Theme switch does, so only a color change sets the stylesheet.
+    colorButton_->setStyleSheet( QString( "background-color: %1; border: 1px solid palette(mid);" )
+                                     .arg( selectedColor_.name() ) );
 }
 
 void ChartWizardDialog::validateAndAccept()

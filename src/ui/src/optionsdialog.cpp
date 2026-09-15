@@ -52,7 +52,7 @@
 #include "recentfiles.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
-#include "styles.h"
+#include "theme.h"
 
 #include "optionsdialog.h"
 
@@ -167,7 +167,7 @@ void OptionsDialog::setupRegexp()
 
 void OptionsDialog::setupStyles()
 {
-    styleComboBox->addItems( StyleManager::availableStyles() );
+    styleComboBox->addItems( Theme::availableThemes() );
 }
 
 void OptionsDialog::setupEncodings()
@@ -544,8 +544,9 @@ void OptionsDialog::checkShortcutsOnDuplicate() const
 
 int OptionsDialog::updateTranslate()
 {
+    // Without a main window there is no user interface to translate.
     auto mw = dynamic_cast<MainWindow*>( parent() );
-    return mw->installLanguage( languageComboBox->currentData().toString() );
+    return mw ? mw->installLanguage( languageComboBox->currentData().toString() ) : 0;
 }
 
 void OptionsDialog::updateConfigFromDialog()
@@ -621,9 +622,11 @@ void OptionsDialog::updateConfigFromDialog()
 
     config.setVerifySslPeers( verifySslCheckBox->isChecked() );
 
-    restartAppMessage = config.style() != styleComboBox->currentText();
-
+    const auto themeChanged = config.style() != styleComboBox->currentText();
     config.setStyle( styleComboBox->currentText() );
+    if ( themeChanged ) {
+        Theme::apply( config.style() );
+    }
     config.setHideAnsiColorSequences( hideAnsiColorsCheckBox->isChecked() );
 
     config.setContextLinesCount( contextLinesSpinBox->value() );

@@ -138,6 +138,22 @@ The single owner of the precedence rule that turns a Line Verdict plus a piece o
 into a Decoration. It decides which color wins where; it does not draw.
 _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not this)
 
+### Appearance
+
+**Theme**:
+The look of the application around the Log Lines: Light, Dark or High Contrast, or System,
+which becomes Light or Dark from the operating system's color scheme and follows it while the
+application runs. Choosing a Theme takes effect at once, in every open window. A Theme is
+exactly one set of Tokens; the application's palette and stylesheet are both derived from
+it. A Theme does not color Log Lines — that is the Highlighter Set's job.
+_Avoid_: style, skin, palette (a palette is derived from a Theme)
+
+**Token**:
+One named value of a Theme — a color such as the border or hover color, or a size or icon
+used by the stylesheet. Every Theme sets every Token. A user can override Dark Tokens by
+name in the settings, and add a stylesheet of their own on top.
+_Avoid_: variable, constant, design value
+
 ### Structure
 
 **Log Format**:
@@ -176,7 +192,7 @@ A saved configuration of which Log Format fields to plot and how.
 **Settings Policy**:
 The small set of settings one part of the application actually needs, taken as a snapshot
 and handed to it when it is built — an Indexing Policy, a Search Policy, a Watch Policy, a
-File Access Policy, a Recognition Policy. A part that holds a Policy cannot reach for a setting it did not declare.
+File Access Policy, a Recognition Policy, a Decoding Policy. A part that holds a Policy cannot reach for a setting it did not declare.
 _Avoid_: config object, options, preferences
 
 **Axis**:

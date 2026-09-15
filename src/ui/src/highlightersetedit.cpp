@@ -48,6 +48,7 @@
 #include "dispatch_to.h"
 #include "iconloader.h"
 #include "log.h"
+#include "theme.h"
 
 namespace {
 static constexpr QLatin1String DEFAULT_PATTERN = QLatin1String( "New Highlighter", 15 );
@@ -93,16 +94,16 @@ HighlighterSetEdit::HighlighterSetEdit( QWidget* parent )
     connect( highlighterEdit_, &HighlighterEdit::changed, this,
              &HighlighterSetEdit::updateHighlighterProperties );
 
-    dispatchToMainThread( [ this ] {
-        IconLoader iconLoader( this );
-
-        addHighlighterButton->setIcon( iconLoader.load( "icons8-plus-16" ) );
-        removeHighlighterButton->setIcon( iconLoader.load( "icons8-minus-16" ) );
-        upHighlighterButton->setIcon( iconLoader.load( "icons8-up-16" ) );
-        downHighlighterButton->setIcon( iconLoader.load( "icons8-down-arrow-16" ) );
-    } );
+    loadIcons();
+    Theme::whenApplied( this, [ this ] { loadIcons(); } );
 
     reset();
+}
+
+void HighlighterSetEdit::loadIcons()
+{
+    loadListEditIcons( addHighlighterButton, removeHighlighterButton, upHighlighterButton,
+                       downHighlighterButton );
 }
 
 void HighlighterSetEdit::reset()

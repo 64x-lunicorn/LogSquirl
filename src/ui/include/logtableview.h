@@ -103,6 +103,8 @@ public:
                              LineLength nSymbols ) override;
     // Repaints, if the Table View is active.
     void updateDecorations() override;
+    // Drops the Rows read so far; they are read again as they are shown.
+    void rereadLogLines() override;
     void updateFont( const QFont& font ) override;
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;

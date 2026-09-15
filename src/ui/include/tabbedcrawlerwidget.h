@@ -80,7 +80,6 @@ public:
 protected:
     void keyPressEvent( QKeyEvent* event ) override;
     void mouseReleaseEvent( QMouseEvent* event ) override;
-    void changeEvent( QEvent* event ) override;
 
 public:
     // Re-applies group styling (bullet prefix + text colour) to all tabs.
@@ -98,6 +97,9 @@ private:
 
     // Set the data status (icon) for the tab number 'index'
     void setTabDataStatus( int index, DataStatus status );
+
+    // Styles the tab bar for the active Theme.
+    void applyTheme();
 
     void loadIcons();
     void updateIcon( int index );

@@ -57,29 +57,33 @@ InfoLine::InfoLine()
 
 void InfoLine::displayGauge( int completion )
 {
-    if ( !origPalette_ ) {
-        origPalette_ = palette();
-    }
+    // The colors are read from the inherited palette on every update, so a
+    // gauge shown across a Theme switch takes the new Theme's colors.
+    const auto inherited
+        = parentWidget() ? parentWidget()->palette() : QApplication::palette( this );
 
     int changeoverX = width() * completion / 100;
 
     // Create a gradient for the progress bar
     QLinearGradient linearGrad( changeoverX - 1, 0, changeoverX + 1, 0 );
-    linearGrad.setColorAt( 0, origPalette_->color( QPalette::Highlight ) );
-    linearGrad.setColorAt( 1, origPalette_->color( QPalette::Window ) );
+    linearGrad.setColorAt( 0, inherited.color( QPalette::Highlight ) );
+    linearGrad.setColorAt( 1, inherited.color( QPalette::Window ) );
 
-    // Apply the gradient to the current palette (background)
-    QPalette newPalette = *origPalette_;
-    newPalette.setBrush( backgroundRole(), QBrush( linearGrad ) );
-    setPalette( newPalette );
+    // Only the background role is set; every other role keeps following the
+    // inherited palette.
+    QPalette gaugePalette;
+    gaugePalette.setBrush( backgroundRole(), QBrush( linearGrad ) );
+    setPalette( gaugePalette );
+    gaugeShown_ = true;
 }
 
 void InfoLine::hideGauge()
 {
-    if ( origPalette_ ) {
-        setPalette( *origPalette_ );
+    if ( gaugeShown_ ) {
+        // A palette with no role set makes the line inherit its palette again.
+        setPalette( QPalette() );
     }
-    origPalette_.reset();
+    gaugeShown_ = false;
 }
 
 // Custom painter: draw the background then call QLabel's painter

@@ -91,8 +91,7 @@
 #include "quickfindpattern.h"
 #include "savedsearches.h"
 #include "shortcuts.h"
-
-static constexpr char AnsiColorSequenceRegex[] = "\\x1B\\[([0-9]{1,4}((;|:)[0-9]{1,3})*)?[mK]";
+#include "theme.h"
 
 // Palette for error signaling (yellow background)
 const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
@@ -192,7 +191,6 @@ private:
 // the data is attached.
 CrawlerWidget::CrawlerWidget( QWidget* parent )
     : QSplitter( parent )
-    , iconLoader_{ this }
 {
 }
 
@@ -263,18 +261,6 @@ void CrawlerWidget::doSendAllStateSignals()
     Q_EMIT newSelection( currentLineNumber_, 0_lcount, 0_lcol, 0_length );
     if ( !loadingInProgress_ )
         Q_EMIT loadingFinished( LoadingStatus::Successful );
-}
-
-void CrawlerWidget::changeEvent( QEvent* event )
-{
-    if ( event->type() == QEvent::StyleChange ) {
-        dispatchToMainThread( [ this ] {
-            loadIcons();
-            searchInfoLineDefaultPalette_ = this->palette();
-        } );
-    }
-
-    QWidget::changeEvent( event );
 }
 
 //
@@ -763,11 +749,11 @@ void CrawlerWidget::applyConfiguration()
 
     LOG_DEBUG << "CrawlerWidget::applyConfiguration";
 
-    // Deliberately not here: file watching and Context Lines. Both are
-    // driven by a Settings Policy now, re-derived and handed down per axis
-    // when a setting actually changes (#95). This function runs for a
-    // Highlighter Set change too, and restarting the watcher or rebuilding
-    // every tab's Context Lines for that was work nobody asked for.
+    // Deliberately not here: file watching, Context Lines and hiding ANSI
+    // color sequences. They are driven by Settings Policies, re-derived and
+    // handed down per axis when a setting actually changes (#95, #107). A
+    // Highlighter Set change does not come here either, but goes to
+    // applyHighlighterSetChange().
 
     registerShortcuts();
 
@@ -781,13 +767,6 @@ void CrawlerWidget::applyConfiguration()
     }
 
     font.setBold( config.useBoldFont() );
-
-    if ( config.hideAnsiColorSequences() ) {
-        logData_->setPrefilter( AnsiColorSequenceRegex );
-    }
-    else {
-        logData_->setPrefilter( {} );
-    }
 
     logMainView_->setLineNumbersVisible( config.mainLineNumbersVisible() );
 
@@ -819,6 +798,42 @@ void CrawlerWidget::applyConfiguration()
     // Let the table view pick up a Configuration change (e.g. toggling
     // main-search highlighting) without needing a new search
     logTableView_->refreshMainSearchHighlighter();
+}
+
+void CrawlerWidget::applyHighlighterSetChange()
+{
+    LOG_DEBUG << "CrawlerWidget::applyHighlighterSetChange";
+
+    // Every view reads the active Highlighter Sets when it paints, so all a
+    // change takes is painting again -- the Filtered Views of kept Searches
+    // included.
+    for ( auto* presentation : presentations() ) {
+        presentation->updateDecorations();
+    }
+
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->forceRefresh();
+        }
+    }
+}
+
+void CrawlerWidget::applyDecodingPolicyChange()
+{
+    LOG_DEBUG << "CrawlerWidget::applyDecodingPolicyChange";
+
+    // The views keep the Log Lines they read until told otherwise, and every
+    // Log Line may read differently now -- the Filtered Views of kept
+    // Searches included.
+    for ( auto* presentation : presentations() ) {
+        presentation->rereadLogLines();
+    }
+
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->forceRefresh();
+        }
+    }
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -1402,6 +1417,10 @@ void CrawlerWidget::setup()
 
     registerShortcuts();
     loadIcons();
+    Theme::whenApplied( this, [ this ] {
+        loadIcons();
+        searchInfoLineDefaultPalette_ = palette();
+    } );
 
     // Connect the signals
     connect( searchLineEdit_->lineEdit(), &QLineEdit::returnPressed, searchButton_,
@@ -1447,6 +1466,10 @@ void CrawlerWidget::setup()
     connect( logData_.get(), &LogData::loadingFinished, this,
              &CrawlerWidget::loadingFinishedHandler );
     connect( logData_.get(), &LogData::fileChanged, this, &CrawlerWidget::fileChangedHandler );
+    // From the Log File rather than from the Session, so a CrawlerWidget in
+    // a tab that is not current is reached too.
+    connect( logData_.get(), &LogData::decodingPolicyChanged, this,
+             &CrawlerWidget::applyDecodingPolicyChange );
 
     // Search auto-refresh
     connect( searchRefreshButton_, &QPushButton::toggled, this,
@@ -1499,7 +1522,7 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
     connect( presentation, &Presentation::markLines, this, &CrawlerWidget::markLinesFromMain );
 
     connect( presentation, &Presentation::highlightersChange, this,
-             &CrawlerWidget::applyConfiguration );
+             &CrawlerWidget::applyHighlighterSetChange );
 
     connect( presentation, QOverload<const QString&>::of( &Presentation::addToSearch ), this,
              &CrawlerWidget::addToSearch );
@@ -1686,7 +1709,8 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( view, &FilteredView::markLines, this, &CrawlerWidget::markLinesFromFiltered );
 
-    connect( view, &FilteredView::highlightersChange, this, &CrawlerWidget::applyConfiguration );
+    connect( view, &FilteredView::highlightersChange, this,
+             &CrawlerWidget::applyHighlighterSetChange );
 
     connect( view, QOverload<const QString&>::of( &FilteredView::addToSearch ), this,
              &CrawlerWidget::addToSearch );

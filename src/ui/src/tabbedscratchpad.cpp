@@ -20,8 +20,8 @@
 #include "tabbedscratchpad.h"
 #include "scratchpad.h"
 
-#include "configuration.h"
-#include "styles.h"
+#include "tabbarstyle.h"
+#include "theme.h"
 
 #include <QLabel>
 #include <QTabBar>
@@ -41,55 +41,8 @@ TabbedScratchPad::TabbedScratchPad( QWidget* parent )
     tabWidget_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
     tabWidget_->setTabsClosable( true );
 
-    // Apply tab height and close-button icons to match the main tab bar
-    const auto& config = Configuration::get();
-    const bool isDark = ( config.style() == StyleManager::DarkStyleKey );
-
-    QString tabStyle = QStringLiteral( "QTabBar::tab { height: 28px; }" );
-
-    QString tabCloseButtonStyle = " QTabBar::close-button { %1 }";
-
-    QString backgroundImage;
-    QString backgroundHoverImage;
-
-    if ( isDark ) {
-        backgroundImage = ":/images/icons8-close-window-16_inverse.png";
-        backgroundHoverImage = ":/images/icons8-close-window-hover-16_inverse.png";
-    }
-
-#if defined( Q_OS_MAC )
-    // work around Qt macOS bug missing tab close icons
-    // see: https://bugreports.qt.io/browse/QTBUG-61092
-    if ( !isDark ) {
-        backgroundImage
-            = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-16.png";
-        backgroundHoverImage
-            = ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-hover-16.png";
-    }
-#elif defined( Q_OS_WIN )
-    if ( config.style() == StyleManager::LightKey ) {
-        backgroundImage = ":/images/icons8-close-window-16.png";
-        backgroundHoverImage = ":/images/icons8-close-window-hover-16.png";
-    }
-#endif
-
-    if ( !backgroundImage.isEmpty() ) {
-        const QString backgroundImageTemplate = " image: url(%1);";
-        QString tabCloseButtonHoverStyle
-            = isDark ? " QTabBar::close-button:hover { %1 background-color: #C42B1C;"
-                       " border-radius: 3px; }"
-                     : " QTabBar::close-button:hover { %1 }";
-        backgroundImage = backgroundImageTemplate.arg( backgroundImage );
-        backgroundHoverImage = backgroundImageTemplate.arg( backgroundHoverImage );
-        tabCloseButtonHoverStyle = tabCloseButtonHoverStyle.arg( backgroundHoverImage );
-        tabCloseButtonStyle = tabCloseButtonStyle.arg( backgroundImage );
-        tabCloseButtonStyle.append( tabCloseButtonHoverStyle );
-    }
-    else {
-        tabCloseButtonStyle = tabCloseButtonStyle.arg( "" );
-    }
-
-    tabWidget_->setStyleSheet( tabStyle + tabCloseButtonStyle );
+    applyTheme();
+    Theme::whenApplied( this, [ this ] { applyTheme(); } );
 
     connect( tabWidget_, &QTabWidget::tabCloseRequested,
              [ this ]( const auto index ) { tabWidget_->removeTab( index ); } );
@@ -157,6 +110,12 @@ void TabbedScratchPad::keyPressEvent( QKeyEvent* event )
     else {
         event->setAccepted( false );
     }
+}
+
+void TabbedScratchPad::applyTheme()
+{
+    // The same tab height and close buttons as the main tab bar.
+    tabWidget_->setStyleSheet( closableTabBarStyleSheet( Theme::active() ) );
 }
 
 void TabbedScratchPad::addTab()

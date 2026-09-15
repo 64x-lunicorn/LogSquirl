@@ -54,7 +54,6 @@ target_link_libraries(
          roaring
          roaring-headers-cpp
          roaring-headers
-         tbb
          type_safe
          logsquirl_uchardet_wrapper
          kdtoolbox
@@ -64,7 +63,10 @@ target_link_libraries(
          logsquirl_mimalloc_wrapper
 )
 
-target_link_libraries(logsquirl_logdata PRIVATE xxhash)
+# TBB runs the indexing and search graphs inside the .cpp files only; no
+# public header includes it, so nothing that uses the log data library gets
+# it from here (#168). tests/logdata_public_headers_no_tbb.cmake guards that.
+target_link_libraries(logsquirl_logdata PRIVATE xxhash tbb)
 
 find_package(
   Qt6

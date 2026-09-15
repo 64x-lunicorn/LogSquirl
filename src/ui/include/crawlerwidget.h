@@ -139,6 +139,15 @@ public Q_SLOTS:
     // Instructs the widget to reconfigure itself because Config() has changed.
     void applyConfiguration();
 
+    // Paints every view of this Log File again with the Highlighter Sets now
+    // active. A Highlighter Set is user data, not a setting, so nothing is
+    // read from the Configuration.
+    void applyHighlighterSetChange();
+
+    // Makes every view of this Log File read the Log Lines it shows again,
+    // after the Log File's Decoding Policy was replaced.
+    void applyDecodingPolicyChange();
+
 public:
     template <class T>
     struct access_by;
@@ -162,8 +171,6 @@ protected:
 
     // Implementation of the MuxableDocumentInterface
     void doSendAllStateSignals() override;
-
-    void changeEvent( QEvent* event ) override;
 
 Q_SIGNALS:
     // Sent to signal the client load has progressed,
