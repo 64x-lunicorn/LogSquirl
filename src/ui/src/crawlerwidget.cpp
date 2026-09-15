@@ -1515,8 +1515,6 @@ void CrawlerWidget::setup()
              &CrawlerWidget::saveSplitterSizes );
     connect( logTableView_, &LogTableView::saveToFile, this,
              [ this ]() { QMetaObject::invokeMethod( logMainView_, "saveToFile" ); } );
-    connect( logTableView_, &LogTableView::saveSelectedToFile, this,
-             [ this ]() { QMetaObject::invokeMethod( logMainView_, "saveSelectedToFile" ); } );
 
     connectAllFilteredViewSlots( filteredView_ );
 

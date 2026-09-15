@@ -1659,40 +1659,9 @@ void AbstractLogView::saveLinesToFile( LineNumber begin, LineNumber end )
 
 void AbstractLogView::saveLinesTo( const QString& filename, LineNumber begin, LineNumber end )
 {
-    QSaveFile saveFile{ filename };
-    if ( !saveFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
-        LOG_ERROR << "Failed to open file to save";
-        return;
-    }
-
-    // The lines are read, encoded and written off the UI thread, while the UI
-    // thread runs the progress dialog: the save's progress and its end reach
-    // the dialog as signals on the UI thread, and leaving the dialog any other
-    // way (Cancel, Escape) interrupts the save. The dialog is application
-    // modal, so the user can't change the view while the save runs, and the
-    // lines are read through a copy of what the view displays now.
-    AtomicFlag interruptRequest;
-    LinesSaver linesSaver;
-
-    QProgressDialog progressDialog( this );
-    progressDialog.setLabelText( tr( "Saving content to %1" ).arg( filename ) );
-    progressDialog.setRange( 0, 1000 );
-    progressDialog.setWindowModality( Qt::ApplicationModal );
-
-    connect( &linesSaver, &LinesSaver::progressed, &progressDialog, &QProgressDialog::setValue );
-    connect( &linesSaver, &LinesSaver::finished, &progressDialog,
-             [ &progressDialog ]() { progressDialog.done( QDialog::Accepted ); } );
-
-    linesSaver.save( linesToSave(), begin, end, logData_->getDisplayEncoding(), &saveFile,
-                     interruptRequest );
-
-    if ( progressDialog.exec() != QDialog::Accepted ) {
-        interruptRequest.set();
-    }
-
-    if ( linesSaver.waitForResult() && !saveFile.commit() ) {
-        LOG_ERROR << "Failed to replace the saved file: " << saveFile.errorString();
-    }
+    // The lines are read through a copy of what the view displays now.
+    saveLinesWithProgress( this, filename, linesToSave(), begin, end,
+                           logData_->getDisplayEncoding() );
 }
 
 DisplayedLinesReader AbstractLogView::linesToSave() const

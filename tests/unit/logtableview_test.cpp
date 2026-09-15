@@ -19,13 +19,23 @@
 
 #include <catch2/catch.hpp>
 
+#include <optional>
+
+#include "abstractlogview.h"
 #include "fake_log_data.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
+#include "quickfindpattern.h"
 
+#include <QAction>
+#include <QApplication>
+#include <QFile>
 #include <QHeaderView>
+#include <QMenu>
 #include <QSettings>
+#include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 
 namespace {
 
@@ -99,4 +109,191 @@ SCENARIO( "Column widths saved for a Log Format are restored when its Log File i
     }
 
     QSettings{}.remove( settingsGroup );
+}
+
+namespace {
+
+// A Text View, to hold a selection of its own next to the Table View.
+class TextView : public AbstractLogView {
+public:
+    TextView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern )
+        : AbstractLogView( logData, quickFindPattern, false, nullptr )
+    {
+    }
+
+protected:
+    AbstractLogData::LineType lineType( LineNumber ) const override
+    {
+        return {};
+    }
+};
+
+const QStringList SaveLines = {
+    "Jan  1 12:00:00 host1 first message", "Jan  1 12:00:01 host2 second message",
+    "Jan  1 12:00:02 host3 third message", "Jan  1 12:00:03 host4 fourth message",
+    "Jan  1 12:00:04 host5 fifth message",
+};
+
+void selectRows( LogTableView& view, std::initializer_list<int> rows )
+{
+    view.clearSelection();
+    for ( const auto row : rows ) {
+        view.selectionModel()->select( view.model()->index( row, 0 ),
+                                       QItemSelectionModel::Select | QItemSelectionModel::Rows );
+    }
+}
+
+QByteArray utf8File( std::initializer_list<QString> lines )
+{
+#if defined( Q_OS_WIN )
+    const QByteArray lineEnding = "\n";
+#else
+    const QByteArray lineEnding = "\r\n";
+#endif
+    QByteArray bytes = "\xEF\xBB\xBF";
+    for ( const auto& line : lines ) {
+        bytes += line.toUtf8() + lineEnding;
+    }
+    return bytes;
+}
+
+QByteArray contentOf( const QString& fileName )
+{
+    QFile file{ fileName };
+    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    return file.readAll();
+}
+
+} // namespace
+
+SCENARIO( "Save selected to file in the Table View writes the Log Lines of the selected Rows",
+          "[logtableview][save]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( SaveLines );
+    LogTableView view;
+    open( view, format, logData );
+
+    const QTemporaryDir dir;
+    REQUIRE( dir.isValid() );
+    const auto fileName = dir.filePath( "logtableview_save_test.log" );
+
+    GIVEN( "Rows selected in the Table View, not next to each other and out of order" )
+    {
+        selectRows( view, { 3, 1 } );
+
+        WHEN( "the selection is saved" )
+        {
+            view.saveSelectedTo( fileName );
+
+            THEN( "the file holds exactly the Log Lines of those Rows, in Log Line order" )
+            {
+                REQUIRE( contentOf( fileName ) == utf8File( { SaveLines[ 1 ], SaveLines[ 3 ] } ) );
+            }
+        }
+    }
+
+    GIVEN( "a Text View of the same Log File with every Log Line selected" )
+    {
+        QuickFindPattern quickFindPattern;
+        TextView textView( &logData, &quickFindPattern );
+        textView.selectAll();
+        REQUIRE( !textView.getSelectedText().isEmpty() );
+
+        AND_GIVEN( "one Row selected in the Table View" )
+        {
+            selectRows( view, { 2 } );
+
+            WHEN( "the Table View's selection is saved" )
+            {
+                view.saveSelectedTo( fileName );
+
+                THEN( "the file holds only the Log Line of that Row" )
+                {
+                    REQUIRE( contentOf( fileName ) == utf8File( { SaveLines[ 2 ] } ) );
+                }
+            }
+        }
+
+        AND_GIVEN( "no Row selected in the Table View" )
+        {
+            view.clearSelection();
+
+            WHEN( "the Table View's selection is saved" )
+            {
+                view.saveSelectedTo( fileName );
+
+                THEN( "no file is written" )
+                {
+                    REQUIRE( !QFile::exists( fileName ) );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "Save selected to file in the Table View's context menu needs a selected Row",
+          "[logtableview][save]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( SaveLines );
+    LogTableView view;
+    open( view, format, logData );
+    view.show();
+    QCoreApplication::processEvents();
+
+    // Opens the context menu over the first Row, and tells whether its Save
+    // selected to file entry is enabled; nullopt when there is no such entry.
+    const auto openMenuForSaveSelectedEntry = [ &view ]() {
+        std::optional<bool> entryEnabled;
+        QTimer poll;
+        QObject::connect( &poll, &QTimer::timeout, &poll, [ & ]() {
+            auto* menu = qobject_cast<QMenu*>( QApplication::activePopupWidget() );
+            if ( menu == nullptr ) {
+                return;
+            }
+            poll.stop();
+            for ( const auto* action : menu->actions() ) {
+                if ( action->text() == "Save selected to file" ) {
+                    entryEnabled = action->isEnabled();
+                }
+            }
+            menu->close();
+        } );
+        poll.start( 10 );
+
+        Q_EMIT view.customContextMenuRequested(
+            view.visualRect( view.model()->index( 0, 0 ) ).center() );
+        return entryEnabled;
+    };
+
+    GIVEN( "no Row selected" )
+    {
+        view.clearSelection();
+
+        WHEN( "the context menu is opened" )
+        {
+            const auto entryEnabled = openMenuForSaveSelectedEntry();
+
+            THEN( "Save selected to file is disabled" )
+            {
+                REQUIRE( entryEnabled == false );
+            }
+        }
+    }
+
+    GIVEN( "a Row selected" )
+    {
+        selectRows( view, { 1 } );
+
+        WHEN( "the context menu is opened" )
+        {
+            const auto entryEnabled = openMenuForSaveSelectedEntry();
+
+            THEN( "Save selected to file is enabled" )
+            {
+                REQUIRE( entryEnabled == true );
+            }
+        }
+    }
 }

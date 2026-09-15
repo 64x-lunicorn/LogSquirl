@@ -26,6 +26,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
+#include <QFileDialog>
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QMenu>
@@ -35,9 +36,11 @@
 #include <QSettings>
 #include <QTimer>
 
+#include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
 #include "highlightersmenu.h"
+#include "linessaver.h"
 #include "logfiltereddata.h"
 #include "logformattablemodel.h"
 #include "logtablehighlightdelegate.h"
@@ -707,7 +710,7 @@ void LogTableView::showContextMenu( const QPoint& pos )
     auto* saveSelectedToFileAction = menu.addAction( tr( "Save selected to file" ) );
     saveSelectedToFileAction->setEnabled( hasSelection );
     connect( saveSelectedToFileAction, &QAction::triggered, this,
-             [ this ]() { Q_EMIT saveSelectedToFile(); } );
+             &LogTableView::saveSelectedToFile );
 
     menu.exec( viewport()->mapToGlobal( pos ) );
 
@@ -752,6 +755,44 @@ void LogTableView::copySelectionWithLineNumbers()
     }
 
     QApplication::clipboard()->setText( copied.join( '\n' ) );
+}
+
+void LogTableView::saveSelectedToFile()
+{
+    if ( selection().selectedLogLines().empty() ) {
+        return;
+    }
+
+    const auto filename = QFileDialog::getSaveFileName( this, "Save content" );
+    if ( !filename.isEmpty() ) {
+        saveSelectedTo( filename );
+    }
+}
+
+void LogTableView::saveSelectedTo( const QString& filename )
+{
+    auto lines = selection().selectedLogLines();
+    if ( !logData_ || lines.empty() ) {
+        return;
+    }
+
+    std::sort( lines.begin(), lines.end() );
+    lines.erase( std::unique( lines.begin(), lines.end() ), lines.end() );
+
+    // The save writes positions [0, number of selected Log Lines): position n
+    // is the n-th selected Log Line.
+    const auto end = LineNumber( static_cast<uint64_t>( lines.size() ) );
+    auto readLines = [ logFile = logData_, lines ]( LineNumber first, LinesCount count ) {
+        logsquirl::vector<QString> text;
+        text.reserve( static_cast<size_t>( count.get() ) );
+        for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
+            text.push_back( logFile->getLineString( lines[ static_cast<size_t>( position ) ] ) );
+        }
+        return text;
+    };
+
+    saveLinesWithProgress( this, filename, std::move( readLines ), 0_lnum, end,
+                           logData_->getDisplayEncoding() );
 }
 
 // Mark or unmark the Log Lines of the selected Rows.

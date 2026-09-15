@@ -88,6 +88,11 @@ public:
     TableViewSelection selection() const;
     QString selectedText() const;
 
+    // Saves the Log Lines of the selected Rows, in Log Line order, to
+    // filename, behind a progress dialog. Nothing is saved without a Row
+    // selected.
+    void saveSelectedTo( const QString& filename );
+
 public Q_SLOTS:
     void highlightOverviewLine( LineNumber line );
     void removeOverviewHighlight();
@@ -107,7 +112,6 @@ Q_SIGNALS:
     void replaceScratchpad( const QString& text );
     void saveDefaultSplitterSizes();
     void saveToFile();
-    void saveSelectedToFile();
 
 protected:
     void mousePressEvent( QMouseEvent* event ) override;
@@ -123,6 +127,8 @@ private:
     void copySelection();
     void copySelectionWithLineNumbers();
     void markSelection();
+    // Asks for a file, and saves the Log Lines of the selected Rows to it.
+    void saveSelectedToFile();
 
     // Column widths
     void saveColumnWidths();

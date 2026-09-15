@@ -33,6 +33,7 @@
 
 class QIODevice;
 class QTextCodec;
+class QWidget;
 
 // Reads the text of count lines a text view displays, starting at position
 // first in the view. A text view hands one over when a save starts, taken on
@@ -80,5 +81,13 @@ private:
     QFuture<bool> future_;
     QFutureWatcher<bool> watcher_;
 };
+
+// Saves the lines at positions [begin, end) to filename with a LinesSaver,
+// behind an application modal progress dialog shown over parent. filename is
+// replaced only when every line was written: a cancelled or failed save leaves
+// it as it was.
+void saveLinesWithProgress( QWidget* parent, const QString& filename,
+                            DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
+                            const QTextCodec* codec );
 
 #endif // LOGSQUIRL_LINESSAVER_H
