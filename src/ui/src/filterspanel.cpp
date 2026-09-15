@@ -52,8 +52,6 @@ FiltersPanel::FiltersPanel( QWidget* parent )
     filterTree_->setHeaderHidden( true );
     filterTree_->setRootIsDecorated( true );
 
-    applyCurrentPalette();
-
     mainLayout->addWidget( filterTree_ );
 
     // Buttons row
@@ -99,15 +97,6 @@ void FiltersPanel::showEvent( QShowEvent* event )
     if ( filtersDirty_ ) {
         refreshFilters();
     }
-}
-
-void FiltersPanel::changeEvent( QEvent* event )
-{
-    if ( event->type() == QEvent::ApplicationPaletteChange
-         || event->type() == QEvent::PaletteChange ) {
-        applyCurrentPalette();
-    }
-    QWidget::changeEvent( event );
 }
 
 void FiltersPanel::refreshFilters()
@@ -345,20 +334,4 @@ void FiltersPanel::loadPinnedFilters()
     }
 
     settings.endGroup();
-}
-
-void FiltersPanel::applyCurrentPalette()
-{
-    // The Theme's stylesheet draws the check box indicators and its palette
-    // has a readable placeholder text color, so the panel only passes the
-    // application palette on to the widgets that keep their own.
-    const auto appPal = qApp->palette();
-    filterTree_->setPalette( appPal );
-    filterTree_->viewport()->setPalette( appPal );
-    searchBox_->setPalette( appPal );
-
-    // Sync the widget-level style with the app style so that
-    // Fusion draws correctly.
-    filterTree_->setStyle( qApp->style() );
-    filterTree_->viewport()->update();
 }
