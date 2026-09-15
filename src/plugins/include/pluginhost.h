@@ -60,6 +60,10 @@ public:
      * by id. The catalog must outlive the host.
      */
     explicit PluginHost( const PluginCatalog& catalog, QObject* parent = nullptr );
+
+    /** The host keeps a reference to the catalog, so a temporary one is refused. */
+    explicit PluginHost( const PluginCatalog&& catalog, QObject* parent = nullptr ) = delete;
+
     ~PluginHost() override;
 
     PluginHost( const PluginHost& ) = delete;

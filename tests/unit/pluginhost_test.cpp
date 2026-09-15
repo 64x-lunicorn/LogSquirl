@@ -30,6 +30,7 @@
 #include <QLibrary>
 #include <QTemporaryDir>
 
+#include <type_traits>
 #include <vector>
 
 using logsquirl::plugins::PluginCallbackFn;
@@ -243,6 +244,25 @@ void recordActiveFile( void* userData, const char* filePath )
 }
 
 } // namespace
+
+SCENARIO( "A Plugin Host is only created for a catalog that outlives it", "[pluginhost][plugins]" )
+{
+    GIVEN( "The ways a Plugin Host can be created" )
+    {
+        WHEN( "It is given a catalog" )
+        {
+            THEN( "A catalog variable is accepted and a temporary one is not" )
+            {
+                // The host keeps a reference to the catalog; a temporary one
+                // would be gone before the host uses it.
+                REQUIRE( std::is_constructible_v<PluginHost, PluginCatalog&> );
+                REQUIRE( std::is_constructible_v<PluginHost, const PluginCatalog&> );
+                REQUIRE_FALSE( std::is_constructible_v<PluginHost, PluginCatalog&&> );
+                REQUIRE_FALSE( std::is_constructible_v<PluginHost, const PluginCatalog&&> );
+            }
+        }
+    }
+}
 
 SCENARIO( "A plugin's host callbacks reach the Plugin UI Port",
           "[pluginhost][pluginuiport][plugins]" )
