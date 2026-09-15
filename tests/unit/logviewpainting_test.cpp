@@ -234,7 +234,7 @@ struct PaintingConfiguration {
     bool atScrollbarMaximum = false;
     int viewHeight = ViewHeight;
     // How many of the painted Log Lines the Log File holds; all of them if unset.
-    std::optional<size_t> logLineCount;
+    std::optional<size_t> logLineCount{};
     // How far the view is pulled past its bottom once it is scrolled, in
     // wheel pixels (see pullPastTheBottom()).
     int pullPx = 0;
