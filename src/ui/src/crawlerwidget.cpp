@@ -2307,9 +2307,7 @@ void CrawlerWidget::recognizeFormat()
     if ( recognized == detectedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
-        if ( isTableViewActive() ) {
-            logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
-        }
+        logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
         return;
     }
 
@@ -2323,12 +2321,10 @@ void CrawlerWidget::recognizeFormat()
     // Provide format info to the chart panel for template series.
     chartPanel_->setLogFormat( detectedFormat_.get() );
 
-    if ( isTableViewActive() ) {
-        // A reload recognized a different Log Format while the Table View
-        // was shown: it stays shown, with the new columns.
-        logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
-    }
-    else if ( Configuration::get().autoShowTableView() && !tableViewToggle_->isChecked() ) {
+    // A reload that recognized a different Log Format while the Table View
+    // was shown keeps it shown, with the new columns.
+    logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
+    if ( Configuration::get().autoShowTableView() && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );
     }

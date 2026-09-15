@@ -421,7 +421,7 @@ SCENARIO( "Save selected to file writes the selection of the Presentation shown"
           "[ui][presentation]" )
 {
     QTemporaryFile file{ "crawler_test_XXXXXX" };
-    Session session{ testSettingsPolicies() };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
 
@@ -468,7 +468,7 @@ SCENARIO( "Save selected to file writes the selection of the Presentation shown"
 SCENARIO( "Both Presentations report to the CrawlerWidget alike", "[ui][presentation]" )
 {
     QTemporaryFile file{ "crawler_test_XXXXXX" };
-    Session session{ testSettingsPolicies() };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
 
