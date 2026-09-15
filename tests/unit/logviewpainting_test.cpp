@@ -25,20 +25,20 @@
 // A pixel comparison is only as portable as its inputs, so every input
 // painting reads is pinned here:
 //
-// - The font is not the host's. The test loads its own font from
-//   data/painting/logsquirl-painting-test.ttf (see make_test_font.py there):
-//   fixed-width, 8 x 16 px, with every glyph edge on a pixel boundary, so a
-//   glyph covers each pixel fully or not at all. Each platform draws it in
-//   the rendering mode that keeps it that way (see paintingTestFont()), and
-//   so each platform's rasteriser produces the same pixels.
+// - The font is not the host's. The test loads its own font (see
+//   painting_test_font.h): fixed-width, 8 x 16 px, with every glyph edge on a
+//   pixel boundary, so a glyph covers each pixel fully or not at all. Each
+//   platform draws it in the rendering mode that keeps it that way, and so
+//   each platform's rasteriser produces the same pixels.
 //   Nothing needs to be installed on the host. If the platform cannot load
 //   that font, or does not honour its metrics, the test fails and says so:
 //   without its font it would verify nothing.
 // - The palette, the frame, the scroll bars and the viewport size are set
 //   explicitly, so no platform style leaks in.
 // - The settings painting reads -- main search highlighting and its colors,
-//   the QuickFind color, the active Highlighter Sets -- are set for the
-//   duration of the test and restored afterwards.
+//   the QuickFind color, the active Highlighter Sets, whether scrolling may
+//   pull the view into follow mode -- are set for the duration of the test
+//   and restored afterwards.
 //
 // To accept a deliberate change to painting, run the test with
 // LOGSQUIRL_UPDATE_PAINTING_GOLDENS set: it rewrites the golden images in
@@ -52,30 +52,26 @@
 
 #include <QCoreApplication>
 #include <QDir>
-#include <QFontDatabase>
 #include <QFontInfo>
-#include <QFontMetrics>
 #include <QImage>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPalette>
 #include <QScrollBar>
+#include <QWheelEvent>
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
 #include "fake_log_data.h"
 #include "highlighterset.h"
+#include "painting_test_font.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 
 namespace {
 
-const QString PaintingTestDataDir = QStringLiteral( LOGSQUIRL_PAINTING_TEST_DATA_DIR );
-
-constexpr int FontPixelSize = 16;
-constexpr int ExpectedCharWidth = 8;
-constexpr int ExpectedCharHeight = 16;
+using paintingtestfont::PaintingTestDataDir;
 
 constexpr int ViewWidth = 480;
 constexpr int ViewHeight = 224;
@@ -139,10 +135,14 @@ const std::vector<PaintedLine>& paintedLines()
     return lines;
 }
 
-QStringList paintedTexts()
+// The texts of the first count painted Log Lines, or of all of them.
+QStringList paintedTexts( std::optional<size_t> count = std::nullopt )
 {
     QStringList texts;
     for ( const auto& line : paintedLines() ) {
+        if ( count.has_value() && static_cast<size_t>( texts.size() ) == *count ) {
+            break;
+        }
         texts << line.text;
     }
     return texts;
@@ -176,6 +176,7 @@ public:
         , variateMainSearchHighlight_( Configuration::get().variateMainSearchHighlight() )
         , mainSearchBackColor_( Configuration::get().mainSearchBackColor() )
         , qfBackColor_( Configuration::get().qfBackColor() )
+        , allowFollowOnScroll_( Configuration::get().allowFollowOnScroll() )
         , activeHighlighterSets_( HighlighterSetCollection::get().activeSetIds() )
     {
         auto& config = Configuration::get();
@@ -183,6 +184,7 @@ public:
         config.setVariateMainSearchHighlight( false );
         config.setMainSearchBackColor( QColor{ 255, 200, 0 } );
         config.setQfBackColor( QColor{ Qt::yellow } );
+        config.setAllowFollowOnScroll( true );
         HighlighterSetCollection::get().deactivateAll();
     }
 
@@ -193,6 +195,7 @@ public:
         config.setVariateMainSearchHighlight( variateMainSearchHighlight_ );
         config.setMainSearchBackColor( mainSearchBackColor_ );
         config.setQfBackColor( qfBackColor_ );
+        config.setAllowFollowOnScroll( allowFollowOnScroll_ );
         for ( const auto& setId : activeHighlighterSets_ ) {
             HighlighterSetCollection::get().activateSet( setId );
         }
@@ -206,6 +209,7 @@ private:
     bool variateMainSearchHighlight_;
     QColor mainSearchBackColor_;
     QColor qfBackColor_;
+    bool allowFollowOnScroll_;
     QStringList activeHighlighterSets_;
 };
 
@@ -221,39 +225,6 @@ QPalette fixedPalette()
     return palette;
 }
 
-// The painting test's own font, or nothing when the platform cannot load it.
-std::optional<QFont> paintingTestFont()
-{
-    static const int fontId = QFontDatabase::addApplicationFont(
-        PaintingTestDataDir + QStringLiteral( "/logsquirl-painting-test.ttf" ) );
-    if ( fontId < 0 ) {
-        return std::nullopt;
-    }
-
-    const auto families = QFontDatabase::applicationFontFamilies( fontId );
-    if ( families.isEmpty() ) {
-        return std::nullopt;
-    }
-
-    QFont font( families.first() );
-    font.setPixelSize( FontPixelSize );
-    // Each platform's text rasteriser has one mode that draws these
-    // pixel-aligned glyphs exactly, and it is not the same mode everywhere.
-#ifdef Q_OS_MACOS
-    // CoreText smooths antialiased glyphs even where their edges sit exactly
-    // on pixel boundaries, so macOS draws them unantialiased.
-    font.setStyleStrategy( QFont::NoAntialias );
-#else
-    // Elsewhere an unantialiased glyph is a one-bit bitmap, which Qt copies
-    // without the pen's transparency -- the dimmed Context Lines would not be
-    // dimmed. Antialiased, a pixel-aligned glyph still covers every pixel
-    // fully or not at all; subpixel rendering would color its edges.
-    font.setStyleStrategy( QFont::NoSubpixelAntialias );
-#endif
-    font.setHintingPreference( QFont::PreferNoHinting );
-    return font;
-}
-
 struct PaintingConfiguration {
     bool textWrap = false;
     bool lineNumbersVisible = false;
@@ -262,14 +233,17 @@ struct PaintingConfiguration {
     // Scrolled to the scrollbar's maximum instead: the bottom Scroll Position.
     bool atScrollbarMaximum = false;
     int viewHeight = ViewHeight;
+    // How many of the painted Log Lines the Log File holds; all of them if unset.
+    std::optional<size_t> logLineCount;
+    // How far the view is pulled past its bottom once it is scrolled, in
+    // wheel pixels (see pullPastTheBottom()).
+    int pullPx = 0;
 };
 
-QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
+// Shows the view the way every painting test paints it.
+void showForPainting( PaintingLogView& view, const FakeLogData& logData, const QFont& font,
+                      const PaintingConfiguration& configuration )
 {
-    const FakeLogData logData{ paintedTexts() };
-    const QuickFindPattern quickFindPattern;
-
-    PaintingLogView view( &logData, &quickFindPattern, configuration.textWrap );
     view.setFrameShape( QFrame::NoFrame );
     view.setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
     view.setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
@@ -283,6 +257,46 @@ QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
     view.setSearchPattern( RegularExpressionPattern{ QStringLiteral( "ERROR" ) } );
     view.setSearchLimits( 0_lnum, LineNumber( logData.getNbLine().get() ) );
     view.updateData();
+
+    // The view must actually be painting with the test font; a platform
+    // that substituted another one would produce images of that font.
+    INFO( "The view resolved the font to \"" << QFontInfo( view.font() ).family().toStdString()
+                                             << "\"" );
+    REQUIRE( QFontInfo( view.font() ).family() == font.family() );
+    REQUIRE( view.viewport()->size() == QSize( ViewWidth, configuration.viewHeight ) );
+}
+
+// Pulls the view at its bottom further down by pixels, the way a trackpad
+// does: through a wheel event, and nothing else. The scroll begins with the
+// finger on the pad, which holds the elastic hook -- so the pull stays where
+// it is while the view is painted, rather than springing back at whatever
+// pace the host runs the hook's timer.
+void pullPastTheBottom( AbstractLogView& view, int pixels )
+{
+    const auto before = view.scrollPosition();
+
+    const QPointF inside{ ViewWidth / 2.0, 8.0 };
+    QWheelEvent wheel( inside, view.viewport()->mapToGlobal( inside ), QPoint{ 0, -pixels },
+                       QPoint{ 0, -pixels }, Qt::NoButton, Qt::NoModifier, Qt::ScrollBegin, false );
+    QCoreApplication::sendEvent( view.viewport(), &wheel );
+
+    // A pull moves the pull-to-follow bar and the text with it, never the
+    // Scroll Position.
+    REQUIRE( view.scrollPosition() == before );
+}
+
+QImage grabViewport( AbstractLogView& view )
+{
+    return view.viewport()->grab().toImage().convertToFormat( QImage::Format_ARGB32 );
+}
+
+QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
+{
+    const FakeLogData logData{ paintedTexts( configuration.logLineCount ) };
+    const QuickFindPattern quickFindPattern;
+
+    PaintingLogView view( &logData, &quickFindPattern, configuration.textWrap );
+    showForPainting( view, logData, font, configuration );
 
     if ( configuration.atScrollbarMaximum ) {
         view.verticalScrollBar()->setValue( view.verticalScrollBar()->maximum() );
@@ -299,14 +313,11 @@ QImage paintLogView( const QFont& font, PaintingConfiguration configuration )
         REQUIRE( view.scrollPosition() == configuration.scrollPosition );
     }
 
-    // The view must actually be painting with the test font; a platform
-    // that substituted another one would produce images of that font.
-    INFO( "The view resolved the font to \"" << QFontInfo( view.font() ).family().toStdString()
-                                             << "\"" );
-    REQUIRE( QFontInfo( view.font() ).family() == font.family() );
-    REQUIRE( view.viewport()->size() == QSize( ViewWidth, configuration.viewHeight ) );
+    if ( configuration.pullPx > 0 ) {
+        pullPastTheBottom( view, configuration.pullPx );
+    }
 
-    return view.viewport()->grab().toImage().convertToFormat( QImage::Format_ARGB32 );
+    return grabViewport( view );
 }
 
 std::optional<QString> firstDifference( const QImage& golden, const QImage& actual )
@@ -347,23 +358,9 @@ std::optional<QString> firstDifference( const QImage& golden, const QImage& actu
 void requirePaintingMatchesGolden( PaintingConfiguration configuration, const QString& name )
 {
     const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
 
-    const auto font = paintingTestFont();
-    if ( !font.has_value() ) {
-        FAIL( "The painting test could not load its own font from "
-              << PaintingTestDataDir.toStdString()
-              << "; without it there is nothing portable to compare against." );
-    }
-
-    const QFontMetrics metrics( *font );
-    const auto charWidth = metrics.horizontalAdvance( QLatin1Char( 'm' ) );
-    if ( charWidth != ExpectedCharWidth || metrics.height() != ExpectedCharHeight ) {
-        FAIL( "The test font must measure " << ExpectedCharWidth << "x" << ExpectedCharHeight
-                                            << " px, this platform measures it " << charWidth << "x"
-                                            << metrics.height() );
-    }
-
-    const auto painted = paintLogView( *font, configuration );
+    const auto painted = paintLogView( font, configuration );
     const auto goldenPath
         = PaintingTestDataDir + QStringLiteral( "/" ) + name + QStringLiteral( ".png" );
 
@@ -489,6 +486,80 @@ SCENARIO( "The log view paints exactly what it painted before", "[logviewpaintin
     }
 }
 
+// Where the pull-to-follow bar is drawn, and the text with it (#149). The
+// arithmetic is pinned in viewportlayout_test.cpp; these see it painted.
+// Every pull is a wheel event at the bottom Scroll Position. The elastic
+// hook turns 14 units of pull into a pixel of bar, and hooks at 300.
+SCENARIO( "The log view paints the pull-to-follow bar where it places the text",
+          "[logviewpainting][pulltofollow]" )
+{
+    GIVEN( "Log Lines with Marks, Matches and Context Lines in a fixed-width font" )
+    {
+        // The Viewport's 14 rows hold exactly the Visual Lines down to the
+        // end of the Log File. A pull of 112 is 8 px: the text moves 8 px up,
+        // and the bar fills the 8 px below its last Visual Line.
+        WHEN( "the view at its bottom is pulled without hooking" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden(
+                    { .textWrap = true, .atScrollbarMaximum = true, .pullPx = 112 },
+                    QStringLiteral( "pull-elastic" ) );
+            }
+        }
+
+        // 232 px: the last Log Line is aligned on the Viewport's last row,
+        // with the top row cut in half. The pull moves the aligned text
+        // another 8 px up, and the bar starts right below the last Visual Line.
+        WHEN( "the view with its last Log Line aligned on a partly visible row is pulled without "
+              "hooking" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden( { .textWrap = true,
+                                                .lineNumbersVisible = true,
+                                                .atScrollbarMaximum = true,
+                                                .viewHeight = ViewHeight + 8,
+                                                .pullPx = 112 },
+                                              QStringLiteral( "pull-elastic-aligned" ) );
+            }
+        }
+
+        // A pull of exactly 300 hooks and leaves no elastic length. The hooked
+        // bar takes the half row the last Visual Line reached below the
+        // Viewport plus 10 px: the text moves up 18 px, and the bar shows in
+        // the Viewport's last 10 px, right below the last Visual Line.
+        WHEN( "the view at its bottom is pulled until the elastic hooks" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden( { .textWrap = true,
+                                                .lineNumbersVisible = true,
+                                                .atScrollbarMaximum = true,
+                                                .viewHeight = ViewHeight + 8,
+                                                .pullPx = 300 },
+                                              QStringLiteral( "pull-hooked" ) );
+            }
+        }
+
+        // Five Log Lines, seven Visual Lines: fewer than the 14 rows. The
+        // Log File stays at the top, moved up only by the 5 px left of a pull
+        // of 370 once it hooked, and the hooked bar sits at the bottom of the
+        // Viewport.
+        WHEN( "a Log File shorter than a screenful is pulled until the elastic hooks" )
+        {
+            THEN( "the view matches its golden image" )
+            {
+                requirePaintingMatchesGolden( { .textWrap = true,
+                                                .lineNumbersVisible = true,
+                                                .logLineCount = 5,
+                                                .pullPx = 370 },
+                                              QStringLiteral( "pull-hooked-short-file" ) );
+            }
+        }
+    }
+}
+
 namespace {
 
 // A FakeLogData that counts how often the Log Lines of a viewport are fetched.
@@ -541,6 +612,65 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
                 THEN( "painting and hit testing read the Log Lines of one expansion" )
                 {
                     REQUIRE( logData.linesFetched == 1 );
+                }
+            }
+        }
+    }
+}
+
+// Painting draws from the cached viewport content (#137), which a change to
+// the text of a Log Line does not invalidate by itself: the Log File's line
+// count stays the same. Every change to a Log File reaches the view through
+// updateData() or forceRefresh(), and after either the new text is painted.
+SCENARIO( "The log view paints a Log Line's new text when its line count stays the same",
+          "[logviewpainting]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    auto changedTexts = paintedTexts();
+    changedTexts[ 0 ] = QStringLiteral( "10:00:00 INFO  service stopped" );
+    changedTexts[ 4 ] = changedTexts[ 4 ].toUpper();
+    REQUIRE( changedTexts.size() == paintedTexts().size() );
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view painted with text wrapping " << ( textWrap ? "on" : "off" ) )
+        {
+            const PaintingConfiguration configuration{ .textWrap = textWrap,
+                                                       .lineNumbersVisible = true };
+
+            FakeLogData logData{ paintedTexts() };
+            const QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font, configuration );
+            const auto before = grabViewport( view );
+
+            // What a view shows when it was given the new text from the start.
+            const FakeLogData changedLogData{ changedTexts };
+            PaintingLogView freshView( &changedLogData, &quickFindPattern, textWrap );
+            showForPainting( freshView, changedLogData, font, configuration );
+            const auto expected = grabViewport( freshView );
+            REQUIRE( expected != before );
+
+            WHEN( "the text of Log Lines changes and the view is told through updateData()" )
+            {
+                logData.setLines( changedTexts );
+                view.updateData();
+
+                THEN( "it paints the new text" )
+                {
+                    REQUIRE( firstDifference( expected, grabViewport( view ) ) == std::nullopt );
+                }
+            }
+
+            WHEN( "the text of Log Lines changes and the view is told through forceRefresh()" )
+            {
+                logData.setLines( changedTexts );
+                view.forceRefresh();
+
+                THEN( "it paints the new text" )
+                {
+                    REQUIRE( firstDifference( expected, grabViewport( view ) ) == std::nullopt );
                 }
             }
         }
