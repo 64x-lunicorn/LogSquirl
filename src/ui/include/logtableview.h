@@ -40,6 +40,9 @@ class LogFormatTableModel;
 class LogTableHighlightDelegate;
 class Overview;
 class OverviewWidget;
+class Portion;
+class QMenu;
+class QuickFind;
 class QuickFindPattern;
 
 // The Table View: the Presentation of a Log File as one column per field of
@@ -141,6 +144,10 @@ Q_SIGNALS:
     void exitView();
 
 protected:
+    // The context menu for the current selection, opened at pos in viewport
+    // coordinates; built by PresentationMenu, and not yet shown.
+    std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
+
     void mousePressEvent( QMouseEvent* event ) override;
     void mouseMoveEvent( QMouseEvent* event ) override;
     void mouseReleaseEvent( QMouseEvent* event ) override;
@@ -158,9 +165,6 @@ private:
     void saveSelectedToFile();
     // Asks for a file, and saves the Log Lines of every Row to it.
     void saveToFile();
-    // Makes the whole text of the cell at index the selected text, unless
-    // characters are selected inside a cell already.
-    void selectCellTextUnlessInCell( const QModelIndex& index );
 
     // Column widths
     void saveColumnWidths();
@@ -174,12 +178,22 @@ private:
     // Hand the in-cell selection to the delegate and repaint.
     void showInCellSelection();
 
+    // Selects the next (or previous) Log Line after the one whose characters
+    // are selected that matches them, among the Log Lines the Rows show. The
+    // selected characters become the QuickFind pattern, as in the Text View.
+    void findSelected( bool forward );
+    // Selects the Row of the Log Line QuickFind found, and the matching
+    // characters in its first cell holding them.
+    void showQuickFindResult( bool hasMatch, const Portion& logLinePortion );
+
     bool handlesMouse() const;
     void repaintIfActive();
 
     std::shared_ptr<const RowMapping> rows_;
     std::optional<LogFormatDefinition> format_;
     AbstractLogData* logData_ = nullptr;
+    // Supplies the Marks.
+    LogFilteredData* filteredData_ = nullptr;
     LogFormatTableModel* model_ = nullptr;
     LogTableHighlightDelegate* delegate_ = nullptr;
 
@@ -188,7 +202,15 @@ private:
 
     ColorLabelsManager::QuickHighlightersCollection colorLabels_;
 
+    // The Search Limits last set; without an end, they end with the Log File.
+    LineNumber searchStart_;
+    OptionalLineNumber searchEnd_;
+
     TableViewSelection selection_;
+
+    std::shared_ptr<QuickFindPattern> quickFindPattern_;
+    // Searches for Find next and Find previous, off the UI thread.
+    std::unique_ptr<QuickFind> quickFind_;
     bool selectionDragging_ = false;
     int hoverRow_ = -1;
 

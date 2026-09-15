@@ -22,8 +22,6 @@
 #include <algorithm>
 #include <climits>
 
-#include <QAction>
-#include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
 #include <QFileDialog>
@@ -31,7 +29,7 @@
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMouseEvent>
-#include <QPixmap>
+#include <QPointer>
 #include <QScrollBar>
 #include <QSettings>
 #include <QTimer>
@@ -39,13 +37,15 @@
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
-#include "highlightersmenu.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
 #include "logformattablemodel.h"
 #include "logtablehighlightdelegate.h"
 #include "overview.h"
 #include "overviewwidget.h"
+#include "presentationmenu.h"
+#include "quickfind.h"
+#include "quickfindpattern.h"
 #include "regularexpression.h"
 
 namespace {
@@ -109,6 +109,17 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     delegate_->setRowMapping( rows_ );
     setItemDelegate( delegate_ );
 
+    quickFindPattern_ = std::make_shared<QuickFindPattern>();
+    quickFind_ = std::make_unique<QuickFind>(
+        [ this ]() { return QuickFindLines::everyLogLine( *logData_ ); },
+        [ this ]( LineNumber logLine ) {
+            const auto row = rows_->rowOf( logLine );
+            return model_ != nullptr && row.has_value() && *row >= 0 && *row < model_->rowCount();
+        } );
+    // Direct: QuickFind checked that the Log Line is shown in the same call.
+    connect( quickFind_.get(), &QuickFind::searchDone, this, &LogTableView::showQuickFindResult,
+             Qt::DirectConnection );
+
     setContextMenuPolicy( Qt::CustomContextMenu );
     connect( this, &QWidget::customContextMenuRequested, this, &LogTableView::showContextMenu );
 
@@ -117,10 +128,16 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
              [ this ]() { updateOverview(); } );
 }
 
-LogTableView::~LogTableView() = default;
+LogTableView::~LogTableView()
+{
+    quickFind_->stopSearch();
+}
 
 void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogData* logData )
 {
+    // A Find next or previous under way searches the Log Lines about to go
+    quickFind_->stopSearch();
+
     if ( model_ ) {
         // Disconnect header signals before removing the model to prevent
         // duplicate connections when updateData() reconnects.
@@ -167,6 +184,7 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
     }
 
     if ( filteredData ) {
+        filteredData_ = filteredData;
         delegate_->setFilteredData( filteredData );
     }
 
@@ -222,6 +240,7 @@ void LogTableView::setActive( bool active )
 
 void LogTableView::setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
 {
+    quickFindPattern_ = pattern;
     delegate_->setQuickFindPattern( std::move( pattern ) );
 }
 
@@ -233,6 +252,8 @@ void LogTableView::setSearchPattern( const RegularExpressionPattern& pattern )
 
 void LogTableView::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
+    searchStart_ = startLine;
+    searchEnd_ = endLine;
     delegate_->setSearchLimits( startLine, endLine );
     repaintIfActive();
 }
@@ -590,168 +611,111 @@ void LogTableView::selectWordAt( const QModelIndex& index, int charPos )
 
 void LogTableView::showContextMenu( const QPoint& pos )
 {
+    // Chosen entries may destroy the Table View, and the menu with it.
+    QPointer<QMenu> menu = createContextMenu( pos ).release();
+    menu->exec( viewport()->mapToGlobal( pos ) );
+    delete menu;
+}
+
+std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
+{
     const auto currentSelection = selection();
-    const bool hasSelection = !currentSelection.selectedLogLines( *rows_ ).empty();
 
-    // The cell the user right-clicked on
-    const auto clickedIdx = indexAt( pos );
-    auto cellText = ( clickedIdx.isValid() && hasSelection )
-                        ? clickedIdx.data( Qt::DisplayRole ).toString()
-                        : QString{};
+    PresentationMenu::Report report;
+    report.selectedLogLines = currentSelection.selectedLogLines( *rows_ );
+    report.textWithinLogLine = currentSelection.hasInCellSelection();
+    if ( model_ && ( report.textWithinLogLine || report.selectedLogLines.size() == 1 ) ) {
+        report.selectedText = currentSelection.selectedText( *model_ );
+    }
+    report.logLineUnderCursor = logLineAt( pos );
+    report.hasUnmarkedLogLines
+        = std::any_of( report.selectedLogLines.begin(), report.selectedLogLines.end(),
+                       [ this ]( LineNumber line ) {
+                           return !filteredData_
+                                  || !filteredData_->lineTypeByLine( line ).testFlag(
+                                      AbstractLogData::LineTypeFlags::Mark );
+                       } );
+    report.colorLabels = colorLabels_;
 
-    // Prefer the characters selected inside a cell
-    if ( model_ && currentSelection.hasInCellSelection() ) {
-        const auto selText = currentSelection.selectedText( *model_ );
-        if ( !selText.isEmpty() ) {
-            cellText = selText;
-        }
+    PresentationMenu::Entries entries;
+    entries.highlightersChange = [ this ]() { Q_EMIT highlightersChange(); };
+    entries.addColorLabel = [ this ]( size_t label ) { Q_EMIT addColorLabel( label ); };
+    entries.clearColorLabels = [ this ]() { Q_EMIT clearColorLabels(); };
+    entries.mark = [ this ]() { markSelection(); };
+    entries.copy = [ this ]() { copySelection(); };
+    entries.copyWithLineNumbers = [ this ]() { copySelectionWithLineNumbers(); };
+    entries.sendToScratchpad = [ this ]() { Q_EMIT sendSelectionToScratchpad(); };
+    entries.replaceScratchpad = [ this ]() { Q_EMIT replaceScratchpadWithSelection(); };
+    entries.findNext = [ this ]() { findSelected( true ); };
+    entries.findPrevious = [ this ]() { findSelected( false ); };
+    entries.replaceSearch = [ this ]() { Q_EMIT replaceSearch( selectedText() ); };
+    entries.addToSearch = [ this ]() { Q_EMIT addToSearch( selectedText() ); };
+    entries.excludeFromSearch = [ this ]() { Q_EMIT excludeFromSearch( selectedText() ); };
+    entries.setSearchStart = [ this ]( LineNumber logLine ) {
+        const auto end = searchEnd_.value_or(
+            LineNumber( logData_ != nullptr ? logData_->getNbLine().get() : 0 ) );
+        Q_EMIT changeSearchLimits( logLine, end );
+    };
+    // The end is the Log Line after the last one searched.
+    entries.setSearchEnd = [ this ]( LineNumber logLine ) {
+        Q_EMIT changeSearchLimits( searchStart_, logLine + 1_lcount );
+    };
+    entries.clearSearchLimits = [ this ]() { Q_EMIT clearSearchLimits(); };
+    entries.saveSplitterPosition = [ this ]() { Q_EMIT saveDefaultSplitterSizes(); };
+    entries.saveToFile = [ this ]() { saveToFile(); };
+    entries.saveSelectedToFile = [ this ]() { saveSelectedToFile(); };
+
+    return PresentationMenu::create( this, report, entries );
+}
+
+void LogTableView::findSelected( bool forward )
+{
+    const auto inCell = selection_.inCell();
+    if ( !model_ || !logData_ || !selection_.hasInCellSelection() || !inCell ) {
+        return;
     }
 
-    QMenu menu( this );
+    // What QuickFindMux does when the Text View asks for the selected text
+    quickFindPattern_->changeSearchPattern( selectedText(),
+                                            Configuration::get().quickfindRegexpType()
+                                                == SearchRegexpType::ExtendedRegexp );
 
-    // ── Highlighters submenu ──
-    auto* highlightersMenu = new HighlightersMenu( tr( "Highlighters" ), &menu );
-    highlightersMenu->createHighlightersMenu();
-    highlightersMenu->populateHighlightersMenu();
-    highlightersMenu->setApplyChange( [ this ]() { Q_EMIT highlightersChange(); } );
-    menu.addMenu( highlightersMenu );
+    // From the Log Line holding the selected characters, whole
+    Selection from;
+    from.selectLine( rows_->logLineAt( inCell->row ) );
+    if ( forward ) {
+        quickFind_->searchForward( from, quickFindPattern_->getMatcher() );
+    }
+    else {
+        quickFind_->searchBackward( from, quickFindPattern_->getMatcher() );
+    }
+}
 
-    // ── Color labels submenu ──
-    auto* colorLabelsMenu = menu.addMenu( tr( "Color labels" ) );
-    const bool hasText = !cellText.isEmpty();
-    colorLabelsMenu->setEnabled( hasText );
-    QActionGroup* colorLabelsActionGroup = nullptr;
-
-    if ( hasText ) {
-        colorLabelsActionGroup = new QActionGroup( &menu );
-
-        // Determine current label for the cell text
-        const auto& quickHighlighters = HighlighterSetCollection::get().quickHighlighters();
-        const auto& currentLabels = colorLabels_;
-        std::optional<size_t> currentLabel;
-        for ( size_t i = 0; i < currentLabels.size(); ++i ) {
-            if ( currentLabels[ i ].contains( cellText ) ) {
-                currentLabel = i;
-                break;
-            }
-        }
-
-        auto* noneAction = colorLabelsMenu->addAction( tr( "None" ) );
-        noneAction->setActionGroup( colorLabelsActionGroup );
-        noneAction->setCheckable( true );
-        noneAction->setChecked( !currentLabel.has_value() );
-        if ( currentLabel ) {
-            noneAction->setData( static_cast<unsigned>( *currentLabel ) );
-        }
-
-        colorLabelsMenu->addSeparator();
-        const auto maxLabel
-            = std::min( currentLabels.size(), static_cast<size_t>( quickHighlighters.size() ) );
-        for ( size_t i = 0; i < maxLabel; ++i ) {
-            const auto& cfg = quickHighlighters.at( static_cast<int>( i ) );
-            auto* action = colorLabelsMenu->addAction( cfg.name );
-            action->setActionGroup( colorLabelsActionGroup );
-            action->setCheckable( true );
-            action->setChecked( currentLabel == i );
-            action->setData( static_cast<unsigned>( i ) );
-
-            QPixmap pixmap( 20, 10 );
-            auto fillColor = cfg.color.backColor;
-            fillColor.setAlphaF( 1.0 );
-            pixmap.fill( fillColor );
-            action->setIcon( QIcon( pixmap ) );
-            action->setIconVisibleInMenu( true );
-        }
-        colorLabelsMenu->addSeparator();
-        auto* clearAllAction = colorLabelsMenu->addAction( tr( "Clear all" ) );
-        connect( clearAllAction, &QAction::triggered, this,
-                 [ this ]() { Q_EMIT clearColorLabels(); } );
-
-        connect( colorLabelsActionGroup, &QActionGroup::triggered, this,
-                 [ this, clickedIdx ]( QAction* action ) {
-                     if ( action->data().isValid() ) {
-                         selectCellTextUnlessInCell( clickedIdx );
-                         Q_EMIT addColorLabel( static_cast<size_t>( action->data().toInt() ) );
-                     }
-                 } );
+void LogTableView::showQuickFindResult( bool hasMatch, const Portion& logLinePortion )
+{
+    if ( !hasMatch || !logLinePortion.isValid() || !model_ ) {
+        return;
     }
 
-    menu.addSeparator();
-
-    // ── Mark ──
-    auto* markAction = menu.addAction( hasSelection ? tr( "Mark / Unmark lines" ) : tr( "Mark" ) );
-    markAction->setEnabled( hasSelection );
-    connect( markAction, &QAction::triggered, this, &LogTableView::markSelection );
-
-    menu.addSeparator();
-
-    // ── Copy ──
-    auto* copyAction = menu.addAction( tr( "Copy" ) );
-    copyAction->setShortcut( QKeySequence::Copy );
-    copyAction->setEnabled( hasSelection );
-    connect( copyAction, &QAction::triggered, this, &LogTableView::copySelection );
-
-    auto* copyWithLinesAction = menu.addAction( tr( "Copy with line numbers" ) );
-    copyWithLinesAction->setEnabled( hasSelection );
-    connect( copyWithLinesAction, &QAction::triggered, this,
-             &LogTableView::copySelectionWithLineNumbers );
-
-    // ── Scratchpad ──
-    auto* sendToScratchpadAction = menu.addAction( tr( "Send to scratchpad" ) );
-    sendToScratchpadAction->setEnabled( hasText );
-    connect( sendToScratchpadAction, &QAction::triggered, this, [ this, clickedIdx ]() {
-        selectCellTextUnlessInCell( clickedIdx );
-        Q_EMIT sendSelectionToScratchpad();
-    } );
-
-    auto* replaceInScratchpadAction = menu.addAction( tr( "Replace scratchpad" ) );
-    replaceInScratchpadAction->setEnabled( hasText );
-    connect( replaceInScratchpadAction, &QAction::triggered, this, [ this, clickedIdx ]() {
-        selectCellTextUnlessInCell( clickedIdx );
-        Q_EMIT replaceScratchpadWithSelection();
-    } );
-
-    menu.addSeparator();
-
-    // ── Search ──
-    if ( hasText ) {
-        const auto escapedCell = QRegularExpression::escape( cellText );
-
-        auto* replaceSearchAction
-            = menu.addAction( tr( "Replace search with \"%1\"" ).arg( cellText.left( 30 ) ) );
-        connect( replaceSearchAction, &QAction::triggered, this,
-                 [ this, escapedCell ]() { Q_EMIT replaceSearch( escapedCell ); } );
-
-        auto* addToSearchAction
-            = menu.addAction( tr( "Add \"%1\" to search" ).arg( cellText.left( 30 ) ) );
-        connect( addToSearchAction, &QAction::triggered, this,
-                 [ this, escapedCell ]() { Q_EMIT addToSearch( escapedCell ); } );
-
-        auto* excludeSearchAction
-            = menu.addAction( tr( "Exclude \"%1\" from search" ).arg( cellText.left( 30 ) ) );
-        connect( excludeSearchAction, &QAction::triggered, this,
-                 [ this, escapedCell ]() { Q_EMIT excludeFromSearch( escapedCell ); } );
+    const auto row = rows_->rowOf( logLinePortion.line() );
+    if ( !row ) {
+        return;
     }
 
-    menu.addSeparator();
+    selection_.clearInCell();
+    const auto matcher = quickFindPattern_->getMatcher();
+    for ( int column = 0; column < model_->columnCount(); ++column ) {
+        const auto cellText = model_->index( *row, column ).data( Qt::DisplayRole ).toString();
+        if ( matcher.isLineMatching( cellText ) ) {
+            const auto [ start, end ] = matcher.getLastMatch();
+            selection_.selectInCell( *row, column, static_cast<int>( start.get() ),
+                                     static_cast<int>( end.get() ) + 1 );
+            break;
+        }
+    }
+    showInCellSelection();
 
-    // ── Splitter position ──
-    auto* saveSplitterAction = menu.addAction( tr( "Save splitter position" ) );
-    connect( saveSplitterAction, &QAction::triggered, this,
-             [ this ]() { Q_EMIT saveDefaultSplitterSizes(); } );
-
-    // ── Save to file ──
-    auto* saveToFileAction = menu.addAction( tr( "Save to file" ) );
-    connect( saveToFileAction, &QAction::triggered, this, &LogTableView::saveToFile );
-
-    auto* saveSelectedToFileAction = menu.addAction( tr( "Save selected to file" ) );
-    saveSelectedToFileAction->setEnabled( hasSelection );
-    connect( saveSelectedToFileAction, &QAction::triggered, this,
-             &LogTableView::saveSelectedToFile );
-
-    menu.exec( viewport()->mapToGlobal( pos ) );
-
-    highlightersMenu->clearHighlightersMenu();
+    showLogLine( logLinePortion.line() );
 }
 
 // Copy the selected text: the characters selected inside a cell, or else the
@@ -792,17 +756,6 @@ void LogTableView::copySelectionWithLineNumbers()
     }
 
     QApplication::clipboard()->setText( copied.join( '\n' ) );
-}
-
-void LogTableView::selectCellTextUnlessInCell( const QModelIndex& index )
-{
-    if ( !index.isValid() || selection_.hasInCellSelection() ) {
-        return;
-    }
-
-    const auto cellText = index.data( Qt::DisplayRole ).toString();
-    selection_.selectInCell( index.row(), index.column(), 0, static_cast<int>( cellText.size() ) );
-    showInCellSelection();
 }
 
 void LogTableView::saveToFile()

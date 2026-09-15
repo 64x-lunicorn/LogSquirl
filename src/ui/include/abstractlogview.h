@@ -43,6 +43,7 @@
 #include <array>
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <qchar.h>
 #include <string_view>
 #include <utility>
@@ -71,9 +72,7 @@
 #include "wrappedstring.h"
 
 class QMenu;
-class QAction;
 class QShortcut;
-class HighlightersMenu;
 
 // Utility class representing a buffer for number entered on the keyboard
 // The buffer keep at most 7 digits, and reset itself after a timeout.
@@ -231,6 +230,10 @@ protected:
     // The Log Line drawn at pos, in viewport coordinates, if any.
     OptionalLineNumber logLineAtPoint( const QPoint& pos ) const;
 
+    // The context menu for the current selection, opened at pos in viewport
+    // coordinates; built by PresentationMenu, and not yet shown.
+    std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
+
     virtual void doRegisterShortcuts();
     void registerShortcut( const std::string& action, std::function<void()> func );
 
@@ -339,12 +342,9 @@ private Q_SLOTS:
     void markSelected();
     void saveToFile();
     void saveSelectedToFile();
-    void setSearchStart();
-    void setSearchEnd();
     void setSelectionStart();
     void setSelectionEnd();
     void setQuickFindResult( bool hasMatch, const Portion& selection );
-    void setColorLabel( QAction* action );
 
 private:
     // Graphic parameters
@@ -484,29 +484,6 @@ private:
     int charWidth_ = 1;
     int charHeight_ = 10;
 
-    // Popup menu
-    QMenu* popupMenu_;
-    QAction* copyAction_;
-    QAction* copyWithLineNumbersAction_;
-    QAction* markAction_;
-    QAction* sendToScratchpadAction_;
-    QAction* replaceInScratchpadAction_;
-    QAction* saveToFileAction_;
-    QAction* saveSelectedToFileAction_;
-    QAction* findNextAction_;
-    QAction* findPreviousAction_;
-    QAction* addToSearchAction_;
-    QAction* replaceSearchAction_;
-    QAction* excludeFromSearchAction_;
-    QAction* setSearchStartAction_;
-    QAction* setSearchEndAction_;
-    QAction* clearSearchLimitAction_;
-    QAction* setSelectionStartAction_;
-    QAction* setSelectionEndAction_;
-    QAction* saveDefaultSplitterSizesAction_;
-    HighlightersMenu* highlightersMenu_;
-    QMenu* colorLabelsMenu_;
-
     std::map<QString, QShortcut*> shortcuts_;
 
     // Pointer to the CrawlerWidget's QFP object
@@ -579,8 +556,9 @@ private:
     void selectWordAtPosition( const FilePosition& pos );
 
     void updateSearchLimits();
-
-    void createMenu();
+    // Make the Search Limits start at, or end with, the Log Line.
+    void setSearchStart( LineNumber logLine );
+    void setSearchEnd( LineNumber logLine );
 
     void considerMouseHovering( int xPos, int yPos );
 
