@@ -159,7 +159,7 @@ jobs:
 
       - name: Install cosign
         if: steps.image.outputs.exists != 'true'
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.2
 
       # Keyless: the Fulcio certificate names this workflow file and ref, which
       # is exactly the identity CI Build pins (docker-pull-or-build). Signing

@@ -426,7 +426,7 @@ jobs:
           subject-path: ${{ steps.assets.outputs.files }}
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.2
 
       # Keyless signature over the checksum file, bound to this workflow's
       # identity: ci-release.yml@refs/tags/v* for a tag push, @refs/heads/master
