@@ -17,10 +17,13 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "log.h"
+#ifndef LOGSQUIRL_CLIPBOARD_H
+#define LOGSQUIRL_CLIPBOARD_H
+
 #include <exception>
 #include <utility>
-#ifndef LOGSQUIRL_CLIPBOARD_H
+
+#include "log.h"
 
 #include <QApplication>
 #include <QClipboard>
