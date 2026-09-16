@@ -220,6 +220,15 @@ and handed to it when it is built — an Indexing Policy, a Search Policy, a Wat
 File Access Policy, a Recognition Policy, a Decoding Policy, a Decoration Policy, a
 Presentation Policy, a QuickFind Policy. A part that holds a Policy cannot reach for a
 setting it did not declare.
+
+How that is held differs by half. An engine library that consumes a Policy links the
+Policy types and not the settings store, so reaching for an undeclared setting there is a
+link error. The widget layer cannot be held that way — the Options Dialog, the Theme
+wiring, the Shortcuts and the Highlighter Set collection all live in it and all
+legitimately need the store — so its half is held by a build-time check that `ctest` runs:
+only an allowlisted file, each entry carrying its reason, may name the settings store, and
+the check names every other one that does. The allowlist is meant to shrink as the
+remaining Axes get Policies.
 _Avoid_: config object, options, preferences
 
 **Decoration Policy**:
