@@ -61,6 +61,7 @@
 
 #include "abstractlogdata.h"
 #include "decorationsetup.h"
+#include "linemapping.h"
 #include "linessaver.h"
 #include "linetypes.h"
 #include "overviewwidget.h"
@@ -107,7 +108,8 @@ private:
 class Overview;
 
 // Base class representing the log view widget.
-// It can be either the top (full) or bottom (filtered) view.
+// It can be either the top (full) or bottom (filtered) view: the two differ
+// only in the LineMapping they are built with.
 class AbstractLogView : public QAbstractScrollArea, public SearchableWidgetInterface {
     Q_OBJECT
 
@@ -130,6 +132,13 @@ public:
     // view. Changing it afterwards goes through textWrapSet(), which is
     // what the View menu's action calls; a view that already exists is
     // never re-read from the settings.
+    //
+    // newLogData is read by position, as the view shows its lines; lines says
+    // which Log Line each position shows. Without one, every Log Line of
+    // newLogData is shown at its own position.
+    AbstractLogView( const AbstractLogData* newLogData, std::unique_ptr<const LineMapping> lines,
+                     const QuickFindPattern* const quickFind, bool initialTextWrap,
+                     QWidget* parent = nullptr );
     AbstractLogView( const AbstractLogData* newLogData, const QuickFindPattern* const quickFind,
                      bool initialTextWrap, QWidget* parent = nullptr );
 
@@ -148,7 +157,7 @@ public:
     // Instructs the widget to update it's content geometry,
     // used when the font is changed.
     void updateDisplaySize();
-    // Return the line number of the top line of the view
+    // Return the position of the top line of the view
     LineNumber getTopLine() const;
     // Where the view stands: the Log Line at the top and which of its Visual
     // Lines is shown first.
@@ -203,6 +212,11 @@ public:
     // snapshot, so ask again once the view has moved or its Log File changed.
     ViewportLayout viewportLayout() const;
 
+    // Which Log Line each position of this view shows. Replacing it repaints
+    // the view; the selection, being Log Lines, stays where it is.
+    void setLineMapping( std::unique_ptr<const LineMapping> lines );
+    const LineMapping& lineMapping() const;
+
     void registerShortcuts();
 
 protected:
@@ -219,27 +233,11 @@ protected:
     void wheelEvent( QWheelEvent* wheelEvent ) override;
     bool event( QEvent* e ) override;
 
-    // Must be implemented to return what LineType the line number is
-    // (used for coloured bullets)
-    virtual AbstractLogData::LineType lineType( LineNumber lineNumber ) const = 0;
-
-    // Line number to display for line at the given index
-    virtual LineNumber displayLineNumber( LineNumber lineNumber ) const;
-    virtual LineNumber lineIndex( LineNumber lineNumber ) const;
-    virtual LineNumber maxDisplayLineNumber() const;
-
-    // The lines a QuickFind in this view searches, in Log Line numbers: a
-    // copy of what the view displays, taken on the UI thread when the
-    // QuickFind starts. Every Log Line unless overridden.
-    virtual QuickFindLines quickFindLines() const;
-
     // Reads the lines a save from this view writes, by their position in the
-    // view, off the UI thread: taken on the UI thread when the save starts,
-    // it doesn't see what the view displays afterwards. Reads the view's data
-    // unless overridden.
-    virtual DisplayedLinesReader linesToSave() const;
+    // view, off the UI thread (see LineMapping::linesToSave()).
+    DisplayedLinesReader linesToSave() const;
 
-    // Saves the lines in range [begin, end) to filename, behind an application
+    // Saves the lines at positions [begin, end) to filename, behind an application
     // modal progress dialog. filename is replaced only when every line was
     // written: a cancelled or failed save leaves it as it was.
     void saveLinesTo( const QString& filename, LineNumber begin, LineNumber end );
@@ -252,9 +250,10 @@ protected:
     // Set the Overview and OverviewWidget
     void setOverview( Overview* overview, OverviewWidget* overviewWidget );
 
-    // Returns the current "position" of the view as a line number,
-    // it is either the selected line or the middle of the view.
-    LineNumber getViewPosition() const;
+    // Returns the current "position" of the view as a Log Line: either the
+    // selected Log Line or the one in the middle of the view. None when the
+    // view shows no Log Line.
+    OptionalLineNumber getViewPosition() const;
 
     // The Log Line drawn at pos, in viewport coordinates, if any.
     OptionalLineNumber logLineAtPoint( const QPoint& pos ) const;
@@ -263,7 +262,6 @@ protected:
     // coordinates; built by PresentationMenu, and not yet shown.
     std::unique_ptr<QMenu> createContextMenu( const QPoint& pos );
 
-    virtual void doRegisterShortcuts();
     void registerShortcut( const std::string& action, std::function<void()> func );
 
 Q_SIGNALS:
@@ -313,8 +311,9 @@ Q_SIGNALS:
     void highlightersChange();
 
 public Q_SLOTS:
-    // Makes the widget select and display the passed line.
-    // Scrolling as necessary
+    // Makes the widget select and display the passed Log Line, scrolling as
+    // necessary. A Log Line the view doesn't show selects the one shown
+    // before it (or the first one shown).
     void trySelectLine( LineNumber newLine );
     void selectAndDisplayLine( LineNumber line );
     void selectPortionAndDisplayLine( LineNumber line, LinesCount nLines, LineColumn startCol,
@@ -343,7 +342,7 @@ public Q_SLOTS:
     // Signal the on/off status of the overview has been changed.
     void refreshOverview();
 
-    // Make the view jump to the specified line, regardless of it
+    // Make the view jump to the specified Log Line, regardless of it
     // being on the screen or not. (does NOT Q_EMIT followDisabled() )
     void jumpToLine( LineNumber line );
 
@@ -391,8 +390,11 @@ private:
     // Whether to show line numbers or not
     bool lineNumbersVisible_ = false;
 
-    // Pointer to the CrawlerWidget's data set
+    // Pointer to the CrawlerWidget's data set, read by position
     const AbstractLogData* logData_;
+
+    // Which Log Line each position shows
+    std::unique_ptr<const LineMapping> lines_;
 
     // Pointer to the Overview object
     Overview* overview_ = nullptr;
@@ -403,14 +405,14 @@ private:
     OverviewWidget* overviewWidget_ = nullptr;
 
     bool selectionStarted_ = false;
-    // Start of the selection (characters)
+    // Start of the selection (characters), in Log Lines
     FilePosition selectionStartPos_;
     // Current end of the selection (characters)
     FilePosition selectionCurrentEndPos_;
     QBasicTimer autoScrollTimer_;
 
     // Hovering state
-    // Last line that has been hoovered on, -1 if none
+    // Last Log Line that has been hoovered on, if any
     OptionalLineNumber lastHoveredLine_;
 
     // Marks (left margin click)
@@ -452,6 +454,7 @@ private:
 
     // A Log Line in the Viewport, both as the Log File holds it and as it is drawn.
     struct ViewportLogLine {
+        // The Log Line, not its position in the view.
         LineNumber lineNumber{ 0 };
         // The text as the Log File holds it, which the Line Decorator matches against.
         QString text;
@@ -515,6 +518,7 @@ private:
     mutable std::optional<LogFileBottom> logFileBottom_;
     mutable LogFileBottomKey logFileBottomKey_;
 
+    // The Search Limits, in Log Lines, half-open as the Line Decorator takes them.
     LineNumber searchStart_;
     LineNumber searchEnd_;
 
@@ -566,8 +570,12 @@ private:
     LinesCount getNbVisibleLines() const;
     LineLength getNbVisibleCols() const;
 
+    // What sits under a point, by position.
     FilePosition convertCoordToFilePos( const QPoint& pos ) const;
     OptionalLineNumber convertCoordToLine( int yPos ) const;
+    // What sits under a point, in Log Lines.
+    FilePosition logLineFilePosAt( const QPoint& pos ) const;
+    OptionalLineNumber logLineAtY( int yPos ) const;
 
     // The follow mode state the layout places the text and the pull-to-follow
     // bar from. Painting and hit testing both hand it to the same
@@ -575,11 +583,12 @@ private:
     // of their own.
     PullToFollowState pullToFollowState() const;
 
-    // Brings the first Visual Line of line into view (see displayPosition()).
-    void displayLine( LineNumber line );
-    // Brings the Visual Line holding position into view. A Visual Line already
-    // wholly in the Viewport leaves the view where it is; otherwise the view
-    // moves to put it on the top row, going no further than the bottom.
+    // Brings the first Visual Line of logLine into view (see displayPosition()).
+    void displayLine( LineNumber logLine );
+    // Brings the Visual Line holding position -- a position in the view, not a
+    // Log Line -- into view. A Visual Line already wholly in the Viewport leaves
+    // the view where it is; otherwise the view moves to put it on the top row,
+    // going no further than the bottom.
     void displayPosition( FilePosition position );
     void moveSelection( LinesCount delta, bool isDeltaNegative );
     void moveSelectionUp();
@@ -590,6 +599,8 @@ private:
     void jumpToTop();
     void jumpToBottom();
     void selectWordAtPosition( const FilePosition& pos );
+    // Selects the nearest Mark shown after, or before, the view's position.
+    void selectMark( bool after );
 
     void updateSearchLimits();
     // Make the Search Limits start at, or end with, the Log Line.
@@ -606,14 +617,11 @@ private:
     // Search functions (for n/N)
     using QuickFindSearchFn = void ( QuickFind::* )( Selection, QuickFindMatcher );
     void searchUsingFunction( QuickFindSearchFn searchFunction );
-    // QuickFind works in Log Line numbers: these convert a selection from
-    // this view's line numbers and back.
-    Selection toLogLines( const Selection& selection ) const;
-    Selection toViewLines( const Selection& selection ) const;
-    // Whether this view displays the Log Line.
-    bool displaysLogLine( LineNumber logLine ) const;
-    // The Log Line this view shows at its line viewLine.
-    LineNumber logLineAt( LineNumber viewLine ) const;
+    // The Log Line shown at the last position, if any.
+    OptionalLineNumber lastShownLogLine() const;
+    // The Log Line shown delta positions after (or before, when negative)
+    // logLine's, kept within the Log Lines shown.
+    OptionalLineNumber shownLogLineMovedBy( LineNumber logLine, int64_t delta ) const;
 
     void updateScrollBars();
 

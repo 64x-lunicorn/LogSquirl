@@ -56,12 +56,6 @@ public:
     }
 
     using AbstractLogView::linesToSave;
-
-protected:
-    AbstractLogData::LineType lineType( LineNumber ) const override
-    {
-        return {};
-    }
 };
 
 } // namespace
@@ -754,19 +748,37 @@ SCENARIO( "Selection autoscroll moves a wrapped text view in Visual Lines",
 
 namespace {
 
-// A TestLogView whose saves read through readLines.
-class SavingLogView : public TestLogView {
+// Every Log Line at its own position, saved through what *readLines holds
+// when a save starts.
+class SavedThroughReader : public EveryLogLine {
 public:
-    using AbstractLogView::saveLinesTo;
-    using TestLogView::TestLogView;
+    SavedThroughReader( const AbstractLogData* logData, const DisplayedLinesReader* readLines )
+        : EveryLogLine( logData )
+        , readLines_( readLines )
+    {
+    }
 
-    DisplayedLinesReader readLines;
-
-protected:
     DisplayedLinesReader linesToSave() const override
     {
-        return readLines;
+        return *readLines_;
     }
+
+private:
+    const DisplayedLinesReader* readLines_;
+};
+
+// A text view whose saves read through readLines.
+class SavingLogView : public AbstractLogView {
+public:
+    using AbstractLogView::saveLinesTo;
+
+    SavingLogView( const AbstractLogData* logData, const QuickFindPattern* qfp )
+        : AbstractLogView( logData, std::make_unique<SavedThroughReader>( logData, &readLines ),
+                           qfp, false )
+    {
+    }
+
+    DisplayedLinesReader readLines;
 };
 
 QByteArray contentOf( const QString& fileName )

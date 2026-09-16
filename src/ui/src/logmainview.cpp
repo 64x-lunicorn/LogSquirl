@@ -44,19 +44,17 @@
 #include "logmainview.h"
 
 #include "abstractlogdata.h"
-#include "log.h"
 #include "logfiltereddata.h"
 #include "overview.h"
-
-#include "shortcuts.h"
 
 LogMainView::LogMainView( const LogData* newLogData, const QuickFindPattern* const quickFindPattern,
                           Overview* overview, OverviewWidget* overview_widget, bool initialTextWrap,
                           QWidget* parent )
-    : AbstractLogView( newLogData, quickFindPattern, initialTextWrap, parent )
+    : AbstractLogView( newLogData, std::make_unique<EveryLogLine>( newLogData ), quickFindPattern,
+                       initialTextWrap, parent )
+    , logFile_( newLogData )
+    , filteredData_( nullptr )
 {
-    filteredData_ = nullptr;
-
     // The main data has a real (non NULL) Overview
     setOverview( overview, overview_widget );
 }
@@ -65,6 +63,7 @@ LogMainView::LogMainView( const LogData* newLogData, const QuickFindPattern* con
 void LogMainView::useNewFiltering( LogFilteredData* filteredData )
 {
     filteredData_ = filteredData;
+    setLineMapping( std::make_unique<EveryLogLine>( logFile_, filteredData_ ) );
 
     if ( getOverview() != nullptr )
         getOverview()->setFilteredData( filteredData_ );
@@ -147,30 +146,4 @@ void LogMainView::setSearchLimits( LineNumber startLine, LineNumber endLine )
 void LogMainView::saveSelectedTo( const QString& filename )
 {
     AbstractLogView::saveSelectedTo( filename );
-}
-
-AbstractLogData::LineType LogMainView::lineType( LineNumber lineNumber ) const
-{
-    if ( filteredData_ ) {
-        return filteredData_->lineTypeByLine( lineNumber );
-    }
-    return AbstractLogData::LineTypeFlags::Plain;
-}
-
-void LogMainView::doRegisterShortcuts()
-{
-    LOG_INFO << "Registering shortcuts for main view";
-    AbstractLogView::doRegisterShortcuts();
-    registerShortcut( ShortcutAction::LogViewNextMark, [ this ] {
-        const auto line = filteredData_->getMarkAfter( getViewPosition() );
-        if ( line.has_value() ) {
-            selectAndDisplayLine( *line );
-        }
-    } );
-    registerShortcut( ShortcutAction::LogViewPrevMark, [ this ] {
-        const auto line = filteredData_->getMarkBefore( getViewPosition() );
-        if ( line.has_value() ) {
-            selectAndDisplayLine( *line );
-        }
-    } );
 }

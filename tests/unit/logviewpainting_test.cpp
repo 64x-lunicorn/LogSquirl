@@ -150,20 +150,26 @@ QStringList paintedTexts( std::optional<size_t> count = std::nullopt )
     return texts;
 }
 
-class PaintingLogView : public AbstractLogView {
+// Every Log Line at its own position, a Match or a Mark as paintedLines() says.
+class PaintedLineTypes : public EveryLogLine {
 public:
-    PaintingLogView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern,
-                     bool textWrap )
-        : AbstractLogView( logData, quickFindPattern, textWrap )
-    {
-    }
+    using EveryLogLine::EveryLogLine;
 
-protected:
-    AbstractLogData::LineType lineType( LineNumber lineNumber ) const override
+    LineType lineType( LineNumber lineNumber ) const override
     {
         const auto& lines = paintedLines();
         return lineNumber.get() < lines.size() ? lines[ lineNumber.get() ].type
                                                : AbstractLogData::LineType{};
+    }
+};
+
+class PaintingLogView : public AbstractLogView {
+public:
+    PaintingLogView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern,
+                     bool textWrap )
+        : AbstractLogView( logData, std::make_unique<PaintedLineTypes>( logData ), quickFindPattern,
+                           textWrap )
+    {
     }
 };
 

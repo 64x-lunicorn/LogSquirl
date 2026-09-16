@@ -126,12 +126,6 @@ public:
     }
 
     using AbstractLogView::createContextMenu;
-
-protected:
-    AbstractLogData::LineType lineType( LineNumber ) const override
-    {
-        return {};
-    }
 };
 
 const QStringList SaveLines = {

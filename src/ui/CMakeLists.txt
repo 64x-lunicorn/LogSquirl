@@ -18,6 +18,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersetedit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/infoline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pathline.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/linemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logmainview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
@@ -104,6 +105,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/recentfiles.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/savedsearches.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/linemapping.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/selection.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/session.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/sessioninfo.cpp

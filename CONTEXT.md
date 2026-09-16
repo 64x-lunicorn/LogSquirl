@@ -92,7 +92,9 @@ supersedes the one in flight rather than waiting for it.
 _Avoid_: search manager, search controller, search engine
 
 **Filtered View**:
-The lower pane, showing only the Log Lines a Search selected.
+The lower pane, showing only the Log Lines a Search selected. Its selection, Marks and
+Search Limits are Log Lines like the main view's; only its Scroll Position counts places
+among the Log Lines it shows.
 _Avoid_: results pane, filter window
 
 **QuickFind**:

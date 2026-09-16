@@ -243,16 +243,14 @@ private Q_SLOTS:
     void updateFilteredView( SearchSession::State state );
     // Called when a new line has been selected in the filtered view,
     // to instruct the main view to jump to the matching line.
-    void jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nLines, LineColumn startCol,
+    void jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols );
     // Called when the Presentation shown is on a new Log Line; the
     // Presentations not shown follow it.
     void updateLineNumberHandler( LineNumber line, LinesCount nLines, LineColumn startCol,
                                   LineLength nSymbols );
-    // Mark Log Lines from a Presentation.
+    // Mark Log Lines from a Presentation or a Filtered View.
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
-    // Mark a line that has been clicked on the filtered (bottom) view.
-    void markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines );
 
     // failure describes a Failed load, which the user is offered to report.
     void loadingFinishedHandler( LoadingStatus status, const QString& failure );
@@ -300,7 +298,7 @@ private Q_SLOTS:
     // Search Context Menu
     void showSearchContextMenu();
 
-    // Called when a match is hovered on in the filtered view
+    // Called when a match is hovered on in the filtered view, with its Log Line
     void mouseHoveredOverMatch( LineNumber line );
 
     // Called when there was activity in the views

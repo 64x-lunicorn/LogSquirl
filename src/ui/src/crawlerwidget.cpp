@@ -338,7 +338,7 @@ void CrawlerWidget::goToLine()
 
         const auto selectedLine
             = LineNumber( static_cast<LineNumber::UnderlyingType>( newLine - 1 ) );
-        filteredView_->trySelectLine( logFilteredData_->getLineIndexNumber( selectedLine ) );
+        filteredView_->trySelectLine( selectedLine );
 
         const auto nbLines = logData_->getNbLine();
         if ( nbLines.get() > 0 ) {
@@ -712,25 +712,22 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     // apply a stale range to the just-finished (different-range) result.
     if ( isComplete && !state.isContinuation && state.startLine == searchStartLine_
          && !isFollowEnabled() ) {
-        const auto currenLineIndex = logFilteredData_->getLineIndexNumber( currentLineNumber_ );
         LOG_DEBUG << "updateFilteredView: restoring selection: "
-                  << " absolute line number (0based) " << currentLineNumber_ << " index "
-                  << currenLineIndex;
-        filteredView_->selectAndDisplayLine( currenLineIndex );
+                  << " absolute line number (0based) " << currentLineNumber_;
+        filteredView_->selectAndDisplayLine( currentLineNumber_ );
         filteredView_->setSearchLimits( searchStartLine_, searchEndLine_ );
     }
 }
 
-void CrawlerWidget::jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nLines,
-                                        LineColumn startCol, LineLength nSymbols )
+void CrawlerWidget::jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,
+                                        LineLength nSymbols )
 {
     if ( syncingSelection_ ) {
         return;
     }
 
-    const auto mainViewLine = logFilteredData_->getMatchingLineNumber( filteredLineNb );
     syncingSelection_ = true;
-    presentation_->showLogLinePortion( mainViewLine, nLines, startCol, nSymbols );
+    presentation_->showLogLinePortion( logLine, nLines, startCol, nSymbols );
     syncingSelection_ = false;
 }
 
@@ -758,12 +755,9 @@ void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
     // before it, in the Filtered View too.
     if ( reporter != nullptr && reporter == logTableView_ && !syncingSelection_ && logFilteredData_
          && logFilteredData_->getNbLine().get() > 0 ) {
-        const auto filteredIndex = logFilteredData_->getLineIndexNumber( line );
-        if ( filteredIndex < logFilteredData_->getNbLine() ) {
-            syncingSelection_ = true;
-            filteredView_->selectAndDisplayLine( filteredIndex );
-            syncingSelection_ = false;
-        }
+        syncingSelection_ = true;
+        filteredView_->selectAndDisplayLine( line );
+        syncingSelection_ = false;
     }
 
     Q_EMIT newSelection( line, nLines, startCol, nSymbols );
@@ -807,22 +801,6 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
     for ( auto* presentation : presentations() ) {
         presentation->updateDecorations();
     }
-}
-
-void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines )
-{
-    logsquirl::vector<LineNumber> linesInMain( lines.size() );
-    std::transform( lines.cbegin(), lines.cend(), linesInMain.begin(),
-                    [ this ]( const auto& filteredLine ) {
-                        if ( filteredLine < logData_->getNbLine() ) {
-                            return logFilteredData_->getMatchingLineNumber( filteredLine );
-                        }
-                        else {
-                            return maxValue<LineNumber>();
-                        }
-                    } );
-
-    markLinesFromMain( linesInMain );
 }
 
 void CrawlerWidget::applyConfiguration()
@@ -1085,8 +1063,7 @@ void CrawlerWidget::changeFilteredViewVisibility( int index )
     filteredView_->setVisibility( visibility );
 
     if ( logFilteredData_->getNbLine() > 0_lcount ) {
-        const auto lineIndex = logFilteredData_->getLineIndexNumber( currentLineNumber_ );
-        filteredView_->selectAndDisplayLine( lineIndex );
+        filteredView_->selectAndDisplayLine( currentLineNumber_ );
     }
 }
 
@@ -1174,10 +1151,8 @@ void CrawlerWidget::setSearchPattern( const QString& searchPattern )
 
 void CrawlerWidget::mouseHoveredOverMatch( LineNumber line )
 {
-    const auto line_in_mainview = logFilteredData_->getMatchingLineNumber( line );
-
-    overviewWidget_->highlightLine( line_in_mainview );
-    logTableView_->highlightOverviewLine( line_in_mainview );
+    overviewWidget_->highlightLine( line );
+    logTableView_->highlightOverviewLine( line );
 }
 
 void CrawlerWidget::activityDetected()
@@ -1777,7 +1752,8 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( view, &FilteredView::newSelection, this, &CrawlerWidget::jumpToMatchingLine );
 
-    connect( view, &FilteredView::markLines, this, &CrawlerWidget::markLinesFromFiltered );
+    // The Filtered View hands out Log Lines, as the main view does.
+    connect( view, &FilteredView::markLines, this, &CrawlerWidget::markLinesFromMain );
 
     connect( view, &FilteredView::highlightersChange, this,
              &CrawlerWidget::applyHighlighterSetChange );

@@ -1726,6 +1726,35 @@ SCENARIO( "Color Labels and Search Limits reach every Filtered View of the Log F
             }
         }
 
+        // The Search Limits reach the Line Decorator as Log Lines: a Log Line
+        // shown before a start the Filtered View doesn't show is outside them
+        // (#243).
+        WHEN( "a Search shows Log Lines 3 and 7, and Search Limits start between them" )
+        {
+            crawlerVisitor.clearSearchPattern();
+            crawlerVisitor.setSearchPattern( "LOGDATA.*line 00000[37]" );
+            crawlerVisitor.runSearch();
+            REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+                return crawlerVisitor.getLogFilteredNbLines().get() == 2;
+            } ) );
+            QTest::qWait( 50 );
+
+            auto* view = crawlerVisitor.filteredView();
+            const auto inside = subduedPixels( view );
+
+            crawlerVisitor.setSearchLimits( 5_lnum, 10_lnum );
+            const auto firstOutside = subduedPixels( view );
+
+            crawlerVisitor.setSearchLimits( 8_lnum, 10_lnum );
+            const auto bothOutside = subduedPixels( view );
+
+            THEN( "Log Line 3 is subdued, and Log Line 7 is not" )
+            {
+                REQUIRE( firstOutside > inside );
+                REQUIRE( bothOutside > firstOutside );
+            }
+        }
+
         WHEN( "with a Color Label on Log Line 7 and Search Limits that end after it, "
               "a Search is kept and a new one shows Log Line 7 and the marked 9" )
         {

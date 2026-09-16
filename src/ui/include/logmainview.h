@@ -52,8 +52,8 @@ public:
                  Overview* overview, OverviewWidget* overview_widget, bool initialTextWrap,
                  QWidget* parent = nullptr );
 
-    // Configure the view to use the passed filtered list
-    // (used for couloured bullets)
+    // Configure the view to use the passed filtered list for its Marks and
+    // line types (used for coloured bullets). Builds the view a new mapping.
     // Should be NULL or the empty LFD if no filtering is used
     void useNewFiltering( LogFilteredData* filteredData );
 
@@ -75,13 +75,8 @@ public:
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     void saveSelectedTo( const QString& filename ) override;
 
-protected:
-    // Implements the virtual function
-    LogData::LineType lineType( LineNumber lineNumber ) const override;
-
-    void doRegisterShortcuts() override;
-
 private:
+    const LogData* logFile_;
     LogFilteredData* filteredData_;
 };
 
