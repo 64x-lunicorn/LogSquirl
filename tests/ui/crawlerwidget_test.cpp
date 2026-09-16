@@ -265,6 +265,42 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->tabbedFilteredView_->currentIndex();
     }
 
+    // What the Color Label shortcuts and menus do: the text selected in the
+    // main view, here the whole of the given Log Line, gets the label.
+    void addColorLabelToLogLine( LineNumber line, size_t label )
+    {
+        crawler->logMainView_->selectAndDisplayLine( line );
+        crawler->addColorLabelToSelection( label );
+        QCoreApplication::processEvents();
+    }
+
+    // What "clear all Color Labels" does in any view of the Log File.
+    void clearColorLabels()
+    {
+        crawler->clearColorLabels();
+        QCoreApplication::processEvents();
+    }
+
+    // What the Search Limits context menu entries do in any view.
+    void setSearchLimits( LineNumber startLine, LineNumber endLine )
+    {
+        crawler->setSearchLimits( startLine, endLine );
+        QCoreApplication::processEvents();
+    }
+
+    void clearSearchLimits()
+    {
+        crawler->clearSearchLimits();
+        QCoreApplication::processEvents();
+    }
+
+    // What marking a Log Line in the main view does.
+    void markLogLine( LineNumber line )
+    {
+        crawler->markLinesFromMain( { line } );
+        QCoreApplication::processEvents();
+    }
+
     // What the close button of a Filtered View's tab does.
     void closeFilteredViewTab( int index )
     {
@@ -731,19 +767,22 @@ SCENARIO( "A Row selected in the Table View is selected in the Filtered View too
 
 namespace {
 
-// The Highlighter Sets, and which of them are active, restored when this
-// object goes: nothing a test ticks leaks into the tests that run next.
+// The Highlighter Sets, which of them are active, and the colors of the Color
+// Labels, restored when this object goes: nothing a test ticks leaks into the
+// tests that run next.
 class PinnedHighlighterSets {
 public:
     PinnedHighlighterSets()
         : sets_( HighlighterSetCollection::get().highlighterSets() )
         , activeSetIds_( HighlighterSetCollection::get().activeSetIds() )
+        , colorLabels_( HighlighterSetCollection::get().quickHighlighters() )
     {
     }
 
     ~PinnedHighlighterSets()
     {
         auto& collection = HighlighterSetCollection::get();
+        collection.setQuickHighlighters( colorLabels_ );
         collection.setHighlighterSets( sets_ );
         collection.deactivateAll();
         for ( const auto& setId : activeSetIds_ ) {
@@ -757,6 +796,7 @@ public:
 private:
     QList<HighlighterSet> sets_;
     QStringList activeSetIds_;
+    QList<QuickHighlighter> colorLabels_;
 };
 
 bool showsColor( QWidget* view, const QColor& color )
@@ -1532,6 +1572,182 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
                     drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 0 ), zoomedSize ) );
                 REQUIRE(
                     drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 1 ), zoomedSize ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// A palette in which a Log Line outside the Search Limits is drawn in a color
+// of its own: the one of the platform may draw it as any other.
+QPalette subduingPalette()
+{
+    QPalette palette;
+    palette.setColor( QPalette::Base, Qt::white );
+    palette.setColor( QPalette::Text, Qt::black );
+    palette.setColor( QPalette::Disabled, QPalette::Text, QColor{ 0x6b, 0x5a, 0x49 } );
+    return palette;
+}
+
+// How many pixels of the view are painted in the color a Log Line outside the
+// Search Limits is subdued in. The separator beside the bullets is drawn in
+// it too, so only a change of the count within one view says something.
+int subduedPixels( QWidget* view )
+{
+    const auto subdued = subduingPalette().color( QPalette::Disabled, QPalette::Text ).rgb();
+    const auto image = view->grab().toImage();
+    auto count = 0;
+    for ( auto y = 0; y < image.height(); ++y ) {
+        for ( auto x = 0; x < image.width(); ++x ) {
+            if ( image.pixelColor( x, y ).rgb() == subdued ) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
+// The Color Labels of the Highlighter Set Collection, the first two in colors
+// nothing else in the views is painted with.
+void setColorLabelColors( const QColor& first, const QColor& second )
+{
+    auto& collection = HighlighterSetCollection::get();
+    auto labels = collection.quickHighlighters();
+    while ( labels.size() < 2 ) {
+        labels.append( QuickHighlighter{ "label", HighlightColor{ Qt::black, Qt::white }, true } );
+    }
+    labels[ 0 ].color = HighlightColor{ Qt::white, first };
+    labels[ 1 ].color = HighlightColor{ Qt::white, second };
+    collection.setQuickHighlighters( labels );
+}
+
+} // namespace
+
+// Color Labels and Search Limits belong to the Log File, not to one of its
+// Filtered Views (#234): a change is painted in every Filtered View the Log
+// File has, the ones of kept Searches in tabs not current included, and a
+// Filtered View built afterwards starts with them.
+SCENARIO( "Color Labels and Search Limits reach every Filtered View of the Log File",
+          "[ui][decoration]" )
+{
+    QTemporaryFile file{ "crawler_labels_limits_XXXXXX" };
+
+    // Colors nothing else in the views is painted with.
+    const QColor firstLabelColor{ 0x13, 0x57, 0x9b };
+    const QColor secondLabelColor{ 0x9b, 0x57, 0x13 };
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    const PinnedHighlighterSets pinnedSets;
+    HighlighterSetCollection::get().deactivateAll();
+    setColorLabelColors( firstLabelColor, secondLabelColor );
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+    // Handed down to every view of the Log File, the ones built later included.
+    crawlerVisitor.crawler->setPalette( subduingPalette() );
+
+    GIVEN( "a kept Search in a tab not current, both Searches showing Log Line 3" )
+    {
+        searchForOneLine( crawlerVisitor, "line 000003" );
+        crawlerVisitor.keepSearchResults();
+        searchForOneLine( crawlerVisitor, "line 000003" );
+        REQUIRE( crawlerVisitor.currentFilteredViewTab() == 1 );
+        REQUIRE( crawlerVisitor.filteredViewInTab( 0 ) != nullptr );
+        REQUIRE( crawlerVisitor.filteredViewInTab( 1 ) != nullptr );
+
+        REQUIRE_FALSE( showsColor( crawlerVisitor.filteredViewInTab( 0 ), firstLabelColor ) );
+        REQUIRE_FALSE( showsColor( crawlerVisitor.filteredViewInTab( 1 ), firstLabelColor ) );
+
+        WHEN( "Log Line 3 gets a Color Label" )
+        {
+            crawlerVisitor.addColorLabelToLogLine( 3_lnum, 0 );
+
+            THEN( "every Filtered View colors it, the kept Search's included" )
+            {
+                REQUIRE( showsColor( crawlerVisitor.textView(), firstLabelColor ) );
+                REQUIRE( showsColor( crawlerVisitor.filteredViewInTab( 1 ), firstLabelColor ) );
+                REQUIRE( showsColor( crawlerVisitor.filteredViewInTab( 0 ), firstLabelColor ) );
+            }
+
+            AND_WHEN( "the text is given another Color Label" )
+            {
+                crawlerVisitor.addColorLabelToLogLine( 3_lnum, 1 );
+
+                THEN( "every Filtered View colors it in the other label's color" )
+                {
+                    for ( const auto tab : { 0, 1 } ) {
+                        CAPTURE( tab );
+                        auto* view = crawlerVisitor.filteredViewInTab( tab );
+                        REQUIRE( showsColor( view, secondLabelColor ) );
+                        REQUIRE_FALSE( showsColor( view, firstLabelColor ) );
+                    }
+                }
+            }
+
+            AND_WHEN( "the Color Labels are cleared" )
+            {
+                crawlerVisitor.clearColorLabels();
+
+                THEN( "no Filtered View colors it any more, the kept Search's included" )
+                {
+                    REQUIRE_FALSE(
+                        showsColor( crawlerVisitor.filteredViewInTab( 0 ), firstLabelColor ) );
+                    REQUIRE_FALSE(
+                        showsColor( crawlerVisitor.filteredViewInTab( 1 ), firstLabelColor ) );
+                }
+            }
+        }
+
+        WHEN( "Search Limits are set that end before Log Line 3" )
+        {
+            const auto keptBefore = subduedPixels( crawlerVisitor.filteredViewInTab( 0 ) );
+            const auto currentBefore = subduedPixels( crawlerVisitor.filteredViewInTab( 1 ) );
+
+            crawlerVisitor.setSearchLimits( 0_lnum, 3_lnum );
+
+            THEN( "every Filtered View subdues it, the kept Search's included" )
+            {
+                REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 1 ) ) > currentBefore );
+                REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 0 ) ) > keptBefore );
+            }
+
+            AND_WHEN( "the Search Limits are cleared" )
+            {
+                crawlerVisitor.clearSearchLimits();
+
+                THEN( "no Filtered View subdues it any more, the kept Search's included" )
+                {
+                    REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 1 ) )
+                             == currentBefore );
+                    REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 0 ) ) == keptBefore );
+                }
+            }
+        }
+
+        WHEN( "with a Color Label on Log Line 7 and Search Limits that end after it, "
+              "a Search is kept and a new one shows Log Line 7 and the marked 9" )
+        {
+            crawlerVisitor.addColorLabelToLogLine( 7_lnum, 0 );
+            crawlerVisitor.setSearchLimits( 0_lnum, 8_lnum );
+
+            crawlerVisitor.keepSearchResults();
+            searchForOneLine( crawlerVisitor, "line 000007" );
+            REQUIRE( crawlerVisitor.currentFilteredViewTab() == 2 );
+            crawlerVisitor.markLogLine( 9_lnum );
+            REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 2 );
+
+            THEN( "the new Filtered View starts with the Color Label" )
+            {
+                REQUIRE( showsColor( crawlerVisitor.filteredViewInTab( 2 ), firstLabelColor ) );
+            }
+
+            THEN( "the new Filtered View starts with the Search Limits: Log Line 9 is subdued" )
+            {
+                const auto limited = subduedPixels( crawlerVisitor.filteredViewInTab( 2 ) );
+                crawlerVisitor.clearSearchLimits();
+                REQUIRE( limited > subduedPixels( crawlerVisitor.filteredViewInTab( 2 ) ) );
             }
         }
     }

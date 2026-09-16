@@ -517,12 +517,15 @@ void CrawlerWidget::startNewSearch()
         logFilteredData_ = logData_->getNewFilteredData();
 
         // A new Filtered View starts from the Presentation Policy, as the ones
-        // that already exist were handed it in handPresentationPolicyToViews().
+        // that already exist were handed it in handPresentationPolicyToViews(),
+        // and from the Color Labels and Search Limits the others show.
         filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
                                           presentationPolicy_.useTextWrap );
         filteredView_->setDecorationPolicy( decorationPolicy_ );
         filteredView_->setPresentationPolicy( presentationPolicy_ );
         filteredView_->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
+        filteredView_->setQuickHighlighters( colorLabelsManager_.colorLabels() );
+        filteredView_->setSearchLimits( searchStartLine_, searchEndLine_ );
         filteredViewsData_[ filteredView_ ] = logFilteredData_;
 
         connectAllFilteredViewSlots( filteredView_ );
@@ -1247,8 +1250,11 @@ void CrawlerWidget::setSearchLimits( LineNumber startLine, LineNumber endLine )
     searchStartLine_ = startLine;
     searchEndLine_ = endLine;
 
+    // The Search Limits belong to the Log File: every Filtered View of it
+    // subdues the same Log Lines, the ones of kept Searches included.
     logMainView_->setSearchLimits( startLine, endLine );
-    filteredView_->setSearchLimits( startLine, endLine );
+    forEachFilteredView(
+        [ & ]( FilteredView* view ) { view->setSearchLimits( startLine, endLine ); } );
 
     logTableView_->setSearchLimits( startLine, endLine );
 }
@@ -2220,8 +2226,10 @@ void CrawlerWidget::clearColorLabels()
 void CrawlerWidget::updateColorLabels(
     const ColorLabelsManager::QuickHighlightersCollection& labels )
 {
+    // The Color Labels belong to the Log File: every Filtered View of it
+    // colors them, the ones of kept Searches included.
     logMainView_->setQuickHighlighters( labels );
-    filteredView_->setQuickHighlighters( labels );
+    forEachFilteredView( [ & ]( FilteredView* view ) { view->setQuickHighlighters( labels ); } );
 
     logTableView_->setColorLabels( labels );
 }
