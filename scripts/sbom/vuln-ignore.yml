@@ -17,4 +17,13 @@
 #     reason: >-
 #       Only affects the QUIC server; LogSquirl uses OpenSSL as a TLS client.
 #     expires: 2026-12-31
-ignore: []
+ignore:
+  - id: CVE-2026-15037
+    component: qt
+    reason: >-
+      Fixed only in Qt 6.12.0, which is not released (#251). The flaw lets text
+      placed into QDom comment, CDATA or processing-instruction nodes inject
+      markup when serialized. LogSquirl's Scratchpad re-serializes XML the user
+      pasted for display back to that same user, so no trust boundary is
+      crossed. Revisit with the Qt 6.12 upgrade.
+    expires: 2027-03-31
