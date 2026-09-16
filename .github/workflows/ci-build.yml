@@ -313,9 +313,21 @@ jobs:
           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
           echo "HOMEBREW_NO_INSTALL_CLEANUP=1" >> $GITHUB_ENV
 
+      # Ragel stays on Homebrew (#199): it only generates Vectorscan sources at
+      # build time and never ships, brew verifies the bottle's SHA-256, and
+      # HOMEBREW_NO_AUTO_UPDATE freezes the formula to the runner image. A
+      # formula bump is surfaced as a warning rather than failing the build.
       - name: Brew deps
+        env:
+          RAGEL_EXPECTED_VERSION: "6.11"
         run: |
           brew install ragel
+          ragel_version=$(ragel --version | head -n 1)
+          echo "$ragel_version"
+          case "$ragel_version" in
+            *"version $RAGEL_EXPECTED_VERSION "*) ;;
+            *) echo "::warning::ragel is not $RAGEL_EXPECTED_VERSION: $ragel_version" ;;
+          esac
 
       - uses: ./.github/actions/agent-setup
       - uses: ./.github/actions/logsquirl-version
@@ -359,25 +371,65 @@ jobs:
             artifacts_id: windows-x64
 
     runs-on: ${{ matrix.config.runner }}
+    env:
+      # One place per shipped dependency, so a bump is one edit (#199).
+      # renovate: datasource=github-tags depName=openssl/openssl extractVersion=^openssl-(?<version>.*)$
+      OPENSSL_VERSION: 3.5.8
+      OPENSSL_SHA256: a5377866b476c1661f329d3f25fc35912fa5ef01e614043b9b9a27baf8dd76a4
     steps:
       - uses: actions/checkout@v7
 
+      # The OpenSSL DLLs are shipped with the Windows package, so their version
+      # is pinned above, verified against a SHA-256 and part of the cache key:
+      # bumping OPENSSL_VERSION invalidates the cache (#199). Chocolatey cannot
+      # pin it: its package points at slproweb.com, which deletes every
+      # superseded patch release, so an older --version 404s on a cold cache.
+      # FireDaemon keeps every release online at a stable URL and ships a plain
+      # zip whose DLLs need only the UCRT. The 3.5 line is OpenSSL's LTS.
       - name: Cache openssl
         id: cache-openssl
         uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}\openssl-3
-          key: OpensslCache-3-choco-x64
+          key: OpensslCache-${{ env.OPENSSL_VERSION }}-firedaemon-x64
 
       - name: Install openssl
         if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }}
+        shell: pwsh
         run: |
-          choco install openssl --no-progress -y
-          $sslDir = (Get-ChildItem 'C:\Program Files\OpenSSL*' -Directory -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $sslDir) { $sslDir = (Get-ChildItem 'C:\' -Directory -Filter 'OpenSSL*' -Recurse -Depth 1 -ErrorAction SilentlyContinue | Where-Object { Test-Path "$($_.FullName)\bin" } | Select-Object -First 1).FullName }
-          Write-Host "Found OpenSSL at: $sslDir"
-          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\openssl-3\x64\bin"
-          Copy-Item "$sslDir\bin\*.dll" "${{ github.workspace }}\openssl-3\x64\bin\"
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION.zip"
+          Invoke-WebRequest -Uri "https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-$env:OPENSSL_VERSION.zip" -OutFile $zip -MaximumRetryCount 3 -RetryIntervalSec 5
+          $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          if ($actual -ne $env:OPENSSL_SHA256) {
+            Write-Host "::error::openssl-$env:OPENSSL_VERSION.zip SHA-256 mismatch: expected $env:OPENSSL_SHA256, got $actual"
+            exit 1
+          }
+          $src = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION"
+          Expand-Archive -Path $zip -DestinationPath $src -Force
+          $dst = "${{ github.workspace }}\openssl-3\x64\bin"
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+          Copy-Item "$src\x64\bin\libcrypto-3-x64.dll", "$src\x64\bin\libssl-3-x64.dll" $dst
+
+      # Runs on cache hits too, so every log states which OpenSSL gets shipped
+      # and a cache holding another version fails instead of shipping it (#199).
+      - name: Print shipped openssl version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dlls = @(Get-ChildItem "${{ github.workspace }}\openssl-3\x64\bin\lib*-3-x64.dll")
+          if ($dlls.Count -ne 2) {
+            Write-Host "::error::expected libcrypto and libssl, found: $($dlls.Name -join ', ')"
+            exit 1
+          }
+          foreach ($dll in $dlls) {
+            $version = $dll.VersionInfo.ProductVersion
+            Write-Host "$($dll.Name): OpenSSL $version"
+            if ($version -ne $env:OPENSSL_VERSION) {
+              Write-Host "::error::$($dll.Name) is OpenSSL $version, expected $env:OPENSSL_VERSION"
+              exit 1
+            }
+          }
 
       - name: Set openssl paths
         shell: sh

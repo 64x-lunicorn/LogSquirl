@@ -203,9 +203,28 @@ runs:
     # window appears empty with the bundled DS_Store.
     # The app is already signed, notarized, and stapled at this point.
     - name: Install create-dmg
-      shell: sh
+      shell: bash
+      env:
+        # Pinned release tarball verified against a SHA-256 instead of an
+        # unpinned brew install (#199). The script runs from its unpacked tree.
+        # renovate: datasource=github-tags depName=create-dmg/create-dmg
+        CREATE_DMG_VERSION: 1.3.0
+        CREATE_DMG_SHA256: c50d2bc97c3d6292642bac55f530d247eaf4bf65ee605f26b4caf339383e381c
       run: |
-        brew install create-dmg
+        set -euo pipefail
+        tarball="$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION.tar.gz"
+        curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+          --output "$tarball" \
+          "https://github.com/create-dmg/create-dmg/archive/refs/tags/v$CREATE_DMG_VERSION.tar.gz"
+        actual=$(shasum -a 256 "$tarball")
+        actual=${actual%% *}
+        if [ "$actual" != "$CREATE_DMG_SHA256" ]; then
+          echo "::error::create-dmg $CREATE_DMG_VERSION SHA-256 mismatch: expected $CREATE_DMG_SHA256, got $actual"
+          exit 1
+        fi
+        tar -xzf "$tarball" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION/create-dmg" --version
 
     - name: Mac pack dmg
       shell: sh

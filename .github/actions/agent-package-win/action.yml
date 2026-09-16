@@ -43,14 +43,34 @@ runs:
       run: |
         packaging\windows\prepare_release.cmd
 
+    # NSIS at a pinned version from its portable zip, verified against a
+    # SHA-256 (#199). SourceForge is NSIS's only distribution channel; curl
+    # retries absorb its mirror redirects.
     - name: Install NSIS
-      shell: cmd
-      run: choco install nsis -y --no-progress
+      shell: bash
+      env:
+        # renovate: datasource=sourceforge depName=nsis
+        NSIS_VERSION: "3.12"
+        NSIS_SHA256: 56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f
+      run: |
+        set -euo pipefail
+        zip="$RUNNER_TEMP/nsis-$NSIS_VERSION.zip"
+        curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+          --output "$zip" \
+          "https://downloads.sourceforge.net/project/nsis/NSIS%203/$NSIS_VERSION/nsis-$NSIS_VERSION.zip"
+        actual=$(cmake -E sha256sum "$zip")
+        actual=${actual%% *}
+        if [ "$actual" != "$NSIS_SHA256" ]; then
+          echo "::error::nsis-$NSIS_VERSION.zip SHA-256 mismatch: expected $NSIS_SHA256, got $actual"
+          exit 1
+        fi
+        (cd "$RUNNER_TEMP" && cmake -E tar xf "$zip")
+        echo "$RUNNER_TEMP/nsis-$NSIS_VERSION" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/nsis-$NSIS_VERSION/makensis" -VERSION
 
     - name: Win installer
       shell: cmd
       run: |
-        set "PATH=%PATH%;C:\Program Files (x86)\NSIS"
         makensis -V2 -DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT% logsquirl.nsi
     
     - name: Win package

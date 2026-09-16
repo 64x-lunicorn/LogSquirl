@@ -3,19 +3,43 @@ description: "Install the native build tooling: Ninja, sccache, Qt and Boost"
 runs:
   using: "composite"
   steps:
+    # Every tool below has an explicit version, and every direct download is
+    # checked against a SHA-256 that fails the step on mismatch (#199). Each
+    # version and its hashes live in the one step that uses them.
     - name: Install Ninja
       shell: bash
+      env:
+        # renovate: datasource=github-releases depName=ninja-build/ninja
+        NINJA_VERSION: 1.13.2
+        NINJA_SHA256_WINDOWS: 07fc8261b42b20e71d1720b39068c2e14ffcee6396b76fb7a795fb460b78dc65
+        NINJA_SHA256_MACOS: c99048673aa765960a99cf10c6ddb9f1fad506099ff0a0e137ad8960a88f321b
+        NINJA_SHA256_LINUX: 5749cbc4e668273514150a80e387a957f933c6ed3f5f11e03fb30955e2bbead6
       run: |
-        # Install Ninja via the platform's package manager to avoid the fragile
-        # zip-download in seanmiddleditch/gha-setup-ninja which occasionally
-        # returns a corrupt archive ("No END header found").
-        if [ "$RUNNER_OS" = "Windows" ]; then
-          choco install ninja --no-progress -y
-        elif [ "$RUNNER_OS" = "macOS" ]; then
-          brew install ninja
-        else
-          sudo apt-get install -y ninja-build
+        # The official release zip instead of choco/brew/apt, which cannot pin
+        # a version; curl retries cover the flaky downloads that once made us
+        # drop seanmiddleditch/gha-setup-ninja.
+        set -euo pipefail
+        case "$RUNNER_OS" in
+          Windows) asset=ninja-win.zip;   sha256=$NINJA_SHA256_WINDOWS ;;
+          macOS)   asset=ninja-mac.zip;   sha256=$NINJA_SHA256_MACOS ;;
+          *)       asset=ninja-linux.zip; sha256=$NINJA_SHA256_LINUX ;;
+        esac
+        ninja_dir="$RUNNER_TEMP/ninja-$NINJA_VERSION"
+        mkdir -p "$ninja_dir"
+        curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+          --output "$ninja_dir/$asset" \
+          "https://github.com/ninja-build/ninja/releases/download/v$NINJA_VERSION/$asset"
+        # cmake is on every runner and hashes the same way on all three,
+        # unlike sha256sum (BSD flavour on macOS, path escaping on Windows).
+        actual=$(cmake -E sha256sum "$ninja_dir/$asset")
+        actual=${actual%% *}
+        if [ "$actual" != "$sha256" ]; then
+          echo "::error::$asset SHA-256 mismatch: expected $sha256, got $actual"
+          exit 1
         fi
+        (cd "$ninja_dir" && cmake -E tar xf "$asset" && rm "$asset")
+        echo "$ninja_dir" >> "$GITHUB_PATH"
+        "$ninja_dir/ninja" --version
 
     # Compiler cache for the native (non-container) builds. The action puts
     # sccache on PATH, exports SCCACHE_PATH and forwards the Actions cache
@@ -25,6 +49,9 @@ runs:
     - name: Install sccache
       if: runner.os != 'Linux'
       uses: mozilla-actions/sccache-action@v0.0.11
+      with:
+        # Without it the action fetches whatever sccache release is latest (#199).
+        version: v0.18.0
 
     - name: Enable sccache GitHub Actions cache backend
       if: runner.os != 'Linux'
@@ -52,14 +79,25 @@ runs:
         cache-key-prefix: ${{ matrix.config.os }}-${{ matrix.config.arch }}-${{ matrix.config.qt_version }}-QtCache
         modules: ${{ matrix.config.qt_modules }}
         archives: qtbase qtimageformats qtsvg qttools qttranslations icu
+        # The action defaults to a floating ==3.3.*; pin the installer (#199).
+        # py7zr repeats the action's own pin (a Bad7zFile workaround on
+        # Windows) so both installer packages are visible here.
+        aqtversion: ==3.3.0
+        py7zrversion: ==1.1.0
 
+    # Boost comes from the Boost project's own archive host instead of
+    # SourceForge's mirror redirects, verified against the SHA-256 the Boost
+    # project publishes next to the tarball (#199).
     - name: Set boost env vars
       shell: sh
       run: |
+        # renovate: datasource=github-tags depName=boostorg/boost extractVersion=^boost-(?<version>.*)$
         BOOST_VERSION="1.86.0"
+        BOOST_SHA256="1bed88e40401b2cb7a1f76d4bab499e352fa4d0c5f31c0dbae64e24d34d7513b"
         BOOST_VERSION_UNDERSCORE=$(echo "$BOOST_VERSION" | tr '.' '_')
         echo "BOOST_ROOT=${{github.workspace}}/3rdparty/boost" >> $GITHUB_ENV
-        echo "BOOST_URL=https://sourceforge.net/projects/boost/files/boost/${BOOST_VERSION}/boost_${BOOST_VERSION_UNDERSCORE}.tar.bz2/download" >> $GITHUB_ENV
+        echo "BOOST_URL=https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDERSCORE}.tar.bz2" >> $GITHUB_ENV
+        echo "BOOST_SHA256=$BOOST_SHA256" >> $GITHUB_ENV
         echo "BOOST_VERSION=$BOOST_VERSION" >> $GITHUB_ENV
 
     - name: Restore Boost cache
@@ -67,7 +105,9 @@ runs:
       id: cache-boost
       with:
         path: ${{env.BOOST_ROOT}}
-        key: boost-${{ runner.os }}-${{ env.BOOST_VERSION }}
+        # The hash in the key ties the cached tree to the verified tarball, so
+        # this change starts from a cold cache instead of the unverified one.
+        key: boost-${{ runner.os }}-${{ env.BOOST_VERSION }}-${{ env.BOOST_SHA256 }}
 
     - name: Install Boost
       shell: bash
@@ -82,7 +122,14 @@ runs:
             BOOST_ROOT=$(echo $BOOST_ROOT | sed 's/\\/\//g')
           fi
           mkdir -p $BOOST_ROOT
-          curl --progress-bar --location --output $BOOST_ROOT/download.tar.bz2 $BOOST_URL
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+            --output $BOOST_ROOT/download.tar.bz2 $BOOST_URL
+          actual=$(cmake -E sha256sum "$BOOST_ROOT/download.tar.bz2")
+          actual=${actual%% *}
+          if [ "$actual" != "$BOOST_SHA256" ]; then
+            echo "::error::Boost tarball SHA-256 mismatch: expected $BOOST_SHA256, got $actual"
+            exit 1
+          fi
           7z -o$BOOST_ROOT x $BOOST_ROOT/download.tar.bz2 -y -bd
           7z -o$BOOST_ROOT x $BOOST_ROOT/download.tar -y -bd
           cd $BOOST_ROOT && cp -r boost_*/* .
