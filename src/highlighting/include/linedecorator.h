@@ -58,14 +58,16 @@ private:
     QString text_;
 };
 
-// An inclusive range of Log Line numbers a Search is restricted to.
+// The range of Log Line numbers a Search is restricted to. Half-open, as
+// every Presentation holds it: start is the first Log Line searched, end the
+// Log Line after the last one, so no caller converts either end.
 struct SearchLimits {
     LineNumber start{ 0_lnum };
     LineNumber end{ maxValue<LineNumber>() };
 
     bool contains( LineNumber line ) const
     {
-        return line >= start && line <= end;
+        return line >= start && line < end;
     }
 };
 

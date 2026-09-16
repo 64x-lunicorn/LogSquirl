@@ -202,6 +202,9 @@ SCENARIO( "A Decoration Setup passes on the Highlighter Set and Search Limits it
                 REQUIRE_FALSE(
                     decorator.verdictFor( LogLine{ 15_lnum, "an ERROR" }, LineTypeFlags::Plain )
                         .isOutsideSearchLimits() );
+                REQUIRE(
+                    decorator.verdictFor( LogLine{ 20_lnum, "an ERROR" }, LineTypeFlags::Plain )
+                        .isOutsideSearchLimits() );
             }
 
             THEN( "the whole-line Highlighter of the set given is the one that decides" )

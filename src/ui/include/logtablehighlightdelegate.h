@@ -94,11 +94,12 @@ public:
         decorationSetup_.setPolicy( policy );
     }
 
-    // Set the Search Limits: rows outside this range are shown subdued.
+    // Set the Search Limits: rows outside this range are shown subdued. The
+    // end is the Log Line after the last one searched, as the Line Decorator
+    // takes it.
     void setSearchLimits( LineNumber startLine, LineNumber endLine )
     {
-        searchStart_ = startLine;
-        searchEnd_ = endLine;
+        searchLimits_ = SearchLimits{ startLine, endLine };
     }
 
     // Set the current portion (in-cell text) selection for painting.
@@ -376,7 +377,7 @@ private:
     LineDecorator::Context buildDecoratorContext() const
     {
         return decorationSetup_.context( HighlighterSetCollection::get().currentActiveSet(),
-                                         SearchLimits{ searchStart_, searchEnd_ } );
+                                         searchLimits_ );
     }
 
     // The portion (in-cell text) selection decorate() should overlay on
@@ -468,9 +469,8 @@ private:
     DecorationSetup decorationSetup_;
 
     // Search Limits (set by LogTableView, mirroring what it hands the text
-    // view)
-    LineNumber searchStart_{ 0_lnum };
-    LineNumber searchEnd_{ 0_lnum };
+    // view); until then, none, so no row is subdued.
+    SearchLimits searchLimits_;
 
     // Portion selection state (set by LogTableView from mouse events)
     int portionRow_ = -1;

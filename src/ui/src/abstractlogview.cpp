@@ -2361,7 +2361,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     // against the already-rendered (tab-expanded) text, so it is
     // display-space already and needs no translation.
     const LineDecorator lineDecorator{ decorationSetup_.context(
-        highlighterSet, SearchLimits{ searchStartIndex, searchEndIndex - 1_lcount } ) };
+        highlighterSet, SearchLimits{ searchStartIndex, searchEndIndex } ) };
 
     // A Line Verdict for a line that should show no Highlighter/main-search/
     // Color Label colour -- used for the reversed-selection line below,

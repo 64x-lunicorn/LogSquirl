@@ -150,7 +150,7 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
         }
     }
 
-    GIVEN( "a decorator with Search Limits restricted to lines 5-10" )
+    GIVEN( "a decorator with Search Limits from line 5 up to, not including, line 10" )
     {
         auto context = emptyContext();
         context.highlighterSet
@@ -182,12 +182,26 @@ SCENARIO( "LineDecorator::verdictFor decides the facts about a whole Log Line", 
             }
         }
 
-        WHEN( "asked about a line after the limits" )
+        WHEN( "asked about the first and the last line inside the limits" )
         {
-            const auto verdict = decorator.verdictFor( LogLine{ 11_lnum, "an ERROR occurred" },
+            const auto first = decorator.verdictFor( LogLine{ 5_lnum, "an ERROR occurred" },
+                                                     LineTypeFlags::Plain );
+            const auto last = decorator.verdictFor( LogLine{ 9_lnum, "an ERROR occurred" },
+                                                    LineTypeFlags::Plain );
+
+            THEN( "both are inside the Search Limits" )
+            {
+                REQUIRE_FALSE( first.isOutsideSearchLimits() );
+                REQUIRE_FALSE( last.isOutsideSearchLimits() );
+            }
+        }
+
+        WHEN( "asked about the line the limits end at" )
+        {
+            const auto verdict = decorator.verdictFor( LogLine{ 10_lnum, "an ERROR occurred" },
                                                        LineTypeFlags::Plain );
 
-            THEN( "it falls outside the Search Limits" )
+            THEN( "it falls outside the Search Limits: their end is not searched" )
             {
                 REQUIRE( verdict.isOutsideSearchLimits() );
             }

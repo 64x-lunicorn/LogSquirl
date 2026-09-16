@@ -106,7 +106,8 @@ _Avoid_: saved search, bookmark
 
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
-subdued.
+subdued. Half-open everywhere: from the first Log Line searched up to, not including, its
+end — the Log Line after the last one searched. No Presentation converts the end.
 _Avoid_: search range, scope
 
 **Match**:

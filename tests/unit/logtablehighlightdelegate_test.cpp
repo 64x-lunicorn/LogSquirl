@@ -20,6 +20,7 @@
 #include <catch2/catch.hpp>
 
 #include "logtablehighlightdelegate.h"
+#include "painting_test_font.h"
 
 #include <QApplication>
 #include <QFontMetrics>
@@ -249,7 +250,7 @@ SCENARIO( "A row outside the Search Limits is subdued in the Table View, "
           "as in the text view",
           "[logtablehighlightdelegate][decorationfor]" )
 {
-    GIVEN( "a whole-line Highlighter and Search Limits restricted to lines 5-10" )
+    GIVEN( "a whole-line Highlighter and Search Limits from line 5 up to, not including, line 10" )
     {
         auto context = emptyDecoratorContext();
         context.highlighterSet
@@ -288,6 +289,86 @@ SCENARIO( "A row outside the Search Limits is subdued in the Table View, "
                 REQUIRE_FALSE( rowVerdict.isOutsideSearchLimits() );
                 REQUIRE_FALSE( decoration.spans().empty() );
             }
+        }
+    }
+}
+
+// The Search Limits as the Presentations hold them: half-open, from the first
+// Log Line searched up to the Log Line after the last one. The Text View's
+// painting test subdues the same Log Lines for the same limits (#232).
+namespace {
+
+const QColor SubduedTextColor{ 150, 150, 150 };
+
+// Whether paint() draws the Row of the given Log Line subdued, with the
+// Search Limits handed to the delegate the way LogTableView hands them.
+bool isRowSubdued( LineNumber logLine, LineNumber searchStart, LineNumber searchEnd )
+{
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    // One Row per Log Line, so the Row painted is the Log Line's number.
+    const auto row = static_cast<int>( logLine.get() );
+    QStandardItemModel model( row + 1, 1 );
+    model.setData( model.index( row, 0 ), "MMMMMMMM" );
+
+    LogTableHighlightDelegate delegate;
+    delegate.setSearchLimits( searchStart, searchEnd );
+
+    const QRect cellRect( 0, 0, 120, 24 );
+    QImage image( cellRect.size(), QImage::Format_ARGB32 );
+    image.fill( Qt::white );
+
+    QStyleOptionViewItem option;
+    option.rect = cellRect;
+    option.font = font;
+    option.state = QStyle::State_Enabled;
+    option.palette.setColor( QPalette::Base, Qt::white );
+    option.palette.setColor( QPalette::Text, Qt::black );
+    option.palette.setColor( QPalette::Disabled, QPalette::Text, SubduedTextColor );
+
+    QPainter painter( &image );
+    painter.setFont( font );
+    delegate.paint( &painter, option, model.index( row, 0 ) );
+    painter.end();
+
+    for ( int y = 0; y < image.height(); ++y ) {
+        for ( int x = 0; x < image.width(); ++x ) {
+            if ( image.pixel( x, y ) == SubduedTextColor.rgb() ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+SCENARIO( "The Table View subdues exactly the Log Lines outside the Search Limits",
+          "[logtablehighlightdelegate][searchlimits]" )
+{
+    GIVEN( "Search Limits from Log Line 8 up to, not including, Log Line 12" )
+    {
+        const auto searchStart = 8_lnum;
+        const auto searchEnd = 12_lnum;
+
+        THEN( "the Log Line before the first one searched is subdued" )
+        {
+            REQUIRE( isRowSubdued( 7_lnum, searchStart, searchEnd ) );
+        }
+
+        THEN( "the first Log Line searched is not subdued" )
+        {
+            REQUIRE_FALSE( isRowSubdued( 8_lnum, searchStart, searchEnd ) );
+        }
+
+        THEN( "the last Log Line searched is not subdued" )
+        {
+            REQUIRE_FALSE( isRowSubdued( 11_lnum, searchStart, searchEnd ) );
+        }
+
+        THEN( "the Log Line directly after the end is subdued" )
+        {
+            REQUIRE( isRowSubdued( 12_lnum, searchStart, searchEnd ) );
         }
     }
 }
