@@ -49,13 +49,7 @@
 
 #include "persistable.h"
 #include "regexpengine.h"
-
-// Type of regexp to use for searches
-enum class SearchRegexpType {
-    ExtendedRegexp,
-    Wildcard,
-    FixedString,
-};
+#include "searchregexptype.h"
 
 static constexpr int MAX_RECENT_FILES = 25;
 

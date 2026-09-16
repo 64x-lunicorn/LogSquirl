@@ -81,6 +81,21 @@ public:
         doSetRecognitionPolicy( policy );
     }
 
+    // Hand over the Presentation Policy the views of this Log File show and
+    // scroll under. The view holds it; nothing is torn down and no
+    // Presentation is rebuilt by a new one arriving
+    void setPresentationPolicy( const PresentationPolicy& policy )
+    {
+        doSetPresentationPolicy( policy );
+    }
+
+    // Hand over the QuickFind Policy the views of this Log File search
+    // under. The view holds it
+    void setQuickFindPolicy( const QuickFindPolicy& policy )
+    {
+        doSetQuickFindPolicy( policy );
+    }
+
     // For save/restore of the context
     void setViewContext( const QString& view_context )
     {
@@ -104,6 +119,8 @@ protected:
     virtual void doSetFormatRecognition( const RecognitionPolicy& policy,
                                          std::shared_ptr<const LogFormatCatalog> catalog ) = 0;
     virtual void doSetRecognitionPolicy( const RecognitionPolicy& policy ) = 0;
+    virtual void doSetPresentationPolicy( const PresentationPolicy& policy ) = 0;
+    virtual void doSetQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
     virtual void doSetViewContext( const QString& view_context ) = 0;
     virtual std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const = 0;
 };

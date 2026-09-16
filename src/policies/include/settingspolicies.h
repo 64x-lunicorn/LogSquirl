@@ -24,6 +24,7 @@
 #include <QString>
 
 #include "regexpengine.h"
+#include "searchregexptype.h"
 
 class Configuration;
 
@@ -149,6 +150,58 @@ struct DecorationPolicy {
     bool operator==( const DecorationPolicy& ) const = default;
 };
 
+// What a Presentation needs to show and scroll a Log File, and nothing
+// else: the settings of the Text View, of the Table View, and of the
+// Filtered View drawn like the Text View.
+//
+// What a Log Line is coloured in is not here -- that is the Decoration
+// Policy's axis.
+struct PresentationPolicy {
+    // Whether a Log Line too long for the Viewport is drawn as several
+    // Visual Lines instead of being cut off.
+    bool useTextWrap{};
+    // Whether holding the modifier key multiplies how far a scroll moves.
+    bool fastScrollEnabled{};
+    // How far it multiplies it. 0 in an underived Policy, which is why
+    // fastScrollEnabled is the flag a consumer tests first.
+    int fastScrollMultiplier{};
+    // Whether scrolling to the end of a Log File may engage follow.
+    bool allowFollowOnScroll{};
+    // Whether a Log File whose Log Format was recognized opens as a Table
+    // View straight away. It rides here rather than with the Recognition
+    // Policy because it says what to show, not what to recognize.
+    bool autoShowTableView{};
+
+    bool operator==( const PresentationPolicy& ) const = default;
+};
+
+// What searching interactively needs, and nothing else: the settings of
+// the QuickFind bar, of the mux that dispatches a QuickFind to the widget
+// the user is in, and of the Presentations that answer one.
+//
+// What a match is painted in is not here; that is the Decoration Policy's
+// axis. This one is about how the text the user types is read.
+struct QuickFindPolicy {
+    // How a QuickFind pattern is read. ExtendedRegexp in an underived
+    // Policy, that being the first enumerator -- as for the main type below.
+    SearchRegexpType quickFindRegexpType{};
+    // How a pattern typed into the Search line is read. It rides this axis
+    // rather than the Search one because it is a question about the text a
+    // widget takes from the user, not about how a Search then runs.
+    SearchRegexpType mainRegexpType{};
+    // Whether a QuickFind pattern matches regardless of case.
+    bool ignoreCase{};
+    // Whether QuickFind moves to a match while the pattern is still being
+    // typed, rather than only once it is confirmed.
+    bool incremental{};
+    // Whether changing the Search pattern starts the Search at once. Here
+    // for the same reason as the main regexp type: it is about the typing,
+    // not about the run.
+    bool autoRunSearchOnPatternChange{};
+
+    bool operator==( const QuickFindPolicy& ) const = default;
+};
+
 // The Policies as one bundle, so the place that builds the application's
 // long-lived objects derives and carries them together.
 struct SettingsPolicies {
@@ -159,6 +212,8 @@ struct SettingsPolicies {
     RecognitionPolicy recognition;
     DecodingPolicy decoding;
     DecorationPolicy decoration;
+    PresentationPolicy presentation;
+    QuickFindPolicy quickFind;
 
     bool operator==( const SettingsPolicies& ) const = default;
 };

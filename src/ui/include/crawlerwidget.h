@@ -122,6 +122,14 @@ public:
 
     bool isTextWrapEnabled() const;
 
+    // The Policies this Log File's views show and search under, as last
+    // handed down by the Session. They are held here so that a widget can
+    // be given what it needs instead of reaching for the settings itself;
+    // the widgets still read the settings directly until each is moved
+    // onto these (#183).
+    const PresentationPolicy& presentationPolicy() const;
+    const QuickFindPolicy& quickFindPolicy() const;
+
     void registerShortcuts();
 
 public Q_SLOTS:
@@ -161,6 +169,8 @@ protected:
     void doSetFormatRecognition( const RecognitionPolicy& policy,
                                  std::shared_ptr<const LogFormatCatalog> catalog ) override;
     void doSetRecognitionPolicy( const RecognitionPolicy& policy ) override;
+    void doSetPresentationPolicy( const PresentationPolicy& policy ) override;
+    void doSetQuickFindPolicy( const QuickFindPolicy& policy ) override;
     void doSetViewContext( const QString& viewContext ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
@@ -490,6 +500,10 @@ private:
     // What Format Recognition runs on
     RecognitionPolicy recognitionPolicy_;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
+
+    // What this Log File's views show, scroll and search under
+    PresentationPolicy presentationPolicy_;
+    QuickFindPolicy quickFindPolicy_;
 
     // Whether the next load to finish is to recognize the Log Format: the
     // first load, and the one after a manual reload or a truncation.

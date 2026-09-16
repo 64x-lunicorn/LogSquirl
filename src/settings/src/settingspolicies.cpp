@@ -59,6 +59,18 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
         .decoding = { .hideAnsiColorSequences = config.hideAnsiColorSequences() },
 
         .decoration = deriveDecorationPolicy( config ),
+
+        .presentation = { .useTextWrap = config.useTextWrap(),
+                          .fastScrollEnabled = config.fastScrollEnabled(),
+                          .fastScrollMultiplier = config.fastScrollMultiplier(),
+                          .allowFollowOnScroll = config.allowFollowOnScroll(),
+                          .autoShowTableView = config.autoShowTableView() },
+
+        .quickFind = { .quickFindRegexpType = config.quickfindRegexpType(),
+                       .mainRegexpType = config.mainRegexpType(),
+                       .ignoreCase = config.qfIgnoreCase(),
+                       .incremental = config.isQuickfindIncremental(),
+                       .autoRunSearchOnPatternChange = config.autoRunSearchOnPatternChange() },
     };
 }
 

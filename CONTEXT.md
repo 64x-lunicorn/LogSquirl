@@ -217,7 +217,9 @@ _Avoid_: plugin UI bridge, widget signals, UI host
 **Settings Policy**:
 The small set of settings one part of the application actually needs, taken as a snapshot
 and handed to it when it is built — an Indexing Policy, a Search Policy, a Watch Policy, a
-File Access Policy, a Recognition Policy, a Decoding Policy, a Decoration Policy. A part that holds a Policy cannot reach for a setting it did not declare.
+File Access Policy, a Recognition Policy, a Decoding Policy, a Decoration Policy, a
+Presentation Policy, a QuickFind Policy. A part that holds a Policy cannot reach for a
+setting it did not declare.
 _Avoid_: config object, options, preferences
 
 **Decoration Policy**:
@@ -229,6 +231,20 @@ module can be exercised without a settings store. The Highlighter Set, the Color
 the QuickFind pattern are not part of it: they are the user's current coloring, not settings
 this Policy carries.
 _Avoid_: highlight settings, color config, theme (a Theme does not color Log Lines)
+
+**Presentation Policy**:
+The Settings Policy a Presentation needs to show and scroll a Log File: whether text is
+wrapped, whether fast scrolling is on and by what multiplier, whether scrolling may engage
+follow, and whether a recognized Log Format opens as a Table View. What a Log Line is
+coloured in is not part of it — that is the Decoration Policy.
+_Avoid_: view settings, display config, scroll options
+
+**QuickFind Policy**:
+The Settings Policy searching interactively needs: how a QuickFind pattern and a pattern
+typed into the Search line are read, whether case is ignored, whether QuickFind is
+incremental, and whether changing the pattern runs the Search. It carries how typed text is
+read, not how a Search runs — that is the Search Policy.
+_Avoid_: find settings, search options
 
 **Axis**:
 One Settings Policy, seen as the unit a change travels in. A changed setting is re-derived

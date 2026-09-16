@@ -356,6 +356,26 @@ void CrawlerWidget::doSetRecognitionPolicy( const RecognitionPolicy& policy )
     recognitionPolicy_ = policy;
 }
 
+void CrawlerWidget::doSetPresentationPolicy( const PresentationPolicy& policy )
+{
+    presentationPolicy_ = policy;
+}
+
+void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
+{
+    quickFindPolicy_ = policy;
+}
+
+const PresentationPolicy& CrawlerWidget::presentationPolicy() const
+{
+    return presentationPolicy_;
+}
+
+const QuickFindPolicy& CrawlerWidget::quickFindPolicy() const
+{
+    return quickFindPolicy_;
+}
+
 void CrawlerWidget::doSetSavedSearches( SavedSearches* saved_searches )
 {
     savedSearches_ = saved_searches;
