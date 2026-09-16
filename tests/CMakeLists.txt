@@ -7,7 +7,7 @@ add_subdirectory(ui)
 add_subdirectory(benchmarks)
 
 add_dependencies(logsquirl_itests file_write_helper)
-add_dependencies(ci_build logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_openlogfile_tests logsquirl_itests logsquirl_decoration_benchmark)
+add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_openlogfile_tests logsquirl_itests logsquirl_decoration_benchmark)
 
 # TBB is a private dependency of the log data library: no public header of
 # it may include a TBB header (#168).
@@ -57,3 +57,14 @@ add_test(
 
 
 
+
+# The command line tool, run as a user runs it on a temporary Log File: what it
+# prints and the code it exits with (#247).
+add_test(
+    NAME logsquirl_grep_cli
+    COMMAND ${CMAKE_COMMAND}
+            -DGREP=$<TARGET_FILE:logsquirl_grep>
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/logsquirl_grep_cli
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl_grep_cli.cmake
+)
+set_tests_properties(logsquirl_grep_cli PROPERTIES TIMEOUT 300)

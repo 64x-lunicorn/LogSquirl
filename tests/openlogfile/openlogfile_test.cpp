@@ -19,6 +19,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -797,6 +798,97 @@ SCENARIO( "An Open Log File has its Log File watched from its first load until i
             {
                 REQUIRE_FALSE( waitUiState( [ & ] { return observer.loads.size() > 1; }, 500 ) );
                 REQUIRE( openLogFile->logData()->getNbLine() == LinesCount( FirstLineCount ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Search requested while the Log File loads runs once it has loaded",
+          "[openlogfile][pendingsearch]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "loading.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    // Opened here, and the Search requested right after: nothing has been
+    // loaded yet, as a load is only followed from the event loop.
+    OpenedLogFile logFile( path );
+
+    GIVEN( "a Search requested before the first load has finished" )
+    {
+        const auto requested
+            = logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+
+        THEN( "it is not run over the Log Lines not loaded yet" )
+        {
+            REQUIRE( requested.phase != Phase::InvalidPattern );
+            REQUIRE( logFile.observer.searchStates.empty() );
+            REQUIRE( logFile.searchState().phase == Phase::Idle );
+        }
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+            REQUIRE( logFile.waitSearchSettled() );
+
+            THEN( "the Search ran over the whole Log File" )
+            {
+                const auto state = logFile.searchState();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( state.startLine == 0_lnum );
+                REQUIRE( state.endLine == LineNumber( FirstLineCount ) );
+                REQUIRE( state.matchCount == fizzCount( FirstLineCount ) );
+                REQUIRE( waitUiState( [ & ] {
+                    return !logFile.observer.searchStates.empty()
+                           && logFile.observer.searchStates.back().phase == Phase::Complete;
+                } ) );
+            }
+        }
+    }
+
+    GIVEN( "an invalid pattern requested before the first load has finished" )
+    {
+        logFile.openLogFile.requestSearch( RegularExpressionPattern( "(" ) );
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "the invalid pattern is told, and no Search is active" )
+            {
+                REQUIRE( waitUiState( [ & ] {
+                    return !logFile.observer.searchStates.empty()
+                           && logFile.observer.searchStates.back().phase == Phase::InvalidPattern;
+                } ) );
+                REQUIRE_FALSE( logFile.observer.searchStates.back().errorString.isEmpty() );
+                REQUIRE( logFile.openLogFile.searchAutoRefresh().state()
+                         == AutoRefreshState::NoSearch );
+            }
+        }
+    }
+
+    GIVEN( "a Search requested and cleared before the first load has finished" )
+    {
+        logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        logFile.openLogFile.clearSearch();
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "no Search runs" )
+            {
+                // Clearing it is told; a Search running is not.
+                REQUIRE_FALSE( waitUiState(
+                    [ & ] {
+                        const auto& states = logFile.observer.searchStates;
+                        return std::any_of( states.begin(), states.end(), []( const auto& state ) {
+                            return state.phase != Phase::Idle;
+                        } );
+                    },
+                    500 ) );
+                REQUIRE( logFile.searchState().phase == Phase::Idle );
             }
         }
     }

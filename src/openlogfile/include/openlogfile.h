@@ -132,6 +132,12 @@ public:
     // Requests the current Search for pattern over the Search range. It
     // supersedes the Search before it; an invalid pattern leaves no Search
     // active. Returns the Search's state right after the request.
+    //
+    // Requested before the Log File has first loaded, the Search waits for
+    // that load and then runs over the whole Log File, so a user need not
+    // wait for loading to request it; the pattern is validated then, and an
+    // invalid one is told through searchUpdated(). A load that does not
+    // succeed drops it. Until then the returned state is Running.
     SearchSession::State requestSearch( const RegularExpressionPattern& pattern );
     // No Search is active any longer: the current Search goes idle.
     void clearSearch();
@@ -203,6 +209,11 @@ private:
     // Whether a Search was requested since the last clearSearch() or reload,
     // valid or not.
     bool searchRequested_ = false;
+    // A Search was requested before the first load finished, and runs once
+    // it has.
+    bool searchWaitsForLoad_ = false;
+    // Whether a load of the Log File has finished, whatever its outcome.
+    bool loadFinishedOnce_ = false;
     // The pattern last requested, which a restarted Search runs with.
     RegularExpressionPattern searchPattern_;
     LineNumber searchStartLine_;

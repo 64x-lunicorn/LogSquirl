@@ -89,6 +89,7 @@ void OpenLogFile::reload()
 {
     autoRefresh_.resetState();
     searchRequested_ = false;
+    searchWaitsForLoad_ = false;
 
     constexpr auto DropCache = true;
     filteredData_->request( DropCache );
@@ -122,6 +123,7 @@ const std::shared_ptr<LogFilteredData>& OpenLogFile::filteredData() const
 
 std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
 {
+    searchWaitsForLoad_ = false;
     filteredData_->stop();
     filteredData_ = logData_->getNewFilteredData();
     followCurrentSearch();
@@ -130,6 +132,7 @@ std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
 
 void OpenLogFile::makeSearchCurrent( std::shared_ptr<LogFilteredData> search )
 {
+    searchWaitsForLoad_ = false;
     filteredData_->stop();
     if ( search && search != filteredData_ ) {
         filteredData_ = std::move( search );
@@ -141,6 +144,16 @@ SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern&
 {
     searchRequested_ = true;
     searchPattern_ = pattern;
+
+    if ( !loadFinishedOnce_ ) {
+        // Nothing to search yet: it runs over the Log Lines once they have
+        // loaded, rather than over none now.
+        searchWaitsForLoad_ = true;
+        SearchSession::State waiting;
+        waiting.pattern = pattern;
+        waiting.phase = SearchSession::Phase::Running;
+        return waiting;
+    }
 
     // The Search Session validates the pattern itself; an invalid one goes to
     // InvalidPattern synchronously, so the state is conclusive right away.
@@ -160,12 +173,14 @@ SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern&
 void OpenLogFile::clearSearch()
 {
     searchRequested_ = false;
+    searchWaitsForLoad_ = false;
     filteredData_->request();
     autoRefresh_.resetState();
 }
 
 void OpenLogFile::stopSearch()
 {
+    searchWaitsForLoad_ = false;
     filteredData_->stop();
     autoRefresh_.stopSearch();
 }
@@ -265,6 +280,18 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         }
         // Applied once: a reload clears the Marks, and they stay cleared.
         savedMarks_.clear();
+    }
+
+    loadFinishedOnce_ = true;
+    if ( std::exchange( searchWaitsForLoad_, false ) ) {
+        // The Search requested while the Log File loaded runs over the whole
+        // of it now; a Log File that did not load has nothing to search.
+        if ( status == LoadingStatus::Successful ) {
+            requestSearch( searchPattern_ );
+        }
+        else {
+            searchRequested_ = false;
+        }
     }
 
     // A Log File with no Log Lines yet has nothing to recognize from, so it
