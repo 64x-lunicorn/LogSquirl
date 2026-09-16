@@ -66,6 +66,7 @@ public:
     void updateDecorations() override;
     void rereadLogLines() override;
     void updateFont( const QFont& font ) override;
+    void registerShortcuts() override;
     void setDecorationPolicy( const DecorationPolicy& policy ) override;
     // Also shows the Text View's line numbers and the Overview as it says.
     void setPresentationPolicy( const PresentationPolicy& policy ) override;

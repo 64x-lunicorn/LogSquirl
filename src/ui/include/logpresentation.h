@@ -73,6 +73,10 @@ public:
 
     virtual void updateFont( const QFont& font ) = 0;
 
+    // Register the shortcuts anew, as the settings now say: they have no
+    // Policy, so the Presentation reads them itself.
+    virtual void registerShortcuts() = 0;
+
     // What every view of the Log File shows alike, handed over by its View
     // Set. A Presentation reads none of it from the settings.
 

@@ -2059,6 +2059,29 @@ SCENARIO( "A changed font or shortcut reaches every open Log File", "[ui][settin
             }
         }
 
+        WHEN( "a Search is kept, a view's shortcut is changed in the settings and the Session is "
+              "told" )
+        {
+            searchForOneLine( current, "line 000003" );
+            current.keepSearchResults();
+            searchForOneLine( current, "line 000007" );
+            REQUIRE( current.currentFilteredViewTab() == 1 );
+
+            auto shortcuts = config.shortcuts();
+            shortcuts[ ShortcutAction::LogViewJumpToTop ] = QStringList{ changedKey };
+            config.setShortcuts( shortcuts );
+
+            session.applyChange( Changed::Settings );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+
+            THEN( "the kept Search's Filtered View answers to it, as the current one does" )
+            {
+                REQUIRE( shortcutKeysOf( *current.filteredViewInTab( 0 ) ).contains( changedKey ) );
+                REQUIRE( shortcutKeysOf( *current.filteredViewInTab( 1 ) ).contains( changedKey ) );
+                REQUIRE( shortcutKeysOf( *current.textView() ).contains( changedKey ) );
+            }
+        }
+
         WHEN( "the user zooms in the current Log File" )
         {
             const auto shortcutsBefore = shortcutsOf( *background.crawler );

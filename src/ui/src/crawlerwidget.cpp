@@ -1434,7 +1434,6 @@ void CrawlerWidget::setup()
     // Default splitter position (usually overridden by the config file)
     setSizes( Configuration::get().splitterSizes() );
 
-    registerShortcuts();
     loadIcons();
     Theme::whenApplied( this, [ this ] {
         loadIcons();
@@ -1547,6 +1546,9 @@ void CrawlerWidget::setup()
     viewSet_.addPresentation( logMainView_ );
     viewSet_.addPresentation( logTableView_ );
     viewSet_.addFilteredView( filteredView_ );
+
+    // Once every view is in the View Set, which registers theirs too.
+    registerShortcuts();
 
     const auto defaultEncodingMib = fileAccessPolicy_.defaultEncodingMib;
     if ( defaultEncodingMib >= 0 ) {
@@ -1923,8 +1925,8 @@ void CrawlerWidget::registerShortcuts()
         configuredShortcuts, shortcuts_, this, Qt::WidgetWithChildrenShortcut,
         ShortcutAction::LogViewClearColorLabels, [ this ]() { clearColorLabels(); } );
 
-    logMainView_->registerShortcuts();
-    filteredView_->registerShortcuts();
+    // Every view of this Log File, the Filtered Views of kept Searches included.
+    viewSet_.registerShortcuts();
 }
 
 void CrawlerWidget::loadIcons()

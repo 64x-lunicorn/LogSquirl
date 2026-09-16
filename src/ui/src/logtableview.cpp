@@ -292,6 +292,11 @@ void LogTableView::updateFont( const QFont& font )
     horizontalHeader()->setFont( font );
 }
 
+void LogTableView::registerShortcuts()
+{
+    // The Table View has no shortcuts of its own: its keys are the table's.
+}
+
 void LogTableView::updateDecorations()
 {
     if ( active_ ) {

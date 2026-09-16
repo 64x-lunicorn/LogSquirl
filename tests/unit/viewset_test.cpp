@@ -24,14 +24,18 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
+#include <QCoreApplication>
 #include <QFont>
 #include <QFontDatabase>
 #include <QPoint>
+#include <QPointer>
+#include <QShortcut>
 #include <QString>
 
 #include "filteredview.h"
@@ -126,6 +130,10 @@ public:
         searchLimits = std::make_pair( startLine, endLine );
     }
     void saveSelectedTo( const QString& ) override {}
+    void registerShortcuts() override
+    {
+        ++shortcutRegistrations;
+    }
 
     std::optional<DecorationPolicy> decorationPolicy;
     std::optional<PresentationPolicy> presentationPolicy;
@@ -136,6 +144,7 @@ public:
     std::optional<std::pair<LineNumber, LineNumber>> searchLimits;
     int decorationUpdates = 0;
     int rereads = 0;
+    int shortcutRegistrations = 0;
 };
 
 // What a Log File's views are shown under, none of it what a view starts with.
@@ -215,6 +224,16 @@ struct LogFile {
         return search;
     }
 };
+
+// The shortcuts a view answers to now.
+std::vector<QPointer<QShortcut>> shortcutsOf( const QObject& view )
+{
+    std::vector<QPointer<QShortcut>> shortcuts;
+    for ( auto* shortcut : view.findChildren<QShortcut*>() ) {
+        shortcuts.emplace_back( shortcut );
+    }
+    return shortcuts;
+}
 
 // Whether a Filtered View shows the font, as it would draw in it.
 bool drawsIn( const FilteredView& view, const QFont& font )
@@ -389,6 +408,39 @@ SCENARIO( "What the View Set is handed reaches every view in it", "[viewset]" )
             {
                 REQUIRE( textView.rereads == 1 );
                 REQUIRE( tableView.rereads == 1 );
+            }
+        }
+
+        WHEN( "the shortcuts are registered anew" )
+        {
+            viewSet.registerShortcuts();
+            const auto keptShortcuts = shortcutsOf( *kept.view );
+            const auto currentShortcuts = shortcutsOf( *current.view );
+
+            THEN( "both Presentations register theirs" )
+            {
+                REQUIRE( textView.shortcutRegistrations == 1 );
+                REQUIRE( tableView.shortcutRegistrations == 1 );
+            }
+
+            THEN( "both Filtered Views answer to them, the kept Search's included" )
+            {
+                REQUIRE_FALSE( keptShortcuts.empty() );
+                REQUIRE_FALSE( currentShortcuts.empty() );
+            }
+
+            AND_WHEN( "they are registered anew once more" )
+            {
+                viewSet.registerShortcuts();
+                QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+
+                THEN( "the kept Search's Filtered View let the ones before go" )
+                {
+                    REQUIRE(
+                        std::none_of( keptShortcuts.cbegin(), keptShortcuts.cend(),
+                                      []( const auto& shortcut ) { return !shortcut.isNull(); } ) );
+                    REQUIRE( shortcutsOf( *kept.view ).size() == keptShortcuts.size() );
+                }
             }
         }
 

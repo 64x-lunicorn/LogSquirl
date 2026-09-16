@@ -102,6 +102,7 @@ public:
     // Drops the Rows read so far; they are read again as they are shown.
     void rereadLogLines() override;
     void updateFont( const QFont& font ) override;
+    void registerShortcuts() override;
     // Hand over the settings that color Log Lines, after a settings change:
     // painting reads no setting of its own.
     void setDecorationPolicy( const DecorationPolicy& policy ) override;

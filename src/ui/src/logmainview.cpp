@@ -108,6 +108,11 @@ void LogMainView::updateFont( const QFont& font )
     AbstractLogView::updateFont( font );
 }
 
+void LogMainView::registerShortcuts()
+{
+    AbstractLogView::registerShortcuts();
+}
+
 void LogMainView::setDecorationPolicy( const DecorationPolicy& policy )
 {
     AbstractLogView::setDecorationPolicy( policy );

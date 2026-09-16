@@ -135,6 +135,14 @@ void ViewSet::applyHighlighterSetChange()
     forEachFilteredView( []( FilteredView* view ) { view->forceRefresh(); } );
 }
 
+void ViewSet::registerShortcuts()
+{
+    for ( auto* presentation : presentations_ ) {
+        presentation->registerShortcuts();
+    }
+    forEachFilteredView( []( FilteredView* view ) { view->registerShortcuts(); } );
+}
+
 void ViewSet::rereadLogLines()
 {
     // The views keep the Log Lines they read until told otherwise, and every

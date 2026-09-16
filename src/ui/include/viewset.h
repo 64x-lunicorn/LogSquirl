@@ -75,6 +75,12 @@ public:
     // their words.
     void applyHighlighterSetChange();
 
+    // Register every view's shortcuts anew, the Filtered Views of kept Searches
+    // included, after the settings changed. Shortcuts have no Policy: each
+    // view reads them from the settings, and a view added later has its own
+    // registered by whoever builds it.
+    void registerShortcuts();
+
     // Make every view read the Log Lines it shows again, after the Log File's
     // Decoding Policy was replaced.
     void rereadLogLines();
