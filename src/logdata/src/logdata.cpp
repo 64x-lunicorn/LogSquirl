@@ -75,10 +75,6 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     , codec_( QTextCodec::codecForName( "ISO-8859-1" ) )
     , decodingPolicy_( decodingPolicy )
 {
-    // Initialise the file watcher
-    connect( &FileWatcher::getFileWatcher(), &FileWatcher::fileChanged, this,
-             &LogData::fileChangedOnDisk, Qt::QueuedConnection );
-
     auto worker = std::make_unique<LogDataWorker>( indexing_data_, indexingPolicy_ );
 
     // Forward the update signal
@@ -102,10 +98,6 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
 LogData::~LogData()
 {
     LOG_DEBUG << "Destroying log data";
-
-    // Disconnect FileWatcher before shutdown to prevent new operations
-    // from being enqueued via fileChangedOnDisk() during teardown
-    disconnect( &FileWatcher::getFileWatcher(), nullptr, this, nullptr );
 
     operationQueue_.shutdown();
 }
@@ -199,6 +191,11 @@ void LogData::fileChangedOnDisk( const QString& filename )
 {
     LOG_INFO << "signalFileChanged " << filename << ", indexed file " << indexingFileName_;
 
+    if ( !attached_file_ ) {
+        LOG_WARNING << "no Log File attached, nothing to check";
+        return;
+    }
+
     QFileInfo info( indexingFileName_ );
     const auto currentFileId = FileId::getFileId( indexingFileName_ );
     const auto attachedFileId = attached_file_->getFileId();
@@ -248,8 +245,6 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
              << IndexingData::ConstAccessor{ indexing_data_.get() }.getNbLines() << " lines.";
 
     if ( status == LoadingStatus::Successful ) {
-        FileWatcher::getFileWatcher().addFile( indexingFileName_ );
-
         // Update the modified date/time if the file exists
         lastModifiedDate_ = QDateTime();
         QFileInfo fileInfo( indexingFileName_ );

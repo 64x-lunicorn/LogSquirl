@@ -21,6 +21,7 @@
 
 #include <utility>
 
+#include "filewatchport.h"
 #include "formatrecognition.h"
 #include "log.h"
 #include "logdata.h"
@@ -32,8 +33,9 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
                           const DecodingPolicy& decodingPolicy,
                           const RecognitionPolicy& recognitionPolicy,
                           std::shared_ptr<const LogFormatCatalog> logFormatCatalog,
-                          QObject* parent )
+                          std::shared_ptr<FileWatchPort> fileWatch, QObject* parent )
     : QObject( parent )
+    , fileWatch_( std::move( fileWatch ) )
     , logData_( std::make_shared<LogData>( indexingPolicy, searchPolicy, fileAccessPolicy,
                                            decodingPolicy ) )
     , filteredData_( logData_->getNewFilteredData() )
@@ -46,17 +48,36 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     connect( logData_.get(), &LogData::loadingFinished, this, &OpenLogFile::handleLoadingFinished );
     connect( logData_.get(), &LogData::fileChanged, this, &OpenLogFile::handleFileChanged );
 
+    if ( fileWatch_ ) {
+        // Queued, as the log data always heard of changes: a change is
+        // checked from the event loop, never from inside whatever made the
+        // port report it. Bound to this object, so a change still on its way
+        // when it is destroyed is dropped with it.
+        connect( fileWatch_.get(), &FileWatchPort::fileChanged, this,
+                 &OpenLogFile::handleChangeOnDisk, Qt::QueuedConnection );
+    }
+
     followCurrentSearch();
 }
 
 OpenLogFile::~OpenLogFile()
 {
     disconnect( searchConnection_ );
+
+    if ( fileWatch_ ) {
+        // Nothing more is heard of before the log data goes, and the Log File
+        // is no longer watched on its behalf.
+        disconnect( fileWatch_.get(), nullptr, this, nullptr );
+        if ( watched_ ) {
+            fileWatch_->removeFile( fileName_ );
+        }
+    }
 }
 
 void OpenLogFile::open( const QString& fileName )
 {
     logData_->attachFile( fileName );
+    fileName_ = fileName;
 }
 
 void OpenLogFile::restoreMarks( const logsquirl::vector<LineNumber>& marks )
@@ -202,6 +223,14 @@ int OpenLogFile::formatRecognitionCount() const
 
 void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& failure )
 {
+    // Watched once a load has succeeded, and asked again after every one,
+    // as the log data always did: the port ignores a file it already
+    // watches.
+    if ( status == LoadingStatus::Successful && fileWatch_ ) {
+        fileWatch_->addFile( fileName_ );
+        watched_ = true;
+    }
+
     LoadFinished load;
     load.status = status;
     load.failure = failure;
@@ -246,6 +275,16 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     }
 
     Q_EMIT loadingFinished( load );
+}
+
+void OpenLogFile::handleChangeOnDisk( const QString& fileName )
+{
+    // Every change the port reports reaches every Open Log File built with
+    // it: the log data ignores a change to another file, unless its own Log
+    // File was replaced under its name. Nothing is checked before it is opened.
+    if ( !fileName_.isEmpty() ) {
+        logData_->fileChangedOnDisk( fileName );
+    }
 }
 
 void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& failure )

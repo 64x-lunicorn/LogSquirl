@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <cassert>
 
+#include "filewatchport.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
@@ -33,9 +34,11 @@
 #include "viewinterface.h"
 
 Session::Session( const SettingsPolicies& policies,
-                  std::shared_ptr<LogFormatCatalog> logFormatCatalog )
+                  std::shared_ptr<LogFormatCatalog> logFormatCatalog,
+                  std::shared_ptr<FileWatchPort> fileWatch )
     : policies_( policies )
     , logFormatCatalog_( std::move( logFormatCatalog ) )
+    , fileWatch_( std::move( fileWatch ) )
 {
     // Get the global search history (it remains the property
     // of the Persistent)
@@ -114,9 +117,9 @@ ViewInterface* Session::openAlways( const QString& file_name,
 {
     // The Open Log File: the log data, its Searches, and what they do as the
     // Log File changes on disk
-    auto openLogFile = std::make_shared<OpenLogFile>( policies_.indexing, policies_.search,
-                                                      policies_.fileAccess, policies_.decoding,
-                                                      policies_.recognition, logFormatCatalog_ );
+    auto openLogFile = std::make_shared<OpenLogFile>(
+        policies_.indexing, policies_.search, policies_.fileAccess, policies_.decoding,
+        policies_.recognition, logFormatCatalog_, fileWatch_ );
 
     ViewInterface* view = view_factory();
     view->setData( openLogFile );

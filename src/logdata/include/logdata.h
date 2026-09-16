@@ -54,7 +54,6 @@
 
 #include "abstractlogdata.h"
 #include "fileholder.h"
-#include "filewatcher.h"
 #include "loadingstatus.h"
 #include "logdataoperation.h"
 #include "logdataworker.h"
@@ -159,6 +158,16 @@ public:
     // long as this object.
     const SearchBlockSource& searchBlockSource() const;
 
+    // A change on disk was heard of for fileName: this Log File or another
+    // watched one. The Log File is checked on disk -- reopened first when it
+    // was replaced under its name -- and fileChanged() tells what changed.
+    // A change to another file is ignored unless this one was replaced.
+    //
+    // This object watches nothing itself: whoever follows the Log File
+    // hears of changes and calls this (see OpenLogFile). Call it only once a
+    // file is attached.
+    void fileChangedOnDisk( const QString& fileName );
+
 Q_SIGNALS:
     // Sent during the 'attach' process to signal progress
     // percent being the percentage of completion.
@@ -177,8 +186,6 @@ Q_SIGNALS:
     void decodingPolicyChanged();
 
 private Q_SLOTS:
-    // Consider reloading the file when it changes on disk updated
-    void fileChangedOnDisk( const QString& filename );
     // Called when the worker thread signals the current operation ended
     void indexingFinished( LoadingStatus status, const QString& failure );
     // Called when the worker thread signals the current operation ended

@@ -43,7 +43,7 @@
 
 #include "configuration.h"
 #include "crawlerwidget.h"
-#include "filewatcher.h"
+#include "fake_file_watch.h"
 #include "filteredview.h"
 #include "highlighterset.h"
 #include "infoline.h"
@@ -503,11 +503,6 @@ SCENARIO( "Crawler widget search", "[ui]" )
 
 SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui][autorefresh]" )
 {
-    // Polling as well as native watching, so the truncation is noticed on
-    // any platform without waiting long.
-    FileWatcher::getFileWatcher().setWatchPolicy(
-        WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
-
     QTemporaryDir directory;
     REQUIRE( directory.isValid() );
     const auto path = directory.filePath( "truncated.log" );
@@ -525,7 +520,9 @@ SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui]
     };
     REQUIRE( writeLogLines( SL_NB_LINES ) );
 
-    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    // The Log File hears of the truncation at once, when the test reports it.
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
     session.savedSearches().clear();
 
     CrawlerWidgetVisitor crawlerVisitor;
@@ -550,6 +547,7 @@ SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui]
         WHEN( "the Log File is truncated to fewer Log Lines" )
         {
             REQUIRE( writeLogLines( 15 ) );
+            REQUIRE( fileWatch->reportChange( path ) );
 
             REQUIRE( waitUiState( [ & ]() {
                 return crawlerVisitor.getLogNbLines().get() == 15
@@ -569,8 +567,6 @@ SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui]
             }
         }
     }
-
-    FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
 }
 
 SCENARIO( "Selecting a Match in the Filtered View moves the main view only when it is off screen",

@@ -19,6 +19,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
@@ -37,7 +38,6 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
-#include "filewatcher.h"
 #include "logdata.h"
 
 static const qint64 SL_NB_LINES = 500LL;
@@ -95,12 +95,14 @@ private:
 namespace {
 
 #ifdef _WIN32
-void writeDataToFileBackground( QFile& file, int numberOfLines = 200,
-                                WriteFileModification flag = WriteFileModification::None )
+// Calls whenWritten, on context's thread, once the file has been written.
+void writeDataToFileBackground( QFile& file, int numberOfLines, WriteFileModification flag,
+                                QObject* context, std::function<void()> whenWritten )
 {
     auto thread = new WriteFileThread( &file, numberOfLines, flag );
-    thread->start();
+    QObject::connect( thread, &WriteFileThread::finished, context, std::move( whenWritten ) );
     QObject::connect( thread, &WriteFileThread::finished, thread, &WriteFileThread::deleteLater );
+    thread->start();
 }
 #endif
 void writeDataToFile( QFile& file, int numberOfLines = 200,
@@ -146,14 +148,9 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
 
 TEST_CASE( "Logdata reading changing file", "[logdata]" )
 {
-    // File watching holds a Watch Policy and reads no setting of its own
-    // (#93), so a test that expects a change on disk to be noticed has to
-    // hand it one. Polling as well as native watching, at a far shorter
-    // interval than the shipped one, so the test does not wait on the
-    // platform having working native notifications.
-    FileWatcher::getFileWatcher().setWatchPolicy(
-        WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
-
+    // The log data watches nothing itself (#249): whoever follows the Log
+    // File tells it of a change on disk, and here the test does, once it has
+    // changed the file.
     const auto policies = testSettingsPolicies();
     LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
 
@@ -167,7 +164,8 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
 
     SafeQSignalSpy finishedSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
     // Start loading it
-    logData.attachFile( QFileInfo{ file }.absoluteFilePath() );
+    const auto path = QFileInfo{ file }.absoluteFilePath();
+    logData.attachFile( path );
     waitUiState( [ &logData ] { return logData.getNbLine() == 200_lcount; } );
     REQUIRE( finishedSpy.safeWait() );
     REQUIRE( finishedSpy.count() == 1 );
@@ -181,9 +179,11 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
     if ( file.isOpen() ) {
         // To test the edge case when the final line is not complete
 #ifdef Q_OS_WIN
-        writeDataToFileBackground( file, 200, WriteFileModification::EndWithPartialLineBegin );
+        writeDataToFileBackground( file, 200, WriteFileModification::EndWithPartialLineBegin,
+                                   &logData, [ & ] { logData.fileChangedOnDisk( path ); } );
 #else
         writeDataToFile( file, 200, WriteFileModification::EndWithPartialLineBegin );
+        logData.fileChangedOnDisk( path );
 #endif
     }
 
@@ -200,9 +200,11 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
         // Add a couple more lines, including the end of the unfinished one.
         if ( file.isOpen() ) {
 #ifdef Q_OS_WIN
-            writeDataToFileBackground( file, 20, WriteFileModification::StartWithPartialLineEnd );
+            writeDataToFileBackground( file, 20, WriteFileModification::StartWithPartialLineEnd,
+                                       &logData, [ & ] { logData.fileChangedOnDisk( path ); } );
 #else
             writeDataToFile( file, 20, WriteFileModification::StartWithPartialLineEnd );
+            logData.fileChangedOnDisk( path );
 #endif
         }
 
@@ -220,6 +222,7 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
     {
         // Truncate the file
         writeDataToFile( file, 0, WriteFileModification::Truncate );
+        logData.fileChangedOnDisk( path );
 
         waitUiState( [ &logData ] { return logData.getNbLine() == 0_lcount; } );
 

@@ -93,10 +93,10 @@ public:
         qRegisterMetaType<QFNotificationInterrupted>( "QFNotificationInterrupted" );
         qRegisterMetaType<QuickFindMatcher>( "QuickFindMatcher" );
 
-        // File watching is a process-wide singleton that reads no setting
-        // of its own (#93). It is handed its Policy here, before any
-        // window exists and so before any Log File can be added to it.
-        FileWatcher::getFileWatcher().setWatchPolicy( settingsPolicies_.watch );
+        // File watching is a process-wide watcher that reads no setting of
+        // its own (#93). It is handed its Policy here, before any window
+        // exists and so before any Log File can be added to it.
+        fileWatcher_->setWatchPolicy( settingsPolicies_.watch );
 
         if ( singleApplication_.isPrimaryInstance() ) {
             QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
@@ -164,7 +164,8 @@ public:
     MainWindow* reloadSession()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_ );
+            session_
+                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -206,7 +207,8 @@ public:
     MainWindow* newWindow()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_ );
+            session_
+                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
         }
 
         const auto previousSessions = session_->windowSessions();
@@ -295,7 +297,7 @@ private:
         const auto policies = deriveSettingsPolicies( Configuration::get() );
 
         if ( policies.watch != settingsPolicies_.watch ) {
-            FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
+            fileWatcher_->setWatchPolicy( policies.watch );
         }
 
         settingsPolicies_ = policies;
@@ -392,6 +394,11 @@ private:
     std::unique_ptr<CrashHandler> crashHandler_;
 
     MessageReceiver messageReceiver_;
+
+    // The one file watcher, looked up here and nowhere else: the Session
+    // hands it to every Log File it opens as their File Watch Port, and a
+    // changed Watch Policy is handed to it from here (#249).
+    const std::shared_ptr<FileWatcher> fileWatcher_ = FileWatcher::sharedFileWatcher();
 
     std::shared_ptr<Session> session_;
 

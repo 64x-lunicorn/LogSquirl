@@ -53,7 +53,7 @@ target_link_libraries(
          logsquirl_policies
          logsquirl_utils
          logsquirl_regex
-         logsquirl_filewatch
+         logsquirl_filewatch_port
          Qt${QT_VERSION_MAJOR}::Core
          roaring
          roaring-headers-cpp

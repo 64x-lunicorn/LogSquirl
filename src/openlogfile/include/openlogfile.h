@@ -35,6 +35,7 @@
 #include "searchsession.h"
 #include "settingspolicies.h"
 
+class FileWatchPort;
 class LogData;
 class LogFilteredData;
 class LogFormatCatalog;
@@ -55,8 +56,10 @@ class LogFormatCatalog;
 // the desktop application and the command line tool follow a Log File the
 // same way because both use it.
 //
-// Changes on disk still reach it through the log data, which registers the
-// Log File with the file watcher when it has loaded.
+// It hears of changes on disk through the File Watch Port it is built with:
+// its Log File is watched from the first load that succeeds until this object
+// is destroyed, and the log data checks the file whenever a change is heard
+// of. It looks no watcher up by itself (#249).
 class OpenLogFile : public QObject {
     Q_OBJECT
 
@@ -83,11 +86,15 @@ public:
     // log data, and the Recognition Policy with the application's Log Format
     // Catalog that Format Recognition runs on. A null Catalog recognizes
     // nothing.
+    //
+    // fileWatch is how it hears of changes on disk; it is held until this
+    // object is destroyed, and used on the thread it lives in, which has to be
+    // this object's. Without one the Log File is not followed on disk.
     OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
                  const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy,
                  const RecognitionPolicy& recognitionPolicy,
                  std::shared_ptr<const LogFormatCatalog> logFormatCatalog,
-                 QObject* parent = nullptr );
+                 std::shared_ptr<FileWatchPort> fileWatch, QObject* parent = nullptr );
     ~OpenLogFile() override;
 
     OpenLogFile( const OpenLogFile& ) = delete;
@@ -171,6 +178,7 @@ Q_SIGNALS:
 
 private:
     void handleLoadingFinished( LoadingStatus status, const QString& failure );
+    void handleChangeOnDisk( const QString& fileName );
     void handleFileChanged( MonitoredFileStatus status, const QString& failure );
     // Starts the Search again with the pattern last requested, over the
     // Search range.
@@ -178,6 +186,13 @@ private:
     // Returns whether Format Recognition was taken.
     bool recognizeFormat();
     void followCurrentSearch();
+
+    // Held for as long as the Log File may be watched: the destructor stops
+    // watching it through this port before anything else goes.
+    std::shared_ptr<FileWatchPort> fileWatch_;
+    QString fileName_;
+    // Whether the Log File was handed to the port to watch.
+    bool watched_ = false;
 
     // Declared before the Searches built from it, so it outlives them.
     std::shared_ptr<LogData> logData_;

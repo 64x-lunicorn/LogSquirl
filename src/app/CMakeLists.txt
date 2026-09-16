@@ -87,8 +87,10 @@ if(LOGSQUIRL_USE_LTO)
   set_property(TARGET logsquirl_grep PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
 
-target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui)
-target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui)
+# The application looks the file watcher up and hands it to the Session; the
+# engine is handed its port and does not link it (#249).
+target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
+target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
 # main.cpp caps TBB's concurrency itself (#168).
 target_link_libraries(logsquirl PRIVATE tbb)
 target_link_libraries(logsquirl_portable PRIVATE tbb)

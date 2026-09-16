@@ -5,7 +5,8 @@
 #
 # Fails too when logsquirl_openlogfile links logsquirl_settings or the UI
 # library: it is handed its Policies, and the user interface only shows what
-# it tells.
+# it tells. Nor may it link the efsw file watcher: it is handed the File Watch
+# Port and looks no watcher up (#249).
 #
 # Usage: cmake -DSOURCES_DIR=<src/openlogfile>
 #              -DWIDGETS_INCLUDE_DIRS=<Qt6::Widgets include dirs, |-separated>
@@ -23,7 +24,8 @@ string(REPLACE "|" ";" _link_libraries "${LINK_LIBRARIES}")
 if(NOT _link_libraries)
   message(FATAL_ERROR "LINK_LIBRARIES is empty")
 endif()
-foreach(_forbidden IN ITEMS Qt6::Widgets Qt::Widgets logsquirl_settings logsquirl_ui)
+foreach(_forbidden IN ITEMS Qt6::Widgets Qt::Widgets logsquirl_settings logsquirl_ui
+                           logsquirl_filewatch)
   if("${_forbidden}" IN_LIST _link_libraries)
     message(FATAL_ERROR "logsquirl_openlogfile links ${_forbidden}: ${_link_libraries}")
   endif()
@@ -69,4 +71,5 @@ endif()
 list(LENGTH _sources _count)
 message(
   STATUS "${_count} Open Log File files, none includes a Qt Widgets header, "
-         "and the Open Log File links neither Qt Widgets, the settings store nor the UI")
+         "and the Open Log File links neither Qt Widgets, the settings store, the UI "
+         "nor the file watcher")

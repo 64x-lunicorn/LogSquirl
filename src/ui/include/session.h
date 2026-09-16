@@ -34,6 +34,7 @@
 #include "quickfindpattern.h"
 #include "settingspolicies.h"
 
+class FileWatchPort;
 class ViewInterface;
 class ViewContextInterface;
 class LogFormatCatalog;
@@ -60,7 +61,14 @@ public:
     // The Log Format Catalog is the application's one Catalog, already
     // built. Every view is handed this same instance, and the Session
     // rebuilds it whenever settings are applied.
-    Session( const SettingsPolicies& policies, std::shared_ptr<LogFormatCatalog> logFormatCatalog );
+    //
+    // The File Watch Port is how every Log File it opens hears of changes on
+    // disk; each Open Log File is handed it when it is built. Without one no
+    // Log File is followed on disk, which is what a test that does not care
+    // wants. The Watch Policy is not the Session's to hand to it: whoever
+    // built the watcher does that.
+    Session( const SettingsPolicies& policies, std::shared_ptr<LogFormatCatalog> logFormatCatalog,
+             std::shared_ptr<FileWatchPort> fileWatch = {} );
     ~Session();
 
     // No copy/assignment please
@@ -206,6 +214,9 @@ private:
 
     // Handed to every view, for Format Recognition.
     std::shared_ptr<LogFormatCatalog> logFormatCatalog_;
+
+    // Handed to every Open Log File.
+    std::shared_ptr<FileWatchPort> fileWatch_;
 
     bool exitRequested_ = false;
 

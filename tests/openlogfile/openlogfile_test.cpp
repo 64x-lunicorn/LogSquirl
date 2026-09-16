@@ -22,12 +22,13 @@
 #include <memory>
 #include <vector>
 
+#include <QCoreApplication>
 #include <QFile>
 #include <QHash>
 #include <QList>
 #include <QTemporaryDir>
 
-#include "filewatcher.h"
+#include "fake_file_watch.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
@@ -37,8 +38,9 @@
 #include "test_utils.h"
 
 // What a Log File changing on disk means is decided by the Open Log File;
-// these tests follow real Log Files on disk without any widget. The file
-// watcher is still found by the log data itself (#249 hands it in).
+// these tests follow real Log Files on disk without any widget. It hears of a
+// change through the File Watch Port it is built with (#249): here a fake one,
+// which reports the change at once, so no test waits on a watcher.
 
 namespace {
 
@@ -48,15 +50,16 @@ using AutoRefreshState = SearchAutoRefresh::State;
 constexpr auto FirstLineCount = 30;
 
 // Log Lines numbered from firstNumber; every third one says "fizz".
-void writeLogLines( QFile& file, int count, int firstNumber = 0 )
+QByteArray logLines( int count, int firstNumber = 0 )
 {
+    QByteArray lines;
     for ( auto number = firstNumber; number < firstNumber + count; ++number ) {
-        file.write( QString( "SOURCE line %1 %2\n" )
-                        .arg( number, 6, 10, QChar( '0' ) )
-                        .arg( number % 3 == 0 ? "fizz" : "buzz" )
-                        .toUtf8() );
+        lines += QString( "SOURCE line %1 %2\n" )
+                     .arg( number, 6, 10, QChar( '0' ) )
+                     .arg( number % 3 == 0 ? "fizz" : "buzz" )
+                     .toUtf8();
     }
-    file.flush();
+    return lines;
 }
 
 bool writeLogFile( const QString& path, int count )
@@ -65,18 +68,8 @@ bool writeLogFile( const QString& path, int count )
     if ( !file.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
         return false;
     }
-    writeLogLines( file, count );
-    return true;
-}
-
-bool appendLogLines( const QString& path, int count, int firstNumber )
-{
-    QFile file( path );
-    if ( !file.open( QIODevice::WriteOnly | QIODevice::Append ) ) {
-        return false;
-    }
-    writeLogLines( file, count, firstNumber );
-    return true;
+    const auto lines = logLines( count );
+    return file.write( lines ) == lines.size();
 }
 
 // How many of the first count Log Lines say "fizz".
@@ -128,17 +121,12 @@ struct Observer {
 struct OpenedLogFile {
     OpenedLogFile( const QString& path, const logsquirl::vector<LineNumber>& savedMarks = {} )
         : openLogFile( policies.indexing, policies.search, policies.fileAccess, policies.decoding,
-                       RecognitionPolicy{ .enabled = true }, catalogRecognizingTheLogLines() )
+                       RecognitionPolicy{ .enabled = true }, catalogRecognizingTheLogLines(),
+                       fileWatch )
         , observer( openLogFile )
     {
-        FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
         openLogFile.restoreMarks( savedMarks );
         openLogFile.open( path );
-    }
-
-    ~OpenedLogFile()
-    {
-        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
     }
 
     LinesCount nbLines() const
@@ -167,6 +155,7 @@ struct OpenedLogFile {
     }
 
     SettingsPolicies policies = testSettingsPolicies();
+    std::shared_ptr<FakeFileWatch> fileWatch = std::make_shared<FakeFileWatch>();
     OpenLogFile openLogFile;
     Observer observer;
 };
@@ -376,7 +365,7 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
 
         WHEN( "Log Lines are added to the Log File" )
         {
-            REQUIRE( appendLogLines( path, FirstLineCount, FirstLineCount ) );
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
             REQUIRE( logFile.observer.waitLoads( 2 ) );
             REQUIRE( logFile.nbLines() == LinesCount( 2 * FirstLineCount ) );
             REQUIRE( logFile.waitSearchSettled() );
@@ -419,7 +408,7 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
 
         WHEN( "Log Lines are added to the Log File" )
         {
-            REQUIRE( appendLogLines( path, FirstLineCount, FirstLineCount ) );
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
             REQUIRE( logFile.observer.waitLoads( 2 ) );
 
             THEN( "the Search stays over the Log Lines it ran over" )
@@ -475,7 +464,7 @@ SCENARIO( "An Open Log File follows a Log File that is truncated", "[openlogfile
         WHEN( "the Log File is truncated to fewer Log Lines" )
         {
             constexpr auto TruncatedLineCount = 10;
-            REQUIRE( writeLogFile( path, TruncatedLineCount ) );
+            REQUIRE( logFile.fileWatch->truncate( path, logLines( TruncatedLineCount ) ) );
             REQUIRE( waitUiState( [ & ] { return whenTruncated.told; }, 30000 ) );
 
             THEN( "the Marks are cleared, the Search dropped and the Log Format forgotten at once" )
@@ -529,7 +518,7 @@ SCENARIO( "An Open Log File follows a Log File that is truncated", "[openlogfile
     {
         WHEN( "the Log File is truncated" )
         {
-            REQUIRE( writeLogFile( path, 10 ) );
+            REQUIRE( logFile.fileWatch->truncate( path, logLines( 10 ) ) );
             REQUIRE( waitUiState( [ & ] { return logFile.observer.truncations > 0; }, 30000 ) );
 
             THEN( "no Search is active still" )
@@ -616,7 +605,7 @@ SCENARIO( "The Marks saved with the Session are applied once, after the first lo
         {
             REQUIRE( logFile.observer.waitLoads( 1 ) );
             logFile.openLogFile.filteredData()->deleteMark( 3_lnum );
-            REQUIRE( appendLogLines( path, 5, FirstLineCount ) );
+            REQUIRE( logFile.fileWatch->grow( path, logLines( 5, FirstLineCount ) ) );
             REQUIRE( logFile.observer.waitLoads( 2 ) );
 
             THEN( "the saved Marks are not applied again" )
@@ -689,6 +678,125 @@ SCENARIO( "An Open Log File keeps Searches and follows the current one", "[openl
                 {
                     REQUIRE( logFile.openLogFile.filteredData() == first );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "An Open Log File follows a Log File replaced under its name", "[openlogfile]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "rotated.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    logFile.openLogFile.filteredData()->addMark( 1_lnum );
+
+    WHEN( "another Log File is put under its name" )
+    {
+        constexpr auto ReplacementLineCount = 10;
+        constexpr auto ReplacementFirstNumber = 1000;
+        REQUIRE( logFile.fileWatch->replace(
+            path, logLines( ReplacementLineCount, ReplacementFirstNumber ) ) );
+        REQUIRE( waitUiState( [ & ] { return logFile.observer.truncations > 0; }, 30000 ) );
+        REQUIRE( waitUiState(
+            [ & ] {
+                return logFile.observer.loads.size() >= 2
+                       && logFile.nbLines() == LinesCount( ReplacementLineCount );
+            },
+            30000 ) );
+
+        THEN( "it is taken as truncated and the new Log File is loaded" )
+        {
+            REQUIRE( logFile.marks().isEmpty() );
+            REQUIRE(
+                logFile.openLogFile.logData()->getLineString( 0_lnum ).contains( "line 001000" ) );
+        }
+
+        AND_WHEN( "the new Log File grows" )
+        {
+            const auto loadsBefore = logFile.observer.loads.size();
+            REQUIRE( logFile.fileWatch->grow(
+                path, logLines( 5, ReplacementFirstNumber + ReplacementLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( loadsBefore + 1 ) );
+
+            THEN( "the Log Lines added to it are loaded" )
+            {
+                REQUIRE( logFile.nbLines() == LinesCount( ReplacementLineCount + 5 ) );
+                REQUIRE( logFile.openLogFile.logData()->getLineString( 14_lnum ).contains(
+                    "line 001014" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "An Open Log File has its Log File watched from its first load until it is closed",
+          "[openlogfile][filewatch]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "watched.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    const auto policies = testSettingsPolicies();
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    auto openLogFile = std::make_unique<OpenLogFile>(
+        policies.indexing, policies.search, policies.fileAccess, policies.decoding,
+        RecognitionPolicy{ .enabled = true }, catalogRecognizingTheLogLines(), fileWatch );
+    Observer observer( *openLogFile );
+
+    THEN( "nothing is watched before it has loaded" )
+    {
+        openLogFile->open( path );
+        REQUIRE( fileWatch->watchedFiles().empty() );
+    }
+
+    GIVEN( "it has loaded" )
+    {
+        openLogFile->open( path );
+        REQUIRE( observer.waitLoads( 1 ) );
+
+        THEN( "its Log File is watched" )
+        {
+            REQUIRE( fileWatch->watchedFiles() == std::vector<QString>{ path } );
+        }
+
+        WHEN( "it is closed" )
+        {
+            openLogFile.reset();
+
+            THEN( "its Log File is no longer watched" )
+            {
+                REQUIRE( fileWatch->watchedFiles().empty() );
+            }
+        }
+
+        WHEN( "it is closed while a change it was told of is still on its way" )
+        {
+            REQUIRE( fileWatch->grow( path, logLines( 5, FirstLineCount ) ) );
+            openLogFile.reset();
+
+            THEN( "the change reaches nothing, and its Log File is no longer watched" )
+            {
+                QCoreApplication::processEvents();
+                REQUIRE_FALSE( waitUiState( [ & ] { return observer.loads.size() > 1; }, 500 ) );
+                REQUIRE( fileWatch->watchedFiles().empty() );
+            }
+        }
+
+        WHEN( "a change to another watched file is reported" )
+        {
+            const auto otherPath = directory.filePath( "other.log" );
+            REQUIRE( writeLogFile( otherPath, 5 ) );
+            fileWatch->addFile( otherPath );
+            REQUIRE( fileWatch->reportChange( otherPath ) );
+
+            THEN( "its Log File is not loaded again" )
+            {
+                REQUIRE_FALSE( waitUiState( [ & ] { return observer.loads.size() > 1; }, 500 ) );
+                REQUIRE( openLogFile->logData()->getNbLine() == LinesCount( FirstLineCount ) );
             }
         }
     }

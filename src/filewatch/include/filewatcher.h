@@ -43,6 +43,7 @@
 
 #include <memory>
 
+#include "filewatchport.h"
 #include "settingspolicies.h"
 
 class EfswFileWatcher;
@@ -56,7 +57,14 @@ struct EfswFileWatcherDeleter {
     void operator()( EfswFileWatcher* p ) const;
 };
 
-class FileWatcher : public QObject {
+// Watches files with efsw, natively and by polling as its Watch Policy says:
+// the File Watch Port adapter the application hands every Open Log File.
+//
+// There is one per process, and it is never destroyed: tearing down efsw's
+// watches at exit gains nothing and has corrupted the heap before (#145). Only
+// the application, the one place that composes the engine, looks it up; the
+// engine is handed it as a FileWatchPort.
+class FileWatcher : public FileWatchPort {
     Q_OBJECT
 public:
     FileWatcher( const FileWatcher& ) = delete;
@@ -67,13 +75,18 @@ public:
 
     static FileWatcher& getFileWatcher();
 
+    // The same one watcher, to hand to what holds its port. The pointer owns
+    // nothing: the watcher lives until the process ends, whoever still holds
+    // it.
+    static std::shared_ptr<FileWatcher> sharedFileWatcher();
+
     // Adds the file to the list of file to watch
     // (do nothing if a file is already monitored)
-    void addFile( const QString& fileName );
+    void addFile( const QString& fileName ) override;
 
     // Removes the file to the list of file to watch
     // (do nothing if said file is not monitored)
-    void removeFile( const QString& fileName );
+    void removeFile( const QString& fileName ) override;
 
     // Follows the passed Watch Policy from now on: native watching,
     // polling and the poll interval, all three of them and nothing else.
@@ -92,8 +105,8 @@ public Q_SLOTS:
     void fileChangedOnDisk( const QString& );
 
 Q_SIGNALS:
-    // Sent when the file on disk has changed in any way.
-    void fileChanged( const QString& );
+    // fileChanged(), the port's, is sent when a watched file has changed on
+    // disk in any way.
     void notifyFileChangedOnDisk();
 
 private Q_SLOTS:

@@ -30,7 +30,7 @@ list(APPEND UI_TEST_SOURCES
 add_executable(logsquirl_itests ${UI_TEST_SOURCES} ${BACKWARD_ENABLE})
 
 # tbb: indexing_test and logfiltereddata_test pin TBB's concurrency (#168).
-target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_utils tbb Catch2 Qt6::Test test_utils)
+target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_filewatch logsquirl_utils tbb Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_itests PROPERTIES AUTOMOC ON AUTORCC ON)
 # theme_switch_test opens dialogs whose headers include uic-generated headers.
 target_include_directories(logsquirl_itests PRIVATE

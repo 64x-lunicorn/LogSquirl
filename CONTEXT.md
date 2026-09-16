@@ -38,9 +38,19 @@ lines that were added and starts again when the Log File was truncated or reload
 not survive a truncation or a reload, and Format Recognition is taken again after either. The
 Marks saved with the Session are handed to it when the Log File is opened and applied once,
 after the first load; saving them stays with the user interface.
+It hears of changes on disk through the File Watch Port handed to it when it is built.
 The desktop application and the command line tool follow a Log File the same way because
 both use it.
 _Avoid_: document, loaded file, file session
+
+**File Watch Port**:
+Everything an Open Log File needs from file watching: to have its Log File watched from its
+first load until it is closed, and to hear that a watched file changed on disk. It does not
+say what changed — the log data checks the file for growth, truncation or replacement. The
+efsw watcher, which follows the Watch Policy, is the adapter the application hands over; the
+tests hand over a fake that reports a change when they say so. Nothing in the engine looks a
+watcher up by itself.
+_Avoid_: file watcher singleton, watch service
 
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.

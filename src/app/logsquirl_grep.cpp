@@ -24,7 +24,6 @@
 
 #include "configuration.h"
 #include "dispatch_to.h"
-#include "filewatcher.h"
 #include "loadingstatus.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
@@ -69,10 +68,9 @@ int main( int argc, char* argv[] )
     // data library reads none itself, it is handed what it may know (#94).
     const auto policies = deriveSettingsPolicies( configuration );
 
-    // The file watcher is process-wide and reads no setting of its own
-    // either: attaching a Log File registers it there, so it is handed its
-    // Policy before that happens, exactly as LogSquirlApp does for the GUI.
-    FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
+    // Nothing here watches the Log File: the log data follows no change on
+    // disk by itself (#249), and this tool searches the Log File once, as it
+    // was when it loaded, and exits.
 
     // Hiding ANSI color sequences is not applied here: this tool has always
     // matched the Log Lines as they are in the file, and still does.
