@@ -34,6 +34,7 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
@@ -192,9 +193,9 @@ QAction* viewMenuAction( const MainWindow& window, const char* text )
 } // namespace
 
 // The View menu's toggles write a setting the Presentation Policy names, so
-// they must reach the re-derive the Options Dialog reaches (#192): the signal
-// mux delivers what it carries to the active tab only, which would leave
-// every other open Log File showing the old setting.
+// they must reach the re-derive the Options Dialog reaches (#192): the Session
+// re-derives and reaches every open Log File (#245), where the signal mux
+// would deliver to the active tab only.
 SCENARIO( "Toggling line numbers or the overview from the View menu reaches every open Log File",
           "[ui][settings]" )
 {
@@ -210,8 +211,8 @@ SCENARIO( "Toggling line numbers or the overview from the View menu reaches ever
                                                  std::make_shared<LogFormatCatalog>() );
     WindowSession windowSession{ appSession, "Main", 0 };
 
-    QTemporaryFile firstFile{ "mainwindow_toggle_first_XXXXXX" };
-    QTemporaryFile secondFile{ "mainwindow_toggle_second_XXXXXX" };
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_toggle_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_toggle_second_XXXXXX" ) };
     for ( auto* file : { &firstFile, &secondFile } ) {
         REQUIRE( file->open() );
         file->write( "first Log Line\nsecond Log Line\n" );
@@ -223,12 +224,6 @@ SCENARIO( "Toggling line numbers or the overview from the View menu reaches ever
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
     mainWindow->show();
-
-    // What the application does with the signal: re-derive the Policies from
-    // the settings store and hand the changed axes to every open Log File.
-    QObject::connect( mainWindow.get(), &MainWindow::settingsChanged, [ &appSession ]() {
-        appSession->applyPolicies( deriveSettingsPolicies( Configuration::get() ) );
-    } );
 
     mainWindow->loadFileNonInteractive( firstFile.fileName() );
     mainWindow->loadFileNonInteractive( secondFile.fileName() );
@@ -332,8 +327,8 @@ SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with s
                                                  std::make_shared<LogFormatCatalog>() );
     WindowSession windowSession{ appSession, "Main", 0 };
 
-    QTemporaryFile firstFile{ "mainwindow_quickfind_first_XXXXXX" };
-    QTemporaryFile secondFile{ "mainwindow_quickfind_second_XXXXXX" };
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_quickfind_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_quickfind_second_XXXXXX" ) };
     for ( auto* file : { &firstFile, &secondFile } ) {
         REQUIRE( file->open() );
         file->write( "first Log Line\nsecond Log Line\n" );
@@ -345,11 +340,6 @@ SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with s
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
     mainWindow->show();
-
-    // What the application does with the signal.
-    QObject::connect( mainWindow.get(), &MainWindow::settingsChanged, [ &appSession ]() {
-        appSession->applyPolicies( deriveSettingsPolicies( Configuration::get() ) );
-    } );
 
     mainWindow->loadFileNonInteractive( firstFile.fileName() );
     mainWindow->loadFileNonInteractive( secondFile.fileName() );

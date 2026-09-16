@@ -172,7 +172,6 @@ MainWindow::MainWindow( WindowSession session )
     // Send actions to the crawlerwidget
     signalMux_.connect( this, SIGNAL( followSet( bool ) ), SIGNAL( followSet( bool ) ) );
     signalMux_.connect( this, SIGNAL( textWrapSet( bool ) ), SIGNAL( textWrapSet( bool ) ) );
-    signalMux_.connect( this, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
     signalMux_.connect( this, SIGNAL( enteringQuickFind() ), SLOT( enteringQuickFind() ) );
     signalMux_.connect( &quickFindWidget_, SIGNAL( close() ), SLOT( exitingQuickFind() ) );
 
@@ -302,6 +301,9 @@ MainWindow::MainWindow( WindowSession session )
     // Construct the QuickFind bar
     quickFindWidget_.hide();
     applyQuickFindPolicy();
+
+    // Told of every settings change, whichever window it was made in.
+    session_.addWindow( this );
 
     // Build the central layout with the tab widget, quick-find bar, and
     // welcome dashboard as a permanent pinned first tab (if enabled).
@@ -1026,7 +1028,8 @@ void MainWindow::createMenus()
     menuBar()->addMenu( highlightersMenu );
     // Every open Log File is re-colored, not only the one the current tab
     // shows: the others would keep the colors their Color Labels had.
-    highlightersMenu->setApplyChange( [ this ]() { session_.applyHighlighterSetChange(); } );
+    highlightersMenu->setApplyChange(
+        [ this ]() { session_.applyChange( Changed::HighlighterSets ); } );
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
@@ -1444,7 +1447,7 @@ void MainWindow::editHighlighters()
 
     // Reaches every open Log File, in every window, not only the current tab.
     connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
-        session_.applyHighlighterSetChange();
+        session_.applyChange( Changed::HighlighterSets );
         updateHighlightersMenu();
     } );
 
@@ -1456,13 +1459,12 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
 {
     PredefinedFiltersDialog dialog( newFilter, this );
 
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
-
+    // The Predefined Filters are no setting a Log File shows: only the filters
+    // panel lists them.
     connect( &dialog, &PredefinedFiltersDialog::optionsChanged,
              [ this ]() { filtersPanel_.refreshFilters(); } );
 
     dialog.exec();
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 }
 
 // Opens the 'Options' modal dialog box
@@ -1470,31 +1472,26 @@ void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
     OptionsDialog dialog( *logFormatCatalog, this );
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 
-    connect( &dialog, &OptionsDialog::optionsChanged, [ this ]() {
-        // The settings store has changed: whoever derives the Policies
-        // re-derives them and hands the changed axes down. Beside the View
-        // menu's toggles of what a Presentation shows, this is the only place
-        // that writes a setting a Policy names, and it comes first so that
-        // what follows reads Policies already re-derived -- the follow action
-        // below is enabled from the Watch Policy.
-        Q_EMIT settingsChanged();
-
-        const auto& config = Configuration::get();
-        logging::enableFileLogging( config.enableLogging(),
-                                    static_cast<logging::LogLevel>( config.loggingLevel() ) );
-
-        newWindowAction->setVisible( config.allowMultipleWindows() );
-        followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
-        applyQuickFindPolicy();
-
-        updateShortcuts();
-        updateRecentFileActions();
-    } );
+    // The dialog only says that the settings changed; the Session takes it
+    // from there, to every open Log File and every window, this one included.
+    connect( &dialog, &OptionsDialog::optionsChanged,
+             [ this ]() { session_.applyChange( Changed::Settings ); } );
     dialog.exec();
+}
 
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+void MainWindow::applySettingsChange()
+{
+    const auto& config = Configuration::get();
+    logging::enableFileLogging( config.enableLogging(),
+                                static_cast<logging::LogLevel>( config.loggingLevel() ) );
+
+    newWindowAction->setVisible( config.allowMultipleWindows() );
+    followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
+    applyQuickFindPolicy();
+
+    updateShortcuts();
+    updateRecentFileActions();
 }
 
 void MainWindow::showPluginDialog()
@@ -1797,7 +1794,7 @@ void MainWindow::importChipmunkFilters()
 
     // The imported Highlighter Set may be active: paint every open Log File
     // again with it, not only the one the current tab shows.
-    session_.applyHighlighterSetChange();
+    session_.applyChange( Changed::HighlighterSets );
 }
 
 void MainWindow::encodingChanged( QAction* action )
@@ -1816,16 +1813,15 @@ void MainWindow::encodingChanged( QAction* action )
 }
 
 // The three View-menu toggles below write a setting the Presentation Policy
-// names. They take the Options Dialog's path back to what is running, not
-// optionsChanged(): that one reaches the current tab only through the signal
-// mux, and re-derives nothing, so every other open Log File would go on
-// showing the old setting (#192).
+// names. They take the Options Dialog's path back to what is running, the
+// Session, so that every open Log File shows the new setting, not only the
+// current tab (#192, #245).
 void MainWindow::toggleOverviewVisibility( bool isVisible )
 {
     auto& config = Configuration::get();
     config.setOverviewVisible( isVisible );
     config.save();
-    Q_EMIT settingsChanged();
+    session_.applyChange( Changed::Settings );
 }
 
 void MainWindow::toggleMainLineNumbersVisibility( bool isVisible )
@@ -1834,7 +1830,7 @@ void MainWindow::toggleMainLineNumbersVisibility( bool isVisible )
 
     config.setMainLineNumbersVisible( isVisible );
     config.save();
-    Q_EMIT settingsChanged();
+    session_.applyChange( Changed::Settings );
 }
 
 void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
@@ -1843,7 +1839,7 @@ void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
 
     config.setFilteredLineNumbersVisible( isVisible );
     config.save();
-    Q_EMIT settingsChanged();
+    session_.applyChange( Changed::Settings );
 }
 
 void MainWindow::changeFollowMode( bool follow )
@@ -2100,8 +2096,9 @@ void MainWindow::currentTabChanged( int index )
         signalMux_.setCurrentDocument( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
 
-        // New tab is set up with fonts etc...
-        Q_EMIT optionsChanged();
+        // No configuration is applied here: a settings change has already
+        // reached this Log File, in front or not (#245).
+        crawler_widget->broughtToFront();
 
         updateMenuBarFromDocument( crawler_widget );
         updateTitleBar( session_.getFilename( crawler_widget ) );
@@ -2195,6 +2192,11 @@ void MainWindow::loadFileNonInteractive( const QString& file_name )
 //
 
 // Closes the application
+MainWindow::~MainWindow()
+{
+    session_.removeWindow( this );
+}
+
 void MainWindow::closeEvent( QCloseEvent* event )
 {
     if ( !isCloseFromTray_ && this->isVisible() && Configuration::get().minimizeToTray() ) {

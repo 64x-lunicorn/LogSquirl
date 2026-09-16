@@ -35,6 +35,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/savedsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/selection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/session.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/changed.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/sessioninfo.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/signalmux.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedcrawlerwidget.h

@@ -24,22 +24,28 @@
 #include <algorithm>
 #include <cassert>
 
-#include "filewatchport.h"
+#include "configuration.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
+#include "policyfilewatchport.h"
 #include "savedsearches.h"
 #include "sessioninfo.h"
 #include "viewinterface.h"
 
 Session::Session( const SettingsPolicies& policies,
                   std::shared_ptr<LogFormatCatalog> logFormatCatalog,
-                  std::shared_ptr<FileWatchPort> fileWatch )
+                  std::shared_ptr<PolicyFileWatchPort> fileWatch )
     : policies_( policies )
     , logFormatCatalog_( std::move( logFormatCatalog ) )
     , fileWatch_( std::move( fileWatch ) )
 {
+    // Before any Log File is opened, and so before any file is added to it.
+    if ( fileWatch_ ) {
+        fileWatch_->setWatchPolicy( policies_.watch );
+    }
+
     // Get the global search history (it remains the property
     // of the Persistent)
     savedSearches_ = &SavedSearches::getSynced();
@@ -129,6 +135,9 @@ ViewInterface* Session::openAlways( const QString& file_name,
     view->setQuickFindPolicy( policies_.quickFind );
     view->setWatchPolicy( policies_.watch );
     view->setFileAccessPolicy( policies_.fileAccess );
+    // What the views change themselves -- a Highlighter Set ticked in their
+    // menu, a zoom -- comes back here, to reach every open Log File.
+    view->setChangeReport( [ this ]( Changed change ) { applyChange( change ); } );
     // Last: the view builds itself when it is handed these, so every Policy
     // above has to be in its hands before it does.
     view->setSavedSearches( savedSearches_ );
@@ -169,6 +178,49 @@ const Session::OpenFile* Session::findOpenFileFromView( const ViewInterface* vie
     return file;
 }
 
+void Session::applyChange( Changed change )
+{
+    switch ( change ) {
+    case Changed::Settings:
+        applySettingsChange();
+        break;
+    case Changed::HighlighterSets:
+        applyHighlighterSetChange();
+        break;
+    }
+}
+
+void Session::addWindow( SessionWindow* window )
+{
+    if ( std::find( windows_.begin(), windows_.end(), window ) == windows_.end() ) {
+        windows_.push_back( window );
+    }
+}
+
+void Session::removeWindow( SessionWindow* window )
+{
+    windows_.erase( std::remove( windows_.begin(), windows_.end(), window ), windows_.end() );
+}
+
+void Session::applySettingsChange()
+{
+    // The Session is where the Policies are handed out, so it is where they
+    // are re-derived: no writer, and not the application, has to do it first.
+    applyPolicies( deriveSettingsPolicies( Configuration::get() ) );
+
+    // The font and the shortcuts have no Policy and no diff: every open Log
+    // File reads them again.
+    for ( auto& [ view, openFile ] : openFiles_ ) {
+        Q_UNUSED( view );
+        openFile.view->rereadSettingsWithoutPolicy();
+    }
+
+    // Last, so that a window reads the Policies already re-derived.
+    for ( auto* window : windows_ ) {
+        window->applySettingsChange();
+    }
+}
+
 void Session::applyPolicies( const SettingsPolicies& policies )
 {
     const auto indexingChanged = policies.indexing != policies_.indexing;
@@ -190,6 +242,12 @@ void Session::applyPolicies( const SettingsPolicies& policies )
     // particular reaches a Log File only when one is built, so this is the
     // only thing a change to it can do.
     policies_ = policies;
+
+    if ( watchChanged && fileWatch_ ) {
+        // Once for the whole application: the watcher is shared by every
+        // Log File, so changing the poll interval restarts nothing else.
+        fileWatch_->setWatchPolicy( policies_.watch );
+    }
 
     if ( !indexingChanged && !searchChanged && !recognitionChanged && !decodingChanged
          && !decorationChanged && !presentationChanged && !quickFindChanged && !watchChanged ) {

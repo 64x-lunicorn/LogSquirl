@@ -30,11 +30,12 @@
 #include <QByteArray>
 #include <QDateTime>
 
+#include "changed.h"
 #include "log.h"
 #include "quickfindpattern.h"
 #include "settingspolicies.h"
 
-class FileWatchPort;
+class PolicyFileWatchPort;
 class ViewInterface;
 class ViewContextInterface;
 class LogFormatCatalog;
@@ -51,6 +52,24 @@ class FileUnreadableErr {};
 
 class WindowSession;
 
+// A window showing Log Files of the Session. A window outlives every Log File
+// it shows, and some of what it shows answers to the settings on its own --
+// its QuickFind bar, its menus and actions, its shortcuts -- so the Session
+// tells every window of a settings change, once the Policies it asks for have
+// been re-derived.
+class SessionWindow {
+public:
+    // The settings changed and the Session holds the Policies re-derived from
+    // them: take what the window shows from them again.
+    virtual void applySettingsChange() = 0;
+
+protected:
+    SessionWindow() = default;
+    ~SessionWindow() = default;
+    SessionWindow( const SessionWindow& ) = default;
+    SessionWindow& operator=( const SessionWindow& ) = default;
+};
+
 class Session : public std::enable_shared_from_this<Session> {
 public:
     // The Policies the application derived. The Session does not consume
@@ -62,13 +81,14 @@ public:
     // built. Every view is handed this same instance, and the Session
     // rebuilds it whenever settings are applied.
     //
-    // The File Watch Port is how every Log File it opens hears of changes on
-    // disk; each Open Log File is handed it when it is built. Without one no
-    // Log File is followed on disk, which is what a test that does not care
-    // wants. The Watch Policy is not the Session's to hand to it: whoever
-    // built the watcher does that.
+    // The file watcher is how every Log File it opens hears of changes on
+    // disk; each Open Log File is handed it, as its File Watch Port, when it
+    // is built. The watcher itself is handed the Watch Policy here, before any
+    // file is added to it, and again whenever a settings change alters it.
+    // Without one no Log File is followed on disk, which is what a test that
+    // does not care wants.
     Session( const SettingsPolicies& policies, std::shared_ptr<LogFormatCatalog> logFormatCatalog,
-             std::shared_ptr<FileWatchPort> fileWatch = {} );
+             std::shared_ptr<PolicyFileWatchPort> fileWatch = {} );
     ~Session();
 
     // No copy/assignment please
@@ -150,26 +170,42 @@ public:
         return policies_.quickFind;
     }
 
+    // The one entry for every change of settings or coloring (#245). A writer
+    // says what it changed, and nothing else, in whatever order it likes; the
+    // Session works out what follows and who has to hear of it -- every open
+    // Log File, in every window, not only the one the current tab shows.
+    //
+    // Changed::Settings re-derives the Policies from the settings store and
+    // applies them (applyPolicies() below), tells every open Log File to read
+    // its font and shortcuts again -- they have no Policy -- and then tells
+    // every window, which by then reads the re-derived Policies.
+    //
+    // Changed::HighlighterSets tells every open Log File that the Highlighter
+    // Set Collection changed. Each re-reads the colors of its Color Labels and
+    // repaints; nothing is re-derived and no window is told.
+    void applyChange( Changed change );
+
+    // The windows told of a settings change. A window adds itself when it is
+    // built and removes itself before it is destroyed.
+    void addWindow( SessionWindow* window );
+    void removeWindow( SessionWindow* window );
+
     // Takes the Policies re-derived after a settings change: stores them
     // for the Log Files opened from now on, and hands the axes that
     // actually changed to the Log Files already open -- every one of them,
-    // not only the one the active tab is showing. An axis that did not
-    // change is not handed to anybody, so changing (say) a Highlighter Set
-    // does not make every open file rebuild its Context Lines.
+    // not only the one the active tab is showing -- and a changed Watch
+    // Policy to the file watcher. An axis that did not change is not handed
+    // to anybody, so changing (say) a Highlighter Set does not make every
+    // open file rebuild its Context Lines, nor restart file watching.
+    //
+    // applyChange( Changed::Settings ) comes here with what it re-derived;
+    // a test that has no settings store to write hands Policies here itself.
     //
     // The Log Format Catalog is rebuilt on every call, whether or not any
     // Policy changed: a user's Log Format can change on disk without any
     // setting changing, and applying the settings is how it is picked up.
     // Open Log Files keep the Log Format they were recognized with.
     void applyPolicies( const SettingsPolicies& policies );
-
-    // Tells every open Log File that the Highlighter Set Collection changed:
-    // a Highlighter Set was edited, imported, activated or deactivated, or a
-    // Color Label was given another color. Highlighter Sets are not a
-    // Setting, so this is not a Policy, but it reaches the same Log Files:
-    // every one open, in every window, not only the one the current tab
-    // shows. Each re-reads the colors of its Color Labels and repaints.
-    void applyHighlighterSetChange();
 
     std::vector<WindowSession> windowSessions();
 
@@ -195,6 +231,9 @@ private:
                                const std::function<ViewInterface*()>& view_factory,
                                const QString& view_context );
 
+    void applySettingsChange();
+    void applyHighlighterSetChange();
+
     // Find an open file from its associated view
     OpenFile* findOpenFileFromView( const ViewInterface* view );
     const OpenFile* findOpenFileFromView( const ViewInterface* view ) const;
@@ -215,8 +254,11 @@ private:
     // Handed to every view, for Format Recognition.
     std::shared_ptr<LogFormatCatalog> logFormatCatalog_;
 
-    // Handed to every Open Log File.
-    std::shared_ptr<FileWatchPort> fileWatch_;
+    // Handed to every Open Log File, and handed the Watch Policy.
+    std::shared_ptr<PolicyFileWatchPort> fileWatch_;
+
+    // Told of every settings change.
+    std::vector<SessionWindow*> windows_;
 
     bool exitRequested_ = false;
 
@@ -303,11 +345,21 @@ public:
         return appSession_->quickFindPolicy();
     }
 
-    // A Highlighter Set change reaches every open Log File of the
-    // application, not only this window's. See the Session's own.
-    void applyHighlighterSetChange()
+    // A change reaches every open Log File of the application, and every
+    // window, not only this window's. See the Session's own.
+    void applyChange( Changed change )
     {
-        appSession_->applyHighlighterSetChange();
+        appSession_->applyChange( change );
+    }
+
+    void addWindow( SessionWindow* window )
+    {
+        appSession_->addWindow( window );
+    }
+
+    void removeWindow( SessionWindow* window )
+    {
+        appSession_->removeWindow( window );
     }
 
     QString windowId() const

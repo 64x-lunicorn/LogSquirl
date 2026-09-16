@@ -42,6 +42,7 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -149,8 +150,11 @@ public Q_SLOTS:
     void focusSearchEdit();
     void goToLine();
 
-    // Instructs the widget to reconfigure itself because Config() has changed.
-    void applyConfiguration();
+    // Takes what a tab brought to the front shows afresh -- the Search
+    // history, which another tab may have added to, and the status of its
+    // data. No configuration: that reaches every open Log File when it
+    // changes, whichever tab is in front (#245).
+    void broughtToFront();
 
     // Paints every view of this Log File again with the Highlighter Sets now
     // active. A Highlighter Set is user data, not a setting, so nothing is
@@ -176,6 +180,8 @@ protected:
     void doSetWatchPolicy( const WatchPolicy& policy ) override;
     void doSetFileAccessPolicy( const FileAccessPolicy& policy ) override;
     void doApplyHighlighterSetChange() override;
+    void doRereadSettingsWithoutPolicy() override;
+    void doSetChangeReport( std::function<void( Changed )> report ) override;
     void doSetViewContext( const QString& viewContext ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
@@ -334,6 +340,9 @@ private:
     // Makes the Filtered View ready for a new Search's results.
     void prepareForNewSearch();
     void updateSearchCombo();
+    // Tells whom the Session handed over of a change this Log File's views
+    // wrote themselves, so that it reaches every open Log File.
+    void reportChange( Changed change );
     AbstractLogView* activeView() const;
     void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
     void changeDataStatus( DataStatus status );
@@ -465,6 +474,9 @@ private:
     // a later one reaches the Log Files opened from then on, not this one.
     WatchPolicy watchPolicy_;
     FileAccessPolicy fileAccessPolicy_;
+
+    // Whom a change the views write themselves is told to: the Session.
+    std::function<void( Changed )> changeReport_;
 
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.

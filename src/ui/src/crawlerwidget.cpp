@@ -500,7 +500,9 @@ void CrawlerWidget::startNewSearch()
 
         logMainView_->useNewFiltering( openLogFile_->filteredData().get() );
 
-        applyConfiguration();
+        // The View Set handed the new Filtered View its font; its shortcuts
+        // are registered here.
+        registerShortcuts();
     }
 
     tabbedFilteredView_->setTabText( tabbedFilteredView_->currentIndex(),
@@ -780,28 +782,59 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
     }
 }
 
-void CrawlerWidget::applyConfiguration()
+void CrawlerWidget::broughtToFront()
 {
-    LOG_DEBUG << "CrawlerWidget::applyConfiguration";
+    LOG_DEBUG << "CrawlerWidget::broughtToFront";
 
-    // Deliberately not here: file watching, Context Lines, hiding ANSI color
-    // sequences, the colors Log Lines are decorated in, and whether line
-    // numbers and the overview are shown, nor whether follow is allowed.
-    // They are driven by Settings Policies, re-derived and handed down per
-    // axis when a setting actually changes, to every open Log File (#95,
-    // #107, #190, #192), and a view built since starts with them (#242). A
-    // Highlighter Set change does not come here either, but goes to
-    // applyHighlighterSetChange().
+    // Another tab may have added to the Search history since.
+    updateSearchCombo();
+
+    // The new data a followed Log File had while in the background has now
+    // been seen.
+    if ( isFollowEnabled() ) {
+        changeDataStatus( DataStatus::OLD_DATA );
+    }
+}
+
+void CrawlerWidget::doRereadSettingsWithoutPolicy()
+{
+    LOG_DEBUG << "CrawlerWidget::doRereadSettingsWithoutPolicy";
+
+    // Nothing else: file watching, Context Lines, hiding ANSI color
+    // sequences, the colors Log Lines are decorated in, whether line numbers
+    // and the overview are shown and whether follow is allowed are driven by
+    // Settings Policies, handed down per Axis when a setting actually changes
+    // (#95, #107, #190, #192), and a view built since starts with them (#242).
+    // The font and the shortcuts have no Policy, so they are read again, and
+    // the Search history, which may have been given another length.
 
     registerShortcuts();
 
     viewSet_.setFont( configuredFont() );
 
-    // Update the SearchLine (history)
     updateSearchCombo();
+}
 
-    if ( isFollowEnabled() ) {
-        changeDataStatus( DataStatus::OLD_DATA );
+void CrawlerWidget::doSetChangeReport( std::function<void( Changed )> report )
+{
+    changeReport_ = std::move( report );
+}
+
+void CrawlerWidget::reportChange( Changed change )
+{
+    if ( changeReport_ ) {
+        changeReport_( change );
+        return;
+    }
+
+    // Not opened through a Session: only this Log File can be told.
+    switch ( change ) {
+    case Changed::Settings:
+        doRereadSettingsWithoutPolicy();
+        break;
+    case Changed::HighlighterSets:
+        applyHighlighterSetChange();
+        break;
     }
 }
 
@@ -1534,8 +1567,9 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
 
     connect( presentation, &Presentation::markLines, this, &CrawlerWidget::markLinesFromMain );
 
+    // A Highlighter Set ticked in a view's menu reaches every open Log File.
     connect( presentation, &Presentation::highlightersChange, this,
-             &CrawlerWidget::applyHighlighterSetChange );
+             [ this ]() { reportChange( Changed::HighlighterSets ); } );
 
     connect( presentation, QOverload<const QString&>::of( &Presentation::addToSearch ), this,
              &CrawlerWidget::addToSearch );
@@ -1702,8 +1736,8 @@ void CrawlerWidget::changeFontSize( bool increase )
     if ( currentSize != availableSizes.cend() ) {
         fontConfig.setMainFont( QFont{ fontInfo.family(), *currentSize } );
         // The zoomed font is assembled like any other, bold and antialiasing
-        // included, and reaches every view of this Log File.
-        viewSet_.setFont( configuredFont() );
+        // included, and reaches every view of every open Log File.
+        reportChange( Changed::Settings );
     }
 }
 
@@ -1717,7 +1751,7 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
     connect( view, &FilteredView::markLines, this, &CrawlerWidget::markLinesFromMain );
 
     connect( view, &FilteredView::highlightersChange, this,
-             &CrawlerWidget::applyHighlighterSetChange );
+             [ this ]() { reportChange( Changed::HighlighterSets ); } );
 
     connect( view, QOverload<const QString&>::of( &FilteredView::addToSearch ), this,
              &CrawlerWidget::addToSearch );

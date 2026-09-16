@@ -3,13 +3,17 @@
 # lookup of the watcher from the engine is a build error.
 add_library(
   logsquirl_filewatch_port STATIC ${CMAKE_CURRENT_SOURCE_DIR}/port/include/filewatchport.h
+                              ${CMAKE_CURRENT_SOURCE_DIR}/port/include/policyfilewatchport.h
                               ${CMAKE_CURRENT_SOURCE_DIR}/port/src/filewatchport.cpp
 )
 
 set_target_properties(logsquirl_filewatch_port PROPERTIES AUTOMOC ON)
 
 target_include_directories(logsquirl_filewatch_port PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/port/include")
-target_link_libraries(logsquirl_filewatch_port PUBLIC project_options project_warnings Qt6::Core)
+# The Watch Policy is a Settings Policy: the port names it, the settings store
+# it does not.
+target_link_libraries(logsquirl_filewatch_port PUBLIC project_options project_warnings Qt6::Core
+                                                      logsquirl_policies)
 
 # The efsw-based watcher: the adapter the application hands over.
 add_library(

@@ -49,6 +49,7 @@
 #include "infoline.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
+#include "shortcuts.h"
 
 static const qint64 SL_NB_LINES = 100LL;
 
@@ -1034,12 +1035,13 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
             REQUIRE( crawlerVisitor.logLineString( 1_lnum ) == "ERROR: disk full" );
         }
 
-        AND_WHEN( "the CrawlerWidget applies a Configuration that still shows them" )
+        AND_WHEN( "the CrawlerWidget reads the settings without a Policy again, while the store "
+                  "still shows them" )
         {
             auto& config = Configuration::get();
             const auto hideAnsiColorSequences = config.hideAnsiColorSequences();
             config.setHideAnsiColorSequences( false );
-            crawlerVisitor.crawler->applyConfiguration();
+            crawlerVisitor.crawler->rereadSettingsWithoutPolicy();
             config.setHideAnsiColorSequences( hideAnsiColorSequences );
 
             THEN( "the Log Line still reads without them: only the Policy decides" )
@@ -1277,15 +1279,15 @@ SCENARIO( "A changed Decoration Policy reaches every view of every open Log File
             }
         }
 
-        WHEN(
-            "the CrawlerWidget applies a Configuration that colors main-search matches otherwise" )
+        WHEN( "the CrawlerWidget reads the settings without a Policy again, while the store "
+              "colors main-search matches otherwise" )
         {
             auto& config = Configuration::get();
             const auto mainSearchHighlight = config.mainSearchHighlight();
             const auto mainSearchBackColor = config.mainSearchBackColor();
             config.setEnableMainSearchHighlight( true );
             config.setMainSearchBackColor( changedColor );
-            first.crawler->applyConfiguration();
+            first.crawler->rereadSettingsWithoutPolicy();
             config.setEnableMainSearchHighlight( mainSearchHighlight );
             config.setMainSearchBackColor( mainSearchBackColor );
             QTest::qWait( 50 );
@@ -1619,7 +1621,7 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
             REQUIRE( drawsInAssembledFont( crawlerVisitor.filteredView(), configuredSize ) );
         }
 
-        WHEN( "it is shown and the configuration is applied afterwards" )
+        WHEN( "it is shown and the settings without a Policy are read again afterwards" )
         {
             waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
             crawlerVisitor.showSized();
@@ -1628,7 +1630,7 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
                 = crawlerVisitor.tableView()->verticalHeader()->defaultSectionSize();
             const auto tableFont = crawlerVisitor.tableView()->font();
 
-            crawlerVisitor.crawler->applyConfiguration();
+            crawlerVisitor.crawler->rereadSettingsWithoutPolicy();
             QCoreApplication::processEvents();
 
             THEN( "the Table View neither changes its font nor resizes its rows" )
@@ -1878,7 +1880,7 @@ namespace {
 // menu or by an import: it tells the Session, whatever window it happened in.
 void changeHighlighterSets( Session& session )
 {
-    session.applyHighlighterSetChange();
+    session.applyChange( Changed::HighlighterSets );
     QCoreApplication::processEvents();
 }
 
@@ -1948,6 +1950,138 @@ SCENARIO( "A Highlighter Set change re-colors Color Labels in every open Log Fil
                     REQUIRE( showsColor( background.textView(), newLabelColor ) );
                     REQUIRE_FALSE( showsColor( background.textView(), oldLabelColor ) );
                 }
+            }
+        }
+    }
+}
+
+namespace {
+
+// The keys of the shortcuts a Crawler Widget has registered and not yet let go.
+QStringList shortcutKeysOf( const QObject& crawler )
+{
+    QStringList keys;
+    for ( const auto& shortcut : shortcutsOf( crawler ) ) {
+        if ( !shortcut.isNull() ) {
+            keys.append( shortcut->key().toString() );
+        }
+    }
+    return keys;
+}
+
+// Holds the configured shortcuts, and puts back what they were.
+class ConfiguredShortcuts {
+public:
+    ConfiguredShortcuts()
+        : shortcuts_( Configuration::get().shortcuts() )
+    {
+    }
+
+    ~ConfiguredShortcuts()
+    {
+        Configuration::get().setShortcuts( shortcuts_ );
+    }
+
+    ConfiguredShortcuts( const ConfiguredShortcuts& ) = delete;
+    ConfiguredShortcuts& operator=( const ConfiguredShortcuts& ) = delete;
+
+private:
+    std::map<std::string, QStringList> shortcuts_;
+};
+
+} // namespace
+
+// The font and the shortcuts have no Policy, but a change to them travels the
+// way a Policy does: the Session tells every open Log File to read them again,
+// not only the one the current tab shows, and a tab brought to the front
+// applies nothing (#245).
+SCENARIO( "A changed font or shortcut reaches every open Log File", "[ui][settings]" )
+{
+    QTemporaryFile currentFile{ "crawler_settings_current_XXXXXX" };
+    QTemporaryFile backgroundFile{ "crawler_settings_background_XXXXXX" };
+
+    const auto shippedFont = Configuration{}.mainFont();
+    const auto openedSize = shippedFont.pointSize() + 2;
+    const ConfiguredFont configured{ QFont{ shippedFont.family(), openedSize }, true, true };
+    const ConfiguredShortcuts configuredShortcuts;
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    // Destroyed before the Session they were opened from.
+    CrawlerWidgetVisitor current;
+    openCrawler( session, currentFile, current );
+    CrawlerWidgetVisitor background;
+    openCrawler( session, backgroundFile, background );
+
+    const QString changedKey = QStringLiteral( "Ctrl+Alt+Shift+F11" );
+
+    GIVEN( "two open Log Files, one in the background" )
+    {
+        // As a tab not current is.
+        background.crawler->hide();
+        QCoreApplication::processEvents();
+
+        REQUIRE( drawsInAssembledFont( background.textView(), openedSize ) );
+        REQUIRE_FALSE( shortcutKeysOf( *background.crawler ).contains( changedKey ) );
+
+        const auto changedSize = openedSize + 3;
+        auto& config = Configuration::get();
+
+        WHEN( "the font and a shortcut are changed in the settings and the Session is told" )
+        {
+            config.setMainFont( QFont{ shippedFont.family(), changedSize } );
+            auto shortcuts = config.shortcuts();
+            shortcuts[ ShortcutAction::LogViewClearColorLabels ] = QStringList{ changedKey };
+            config.setShortcuts( shortcuts );
+
+            session.applyChange( Changed::Settings );
+            QCoreApplication::processEvents();
+
+            THEN( "the Log File in the background draws in the new font, without being brought "
+                  "to the front" )
+            {
+                REQUIRE( drawsInAssembledFont( background.textView(), changedSize ) );
+                REQUIRE( drawsInAssembledFont( background.filteredView(), changedSize ) );
+            }
+
+            THEN( "the Log File in the background answers to the new shortcut" )
+            {
+                REQUIRE( shortcutKeysOf( *background.crawler ).contains( changedKey ) );
+            }
+
+            THEN( "the current Log File takes both too" )
+            {
+                REQUIRE( drawsInAssembledFont( current.textView(), changedSize ) );
+                REQUIRE( shortcutKeysOf( *current.crawler ).contains( changedKey ) );
+            }
+        }
+
+        WHEN( "the user zooms in the current Log File" )
+        {
+            current.zoom( true );
+            const auto zoomedSize = Configuration::get().mainFont().pointSize();
+            REQUIRE( zoomedSize > openedSize );
+
+            THEN( "the Log File in the background draws in the zoomed font too" )
+            {
+                REQUIRE( drawsInAssembledFont( background.textView(), zoomedSize ) );
+            }
+        }
+
+        WHEN( "the font is changed in the settings, nobody is told, and the Log File in the "
+              "background is brought to the front" )
+        {
+            const auto shortcutsBefore = shortcutsOf( *background.crawler );
+            config.setMainFont( QFont{ shippedFont.family(), changedSize } );
+
+            background.crawler->broughtToFront();
+            background.showSized();
+
+            THEN( "it applies no configuration: neither the font nor its shortcuts are taken "
+                  "again" )
+            {
+                REQUIRE( drawsInAssembledFont( background.textView(), openedSize ) );
+                REQUIRE( allAlive( shortcutsBefore ) );
             }
         }
     }

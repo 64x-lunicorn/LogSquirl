@@ -318,7 +318,11 @@ _Avoid_: find settings, search options
 **Axis**:
 One Settings Policy, seen as the unit a change travels in. A changed setting is re-derived
 into Policies and handed down one axis at a time, so changing a Highlighter Set does not
-restart file watching, and changing the poll interval does not disturb a Search.
+restart file watching, and changing the poll interval does not disturb a Search. Every change
+travels through the Session: a writer only says that the settings, or the Highlighter Sets,
+changed; the Session re-derives the Policies and hands each changed Axis to the file watcher,
+every window and every open Log File, and tells every open Log File to read what has no
+Policy — the font, the shortcuts — again. Bringing a tab to the front applies nothing.
 _Avoid_: category, group, domain
 
 **Session**:

@@ -20,9 +20,11 @@
 #ifndef VIEWINTERFACE_H
 #define VIEWINTERFACE_H
 
+#include <functional>
 #include <memory>
 #include <utility>
 
+#include "changed.h"
 #include "settingspolicies.h"
 
 class OpenLogFile;
@@ -113,6 +115,25 @@ public:
         doApplyHighlighterSetChange();
     }
 
+    // Tell the views of this Log File that the settings changed. The Policies
+    // arrive on their own Axes; what has none -- the font, the shortcuts
+    // (CONTEXT.md, Settings Policy), how long the Search history is -- the
+    // view reads again. Every open Log File is told, not only the one the
+    // current tab shows, and a tab switch tells nobody (#245)
+    void rereadSettingsWithoutPolicy()
+    {
+        doRereadSettingsWithoutPolicy();
+    }
+
+    // Hand over whom the view tells of a change it writes itself -- a
+    // Highlighter Set ticked in a view's menu, a zoom -- so that the change
+    // reaches every open Log File, and not only this one. The Session hands
+    // itself over
+    void setChangeReport( std::function<void( Changed )> report )
+    {
+        doSetChangeReport( std::move( report ) );
+    }
+
     // For save/restore of the context
     void setViewContext( const QString& view_context )
     {
@@ -138,6 +159,8 @@ protected:
     virtual void doSetWatchPolicy( const WatchPolicy& policy ) = 0;
     virtual void doSetFileAccessPolicy( const FileAccessPolicy& policy ) = 0;
     virtual void doApplyHighlighterSetChange() = 0;
+    virtual void doRereadSettingsWithoutPolicy() = 0;
+    virtual void doSetChangeReport( std::function<void( Changed )> report ) = 0;
     virtual void doSetViewContext( const QString& view_context ) = 0;
     virtual std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const = 0;
 };

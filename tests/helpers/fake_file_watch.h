@@ -28,7 +28,8 @@
 #include <QIODevice>
 #include <QString>
 
-#include "filewatchport.h"
+#include "policyfilewatchport.h"
+#include "settingspolicies.h"
 
 // A File Watch Port that watches nothing on its own: it reports a change to a
 // watched file when a test says so, at once, with no watcher, no polling and
@@ -36,9 +37,21 @@
 // growing, truncating and replacing it change the file first and then report.
 //
 // Like a real watcher it reports changes only to the files it was asked to
-// watch; each call returns whether it reported one.
-class FakeFileWatch final : public FileWatchPort {
+// watch; each call returns whether it reported one. It keeps the Watch Policies
+// it is handed, in order, and follows none of them.
+class FakeFileWatch final : public PolicyFileWatchPort {
 public:
+    void setWatchPolicy( const WatchPolicy& policy ) override
+    {
+        watchPolicies_.push_back( policy );
+    }
+
+    // Every Watch Policy handed over so far, the latest last.
+    const std::vector<WatchPolicy>& watchPolicies() const
+    {
+        return watchPolicies_;
+    }
+
     void addFile( const QString& fileName ) override
     {
         if ( !isWatched( fileName ) ) {
@@ -111,6 +124,7 @@ private:
     }
 
     std::vector<QString> watchedFiles_;
+    std::vector<WatchPolicy> watchPolicies_;
     int replacements_ = 0;
 };
 

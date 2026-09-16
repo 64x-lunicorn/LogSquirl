@@ -81,11 +81,15 @@ class HighlightersMenu;
 
 // Main window of the application, creates menus, toolbar and
 // the CrawlerWidget
-class MainWindow : public QMainWindow {
+class MainWindow : public QMainWindow, public SessionWindow {
     Q_OBJECT
 
 public:
     explicit MainWindow( WindowSession session );
+    ~MainWindow() override;
+
+    MainWindow( const MainWindow& ) = delete;
+    MainWindow& operator=( const MainWindow& ) = delete;
 
     // Re-install the geometry stored in config file
     // (should be done before 'Widget::show()')
@@ -99,14 +103,10 @@ public:
 
     static int installLanguage( QString lang );
 
-    // Hand the QuickFind bar and the mux the QuickFind Policy this window's
-    // session holds now. Neither of them reads a setting of its own, and
-    // neither belongs to a Log File, so the Policy is the same whichever tab
-    // or Filtered View is in front: a tab switch leaves it alone. The window
-    // takes it once when it is built and again after the Options Dialog has
-    // changed a setting; whoever re-derives the Policies calls this on every
-    // other window too, so that a change made in one reaches them all.
-    void applyQuickFindPolicy();
+    // The Session tells every window of a settings change, whichever window
+    // it was made in, once it has re-derived the Policies (#245): the window
+    // takes its QuickFind Policy, its shortcuts and its chrome again.
+    void applySettingsChange() override;
 
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
@@ -125,6 +125,13 @@ protected:
 
 private:
     enum class ActionInitiator { User, App };
+
+    // Hand the QuickFind bar and the mux the QuickFind Policy this window's
+    // session holds now. Neither of them reads a setting of its own, and
+    // neither belongs to a Log File, so the Policy is the same whichever tab
+    // or Filtered View is in front: a tab switch leaves it alone. The window
+    // takes it once when it is built and again on every settings change.
+    void applyQuickFindPolicy();
 
 private Q_SLOTS:
     void open();
@@ -209,14 +216,6 @@ private Q_SLOTS:
     void changeQFPattern( const QString& newPattern );
 
 Q_SIGNALS:
-    // Is emitted when new settings must be used
-    void optionsChanged();
-    // Is emitted when the settings store has been written, so that the
-    // place which derives the Settings Policies can re-derive them and
-    // hand the changed axes to whatever is already running. Distinct from
-    // optionsChanged() above, which drives this window's own widgets via
-    // the signal mux and therefore reaches the current tab only.
-    void settingsChanged();
     // Is emitted when the 'follow' option is enabled/disabled
     void followSet( bool checked );
     // Is emitted when the 'text wrap' option is enabled/disabled

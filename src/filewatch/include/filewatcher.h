@@ -43,7 +43,7 @@
 
 #include <memory>
 
-#include "filewatchport.h"
+#include "policyfilewatchport.h"
 #include "settingspolicies.h"
 
 class EfswFileWatcher;
@@ -63,8 +63,9 @@ struct EfswFileWatcherDeleter {
 // There is one per process, and it is never destroyed: tearing down efsw's
 // watches at exit gains nothing and has corrupted the heap before (#145). Only
 // the application, the one place that composes the engine, looks it up; the
-// engine is handed it as a FileWatchPort.
-class FileWatcher : public FileWatchPort {
+// Session is handed it as a PolicyFileWatchPort, and the engine as a
+// FileWatchPort.
+class FileWatcher : public PolicyFileWatchPort {
     Q_OBJECT
 public:
     FileWatcher( const FileWatcher& ) = delete;
@@ -92,14 +93,14 @@ public:
     // polling and the poll interval, all three of them and nothing else.
     // Takes effect immediately on the files already being watched, so a
     // changed setting reaches a running watcher through this call and
-    // through no other path.
+    // through no other path: the Session's (#245).
     //
     // A FileWatcher that has never been given one follows a Policy that
     // watches nothing: this object cannot derive a Policy of its own (it
     // does not link the settings library, by design -- see the CMake
-    // file), so whoever owns the settings has to hand it one before the
-    // first file is added.
-    void setWatchPolicy( const WatchPolicy& policy );
+    // file), so whoever holds the Policies has to hand it one before the
+    // first file is added. The Session does so when it is built.
+    void setWatchPolicy( const WatchPolicy& policy ) override;
 
 public Q_SLOTS:
     void fileChangedOnDisk( const QString& );

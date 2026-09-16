@@ -53,6 +53,12 @@ set(ALLOWED_FILES
     # logging and followFileOnLoad.
     src/mainwindow.cpp
 
+    # Derives the Policies. The Session is the one entry for a settings change
+    # (#245): it re-derives the Policies from the store and hands each changed
+    # Axis down. It reads the store for nothing else -- deriveSettingsPolicies()
+    # is the only call made on it.
+    src/session.cpp
+
     # Axes decided to stay a direct read -- not waiting for a Policy, and not
     # what "the allowlist is meant to shrink" is about (CONTEXT.md, Settings
     # Policy).
