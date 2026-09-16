@@ -60,6 +60,7 @@
 #endif
 
 #include "abstractlogdata.h"
+#include "decorationsetup.h"
 #include "linessaver.h"
 #include "linetypes.h"
 #include "overviewwidget.h"
@@ -173,6 +174,11 @@ public:
 
     using QuickHighlighters = QStringList;
     void setQuickHighlighters( const std::vector<QuickHighlighters>& wordHighlighters );
+
+    // Hand over the settings that colour Log Lines. Call it after a settings
+    // change: painting reads no setting of its own, so this is the only way
+    // a changed one reaches the Viewport.
+    void setDecorationPolicy( const DecorationPolicy& policy );
 
     void registerShortcuts();
 
@@ -392,6 +398,12 @@ private:
     RegularExpressionPattern searchPattern_;
 
     std::vector<QuickHighlighters> quickHighlighters_ = std::vector<QuickHighlighters>{ 9 };
+
+    // The one module that builds the Line Decorator's Context, shared with
+    // the Table View: it holds the Decoration Policy, the main search
+    // pattern and the Color Labels, and caches the Highlighters built from
+    // them, so a repaint builds no Highlighter of its own.
+    DecorationSetup decorationSetup_;
 
     // Position of the view, those are crucial to control drawing
     // scrollPosition_ gives the position of the view; only scrolling moves it.

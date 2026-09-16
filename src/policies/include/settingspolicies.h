@@ -20,6 +20,7 @@
 #ifndef LOGSQUIRL_SETTINGS_POLICIES_H
 #define LOGSQUIRL_SETTINGS_POLICIES_H
 
+#include <QColor>
 #include <QString>
 
 #include "regexpengine.h"
@@ -124,6 +125,30 @@ struct DecodingPolicy {
     bool operator==( const DecodingPolicy& ) const = default;
 };
 
+// What coloring a Log Line needs from the settings, and nothing else. The
+// one module that builds the Line Decorator's context takes it; neither
+// Presentation reads these settings for itself, which is what lets that
+// module be exercised without a settings store.
+//
+// The Highlighter Set, the Color Labels and the QuickFind pattern are not
+// here: they are not settings this axis carries but the user's current
+// coloring, which reaches the Presentations by their own routes.
+struct DecorationPolicy {
+    // Whether what the main Search matched is colored in the Log Lines at
+    // all. When false, no main-search Highlighter is built.
+    bool mainSearchHighlight{};
+    // Whether each distinct matched text gets a shade of its own, so that
+    // two different matches are told apart.
+    bool variateMainSearchHighlight{};
+    // The background the main Search's matches are painted in. Invalid in an
+    // underived Policy, as is the QuickFind one below.
+    QColor mainSearchBackColor{};
+    // The background a QuickFind match is painted in.
+    QColor quickFindBackColor{};
+
+    bool operator==( const DecorationPolicy& ) const = default;
+};
+
 // The Policies as one bundle, so the place that builds the application's
 // long-lived objects derives and carries them together.
 struct SettingsPolicies {
@@ -133,6 +158,7 @@ struct SettingsPolicies {
     FileAccessPolicy fileAccess;
     RecognitionPolicy recognition;
     DecodingPolicy decoding;
+    DecorationPolicy decoration;
 
     bool operator==( const SettingsPolicies& ) const = default;
 };
@@ -141,5 +167,11 @@ struct SettingsPolicies {
 // application's long-lived objects are built -- not wherever a setting
 // happens to be needed.
 SettingsPolicies deriveSettingsPolicies( const Configuration& config );
+
+// Derives just the Decoration Policy from a Configuration. Declared beside
+// deriveSettingsPolicies() because a Presentation needs this one axis
+// before it is first painted -- earlier than the bundle reaches it -- and
+// both must read the same settings, so there is one derivation, not two.
+DecorationPolicy deriveDecorationPolicy( const Configuration& config );
 
 #endif

@@ -57,5 +57,17 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
         .recognition = { .enabled = config.autoDetectLogFormats() },
 
         .decoding = { .hideAnsiColorSequences = config.hideAnsiColorSequences() },
+
+        .decoration = deriveDecorationPolicy( config ),
+    };
+}
+
+DecorationPolicy deriveDecorationPolicy( const Configuration& config )
+{
+    return DecorationPolicy{
+        .mainSearchHighlight = config.mainSearchHighlight(),
+        .variateMainSearchHighlight = config.variateMainSearchHighlight(),
+        .mainSearchBackColor = config.mainSearchBackColor(),
+        .quickFindBackColor = config.qfBackColor(),
     };
 }

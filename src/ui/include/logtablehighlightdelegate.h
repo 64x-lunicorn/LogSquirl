@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "configuration.h"
+#include "decorationsetup.h"
 #include "highlightedmatch.h"
 #include "highlighterset.h"
 #include "linedecorator.h"
@@ -67,30 +67,31 @@ public:
     void setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
     {
         quickFindPattern_ = std::move( pattern );
+        // The Decoration Setup does not own it: this delegate keeps it alive
+        // for as long as it points at it.
+        decorationSetup_.setQuickFindPattern( quickFindPattern_.get() );
     }
 
-    // Set the color label words (one QStringList per color slot).
+    // Set the color label words (one QStringList per color slot). The colour
+    // of each slot comes from the Highlighter Set Collection, so a change to
+    // those colours reaches the cells by setting the words again.
     void setColorLabelWords( const std::vector<QStringList>& words )
     {
-        colorLabelWords_ = words;
-        rebuildColorLabelHighlighters();
+        decorationSetup_.setColorLabels( words, colorLabelColors() );
     }
 
     // Set the main search pattern for main-search highlighting.
     void setSearchPattern( const RegularExpressionPattern& pattern )
     {
-        searchPattern_ = pattern;
-        rebuildMainSearchHighlighter();
+        decorationSetup_.setSearchPattern( pattern );
     }
 
-    // Rebuild the cached main-search Highlighter's colour/config-derived
-    // properties from the current Configuration, without changing the
-    // pattern itself -- call after Configuration changes (paint() does not
-    // re-read Configuration on every cell the way AbstractLogView's
-    // per-repaint construction does, so this is its equivalent hook).
-    void refreshMainSearchHighlighter()
+    // Hand over the settings that colour Log Lines. Call it after a settings
+    // change: paint() reads no setting of its own, so this is the only way a
+    // changed one reaches a cell.
+    void setDecorationPolicy( const DecorationPolicy& policy )
     {
-        rebuildMainSearchHighlighter();
+        decorationSetup_.setPolicy( policy );
     }
 
     // Set the Search Limits: rows outside this range are shown subdued.
@@ -185,10 +186,11 @@ public:
             backColor = wholeLine->backColor;
         }
         else if ( rowVerdict.isMark() ) {
-            backColor = rowVerdict.isMatch() ? markedMatchRowColor() : markRowColor();
+            backColor
+                = rowVerdict.isMatch() ? LineStatusColors::markedMatch() : LineStatusColors::mark();
         }
         else if ( rowVerdict.isMatch() ) {
-            backColor = matchRowColor();
+            backColor = LineStatusColors::match();
         }
 
         if ( rowVerdict.isContextLine() ) {
@@ -367,87 +369,29 @@ public:
     }
 
 private:
-    // Row background colours for Mark/Match, consistent with the text
-    // view's gutter bullet colours (see AbstractLogView::drawing, where
-    // matchBulletBrush/markBrush/markedMatchBrush are the same colours).
-    static QColor matchRowColor()
+    // The colour of each Color Label slot, in slot order, as the Highlighter
+    // Set Collection currently holds them. The Decoration Setup is handed
+    // these rather than reaching for the collection itself: it is a library
+    // below the UI and knows nothing of that singleton.
+    static std::vector<HighlightColor> colorLabelColors()
     {
-        return QColor{ Qt::red };
-    }
-    static QColor markRowColor()
-    {
-        return QColor{ "dodgerblue" };
-    }
-    static QColor markedMatchRowColor()
-    {
-        return QColor{ "violet" };
-    }
-
-    // Rebuild the cached main-search Highlighter (used by
-    // buildDecoratorContext() below) from the current pattern and
-    // Configuration. Highlighter compiles its regex lazily on first match
-    // and caches the compiled form on the instance, so keeping this
-    // Highlighter alive across repaints -- rebuilding it only when the
-    // pattern or Configuration actually changes, not on every cell --
-    // is what avoids recompiling it on every cell paint() draws.
-    void rebuildMainSearchHighlighter()
-    {
-        cachedMainSearch_.reset();
-        if ( Configuration::get().mainSearchHighlight() && !searchPattern_.isBoolean
-             && !searchPattern_.isExclude && !searchPattern_.pattern.isEmpty() ) {
-            cachedMainSearch_ = Highlighter{};
-            cachedMainSearch_->setHighlightOnlyMatch( true );
-            cachedMainSearch_->setVariateColors(
-                Configuration::get().variateMainSearchHighlight() );
-            cachedMainSearch_->setPattern( searchPattern_.pattern );
-            cachedMainSearch_->setIgnoreCase( !searchPattern_.isCaseSensitive );
-            cachedMainSearch_->setUseRegex( !searchPattern_.isPlainText );
-            cachedMainSearch_->setBackColor( Configuration::get().mainSearchBackColor() );
-            cachedMainSearch_->setForeColor( Qt::black );
-        }
-    }
-
-    // Rebuild the cached Color Label Highlighters (see rebuildMainSearchHighlighter()
-    // for why this is cached rather than rebuilt on every cell paint()).
-    void rebuildColorLabelHighlighters()
-    {
-        cachedColorLabels_.clear();
         const auto quickHighlighters = HighlighterSetCollection::get().quickHighlighters();
-        for ( size_t i = 0;
-              i < colorLabelWords_.size() && static_cast<int>( i ) < quickHighlighters.size();
-              ++i ) {
-            if ( colorLabelWords_[ i ].isEmpty() ) {
-                continue;
-            }
-            const auto& qh = quickHighlighters.at( static_cast<int>( i ) );
-            for ( const auto& word : colorLabelWords_[ i ] ) {
-                if ( word.isEmpty() ) {
-                    continue;
-                }
-                Highlighter h( word, false, true, qh.color.foreColor, qh.color.backColor );
-                h.setUseRegex( false );
-                cachedColorLabels_.push_back( std::move( h ) );
-            }
+        std::vector<HighlightColor> colors;
+        colors.reserve( static_cast<size_t>( quickHighlighters.size() ) );
+        for ( const auto& quickHighlighter : quickHighlighters ) {
+            colors.push_back( quickHighlighter.color );
         }
+        return colors;
     }
 
-    // Build the stable context the Line Decorator matches every colour
-    // source against: the active Highlighter Set, the main search pattern,
-    // Color Labels, QuickFind and the Search Limits, matching how
-    // AbstractLogView builds the same context for the text view. The main
-    // search Highlighter and Color Label Highlighters are cached (see
-    // rebuildMainSearchHighlighter()/rebuildColorLabelHighlighters()) since
-    // paint() calls this once per cell.
+    // The Context the Line Decorator matches every colour source against,
+    // built by the one module that builds it for either Presentation. The
+    // active Highlighter Set is read here, afresh for every cell, so that
+    // switching sets re-colours the table without this delegate being told.
     LineDecorator::Context buildDecoratorContext() const
     {
-        return LineDecorator::Context{
-            HighlighterSetCollection::get().currentActiveSet(),
-            cachedMainSearch_,
-            cachedColorLabels_,
-            quickFindPattern_ ? quickFindPattern_->getMatcher() : QuickFindMatcher{},
-            Configuration::get().qfBackColor(),
-            SearchLimits{ searchStart_, searchEnd_ },
-        };
+        return decorationSetup_.context( HighlighterSetCollection::get().currentActiveSet(),
+                                         SearchLimits{ searchStart_, searchEnd_ } );
     }
 
     // The portion (in-cell text) selection decorate() should overlay on
@@ -532,18 +476,16 @@ private:
     LogFilteredData* filteredData_ = nullptr;
     std::shared_ptr<const RowMapping> rows_ = std::make_shared<OneRowPerLogLine>();
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
-    std::vector<QStringList> colorLabelWords_;
 
-    // Main search pattern and Search Limits (set by LogTableView, mirroring
-    // what it hands the text view)
-    RegularExpressionPattern searchPattern_;
+    // The one module that builds the Line Decorator's Context; it holds the
+    // Decoration Policy, the main search pattern and the Color Labels, and
+    // caches the Highlighters built from them.
+    DecorationSetup decorationSetup_;
+
+    // Search Limits (set by LogTableView, mirroring what it hands the text
+    // view)
     LineNumber searchStart_{ 0_lnum };
     LineNumber searchEnd_{ 0_lnum };
-
-    // Cached Highlighters built from searchPattern_/colorLabelWords_ (see
-    // rebuildMainSearchHighlighter()/rebuildColorLabelHighlighters())
-    std::optional<Highlighter> cachedMainSearch_;
-    logsquirl::vector<Highlighter> cachedColorLabels_;
 
     // Portion selection state (set by LogTableView from mouse events)
     int portionRow_ = -1;

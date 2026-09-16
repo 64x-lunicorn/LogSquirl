@@ -38,6 +38,7 @@ class AbstractLogData;
 class LogFilteredData;
 class LogFormatTableModel;
 class LogTableHighlightDelegate;
+struct DecorationPolicy;
 class Overview;
 class OverviewWidget;
 class Portion;
@@ -84,8 +85,9 @@ public:
     void setSearchPattern( const RegularExpressionPattern& pattern );
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
-    // Pick up a Configuration change affecting the main search colors.
-    void refreshMainSearchHighlighter();
+    // Hand over the settings that colour Log Lines, after a settings change:
+    // painting reads no setting of its own.
+    void setDecorationPolicy( const DecorationPolicy& policy );
 
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();

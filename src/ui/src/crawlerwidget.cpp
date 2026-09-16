@@ -795,14 +795,29 @@ void CrawlerWidget::applyConfiguration()
         changeDataStatus( DataStatus::OLD_DATA );
     }
 
-    // Let the table view pick up a Configuration change (e.g. toggling
-    // main-search highlighting) without needing a new search
-    logTableView_->refreshMainSearchHighlighter();
+    // Hand every Presentation the settings that colour Log Lines again: none
+    // of them reads a setting while painting, so a change (e.g. toggling
+    // main-search highlighting) reaches them only this way -- and without
+    // needing a new search.
+    const auto decorationPolicy = deriveDecorationPolicy( config );
+    logMainView_->setDecorationPolicy( decorationPolicy );
+    logTableView_->setDecorationPolicy( decorationPolicy );
+    filteredView_->setDecorationPolicy( decorationPolicy );
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->setDecorationPolicy( decorationPolicy );
+        }
+    }
 }
 
 void CrawlerWidget::applyHighlighterSetChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyHighlighterSetChange";
+
+    // A Color Label's colour comes from the Highlighter Set Collection and is
+    // cached alongside its words, so handing the words over again is what
+    // picks up a colour the user just changed.
+    updateColorLabels( colorLabelsManager_.colorLabels() );
 
     // Every view reads the active Highlighter Sets when it paints, so all a
     // change takes is painting again -- the Filtered Views of kept Searches

@@ -5,6 +5,7 @@ add_executable(logsquirl_tests
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp
     configuration_test.cpp
+    decorationsetup_test.cpp
     encodingdetector_test.cpp
     fontutils_test.cpp
     indexcache_test.cpp

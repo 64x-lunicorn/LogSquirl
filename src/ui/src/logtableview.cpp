@@ -108,6 +108,9 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // Highlight delegate for match/mark row coloring and text highlighting
     delegate_ = new LogTableHighlightDelegate( this );
     delegate_->setRowMapping( rows_ );
+    // The settings that colour Log Lines, so the first frame is coloured
+    // like every later one; a change to them arrives via setDecorationPolicy().
+    delegate_->setDecorationPolicy( deriveDecorationPolicy( Configuration::get() ) );
     setItemDelegate( delegate_ );
 
     quickFindPattern_ = std::make_shared<QuickFindPattern>();
@@ -266,9 +269,9 @@ void LogTableView::setColorLabels( const ColorLabelsManager::QuickHighlightersCo
     repaintIfActive();
 }
 
-void LogTableView::refreshMainSearchHighlighter()
+void LogTableView::setDecorationPolicy( const DecorationPolicy& policy )
 {
-    delegate_->refreshMainSearchHighlighter();
+    delegate_->setDecorationPolicy( policy );
     repaintIfActive();
 }
 

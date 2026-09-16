@@ -28,6 +28,8 @@
 
 #include "overviewwidget.h"
 
+#include "decorationsetup.h"
+
 #include "overview.h"
 
 #define HIGHLIGHT_XPM_WIDTH 27
@@ -141,8 +143,10 @@ OverviewWidget::OverviewWidget( QWidget* parent )
 
 void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
 {
-    static const QColor match_color( "red" );
-    static const QColor mark_color( "dodgerblue" );
+    // The same colors the Presentations show a Match and a Mark in, from the
+    // one place that defines them.
+    static const QColor match_color( LineStatusColors::match() );
+    static const QColor mark_color( LineStatusColors::mark() );
 
     static const QPixmap highlight_pixmap[] = {
         QPixmap( highlight_xpm[ 0 ] ), QPixmap( highlight_xpm[ 1 ] ), QPixmap( highlight_xpm[ 2 ] ),
