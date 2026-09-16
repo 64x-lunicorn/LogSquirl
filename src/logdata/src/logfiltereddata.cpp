@@ -262,15 +262,17 @@ OptionalLineNumber LogFilteredData::getMarkBefore( LineNumber line ) const
 {
     OptionalLineNumber marked_line;
 
-    const LineNumber::UnderlyingType rank = marks_.rank( line.get() );
+    // The Marks strictly before line: rank counts line itself when it is marked.
+    const LineNumber::UnderlyingType marksBefore
+        = marks_.rank( line.get() ) - ( marks_.contains( line.get() ) ? 1 : 0 );
 
-    if ( rank < 2 ) {
+    if ( marksBefore == 0 ) {
         return marked_line;
     }
 
-    LineNumber::UnderlyingType nextMark;
-    if ( marks_.select( rank - 2, &nextMark ) ) {
-        marked_line = LineNumber( nextMark );
+    LineNumber::UnderlyingType previousMark;
+    if ( marks_.select( marksBefore - 1, &previousMark ) ) {
+        marked_line = LineNumber( previousMark );
     }
 
     return marked_line;

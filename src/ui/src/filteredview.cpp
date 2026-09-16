@@ -123,28 +123,19 @@ void FilteredView::doRegisterShortcuts()
 {
     LOG_INFO << "Registering shortcuts for filtered view";
     AbstractLogView::doRegisterShortcuts();
+    // Next Mark goes down and previous Mark up, as in the main view (#233).
     registerShortcut( ShortcutAction::LogViewNextMark, [ this ] {
-        using LineTypeFlags = LogFilteredData::LineTypeFlags;
-        auto i = getViewPosition() - 1_lcount;
-        bool foundMark = false;
-        for ( ; i != 0_lnum; --i ) {
-            if ( lineType( i ).testFlag( LineTypeFlags::Mark ) ) {
-                foundMark = true;
+        const auto nbLines = logFilteredData_->getNbLine();
+        for ( auto i = getViewPosition() + 1_lcount; i < nbLines; ++i ) {
+            if ( lineType( i ).testFlag( LogFilteredData::LineTypeFlags::Mark ) ) {
+                selectAndDisplayLine( i );
                 break;
             }
         }
-
-        if ( !foundMark ) {
-            foundMark = lineType( i ).testFlag( LineTypeFlags::Mark );
-        }
-
-        if ( foundMark ) {
-            selectAndDisplayLine( i );
-        }
     } );
     registerShortcut( ShortcutAction::LogViewPrevMark, [ this ] {
-        const auto nbLines = logFilteredData_->getNbLine();
-        for ( auto i = getViewPosition() + 1_lcount; i < nbLines; ++i ) {
+        for ( auto i = getViewPosition(); i > 0_lnum; ) {
+            --i;
             if ( lineType( i ).testFlag( LogFilteredData::LineTypeFlags::Mark ) ) {
                 selectAndDisplayLine( i );
                 break;

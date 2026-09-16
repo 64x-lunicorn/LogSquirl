@@ -200,6 +200,30 @@ SCENARIO( "marks in filtered log data", "[logdata]" )
                 }
             }
 
+            AND_WHEN( "Get mark before from a line without a mark" )
+            {
+                THEN( "Return the nearest mark above it" )
+                {
+                    REQUIRE( filtered_data->getMarkBefore( 30_lnum )
+                             == OptionalLineNumber( 25_lnum ) );
+                    REQUIRE( filtered_data->getMarkBefore( 15_lnum )
+                             == OptionalLineNumber( 10_lnum ) );
+                    REQUIRE_FALSE( filtered_data->getMarkBefore( 5_lnum ).has_value() );
+                }
+            }
+
+            AND_WHEN( "Get mark after from a line without a mark" )
+            {
+                THEN( "Return the nearest mark below it" )
+                {
+                    REQUIRE( filtered_data->getMarkAfter( 5_lnum )
+                             == OptionalLineNumber( 10_lnum ) );
+                    REQUIRE( filtered_data->getMarkAfter( 15_lnum )
+                             == OptionalLineNumber( 25_lnum ) );
+                    REQUIRE_FALSE( filtered_data->getMarkAfter( 30_lnum ).has_value() );
+                }
+            }
+
             AND_WHEN( "Get mark after has mark" )
             {
                 const auto markAfter = filtered_data->getMarkAfter( 10_lnum );

@@ -361,10 +361,10 @@ SCENARIO( "Jumping to a Mark moves the Filtered View only when the Mark is off s
                              Qt::NoButton, Qt::NoModifier );
         QCoreApplication::sendEvent( view.viewport(), &release );
 
-        // The Filtered View's "previous mark" goes down, its "next mark" up.
+        // "Next mark" goes down, "previous mark" up, as in the main view (#233).
         const auto action = line > view.scrollPosition().lineNumber
-                                ? ShortcutAction::LogViewPrevMark
-                                : ShortcutAction::LogViewNextMark;
+                                ? ShortcutAction::LogViewNextMark
+                                : ShortcutAction::LogViewPrevMark;
         const auto keys = ShortcutAction::shortcutKeys( action, Configuration::get().shortcuts() );
         REQUIRE_FALSE( keys.isEmpty() );
 
