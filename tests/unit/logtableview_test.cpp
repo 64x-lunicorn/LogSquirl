@@ -28,6 +28,7 @@
 #include "persistentinfo.h"
 #include "quickfindpattern.h"
 #include "rowmapping.h"
+#include "test_policies.h"
 
 #include <QAction>
 #include <QApplication>
@@ -727,6 +728,103 @@ SCENARIO( "Find next and previous in the Table View's context menu select the Lo
             {
                 REQUIRE( selected == 101_lnum );
                 REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 101_lnum } );
+            }
+        }
+    }
+}
+
+namespace {
+
+// 103 Log Lines, the last three of the Log Format's shape. The body of the Row
+// showing Log Line 101 is a lone regexp metacharacter: a word is letters,
+// digits and underscores, so where there is no word to be found the character
+// under the cursor is selected on its own -- whatever the font, and without
+// the test having to place a selection by pixel. The Row after it holds that
+// character too, so that a QuickFind for it finds a match and finishes.
+QStringList metacharacterLines()
+{
+    QStringList lines;
+    for ( int line = 0; line < 100; ++line ) {
+        lines << QString( "noise %1" ).arg( line );
+    }
+    lines << "Jan  1 12:00:00 host0 alpha" << "Jan  1 12:00:01 host1 ."
+          << "Jan  1 12:00:02 host2 beta.";
+    return lines;
+}
+
+// Double-clicks the cell of the Row whose text is exactly text.
+void doubleClickCell( LogTableView& view, int row, const QString& text )
+{
+    for ( int column = 0; column < view.model()->columnCount(); ++column ) {
+        const auto index = view.model()->index( row, column );
+        if ( index.data( Qt::DisplayRole ).toString() == text ) {
+            QTest::mouseDClick( view.viewport(), Qt::LeftButton, {},
+                                view.visualRect( index ).center() );
+            return;
+        }
+    }
+    FAIL( "no cell holding " << text.toStdString() );
+}
+
+} // namespace
+
+SCENARIO(
+    "The Table View reads the text a QuickFind searches for the way its QuickFind Policy says",
+    "[logtableview][quickfindpolicy]" )
+{
+    // No settings store takes part: the Policy is a literal, and how the
+    // selected text is read follows from it alone.
+    const auto format = makeFormat();
+    FakeLogData logData( metacharacterLines() );
+    InspectedTableView view( std::make_shared<RowsFromLogLine100>() );
+    auto quickFindPattern = std::make_shared<QuickFindPattern>();
+    view.setQuickFindPattern( quickFindPattern );
+    open( view, format, logData );
+    view.setActive( true );
+    view.show();
+    QCoreApplication::processEvents();
+
+    auto policy = testSettingsPolicies().quickFind;
+
+    // Chooses an entry of the context menu over the Row holding the lone
+    // metacharacter, and lets the QuickFind it starts finish: the search runs
+    // off the UI thread, and none of it may outlive the view.
+    const auto chooseAndLetTheQuickFindFinish = [ & ]( const QString& entry ) {
+        const auto menu = view.createContextMenu( centerOfRow( view, 1 ) );
+        QSignalSpy newSelection( &view, &LogTableView::newSelection );
+        choose( *menu, entry );
+        REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
+    };
+
+    GIVEN( "the lone metacharacter of a Row selected" )
+    {
+        doubleClickCell( view, 1, "." );
+        REQUIRE( view.selectedText() == "." );
+
+        WHEN( "Find next is chosen under a Policy reading a pattern as an extended regexp" )
+        {
+            policy.quickFindRegexpType = SearchRegexpType::ExtendedRegexp;
+            view.setQuickFindPolicy( policy );
+
+            chooseAndLetTheQuickFindFinish( "Find &next" );
+
+            THEN( "the QuickFind pattern is the selected text escaped, standing for itself "
+                  "rather than for any character" )
+            {
+                REQUIRE( quickFindPattern->getPattern() == QRegularExpression::escape( "." ) );
+            }
+        }
+
+        WHEN( "Find next is chosen under a Policy reading a pattern as a fixed string" )
+        {
+            policy.quickFindRegexpType = SearchRegexpType::FixedString;
+            view.setQuickFindPolicy( policy );
+
+            chooseAndLetTheQuickFindFinish( "Find &next" );
+
+            THEN( "the QuickFind pattern is the selected text as it stands" )
+            {
+                REQUIRE( quickFindPattern->getPattern() == "." );
             }
         }
     }

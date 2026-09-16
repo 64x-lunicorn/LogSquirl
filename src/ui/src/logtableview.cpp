@@ -108,9 +108,10 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // Highlight delegate for match/mark row coloring and text highlighting
     delegate_ = new LogTableHighlightDelegate( this );
     delegate_->setRowMapping( rows_ );
-    // The settings that colour Log Lines, so the first frame is coloured
-    // like every later one; a change to them arrives via setDecorationPolicy().
-    delegate_->setDecorationPolicy( deriveDecorationPolicy( Configuration::get() ) );
+    // The settings that colour Log Lines reach the delegate through
+    // setDecorationPolicy(), which whoever builds this view calls before the
+    // first frame and again whenever they change: this view derives no Policy
+    // of its own.
     setItemDelegate( delegate_ );
 
     quickFindPattern_ = std::make_shared<QuickFindPattern>();
@@ -273,6 +274,13 @@ void LogTableView::setDecorationPolicy( const DecorationPolicy& policy )
 {
     delegate_->setDecorationPolicy( policy );
     repaintIfActive();
+}
+
+void LogTableView::setQuickFindPolicy( const QuickFindPolicy& policy )
+{
+    // Nothing is repainted: this Policy says how a pattern is read, not how a
+    // match is painted, and it is read from here at the next QuickFind.
+    quickFindPolicy_ = policy;
 }
 
 void LogTableView::updateFont( const QFont& font )
@@ -687,9 +695,8 @@ void LogTableView::findSelected( bool forward )
     }
 
     // What QuickFindMux does when the Text View asks for the selected text
-    quickFindPattern_->changeSearchPattern( selectedText(),
-                                            Configuration::get().quickfindRegexpType()
-                                                == SearchRegexpType::ExtendedRegexp );
+    quickFindPattern_->changeSearchPattern(
+        selectedText(), quickFindPolicy_.quickFindRegexpType == SearchRegexpType::ExtendedRegexp );
 
     // From the Log Line holding the selected characters, whole
     Selection from;

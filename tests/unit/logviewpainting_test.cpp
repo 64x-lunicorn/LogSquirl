@@ -36,9 +36,10 @@
 // - The palette, the frame, the scroll bars and the viewport size are set
 //   explicitly, so no platform style leaks in.
 // - The settings painting reads -- main search highlighting and its colors,
-//   the QuickFind color, the active Highlighter Sets, whether scrolling may
-//   pull the view into follow mode -- are set for the duration of the test
-//   and restored afterwards.
+//   the QuickFind color, the active Highlighter Sets -- are set for the
+//   duration of the test and restored afterwards. Whether scrolling may pull
+//   the view into follow mode is not among them: the view is handed that in
+//   its Presentation Policy, as the application hands it (#184).
 //
 // To accept a deliberate change to painting, run the test with
 // LOGSQUIRL_UPDATE_PAINTING_GOLDENS set: it rewrites the golden images in
@@ -68,6 +69,7 @@
 #include "painting_test_font.h"
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
+#include "test_policies.h"
 
 namespace {
 
@@ -165,37 +167,22 @@ protected:
     }
 };
 
-// The settings painting reads, pinned to fixed values for as long as this
-// object lives and restored when it goes: nothing a developer has configured
-// reaches the images, and nothing set here leaks into the tests that run
-// next.
+// The Highlighter Sets a developer has configured, kept out of the images for
+// as long as this object lives and restored when it goes. They are the user's
+// own colouring, read from the collection as the view paints, and no Settings
+// Policy carries them -- which is why they are pinned here and the settings
+// that colour Log Lines are not: those reach the view as its Decoration
+// Policy (see showForPainting()).
 class PinnedPaintingSettings {
 public:
     PinnedPaintingSettings()
-        : mainSearchHighlight_( Configuration::get().mainSearchHighlight() )
-        , variateMainSearchHighlight_( Configuration::get().variateMainSearchHighlight() )
-        , mainSearchBackColor_( Configuration::get().mainSearchBackColor() )
-        , qfBackColor_( Configuration::get().qfBackColor() )
-        , allowFollowOnScroll_( Configuration::get().allowFollowOnScroll() )
-        , activeHighlighterSets_( HighlighterSetCollection::get().activeSetIds() )
+        : activeHighlighterSets_( HighlighterSetCollection::get().activeSetIds() )
     {
-        auto& config = Configuration::get();
-        config.setEnableMainSearchHighlight( true );
-        config.setVariateMainSearchHighlight( false );
-        config.setMainSearchBackColor( QColor{ 255, 200, 0 } );
-        config.setQfBackColor( QColor{ Qt::yellow } );
-        config.setAllowFollowOnScroll( true );
         HighlighterSetCollection::get().deactivateAll();
     }
 
     ~PinnedPaintingSettings()
     {
-        auto& config = Configuration::get();
-        config.setEnableMainSearchHighlight( mainSearchHighlight_ );
-        config.setVariateMainSearchHighlight( variateMainSearchHighlight_ );
-        config.setMainSearchBackColor( mainSearchBackColor_ );
-        config.setQfBackColor( qfBackColor_ );
-        config.setAllowFollowOnScroll( allowFollowOnScroll_ );
         for ( const auto& setId : activeHighlighterSets_ ) {
             HighlighterSetCollection::get().activateSet( setId );
         }
@@ -205,11 +192,6 @@ public:
     PinnedPaintingSettings& operator=( const PinnedPaintingSettings& ) = delete;
 
 private:
-    bool mainSearchHighlight_;
-    bool variateMainSearchHighlight_;
-    QColor mainSearchBackColor_;
-    QColor qfBackColor_;
-    bool allowFollowOnScroll_;
     QStringList activeHighlighterSets_;
 };
 
@@ -251,6 +233,20 @@ void showForPainting( PaintingLogView& view, const FakeLogData& logData, const Q
     view.resize( ViewWidth, configuration.viewHeight );
     view.show();
     QCoreApplication::processEvents();
+
+    // What the application hands a view it builds: the view reads no setting
+    // of its own, so every input to these images is a literal here. These are
+    // the colours the golden images were drawn with.
+    view.setDecorationPolicy( DecorationPolicy{ .mainSearchHighlight = true,
+                                                .variateMainSearchHighlight = false,
+                                                .mainSearchBackColor = QColor{ 255, 200, 0 },
+                                                .quickFindBackColor = QColor{ Qt::yellow } } );
+
+    // Pulling the view past its bottom into follow mode is part of what these
+    // images show, so the Policy allowing that is handed over here.
+    auto presentationPolicy = testSettingsPolicies().presentation;
+    presentationPolicy.allowFollowOnScroll = true;
+    view.setPresentationPolicy( presentationPolicy );
 
     view.updateFont( font );
     view.setLineNumbersVisible( configuration.lineNumbersVisible );

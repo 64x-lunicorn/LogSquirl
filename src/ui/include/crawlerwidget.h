@@ -124,9 +124,9 @@ public:
 
     // The Policies this Log File's views show and search under, as last
     // handed down by the Session. They are held here so that a widget can
-    // be given what it needs instead of reaching for the settings itself;
-    // the widgets still read the settings directly until each is moved
-    // onto these (#183).
+    // be given what it needs instead of reaching for the settings itself:
+    // both Presentations are handed what they need from these (#184), and
+    // this widget's own settings follow (#185).
     const PresentationPolicy& presentationPolicy() const;
     const QuickFindPolicy& quickFindPolicy() const;
 
@@ -395,6 +395,11 @@ private:
 
     void changeFontSize( bool increase );
 
+    // Hand every view of this Log File the settings that colour Log Lines,
+    // derived once here. No Presentation derives them for itself: this is how
+    // a view just built is coloured, and how a change to them reaches one.
+    void handDecorationPolicyToViews();
+
     // Decide which Log Format applies to the Log File, now that it has loaded.
     // Only ever called from the load-finished path.
     void recognizeFormat();
@@ -427,10 +432,10 @@ private:
 
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
 
-    LogMainView* logMainView_;
-    FilteredView* filteredView_;
+    LogMainView* logMainView_ = nullptr;
+    FilteredView* filteredView_ = nullptr;
     std::unordered_map<FilteredView*, std::shared_ptr<LogFilteredData>> filteredViewsData_;
-    QTabWidget* tabbedFilteredView_;
+    QTabWidget* tabbedFilteredView_ = nullptr;
 
     OverviewWidget* overviewWidget_;
 

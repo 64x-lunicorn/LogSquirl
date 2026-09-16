@@ -361,12 +361,12 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     setViewport( nullptr );
 
     // The Decoration Setup is the one place that builds what the Line
-    // Decorator needs. It is given the settings that colour Log Lines here,
-    // so the very first repaint is coloured like every later one, and again
-    // whenever they change (setDecorationPolicy()). The QuickFind pattern
-    // outlives this view and is not owned by the setup.
+    // Decorator needs. The settings that colour Log Lines reach it through
+    // setDecorationPolicy(), which whoever builds this view calls before it
+    // is first painted and again whenever they change: this view derives no
+    // Policy of its own. The QuickFind pattern outlives this view and is not
+    // owned by the setup.
     decorationSetup_.setQuickFindPattern( quickFindPattern_ );
-    decorationSetup_.setPolicy( deriveDecorationPolicy( Configuration::get() ) );
 
     // Initialise char dimensions from the pixmap-based font metrics so that
     // updateScrollBars() computes sensible values even before the first
@@ -840,9 +840,9 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
 
     // Fast scroll: multiply scroll delta when Alt (Option on macOS) is held
     const bool isFastScroll = wheelEvent->modifiers().testFlag( Qt::AltModifier )
-                              && Configuration::get().fastScrollEnabled();
+                              && presentationPolicy_.fastScrollEnabled;
     if ( isFastScroll ) {
-        yDelta *= Configuration::get().fastScrollMultiplier();
+        yDelta *= presentationPolicy_.fastScrollMultiplier;
     }
 
     // LOG_DEBUG << "wheelEvent";
@@ -852,7 +852,7 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
     if ( followMode_ )
         jumpToBottom();
 
-    const auto allowFollowOnScroll = Configuration::get().allowFollowOnScroll();
+    const auto allowFollowOnScroll = presentationPolicy_.allowFollowOnScroll;
     if ( scrollPosition_ == bottomScrollPosition() ) {
         if ( allowFollowOnScroll || yDelta > 0 ) {
             // First see if we need to block the elastic (on Mac)
@@ -1411,6 +1411,13 @@ void AbstractLogView::setDecorationPolicy( const DecorationPolicy& policy )
 {
     decorationSetup_.setPolicy( policy );
     forceRefresh();
+}
+
+void AbstractLogView::setPresentationPolicy( const PresentationPolicy& policy )
+{
+    // Nothing is repainted: what this Policy says reaches the view only when
+    // it is scrolled, and it is read from here each time.
+    presentationPolicy_ = policy;
 }
 
 void AbstractLogView::followSet( bool checked )

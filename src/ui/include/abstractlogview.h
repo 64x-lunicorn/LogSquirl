@@ -68,6 +68,7 @@
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
 #include "selection.h"
+#include "settingspolicies.h"
 #include "viewportlayout.h"
 #include "viewtools.h"
 #include "wrappedstring.h"
@@ -179,6 +180,13 @@ public:
     // change: painting reads no setting of its own, so this is the only way
     // a changed one reaches the Viewport.
     void setDecorationPolicy( const DecorationPolicy& policy );
+
+    // Hand over the settings this Presentation shows and scrolls under. Call
+    // it when the view is built and again after a settings change: the view
+    // reads no setting of its own, so this is the only way a changed one
+    // reaches it. Nothing is derived from it and kept, so a change on the
+    // Presentation Axis takes effect without the Log File being opened again.
+    void setPresentationPolicy( const PresentationPolicy& policy );
 
     // Where every Log Line sits in the Viewport and what sits at any point of
     // it, including the Visual Lines the Viewport holds right now. This is what
@@ -415,6 +423,11 @@ private:
     // pattern and the Color Labels, and caches the Highlighters built from
     // them, so a repaint builds no Highlighter of its own.
     DecorationSetup decorationSetup_;
+
+    // What this Presentation shows and scrolls under, as its holder last
+    // handed it over. Read where it is needed rather than derived into
+    // something kept, so a changed Policy takes effect at once.
+    PresentationPolicy presentationPolicy_;
 
     // Position of the view, those are crucial to control drawing
     // scrollPosition_ gives the position of the view; only scrolling moves it.

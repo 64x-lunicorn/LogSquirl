@@ -32,13 +32,13 @@
 #include "logpresentation.h"
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
+#include "settingspolicies.h"
 #include "tableviewselection.h"
 
 class AbstractLogData;
 class LogFilteredData;
 class LogFormatTableModel;
 class LogTableHighlightDelegate;
-struct DecorationPolicy;
 class Overview;
 class OverviewWidget;
 class Portion;
@@ -88,6 +88,13 @@ public:
     // Hand over the settings that colour Log Lines, after a settings change:
     // painting reads no setting of its own.
     void setDecorationPolicy( const DecorationPolicy& policy );
+
+    // Hand over the settings that say how the text the user selected is read
+    // as a QuickFind pattern. Call it when the view is built and again after
+    // a settings change: the view reads no setting of its own, and nothing is
+    // derived from this and kept, so a change takes effect at the next
+    // QuickFind.
+    void setQuickFindPolicy( const QuickFindPolicy& policy );
 
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();
@@ -212,6 +219,10 @@ private:
     OptionalLineNumber searchEnd_;
 
     TableViewSelection selection_;
+
+    // How the text the user selected is read as a QuickFind pattern, as this
+    // view's holder last handed it over.
+    QuickFindPolicy quickFindPolicy_;
 
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
     // Searches for Find next and Find previous, off the UI thread.

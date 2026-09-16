@@ -45,6 +45,7 @@
 #include "abstractlogview.h"
 #include "log_view_log_files.h"
 #include "quickfindpattern.h"
+#include "test_policies.h"
 #include "viewportlayout.h"
 
 namespace logviewscrolling {
@@ -60,6 +61,11 @@ inline void showOneColumnWide( AbstractLogView& view )
     view.resize( ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth + 7, 200 );
     view.show();
     QCoreApplication::processEvents();
+
+    // What the application hands a view it builds, so that scrolling here
+    // behaves as it does there. A view reads no setting of its own.
+    view.setPresentationPolicy( testSettingsPolicies().presentation );
+
     view.updateData();
 }
 
@@ -124,11 +130,14 @@ inline void requireLogFileEndsOnRow( const AbstractLogView& view, int yPos, Line
 
 // --- simulated input ------------------------------------------------------
 
-inline void turnWheel( AbstractLogView& view, int angleDeltaY )
+// Turns the wheel one notch of angleDeltaY over the top row. modifiers are the
+// keys held while turning it -- the fast scroll modifier among them.
+inline void turnWheel( AbstractLogView& view, int angleDeltaY,
+                       Qt::KeyboardModifiers modifiers = Qt::NoModifier )
 {
     const auto inside = topRowText();
     QWheelEvent wheel( inside, view.viewport()->mapToGlobal( inside ), QPoint{},
-                       QPoint{ 0, angleDeltaY }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase,
+                       QPoint{ 0, angleDeltaY }, Qt::NoButton, modifiers, Qt::NoScrollPhase,
                        false );
     QCoreApplication::sendEvent( view.viewport(), &wheel );
 }

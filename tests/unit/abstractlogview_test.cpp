@@ -109,6 +109,65 @@ SCENARIO( "AbstractLogView updateDisplaySize keeps charWidth_ safe", "[abstractl
     }
 }
 
+SCENARIO( "A text view scrolls under the Presentation Policy it was handed",
+          "[abstractlogview][presentationpolicy]" )
+{
+    using namespace logviewscrolling;
+
+    // No settings store takes part: the Policy is a literal, and what the view
+    // does with the wheel follows from it alone.
+    const FakeLogData logData{ tallLogLines() };
+    QuickFindPattern qfp;
+    TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+    showOneColumnWide( view );
+
+    auto policy = testSettingsPolicies().presentation;
+
+    // The same notch, turned without the modifier: the yardstick the fast one
+    // is compared against.
+    const auto afterAPlainNotch = [ & ]() {
+        moveTo( view, ScrollPosition{} );
+        turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
+        return view.scrollPosition();
+    }();
+    REQUIRE( afterAPlainNotch > ScrollPosition{} );
+
+    GIVEN( "a text view handed a Policy that turns fast scrolling on" )
+    {
+        policy.fastScrollEnabled = true;
+        policy.fastScrollMultiplier = 5;
+        view.setPresentationPolicy( policy );
+
+        WHEN( "the wheel is turned one notch with the fast scroll modifier held" )
+        {
+            moveTo( view, ScrollPosition{} );
+            turnWheel( view, -QWheelEvent::DefaultDeltasPerStep, Qt::AltModifier );
+
+            THEN( "the view moves further than the same notch without it" )
+            {
+                REQUIRE( view.scrollPosition() > afterAPlainNotch );
+            }
+        }
+    }
+
+    GIVEN( "a text view handed a Policy that turns fast scrolling off" )
+    {
+        policy.fastScrollEnabled = false;
+        view.setPresentationPolicy( policy );
+
+        WHEN( "the wheel is turned one notch with the fast scroll modifier held" )
+        {
+            moveTo( view, ScrollPosition{} );
+            turnWheel( view, -QWheelEvent::DefaultDeltasPerStep, Qt::AltModifier );
+
+            THEN( "the view moves exactly as far as it does without the modifier" )
+            {
+                REQUIRE( view.scrollPosition() == afterAPlainNotch );
+            }
+        }
+    }
+}
+
 SCENARIO( "A text view says where a Log Line sits in its Viewport", "[abstractlogview][viewport]" )
 {
     using namespace logviewscrolling;

@@ -359,11 +359,30 @@ void CrawlerWidget::doSetRecognitionPolicy( const RecognitionPolicy& policy )
 void CrawlerWidget::doSetPresentationPolicy( const PresentationPolicy& policy )
 {
     presentationPolicy_ = policy;
+
+    // Before setup() there are no views yet; each is handed the Policy as it
+    // is built. Afterwards a changed Policy reaches every text view of this
+    // Log File, the Filtered Views of kept Searches included, so that it takes
+    // effect without the Log File being opened again.
+    if ( logMainView_ == nullptr ) {
+        return;
+    }
+
+    logMainView_->setPresentationPolicy( policy );
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->setPresentationPolicy( policy );
+        }
+    }
 }
 
 void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
 {
     quickFindPolicy_ = policy;
+
+    if ( logTableView_ != nullptr ) {
+        logTableView_->setQuickFindPolicy( policy );
+    }
 }
 
 const PresentationPolicy& CrawlerWidget::presentationPolicy() const
@@ -455,6 +474,7 @@ void CrawlerWidget::startNewSearch()
         // already exist follow the View menu instead.
         filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
                                           Configuration::get().useTextWrap() );
+        filteredView_->setPresentationPolicy( presentationPolicy_ );
         filteredViewsData_[ filteredView_ ] = logFilteredData_;
 
         connectAllFilteredViewSlots( filteredView_ );
@@ -819,7 +839,12 @@ void CrawlerWidget::applyConfiguration()
     // of them reads a setting while painting, so a change (e.g. toggling
     // main-search highlighting) reaches them only this way -- and without
     // needing a new search.
-    const auto decorationPolicy = deriveDecorationPolicy( config );
+    handDecorationPolicyToViews();
+}
+
+void CrawlerWidget::handDecorationPolicyToViews()
+{
+    const auto decorationPolicy = deriveDecorationPolicy( Configuration::get() );
     logMainView_->setDecorationPolicy( decorationPolicy );
     logTableView_->setDecorationPolicy( decorationPolicy );
     filteredView_->setDecorationPolicy( decorationPolicy );
@@ -1538,6 +1563,15 @@ void CrawlerWidget::setup()
             chartPanel_->extractData();
         }
     } );
+
+    // Hand the views just built everything they show, colour and search
+    // under, before any of them is painted. Neither Presentation reads these
+    // settings for itself; each Policy arrives again, on its own Axis,
+    // whenever a settings change re-derives it (#184).
+    logMainView_->setPresentationPolicy( presentationPolicy_ );
+    filteredView_->setPresentationPolicy( presentationPolicy_ );
+    logTableView_->setQuickFindPolicy( quickFindPolicy_ );
+    handDecorationPolicyToViews();
 
     const auto defaultEncodingMib = config.defaultEncodingMib();
     if ( defaultEncodingMib >= 0 ) {
