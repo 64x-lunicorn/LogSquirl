@@ -4,15 +4,42 @@ include(CPM)
 
 set(_TMP_CPM_USE_LOCAL_PACKAGES ${CPM_USE_LOCAL_PACKAGES})
 
-cpmaddpackage("gh:simdutf/simdutf@5.6.2")
-cpmaddpackage("gh:foonathan/type_safe@0.2.4")
+# Every package below is fetched by a full 40-character commit SHA (#209).
+# A tag or a bare VERSION (which CPM turns into the tag v<VERSION>) can be
+# moved upstream, and CPM verifies nothing, so the same LogSquirl commit could
+# build different third-party code. Packages cut from a release keep VERSION
+# and a "# <tag>" comment next to the SHA: that is the human-readable version to
+# review and bump, and CPM still uses VERSION for find_package() when
+# CPM_USE_LOCAL_PACKAGES is on. With both given, CPM fetches GIT_TAG. Forks
+# without releases (maddy, tbb, ...) were already pinned by SHA. To update a package, resolve the new tag's commit with
+#   git ls-remote https://github.com/<repo> 'refs/tags/<tag>' 'refs/tags/<tag>^{}'
+# (the ^{} line, when present, is the commit of an annotated tag).
+
+cpmaddpackage(
+  NAME simdutf
+  GITHUB_REPOSITORY simdutf/simdutf
+  VERSION 5.6.2
+  GIT_TAG 58c12ff5d84665e26e80547e5f0d72b29ba1c5d4 # v5.6.2
+)
+cpmaddpackage(
+  NAME type_safe
+  GITHUB_REPOSITORY foonathan/type_safe
+  VERSION 0.2.4
+  GIT_TAG 1dbea7936a1e389caa692d01bb3f5ba4b6da7d82 # v0.2.4
+)
 cpmaddpackage(
   NAME CRoaring
   GITHUB_REPOSITORY RoaringBitmap/CRoaring
   VERSION 4.2.1
+  GIT_TAG 3ef7b44a4f74af09fe19bb84d30bc35cab130561 # v4.2.1
   OPTIONS "ROARING_USE_CPM OFF" "ENABLE_ROARING_TESTS OFF"
 )
-cpmaddpackage("gh:lemire/streamvbyte@1.0.0")
+cpmaddpackage(
+  NAME streamvbyte
+  GITHUB_REPOSITORY lemire/streamvbyte
+  VERSION 1.0.0
+  GIT_TAG c43294a81501e0fdf14adc83818d47f7f9bc1bb6 # v1.0.0
+)
 
 if(APPLE)
   cpmaddpackage(
@@ -111,7 +138,7 @@ if(LOGSQUIRL_USE_VECTORSCAN)
       GITHUB_REPOSITORY
       VectorCamp/vectorscan
       GIT_TAG
-      vectorscan/5.4.12
+      b585ad466658624bb31fb1d194cdb168df34833c # vectorscan/5.4.12
       EXCLUDE_FROM_ALL
       YES
       OPTIONS
@@ -160,6 +187,8 @@ cpmaddpackage(
   https://gitlab.freedesktop.org/uchardet/uchardet
   VERSION
   0.0.8
+  GIT_TAG
+  ae6302a016088ad07177f86d417b20010053632b # v0.0.8
   EXCLUDE_FROM_ALL
   YES
   OPTIONS
@@ -231,6 +260,7 @@ CPMAddPackage(
   NAME zstd
   GITHUB_REPOSITORY facebook/zstd
   VERSION 1.5.6
+  GIT_TAG 794ea1b0afca0f020f4e57b6732332231fb23c70 # v1.5.6
   SOURCE_SUBDIR build/cmake
   EXCLUDE_FROM_ALL YES
   OPTIONS
@@ -254,6 +284,7 @@ CPMAddPackage(
   NAME lz4
   GITHUB_REPOSITORY lz4/lz4
   VERSION 1.10.0
+  GIT_TAG ebb370ca83af193212df4dcbadcc5d87bc0de2f0 # v1.10.0
   SOURCE_SUBDIR build/cmake
   EXCLUDE_FROM_ALL YES
   OPTIONS
@@ -275,8 +306,10 @@ cpmaddpackage(
   robin_hood
   GITHUB_REPOSITORY
   martinus/robin-hood-hashing
-  GIT_TAG
+  VERSION
   3.11.5
+  GIT_TAG
+  9145f963d80d6a02f0f96a47758050a89184a3ed # 3.11.5
   EXCLUDE_FROM_ALL
   YES
 )
@@ -320,7 +353,12 @@ if(NOT TARGET robin_hood)
 endif(NOT TARGET robin_hood)
 
 if(LOGSQUIRL_BUILD_TESTS)
-  cpmaddpackage("gh:bombela/backward-cpp@1.6")
+  cpmaddpackage(
+    NAME backward-cpp
+    GITHUB_REPOSITORY bombela/backward-cpp
+    VERSION 1.6
+    GIT_TAG 3bb9240cb15459768adb3e7d963a20e1523a6294 # v1.6
+  )
   cpmaddpackage(
     NAME
     Catch2
@@ -328,6 +366,8 @@ if(LOGSQUIRL_BUILD_TESTS)
     catchorg/Catch2
     VERSION
     2.13.8
+    GIT_TAG
+    216713a4066b79d9803d374f261ccb30c0fb451f # v2.13.8
     EXCLUDE_FROM_ALL
     YES
   )
@@ -369,6 +409,8 @@ cpmaddpackage(
   Cyan4973/xxHash
   VERSION
   0.8.1
+  GIT_TAG
+  35b0373c697b5f160d3db26b1cbb45a0d5ba788c # v0.8.1
   DOWNLOAD_ONLY
   YES
 )
@@ -450,8 +492,10 @@ cpmaddpackage(
   # while its cancelled read could still complete into it, corrupting the
   # heap (#116); 1.7.0 frees it only once that read has completed. Pinned to
   # 1.7.2, whose FileWatchListener signature filewatcher.cpp overrides.
-  GIT_TAG
+  VERSION
   1.7.2
+  GIT_TAG
+  41ddf6822f2d0dec7e14fafa09c4cef391137b20 # 1.7.2
   EXCLUDE_FROM_ALL
   YES
   OPTIONS
@@ -503,6 +547,8 @@ cpmaddpackage(
   microsoft/mimalloc
   VERSION
   2.1.7
+  GIT_TAG
+  8c532c32c3c96e5ba1f2283e032f69ead8add00f # v2.1.7
   EXCLUDE_FROM_ALL
   YES
   OPTIONS
