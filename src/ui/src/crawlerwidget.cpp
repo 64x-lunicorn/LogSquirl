@@ -99,8 +99,10 @@ const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
 // Implementation of the view context for the CrawlerWidget
 class CrawlerWidgetContext : public ViewContextInterface {
 public:
-    // Construct from the stored string representation
-    explicit CrawlerWidgetContext( const QString& string );
+    // Construct from the stored string representation. A context stored
+    // before the Search line's regexp type was part of one falls back to what
+    // the QuickFind Policy says, which is why one is taken here.
+    CrawlerWidgetContext( const QString& string, const QuickFindPolicy& quickFindPolicy );
     // Construct from the value passsed
     CrawlerWidgetContext( QList<int> sizes, bool ignoreCase, bool autoRefresh, bool followFile,
                           bool useRegexp, bool inverseRegexp, bool useBooleanCombination,
@@ -169,8 +171,10 @@ public:
     }
 
 private:
-    void loadFromString( const QString& string );
-    void loadFromJson( const QString& json );
+    // useRegexpByPolicy: what the QuickFind Policy says the Search line reads
+    // its pattern as, used when the stored context does not say.
+    void loadFromString( const QString& string, bool useRegexpByPolicy );
+    void loadFromJson( const QString& json, bool useRegexpByPolicy );
 
 private:
     QList<int> sizes_;
@@ -383,6 +387,11 @@ void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
     if ( logTableView_ != nullptr ) {
         logTableView_->setQuickFindPolicy( policy );
     }
+
+    // The QuickFind bar and the mux that dispatches to this Log File belong to
+    // the window, which holds no Policy of its own: this is how a changed
+    // Policy reaches a QuickFind already on screen.
+    Q_EMIT quickFindPolicyChanged( policy );
 }
 
 const PresentationPolicy& CrawlerWidget::presentationPolicy() const
@@ -408,7 +417,7 @@ void CrawlerWidget::doSetViewContext( const QString& view_context )
 {
     LOG_DEBUG << "CrawlerWidget::doSetViewContext: " << view_context.toLocal8Bit().data();
 
-    const auto context = CrawlerWidgetContext{ view_context };
+    const auto context = CrawlerWidgetContext{ view_context, quickFindPolicy_ };
 
     setSizes( context.sizes() );
     matchCaseButton_->setChecked( !context.ignoreCase() );
@@ -473,7 +482,7 @@ void CrawlerWidget::startNewSearch()
         // The setting is the starting state for a new view; the views that
         // already exist follow the View menu instead.
         filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                          Configuration::get().useTextWrap() );
+                                          presentationPolicy_.useTextWrap );
         filteredView_->setPresentationPolicy( presentationPolicy_ );
         filteredViewsData_[ filteredView_ ] = logFilteredData_;
 
@@ -1164,7 +1173,7 @@ void CrawlerWidget::setSearchPattern( const QString& searchPattern )
     // Set the focus to lineEdit so that the user can press 'Return' immediately
     searchLineEdit_->lineEdit()->setFocus();
 
-    if ( Configuration::get().autoRunSearchOnPatternChange() ) {
+    if ( quickFindPolicy_.autoRunSearchOnPatternChange ) {
         dispatchToMainThread( [ this ] { startNewSearch(); } );
     }
 }
@@ -1218,11 +1227,11 @@ void CrawlerWidget::setup()
 
     overviewWidget_ = new OverviewWidget();
     logMainView_ = new LogMainView( logData_.get(), quickFindPattern_.get(), &overview_,
-                                    overviewWidget_, Configuration::get().useTextWrap() );
+                                    overviewWidget_, presentationPolicy_.useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
 
     filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                      Configuration::get().useTextWrap() );
+                                      presentationPolicy_.useTextWrap );
     filteredViewsData_[ filteredView_ ] = logFilteredData_;
     filteredView_->setContentsMargins( 2, 0, 2, 0 );
 
@@ -1463,7 +1472,8 @@ void CrawlerWidget::setup()
     auto& config = Configuration::get();
     searchRefreshButton_->setChecked( config.isSearchAutoRefreshDefault() );
     matchCaseButton_->setChecked( !config.isSearchIgnoreCaseDefault() );
-    useRegexpButton_->setChecked( config.mainRegexpType() == SearchRegexpType::ExtendedRegexp );
+    useRegexpButton_->setChecked( quickFindPolicy_.mainRegexpType
+                                  == SearchRegexpType::ExtendedRegexp );
     booleanButton_->setChecked( config.isSearchLogicalCombiningDefault() );
 
     // Manually call the handler as it is not called when changing the state programmatically
@@ -2227,17 +2237,21 @@ void CrawlerWidget::SearchState::startSearch()
 /*
  * CrawlerWidgetContext
  */
-CrawlerWidgetContext::CrawlerWidgetContext( const QString& string )
+CrawlerWidgetContext::CrawlerWidgetContext( const QString& string,
+                                            const QuickFindPolicy& quickFindPolicy )
 {
+    const auto useRegexpByPolicy
+        = quickFindPolicy.mainRegexpType == SearchRegexpType::ExtendedRegexp;
+
     if ( string.startsWith( '{' ) ) {
-        loadFromJson( string );
+        loadFromJson( string, useRegexpByPolicy );
     }
     else {
-        loadFromString( string );
+        loadFromString( string, useRegexpByPolicy );
     }
 }
 
-void CrawlerWidgetContext::loadFromString( const QString& string )
+void CrawlerWidgetContext::loadFromString( const QString& string, bool useRegexpByPolicy )
 {
     QRegularExpression regex( "S(\\d+):(\\d+)" );
     QRegularExpressionMatch match = regex.match( string );
@@ -2278,10 +2292,10 @@ void CrawlerWidgetContext::loadFromString( const QString& string )
         followFile_ = false;
     }
 
-    useRegexp_ = Configuration::get().mainRegexpType() == SearchRegexpType::ExtendedRegexp;
+    useRegexp_ = useRegexpByPolicy;
 }
 
-void CrawlerWidgetContext::loadFromJson( const QString& json )
+void CrawlerWidgetContext::loadFromJson( const QString& json, bool useRegexpByPolicy )
 {
     const auto properties = QJsonDocument::fromJson( json.toLatin1() ).toVariant().toMap();
 
@@ -2299,7 +2313,7 @@ void CrawlerWidgetContext::loadFromJson( const QString& json )
         useRegexp_ = properties.value( "RE" ).toBool();
     }
     else {
-        useRegexp_ = Configuration::get().mainRegexpType() == SearchRegexpType::ExtendedRegexp;
+        useRegexp_ = useRegexpByPolicy;
     }
 
     if ( properties.contains( "IR" ) ) {
@@ -2437,7 +2451,7 @@ void CrawlerWidget::recognizeFormat()
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
     logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
-    if ( Configuration::get().autoShowTableView() && !tableViewToggle_->isChecked() ) {
+    if ( presentationPolicy_.autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );
     }

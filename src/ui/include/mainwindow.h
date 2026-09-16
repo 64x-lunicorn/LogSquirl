@@ -188,6 +188,13 @@ private Q_SLOTS:
     // Update quick find searchable
     void handleFilteredViewChanged();
 
+    // Hand the QuickFind bar and the mux the QuickFind Policy of the Log File
+    // the user is in. Neither of them reads a setting of its own, and neither
+    // belongs to a Log File, so they are given the Policy of whichever one is
+    // in front -- when the user changes tab, and again whenever that Log File
+    // is handed a changed one.
+    void applyQuickFindPolicy( const QuickFindPolicy& policy );
+
     // Close the tab with the passed index
     void closeTab( int index, ActionInitiator initiator );
     // Close multiple tabs at once with a single confirmation dialog
