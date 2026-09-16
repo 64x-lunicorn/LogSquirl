@@ -356,10 +356,9 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
                                   const QuickFindPattern* const quickFindPattern,
                                   bool initialTextWrap, QWidget* parent )
     : QAbstractScrollArea( parent )
-    , followElasticHook_( HookThreshold )
     , logData_( newLogData )
     , lines_( std::move( lines ) )
-    , useTextWrap_( initialTextWrap )
+    , scrolling_( scrolledLines_, initialTextWrap )
     , searchEnd_( lines_->logLineCount().get() )
     , quickFindPattern_( quickFindPattern )
     , quickFind_(
@@ -398,36 +397,47 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     connect( quickFind_, &QuickFind::searchDone, this, &AbstractLogView::setQuickFindResult,
              Qt::DirectConnection );
 
-    connect( &followElasticHook_, SIGNAL( lengthChanged() ), this, SLOT( repaint() ) );
-    connect( &followElasticHook_, SIGNAL( hooked( bool ) ), this,
-             SIGNAL( followModeChanged( bool ) ) );
+    connect( &scrolling_.elasticHook(), &ElasticHook::lengthChanged, this,
+             qOverload<>( &AbstractLogView::repaint ) );
+    connect( &scrolling_.elasticHook(), &ElasticHook::hooked, this,
+             &AbstractLogView::followModeChanged );
 
+    // A step or a page up by the scrollbar leaves follow. Moving it to the
+    // maximum it is already at changes no value, so scrollContentsBy() never
+    // hears of it; scrolling still lands at the bottom Scroll Position.
     connect( verticalScrollBar(), &QAbstractSlider::actionTriggered, this, [ this ]( int action ) {
-        if ( !followMode_ ) {
-            return;
-        }
-
-        if ( action == QAbstractSlider::SliderPageStepSub
-             || action == QAbstractSlider::SliderSingleStepSub ) {
-            disableFollow();
-        }
-    } );
-
-    // Moving the scrollbar to the maximum it is already at changes no value,
-    // so scrollContentsBy() never hears of it. Such a move still lands at the
-    // bottom Scroll Position, also from partway up the last Log Line. Only the
-    // scrollbar's own actions and releasing its thumb count: a move between
-    // Visual Lines sets no value and triggers neither.
-    const auto landAtBottomOnMaximum = [ this ]() {
         const auto* scrollBar = verticalScrollBar();
-        if ( scrollBar->sliderPosition() == scrollBar->maximum()
-             && scrollBar->value() == scrollBar->maximum()
-             && scrollPosition_ != bottomScrollPosition() ) {
-            scrollTo( bottomScrollPosition() );
-        }
-    };
-    connect( verticalScrollBar(), &QAbstractSlider::actionTriggered, this, landAtBottomOnMaximum );
-    connect( verticalScrollBar(), &QAbstractSlider::sliderReleased, this, landAtBottomOnMaximum );
+        applyScroll( scrolling_.scrollBarActionTriggered(
+            action == QAbstractSlider::SliderPageStepSub
+                || action == QAbstractSlider::SliderSingleStepSub,
+            scrollBar->sliderPosition(), scrollBar->value() ) );
+    } );
+    connect( verticalScrollBar(), &QAbstractSlider::sliderReleased, this, [ this ]() {
+        const auto* scrollBar = verticalScrollBar();
+        applyScroll(
+            scrolling_.scrollBarReleased( scrollBar->sliderPosition(), scrollBar->value() ) );
+    } );
+}
+
+LinesCount AbstractLogView::ScrolledLines::lineCount() const
+{
+    return view_.logData_->getNbLine();
+}
+
+QString AbstractLogView::ScrolledLines::lineText( LineNumber position ) const
+{
+    return view_.logData_->getLineString( position );
+}
+
+ScrollingViewport AbstractLogView::ScrolledLines::viewport() const
+{
+    const auto* area = view_.viewport();
+    return ScrollingViewport{ .charWidthPx = view_.charWidth_,
+                              .charHeightPx = view_.charHeight_,
+                              .widthPx = area->width(),
+                              .heightPx = area->height(),
+                              .lineNumbersVisible = view_.lineNumbersVisible_,
+                              .largestDisplayLineNumber = view_.lines_->logLineCount().get() };
 }
 
 AbstractLogView::~AbstractLogView()
@@ -634,7 +644,8 @@ void AbstractLogView::timerEvent( QTimerEvent* timerEvent )
                                                           : QAbstractSlider::SliderSingleStepAdd );
 
             if ( deltaY > 0 )
-                stepVisualLines( pos.y() < visible.center().y() ? -1 : 1 );
+                applyScroll(
+                    scrolling_.stepVisualLines( pos.y() < visible.center().y() ? -1 : 1 ) );
         }
     }
     QAbstractScrollArea::timerEvent( timerEvent );
@@ -677,9 +688,9 @@ void AbstractLogView::registerShortcuts()
     registerShortcut( ShortcutAction::LogViewSelectionDown, [ this ]() { moveSelectionDown(); } );
 
     registerShortcut( ShortcutAction::LogViewScrollUp,
-                      [ this ]() { stepVisualLines( -visualLinesPerPage() ); } );
+                      [ this ]() { applyScroll( scrolling_.stepPage( false ) ); } );
     registerShortcut( ShortcutAction::LogViewScrollDown,
-                      [ this ]() { stepVisualLines( visualLinesPerPage() ); } );
+                      [ this ]() { applyScroll( scrolling_.stepPage( true ) ); } );
     registerShortcut( ShortcutAction::LogViewScrollLeft, [ this ]() {
         horizontalScrollBar()->triggerAction( QScrollBar::SliderPageStepSub );
     } );
@@ -694,7 +705,7 @@ void AbstractLogView::registerShortcuts()
         }
     } );
     registerShortcut( ShortcutAction::LogViewJumpToBottom, [ this ]() {
-        const bool wasAtBottom = scrollPosition_ == bottomScrollPosition();
+        const bool wasAtBottom = scrolling_.position() == scrolling_.bottomScrollPosition();
         if ( !wasAtBottom ) {
             const auto last = lastShownLogLine();
             if ( last.has_value() ) {
@@ -703,8 +714,7 @@ void AbstractLogView::registerShortcuts()
             jumpToBottom();
         }
         else {
-            Q_EMIT followModeChanged( true );
-            followElasticHook_.hook( true );
+            applyScroll( scrolling_.engageFollow() );
         }
     } );
 
@@ -803,16 +813,16 @@ void AbstractLogView::keyPressEvent( QKeyEvent* keyEvent )
             // Lines; the view steps in Visual Lines instead.
             switch ( keyEvent->key() ) {
             case Qt::Key_Up:
-                stepVisualLines( -1 );
+                applyScroll( scrolling_.stepVisualLines( -1 ) );
                 break;
             case Qt::Key_Down:
-                stepVisualLines( 1 );
+                applyScroll( scrolling_.stepVisualLines( 1 ) );
                 break;
             case Qt::Key_PageUp:
-                stepVisualLines( -visualLinesPerPage() );
+                applyScroll( scrolling_.stepPage( false ) );
                 break;
             case Qt::Key_PageDown:
-                stepVisualLines( visualLinesPerPage() );
+                applyScroll( scrolling_.stepPage( true ) );
                 break;
             default:
                 QAbstractScrollArea::keyPressEvent( keyEvent );
@@ -827,17 +837,31 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
 {
     Q_EMIT activity();
 
-    int yDelta = 0;
-    const auto pixelDelta = wheelEvent->pixelDelta();
+    const auto phase = [ wheelEvent ]() {
+        switch ( wheelEvent->phase() ) {
+        case Qt::ScrollBegin:
+            return WheelPhase::Begin;
+        case Qt::ScrollUpdate:
+            return WheelPhase::Update;
+        case Qt::ScrollEnd:
+            return WheelPhase::End;
+        case Qt::ScrollMomentum:
+            return WheelPhase::Momentum;
+        case Qt::NoScrollPhase:
+            break;
+        }
+        return WheelPhase::None;
+    }();
+    const WheelTurn turn{ .angleDeltaX = wheelEvent->angleDelta().x(),
+                          .angleDeltaY = wheelEvent->angleDelta().y(),
+                          .pixelDeltaX = wheelEvent->pixelDelta().x(),
+                          .pixelDeltaY = wheelEvent->pixelDelta().y(),
+                          .fastScrollHeld = wheelEvent->modifiers().testFlag( Qt::AltModifier ),
+                          .pageHeld = wheelEvent->modifiers().testFlag( Qt::ShiftModifier ),
+                          .phase = phase,
+                          .linesPerNotch = QApplication::wheelScrollLines() };
 
-    if ( pixelDelta.isNull() ) {
-        yDelta = static_cast<int>(
-            std::floor( static_cast<float>( wheelEvent->angleDelta().y() ) / 0.7f ) );
-    }
-    else {
-        yDelta = pixelDelta.y();
-    }
-
+    const auto yDelta = turn.pixels();
     if ( yDelta == 0 ) {
         QAbstractScrollArea::wheelEvent( wheelEvent );
         return;
@@ -848,83 +872,11 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
         return;
     }
 
-    // Fast scroll: multiply scroll delta when Alt (Option on macOS) is held
-    const bool isFastScroll = wheelEvent->modifiers().testFlag( Qt::AltModifier )
-                              && presentationPolicy_.fastScrollEnabled;
-    if ( isFastScroll ) {
-        yDelta *= presentationPolicy_.fastScrollMultiplier;
+    const auto answer = scrolling_.turnWheel( turn );
+    applyScroll( answer );
+    if ( answer.scrollHorizontally ) {
+        QAbstractScrollArea::wheelEvent( wheelEvent );
     }
-
-    // LOG_DEBUG << "wheelEvent";
-
-    // This is to handle the case where follow mode is on, but the user
-    // has moved using the scroll bar. We take them back to the bottom.
-    if ( followMode_ )
-        jumpToBottom();
-
-    const auto allowFollowOnScroll = presentationPolicy_.allowFollowOnScroll;
-    if ( scrollPosition_ == bottomScrollPosition() ) {
-        if ( allowFollowOnScroll || yDelta > 0 ) {
-            // First see if we need to block the elastic (on Mac)
-            if ( wheelEvent->phase() == Qt::ScrollBegin ) {
-                followElasticHook_.hold();
-            }
-            else if ( wheelEvent->phase() == Qt::ScrollEnd
-                      || wheelEvent->phase() == Qt::ScrollMomentum ) {
-                followElasticHook_.release();
-            }
-
-            followElasticHook_.move( -yDelta );
-        }
-
-        // LOG_DEBUG << "Elastic " << y_delta;
-    }
-
-    // LOG_DEBUG << "Length = " << followElasticHook_.size();
-    if ( !allowFollowOnScroll
-         || ( followElasticHook_.size() == 0 && !followElasticHook_.isHooked() ) ) {
-        if ( isFastScroll ) {
-            // Apply multiplied delta directly since the original event has the unmultiplied value
-            scrollByVisualLines( -yDelta );
-        }
-        else if ( std::abs( wheelEvent->angleDelta().x() )
-                  > std::abs( wheelEvent->angleDelta().y() ) ) {
-            // Mostly sideways: the scroll area scrolls horizontally.
-            QAbstractScrollArea::wheelEvent( wheelEvent );
-        }
-        else {
-            scrollByVisualLines( wheelVisualLines( *wheelEvent ) );
-        }
-    }
-}
-
-int64_t AbstractLogView::wheelVisualLines( const QWheelEvent& wheelEvent )
-{
-    // What QScrollBar makes of a wheel turn, with Visual Lines for its steps:
-    // wheelScrollLines() per notch, a fraction of a step carried over to the
-    // next event, and never more than a page at once.
-    const auto page = visualLinesPerPage();
-    const auto notches = static_cast<double>( wheelEvent.angleDelta().y() )
-                         / static_cast<double>( QWheelEvent::DefaultDeltasPerStep );
-
-    int64_t visualLinesUp = 0;
-    if ( wheelEvent.modifiers().testFlag( Qt::ShiftModifier ) ) {
-        wheelVisualLinesPending_ = 0;
-        visualLinesUp = static_cast<int64_t>( notches * static_cast<double>( page ) );
-    }
-    else {
-        const auto turned = QApplication::wheelScrollLines() * notches;
-        if ( wheelVisualLinesPending_ != 0 && turned / wheelVisualLinesPending_ < 0 ) {
-            // The wheel changed direction.
-            wheelVisualLinesPending_ = 0;
-        }
-        wheelVisualLinesPending_ += turned;
-        visualLinesUp = static_cast<int64_t>( wheelVisualLinesPending_ );
-        wheelVisualLinesPending_ -= static_cast<double>( visualLinesUp );
-    }
-
-    // Turning the wheel away (a positive delta) moves up the Log File.
-    return -std::clamp( visualLinesUp, -page, page );
 }
 
 void AbstractLogView::resizeEvent( QResizeEvent* )
@@ -960,77 +912,48 @@ bool AbstractLogView::event( QEvent* e )
     return QAbstractScrollArea::event( e );
 }
 
-int AbstractLogView::lineNumberToVerticalScroll( LineNumber line ) const
-{
-    // Clamp the result to the representable range of int before casting.
-    // line.get() can be a sentinel value (e.g., max LineNumber::UnderlyingType for an
-    // invalid/unset line), and the floating-point product can exceed INT_MAX,
-    // making the conversion undefined behavior. See UBSan finding.
-    const double value
-        = std::round( static_cast<double>( line.get() ) * verticalScrollMultiplicator() );
-    constexpr double IntMax = static_cast<double>( std::numeric_limits<int>::max() );
-    constexpr double IntMin = static_cast<double>( std::numeric_limits<int>::min() );
-    const double clamped = std::clamp( value, IntMin, IntMax );
-    return static_cast<int>( clamped );
-}
-
-LineNumber AbstractLogView::verticalScrollToLineNumber( int scrollPosition ) const
-{
-    return LineNumber( static_cast<LineNumber::UnderlyingType>(
-        std::round( static_cast<double>( scrollPosition ) / verticalScrollMultiplicator() ) ) );
-}
-
-double AbstractLogView::verticalScrollMultiplicator() const
-{
-    return verticalScrollBar()->maximum() < std::numeric_limits<int>::max()
-               ? 1.0
-               : static_cast<double>( std::numeric_limits<int>::max() )
-                     / static_cast<double>( logData_->getNbLine().get() );
-}
-
 void AbstractLogView::scrollContentsBy( int dx, int dy )
 {
     LOG_DEBUG << "scrollContentsBy received " << dy << "position " << verticalScrollBar()->value();
 
-    const auto scrollBarValue = verticalScrollBar()->value();
-
-    if ( scrollBarValue == lineNumberToVerticalScroll( scrollPosition_.lineNumber ) ) {
-        // The scrollbar only caught up with the Log Line the view moved to
-        // by itself, so the Scroll Position stands, Visual Line and all.
-    }
-    else if ( scrollBarValue == verticalScrollBar()->maximum() ) {
-        // The scrollbar was moved to its maximum. That is the bottom Scroll
-        // Position, the one place the scrollbar does not land on the first
-        // Visual Line of a Log Line.
-        scrollPosition_ = bottomScrollPosition();
-    }
-    else {
-        // The scrollbar was moved. It counts whole Log Lines, so the view
-        // lands on the first Visual Line of the Log Line it maps to, brought
-        // back into the range the Log File actually has: scrolling is where
-        // the Scroll Position gets clamped, painting never moves it.
-        const auto scrollBarLine = verticalScrollToLineNumber( scrollBarValue );
-        scrollPosition_ = viewportGeometry().clampScrollPosition(
-            ScrollPosition{ scrollBarLine, 0 }, logData_->getNbLine() );
-    }
-    updateAtBottom();
-
-    firstCol_ = ( firstCol_.get() - dx ) >= 0 ? LineColumn{ firstCol_.get() - dx } : 0_lcol;
-
+    scrolling_.scrollBarMoved( verticalScrollBar()->value(), dx );
     scrollPositionMoved();
 }
 
-void AbstractLogView::updateAtBottom()
+void AbstractLogView::applyScroll( const ScrollAnswer& answer )
 {
-    atBottom_ = logFileBottom().alignsLastVisualLineAt( scrollPosition_ );
+    switch ( answer.followChange ) {
+    case FollowChange::Leave:
+        Q_EMIT followModeChanged( false );
+        break;
+    case FollowChange::Engage:
+        Q_EMIT followModeChanged( true );
+        break;
+    case FollowChange::None:
+        break;
+    }
+
+    if ( answer.scrolled ) {
+        if ( verticalScrollBar()->value() != answer.scrollBarValue ) {
+            // scrollContentsBy() follows, and keeps this Scroll Position.
+            verticalScrollBar()->setValue( answer.scrollBarValue );
+        }
+        else {
+            scrollPositionMoved();
+        }
+    }
+
+    if ( answer.redraw ) {
+        forceRefresh();
+    }
 }
 
 void AbstractLogView::scrollPositionMoved()
 {
     // Update the overview if we have one
     if ( overview_ != nullptr ) {
-        const auto lastLine = scrollPosition_.lineNumber + getNbVisibleLines();
-        overview_->updateCurrentPosition( scrollPosition_.lineNumber, lastLine );
+        const auto topLine = scrolling_.position().lineNumber;
+        overview_->updateCurrentPosition( topLine, topLine + getNbVisibleLines() );
     }
 
     // Are we hovering over a new line?
@@ -1041,152 +964,18 @@ void AbstractLogView::scrollPositionMoved()
     update();
 }
 
-void AbstractLogView::scrollTo( ScrollPosition position )
-{
-    scrollPosition_
-        = std::min( viewportGeometry().clampScrollPosition( position, logData_->getNbLine() ),
-                    bottomScrollPosition() );
-
-    const auto scrollBarValue = lineNumberToVerticalScroll( scrollPosition_.lineNumber );
-    if ( verticalScrollBar()->value() != scrollBarValue ) {
-        // scrollContentsBy() follows, and keeps this Scroll Position.
-        verticalScrollBar()->setValue( scrollBarValue );
-    }
-    else {
-        updateAtBottom();
-        scrollPositionMoved();
-    }
-}
-
-void AbstractLogView::scrollByVisualLines( int64_t visualLines )
-{
-    scrollTo(
-        moveScrollPosition( scrollPosition_, visualLines, bottomScrollPosition(),
-                            [ this ]( LineNumber line ) { return visualLineCount( line ); } ) );
-}
-
-void AbstractLogView::stepVisualLines( int64_t visualLines )
-{
-    if ( visualLines < 0 && followMode_ ) {
-        disableFollow();
-    }
-    scrollByVisualLines( visualLines );
-}
-
-int64_t AbstractLogView::visualLinesPerPage() const
-{
-    return static_cast<int64_t>( viewportGeometry().visualLinesPerPage().get() );
-}
-
-const LogFileBottom& AbstractLogView::logFileBottom() const
-{
-    const LogFileBottomKey key{ logData_->getNbLine(), viewport()->width(),
-                                viewport()->height(),  charWidth_,
-                                charHeight_,           useTextWrap_,
-                                lineNumbersVisible_ };
-
-    if ( !logFileBottom_.has_value() || !( logFileBottomKey_ == key ) ) {
-        logFileBottomKey_ = key;
-        // Not viewportGeometry(): its drawing offset depends on the bottom.
-        const ViewportLayout layout{ viewportInput() };
-        const auto columns = layout.visibleColumns();
-        logFileBottom_
-            = layout.logFileBottom( key.totalLines, [ this, columns ]( LineNumber line ) {
-                  return visualLineCount( line, columns );
-              } );
-    }
-
-    return *logFileBottom_;
-}
-
-ScrollPosition AbstractLogView::bottomScrollPosition() const
-{
-    return logFileBottom().scrollPosition;
-}
-
-size_t AbstractLogView::visualLineCount( LineNumber line ) const
-{
-    return visualLineCount( line, getNbVisibleCols() );
-}
-
-size_t AbstractLogView::visualLineCount( LineNumber line, LineLength columns ) const
-{
-    if ( !useTextWrap_ ) {
-        return 1;
-    }
-
-    return wrapLogLine( logData_->getLineString( line ), columns ).wrappedLinesCount();
-}
-
-WrappedString AbstractLogView::wrapLogLine( QString text, LineLength columns ) const
-{
-    auto expandedText = untabify( std::move( text ) );
-    const auto wrapColumns
-        = useTextWrap_ ? columns : LineLength{ logsquirl::isize( expandedText ) } + 1_length;
-    WrappedString visualLines{ std::move( expandedText ), wrapColumns };
-    // What finds a Scroll Position's last Visual Line relies on it.
-    assert( visualLines.wrappedLinesCount() > 0 );
-    return visualLines;
-}
-
-ScrollPosition AbstractLogView::withinLogLine( ScrollPosition position ) const
-{
-    if ( position.visualLineIndex > 0 && position.lineNumber < logData_->getNbLine() ) {
-        position.visualLineIndex
-            = std::min( position.visualLineIndex, visualLineCount( position.lineNumber ) - 1 );
-    }
-    return position;
-}
-
-void AbstractLogView::rewrapScrollPosition()
-{
-    const auto columns = getNbVisibleCols();
-    const auto before = scrollPosition_;
-    if ( useTextWrap_ && columns != scrollPositionColumns_ && scrollPosition_.visualLineIndex > 0
-         && scrollPosition_.lineNumber < logData_->getNbLine() ) {
-        // Wrapped at the width the Visual Line was counted at and at the new one.
-        const auto text = logData_->getLineString( scrollPosition_.lineNumber );
-        const auto countedAt = wrapLogLine( text, scrollPositionColumns_ );
-        const auto firstOnTopRow = countedAt.wrappedLineStart(
-            std::min( scrollPosition_.visualLineIndex, countedAt.wrappedLinesCount() - 1 ) );
-        scrollPosition_.visualLineIndex
-            = wrapLogLine( text, columns ).wrappedLineIndexOf( firstOnTopRow );
-    }
-    else {
-        // The same width, but the Log Line at the top may now wrap into fewer
-        // Visual Lines.
-        scrollPosition_ = withinLogLine( scrollPosition_ );
-    }
-    scrollPositionColumns_ = columns;
-    // Only a move changes what is aligned: Log Lines appended below a view
-    // that is not following leave it as it is.
-    if ( scrollPosition_ != before ) {
-        updateAtBottom();
-    }
-}
-
-ScrollPosition AbstractLogView::visualLineOf( FilePosition position ) const
-{
-    if ( !useTextWrap_ || position.column() <= 0_lcol
-         || position.line() >= logData_->getNbLine() ) {
-        return ScrollPosition{ position.line(), 0 };
-    }
-
-    const auto visualLines
-        = wrapLogLine( logData_->getLineString( position.line() ), getNbVisibleCols() );
-    return ScrollPosition{ position.line(), visualLines.wrappedLineIndexOf( position.column() ) };
-}
-
 void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
 {
     const QRect invalidRect = paintEvent->rect();
     if ( ( invalidRect.isEmpty() ) || ( logData_ == nullptr ) )
         return;
 
-    LOG_DEBUG << "paintEvent received, scrollPosition_=" << scrollPosition_.lineNumber << ":"
-              << scrollPosition_.visualLineIndex << " atBottom_=" << atBottom_
-              << " rect: " << invalidRect.topLeft().x() << ", " << invalidRect.topLeft().y() << ", "
-              << invalidRect.bottomRight().x() << ", " << invalidRect.bottomRight().y();
+    const auto scrollPosition = scrolling_.position();
+    const auto firstColumn = scrolling_.firstColumn();
+    LOG_DEBUG << "paintEvent received, scrollPosition=" << scrollPosition.lineNumber << ":"
+              << scrollPosition.visualLineIndex << " rect: " << invalidRect.topLeft().x() << ", "
+              << invalidRect.topLeft().y() << ", " << invalidRect.bottomRight().x() << ", "
+              << invalidRect.bottomRight().y();
 
 #ifdef GLOGG_PERF_MEASURE_FPS
     static uint32_t maxline = logData_->getNbLine();
@@ -1201,14 +990,14 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     auto start = std::chrono::system_clock::now();
 
     // Can we use our cache?
-    if ( textAreaCache_.invalid_ || ( textAreaCache_.first_column_ != firstCol_ )
-         || ( textAreaCache_.scroll_position_ != scrollPosition_ ) ) {
+    if ( textAreaCache_.invalid_ || ( textAreaCache_.first_column_ != firstColumn )
+         || ( textAreaCache_.scroll_position_ != scrollPosition ) ) {
         // Full redraw
         drawTextArea( &textAreaCache_.pixmap_ );
 
         textAreaCache_.invalid_ = false;
-        textAreaCache_.scroll_position_ = scrollPosition_;
-        textAreaCache_.first_column_ = firstCol_;
+        textAreaCache_.scroll_position_ = scrollPosition;
+        textAreaCache_.first_column_ = firstColumn;
 
         LOG_DEBUG << "End of writing "
                   << std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1220,7 +1009,8 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     }
 
     // The same geometry hit testing places the text by.
-    const auto pullToFollow = viewportGeometry().pullToFollowGeometry( pullToFollowState() );
+    const auto pullToFollow
+        = viewportGeometry().pullToFollowGeometry( scrolling_.pullToFollowState() );
 
     if ( pullToFollow.barHeightPx && ( pullToFollowCache_.nb_columns_ != getNbVisibleCols() ) ) {
         LOG_DEBUG << "Drawing pull to follow bar";
@@ -1274,7 +1064,8 @@ OptionalLineNumber AbstractLogView::getViewPosition() const
     }
 
     // Middle of the view
-    const auto middle = scrollPosition_.lineNumber + LinesCount( getNbVisibleLines().get() / 2 );
+    const auto middle
+        = scrolling_.position().lineNumber + LinesCount( getNbVisibleLines().get() / 2 );
     const auto line = lines_->logLineAt( middle );
     if ( line.has_value() ) {
         return line;
@@ -1381,7 +1172,7 @@ void AbstractLogView::incrementalSearchStop()
 
 void AbstractLogView::allowFollowMode( bool allow )
 {
-    followElasticHook_.allowHook( allow );
+    scrolling_.allowFollow( allow );
 }
 
 void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern )
@@ -1411,27 +1202,19 @@ void AbstractLogView::setDecorationPolicy( const DecorationPolicy& policy )
 void AbstractLogView::setPresentationPolicy( const PresentationPolicy& policy )
 {
     // Nothing is repainted: what this Policy says reaches the view only when
-    // it is scrolled, and it is read from here each time.
-    presentationPolicy_ = policy;
+    // it is scrolled, and scrolling reads it from there each time.
+    scrolling_.setPresentationPolicy( policy );
 }
 
 void AbstractLogView::followSet( bool checked )
 {
-    followMode_ = checked;
-    followElasticHook_.hook( checked );
-    forceRefresh();
-
-    if ( checked )
-        jumpToBottom();
+    applyScroll( scrolling_.followSet( checked ) );
 }
 
 void AbstractLogView::textWrapSet( bool checked )
 {
-    useTextWrap_ = checked;
-    // The Log Line at the top stays. Without text wrapping it is a single
-    // Visual Line, and with it the view starts again at its first one.
-    scrollPosition_.visualLineIndex = 0;
-    rewrapScrollPosition();
+    // The Log Line at the top stays.
+    scrolling_.setTextWrap( checked );
     updateScrollBars();
     forceRefresh();
 }
@@ -1659,16 +1442,11 @@ void AbstractLogView::updateData()
 
     const auto lastLineNumber = LineNumber( logData_->getNbLine().get() );
 
-    // Check the top Line is within range
-    if ( scrollPosition_.lineNumber >= lastLineNumber ) {
-        scrollPosition_ = ScrollPosition{};
-        firstCol_ = 0_lcol;
+    // Past the Log Lines there are now, the view goes back to the top.
+    if ( scrolling_.dataChanged() ) {
         verticalScrollBar()->setValue( 0 );
         horizontalScrollBar()->setValue( 0 );
     }
-    // The Log Line at the top may now wrap into fewer Visual Lines, and more
-    // Log Lines can take columns from the text for their line numbers.
-    rewrapScrollPosition();
 
     // Crop selection if it become out of range: it holds Log Lines, so it is
     // cropped to the Log File's.
@@ -1681,15 +1459,14 @@ void AbstractLogView::updateData()
     // Reset the QuickFind in case we have new stuff to search into
     quickFind_->resetLimits();
 
-    if ( followMode_ )
-        jumpToBottom();
+    applyScroll( scrolling_.jumpToBottomIfFollowing() );
 
     // Update the overview if we have one
     if ( overview_ != nullptr ) {
         // Calculate the index of the last line shown
-        const LineNumber lastLine
-            = qMin( lastLineNumber, scrollPosition_.lineNumber + getNbVisibleLines() );
-        overview_->updateCurrentPosition( scrollPosition_.lineNumber, lastLine );
+        const auto topLine = scrolling_.position().lineNumber;
+        const LineNumber lastLine = qMin( lastLineNumber, topLine + getNbVisibleLines() );
+        overview_->updateCurrentPosition( topLine, lastLine );
     }
 
     forceRefresh();
@@ -1706,25 +1483,20 @@ void AbstractLogView::updateFont( const QFont& font )
 
 void AbstractLogView::updateDisplaySize()
 {
-    // Whether the view is at the bottom, taken from the bottom as it was
-    // before the new size, font or margins move it.
-    const bool atBottom
-        = logFileBottom_.has_value() && logFileBottom_->alignsLastVisualLineAt( scrollPosition_ );
-
     // Font is assumed to be mono-space (is restricted by options dialog)
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
     charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
 
-    // A new width re-wraps the Log Line at the top: keep the character that
-    // was first on the top row there.
-    rewrapScrollPosition();
+    // A new width re-wraps the Log Line at the top, keeping the character
+    // that was first on the top row there. Whether the view was at the bottom
+    // is taken from before the new size, font or margins moved it.
+    const bool wasAtBottom = scrolling_.viewportChanged();
 
     // Update the scroll bars
     updateScrollBars();
     verticalScrollBar()->setPageStep( static_cast<int>( getNbVisibleLines().get() ) );
 
-    if ( followMode_ || atBottom )
-        jumpToBottom();
+    applyScroll( scrolling_.jumpToBottomIfFollowing( wasAtBottom ) );
 
     LOG_DEBUG << "viewport.width()=" << viewport()->width();
     LOG_DEBUG << "viewport.height()=" << viewport()->height();
@@ -1747,12 +1519,12 @@ void AbstractLogView::updateDisplaySize()
 
 LineNumber AbstractLogView::getTopLine() const
 {
-    return scrollPosition_.lineNumber;
+    return scrolling_.position().lineNumber;
 }
 
 ScrollPosition AbstractLogView::scrollPosition() const
 {
-    return scrollPosition_;
+    return scrolling_.position();
 }
 
 QString AbstractLogView::getSelectedText() const
@@ -1811,7 +1583,7 @@ void AbstractLogView::jumpToLine( LineNumber logLine )
     // Put the selected line in the middle if possible
     const auto newTopLine
         = lines_->nearestPositionOf( logLine ) - LinesCount( getNbVisibleLines().get() / 2 );
-    scrollTo( ScrollPosition{ newTopLine, 0 } );
+    applyScroll( scrolling_.scrollTo( ScrollPosition{ newTopLine, 0 } ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
@@ -1850,35 +1622,7 @@ void AbstractLogView::setSearchLimits( LineNumber startLine, LineNumber endLine 
 // geometry, so this is cheap enough to build on every call.
 ViewportLayout AbstractLogView::viewportGeometry() const
 {
-    auto input = viewportInput();
-    // The pull-to-follow geometry does not read the offset, so the layout
-    // built so far can already say what the offset is.
-    input.drawingTopOffsetPx
-        = ViewportLayout{ input }.pullToFollowGeometry( pullToFollowState() ).textTopPx;
-    return ViewportLayout{ input };
-}
-
-ViewportLayoutInput AbstractLogView::viewportInput() const
-{
-    ViewportLayoutInput input;
-    input.charWidthPx = charWidth_;
-    input.charHeightPx = charHeight_;
-    input.viewportWidthPx = viewport()->width();
-    input.viewportHeightPx = viewport()->height();
-    input.scrollPosition = scrollPosition_;
-    input.firstColumn = firstCol_;
-    input.lineNumbersVisible = lineNumbersVisible_;
-    input.largestDisplayLineNumber = lines_->logLineCount().get();
-    input.textWrap = useTextWrap_;
-    return input;
-}
-
-PullToFollowState AbstractLogView::pullToFollowState() const
-{
-    return PullToFollowState{ .elasticHookLength = followElasticHook_.size(),
-                              .hooked = followElasticHook_.isHooked(),
-                              .atBottom = atBottom_,
-                              .bottomVisualLines = logFileBottom().visualLines };
+    return scrolling_.geometry();
 }
 
 // The viewport layout including the Visual Lines in the Viewport. They come from the
@@ -1891,10 +1635,10 @@ ViewportLayout AbstractLogView::viewportLayout() const
 
 const AbstractLogView::ViewportContent& AbstractLogView::viewportContent() const
 {
-    const ViewportContentKey key{ scrollPosition_,       firstCol_,
+    const ViewportContentKey key{ scrolling_.position(), scrolling_.firstColumn(),
                                   logData_->getNbLine(), viewport()->width(),
                                   viewport()->height(),  charWidth_,
-                                  charHeight_,           useTextWrap_,
+                                  charHeight_,           scrolling_.textWrap(),
                                   lineNumbersVisible_,   viewportGeneration_ };
 
     if ( !viewportContent_.has_value() || !( viewportContentKey_ == key ) ) {
@@ -1915,7 +1659,7 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
         return content;
     }
 
-    const auto scrollPosition = geometry.clampScrollPosition( scrollPosition_, linesInFile );
+    const auto scrollPosition = geometry.clampScrollPosition( scrolling_.position(), linesInFile );
     // Every Log Line is at least one Visual Line, so this many Log Lines
     // always fill the Viewport.
     const auto nbLines = qMin( geometry.visibleLines(),
@@ -1931,7 +1675,7 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
 
     for ( size_t index = 0; index < rawLines.size() && content.visualLines.size() < maxVisualLines;
           ++index ) {
-        auto wrappedLine = wrapLogLine( rawLines[ index ], visibleColumns );
+        auto wrappedLine = scrolling_.wrap( rawLines[ index ], visibleColumns );
         const auto lineLength = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
             wrappedLine.unwrappedLine().size() ) };
 
@@ -2022,13 +1766,13 @@ void AbstractLogView::displayLine( LineNumber logLine )
 // Doing so, it may throw itself a scrollContents event.
 void AbstractLogView::displayPosition( FilePosition position )
 {
-    const auto target = visualLineOf( position );
+    const auto target = scrolling_.visualLineOf( position );
     if ( viewportLayout().showsWholeVisualLine( target ) ) {
         // Invalidate our cache
         forceRefresh();
     }
     else {
-        scrollTo( target );
+        applyScroll( scrolling_.scrollTo( target ) );
     }
 
     const auto logLine = lines_->logLineAt( position.line() );
@@ -2102,7 +1846,7 @@ void AbstractLogView::jumpToRightOfScreen()
 
     logsquirl::vector<LineNumber::UnderlyingType> visibleLinesNumbers( nbVisibleLines.get() );
     std::iota( visibleLinesNumbers.begin(), visibleLinesNumbers.end(),
-               scrollPosition_.lineNumber.get() );
+               scrolling_.position().lineNumber.get() );
 
     logsquirl::vector<LineNumber> visibleLines;
     visibleLines.reserve( nbVisibleLines.get() );
@@ -2116,19 +1860,10 @@ void AbstractLogView::jumpToRightOfScreen()
         maxLineLength( visibleLines ).get() - getNbVisibleCols().get() ) );
 }
 
-// Jump to the first line
-void AbstractLogView::jumpToTop()
-{
-    scrollTo( ScrollPosition{} );
-    forceRefresh(); // in case the screen hasn't moved
-}
-
 // Jump to the last line
 void AbstractLogView::jumpToBottom()
 {
-    scrollTo( bottomScrollPosition() );
-
-    forceRefresh();
+    applyScroll( scrolling_.jumpToBottom() );
 }
 
 // Select the word under the given position
@@ -2252,29 +1987,18 @@ void AbstractLogView::considerMouseHovering( int xPos, int yPos )
 
 void AbstractLogView::updateScrollBars()
 {
-    // The Log Lines at the end may have changed, not only how many there are,
-    // so the bottom is wrapped again: no more Log Lines than the Viewport has
-    // rows are read.
-    logFileBottom_.reset();
-    const auto bottom = logFileBottom();
-
-    // The margin arithmetic the visible column count needs lives in the
-    // layout, so this is right even before the first paint.
-    const auto layout = viewportGeometry();
+    // The margin arithmetic the ranges need lives in the layout, so this is
+    // right even before the first paint.
+    const auto ranges = scrolling_.updateScrollBarRanges( logData_->getMaxLength() );
 
     // Lowering the maximum below the scrollbar's value moves the view to the
     // bottom Scroll Position, through scrollContentsBy().
-    verticalScrollBar()->setRange( 0, layout.verticalScrollRange( bottom.scrollPosition ) );
+    verticalScrollBar()->setRange( 0, ranges.verticalMaximum );
 
-    horizontalScrollBar()->setRange( 0, layout.horizontalScrollRange( logData_->getMaxLength() ) );
-    horizontalScrollBar()->setPageStep(
-        type_safe::narrow_cast<int>( layout.visibleColumns().get() * 7 / 8 ) );
+    horizontalScrollBar()->setRange( 0, ranges.horizontalMaximum );
+    horizontalScrollBar()->setPageStep( ranges.horizontalPageStep );
 
-    // The bottom can move up within the Log Line the view stands on, as when
-    // the Viewport grows; a Log File growing never moves it up.
-    if ( scrollPosition_ > bottom.scrollPosition ) {
-        scrollTo( bottom.scrollPosition );
-    }
+    applyScroll( scrolling_.keepAboveBottom() );
 }
 
 void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
@@ -2290,6 +2014,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     const int fontHeight = charHeight_;
     const int fontAscent = painter->fontMetrics().ascent();
     const LineLength nbVisibleCols = getNbVisibleCols();
+    const bool textWrap = scrolling_.textWrap();
+    const auto firstColumn = scrolling_.firstColumn();
 
     const int paintDeviceHeight
         = static_cast<int>( std::floor( paintDevice->height() / viewport()->devicePixelRatio() ) );
@@ -2429,10 +2155,10 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         // is drawn, each span as it is.
         LineDrawer lineDrawer( lineColors.backColor );
         const auto firstVisibleColumn
-            = std::clamp( useTextWrap_ ? 0_lcol : firstCol_, 0_lcol,
+            = std::clamp( textWrap ? 0_lcol : firstColumn, 0_lcol,
                           LineColumn{ logsquirl::isize( expandedLine ) } );
-        const auto lastVisibleColumn = useTextWrap_ ? LineColumn{ logsquirl::isize( expandedLine ) }
-                                                    : firstCol_ + nbVisibleCols;
+        const auto lastVisibleColumn = textWrap ? LineColumn{ logsquirl::isize( expandedLine ) }
+                                                : firstColumn + nbVisibleCols;
         for ( const auto& span : decoration.spans() ) {
             if ( span.size() == 0_length || span.endColumn() < firstVisibleColumn
                  || span.startColumn() > lastVisibleColumn ) {
@@ -2544,6 +2270,5 @@ QPixmap AbstractLogView::drawPullToFollowBar( int width, qreal pixelRatio )
 
 void AbstractLogView::disableFollow()
 {
-    Q_EMIT followModeChanged( false );
-    followElasticHook_.hook( false );
+    applyScroll( scrolling_.leaveFollow() );
 }

@@ -132,3 +132,49 @@ unlimited version of this change cost the full ~1 ms "very long line"
 first five cases are unaffected by #80 (within noise of the numbers
 recorded above) — that change lives entirely in the view's translation
 step, not in `LineDecorator`.
+
+# Scrolling benchmarks
+
+Two binaries measure scrolling a text view on a million generated Log Lines
+with text wrapping on (`generated_log_lines.h`: 40 to about 600 characters,
+so a Log Line wraps into one Visual Line or several).
+
+- `logsquirl_textviewscrolling_benchmark` runs the scrolling rules alone
+  (`src/textviewscrolling`, #246), without a widget: wheel notches, pages,
+  the scrollbar dragged and moved to its maximum, a Log Line appended, and
+  the width changed.
+- `logsquirl_textview_scroll_benchmark` drives a shown text view through Qt
+  events on the offscreen platform: the wheel with and without painting,
+  pages, the scrollbar dragged, `updateData()` after a Log Line was
+  appended, and a resize with painting. It uses only what the text view
+  offered before #246, so the same file measures the code before and after.
+
+Both are Catch2 benchmarks; run them in an optimized build, as the Debug
+numbers say little about scrolling cost:
+
+```bash
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-release --target logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark
+./build-release/output/logsquirl_textview_scroll_benchmark --benchmark-samples 50 > after.txt
+```
+
+## Comparing with a commit from before #246
+
+`textview_scroll_benchmark.cpp` and `generated_log_lines.h` build unchanged
+on such a commit. In a worktree of it:
+
+```bash
+git worktree add ../logsquirl-before origin/master
+cp tests/benchmarks/textview_scroll_benchmark.cpp tests/benchmarks/generated_log_lines.h \
+   ../logsquirl-before/tests/benchmarks/
+cat >> ../logsquirl-before/tests/benchmarks/CMakeLists.txt <<'CMAKE'
+add_executable(logsquirl_textview_scroll_benchmark textview_scroll_benchmark.cpp)
+target_link_libraries(logsquirl_textview_scroll_benchmark logsquirl_ui Catch2 test_utils)
+CMAKE
+cmake -S ../logsquirl-before -B ../logsquirl-before/build-release -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build ../logsquirl-before/build-release --target logsquirl_textview_scroll_benchmark
+../logsquirl-before/build-release/output/logsquirl_textview_scroll_benchmark --benchmark-samples 50 > before.txt
+```
+
+Then compare the `mean` column of `before.txt` and `after.txt` per benchmark,
+as described above.

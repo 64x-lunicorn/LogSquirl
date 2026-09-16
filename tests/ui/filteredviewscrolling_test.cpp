@@ -21,7 +21,9 @@
 // reading position through a re-wrap and jumps exactly as the main view does
 // (#153, #154, #155): the same checks as
 // tests/unit/abstractlogview_test.cpp, run on a FilteredView showing the Matches
-// of a Search over a real Log File.
+// of a Search over a real Log File. The scrolling rules themselves are checked
+// without a widget in tests/textviewscrolling (#246); these check that the
+// Filtered View hands them its Displayed Lines.
 
 #include <catch2/catch.hpp>
 
@@ -120,24 +122,9 @@ SCENARIO( "The Filtered View scrolls by Visual Lines", "[filteredview][scrollpos
             requireWheelStepsMoveTheSameVisualLinesEverywhere( view );
         }
 
-        THEN( "an arrow key moves one Visual Line, into the next Log Line and back" )
-        {
-            requireArrowKeysStepOneVisualLineAcrossLogLines( view );
-        }
-
-        THEN( "Page Down followed by Page Up returns to the same Scroll Position" )
-        {
-            requirePageDownThenPageUpReturns( view );
-        }
-
         THEN( "the scrollbar counts whole Log Lines" )
         {
             requireScrollbarCountsWholeLogLines( view );
-        }
-
-        THEN( "turning wrapping off and on keeps the same Log Line at the top" )
-        {
-            requireWrapToggleKeepsTheLogLineAtTheTop( view );
         }
     }
 }
@@ -160,11 +147,6 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
             requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow(
                 view, logFile.filteredData->getNbLine() );
         }
-
-        THEN( "keys and the wheel go no further" )
-        {
-            requireScrollingStopsAtTheBottom( view, logFile.filteredData->getNbLine() );
-        }
     }
 
     GIVEN( "Search results whose last Match is taller than the Viewport" )
@@ -177,12 +159,6 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
         {
             requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow(
                 view, logFile.filteredData->getNbLine() );
-        }
-
-        THEN( "pages and the wheel scroll through it down to that same bottom" )
-        {
-            requireScrollingDownFromTheTopReachesTheBottom( view,
-                                                            logFile.filteredData->getNbLine() );
         }
 
         THEN( "moving the scrollbar to its maximum from partway up that Match lands at the "
@@ -203,18 +179,6 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
         }
     }
 
-    GIVEN( "Search results with fewer Visual Lines than the Viewport has rows" )
-    {
-        FilteredLogFile logFile{ fewerVisualLinesThanRows() };
-        FilteredView view( logFile.filteredData.get(), &quickFindPattern, true );
-        showOneColumnWide( view );
-
-        THEN( "they show from their top, with no scroll range" )
-        {
-            requireFewerVisualLinesThanRowsShowFromTheTop( view );
-        }
-    }
-
     GIVEN( "a Search that has covered part of the Log File so far" )
     {
         const auto lines = tallLogLines();
@@ -231,11 +195,6 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
         THEN( "follow mode keeps the new last Visual Line on the last row as Matches are added" )
         {
             requireFollowKeepsTheLastVisualLineOnTheLastRow( view, searchTheRest );
-        }
-
-        THEN( "without follow mode, a view at the bottom stays where it is" )
-        {
-            requireGrowthWithoutFollowLeavesTheBottomView( view, searchTheRest );
         }
     }
 }

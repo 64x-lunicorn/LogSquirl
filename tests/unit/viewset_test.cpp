@@ -52,7 +52,7 @@ struct AbstractLogView::access_by<ViewSetTest> {
     }
     static const PresentationPolicy& presentationPolicy( const AbstractLogView& view )
     {
-        return view.presentationPolicy_;
+        return view.scrolling_.presentationPolicy();
     }
     static bool lineNumbersVisible( const AbstractLogView& view )
     {
@@ -60,7 +60,7 @@ struct AbstractLogView::access_by<ViewSetTest> {
     }
     static bool followAllowed( const AbstractLogView& view )
     {
-        return view.followElasticHook_.isHookAllowed();
+        return view.scrolling_.followAllowed();
     }
     static const std::vector<QStringList>& colorLabels( const AbstractLogView& view )
     {

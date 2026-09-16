@@ -70,8 +70,8 @@
 #include "regularexpressionpattern.h"
 #include "selection.h"
 #include "settingspolicies.h"
+#include "textviewscrolling.h"
 #include "viewportlayout.h"
-#include "viewtools.h"
 #include "wrappedstring.h"
 
 class QMenu;
@@ -174,12 +174,12 @@ public:
 
     bool isFollowEnabled() const
     {
-        return followMode_;
+        return scrolling_.follows();
     }
 
     bool isTextWrapEnabled() const
     {
-        return useTextWrap_;
+        return scrolling_.textWrap();
     }
 
     void allowFollowMode( bool allow );
@@ -375,17 +375,8 @@ private Q_SLOTS:
     void setQuickFindResult( bool hasMatch, const Portion& selection );
 
 private:
-    // Graphic parameters
-    static constexpr int HookThreshold = 300;
-
     // Digits buffer (for numeric keyboard entry)
     DigitsBuffer digitsBuffer_;
-
-    // Follow mode
-    bool followMode_ = false;
-
-    // ElasticHook for follow mode
-    ElasticHook followElasticHook_;
 
     // Whether to show line numbers or not
     bool lineNumbersVisible_ = false;
@@ -430,27 +421,28 @@ private:
     // them, so a repaint builds no Highlighter of its own.
     DecorationSetup decorationSetup_;
 
-    // What this Presentation shows and scrolls under, as its holder last
-    // handed it over. Read where it is needed rather than derived into
-    // something kept, so a changed Policy takes effect at once.
-    PresentationPolicy presentationPolicy_;
+    // What scrolling reads of this view: the lines it shows, by position, and
+    // its Viewport as it measures now.
+    class ScrolledLines final : public ScrolledText {
+    public:
+        explicit ScrolledLines( const AbstractLogView& view )
+            : view_( view )
+        {
+        }
+        LinesCount lineCount() const override;
+        QString lineText( LineNumber position ) const override;
+        ScrollingViewport viewport() const override;
 
-    // Position of the view, those are crucial to control drawing
-    // scrollPosition_ gives the position of the view; only scrolling moves it.
-    // atBottom_: the view is at the bottom Scroll Position, and draws the last
-    // Visual Line of the Log File on the Viewport's last row rather than the
-    // first Visual Line on the top row. Scrolling updates it, so Log Lines
-    // added below a view that is not following leave it as it is.
-    ScrollPosition scrollPosition_;
-    // The text columns scrollPosition_'s Visual Line was counted at. When the
-    // view re-wraps to another width, rewrapScrollPosition() finds the same
-    // character again from it.
-    LineLength scrollPositionColumns_{ 0 };
-    bool atBottom_ = false;
-    // The fraction of a Visual Line the wheel has turned but not yet scrolled.
-    double wheelVisualLinesPending_ = 0;
-    bool useTextWrap_;
-    LineColumn firstCol_ = 0_lcol;
+    private:
+        const AbstractLogView& view_;
+    };
+    ScrolledLines scrolledLines_{ *this };
+
+    // Every scrolling rule, and all the state they keep: the Scroll Position,
+    // follow and its elastic hook, the bottom of the Log File, text wrapping,
+    // the first column and the Presentation Policy. This view turns Qt events
+    // into its calls and applies its answers (#246).
+    TextViewScrolling scrolling_;
 
     // A Log Line in the Viewport, both as the Log File holds it and as it is drawn.
     struct ViewportLogLine {
@@ -501,23 +493,6 @@ private:
     // changed, so the cached content is rebuilt.
     uint64_t viewportGeneration_ = 0;
 
-    // Everything the bottom of the Log File depends on but its Log Lines. A
-    // change to those comes through updateData(), which wraps the bottom again.
-    struct LogFileBottomKey {
-        LinesCount totalLines{ 0 };
-        int viewportWidth = -1;
-        int viewportHeight = -1;
-        int charWidth = -1;
-        int charHeight = -1;
-        bool textWrap = false;
-        bool lineNumbersVisible = false;
-
-        bool operator==( const LogFileBottomKey& ) const = default;
-    };
-
-    mutable std::optional<LogFileBottom> logFileBottom_;
-    mutable LogFileBottomKey logFileBottomKey_;
-
     // The Search Limits, in Log Lines, half-open as the Line Decorator takes them.
     LineNumber searchStart_;
     LineNumber searchEnd_;
@@ -556,9 +531,6 @@ private:
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
 
-    // Everything the viewport layout is built from but the drawing offset,
-    // which the pull-to-follow geometry derives from the rest.
-    ViewportLayoutInput viewportInput() const;
     // The viewport layout, without the Visual Lines: enough to answer margins,
     // visible counts and scroll ranges, and cheap because it touches no
     // Log Line.
@@ -577,12 +549,6 @@ private:
     FilePosition logLineFilePosAt( const QPoint& pos ) const;
     OptionalLineNumber logLineAtY( int yPos ) const;
 
-    // The follow mode state the layout places the text and the pull-to-follow
-    // bar from. Painting and hit testing both hand it to the same
-    // ViewportLayout::pullToFollowGeometry() instead of computing positions
-    // of their own.
-    PullToFollowState pullToFollowState() const;
-
     // Brings the first Visual Line of logLine into view (see displayPosition()).
     void displayLine( LineNumber logLine );
     // Brings the Visual Line holding position -- a position in the view, not a
@@ -596,7 +562,6 @@ private:
     void jumpToStartOfLine();
     void jumpToEndOfLine();
     void jumpToRightOfScreen();
-    void jumpToTop();
     void jumpToBottom();
     void selectWordAtPosition( const FilePosition& pos );
     // Selects the nearest Mark shown after, or before, the view's position.
@@ -623,61 +588,22 @@ private:
     // logLine's, kept within the Log Lines shown.
     OptionalLineNumber shownLogLineMovedBy( LineNumber logLine, int64_t delta ) const;
 
+    // Hands the scrollbars the ranges scrolling answers, then keeps the view
+    // above the bottom.
     void updateScrollBars();
 
-    // Moves the view to position, brought into the Log File, and the vertical
-    // scrollbar to its Log Line. Moving between Visual Lines of one Log Line
-    // leaves the scrollbar where it is.
-    void scrollTo( ScrollPosition position );
-    // Moves the view visualLines Visual Lines down, or up when negative,
-    // wrapping only the Log Lines it passes over.
-    void scrollByVisualLines( int64_t visualLines );
-    // A scroll step taken by a key or by selection autoscroll. As the
-    // scrollbar's own steps do, a step up leaves follow mode.
-    void stepVisualLines( int64_t visualLines );
-    // How many Visual Lines a wheel event scrolls down (up when negative).
-    int64_t wheelVisualLines( const QWheelEvent& wheelEvent );
-    int64_t visualLinesPerPage() const;
-    // Where the last Visual Line of the Log File sits on the Viewport's last
-    // row. Wrapped backwards from the end of the Log File, no more Log Lines
-    // than the Viewport has rows, when something it depends on changed.
-    const LogFileBottom& logFileBottom() const;
-    // The bottom Scroll Position: where follow mode and the vertical
-    // scrollbar's maximum put the view, and scrolling goes no further down.
-    ScrollPosition bottomScrollPosition() const;
-    // How many Visual Lines line wraps into at the current width. Reads and
-    // wraps that one Log Line.
-    size_t visualLineCount( LineNumber line ) const;
-    // How many Visual Lines line wraps into, columns wide.
-    size_t visualLineCount( LineNumber line, LineLength columns ) const;
-    // The text of a Log Line as the view draws it: tabs expanded, and split
-    // into Visual Lines columns wide, or one without text wrapping. Always at
-    // least one Visual Line.
-    WrappedString wrapLogLine( QString text, LineLength columns ) const;
-    // position, with a Visual Line a re-wrap or a change to the Log File has
-    // left past the end of its Log Line brought back to that Log Line's last.
-    ScrollPosition withinLogLine( ScrollPosition position ) const;
-    // What every change that re-wraps the view (its width, the font, line
-    // numbers) does before the layout is rebuilt: the Scroll Position keeps its
-    // Log Line, and its Visual Line becomes the one holding the character that
-    // was first on the top row at the width it was counted at.
-    void rewrapScrollPosition();
-    // The Visual Line of the Log Line holding position, at the current width.
-    ScrollPosition visualLineOf( FilePosition position ) const;
-    // Aligns the last Visual Line on the last row when the view is at the
-    // bottom Scroll Position, and the first on the top row otherwise.
-    void updateAtBottom();
+    // Applies what scrolling answered: says a change of follow, moves the
+    // vertical scrollbar -- scrollContentsBy() follows, and scrolling knows
+    // the scrollbar only caught up -- and redraws.
+    void applyScroll( const ScrollAnswer& answer );
     // What follows any move of the Scroll Position: the overview, the
     // hovered line and a repaint.
     void scrollPositionMoved();
 
-    LineNumber verticalScrollToLineNumber( int scrollPosition ) const;
-    int lineNumberToVerticalScroll( LineNumber line ) const;
-    double verticalScrollMultiplicator() const;
-
     void drawTextArea( QPaintDevice* paintDevice );
     QPixmap drawPullToFollowBar( int width, qreal pixelRatio );
 
+    // Leaves follow: a move away from the bottom by the user.
     void disableFollow();
 
     // Utils functions

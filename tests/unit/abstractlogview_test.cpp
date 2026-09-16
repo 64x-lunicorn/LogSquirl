@@ -216,16 +216,6 @@ SCENARIO( "A text view scrolls by Visual Lines", "[abstractlogview][scrollpositi
             requireWheelStepsMoveTheSameVisualLinesEverywhere( view );
         }
 
-        THEN( "an arrow key moves one Visual Line, into the next Log Line and back" )
-        {
-            requireArrowKeysStepOneVisualLineAcrossLogLines( view );
-        }
-
-        THEN( "Page Down followed by Page Up returns to the same Scroll Position" )
-        {
-            requirePageDownThenPageUpReturns( view );
-        }
-
         THEN( "the scrollbar counts whole Log Lines" )
         {
             requireScrollbarCountsWholeLogLines( view );
@@ -316,11 +306,6 @@ SCENARIO( "The bottom of a wrapped text view shows exactly the last Visual Line 
         {
             requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view, logData.getNbLine() );
         }
-
-        THEN( "keys and the wheel go no further" )
-        {
-            requireScrollingStopsAtTheBottom( view, logData.getNbLine() );
-        }
     }
 
     GIVEN( "a Log File whose last Log Line is taller than the Viewport" )
@@ -334,45 +319,10 @@ SCENARIO( "The bottom of a wrapped text view shows exactly the last Visual Line 
             requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view, logData.getNbLine() );
         }
 
-        THEN( "pages and the wheel scroll through it down to that same bottom" )
-        {
-            requireScrollingDownFromTheTopReachesTheBottom( view, logData.getNbLine() );
-        }
-
         THEN( "moving the scrollbar to its maximum from partway up that Log Line lands at the "
               "bottom" )
         {
             requireScrollbarMovedToItsMaximumLandsAtTheBottom( view, logData.getNbLine() );
-        }
-
-        THEN( "keys and the wheel go no further" )
-        {
-            requireScrollingStopsAtTheBottom( view, logData.getNbLine() );
-        }
-    }
-
-    GIVEN( "a Log File of fewer Log Lines than rows, one of them taller than the Viewport" )
-    {
-        const FakeLogData logData{ fewLogLinesOneTallerThanTheViewport() };
-        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
-        showOneColumnWide( view );
-
-        THEN( "it can be scrolled, down to its last Visual Line on the last row" )
-        {
-            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view, logData.getNbLine() );
-            requireScrollingDownFromTheTopReachesTheBottom( view, logData.getNbLine() );
-        }
-    }
-
-    GIVEN( "a Log File with fewer Visual Lines than the Viewport has rows" )
-    {
-        const FakeLogData logData{ fewerVisualLinesThanRows() };
-        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
-        showOneColumnWide( view );
-
-        THEN( "it shows from its top, with no scroll range" )
-        {
-            requireFewerVisualLinesThanRowsShowFromTheTop( view );
         }
     }
 }
@@ -401,38 +351,6 @@ SCENARIO( "A wrapped text view at the bottom as its Log File grows",
         THEN( "follow mode keeps the new last Visual Line on the last row" )
         {
             requireFollowKeepsTheLastVisualLineOnTheLastRow( view, appendLines );
-        }
-
-        THEN( "without follow mode, a view at the bottom stays where it is" )
-        {
-            requireGrowthWithoutFollowLeavesTheBottomView( view, appendLines );
-        }
-
-        THEN( "without follow mode, a view partway through a Log Line stays where it is" )
-        {
-            moveTo( view, ScrollPosition{ TallLine, 150 } );
-            appendLines();
-            REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine, 150 } );
-        }
-    }
-
-    GIVEN( "the last Log Line of the Log File growing longer" )
-    {
-        FakeLogData logData{ tallLastLogLines() };
-        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
-        showOneColumnWide( view );
-
-        const auto extendLastLine = [ & ]() {
-            auto lines = tallLastLogLines();
-            lines.last() += QStringLiteral( " x x x x" );
-            logData.setLines( lines );
-            view.updateData();
-            return logData.getNbLine();
-        };
-
-        THEN( "follow mode keeps its new last Visual Line on the last row" )
-        {
-            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, extendLastLine );
         }
     }
 }
