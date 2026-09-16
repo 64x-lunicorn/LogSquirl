@@ -6,6 +6,8 @@ name: "Workflow Security"
 # otherwise leave "CI passed" waiting on a skipped job. The master push keeps
 # the code scanning baseline that pull requests are compared against, and the
 # weekly run picks up newly published advisories for the pinned actions.
+# The action-allowlist job lives here for the same path filter: it catches a
+# workflow change that needs a repository allowlist update before merge (#201).
 on:
   pull_request:
     branches: [master]
@@ -62,3 +64,24 @@ jobs:
           min-severity: high
           advanced-security: false
           annotations: true
+
+  action-allowlist:
+    name: Action allowlist
+    runs-on: ubuntu-24.04
+    # A few dozen GitHub API calls; no build.
+    timeout-minutes: 5
+    permissions:
+      contents: read # read action.yml of public action repositories
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The repository only runs allowlisted third-party actions (#201), and
+      # the check covers actions those actions call internally. A pattern
+      # missing from repo-settings.sh fails the jobs only after merge, so the
+      # pull request is failed here instead, with the pattern to add.
+      - name: Check nested actions against the allowlist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/check-action-allowlist.py

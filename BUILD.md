@@ -380,4 +380,8 @@ needed):
 unpinned actions, since requiring pins fails every such run.
 
 A new third-party action has to be added to the script's `ALLOWED_ACTIONS` and applied before the workflow using it
-can run. Because workflows cannot create `v*` tags, push the release tag before dispatching CI Release by hand.
+can run. The allowlist also applies to actions that other actions call internally (for example `aquasecurity/trivy-action`
+runs `aquasecurity/setup-trivy`), and `owner/repo@*` does not cover a subdirectory such as
+`jurplel/install-qt-action/action`. `.github/scripts/check-action-allowlist.py` follows every `uses:` into the
+referenced actions at their pinned commits and fails with the missing pattern; the Workflow Security workflow runs it on
+every pull request that touches `.github/`, and it runs locally with any `gh` login. Because workflows cannot create `v*` tags, push the release tag before dispatching CI Release by hand.
