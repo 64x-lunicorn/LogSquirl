@@ -206,6 +206,10 @@ cd build_root
 ctest --build-config RelWithDebInfo --verbose
 ```
 
+Each Catch2 test case is its own ctest test named `<test executable>: <test case>`, so a
+single case runs with e.g. `ctest -R "^logsquirl_tests: Scenario: QuickFind"`. The tests
+run one after another: the Qt test executables share one portable settings file.
+
 ### E2E integration tests (Python / pytest)
 
 End-to-end tests exercise the compiled `logsquirl_grep` and `logsquirl` binaries

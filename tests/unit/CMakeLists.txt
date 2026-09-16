@@ -72,11 +72,12 @@ add_dependencies(logsquirl_tests logsquirl_ui_port_probe)
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_UI_PORT_PROBE_PATH="$<TARGET_FILE:logsquirl_ui_port_probe>")
 
-add_test(
-    NAME logsquirl_tests
-    COMMAND logsquirl_tests -platform offscreen
-)
-set_tests_properties(logsquirl_tests PROPERTIES TIMEOUT 120)
+# Each test case is its own ctest test (#217). Its timeout is the one the whole
+# executable had: the slowest case, the 10,000 Visual Lines scenario, takes a
+# third of the suite in a Debug build and is slower under the sanitizers.
+logsquirl_add_catch_tests(logsquirl_tests
+    EXTRA_ARGS -platform offscreen
+    TIMEOUT 120)
 
 # The compression library is tested on its own, without the UI library or
 # Qt Widgets (#169).
@@ -88,11 +89,7 @@ add_executable(logsquirl_compression_tests
 
 target_link_libraries(logsquirl_compression_tests logsquirl_compression Catch2)
 
-add_test(
-    NAME logsquirl_compression_tests
-    COMMAND logsquirl_compression_tests
-)
-set_tests_properties(logsquirl_compression_tests PROPERTIES TIMEOUT 60)
+logsquirl_add_catch_tests(logsquirl_compression_tests TIMEOUT 60)
 
 # The Plugin Catalog is tested on its own: it reads plugin manifests without
 # loading a plugin library, the plugin host, or a Qt GUI (#178).
@@ -103,8 +100,4 @@ add_executable(logsquirl_plugin_catalog_tests
 
 target_link_libraries(logsquirl_plugin_catalog_tests logsquirl_plugin_catalog Catch2)
 
-add_test(
-    NAME logsquirl_plugin_catalog_tests
-    COMMAND logsquirl_plugin_catalog_tests
-)
-set_tests_properties(logsquirl_plugin_catalog_tests PROPERTIES TIMEOUT 60)
+logsquirl_add_catch_tests(logsquirl_plugin_catalog_tests TIMEOUT 60)

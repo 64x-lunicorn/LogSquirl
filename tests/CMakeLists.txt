@@ -1,5 +1,7 @@
 find_package(Qt6 COMPONENTS Test REQUIRED)
 
+include(CatchTestDiscovery)
+
 add_subdirectory(helpers)
 add_subdirectory(unit)
 add_subdirectory(ui)
