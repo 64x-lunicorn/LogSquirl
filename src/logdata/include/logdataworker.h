@@ -60,20 +60,9 @@
 #include "synchronization.h"
 
 #include "encodingdetector.h"
+#include "indexedhash.h"
 #include "linepositionarray.h"
 #include "loadingstatus.h"
-
-struct IndexedHash {
-    qint64 size = 0;
-    quint64 fullDigest = 0;
-
-    qint64 headerSize = 0;
-    quint64 headerDigest = 0;
-
-    qint64 tailSize = 0;
-    qint64 tailOffset = 0;
-    quint64 tailDigest = 0;
-};
 
 // A cached Index that indexing goes on from, rather than starting over.
 struct ResumedIndex {

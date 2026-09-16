@@ -15,6 +15,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileholder.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filedigest.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexcache.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/indexedhash.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/readablesize.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/compressedlinestorage.cpp
@@ -28,6 +29,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileholder.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filedigest.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexcache.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/indexedhash.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/readablesize.cpp
   src/filedigest.cpp
 )

@@ -26,8 +26,8 @@
 #include <QFile>
 #include <QTemporaryDir>
 
-#include "filedigest.h"
 #include "indexcache.h"
+#include "indexedhashfixture.h"
 #include "linetypes.h"
 
 // The Index cache is told its directory, so every test here builds its own
@@ -41,7 +41,6 @@
 
 namespace {
 
-constexpr qint64 DigestBlockSize = 5 * 1024 * 1024;
 constexpr qint64 NoBudgetLimit = std::numeric_limits<qint64>::max();
 
 LinePositionArray makeLinePositions( std::initializer_list<qint64> offsets )
@@ -54,50 +53,6 @@ LinePositionArray makeLinePositions( std::initializer_list<qint64> offsets )
 }
 
 const auto SomeLinePositions = makeLinePositions( { 4, 8, 20, 4000, 20000, 20050 } );
-
-void writeFile( const QString& path, const QByteArray& content )
-{
-    QFile file( path );
-    REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
-    REQUIRE( file.write( content ) == content.size() );
-}
-
-quint64 digestOf( const QByteArray& data )
-{
-    FileDigest digest;
-    digest.addData( data.constData(), static_cast<size_t>( data.size() ) );
-    return digest.digest();
-}
-
-// The hash the indexer records for a Log File: a digest of its first block
-// and, for a file longer than one block, of its last block.
-IndexedHash hashOfFile( const QString& path )
-{
-    QFile file( path );
-    REQUIRE( file.open( QIODevice::ReadOnly ) );
-    const auto content = file.readAll();
-
-    IndexedHash hash;
-    hash.size = content.size();
-    hash.fullDigest = digestOf( content );
-
-    const auto header = content.left( DigestBlockSize );
-    hash.headerSize = header.size();
-    hash.headerDigest = digestOf( header );
-
-    if ( content.size() <= DigestBlockSize ) {
-        hash.tailOffset = 0;
-        hash.tailSize = header.size();
-        hash.tailDigest = hash.headerDigest;
-    }
-    else {
-        hash.tailOffset = content.size() - DigestBlockSize;
-        const auto tail = content.mid( hash.tailOffset );
-        hash.tailSize = tail.size();
-        hash.tailDigest = digestOf( tail );
-    }
-    return hash;
-}
 
 bool store( const IndexCache& cache, const QString& logFile,
             const LinePositionArray& linePositions = SomeLinePositions )

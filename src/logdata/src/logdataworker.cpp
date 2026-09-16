@@ -57,6 +57,7 @@
 #include "dispatch_to.h"
 #include "encodingdetector.h"
 #include "indexcache.h"
+#include "indexedhash.h"
 #include "issuereporter.h"
 #include "linepositionarray.h"
 #include "linetypes.h"
@@ -1092,86 +1093,23 @@ OperationResult CheckFileChangesOperation::run()
 
 MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
 {
-    QFileInfo info( fileName_ );
     const auto indexedHash = IndexingData::ConstAccessor{ indexing_data_.get() }.getHash();
-    const auto realFileSize = info.size();
+    const auto coverage = indexingPolicy_.fastModificationDetection ? DigestCoverage::HeaderAndTail
+                                                                    : DigestCoverage::Full;
 
-    if ( realFileSize == 0 || realFileSize < indexedHash.size ) {
-        LOG_INFO << "File truncated";
+    switch ( indexFit( indexedHash, fileName_, coverage ) ) {
+    case IndexFit::Unchanged:
+        LOG_INFO << "No change in file";
+        return MonitoredFileStatus::Unchanged;
+    case IndexFit::Grown:
+        LOG_INFO << "New data on disk";
+        return MonitoredFileStatus::DataAdded;
+    case IndexFit::Changed:
+        LOG_INFO << "File truncated or changed in indexed range";
+        return MonitoredFileStatus::Truncated;
+    case IndexFit::LogFileUnreadable:
+        LOG_INFO << "File failed to open";
         return MonitoredFileStatus::Truncated;
     }
-    else {
-        QFile file( fileName_ );
-
-        QByteArray buffer{ IndexingBlockSize, Qt::Uninitialized };
-
-        bool isFileModified = false;
-        const auto fastModificationDetection = indexingPolicy_.fastModificationDetection;
-
-        if ( !file.isOpen() && !file.open( QIODevice::ReadOnly ) ) {
-            LOG_INFO << "File failed to open";
-            return MonitoredFileStatus::Truncated;
-        }
-
-        const auto getDigest = [ &file, &buffer ]( const qint64 indexedSize ) {
-            FileDigest fileDigest;
-            auto readSize = 0ll;
-            auto totalSize = 0ll;
-            do {
-                const auto bytesToRead
-                    = std::min( static_cast<qint64>( buffer.size() ), indexedSize - totalSize );
-                readSize = file.read( buffer.data(), bytesToRead );
-
-                if ( readSize > 0 ) {
-                    fileDigest.addData( buffer.data(), static_cast<size_t>( readSize ) );
-                    totalSize += readSize;
-                }
-
-            } while ( readSize > 0 && totalSize < indexedSize );
-
-            return fileDigest.digest();
-        };
-        if ( fastModificationDetection ) {
-            const auto headerDigest = getDigest( indexedHash.headerSize );
-
-            LOG_INFO << "indexed header xxhash " << indexedHash.headerDigest;
-            LOG_INFO << "current header xxhash " << headerDigest << ", size "
-                     << indexedHash.headerSize;
-
-            isFileModified = headerDigest != indexedHash.headerDigest;
-
-            if ( !isFileModified ) {
-                file.seek( indexedHash.tailOffset );
-                const auto tailDigest = getDigest( indexedHash.tailSize );
-
-                LOG_INFO << "indexed tail xxhash " << indexedHash.tailDigest;
-                LOG_INFO << "current tail xxhash " << tailDigest << ", size "
-                         << indexedHash.tailSize;
-
-                isFileModified = tailDigest != indexedHash.tailDigest;
-            }
-        }
-        else {
-
-            const auto realHashDigest = getDigest( indexedHash.size );
-
-            LOG_INFO << "indexed xxhash " << indexedHash.fullDigest;
-            LOG_INFO << "current xxhash " << realHashDigest;
-
-            isFileModified = realHashDigest != indexedHash.fullDigest;
-        }
-
-        if ( isFileModified ) {
-            LOG_INFO << "File changed in indexed range";
-            return MonitoredFileStatus::Truncated;
-        }
-        else if ( realFileSize > indexedHash.size ) {
-            LOG_INFO << "New data on disk";
-            return MonitoredFileStatus::DataAdded;
-        }
-        else {
-            LOG_INFO << "No change in file";
-            return MonitoredFileStatus::Unchanged;
-        }
-    }
+    return MonitoredFileStatus::Truncated;
 }
