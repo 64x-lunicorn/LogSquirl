@@ -26,6 +26,9 @@ V31_CRITICAL = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"  # 9.8
 V31_HIGH = "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H"  # 7.3
 V40_CRITICAL = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"  # 9.3
 V2_TEN = "AV:N/AC:L/Au:N/C:C/I:C/A:C"  # 10.0, CVSS v2
+V31_LOW = "CVSS:3.1/AV:L/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"  # 2.9
+# NVD's record of CVE-2026-15037 (accepted in vuln-ignore.yml) scores 2.9.
+V40_LOW_15037 = "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N/E:P"
 
 
 def props(**kw) -> list[dict]:
@@ -337,11 +340,14 @@ def scan_inputs(tmp_path):
 
 
 def run_cli(tmp_path, sbom, grype, ignore, fail_on, http=None, qt_page_file=QT_PAGE, nvd=None):
+    # NVD scores every Qt advisory low unless a test says otherwise, so an
+    # unscored advisory does not block the tests about something else (#252).
     sarif = tmp_path / "out/vulns.sarif"
     code = vs.main(["scan", "--sbom", str(sbom), "--grype", str(grype), "--ignore", str(ignore),
                     "--sarif", str(sarif), "--fail-on", fail_on, "--repo-root", str(REPO),
                     "--qt-advisories-html", str(qt_page_file)],
-                   http=http or FakeOsv({}, {}), nvd=nvd or FakeNvd(), today=TODAY, sleep=lambda s: None)
+                   http=http or FakeOsv({}, {}), nvd=nvd or FakeNvd(default=V31_LOW), today=TODAY,
+                   sleep=lambda s: None)
     return code, sarif
 
 
@@ -512,16 +518,25 @@ def nvd_record(cve: str, *metrics: tuple[str, str, str]) -> dict:
 
 
 class FakeNvd:
-    def __init__(self, records: dict[str, dict] | None = None, fail: bool = False):
+    """NVD answering with the given records; any other CVE it knows but has not
+    scored ("Awaiting Analysis"), or scores with the default vector."""
+
+    def __init__(self, records: dict[str, dict] | None = None, fail: bool = False, default: str | None = None):
         self.records = records or {}
         self.fail = fail
+        self.default = default
         self.asked: list[str] = []
 
     def __call__(self, cve: str) -> dict:
         self.asked.append(cve)
         if self.fail:
             raise OSError("HTTP 503")
-        return self.records.get(cve, {"totalResults": 1, "vulnerabilities": [{"cve": {"id": cve, "metrics": {}}}]})
+        if cve in self.records:
+            return self.records[cve]
+        if self.default:
+            return nvd_record(cve, ("cvssMetricV31", self.default, "LOW"))
+        return {"totalResults": 1, "vulnerabilities": [{"cve": {"id": cve, "vulnStatus": "Awaiting Analysis",
+                                                                "metrics": {}}}]}
 
 
 def qt_bom(*versions: str) -> dict:
@@ -532,8 +547,9 @@ def qt_bom(*versions: str) -> dict:
     return doc
 
 
-def scan_qt(doc: dict, page: str | None = None, nvd: FakeNvd | None = None):
-    return vs.scan_qt_advisories(doc, qt_page() if page is None else page, nvd or FakeNvd(), sleep=lambda s: None)
+def scan_qt(doc: dict, page: str | None = None, nvd: FakeNvd | None = None, nvd_required: bool = False):
+    return vs.scan_qt_advisories(doc, qt_page() if page is None else page, nvd or FakeNvd(), sleep=lambda s: None,
+                                 nvd_required=nvd_required)
 
 
 def test_qt_6_10_3_is_affected_by_the_advisories_of_the_page():
@@ -574,16 +590,104 @@ def test_severity_comes_from_nvd_once_per_cve():
     xml = [f for f in findings if f.id == "CVE-2026-19248"]
     assert [(f.version, f.severity, f.score) for f in xml] == [("6.10.3", "CRITICAL", 9.3),
                                                                ("6.10.2", "CRITICAL", 9.3)]
-    assert next(f for f in findings if f.id == "CVE-2026-9499").severity == "UNKNOWN"  # NVD has not scored it
+    assert next(f for f in findings if f.id == "CVE-2026-9499").severity == "UNSCORED"  # NVD has not scored it
     assert sorted(nvd.asked) == sorted(set(nvd.asked))
     assert warnings == []
 
 
-def test_nvd_being_unreachable_leaves_the_severity_unknown():
+def test_nvd_being_unreachable_leaves_the_severity_unknown_when_not_gating():
     findings, warnings = scan_qt(qt_bom("6.10.3"), nvd=FakeNvd(fail=True))
     assert {f.id for f in findings} == QT_6_10_3_ADVISORIES
     assert {f.severity for f in findings} == {"UNKNOWN"}
     assert len(warnings) == 1 and "NVD" in warnings[0] and "HTTP 503" in warnings[0]
+
+
+def test_nvd_being_unreachable_when_gating_is_a_tooling_error():
+    # Without NVD's score a critical Qt CVE would pass the release as unknown.
+    with pytest.raises(vs.VulnScanError, match=r"NVD.*CVE-2026-.*HTTP 503"):
+        scan_qt(qt_bom("6.10.3"), nvd=FakeNvd(fail=True), nvd_required=True)
+
+
+def test_a_qt_advisory_nvd_has_not_scored_is_unscored():
+    findings, warnings = scan_qt(qt_bom("6.11.2"), nvd=FakeNvd(), nvd_required=True)
+    assert [(f.id, f.severity, f.score) for f in findings] == [("CVE-2026-15037", "UNSCORED", None)]
+    assert warnings == []
+
+
+def test_unscored_findings_block_when_gating_unless_ignored():
+    unscored = finding(ref="platform:qt", component="qt", id="CVE-2026-15037", severity="UNSCORED", score=None)
+    assert vs.blocking([unscored], "critical") == [unscored]
+    assert vs.blocking([unscored], "none") == []
+    assert vs.blocking([dataclasses.replace(unscored, suppressed="assessed: not reachable")], "critical") == []
+
+
+def test_a_score_from_another_source_replaces_unscored():
+    unscored = finding(ref="platform:qt", component="qt", id="CVE-2026-6210", severity="UNSCORED", score=None,
+                       sources=frozenset({"qt-advisories"}))
+    scored = finding(ref="platform:qt", component="qt", id="CVE-2026-6210", severity="LOW", score=2.9,
+                     sources=frozenset({"grype"}))
+    unknown = dataclasses.replace(scored, severity="UNKNOWN", score=None)
+    assert [f.severity for f in vs.merge_findings([unscored, scored])] == ["LOW"]
+    assert [f.severity for f in vs.merge_findings([unknown, unscored])] == ["UNSCORED"]
+
+
+class FakeResponse:
+    def __init__(self, body: bytes):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self) -> bytes:
+        return self.body
+
+
+def http_error(code: int, retry_after: str | None = None) -> vs.urllib.error.HTTPError:
+    import email.message
+    headers = email.message.Message()
+    if retry_after is not None:
+        headers["Retry-After"] = retry_after
+    return vs.urllib.error.HTTPError(vs.NVD_API, code, "error", headers, None)
+
+
+def fake_urlopen(monkeypatch, outcomes: list):
+    slept: list[float] = []
+    monkeypatch.setattr(vs.time, "sleep", slept.append)
+
+    def urlopen(request, timeout):
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return FakeResponse(outcome)
+
+    monkeypatch.setattr(vs.urllib.request, "urlopen", urlopen)
+    return slept
+
+
+def test_nvd_requests_are_retried_on_rate_limits_server_errors_and_timeouts(monkeypatch):
+    # NVD answers an exhausted rate limit with 403 or 429 (#252).
+    record = nvd_record("CVE-2026-15037", ("cvssMetricV40", V40_LOW_15037, "LOW"))
+    slept = fake_urlopen(monkeypatch, [http_error(403), http_error(429, retry_after="17"), http_error(503),
+                                       TimeoutError("read timed out"), json.dumps(record).encode()])
+    assert vs.urllib_nvd("CVE-2026-15037") == record
+    assert slept[1] == 17.0  # Retry-After is honoured
+    assert len(slept) == 4 and all(s > 0 for s in slept)
+
+
+def test_nvd_requests_give_up_after_a_few_attempts(monkeypatch):
+    fake_urlopen(monkeypatch, [http_error(429)] * 10)
+    with pytest.raises(OSError, match="HTTP 429"):
+        vs.urllib_nvd("CVE-2026-15037")
+
+
+def test_an_nvd_request_that_is_refused_for_good_is_not_retried(monkeypatch):
+    slept = fake_urlopen(monkeypatch, [http_error(404)])
+    with pytest.raises(OSError, match="HTTP 404"):
+        vs.urllib_nvd("CVE-2026-15037")
+    assert slept == []
 
 
 def test_an_advisory_whose_versions_cannot_be_read_is_reported_unconfirmed():
@@ -632,7 +736,53 @@ def test_cli_reports_the_qt_advisories_of_the_sboms_qt(scan_inputs, capsys):
     code, sarif = run_cli(tmp_path, sbom, grype, ignore, "critical")
     assert code == 0
     assert {r["ruleId"] for r in json.loads(sarif.read_text())["runs"][0]["results"]} == QT_6_10_3_ADVISORIES
-    assert "| UNKNOWN | qt 6.10.3 | CVE-2026-15037 | - | qt-advisories |" in capsys.readouterr().out
+    assert "| LOW | qt 6.10.3 | CVE-2026-15037 | 2.9 | qt-advisories |" in capsys.readouterr().out
+
+
+def test_cli_blocks_on_an_unscored_qt_advisory_when_gating(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    grype.write_text(json.dumps({"matches": []}))
+    code, sarif = run_cli(tmp_path, sbom, grype, ignore, "critical", nvd=FakeNvd())
+    assert code == 1
+    out, err = capsys.readouterr()
+    assert "| UNSCORED | qt 6.10.3 | CVE-2026-15037 | - | qt-advisories |" in out
+    assert "::error::qt 6.10.3: CVE-2026-15037 has no CVSS score in NVD yet" in out
+    assert "assess it and record the decision in scripts/sbom/vuln-ignore.yml" in out
+    result = next(r for r in json.loads(sarif.read_text())["runs"][0]["results"] if r["ruleId"] == "CVE-2026-15037")
+    assert "severity unscored" in result["message"]["text"]
+
+
+def test_cli_passes_an_unscored_qt_advisory_the_ignore_file_accepts(scan_inputs):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    grype.write_text(json.dumps({"matches": []}))
+    ignore.write_text("ignore:\n" + "".join(
+        f"  - {{id: {cve}, component: qt, reason: assessed, expires: 2026-10-01}}\n" for cve in QT_6_10_3_ADVISORIES))
+    assert run_cli(tmp_path, sbom, grype, ignore, "critical", nvd=FakeNvd())[0] == 0
+
+
+def test_cli_only_warns_about_unscored_qt_advisories_when_not_gating(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    assert run_cli(tmp_path, sbom, grype, ignore, "none", nvd=FakeNvd())[0] == 0
+    assert "::warning::qt 6.10.3: CVE-2026-15037 has no CVSS score in NVD yet" in capsys.readouterr().out
+
+
+def test_cli_fails_as_a_tooling_error_when_nvd_is_unreachable_while_gating(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    assert run_cli(tmp_path, sbom, grype, ignore, "critical", nvd=FakeNvd(fail=True))[0] == 2
+    assert "::error::NVD" in capsys.readouterr().err
+
+
+def test_the_accepted_qt_6_11_2_advisory_passes_the_release_gate(tmp_path, capsys):
+    # CVE-2026-15037 is fixed only in Qt 6.12; NVD scores it 2.9 and the
+    # repository's ignore file accepts it (#251, #252).
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(json.dumps(qt_bom("6.11.2")))
+    grype = tmp_path / "grype.json"
+    grype.write_text(json.dumps({"matches": []}))
+    nvd = FakeNvd({"CVE-2026-15037": nvd_record("CVE-2026-15037", ("cvssMetricV40", V40_LOW_15037, "LOW"))})
+    code, _ = run_cli(tmp_path, sbom, grype, REPO / "scripts/sbom/vuln-ignore.yml", "critical", nvd=nvd)
+    assert code == 0
+    assert "| LOW | qt 6.11.2 | CVE-2026-15037 | 2.9 | qt-advisories | Fixed only in Qt 6.12.0" in capsys.readouterr().out
 
 
 def test_cli_fetches_the_qt_advisory_page_when_none_is_given(scan_inputs):

@@ -50,7 +50,8 @@ runs:
 
     # The scanner also reads Qt's advisory page and asks NVD for the severity
     # of the Qt advisories it matches (#252); without an NVD API key that is
-    # one request every 6.5 seconds per matched CVE.
+    # one request every 6.5 seconds per matched CVE. With fail-on critical, NVD
+    # being unreachable fails the step and an unscored advisory blocks.
     - name: Query OSV and Qt's advisories, apply the ignore file and gate
       shell: bash
       env:

@@ -22,9 +22,13 @@ Qt's advisories (read here, https://wiki.qt.io/List_of_known_vulnerabilities_in_
     cover Qt itself (#252): NVD, and so grype, lacks the recent Qt CVEs as
     upstream Qt version ranges, and OSV has no Qt entries. The "Qt Framework"
     section of the page is matched against the SBOM's Qt versions; NVD
-    (``NVD_API_KEY`` raises its rate limit) supplies the severity where it has
-    one. A page the scanner can no longer read is a tooling error; a single
-    advisory whose affected versions it cannot read is reported as unconfirmed.
+    (``NVD_API_KEY`` raises its rate limit) supplies the severity. A page the
+    scanner can no longer read is a tooling error; a single advisory whose
+    affected versions it cannot read is reported as unconfirmed. When gating,
+    NVD being unreachable for a matched advisory is a tooling error too, and an
+    advisory NVD has not scored yet is "unscored" and blocks until the ignore
+    file records a decision: either would otherwise let a critical Qt CVE pass
+    as unknown.
 
 Findings of all three are merged per component, matched against the versioned
 ignore file (id, component, reason, expiry), written as one SARIF run for code
@@ -32,9 +36,9 @@ scanning and, with ``--fail-on critical``, fail the scan when a critical
 finding is not ignored.
 
 Exit codes: 0 no blocking finding, 1 blocking findings, 2 the scan itself
-failed (OSV or Qt's advisory page unreachable, a changed page format,
-unreadable input, invalid ignore file), so a report never looks clean because
-a source was missing.
+failed (OSV or Qt's advisory page unreachable, NVD unreachable while gating, a
+changed page format, unreadable input, invalid ignore file), so a report never
+looks clean because a source was missing.
 """
 
 from __future__ import annotations
@@ -59,8 +63,10 @@ OSV_API = "https://api.osv.dev"
 QT_ADVISORIES_URL = "https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products"
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 PROP = "logsquirl:"
-# Ordered from worst to least severe.
-SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
+# Ordered from worst to least severe. UNSCORED: NVD knows the CVE of a matched
+# Qt advisory but has no CVSS score for it yet (#252); any score another
+# source gives wins over it, and it wins over a source that says nothing.
+SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNSCORED", "UNKNOWN")
 CRITICAL_SCORE = 9.0
 OSV_BATCH_SIZE = 1000  # querybatch limit
 
@@ -178,22 +184,39 @@ def _first_sentence(text: str) -> str:
     return m.group(1) if m else text[:200]
 
 
+MAX_RETRY_AFTER = 120.0
+
+
+def _retry_after(error: urllib.error.HTTPError) -> float | None:
+    """The delay a Retry-After header in seconds asks for, capped; None
+    without one (or in its HTTP-date form, which the APIs here do not send)."""
+    value = (error.headers or {}).get("Retry-After", "")
+    try:
+        return min(max(float(value), 0.0), MAX_RETRY_AFTER)
+    except ValueError:
+        return None
+
+
 def _fetch(method: str, url: str, data: bytes | None = None, headers: dict[str, str] | None = None,
-           attempts: int = 4) -> bytes:
-    """HTTPS request retried with backoff on transient errors."""
+           attempts: int = 4, retry_statuses: Callable[[int], bool] = lambda code: code >= 500 or code == 429,
+           backoff: float = 5.0, honour_retry_after: bool = False) -> bytes:
+    """HTTPS request retried with exponential backoff on transient errors."""
     for attempt in range(attempts):
         request = urllib.request.Request(url, data=data, method=method,
                                          headers={"User-Agent": "logsquirl-vuln-scan (#213)"} | (headers or {}))
+        delay = 2 ** attempt * backoff
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
                 return response.read()
         except urllib.error.HTTPError as e:
-            if e.code < 500 and e.code != 429 or attempt == attempts - 1:
+            if not retry_statuses(e.code) or attempt == attempts - 1:
                 raise OSError(f"{method} {url}: HTTP {e.code}") from e
+            if honour_retry_after and (wait := _retry_after(e)) is not None:
+                delay = wait
         except (urllib.error.URLError, TimeoutError):
             if attempt == attempts - 1:
                 raise
-        time.sleep(2 ** attempt * 5)
+        time.sleep(delay)
     raise AssertionError("unreachable")
 
 
@@ -208,11 +231,15 @@ def urllib_page(url: str) -> str:
 
 
 def urllib_nvd(cve: str) -> dict:
-    """One CVE from the NVD API 2.0. Two attempts only: a missing severity is
-    tolerated, a scan held up by NVD's rate limit is not (#252)."""
+    """One CVE from the NVD API 2.0. NVD answers an exhausted rate limit with
+    403 or 429 and is often slow, and the release gate needs its score (#252),
+    so those are retried as long as a rolling rate-limit window lasts: 6.5, 13,
+    26 and 52 seconds, or what Retry-After asks for."""
     key = os.environ.get("NVD_API_KEY")
     return json.loads(_fetch("GET", f"{NVD_API}?cveId={urllib.parse.quote(cve)}",
-                             headers={"apiKey": key} if key else None, attempts=2))
+                             headers={"apiKey": key} if key else None, attempts=5,
+                             retry_statuses=lambda code: code >= 500 or code in (403, 429),
+                             backoff=NVD_INTERVAL, honour_retry_after=True))
 
 
 # ── severity ────────────────────────────────────────────────────────────────
@@ -546,12 +573,15 @@ def nvd_severity(record: dict) -> tuple[str, float | None]:
 
 
 def scan_qt_advisories(bom: dict, page: str, nvd: NvdFetch, *, sleep: Callable[[float], None] = time.sleep,
-                       nvd_interval: float = NVD_INTERVAL) -> tuple[list[Finding], list[str]]:
+                       nvd_interval: float = NVD_INTERVAL,
+                       nvd_required: bool = False) -> tuple[list[Finding], list[str]]:
     """Findings of Qt's own advisories for the SBOM's Qt components, and
     warnings. grype matches Qt only by CPE against NVD, which lacks the recent
     Qt advisories as upstream Qt ranges, and OSV has no Qt entries at all, so
-    Qt's list is the source that knows them (#252). The severity comes from NVD
-    where it has scored the CVE; NVD failing only leaves it unknown."""
+    Qt's list is the source that knows them (#252). The severity comes from NVD;
+    a CVE NVD has not scored yet is UNSCORED. NVD failing leaves the severity
+    unknown with a warning, or with nvd_required (a gating scan) is a
+    VulnScanError: an unknown severity could hide a critical CVE."""
     qts = [c for c in shipped_components(bom) if c.get("name", "").lower() == "qt"]
     if not qts:
         return [], []
@@ -587,9 +617,14 @@ def scan_qt_advisories(bom: dict, page: str, nvd: NvdFetch, *, sleep: Callable[[
         if ratings or failed:
             sleep(nvd_interval)
         try:
-            ratings[cve] = nvd_severity(nvd(cve))
+            sev, score = nvd_severity(nvd(cve))
+            ratings[cve] = ("UNSCORED" if sev == "UNKNOWN" else sev, score)
         except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
             failed.append(f"{cve} ({e})")
+    if failed and nvd_required:
+        raise VulnScanError(f"NVD could not be reached for the matched Qt advisories {', '.join(failed)}; their "
+                            "severity decides whether the release may ship, so the scan cannot pass without it "
+                            "(re-run the job; an NVD_API_KEY raises NVD's rate limit)")
     if failed:
         warnings.append(f"NVD severity unavailable, reported as unknown: {', '.join(failed)}")
     findings = [dataclasses.replace(f, severity=ratings[f.id][0], score=ratings[f.id][1]) if f.id in ratings else f
@@ -699,10 +734,25 @@ def apply_ignores(findings: list[Finding], entries: list[IgnoreEntry],
     return result, warnings
 
 
+# What blocks a gating scan: a critical finding, and one NVD has not scored yet,
+# which could be critical; a person assesses it and records the decision in the
+# ignore file (#252).
+BLOCKING_SEVERITIES = ("CRITICAL", "UNSCORED")
+
+
 def blocking(findings: Iterable[Finding], fail_on: str) -> list[Finding]:
     if fail_on == "none":
         return []
-    return [f for f in findings if f.severity == "CRITICAL" and not f.suppressed and not f.unconfirmed]
+    return [f for f in findings if f.severity in BLOCKING_SEVERITIES and not f.suppressed and not f.unconfirmed]
+
+
+def unscored(findings: Iterable[Finding]) -> list[Finding]:
+    return [f for f in findings if f.severity == "UNSCORED" and not f.suppressed and not f.unconfirmed]
+
+
+def _unscored_message(f: Finding) -> str:
+    return (f"{f.component} {f.version or ''}: {f.id} has no CVSS score in NVD yet ({_url(f.id)}); assess it and "
+            "record the decision in scripts/sbom/vuln-ignore.yml")
 
 
 # ── SARIF ───────────────────────────────────────────────────────────────────
@@ -740,10 +790,13 @@ def _url(vuln_id: str) -> str:
     return f"https://osv.dev/vulnerability/{vuln_id}"
 
 
-_LEVEL = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "UNKNOWN": "warning"}
+# An unscored finding blocks a release until someone assesses it, so it is an
+# error; its security-severity stays in the middle, as nothing is known (#252).
+_LEVEL = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "UNSCORED": "error",
+          "UNKNOWN": "warning"}
 # code scanning's security-severity for a finding without a CVSS score, taken
 # from the middle of its band so the alert lands at the matching severity.
-_BAND_SCORE = {"CRITICAL": "9.5", "HIGH": "8.0", "MEDIUM": "5.5", "LOW": "2.0", "UNKNOWN": "5.5"}
+_BAND_SCORE = {"CRITICAL": "9.5", "HIGH": "8.0", "MEDIUM": "5.5", "LOW": "2.0", "UNSCORED": "5.5", "UNKNOWN": "5.5"}
 
 
 def to_sarif(findings: list[Finding], repo_root: Path) -> dict:
@@ -846,7 +899,8 @@ def main(argv: list[str] | None = None, *, http: Http = urllib_http, nvd: NvdFet
         entries = parse_ignore_file(ignore_text)
         qt_findings, warnings = scan_qt_advisories(
             bom, _qt_page(args.qt_advisories_html, fetch_page), nvd, sleep=sleep,
-            nvd_interval=NVD_INTERVAL_WITH_KEY if os.environ.get("NVD_API_KEY") else NVD_INTERVAL)
+            nvd_interval=NVD_INTERVAL_WITH_KEY if os.environ.get("NVD_API_KEY") else NVD_INTERVAL,
+            nvd_required=args.fail_on != "none")
         findings = merge_findings(grype_findings(bom, report) + scan_osv(bom, http) + qt_findings)
         findings, ignore_warnings = apply_ignores(findings, entries, today)
     except VulnScanError as e:
@@ -875,9 +929,15 @@ def main(argv: list[str] | None = None, *, http: Http = urllib_http, nvd: NvdFet
 
     blocked = blocking(findings, args.fail_on)
     for f in blocked:
+        if f.severity == "UNSCORED":
+            print(f"::error::{_unscored_message(f)}; it blocks the release until then")
+            continue
         print(f"::error::{f.component} {f.version or ''}: critical {f.id} "
               f"{f'(CVSS {f.score:.1f}) ' if f.score is not None else ''}blocks the release; update the "
               "component or record an accepted risk in scripts/sbom/vuln-ignore.yml")
+    if not blocked:
+        for f in unscored(findings):
+            print(f"::warning::{_unscored_message(f)}")
     return 1 if blocked else 0
 
 
