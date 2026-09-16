@@ -200,7 +200,7 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Sanitizers — ASan + UBSan build of the test suites in the Noble
-  # container. Runs alongside the Linux matrix; no packaging, no artifacts.
+  # container. Runs alongside the Linux matrix; no packaging, only the test report.
   # -----------------------------------------------------------------------
   Sanitizers:
     name: Sanitizers / asan-ubsan
@@ -268,12 +268,20 @@ jobs:
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
 
+      # Per test case, with a JUnit report kept even when a case fails (#217).
       - name: Run tests under ASan/UBSan
+        id: tests
         run: |
           docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
             --env ASAN_OPTIONS="$ASAN_OPTIONS" --env UBSAN_OPTIONS="$UBSAN_OPTIONS" \
             -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
-            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure"
+            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure --timeout 120 --output-junit ctest-junit.xml"
+
+      - uses: ./.github/actions/ctest-report
+        if: always() && steps.tests.outcome != 'skipped'
+        with:
+          junit-file: ${{ env.LOGSQUIRL_BUILD_ROOT }}/ctest-junit.xml
+          artifact-name: ${{ matrix.config.artifacts_id }}
 
   # -----------------------------------------------------------------------
   # Stage 2 — macOS (runs alongside Windows, both gated only on Linux; #121)

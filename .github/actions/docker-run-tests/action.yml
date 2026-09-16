@@ -3,8 +3,17 @@ description: "Run all the tests in container"
 runs:
   using: "composite"
   steps:
+    # Every Catch2 test case is its own ctest test with its own timeout;
+    # --timeout covers the tests without one. Serial on purpose: the Qt test
+    # executables share one portable settings file. The JUnit report lands in the
+    # bind-mounted build root, where the report step reads it (#217).
     - name: test
       shell: sh
       run: |
-        docker run --env LOGSQUIRL_BUILD_ROOT=$LOGSQUIRL_BUILD_ROOT -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --verbose"
+        docker run --env LOGSQUIRL_BUILD_ROOT=$LOGSQUIRL_BUILD_ROOT -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure --timeout 120 --output-junit ctest-junit.xml"
 
+    - uses: ./.github/actions/ctest-report
+      if: always()
+      with:
+        junit-file: ${{ env.LOGSQUIRL_BUILD_ROOT }}/ctest-junit.xml
+        artifact-name: ${{ matrix.config.artifacts_id }}

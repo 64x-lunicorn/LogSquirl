@@ -1,0 +1,31 @@
+name: "Report ctest results"
+description: "Show the failed test cases of a ctest JUnit report in the job summary and keep the report as an artifact, also when the tests failed (#217)"
+inputs:
+  junit-file:
+    description: "Path of the JUnit XML file ctest wrote, relative to the workspace"
+    required: true
+  artifact-name:
+    description: "Unique suffix of the uploaded artifact within the run, e.g. the matrix artifacts_id"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Summarize test results
+      if: always()
+      shell: sh
+      env:
+        JUNIT_FILE: ${{ inputs.junit-file }}
+        REPORT_TITLE: ${{ inputs.artifact-name }}
+      run: |
+        # Run the interpreter to pick it: on Windows "python3" can be a Store
+        # stub that exists but does not run.
+        if python3 -c "" > /dev/null 2>&1; then python=python3; else python=python; fi
+        "$python" "$GITHUB_ACTION_PATH/junit_summary.py" "$JUNIT_FILE" "$REPORT_TITLE"
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results-${{ inputs.artifact-name }}
+        path: ${{ inputs.junit-file }}
+        if-no-files-found: warn
