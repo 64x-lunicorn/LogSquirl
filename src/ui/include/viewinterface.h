@@ -81,6 +81,14 @@ public:
         doSetRecognitionPolicy( policy );
     }
 
+    // Hand over the Decoration Policy the views of this Log File color Log
+    // Lines under. The view holds it and repaints; nothing is torn down, no
+    // Presentation is rebuilt and no Search is run again by a new one arriving
+    void setDecorationPolicy( const DecorationPolicy& policy )
+    {
+        doSetDecorationPolicy( policy );
+    }
+
     // Hand over the Presentation Policy the views of this Log File show and
     // scroll under. The view holds it; nothing is torn down and no
     // Presentation is rebuilt by a new one arriving
@@ -136,6 +144,7 @@ protected:
     virtual void doSetFormatRecognition( const RecognitionPolicy& policy,
                                          std::shared_ptr<const LogFormatCatalog> catalog ) = 0;
     virtual void doSetRecognitionPolicy( const RecognitionPolicy& policy ) = 0;
+    virtual void doSetDecorationPolicy( const DecorationPolicy& policy ) = 0;
     virtual void doSetPresentationPolicy( const PresentationPolicy& policy ) = 0;
     virtual void doSetQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
     virtual void doSetWatchPolicy( const WatchPolicy& policy ) = 0;

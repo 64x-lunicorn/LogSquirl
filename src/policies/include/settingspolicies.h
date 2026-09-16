@@ -162,7 +162,8 @@ struct DecorationPolicy {
 
 // What a Presentation needs to show and scroll a Log File, and nothing
 // else: the settings of the Text View, of the Table View, and of the
-// Filtered View drawn like the Text View.
+// Filtered View drawn like the Text View -- including what is drawn around
+// the Log Lines, the line numbers and the overview.
 //
 // What a Log Line is colored in is not here -- that is the Decoration
 // Policy's axis.
@@ -181,6 +182,14 @@ struct PresentationPolicy {
     // View straight away. It rides here rather than with the Recognition
     // Policy because it says what to show, not what to recognize.
     bool autoShowTableView{};
+    // Whether the Text View draws a line number beside each Log Line.
+    bool mainLineNumbersVisible{};
+    // Whether a Filtered View does. Its own field, as the View menu toggles
+    // the two apart.
+    bool filteredLineNumbersVisible{};
+    // Whether the overview of matches and marks is shown beside either
+    // Presentation, the Text View and the Table View alike.
+    bool overviewVisible{};
 
     bool operator==( const PresentationPolicy& ) const = default;
 };
@@ -209,6 +218,16 @@ struct QuickFindPolicy {
     // not about the run.
     bool autoRunSearchOnPatternChange{};
 
+    // The state the search button row of a Log File starts in: whether its
+    // Search ignores case, refreshes as the Log File grows, and reads the
+    // pattern as a logical combination. Starting state, not live state: they
+    // seed the buttons when the Log File's widget is built, and a Policy
+    // arriving afterwards does not set a button the user may since have
+    // changed by hand.
+    bool searchIgnoreCaseDefault{};
+    bool searchAutoRefreshDefault{};
+    bool searchLogicalCombiningDefault{};
+
     bool operator==( const QuickFindPolicy& ) const = default;
 };
 
@@ -231,12 +250,13 @@ struct SettingsPolicies {
 // Derives all the Policies from a Configuration. Called once, where the
 // application's long-lived objects are built -- not wherever a setting
 // happens to be needed.
+//
+// There is no derivation of a single Policy beside it, the Decoration
+// Policy's included: that one used to be derived on its own because a
+// Presentation had to be colored before the bundle reached it. It no longer
+// has to be -- the Session hands a Log File's views the Decoration Policy
+// before they are built, as it does every other Policy (#190) -- so a single
+// derivation has no caller of its own, and this is the one derivation.
 SettingsPolicies deriveSettingsPolicies( const Configuration& config );
-
-// Derives just the Decoration Policy from a Configuration. Declared beside
-// deriveSettingsPolicies() because a Presentation needs this one axis
-// before it is first painted -- earlier than the bundle reaches it -- and
-// both must read the same settings, so there is one derivation, not two.
-DecorationPolicy deriveDecorationPolicy( const Configuration& config );
 
 #endif

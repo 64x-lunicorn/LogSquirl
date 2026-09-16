@@ -30,6 +30,16 @@ indexed again. It hands out an Index only while that Index still fits its Log Fi
 it decides for itself what it keeps and what it lets go.
 _Avoid_: index store, cache file
 
+**Open Log File**:
+A Log File from the moment it is opened until it is closed, together with what follows it
+as it changes on disk: its Index, its Searches and their auto-refresh, its Marks, and its
+Log Format. It decides what growing, truncation and reloading mean — a Search continues over
+lines that were added and starts again when the Log File was truncated or reloaded, Marks do
+not survive a truncation or a reload, and Format Recognition is taken again after either.
+The desktop application and the command line tool follow a Log File the same way because
+both use it.
+_Avoid_: document, loaded file, file session
+
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 
@@ -51,6 +61,13 @@ its margins: the bullet zone, the optional line numbers and the text. One layout
 where every Log Line is drawn in it and what sits under any point of it, before anything
 has been painted.
 _Avoid_: screen, canvas, page
+
+**View Set**:
+Every view of one Log File: its Presentations and its Filtered Views, those of kept
+Searches included. Whatever all of them must show alike — the Policies, the font, the Color
+Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
+view added later starts with all of it.
+_Avoid_: views, panes, tabs
 
 **Visual Line**:
 One line of text as drawn in the Viewport. Without text wrapping a Visual Line shows a
@@ -101,8 +118,15 @@ or neither.
 _Avoid_: bookmark, flag, pin
 
 **Context Line**:
-A Log Line shown in the Filtered View only because it neighbours a Match, not because it
-matched itself.
+A Log Line shown in the Filtered View only because it neighbours a Match or a Mark, not
+because it matched itself.
+
+**Displayed Lines**:
+The Log Lines the Filtered View shows, in order: the Matches, the Marks, and — while they
+are shown — the Context Lines around them. The Search Session owns the Matches; the Displayed
+Lines own the Marks and the Context Lines and combine all three, so the Filtered View asks
+them which Log Line sits at which position.
+_Avoid_: filtered lines, results, visible lines
 
 ### Color
 
@@ -123,14 +147,18 @@ _Avoid_: quick highlighter, tag
 
 **Decoration**:
 The finished visual result for a piece of displayed text: an ordered, non-overlapping
-sequence of colored spans. What every source of color — Highlighter Set, Search, QuickFind,
-Color Label, selection, Line Verdict — is resolved *into*.
+sequence of colored spans that covers the whole text, where text no source colors carries
+the line's own colors. What every source of color — Highlighter Set, Search, QuickFind,
+Color Label, selection, Line Verdict — is resolved *into*. Both Presentations draw a
+Decoration as it is; neither decides a color for itself.
 _Avoid_: styling, formatting, markup
 
 **Line Verdict**:
 The facts about a whole Log Line that affect how any part of it looks: whether a
-whole-line Highlighter applies, whether the line is a Match, Mark or Context Line, and
-whether it falls outside the Search Limits. Decided once per line.
+whole-line Highlighter applies, whether the line is a Match, Mark or Context Line, whether
+it falls outside the Search Limits, and whether it is selected as a whole. A line selected
+as a whole shows the selection colors with only its QuickFind matches on top, in either
+Presentation. Decided once per line.
 _Avoid_: line state, line flags
 
 **Line Decorator**:
@@ -228,7 +256,13 @@ wiring, the Shortcuts and the Highlighter Set collection all live in it and all
 legitimately need the store — so its half is held by a build-time check that `ctest` runs:
 only an allowlisted file, each entry carrying its reason, may name the settings store, and
 the check names every other one that does. The allowlist is meant to shrink as the
-remaining Axes get Policies.
+remaining Axes get Policies, but not to zero. Besides the writers (the Options Dialog among
+them) and window chrome with one consumer each, some Axes deliberately keep a direct read:
+the Shortcuts, a keyed table of actions with a codec of its own rather than a flat snapshot,
+registered by each widget that owns them; logging, which configures the process's logger
+outside the lifetime of any Log File; follow-file-on-load, which the main window alone reads
+once as a file is opened; the font, assembled in one place by the Crawler Widget and handed
+to its own views; and SSL peer verification, one value read by the version checker alone.
 _Avoid_: config object, options, preferences
 
 **Decoration Policy**:
@@ -244,15 +278,23 @@ _Avoid_: highlight settings, color config, theme (a Theme does not color Log Lin
 **Presentation Policy**:
 The Settings Policy a Presentation needs to show and scroll a Log File: whether text is
 wrapped, whether fast scrolling is on and by what multiplier, whether scrolling may engage
-follow, and whether a recognized Log Format opens as a Table View. What a Log Line is
-colored in is not part of it — that is the Decoration Policy.
+follow, whether a recognized Log Format opens as a Table View, whether line numbers are
+drawn in the Text View and, separately, in the Filtered View, and whether the overview is
+shown. The View menu's toggles for the last three write the setting and take the same
+re-derive the Options Dialog does, so a toggle reaches every open Log File, not only the
+active tab. What a Log Line is colored in is not part of it — that is the Decoration
+Policy.
 _Avoid_: view settings, display config, scroll options
 
 **QuickFind Policy**:
 The Settings Policy searching interactively needs: how a QuickFind pattern and a pattern
 typed into the Search line are read, whether case is ignored, whether QuickFind is
-incremental, and whether changing the pattern runs the Search. It carries how typed text is
-read, not how a Search runs — that is the Search Policy.
+incremental, and whether changing the pattern runs the Search. It also carries the state a
+Search's button row starts in: whether case is ignored, whether the Search auto-refreshes,
+and whether the pattern is read as a logical combination. Those are starting state, not live
+state — they seed the buttons when a Log File is opened, and a Policy arriving later does not
+set a button the user has since changed by hand. It carries how typed text is read, not how
+a Search runs — that is the Search Policy.
 _Avoid_: find settings, search options
 
 **Axis**:

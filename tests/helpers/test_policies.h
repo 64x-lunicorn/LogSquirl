@@ -68,17 +68,28 @@ inline SettingsPolicies testSettingsPolicies()
 
         .decoding = { .hideAnsiColorSequences = false },
 
+        .decoration = { .mainSearchHighlight = false,
+                        .variateMainSearchHighlight = false,
+                        .mainSearchBackColor = QColor{ Qt::lightGray },
+                        .quickFindBackColor = QColor{ Qt::yellow } },
+
         .presentation = { .useTextWrap = false,
                           .fastScrollEnabled = true,
                           .fastScrollMultiplier = 5,
                           .allowFollowOnScroll = true,
-                          .autoShowTableView = false },
+                          .autoShowTableView = false,
+                          .mainLineNumbersVisible = false,
+                          .filteredLineNumbersVisible = true,
+                          .overviewVisible = true },
 
         .quickFind = { .quickFindRegexpType = SearchRegexpType::FixedString,
                        .mainRegexpType = SearchRegexpType::ExtendedRegexp,
                        .ignoreCase = false,
                        .incremental = true,
-                       .autoRunSearchOnPatternChange = false },
+                       .autoRunSearchOnPatternChange = false,
+                       .searchIgnoreCaseDefault = false,
+                       .searchAutoRefreshDefault = false,
+                       .searchLogicalCombiningDefault = false },
     };
 }
 

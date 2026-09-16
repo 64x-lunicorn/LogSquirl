@@ -27,10 +27,24 @@
 
 #include "test_utils.h"
 
+#include <algorithm>
+#include <vector>
+
+#include <QAction>
+#include <QApplication>
+#include <QTemporaryFile>
+
+#include "configuration.h"
+#include "crawlerwidget.h"
+#include "filteredview.h"
 #include "log.h"
 #include "logformatcatalog.h"
+#include "logmainview.h"
 #include "mainwindow.h"
+#include "mainwindowtext.h"
+#include "overviewwidget.h"
 #include "session.h"
+#include "settingspolicies.h"
 #include "test_policies.h"
 
 SCENARIO( "Main window tests", "[ui]" )
@@ -136,4 +150,138 @@ SCENARIO( "Main window tests", "[ui]" )
             }
         }
     }
+}
+namespace {
+
+// Whether every open Log File shows what the View menu says: line numbers in
+// its main view as main, in its Filtered Views as filtered, and the overview
+// beside its main view as overview.
+bool everyLogFileShows( const std::vector<CrawlerWidget*>& crawlers, bool main, bool filtered,
+                        bool overview )
+{
+    return std::ranges::all_of( crawlers, [ = ]( const CrawlerWidget* crawler ) {
+        const auto* mainView = crawler->findChild<LogMainView*>();
+        const auto* overviewWidget
+            = mainView != nullptr ? mainView->findChild<OverviewWidget*>() : nullptr;
+        const auto filteredViews = crawler->findChildren<FilteredView*>();
+        return overviewWidget != nullptr && !filteredViews.isEmpty()
+               && mainView->viewportLayout().input().lineNumbersVisible == main
+               && overviewWidget->isHidden() == !overview
+               && std::ranges::all_of( filteredViews, [ filtered ]( const FilteredView* view ) {
+                      return view->viewportLayout().input().lineNumbersVisible == filtered;
+                  } );
+    } );
+}
+
+QAction* viewMenuAction( const MainWindow& window, const char* text )
+{
+    const auto actions = window.findChildren<QAction*>();
+    const auto found = std::ranges::find_if( actions, [ text ]( const QAction* action ) {
+        return action->text() == QApplication::translate( "logsquirl::mainwindow::action", text );
+    } );
+    return found == actions.end() ? nullptr : *found;
+}
+
+} // namespace
+
+// The View menu's toggles write a setting the Presentation Policy names, so
+// they must reach the re-derive the Options Dialog reaches (#192): the signal
+// mux delivers what it carries to the active tab only, which would leave
+// every other open Log File showing the old setting.
+SCENARIO( "Toggling line numbers or the overview from the View menu reaches every open Log File",
+          "[ui][settings]" )
+{
+    auto& config = Configuration::get();
+    const auto mainLineNumbersVisible = config.mainLineNumbersVisible();
+    const auto filteredLineNumbersVisible = config.filteredLineNumbersVisible();
+    const auto overviewVisible = config.isOverviewVisible();
+    config.setMainLineNumbersVisible( false );
+    config.setFilteredLineNumbersVisible( true );
+    config.setOverviewVisible( true );
+
+    auto appSession = std::make_shared<Session>( deriveSettingsPolicies( config ),
+                                                 std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+
+    QTemporaryFile firstFile{ "mainwindow_toggle_first_XXXXXX" };
+    QTemporaryFile secondFile{ "mainwindow_toggle_second_XXXXXX" };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0, [ & ] { mainWindow.reset( new MainWindow( windowSession ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    // What the application does with the signal: re-derive the Policies from
+    // the settings store and hand the changed axes to every open Log File.
+    QObject::connect( mainWindow.get(), &MainWindow::settingsChanged, [ &appSession ]() {
+        appSession->applyPolicies( deriveSettingsPolicies( Configuration::get() ) );
+    } );
+
+    mainWindow->loadFileNonInteractive( firstFile.fileName() );
+    mainWindow->loadFileNonInteractive( secondFile.fileName() );
+
+    std::vector<CrawlerWidget*> crawlers;
+    REQUIRE( waitUiState( [ & ] {
+        const auto found = mainWindow->findChildren<CrawlerWidget*>();
+        crawlers.assign( found.cbegin(), found.cend() );
+        return crawlers.size() == 2;
+    } ) );
+    REQUIRE( waitUiState( [ & ] { return everyLogFileShows( crawlers, false, true, true ); } ) );
+
+    GIVEN( "two Log Files open in their tabs, the second one current" )
+    {
+        WHEN( "line numbers in the main view are ticked in the View menu" )
+        {
+            auto* action = viewMenuAction(
+                *mainWindow, logsquirl::mainwindow::action::lineNumbersVisibleInMainText );
+            REQUIRE( action != nullptr );
+            action->setChecked( true );
+
+            THEN( "the main view of both Log Files draws them, not only the current one" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return everyLogFileShows( crawlers, true, true, true ); } ) );
+            }
+        }
+
+        WHEN( "line numbers in the Filtered View are unticked in the View menu" )
+        {
+            auto* action = viewMenuAction(
+                *mainWindow, logsquirl::mainwindow::action::lineNumbersVisibleInFilteredText );
+            REQUIRE( action != nullptr );
+            action->setChecked( false );
+
+            THEN( "the Filtered Views of both Log Files draw none" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return everyLogFileShows( crawlers, false, false, true ); } ) );
+            }
+        }
+
+        WHEN( "the overview is unticked in the View menu" )
+        {
+            auto* action
+                = viewMenuAction( *mainWindow, logsquirl::mainwindow::action::overviewVisibleText );
+            REQUIRE( action != nullptr );
+            action->setChecked( false );
+
+            THEN( "neither Log File shows its overview" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return everyLogFileShows( crawlers, false, true, false ); } ) );
+            }
+        }
+    }
+
+    mainWindow.reset();
+    config.setMainLineNumbersVisible( mainLineNumbersVisible );
+    config.setFilteredLineNumbersVisible( filteredLineNumbersVisible );
+    config.setOverviewVisible( overviewVisible );
+    config.save();
 }
