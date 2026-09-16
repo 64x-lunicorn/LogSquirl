@@ -180,6 +180,17 @@ public:
     // a changed one reaches the Viewport.
     void setDecorationPolicy( const DecorationPolicy& policy );
 
+    // Where every Log Line sits in the Viewport and what sits at any point of
+    // it, including the Visual Lines the Viewport holds right now. This is what
+    // hit testing and painting read, so asking it is asking the view itself.
+    // Built from the Log File and never from a paint, it answers before the
+    // first paint has happened.
+    //
+    // Returns the layout by value. It is a pure value that reads its inputs and
+    // returns answers, so a caller holding one cannot move the view; it is a
+    // snapshot, so ask again once the view has moved or its Log File changed.
+    ViewportLayout viewportLayout() const;
+
     void registerShortcuts();
 
 protected:
@@ -531,10 +542,6 @@ private:
     // visible counts and scroll ranges, and cheap because it touches no
     // Log Line.
     ViewportLayout viewportGeometry() const;
-    // The viewport layout including the Visual Lines currently in the Viewport, which is
-    // what hit testing and painting need. Built from the Log File, never from
-    // a paint, so it answers before the first paint has happened.
-    ViewportLayout viewportLayout() const;
 
     const ViewportContent& viewportContent() const;
     ViewportContent buildViewportContent() const;
