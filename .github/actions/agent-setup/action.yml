@@ -59,6 +59,7 @@ runs:
       env:
         DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       run: |
+        set -euo pipefail
         echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
         # Bump to invalidate every cached object at once.
         echo "SCCACHE_GHA_VERSION=1" >> "$GITHUB_ENV"
@@ -91,6 +92,7 @@ runs:
     - name: Set boost env vars
       shell: sh
       run: |
+        set -eu
         # renovate: datasource=github-tags depName=boostorg/boost extractVersion=^boost-(?<version>.*)$
         BOOST_VERSION="1.86.0"
         BOOST_SHA256="1bed88e40401b2cb7a1f76d4bab499e352fa4d0c5f31c0dbae64e24d34d7513b"
@@ -112,12 +114,14 @@ runs:
     - name: Install Boost
       shell: bash
       run: |
+        set -euo pipefail
         if echo ${{ steps.cache-boost.outputs.cache-hit }} | grep -c "true"
         then
           echo "Using boost from cache"
         else
           echo "Downloading boost"
-          if [ "$OS" == "Windows_NT" ]; then
+          # OS is only defined on Windows runners.
+          if [ "${OS:-}" == "Windows_NT" ]; then
             # fix up paths to be forward slashes consistently
             BOOST_ROOT=$(echo $BOOST_ROOT | sed 's/\\/\//g')
           fi

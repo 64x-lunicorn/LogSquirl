@@ -6,6 +6,7 @@ runs:
     - name: Set common env vars
       shell: sh
       run: |
+        set -eu
         echo "LOGSQUIRL_WORKSPACE=${{ github.workspace }}" >> $GITHUB_ENV 
         echo "LOGSQUIRL_BUILD_ROOT=build_root" >> $GITHUB_ENV 
         echo "LOGSQUIRL_ARCH=${{ matrix.config.arch }}" >> $GITHUB_ENV 
@@ -15,6 +16,7 @@ runs:
       if: ${{ matrix.config.qt_version }}
       shell: bash
       run: |
+        set -euo pipefail
         echo "LOGSQUIRL_QT=Qt6" >> $GITHUB_ENV
         # Resolve Qt6 prefix from available env vars (install-qt-action@v4)
         QT_PREFIX="${Qt6_Dir:-}"

@@ -33,6 +33,7 @@ runs:
     - name: Mac deploy Qt
       shell: sh
       run: |
+        set -eu
         cd $LOGSQUIRL_BUILD_ROOT
         macdeployqt ./output/logsquirl.app -always-overwrite -verbose=2
 
@@ -54,6 +55,9 @@ runs:
     - name: Set packaging env
       shell: sh
       run: |
+        set -eu
+        # The listings are diagnostics only, and a missing identity is not an
+        # error: pull requests and forks build unsigned (#218).
         echo "=== Available signing identities ==="
         security find-identity -v -p codesigning || true
         security find-identity -v || true
@@ -190,6 +194,7 @@ runs:
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
+        set -eu
         xcrun stapler staple "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
         xcrun stapler validate "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
         echo "=== Final app verification ==="
@@ -257,6 +262,7 @@ runs:
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
+        set -eu
         cd "$LOGSQUIRL_BUILD_ROOT"
         codesign --force --timestamp \
           --sign "${{ env.LOGSQUIRL_CODESIGN }}" \
@@ -295,6 +301,7 @@ runs:
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
+        set -eu
         xcrun stapler staple "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}"
         echo "=== Stapler validation ==="
         xcrun stapler validate "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}"
@@ -308,6 +315,7 @@ runs:
     - name: Mac archive app and symbols
       shell: sh
       run: |
+        set -eu
         cd $LOGSQUIRL_BUILD_ROOT
         tar -czf ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.app.tar.gz -C ./output logsquirl.app
         tar -czf ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.dSym.tar.gz -C ./output logsquirl.dSym

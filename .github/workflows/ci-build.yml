@@ -40,6 +40,10 @@ jobs:
   SaveVersion:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-24.04
+    # Every job has a budget: a hang would otherwise hold a runner for the
+    # 6-hour default. Budgets are about twice the slowest successful run among
+    # the last 100 runs, and never below 5 minutes (#218).
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/logsquirl-version
@@ -61,6 +65,7 @@ jobs:
     name: Format
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -75,6 +80,7 @@ jobs:
 
       - name: Check formatting
         run: |
+          set -euo pipefail
           exit_code=0
           while IFS= read -r f; do
             if ! diff -u "$f" <(clang-format "$f") > /tmp/format.diff; then
@@ -143,6 +149,10 @@ jobs:
             cmake_opts:
 
     runs-on: ubuntu-24.04
+    # Slowest successful run 28 min (appimage; noble/oracle/fedora 22-24 min),
+    # with the image built locally and a cold sccache adding more, and one
+    # process per test case since #217 making the test step ~40% longer (#218).
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
 
@@ -225,6 +235,9 @@ jobs:
               -DLOGSQUIRL_USE_LTO=OFF
 
     runs-on: ubuntu-24.04
+    # Slowest successful run 25 min, before #217 started one process per test
+    # case (~40% longer tests, more under ASan) (#218).
+    timeout-minutes: 75
     env:
       # halt_on_error: the first report aborts the test binary, so ctest goes red.
       # detect_leaks=0: Qt's offscreen platform plugin and its global statics
@@ -304,11 +317,15 @@ jobs:
             cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=Release
 
     runs-on: ${{ matrix.config.runner }}
+    # Slowest successful run 25 min; notarization waits on Apple and can
+    # stretch a master build well past that (#218).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
 
       - name: Set brew env
         run: |
+          set -euo pipefail
           echo "HOMEBREW_NO_ANALYTICS=1" >> $GITHUB_ENV
           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
           echo "HOMEBREW_NO_INSTALL_CLEANUP=1" >> $GITHUB_ENV
@@ -371,6 +388,9 @@ jobs:
             artifacts_id: windows-x64
 
     runs-on: ${{ matrix.config.runner }}
+    # Slowest successful run 38 min (cold sccache), median 22 min, before #217's
+    # per-case test processes; #199's changed cache keys start it cold (#218).
+    timeout-minutes: 90
     env:
       # One place per shipped dependency, so a bump is one edit (#199).
       # renovate: datasource=github-tags depName=openssl/openssl extractVersion=^openssl-(?<version>.*)$
@@ -434,6 +454,7 @@ jobs:
       - name: Set openssl paths
         shell: sh
         run: |
+          set -eu
           echo "SSL_DIR=${{ github.workspace }}\openssl-3\${{ matrix.config.arch }}\bin" >> $GITHUB_ENV
           echo "SSL_ARCH=${{ matrix.config.ssl_arch }}" >> $GITHUB_ENV
 
@@ -473,6 +494,7 @@ jobs:
     needs: [Linux]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-run-tests
@@ -487,6 +509,7 @@ jobs:
     needs: [Mac]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: macos-15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-run-tests
@@ -499,6 +522,7 @@ jobs:
     needs: [Windows]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: windows-2025
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/e2e-run-tests
@@ -518,11 +542,13 @@ jobs:
       [SaveVersion, Format, Linux, Sanitizers, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Require every needed job to have succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
+          set -euo pipefail
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           if echo "$NEEDS" | jq -e '[.[].result] | all(. == "success")' > /dev/null; then
             echo "All jobs succeeded."

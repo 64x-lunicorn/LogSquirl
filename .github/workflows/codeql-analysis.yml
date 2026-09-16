@@ -25,6 +25,9 @@ jobs:
   analyze:
     name: Analyze
     runs-on: ubuntu-24.04
+    # Slowest successful run 25 min, median 17 min; a hang would otherwise hold
+    # the runner for the 6-hour default (#218).
+    timeout-minutes: 50
 
     strategy:
       fail-fast: false
@@ -52,11 +55,13 @@ jobs:
 
     - name: Prepare compiler env
       run: |
+        set -euo pipefail
         echo "CC=gcc-13" >> $GITHUB_ENV
         echo "CXX=g++-13" >> $GITHUB_ENV
 
     - name: configure
       run: |
+        set -euo pipefail
         mkdir build
         cd build
         cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_VECTORSCAN=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..

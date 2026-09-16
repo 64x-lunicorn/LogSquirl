@@ -7,6 +7,9 @@ runs:
     - name: Prepare compiler env
       shell: sh
       run: |
+        # `shell: sh` only runs with -e; -u also catches a misspelt variable,
+        # and each step of more than one command sets it (#218).
+        set -eu
         echo "CC=${{ matrix.config.cc }}" >> $GITHUB_ENV
         echo "CXX=${{ matrix.config.cxx }}" >> $GITHUB_ENV
 
@@ -24,11 +27,12 @@ runs:
     - name: configure
       shell: sh
       run: |
+        set -eu
         # sccache is installed and enabled by agent-setup. It is wired in as
         # the CMake compiler launcher so the project's own build files stay
         # untouched.
         LAUNCHER_OPTS=""
-        if [ "$SCCACHE_GHA_ENABLED" = "true" ]; then
+        if [ "${SCCACHE_GHA_ENABLED:-}" = "true" ]; then
           LAUNCHER_OPTS="-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
           if [ "$RUNNER_OS" = "Windows" ]; then
             # sccache cannot cache MSVC objects compiled with /Zi (the debug
@@ -68,7 +72,8 @@ runs:
       env:
         BUILD_NAME: ${{ runner.os }} / ${{ matrix.config.arch }}
       run: |
-        if [ "$SCCACHE_GHA_ENABLED" = "true" ] && command -v sccache >/dev/null 2>&1; then
+        set -euo pipefail
+        if [ "${SCCACHE_GHA_ENABLED:-}" = "true" ] && command -v sccache >/dev/null 2>&1; then
           sccache --show-stats | "$GITHUB_WORKSPACE/.github/scripts/sccache-stats-summary.sh" "$BUILD_NAME"
         else
           echo "sccache not enabled on this runner"

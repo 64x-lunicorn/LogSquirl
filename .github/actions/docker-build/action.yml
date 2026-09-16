@@ -22,6 +22,7 @@ runs:
     - name: start container
       shell: sh
       run: |
+        set -eu
         # Marks the build start for "Trim sccache cache" below.
         touch "$RUNNER_TEMP/sccache-build-start"
         docker run -d --name logsquirl_build \
@@ -48,6 +49,7 @@ runs:
       env:
         BUILD_NAME: Linux / ${{ matrix.config.artifacts_id }}
       run: |
+        set -euo pipefail
         docker exec logsquirl_build sccache --show-stats |
           tee "$RUNNER_TEMP/sccache-stats.txt" |
           "$GITHUB_WORKSPACE/.github/scripts/sccache-stats-summary.sh" "$BUILD_NAME"
@@ -60,6 +62,10 @@ runs:
       if: always()
       shell: sh
       run: |
+        set -eu
+        # No container means the start step failed: nothing to clean up. A
+        # server that is already gone is fine too; the chown result decides
+        # the step, but only after the container is removed.
         docker inspect logsquirl_build > /dev/null 2>&1 || exit 0
         docker exec logsquirl_build sccache --stop-server || true
         status=0
@@ -74,6 +80,7 @@ runs:
       if: always()
       shell: sh
       run: |
+        set -eu
         if [ ! -d sccache_cache ]; then
           echo "::error::The build left no sccache cache to save"
           exit 1
@@ -97,6 +104,7 @@ runs:
       if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       shell: sh
       run: |
+        set -eu
         marker="$RUNNER_TEMP/sccache-build-start"
         hits=$(sed -n 's/^Cache hits  *\([0-9][0-9]*\)$/\1/p' "$RUNNER_TEMP/sccache-stats.txt" 2>/dev/null | head -n 1)
         used=$(find sccache_cache -type f -newer "$marker" | wc -l)

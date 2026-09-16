@@ -37,6 +37,10 @@ jobs:
   build-images:
     if: github.ref == 'refs/heads/master' && ((github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')) || (github.event_name == 'workflow_dispatch' && !inputs.propose_refresh))
     runs-on: ubuntu-24.04
+    # Slowest successful run 6 min before the scan and the attested push build
+    # were added (#216); those roughly double a cold build, hence the margin
+    # (#218).
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write

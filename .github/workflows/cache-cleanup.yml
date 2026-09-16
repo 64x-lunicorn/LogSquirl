@@ -34,6 +34,9 @@ jobs:
   prune:
     name: Prune stale caches
     runs-on: ubuntu-24.04
+    # No run history yet; listing and deleting a few hundred entries through
+    # the API takes a minute or two (#218).
+    timeout-minutes: 15
     permissions:
       actions: write
       contents: read
@@ -49,6 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
         run: |
+          set -euo pipefail
           args=()
           if [ "$DRY_RUN" = "true" ]; then
             args+=(--dry-run)

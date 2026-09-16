@@ -22,6 +22,9 @@ runs:
       if: ${{ inputs.sign-cert-pfx != '' && github.ref == 'refs/heads/master' }}
       shell: pwsh
       run: |
+        # pwsh stops on cmdlet errors only; signtool is a native command, so its
+        # exit code is checked, or an unsigned binary would ship (#218).
+        $ErrorActionPreference = 'Stop'
         $pfxBytes = [System.Convert]::FromBase64String("${{ inputs.sign-cert-pfx }}")
         $pfxPath  = Join-Path $env:RUNNER_TEMP "codesign.pfx"
         [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
@@ -34,6 +37,7 @@ runs:
         foreach ($f in $exes) {
           if (Test-Path $f) {
             & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "${{ inputs.sign-cert-password }}" $f
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed for $f with exit code $LASTEXITCODE" }
           }
         }
         Remove-Item $pfxPath -Force
@@ -68,29 +72,33 @@ runs:
         echo "$RUNNER_TEMP/nsis-$NSIS_VERSION" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/nsis-$NSIS_VERSION/makensis" -VERSION
 
+    # cmd reports only the last command's exit code, so every command that
+    # can fail ends in `|| exit /b 1` (#218).
     - name: Win installer
       shell: cmd
       run: |
-        makensis -V2 -DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT% logsquirl.nsi
+        makensis -V2 -DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT% logsquirl.nsi || exit /b 1
     
     - name: Win package
       shell: cmd
       run: |
-        md %LOGSQUIRL_BUILD_ROOT%\packages
-        xcopy logsquirl-win-%LOGSQUIRL_ARCH%-portable.zip %LOGSQUIRL_BUILD_ROOT%\packages /y
-        xcopy logsquirl-win-%LOGSQUIRL_ARCH%-pdb.zip %LOGSQUIRL_BUILD_ROOT%\packages /y
-        xcopy logsquirl-win-%LOGSQUIRL_ARCH%-setup.exe %LOGSQUIRL_BUILD_ROOT%\packages /y
+        md %LOGSQUIRL_BUILD_ROOT%\packages || exit /b 1
+        xcopy logsquirl-win-%LOGSQUIRL_ARCH%-portable.zip %LOGSQUIRL_BUILD_ROOT%\packages /y || exit /b 1
+        xcopy logsquirl-win-%LOGSQUIRL_ARCH%-pdb.zip %LOGSQUIRL_BUILD_ROOT%\packages /y || exit /b 1
+        xcopy logsquirl-win-%LOGSQUIRL_ARCH%-setup.exe %LOGSQUIRL_BUILD_ROOT%\packages /y || exit /b 1
 
     - name: Win codesign installer
       if: ${{ inputs.sign-cert-pfx != '' && github.ref == 'refs/heads/master' }}
       shell: pwsh
       run: |
+        $ErrorActionPreference = 'Stop'
         $pfxBytes = [System.Convert]::FromBase64String("${{ inputs.sign-cert-pfx }}")
         $pfxPath  = Join-Path $env:RUNNER_TEMP "codesign.pfx"
         [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
         $installer = Get-ChildItem "$env:LOGSQUIRL_BUILD_ROOT\packages\*-setup.exe" | Select-Object -First 1
         if ($installer) {
           & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "${{ inputs.sign-cert-password }}" $installer.FullName
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed for $($installer.FullName) with exit code $LASTEXITCODE" }
         }
         Remove-Item $pfxPath -Force
       

@@ -7,6 +7,7 @@ runs:
       if: ${{ matrix.config.cpack_gen }}
       shell: sh
       run: |
+        set -eu
         docker run -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/build_root && cpack -G ${{ matrix.config.cpack_gen }} "
         docker run --env LOGSQUIRL_VERSION=$LOGSQUIRL_VERSION -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/build_root && mv ./packages/logsquirl-$LOGSQUIRL_VERSION-Linux.${{ matrix.config.package_suffix }} ./packages/logsquirl-$LOGSQUIRL_VERSION-${{ matrix.config.artifacts_id }}.${{ matrix.config.package_suffix }}"
 
@@ -25,6 +26,7 @@ runs:
     - name: Copy sym
       shell: sh
       run: |
+        set -eu
         docker run -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/build_root && xz ./output/logsquirl.debug"
         docker run -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/build_root && mv ./output/logsquirl.debug.xz ./packages/logsquirl_${{ matrix.config.artifacts_id }}.debug.xz"
         docker run -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/build_root && cp ./output/logsquirl ./packages/logsquirl_${{ matrix.config.artifacts_id }}"

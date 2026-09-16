@@ -27,6 +27,9 @@ jobs:
   validate-branch:
     runs-on: ubuntu-24.04
     if: github.event_name == 'push'
+    # Every job has a budget of about twice its slowest successful run, so a
+    # hang cannot hold the release for the 6-hour default (#218).
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
@@ -35,16 +38,21 @@ jobs:
           fetch-depth: 0
       - name: Ensure tag points to a commit on master
         run: |
+          set -euo pipefail
           # Dereference annotated tags to the underlying commit
           COMMIT_SHA=$(git rev-parse "$GITHUB_SHA^{commit}" 2>/dev/null || echo "$GITHUB_SHA")
           echo "Resolved commit: $COMMIT_SHA"
-          if ! git branch -r --contains "$COMMIT_SHA" | grep -q 'origin/master'; then
+          # grep reads all input (no -q): under pipefail, grep -q exiting early
+          # could fail git with SIGPIPE and misreport the tag as off master (#218).
+          if ! git branch -r --contains "$COMMIT_SHA" | grep 'origin/master' > /dev/null; then
             echo "::error::Release tags must be on the master branch."
             echo "This tag points to a commit that is not on master — aborting release."
             exit 1
           fi
 
   # ── Job 1: Build (reuse ci-build.yml) ──────────────────────────────────
+  # A job that calls a reusable workflow cannot set timeout-minutes; each job
+  # inside ci-build.yml carries its own budget (#218).
   build:
     needs: [validate-branch]
     if: github.event_name == 'push'
@@ -59,6 +67,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [build]
     if: always() && (needs.build.result == 'success' || github.event_name == 'workflow_dispatch')
+    # Slowest successful run 1.4 min, mostly artifact downloads (#218).
+    timeout-minutes: 10
     permissions:
       contents: read
       # Read another run's metadata and artifacts on manual dispatch (#197).
@@ -81,6 +91,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.inputs.tag }}
           CI_RUN_ID: ${{ github.event.inputs.ci-run-id }}
         run: |
+          set -euo pipefail
           # Accepts the historical formats: v26.04.2, v26.05.0-beta1, v26.03.1-beta.2
           if [ -z "$RELEASE_TAG" ]; then
             echo "::error::A manual release needs the 'tag' input (e.g. v26.04.0)."
@@ -146,6 +157,7 @@ jobs:
       - name: Read version
         id: version
         run: |
+          set -euo pipefail
           VERSION=$(cat logsquirl_version/logsquirl_version.txt)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "LOGSQUIRL_VERSION=$VERSION" >> "$GITHUB_ENV"
@@ -156,6 +168,7 @@ jobs:
           # Via env, not interpolated: the tag is user input (#197).
           RELEASE_TAG: ${{ github.event.inputs.tag }}
         run: |
+          set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = "push" ]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
@@ -189,6 +202,8 @@ jobs:
     permissions:
       contents: read
     continue-on-error: true
+    # Slowest successful run 3 min (#218).
+    timeout-minutes: 15
     env:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_TOKEN }}
       SENTRY_ORG: logsquirl
@@ -217,6 +232,7 @@ jobs:
           SENTRY_CLI_VERSION: "3.8.0"
           SENTRY_CLI_SHA256: "13f8cb34ae01a6a272d7d7c22e277a105286615b4020de900ea95a8de47cdbb6"
         run: |
+          set -euo pipefail
           bin_dir="$RUNNER_TEMP/sentry-cli-bin"
           mkdir -p "$bin_dir"
           curl -fsSL --retry 3 -o "$bin_dir/sentry-cli" \
@@ -228,11 +244,13 @@ jobs:
 
       - name: Create Sentry release
         run: |
+          set -euo pipefail
           sentry-cli releases new "$LOGSQUIRL_VERSION"
           sentry-cli releases set-commits --auto "$LOGSQUIRL_VERSION"
 
       - name: Upload symbols linux
         run: |
+          set -euo pipefail
           for id in noble oracle fedora appimage; do
             if [ -f "./packages-${id}/logsquirl_${id}.debug.xz" ]; then
               xz -d "./packages-${id}/logsquirl_${id}.debug.xz"
@@ -242,7 +260,12 @@ jobs:
 
       - name: Upload symbols mac
         run: |
-          cd ./packages-mac-arm64 && tar xzf logsquirl-arm64.app.tar.gz && tar xzf logsquirl-arm64.dSym.tar.gz && cd ..
+          set -euo pipefail
+          # One command per line: set -e ignores a failure inside an && list (#218).
+          cd ./packages-mac-arm64
+          tar xzf logsquirl-arm64.app.tar.gz
+          tar xzf logsquirl-arm64.dSym.tar.gz
+          cd ..
           sentry-cli upload-dif ./packages-mac-arm64/logsquirl.app/Contents/MacOS/logsquirl ./packages-mac-arm64/logsquirl.dSym
 
       - name: Upload symbols win
@@ -254,6 +277,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [prepare, sentry]
     if: always() && needs.prepare.result == 'success'
+    # Slowest successful run 5 min, mostly asset uploads (#218).
+    timeout-minutes: 20
     permissions:
       contents: write
       id-token: write
@@ -269,6 +294,7 @@ jobs:
 
       - name: Cleanup release artifacts
         run: |
+          set -euo pipefail
           # Remove uncompressed binaries (only keep packages)
           for id in noble oracle fedora appimage; do
             rm -f "./packages-${id}/logsquirl_${id}"
@@ -277,11 +303,18 @@ jobs:
           # Remove extracted app/dSym bundles (keep tar.gz archives)
           rm -rf ./packages-mac-arm64/logsquirl.app ./packages-mac-arm64/logsquirl.dSym
 
-          # Collect debug symbols into a single archive
+          # Collect debug symbols into a single archive. A platform without
+          # symbols is skipped, but a failing xz or mv stops the release instead
+          # of being swallowed by a trailing `|| true` (#218).
           mkdir -p ./linux-debug
           for id in noble oracle fedora appimage; do
-            [ -f "./packages-${id}/logsquirl_${id}.debug" ] && mv "./packages-${id}/logsquirl_${id}.debug" ./linux-debug/ || true
-            [ -f "./packages-${id}/logsquirl_${id}.debug.xz" ] && xz -d "./packages-${id}/logsquirl_${id}.debug.xz" && mv "./packages-${id}/logsquirl_${id}.debug" ./linux-debug/ || true
+            if [ -f "./packages-${id}/logsquirl_${id}.debug" ]; then
+              mv "./packages-${id}/logsquirl_${id}.debug" ./linux-debug/
+            fi
+            if [ -f "./packages-${id}/logsquirl_${id}.debug.xz" ]; then
+              xz -d "./packages-${id}/logsquirl_${id}.debug.xz"
+              mv "./packages-${id}/logsquirl_${id}.debug" ./linux-debug/
+            fi
           done
           if ls ./linux-debug/*.debug 1>/dev/null 2>&1; then
             tar -cJf ./logsquirl-$LOGSQUIRL_VERSION-symbols.tar.xz -C ./linux-debug .
@@ -291,8 +324,12 @@ jobs:
 
       - name: Prepare binary artifacts
         run: |
+          set -euo pipefail
           mkdir -p ./packages-bin
-          [ -f "./packages-appimage/logsquirl_deps.tar.xz" ] && mv ./packages-appimage/logsquirl_deps.tar.xz ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-deps.tar.xz || true
+          # The deps archive is optional; a failing mv is not (#218).
+          if [ -f "./packages-appimage/logsquirl_deps.tar.xz" ]; then
+            mv ./packages-appimage/logsquirl_deps.tar.xz "./packages-bin/logsquirl-$LOGSQUIRL_VERSION-deps.tar.xz"
+          fi
           cp ./logsquirl_version/logsquirl_version.txt ./packages-bin/
 
       - name: Prepare checksums
@@ -468,6 +505,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [prepare, release]
     if: needs.release.result == 'success'
+    timeout-minutes: 5
     permissions:
       contents: write
     steps:
@@ -480,24 +518,30 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
           IS_PRERELEASE: ${{ needs.prepare.outputs.is_prerelease }}
         run: |
+          set -euo pipefail
           VERSION="${TAG#v}"
           URL="https://github.com/64x-lunicorn/LogSquirl/releases/tag/${TAG}"
 
+          # jq and mv are separate commands: set -e ignores a failure inside an
+          # && list, and a failed jq used to end in a green job that committed
+          # nothing (#218).
           if [ "$IS_PRERELEASE" = "true" ]; then
             jq --arg ver "$VERSION" --arg url "$URL" \
-               '.beta = $ver | .beta_url = $url | .beta_version = $ver' latest.json > latest.json.tmp \
-               && mv latest.json.tmp latest.json
+               '.beta = $ver | .beta_url = $url | .beta_version = $ver' latest.json > latest.json.tmp
             COMMIT_MSG="chore: update latest.json with beta ${VERSION} [skip ci]"
           else
             jq --arg ver "$VERSION" --arg url "$URL" \
-               '.stable = $ver | .stable_url = $url | .stable_version = $ver' latest.json > latest.json.tmp \
-               && mv latest.json.tmp latest.json
+               '.stable = $ver | .stable_url = $url | .stable_version = $ver' latest.json > latest.json.tmp
             COMMIT_MSG="chore: update latest.json with ${VERSION} [skip ci]"
           fi
+          mv latest.json.tmp latest.json
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add latest.json
-          git diff --cached --quiet || git commit -m "$COMMIT_MSG" && git push
+          if ! git diff --cached --quiet; then
+            git commit -m "$COMMIT_MSG"
+          fi
+          git push
 
    
