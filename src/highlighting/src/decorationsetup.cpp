@@ -21,21 +21,6 @@
 
 #include <algorithm>
 
-QColor LineStatusColors::match()
-{
-    return QColor{ Qt::red };
-}
-
-QColor LineStatusColors::mark()
-{
-    return QColor{ "dodgerblue" };
-}
-
-QColor LineStatusColors::markedMatch()
-{
-    return QColor{ "violet" };
-}
-
 void DecorationSetup::setPolicy( const DecorationPolicy& policy )
 {
     policy_ = policy;
@@ -105,7 +90,9 @@ void DecorationSetup::rebuildColorLabels()
 }
 
 LineDecorator::Context DecorationSetup::context( const HighlighterSet& highlighterSet,
-                                                 SearchLimits searchLimits ) const
+                                                 SearchLimits searchLimits,
+                                                 const LinePalette& palette,
+                                                 LineStatusDisplay lineStatus ) const
 {
     return LineDecorator::Context{
         highlighterSet,
@@ -114,5 +101,7 @@ LineDecorator::Context DecorationSetup::context( const HighlighterSet& highlight
         quickFindPattern_ ? quickFindPattern_->getMatcher() : QuickFindMatcher{},
         policy_.quickFindBackColor,
         searchLimits,
+        palette,
+        lineStatus,
     };
 }

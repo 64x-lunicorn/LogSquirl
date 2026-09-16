@@ -25,6 +25,25 @@ namespace {
 
 using LineTypeFlags = AbstractLogData::LineTypeFlags;
 
+// A palette whose every color is told apart from the others and from the
+// colors the sources below use.
+const LinePalette TestPalette{ QColor{ 10, 10, 10 }, QColor{ 250, 250, 250 },
+                               QColor{ 128, 128, 128 }, QColor{ 240, 240, 200 },
+                               QColor{ 30, 60, 200 } };
+
+// Whether the spans cover [0, length) in order, without a gap or an overlap.
+bool coversWithoutGaps( const Decoration& decoration, int length )
+{
+    int covered = 0;
+    for ( const auto& span : decoration.spans() ) {
+        if ( span.startColumn().get() != covered || span.size() <= 0_length ) {
+            return false;
+        }
+        covered += static_cast<int>( span.size().get() );
+    }
+    return covered == length;
+}
+
 HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMatch,
                                    const QColor& foreColor, const QColor& backColor )
 {
@@ -35,8 +54,10 @@ HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMat
 
 LineDecorator::Context emptyContext()
 {
-    return LineDecorator::Context{ HighlighterSet{},   std::nullopt,         {},
-                                   QuickFindMatcher{}, QColor{ Qt::yellow }, SearchLimits{} };
+    return LineDecorator::Context{
+        HighlighterSet{},     std::nullopt,   {},          QuickFindMatcher{},
+        QColor{ Qt::yellow }, SearchLimits{}, TestPalette, LineStatusDisplay::InGutter
+    };
 }
 
 } // namespace
@@ -220,9 +241,15 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
         {
             const auto decoration = decorator.decorate( "hello world", LineVerdict{} );
 
-            THEN( "there are no spans" )
+            THEN( "one span covers the text in the line's own colors" )
             {
-                REQUIRE( decoration.spans().empty() );
+                REQUIRE( decoration.spans().size() == 1 );
+                const auto& span = decoration.spans().front();
+                REQUIRE( span.startColumn() == 0_lcol );
+                REQUIRE( span.size() == LineLength{ 11 } );
+                REQUIRE( span.foreColor() == TestPalette.text );
+                REQUIRE( span.backColor() == TestPalette.base );
+                REQUIRE( decoration.lineColors().backColor == TestPalette.base );
             }
         }
     }
@@ -366,8 +393,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
 
             THEN( "QuickFind wins over the Color Label on the overlap" )
             {
-                REQUIRE( decoration.spans().size() == 1 );
-                const auto& span = decoration.spans().front();
+                REQUIRE( decoration.spans().size() == 3 );
+                const auto& span = decoration.spans()[ 1 ];
                 REQUIRE( span.startColumn() == 6_lcol );
                 REQUIRE( span.backColor() == QColor{ Qt::cyan } );
             }
@@ -418,8 +445,11 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
             THEN( "the whole-line highlight, main search and Color Labels are suppressed, "
                   "but QuickFind still shows" )
             {
-                REQUIRE( decoration.spans().size() == 1 );
-                const auto& span = decoration.spans().front();
+                REQUIRE( decoration.spans().size() == 3 );
+                const auto& subdued = decoration.spans().front();
+                REQUIRE( subdued.foreColor() == TestPalette.subduedText );
+                REQUIRE( subdued.backColor() == TestPalette.base );
+                const auto& span = decoration.spans()[ 1 ];
                 REQUIRE( span.startColumn() == 6_lcol );
                 REQUIRE( span.backColor() == QColor{ Qt::cyan } );
             }
@@ -442,8 +472,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
 
             THEN( "the matched word carries the Highlighter's colors" )
             {
-                REQUIRE( decoration.spans().size() == 1 );
-                const auto& span = decoration.spans().front();
+                REQUIRE( decoration.spans().size() == 3 );
+                const auto& span = decoration.spans()[ 1 ];
                 REQUIRE( span.startColumn() == 3_lcol );
                 REQUIRE( span.size() == LineLength{ 5 } );
                 REQUIRE( span.foreColor() == QColor{ Qt::white } );
@@ -465,7 +495,8 @@ SCENARIO( "LineDecorator::decorate turns text and a Line Verdict into a Decorati
 
             THEN( "the word highlight is suppressed" )
             {
-                REQUIRE( decoration.spans().empty() );
+                REQUIRE( decoration.spans().size() == 1 );
+                REQUIRE( decoration.spans().front().foreColor() == TestPalette.subduedText );
             }
         }
     }
@@ -544,8 +575,8 @@ SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line"
             THEN( "the tab character itself is found -- before #80, matching against the "
                   "expanded line (all spaces) never found a tab at all" )
             {
-                REQUIRE( decoration.spans().size() == 1 );
-                const auto& span = decoration.spans().front();
+                REQUIRE( decoration.spans().size() == 3 );
+                const auto& span = decoration.spans()[ 1 ];
                 REQUIRE( span.startColumn() == 1_lcol );
                 REQUIRE( span.size() == LineLength{ 1 } );
             }
@@ -568,7 +599,278 @@ SCENARIO( "QuickFind is matched against the raw line, not the tab-expanded line"
             THEN( "there is no match -- before #80, matching against the expanded line found "
                   "one, even though the file contains no run of spaces at all, only a tab" )
             {
+                REQUIRE( decoration.spans().size() == 1 );
+                REQUIRE( decoration.spans().front().backColor() == TestPalette.base );
+            }
+        }
+    }
+}
+
+// A line's own colors are decided in one place, from its Line Verdict (#241).
+SCENARIO( "LineDecorator::lineColorsFor decides a line's own colors from its Line Verdict",
+          "[linedecorator][linecolors]" )
+{
+    GIVEN( "a decorator for a Presentation that shows Match and Mark as a background" )
+    {
+        auto context = emptyContext();
+        context.lineStatus = LineStatusDisplay::AsBackground;
+        const LineDecorator decorator{ std::move( context ) };
+
+        THEN( "a Plain line has the palette's text and base colors" )
+        {
+            const auto colors = decorator.lineColorsFor(
+                LineVerdict{ std::nullopt, LineTypeFlags::Plain, false } );
+            REQUIRE( colors.foreColor == TestPalette.text );
+            REQUIRE( colors.backColor == TestPalette.base );
+        }
+
+        THEN( "a Match, a Mark and a Mark that is a Match each have their own background" )
+        {
+            REQUIRE(
+                decorator.lineColorsFor( LineVerdict{ std::nullopt, LineTypeFlags::Match, false } )
+                    .backColor
+                == LineStatusColors::match() );
+            REQUIRE(
+                decorator.lineColorsFor( LineVerdict{ std::nullopt, LineTypeFlags::Mark, false } )
+                    .backColor
+                == LineStatusColors::mark() );
+            REQUIRE( decorator
+                         .lineColorsFor( LineVerdict{
+                             std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match, false } )
+                         .backColor
+                     == LineStatusColors::markedMatch() );
+        }
+
+        THEN( "marking a line changes its background" )
+        {
+            const auto before = decorator.lineColorsFor(
+                LineVerdict{ std::nullopt, LineTypeFlags::Plain, false } );
+            const auto after = decorator.lineColorsFor(
+                LineVerdict{ std::nullopt, LineTypeFlags::Mark, false } );
+            REQUIRE( before.backColor != after.backColor );
+        }
+
+        THEN( "a Context Line's text is dimmed and its background left alone" )
+        {
+            const auto colors = decorator.lineColorsFor(
+                LineVerdict{ std::nullopt, LineTypeFlags::Context, false } );
+            REQUIRE( colors.foreColor.alpha() == 128 );
+            REQUIRE( colors.backColor == TestPalette.base );
+        }
+
+        THEN( "a whole-line Highlighter wins over the Match background" )
+        {
+            const auto colors = decorator.lineColorsFor(
+                LineVerdict{ HighlightColor{ QColor{ Qt::white }, QColor{ Qt::green } },
+                             LineTypeFlags::Match, false } );
+            REQUIRE( colors.foreColor == QColor{ Qt::white } );
+            REQUIRE( colors.backColor == QColor{ Qt::green } );
+        }
+
+        THEN( "a line outside the Search Limits is subdued and shows no Match background" )
+        {
+            const auto colors = decorator.lineColorsFor( LineVerdict{
+                std::nullopt, LineTypeFlags::Match, /* isOutsideSearchLimits = */ true } );
+            REQUIRE( colors.foreColor == TestPalette.subduedText );
+            REQUIRE( colors.backColor == TestPalette.base );
+        }
+
+        THEN( "a line selected as a whole has the selection colors, whatever else it is" )
+        {
+            const auto colors = decorator.lineColorsFor(
+                LineVerdict{ HighlightColor{ QColor{ Qt::white }, QColor{ Qt::green } },
+                             LineTypeFlags::Match,
+                             true,
+                             {},
+                             /* isSelectedAsWhole = */ true } );
+            REQUIRE( colors.foreColor == TestPalette.selectedText );
+            REQUIRE( colors.backColor == TestPalette.selection );
+        }
+    }
+
+    GIVEN( "a decorator for a Presentation that shows Match and Mark in a gutter" )
+    {
+        const LineDecorator decorator{ emptyContext() };
+
+        THEN( "a Marked Match keeps the palette's base" )
+        {
+            const auto colors = decorator.lineColorsFor(
+                LineVerdict{ std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match, false } );
+            REQUIRE( colors.backColor == TestPalette.base );
+        }
+    }
+}
+
+SCENARIO( "A line selected as a whole shows the selection colors with only its QuickFind matches",
+          "[linedecorator][selectedaswhole]" )
+{
+    GIVEN( "a whole-line Highlighter, a main search and a QuickFind pattern that all match" )
+    {
+        auto context = emptyContext();
+        context.highlighterSet
+            = setWithHighlighter( "hello", false, QColor{ Qt::white }, QColor{ Qt::red } );
+        context.mainSearch
+            = Highlighter{ "hello", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
+        QRegularExpression qfRegex{ "wor" };
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        context.quickFindColor = QColor{ Qt::cyan };
+        const LineDecorator decorator{ std::move( context ) };
+
+        const QString text = "hello world";
+
+        WHEN( "the line is selected as a whole" )
+        {
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain, true );
+            const auto decoration = decorator.decorate( text, verdict );
+
+            THEN( "no Highlighter is matched against it" )
+            {
+                REQUIRE( verdict.isSelectedAsWhole() );
+                REQUIRE_FALSE( verdict.isOutsideSearchLimits() );
+                REQUIRE_FALSE( verdict.wholeLineHighlight().has_value() );
+            }
+
+            THEN( "the text is in the selection colors, with the QuickFind match on top" )
+            {
+                REQUIRE( coversWithoutGaps( decoration, static_cast<int>( text.size() ) ) );
+                REQUIRE( decoration.spans().size() == 3 );
+                REQUIRE( decoration.spans()[ 0 ].backColor() == TestPalette.selection );
+                REQUIRE( decoration.spans()[ 0 ].foreColor() == TestPalette.selectedText );
+                REQUIRE( decoration.spans()[ 1 ].startColumn() == 6_lcol );
+                REQUIRE( decoration.spans()[ 1 ].size() == LineLength{ 3 } );
+                REQUIRE( decoration.spans()[ 1 ].backColor() == QColor{ Qt::cyan } );
+                REQUIRE( decoration.spans()[ 2 ].backColor() == TestPalette.selection );
+                REQUIRE( decoration.lineColors().backColor == TestPalette.selection );
+            }
+        }
+    }
+}
+
+// The Text View decorates the raw Log Line: it moves its selection from
+// display columns to raw columns first, and the finished Decoration to display
+// columns once afterwards (#241).
+SCENARIO( "A partial selection over text containing tabs goes through the Line Decorator",
+          "[linedecorator][tabs]" )
+{
+    // "ab\tcd" expands to "ab" + 6 spaces + "cd": display columns 0-1 are
+    // "ab", 2-7 the tab, 8-9 "cd".
+    const QString rawText = "ab\tcd";
+    const LineLength displayLength{ 10 };
+    const QColor selectedText{ Qt::white };
+    const QColor selection{ Qt::blue };
+
+    GIVEN( "a decorator with a QuickFind pattern for cd" )
+    {
+        auto context = emptyContext();
+        QRegularExpression qfRegex{ "cd" };
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        context.quickFindColor = QColor{ Qt::cyan };
+        const LineDecorator decorator{ std::move( context ) };
+        const auto verdict
+            = decorator.verdictFor( LogLine{ 0_lnum, rawText }, LineTypeFlags::Plain );
+
+        WHEN( "display columns 1 to 4 are selected -- the b and part of the tab" )
+        {
+            const auto rawSelection = inRawColumns(
+                rawText, HighlightedMatch{ 1_lcol, LineLength{ 4 }, selectedText, selection } );
+
+            THEN( "the selection covers the b and the whole tab in raw columns" )
+            {
+                REQUIRE( rawSelection.startColumn() == 1_lcol );
+                REQUIRE( rawSelection.size() == LineLength{ 2 } );
+            }
+
+            AND_WHEN( "the text is decorated and moved to display columns" )
+            {
+                const auto decoration = decorator.decorate( rawText, verdict, rawSelection )
+                                            .inDisplayColumns( rawText, displayLength );
+
+                THEN( "the Decoration covers the displayed text without gaps" )
+                {
+                    REQUIRE( coversWithoutGaps( decoration, 10 ) );
+                }
+
+                THEN( "the a is in the line's colors, the b and the expanded tab are selected, "
+                      "and the QuickFind match lands on the displayed cd" )
+                {
+                    const auto& spans = decoration.spans();
+                    REQUIRE( spans.size() == 3 );
+                    REQUIRE( spans[ 0 ].startColumn() == 0_lcol );
+                    REQUIRE( spans[ 0 ].backColor() == TestPalette.base );
+                    REQUIRE( spans[ 1 ].startColumn() == 1_lcol );
+                    REQUIRE( spans[ 1 ].size() == LineLength{ 7 } );
+                    REQUIRE( spans[ 1 ].backColor() == selection );
+                    REQUIRE( spans[ 2 ].startColumn() == 8_lcol );
+                    REQUIRE( spans[ 2 ].size() == LineLength{ 2 } );
+                    REQUIRE( spans[ 2 ].backColor() == QColor{ Qt::cyan } );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "A Decoration covers the whole text without gaps", "[linedecorator][coverage]" )
+{
+    GIVEN( "a decorator with a word-only Highlighter, a main search, a Color Label and QuickFind" )
+    {
+        auto context = emptyContext();
+        context.highlighterSet
+            = setWithHighlighter( "ERROR", true, QColor{ Qt::white }, QColor{ Qt::red } );
+        context.mainSearch
+            = Highlighter{ "disk", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
+        context.colorLabels.push_back(
+            Highlighter{ "full", false, true, QColor{ Qt::black }, QColor{ Qt::green } } );
+        QRegularExpression qfRegex{ "is" };
+        context.quickFind = QuickFindMatcher{ true, qfRegex };
+        context.quickFindColor = QColor{ Qt::cyan };
+        const LineDecorator decorator{ std::move( context ) };
+
+        const QString text = "ERROR: disk is full, ERROR again";
+
+        WHEN( "decorating the text" )
+        {
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain );
+            const auto decoration = decorator.decorate( text, verdict );
+
+            THEN( "the spans cover it in order, without a gap or an overlap" )
+            {
+                REQUIRE( coversWithoutGaps( decoration, static_cast<int>( text.size() ) ) );
+            }
+
+            THEN( "the text between the sources carries the line's own colors" )
+            {
+                REQUIRE( decoration.spans()[ 1 ].startColumn() == 5_lcol );
+                REQUIRE( decoration.spans()[ 1 ].foreColor() == TestPalette.text );
+                REQUIRE( decoration.spans()[ 1 ].backColor() == TestPalette.base );
+            }
+        }
+
+        WHEN( "a selection reaches past the end of the text" )
+        {
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain );
+            const auto decoration
+                = decorator.decorate( text, verdict,
+                                      HighlightedMatch{ 25_lcol, LineLength{ 40 },
+                                                        QColor{ Qt::white }, QColor{ Qt::blue } } );
+
+            THEN( "the Decoration still ends where the text ends" )
+            {
+                REQUIRE( coversWithoutGaps( decoration, static_cast<int>( text.size() ) ) );
+                REQUIRE( decoration.spans().back().backColor() == QColor{ Qt::blue } );
+            }
+        }
+
+        WHEN( "decorating empty text" )
+        {
+            const auto decoration = decorator.decorate( "", LineVerdict{} );
+
+            THEN( "there is no span, but the line still has its own colors" )
+            {
                 REQUIRE( decoration.spans().empty() );
+                REQUIRE( decoration.lineColors().backColor == TestPalette.base );
             }
         }
     }

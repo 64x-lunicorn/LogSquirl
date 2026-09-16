@@ -60,10 +60,15 @@ LineDecorator::Context contextWith( HighlighterSet highlighterSet = {},
                                     std::optional<Highlighter> mainSearch = std::nullopt,
                                     QuickFindMatcher quickFind = {} )
 {
-    return LineDecorator::Context{
-        std::move( highlighterSet ), std::move( mainSearch ), {},
-        std::move( quickFind ),      QColor{ Qt::cyan },      SearchLimits{}
-    };
+    return LineDecorator::Context{ std::move( highlighterSet ),
+                                   std::move( mainSearch ),
+                                   {},
+                                   std::move( quickFind ),
+                                   QColor{ Qt::cyan },
+                                   SearchLimits{},
+                                   LinePalette{ Qt::black, Qt::white, Qt::gray, Qt::white,
+                                                Qt::blue },
+                                   LineStatusDisplay::InGutter };
 }
 
 QString repeatedWord( const QString& word, int count, QChar separator = QChar{ ' ' } )
@@ -247,8 +252,12 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
                              + repeatedWord( "the lazy dog,", 1700 );
         const LogLine line{ 0_lnum, text };
         const auto verdict = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
-        const auto rawSpans = decorator.decorate( text, verdict ).spans();
-        REQUIRE( rawSpans.size() == 1 );
+        // The Decoration covers the whole line: the text before "fox",
+        // "fox", and the rest of the line in the line's own colors. Only
+        // "fox" is a source span.
+        const auto decoration = decorator.decorate( text, verdict );
+        REQUIRE( decoration.spans().size() == 3 );
+        logsquirl::vector<HighlightedMatch> rawSpans{ decoration.spans()[ 1 ] };
 
         BENCHMARK_ADVANCED( "long line, one early match: old per-match re-expansion" )
         ( Catch::Benchmark::Chronometer meter )
@@ -281,6 +290,23 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
                                                  match.backColor() };
                     } );
                 return spans;
+            } );
+        };
+
+        // What the Text View runs: the whole Decoration moved to display
+        // columns, mapped only as far as its last span starts. A tab at the
+        // start keeps the display columns from being the raw ones.
+        BENCHMARK_ADVANCED( "long line, one early match: Decoration::inDisplayColumns" )
+        ( Catch::Benchmark::Chronometer meter )
+        {
+            const QString tabbedText = QStringLiteral( "\t" ) + text;
+            const auto tabbedVerdict = decorator.verdictFor(
+                LogLine{ 0_lnum, tabbedText }, AbstractLogData::LineTypeFlags::Plain );
+            const auto tabbedDecoration = decorator.decorate( tabbedText, tabbedVerdict );
+            const LineLength displayLength{ untabify( QString{ tabbedText } ).size() };
+            meter.measure( [ & ] {
+                auto copy = tabbedDecoration;
+                return std::move( copy ).inDisplayColumns( tabbedText, displayLength );
             } );
         };
 

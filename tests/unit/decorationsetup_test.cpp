@@ -54,7 +54,8 @@ SCENARIO( "A Decoration Setup builds the Line Decorator's Context from a Decorat
 
         WHEN( "the Context is built" )
         {
-            const auto context = setup.context( HighlighterSet{}, SearchLimits{} );
+            const auto context = setup.context( HighlighterSet{}, SearchLimits{}, LinePalette{},
+                                                LineStatusDisplay::InGutter );
 
             THEN( "it carries a main-search Highlighter colored as the Policy says" )
             {
@@ -73,7 +74,8 @@ SCENARIO( "A Decoration Setup builds the Line Decorator's Context from a Decorat
 
         WHEN( "the Line Decorator is given that Context" )
         {
-            const LineDecorator decorator{ setup.context( HighlighterSet{}, SearchLimits{} ) };
+            const LineDecorator decorator{ setup.context(
+                HighlighterSet{}, SearchLimits{}, LinePalette{}, LineStatusDisplay::InGutter ) };
             const QString line = QStringLiteral( "an ERROR occurred" );
             const auto verdict
                 = decorator.verdictFor( LogLine{ 0_lnum, line }, LineTypeFlags::Plain );
@@ -81,10 +83,10 @@ SCENARIO( "A Decoration Setup builds the Line Decorator's Context from a Decorat
             THEN( "what the Search matched is colored in the Policy's color" )
             {
                 const auto spans = decorator.decorate( line, verdict ).spans();
-                REQUIRE( spans.size() == 1 );
-                REQUIRE( spans.front().startColumn() == 3_lcol );
-                REQUIRE( spans.front().size() == 5_length );
-                REQUIRE( spans.front().backColor() == MainSearchBack );
+                REQUIRE( spans.size() == 3 );
+                REQUIRE( spans[ 1 ].startColumn() == 3_lcol );
+                REQUIRE( spans[ 1 ].size() == 5_length );
+                REQUIRE( spans[ 1 ].backColor() == MainSearchBack );
             }
         }
     }
@@ -104,7 +106,10 @@ SCENARIO( "A Decoration Policy that colors no main search builds no main-search 
 
         THEN( "the Context carries none" )
         {
-            REQUIRE_FALSE( setup.context( HighlighterSet{}, SearchLimits{} ).mainSearch );
+            REQUIRE_FALSE( setup
+                               .context( HighlighterSet{}, SearchLimits{}, LinePalette{},
+                                         LineStatusDisplay::InGutter )
+                               .mainSearch );
         }
     }
 
@@ -118,7 +123,10 @@ SCENARIO( "A Decoration Policy that colors no main search builds no main-search 
             THEN( "an empty pattern builds no Highlighter" )
             {
                 setup.setSearchPattern( RegularExpressionPattern{ QString{} } );
-                REQUIRE_FALSE( setup.context( HighlighterSet{}, SearchLimits{} ).mainSearch );
+                REQUIRE_FALSE( setup
+                                   .context( HighlighterSet{}, SearchLimits{}, LinePalette{},
+                                             LineStatusDisplay::InGutter )
+                                   .mainSearch );
             }
 
             THEN( "a boolean pattern builds none" )
@@ -126,7 +134,10 @@ SCENARIO( "A Decoration Policy that colors no main search builds no main-search 
                 RegularExpressionPattern pattern{ QStringLiteral( "a and b" ) };
                 pattern.isBoolean = true;
                 setup.setSearchPattern( pattern );
-                REQUIRE_FALSE( setup.context( HighlighterSet{}, SearchLimits{} ).mainSearch );
+                REQUIRE_FALSE( setup
+                                   .context( HighlighterSet{}, SearchLimits{}, LinePalette{},
+                                             LineStatusDisplay::InGutter )
+                                   .mainSearch );
             }
 
             THEN( "an excluding pattern builds none" )
@@ -134,7 +145,10 @@ SCENARIO( "A Decoration Policy that colors no main search builds no main-search 
                 RegularExpressionPattern pattern{ QStringLiteral( "noise" ) };
                 pattern.isExclude = true;
                 setup.setSearchPattern( pattern );
-                REQUIRE_FALSE( setup.context( HighlighterSet{}, SearchLimits{} ).mainSearch );
+                REQUIRE_FALSE( setup
+                                   .context( HighlighterSet{}, SearchLimits{}, LinePalette{},
+                                             LineStatusDisplay::InGutter )
+                                   .mainSearch );
             }
         }
     }
@@ -153,7 +167,8 @@ SCENARIO( "A Decoration Setup turns the Color Labels it is handed into Highlight
 
         THEN( "there is one Highlighter per word, in its slot's color" )
         {
-            const auto context = setup.context( HighlighterSet{}, SearchLimits{} );
+            const auto context = setup.context( HighlighterSet{}, SearchLimits{}, LinePalette{},
+                                                LineStatusDisplay::InGutter );
             REQUIRE( context.colorLabels.size() == 3 );
             REQUIRE( context.colorLabels[ 0 ].pattern() == QStringLiteral( "warn" ) );
             REQUIRE( context.colorLabels[ 0 ].backColor() == QColor{ Qt::yellow } );
@@ -171,7 +186,8 @@ SCENARIO( "A Decoration Setup turns the Color Labels it is handed into Highlight
 
         THEN( "only the slots a color exists for are colored" )
         {
-            const auto context = setup.context( HighlighterSet{}, SearchLimits{} );
+            const auto context = setup.context( HighlighterSet{}, SearchLimits{}, LinePalette{},
+                                                LineStatusDisplay::InGutter );
             REQUIRE( context.colorLabels.size() == 1 );
             REQUIRE( context.colorLabels[ 0 ].pattern() == QStringLiteral( "warn" ) );
         }
@@ -192,7 +208,8 @@ SCENARIO( "A Decoration Setup passes on the Highlighter Set and Search Limits it
 
         WHEN( "a Context is built with Search Limits that exclude a Log Line" )
         {
-            const auto context = setup.context( highlighterSet, SearchLimits{ 10_lnum, 20_lnum } );
+            const auto context = setup.context( highlighterSet, SearchLimits{ 10_lnum, 20_lnum },
+                                                LinePalette{}, LineStatusDisplay::InGutter );
             const LineDecorator decorator{ context };
 
             THEN( "a line outside them is judged so, and one inside is not" )
@@ -205,6 +222,15 @@ SCENARIO( "A Decoration Setup passes on the Highlighter Set and Search Limits it
                 REQUIRE(
                     decorator.verdictFor( LogLine{ 20_lnum, "an ERROR" }, LineTypeFlags::Plain )
                         .isOutsideSearchLimits() );
+            }
+
+            THEN( "the palette and where Match and Mark show are the ones given" )
+            {
+                const LinePalette palette{ Qt::black, Qt::white, Qt::gray, Qt::white, Qt::blue };
+                const auto tableContext = setup.context( highlighterSet, SearchLimits{}, palette,
+                                                         LineStatusDisplay::AsBackground );
+                REQUIRE( tableContext.palette.selection == QColor{ Qt::blue } );
+                REQUIRE( tableContext.lineStatus == LineStatusDisplay::AsBackground );
             }
 
             THEN( "the whole-line Highlighter of the set given is the one that decides" )

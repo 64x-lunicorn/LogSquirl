@@ -2260,7 +2260,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     const QPalette& palette = viewport()->palette();
     const HighlighterSet& highlighterSet = HighlighterSetCollection::get().currentActiveSet();
-    QColor foreColor, backColor;
 
     static const QBrush normalBulletBrush = QBrush( Qt::white );
     // What a Log Line is -- Match, Mark, or both -- is shown in the colors
@@ -2332,37 +2331,27 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         return index;
     }();
 
-    // The Line Decorator owns the colour precedence rule (whole-line
-    // Highlighter, main search, Color Labels, QuickFind); it is
-    // constructed once per repaint with the stable context, not once per
-    // line. That context is built by the Decoration Setup, the one module
-    // that builds one for either Presentation -- painting reads no setting
-    // and builds no Highlighter itself. Only what the setup cannot know
-    // before the repaint is passed in: the active Highlighter Set, and the
-    // Search Limits in the line numbering this view displays.
+    // The Line Decorator owns every colour decision: the line's own
+    // colours, and which of the whole-line Highlighter, main search, Color
+    // Labels, QuickFind and selection wins where. It is constructed once per
+    // repaint with the stable context, not once per line. That context is
+    // built by the Decoration Setup, the one module that builds one for
+    // either Presentation -- painting reads no setting and builds no
+    // Highlighter itself. Only what the setup cannot know before the
+    // repaint is passed in: the active Highlighter Set, the Search Limits in
+    // the line numbering this view displays, and this view's palette.
     //
     // Every source it matches works against the raw line, so its Decoration
-    // is in raw-space too -- the loop below maps that Decoration to display
-    // columns once per line rather than once per match. Selection is the one
-    // source left out of its context: it comes from mouse/pixel positions
-    // against the already-rendered (tab-expanded) text, so it is
-    // display-space already and needs no translation.
+    // is in raw columns too -- the loop below moves a line's selection from
+    // display to raw columns before decorating, and the finished Decoration
+    // to display columns once afterwards. Tab expansion stays this view's
+    // step.
     const LineDecorator lineDecorator{ decorationSetup_.context(
-        highlighterSet, SearchLimits{ searchStartIndex, searchEndIndex } ) };
-
-    // A Line Verdict for a line that should show no Highlighter/main-search/
-    // Color Label colour -- used for the reversed-selection line below,
-    // which already gets a uniform selection background instead. This
-    // reuses decorate()'s isOutsideSearchLimits gate for that tier (the
-    // line is not actually outside the search limits); QuickFind is
-    // unconditional in decorate() regardless, so it still applies.
-    const auto quickFindOnlyVerdict = []( AbstractLogData::LineType lineType ) {
-        return LineVerdict{ std::nullopt, lineType, /* isOutsideSearchLimits = */ true };
-    };
+        highlighterSet, SearchLimits{ searchStartIndex, searchEndIndex },
+        LinePalette::fromPalette( palette ), LineStatusDisplay::InGutter ) };
 
     // Position in pixel of the base line of the line to print
     int yPos = 0;
-    logsquirl::vector<std::pair<QColor, QColor>> highlightColors;
     for ( const auto& viewportLogLine : content.logLines ) {
         const auto lineNumber = viewportLogLine.lineNumber;
         const QString& logLine = viewportLogLine.text;
@@ -2372,89 +2361,29 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         using LineTypeFlags = AbstractLogData::LineTypeFlags;
         const auto currentLineType = lineType( lineNumber );
 
-        LineVerdict verdict;
-
-        if ( selection_.isLineSelected( lineNumber ) && !selection_.isSingleLine() ) {
-            // Reverse the selected line. No Highlighter/main-search/Color
-            // Label colour is shown over it, same as before.
-            foreColor = palette.color( QPalette::HighlightedText );
-            backColor = palette.color( QPalette::Highlight );
-            painter->setPen( palette.color( QPalette::Text ) );
-            verdict = quickFindOnlyVerdict( currentLineType );
-        }
-        else {
-            foreColor = palette.color( QPalette::Text );
-            backColor = palette.color( QPalette::Base );
-
-            verdict = lineDecorator.verdictFor( LogLine{ lineNumber, logLine }, currentLineType );
-
-            if ( verdict.isOutsideSearchLimits() ) {
-                foreColor = palette.brush( QPalette::Disabled, QPalette::Text ).color();
-            }
-            else if ( const auto wholeLine = verdict.wholeLineHighlight(); wholeLine.has_value() ) {
-                // color applies to whole line
-                foreColor = wholeLine->foreColor;
-                backColor = wholeLine->backColor;
-            }
-        }
-
-        // Dim context (breadcrumb) lines
-        if ( currentLineType.testFlag( LineTypeFlags::Context ) ) {
-            foreColor.setAlpha( 128 );
-        }
-
-        // Every colour source the Decorator owns -- Highlighters, main
-        // search, Color Labels and QuickFind -- is matched against the raw
-        // line in this one call, so the returned spans are all in raw
-        // column space.
-        auto rawSpans = lineDecorator.decorate( logLine, verdict ).spans();
-
-        if ( !rawSpans.empty() ) {
-            // The raw-to-display mapping runs once per line here, instead
-            // of re-expanding the prefix from scratch for every match --
-            // but only up to the furthest raw column any match actually
-            // reaches, so a long line with only a few early matches isn't
-            // mapped past where any of them need it.
-            int furthestRawColumn = 0;
-            for ( const auto& match : rawSpans ) {
-                furthestRawColumn
-                    = std::max<int>( furthestRawColumn, static_cast<int>( match.startColumn().get()
-                                                                          + match.size().get() ) );
-            }
-            const auto rawToDisplay
-                = rawToDisplayColumns( QStringView{ logLine }.left( furthestRawColumn ) );
-            std::transform(
-                rawSpans.begin(), rawSpans.end(), rawSpans.begin(),
-                [ &rawToDisplay ]( const HighlightedMatch& match ) {
-                    const auto rawStart = static_cast<size_t>( match.startColumn().get() );
-                    const auto rawEnd = rawStart + static_cast<size_t>( match.size().get() );
-                    const auto displayStart = rawToDisplay[ rawStart ];
-                    const auto displayEnd = rawToDisplay[ rawEnd ];
-                    return HighlightedMatch{
-                        LineColumn{
-                            type_safe::narrow_cast<LineColumn::UnderlyingType>( displayStart ) },
-                        LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
-                            displayEnd - displayStart ) },
-                        match.foreColor(), match.backColor()
-                    };
-                } );
-        }
-
-        HighlightedMatchRanges allHighlights{ std::move( rawSpans ) };
+        const bool isSelectedAsWhole
+            = selection_.isLineSelected( lineNumber ) && !selection_.isSingleLine();
+        const auto verdict = lineDecorator.verdictFor( LogLine{ lineNumber, logLine },
+                                                       currentLineType, isSelectedAsWhole );
 
         const auto& wrappedLineView = viewportLogLine.wrapped;
         const QStringView expandedLine = wrappedLineView.unwrappedLine();
 
         // Is there something selected in the line? Selection columns come
         // from mouse/pixel positions against the rendered (tab-expanded)
-        // text, so they are already display-space and need no translation.
+        // text, so they are moved to raw columns for the Line Decorator.
         const auto selectionPortion = selection_.getPortionForLine( lineNumber );
+        std::optional<HighlightedMatch> rawSelection;
         if ( selectionPortion.isValid() ) {
-            allHighlights.addMatch( HighlightedMatch{ selectionPortion.startColumn(),
-                                                      selectionPortion.size(),
-                                                      palette.color( QPalette::HighlightedText ),
-                                                      palette.color( QPalette::Highlight ) } );
+            rawSelection = inRawColumns(
+                logLine, HighlightedMatch{ selectionPortion.startColumn(), selectionPortion.size(),
+                                           palette.color( QPalette::HighlightedText ),
+                                           palette.color( QPalette::Highlight ) } );
         }
+
+        const auto decoration = lineDecorator.decorate( logLine, verdict, rawSelection )
+                                    .inDisplayColumns( logLine, LineLength{ expandedLine.size() } );
+        const auto& lineColors = decoration.lineColors();
 
         // Only the Visual Lines in the Viewport are drawn: the Log Line at the
         // top can start partway through, the one at the bottom can be cut off.
@@ -2467,60 +2396,24 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
         painter->fillRect( xPos - ContentMarginWidth, yPos,
                            viewport()->width() - xPos + ContentMarginWidth, finalLineHeight,
-                           backColor );
+                           lineColors.backColor );
 
-        LineDrawer lineDrawer( backColor );
+        // The Decoration covers the whole text; only the part of it in view
+        // is drawn, each span as it is.
+        LineDrawer lineDrawer( lineColors.backColor );
         const auto firstVisibleColumn
             = std::clamp( useTextWrap_ ? 0_lcol : firstCol_, 0_lcol,
                           LineColumn{ logsquirl::isize( expandedLine ) } );
         const auto lastVisibleColumn = useTextWrap_ ? LineColumn{ logsquirl::isize( expandedLine ) }
                                                     : firstCol_ + nbVisibleCols;
-        allHighlights.clamp( firstVisibleColumn, lastVisibleColumn );
-
-        if ( !allHighlights.empty() && !expandedLine.isEmpty() ) {
-            // first part without highlight
-            if ( allHighlights.front().startColumn() > firstVisibleColumn ) {
-                lineDrawer.addChunk( firstVisibleColumn,
-                                     allHighlights.front().startColumn() - 1_length, foreColor,
-                                     backColor );
+        for ( const auto& span : decoration.spans() ) {
+            if ( span.size() == 0_length || span.endColumn() < firstVisibleColumn
+                 || span.startColumn() > lastVisibleColumn ) {
+                continue;
             }
-
-            for ( const auto& match : allHighlights.matches() ) {
-                const auto matchStart = match.startColumn();
-
-                // a part between two highlight regions
-                if ( !lineDrawer.empty() && matchStart - lineDrawer.endColumn() > 1_length ) {
-                    lineDrawer.addChunk( lineDrawer.endColumn() + 1_length, matchStart - 1_length,
-                                         foreColor, backColor );
-                }
-
-                const auto matchEnd = match.endColumn();
-                auto matchLengthInString = match.size();
-                if ( matchEnd >= LineColumn{ expandedLine.size() } ) {
-                    matchLengthInString = LineLength{ logsquirl::isize( expandedLine )
-                                                      - match.startColumn().get() };
-                }
-                if ( matchLengthInString > 0_length ) {
-                    lineDrawer.addChunk( match.startColumn(), matchEnd, match.foreColor(),
-                                         match.backColor() );
-                }
-            }
-
-            // last part without highlight
-            const auto lastHighlightColumn = allHighlights.back().endColumn();
-            if ( lastHighlightColumn < lastVisibleColumn ) {
-                lineDrawer.addChunk( lastHighlightColumn + 1_length, lastVisibleColumn, foreColor,
-                                     backColor );
-            }
-        }
-        else {
-            if ( useTextWrap_ ) {
-                lineDrawer.addChunk( 0_lcol, LineColumn{ expandedLine.size() }, foreColor,
-                                     backColor );
-            }
-            else {
-                lineDrawer.addChunk( firstCol_, firstCol_ + nbVisibleCols, foreColor, backColor );
-            }
+            lineDrawer.addChunk( std::max( span.startColumn(), firstVisibleColumn ),
+                                 std::min( span.endColumn(), lastVisibleColumn ), span.foreColor(),
+                                 span.backColor() );
         }
         lineDrawer.draw( painter.get(), xPos, yPos, viewport()->width(), wrappedLineView,
                          firstVisualLine, visualLineCount, ContentMarginWidth );

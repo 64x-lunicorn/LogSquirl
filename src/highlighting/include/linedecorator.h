@@ -23,7 +23,9 @@
 #include <optional>
 
 #include <QColor>
+#include <QPalette>
 #include <QString>
+#include <QStringView>
 
 #include "abstractlogdata.h"
 #include "containers.h"
@@ -79,10 +81,12 @@ public:
 
     LineVerdict( std::optional<HighlightColor> wholeLineHighlight,
                  AbstractLogData::LineType lineType, bool isOutsideSearchLimits,
-                 logsquirl::vector<HighlightedMatch> highlighterSpans = {} )
+                 logsquirl::vector<HighlightedMatch> highlighterSpans = {},
+                 bool isSelectedAsWhole = false )
         : wholeLineHighlight_{ wholeLineHighlight }
         , lineType_{ lineType }
         , isOutsideSearchLimits_{ isOutsideSearchLimits }
+        , isSelectedAsWhole_{ isSelectedAsWhole }
         , highlighterSpans_{ std::move( highlighterSpans ) }
     {
     }
@@ -124,22 +128,33 @@ public:
         return isOutsideSearchLimits_;
     }
 
+    // Whether the line is selected as a whole. Such a line shows the
+    // selection colors with only its QuickFind matches on top.
+    bool isSelectedAsWhole() const
+    {
+        return isSelectedAsWhole_;
+    }
+
 private:
     std::optional<HighlightColor> wholeLineHighlight_;
     AbstractLogData::LineType lineType_ = AbstractLogData::LineTypeFlags::Plain;
     bool isOutsideSearchLimits_ = false;
+    bool isSelectedAsWhole_ = false;
     logsquirl::vector<HighlightedMatch> highlighterSpans_;
 };
 
 // The finished visual result for a piece of displayed text: an ordered,
-// non-overlapping sequence of colored spans, in the coordinate space of the
-// text it was decorated from.
+// non-overlapping sequence of colored spans that covers the whole text, in
+// the coordinate space of the text it was decorated from. Text no source
+// colors carries the line's own colors, which also color whatever a
+// Presentation draws beyond the end of the text.
 class Decoration {
 public:
     Decoration() = default;
 
-    explicit Decoration( logsquirl::vector<HighlightedMatch> spans )
+    Decoration( logsquirl::vector<HighlightedMatch> spans, HighlightColor lineColors )
         : spans_{ std::move( spans ) }
+        , lineColors_{ std::move( lineColors ) }
     {
     }
 
@@ -148,8 +163,69 @@ public:
         return spans_;
     }
 
+    // The line's own colors: those of any text no source colors, and of the
+    // space beyond the end of the text.
+    const HighlightColor& lineColors() const
+    {
+        return lineColors_;
+    }
+
+    // This Decoration of rawText, moved to the display columns of rawText's
+    // tab expansion, which is displayLength long. Tab expansion is the Text
+    // View's step, not the Line Decorator's: the Line Decorator decorates
+    // raw text, and the Text View moves the finished Decoration once.
+    Decoration inDisplayColumns( QStringView rawText, LineLength displayLength ) &&;
+
 private:
     logsquirl::vector<HighlightedMatch> spans_;
+    HighlightColor lineColors_;
+};
+
+// A span given in the display columns of rawText's tab expansion, moved to
+// raw columns: it covers every raw character any of its display columns
+// shows, so a span over part of an expanded tab covers the whole tab.
+HighlightedMatch inRawColumns( QStringView rawText, const HighlightedMatch& displaySpan );
+
+// The colors a Presentation's palette gives a Log Line: its text when
+// nothing else colors it, the text of a line outside the Search Limits, and
+// the selection. The Line Decorator decides which of them a line gets.
+struct LinePalette {
+    QColor text;
+    QColor base;
+    QColor subduedText;
+    QColor selectedText;
+    QColor selection;
+
+    // The line colors of a Qt palette, as both Presentations take them.
+    static LinePalette fromPalette( const QPalette& palette );
+};
+
+// Where a Presentation shows whether a Log Line is a Match or a Mark. The
+// Text View draws a gutter bullet; the Table View has no gutter, so the
+// Line Decorator colors the line's background instead.
+enum class LineStatusDisplay {
+    InGutter,
+    AsBackground,
+};
+
+// The colors that show what a Log Line *is* rather than what its text says:
+// whether it is a Match, a Mark, or both at once.
+//
+// Defined once here because every Presentation shows the same three facts,
+// each in the only place it has: the Text View paints them as a gutter
+// bullet, the Table View -- which has no gutter -- as the row background,
+// the overview strip as a line. They have to agree, and a comment asking two
+// copies to stay in step is not what keeps them agreeing.
+struct LineStatusColors {
+    // The color of a Log Line the current Search selected.
+    static QColor match();
+
+    // The color of a Log Line the user flagged by hand.
+    static QColor mark();
+
+    // The color of a Log Line that is a Mark and a Match at once. Its own
+    // color, so that neither fact hides the other.
+    static QColor markedMatch();
 };
 
 // The single owner of the precedence rule that turns a Line Verdict plus a
@@ -158,7 +234,8 @@ private:
 //
 // Constructed once per repaint with the stable context: the active
 // Highlighter Set, the QuickFind pattern, the Color Labels, the main-search
-// colors and the Search Limits. Nothing is read from a singleton.
+// colors, the Search Limits and the Presentation's palette. Nothing is read
+// from a singleton.
 class LineDecorator {
 public:
     struct Context {
@@ -168,6 +245,8 @@ public:
         QuickFindMatcher quickFind;
         QColor quickFindColor;
         SearchLimits searchLimits;
+        LinePalette palette;
+        LineStatusDisplay lineStatus = LineStatusDisplay::InGutter;
     };
 
     explicit LineDecorator( Context context )
@@ -176,14 +255,25 @@ public:
     }
 
     // Decide the facts about a whole Log Line that affect how any part of
-    // it looks. Nothing is read from a singleton.
-    LineVerdict verdictFor( const LogLine& line, AbstractLogData::LineType lineType ) const;
+    // it looks. A line selected as a whole shows no Highlighter, so none is
+    // matched against it. Nothing is read from a singleton.
+    LineVerdict verdictFor( const LogLine& line, AbstractLogData::LineType lineType,
+                            bool isSelectedAsWhole = false ) const;
 
-    // Turn a run of text plus its Line Verdict into an ordered,
-    // non-overlapping sequence of colored spans, in the coordinate space
-    // of the text passed in. Precedence, low to high: whole-line
+    // The line's own colors under a Line Verdict: the colors of text no
+    // source colors. Precedence, high to low: selected as a whole (the
+    // selection colors), outside the Search Limits (subdued text), a
+    // whole-line Highlighter, then Match and Mark where the Presentation
+    // shows them as a background. A Context Line's text is dimmed on top.
+    HighlightColor lineColorsFor( const LineVerdict& verdict ) const;
+
+    // Turn a run of text plus its Line Verdict into a Decoration covering
+    // the whole text, in the coordinate space of the text passed in.
+    // Precedence, low to high: the line's own colors, whole-line
     // Highlighter, main search, Color Labels, QuickFind, selection.
-    // Overlapping sources are resolved by splitting and overriding.
+    // Overlapping sources are resolved by splitting and overriding. A line
+    // outside the Search Limits shows only QuickFind and selection; a line
+    // selected as a whole shows only QuickFind.
     Decoration decorate( const QString& text, const LineVerdict& verdict,
                          const std::optional<HighlightedMatch>& selection = std::nullopt ) const;
 
