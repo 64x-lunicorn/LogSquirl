@@ -1,8 +1,8 @@
 name: "Pull or build container"
-description: "Pull a build container from GHCR; rebuild it locally when its image inputs hash label no longer matches the checked-in docker/ files"
+description: "Resolve the build container by its image inputs hash, pull it from GHCR after verifying its cosign signature or build it locally when that tag does not exist, and export the ref as LOGSQUIRL_CONTAINER"
 inputs:
-  container:
-    description: "Image reference, e.g. ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest"
+  image:
+    description: "Image name without a tag, e.g. ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble"
     required: true
   container_root:
     description: "Directory holding the Dockerfile, e.g. docker/ubuntu24.04"
@@ -10,28 +10,85 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Pull or build container
+    # The tag is the inputs hash of the checked-out docker/ files (#215), so a
+    # run only ever uses an image built from exactly those files: the Docker
+    # Images workflow pushing a newer image cannot change it, and a PR that
+    # edits an image gets a tag that does not exist yet and builds its own.
+    #
+    # The tag is resolved to its digest here, and everything after (signature
+    # check, pull, every docker run) uses that digest, so the image that was
+    # verified is the image that runs even if the tag moved in between (#216).
+    - name: Resolve container
+      id: resolve
       shell: bash
       env:
-        CONTAINER: ${{ inputs.container }}
+        IMAGE: ${{ inputs.image }}
         CONTAINER_ROOT: ${{ inputs.container_root }}
       run: |
         set -euo pipefail
-        LOCAL_HASH=$(sh docker/image-hash.sh "$CONTAINER_ROOT")
-        NEED_BUILD=false
+        INPUTS_HASH=$(sh docker/image-hash.sh "$CONTAINER_ROOT")
+        echo "inputs_hash=$INPUTS_HASH" >> "$GITHUB_OUTPUT"
 
-        if docker pull "$CONTAINER" 2>/dev/null; then
-          REMOTE_HASH=$(docker inspect --format='{{index .Config.Labels "dockerfile.sha256"}}' "$CONTAINER" 2>/dev/null || echo "")
-          if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
-            echo "::warning::Image inputs changed (local=$LOCAL_HASH remote=$REMOTE_HASH), rebuilding"
-            NEED_BUILD=true
+        if manifest=$(docker buildx imagetools inspect "$IMAGE:$INPUTS_HASH" --format '{{json .Manifest}}' 2> /dev/null); then
+          DIGEST=$(jq -r .digest <<< "$manifest")
+          if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::$IMAGE:$INPUTS_HASH resolved to an unexpected digest '$DIGEST'"
+            exit 1
           fi
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
         else
-          echo "::warning::GHCR image not found, building locally"
-          NEED_BUILD=true
+          echo "digest=" >> "$GITHUB_OUTPUT"
         fi
 
-        # The context is docker/ so every image can copy docker/shared.
-        if [ "$NEED_BUILD" = "true" ]; then
-          docker build --label "dockerfile.sha256=$LOCAL_HASH" -t "$CONTAINER" -f "$CONTAINER_ROOT/Dockerfile" docker
+    - name: Install cosign
+      if: steps.resolve.outputs.digest != ''
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+    # Only the Docker Images workflow on master may have produced a pulled
+    # image; anything else on GHCR under this hash (an unsigned push, a
+    # signature from another workflow or branch) fails the job rather than
+    # silently falling back to a local build, which would hide the tampering.
+    # A locally built image is not signed and needs no check: it comes from
+    # this very checkout (#216).
+    #
+    # Every later step runs "$LOGSQUIRL_CONTAINER" rather than a fixed ref; the
+    # value written to GITHUB_ENV is the matrix image name plus a hex hash or a
+    # format-checked digest, never untrusted input.
+    - name: Verify and pull container
+      if: steps.resolve.outputs.digest != ''
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        DIGEST: ${{ steps.resolve.outputs.digest }}
+        CERT_IDENTITY_REGEXP: '^https://github\.com/64x-lunicorn/LogSquirl/\.github/workflows/ci-docker\.yml@refs/heads/master$'
+        CERT_OIDC_ISSUER: https://token.actions.githubusercontent.com
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        CONTAINER="$IMAGE@$DIGEST"
+
+        if ! cosign verify "$CONTAINER" \
+            --certificate-identity-regexp "$CERT_IDENTITY_REGEXP" \
+            --certificate-oidc-issuer "$CERT_OIDC_ISSUER" > /dev/null; then
+          echo "::error::$CONTAINER has no valid signature from the Docker Images workflow on master; refusing to use it"
+          exit 1
         fi
+        echo "Signature of $CONTAINER verified"
+
+        docker pull "$CONTAINER"
+        echo "Using $CONTAINER from GHCR"
+        echo "LOGSQUIRL_CONTAINER=$CONTAINER" >> "$GITHUB_ENV"
+
+    - name: Build container locally
+      if: steps.resolve.outputs.digest == ''
+      shell: bash
+      env:
+        IMAGE: ${{ inputs.image }}
+        CONTAINER_ROOT: ${{ inputs.container_root }}
+        INPUTS_HASH: ${{ steps.resolve.outputs.inputs_hash }}
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        CONTAINER="$IMAGE:$INPUTS_HASH"
+        # The context is docker/ so every image can copy docker/shared.
+        echo "::warning::$CONTAINER is not on GHCR (image inputs changed, or the Docker Images workflow has not pushed it yet); building locally"
+        docker build --label "dockerfile.sha256=$INPUTS_HASH" -t "$CONTAINER" -f "$CONTAINER_ROOT/Dockerfile" docker
+        echo "LOGSQUIRL_CONTAINER=$CONTAINER" >> "$GITHUB_ENV"

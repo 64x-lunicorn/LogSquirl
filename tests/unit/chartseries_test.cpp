@@ -377,7 +377,7 @@ SCENARIO( "ChartSeriesDefinition bucketing configuration", "[chartseries]" )
     }
 }
 
-SCENARIO( "Chart preset JSON round‑trip", "[chartseries]" )
+SCENARIO( "Chart preset JSON round-trip", "[chartseries]" )
 {
     GIVEN( "Multiple series definitions" )
     {

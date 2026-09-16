@@ -20,6 +20,7 @@ Search huge files, follow live logs, and turn noisy output into something you ca
 [![Downloads](https://img.shields.io/github/downloads/64x-lunicorn/LogSquirl/total)](https://github.com/64x-lunicorn/LogSquirl/releases)
 [![CI Build](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/ci-build.yml?branch=master&label=build)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/ci-build.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/codeql-analysis.yml?branch=master&label=CodeQL)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/codeql-analysis.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/64x-lunicorn/LogSquirl/badge)](https://scorecard.dev/viewer/?uri=github.com/64x-lunicorn/LogSquirl)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](COPYING)
 
 [Why LogSquirl?](#why-logsquirl) · [Get started](#get-started) · [Features](#features) · [Plugins](#plugins) · [Contribute](#contributing)
@@ -57,6 +58,14 @@ and choose the package for your platform.
 | NSIS installer | `.pkg` installer | AppImage, DEB, or RPM |
 
 See the release notes for package details and platform requirements.
+
+Want to be sure a download is genuine? Every release has a
+`logsquirl-<version>-sha256.txt` checksum file signed with Sigstore, and every
+asset carries a GitHub build provenance attestation. The CycloneDX SBOM
+`logsquirl-<version>-sbom.cdx.json` lists the third-party components a release
+contains. The **Verifying downloads**
+section of the release notes has the `cosign verify-blob`, `sha256sum -c` and
+`gh attestation verify` commands.
 
 ### 2. Find your first clue
 

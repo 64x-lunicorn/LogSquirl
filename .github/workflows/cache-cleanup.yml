@@ -1,0 +1,60 @@
+name: "Cache Cleanup"
+
+# Keeps the Actions cache under GitHub's 10 GB limit (#219). Every master build
+# saves fresh sccache entries (~2 GB across the Linux jobs) and CodeQL a new TRAP
+# cache (~850 MB); caches are immutable, so the entries they supersede have to be
+# deleted, or GitHub evicts whatever it likes, including the entries builds
+# still need. Running after each master build keeps at most one generation of
+# superseded entries around; the daily run catches closed pull requests and
+# deleted branches. See .github/scripts/prune-actions-caches.sh for the rules.
+on:
+  # workflow_run is safe here: the job runs the default branch's own script,
+  # never the triggering run's code or artifacts, and reads nothing from the
+  # triggering event.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: ["CI Build", "CodeQL"]
+    types: [completed]
+    branches: [master]
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only list what would be deleted"
+        type: boolean
+        default: true
+
+concurrency:
+  group: cache-cleanup
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  prune:
+    name: Prune stale caches
+    runs-on: ubuntu-24.04
+    # No run history yet; listing and deleting a few hundred entries through
+    # the API takes a minute or two (#218).
+    timeout-minutes: 15
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Delete stale cache entries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          .github/scripts/prune-actions-caches.sh "${args[@]}"

@@ -4,28 +4,40 @@ runs:
   using: "composite"
   steps:
 
+    # The compilers come from the workflow's own matrix, never from untrusted
+    # input, so writing them to GITHUB_ENV is safe (#204).
     - name: Prepare compiler env
       shell: sh
-      run: |
-        echo "CC=${{ matrix.config.cc }}" >> $GITHUB_ENV
-        echo "CXX=${{ matrix.config.cxx }}" >> $GITHUB_ENV
+      env:
+        MATRIX_CC: ${{ matrix.config.cc }}
+        MATRIX_CXX: ${{ matrix.config.cxx }}
+      run: | # zizmor: ignore[github-env]
+        # `shell: sh` only runs with -e; -u also catches a misspelt variable,
+        # and each step of more than one command sets it (#218).
+        set -eu
+        echo "CC=$MATRIX_CC" >> $GITHUB_ENV
+        echo "CXX=$MATRIX_CXX" >> $GITHUB_ENV
 
+    # The key covers the CPM script as well as the package list: a CPM update
+    # can change how sources are laid out in the cache (#219).
     - name: Restore CPM cache
-      uses: actions/cache@v4
+      id: cpm_cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ github.workspace }}/cpm_cache
-        key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+        key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
         restore-keys: |
           cpm-${{ runner.os }}-${{ matrix.config.arch }}-
 
     - name: configure
       shell: sh
       run: |
+        set -eu
         # sccache is installed and enabled by agent-setup. It is wired in as
         # the CMake compiler launcher so the project's own build files stay
         # untouched.
         LAUNCHER_OPTS=""
-        if [ "$SCCACHE_GHA_ENABLED" = "true" ]; then
+        if [ "${SCCACHE_GHA_ENABLED:-}" = "true" ]; then
           LAUNCHER_OPTS="-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
           if [ "$RUNNER_OS" = "Windows" ]; then
             # sccache cannot cache MSVC objects compiled with /Zi (the debug
@@ -47,12 +59,27 @@ runs:
       run: |
         cmake --build $LOGSQUIRL_BUILD_ROOT -t ci_build
 
+    # A pull request that changes the dependencies would otherwise add a
+    # ~400 MB entry scoped to its own ref; only the default branch saves, and
+    # only when the exact key was missing (caches are immutable) (#219).
+    - name: Save CPM cache
+      if: >-
+        steps.cpm_cache.outputs.cache-hit != 'true'
+        && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ github.workspace }}/cpm_cache
+        key: ${{ steps.cpm_cache.outputs.cache-primary-key }}
+
     - name: sccache stats
       if: always()
       shell: bash
+      env:
+        BUILD_NAME: ${{ runner.os }} / ${{ matrix.config.arch }}
       run: |
-        if [ "$SCCACHE_GHA_ENABLED" = "true" ] && command -v sccache >/dev/null 2>&1; then
-          sccache --show-stats
+        set -euo pipefail
+        if [ "${SCCACHE_GHA_ENABLED:-}" = "true" ] && command -v sccache >/dev/null 2>&1; then
+          sccache --show-stats | "$GITHUB_WORKSPACE/.github/scripts/sccache-stats-summary.sh" "$BUILD_NAME"
         else
           echo "sccache not enabled on this runner"
         fi

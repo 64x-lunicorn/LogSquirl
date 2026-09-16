@@ -1,33 +1,134 @@
 version: 2
+# Every entry has a cooldown: a release is only proposed once it is a week
+# old, so a compromised or broken version is usually yanked before it reaches
+# a pull request. Security updates ignore the cooldown (#204).
 updates:
+  # "/" only scans .github/workflows; the composite actions under
+  # .github/actions/* pin their own third-party actions.
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
+    groups:
+      github-actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
+  # Keeps the digest-pinned FROM lines current (#215); a bump changes the
+  # image inputs hash, so CI builds it on the PR and publishes it on merge.
   - package-ecosystem: "docker"
     directory: "/docker/ubuntu24.04"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
+    groups:
+      docker-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "docker"
     directory: "/docker/oracle10"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+    labels:
+      - "ci"
+      - "dependencies"
+    groups:
+      docker-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/fedora44"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    # A Fedora release bump is not a digest bump: the directory, the GHCR image
+    # name and CI Build's os_version/check_container all name the release, so a
+    # Dockerfile-only bump builds on one Fedora and install-checks on another
+    # (this is how fedora43 came to say FROM fedora:44). Move releases by hand (#198).
+    ignore:
+      - dependency-name: "fedora"
+        update-types: ["version-update:semver-major"]
     labels:
       - "ci"
       - "dependencies"
 
   - package-ecosystem: "docker"
-    directory: "/docker/fedora43"
+    directory: "/docker/ubuntu22.04"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
+    groups:
+      docker-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Lower-bound-only ranges (pytest>=7.0) are already satisfied by new
+  # releases, so the default strategy leaves them alone; only a bump that
+  # falls outside a range produces a PR.
+  # The SBOM generator's hash-locked validation dependencies (#212).
+  - package-ecosystem: "pip"
+    directory: "/scripts/sbom"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    labels:
+      - "ci"
+      - "dependencies"
+    groups:
+      sbom-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "pip"
+    directory: "/tests/e2e"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+    groups:
+      pip-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"

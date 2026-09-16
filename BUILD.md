@@ -206,6 +206,10 @@ cd build_root
 ctest --build-config RelWithDebInfo --verbose
 ```
 
+Each Catch2 test case is its own ctest test named `<test executable>: <test case>`, so a
+single case runs with e.g. `ctest -R "^logsquirl_tests: Scenario: QuickFind"`. The tests
+run one after another: the Qt test executables share one portable settings file.
+
 ### E2E integration tests (Python / pytest)
 
 End-to-end tests exercise the compiled `logsquirl_grep` and `logsquirl` binaries
@@ -262,15 +266,36 @@ Linux builds use pre-built Docker images hosted on GHCR:
 | `ghcr.io/64x-lunicorn/logsquirl-oracle10` | Oracle Linux 10 | Qt 6, GCC, RPM |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy` | Ubuntu 22.04 | Qt 6, GCC 12, AppImage |
-| `ghcr.io/64x-lunicorn/logsquirl-fedora43` | Fedora 43 | Qt 6, GCC, RPM |
+| `ghcr.io/64x-lunicorn/logsquirl-fedora44` | Fedora 44 | Qt 6, GCC, RPM |
 
 Every image is built with `docker/` as its build context, so all four install sccache
 from the one script `docker/shared/install-sccache.sh`; bumping sccache is an edit to that file only.
-Each image carries a `dockerfile.sha256` label computed by `docker/image-hash.sh` over its own directory
-and `docker/shared`; CI rebuilds a pulled image locally when that label no longer matches the checkout.
+Images are content-addressed. `docker/image-hash.sh` hashes an image's own directory and `docker/shared`;
+the **Docker Images** workflow pushes each image under that hash as its tag (plus `:latest`, for humans only)
+and never overwrites an existing hash tag. CI Build computes the same hash from its checkout and pulls exactly
+`<image>:<hash>`; when that tag does not exist (a PR that changes `docker/`, or a merge the workflow has not
+published yet) it builds the image locally under the same ref. So an open PR's toolchain changes only when
+its own `docker/` files do.
 
-Images are rebuilt automatically when files in `docker/` change on master, or monthly for OS security patches.
-To rebuild manually, trigger the **Docker Images** workflow via `workflow_dispatch`.
+Before pushing, the Docker Images workflow scans each image with Trivy (CRITICAL and HIGH, fixed upstream only) and
+uploads the result to code scanning under `trivy-image-<name>`; findings are reported there but do not fail the
+build. The pushed image carries buildx SBOM and provenance attestations and a keyless cosign signature. CI Build
+refuses a pulled image whose signature does not come from `ci-docker.yml` on master; to check one by hand:
+
+```sh
+cosign verify ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:<hash> \
+  --certificate-identity-regexp '^https://github\.com/64x-lunicorn/LogSquirl/\.github/workflows/ci-docker\.yml@refs/heads/master$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+Every `FROM` is pinned by digest (`image:tag@sha256:…`); Dependabot proposes digest bumps as pull requests.
+
+Images are published when files in `docker/` change on master. OS security patches arrive through a monthly
+scheduled run that bumps `docker/shared/refresh-stamp` on the branch `ci/docker-image-refresh` and files an issue
+linking to it; opening and merging that pull request gives every image a new hash and so a fresh build. Workflows
+may not open pull requests in this repository, so the maintainer opens it, and CI Build runs on it as usual. To
+propose a refresh by hand, run the **Docker Images** workflow via `workflow_dispatch` with *propose_refresh*;
+running it on master without that publishes any hash tag still missing.
 
 > **AppImage compatibility:** The AppImage is built on the Ubuntu 22.04 (jammy)
 > image on purpose. `linuxdeploy` bundles Qt and libssl but never bundles glibc
@@ -291,8 +316,23 @@ Releases are triggered by pushing a git tag to master:
 The release workflow:
 1. Calls `ci-build.yml` to build all platforms
 2. Uploads debug symbols to Sentry (non-blocking)
-3. Publishes a single GitHub Release with all platform packages
-4. Updates `latest.json` with the new version (beta or stable field)
+3. Builds the release SBOM `logsquirl-<version>-sbom.cdx.json` (CycloneDX 1.6):
+   the CPM packages and pinned platform components that CI Build's SBOM job read
+   from the built commit, plus the Qt, OpenSSL and ICU versions found in the
+   AppImage, Windows zip and macOS app and what syft finds in them
+   (`scripts/sbom/logsquirl_sbom.py`)
+4. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
+   grype for the components with a CPE, OSV for the CPM packages by pinned commit
+   and tag. All findings go to code scanning (category `sbom-vulns`); a critical
+   one (CVSS v3/v4 base score ≥ 9.0 or rated critical) stops the release unless
+   `scripts/sbom/vuln-ignore.yml` on master accepts it with a reason and an expiry date. The file is read
+   from master even for a tag release, so accepting a risk and re-running the failed job is enough.
+   The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
+5. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
+   attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with
+   cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
+   the checksum file), then publishes the draft. A failure in between leaves a draft.
+6. Updates `latest.json` with the new version (beta or stable field)
 
 Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag.
 
@@ -303,4 +343,41 @@ Manual releases are also supported via `workflow_dispatch` — provide a CI Buil
 | `ci-build.yml` | push/PR to master | Build + test all platforms |
 | `ci-release.yml` | tag push `v*` | Publish GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
-| `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis |
+| `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
+
+### Action pinning
+
+Every third-party action in `.github/workflows/` and `.github/actions/` is pinned to the full commit SHA of a
+release, with that release's exact version as a comment; local actions (`./.github/actions/...`) are exempt:
+
+```yaml
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+```
+
+A tag can be moved to other code, a commit SHA cannot. Dependabot reads the `# vX.Y.Z` comment and bumps SHA and
+comment together. To add or bump an action by hand, resolve the release tag to its commit (peel an annotated tag:
+`gh api repos/<owner>/<repo>/git/ref/tags/<tag>`, then `.../git/tags/<sha>` while the object type is `tag`). The
+repository requires SHA pinning, and the Format job of CI Build runs the same check as
+
+```bash
+.github/scripts/check-action-pins.sh
+```
+
+### Repository settings
+
+Some guarantees live in the repository settings rather than in a workflow file: `GITHUB_TOKEN` is read-only unless a
+job asks for more, workflows cannot create or approve pull requests, only GitHub-owned actions and an explicit list
+of third-party actions may run, SHA pinning is required, and `v*` tags can only be created by an admin and never
+moved or deleted. `.github/scripts/repo-settings.sh` holds that list and both checks and applies it (admin `gh` login
+needed):
+
+```bash
+.github/scripts/repo-settings.sh check   # exit 1 on drift
+.github/scripts/repo-settings.sh apply
+```
+
+`--defer-sha-pinning` (for both) leaves required SHA pinning untouched. Use it while master still has workflows with
+unpinned actions, since requiring pins fails every such run.
+
+A new third-party action has to be added to the script's `ALLOWED_ACTIONS` and applied before the workflow using it
+can run. Because workflows cannot create `v*` tags, push the release tag before dispatching CI Release by hand.

@@ -4,8 +4,26 @@ runs:
   using: "composite"
   steps:
 
+    # Every Catch2 test case is its own ctest test with its own timeout;
+    # --timeout covers the tests without one. Serial on purpose: the Qt test
+    # executables share one portable settings file. The JUnit report names each
+    # case, so it is shown and kept instead of --verbose logs (#217).
     - name: test
       shell: sh
       run: |
-        cd $LOGSQUIRL_BUILD_ROOT
-        ctest --verbose --output-on-failure
+        set -eu
+        # The offscreen platform reads fonts from a directory, and Qt no longer
+        # ships one: on Windows it found none, so font-dependent cases failed
+        # once they ran in a fresh process, and Qt's two-line warning about it
+        # broke test case discovery. Point it at the system fonts (#217).
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          export QT_QPA_FONTDIR='C:\Windows\Fonts'
+        fi
+        cd "$LOGSQUIRL_BUILD_ROOT"
+        ctest --output-on-failure --timeout 120 --output-junit ctest-junit.xml
+
+    - uses: ./.github/actions/ctest-report
+      if: always()
+      with:
+        junit-file: ${{ env.LOGSQUIRL_BUILD_ROOT }}/ctest-junit.xml
+        artifact-name: ${{ matrix.config.artifacts_id }}
