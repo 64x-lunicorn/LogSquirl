@@ -300,7 +300,10 @@ Releases are triggered by pushing a git tag to master:
 The release workflow:
 1. Calls `ci-build.yml` to build all platforms
 2. Uploads debug symbols to Sentry (non-blocking)
-3. Publishes a single GitHub Release with all platform packages
+3. Creates a draft GitHub Release with all platform packages and the checksum file,
+   attests build provenance for every asset, signs the checksum file keyless with
+   cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
+   the checksum file), then publishes the draft. A failure in between leaves a draft.
 4. Updates `latest.json` with the new version (beta or stable field)
 
 Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag.

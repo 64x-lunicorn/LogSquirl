@@ -59,6 +59,12 @@ and choose the package for your platform.
 
 See the release notes for package details and platform requirements.
 
+Want to be sure a download is genuine? Every release has a
+`logsquirl-<version>-sha256.txt` checksum file signed with Sigstore, and every
+asset carries a GitHub build provenance attestation. The **Verifying downloads**
+section of the release notes has the `cosign verify-blob`, `sha256sum -c` and
+`gh attestation verify` commands.
+
 ### 2. Find your first clue
 
 1. **Open a log file** you want to investigate.

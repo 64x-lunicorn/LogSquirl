@@ -348,6 +348,8 @@ jobs:
           fi
           mv "$checksums" "./packages-bin/$checksum_name"
           cat "./packages-bin/$checksum_name"
+          # The signing step signs this file; its bundle is not a checksum entry (#214).
+          echo "checksum_file=./packages-bin/$checksum_name" >> "$GITHUB_OUTPUT"
 
           {
             echo "files<<RELEASE_ASSET_GLOBS"
@@ -362,28 +364,104 @@ jobs:
         run: |
           python3 scripts/gen_changelog.py > release_notes.md 2>/dev/null || echo "See commit history for changes." > release_notes.md
 
-      - name: Publish release
+      # The verification commands name this release's files, so they are added
+      # here rather than in gen_changelog.py, which knows nothing about assets (#214).
+      - name: Append verification instructions
+        run: |
+          set -euo pipefail
+          # A quoted heredoc written to a file (not captured with $(...)) keeps
+          # the backslash line continuations of the commands intact.
+          template="$RUNNER_TEMP/verifying-downloads.md"
+          cat > "$template" <<'NOTES'
+
+          ## Verifying downloads
+
+          Every download is listed in `logsquirl-@VERSION@-sha256.txt`. The
+          checksum file is signed with Sigstore (`logsquirl-@VERSION@-sha256.txt.sigstore.json`,
+          which is itself not listed in the checksum file), and every asset carries a
+          GitHub build provenance attestation.
+
+          ```sh
+          # 1. Check the signature of the checksum file (needs cosign)
+          cosign verify-blob \
+            --bundle logsquirl-@VERSION@-sha256.txt.sigstore.json \
+            --certificate-identity-regexp '^https://github\.com/64x-lunicorn/LogSquirl/\.github/workflows/ci-release\.yml@refs/(tags/v.+|heads/master)$' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            logsquirl-@VERSION@-sha256.txt
+
+          # 2. Check the files you downloaded against it
+          sha256sum -c logsquirl-@VERSION@-sha256.txt --ignore-missing
+
+          # 3. Or check a single file's build provenance (needs the GitHub CLI)
+          gh attestation verify <file> -R 64x-lunicorn/LogSquirl
+          ```
+          NOTES
+          section=$(cat "$template")
+          printf '%s\n' "${section//@VERSION@/$LOGSQUIRL_VERSION}" >> release_notes.md
+
+      # Publish as a draft first: provenance and signature are created while
+      # the release is still invisible, and a failure in any later step leaves
+      # a draft instead of a public release without them. A re-run reuses the
+      # draft for the same tag (#214).
+      - name: Create draft release
+        id: draft
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: "LogSquirl ${{ needs.prepare.outputs.tag }}"
           body_path: release_notes.md
           prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
+          draft: true
           # Same directory list the checksum file was computed from (#196)
           files: ${{ steps.assets.outputs.files }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Every uploaded asset, the checksum file included, gets a provenance
+      # attestation: the subjects are the same globs the draft was built from,
+      # so a new asset directory (e.g. an SBOM) is covered automatically (#214).
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: |
-            ./packages-windows-x64/*
-            ./packages-noble/*
-            ./packages-oracle/*
-            ./packages-fedora/*
-            ./packages-appimage/*
-            ./packages-mac-arm64/*
+          subject-path: ${{ steps.assets.outputs.files }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4
+
+      # Keyless signature over the checksum file, bound to this workflow's
+      # identity: ci-release.yml@refs/tags/v* for a tag push, @refs/heads/master
+      # for a manual release dispatched from master (the regexp in the release
+      # notes accepts exactly these two). The bundle is created after the checksum file, so it is not
+      # (and cannot be) listed in it; users verify it with cosign instead (#214).
+      - name: Sign checksum file
+        env:
+          CHECKSUM_FILE: ${{ steps.assets.outputs.checksum_file }}
+        run: |
+          set -euo pipefail
+          # Written outside the asset directories, so no asset glob can pick it up.
+          bundle="$RUNNER_TEMP/${CHECKSUM_FILE##*/}.sigstore.json"
+          cosign sign-blob --yes --bundle "$bundle" "$CHECKSUM_FILE"
+
+      - name: Upload signature bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          CHECKSUM_FILE: ${{ steps.assets.outputs.checksum_file }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" "$RUNNER_TEMP/${CHECKSUM_FILE##*/}.sigstore.json" --clobber
+
+      # Last step: only a release with attestations and a signed checksum file
+      # becomes public, and update-metadata only runs once this succeeded (#214).
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.draft.outputs.id }}
+        run: |
+          set -euo pipefail
+          gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" -F draft=false --jq '.html_url'
 
   # ── Job 5: Update latest.json ──────────────────────────────────────────
   update-metadata:
