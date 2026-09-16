@@ -249,25 +249,8 @@ jobs:
         with:
           name: release-artifacts
 
-      # sentry-cli runs with SENTRY_AUTH_TOKEN in its environment, so it is a
-      # fixed release binary checked against a known SHA-256 instead of whatever
-      # an install script piped into bash returns (#200). Renovate bumps the
-      # version and .github/workflows/renovate-checksums.yml the hash (#211).
-      - name: Install sentry-cli
-        env:
-          # renovate: datasource=github-releases depName=getsentry/sentry-cli
-          SENTRY_CLI_VERSION: "3.8.0"
-          SENTRY_CLI_SHA256: "13f8cb34ae01a6a272d7d7c22e277a105286615b4020de900ea95a8de47cdbb6"
-        run: |
-          set -euo pipefail
-          bin_dir="$RUNNER_TEMP/sentry-cli-bin"
-          mkdir -p "$bin_dir"
-          curl -fsSL --retry 3 -o "$bin_dir/sentry-cli" \
-            "https://github.com/getsentry/sentry-cli/releases/download/${SENTRY_CLI_VERSION}/sentry-cli-Linux-x86_64"
-          echo "${SENTRY_CLI_SHA256}  $bin_dir/sentry-cli" | sha256sum -c -
-          chmod 0755 "$bin_dir/sentry-cli"
-          echo "$bin_dir" >> "$GITHUB_PATH"
-          "$bin_dir/sentry-cli" --version
+      # A pinned sentry-cli release checked against its SHA-256 (#200, #211).
+      - uses: ./.github/actions/install-sentry-cli
 
       - name: Create Sentry release
         run: |

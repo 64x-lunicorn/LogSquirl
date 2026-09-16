@@ -307,6 +307,20 @@ def test_sarif_points_at_the_pin_and_carries_suppressions(tmp_path):
     assert critical["partialFingerprints"] != medium["partialFingerprints"]
 
 
+@pytest.mark.parametrize("component, ref, path, pin", [
+    ("qt", "platform:qt", ".github/workflows/ci-build.yml", "qt_version:"),
+    # OpenSSL's pin moved into a composite action, where the Renovate Checksums
+    # workflow may push its hash (#211).
+    ("openssl", "platform:openssl@3.5.8", ".github/actions/windows-openssl/action.yml", "OPENSSL_VERSION:"),
+    ("boost", "platform:boost", ".github/actions/agent-setup/action.yml", "BOOST_VERSION="),
+])
+def test_sarif_of_a_platform_component_points_at_its_pin_in_the_repository(component, ref, path, pin):
+    log = vs.to_sarif([finding(ref=ref, component=component)], REPO)
+    loc = log["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
+    assert loc["artifactLocation"]["uri"] == path
+    assert pin in (REPO / path).read_text().splitlines()[loc["region"]["startLine"] - 1]
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 

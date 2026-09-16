@@ -391,7 +391,11 @@ Both wait until a release is seven days old and run weekly; Renovate lists every
   its default branch and only gets a PR once its checkbox on the Dependency Dashboard is ticked.
 
 A tool pin that is downloaded and verified is written as a block Renovate and the checksum script both read; to add
-one, follow the same form and add its download URL to `URLS` in `.github/scripts/update-checksums.py`:
+one, follow the same form and add its download URL to `URLS` in `.github/scripts/update-checksums.py`. The block goes
+into a composite action (`.github/actions/*/action.yml`), a Dockerfile or a script, never into a workflow file: the
+Renovate Checksums workflow pushes with `GITHUB_TOKEN`, which may not change `.github/workflows/`, so
+`update-checksums.py --list` fails on a pair there. That is why OpenSSL (`.github/actions/windows-openssl`) and
+sentry-cli (`.github/actions/install-sentry-cli`) are installed by composite actions:
 
 ```yaml
 # renovate: datasource=github-releases depName=anchore/grype

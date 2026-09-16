@@ -509,67 +509,14 @@ jobs:
     # Slowest successful run 38 min (cold sccache), median 22 min, before #217's
     # per-case test processes; #199's changed cache keys start it cold (#218).
     timeout-minutes: 90
-    env:
-      # One place per shipped dependency, so a bump is one edit (#199).
-      # renovate: datasource=github-tags depName=openssl/openssl extractVersion=^openssl-(?<version>.*)$
-      OPENSSL_VERSION: 3.5.8
-      OPENSSL_SHA256: a5377866b476c1661f329d3f25fc35912fa5ef01e614043b9b9a27baf8dd76a4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # The OpenSSL DLLs are shipped with the Windows package, so their version
-      # is pinned above, verified against a SHA-256 and part of the cache key:
-      # bumping OPENSSL_VERSION invalidates the cache (#199). Chocolatey cannot
-      # pin it: its package points at slproweb.com, which deletes every
-      # superseded patch release, so an older --version 404s on a cold cache.
-      # FireDaemon keeps every release online at a stable URL and ships a plain
-      # zip whose DLLs need only the UCRT. The 3.5 line is OpenSSL's LTS.
-      - name: Cache openssl
-        id: cache-openssl
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ github.workspace }}\openssl-3
-          key: OpensslCache-${{ env.OPENSSL_VERSION }}-firedaemon-x64
-
-      - name: Install openssl
-        if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $zip = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION.zip"
-          Invoke-WebRequest -Uri "https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-$env:OPENSSL_VERSION.zip" -OutFile $zip -MaximumRetryCount 3 -RetryIntervalSec 5
-          $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
-          if ($actual -ne $env:OPENSSL_SHA256) {
-            Write-Host "::error::openssl-$env:OPENSSL_VERSION.zip SHA-256 mismatch: expected $env:OPENSSL_SHA256, got $actual"
-            exit 1
-          }
-          $src = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION"
-          Expand-Archive -Path $zip -DestinationPath $src -Force
-          $dst = "${{ github.workspace }}\openssl-3\x64\bin"
-          New-Item -ItemType Directory -Force -Path $dst | Out-Null
-          Copy-Item "$src\x64\bin\libcrypto-3-x64.dll", "$src\x64\bin\libssl-3-x64.dll" $dst
-
-      # Runs on cache hits too, so every log states which OpenSSL gets shipped
-      # and a cache holding another version fails instead of shipping it (#199).
-      - name: Print shipped openssl version
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $dlls = @(Get-ChildItem "${{ github.workspace }}\openssl-3\x64\bin\lib*-3-x64.dll")
-          if ($dlls.Count -ne 2) {
-            Write-Host "::error::expected libcrypto and libssl, found: $($dlls.Name -join ', ')"
-            exit 1
-          }
-          foreach ($dll in $dlls) {
-            $version = $dll.VersionInfo.ProductVersion
-            Write-Host "$($dll.Name): OpenSSL $version"
-            if ($version -ne $env:OPENSSL_VERSION) {
-              Write-Host "::error::$($dll.Name) is OpenSSL $version, expected $env:OPENSSL_VERSION"
-              exit 1
-            }
-          }
+      # The OpenSSL the Windows package ships: pinned version and SHA-256,
+      # cached per version (#199).
+      - uses: ./.github/actions/windows-openssl
 
       - name: Set openssl paths
         shell: sh

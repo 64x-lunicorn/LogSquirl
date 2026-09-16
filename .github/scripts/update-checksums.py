@@ -188,6 +188,20 @@ def _scan(root: Path) -> tuple[list[Pair], list[str]]:
     return pairs, errors
 
 
+# The Renovate Checksums workflow pushes the refreshed hashes with GITHUB_TOKEN,
+# and GitHub refuses any push from it that touches .github/workflows/ (that
+# needs the `workflows` permission, which GITHUB_TOKEN never has). A pair there
+# would fail every Renovate PR for it, so pins live in composite actions (#211).
+WORKFLOWS_DIR = ".github/workflows/"
+
+
+def workflow_pair_errors(pairs: list[Pair]) -> list[str]:
+    return [f"{p.path}:{p.line + 1}: {p.dep_name} pins a version and SHA-256 in a workflow file, where the "
+            "Renovate Checksums workflow cannot push (GITHUB_TOKEN may not change .github/workflows/); "
+            "move the download into a composite action under .github/actions/"
+            for p in pairs if p.path.startswith(WORKFLOWS_DIR)]
+
+
 def main(argv: list[str] | None = None, fetch: Callable[[str], bytes] = fetch_url) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group()
@@ -197,6 +211,7 @@ def main(argv: list[str] | None = None, fetch: Callable[[str], bytes] = fetch_ur
     args = parser.parse_args(argv)
 
     pairs, errors = _scan(args.repo_root)
+    errors += workflow_pair_errors(pairs)
     urls: dict[tuple[str, int], str] = {}
     for pair in pairs:
         try:

@@ -713,7 +713,8 @@ def blocking(findings: Iterable[Finding], fail_on: str) -> list[Finding]:
 _PIN_LOCATIONS = {
     "qt": (".github/workflows/ci-build.yml", r"qt_version:"),
     "icu": (".github/workflows/ci-build.yml", r"qt_version:"),  # ICU comes with the Qt install
-    "openssl": (".github/workflows/ci-build.yml", r"OPENSSL_VERSION:"),
+    # The Windows package's OpenSSL; its pin is in a composite action (#211).
+    "openssl": (".github/actions/windows-openssl/action.yml", r"OPENSSL_VERSION:"),
     "boost": (".github/actions/agent-setup/action.yml", r"BOOST_VERSION="),
 }
 _FALLBACK_LOCATION = "scripts/sbom/logsquirl_sbom.py"

@@ -150,3 +150,18 @@ ENV NINJA_SHA256={HASH_A}
     assert uc.main(["--check", "--repo-root", str(tmp_path)], fetch=lambda url: b"other") == 1
     assert path.read_text() == text
     assert "docker/img/Dockerfile:3: NINJA_SHA256 mismatch" in capsys.readouterr().err
+
+
+def test_list_fails_on_a_pair_in_a_workflow_file(tmp_path, capsys):
+    # The Renovate Checksums workflow pushes with GITHUB_TOKEN, which may not
+    # change .github/workflows/, so a hash there could never be refreshed (#211).
+    write(tmp_path, ".github/workflows/ci.yml", f"""\
+    env:
+      # renovate: datasource=github-releases depName=anchore/grype
+      GRYPE_VERSION: 0.118.0
+      GRYPE_SHA256: {HASH_A}
+""")
+    assert uc.main(["--list", "--repo-root", str(tmp_path)]) == 1
+    err = capsys.readouterr().err
+    assert ".github/workflows/ci.yml:3: anchore/grype" in err
+    assert "composite action under .github/actions/" in err
