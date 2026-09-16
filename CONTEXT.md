@@ -295,7 +295,9 @@ Search's button row starts in: whether case is ignored, whether the Search auto-
 and whether the pattern is read as a logical combination. Those are starting state, not live
 state — they seed the buttons when a Log File is opened, and a Policy arriving later does not
 set a button the user has since changed by hand. It carries how typed text is read, not how
-a Search runs — that is the Search Policy.
+a Search runs — that is the Search Policy. The QuickFind bar belongs to a window, not to a
+Log File, so the window takes this Policy from its session: the same one whichever tab or
+Filtered View is in front, and taken again whenever a setting changes.
 _Avoid_: find settings, search options
 
 **Axis**:

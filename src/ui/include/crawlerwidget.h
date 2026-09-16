@@ -221,11 +221,6 @@ Q_SIGNALS:
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
 
-    // Sent when this Log File has been handed a QuickFind Policy, so that the
-    // QuickFind bar and the mux -- which belong to the window, not to a Log
-    // File -- follow it without reading a setting of their own.
-    void quickFindPolicyChanged( const QuickFindPolicy& policy );
-
 public Q_SLOTS:
     // Apply a list of predefined filters as the current search pattern.
     void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );

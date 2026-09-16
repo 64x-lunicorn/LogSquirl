@@ -549,17 +549,15 @@ SCENARIO( "The Crawler Widget shows and searches under the Policies it was hande
 
         WHEN( "a QuickFind Policy reading it as an extended regexp arrives" )
         {
-            QSignalSpy policyChanged( crawlerVisitor.crawler.get(),
-                                      &CrawlerWidget::quickFindPolicyChanged );
-
             policies.quickFind.mainRegexpType = SearchRegexpType::ExtendedRegexp;
             session.applyPolicies( policies );
 
-            THEN( "the Log File already open holds it, and hands it on" )
+            // Nothing is handed on to the window: its QuickFind bar takes the
+            // Policy from its session (#231).
+            THEN( "the Log File already open holds it" )
             {
                 REQUIRE( crawlerVisitor.crawler->quickFindPolicy().mainRegexpType
                          == SearchRegexpType::ExtendedRegexp );
-                REQUIRE( policyChanged.count() == 1 );
             }
         }
     }

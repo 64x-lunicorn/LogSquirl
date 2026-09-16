@@ -310,6 +310,13 @@ private:
         else {
             logFormatCatalog_->rebuild();
         }
+
+        // The QuickFind bar belongs to a window, not to a Log File, so the
+        // Session cannot reach it: every window takes the QuickFind Policy
+        // from its session again, not only the one the setting was changed in.
+        for ( const auto& window : mainWindows_ ) {
+            window.second->applyQuickFindPolicy();
+        }
     }
 
     void onWindowActivated( MainWindow& window )

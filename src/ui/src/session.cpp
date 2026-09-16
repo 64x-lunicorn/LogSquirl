@@ -213,6 +213,9 @@ void Session::applyPolicies( const SettingsPolicies& policies )
         }
 
         if ( quickFindChanged ) {
+            // The views' own use of it: how the Search line reads its pattern
+            // and what the Table View hands a QuickFind. The window's QuickFind
+            // bar and mux read it from the Session instead.
             openFile.view->setQuickFindPolicy( policies_.quickFind );
         }
 

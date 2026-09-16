@@ -32,6 +32,11 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
 #include <QTemporaryFile>
 
 #include "configuration.h"
@@ -42,7 +47,9 @@
 #include "logmainview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
+#include "optionsdialog.h"
 #include "overviewwidget.h"
+#include "quickfindwidget.h"
 #include "session.h"
 #include "settingspolicies.h"
 #include "test_policies.h"
@@ -283,5 +290,142 @@ SCENARIO( "Toggling line numbers or the overview from the View menu reaches ever
     config.setMainLineNumbersVisible( mainLineNumbersVisible );
     config.setFilteredLineNumbersVisible( filteredLineNumbersVisible );
     config.setOverviewVisible( overviewVisible );
+    config.save();
+}
+
+namespace {
+
+// Whether the QuickFind bar reads what the user types into it as a regexp: the
+// bar says so with every pattern it reports.
+bool quickFindBarReadsRegexp( QuickFindWidget& bar )
+{
+    auto* patternEdit = bar.findChild<QLineEdit*>();
+    REQUIRE( patternEdit != nullptr );
+    patternEdit->clear();
+
+    // Only what the bar reports is looked at: no QuickFind is to run on the
+    // Log File in front, which would outlive this check.
+    QObject::disconnect( &bar, &QuickFindWidget::patternUpdated, nullptr, nullptr );
+
+    QSignalSpy updated( &bar, &QuickFindWidget::patternUpdated );
+    QTest::keyClicks( patternEdit, "abc" );
+    REQUIRE( !updated.isEmpty() );
+    return updated.last().at( 2 ).toBool();
+}
+
+} // namespace
+
+// The QuickFind bar and the mux belong to the window, not to a Log File, so the
+// window takes the QuickFind Policy from its session (#231) -- the same one
+// however many Log Files are open, and whichever tab or Filtered View is in
+// front. A changed QuickFind setting reaches the bar when the Options Dialog
+// applies it, not only at the next tab switch.
+SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with several Log Files "
+          "open",
+          "[ui][settings]" )
+{
+    auto& config = Configuration::get();
+    const auto quickfindRegexpType = config.quickfindRegexpType();
+    config.setQuickfindRegexpType( SearchRegexpType::FixedString );
+
+    auto appSession = std::make_shared<Session>( deriveSettingsPolicies( config ),
+                                                 std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+
+    QTemporaryFile firstFile{ "mainwindow_quickfind_first_XXXXXX" };
+    QTemporaryFile secondFile{ "mainwindow_quickfind_second_XXXXXX" };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0, [ & ] { mainWindow.reset( new MainWindow( windowSession ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    // What the application does with the signal.
+    QObject::connect( mainWindow.get(), &MainWindow::settingsChanged, [ &appSession ]() {
+        appSession->applyPolicies( deriveSettingsPolicies( Configuration::get() ) );
+    } );
+
+    mainWindow->loadFileNonInteractive( firstFile.fileName() );
+    mainWindow->loadFileNonInteractive( secondFile.fileName() );
+
+    std::vector<CrawlerWidget*> crawlers;
+    REQUIRE( waitUiState( [ & ] {
+        const auto found = mainWindow->findChildren<CrawlerWidget*>();
+        crawlers.assign( found.cbegin(), found.cend() );
+        return crawlers.size() == 2;
+    } ) );
+
+    auto* quickFindBar = mainWindow->findChild<QuickFindWidget*>();
+    REQUIRE( quickFindBar != nullptr );
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+
+    GIVEN( "two Log Files open in their tabs, and a QuickFind reading a fixed string" )
+    {
+        REQUIRE_FALSE( quickFindBarReadsRegexp( *quickFindBar ) );
+
+        WHEN( "QuickFind is set to read an extended regexp in the Options Dialog" )
+        {
+            // The dialog is modal: it is driven from inside its own event loop.
+            QTimer dialogDriver;
+            QObject::connect( &dialogDriver, &QTimer::timeout, [ & ] {
+                auto* modal = QApplication::activeModalWidget();
+                if ( auto* box = qobject_cast<QMessageBox*>( modal ) ) {
+                    box->accept();
+                }
+                else if ( auto* dialog = qobject_cast<OptionsDialog*>( modal ) ) {
+                    dialog->quickFindSearchBox->setCurrentIndex( 0 );
+                    dialog->buttonBox->button( QDialogButtonBox::Ok )->click();
+                }
+            } );
+            dialogDriver.start( 10 );
+
+            auto* optionsAction
+                = viewMenuAction( *mainWindow, logsquirl::mainwindow::action::optionsText );
+            REQUIRE( optionsAction != nullptr );
+            optionsAction->trigger();
+            dialogDriver.stop();
+
+            THEN( "the QuickFind bar reads an extended regexp, without a tab switch" )
+            {
+                REQUIRE( Configuration::get().quickfindRegexpType()
+                         == SearchRegexpType::ExtendedRegexp );
+                REQUIRE( quickFindBarReadsRegexp( *quickFindBar ) );
+            }
+
+            AND_WHEN( "the other tab is brought to the front" )
+            {
+                const auto current = tabArea->currentIndex();
+                tabArea->setCurrentWidget(
+                    tabArea->currentWidget() == crawlers[ 0 ] ? crawlers[ 1 ] : crawlers[ 0 ] );
+                REQUIRE( tabArea->currentIndex() != current );
+
+                THEN( "the QuickFind bar still reads an extended regexp" )
+                {
+                    REQUIRE( quickFindBarReadsRegexp( *quickFindBar ) );
+                }
+
+                AND_WHEN( "the Log File in front switches to another Filtered View" )
+                {
+                    Q_EMIT static_cast<CrawlerWidget*>( tabArea->currentWidget() )
+                        ->filteredViewChanged();
+
+                    THEN( "the QuickFind bar still reads an extended regexp" )
+                    {
+                        REQUIRE( quickFindBarReadsRegexp( *quickFindBar ) );
+                    }
+                }
+            }
+        }
+    }
+
+    mainWindow.reset();
+    config.setQuickfindRegexpType( quickfindRegexpType );
     config.save();
 }

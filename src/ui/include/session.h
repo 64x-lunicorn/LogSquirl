@@ -117,8 +117,12 @@ public:
     // where the Index Cache keeps its files. So it asks the Session, which
     // already stores the Policies and has them replaced on every settings
     // change, instead of keeping a snapshot of its own that would have to be
-    // refreshed in step. Only the three axes a window actually consumes are
-    // exposed, so it still cannot reach a setting it did not declare.
+    // refreshed in step. Only the axes a window actually consumes are exposed,
+    // so it still cannot reach a setting it did not declare.
+    //
+    // The QuickFind Policy is among them because the QuickFind bar and the mux
+    // that dispatches QuickFind belong to the window, not to a Log File: the
+    // Policy is the same whichever tab or Filtered View is in front.
     const WatchPolicy& watchPolicy() const
     {
         return policies_.watch;
@@ -132,6 +136,11 @@ public:
     const IndexingPolicy& indexingPolicy() const
     {
         return policies_.indexing;
+    }
+
+    const QuickFindPolicy& quickFindPolicy() const
+    {
+        return policies_.quickFind;
     }
 
     // Takes the Policies re-derived after a settings change: stores them
@@ -270,6 +279,11 @@ public:
     const IndexingPolicy& indexingPolicy() const
     {
         return appSession_->indexingPolicy();
+    }
+
+    const QuickFindPolicy& quickFindPolicy() const
+    {
+        return appSession_->quickFindPolicy();
     }
 
     QString windowId() const

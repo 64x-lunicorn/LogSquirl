@@ -398,9 +398,8 @@ void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
     }
 
     // The QuickFind bar and the mux that dispatches to this Log File belong to
-    // the window, which holds no Policy of its own: this is how a changed
-    // Policy reaches a QuickFind already on screen.
-    Q_EMIT quickFindPolicyChanged( policy );
+    // the window, which takes this Policy from its session: nothing is handed
+    // on from here.
 }
 
 void CrawlerWidget::doSetWatchPolicy( const WatchPolicy& policy )

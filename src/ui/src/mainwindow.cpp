@@ -185,11 +185,6 @@ MainWindow::MainWindow( WindowSession session )
     signalMux_.connect( SIGNAL( saveCurrentSearchAsPredefinedFilter( QString ) ), this,
                         SLOT( newPredefinedFilterHandler( QString ) ) );
 
-    // Only the Log File in front is connected, which is the one whose Policy
-    // the QuickFind bar and the mux are to follow.
-    signalMux_.connect( SIGNAL( quickFindPolicyChanged( const QuickFindPolicy& ) ), this,
-                        SLOT( applyQuickFindPolicy( const QuickFindPolicy& ) ) );
-
     signalMux_.connect( SIGNAL( sendToScratchpad( QString ) ), this,
                         SLOT( sendToScratchpad( QString ) ) );
 
@@ -306,6 +301,7 @@ MainWindow::MainWindow( WindowSession session )
 
     // Construct the QuickFind bar
     quickFindWidget_.hide();
+    applyQuickFindPolicy();
 
     // Build the central layout with the tab widget, quick-find bar, and
     // welcome dashboard as a permanent pinned first tab (if enabled).
@@ -1486,6 +1482,7 @@ void MainWindow::options()
 
         newWindowAction->setVisible( config.allowMultipleWindows() );
         followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
+        applyQuickFindPolicy();
 
         updateShortcuts();
         updateRecentFileActions();
@@ -1976,13 +1973,13 @@ void MainWindow::handleFilteredViewChanged()
             = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
         if ( crawler_widget ) {
             quickFindMux_.registerSelector( crawler_widget );
-            applyQuickFindPolicy( crawler_widget->quickFindPolicy() );
         }
     }
 }
 
-void MainWindow::applyQuickFindPolicy( const QuickFindPolicy& policy )
+void MainWindow::applyQuickFindPolicy()
 {
+    const auto& policy = session_.quickFindPolicy();
     quickFindMux_.setQuickFindPolicy( policy );
     quickFindWidget_.setQuickFindPolicy( policy );
 }
@@ -2099,7 +2096,6 @@ void MainWindow::currentTabChanged( int index )
         }
         signalMux_.setCurrentDocument( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
-        applyQuickFindPolicy( crawler_widget->quickFindPolicy() );
 
         // New tab is set up with fonts etc...
         Q_EMIT optionsChanged();

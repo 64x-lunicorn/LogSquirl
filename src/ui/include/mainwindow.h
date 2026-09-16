@@ -99,6 +99,15 @@ public:
 
     static int installLanguage( QString lang );
 
+    // Hand the QuickFind bar and the mux the QuickFind Policy this window's
+    // session holds now. Neither of them reads a setting of its own, and
+    // neither belongs to a Log File, so the Policy is the same whichever tab
+    // or Filtered View is in front: a tab switch leaves it alone. The window
+    // takes it once when it is built and again after the Options Dialog has
+    // changed a setting; whoever re-derives the Policies calls this on every
+    // other window too, so that a change made in one reaches them all.
+    void applyQuickFindPolicy();
+
 public Q_SLOTS:
     // Load a file in a new tab (non-interactive)
     // (for use from e.g. IPC)
@@ -187,13 +196,6 @@ private Q_SLOTS:
 
     // Update quick find searchable
     void handleFilteredViewChanged();
-
-    // Hand the QuickFind bar and the mux the QuickFind Policy of the Log File
-    // the user is in. Neither of them reads a setting of its own, and neither
-    // belongs to a Log File, so they are given the Policy of whichever one is
-    // in front -- when the user changes tab, and again whenever that Log File
-    // is handed a changed one.
-    void applyQuickFindPolicy( const QuickFindPolicy& policy );
 
     // Close the tab with the passed index
     void closeTab( int index, ActionInitiator initiator );
