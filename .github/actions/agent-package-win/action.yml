@@ -21,11 +21,16 @@ runs:
     - name: Win codesign executables
       if: ${{ inputs.sign-cert-pfx != '' && github.ref == 'refs/heads/master' }}
       shell: pwsh
+      # The certificate and its password reach the script through the
+      # environment, never interpolated into it (#204).
+      env:
+        SIGN_CERT_PFX: ${{ inputs.sign-cert-pfx }}
+        SIGN_CERT_PASSWORD: ${{ inputs.sign-cert-password }}
       run: |
         # pwsh stops on cmdlet errors only; signtool is a native command, so its
         # exit code is checked, or an unsigned binary would ship (#218).
         $ErrorActionPreference = 'Stop'
-        $pfxBytes = [System.Convert]::FromBase64String("${{ inputs.sign-cert-pfx }}")
+        $pfxBytes = [System.Convert]::FromBase64String($env:SIGN_CERT_PFX)
         $pfxPath  = Join-Path $env:RUNNER_TEMP "codesign.pfx"
         [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
         $bin = "$env:LOGSQUIRL_BUILD_ROOT\output"
@@ -36,14 +41,15 @@ runs:
         )
         foreach ($f in $exes) {
           if (Test-Path $f) {
-            & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "${{ inputs.sign-cert-password }}" $f
+            & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "$env:SIGN_CERT_PASSWORD" $f
             if ($LASTEXITCODE -ne 0) { throw "signtool failed for $f with exit code $LASTEXITCODE" }
           }
         }
         Remove-Item $pfxPath -Force
     
     - name: Win portable
-      shell: cmd
+      # zizmor cannot analyse cmd scripts; this one expands no expression (#204).
+      shell: cmd # zizmor: ignore[misfeature]
       run: |
         packaging\windows\prepare_release.cmd
 
@@ -56,7 +62,9 @@ runs:
         # renovate: datasource=sourceforge depName=nsis
         NSIS_VERSION: "3.12"
         NSIS_SHA256: 56581f90db321581c5381193d796fffcf2d24b2f8fed2160a6c6a3baa67f2c4f
-      run: |
+      # GITHUB_PATH gets a directory under RUNNER_TEMP named after the pinned
+      # version, never untrusted input (#204).
+      run: | # zizmor: ignore[github-env]
         set -euo pipefail
         zip="$RUNNER_TEMP/nsis-$NSIS_VERSION.zip"
         curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
@@ -75,12 +83,14 @@ runs:
     # cmd reports only the last command's exit code, so every command that
     # can fail ends in `|| exit /b 1` (#218).
     - name: Win installer
-      shell: cmd
+      # zizmor cannot analyse cmd scripts; this one expands no expression (#204).
+      shell: cmd # zizmor: ignore[misfeature]
       run: |
         makensis -V2 -DVERSION=%LOGSQUIRL_VERSION% -DPLATFORM=%LOGSQUIRL_ARCH% -DQT_MAJOR=%LOGSQUIRL_QT% logsquirl.nsi || exit /b 1
     
     - name: Win package
-      shell: cmd
+      # zizmor cannot analyse cmd scripts; this one expands no expression (#204).
+      shell: cmd # zizmor: ignore[misfeature]
       run: |
         md %LOGSQUIRL_BUILD_ROOT%\packages || exit /b 1
         xcopy logsquirl-win-%LOGSQUIRL_ARCH%-portable.zip %LOGSQUIRL_BUILD_ROOT%\packages /y || exit /b 1
@@ -90,14 +100,19 @@ runs:
     - name: Win codesign installer
       if: ${{ inputs.sign-cert-pfx != '' && github.ref == 'refs/heads/master' }}
       shell: pwsh
+      # The certificate and its password reach the script through the
+      # environment, never interpolated into it (#204).
+      env:
+        SIGN_CERT_PFX: ${{ inputs.sign-cert-pfx }}
+        SIGN_CERT_PASSWORD: ${{ inputs.sign-cert-password }}
       run: |
         $ErrorActionPreference = 'Stop'
-        $pfxBytes = [System.Convert]::FromBase64String("${{ inputs.sign-cert-pfx }}")
+        $pfxBytes = [System.Convert]::FromBase64String($env:SIGN_CERT_PFX)
         $pfxPath  = Join-Path $env:RUNNER_TEMP "codesign.pfx"
         [System.IO.File]::WriteAllBytes($pfxPath, $pfxBytes)
         $installer = Get-ChildItem "$env:LOGSQUIRL_BUILD_ROOT\packages\*-setup.exe" | Select-Object -First 1
         if ($installer) {
-          & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "${{ inputs.sign-cert-password }}" $installer.FullName
+          & signtool sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f $pfxPath /p "$env:SIGN_CERT_PASSWORD" $installer.FullName
           if ($LASTEXITCODE -ne 0) { throw "signtool failed for $($installer.FullName) with exit code $LASTEXITCODE" }
         }
         Remove-Item $pfxPath -Force

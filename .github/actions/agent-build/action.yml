@@ -4,14 +4,19 @@ runs:
   using: "composite"
   steps:
 
+    # The compilers come from the workflow's own matrix, never from untrusted
+    # input, so writing them to GITHUB_ENV is safe (#204).
     - name: Prepare compiler env
       shell: sh
-      run: |
+      env:
+        MATRIX_CC: ${{ matrix.config.cc }}
+        MATRIX_CXX: ${{ matrix.config.cxx }}
+      run: | # zizmor: ignore[github-env]
         # `shell: sh` only runs with -e; -u also catches a misspelt variable,
         # and each step of more than one command sets it (#218).
         set -eu
-        echo "CC=${{ matrix.config.cc }}" >> $GITHUB_ENV
-        echo "CXX=${{ matrix.config.cxx }}" >> $GITHUB_ENV
+        echo "CC=$MATRIX_CC" >> $GITHUB_ENV
+        echo "CXX=$MATRIX_CXX" >> $GITHUB_ENV
 
     # The key covers the CPM script as well as the package list: a CPM update
     # can change how sources are laid out in the cache (#219).

@@ -1,4 +1,7 @@
 version: 2
+# Every entry has a cooldown: a release is only proposed once it is a week
+# old, so a compromised or broken version is usually yanked before it reaches
+# a pull request. Security updates ignore the cooldown (#204).
 updates:
   # "/" only scans .github/workflows; the composite actions under
   # .github/actions/* pin their own third-party actions.
@@ -8,6 +11,8 @@ updates:
       - "/.github/actions/*"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
@@ -23,6 +28,8 @@ updates:
     directory: "/docker/ubuntu24.04"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
@@ -36,6 +43,8 @@ updates:
     directory: "/docker/oracle10"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
@@ -49,6 +58,8 @@ updates:
     directory: "/docker/fedora44"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     # A Fedora release bump is not a digest bump: the directory, the GHCR image
     # name and CI Build's os_version/check_container all name the release, so a
     # Dockerfile-only bump builds on one Fedora and install-checks on another
@@ -64,6 +75,8 @@ updates:
     directory: "/docker/ubuntu22.04"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
@@ -81,6 +94,8 @@ updates:
     directory: "/scripts/sbom"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "ci"
       - "dependencies"
@@ -94,6 +109,8 @@ updates:
     directory: "/tests/e2e"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
     groups:
@@ -106,6 +123,8 @@ updates:
     directory: "/website"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     labels:
       - "dependencies"
     groups:

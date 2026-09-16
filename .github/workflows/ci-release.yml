@@ -36,6 +36,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Ensure tag points to a commit on master
         run: |
           set -euo pipefail
@@ -60,7 +61,19 @@ jobs:
     permissions:
       contents: read
       packages: read
-    secrets: inherit
+    # Only the signing secrets ci-build.yml declares, not every secret of the
+    # repository (#204).
+    secrets:
+      MACOS_P12_FILE: ${{ secrets.MACOS_P12_FILE }}
+      MACOS_P12_PASSWORD: ${{ secrets.MACOS_P12_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      WIN_CS_KEY_ID: ${{ secrets.WIN_CS_KEY_ID }}
+      WIN_CS_SECRET: ${{ secrets.WIN_CS_SECRET }}
+      WIN_CS_BUCKET: ${{ secrets.WIN_CS_BUCKET }}
+      WIN_SIGN_CERT_PFX: ${{ secrets.WIN_SIGN_CERT_PFX }}
+      WIN_SIGN_CERT_PASSWORD: ${{ secrets.WIN_SIGN_CERT_PASSWORD }}
 
   # ── Job 2: Prepare release metadata ────────────────────────────────────
   prepare:
@@ -79,6 +92,8 @@ jobs:
       is_prerelease: ${{ steps.tag.outputs.is_prerelease }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # A manual release must not publish artifacts of an unreviewed build:
       # validate the tag and the given CI run before anything is downloaded.
@@ -218,6 +233,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -433,6 +449,8 @@ jobs:
       LOGSQUIRL_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -608,8 +626,10 @@ jobs:
       # Publish as a draft first: provenance and signature are created while
       # the release is still invisible, and a failure in any later step leaves
       # a draft instead of a public release without them. A re-run reuses the
-      # draft for the same tag (#214).
-      - name: Create draft release
+      # draft for the same tag (#214). zizmor suggests `gh release` instead; the
+      # action's reuse of an existing draft and its multi-line globs would have
+      # to be rebuilt in shell, so it stays (#204).
+      - name: Create draft release # zizmor: ignore[superfluous-actions]
         id: draft
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
@@ -687,9 +707,13 @@ jobs:
     permissions:
       contents: write
     steps:
+      # The only checkout that keeps its credentials: the job pushes the
+      # updated latest.json with them, and it uploads no artifact that could
+      # leak them (#204).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master
+          persist-credentials: true # zizmor: ignore[artipacked]
 
       - name: Update latest.json
         env:

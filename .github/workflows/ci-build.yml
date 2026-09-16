@@ -21,7 +21,31 @@ on:
       - README.md
       - latest.json
       - .gitignore
+  # The release workflow passes exactly the signing secrets this workflow
+  # uses instead of all of its secrets (#204). All are optional: a fork or a
+  # pull request builds unsigned.
   workflow_call:
+    secrets:
+      MACOS_P12_FILE:
+        required: false
+      MACOS_P12_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      WIN_CS_KEY_ID:
+        required: false
+      WIN_CS_SECRET:
+        required: false
+      WIN_CS_BUCKET:
+        required: false
+      WIN_SIGN_CERT_PFX:
+        required: false
+      WIN_SIGN_CERT_PASSWORD:
+        required: false
   workflow_dispatch:
 
 concurrency:
@@ -46,6 +70,8 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/logsquirl-version
 
       - name: Save version
@@ -69,6 +95,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # A tag can be moved to other code, a commit SHA cannot (#202).
       - name: Check action pins
@@ -208,6 +236,8 @@ jobs:
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -299,6 +329,8 @@ jobs:
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1:symbolize=1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -375,6 +407,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set brew env
         run: |
@@ -451,6 +485,8 @@ jobs:
       OPENSSL_SHA256: a5377866b476c1661f329d3f25fc35912fa5ef01e614043b9b9a27baf8dd76a4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # The OpenSSL DLLs are shipped with the Windows package, so their version
       # is pinned above, verified against a SHA-256 and part of the cache key:
@@ -550,6 +586,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-noble
@@ -565,6 +603,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-mac-arm64
@@ -578,6 +618,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-windows-x64

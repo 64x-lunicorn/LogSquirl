@@ -47,7 +47,10 @@ jobs:
       - name: Build
         run: cd website && npm run build
 
-      - name: Deploy via FTPS
+      # The pin is the v4.4.0 tag's commit. The action repository also has a
+      # branch named v4.4.0 on another commit, which zizmor resolves instead
+      # (#204).
+      - name: Deploy via FTPS # zizmor: ignore[ref-version-mismatch]
         uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}
