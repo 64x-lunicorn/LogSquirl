@@ -165,6 +165,65 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
     }
 }
 
+SCENARIO( "The Watch Policy answers whether a Log File is watched at all", "[settingspolicies]" )
+{
+    // The two watch flags are asked about together far more often than
+    // apart: every consumer that only wants to know whether following is
+    // possible asks this one question, so the Policy answers it rather than
+    // each call site spelling the same OR out again.
+    GIVEN( "a Watch Policy with neither route enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = false,
+                                 .pollingEnabled = false,
+                                 .pollIntervalMs = 250 };
+
+        THEN( "nothing is watched" )
+        {
+            REQUIRE_FALSE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "a Watch Policy with only native watching enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = true, .pollingEnabled = false };
+
+        THEN( "the Log File is watched" )
+        {
+            REQUIRE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "a Watch Policy with only polling enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = false, .pollingEnabled = true };
+
+        THEN( "the Log File is watched" )
+        {
+            REQUIRE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "a Watch Policy with both routes enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = true, .pollingEnabled = true };
+
+        THEN( "the Log File is watched" )
+        {
+            REQUIRE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "an underived Watch Policy" )
+    {
+        const WatchPolicy watch{};
+
+        THEN( "it claims no watching, as an underived Policy must" )
+        {
+            REQUIRE_FALSE( watch.anyWatchEnabled() );
+        }
+    }
+}
+
 SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]" )
 {
     GIVEN( "a Configuration with a distinctive value in every field a Policy names" )

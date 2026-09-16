@@ -93,6 +93,16 @@ struct WatchPolicy {
     bool pollingEnabled{};
     int pollIntervalMs{};
 
+    // Whether the Log File is watched at all, by either route. Most
+    // consumers do not care which of the two is on, only whether following
+    // is possible, so the question is answered here instead of being
+    // spelled out as the same OR at every call site. An underived Policy
+    // answers false.
+    bool anyWatchEnabled() const
+    {
+        return nativeWatchEnabled || pollingEnabled;
+    }
+
     bool operator==( const WatchPolicy& ) const = default;
 };
 

@@ -109,6 +109,31 @@ public:
         return logFormatCatalog_;
     }
 
+    // The axes a window consumes, read at the point of use.
+    //
+    // A window is not a Log File: it outlives every one of them, and its
+    // menus and actions have to answer for whatever is configured now --
+    // whether the follow action is enabled, whether an archive is extracted,
+    // where the Index Cache keeps its files. So it asks the Session, which
+    // already stores the Policies and has them replaced on every settings
+    // change, instead of keeping a snapshot of its own that would have to be
+    // refreshed in step. Only the three axes a window actually consumes are
+    // exposed, so it still cannot reach a setting it did not declare.
+    const WatchPolicy& watchPolicy() const
+    {
+        return policies_.watch;
+    }
+
+    const FileAccessPolicy& fileAccessPolicy() const
+    {
+        return policies_.fileAccess;
+    }
+
+    const IndexingPolicy& indexingPolicy() const
+    {
+        return policies_.indexing;
+    }
+
     // Takes the Policies re-derived after a settings change: stores them
     // for the Log Files opened from now on, and hands the axes that
     // actually changed to the Log Files already open -- every one of them,
@@ -228,6 +253,23 @@ public:
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog() const
     {
         return appSession_->logFormatCatalog();
+    }
+
+    // The axes the window this session belongs to consumes. See the
+    // Session's own accessors for why a window asks rather than holds.
+    const WatchPolicy& watchPolicy() const
+    {
+        return appSession_->watchPolicy();
+    }
+
+    const FileAccessPolicy& fileAccessPolicy() const
+    {
+        return appSession_->fileAccessPolicy();
+    }
+
+    const IndexingPolicy& indexingPolicy() const
+    {
+        return appSession_->indexingPolicy();
     }
 
     QString windowId() const

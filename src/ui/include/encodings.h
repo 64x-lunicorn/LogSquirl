@@ -16,8 +16,8 @@
 #include <QString>
 #include <QTextCodec>
 
-#include <configuration.h>
 #include <mainwindowtext.h>
+#include <settingspolicies.h>
 
 class EncodingMenu {
 public:
@@ -43,10 +43,14 @@ public:
         };
     }
 
-    static QMenu* generate( QActionGroup* actionGroup )
+    // Builds the Encoding menu, with the Encoding a Log File is read with by
+    // default already checked. The Policy is passed in because this is a
+    // static method: there is no instance to have been handed one, and the
+    // menu must not reach for the settings store itself.
+    static QMenu* generate( QActionGroup* actionGroup, const FileAccessPolicy& fileAccess )
     {
         const auto supportedEncodings = EncodingMenu::supportedEncodings();
-        const auto defaultEncodingMib = Configuration::get().defaultEncodingMib();
+        const auto defaultEncodingMib = fileAccess.defaultEncodingMib;
 
         using namespace logsquirl::mainwindow;
         QMenu* encodingsMenu = new QMenu(

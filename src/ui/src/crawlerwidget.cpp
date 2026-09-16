@@ -394,6 +394,26 @@ void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
     Q_EMIT quickFindPolicyChanged( policy );
 }
 
+void CrawlerWidget::doSetWatchPolicy( const WatchPolicy& policy )
+{
+    watchPolicy_ = policy;
+
+    // Before setup() there are no views yet; setup() hands them the allowance
+    // once they exist. Afterwards a changed Policy takes following away from
+    // every view of this Log File, or gives it back, without the Log File
+    // being opened again.
+    if ( logMainView_ == nullptr ) {
+        return;
+    }
+
+    handFollowAllowanceToViews();
+}
+
+void CrawlerWidget::doSetFileAccessPolicy( const FileAccessPolicy& policy )
+{
+    fileAccessPolicy_ = policy;
+}
+
 const PresentationPolicy& CrawlerWidget::presentationPolicy() const
 {
     return presentationPolicy_;
@@ -402,6 +422,11 @@ const PresentationPolicy& CrawlerWidget::presentationPolicy() const
 const QuickFindPolicy& CrawlerWidget::quickFindPolicy() const
 {
     return quickFindPolicy_;
+}
+
+const WatchPolicy& CrawlerWidget::watchPolicy() const
+{
+    return watchPolicy_;
 }
 
 void CrawlerWidget::doSetSavedSearches( SavedSearches* saved_searches )
@@ -429,8 +454,7 @@ void CrawlerWidget::doSetViewContext( const QString& view_context )
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( context.autoRefresh() );
 
-    const auto& config = Configuration::get();
-    logMainView_->followSet( context.followFile() && config.anyFileWatchEnabled() );
+    logMainView_->followSet( context.followFile() && watchPolicy_.anyWatchEnabled() );
 
     const auto savedMarks = context.marks();
     std::transform( savedMarks.cbegin(), savedMarks.cend(), std::back_inserter( savedMarkedLines_ ),
@@ -791,6 +815,18 @@ void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& 
     markLinesFromMain( linesInMain );
 }
 
+void CrawlerWidget::handFollowAllowanceToViews()
+{
+    const auto isFollowModeAllowed = watchPolicy_.anyWatchEnabled();
+
+    logMainView_->allowFollowMode( isFollowModeAllowed );
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->allowFollowMode( isFollowModeAllowed );
+        }
+    }
+}
+
 void CrawlerWidget::applyConfiguration()
 {
     const auto& config = Configuration::get();
@@ -800,7 +836,10 @@ void CrawlerWidget::applyConfiguration()
 
     // Deliberately not here: file watching, Context Lines and hiding ANSI
     // color sequences. They are driven by Settings Policies, re-derived and
-    // handed down per axis when a setting actually changes (#95, #107). A
+    // handed down per axis when a setting actually changes (#95, #107). The
+    // follow allowance below is no exception: it is re-handed from the Watch
+    // Policy this widget already holds, never read from the settings, so that
+    // a Filtered View added since is given the same answer as the rest. A
     // Highlighter Set change does not come here either, but goes to
     // applyHighlighterSetChange().
 
@@ -819,8 +858,7 @@ void CrawlerWidget::applyConfiguration()
 
     logMainView_->setLineNumbersVisible( config.mainLineNumbersVisible() );
 
-    const auto isFollowModeAllowed = config.anyFileWatchEnabled();
-    logMainView_->allowFollowMode( isFollowModeAllowed );
+    handFollowAllowanceToViews();
     overview_.setVisible( config.isOverviewVisible() );
     logMainView_->refreshOverview();
     for ( auto* presentation : presentations() ) {
@@ -833,7 +871,6 @@ void CrawlerWidget::applyConfiguration()
     for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
         auto fv = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) );
         fv->setLineNumbersVisible( config.filteredLineNumbersVisible() );
-        fv->allowFollowMode( isFollowModeAllowed );
         fv->updateFont( font );
     }
 
@@ -1582,8 +1619,9 @@ void CrawlerWidget::setup()
     filteredView_->setPresentationPolicy( presentationPolicy_ );
     logTableView_->setQuickFindPolicy( quickFindPolicy_ );
     handDecorationPolicyToViews();
+    handFollowAllowanceToViews();
 
-    const auto defaultEncodingMib = config.defaultEncodingMib();
+    const auto defaultEncodingMib = fileAccessPolicy_.defaultEncodingMib;
     if ( defaultEncodingMib >= 0 ) {
         encodingMib_ = defaultEncodingMib;
     }

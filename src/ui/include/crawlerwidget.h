@@ -129,6 +129,7 @@ public:
     // this widget's own settings follow (#185).
     const PresentationPolicy& presentationPolicy() const;
     const QuickFindPolicy& quickFindPolicy() const;
+    const WatchPolicy& watchPolicy() const;
 
     void registerShortcuts();
 
@@ -171,6 +172,8 @@ protected:
     void doSetRecognitionPolicy( const RecognitionPolicy& policy ) override;
     void doSetPresentationPolicy( const PresentationPolicy& policy ) override;
     void doSetQuickFindPolicy( const QuickFindPolicy& policy ) override;
+    void doSetWatchPolicy( const WatchPolicy& policy ) override;
+    void doSetFileAccessPolicy( const FileAccessPolicy& policy ) override;
     void doSetViewContext( const QString& viewContext ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
@@ -405,6 +408,11 @@ private:
     // a view just built is coloured, and how a change to them reaches one.
     void handDecorationPolicyToViews();
 
+    // Tell every view of this Log File whether follow may be engaged at all,
+    // as the Watch Policy this widget holds says. A view allows following
+    // until it is told otherwise, so one just built has to be told too.
+    void handFollowAllowanceToViews();
+
     // Decide which Log Format applies to the Log File, now that it has loaded.
     // Only ever called from the load-finished path.
     void recognizeFormat();
@@ -514,6 +522,13 @@ private:
     // What this Log File's views show, scroll and search under
     PresentationPolicy presentationPolicy_;
     QuickFindPolicy quickFindPolicy_;
+
+    // Whether this Log File may be followed, and what it was opened under.
+    // The File Access Policy is read when the views are built -- the
+    // Encoding it names is the one a Log File is read with by default -- so
+    // a later one reaches the Log Files opened from then on, not this one.
+    WatchPolicy watchPolicy_;
+    FileAccessPolicy fileAccessPolicy_;
 
     // Whether the next load to finish is to recognize the Log Format: the
     // first load, and the one after a manual reload or a truncation.

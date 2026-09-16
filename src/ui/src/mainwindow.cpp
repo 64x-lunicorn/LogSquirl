@@ -403,7 +403,8 @@ void MainWindow::reloadGeometry()
 void MainWindow::reloadSession()
 {
     const auto& config = Configuration::get();
-    const auto followFileOnLoad = config.followFileOnLoad() && config.anyFileWatchEnabled();
+    const auto followFileOnLoad
+        = config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled();
 
     int current_file_index = -1;
     const auto openedFiles
@@ -733,7 +734,7 @@ void MainWindow::createActions()
 
     followAction = new QAction( tr( action::followText ), this );
     followAction->setCheckable( true );
-    followAction->setEnabled( config.anyFileWatchEnabled() );
+    followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
     connect( followAction, &QAction::toggled, this, &MainWindow::followSet );
 
     textWrapAction = new QAction( tr( action::wrapText ), this );
@@ -1035,7 +1036,7 @@ void MainWindow::createMenus()
     toolsMenu->addAction( showScratchPadAction );
     toolsMenu->addAction( showFiltersPanelAction );
 
-    menuBar()->addMenu( EncodingMenu::generate( encodingGroup ) );
+    menuBar()->addMenu( EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() ) );
     menuBar()->addSeparator();
 
     favoritesMenu = menuBar()->addMenu( tr( menu::favoritesTitle ) );
@@ -1471,20 +1472,22 @@ void MainWindow::options()
     signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 
     connect( &dialog, &OptionsDialog::optionsChanged, [ this ]() {
+        // The settings store has changed: whoever derives the Policies
+        // re-derives them and hands the changed axes down. This is the only
+        // place that writes a setting a Policy names, and it comes first so
+        // that what follows reads Policies already re-derived -- the follow
+        // action below is enabled from the Watch Policy.
+        Q_EMIT settingsChanged();
+
         const auto& config = Configuration::get();
         logging::enableFileLogging( config.enableLogging(),
                                     static_cast<logging::LogLevel>( config.loggingLevel() ) );
 
         newWindowAction->setVisible( config.allowMultipleWindows() );
-        followAction->setEnabled( config.anyFileWatchEnabled() );
+        followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
 
         updateShortcuts();
         updateRecentFileActions();
-
-        // The settings store has changed: whoever derives the Policies
-        // re-derives them and hands the changed axes down. This is the
-        // only place that writes a setting a Policy names.
-        Q_EMIT settingsChanged();
     } );
     dialog.exec();
 
@@ -1619,7 +1622,7 @@ void MainWindow::clearIndexCache()
     // Only cleared, so which Log Files it would exclude and how large it may
     // grow do not matter here.
     const auto freed
-        = IndexCache{ Configuration::get().indexCacheDirectory(), QString{}, 0 }.clearAll();
+        = IndexCache{ session_.indexingPolicy().indexCacheDirectory, QString{}, 0 }.clearAll();
     const auto freedMb = static_cast<double>( freed ) / ( 1024.0 * 1024.0 );
     statusBar()->showMessage( tr( "Index cache cleared (%1 MB freed)" ).arg( freedMb, 0, 'f', 1 ),
                               5000 );
@@ -1839,8 +1842,7 @@ void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
 
 void MainWindow::changeFollowMode( bool follow )
 {
-    auto& config = Configuration::get();
-    if ( follow && !( config.nativeFileWatchEnabled() || config.pollingEnabled() ) ) {
+    if ( follow && !session_.watchPolicy().anyWatchEnabled() ) {
         LOG_WARNING << "File watch disabled in settings";
     }
 
@@ -2276,13 +2278,13 @@ bool MainWindow::event( QEvent* event )
 
 bool MainWindow::extractAndLoadFile( const QString& fileName )
 {
-    const auto& config = Configuration::get();
+    const auto& fileAccess = session_.fileAccessPolicy();
 
-    if ( !config.extractArchives() ) {
+    if ( !fileAccess.extractArchives ) {
         return false;
     }
 
-    if ( !config.extractArchivesAlways() ) {
+    if ( !fileAccess.extractArchivesAlways ) {
         const auto userChoice = QMessageBox::question( this, tr( "logsquirl" ),
                                                        tr( "Extract archive to temp folder?" ) );
         if ( userChoice == QMessageBox::No ) {
@@ -2392,7 +2394,8 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
 
     const auto decompressAction = Decompressor::action( fileName );
 
-    if ( decompressAction == DecompressAction::None || !Configuration::get().extractArchives() ) {
+    if ( decompressAction == DecompressAction::None
+         || !session_.fileAccessPolicy().extractArchives ) {
         // Load the file
         loadingFileName = fileName;
 
@@ -2444,7 +2447,8 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             updateOpenedFilesMenu();
 
             const auto& config = Configuration::get();
-            if ( config.anyFileWatchEnabled() && ( followFile || config.followFileOnLoad() ) ) {
+            if ( session_.watchPolicy().anyWatchEnabled()
+                 && ( followFile || config.followFileOnLoad() ) ) {
                 signalCrawlerToFollowFile( crawler_widget );
                 followAction->setChecked( true );
             }

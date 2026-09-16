@@ -96,6 +96,23 @@ public:
         doSetQuickFindPolicy( policy );
     }
 
+    // Hand over the Watch Policy this Log File is followed under. The view
+    // holds it: what it takes from it is whether following is offered at
+    // all, which a changed Policy has to be able to take away and give back
+    // without the Log File being opened again
+    void setWatchPolicy( const WatchPolicy& policy )
+    {
+        doSetWatchPolicy( policy );
+    }
+
+    // Hand over the File Access Policy this Log File was opened under. The
+    // view takes the Encoding a Log File is read with by default from it,
+    // which is settled when the file is opened
+    void setFileAccessPolicy( const FileAccessPolicy& policy )
+    {
+        doSetFileAccessPolicy( policy );
+    }
+
     // For save/restore of the context
     void setViewContext( const QString& view_context )
     {
@@ -121,6 +138,8 @@ protected:
     virtual void doSetRecognitionPolicy( const RecognitionPolicy& policy ) = 0;
     virtual void doSetPresentationPolicy( const PresentationPolicy& policy ) = 0;
     virtual void doSetQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
+    virtual void doSetWatchPolicy( const WatchPolicy& policy ) = 0;
+    virtual void doSetFileAccessPolicy( const FileAccessPolicy& policy ) = 0;
     virtual void doSetViewContext( const QString& view_context ) = 0;
     virtual std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const = 0;
 };
