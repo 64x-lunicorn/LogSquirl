@@ -22,8 +22,6 @@
 #include <algorithm>
 #include <climits>
 
-#include <QApplication>
-#include <QClipboard>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -36,6 +34,7 @@
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
+#include "clipboard.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
 #include "logformattablemodel.h"
@@ -723,13 +722,11 @@ void LogTableView::showQuickFindResult( bool hasMatch, const Portion& logLinePor
 }
 
 // Copy the selected text: the characters selected inside a cell, or else the
-// selected Rows with their cells separated by tabs.
+// selected Rows with their cells separated by tabs. Copied as the Text View
+// copies (sendSelectionToClipboard).
 void LogTableView::copySelection()
 {
-    const auto text = selectedText();
-    if ( !text.isEmpty() ) {
-        QApplication::clipboard()->setText( text );
-    }
+    sendSelectionToClipboard( [ this ] { return selectedText(); } );
 }
 
 // Copy the selected Rows with their line numbers prepended.
@@ -739,27 +736,26 @@ void LogTableView::copySelectionWithLineNumbers()
         return;
     }
 
-    const auto lines = selectedLogLines();
-    if ( lines.empty() ) {
-        return;
-    }
+    sendSelectionToClipboard( [ this ] {
+        const auto lines = selectedLogLines();
 
-    QStringList copied;
-    copied.reserve( static_cast<qsizetype>( lines.size() ) );
-    const int colCount = model_->columnCount();
+        QStringList copied;
+        copied.reserve( static_cast<qsizetype>( lines.size() ) );
+        const int colCount = model_->columnCount();
 
-    for ( const auto& line : lines ) {
-        const auto row = rows_->rowOf( line ).value_or( -1 );
-        QStringList cells;
-        cells.reserve( colCount );
-        for ( int c = 0; c < colCount; ++c ) {
-            cells << model_->index( row, c ).data( Qt::DisplayRole ).toString();
+        for ( const auto& line : lines ) {
+            const auto row = rows_->rowOf( line ).value_or( -1 );
+            QStringList cells;
+            cells.reserve( colCount );
+            for ( int c = 0; c < colCount; ++c ) {
+                cells << model_->index( row, c ).data( Qt::DisplayRole ).toString();
+            }
+            // 1-based line number
+            copied << QString( "%1\t%2" ).arg( line.get() + 1 ).arg( cells.join( '\t' ) );
         }
-        // 1-based line number
-        copied << QString( "%1\t%2" ).arg( line.get() + 1 ).arg( cells.join( '\t' ) );
-    }
 
-    QApplication::clipboard()->setText( copied.join( '\n' ) );
+        return copied.join( '\n' );
+    } );
 }
 
 void LogTableView::saveToFile()

@@ -32,9 +32,33 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <utility>
 
 namespace logsquirl::plugins {
+
+/**
+ * Which plugins to load at start-up, as the caller's configuration says.
+ * The Plugin Host is handed it and reads no settings of its own.
+ */
+struct PluginAutoLoad {
+    /** Whether enabled plugins are loaded at start-up at all. */
+    bool autoLoad = true;
+    /** The IDs of the enabled plugins; none yet on a first run. */
+    QStringList enabled;
+};
+
+/** What loading the enabled plugins at start-up came to. */
+struct PluginAutoLoadResult {
+    /** One message per plugin that failed to load (empty if all loaded). */
+    QStringList errors;
+    /**
+     * Set on a first run, when no plugin was enabled yet and the host enabled
+     * every plugin in the catalog: those IDs, for the caller to keep as the
+     * enabled plugins so a first run happens only once.
+     */
+    std::optional<QStringList> enabledOnFirstRun;
+};
 
 /**
  * The Plugin Host: loads the plugins the Plugin Catalog lists and serves them.
@@ -95,12 +119,12 @@ public:
     void unloadAll();
 
     /**
-     * Load all plugins listed in Configuration::enabledPlugins().
+     * Load the enabled plugins, unless auto-load is off.
      * Skips IDs that are not in the catalog or already loaded. When no plugin
-     * is enabled yet, enables every plugin in the catalog first and saves that.
-     * @return List of error messages (empty if all loaded successfully).
+     * is enabled yet, enables every plugin in the catalog first and hands
+     * those IDs back for the caller to keep.
      */
-    QStringList autoLoadPlugins();
+    PluginAutoLoadResult autoLoadPlugins( const PluginAutoLoad& configuration );
 
     /** Check whether a plugin is currently loaded and initialised. */
     bool isLoaded( const QString& pluginId ) const;

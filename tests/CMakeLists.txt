@@ -18,7 +18,8 @@ add_test(
 )
 
 # The plugin layer builds without Qt Widgets: no file of it may include a Qt
-# Widgets header, and the library may not link Qt Widgets (#175).
+# Widgets header, and the library may not link Qt Widgets (#175). Nor may it
+# link the settings store: the Plugin Host is handed its configuration (#236).
 add_test(
     NAME plugins_no_qt_widgets
     COMMAND ${CMAKE_COMMAND}

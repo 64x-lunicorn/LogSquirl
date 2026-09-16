@@ -368,8 +368,16 @@ MainWindow::MainWindow( WindowSession session )
 
     // Auto-load previously enabled plugins (signals are now connected, so
     // register_status_widget / register_menu_action will be delivered).
-    const auto pluginErrors = pluginHost_.autoLoadPlugins();
-    for ( const auto& error : pluginErrors ) {
+    // The host reads no settings: it is handed them, and a first run's
+    // default, every discovered plugin enabled, is kept here.
+    const auto autoLoaded = pluginHost_.autoLoadPlugins(
+        { .autoLoad = config.pluginsAutoLoad(), .enabled = config.enabledPlugins() } );
+    if ( autoLoaded.enabledOnFirstRun ) {
+        auto& pluginConfig = Configuration::get();
+        pluginConfig.setEnabledPlugins( *autoLoaded.enabledOnFirstRun );
+        pluginConfig.save();
+    }
+    for ( const auto& error : autoLoaded.errors ) {
         LOG_WARNING << "Plugin auto-load error: " << error;
     }
 

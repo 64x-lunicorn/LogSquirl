@@ -9,5 +9,5 @@ The upper pane shows a Log File as one of two Presentations, the Text View or th
 
 ## Consequences
 
-- The signal set is a contract kept by convention: nothing in the compiler checks that the Table View emits every signal the Text View does. A new signal has to be added to both Presentations and connected for both.
+- The signal set is a contract kept by convention: nothing in the compiler checks that the Table View emits every signal the Text View does. A new signal has to be added to both Presentations and connected for both. A signal for something only the Text View does (turning following on or off from the view, zooming with the wheel, the exit-view shortcut) is not in the set: the Table View does not declare it, and the coordinator connects it for the Text View alone (#236).
 - The Filtered View is drawn like the Text View but is not a Presentation; nothing in the interface prevents it from gaining a Table View later.

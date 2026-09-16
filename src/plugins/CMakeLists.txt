@@ -36,6 +36,8 @@ set_target_properties(logsquirl_plugins PROPERTIES AUTOMOC ON)
 # The plugin layer knows no widgets: what plugins show goes through the
 # Plugin UI Port, which the UI library implements (#175).
 # tests/plugins_no_qt_widgets.cmake guards the includes.
+# Deliberately not logsquirl_settings either: the Plugin Host is handed which
+# plugins to load, and its caller keeps what it enables on a first run (#236).
 target_include_directories(logsquirl_plugins PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(
   logsquirl_plugins
@@ -43,7 +45,6 @@ target_link_libraries(
          project_warnings
          logsquirl_plugin_catalog
          logsquirl_logging
-         logsquirl_settings
          logsquirl_karchive
          Qt6::Core
          Qt6::Gui

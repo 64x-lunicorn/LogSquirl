@@ -36,6 +36,9 @@ class QString;
 // ones, with the same arguments and meaning, and the coordinator connects
 // each Presentation to the same slots. Nothing but convention keeps the two
 // halves in step, so a signal added to one Presentation is added to all.
+// What only the Text View does (turning following on or off, zooming with
+// the wheel, the exit-view shortcut) signals outside the set, and only the
+// Text View declares it.
 //
 // Everything a Presentation hands out, or is handed, is a Log Line, never a
 // position in its own widget.

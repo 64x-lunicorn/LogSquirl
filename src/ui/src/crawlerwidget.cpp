@@ -1574,6 +1574,13 @@ void CrawlerWidget::setup()
     connectPresentation( logMainView_ );
     connectPresentation( logTableView_ );
 
+    // What only the Text View lets the user do: leave following by moving
+    // away from the bottom, or start it at the bottom, and zoom with the
+    // wheel. The Table View has neither, and so no such signals.
+    connect( logMainView_, &LogMainView::followModeChanged, this,
+             &CrawlerWidget::followModeChanged );
+    connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
+
     // Follow option (down): the Text View follows
     connect( this, &CrawlerWidget::followSet, logMainView_, &LogMainView::followSet );
 
@@ -1671,10 +1678,6 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
     connect( presentation, QOverload<const QString&>::of( &Presentation::replaceSearch ), this,
              &CrawlerWidget::replaceSearch );
 
-    // Follow option (up)
-    connect( presentation, &Presentation::followModeChanged, this,
-             &CrawlerWidget::followModeChanged );
-
     // Detect activity in the views
     connect( presentation, &Presentation::activity, this, &CrawlerWidget::activityDetected );
 
@@ -1686,8 +1689,6 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
 
     connect( presentation, &Presentation::saveDefaultSplitterSizes, this,
              &CrawlerWidget::saveSplitterSizes );
-
-    connect( presentation, &Presentation::changeFontSize, this, &CrawlerWidget::changeFontSize );
 
     connect( presentation, &Presentation::clearColorLabels, this,
              &CrawlerWidget::clearColorLabels );
@@ -1896,10 +1897,8 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( view, &AbstractLogView::clearColorLabels, this, &CrawlerWidget::clearColorLabels );
 
+    // The exit-view shortcut is the Text View's; the Table View has none.
     connect( logMainView_, &LogMainView::exitView, view,
-             QOverload<>::of( &FilteredView::setFocus ) );
-
-    connect( logTableView_, &LogTableView::exitView, view,
              QOverload<>::of( &FilteredView::setFocus ) );
 }
 

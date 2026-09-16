@@ -1516,26 +1516,13 @@ void AbstractLogView::findPreviousSelected()
 // Copy the selection to the clipboard
 void AbstractLogView::copy()
 {
-
-    try {
-        auto text = selection_.getSelectedText( logData_ );
-        text.replace( QChar::Null, QChar::Space );
-        sendTextToClipboard( text );
-    } catch ( std::exception& err ) {
-        LOG_ERROR << "failed to copy data to clipboard " << err.what();
-    }
+    sendSelectionToClipboard( [ this ] { return selection_.getSelectedText( logData_ ); } );
 }
 
 // Copy the selection with line numbers to the clipboard
 void AbstractLogView::copyWithLineNumbers()
 {
-    try {
-        auto text = selection_.getSelectedText( logData_, true );
-        text.replace( QChar::Null, QChar::Space );
-        sendTextToClipboard( text );
-    } catch ( std::exception& err ) {
-        LOG_ERROR << "failed to copy data to clipboard " << err.what();
-    }
+    sendSelectionToClipboard( [ this ] { return selection_.getSelectedText( logData_, true ); } );
 }
 
 void AbstractLogView::markSelected()

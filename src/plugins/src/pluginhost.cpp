@@ -19,7 +19,6 @@
 
 #include "pluginhost.h"
 
-#include "configuration.h"
 #include "log.h"
 #include "streamwriter.h"
 
@@ -53,29 +52,26 @@ QStringList PluginHost::loadedPluginIds() const
     return ids;
 }
 
-QStringList PluginHost::autoLoadPlugins()
+PluginAutoLoadResult PluginHost::autoLoadPlugins( const PluginAutoLoad& configuration )
 {
-    const auto& config = Configuration::get();
-    if ( !config.pluginsAutoLoad() ) {
+    if ( !configuration.autoLoad ) {
         return {};
     }
 
-    auto enabledIds = config.enabledPlugins();
+    PluginAutoLoadResult result;
+    auto enabledIds = configuration.enabled;
 
     // First run: if no plugins have been explicitly configured yet, enable
-    // all discovered plugins by default so they are visible immediately.
+    // all discovered plugins by default so they are visible immediately. The
+    // caller keeps them, so this only triggers once.
     if ( enabledIds.isEmpty() && !catalog_.discoveredPlugins().empty() ) {
         for ( const auto& meta : catalog_.discoveredPlugins() ) {
             enabledIds.append( meta.id() );
         }
-        // Persist so this only triggers once
-        auto& mutableConfig = Configuration::get();
-        mutableConfig.setEnabledPlugins( enabledIds );
-        mutableConfig.save();
+        result.enabledOnFirstRun = enabledIds;
         LOG_INFO << "First run: auto-enabled " << enabledIds.size() << " discovered plugin(s)";
     }
 
-    QStringList errors;
     for ( const auto& pluginId : enabledIds ) {
         if ( isLoaded( pluginId ) ) {
             continue;
@@ -88,11 +84,11 @@ QStringList PluginHost::autoLoadPlugins()
         const auto error = loadPlugin( pluginId );
         if ( !error.isEmpty() ) {
             LOG_WARNING << "Auto-load failed for '" << pluginId << "': " << error;
-            errors.append( QString( "%1: %2" ).arg( pluginId, error ) );
+            result.errors.append( QString( "%1: %2" ).arg( pluginId, error ) );
         }
     }
 
-    return errors;
+    return result;
 }
 
 QString PluginHost::loadPlugin( const QString& pluginId )

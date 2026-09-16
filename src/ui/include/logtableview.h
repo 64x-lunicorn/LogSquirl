@@ -128,9 +128,10 @@ public Q_SLOTS:
 
 Q_SIGNALS:
     // The signals every Presentation emits, named and meant as the Text
-    // View's (see LogPresentation). Those the Table View offers the user
-    // nothing to send yet are declared all the same, so its holder connects
-    // them as it does the Text View's.
+    // View's (see LogPresentation). The Table View declares only those it
+    // emits: turning following on or off from the view, zooming with the
+    // wheel and the exit-view shortcut are the Text View's alone, and their
+    // signals are not in the set.
 
     // Sent when a new Row is selected: the Log Line of the first selected Row.
     void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
@@ -149,10 +150,7 @@ Q_SIGNALS:
     void sendSelectionToScratchpad();
     void replaceScratchpadWithSelection();
     void saveDefaultSplitterSizes();
-    void followModeChanged( bool enabled );
     void activity();
-    void changeFontSize( bool increase );
-    void exitView();
 
 protected:
     // The context menu for the current selection, opened at pos in viewport
