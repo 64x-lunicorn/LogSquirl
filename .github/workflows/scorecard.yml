@@ -1,0 +1,72 @@
+name: "OpenSSF Scorecard"
+
+# OpenSSF Scorecard gives the repository an external, repeatable measure of
+# its supply-chain posture: weekly, on master pushes, and whenever branch
+# protection changes (the Branch-Protection check reads it) (#205).
+on:
+  push:
+    # Scorecard only supports the default branch.
+    branches: [master]
+  branch_protection_rule:
+  schedule:
+    - cron: '24 3 * * 1'
+  workflow_dispatch:
+
+# Publishing results to the Scorecard API forbids workflow-level write
+# permissions, workflow/job-level `env` and `defaults`. That is why this
+# workflow, unlike the others, carries no FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:
+# every JavaScript action used here already runs on node24 (#205).
+#
+# Nothing at workflow level; the one job asks for exactly what it needs.
+permissions: {}
+
+# A newer run supersedes a queued one; the score always reflects master.
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    # Read-only scopes follow the scorecard-action README so a job-level grant
+    # does not silently blind a check (#205).
+    permissions:
+      security-events: write # upload the SARIF to code scanning
+      id-token: write # OIDC token that authenticates publish_results
+      contents: read # file-based checks read the repository
+      actions: read # workflow checks read the workflow runs
+      issues: read # Maintained reads issue activity
+      pull-requests: read # Code-Review reads merged pull requests
+      checks: read # CI-Tests reads check runs
+
+    # Only actions/checkout, actions/upload-artifact,
+    # github/codeql-action/upload-sarif, ossf/scorecard-action and
+    # step-security/harden-runner are allowed in this job when publishing (#205).
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@v2.4.4
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Feeds the README badge and api.scorecard.dev.
+          publish_results: true
+
+      # Keep the raw SARIF for a few days to debug a surprising score.
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: scorecard-sarif
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
