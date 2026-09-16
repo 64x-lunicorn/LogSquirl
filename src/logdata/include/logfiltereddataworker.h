@@ -60,7 +60,7 @@
 #include "settingspolicies.h"
 #include "synchronization.h"
 
-class LogData;
+class SearchBlockSource;
 
 // Identifies one Search run. A new run gets a fresh id; whatever owns the
 // worker compares an incoming result's id against the id it is currently
@@ -171,7 +171,7 @@ public:
     // duration: the options dialog is modal to the window but does not
     // stop this pool, and a setting changed mid-run takes effect on the
     // next run rather than half way through this one.
-    SearchOperation( const LogData& sourceLogData, SearchId searchId,
+    SearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
                      const std::atomic<uint64_t>& activeSearchId,
                      std::shared_ptr<const RegularExpression> compiledExpression,
                      LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy );
@@ -207,7 +207,7 @@ protected:
     SearchId searchId_;
     const std::atomic<uint64_t>& activeSearchId_;
     const std::shared_ptr<const RegularExpression> compiledExpression_;
-    const LogData& sourceLogData_;
+    const SearchBlockSource& blockSource_;
     LineNumber startLine_;
     LineNumber endLine_;
     const SearchPolicy searchPolicy_;
@@ -216,11 +216,11 @@ protected:
 class FullSearchOperation : public SearchOperation {
     Q_OBJECT
 public:
-    FullSearchOperation( const LogData& sourceLogData, SearchId searchId,
+    FullSearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
                          const std::atomic<uint64_t>& activeSearchId,
                          std::shared_ptr<const RegularExpression> compiledExpression,
                          LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy )
-        : SearchOperation( sourceLogData, searchId, activeSearchId, std::move( compiledExpression ),
+        : SearchOperation( blockSource, searchId, activeSearchId, std::move( compiledExpression ),
                            startLine, endLine, searchPolicy )
     {
     }
@@ -232,12 +232,12 @@ protected:
 class UpdateSearchOperation : public SearchOperation {
     Q_OBJECT
 public:
-    UpdateSearchOperation( const LogData& sourceLogData, SearchId searchId,
+    UpdateSearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
                            const std::atomic<uint64_t>& activeSearchId,
                            std::shared_ptr<const RegularExpression> compiledExpression,
                            LineNumber startLine, LineNumber endLine, LineNumber position,
                            SearchPolicy searchPolicy )
-        : SearchOperation( sourceLogData, searchId, activeSearchId, std::move( compiledExpression ),
+        : SearchOperation( blockSource, searchId, activeSearchId, std::move( compiledExpression ),
                            startLine, endLine, searchPolicy )
         , initialPosition_( position )
     {
@@ -256,7 +256,7 @@ class LogFilteredDataWorker : public QObject {
 public:
     // The Search Policy is what this worker knows about the settings; it
     // reads none itself.
-    LogFilteredDataWorker( const LogData& sourceLogData, const SearchPolicy& searchPolicy );
+    LogFilteredDataWorker( const SearchBlockSource& blockSource, const SearchPolicy& searchPolicy );
     ~LogFilteredDataWorker() noexcept override;
 
     LogFilteredDataWorker( const LogFilteredDataWorker& ) = delete;
@@ -303,7 +303,7 @@ private:
     void connectSignalsAndRun( SearchOperation* operationRequested );
 
 private:
-    const LogData& sourceLogData_;
+    const SearchBlockSource& blockSource_;
 
     // Read and written under operationsMutex_ and copied into every
     // operation as it is started, so a run never reads it from the pool

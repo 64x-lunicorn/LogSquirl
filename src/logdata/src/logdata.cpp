@@ -391,6 +391,31 @@ LineNumber LogData::doGetLineNumber( LineNumber index ) const
     return index;
 }
 
+const SearchBlockSource& LogData::searchBlockSource() const
+{
+    return searchBlockSource_;
+}
+
+LinesCount LogDataBlockSource::getNbLines() const
+{
+    return logData_.getNbLine();
+}
+
+RawLines LogDataBlockSource::getLinesRaw( LineNumber first, LinesCount number ) const
+{
+    return logData_.getLinesRaw( first, number );
+}
+
+void LogDataBlockSource::attachReader() const
+{
+    logData_.attachReader();
+}
+
+void LogDataBlockSource::detachReader() const
+{
+    logData_.detachReader();
+}
+
 LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number ) const
 {
     RawLines rawLines;
@@ -507,7 +532,7 @@ void LogData::doDetachReader() const
     attached_file_->detachReader();
 }
 
-logsquirl::vector<QString> LogData::RawLines::decodeLines() const
+logsquirl::vector<QString> RawLines::decodeLines() const
 {
     if ( this->endOfLines.empty() ) {
         return logsquirl::vector<QString>();
@@ -562,7 +587,7 @@ logsquirl::vector<QString> LogData::RawLines::decodeLines() const
     return decodedLines;
 }
 
-logsquirl::vector<std::string_view> LogData::RawLines::buildUtf8View() const
+logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
 {
     logsquirl::vector<std::string_view> lines;
     if ( this->endOfLines.empty() || textDecoder.decoder == nullptr ) {

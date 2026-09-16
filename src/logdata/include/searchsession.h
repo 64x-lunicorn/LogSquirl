@@ -34,7 +34,7 @@
 #include "settingspolicies.h"
 #include "synchronization.h"
 
-class LogData;
+class SearchBlockSource;
 
 // The Search Session: the owner of everything whose correctness depends on
 // the ordering of a Search -- the current pattern, the run in flight, its
@@ -81,7 +81,7 @@ public:
     // settings: which regex engine to compile on, whether and how far to
     // cache results, and how far Context Lines reach. It reads none
     // itself.
-    SearchSession( const LogData& sourceLogData, const SearchPolicy& searchPolicy );
+    SearchSession( const SearchBlockSource& blockSource, const SearchPolicy& searchPolicy );
     ~SearchSession() override;
 
     SearchSession( const SearchSession& ) = delete;
@@ -187,7 +187,7 @@ private:
     // fresh (non-continuation) run.
     void resetResults();
 
-    const LogData& sourceLogData_;
+    const SearchBlockSource& blockSource_;
     SearchPolicy searchPolicy_;
     LogFilteredDataWorker workerThread_;
 

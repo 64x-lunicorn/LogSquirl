@@ -39,6 +39,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <exception>
 #include <qsemaphore.h>
 #include <utility>
@@ -53,8 +54,8 @@
 #include "progress.h"
 #include "runnable_lambda.h"
 
-#include "logdata.h"
 #include "regularexpression.h"
+#include "searchblocksource.h"
 
 #include "logfiltereddataworker.h"
 #include "synchronization.h"
@@ -77,7 +78,7 @@ struct PartialSearchResults {
 
 struct SearchBlockData {
     SearchBlockData() = default;
-    SearchBlockData( LineNumber start, LogData::RawLines blockLines )
+    SearchBlockData( LineNumber start, RawLines blockLines )
         : chunkStart( start )
         , lines( std::move( blockLines ) )
     {
@@ -90,12 +91,12 @@ struct SearchBlockData {
     SearchBlockData& operator=( SearchBlockData&& ) = default;
 
     LineNumber chunkStart;
-    LogData::RawLines lines;
+    RawLines lines;
 
     PartialSearchResults searchResults;
 };
 
-PartialSearchResults filterLines( const PatternMatcher& matcher, const LogData::RawLines& rawLines,
+PartialSearchResults filterLines( const PatternMatcher& matcher, const RawLines& rawLines,
                                   LineNumber chunkStart )
 {
     LOG_DEBUG << "Filter lines at " << chunkStart;
@@ -170,9 +171,9 @@ void SearchData::clear()
     newMatches_ = {};
 }
 
-LogFilteredDataWorker::LogFilteredDataWorker( const LogData& sourceLogData,
+LogFilteredDataWorker::LogFilteredDataWorker( const SearchBlockSource& blockSource,
                                               const SearchPolicy& searchPolicy )
-    : sourceLogData_( sourceLogData )
+    : blockSource_( blockSource )
     , searchPolicy_( searchPolicy )
 {
     operationsPool_.setMaxThreadCount( 1 );
@@ -234,7 +235,7 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
         // updating activeSearchId_ until this run finished on its own, defeating
         // supersession entirely (the same trap the destructor's wait avoids).
         auto operationRequested = std::make_unique<FullSearchOperation>(
-            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
+            blockSource_, id, activeSearchId_, compiledExpression, startLine, endLine,
             searchPolicy );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
@@ -262,8 +263,8 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
             // See the comment in search(): not holding operationsMutex_ here is what
             // lets a superseding call proceed without waiting for this run to finish.
             auto operationRequested = std::make_unique<UpdateSearchOperation>(
-                sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
-                position, searchPolicy );
+                blockSource_, id, activeSearchId_, compiledExpression, startLine, endLine, position,
+                searchPolicy );
             connectSignalsAndRun( operationRequested.get() );
         } ) );
 
@@ -297,7 +298,7 @@ SearchResults LogFilteredDataWorker::getSearchResults() const
 // Operations implementation
 //
 
-SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchId,
+SearchOperation::SearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
                                   const std::atomic<uint64_t>& activeSearchId,
                                   std::shared_ptr<const RegularExpression> compiledExpression,
                                   LineNumber startLine, LineNumber endLine,
@@ -306,7 +307,7 @@ SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchI
     : searchId_( searchId )
     , activeSearchId_( activeSearchId )
     , compiledExpression_( std::move( compiledExpression ) )
-    , sourceLogData_( sourceLogData )
+    , blockSource_( blockSource )
     , startLine_( startLine )
     , endLine_( endLine )
     , searchPolicy_( searchPolicy )
@@ -321,7 +322,7 @@ bool SearchOperation::isSuperseded() const
 
 void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 {
-    const auto nbSourceLines = sourceLogData_.getNbLine();
+    const auto nbSourceLines = blockSource_.getNbLines();
 
     LOG_INFO << "Searching from line " << initialLine << " to " << nbSourceLines;
 
@@ -362,6 +363,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
         = LinesCount( static_cast<LinesCount::UnderlyingType>( searchReadBufferSizeLines ) );
 
     std::chrono::microseconds fileReadingDuration{ 0 };
+    // Counted per block, as the blocks are read, for the io perf reported below.
+    std::size_t bytesRead = 0;
 
     using BlockDataType = SearchBlockData*;
     auto blockPrefetcher
@@ -506,8 +509,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                 = LinesCount( qMin( nbLinesInChunk.get(), ( endLine - chunkStart ).get() ) );
             BlockDataType blockData
                 = new SearchBlockData{ chunkStart,
-                                       sourceLogData_.getLinesRaw( chunkStart, linesInChunk ) };
+                                       blockSource_.getLinesRaw( chunkStart, linesInChunk ) };
 
+            bytesRead += blockData->lines.buffer.size();
             chunkStart = chunkStart + nbLinesInChunk;
             fileReadingDuration += duration_cast<microseconds>( high_resolution_clock::now()
                                                                 - lineSourceStartTime );
@@ -530,8 +534,6 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
         LOG_INFO << "Matching took " << std::get<microseconds>( regexMatcher );
     }
 
-    const auto totalFileSize = sourceLogData_.getFileSize();
-
     // A small file searches in well under a millisecond; dividing by the
     // millisecond count would then divide by zero, and casting the resulting
     // infinity to an integer is undefined behaviour (UBSan aborts on it).
@@ -543,8 +545,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                     static_cast<double>( ( endLine - initialLine ).get() ) / elapsedSeconds ) )
              << " lines/s";
     LOG_INFO << "Searching io perf "
-             << ( static_cast<double>( totalFileSize ) / elapsedSeconds ) / ( 1024 * 1024 )
-             << " MiB/s";
+             << ( static_cast<double>( bytesRead ) / elapsedSeconds ) / ( 1024 * 1024 ) << " MiB/s";
 
     // Completion is reported once, here, rather than folded into the last progress
     // tick -- that is what lets a superseded/interrupted run be told apart from a

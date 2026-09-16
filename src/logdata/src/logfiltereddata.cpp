@@ -67,7 +67,7 @@ LogFilteredData::LogFilteredData( const LogData* logData, const SearchPolicy& se
     : AbstractLogData()
     , matching_lines_( SearchResultArray() )
     , visibility_()
-    , session_( *logData, searchPolicy )
+    , session_( logData->searchBlockSource(), searchPolicy )
 {
     // Starts with an empty result list
     maxLength_ = 0_length;

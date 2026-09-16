@@ -28,7 +28,7 @@
 #include <QObject>
 #include <QString>
 
-#include "logdata.h"
+#include "in_memory_block_source.h"
 #include "logfiltereddataworker.h"
 #include "regularexpression.h"
 #include "test_policies.h"
@@ -62,14 +62,14 @@ struct FinishedSearch {
 SCENARIO( "A Search that fails reports the failure as how it finished", "[search]" )
 {
     const auto policies = testSettingsPolicies();
-    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    InMemoryBlockSource blockSource;
 
     const auto expression = std::make_shared<const RegularExpression>(
         RegularExpressionPattern( "match" ), policies.search.regexpEngine );
 
     std::atomic<uint64_t> activeSearchId{ 7 };
-    FailingSearchOperation operation{ logData, SearchId( 7 ),   activeSearchId, expression,
-                                      0_lnum,  LineNumber( 5 ), policies.search };
+    FailingSearchOperation operation{ blockSource, SearchId( 7 ),   activeSearchId, expression,
+                                      0_lnum,      LineNumber( 5 ), policies.search };
 
     std::optional<FinishedSearch> finished;
     QObject::connect( &operation, &SearchOperation::searchFinished,

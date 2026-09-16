@@ -58,9 +58,28 @@
 #include "loadingstatus.h"
 #include "logdataoperation.h"
 #include "logdataworker.h"
+#include "searchblocksource.h"
 #include "settingspolicies.h"
 
+class LogData;
 class LogFilteredData;
+
+// The log data as the block source a Search reads its Log Lines through.
+class LogDataBlockSource final : public SearchBlockSource {
+public:
+    explicit LogDataBlockSource( const LogData& logData )
+        : logData_( logData )
+    {
+    }
+
+    LinesCount getNbLines() const override;
+    RawLines getLinesRaw( LineNumber first, LinesCount number ) const override;
+    void attachReader() const override;
+    void detachReader() const override;
+
+private:
+    const LogData& logData_;
+};
 
 // Thrown when trying to attach an already attached LogData
 class CantReattachErr {};
@@ -131,25 +150,14 @@ public:
     // File only by reopening it, so a setter would promise more than it
     // could deliver.
 
-    struct RawLines {
-        LineNumber startLine;
-
-        logsquirl::vector<char> buffer;
-        logsquirl::vector<qint64> endOfLines;
-
-        TextDecoder textDecoder;
-
-        QRegularExpression prefilterPattern;
-
-    public:
-        logsquirl::vector<QString> decodeLines() const;
-        logsquirl::vector<std::string_view> buildUtf8View() const;
-
-    private:
-        mutable logsquirl::vector<char> utf8Data_;
-    };
+    // A block of raw Log Lines, as a Search reads them.
+    using RawLines = ::RawLines;
 
     RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
+
+    // What a Search on this Log File reads its Log Lines through. Lives as
+    // long as this object.
+    const SearchBlockSource& searchBlockSource() const;
 
 Q_SIGNALS:
     // Sent during the 'attach' process to signal progress
@@ -232,6 +240,8 @@ private:
     // Read by getLinesRaw() on the Search's threads, so it is only ever
     // touched under the indexing data's lock.
     DecodingPolicy decodingPolicy_;
+
+    LogDataBlockSource searchBlockSource_{ *this };
 };
 
 #endif

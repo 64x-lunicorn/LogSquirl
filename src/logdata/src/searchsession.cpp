@@ -23,13 +23,14 @@
 #include <utility>
 
 #include "log.h"
-#include "logdata.h"
 #include "regularexpression.h"
+#include "searchblocksource.h"
 
-SearchSession::SearchSession( const LogData& sourceLogData, const SearchPolicy& searchPolicy )
-    : sourceLogData_( sourceLogData )
+SearchSession::SearchSession( const SearchBlockSource& blockSource,
+                              const SearchPolicy& searchPolicy )
+    : blockSource_( blockSource )
     , searchPolicy_( searchPolicy )
-    , workerThread_( sourceLogData, searchPolicy )
+    , workerThread_( blockSource, searchPolicy )
 {
     connect( &workerThread_, &LogFilteredDataWorker::searchProgressed, this,
              &SearchSession::handleSearchProgressed );
@@ -134,7 +135,7 @@ void SearchSession::setSearchPolicy( const SearchPolicy& searchPolicy )
 
 void SearchSession::request( const RegularExpressionPattern& pattern )
 {
-    request( pattern, 0_lnum, LineNumber( sourceLogData_.getNbLine().get() ) );
+    request( pattern, 0_lnum, LineNumber( blockSource_.getNbLines().get() ) );
 }
 
 void SearchSession::request()
@@ -231,7 +232,7 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
     newState.isContinuation = isContinuation;
     applyState( std::move( newState ) );
 
-    sourceLogData_.attachReader();
+    blockSource_.attachReader();
 
     currentSearchId_ = isContinuation
                            ? workerThread_.updateSearch( compiledExpression, startLine, endLine,
@@ -292,7 +293,7 @@ void SearchSession::rebuildContextLines()
         return;
     }
 
-    const auto totalLines = sourceLogData_.getNbLine().get();
+    const auto totalLines = blockSource_.getNbLines().get();
     if ( totalLines == 0 ) {
         return;
     }
@@ -431,7 +432,7 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
     // and it must happen regardless of whether this run's results end up
     // applied below -- a superseded run must not leak the attach just
     // because its results are discarded.
-    sourceLogData_.detachReader();
+    blockSource_.detachReader();
 
     if ( searchId != currentSearchId_ ) {
         // A superseded (or explicitly stopped) run finishing late;

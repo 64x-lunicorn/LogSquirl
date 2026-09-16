@@ -10,6 +10,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddataworker.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsession.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linetypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileholder.h
