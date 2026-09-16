@@ -8,8 +8,4 @@ add_executable(logsquirl_openlogfile_tests
 target_link_libraries(logsquirl_openlogfile_tests logsquirl_openlogfile Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_openlogfile_tests PROPERTIES AUTOMOC ON)
 
-add_test(
-    NAME logsquirl_openlogfile_tests
-    COMMAND logsquirl_openlogfile_tests
-)
-set_tests_properties(logsquirl_openlogfile_tests PROPERTIES TIMEOUT 120)
+logsquirl_add_catch_tests(logsquirl_openlogfile_tests TIMEOUT 120)

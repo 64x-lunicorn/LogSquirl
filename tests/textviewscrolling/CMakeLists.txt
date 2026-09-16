@@ -7,8 +7,4 @@ add_executable(logsquirl_textviewscrolling_tests
 
 target_link_libraries(logsquirl_textviewscrolling_tests logsquirl_textviewscrolling Catch2 test_utils)
 
-add_test(
-    NAME logsquirl_textviewscrolling_tests
-    COMMAND logsquirl_textviewscrolling_tests
-)
-set_tests_properties(logsquirl_textviewscrolling_tests PROPERTIES TIMEOUT 120)
+logsquirl_add_catch_tests(logsquirl_textviewscrolling_tests TIMEOUT 120)
