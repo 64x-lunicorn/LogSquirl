@@ -4,8 +4,11 @@ runs:
   using: "composite"
   steps:
     # The sccache disk cache lives in the workspace (bind-mounted as /usr/local
-    # inside the container) and is persisted with the Actions cache. Every run
-    # saves under a fresh key, so the newest cache of this job wins on restore.
+    # inside the container) and is persisted with the Actions cache. Caches are
+    # immutable, so every saving run needs a fresh key and the newest cache of
+    # this job wins on restore. Only default-branch runs save (see "Save sccache
+    # cache"); pull requests restore master's newest entry, which the Actions
+    # cache lets every branch read (#219).
     - name: Restore sccache cache
       uses: actions/cache/restore@v6
       with:
@@ -19,6 +22,8 @@ runs:
     - name: start container
       shell: sh
       run: |
+        # Marks the build start for "Trim sccache cache" below.
+        touch "$RUNNER_TEMP/sccache-build-start"
         docker run -d --name logsquirl_build \
           --env LOGSQUIRL_VERSION=$LOGSQUIRL_VERSION \
           --env LOGSQUIRL_BUILD_ROOT=$LOGSQUIRL_BUILD_ROOT \
@@ -39,8 +44,13 @@ runs:
 
     - name: sccache stats
       if: always()
-      shell: sh
-      run: docker exec logsquirl_build sccache --show-stats
+      shell: bash
+      env:
+        BUILD_NAME: Linux / ${{ matrix.config.artifacts_id }}
+      run: |
+        docker exec logsquirl_build sccache --show-stats |
+          tee "$RUNNER_TEMP/sccache-stats.txt" |
+          "$GITHUB_WORKSPACE/.github/scripts/sccache-stats-summary.sh" "$BUILD_NAME"
 
     # sccache runs as root in the container, so the cache it writes into the
     # bind-mounted workspace is root-owned and unreadable for the runner user;
@@ -74,8 +84,40 @@ runs:
           exit 1
         fi
 
+    # sccache's disk cache sets a file's mtime whenever it stores or hits it,
+    # so files not newer than the build start were not used by this build.
+    # Without the trim every restore-build-save cycle carried the unused
+    # objects forward up to SCCACHE_CACHE_SIZE (2G), and the saved entries
+    # grew from ~300 MB to ~450 MB per job between two master builds a day
+    # apart. Skipped when the build failed, since the objects of the part it
+    # never reached are still needed. The mtime update happens in sccache's
+    # (default) server-side mode; the guard skips the trim if a future mode
+    # stops touching hit files, rather than throwing the hits away (#219).
+    - name: Trim sccache cache
+      if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      shell: sh
+      run: |
+        marker="$RUNNER_TEMP/sccache-build-start"
+        hits=$(sed -n 's/^Cache hits  *\([0-9][0-9]*\)$/\1/p' "$RUNNER_TEMP/sccache-stats.txt" 2>/dev/null | head -n 1)
+        used=$(find sccache_cache -type f -newer "$marker" | wc -l)
+        if [ "$used" -lt "${hits:-0}" ]; then
+          echo "::warning::Only $used sccache files are newer than the build start but the build had ${hits} cache hits; not trimming"
+          exit 0
+        fi
+        echo "sccache cache before trim: $(du -sh sccache_cache | cut -f1)"
+        find sccache_cache -type f ! -newer "$marker" -delete
+        find sccache_cache -mindepth 1 -type d -empty -delete
+        echo "sccache cache after trim: $(du -sh sccache_cache | cut -f1)"
+
+    # Each saved entry is 300-450 MB per job, and saving from every run (pull
+    # requests included) filled the 10 GB Actions cache within two days so
+    # entries were evicted continuously. Only default-branch runs save now; the
+    # cleanup workflow (cache-cleanup.yml) deletes the entries they supersede
+    # (#219).
     - name: Save sccache cache
-      if: always() && steps.sccache_readable.outcome == 'success'
+      if: >-
+        always() && steps.sccache_readable.outcome == 'success'
+        && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
       uses: actions/cache/save@v6
       with:
         path: sccache_cache

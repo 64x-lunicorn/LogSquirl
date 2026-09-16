@@ -163,17 +163,32 @@ jobs:
           image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
+      # The key covers the CPM script as well as the package list (#219).
       - name: Restore CPM cache
-        uses: actions/cache@v6
+        id: cpm_cache
+        uses: actions/cache/restore@v6
         with:
           path: cpm_cache
-          key: cpm-Linux-${{ matrix.config.artifacts_id }}-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+          key: cpm-Linux-${{ matrix.config.artifacts_id }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
           restore-keys: |
             cpm-Linux-${{ matrix.config.artifacts_id }}-
 
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
+
+      # Only the default branch saves, and only when the exact key was missing
+      # (caches are immutable): a dependency change on a pull request would
+      # otherwise add a ~400 MB entry per job scoped to that pull request (#219).
+      - name: Save CPM cache
+        if: >-
+          steps.cpm_cache.outputs.cache-hit != 'true'
+          && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: actions/cache/save@v6
+        with:
+          path: cpm_cache
+          key: ${{ steps.cpm_cache.outputs.cache-primary-key }}
+
       - uses: ./.github/actions/docker-run-tests
       - uses: ./.github/actions/docker-package
 
@@ -231,13 +246,17 @@ jobs:
           image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
+      # Same container and package list as the noble job, minus Sentry, so the
+      # noble job's CPM cache already holds everything this build downloads;
+      # restoring it instead of saving a ~290 MB copy of our own keeps the
+      # Actions cache under its limit (#219).
       - name: Restore CPM cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: cpm_cache
-          key: cpm-Linux-asan-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
           restore-keys: |
-            cpm-Linux-asan-
+            cpm-Linux-noble-
 
       - name: Lower ASLR entropy for ASan
         # Kernels with vm.mmap_rnd_bits=32 (GitHub's Ubuntu runners) break the

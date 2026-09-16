@@ -29,10 +29,18 @@ runs:
     - name: Enable sccache GitHub Actions cache backend
       if: runner.os != 'Linux'
       shell: bash
+      env:
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       run: |
         echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
         # Bump to invalidate every cached object at once.
         echo "SCCACHE_GHA_VERSION=1" >> "$GITHUB_ENV"
+        # Every object is its own cache entry; a pull request wrote ~380
+        # entries (~210 MB) scoped to its ref that no other branch can read.
+        # Only the default branch writes, as for the Linux sccache (#219).
+        if [ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]; then
+          echo "SCCACHE_GHA_RW_MODE=READ_ONLY" >> "$GITHUB_ENV"
+        fi
 
     - name: Install Qt
       if: ${{ matrix.config.qt_arch }}
@@ -55,7 +63,7 @@ runs:
         echo "BOOST_VERSION=$BOOST_VERSION" >> $GITHUB_ENV
 
     - name: Restore Boost cache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       id: cache-boost
       with:
         path: ${{env.BOOST_ROOT}}

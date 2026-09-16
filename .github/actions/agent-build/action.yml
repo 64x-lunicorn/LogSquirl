@@ -10,11 +10,14 @@ runs:
         echo "CC=${{ matrix.config.cc }}" >> $GITHUB_ENV
         echo "CXX=${{ matrix.config.cxx }}" >> $GITHUB_ENV
 
+    # The key covers the CPM script as well as the package list: a CPM update
+    # can change how sources are laid out in the cache (#219).
     - name: Restore CPM cache
-      uses: actions/cache@v4
+      id: cpm_cache
+      uses: actions/cache/restore@v6
       with:
         path: ${{ github.workspace }}/cpm_cache
-        key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+        key: cpm-${{ runner.os }}-${{ matrix.config.arch }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
         restore-keys: |
           cpm-${{ runner.os }}-${{ matrix.config.arch }}-
 
@@ -47,12 +50,26 @@ runs:
       run: |
         cmake --build $LOGSQUIRL_BUILD_ROOT -t ci_build
 
+    # A pull request that changes the dependencies would otherwise add a
+    # ~400 MB entry scoped to its own ref; only the default branch saves, and
+    # only when the exact key was missing (caches are immutable) (#219).
+    - name: Save CPM cache
+      if: >-
+        steps.cpm_cache.outputs.cache-hit != 'true'
+        && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      uses: actions/cache/save@v6
+      with:
+        path: ${{ github.workspace }}/cpm_cache
+        key: ${{ steps.cpm_cache.outputs.cache-primary-key }}
+
     - name: sccache stats
       if: always()
       shell: bash
+      env:
+        BUILD_NAME: ${{ runner.os }} / ${{ matrix.config.arch }}
       run: |
         if [ "$SCCACHE_GHA_ENABLED" = "true" ] && command -v sccache >/dev/null 2>&1; then
-          sccache --show-stats
+          sccache --show-stats | "$GITHUB_WORKSPACE/.github/scripts/sccache-stats-summary.sh" "$BUILD_NAME"
         else
           echo "sccache not enabled on this runner"
         fi
