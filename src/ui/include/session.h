@@ -34,10 +34,9 @@
 #include "log.h"
 #include "quickfindpattern.h"
 #include "settingspolicies.h"
+#include "viewinterface.h"
 
 class PolicyFileWatchPort;
-class ViewInterface;
-class ViewContextInterface;
 class LogFormatCatalog;
 class OpenLogFile;
 class SavedSearches;
@@ -104,8 +103,14 @@ public:
     // view for it (the caller passes a factory to build the concrete view)
     // The ownership of the view is given to the caller
     // Throw exceptions if the file is already open or if it cannot be open.
-    ViewInterface* open( const QString& file_name,
-                         const std::function<ViewInterface*()>& view_factory );
+    //
+    // The factory is called once, with everything the views are built from
+    // (#248): the Open Log File, the QuickFind pattern, the Policies, the
+    // saved Searches, whom to report a change to and, when one is given, the
+    // view context to restore. Opening a file and restoring a Session both
+    // come here.
+    ViewInterface* open( const QString& file_name, const ViewFactory& view_factory,
+                         const QString& view_context = {} );
 
     // Close the file identified by the view passed
     // Throw an exception if it does not exist.
@@ -226,13 +231,13 @@ private:
         ViewInterface* view;
     };
 
-    // Open a file without checking if it is existing/readable
-    ViewInterface* openAlways( const QString& file_name,
-                               const std::function<ViewInterface*()>& view_factory,
-                               const QString& view_context );
-
     void applySettingsChange();
     void applyHighlighterSetChange();
+
+    // Applies the Policies as applyPolicies() does, and hands every open Log
+    // File what changed together with `change`, in one call each -- nothing
+    // when nothing did.
+    void applyPolicies( const SettingsPolicies& policies, ViewChange change );
 
     // Find an open file from its associated view
     OpenFile* findOpenFileFromView( const ViewInterface* view );
@@ -278,12 +283,9 @@ public:
         return appSession_->getViewIfOpen( file_name );
     }
 
-    ViewInterface* open( const QString& file_name,
-                         const std::function<ViewInterface*()>& view_factory )
-    {
-        openedFiles_.push_back( file_name );
-        return appSession_->open( file_name, view_factory );
-    }
+    // Opens a Log File in this window, restoring the view context saved for
+    // it in any window of the stored Session, the way restore() does.
+    ViewInterface* open( const QString& file_name, const ViewFactory& view_factory );
 
     void close( const ViewInterface* view )
     {
@@ -376,8 +378,7 @@ public:
     // (see ::open)
     // returns a vector of pairs (file_name, view) and the index of the
     // current file (or -1 if none).
-    OpenedFilesList restore( const std::function<ViewInterface*()>& view_factory,
-                             int* current_file_index );
+    OpenedFilesList restore( const ViewFactory& view_factory, int* current_file_index );
 
     // Get the geometry string from persistent storage for this session.
     void restoreGeometry( QByteArray* geometry ) const;

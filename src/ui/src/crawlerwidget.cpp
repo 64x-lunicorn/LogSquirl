@@ -207,9 +207,28 @@ private:
 
 // Constructor only does trivial construction. The real work is done once
 // the data is attached.
-CrawlerWidget::CrawlerWidget( QWidget* parent )
+CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     : QSplitter( parent )
 {
+    openLogFile_ = build.openLogFile;
+    quickFindPattern_ = build.quickFindPattern;
+    savedSearches_ = build.savedSearches;
+    changeReport_ = build.changeReport;
+
+    // Every view built below starts with these; a view built later, too (#242).
+    viewSet_.setDecorationPolicy( build.policies.decoration );
+    viewSet_.setPresentationPolicy( build.policies.presentation );
+    viewSet_.setQuickFindPolicy( build.policies.quickFind );
+    applyWatchPolicy( build.policies.watch );
+    // The Encoding a Log File is read with by default is settled when it is
+    // opened.
+    fileAccessPolicy_ = build.policies.fileAccess;
+
+    setup();
+
+    if ( !build.viewContext.isEmpty() ) {
+        restoreViewContext( build.viewContext );
+    }
 }
 
 // The top line is first one on the main display
@@ -339,52 +358,43 @@ void CrawlerWidget::goToLine()
 //
 // Protected functions
 //
-void CrawlerWidget::doSetData( std::shared_ptr<OpenLogFile> openLogFile )
+void CrawlerWidget::doApplyChange( const ViewChange& change )
 {
-    openLogFile_ = std::move( openLogFile );
+    // Each reaches every view of this Log File, the Filtered Views of kept
+    // Searches included, whether or not its tab is the active one, without
+    // the Log File being opened again; a view built later starts with it.
+    if ( change.decoration ) {
+        viewSet_.setDecorationPolicy( *change.decoration );
+    }
+    if ( change.presentation ) {
+        viewSet_.setPresentationPolicy( *change.presentation );
+    }
+    if ( change.quickFind ) {
+        // The QuickFind bar and the mux that dispatches to this Log File
+        // belong to the window, which takes this Policy from its session:
+        // nothing is handed on from here.
+        viewSet_.setQuickFindPolicy( *change.quickFind );
+    }
+    if ( change.watch ) {
+        applyWatchPolicy( *change.watch );
+    }
+
+    // After the Policies, which what is read again may depend on.
+    if ( change.rereadSettingsWithoutPolicy ) {
+        rereadSettingsWithoutPolicy();
+    }
+    if ( change.highlighterSets ) {
+        applyHighlighterSetChange();
+    }
 }
 
-void CrawlerWidget::doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp )
-{
-    quickFindPattern_ = std::move( qfp );
-}
-
-void CrawlerWidget::doSetDecorationPolicy( const DecorationPolicy& policy )
-{
-    // Re-colors every view of this Log File, whether or not its tab is the
-    // active one; a view built later starts with it.
-    viewSet_.setDecorationPolicy( policy );
-}
-
-void CrawlerWidget::doSetPresentationPolicy( const PresentationPolicy& policy )
-{
-    // Reaches every view of this Log File, the Filtered Views of kept
-    // Searches included, so that it takes effect without the Log File being
-    // opened again.
-    viewSet_.setPresentationPolicy( policy );
-}
-
-void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
-{
-    viewSet_.setQuickFindPolicy( policy );
-
-    // The QuickFind bar and the mux that dispatches to this Log File belong to
-    // the window, which takes this Policy from its session: nothing is handed
-    // on from here.
-}
-
-void CrawlerWidget::doSetWatchPolicy( const WatchPolicy& policy )
+void CrawlerWidget::applyWatchPolicy( const WatchPolicy& policy )
 {
     watchPolicy_ = policy;
 
     // Takes following away from every view of this Log File, or gives it
     // back, without the Log File being opened again.
     viewSet_.setFollowAllowed( policy.anyWatchEnabled() );
-}
-
-void CrawlerWidget::doSetFileAccessPolicy( const FileAccessPolicy& policy )
-{
-    fileAccessPolicy_ = policy;
 }
 
 const DecorationPolicy& CrawlerWidget::decorationPolicy() const
@@ -407,18 +417,9 @@ const WatchPolicy& CrawlerWidget::watchPolicy() const
     return watchPolicy_;
 }
 
-void CrawlerWidget::doSetSavedSearches( SavedSearches* saved_searches )
+void CrawlerWidget::restoreViewContext( const QString& view_context )
 {
-    savedSearches_ = saved_searches;
-
-    // We do setup now, assuming doSetData has been called before
-    // us, that's not great really...
-    setup();
-}
-
-void CrawlerWidget::doSetViewContext( const QString& view_context )
-{
-    LOG_DEBUG << "CrawlerWidget::doSetViewContext: " << view_context.toLocal8Bit().data();
+    LOG_DEBUG << "CrawlerWidget::restoreViewContext: " << view_context.toLocal8Bit().data();
 
     const auto context = CrawlerWidgetContext{ view_context, viewSet_.quickFindPolicy() };
 
@@ -796,9 +797,9 @@ void CrawlerWidget::broughtToFront()
     }
 }
 
-void CrawlerWidget::doRereadSettingsWithoutPolicy()
+void CrawlerWidget::rereadSettingsWithoutPolicy()
 {
-    LOG_DEBUG << "CrawlerWidget::doRereadSettingsWithoutPolicy";
+    LOG_DEBUG << "CrawlerWidget::rereadSettingsWithoutPolicy";
 
     // Nothing else: file watching, Context Lines, hiding ANSI color
     // sequences, the colors Log Lines are decorated in, whether line numbers
@@ -815,11 +816,6 @@ void CrawlerWidget::doRereadSettingsWithoutPolicy()
     updateSearchCombo();
 }
 
-void CrawlerWidget::doSetChangeReport( std::function<void( Changed )> report )
-{
-    changeReport_ = std::move( report );
-}
-
 void CrawlerWidget::reportChange( Changed change )
 {
     if ( changeReport_ ) {
@@ -830,7 +826,7 @@ void CrawlerWidget::reportChange( Changed change )
     // Not opened through a Session: only this Log File can be told.
     switch ( change ) {
     case Changed::Settings:
-        doRereadSettingsWithoutPolicy();
+        rereadSettingsWithoutPolicy();
         break;
     case Changed::HighlighterSets:
         applyHighlighterSetChange();
@@ -864,11 +860,6 @@ void CrawlerWidget::applyHighlighterSetChange()
     // Every view of this Log File, the Filtered Views of kept Searches
     // included, picks up the colors of its Color Labels and paints again.
     viewSet_.applyHighlighterSetChange();
-}
-
-void CrawlerWidget::doApplyHighlighterSetChange()
-{
-    applyHighlighterSetChange();
 }
 
 void CrawlerWidget::applyDecodingPolicyChange()

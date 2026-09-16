@@ -72,10 +72,35 @@ ViewInterface* Session::getViewIfOpen( const QString& file_name ) const
         return nullptr;
 }
 
-ViewInterface* Session::open( const QString& file_name,
-                              const std::function<ViewInterface*()>& view_factory )
+ViewInterface* Session::open( const QString& file_name, const ViewFactory& view_factory,
+                              const QString& view_context )
 {
-    return openAlways( file_name, view_factory, nullptr );
+    // The Open Log File: the log data, its Searches, and what they do as the
+    // Log File changes on disk
+    auto openLogFile = std::make_shared<OpenLogFile>(
+        policies_.indexing, policies_.search, policies_.fileAccess, policies_.decoding,
+        policies_.recognition, logFormatCatalog_, fileWatch_ );
+
+    // One value, one call: the views need nothing else before they can show
+    // the Log File, and nothing arrives in an order they depend on.
+    ViewInterface* view = view_factory( ViewBuild{
+        .openLogFile = openLogFile,
+        .quickFindPattern = quickFindPattern_,
+        .policies = policies_,
+        .savedSearches = savedSearches_,
+        .viewContext = view_context,
+        // What the views change themselves -- a Highlighter Set ticked in
+        // their menu, a zoom -- comes back here, to reach every open Log File.
+        .changeReport = [ this ]( Changed change ) { applyChange( change ); },
+    } );
+
+    // Insert in the hash
+    openFiles_.insert( { view, { file_name, openLogFile, view } } );
+
+    // Start loading the file
+    openLogFile->open( file_name );
+
+    return view;
 }
 
 void Session::close( const ViewInterface* view )
@@ -115,43 +140,6 @@ void Session::getFileInfo( const ViewInterface* view, uint64_t* fileSize, uint64
     *fileSize = static_cast<uint64_t>( logData->getFileSize() );
     *fileNbLine = logData->getNbLine().get();
     *lastModified = logData->getLastModifiedDate();
-}
-
-ViewInterface* Session::openAlways( const QString& file_name,
-                                    const std::function<ViewInterface*()>& view_factory,
-                                    const QString& view_context )
-{
-    // The Open Log File: the log data, its Searches, and what they do as the
-    // Log File changes on disk
-    auto openLogFile = std::make_shared<OpenLogFile>(
-        policies_.indexing, policies_.search, policies_.fileAccess, policies_.decoding,
-        policies_.recognition, logFormatCatalog_, fileWatch_ );
-
-    ViewInterface* view = view_factory();
-    view->setData( openLogFile );
-    view->setQuickFindPattern( quickFindPattern_ );
-    view->setDecorationPolicy( policies_.decoration );
-    view->setPresentationPolicy( policies_.presentation );
-    view->setQuickFindPolicy( policies_.quickFind );
-    view->setWatchPolicy( policies_.watch );
-    view->setFileAccessPolicy( policies_.fileAccess );
-    // What the views change themselves -- a Highlighter Set ticked in their
-    // menu, a zoom -- comes back here, to reach every open Log File.
-    view->setChangeReport( [ this ]( Changed change ) { applyChange( change ); } );
-    // Last: the view builds itself when it is handed these, so every Policy
-    // above has to be in its hands before it does.
-    view->setSavedSearches( savedSearches_ );
-
-    if ( !view_context.isEmpty() )
-        view->setViewContext( view_context );
-
-    // Insert in the hash
-    openFiles_.insert( { view, { file_name, openLogFile, view } } );
-
-    // Start loading the file
-    openLogFile->open( file_name );
-
-    return view;
 }
 
 Session::OpenFile* Session::findOpenFileFromView( const ViewInterface* view )
@@ -206,14 +194,12 @@ void Session::applySettingsChange()
 {
     // The Session is where the Policies are handed out, so it is where they
     // are re-derived: no writer, and not the application, has to do it first.
-    applyPolicies( deriveSettingsPolicies( Configuration::get() ) );
-
+    //
     // The font and the shortcuts have no Policy and no diff: every open Log
-    // File reads them again.
-    for ( auto& [ view, openFile ] : openFiles_ ) {
-        Q_UNUSED( view );
-        openFile.view->rereadSettingsWithoutPolicy();
-    }
+    // File reads them again, in the same change as the Axes that changed.
+    ViewChange reread;
+    reread.rereadSettingsWithoutPolicy = true;
+    applyPolicies( deriveSettingsPolicies( Configuration::get() ), reread );
 
     // Last, so that a window reads the Policies already re-derived.
     for ( auto* window : windows_ ) {
@@ -223,14 +209,38 @@ void Session::applySettingsChange()
 
 void Session::applyPolicies( const SettingsPolicies& policies )
 {
+    applyPolicies( policies, ViewChange{} );
+}
+
+void Session::applyPolicies( const SettingsPolicies& policies, ViewChange change )
+{
     const auto indexingChanged = policies.indexing != policies_.indexing;
     const auto searchChanged = policies.search != policies_.search;
     const auto recognitionChanged = policies.recognition != policies_.recognition;
     const auto decodingChanged = policies.decoding != policies_.decoding;
-    const auto decorationChanged = policies.decoration != policies_.decoration;
-    const auto presentationChanged = policies.presentation != policies_.presentation;
-    const auto quickFindChanged = policies.quickFind != policies_.quickFind;
     const auto watchChanged = policies.watch != policies_.watch;
+
+    // The Axes the views hold. One that did not change is left empty, and so
+    // is not handed to anybody.
+    if ( policies.decoration != policies_.decoration ) {
+        // Re-colors the views of every open Log File, not only the one the
+        // active tab shows, and without a new Search.
+        change.decoration = policies.decoration;
+    }
+    if ( policies.presentation != policies_.presentation ) {
+        change.presentation = policies.presentation;
+    }
+    if ( policies.quickFind != policies_.quickFind ) {
+        // The views' own use of it: how the Search line reads its pattern and
+        // what the Table View hands a QuickFind. The window's QuickFind bar
+        // and mux read it from the Session instead.
+        change.quickFind = policies.quickFind;
+    }
+    if ( watchChanged ) {
+        // Takes following away from the views of a Log File that is already
+        // open, or gives it back, without it being reopened.
+        change.watch = policies.watch;
+    }
 
     // Every time, changed Policies or not: the user's Log Formats are read
     // again. Log Formats handed out before stay valid for whoever holds them.
@@ -249,11 +259,6 @@ void Session::applyPolicies( const SettingsPolicies& policies )
         fileWatch_->setWatchPolicy( policies_.watch );
     }
 
-    if ( !indexingChanged && !searchChanged && !recognitionChanged && !decodingChanged
-         && !decorationChanged && !presentationChanged && !quickFindChanged && !watchChanged ) {
-        return;
-    }
-
     for ( auto& [ view, openFile ] : openFiles_ ) {
         Q_UNUSED( view );
 
@@ -261,31 +266,6 @@ void Session::applyPolicies( const SettingsPolicies& policies )
             // Takes effect at the Log File's next Format Recognition; an
             // open Table View is not torn down.
             openFile.openLogFile->setRecognitionPolicy( policies_.recognition );
-        }
-
-        if ( decorationChanged ) {
-            // Re-colors the views of every open Log File, not only the one
-            // the active tab shows, and without a new Search.
-            openFile.view->setDecorationPolicy( policies_.decoration );
-        }
-
-        if ( presentationChanged ) {
-            // Reaches the views of every open Log File, not only the one the
-            // active tab shows.
-            openFile.view->setPresentationPolicy( policies_.presentation );
-        }
-
-        if ( quickFindChanged ) {
-            // The views' own use of it: how the Search line reads its pattern
-            // and what the Table View hands a QuickFind. The window's QuickFind
-            // bar and mux read it from the Session instead.
-            openFile.view->setQuickFindPolicy( policies_.quickFind );
-        }
-
-        if ( watchChanged ) {
-            // Takes following away from the views of a Log File that is
-            // already open, or gives it back, without it being reopened.
-            openFile.view->setWatchPolicy( policies_.watch );
         }
 
         if ( indexingChanged ) {
@@ -305,14 +285,21 @@ void Session::applyPolicies( const SettingsPolicies& policies )
             // results already found stay as they were.
             openFile.openLogFile->logData()->setDecodingPolicy( policies_.decoding );
         }
+
+        if ( !change.isEmpty() ) {
+            // Every open Log File, not only the one the active tab shows.
+            openFile.view->applyChange( change );
+        }
     }
 }
 
 void Session::applyHighlighterSetChange()
 {
+    ViewChange change;
+    change.highlighterSets = true;
     for ( auto& [ view, openFile ] : openFiles_ ) {
         Q_UNUSED( view );
-        openFile.view->applyHighlighterSetChange();
+        openFile.view->applyChange( change );
     }
 }
 
@@ -360,20 +347,41 @@ void WindowSession::save(
     session.save();
 }
 
-std::vector<std::pair<QString, ViewInterface*>>
-WindowSession::restore( const std::function<ViewInterface*()>& view_factory,
-                        int* current_file_index )
+ViewInterface* WindowSession::open( const QString& file_name, const ViewFactory& view_factory )
+{
+    // The view context saved for this Log File in any window, if it was
+    // open when the Session was last saved.
+    const auto savedViewContext = [ &file_name ]() {
+        const auto& session = SessionInfo::getSynced();
+        for ( const auto& windowId : session.windows() ) {
+            const auto openedFiles = session.openFiles( windowId );
+            const auto saved = std::find_if(
+                openedFiles.begin(), openedFiles.end(),
+                [ &file_name ]( const auto& openFile ) { return openFile.fileName == file_name; } );
+            if ( saved != openedFiles.end() ) {
+                return saved->viewContext;
+            }
+        }
+        return QString{};
+    }();
+
+    auto* view = appSession_->open( file_name, view_factory, savedViewContext );
+    openedFiles_.push_back( file_name );
+    return view;
+}
+
+OpenedFilesList WindowSession::restore( const ViewFactory& view_factory, int* current_file_index )
 {
     const auto& session = SessionInfo::getSynced();
 
     std::vector<SessionInfo::OpenFile> session_files = session.openFiles( windowId_ );
     LOG_DEBUG << "Session returned " << session_files.size();
-    std::vector<std::pair<QString, ViewInterface*>> result;
+    OpenedFilesList result;
 
     for ( const auto& file : session_files ) {
         LOG_DEBUG << "Create view for " << file.fileName;
-        ViewInterface* view
-            = appSession_->openAlways( file.fileName, view_factory, file.viewContext );
+        // The same path as opening a Log File by hand.
+        ViewInterface* view = appSession_->open( file.fileName, view_factory, file.viewContext );
         result.emplace_back( file.fileName, view );
         openedFiles_.emplace_back( file.fileName );
     }

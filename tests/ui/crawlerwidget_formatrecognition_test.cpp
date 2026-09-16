@@ -151,7 +151,7 @@ namespace {
 std::unique_ptr<CrawlerAccess> openLogFile( Session& session, const QString& path )
 {
     return std::make_unique<CrawlerAccess>(
-        session.open( path, [] { return new CrawlerWidget(); } ) );
+        session.open( path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) );
 }
 
 SettingsPolicies recognitionEnabled()

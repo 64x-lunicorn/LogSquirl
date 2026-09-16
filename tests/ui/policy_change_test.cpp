@@ -220,7 +220,8 @@ SCENARIO( "A changed Watch Policy reaches the file watcher and the views of a Lo
         // Destroyed before the Session it was opened from: it is declared
         // after it, so it goes first.
         std::unique_ptr<CrawlerWidget> crawler{ static_cast<CrawlerWidget*>(
-            session.open( file.fileName(), [] { return new CrawlerWidget(); } ) ) };
+            session.open( file.fileName(),
+                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) };
 
         THEN( "its views were built knowing that following is not possible" )
         {

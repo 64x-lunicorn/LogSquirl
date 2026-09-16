@@ -398,8 +398,8 @@ SCENARIO( "Crawler widget search", "[ui]" )
     REQUIRE( session.savedSearches().recentSearches().empty() );
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -527,8 +527,8 @@ SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui]
     session.savedSearches().clear();
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset(
-        static_cast<CrawlerWidget*>( session.open( path, []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
     REQUIRE( waitUiState( [ & ]() {
         return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
                && crawlerVisitor.isLoadingFinished();
@@ -580,8 +580,8 @@ SCENARIO( "Selecting a Match in the Filtered View moves the main view only when 
     session.savedSearches().clear();
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -633,8 +633,8 @@ void openCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& 
     REQUIRE( generateDataFiles( file ) );
     session.savedSearches().clear();
 
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -1017,8 +1017,8 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
     policies.decoding.hideAnsiColorSequences = false;
     Session session{ policies, std::make_shared<LogFormatCatalog>() };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
     REQUIRE( waitUiState( [ &crawlerVisitor ]() {
         return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
     } ) );
@@ -1041,7 +1041,8 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
             auto& config = Configuration::get();
             const auto hideAnsiColorSequences = config.hideAnsiColorSequences();
             config.setHideAnsiColorSequences( false );
-            crawlerVisitor.crawler->rereadSettingsWithoutPolicy();
+            crawlerVisitor.crawler->applyChange(
+                ViewChange{ .rereadSettingsWithoutPolicy = true } );
             config.setHideAnsiColorSequences( hideAnsiColorSequences );
 
             THEN( "the Log Line still reads without them: only the Policy decides" )
@@ -1066,8 +1067,8 @@ void writeAnsiLogFile( QTemporaryFile& file )
 void openAnsiCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& crawlerVisitor )
 {
     writeAnsiLogFile( file );
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
     REQUIRE( waitUiState( [ &crawlerVisitor ]() {
         return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
     } ) );
@@ -1287,7 +1288,7 @@ SCENARIO( "A changed Decoration Policy reaches every view of every open Log File
             const auto mainSearchBackColor = config.mainSearchBackColor();
             config.setEnableMainSearchHighlight( true );
             config.setMainSearchBackColor( changedColor );
-            first.crawler->rereadSettingsWithoutPolicy();
+            first.crawler->applyChange( ViewChange{ .rereadSettingsWithoutPolicy = true } );
             config.setEnableMainSearchHighlight( mainSearchHighlight );
             config.setMainSearchBackColor( mainSearchBackColor );
             QTest::qWait( 50 );
@@ -1612,7 +1613,8 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
 
         CrawlerWidgetVisitor crawlerVisitor;
         crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+            session.open( file.fileName(),
+                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
         THEN( "every view already holds the assembled font" )
         {
@@ -1630,7 +1632,8 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
                 = crawlerVisitor.tableView()->verticalHeader()->defaultSectionSize();
             const auto tableFont = crawlerVisitor.tableView()->font();
 
-            crawlerVisitor.crawler->rereadSettingsWithoutPolicy();
+            crawlerVisitor.crawler->applyChange(
+                ViewChange{ .rereadSettingsWithoutPolicy = true } );
             QCoreApplication::processEvents();
 
             THEN( "the Table View neither changes its font nor resizes its rows" )

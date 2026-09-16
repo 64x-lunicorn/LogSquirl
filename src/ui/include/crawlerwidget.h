@@ -97,7 +97,9 @@ class CrawlerWidget : public QSplitter,
     Q_OBJECT
 
 public:
-    CrawlerWidget( QWidget* parent = nullptr );
+    // Builds every view of the Log File from everything they show it with,
+    // and restores the view context in it, if any (#248).
+    explicit CrawlerWidget( const ViewBuild& build, QWidget* parent = nullptr );
 
     // Get the line number of the first line displayed.
     LineNumber getTopLine() const;
@@ -171,18 +173,7 @@ public:
 
 protected:
     // Implementation of the ViewInterface functions
-    void doSetData( std::shared_ptr<OpenLogFile> openLogFile ) override;
-    void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) override;
-    void doSetSavedSearches( SavedSearches* savedSearches ) override;
-    void doSetDecorationPolicy( const DecorationPolicy& policy ) override;
-    void doSetPresentationPolicy( const PresentationPolicy& policy ) override;
-    void doSetQuickFindPolicy( const QuickFindPolicy& policy ) override;
-    void doSetWatchPolicy( const WatchPolicy& policy ) override;
-    void doSetFileAccessPolicy( const FileAccessPolicy& policy ) override;
-    void doApplyHighlighterSetChange() override;
-    void doRereadSettingsWithoutPolicy() override;
-    void doSetChangeReport( std::function<void( Changed )> report ) override;
-    void doSetViewContext( const QString& viewContext ) override;
+    void doApplyChange( const ViewChange& change ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
     // Implementation of the mux selector interface
@@ -333,6 +324,16 @@ private Q_SLOTS:
 private:
     // Private functions
     void setup();
+
+    // What a changed Watch Policy does to this Log File's views.
+    void applyWatchPolicy( const WatchPolicy& policy );
+    // Reads what has no Policy -- the font, the shortcuts, the length of the
+    // Search history -- again.
+    void rereadSettingsWithoutPolicy();
+    // Restores the view context saved with the Session, once the views are
+    // built.
+    void restoreViewContext( const QString& viewContext );
+
     void setShortcuts();
     void replaceCurrentSearch( const QString& searchText );
     // Shows a Search just requested, or its invalid pattern.

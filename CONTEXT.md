@@ -328,4 +328,9 @@ _Avoid_: category, group, domain
 **Session**:
 The set of Log Files currently open, their tabs, and the position and view state restored
 for each on the next start.
+It builds the views of every Log File it opens in one call, from one value: the Open Log
+File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
+if any — opening a Log File by hand and restoring it on start take the same path. After that
+it hands the views only what changed, one change per open Log File, and asks for their view
+state when it is saved.
 _Avoid_: workspace, project, layout
