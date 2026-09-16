@@ -351,8 +351,9 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
 {
     using Phase = SearchSession::Phase;
 
-    if ( state.phase == Phase::Idle || state.phase == Phase::InvalidPattern ) {
-        // Nothing was run (or the run was abandoned): nothing to keep.
+    if ( state.phase == Phase::Idle || state.phase == Phase::InvalidPattern
+         || state.phase == Phase::Failed ) {
+        // Nothing was run (or the run was abandoned or failed): nothing to keep.
         matching_lines_ = SearchResultArray();
         marks_and_matches_ = marks_;
     }

@@ -11,10 +11,12 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/resourcewrapper.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/crc32.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/cpu_info.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/memory_info.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/regexpengine.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchregexptype.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/runnable_lambda.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/cpu_info.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/memory_info.cpp
 )
 
 set_target_properties(logsquirl_utils PROPERTIES AUTOMOC ON)

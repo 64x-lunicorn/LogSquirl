@@ -159,6 +159,7 @@ target_link_libraries(
          logsquirl_plugins
          logsquirl_highlighting
          logsquirl_compression
+         logsquirl_crash_handler
          Qt6::Widgets
          Qt6::Xml
          Qt6::Concurrent

@@ -53,11 +53,12 @@ class SearchSession : public QObject {
 
 public:
     enum class Phase {
-        Idle,          // no pattern requested (or request() with no pattern)
-        Running,       // a run is in flight
-        Interrupted,   // stop() cut a run short; results kept are partial
-        Complete,      // the requested range has been fully searched
-        InvalidPattern // the pattern failed to compile; nothing was run
+        Idle,           // no pattern requested (or request() with no pattern)
+        Running,        // a run is in flight
+        Interrupted,    // stop() cut a run short; results kept are partial
+        Complete,       // the requested range has been fully searched
+        InvalidPattern, // the pattern failed to compile; nothing was run
+        Failed          // the run failed; errorString describes why, no results are kept
     };
     Q_ENUM( Phase )
 
@@ -150,7 +151,7 @@ private Q_SLOTS:
     void handleSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine,
                                  SearchId searchId );
     void handleSearchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                               bool interrupted );
+                               bool interrupted, const QString& failure );
     void emitThrottledStateChanged();
 
 Q_SIGNALS:

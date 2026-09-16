@@ -48,8 +48,6 @@
 #include <tbb/info.h>
 #include <vector>
 
-#include "dispatch_to.h"
-#include "issuereporter.h"
 #include "linetypes.h"
 #include "log.h"
 #include "progress.h"
@@ -551,11 +549,26 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     // Completion is reported once, here, rather than folded into the last progress
     // tick -- that is what lets a superseded/interrupted run be told apart from a
     // genuinely finished one instead of both claiming 100%.
-    Q_EMIT searchFinished( searchId_, nbMatches, initialLine, isSuperseded() );
+    Q_EMIT searchFinished( searchId_, nbMatches, initialLine, isSuperseded(), {} );
+}
+
+void SearchOperation::run( SearchData& searchData )
+{
+    try {
+        doRun( searchData );
+    } catch ( const std::exception& err ) {
+        const auto failure
+            = QString( "%1 failed: %2" ).arg( metaObject()->className(), err.what() );
+        LOG_ERROR << failure;
+        searchData.clear();
+        // Still reported finished: whoever started this run paired it with
+        // one attachReader() that only searchFinished balances.
+        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, false, failure );
+    }
 }
 
 // Called in the worker thread's context
-void FullSearchOperation::run( SearchData& searchData )
+void FullSearchOperation::doRun( SearchData& searchData )
 {
     if ( isSuperseded() ) {
         // Superseded before we even started (e.g. several patterns were typed in
@@ -564,51 +577,33 @@ void FullSearchOperation::run( SearchData& searchData )
         // whoever started us paired it with one attachReader() that only our
         // searchFinished balances with a detachReader().
         LOG_INFO << "Search superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, true );
+        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, true, {} );
         return;
     }
 
-    try {
-        // Clear the shared data
-        searchData.clear();
-        doSearch( searchData, 0_lnum );
-    } catch ( const std::exception& err ) {
-        const auto errorString = QString( "FullSearchOperation failed: %1" ).arg( err.what() );
-        LOG_ERROR << errorString;
-        dispatchToMainThread( [ errorString ]() {
-            IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, errorString );
-        } );
-        searchData.clear();
-    }
+    // Clear the shared data
+    searchData.clear();
+    doSearch( searchData, 0_lnum );
 }
 
 // Called in the worker thread's context
-void UpdateSearchOperation::run( SearchData& searchData )
+void UpdateSearchOperation::doRun( SearchData& searchData )
 {
     if ( isSuperseded() ) {
         LOG_INFO << "Search update superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, 0_lcount, initialPosition_, true );
+        Q_EMIT searchFinished( searchId_, 0_lcount, initialPosition_, true, {} );
         return;
     }
 
-    try {
-        auto initialLine = qMax( searchData.getLastProcessedLine(), initialPosition_ );
+    auto initialLine = qMax( searchData.getLastProcessedLine(), initialPosition_ );
 
-        if ( initialLine.get() >= 1 ) {
-            // We need to re-search the last line because it might have
-            // been updated (if it was not LF-terminated)
-            --initialLine;
-            // In case the last line matched, we don't want it to match twice.
-            searchData.deleteMatch( initialLine );
-        }
-
-        doSearch( searchData, initialLine );
-    } catch ( const std::exception& err ) {
-        const auto errorString = QString( "UpdateSearchOpertaion failed: %1" ).arg( err.what() );
-        LOG_ERROR << errorString;
-        dispatchToMainThread( [ errorString ]() {
-            IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, errorString );
-        } );
-        searchData.clear();
+    if ( initialLine.get() >= 1 ) {
+        // We need to re-search the last line because it might have
+        // been updated (if it was not LF-terminated)
+        --initialLine;
+        // In case the last line matched, we don't want it to match twice.
+        searchData.deleteMatch( initialLine );
     }
+
+    doSearch( searchData, initialLine );
 }

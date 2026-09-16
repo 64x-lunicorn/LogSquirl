@@ -47,7 +47,6 @@ target_link_libraries(
   logsquirl_logdata
   PUBLIC project_options
          project_warnings
-         logsquirl_crash_handler
          logsquirl_policies
          logsquirl_utils
          logsquirl_regex

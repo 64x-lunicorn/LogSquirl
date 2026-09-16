@@ -155,11 +155,15 @@ Q_SIGNALS:
     // Sent during the 'attach' process to signal progress
     // percent being the percentage of completion.
     void loadingProgressed( int percent );
-    // Signal the client the file is fully loaded and available.
-    void loadingFinished( LoadingStatus status );
+    // Signal the client the file is fully loaded and available. When
+    // loading failed, the status is Failed and failure describes what went
+    // wrong; it is empty otherwise. Reporting it is up to the client.
+    void loadingFinished( LoadingStatus status, const QString& failure = {} );
     // Sent when the file on disk has changed, will be followed
-    // by loadingProgressed if needed and then a loadingFinished.
-    void fileChanged( MonitoredFileStatus status );
+    // by loadingProgressed if needed and then a loadingFinished. When
+    // checking the file failed, failure describes what went wrong and the
+    // file is taken as truncated.
+    void fileChanged( MonitoredFileStatus status, const QString& failure = {} );
     // Sent when the Decoding Policy was replaced: every Log Line may read
     // differently now, though the Log File itself did not change.
     void decodingPolicyChanged();
@@ -168,9 +172,9 @@ private Q_SLOTS:
     // Consider reloading the file when it changes on disk updated
     void fileChangedOnDisk( const QString& filename );
     // Called when the worker thread signals the current operation ended
-    void indexingFinished( LoadingStatus status );
+    void indexingFinished( LoadingStatus status, const QString& failure );
     // Called when the worker thread signals the current operation ended
-    void checkFileChangesFinished( MonitoredFileStatus status );
+    void checkFileChangesFinished( MonitoredFileStatus status, const QString& failure );
 
 private:
     // Implementation of virtual functions

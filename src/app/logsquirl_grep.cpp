@@ -17,11 +17,15 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstdlib>
+#include <iostream>
+
 #include <mimalloc.h>
 
 #include "configuration.h"
 #include "dispatch_to.h"
 #include "filewatcher.h"
+#include "loadingstatus.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logger.h"
@@ -31,6 +35,18 @@
 #include "cli.h"
 
 const bool PersistentInfo::ForcePortable = true;
+
+namespace {
+
+// The command line tool's answer to a failure the engine reports: it is
+// printed, and the tool exits with a non-zero code.
+[[noreturn]] void exitWithFailure( const QString& failure )
+{
+    std::cerr << "logsquirl_grep: " << failure.toStdString() << std::endl;
+    exit( EXIT_FAILURE );
+}
+
+} // namespace
 
 int main( int argc, char* argv[] )
 {
@@ -66,6 +82,11 @@ int main( int argc, char* argv[] )
     filteredData->connect(
         filteredData.get(), &LogFilteredData::searchStateChanged,
         [ & ]( SearchSession::State state ) {
+            if ( state.phase == SearchSession::Phase::Failed
+                 || state.phase == SearchSession::Phase::InvalidPattern ) {
+                exitWithFailure( state.errorString );
+            }
+
             if ( state.phase == SearchSession::Phase::Complete ) {
 
                 const auto nbMatches = state.matchCount;
@@ -86,10 +107,17 @@ int main( int argc, char* argv[] )
             }
         } );
 
-    logData.connect( &logData, &LogData::loadingFinished, [ & ]() {
-        dispatchToMainThread(
-            [ & ] { filteredData->request( RegularExpressionPattern( parameters.pattern ) ); } );
-    } );
+    logData.connect(
+        &logData, &LogData::loadingFinished, [ & ]( LoadingStatus status, const QString& failure ) {
+            if ( status != LoadingStatus::Successful ) {
+                exitWithFailure( failure.isEmpty()
+                                     ? QString( "loading the Log File did not finish" )
+                                     : failure );
+            }
+            dispatchToMainThread( [ & ] {
+                filteredData->request( RegularExpressionPattern( parameters.pattern ) );
+            } );
+        } );
 
     logData.attachFile( parameters.filenames.front() );
     return app.exec();

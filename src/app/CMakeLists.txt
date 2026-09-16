@@ -94,7 +94,9 @@ target_link_libraries(logsquirl PRIVATE tbb)
 target_link_libraries(logsquirl_portable PRIVATE tbb)
 # logsquirl_grep derives the Policies itself (there is no LogSquirlApp
 # here), so unlike the log data library it does link the settings library.
-target_link_libraries(logsquirl_grep PUBLIC ${MAIN_LIBS} logsquirl_settings)
+# It reports a failure the engine reports by printing it, and so does not
+# link the crash handler (#240).
+target_link_libraries(logsquirl_grep PUBLIC logsquirl_logdata roaring kdsingleapp logsquirl_settings)
 
 target_compile_definitions(logsquirl_portable PUBLIC -DLOGSQUIRL_PORTABLE)
 

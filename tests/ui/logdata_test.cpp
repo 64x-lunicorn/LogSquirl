@@ -20,6 +20,8 @@
 #include <catch2/catch.hpp>
 
 #include <iostream>
+#include <memory>
+#include <stdexcept>
 
 #include <QFileInfo>
 #include <QProcess>
@@ -27,6 +29,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QTextCodec>
 #include <QThread>
 
 #include "file_write_helper.h"
@@ -288,6 +291,90 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
             {
                 CHECK_THROWS_AS( log_data.attachFile( QFileInfo{ bigFile }.absoluteFilePath() ),
                                  CantReattachErr );
+            }
+        }
+    }
+}
+
+namespace {
+
+// An Encoding the indexing fails on: asked for its name by any thread but the
+// one that made it, it throws. That thread is the one a test runs on, so
+// only the indexing, which runs on a thread of its own, fails.
+class UnusableEncoding : public QTextCodec {
+public:
+    ~UnusableEncoding() override = default;
+
+    QByteArray name() const override
+    {
+        if ( QThread::currentThread() != owner_ ) {
+            throw std::runtime_error( "the Encoding cannot be used" );
+        }
+        return "LogSquirl-Unusable-Encoding";
+    }
+
+    int mibEnum() const override
+    {
+        return -4242;
+    }
+
+protected:
+    QString convertToUnicode( const char* in, int length, ConverterState* ) const override
+    {
+        return QString::fromLatin1( in, length );
+    }
+
+    QByteArray convertFromUnicode( const QChar* in, int length, ConverterState* ) const override
+    {
+        return QString( in, length ).toLatin1();
+    }
+
+private:
+    const QThread* owner_ = QThread::currentThread();
+};
+
+} // namespace
+
+SCENARIO( "A Log File that fails to index reports the failure as its loading status", "[logdata]" )
+{
+    QTemporaryFile file{ "logdata_test_failure_XXXXXX" };
+    if ( file.open() ) {
+        writeDataToFile( file, SL_NB_LINES );
+    }
+
+    // Made only once the Log File has loaded, and gone only once the Log
+    // File is: while it exists, every look-up of an Encoding by name asks it.
+    std::unique_ptr<UnusableEncoding> unusableEncoding;
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+
+    GIVEN( "a loaded Log File" )
+    {
+        SafeQSignalSpy endSpy( &logData, SIGNAL( loadingFinished( LoadingStatus, QString ) ) );
+        logData.attachFile( QFileInfo{ file }.absoluteFilePath() );
+        REQUIRE( endSpy.safeWait( 10000 ) );
+        REQUIRE( logData.getNbLine() == LinesCount( SL_NB_LINES ) );
+        endSpy.clear();
+
+        WHEN( "it is reloaded with an Encoding the indexing fails on" )
+        {
+            unusableEncoding = std::make_unique<UnusableEncoding>();
+            logData.reload( unusableEncoding.get() );
+
+            REQUIRE( endSpy.safeWait( 10000 ) );
+
+            THEN( "loading finishes Failed, with a description, and no dialog" )
+            {
+                REQUIRE( endSpy.count() == 1 );
+                const auto arguments = endSpy.takeFirst();
+                REQUIRE( arguments.at( 0 ).value<LoadingStatus>() == LoadingStatus::Failed );
+                REQUIRE( arguments.at( 1 ).toString().contains( "the Encoding cannot be used" ) );
+            }
+
+            THEN( "the Index it had is dropped" )
+            {
+                REQUIRE( logData.getNbLine() == 0_lcount );
             }
         }
     }

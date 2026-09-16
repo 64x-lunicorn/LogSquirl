@@ -252,9 +252,11 @@ private Q_SLOTS:
     // Mark a line that has been clicked on the filtered (bottom) view.
     void markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines );
 
-    void loadingFinishedHandler( LoadingStatus status );
-    // Manages the info lines to inform the user the file has changed.
-    void fileChangedHandler( MonitoredFileStatus );
+    // failure describes a Failed load, which the user is offered to report.
+    void loadingFinishedHandler( LoadingStatus status, const QString& failure );
+    // Manages the info lines to inform the user the file has changed. A
+    // failure to check the file is offered to be reported.
+    void fileChangedHandler( MonitoredFileStatus status, const QString& failure );
 
     void searchForward();
     void searchBackward();

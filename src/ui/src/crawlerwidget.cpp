@@ -84,6 +84,7 @@
 #include "formatrecognition.h"
 #include "highlightersmenu.h"
 #include "infoline.h"
+#include "issuereporter.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
@@ -95,6 +96,20 @@
 
 // Palette for error signaling (yellow background)
 const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
+
+namespace {
+
+// The desktop application's answer to a failure the engine reports for a
+// Log File or a Search: offer the user to report it as an issue. Opened once
+// the handler that received the failure has returned, not inside it.
+void offerIssueReport( const QString& failure )
+{
+    dispatchToMainThread( [ failure ]() {
+        IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, failure );
+    } );
+}
+
+} // namespace
 
 // Implementation of the view context for the CrawlerWidget
 class CrawlerWidgetContext : public ViewContextInterface {
@@ -649,19 +664,26 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     const auto nbMatches = state.matchCount;
     const auto progress = state.progress;
     const bool isComplete = ( state.phase == SearchSession::Phase::Complete );
-    const bool isDone = isComplete || state.phase == SearchSession::Phase::Interrupted
+    const bool isFailed = ( state.phase == SearchSession::Phase::Failed );
+    const bool isDone = isComplete || isFailed || state.phase == SearchSession::Phase::Interrupted
                         || state.phase == SearchSession::Phase::InvalidPattern;
 
     searchInfoLine_->show();
 
     if ( isDone ) {
-        // Searching done, one way or another. Only a real completion gets
-        // its message from here -- Interrupted/InvalidPattern already had
+        // Searching done, one way or another. Only a real completion and a
+        // failure, which the engine reports only here, get their message
+        // from here -- Interrupted/InvalidPattern already had
         // theirs set by whoever drove the Session into that phase
         // (stopSearch(), replaceCurrentSearch()'s error path), and
         // re-deriving one from a bare phase here would just guess.
         if ( isComplete ) {
             printSearchInfoMessage( nbMatches );
+        }
+        else if ( isFailed ) {
+            searchInfoLine_->setPalette( ErrorPalette );
+            searchInfoLine_->setText( tr( "Search failed" ) );
+            offerIssueReport( state.errorString );
         }
         searchInfoLine_->hideGauge();
         // De-activate the stop button
@@ -984,9 +1006,13 @@ void CrawlerWidget::exitingQuickFind()
         qfSavedFocus_->setFocus();
 }
 
-void CrawlerWidget::loadingFinishedHandler( LoadingStatus status )
+void CrawlerWidget::loadingFinishedHandler( LoadingStatus status, const QString& failure )
 {
     LOG_INFO << "file loading finished, status " << static_cast<int>( status );
+
+    if ( status == LoadingStatus::Failed ) {
+        offerIssueReport( failure );
+    }
 
     // We need to refresh the main window because the view lines on the
     // overview have probably changed.
@@ -1046,8 +1072,12 @@ void CrawlerWidget::loadingFinishedHandler( LoadingStatus status )
     Q_EMIT loadingFinished( status );
 }
 
-void CrawlerWidget::fileChangedHandler( MonitoredFileStatus status )
+void CrawlerWidget::fileChangedHandler( MonitoredFileStatus status, const QString& failure )
 {
+    if ( !failure.isEmpty() ) {
+        offerIssueReport( failure );
+    }
+
     // Handle the case where the file has been truncated
     if ( status == MonitoredFileStatus::Truncated ) {
         // Clear all marks (TODO offer the option to keep them)

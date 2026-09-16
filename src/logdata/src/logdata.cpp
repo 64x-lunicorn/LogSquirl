@@ -239,7 +239,7 @@ void LogData::fileChangedOnDisk( const QString& filename )
     operationQueue_.enqueueOperation<CheckDataChangesOperation>();
 }
 
-void LogData::indexingFinished( LoadingStatus status )
+void LogData::indexingFinished( LoadingStatus status, const QString& failure )
 {
     attached_file_->detachReader();
 
@@ -260,12 +260,12 @@ void LogData::indexingFinished( LoadingStatus status )
     fileChangedOnDisk_ = MonitoredFileStatus::Unchanged;
 
     LOG_DEBUG << "Sending indexingFinished.";
-    Q_EMIT loadingFinished( status );
+    Q_EMIT loadingFinished( status, failure );
 
     operationQueue_.finishOperationAndStartNext();
 }
 
-void LogData::checkFileChangesFinished( MonitoredFileStatus status )
+void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QString& failure )
 {
     attached_file_->detachReader();
 
@@ -292,7 +292,7 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status )
 
     if ( status != MonitoredFileStatus::Unchanged
          || fileChangedOnDisk_ == MonitoredFileStatus::Truncated ) {
-        Q_EMIT fileChanged( fileChangedOnDisk_ );
+        Q_EMIT fileChanged( fileChangedOnDisk_, failure );
     }
 
     operationQueue_.finishOperationAndStartNext();

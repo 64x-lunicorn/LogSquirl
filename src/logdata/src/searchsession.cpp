@@ -423,7 +423,8 @@ void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
 }
 
 void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatches,
-                                          LineNumber /*initialLine*/, bool interrupted )
+                                          LineNumber /*initialLine*/, bool interrupted,
+                                          const QString& failure )
 {
     // Every request()/completeFromCache() that reached the worker did
     // exactly one attachReader(); this is its matching detachReader(),
@@ -435,6 +436,27 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
     if ( searchId != currentSearchId_ ) {
         // A superseded (or explicitly stopped) run finishing late;
         // discard rather than apply.
+        return;
+    }
+
+    if ( !failure.isEmpty() ) {
+        // A failed run keeps nothing: neither what it found before failing,
+        // nor a cache entry, nor Context Lines. Reporting the failure is up
+        // to whoever follows this Session.
+        LOG_ERROR << "Search run failed: " << failure;
+        resetResults();
+        contextLines_ = SearchResultArray();
+        currentSearchKey_ = SearchCacheKey{};
+
+        {
+            ScopedLock lock( stateMutex_ );
+            state_.matchCount = 0_lcount;
+            state_.progress = 0;
+            state_.phase = Phase::Failed;
+            state_.errorString = failure;
+        }
+
+        Q_EMIT resultsReady();
         return;
     }
 

@@ -327,8 +327,11 @@ public:
     }
 
     // Run the indexing operation, returns true if it has been done
-    // and false if it has been cancelled (results not copied)
-    virtual OperationResult run() = 0;
+    // and false if it has been cancelled (results not copied). An exception
+    // escaping the run is a failure of the engine: it is reported through
+    // the operation's finishing signal as a failed status with a
+    // description, never by opening a dialog, and never thrown further.
+    OperationResult run();
 
     // How many bytes of the Log File this operation has read to index them.
     qint64 bytesIndexed() const
@@ -338,10 +341,22 @@ public:
 
 Q_SIGNALS:
     void indexingProgressed( int );
-    void indexingFinished( bool );
-    void fileCheckFinished( MonitoredFileStatus );
+    // failure describes what went wrong when status is Failed, and is empty
+    // otherwise.
+    void indexingFinished( LoadingStatus status, const QString& failure );
+    // failure is not empty when checking the Log File failed; the status is
+    // then Truncated, so the Log File is indexed again from the start.
+    void fileCheckFinished( MonitoredFileStatus status, const QString& failure );
 
 protected:
+    // The run itself, which run() reports the failure of.
+    virtual OperationResult doRun() = 0;
+
+    // Reports that the run failed as described, and returns what run()
+    // returns then. By default the Index is dropped and indexing reported
+    // Failed.
+    virtual OperationResult reportFailure( const QString& failure );
+
     using BlockBuffer = logsquirl::vector<char>;
     using BlockData = std::pair<OffsetInFile::UnderlyingType, BlockBuffer*>;
 
@@ -380,7 +395,9 @@ public:
         , forcedEncoding_( forcedEncoding )
     {
     }
-    OperationResult run() override;
+
+protected:
+    OperationResult doRun() override;
 
 private:
     // Sets up the indexing data to go on from a cached Index built when the
@@ -402,7 +419,8 @@ public:
     {
     }
 
-    OperationResult run() override;
+protected:
+    OperationResult doRun() override;
 };
 
 class CheckFileChangesOperation : public IndexOperation {
@@ -415,7 +433,9 @@ public:
     {
     }
 
-    OperationResult run() override;
+protected:
+    OperationResult doRun() override;
+    OperationResult reportFailure( const QString& failure ) override;
 
 private:
     MonitoredFileStatus doCheckFileChanges();
@@ -463,16 +483,16 @@ Q_SIGNALS:
     // percent being the percentage of completion.
     void indexingProgressed( int percent );
     // Sent when indexing is finished, signals the client
-    // to copy the new data back.
-    void indexingFinished( LoadingStatus status );
+    // to copy the new data back. failure describes a Failed status.
+    void indexingFinished( LoadingStatus status, const QString& failure );
 
     // Sent when check file is finished, signals the client
-    // to copy the new data back.
-    void checkFileChangesFinished( MonitoredFileStatus status );
+    // to copy the new data back. failure is not empty when the check failed.
+    void checkFileChangesFinished( MonitoredFileStatus status, const QString& failure );
 
 private Q_SLOTS:
-    void onIndexingFinished( bool result );
-    void onCheckFileFinished( MonitoredFileStatus result );
+    void onIndexingFinished( LoadingStatus status, const QString& failure );
+    void onCheckFileFinished( MonitoredFileStatus result, const QString& failure );
 
 private:
     OperationResult connectSignalsAndRun( IndexOperation* operationRequested );

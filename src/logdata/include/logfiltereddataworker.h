@@ -44,6 +44,7 @@
 #include <memory>
 
 #include <QObject>
+#include <QString>
 
 #include <qthreadpool.h>
 
@@ -175,19 +176,26 @@ public:
                      std::shared_ptr<const RegularExpression> compiledExpression,
                      LineNumber startLine, LineNumber endLine, SearchPolicy searchPolicy );
 
-    // Run the search operation, returns true if it has been done
-    // and false if it has been cancelled (results not copied)
-    virtual void run( SearchData& result ) = 0;
+    // Run the search operation, reporting how it ended through
+    // searchFinished. An exception escaping the run is a failure of the
+    // engine: the results are dropped and searchFinished carries its
+    // description, rather than a dialog being opened or the exception
+    // thrown further.
+    void run( SearchData& result );
 
 Q_SIGNALS:
     void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine,
                            SearchId searchId );
     // interrupted is true when this run was superseded by another (or explicitly
-    // interrupted) before it reached the end of its range.
+    // interrupted) before it reached the end of its range. failure describes
+    // what went wrong when the run failed, and is empty otherwise.
     void searchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                         bool interrupted );
+                         bool interrupted, const QString& failure );
 
 protected:
+    // The run itself, which run() reports the failure of.
+    virtual void doRun( SearchData& result ) = 0;
+
     // Implement the common part of the search, passing
     // the shared results and the line to begin the search from.
     void doSearch( SearchData& result, LineNumber initialLine );
@@ -217,7 +225,8 @@ public:
     {
     }
 
-    void run( SearchData& result ) override;
+protected:
+    void doRun( SearchData& result ) override;
 };
 
 class UpdateSearchOperation : public SearchOperation {
@@ -234,7 +243,8 @@ public:
     {
     }
 
-    void run( SearchData& result ) override;
+protected:
+    void doRun( SearchData& result ) override;
 
 private:
     LineNumber initialPosition_;
@@ -284,9 +294,10 @@ Q_SIGNALS:
     void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine,
                            SearchId searchId );
     // Sent once a run stops, one way or another. interrupted is true when the
-    // run was superseded or explicitly interrupted before reaching its end.
+    // run was superseded or explicitly interrupted before reaching its end;
+    // failure describes what went wrong when the run failed.
     void searchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                         bool interrupted );
+                         bool interrupted, const QString& failure );
 
 private:
     void connectSignalsAndRun( SearchOperation* operationRequested );
