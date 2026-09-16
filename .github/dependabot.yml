@@ -1,12 +1,21 @@
 version: 2
 updates:
+  # "/" only scans .github/workflows; the composite actions under
+  # .github/actions/* pin their own third-party actions.
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
     schedule:
       interval: "weekly"
     labels:
       - "ci"
       - "dependencies"
+    groups:
+      github-actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "docker"
     directory: "/docker/ubuntu24.04"
@@ -15,6 +24,11 @@ updates:
     labels:
       - "ci"
       - "dependencies"
+    groups:
+      docker-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "docker"
     directory: "/docker/oracle10"
@@ -23,6 +37,11 @@ updates:
     labels:
       - "ci"
       - "dependencies"
+    groups:
+      docker-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "docker"
     directory: "/docker/fedora44"
@@ -38,3 +57,43 @@ updates:
     labels:
       - "ci"
       - "dependencies"
+
+  - package-ecosystem: "docker"
+    directory: "/docker/ubuntu22.04"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "ci"
+      - "dependencies"
+    groups:
+      docker-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Lower-bound-only ranges (pytest>=7.0) are already satisfied by new
+  # releases, so the default strategy leaves them alone; only a bump that
+  # falls outside a range produces a PR.
+  - package-ecosystem: "pip"
+    directory: "/tests/e2e"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+    groups:
+      pip-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/website"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
