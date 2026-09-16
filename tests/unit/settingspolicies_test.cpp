@@ -56,7 +56,10 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
                                                .fastScrollEnabled = false,
                                                .fastScrollMultiplier = 6,
                                                .allowFollowOnScroll = true,
-                                               .autoShowTableView = false };
+                                               .autoShowTableView = false,
+                                               .mainLineNumbersVisible = true,
+                                               .filteredLineNumbersVisible = false,
+                                               .overviewVisible = true };
         const QuickFindPolicy quickFind{ .quickFindRegexpType = SearchRegexpType::Wildcard,
                                          .mainRegexpType = SearchRegexpType::FixedString,
                                          .ignoreCase = true,
@@ -72,6 +75,9 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( presentation.fastScrollMultiplier == 6 );
             REQUIRE( presentation.allowFollowOnScroll );
             REQUIRE_FALSE( presentation.autoShowTableView );
+            REQUIRE( presentation.mainLineNumbersVisible );
+            REQUIRE_FALSE( presentation.filteredLineNumbersVisible );
+            REQUIRE( presentation.overviewVisible );
 
             REQUIRE( quickFind.quickFindRegexpType == SearchRegexpType::Wildcard );
             REQUIRE( quickFind.mainRegexpType == SearchRegexpType::FixedString );
@@ -136,6 +142,9 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( presentation.fastScrollMultiplier == 0 );
             REQUIRE_FALSE( presentation.allowFollowOnScroll );
             REQUIRE_FALSE( presentation.autoShowTableView );
+            REQUIRE_FALSE( presentation.mainLineNumbersVisible );
+            REQUIRE_FALSE( presentation.filteredLineNumbersVisible );
+            REQUIRE_FALSE( presentation.overviewVisible );
 
             REQUIRE_FALSE( quickFind.ignoreCase );
             REQUIRE_FALSE( quickFind.incremental );
@@ -266,6 +275,11 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         config.setFastScrollMultiplier( 13 );
         config.setAllowFollowOnScroll( true );
         config.setAutoShowTableView( false );
+        // Each shipped the other way round from its neighbour, so all three
+        // flipped still differ from each other.
+        config.setMainLineNumbersVisible( true );
+        config.setFilteredLineNumbersVisible( false );
+        config.setOverviewVisible( false );
 
         // The two regexp types differ from each other, so a derivation that
         // reads one where it means the other is caught.
@@ -334,6 +348,9 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.presentation.fastScrollMultiplier == 13 );
                 REQUIRE( policies.presentation.allowFollowOnScroll );
                 REQUIRE_FALSE( policies.presentation.autoShowTableView );
+                REQUIRE( policies.presentation.mainLineNumbersVisible );
+                REQUIRE_FALSE( policies.presentation.filteredLineNumbersVisible );
+                REQUIRE_FALSE( policies.presentation.overviewVisible );
             }
 
             THEN( "the QuickFind Policy carries what searching interactively needs" )
@@ -395,6 +412,34 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.decoding == wrapping.decoding );
                 REQUIRE( policies.decoration == wrapping.decoration );
                 REQUIRE( policies.quickFind == wrapping.quickFind );
+            }
+        }
+
+        WHEN( "the overview is shown again and the Policies are derived again" )
+        {
+            // What the View menu's toggle writes: a Presentation setting like
+            // text wrapping, re-derived onto the same axis.
+            config.setOverviewVisible( true );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the Presentation Policy says so" )
+            {
+                REQUIRE( policies.presentation.overviewVisible );
+            }
+
+            THEN( "only the Presentation axis differs from the derivation hiding it" )
+            {
+                config.setOverviewVisible( false );
+                const auto hidden = deriveSettingsPolicies( config );
+                REQUIRE( policies.presentation != hidden.presentation );
+                REQUIRE( policies.indexing == hidden.indexing );
+                REQUIRE( policies.search == hidden.search );
+                REQUIRE( policies.watch == hidden.watch );
+                REQUIRE( policies.fileAccess == hidden.fileAccess );
+                REQUIRE( policies.recognition == hidden.recognition );
+                REQUIRE( policies.decoding == hidden.decoding );
+                REQUIRE( policies.decoration == hidden.decoration );
+                REQUIRE( policies.quickFind == hidden.quickFind );
             }
         }
 

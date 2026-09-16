@@ -1473,10 +1473,11 @@ void MainWindow::options()
 
     connect( &dialog, &OptionsDialog::optionsChanged, [ this ]() {
         // The settings store has changed: whoever derives the Policies
-        // re-derives them and hands the changed axes down. This is the only
-        // place that writes a setting a Policy names, and it comes first so
-        // that what follows reads Policies already re-derived -- the follow
-        // action below is enabled from the Watch Policy.
+        // re-derives them and hands the changed axes down. Beside the View
+        // menu's toggles of what a Presentation shows, this is the only place
+        // that writes a setting a Policy names, and it comes first so that
+        // what follows reads Policies already re-derived -- the follow action
+        // below is enabled from the Watch Policy.
         Q_EMIT settingsChanged();
 
         const auto& config = Configuration::get();
@@ -1814,12 +1815,17 @@ void MainWindow::encodingChanged( QAction* action )
     }
 }
 
+// The three View-menu toggles below write a setting the Presentation Policy
+// names. They take the Options Dialog's path back to what is running, not
+// optionsChanged(): that one reaches the current tab only through the signal
+// mux, and re-derives nothing, so every other open Log File would go on
+// showing the old setting (#192).
 void MainWindow::toggleOverviewVisibility( bool isVisible )
 {
     auto& config = Configuration::get();
     config.setOverviewVisible( isVisible );
     config.save();
-    Q_EMIT optionsChanged();
+    Q_EMIT settingsChanged();
 }
 
 void MainWindow::toggleMainLineNumbersVisibility( bool isVisible )
@@ -1828,7 +1834,7 @@ void MainWindow::toggleMainLineNumbersVisibility( bool isVisible )
 
     config.setMainLineNumbersVisible( isVisible );
     config.save();
-    Q_EMIT optionsChanged();
+    Q_EMIT settingsChanged();
 }
 
 void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
@@ -1837,7 +1843,7 @@ void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
 
     config.setFilteredLineNumbersVisible( isVisible );
     config.save();
-    Q_EMIT optionsChanged();
+    Q_EMIT settingsChanged();
 }
 
 void MainWindow::changeFollowMode( bool follow )

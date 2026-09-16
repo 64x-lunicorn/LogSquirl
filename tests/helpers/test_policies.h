@@ -77,7 +77,10 @@ inline SettingsPolicies testSettingsPolicies()
                           .fastScrollEnabled = true,
                           .fastScrollMultiplier = 5,
                           .allowFollowOnScroll = true,
-                          .autoShowTableView = false },
+                          .autoShowTableView = false,
+                          .mainLineNumbersVisible = false,
+                          .filteredLineNumbersVisible = true,
+                          .overviewVisible = true },
 
         .quickFind = { .quickFindRegexpType = SearchRegexpType::FixedString,
                        .mainRegexpType = SearchRegexpType::ExtendedRegexp,

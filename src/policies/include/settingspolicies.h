@@ -162,7 +162,8 @@ struct DecorationPolicy {
 
 // What a Presentation needs to show and scroll a Log File, and nothing
 // else: the settings of the Text View, of the Table View, and of the
-// Filtered View drawn like the Text View.
+// Filtered View drawn like the Text View -- including what is drawn around
+// the Log Lines, the line numbers and the overview.
 //
 // What a Log Line is colored in is not here -- that is the Decoration
 // Policy's axis.
@@ -181,6 +182,14 @@ struct PresentationPolicy {
     // View straight away. It rides here rather than with the Recognition
     // Policy because it says what to show, not what to recognize.
     bool autoShowTableView{};
+    // Whether the main view draws a line number beside each Log Line.
+    bool mainLineNumbersVisible{};
+    // Whether a Filtered View does. Its own field, as the View menu toggles
+    // the two apart.
+    bool filteredLineNumbersVisible{};
+    // Whether the overview of matches and marks is shown beside the main
+    // view, of the Text View and the Table View alike.
+    bool overviewVisible{};
 
     bool operator==( const PresentationPolicy& ) const = default;
 };

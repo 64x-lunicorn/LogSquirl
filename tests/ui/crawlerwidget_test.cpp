@@ -276,6 +276,14 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->filteredView_;
     }
 
+    // Whether the overview of this Log File is shown beside the main view.
+    // Asked of the widget, not of whether it is on screen, so that it answers
+    // for a Log File whose tab is not the current one as well.
+    bool overviewShown() const
+    {
+        return crawler->overview_.isVisible() && !crawler->overviewWidget_->isHidden();
+    }
+
     // Whether the Search line reads its pattern as a regexp.
     bool useRegexpChecked() const
     {
@@ -1143,6 +1151,139 @@ SCENARIO( "A changed Decoration Policy reaches every view of every open Log File
                 REQUIRE( first.filteredViewInTab( 0 ) != nullptr );
                 REQUIRE( showsColor( first.filteredViewInTab( 0 ), changedColor ) );
                 REQUIRE( showsColor( first.textView(), changedColor ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+bool showsLineNumbers( const AbstractLogView* view )
+{
+    return view->viewportLayout().input().lineNumbersVisible;
+}
+
+} // namespace
+
+// Whether line numbers are drawn and whether the overview is shown ride the
+// Presentation Policy (#192): the CrawlerWidget reads neither from the
+// settings store, so a change reaches every open Log File the way every other
+// Presentation setting does, not only the one in the active tab.
+SCENARIO( "Line numbers and the overview follow the Presentation Policy in every open Log File",
+          "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_line_numbers_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_line_numbers_second_XXXXXX" };
+
+    // The other way round from the shipped defaults, so a widget that still
+    // read the settings store would show the defaults instead.
+    auto policies = testSettingsPolicies();
+    policies.presentation.mainLineNumbersVisible = true;
+    policies.presentation.filteredLineNumbersVisible = false;
+    policies.presentation.overviewVisible = false;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor first;
+    CrawlerWidgetVisitor second;
+    openCrawler( session, firstFile, first );
+    openCrawler( session, secondFile, second );
+
+    GIVEN( "two Log Files, one with a kept Search in a tab not current" )
+    {
+        searchForOneLine( first, "line 000003" );
+        first.keepSearchResults();
+        searchForOneLine( first, "line 000007" );
+        REQUIRE( first.currentFilteredViewTab() == 1 );
+
+        searchForOneLine( second, "line 000003" );
+
+        THEN( "every view shows what the Policy it was opened under says" )
+        {
+            REQUIRE( showsLineNumbers( first.textView() ) );
+            REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 0 ) ) );
+            REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 1 ) ) );
+            REQUIRE_FALSE( first.overviewShown() );
+            REQUIRE( showsLineNumbers( second.textView() ) );
+            REQUIRE_FALSE( showsLineNumbers( second.filteredView() ) );
+            REQUIRE_FALSE( second.overviewShown() );
+        }
+
+        // As in a window's tabs: the second Log File is not the current one.
+        second.crawler->hide();
+
+        WHEN( "the Policies re-derived after line numbers in the main view were switched off "
+              "are applied" )
+        {
+            auto changed = policies;
+            changed.presentation.mainLineNumbersVisible = false;
+            session.applyPolicies( changed );
+
+            THEN( "the main view of either Log File draws none, the tab not current included" )
+            {
+                REQUIRE_FALSE( showsLineNumbers( first.textView() ) );
+                REQUIRE_FALSE( showsLineNumbers( second.textView() ) );
+                REQUIRE( second.crawler->presentationPolicy() == changed.presentation );
+            }
+
+            THEN( "the Filtered Views are left as they were" )
+            {
+                REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 0 ) ) );
+                REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 1 ) ) );
+                REQUIRE_FALSE( showsLineNumbers( second.filteredView() ) );
+            }
+        }
+
+        WHEN( "the Policies re-derived after line numbers in the Filtered View were switched on "
+              "are applied" )
+        {
+            auto changed = policies;
+            changed.presentation.filteredLineNumbersVisible = true;
+            session.applyPolicies( changed );
+
+            THEN( "every Filtered View of either Log File draws them, the kept Search's included" )
+            {
+                REQUIRE( showsLineNumbers( first.filteredViewInTab( 0 ) ) );
+                REQUIRE( showsLineNumbers( first.filteredViewInTab( 1 ) ) );
+                REQUIRE( showsLineNumbers( second.filteredView() ) );
+            }
+
+            THEN( "a Filtered View built by a Search kept afterwards draws them too" )
+            {
+                first.keepSearchResults();
+                searchForOneLine( first, "line 000005" );
+                REQUIRE( first.currentFilteredViewTab() == 2 );
+                REQUIRE( showsLineNumbers( first.filteredViewInTab( 2 ) ) );
+            }
+        }
+
+        WHEN( "the Policies re-derived after the overview was switched on are applied" )
+        {
+            auto changed = policies;
+            changed.presentation.overviewVisible = true;
+            session.applyPolicies( changed );
+
+            THEN( "the overview of either Log File is shown, the tab not current included" )
+            {
+                REQUIRE( first.overviewShown() );
+                REQUIRE( second.overviewShown() );
+            }
+        }
+
+        WHEN( "a Policy that changes some other axis arrives" )
+        {
+            // Set on the views behind the Policy's back: were the Presentation
+            // Policy handed down again, they would be put back as it says.
+            first.textView()->setLineNumbersVisible( false );
+            second.filteredView()->setLineNumbersVisible( true );
+
+            auto changed = policies;
+            changed.watch.pollingEnabled = false;
+            session.applyPolicies( changed );
+
+            THEN( "the Presentation Policy is handed to no view of either Log File" )
+            {
+                REQUIRE_FALSE( showsLineNumbers( first.textView() ) );
+                REQUIRE( showsLineNumbers( second.filteredView() ) );
             }
         }
     }

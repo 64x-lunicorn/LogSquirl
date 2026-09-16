@@ -411,6 +411,13 @@ private:
     // just built is colored, and how a changed Policy reaches one.
     void handDecorationPolicyToViews();
 
+    // Hand every view of this Log File the Presentation Policy this widget
+    // holds, the Filtered Views of kept Searches included, and show the line
+    // numbers and the overview as it says. None of them is read from the
+    // settings: this is how a view just built shows them, and how a changed
+    // Policy reaches the views of a Log File whose tab is not the current one.
+    void handPresentationPolicyToViews();
+
     // Tell every view of this Log File whether follow may be engaged at all,
     // as the Watch Policy this widget holds says. A view allows following
     // until it is told otherwise, so one just built has to be told too.

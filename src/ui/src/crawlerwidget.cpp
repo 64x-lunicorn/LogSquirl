@@ -386,12 +386,7 @@ void CrawlerWidget::doSetPresentationPolicy( const PresentationPolicy& policy )
         return;
     }
 
-    logMainView_->setPresentationPolicy( policy );
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            view->setPresentationPolicy( policy );
-        }
-    }
+    handPresentationPolicyToViews();
 }
 
 void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
@@ -528,6 +523,7 @@ void CrawlerWidget::startNewSearch()
                                           presentationPolicy_.useTextWrap );
         filteredView_->setDecorationPolicy( decorationPolicy_ );
         filteredView_->setPresentationPolicy( presentationPolicy_ );
+        filteredView_->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
         filteredViewsData_[ filteredView_ ] = logFilteredData_;
 
         connectAllFilteredViewSlots( filteredView_ );
@@ -855,9 +851,10 @@ void CrawlerWidget::applyConfiguration()
     LOG_DEBUG << "CrawlerWidget::applyConfiguration";
 
     // Deliberately not here: file watching, Context Lines, hiding ANSI color
-    // sequences and the colors Log Lines are decorated in. They are driven by
-    // Settings Policies, re-derived and handed down per axis when a setting
-    // actually changes, to every open Log File (#95, #107, #190). The
+    // sequences, the colors Log Lines are decorated in, and whether line
+    // numbers and the overview are shown. They are driven by Settings
+    // Policies, re-derived and handed down per axis when a setting actually
+    // changes, to every open Log File (#95, #107, #190, #192). The
     // follow allowance below is no exception: it is re-handed from the Watch
     // Policy this widget already holds, never read from the settings, so that
     // a Filtered View added since is given the same answer as the rest. A
@@ -877,21 +874,13 @@ void CrawlerWidget::applyConfiguration()
 
     font.setBold( config.useBoldFont() );
 
-    logMainView_->setLineNumbersVisible( config.mainLineNumbersVisible() );
-
     handFollowAllowanceToViews();
-    overview_.setVisible( config.isOverviewVisible() );
-    logMainView_->refreshOverview();
     for ( auto* presentation : presentations() ) {
         presentation->updateFont( font );
     }
 
-    // Refresh the table overview visibility to match the overview setting
-    logTableView_->updateOverview();
-
     for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
         auto fv = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) );
-        fv->setLineNumbersVisible( config.filteredLineNumbersVisible() );
         fv->updateFont( font );
     }
 
@@ -914,6 +903,26 @@ void CrawlerWidget::handDecorationPolicyToViews()
             view->setDecorationPolicy( decorationPolicy_ );
         }
     }
+}
+
+void CrawlerWidget::handPresentationPolicyToViews()
+{
+    logMainView_->setPresentationPolicy( presentationPolicy_ );
+    logMainView_->setLineNumbersVisible( presentationPolicy_.mainLineNumbersVisible );
+    // The current Filtered View is one of the tabs; a tab closed is gone from
+    // them, so a Filtered View destroyed is never reached.
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->setPresentationPolicy( presentationPolicy_ );
+            view->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
+        }
+    }
+
+    // Both Presentations share the one Overview, so each makes room for it,
+    // or takes the room back, as it now says.
+    overview_.setVisible( presentationPolicy_.overviewVisible );
+    logMainView_->refreshOverview();
+    logTableView_->updateOverview();
 }
 
 void CrawlerWidget::applyHighlighterSetChange()
@@ -1630,8 +1639,7 @@ void CrawlerWidget::setup()
     // under, before any of them is painted. Neither Presentation reads these
     // settings for itself; each Policy arrives again, on its own Axis,
     // whenever a settings change re-derives it (#184).
-    logMainView_->setPresentationPolicy( presentationPolicy_ );
-    filteredView_->setPresentationPolicy( presentationPolicy_ );
+    handPresentationPolicyToViews();
     logTableView_->setQuickFindPolicy( quickFindPolicy_ );
     handDecorationPolicyToViews();
     handFollowAllowanceToViews();

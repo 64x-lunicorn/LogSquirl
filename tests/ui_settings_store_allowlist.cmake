@@ -43,19 +43,20 @@ set(ALLOWED_FILES
     # Window chrome, one consumer each: no Axis of its own (#183).
     # minimize-to-tray, confirm-tab-close, toolbar icon size,
     # allow-multiple-windows, show-dashboard -- all read by the main window
-    # only, which also reads the view state and logging axes listed below.
+    # only, which also reads the logging axis listed below. It also ticks and
+    # writes the View menu's line numbers and overview toggles; what a
+    # Presentation shows of them rides the Presentation Policy (#192).
     src/mainwindow.cpp
 
     # Axes no Settings Policy covers yet, deliberately left, tracked in #189:
-    # the font (mainFont, useBoldFont, forceFontAntialiasing), the view state
-    # (mainLineNumbersVisible, filteredLineNumbersVisible, isOverviewVisible),
-    # the search defaults (isSearchIgnoreCaseDefault, isSearchAutoRefreshDefault,
+    # the font (mainFont, useBoldFont, forceFontAntialiasing), the search
+    # defaults (isSearchIgnoreCaseDefault, isSearchAutoRefreshDefault,
     # isSearchLogicalCombiningDefault), the shortcuts, logging (enableLogging,
     # loggingLevel) and followFileOnLoad.
     src/abstractlogview.cpp # shortcuts.
     src/logtableview.cpp    # font.
-    # font, view state, search defaults and shortcuts; it also writes the
-    # splitter sizes and the font size changed from the keyboard.
+    # font, search defaults and shortcuts; it also writes the splitter sizes
+    # and the font size changed from the keyboard.
     src/crawlerwidget.cpp
 
     # Decided to stay (#186): verifySslPeers, one value with one consumer,

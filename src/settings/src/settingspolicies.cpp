@@ -67,7 +67,10 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                           .fastScrollEnabled = config.fastScrollEnabled(),
                           .fastScrollMultiplier = config.fastScrollMultiplier(),
                           .allowFollowOnScroll = config.allowFollowOnScroll(),
-                          .autoShowTableView = config.autoShowTableView() },
+                          .autoShowTableView = config.autoShowTableView(),
+                          .mainLineNumbersVisible = config.mainLineNumbersVisible(),
+                          .filteredLineNumbersVisible = config.filteredLineNumbersVisible(),
+                          .overviewVisible = config.isOverviewVisible() },
 
         .quickFind = { .quickFindRegexpType = config.quickfindRegexpType(),
                        .mainRegexpType = config.mainRegexpType(),
