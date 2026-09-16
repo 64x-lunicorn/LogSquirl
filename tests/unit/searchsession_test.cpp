@@ -182,6 +182,53 @@ SCENARIO( "A Search Session runs a Search over its block source", "[searchsessio
     }
 }
 
+SCENARIO( "A Search Session changes its Matches only when it reports a state change",
+          "[searchsession]" )
+{
+    auto policies = testSettingsPolicies();
+    // Many small blocks, so that progress is reported before completion.
+    policies.search.readBufferSizeLines = 3;
+    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    SearchSession session( blockSource, policies.search );
+
+    // What the Matches were at each reported state change, and whether they
+    // were ever seen changing in between.
+    std::vector<uint64_t> reportedMatchCounts;
+    int completions = 0;
+    QObject::connect( &session, &SearchSession::stateChanged, &session,
+                      [ & ]( const SearchSession::State& state ) {
+                          reportedMatchCounts.push_back( session.matches().cardinality() );
+                          if ( state.phase == Phase::Complete ) {
+                              ++completions;
+                          }
+                      } );
+
+    WHEN( "a pattern is requested and runs to completion" )
+    {
+        session.request( RegularExpressionPattern( "fizz" ) );
+        bool changedUnreported = false;
+        REQUIRE( QTest::qWaitFor(
+            [ & ] {
+                if ( !reportedMatchCounts.empty()
+                     && session.matches().cardinality() != reportedMatchCounts.back() ) {
+                    changedUnreported = true;
+                }
+                return session.state().phase != Phase::Running;
+            },
+            10000 ) );
+        // Let any progress still held in the throttler go.
+        QTest::qWait( 250 );
+
+        THEN( "the Matches were complete when completion was reported, and it was reported once" )
+        {
+            REQUIRE_FALSE( changedUnreported );
+            REQUIRE( completions == 1 );
+            REQUIRE( reportedMatchCounts.back() == fizzLines( 300 ).cardinality() );
+            REQUIRE( session.matches() == fizzLines( 300 ) );
+        }
+    }
+}
+
 SCENARIO( "A Search continues after Log Lines were added", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();

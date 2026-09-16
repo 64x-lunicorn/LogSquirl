@@ -38,16 +38,14 @@ class SearchBlockSource;
 
 // The Search Session: the owner of everything whose correctness depends on
 // the ordering of a Search -- the current pattern, the run in flight, its
-// results, its progress, its cached results and the Context Lines around
-// its matches. One request() supersedes whatever is in flight rather than
-// waiting for it; callers no longer have to interrupt before starting, or
-// sequence a clear before a run. A cache hit reaches the same completion
-// path as a real run, so it rebuilds Context Lines exactly like one.
+// Matches, its progress and its cached results. One request() supersedes
+// whatever is in flight rather than waiting for it; callers no longer have
+// to interrupt before starting, or sequence a clear before a run. A cache
+// hit reaches the same completion path as a real run.
 //
-// Marks are deliberately not here: a Log Line can be marked with no
-// Search having run, so Marks stay owned by LogFilteredData -- which
-// pushes its current marks in via setMarks() whenever they change, since
-// Context Lines surround a Match or a Mark alike.
+// The Matches are all it keeps of what the Filtered View shows: the Marks
+// and the Context Lines belong to the Displayed Lines, which read the
+// Matches in place (matches()) whenever this reports a state change.
 class SearchSession : public QObject {
     Q_OBJECT
 
@@ -95,7 +93,7 @@ public:
                   LineNumber endLine );
     // Shortcut: the whole file.
     void request( const RegularExpressionPattern& pattern );
-    // Go idle: no pattern, no results, no Context Lines.
+    // Go idle: no pattern, no results.
     void request();
 
     // Stop the in-flight run, if any, keeping whatever has been found so
@@ -103,46 +101,21 @@ public:
     void stop();
 
     // Replaces the Search Policy. Runs started from now on use it; a run
-    // already in flight keeps the one it started with. Rebuilds Context
-    // Lines if -- and only if -- that is the part that changed, so a
-    // settings change on some other axis costs nothing here.
+    // already in flight keeps the one it started with.
     void setSearchPolicy( const SearchPolicy& searchPolicy );
 
     // Drops every cached search result (e.g. the file was truncated, so
     // previously-cached ranges no longer mean what they used to).
     void dropCache();
 
-    // Replaces the marks Context Lines are built around. Call whenever
-    // Marks change; does not itself trigger a rebuild (Marks changing
-    // does, but via LogFilteredData calling rebuildContextLines() below,
-    // same as before -- this just keeps the input current for whenever a
-    // rebuild -- including one a completing run triggers on its own --
-    // next happens).
-    void setMarks( const SearchResultArray& marks );
-    // Recomputes Context Lines from the current matches and marks. Safe
-    // to call any time (e.g. after a Configuration change); a cache hit
-    // and a real completion both already trigger this themselves.
-    void rebuildContextLines();
-    // Context Lines: Log Lines shown only because they neighbour a Match
-    // or Mark, not because they matched themselves.
-    const SearchResultArray& contextLines() const;
-
     State state() const;
-    // The cumulative matches found so far (or ever, once Complete).
-    SearchResultArray matches() const;
+    // The cumulative Matches found so far (or ever, once Complete). They
+    // change only on the thread this object lives on, and only together with
+    // a stateChanged() -- so a reader there can hold on to the reference
+    // instead of copying, and catch up whenever it is told of a change.
+    const SearchResultArray& matches() const;
     LineLength maxLength() const;
     LinesCount processedLines() const;
-    // Identifies the run the current state belongs to (0 when Idle or
-    // InvalidPattern). Stable across every notification of the same run
-    // -- including a continuation's, which keeps its predecessor's
-    // results -- so callers can tell "another tick of the run I already
-    // have a partial copy of" from "a different run" without re-deriving
-    // the pattern/range comparison Session already made.
-    SearchId currentSearchId() const;
-    // Matches accumulated since the last call to takeNewMatches() (or
-    // since the current run started, whichever is more recent). Cheap to
-    // apply incrementally on every progress tick, unlike matches().
-    SearchResultArray takeNewMatches();
 
 Q_SIGNALS:
     void stateChanged( SearchSession::State state );
@@ -152,6 +125,8 @@ private Q_SLOTS:
                                  SearchId searchId );
     void handleSearchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
                                bool interrupted, const QString& failure );
+    // Emits the state change the throttler held back, unless one has been
+    // reported directly since.
     void emitThrottledStateChanged();
 
 Q_SIGNALS:
@@ -162,7 +137,7 @@ private:
     void startRun( const RegularExpressionPattern& pattern, LineNumber startLine,
                    LineNumber endLine, bool isContinuation,
                    std::shared_ptr<const RegularExpression> compiledExpression );
-    // Absorbs a worker result batch into matches_/pendingDelta_/maxLength_/
+    // Absorbs a worker result batch into arrivedMatches_/maxLength_/
     // nbLinesProcessed_. Shared by handleSearchProgressed and
     // handleSearchFinished, which otherwise duplicate this exactly.
     void applyIncomingResults( const SearchResults& results );
@@ -170,10 +145,16 @@ private:
     // builds one complete State value instead of hand-editing a handful
     // of fields (and risking missing one) under the lock.
     void applyState( State newState );
+    // Moves arrivedMatches_ into matches_.
+    void publishArrivedMatches();
+    // Publishes the Matches that arrived and reports the current state: the
+    // one way stateChanged() is emitted. Progress goes through the throttler
+    // first; a run starting, stopping, completing or failing is reported at
+    // once.
+    void notifyStateChanged();
     // Adopts a cache hit for pattern over [startLine, endLine]: sets
     // matches_/maxLength_ from it and reaches the same completion path a
-    // real run does (cache + Context Lines), rather than the shortcut a
-    // cache hit used to take that skipped both.
+    // real run does, rather than the shortcut a cache hit used to take.
     void adoptCacheHit( const RegularExpressionPattern& pattern, LineNumber startLine,
                         LineNumber endLine, const SearchResultArray& matches,
                         LineLength maxLength );
@@ -182,7 +163,7 @@ private:
     // whatever this call is about to transition to. Shared by every
     // transition that isn't itself starting a new worker run.
     void invalidateCurrentRun();
-    // Clears matches_/pendingDelta_/maxLength_/nbLinesProcessed_: the
+    // Clears matches_/maxLength_/nbLinesProcessed_: the
     // reset shared by going idle, an invalid pattern, and starting a
     // fresh (non-continuation) run.
     void resetResults();
@@ -199,8 +180,12 @@ private:
     std::shared_ptr<const RegularExpression> compiledExpression_;
 
     SearchResultArray matches_;
-    // Matches accumulated since the last takeNewMatches() call.
-    SearchResultArray pendingDelta_;
+    // Matches the worker reported since the last state change was; they
+    // join matches_ when the next one is (notifyStateChanged()), so matches_
+    // never changes behind a reader's back.
+    SearchResultArray arrivedMatches_;
+    // A progress tick is waiting in the throttler to be reported.
+    bool stateChangePending_ = false;
     LineLength maxLength_{ 0 };
     LinesCount nbLinesProcessed_{ 0 };
 
@@ -208,13 +193,6 @@ private:
     // signal carrying any other id belongs to a run we've since
     // superseded, and is discarded rather than applied.
     SearchId currentSearchId_{ 0 };
-
-    // Context Lines (breadcrumbs) around matches/marks, excluding
-    // match/mark lines themselves.
-    SearchResultArray contextLines_;
-    // The current Marks, mirrored from LogFilteredData via setMarks() so
-    // rebuildContextLines() can expand around a Match or a Mark alike.
-    SearchResultArray currentMarks_;
 
     struct CachedSearchResult {
         SearchResultArray matching_lines;

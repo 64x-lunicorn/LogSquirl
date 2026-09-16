@@ -89,7 +89,6 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
     if ( !expression.isValid() ) {
         invalidateCurrentRun();
         resetResults();
-        contextLines_ = SearchResultArray();
 
         State newState;
         newState.pattern = pattern;
@@ -98,7 +97,7 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
         newState.phase = Phase::InvalidPattern;
         newState.errorString = expression.errorString();
         applyState( std::move( newState ) );
-        Q_EMIT stateChanged( state() );
+        notifyStateChanged();
         return;
     }
 
@@ -122,15 +121,8 @@ void SearchSession::request( const RegularExpressionPattern& pattern, LineNumber
 
 void SearchSession::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
-    const bool contextLinesChanged
-        = searchPolicy.contextLinesCount != searchPolicy_.contextLinesCount;
-
     searchPolicy_ = searchPolicy;
     workerThread_.setSearchPolicy( searchPolicy );
-
-    if ( contextLinesChanged ) {
-        rebuildContextLines();
-    }
 }
 
 void SearchSession::request( const RegularExpressionPattern& pattern )
@@ -142,12 +134,11 @@ void SearchSession::request()
 {
     invalidateCurrentRun();
     resetResults();
-    contextLines_ = SearchResultArray();
     currentSearchKey_ = SearchCacheKey{};
     compiledExpression_.reset();
 
     applyState( State{} );
-    Q_EMIT stateChanged( state() );
+    notifyStateChanged();
 }
 
 void SearchSession::stop()
@@ -164,7 +155,7 @@ void SearchSession::stop()
     }
 
     if ( wasRunning ) {
-        Q_EMIT stateChanged( state() );
+        notifyStateChanged();
     }
 }
 
@@ -179,18 +170,16 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
     invalidateCurrentRun();
 
     matches_ = matches;
-    pendingDelta_ = SearchResultArray();
+    arrivedMatches_ = SearchResultArray();
     maxLength_ = maxLength;
     nbLinesProcessed_ = LinesCount( endLine.get() );
     currentSearchKey_ = makeCacheKey( pattern, startLine, endLine );
 
-    // Same completion path a real run takes for Context Lines -- rebuilding
-    // them here (rather than skipping it, as a cache hit used to) is
-    // exactly what keeps them from belonging to whatever ran previously.
+    // Reported Complete like a real run, so whoever follows this Session
+    // treats both alike (the Displayed Lines rebuild their Context Lines).
     // Not re-inserting into the cache: entry is already there (that's
     // what a hit means), so writing it back would just redo
     // updateSearchResultsCache()'s full-cache accounting for nothing.
-    rebuildContextLines();
 
     State newState;
     newState.pattern = pattern;
@@ -201,7 +190,7 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
     newState.phase = Phase::Complete;
     newState.fromCache = true;
     applyState( std::move( newState ) );
-    Q_EMIT stateChanged( state() );
+    notifyStateChanged();
 }
 
 void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumber startLine,
@@ -212,9 +201,9 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
         resetResults();
     }
     else {
-        // Whether continuing or starting over, nothing is pending yet for
-        // this (about to be assigned) run's id.
-        pendingDelta_ = SearchResultArray();
+        // The run continued keeps what it found, including what it has not
+        // reported yet.
+        publishArrivedMatches();
     }
 
     // A continuation's eventual completion must not be cached under a key
@@ -239,7 +228,7 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
                                                          LineNumber( nbLinesProcessed_.get() ) )
                            : workerThread_.search( compiledExpression, startLine, endLine );
 
-    Q_EMIT stateChanged( state() );
+    notifyStateChanged();
 }
 
 SearchSession::State SearchSession::state() const
@@ -248,7 +237,7 @@ SearchSession::State SearchSession::state() const
     return state_;
 }
 
-SearchResultArray SearchSession::matches() const
+const SearchResultArray& SearchSession::matches() const
 {
     return matches_;
 }
@@ -266,65 +255,6 @@ LinesCount SearchSession::processedLines() const
 void SearchSession::dropCache()
 {
     searchResultsCache_.clear();
-}
-
-SearchId SearchSession::currentSearchId() const
-{
-    return currentSearchId_;
-}
-
-const SearchResultArray& SearchSession::contextLines() const
-{
-    return contextLines_;
-}
-
-void SearchSession::setMarks( const SearchResultArray& marks )
-{
-    currentMarks_ = marks;
-}
-
-void SearchSession::rebuildContextLines()
-{
-    const int contextCount = searchPolicy_.contextLinesCount;
-
-    contextLines_ = SearchResultArray();
-
-    if ( contextCount <= 0 ) {
-        return;
-    }
-
-    const auto totalLines = blockSource_.getNbLines().get();
-    if ( totalLines == 0 ) {
-        return;
-    }
-
-    // Expand each match/mark +-contextCount lines
-    const auto base = matches_ | currentMarks_;
-
-    struct ExpandParams {
-        SearchResultArray* result;
-        int n;
-        uint64_t maxLine;
-        const SearchResultArray* baseSet;
-    };
-
-    ExpandParams params{ &contextLines_, contextCount, totalLines, &base };
-
-    base.iterate(
-        []( uint64_t line, void* ctx ) -> bool {
-            auto* p = static_cast<ExpandParams*>( ctx );
-            const auto start = ( line > static_cast<uint64_t>( p->n ) )
-                                   ? ( line - static_cast<uint64_t>( p->n ) )
-                                   : 0ULL;
-            const auto end = std::min( line + static_cast<uint64_t>( p->n ), p->maxLine - 1 );
-            for ( auto i = start; i <= end; ++i ) {
-                if ( !p->baseSet->contains( static_cast<uint64_t>( i ) ) ) {
-                    p->result->add( static_cast<uint64_t>( i ) );
-                }
-            }
-            return true;
-        },
-        static_cast<void*>( &params ) );
 }
 
 void SearchSession::updateSearchResultsCache()
@@ -369,13 +299,6 @@ void SearchSession::updateSearchResultsCache()
     }
 }
 
-SearchResultArray SearchSession::takeNewMatches()
-{
-    SearchResultArray delta;
-    std::swap( delta, pendingDelta_ );
-    return delta;
-}
-
 void SearchSession::applyState( State newState )
 {
     ScopedLock lock( stateMutex_ );
@@ -391,15 +314,14 @@ void SearchSession::invalidateCurrentRun()
 void SearchSession::resetResults()
 {
     matches_ = SearchResultArray();
-    pendingDelta_ = SearchResultArray();
+    arrivedMatches_ = SearchResultArray();
     maxLength_ = 0_length;
     nbLinesProcessed_ = 0_lcount;
 }
 
 void SearchSession::applyIncomingResults( const SearchResults& results )
 {
-    matches_ |= results.newMatches;
-    pendingDelta_ |= results.newMatches;
+    arrivedMatches_ |= results.newMatches;
     maxLength_ = results.maxLength;
     nbLinesProcessed_ = results.processedLines;
 }
@@ -420,6 +342,7 @@ void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
         state_.progress = progress;
     }
 
+    stateChangePending_ = true;
     Q_EMIT resultsReady();
 }
 
@@ -442,11 +365,10 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
 
     if ( !failure.isEmpty() ) {
         // A failed run keeps nothing: neither what it found before failing,
-        // nor a cache entry, nor Context Lines. Reporting the failure is up
-        // to whoever follows this Session.
+        // nor a cache entry. Reporting the failure is up to whoever follows
+        // this Session.
         LOG_ERROR << "Search run failed: " << failure;
         resetResults();
-        contextLines_ = SearchResultArray();
         currentSearchKey_ = SearchCacheKey{};
 
         {
@@ -457,7 +379,7 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
             state_.errorString = failure;
         }
 
-        Q_EMIT resultsReady();
+        notifyStateChanged();
         return;
     }
 
@@ -473,10 +395,10 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
         return;
     }
 
+    publishArrivedMatches();
     if ( nbLinesProcessed_.get() == getExpectedSearchEnd( currentSearchKey_ ).get() ) {
         updateSearchResultsCache();
     }
-    rebuildContextLines();
 
     {
         ScopedLock lock( stateMutex_ );
@@ -485,10 +407,31 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
         state_.phase = Phase::Complete;
     }
 
-    Q_EMIT resultsReady();
+    notifyStateChanged();
 }
 
 void SearchSession::emitThrottledStateChanged()
 {
+    // A state change reported directly since the progress that asked for
+    // this one already carried it.
+    if ( !stateChangePending_ ) {
+        return;
+    }
+    notifyStateChanged();
+}
+
+void SearchSession::publishArrivedMatches()
+{
+    if ( arrivedMatches_.isEmpty() ) {
+        return;
+    }
+    matches_ |= arrivedMatches_;
+    arrivedMatches_ = SearchResultArray();
+}
+
+void SearchSession::notifyStateChanged()
+{
+    publishArrivedMatches();
+    stateChangePending_ = false;
     Q_EMIT stateChanged( state() );
 }

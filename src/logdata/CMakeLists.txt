@@ -2,6 +2,7 @@ add_library(
   logsquirl_logdata STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/abstractlogdata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/compressedlinestorage.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/displayedlines.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdetector.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linepositionarray.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loadingstatus.h
@@ -20,6 +21,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/readablesize.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/compressedlinestorage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/displayedlines.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdetector.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataoperation.cpp
