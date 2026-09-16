@@ -24,8 +24,11 @@
 // works out what follows from it and who has to hear of it (#245).
 enum class Changed {
     // The settings store was written: an Options Dialog applied, a View menu
-    // toggle, a zoom.
+    // toggle.
     Settings,
+    // Only the font in the settings store was written: a zoom. Every open Log
+    // File draws in it, and nothing else follows from it.
+    Font,
     // The Highlighter Set Collection was written: a Highlighter Set edited,
     // imported, activated or deactivated, or a Color Label given another
     // color. Highlighter Sets are the user's coloring, not a setting.

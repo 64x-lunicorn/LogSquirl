@@ -172,6 +172,9 @@ void Session::applyChange( Changed change )
     case Changed::Settings:
         applySettingsChange();
         break;
+    case Changed::Font:
+        applyFontChange();
+        break;
     case Changed::HighlighterSets:
         applyHighlighterSetChange();
         break;
@@ -290,6 +293,16 @@ void Session::applyPolicies( const SettingsPolicies& policies, ViewChange change
             // Every open Log File, not only the one the active tab shows.
             openFile.view->applyChange( change );
         }
+    }
+}
+
+void Session::applyFontChange()
+{
+    ViewChange change;
+    change.font = true;
+    for ( auto& [ view, openFile ] : openFiles_ ) {
+        Q_UNUSED( view );
+        openFile.view->applyChange( change );
     }
 }
 

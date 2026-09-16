@@ -383,6 +383,9 @@ void CrawlerWidget::doApplyChange( const ViewChange& change )
     if ( change.rereadSettingsWithoutPolicy ) {
         rereadSettingsWithoutPolicy();
     }
+    else if ( change.font ) {
+        viewSet_.setFont( configuredFont() );
+    }
     if ( change.highlighterSets ) {
         applyHighlighterSetChange();
     }
@@ -828,6 +831,9 @@ void CrawlerWidget::reportChange( Changed change )
     switch ( change ) {
     case Changed::Settings:
         rereadSettingsWithoutPolicy();
+        break;
+    case Changed::Font:
+        viewSet_.setFont( configuredFont() );
         break;
     case Changed::HighlighterSets:
         applyHighlighterSetChange();
@@ -1728,8 +1734,9 @@ void CrawlerWidget::changeFontSize( bool increase )
     if ( currentSize != availableSizes.cend() ) {
         fontConfig.setMainFont( QFont{ fontInfo.family(), *currentSize } );
         // The zoomed font is assembled like any other, bold and antialiasing
-        // included, and reaches every view of every open Log File.
-        reportChange( Changed::Settings );
+        // included, and reaches every view of every open Log File. Nothing
+        // but the font was written, so nothing else is applied again.
+        reportChange( Changed::Font );
     }
 }
 

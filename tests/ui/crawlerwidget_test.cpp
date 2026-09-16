@@ -2061,13 +2061,22 @@ SCENARIO( "A changed font or shortcut reaches every open Log File", "[ui][settin
 
         WHEN( "the user zooms in the current Log File" )
         {
+            const auto shortcutsBefore = shortcutsOf( *background.crawler );
             current.zoom( true );
+            // Shortcuts registered anew delete the old ones later.
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
             const auto zoomedSize = Configuration::get().mainFont().pointSize();
             REQUIRE( zoomedSize > openedSize );
 
             THEN( "the Log File in the background draws in the zoomed font too" )
             {
                 REQUIRE( drawsInAssembledFont( background.textView(), zoomedSize ) );
+                REQUIRE( drawsInAssembledFont( background.filteredView(), zoomedSize ) );
+            }
+
+            THEN( "only the font is taken again: the shortcuts are not rebuilt" )
+            {
+                REQUIRE( allAlive( shortcutsBefore ) );
             }
         }
 

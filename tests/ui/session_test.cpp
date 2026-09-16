@@ -234,3 +234,59 @@ SCENARIO( "A change to one Axis reaches every open Log File, and no other Axis i
         }
     }
 }
+
+namespace {
+
+// A window as the Session sees it: it counts the settings changes it is told of.
+struct CountingWindow final : SessionWindow {
+    int settingsChanges = 0;
+
+    void applySettingsChange() override
+    {
+        ++settingsChanges;
+    }
+};
+
+} // namespace
+
+SCENARIO( "A zoom hands every open Log File the font alone", "[ui][session]" )
+{
+    TwoLogFiles files;
+    const auto policies = testSettingsPolicies();
+    // Never rebuilt so far, so it holds no Log Format: a rebuild would read
+    // the built-in ones.
+    const auto catalog = std::make_shared<LogFormatCatalog>();
+    Session session{ policies, catalog };
+    OpenedViews views;
+    CountingWindow window;
+    session.addWindow( &window );
+
+    session.open( files.first.fileName(), RecordingViews::factory( views.built ) );
+    session.open( files.second.fileName(), RecordingViews::factory( views.built ) );
+    REQUIRE( views.built.size() == 2 );
+    REQUIRE( catalog->formatCount() == 0 );
+
+    WHEN( "the views of one Log File report that the font changed" )
+    {
+        views.built.front()->reportChange( Changed::Font );
+
+        THEN( "every open Log File is told to read the font again, and nothing else" )
+        {
+            ViewChange expected;
+            expected.font = true;
+            for ( const auto* opened : views.built ) {
+                REQUIRE( opened->changes().size() == 1 );
+                REQUIRE( opened->changes().front() == expected );
+            }
+        }
+
+        THEN( "no setting is applied again: the Log Format Catalog is not rebuilt and no window "
+              "is told" )
+        {
+            REQUIRE( catalog->formatCount() == 0 );
+            REQUIRE( window.settingsChanges == 0 );
+        }
+    }
+
+    session.removeWindow( &window );
+}

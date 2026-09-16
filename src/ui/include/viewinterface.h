@@ -96,6 +96,10 @@ struct ViewChange {
     // read again, after the Policies above are applied.
     bool rereadSettingsWithoutPolicy = false;
 
+    // Only the font changed, as a zoom changes it: it is read again, and
+    // nothing else is.
+    bool font = false;
+
     // The Highlighter Set Collection changed. The views read the active
     // Highlighter Sets when they paint, but the colors of the Color Labels
     // are held alongside their words, so those are read again before
@@ -105,7 +109,7 @@ struct ViewChange {
     bool isEmpty() const
     {
         return !decoration && !presentation && !quickFind && !watch && !rereadSettingsWithoutPolicy
-               && !highlighterSets;
+               && !font && !highlighterSets;
     }
 
     bool operator==( const ViewChange& ) const = default;

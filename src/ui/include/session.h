@@ -185,6 +185,10 @@ public:
     // its font and shortcuts again -- they have no Policy -- and then tells
     // every window, which by then reads the re-derived Policies.
     //
+    // Changed::Font tells every open Log File to read the font again, and
+    // nothing else: no Policy is re-derived, the Log Format Catalog is not
+    // rebuilt and no window is told. A zoom is all it is.
+    //
     // Changed::HighlighterSets tells every open Log File that the Highlighter
     // Set Collection changed. Each re-reads the colors of its Color Labels and
     // repaints; nothing is re-derived and no window is told.
@@ -232,6 +236,7 @@ private:
     };
 
     void applySettingsChange();
+    void applyFontChange();
     void applyHighlighterSetChange();
 
     // Applies the Policies as applyPolicies() does, and hands every open Log
