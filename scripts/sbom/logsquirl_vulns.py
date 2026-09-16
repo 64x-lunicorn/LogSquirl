@@ -235,7 +235,7 @@ def urllib_nvd(cve: str) -> dict:
     403 or 429 and is often slow, and the release gate needs its score (#252),
     so those are retried as long as a rolling rate-limit window lasts: 6.5, 13,
     26 and 52 seconds, or what Retry-After asks for."""
-    key = os.environ.get("NVD_API_KEY")
+    key = os.environ.get("NVD_API_KEY")  # empty when the workflow secret is not set
     return json.loads(_fetch("GET", f"{NVD_API}?cveId={urllib.parse.quote(cve)}",
                              headers={"apiKey": key} if key else None, attempts=5,
                              retry_statuses=lambda code: code >= 500 or code in (403, 429),

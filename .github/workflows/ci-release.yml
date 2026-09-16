@@ -428,6 +428,7 @@ jobs:
           sbom: release-sbom/logsquirl-${{ needs.prepare.outputs.version }}-sbom.cdx.json
           sarif: sbom-vulns.sarif
           fail-on: critical
+          nvd-api-key: ${{ secrets.NVD_API_KEY }}
 
       - name: Upload to code scanning
         if: ${{ !cancelled() && hashFiles('sbom-vulns.sarif') != '' }}

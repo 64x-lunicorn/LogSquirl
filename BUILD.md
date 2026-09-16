@@ -331,7 +331,12 @@ The release workflow:
    (the daily scan only warns). All findings go to code scanning (category `sbom-vulns`); a critical one (CVSS
    v3/v4 base score ≥ 9.0 or rated critical) stops the release unless `scripts/sbom/vuln-ignore.yml` on master
    accepts it with a reason and an expiry date. So does a Qt advisory NVD has not scored yet (reported as
-   *unscored*): assess it and record the decision in the ignore file. The file is read
+   *unscored*): assess it and record the decision in the ignore file.
+   Without an NVD API key the scanner is limited to 5 NVD requests in 30 seconds. To raise it to 50, request a free
+   key at https://nvd.nist.gov/developers/request-an-api-key (it arrives by e-mail and is activated from the link
+   in it), then add it as the repository secret `NVD_API_KEY` (Settings → Secrets and variables → Actions, or
+   `gh secret set NVD_API_KEY`). The release and daily scans pass it to `.github/actions/sbom-vuln-scan`; without
+   the secret they run unkeyed. The file is read
    from master even for a tag release, so accepting a risk and re-running the failed job is enough.
    The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
 5. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,

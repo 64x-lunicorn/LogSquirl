@@ -10,6 +10,10 @@ inputs:
   fail-on:
     description: "'critical' fails the step on a critical finding that vuln-ignore.yml does not cover; 'none' only reports"
     required: true
+  nvd-api-key:
+    description: "Optional NVD API key (secrets.NVD_API_KEY); raises NVD's rate limit for the Qt advisory severities. Empty: unkeyed requests"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -58,6 +62,9 @@ runs:
         SBOM: ${{ inputs.sbom }}
         SARIF: ${{ inputs.sarif }}
         FAIL_ON: ${{ inputs.fail-on }}
+        # Empty when the secret is not set; the scanner then uses NVD's
+        # unkeyed rate limit (#252).
+        NVD_API_KEY: ${{ inputs.nvd-api-key }}
       run: |
         set -euo pipefail
         python scripts/sbom/logsquirl_vulns.py scan --sbom "$SBOM" --grype "$RUNNER_TEMP/grype.json" \

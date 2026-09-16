@@ -677,6 +677,22 @@ def test_nvd_requests_are_retried_on_rate_limits_server_errors_and_timeouts(monk
     assert len(slept) == 4 and all(s > 0 for s in slept)
 
 
+@pytest.mark.parametrize("key, header", [("secret-key", "secret-key"), ("", None)])
+def test_the_nvd_api_key_is_sent_only_when_the_secret_is_set(monkeypatch, key, header):
+    # The workflows pass secrets.NVD_API_KEY, which is empty where the
+    # repository has no such secret (#252).
+    monkeypatch.setenv("NVD_API_KEY", key)
+    requests = []
+
+    def urlopen(request, timeout):
+        requests.append(request)
+        return FakeResponse(b"{}")
+
+    monkeypatch.setattr(vs.urllib.request, "urlopen", urlopen)
+    vs.urllib_nvd("CVE-2026-15037")
+    assert requests[0].get_header("Apikey") == header
+
+
 def test_nvd_requests_give_up_after_a_few_attempts(monkeypatch):
     fake_urlopen(monkeypatch, [http_error(429)] * 10)
     with pytest.raises(OSError, match="HTTP 429"):
