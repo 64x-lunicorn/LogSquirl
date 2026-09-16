@@ -30,6 +30,16 @@ indexed again. It hands out an Index only while that Index still fits its Log Fi
 it decides for itself what it keeps and what it lets go.
 _Avoid_: index store, cache file
 
+**Open Log File**:
+A Log File from the moment it is opened until it is closed, together with what follows it
+as it changes on disk: its Index, its Searches and their auto-refresh, its Marks, and its
+Log Format. It decides what growing, truncation and reloading mean — a Search continues over
+lines that were added and starts again when the Log File was truncated or reloaded, Marks do
+not survive a truncation or a reload, and Format Recognition is taken again after either.
+The desktop application and the command line tool follow a Log File the same way because
+both use it.
+_Avoid_: document, loaded file, file session
+
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 
@@ -51,6 +61,13 @@ its margins: the bullet zone, the optional line numbers and the text. One layout
 where every Log Line is drawn in it and what sits under any point of it, before anything
 has been painted.
 _Avoid_: screen, canvas, page
+
+**View Set**:
+Every view of one Log File: its Presentations and its Filtered Views, those of kept
+Searches included. Whatever all of them must show alike — the Policies, the font, the Color
+Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
+view added later starts with all of it.
+_Avoid_: views, panes, tabs
 
 **Visual Line**:
 One line of text as drawn in the Viewport. Without text wrapping a Visual Line shows a
@@ -101,8 +118,15 @@ or neither.
 _Avoid_: bookmark, flag, pin
 
 **Context Line**:
-A Log Line shown in the Filtered View only because it neighbours a Match, not because it
-matched itself.
+A Log Line shown in the Filtered View only because it neighbours a Match or a Mark, not
+because it matched itself.
+
+**Displayed Lines**:
+The Log Lines the Filtered View shows, in order: the Matches, the Marks, and — while they
+are shown — the Context Lines around them. The Search Session owns the Matches; the Displayed
+Lines own the Marks and the Context Lines and combine all three, so the Filtered View asks
+them which Log Line sits at which position.
+_Avoid_: filtered lines, results, visible lines
 
 ### Color
 
@@ -123,14 +147,18 @@ _Avoid_: quick highlighter, tag
 
 **Decoration**:
 The finished visual result for a piece of displayed text: an ordered, non-overlapping
-sequence of colored spans. What every source of color — Highlighter Set, Search, QuickFind,
-Color Label, selection, Line Verdict — is resolved *into*.
+sequence of colored spans that covers the whole text, where text no source colors carries
+the line's own colors. What every source of color — Highlighter Set, Search, QuickFind,
+Color Label, selection, Line Verdict — is resolved *into*. Both Presentations draw a
+Decoration as it is; neither decides a color for itself.
 _Avoid_: styling, formatting, markup
 
 **Line Verdict**:
 The facts about a whole Log Line that affect how any part of it looks: whether a
-whole-line Highlighter applies, whether the line is a Match, Mark or Context Line, and
-whether it falls outside the Search Limits. Decided once per line.
+whole-line Highlighter applies, whether the line is a Match, Mark or Context Line, whether
+it falls outside the Search Limits, and whether it is selected as a whole. A line selected
+as a whole shows the selection colors with only its QuickFind matches on top, in either
+Presentation. Decided once per line.
 _Avoid_: line state, line flags
 
 **Line Decorator**:
