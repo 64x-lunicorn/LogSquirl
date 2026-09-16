@@ -44,7 +44,7 @@ RUN pip3 install --upgrade pip && \
     pip3 install aqtinstall && \
     aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
         --modules qt5compat \
-        --archives qtbase qtimageformats qtsvg qttools qttranslations icu \
+        --archives qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu \
         --outputdir /opt/qt && \
     pip3 uninstall -y aqtinstall && \
     rm -rf /root/.cache/pip

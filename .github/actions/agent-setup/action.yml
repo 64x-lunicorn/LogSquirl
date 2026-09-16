@@ -82,7 +82,8 @@ runs:
         cache: true
         cache-key-prefix: ${{ matrix.config.os }}-${{ matrix.config.arch }}-${{ matrix.config.qt_version }}-QtCache
         modules: ${{ matrix.config.qt_modules }}
-        archives: qtbase qtimageformats qtsvg qttools qttranslations icu
+        # qtdeclarative: since Qt 6.11, lrelease (qttools) links libQt6Qml (#251).
+        archives: qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu
         # The installer is pinned (#199), to a commit rather than a PyPI release:
         # Qt 6.11 split the Windows repository into one folder per compiler, and
         # aqtinstall 3.3.0 (the latest release) cannot find 6.11.x there. The
