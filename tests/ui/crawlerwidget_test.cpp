@@ -1036,11 +1036,15 @@ SCENARIO( "Every view of every open Log File shows its Log Lines under a changed
 namespace {
 
 // The Log Files of generateDataFiles(), in which "line 000003" and
-// "line 000007" each match one Log Line.
-void searchForOneLine( CrawlerWidgetVisitor& crawlerVisitor, const QString& pattern )
+// "line 000007" each end one Log Line. A main-search match is colored only
+// where it matches, and the end of the Log Line lies past the right edge of
+// the view in a wider font -- Windows' offscreen platform draws in one -- so
+// the Search matches from the first column on, which every view shows
+// whatever the font.
+void searchForOneLine( CrawlerWidgetVisitor& crawlerVisitor, const QString& lineEnd )
 {
     crawlerVisitor.clearSearchPattern();
-    crawlerVisitor.setSearchPattern( pattern );
+    crawlerVisitor.setSearchPattern( "LOGDATA.*" + lineEnd );
     crawlerVisitor.runSearch();
     REQUIRE( waitUiState(
         [ &crawlerVisitor ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
