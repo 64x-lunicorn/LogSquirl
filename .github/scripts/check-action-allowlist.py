@@ -78,11 +78,16 @@ def resolve(uses: str, parent: tuple[str, str, str] | None) -> tuple[str, str, s
     allowlist does not govern (docker:// images, the caller's own actions)."""
     if uses.startswith("docker://"):
         return None
-    if uses.startswith(("./", "$/")):
+    if uses.startswith("./"):
+        # "./" resolves against the caller's workspace (this repository's
+        # checkout) wherever it is written, even inside a remote action; this
+        # repository's actions are already scanned from its own files (#201).
+        return None
+    if uses.startswith("$/"):
         if parent is None:
             return None  # a local action of this repository
-        # Inside a remote action, "$/sub" (install-qt-action) and "./sub"
-        # name a directory of that same action repository at the same ref.
+        # Inside a remote action, "$/sub" (install-qt-action) names a directory
+        # of that same action repository at the same ref.
         owner, repo, ref = parent
         return owner, repo, uses[2:].strip("/"), ref
     if "@" not in uses:

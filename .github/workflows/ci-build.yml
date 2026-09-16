@@ -180,9 +180,10 @@ jobs:
       - name: Test the SBOM generator
         run: python -m pytest scripts/sbom -p no:cacheprovider
 
-      # The Renovate checksum updater (#211); it shares only pytest with the
-      # SBOM tooling, which this job already installs.
-      - name: Test the checksum updater
+      # The Renovate checksum updater (#211) and the action allowlist check
+      # (#201); they share only pytest with the SBOM tooling, which this job
+      # already installs.
+      - name: Test the CI scripts
         run: python -m pytest .github/scripts -p no:cacheprovider
 
       - uses: ./.github/actions/logsquirl-version
