@@ -394,7 +394,7 @@ jobs:
         config:
           - os: macos
             runner: macos-26
-            qt_version: 6.10.3
+            qt_version: 6.11.2
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: arm64
@@ -466,7 +466,7 @@ jobs:
         config:
           - os: windows
             runner: windows-2025
-            qt_version: 6.10.3
+            qt_version: 6.11.2
             qt_modules: qt5compat
             qt_arch: win64_msvc2022_64
             arch: x64

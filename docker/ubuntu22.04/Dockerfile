@@ -36,10 +36,10 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100 && \
 ENV CC=gcc-12
 ENV CXX=g++-12
 
-# Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI).
+# Qt 6.11.2 via aqtinstall (same version as macOS/Windows CI).
 # jammy ships an old pip (22.x) that predates --break-system-packages; upgrade it
 # first, then install aqt without that flag (jammy is not PEP 668 externally-managed).
-ENV QT_VERSION=6.10.3
+ENV QT_VERSION=6.11.2
 RUN pip3 install --upgrade pip && \
     pip3 install aqtinstall && \
     aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \

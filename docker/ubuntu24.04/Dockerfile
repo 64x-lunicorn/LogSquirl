@@ -15,8 +15,8 @@ RUN apt-get update -y && \
                     libxcb-xinerama0-dev libxcb-image0-dev libxcb-util-dev -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
-ENV QT_VERSION=6.10.3
+# Qt 6.11.2 via aqtinstall (same version as macOS/Windows CI)
+ENV QT_VERSION=6.11.2
 RUN pip3 install --break-system-packages aqtinstall && \
     aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
         --modules qt5compat \
