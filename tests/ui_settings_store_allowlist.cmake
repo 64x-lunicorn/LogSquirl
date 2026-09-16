@@ -54,8 +54,8 @@ set(ALLOWED_FILES
     # loggingLevel) and followFileOnLoad.
     src/abstractlogview.cpp # shortcuts.
     src/logtableview.cpp    # font.
-    # The Crawler Widget also derives the Decoration Policy from the store
-    # rather than being handed it -- tracked in #190.
+    # font, view state, search defaults and shortcuts; it also writes the
+    # splitter sizes and the font size changed from the keyboard.
     src/crawlerwidget.cpp
 
     # Decided to stay (#186): verifySslPeers, one value with one consumer,

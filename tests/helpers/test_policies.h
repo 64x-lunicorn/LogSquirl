@@ -68,6 +68,11 @@ inline SettingsPolicies testSettingsPolicies()
 
         .decoding = { .hideAnsiColorSequences = false },
 
+        .decoration = { .mainSearchHighlight = false,
+                        .variateMainSearchHighlight = false,
+                        .mainSearchBackColor = QColor{ Qt::lightGray },
+                        .quickFindBackColor = QColor{ Qt::yellow } },
+
         .presentation = { .useTextWrap = false,
                           .fastScrollEnabled = true,
                           .fastScrollMultiplier = 5,

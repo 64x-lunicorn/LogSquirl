@@ -231,12 +231,13 @@ struct SettingsPolicies {
 // Derives all the Policies from a Configuration. Called once, where the
 // application's long-lived objects are built -- not wherever a setting
 // happens to be needed.
+//
+// There is no derivation of a single Policy beside it, the Decoration
+// Policy's included: that one used to be derived on its own because a
+// Presentation had to be colored before the bundle reached it. It no longer
+// has to be -- the Session hands a Log File's views the Decoration Policy
+// before they are built, as it does every other Policy (#190) -- so a single
+// derivation has no caller of its own, and this is the one derivation.
 SettingsPolicies deriveSettingsPolicies( const Configuration& config );
-
-// Derives just the Decoration Policy from a Configuration. Declared beside
-// deriveSettingsPolicies() because a Presentation needs this one axis
-// before it is first painted -- earlier than the bundle reaches it -- and
-// both must read the same settings, so there is one derivation, not two.
-DecorationPolicy deriveDecorationPolicy( const Configuration& config );
 
 #endif

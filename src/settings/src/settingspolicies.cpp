@@ -58,7 +58,10 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
 
         .decoding = { .hideAnsiColorSequences = config.hideAnsiColorSequences() },
 
-        .decoration = deriveDecorationPolicy( config ),
+        .decoration = { .mainSearchHighlight = config.mainSearchHighlight(),
+                        .variateMainSearchHighlight = config.variateMainSearchHighlight(),
+                        .mainSearchBackColor = config.mainSearchBackColor(),
+                        .quickFindBackColor = config.qfBackColor() },
 
         .presentation = { .useTextWrap = config.useTextWrap(),
                           .fastScrollEnabled = config.fastScrollEnabled(),
@@ -71,15 +74,5 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                        .ignoreCase = config.qfIgnoreCase(),
                        .incremental = config.isQuickfindIncremental(),
                        .autoRunSearchOnPatternChange = config.autoRunSearchOnPatternChange() },
-    };
-}
-
-DecorationPolicy deriveDecorationPolicy( const Configuration& config )
-{
-    return DecorationPolicy{
-        .mainSearchHighlight = config.mainSearchHighlight(),
-        .variateMainSearchHighlight = config.variateMainSearchHighlight(),
-        .mainSearchBackColor = config.mainSearchBackColor(),
-        .quickFindBackColor = config.qfBackColor(),
     };
 }

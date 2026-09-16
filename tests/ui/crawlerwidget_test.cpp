@@ -264,6 +264,12 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->tabbedFilteredView_->currentIndex();
     }
 
+    // What the close button of a Filtered View's tab does.
+    void closeFilteredViewTab( int index )
+    {
+        crawler->closeFilteredView( index );
+    }
+
     // The Filtered View of the current Search.
     FilteredView* filteredView() const
     {
@@ -978,6 +984,165 @@ SCENARIO( "Every view of every open Log File shows its Log Lines under a changed
                 second.showSized();
                 REQUIRE( showsColor( second.textView(), highlightColor ) );
                 REQUIRE( showsColor( second.filteredView(), highlightColor ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// The Log Files of generateDataFiles(), in which "line 000003" and
+// "line 000007" each match one Log Line. The match sits at the end of a long
+// Log Line, so the view is made wide enough to show it whatever font it is
+// drawn in.
+void searchForOneLine( CrawlerWidgetVisitor& crawlerVisitor, const QString& pattern )
+{
+    crawlerVisitor.crawler->resize( 1600, 600 );
+    crawlerVisitor.clearSearchPattern();
+    crawlerVisitor.setSearchPattern( pattern );
+    crawlerVisitor.runSearch();
+    REQUIRE( waitUiState(
+        [ &crawlerVisitor ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
+    QTest::qWait( 50 );
+}
+
+} // namespace
+
+// The Decoration Policy travels as an Axis like the others (#190): the
+// Session hands it to every open Log File, and the CrawlerWidget derives
+// none from the settings store. The store's shipped default colors no
+// main-search match at all, so a view painted in the Policy's color was
+// painted under the Policy.
+SCENARIO( "A changed Decoration Policy reaches every view of every open Log File",
+          "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_decoration_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_decoration_second_XXXXXX" };
+
+    // Colors nothing else in the views is painted with.
+    const QColor openedColor{ 0x21, 0x43, 0x65 };
+    const QColor changedColor{ 0x56, 0x34, 0x12 };
+
+    auto policies = testSettingsPolicies();
+    policies.decoration.mainSearchHighlight = true;
+    policies.decoration.variateMainSearchHighlight = false;
+    policies.decoration.mainSearchBackColor = openedColor;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    const PinnedHighlighterSets pinnedSets;
+    HighlighterSetCollection::get().deactivateAll();
+
+    CrawlerWidgetVisitor first;
+    CrawlerWidgetVisitor second;
+    openCrawler( session, firstFile, first );
+    openCrawler( session, secondFile, second );
+
+    GIVEN( "two Log Files, one with a kept Search in a tab not current" )
+    {
+        searchForOneLine( first, "line 000003" );
+        first.keepSearchResults();
+        searchForOneLine( first, "line 000007" );
+        REQUIRE( first.currentFilteredViewTab() == 1 );
+        REQUIRE( first.filteredViewInTab( 0 ) != nullptr );
+        REQUIRE( first.filteredViewInTab( 1 ) != nullptr );
+
+        searchForOneLine( second, "line 000003" );
+
+        THEN( "every view was painted in the colors of the Policy it was opened under" )
+        {
+            REQUIRE( first.crawler->decorationPolicy() == policies.decoration );
+            REQUIRE( showsColor( first.textView(), openedColor ) );
+            REQUIRE( showsColor( first.filteredViewInTab( 0 ), openedColor ) );
+            REQUIRE( showsColor( first.filteredViewInTab( 1 ), openedColor ) );
+            REQUIRE( showsColor( second.textView(), openedColor ) );
+            REQUIRE( showsColor( second.filteredView(), openedColor ) );
+        }
+
+        // As in a window's tabs: the second Log File is not the current one.
+        second.crawler->hide();
+
+        WHEN( "the Policies re-derived after the main-search color was changed are applied" )
+        {
+            auto changed = policies;
+            changed.decoration.mainSearchBackColor = changedColor;
+            session.applyPolicies( changed );
+            QTest::qWait( 50 );
+
+            THEN( "the main view and both Filtered Views of the first Log File take the new color" )
+            {
+                REQUIRE( first.crawler->decorationPolicy() == changed.decoration );
+                REQUIRE( showsColor( first.textView(), changedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), changedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 1 ), changedColor ) );
+                REQUIRE_FALSE( showsColor( first.textView(), openedColor ) );
+            }
+
+            THEN(
+                "the views of the Log File in the tab not current take it too, with no new Search" )
+            {
+                second.crawler->show();
+                QCoreApplication::processEvents();
+                REQUIRE( second.crawler->decorationPolicy() == changed.decoration );
+                REQUIRE( showsColor( second.textView(), changedColor ) );
+                REQUIRE( showsColor( second.filteredView(), changedColor ) );
+                REQUIRE_FALSE( showsColor( second.textView(), openedColor ) );
+            }
+        }
+
+        WHEN( "a Policy that changes some other axis arrives" )
+        {
+            auto changed = policies;
+            changed.watch.pollingEnabled = false;
+            session.applyPolicies( changed );
+            QTest::qWait( 50 );
+
+            THEN( "the Decoration Policy the views hold is left exactly as it was" )
+            {
+                REQUIRE( first.crawler->decorationPolicy() == policies.decoration );
+                REQUIRE( second.crawler->decorationPolicy() == policies.decoration );
+                REQUIRE( showsColor( first.textView(), openedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), openedColor ) );
+            }
+        }
+
+        WHEN(
+            "the CrawlerWidget applies a Configuration that colors main-search matches otherwise" )
+        {
+            auto& config = Configuration::get();
+            const auto mainSearchHighlight = config.mainSearchHighlight();
+            const auto mainSearchBackColor = config.mainSearchBackColor();
+            config.setEnableMainSearchHighlight( true );
+            config.setMainSearchBackColor( changedColor );
+            first.crawler->applyConfiguration();
+            config.setEnableMainSearchHighlight( mainSearchHighlight );
+            config.setMainSearchBackColor( mainSearchBackColor );
+            QTest::qWait( 50 );
+
+            THEN( "the views still show the Policy's color: only the Policy decides" )
+            {
+                REQUIRE( showsColor( first.textView(), openedColor ) );
+                REQUIRE_FALSE( showsColor( first.textView(), changedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 1 ), openedColor ) );
+            }
+        }
+
+        WHEN( "the kept Search's Filtered View is destroyed and a Policy arrives afterwards" )
+        {
+            const QPointer<FilteredView> kept{ first.filteredViewInTab( 0 ) };
+            first.closeFilteredViewTab( 0 );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+            REQUIRE( kept.isNull() );
+
+            auto changed = policies;
+            changed.decoration.mainSearchBackColor = changedColor;
+            session.applyPolicies( changed );
+            QTest::qWait( 50 );
+
+            THEN( "the surviving one is still reached, and nothing dangles" )
+            {
+                REQUIRE( first.filteredViewInTab( 0 ) != nullptr );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), changedColor ) );
+                REQUIRE( showsColor( first.textView(), changedColor ) );
             }
         }
     }

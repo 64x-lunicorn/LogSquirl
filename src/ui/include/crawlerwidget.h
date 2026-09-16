@@ -127,6 +127,7 @@ public:
     // be given what it needs instead of reaching for the settings itself:
     // both Presentations are handed what they need from these (#184), and
     // this widget's own settings follow (#185).
+    const DecorationPolicy& decorationPolicy() const;
     const PresentationPolicy& presentationPolicy() const;
     const QuickFindPolicy& quickFindPolicy() const;
     const WatchPolicy& watchPolicy() const;
@@ -170,6 +171,7 @@ protected:
     void doSetFormatRecognition( const RecognitionPolicy& policy,
                                  std::shared_ptr<const LogFormatCatalog> catalog ) override;
     void doSetRecognitionPolicy( const RecognitionPolicy& policy ) override;
+    void doSetDecorationPolicy( const DecorationPolicy& policy ) override;
     void doSetPresentationPolicy( const PresentationPolicy& policy ) override;
     void doSetQuickFindPolicy( const QuickFindPolicy& policy ) override;
     void doSetWatchPolicy( const WatchPolicy& policy ) override;
@@ -403,9 +405,10 @@ private:
 
     void changeFontSize( bool increase );
 
-    // Hand every view of this Log File the settings that color Log Lines,
-    // derived once here. No Presentation derives them for itself: this is how
-    // a view just built is colored, and how a change to them reaches one.
+    // Hand every view of this Log File the Decoration Policy this widget
+    // holds, the Filtered Views of kept Searches included. No Presentation
+    // derives it for itself, and neither does this widget: this is how a view
+    // just built is colored, and how a changed Policy reaches one.
     void handDecorationPolicyToViews();
 
     // Tell every view of this Log File whether follow may be engaged at all,
@@ -519,7 +522,8 @@ private:
     RecognitionPolicy recognitionPolicy_;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
 
-    // What this Log File's views show, scroll and search under
+    // What this Log File's views color, show, scroll and search under
+    DecorationPolicy decorationPolicy_;
     PresentationPolicy presentationPolicy_;
     QuickFindPolicy quickFindPolicy_;
 
