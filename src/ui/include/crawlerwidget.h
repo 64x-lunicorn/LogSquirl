@@ -449,6 +449,13 @@ private:
     template <class Presentation>
     void connectPresentation( Presentation* presentation );
 
+    // Call fn with each Filtered View of this Log File, the current one and
+    // those of kept Searches. The current Filtered View is one of the tabs; a
+    // tab closed is gone from them, so a Filtered View destroyed is never
+    // reached.
+    template <class Fn>
+    void forEachFilteredView( Fn&& fn ) const;
+
     // Palette for error notification (yellow background)
     static const QPalette ErrorPalette;
 

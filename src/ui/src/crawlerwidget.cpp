@@ -517,8 +517,8 @@ void CrawlerWidget::startNewSearch()
         logFilteredData_->stop();
         logFilteredData_ = logData_->getNewFilteredData();
 
-        // The setting is the starting state for a new view; the views that
-        // already exist follow the View menu instead.
+        // A new Filtered View starts from the Presentation Policy, as the ones
+        // that already exist were handed it in handPresentationPolicyToViews().
         filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
                                           presentationPolicy_.useTextWrap );
         filteredView_->setDecorationPolicy( decorationPolicy_ );
@@ -831,16 +831,23 @@ void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& 
     markLinesFromMain( linesInMain );
 }
 
+template <class Fn>
+void CrawlerWidget::forEachFilteredView( Fn&& fn ) const
+{
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            fn( view );
+        }
+    }
+}
+
 void CrawlerWidget::handFollowAllowanceToViews()
 {
     const auto isFollowModeAllowed = watchPolicy_.anyWatchEnabled();
 
     logMainView_->allowFollowMode( isFollowModeAllowed );
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            view->allowFollowMode( isFollowModeAllowed );
-        }
-    }
+    forEachFilteredView(
+        [ & ]( FilteredView* view ) { view->allowFollowMode( isFollowModeAllowed ); } );
 }
 
 void CrawlerWidget::applyConfiguration()
@@ -890,38 +897,25 @@ void CrawlerWidget::handFontToViews()
     for ( auto* presentation : presentations() ) {
         presentation->updateFont( font );
     }
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            view->updateFont( font );
-        }
-    }
+    forEachFilteredView( [ & ]( FilteredView* view ) { view->updateFont( font ); } );
 }
 
 void CrawlerWidget::handDecorationPolicyToViews()
 {
     logMainView_->setDecorationPolicy( decorationPolicy_ );
     logTableView_->setDecorationPolicy( decorationPolicy_ );
-    // The current Filtered View is one of the tabs; a tab closed is gone from
-    // them, so a Filtered View destroyed is never reached.
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            view->setDecorationPolicy( decorationPolicy_ );
-        }
-    }
+    forEachFilteredView(
+        [ & ]( FilteredView* view ) { view->setDecorationPolicy( decorationPolicy_ ); } );
 }
 
 void CrawlerWidget::handPresentationPolicyToViews()
 {
     logMainView_->setPresentationPolicy( presentationPolicy_ );
     logMainView_->setLineNumbersVisible( presentationPolicy_.mainLineNumbersVisible );
-    // The current Filtered View is one of the tabs; a tab closed is gone from
-    // them, so a Filtered View destroyed is never reached.
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            view->setPresentationPolicy( presentationPolicy_ );
-            view->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
-        }
-    }
+    forEachFilteredView( [ & ]( FilteredView* view ) {
+        view->setPresentationPolicy( presentationPolicy_ );
+        view->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
+    } );
 
     // Both Presentations share the one Overview, so each makes room for it,
     // or takes the room back, as it now says.
@@ -946,11 +940,7 @@ void CrawlerWidget::applyHighlighterSetChange()
         presentation->updateDecorations();
     }
 
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            view->forceRefresh();
-        }
-    }
+    forEachFilteredView( [ & ]( FilteredView* view ) { view->forceRefresh(); } );
 }
 
 void CrawlerWidget::applyDecodingPolicyChange()
@@ -964,11 +954,7 @@ void CrawlerWidget::applyDecodingPolicyChange()
         presentation->rereadLogLines();
     }
 
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            view->forceRefresh();
-        }
-    }
+    forEachFilteredView( [ & ]( FilteredView* view ) { view->forceRefresh(); } );
 }
 
 void CrawlerWidget::enteringQuickFind()
