@@ -21,7 +21,31 @@ on:
       - README.md
       - latest.json
       - .gitignore
+  # The release workflow passes exactly the signing secrets this workflow
+  # uses instead of all of its secrets (#204). All are optional: a fork or a
+  # pull request builds unsigned.
   workflow_call:
+    secrets:
+      MACOS_P12_FILE:
+        required: false
+      MACOS_P12_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      WIN_CS_KEY_ID:
+        required: false
+      WIN_CS_SECRET:
+        required: false
+      WIN_CS_BUCKET:
+        required: false
+      WIN_SIGN_CERT_PFX:
+        required: false
+      WIN_SIGN_CERT_PASSWORD:
+        required: false
   workflow_dispatch:
 
 concurrency:
@@ -40,14 +64,20 @@ jobs:
   SaveVersion:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-24.04
+    # Every job has a budget: a hang would otherwise hold a runner for the
+    # 6-hour default. Budgets are about twice the slowest successful run among
+    # the last 100 runs, and never below 5 minutes (#218).
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/logsquirl-version
 
       - name: Save version
         run: echo $LOGSQUIRL_VERSION > logsquirl_version.txt
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logsquirl_version
           path: 'logsquirl_version.txt'
@@ -55,16 +85,24 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Format — clang-format dry-run over project-owned C++ sources. No Qt,
-  # no build; just checks the tree matches .clang-format (#120).
+  # no build; just checks the tree matches .clang-format (#120) and that
+  # every action is pinned to a commit SHA (#202).
   # -----------------------------------------------------------------------
   Format:
     name: Format
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      # A tag can be moved to other code, a commit SHA cannot (#202).
+      - name: Check action pins
+        run: .github/scripts/check-action-pins.sh
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
@@ -75,6 +113,7 @@ jobs:
 
       - name: Check formatting
         run: |
+          set -euo pipefail
           exit_code=0
           while IFS= read -r f; do
             if ! diff -u "$f" <(clang-format "$f") > /tmp/format.diff; then
@@ -84,6 +123,54 @@ jobs:
             fi
           done < <(git ls-files -- '*.cpp' '*.h' '*.hpp' | grep -vE '^(3rdparty/|cpm_cache/|website/)')
           exit $exit_code
+
+  # -----------------------------------------------------------------------
+  # SBOM — the source part of the release SBOM (#212): every CPM package and
+  # the pinned platform components of this commit, i.e. of the binaries this
+  # run builds. A release run (ci-release.yml) adds what the built packages
+  # bundle and publishes the result. Running it on every PR tests the
+  # generator and validates the SBOM against the CycloneDX schema, so a
+  # change to 3rdparty/CMakeLists.txt that the generator cannot describe fails
+  # here instead of in a release.
+  # -----------------------------------------------------------------------
+  SBOM:
+    name: SBOM
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-24.04
+    # pytest plus two generator runs; no build (#218).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install SBOM tooling
+        run: pip install --require-hashes -r scripts/sbom/requirements.txt
+
+      - name: Test the SBOM generator
+        run: python -m pytest scripts/sbom -p no:cacheprovider
+
+      - uses: ./.github/actions/logsquirl-version
+
+      - name: Generate and validate the source SBOM
+        env:
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python scripts/sbom/logsquirl_sbom.py generate --repo-root . \
+            --version "$LOGSQUIRL_VERSION" --commit "$COMMIT" --repository "$GITHUB_REPOSITORY" \
+            --output sbom-base/logsquirl-sbom-base.cdx.json
+          python scripts/sbom/logsquirl_sbom.py validate sbom-base/logsquirl-sbom-base.cdx.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-base
+          path: sbom-base/logsquirl-sbom-base.cdx.json
+          if-no-files-found: error
 
   # -----------------------------------------------------------------------
   # Stage 1 — Linux (cheapest runners, gates Windows & Mac)
@@ -104,7 +191,7 @@ jobs:
             package_suffix: rpm
             check_container: oraclelinux:10
             container_root: docker/oracle10
-            container: ghcr.io/64x-lunicorn/logsquirl-oracle10:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-oracle10
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on
 
           - os: ubuntu_noble
@@ -116,7 +203,7 @@ jobs:
             package_suffix: deb
             check_container: ubuntu:24.04
             container_root: docker/ubuntu24.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
             cmake_opts:
 
           - os: ubuntu_appimage
@@ -127,52 +214,78 @@ jobs:
             artifacts_id: appimage
             package_suffix: AppImage
             container_root: docker/ubuntu22.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy
             cmake_opts:
 
           - os: fedora
-            os_version: 43
+            os_version: 44
             arch: x64
             check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
             cpack_gen: RPM
             artifacts_id: fedora
             package_suffix: rpm
-            check_container: fedora:43
-            container_root: docker/fedora43
-            container: ghcr.io/64x-lunicorn/logsquirl-fedora43:latest
+            check_container: fedora:44
+            container_root: docker/fedora44
+            image: ghcr.io/64x-lunicorn/logsquirl-fedora44
             cmake_opts:
 
     runs-on: ubuntu-24.04
+    # Slowest successful run 28 min (appimage; noble/oracle/fedora 22-24 min),
+    # with the image built locally and a cold sccache adding more, and one
+    # process per test case since #217 making the test step ~40% longer (#218).
+    timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # matrix.config.image carries no tag: the action tags it with the image
+      # inputs hash and exports the ref as LOGSQUIRL_CONTAINER for every later
+      # step, so the run is unaffected by what the Docker Images workflow pushes
+      # meanwhile (#215). A pulled image must carry the Docker Images workflow's
+      # cosign signature or the job fails; the action installs cosign (#216).
       - uses: ./.github/actions/docker-pull-or-build
         with:
-          container: ${{ matrix.config.container }}
+          image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
+      # The key covers the CPM script as well as the package list (#219).
       - name: Restore CPM cache
-        uses: actions/cache@v6
+        id: cpm_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: cpm_cache
-          key: cpm-Linux-${{ matrix.config.artifacts_id }}-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+          key: cpm-Linux-${{ matrix.config.artifacts_id }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
           restore-keys: |
             cpm-Linux-${{ matrix.config.artifacts_id }}-
 
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
+
+      # Only the default branch saves, and only when the exact key was missing
+      # (caches are immutable): a dependency change on a pull request would
+      # otherwise add a ~400 MB entry per job scoped to that pull request (#219).
+      - name: Save CPM cache
+        if: >-
+          steps.cpm_cache.outputs.cache-hit != 'true'
+          && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: ${{ steps.cpm_cache.outputs.cache-primary-key }}
+
       - uses: ./.github/actions/docker-run-tests
       - uses: ./.github/actions/docker-package
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -180,7 +293,7 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Sanitizers — ASan + UBSan build of the test suites in the Noble
-  # container. Runs alongside the Linux matrix; no packaging, no artifacts.
+  # container. Runs alongside the Linux matrix; no packaging, only the test report.
   # -----------------------------------------------------------------------
   Sanitizers:
     name: Sanitizers / asan-ubsan
@@ -193,7 +306,7 @@ jobs:
           - arch: x64
             artifacts_id: asan
             container_root: docker/ubuntu24.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
             # Sentry/crashpad is a release concern and its own crash handler
             # would fight the sanitizer runtime; LTO only slows the link of a
             # build nobody ships. Vectorscan stays ON: it builds and runs clean
@@ -205,6 +318,9 @@ jobs:
               -DLOGSQUIRL_USE_LTO=OFF
 
     runs-on: ubuntu-24.04
+    # Slowest successful run 25 min, before #217 started one process per test
+    # case (~40% longer tests, more under ASan) (#218).
+    timeout-minutes: 75
     env:
       # halt_on_error: the first report aborts the test binary, so ctest goes red.
       # detect_leaks=0: Qt's offscreen platform plugin and its global statics
@@ -212,10 +328,12 @@ jobs:
       ASAN_OPTIONS: halt_on_error=1:print_stacktrace=1:detect_leaks=0:symbolize=1:abort_on_error=0
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1:symbolize=1
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -223,16 +341,20 @@ jobs:
 
       - uses: ./.github/actions/docker-pull-or-build
         with:
-          container: ${{ matrix.config.container }}
+          image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
+      # Same container and package list as the noble job, minus Sentry, so the
+      # noble job's CPM cache already holds everything this build downloads;
+      # restoring it instead of saving a ~290 MB copy of our own keeps the
+      # Actions cache under its limit (#219).
       - name: Restore CPM cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: cpm_cache
-          key: cpm-Linux-asan-${{ hashFiles('3rdparty/CMakeLists.txt') }}
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
           restore-keys: |
-            cpm-Linux-asan-
+            cpm-Linux-noble-
 
       - name: Lower ASLR entropy for ASan
         # Kernels with vm.mmap_rnd_bits=32 (GitHub's Ubuntu runners) break the
@@ -244,12 +366,20 @@ jobs:
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
 
+      # Per test case, with a JUnit report kept even when a case fails (#217).
       - name: Run tests under ASan/UBSan
+        id: tests
         run: |
           docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
             --env ASAN_OPTIONS="$ASAN_OPTIONS" --env UBSAN_OPTIONS="$UBSAN_OPTIONS" \
-            -v "$LOGSQUIRL_WORKSPACE":/usr/local ${{ matrix.config.container }} \
-            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure"
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
+            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure --timeout 120 --output-junit ctest-junit.xml"
+
+      - uses: ./.github/actions/ctest-report
+        if: always() && steps.tests.outcome != 'skipped'
+        with:
+          junit-file: ${{ env.LOGSQUIRL_BUILD_ROOT }}/ctest-junit.xml
+          artifact-name: ${{ matrix.config.artifacts_id }}
 
   # -----------------------------------------------------------------------
   # Stage 2 — macOS (runs alongside Windows, both gated only on Linux; #121)
@@ -272,18 +402,36 @@ jobs:
             cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=Release
 
     runs-on: ${{ matrix.config.runner }}
+    # Slowest successful run 25 min; notarization waits on Apple and can
+    # stretch a master build well past that (#218).
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set brew env
         run: |
+          set -euo pipefail
           echo "HOMEBREW_NO_ANALYTICS=1" >> $GITHUB_ENV
           echo "HOMEBREW_NO_AUTO_UPDATE=1" >> $GITHUB_ENV
           echo "HOMEBREW_NO_INSTALL_CLEANUP=1" >> $GITHUB_ENV
 
+      # Ragel stays on Homebrew (#199): it only generates Vectorscan sources at
+      # build time and never ships, brew verifies the bottle's SHA-256, and
+      # HOMEBREW_NO_AUTO_UPDATE freezes the formula to the runner image. A
+      # formula bump is surfaced as a warning rather than failing the build.
       - name: Brew deps
+        env:
+          RAGEL_EXPECTED_VERSION: "6.11"
         run: |
           brew install ragel
+          ragel_version=$(ragel --version | head -n 1)
+          echo "$ragel_version"
+          case "$ragel_version" in
+            *"version $RAGEL_EXPECTED_VERSION "*) ;;
+            *) echo "::warning::ragel is not $RAGEL_EXPECTED_VERSION: $ragel_version" ;;
+          esac
 
       - uses: ./.github/actions/agent-setup
       - uses: ./.github/actions/logsquirl-version
@@ -298,7 +446,7 @@ jobs:
           notarization-team: ${{ secrets.APPLE_TEAM_ID }}
           notarization-password: ${{ secrets.APPLE_PASSWORD }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -327,29 +475,75 @@ jobs:
             artifacts_id: windows-x64
 
     runs-on: ${{ matrix.config.runner }}
+    # Slowest successful run 38 min (cold sccache), median 22 min, before #217's
+    # per-case test processes; #199's changed cache keys start it cold (#218).
+    timeout-minutes: 90
+    env:
+      # One place per shipped dependency, so a bump is one edit (#199).
+      # renovate: datasource=github-tags depName=openssl/openssl extractVersion=^openssl-(?<version>.*)$
+      OPENSSL_VERSION: 3.5.8
+      OPENSSL_SHA256: a5377866b476c1661f329d3f25fc35912fa5ef01e614043b9b9a27baf8dd76a4
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
+      # The OpenSSL DLLs are shipped with the Windows package, so their version
+      # is pinned above, verified against a SHA-256 and part of the cache key:
+      # bumping OPENSSL_VERSION invalidates the cache (#199). Chocolatey cannot
+      # pin it: its package points at slproweb.com, which deletes every
+      # superseded patch release, so an older --version 404s on a cold cache.
+      # FireDaemon keeps every release online at a stable URL and ships a plain
+      # zip whose DLLs need only the UCRT. The 3.5 line is OpenSSL's LTS.
       - name: Cache openssl
         id: cache-openssl
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}\openssl-3
-          key: OpensslCache-3-choco-x64
+          key: OpensslCache-${{ env.OPENSSL_VERSION }}-firedaemon-x64
 
       - name: Install openssl
         if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }}
+        shell: pwsh
         run: |
-          choco install openssl --no-progress -y
-          $sslDir = (Get-ChildItem 'C:\Program Files\OpenSSL*' -Directory -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $sslDir) { $sslDir = (Get-ChildItem 'C:\' -Directory -Filter 'OpenSSL*' -Recurse -Depth 1 -ErrorAction SilentlyContinue | Where-Object { Test-Path "$($_.FullName)\bin" } | Select-Object -First 1).FullName }
-          Write-Host "Found OpenSSL at: $sslDir"
-          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\openssl-3\x64\bin"
-          Copy-Item "$sslDir\bin\*.dll" "${{ github.workspace }}\openssl-3\x64\bin\"
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION.zip"
+          Invoke-WebRequest -Uri "https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-$env:OPENSSL_VERSION.zip" -OutFile $zip -MaximumRetryCount 3 -RetryIntervalSec 5
+          $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          if ($actual -ne $env:OPENSSL_SHA256) {
+            Write-Host "::error::openssl-$env:OPENSSL_VERSION.zip SHA-256 mismatch: expected $env:OPENSSL_SHA256, got $actual"
+            exit 1
+          }
+          $src = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION"
+          Expand-Archive -Path $zip -DestinationPath $src -Force
+          $dst = "${{ github.workspace }}\openssl-3\x64\bin"
+          New-Item -ItemType Directory -Force -Path $dst | Out-Null
+          Copy-Item "$src\x64\bin\libcrypto-3-x64.dll", "$src\x64\bin\libssl-3-x64.dll" $dst
+
+      # Runs on cache hits too, so every log states which OpenSSL gets shipped
+      # and a cache holding another version fails instead of shipping it (#199).
+      - name: Print shipped openssl version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dlls = @(Get-ChildItem "${{ github.workspace }}\openssl-3\x64\bin\lib*-3-x64.dll")
+          if ($dlls.Count -ne 2) {
+            Write-Host "::error::expected libcrypto and libssl, found: $($dlls.Name -join ', ')"
+            exit 1
+          }
+          foreach ($dll in $dlls) {
+            $version = $dll.VersionInfo.ProductVersion
+            Write-Host "$($dll.Name): OpenSSL $version"
+            if ($version -ne $env:OPENSSL_VERSION) {
+              Write-Host "::error::$($dll.Name) is OpenSSL $version, expected $env:OPENSSL_VERSION"
+              exit 1
+            }
+          }
 
       - name: Set openssl paths
         shell: sh
         run: |
+          set -eu
           echo "SSL_DIR=${{ github.workspace }}\openssl-3\${{ matrix.config.arch }}\bin" >> $GITHUB_ENV
           echo "SSL_ARCH=${{ matrix.config.ssl_arch }}" >> $GITHUB_ENV
 
@@ -358,7 +552,7 @@ jobs:
       - uses: ./.github/actions/prepare-workspace-env
 
       - name: Prepare dev cmd
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         with:
           arch: ${{ matrix.config.arch }}
 
@@ -372,7 +566,7 @@ jobs:
           sign-cert-pfx: ${{ secrets.WIN_SIGN_CERT_PFX }}
           sign-cert-password: ${{ secrets.WIN_SIGN_CERT_PASSWORD }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -389,8 +583,11 @@ jobs:
     needs: [Linux]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-noble
@@ -403,8 +600,11 @@ jobs:
     needs: [Mac]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: macos-15
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-mac-arm64
@@ -415,8 +615,11 @@ jobs:
     needs: [Windows]
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: windows-2025
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-windows-x64
@@ -431,14 +634,16 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      [SaveVersion, Format, Linux, Sanitizers, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
+      [SaveVersion, Format, SBOM, Linux, Sanitizers, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Require every needed job to have succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
         run: |
+          set -euo pipefail
           echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           if echo "$NEEDS" | jq -e '[.[].result] | all(. == "success")' > /dev/null; then
             echo "All jobs succeeded."

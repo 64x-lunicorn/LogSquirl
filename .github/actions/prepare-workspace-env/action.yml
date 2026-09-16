@@ -3,18 +3,27 @@ description: ""
 runs:
   using: "composite"
   steps:
+    # Only the workspace path, literals and the workflow's own matrix reach
+    # GITHUB_ENV, never untrusted input (#204).
     - name: Set common env vars
       shell: sh
-      run: |
-        echo "LOGSQUIRL_WORKSPACE=${{ github.workspace }}" >> $GITHUB_ENV 
+      env:
+        WORKSPACE: ${{ github.workspace }}
+        MATRIX_ARCH: ${{ matrix.config.arch }}
+        MATRIX_CMAKE_OPTS: ${{ matrix.config.cmake_opts }}
+      run: | # zizmor: ignore[github-env]
+        set -eu
+        echo "LOGSQUIRL_WORKSPACE=$WORKSPACE" >> $GITHUB_ENV 
         echo "LOGSQUIRL_BUILD_ROOT=build_root" >> $GITHUB_ENV 
-        echo "LOGSQUIRL_ARCH=${{ matrix.config.arch }}" >> $GITHUB_ENV 
-        echo "LOGSQUIRL_CMAKE_OPTS=-G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ${{ matrix.config.cmake_opts }}" >> $GITHUB_ENV
+        echo "LOGSQUIRL_ARCH=$MATRIX_ARCH" >> $GITHUB_ENV 
+        echo "LOGSQUIRL_CMAKE_OPTS=-G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=ON -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_POLICY_VERSION_MINIMUM=3.5 $MATRIX_CMAKE_OPTS" >> $GITHUB_ENV
 
+    # Only a literal and the Qt prefix the Qt install action set (#204).
     - name: Set Qt6 env var
       if: ${{ matrix.config.qt_version }}
       shell: bash
-      run: |
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
         echo "LOGSQUIRL_QT=Qt6" >> $GITHUB_ENV
         # Resolve Qt6 prefix from available env vars (install-qt-action@v4)
         QT_PREFIX="${Qt6_Dir:-}"

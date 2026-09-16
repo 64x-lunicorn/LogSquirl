@@ -1,0 +1,64 @@
+name: "Workflow Security"
+
+# zizmor audits the workflows, composite actions and Dependabot config for
+# template injection, credential leaks, excessive permissions and dangerous
+# triggers (#204). Its own workflow, not a CI Build job: the path filter would
+# otherwise leave "CI passed" waiting on a skipped job. The master push keeps
+# the code scanning baseline that pull requests are compared against, and the
+# weekly run picks up newly published advisories for the pinned actions.
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.github/**'
+  push:
+    branches: [master]
+    paths:
+      - '.github/**'
+  schedule:
+    - cron: '17 4 * * 2'
+  workflow_dispatch:
+
+concurrency:
+  group: zizmor-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-24.04
+    # Two runs of a container image over a few dozen YAML files.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF to code scanning
+    # The action runs zizmor from a digest-pinned image; which zizmor
+    # version that is follows the action release, so a Dependabot bump of
+    # the action SHA is the one place zizmor is updated.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Every finding, any severity, goes to code scanning under the zizmor
+      # category. zizmor exits 0 in SARIF mode, so this step never fails.
+      - name: Report findings to code scanning
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          config: .github/zizmor.yml
+
+      # The gate: a high-severity finding fails the job, at any confidence,
+      # and is annotated on the pull request. Lower severities stay visible in
+      # code scanning without blocking.
+      - name: Fail on high-severity findings
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          config: .github/zizmor.yml
+          min-severity: high
+          advanced-security: false
+          annotations: true

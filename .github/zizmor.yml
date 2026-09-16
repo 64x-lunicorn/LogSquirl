@@ -1,0 +1,11 @@
+# zizmor configuration for the workflow security scan (#204). Findings that
+# are specific to one step are suppressed inline next to that step, with the
+# reason; only repository-wide decisions live here.
+rules:
+  # zizmor suggests `$/.github/...` instead of `./.github/...` for this
+  # repository's own composite actions and reusable workflow. `./` resolves
+  # against the checked-out tree, which every job here checks out first, and
+  # the pin check (.github/scripts/check-action-pins.sh) and actionlint know
+  # only that form. Switching is a design change, not a fix.
+  self-repository:
+    disable: true

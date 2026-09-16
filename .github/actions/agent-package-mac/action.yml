@@ -19,7 +19,7 @@ runs:
     - name: Mac prepare codesign
       id: prepare-codesign
       if: ${{ github.event_name != 'pull_request' }}
-      uses: apple-actions/import-codesign-certs@v3
+      uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
       with:
         p12-file-base64: ${{ inputs.p12-file-base64 }}
         p12-password: ${{ inputs.p12-password }}
@@ -33,6 +33,7 @@ runs:
     - name: Mac deploy Qt
       shell: sh
       run: |
+        set -eu
         cd $LOGSQUIRL_BUILD_ROOT
         macdeployqt ./output/logsquirl.app -always-overwrite -verbose=2
 
@@ -46,14 +47,23 @@ runs:
     # ── 2b. Repair Qt framework bundle symlinks ──────────────────────────
     - name: Mac fix framework symlinks
       shell: sh
+      env:
+        WORKSPACE: ${{ github.workspace }}
       run: |
-        "${{ github.workspace }}/scripts/fix_macos_frameworks.sh" \
+        "$WORKSPACE/scripts/fix_macos_frameworks.sh" \
           "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
 
     # ── 3. Resolve signing identities ─────────────────────────────────────
+    # GITHUB_ENV gets the identity names of the runner's own keychain, the
+    # matrix architecture and paths, never untrusted input (#204).
     - name: Set packaging env
       shell: sh
-      run: |
+      env:
+        WORKSPACE: ${{ github.workspace }}
+      run: | # zizmor: ignore[github-env]
+        set -eu
+        # The listings are diagnostics only, and a missing identity is not an
+        # error: pull requests and forks build unsigned (#218).
         echo "=== Available signing identities ==="
         security find-identity -v -p codesigning || true
         security find-identity -v || true
@@ -73,9 +83,9 @@ runs:
 
         echo "LOGSQUIRL_CODESIGN=${CODESIGN_ID}" >> $GITHUB_ENV
         echo "LOGSQUIRL_INSTALLERSIGN=${INSTALLER_ID:-$CODESIGN_ID}" >> $GITHUB_ENV
-        echo "LOGSQUIRL_DMG=logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.dmg" >> $GITHUB_ENV
-        echo "LOGSQUIRL_PKG=logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.pkg" >> $GITHUB_ENV
-        echo "LOGSQUIRL_ENTITLEMENTS=${{ github.workspace }}/packaging/osx/entitlements.plist" >> $GITHUB_ENV
+        echo "LOGSQUIRL_DMG=logsquirl-mac-${LOGSQUIRL_ARCH}.dmg" >> $GITHUB_ENV
+        echo "LOGSQUIRL_PKG=logsquirl-mac-${LOGSQUIRL_ARCH}.pkg" >> $GITHUB_ENV
+        echo "LOGSQUIRL_ENTITLEMENTS=$WORKSPACE/packaging/osx/entitlements.plist" >> $GITHUB_ENV
 
     # ── 4. Code-sign every component individually (inside-out) ────────────
     #
@@ -89,8 +99,8 @@ runs:
         set -euo pipefail
         cd "$LOGSQUIRL_BUILD_ROOT"
         APP="./output/logsquirl.app"
-        SIGN="${{ env.LOGSQUIRL_CODESIGN }}"
-        ENT="${{ env.LOGSQUIRL_ENTITLEMENTS }}"
+        SIGN="$LOGSQUIRL_CODESIGN"
+        ENT="$LOGSQUIRL_ENTITLEMENTS"
 
         echo "::group::Signing individual components"
 
@@ -154,6 +164,12 @@ runs:
     - name: Mac notarize app
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
+      # Inputs reach the script through the environment, never interpolated
+      # into it (#204).
+      env:
+        NOTARY_APPLE_ID: ${{ inputs.notarization-username }}
+        NOTARY_TEAM_ID: ${{ inputs.notarization-team }}
+        NOTARY_PASSWORD: ${{ inputs.notarization-password }}
       run: |
         set -euo pipefail
         cd "$LOGSQUIRL_BUILD_ROOT"
@@ -162,9 +178,9 @@ runs:
         ditto -c -k --keepParent ./output/logsquirl.app ./output/logsquirl-notarize.zip
 
         xcrun notarytool submit --wait \
-          --apple-id "${{ inputs.notarization-username }}" \
-          --team-id "${{ inputs.notarization-team }}" \
-          --password "${{ inputs.notarization-password }}" \
+          --apple-id "$NOTARY_APPLE_ID" \
+          --team-id "$NOTARY_TEAM_ID" \
+          --password "$NOTARY_PASSWORD" \
           ./output/logsquirl-notarize.zip \
           | tee app_notary.log
 
@@ -172,9 +188,9 @@ runs:
         app_notary_id=$(awk '$1=="id:"{id=$2} END{print id}' app_notary.log)
 
         xcrun notarytool log \
-          --apple-id "${{ inputs.notarization-username }}" \
-          --team-id "${{ inputs.notarization-team }}" \
-          --password "${{ inputs.notarization-password }}" \
+          --apple-id "$NOTARY_APPLE_ID" \
+          --team-id "$NOTARY_TEAM_ID" \
+          --password "$NOTARY_PASSWORD" \
           "$app_notary_id" "app_notary.log.json" || true
         echo "=== App notarization log ==="
         cat "app_notary.log.json" || true
@@ -190,6 +206,7 @@ runs:
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
+        set -eu
         xcrun stapler staple "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
         xcrun stapler validate "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
         echo "=== Final app verification ==="
@@ -203,12 +220,35 @@ runs:
     # window appears empty with the bundled DS_Store.
     # The app is already signed, notarized, and stapled at this point.
     - name: Install create-dmg
-      shell: sh
-      run: |
-        brew install create-dmg
+      shell: bash
+      env:
+        # Pinned release tarball verified against a SHA-256 instead of an
+        # unpinned brew install (#199). The script runs from its unpacked tree.
+        # renovate: datasource=github-tags depName=create-dmg/create-dmg
+        CREATE_DMG_VERSION: 1.3.0
+        CREATE_DMG_SHA256: c50d2bc97c3d6292642bac55f530d247eaf4bf65ee605f26b4caf339383e381c
+      # GITHUB_PATH gets a directory under RUNNER_TEMP named after the pinned
+      # version, never untrusted input (#204).
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        tarball="$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION.tar.gz"
+        curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+          --output "$tarball" \
+          "https://github.com/create-dmg/create-dmg/archive/refs/tags/v$CREATE_DMG_VERSION.tar.gz"
+        actual=$(shasum -a 256 "$tarball")
+        actual=${actual%% *}
+        if [ "$actual" != "$CREATE_DMG_SHA256" ]; then
+          echo "::error::create-dmg $CREATE_DMG_VERSION SHA-256 mismatch: expected $CREATE_DMG_SHA256, got $actual"
+          exit 1
+        fi
+        tar -xzf "$tarball" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION/create-dmg" --version
 
     - name: Mac pack dmg
       shell: sh
+      env:
+        WORKSPACE: ${{ github.workspace }}
       run: |
         set -euo pipefail
         cd "$LOGSQUIRL_BUILD_ROOT"
@@ -218,8 +258,8 @@ runs:
         # icon positions, volume icon, window size.
         create-dmg \
           --volname "LogSquirl" \
-          --volicon "${{ github.workspace }}/Resources/logsquirl.icns" \
-          --background "${{ github.workspace }}/packaging/osx/dmg_background.tif" \
+          --volicon "$WORKSPACE/Resources/logsquirl.icns" \
+          --background "$WORKSPACE/packaging/osx/dmg_background.tif" \
           --window-pos 400 100 \
           --window-size 500 365 \
           --icon-size 128 \
@@ -228,31 +268,38 @@ runs:
           --hide-extension "logsquirl.app" \
           --no-internet-enable \
           --app-drop-link 378 200 \
-          "./packages/${{ env.LOGSQUIRL_DMG }}" \
+          "./packages/$LOGSQUIRL_DMG" \
           "./output/logsquirl.app"
 
-        echo "DMG created: $(ls -lh ./packages/${{ env.LOGSQUIRL_DMG }})"
+        echo "DMG created: $(ls -lh "./packages/$LOGSQUIRL_DMG")"
 
     # ── 7. Sign and notarize the DMG ──────────────────────────────────────
     - name: Mac codesign dmg
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
+        set -eu
         cd "$LOGSQUIRL_BUILD_ROOT"
         codesign --force --timestamp \
-          --sign "${{ env.LOGSQUIRL_CODESIGN }}" \
-          "./packages/${{ env.LOGSQUIRL_DMG }}"
+          --sign "$LOGSQUIRL_CODESIGN" \
+          "./packages/$LOGSQUIRL_DMG"
 
     - name: Mac notarize DMG
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
+      # Inputs reach the script through the environment, never interpolated
+      # into it (#204).
+      env:
+        NOTARY_APPLE_ID: ${{ inputs.notarization-username }}
+        NOTARY_TEAM_ID: ${{ inputs.notarization-team }}
+        NOTARY_PASSWORD: ${{ inputs.notarization-password }}
       run: |
         set -euo pipefail
         xcrun notarytool submit --wait \
-          --apple-id "${{ inputs.notarization-username }}" \
-          --team-id "${{ inputs.notarization-team }}" \
-          --password "${{ inputs.notarization-password }}" \
-          "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}" \
+          --apple-id "$NOTARY_APPLE_ID" \
+          --team-id "$NOTARY_TEAM_ID" \
+          --password "$NOTARY_PASSWORD" \
+          "$LOGSQUIRL_BUILD_ROOT/packages/$LOGSQUIRL_DMG" \
           | tee dmg_notary.log
 
         dmg_status=$(grep -i "status:" dmg_notary.log | tail -1 | awk '{print $NF}')
@@ -260,9 +307,9 @@ runs:
 
         # Always fetch the notarization log for diagnostics
         xcrun notarytool log \
-          --apple-id "${{ inputs.notarization-username }}" \
-          --team-id "${{ inputs.notarization-team }}" \
-          --password "${{ inputs.notarization-password }}" \
+          --apple-id "$NOTARY_APPLE_ID" \
+          --team-id "$NOTARY_TEAM_ID" \
+          --password "$NOTARY_PASSWORD" \
           "$dmg_notary_id" "dmg_notary.log.json" || true
         echo "=== Notarization log ==="
         cat "dmg_notary.log.json" || true
@@ -276,9 +323,10 @@ runs:
       if: ${{ github.event_name != 'pull_request' && env.LOGSQUIRL_CODESIGN != '' }}
       shell: sh
       run: |
-        xcrun stapler staple "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}"
+        set -eu
+        xcrun stapler staple "$LOGSQUIRL_BUILD_ROOT/packages/$LOGSQUIRL_DMG"
         echo "=== Stapler validation ==="
-        xcrun stapler validate "${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/${{ env.LOGSQUIRL_DMG }}"
+        xcrun stapler validate "$LOGSQUIRL_BUILD_ROOT/packages/$LOGSQUIRL_DMG"
 
     # ── 8. Archive app and symbols for CI artifacts ───────────────────────
     #
@@ -289,6 +337,7 @@ runs:
     - name: Mac archive app and symbols
       shell: sh
       run: |
+        set -eu
         cd $LOGSQUIRL_BUILD_ROOT
-        tar -czf ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.app.tar.gz -C ./output logsquirl.app
-        tar -czf ./packages/logsquirl-${{ env.LOGSQUIRL_ARCH }}.dSym.tar.gz -C ./output logsquirl.dSym
+        tar -czf "./packages/logsquirl-$LOGSQUIRL_ARCH.app.tar.gz" -C ./output logsquirl.app
+        tar -czf "./packages/logsquirl-$LOGSQUIRL_ARCH.dSym.tar.gz" -C ./output logsquirl.dSym

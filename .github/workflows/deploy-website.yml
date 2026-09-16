@@ -1,4 +1,4 @@
-# Deploy Starlight (Astro) website to Netcup Webhosting via FTP
+# Deploy Starlight (Astro) website to Netcup Webhosting via FTPS
 name: Deploy Website
 
 on:
@@ -8,18 +8,34 @@ on:
       - 'website/**'
   workflow_dispatch:
 
+# Only one deploy at a time, and never cancel one mid-upload: two
+# interleaved syncs against the same server-dir leave a mixed site and a
+# sync-state file that no longer matches the server (#206).
+concurrency:
+  group: deploy-website
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: read
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Pinned so a runner image bump cannot silently change the deploy (#206).
+    runs-on: ubuntu-24.04
+    # A stuck FTP connection would otherwise hold the concurrency group for
+    # the default 6 hours (#206).
+    timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: 'npm'
@@ -31,12 +47,24 @@ jobs:
       - name: Build
         run: cd website && npm run build
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+      # The pin is the v4.4.0 tag's commit. The action repository also has a
+      # branch named v4.4.0 on another commit, which zizmor resolves instead
+      # (#204).
+      - name: Deploy via FTPS # zizmor: ignore[ref-version-mismatch]
+        uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          # `ftps` is explicit TLS on the normal control port 21, which is
+          # what Netcup webhosting offers; the default `ftp` sent credentials
+          # and content in clear text (#206).
+          protocol: ftps
+          port: 21
           local-dir: website/dist/
           server-dir: /
-          dangerous-clean-slate: true
+          # No dangerous-clean-slate: it wiped the server before every upload,
+          # so the site was down during the upload and a failed upload left
+          # it empty. The action's sync-state file on the server
+          # (.ftp-deploy-sync-state.json) drives an incremental sync that
+          # also deletes files removed from dist/ (#206).

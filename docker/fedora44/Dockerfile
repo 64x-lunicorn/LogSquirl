@@ -1,4 +1,7 @@
-FROM fedora:44
+# The release here must match the directory name, the GHCR image name and
+# CI Build's os_version/check_container, or the RPM is built on one Fedora and
+# install-checked on another (#198).
+FROM fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
 
 RUN dnf update -y && \
     dnf install -y ragel make wget tar python3 python3-pip rpm-build git unzip \

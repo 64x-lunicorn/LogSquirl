@@ -1,0 +1,70 @@
+name: "Vulnerability scan"
+
+# New vulnerabilities are published against components that have not changed,
+# so master's source SBOM (every CPM package and the pinned platform
+# components) is scanned daily and the findings kept current in code scanning
+# under the same category as the release scan. This run only reports: a new
+# advisory must not turn master red; the release workflow is where a critical
+# finding blocks. It still fails when the scan itself cannot run, so a missing
+# report is not mistaken for a clean one (#213).
+on:
+  schedule:
+    - cron: '37 4 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: vuln-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  scan:
+    name: Scan the source SBOM
+    runs-on: ubuntu-24.04
+    # SBOM generation, grype database download and a few OSV requests (#218).
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF to code scanning
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Install SBOM tooling
+        run: pip install --require-hashes -r scripts/sbom/requirements.txt
+
+      - uses: ./.github/actions/logsquirl-version
+
+      # The versions of OpenSSL and ICU are only known from built packages, so
+      # this SBOM leaves them out; the release scan covers them (#212).
+      - name: Generate the source SBOM
+        env:
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python scripts/sbom/logsquirl_sbom.py generate --repo-root . \
+            --version "$LOGSQUIRL_VERSION" --commit "$COMMIT" --repository "$GITHUB_REPOSITORY" \
+            --output sbom/logsquirl-source-sbom.cdx.json
+          python scripts/sbom/logsquirl_sbom.py validate sbom/logsquirl-source-sbom.cdx.json
+
+      - name: Scan the source SBOM
+        uses: ./.github/actions/sbom-vuln-scan
+        with:
+          sbom: sbom/logsquirl-source-sbom.cdx.json
+          sarif: sbom-vulns.sarif
+          fail-on: none
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        with:
+          sarif_file: sbom-vulns.sarif
+          category: sbom-vulns

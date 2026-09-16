@@ -39,9 +39,8 @@ target_include_directories(logsquirl_itests PRIVATE
 
 add_backward(logsquirl_itests)
 
-add_test(
-    NAME logsquirl_itests
-    COMMAND logsquirl_itests -platform offscreen
-)
-# Prevent infinite hangs in CI (e.g. from unexpected modal dialogs)
-set_tests_properties(logsquirl_itests PROPERTIES TIMEOUT 240)
+# Each test case is its own ctest test; the timeout stops a hanging case (e.g.
+# on an unexpected modal dialog) and names it (#217).
+logsquirl_add_catch_tests(logsquirl_itests
+    EXTRA_ARGS -platform offscreen
+    TIMEOUT 120)
