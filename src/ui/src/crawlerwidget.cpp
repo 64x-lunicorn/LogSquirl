@@ -945,6 +945,11 @@ void CrawlerWidget::applyHighlighterSetChange()
     forEachFilteredView( [ & ]( FilteredView* view ) { view->forceRefresh(); } );
 }
 
+void CrawlerWidget::doApplyHighlighterSetChange()
+{
+    applyHighlighterSetChange();
+}
+
 void CrawlerWidget::applyDecodingPolicyChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyDecodingPolicyChange";

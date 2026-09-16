@@ -1024,12 +1024,9 @@ void MainWindow::createMenus()
 
     highlightersMenu = new HighlightersMenu( tr( menu::highlightersTitle ), menuBar() );
     menuBar()->addMenu( highlightersMenu );
-    highlightersMenu->setApplyChange( [ this ]() {
-        auto crawler = currentCrawlerWidget();
-        if ( crawler != nullptr ) {
-            crawler->applyHighlighterSetChange();
-        }
-    } );
+    // Every open Log File is re-colored, not only the one the current tab
+    // shows: the others would keep the colors their Color Labels had.
+    highlightersMenu->setApplyChange( [ this ]() { session_.applyHighlighterSetChange(); } );
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
@@ -1444,14 +1441,14 @@ void MainWindow::openUrl()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyHighlighterSetChange() ) );
 
-    connect( &dialog, &HighlightersDialog::optionsChanged,
-             [ this ]() { updateHighlightersMenu(); } );
+    // Reaches every open Log File, in every window, not only the current tab.
+    connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
+        session_.applyHighlighterSetChange();
+        updateHighlightersMenu();
+    } );
 
     dialog.exec();
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ),
-                           SLOT( applyHighlighterSetChange() ) );
 }
 
 // Opens dialog to configure predefined filters
@@ -1798,11 +1795,9 @@ void MainWindow::importChipmunkFilters()
                                   .arg( filtersAdded )
                                   .arg( highlighterAdded ? 1 : 0 ) );
 
-    // The imported Highlighter Set may be active: paint the current Log File
-    // again with it.
-    if ( auto crawler = currentCrawlerWidget() ) {
-        crawler->applyHighlighterSetChange();
-    }
+    // The imported Highlighter Set may be active: paint every open Log File
+    // again with it, not only the one the current tab shows.
+    session_.applyHighlighterSetChange();
 }
 
 void MainWindow::encodingChanged( QAction* action )

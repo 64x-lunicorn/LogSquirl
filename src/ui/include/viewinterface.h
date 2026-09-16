@@ -121,6 +121,15 @@ public:
         doSetFileAccessPolicy( policy );
     }
 
+    // Tell the views of this Log File that the Highlighter Set Collection
+    // changed. They read the active Highlighter Sets when they paint, but
+    // the colors of the Color Labels are held alongside their words, so
+    // those are read again before everything is painted anew
+    void applyHighlighterSetChange()
+    {
+        doApplyHighlighterSetChange();
+    }
+
     // For save/restore of the context
     void setViewContext( const QString& view_context )
     {
@@ -149,6 +158,7 @@ protected:
     virtual void doSetQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
     virtual void doSetWatchPolicy( const WatchPolicy& policy ) = 0;
     virtual void doSetFileAccessPolicy( const FileAccessPolicy& policy ) = 0;
+    virtual void doApplyHighlighterSetChange() = 0;
     virtual void doSetViewContext( const QString& view_context ) = 0;
     virtual std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const = 0;
 };

@@ -1752,3 +1752,85 @@ SCENARIO( "Color Labels and Search Limits reach every Filtered View of the Log F
         }
     }
 }
+
+namespace {
+
+// What the application does once a Highlighter Set, or the color of a Color
+// Label, has been changed -- in the Highlighters dialog, the Highlighters
+// menu or by an import: it tells the Session, whatever window it happened in.
+void changeHighlighterSets( Session& session )
+{
+    session.applyHighlighterSetChange();
+    QCoreApplication::processEvents();
+}
+
+} // namespace
+
+// A Color Label caches its color alongside its words in each Log File, so a
+// change of the Highlighter Set Collection has to reach every open Log File,
+// not only the one the current tab shows (#237).
+SCENARIO( "A Highlighter Set change re-colors Color Labels in every open Log File",
+          "[ui][highlighters]" )
+{
+    QTemporaryFile currentFile{ "crawler_labels_current_XXXXXX" };
+    QTemporaryFile backgroundFile{ "crawler_labels_background_XXXXXX" };
+
+    // Colors nothing else in the views is painted with.
+    const QColor oldLabelColor{ 0x13, 0x57, 0x9b };
+    const QColor newLabelColor{ 0x57, 0x9b, 0x13 };
+    const QColor otherLabelColor{ 0x9b, 0x57, 0x13 };
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    const PinnedHighlighterSets pinnedSets;
+    HighlighterSetCollection::get().deactivateAll();
+    setColorLabelColors( oldLabelColor, otherLabelColor );
+
+    // Destroyed before the Session they were opened from.
+    CrawlerWidgetVisitor current;
+    openCrawler( session, currentFile, current );
+    CrawlerWidgetVisitor background;
+    openCrawler( session, backgroundFile, background );
+
+    GIVEN( "two open Log Files, both with a Color Label on Log Line 3, one in the background" )
+    {
+        current.addColorLabelToLogLine( 3_lnum, 0 );
+        background.addColorLabelToLogLine( 3_lnum, 0 );
+
+        REQUIRE( showsColor( current.textView(), oldLabelColor ) );
+        REQUIRE( showsColor( background.textView(), oldLabelColor ) );
+
+        // As a tab not current is.
+        background.crawler->hide();
+        QCoreApplication::processEvents();
+
+        WHEN( "the Color Label is given another color in the Highlighter Set Collection" )
+        {
+            setColorLabelColors( newLabelColor, otherLabelColor );
+            changeHighlighterSets( session );
+
+            THEN( "the current Log File shows the new color" )
+            {
+                REQUIRE( showsColor( current.textView(), newLabelColor ) );
+                REQUIRE_FALSE( showsColor( current.textView(), oldLabelColor ) );
+            }
+
+            THEN( "the Log File in the background shows it too" )
+            {
+                REQUIRE( showsColor( background.textView(), newLabelColor ) );
+                REQUIRE_FALSE( showsColor( background.textView(), oldLabelColor ) );
+            }
+
+            AND_WHEN( "the Log File in the background is brought to the front" )
+            {
+                background.showSized();
+
+                THEN( "it shows the new color without any further action" )
+                {
+                    REQUIRE( showsColor( background.textView(), newLabelColor ) );
+                    REQUIRE_FALSE( showsColor( background.textView(), oldLabelColor ) );
+                }
+            }
+        }
+    }
+}

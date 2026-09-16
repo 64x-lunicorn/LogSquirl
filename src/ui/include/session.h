@@ -156,6 +156,14 @@ public:
     // Open Log Files keep the Log Format they were recognized with.
     void applyPolicies( const SettingsPolicies& policies );
 
+    // Tells every open Log File that the Highlighter Set Collection changed:
+    // a Highlighter Set was edited, imported, activated or deactivated, or a
+    // Color Label was given another color. Highlighter Sets are not a
+    // Setting, so this is not a Policy, but it reaches the same Log Files:
+    // every one open, in every window, not only the one the current tab
+    // shows. Each re-reads the colors of its Color Labels and repaints.
+    void applyHighlighterSetChange();
+
     std::vector<WindowSession> windowSessions();
 
     bool exitRequested() const
@@ -284,6 +292,13 @@ public:
     const QuickFindPolicy& quickFindPolicy() const
     {
         return appSession_->quickFindPolicy();
+    }
+
+    // A Highlighter Set change reaches every open Log File of the
+    // application, not only this window's. See the Session's own.
+    void applyHighlighterSetChange()
+    {
+        appSession_->applyHighlighterSetChange();
     }
 
     QString windowId() const

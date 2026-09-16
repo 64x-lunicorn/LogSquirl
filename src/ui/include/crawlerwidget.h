@@ -176,6 +176,7 @@ protected:
     void doSetQuickFindPolicy( const QuickFindPolicy& policy ) override;
     void doSetWatchPolicy( const WatchPolicy& policy ) override;
     void doSetFileAccessPolicy( const FileAccessPolicy& policy ) override;
+    void doApplyHighlighterSetChange() override;
     void doSetViewContext( const QString& viewContext ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 

@@ -245,6 +245,14 @@ void Session::applyPolicies( const SettingsPolicies& policies )
     }
 }
 
+void Session::applyHighlighterSetChange()
+{
+    for ( auto& [ view, openFile ] : openFiles_ ) {
+        Q_UNUSED( view );
+        openFile.view->applyHighlighterSetChange();
+    }
+}
+
 std::vector<WindowSession> Session::windowSessions()
 {
     const auto& session = SessionInfo::getSynced();
