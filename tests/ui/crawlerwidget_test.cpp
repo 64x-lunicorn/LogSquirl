@@ -19,6 +19,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <QHeaderView>
 #include <QPointer>
 #include <QScrollBar>
 #include <QShortcut>
@@ -310,6 +311,13 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     // What the user does by hand: clicks the match case, auto-refresh and
     // logical combining buttons of the search button row.
+    // What the font-size shortcuts and Ctrl+wheel do in any view of the Log File.
+    void zoom( bool increase )
+    {
+        crawler->changeFontSize( increase );
+        QCoreApplication::processEvents();
+    }
+
     void clickSearchDefaultButtons()
     {
         QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
@@ -1028,12 +1036,9 @@ SCENARIO( "Every view of every open Log File shows its Log Lines under a changed
 namespace {
 
 // The Log Files of generateDataFiles(), in which "line 000003" and
-// "line 000007" each match one Log Line. The match sits at the end of a long
-// Log Line, so the view is made wide enough to show it whatever font it is
-// drawn in.
+// "line 000007" each match one Log Line.
 void searchForOneLine( CrawlerWidgetVisitor& crawlerVisitor, const QString& pattern )
 {
-    crawlerVisitor.crawler->resize( 1600, 600 );
     crawlerVisitor.clearSearchPattern();
     crawlerVisitor.setSearchPattern( pattern );
     crawlerVisitor.runSearch();
@@ -1397,6 +1402,134 @@ SCENARIO( "The search button row starts in the state the QuickFind Policy says",
                 REQUIRE_FALSE( first.matchCaseChecked() );
                 REQUIRE( first.autoRefreshChecked() );
                 REQUIRE( first.booleanCombiningChecked() );
+            }
+        }
+    }
+}
+
+namespace {
+
+// Holds the three settings that make the font Log Lines are drawn in, and puts
+// back what they were: they live in the settings singleton the other tests
+// share.
+class ConfiguredFont {
+public:
+    ConfiguredFont( const QFont& font, bool bold, bool forceAntialiasing )
+        : font_( Configuration::get().mainFont() )
+        , bold_( Configuration::get().useBoldFont() )
+        , forceAntialiasing_( Configuration::get().forceFontAntialiasing() )
+    {
+        auto& config = Configuration::get();
+        config.setMainFont( font );
+        config.setUseBoldFont( bold );
+        config.setForceFontAntialiasing( forceAntialiasing );
+    }
+
+    ~ConfiguredFont()
+    {
+        auto& config = Configuration::get();
+        config.setMainFont( font_ );
+        config.setUseBoldFont( bold_ );
+        config.setForceFontAntialiasing( forceAntialiasing_ );
+    }
+
+    ConfiguredFont( const ConfiguredFont& ) = delete;
+    ConfiguredFont& operator=( const ConfiguredFont& ) = delete;
+
+private:
+    QFont font_;
+    bool bold_;
+    bool forceAntialiasing_;
+};
+
+// Whether a view draws in the font assembled from the settings: no kerning,
+// fixed pitch, bold and forced antialiasing, at pointSize.
+bool drawsInAssembledFont( const QWidget* view, int pointSize )
+{
+    const auto font = view->font();
+    return !font.kerning() && font.fixedPitch() && font.bold()
+           && ( font.styleStrategy() & QFont::PreferAntialias ) != 0
+           && font.pointSize() == pointSize;
+}
+
+} // namespace
+
+// The font Log Lines are drawn in is assembled from the settings in one place,
+// by the Crawler Widget, and handed to its views: the Table View reads no
+// setting for it (#194). Every view is handed it before it is first painted,
+// and again on every zoom.
+SCENARIO( "Every view of a Log File draws in the configured font from its first frame",
+          "[ui][settings]" )
+{
+    QTemporaryFile file{ "crawler_font_XXXXXX" };
+
+    // Bold and forced antialiasing are the other way round from the shipped
+    // defaults, and the size is not the shipped one either.
+    const auto shippedFont = Configuration{}.mainFont();
+    const auto configuredSize = shippedFont.pointSize() + 4;
+    const ConfiguredFont configured{ QFont{ shippedFont.family(), configuredSize }, true, true };
+
+    auto policies = testSettingsPolicies();
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    GIVEN( "a Log File just opened, not yet painted" )
+    {
+        REQUIRE( generateDataFiles( file ) );
+        session.savedSearches().clear();
+
+        CrawlerWidgetVisitor crawlerVisitor;
+        crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+            session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+
+        THEN( "every view already holds the assembled font" )
+        {
+            REQUIRE( drawsInAssembledFont( crawlerVisitor.tableView(), configuredSize ) );
+            REQUIRE( drawsInAssembledFont( crawlerVisitor.textView(), configuredSize ) );
+            REQUIRE( drawsInAssembledFont( crawlerVisitor.filteredView(), configuredSize ) );
+        }
+
+        WHEN( "it is shown and the configuration is applied afterwards" )
+        {
+            waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+            crawlerVisitor.showSized();
+            crawlerVisitor.showTableView( true );
+            const auto rowHeight
+                = crawlerVisitor.tableView()->verticalHeader()->defaultSectionSize();
+            const auto tableFont = crawlerVisitor.tableView()->font();
+
+            crawlerVisitor.crawler->applyConfiguration();
+            QCoreApplication::processEvents();
+
+            THEN( "the Table View neither changes its font nor resizes its rows" )
+            {
+                REQUIRE( crawlerVisitor.tableView()->font() == tableFont );
+                REQUIRE( crawlerVisitor.tableView()->verticalHeader()->defaultSectionSize()
+                         == rowHeight );
+            }
+        }
+
+        WHEN( "the user zooms in with a kept Search in a tab not current" )
+        {
+            waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
+            waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+            crawlerVisitor.showSized();
+            searchForOneLine( crawlerVisitor, "line 000003" );
+            crawlerVisitor.keepSearchResults();
+            searchForOneLine( crawlerVisitor, "line 000007" );
+            REQUIRE( crawlerVisitor.currentFilteredViewTab() == 1 );
+
+            crawlerVisitor.zoom( true );
+            const auto zoomedSize = Configuration::get().mainFont().pointSize();
+            REQUIRE( zoomedSize > configuredSize );
+
+            THEN( "both Presentations and every Filtered View draw in the assembled, larger font" )
+            {
+                REQUIRE( drawsInAssembledFont( crawlerVisitor.textView(), zoomedSize ) );
+                REQUIRE( drawsInAssembledFont( crawlerVisitor.tableView(), zoomedSize ) );
+                REQUIRE(
+                    drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 0 ), zoomedSize ) );
+                REQUIRE(
+                    drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 1 ), zoomedSize ) );
             }
         }
     }

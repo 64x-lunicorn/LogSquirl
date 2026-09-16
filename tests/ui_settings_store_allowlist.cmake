@@ -49,13 +49,13 @@ set(ALLOWED_FILES
     src/mainwindow.cpp
 
     # Axes no Settings Policy covers yet, deliberately left, tracked in #189:
-    # the font (mainFont, useBoldFont, forceFontAntialiasing), the shortcuts,
-    # logging (enableLogging, loggingLevel) and followFileOnLoad. The search
-    # defaults ride the QuickFind Policy (#193).
+    # the shortcuts, logging (enableLogging, loggingLevel) and
+    # followFileOnLoad. The search defaults ride the QuickFind Policy (#193).
     src/abstractlogview.cpp # shortcuts.
-    src/logtableview.cpp    # font.
-    # font and shortcuts; it also reads and writes the splitter sizes and
-    # writes the font size changed from the keyboard.
+    # Shortcuts, and the splitter sizes it reads and writes. It also writes the
+    # font on zoom, and is the one place that assembles the font (mainFont,
+    # useBoldFont, forceFontAntialiasing) its views are handed: no Font Policy,
+    # the views are its own children (#194).
     src/crawlerwidget.cpp
 
     # Decided to stay (#186): verifySslPeers, one value with one consumer,

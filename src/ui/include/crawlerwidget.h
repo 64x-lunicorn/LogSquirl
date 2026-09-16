@@ -423,6 +423,15 @@ private:
     // until it is told otherwise, so one just built has to be told too.
     void handFollowAllowanceToViews();
 
+    // Assemble the font Log Lines are drawn in from the settings -- no
+    // kerning, fixed pitch, the antialias strategy and bold -- and hand it to
+    // every view of this Log File, the Filtered Views of kept Searches
+    // included. This is the one place that font is put together: no view
+    // reads it for itself. A view just built is handed it before its first
+    // paint, and every view again when the configuration is applied or the
+    // user zooms.
+    void handFontToViews();
+
     // Decide which Log Format applies to the Log File, now that it has loaded.
     // Only ever called from the load-finished path.
     void recognizeFormat();

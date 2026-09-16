@@ -845,9 +845,6 @@ void CrawlerWidget::handFollowAllowanceToViews()
 
 void CrawlerWidget::applyConfiguration()
 {
-    const auto& config = Configuration::get();
-    QFont font = config.mainFont();
-
     LOG_DEBUG << "CrawlerWidget::applyConfiguration";
 
     // Deliberately not here: file watching, Context Lines, hiding ANSI color
@@ -863,6 +860,22 @@ void CrawlerWidget::applyConfiguration()
 
     registerShortcuts();
 
+    handFollowAllowanceToViews();
+    handFontToViews();
+
+    // Update the SearchLine (history)
+    updateSearchCombo();
+
+    if ( isFollowEnabled() ) {
+        changeDataStatus( DataStatus::OLD_DATA );
+    }
+}
+
+void CrawlerWidget::handFontToViews()
+{
+    const auto& config = Configuration::get();
+    QFont font = config.mainFont();
+
     // Whatever font we use, we should NOT use kerning
     font.setKerning( false );
     font.setFixedPitch( true );
@@ -874,21 +887,13 @@ void CrawlerWidget::applyConfiguration()
 
     font.setBold( config.useBoldFont() );
 
-    handFollowAllowanceToViews();
     for ( auto* presentation : presentations() ) {
         presentation->updateFont( font );
     }
-
     for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        auto fv = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) );
-        fv->updateFont( font );
-    }
-
-    // Update the SearchLine (history)
-    updateSearchCombo();
-
-    if ( isFollowEnabled() ) {
-        changeDataStatus( DataStatus::OLD_DATA );
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->updateFont( font );
+        }
     }
 }
 
@@ -1643,6 +1648,8 @@ void CrawlerWidget::setup()
     logTableView_->setQuickFindPolicy( quickFindPolicy_ );
     handDecorationPolicyToViews();
     handFollowAllowanceToViews();
+    // Nor does any view read the font it draws in: it is handed that too.
+    handFontToViews();
 
     const auto defaultEncodingMib = fileAccessPolicy_.defaultEncodingMib;
     if ( defaultEncodingMib >= 0 ) {
@@ -1831,13 +1838,10 @@ void CrawlerWidget::changeFontSize( bool increase )
     }
 
     if ( currentSize != availableSizes.cend() ) {
-        QFont newFont{ fontInfo.family(), *currentSize };
-
-        fontConfig.setMainFont( newFont );
-        for ( auto* presentation : presentations() ) {
-            presentation->updateFont( newFont );
-        }
-        filteredView_->updateFont( newFont );
+        fontConfig.setMainFont( QFont{ fontInfo.family(), *currentSize } );
+        // The zoomed font is assembled like any other, bold and antialiasing
+        // included, and reaches every view of this Log File.
+        handFontToViews();
     }
 }
 
