@@ -7,6 +7,11 @@
 # Usage:
 #   .github/scripts/repo-settings.sh check    # report drift, exit 1 on any
 #   .github/scripts/repo-settings.sh apply    # make the settings match
+#   .github/scripts/repo-settings.sh apply --defer-sha-pinning
+#
+# --defer-sha-pinning leaves sha_pinning_required as it is (and check does not
+# report it). Use it while master still has workflows with unpinned actions:
+# requiring pins then fails every run on master and in open pull requests.
 #
 # Needs `gh` authenticated as a repository admin. Adding a third-party action
 # to a workflow means adding it to ALLOWED_ACTIONS here and re-running apply;
@@ -15,6 +20,13 @@ set -euo pipefail
 
 REPO=${REPO:-64x-lunicorn/LogSquirl}
 mode=${1:-check}
+defer_sha_pinning=false
+if [ "${2:-}" = "--defer-sha-pinning" ]; then
+  defer_sha_pinning=true
+elif [ -n "${2:-}" ]; then
+  echo "usage: $0 check|apply [--defer-sha-pinning]" >&2
+  exit 2
+fi
 
 # GitHub-owned actions (actions/*, github/*) are allowed separately.
 ALLOWED_ACTIONS=(
@@ -57,7 +69,9 @@ check() {
   local perms workflow selected ruleset_id
   perms=$(gh api "repos/$REPO/actions/permissions")
   report "actions allowed_actions" selected "$(jq -r .allowed_actions <<<"$perms")"
-  report "actions sha_pinning_required" true "$(jq -r .sha_pinning_required <<<"$perms")"
+  if [ "$defer_sha_pinning" = false ]; then
+    report "actions sha_pinning_required" true "$(jq -r .sha_pinning_required <<<"$perms")"
+  fi
 
   workflow=$(gh api "repos/$REPO/actions/permissions/workflow")
   report "default_workflow_permissions" read "$(jq -r .default_workflow_permissions <<<"$workflow")"
@@ -85,8 +99,12 @@ check() {
 apply() {
   # The allowlist can only be written once allowed_actions is "selected"; jobs
   # starting in the seconds between the two calls see GitHub-owned actions only.
+  local sha_pinning=true
+  if [ "$defer_sha_pinning" = true ]; then
+    sha_pinning=$(gh api "repos/$REPO/actions/permissions" --jq .sha_pinning_required)
+  fi
   gh api -X PUT "repos/$REPO/actions/permissions" \
-    -F enabled=true -f allowed_actions=selected -F sha_pinning_required=true > /dev/null
+    -F enabled=true -f allowed_actions=selected -F sha_pinning_required="$sha_pinning" > /dev/null
   jq -n --argjson patterns "$(allowed_json)" \
     '{github_owned_allowed: true, verified_allowed: false, patterns_allowed: $patterns}' |
     gh api -X PUT "repos/$REPO/actions/permissions/selected-actions" --input - > /dev/null
@@ -115,6 +133,6 @@ apply() {
 case "$mode" in
   check) check ;;
   apply) apply; check ;;
-  *) echo "usage: $0 check|apply" >&2; exit 2 ;;
+  *) echo "usage: $0 check|apply [--defer-sha-pinning]" >&2; exit 2 ;;
 esac
 exit $drift

@@ -343,7 +343,7 @@ Manual releases are also supported via `workflow_dispatch` — provide a CI Buil
 | `ci-build.yml` | push/PR to master | Build + test all platforms |
 | `ci-release.yml` | tag push `v*` | Publish GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
-| `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis |
+| `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 ### Action pinning
 
@@ -375,6 +375,9 @@ needed):
 .github/scripts/repo-settings.sh check   # exit 1 on drift
 .github/scripts/repo-settings.sh apply
 ```
+
+`--defer-sha-pinning` (for both) leaves required SHA pinning untouched. Use it while master still has workflows with
+unpinned actions, since requiring pins fails every such run.
 
 A new third-party action has to be added to the script's `ALLOWED_ACTIONS` and applied before the workflow using it
 can run. Because workflows cannot create `v*` tags, push the release tag before dispatching CI Release by hand.
