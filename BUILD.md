@@ -323,8 +323,11 @@ The release workflow:
    (`scripts/sbom/logsquirl_sbom.py`)
 4. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
    grype for the components with a CPE, OSV for the CPM packages by pinned commit
-   and tag. All findings go to code scanning (category `sbom-vulns`); a critical
-   one (CVSS v3/v4 base score ≥ 9.0 or rated critical) stops the release unless
+   and tag, and Qt's own list of advisories (https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products,
+   "Qt Framework" section) for the Qt version, with the severity NVD gives the CVE (unknown where it has none).
+   The scan fails as a tooling error when that page can no longer be read; an advisory whose affected versions
+   it cannot read is reported as unconfirmed and does not block. All findings go to code scanning (category
+   `sbom-vulns`); a critical one (CVSS v3/v4 base score ≥ 9.0 or rated critical) stops the release unless
    `scripts/sbom/vuln-ignore.yml` on master accepts it with a reason and an expiry date. The file is read
    from master even for a tag release, so accepting a risk and re-running the failed job is enough.
    The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.

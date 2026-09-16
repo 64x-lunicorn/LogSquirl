@@ -1,5 +1,5 @@
 name: "Scan an SBOM for known vulnerabilities"
-description: "grype for the CPE-bearing components, OSV for the CPM packages; writes SARIF and gates on critical findings (#213)"
+description: "grype for the CPE-bearing components, OSV for the CPM packages, Qt's own advisories for Qt; writes SARIF and gates on critical findings (#213, #252)"
 inputs:
   sbom:
     description: "CycloneDX JSON SBOM from scripts/sbom/logsquirl_sbom.py, relative to the workspace"
@@ -48,7 +48,10 @@ runs:
         GRYPE_DB_CACHE_DIR="$RUNNER_TEMP/grype-db" "$RUNNER_TEMP/grype-bin/grype" "sbom:$SBOM" \
           --output json --file "$RUNNER_TEMP/grype.json"
 
-    - name: Query OSV, apply the ignore file and gate
+    # The scanner also reads Qt's advisory page and asks NVD for the severity
+    # of the Qt advisories it matches (#252); without an NVD API key that is
+    # one request every 6.5 seconds per matched CVE.
+    - name: Query OSV and Qt's advisories, apply the ignore file and gate
       shell: bash
       env:
         SBOM: ${{ inputs.sbom }}
