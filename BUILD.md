@@ -325,7 +325,8 @@ The release workflow:
    grype for the components with a CPE, OSV for the CPM packages by pinned commit
    and tag. All findings go to code scanning (category `sbom-vulns`); a critical
    one (CVSS v3/v4 base score ≥ 9.0 or rated critical) stops the release unless
-   `scripts/sbom/vuln-ignore.yml` accepts it with a reason and an expiry date.
+   `scripts/sbom/vuln-ignore.yml` on master accepts it with a reason and an expiry date. The file is read
+   from master even for a tag release, so accepting a risk and re-running the failed job is enough.
    The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
 5. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
    attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with

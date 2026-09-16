@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       ci-run-id:
-        description: "Run ID of a successful CI Build push run on master or a v* tag (leave empty to use the last successful master push run)"
+        description: "Run ID of a successful CI Build push run on master (leave empty to use the last successful one)"
         required: false
       tag:
-        description: "Release tag (e.g. v26.04.0, v26.04.0-beta1 or v26.04.0-beta.1)"
+        description: "Existing release tag (e.g. v26.04.0, v26.04.0-beta1); push it first, workflows cannot create v* tags"
         required: true
 
 concurrency:
@@ -117,14 +117,22 @@ jobs:
             exit 1
           fi
 
+          # Only admins may create v* tags (release tag ruleset, #201), so a
+          # draft could never be published under a tag that does not exist yet.
+          if ! gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > /dev/null 2>&1; then
+            echo "::error::Tag '$RELEASE_TAG' does not exist. Push it before dispatching the release."
+            exit 1
+          fi
+
           [ -z "$CI_RUN_ID" ] && exit 0
           if ! printf '%s' "$CI_RUN_ID" | grep -qE '^[0-9]+$'; then
             echo "::error::ci-run-id '$CI_RUN_ID' is not a numeric run ID."
             exit 1
           fi
 
-          # Only a successful CI Build that ran for a push to master or a v* tag
-          # may be released; PR builds come from unreviewed branches.
+          # Only a successful CI Build that ran for a push to master may be
+          # released; PR builds come from unreviewed branches. Tag builds run
+          # inside CI Release (as its build job) and are released by that run.
           RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" \
             --jq '[.path, .conclusion // "", .event, .head_branch // ""] | @tsv') || {
             echo "::error::CI run $CI_RUN_ID not found in $GITHUB_REPOSITORY."
@@ -141,8 +149,8 @@ jobs:
             echo "::error::CI run $CI_RUN_ID did not succeed (conclusion '$RUN_CONCLUSION', branch '$RUN_BRANCH', event '$RUN_EVENT')."
             exit 1
           fi
-          if [ "$RUN_EVENT" != "push" ] || { [ "$RUN_BRANCH" != "master" ] && [[ "$RUN_BRANCH" != v* ]]; }; then
-            echo "::error::CI run $CI_RUN_ID was triggered by '$RUN_EVENT' on branch '$RUN_BRANCH'; only a push to master or a v* tag can be released."
+          if [ "$RUN_EVENT" != "push" ] || [ "$RUN_BRANCH" != "master" ]; then
+            echo "::error::CI run $CI_RUN_ID was triggered by '$RUN_EVENT' on branch '$RUN_BRANCH'; only a push to master can be released."
             exit 1
           fi
           echo "ci_run_id=$CI_RUN_ID" >> "$GITHUB_OUTPUT"
@@ -214,7 +222,9 @@ jobs:
   sentry:
     runs-on: ubuntu-24.04
     needs: [prepare]
-    if: needs.prepare.outputs.version != ''
+    # always(): on a manual release validate-branch and build are skipped, and
+    # a job without a status function is skipped with any skipped ancestor.
+    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.version != ''
     permissions:
       contents: read
     continue-on-error: true
@@ -303,7 +313,9 @@ jobs:
     # Unpacking three packages and a syft scan; no run history yet (#218).
     timeout-minutes: 20
     needs: [prepare]
-    if: needs.prepare.outputs.version != ''
+    # always(): on a manual release validate-branch and build are skipped, and
+    # a job without a status function is skipped with any skipped ancestor.
+    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.version != ''
     permissions:
       contents: read
     env:
@@ -393,16 +405,27 @@ jobs:
     # grype database download plus a few OSV requests; no run history yet (#218).
     timeout-minutes: 15
     needs: [prepare, sbom]
+    # always(): see the sbom job; a manual release skips validate-branch and build.
+    if: always() && needs.sbom.result == 'success'
     permissions:
       contents: read
       security-events: write # upload the SARIF to code scanning
     steps:
-      # The scanner and the ignore file come from this workflow's ref, so an
-      # accepted risk recorded on master applies to a manual release of an
-      # older build.
+      # The scanner comes from this workflow's ref; the ignore file always
+      # comes from master. A release tag cannot be moved (#201), so a risk
+      # accepted on master through a reviewed PR must also reach a re-run of
+      # a tag release (#213).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Take the ignore file from master
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/contents/scripts/sbom/vuln-ignore.yml?ref=master" \
+            -H "Accept: application/vnd.github.raw" > scripts/sbom/vuln-ignore.yml
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:

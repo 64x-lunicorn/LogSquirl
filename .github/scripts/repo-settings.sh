@@ -18,21 +18,23 @@ mode=${1:-check}
 
 # GitHub-owned actions (actions/*, github/*) are allowed separately.
 ALLOWED_ACTIONS=(
-  anchore/sbom-action@*
-  apple-actions/import-codesign-certs@*
-  aquasecurity/trivy-action@*
-  dawidd6/action-download-artifact@*
-  docker/build-push-action@*
-  docker/login-action@*
-  docker/setup-buildx-action@*
-  ilammy/msvc-dev-cmd@*
-  jurplel/install-qt-action@*
-  mozilla-actions/sccache-action@*
-  ossf/scorecard-action@*
-  SamKirkland/FTP-Deploy-Action@*
-  sigstore/cosign-installer@*
-  softprops/action-gh-release@*
-  zizmorcore/zizmor-action@*
+  'anchore/sbom-action@*'
+  'apple-actions/import-codesign-certs@*'
+  'aquasecurity/trivy-action@*'
+  # Called from inside trivy-action; the allowlist covers nested actions too.
+  'aquasecurity/setup-trivy@*'
+  'dawidd6/action-download-artifact@*'
+  'docker/build-push-action@*'
+  'docker/login-action@*'
+  'docker/setup-buildx-action@*'
+  'ilammy/msvc-dev-cmd@*'
+  'jurplel/install-qt-action@*'
+  'mozilla-actions/sccache-action@*'
+  'ossf/scorecard-action@*'
+  'SamKirkland/FTP-Deploy-Action@*'
+  'sigstore/cosign-installer@*'
+  'softprops/action-gh-release@*'
+  'zizmorcore/zizmor-action@*'
 )
 
 TAG_RULESET_NAME="Protect release tags"
@@ -81,7 +83,8 @@ check() {
 }
 
 apply() {
-  # Order matters: the allowlist exists before "selected" takes effect.
+  # The allowlist can only be written once allowed_actions is "selected"; jobs
+  # starting in the seconds between the two calls see GitHub-owned actions only.
   gh api -X PUT "repos/$REPO/actions/permissions" \
     -F enabled=true -f allowed_actions=selected -F sha_pinning_required=true > /dev/null
   jq -n --argjson patterns "$(allowed_json)" \
