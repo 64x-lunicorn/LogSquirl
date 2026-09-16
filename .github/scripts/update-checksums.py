@@ -12,8 +12,15 @@ repository is written as a block the script can read:
 URLS below maps each depName and hash variable to the download URL the file
 itself uses, so a new pair needs a rule here too; `--list` fails without it.
 
+Only a pair whose version differs from the base (the pull request's target
+branch) is rewritten. A hash that no longer matches an unchanged version is
+not a Renovate bump but a release whose bytes changed under the same name, so
+it is an error and never rewritten.
+
 Usage (from the repository root):
-  update-checksums.py           download every pair and rewrite stale hashes
+  update-checksums.py --base REF
+                                rewrite the hashes of pairs whose version differs from REF
+                                (or that REF lacks); exit 1 on a mismatch of an unchanged version
   update-checksums.py --check   download and verify, rewrite nothing (exit 1 on mismatch)
   update-checksums.py --list    parse only, no network: every pair has a URL rule and
                                 every SHA-256 assignment belongs to a pair
@@ -24,6 +31,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import subprocess
 import sys
 import time
 import urllib.request
@@ -202,13 +210,55 @@ def workflow_pair_errors(pairs: list[Pair]) -> list[str]:
             for p in pairs if p.path.startswith(WORKFLOWS_DIR)]
 
 
-def main(argv: list[str] | None = None, fetch: Callable[[str], bytes] = fetch_url) -> int:
+class BaseUnavailable(Exception):
+    pass
+
+
+def git_reader(root: Path) -> Callable[[str, str], str | None]:
+    """Reads a file at a git ref of the repository at root: its text, or None
+    where the ref does not have the file. A ref the checkout lacks raises
+    instead: read as "no file", it would make every pair look new and have
+    every hash rewritten."""
+    verified: set[str] = set()
+
+    def read(ref: str, path: str) -> str | None:
+        if ref not in verified:
+            known = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
+                                   capture_output=True, text=True)
+            if known.returncode != 0:
+                raise BaseUnavailable(f"base {ref} is not a commit in this checkout; fetch it first")
+            verified.add(ref)
+        result = subprocess.run(["git", "-C", str(root), "cat-file", "blob", f"{ref}:{path}"],
+                                capture_output=True, text=True)
+        return result.stdout if result.returncode == 0 else None
+
+    return read
+
+
+def base_versions(pairs: list[Pair], ref: str,
+                  read_base: Callable[[str, str], str | None]) -> dict[tuple[str, str, str], set[str]]:
+    """(path, depName, hash variable) -> the versions ref pins it to."""
+    versions: dict[tuple[str, str, str], set[str]] = {}
+    for path in sorted({p.path for p in pairs}):
+        text = read_base(ref, path)
+        for pair in parse_pairs(text, path) if text is not None else []:
+            for h in pair.hashes:
+                versions.setdefault((path, pair.dep_name, h.name), set()).add(pair.version)
+    return versions
+
+
+def main(argv: list[str] | None = None, fetch: Callable[[str], bytes] = fetch_url,
+         read_base: Callable[[str, str], str | None] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--list", action="store_true", help="parse only, no network")
     mode.add_argument("--check", action="store_true", help="verify every hash, rewrite nothing")
+    parser.add_argument("--base", metavar="REF",
+                        help="git ref of the pull request's base; required to rewrite hashes")
     parser.add_argument("--repo-root", default=".", type=Path)
     args = parser.parse_args(argv)
+    if not (args.list or args.check or args.base):
+        parser.error("rewriting hashes needs --base REF: only pairs whose version differs from it are rewritten")
 
     pairs, errors = _scan(args.repo_root)
     errors += workflow_pair_errors(pairs)
@@ -231,6 +281,14 @@ def main(argv: list[str] | None = None, fetch: Callable[[str], bytes] = fetch_ur
                 print(f"{pair.path}:{pair.line + 1} {pair.dep_name} {pair.version} {h.name} {urls[(pair.path, h.line)]}")
         return 0
 
+    unchanged: dict[tuple[str, str, str], set[str]] = {}
+    if not (args.list or args.check):
+        try:
+            unchanged = base_versions(pairs, args.base, read_base or git_reader(args.repo_root))
+        except BaseUnavailable as e:
+            print(f"::error::{e}", file=sys.stderr)
+            return 1
+
     status = 0
     digests: dict[str, str] = {}  # one download per URL (CMake is in three images)
     for pair in pairs:
@@ -247,6 +305,12 @@ def main(argv: list[str] | None = None, fetch: Callable[[str], bytes] = fetch_ur
             elif args.check:
                 print(f"error: {pair.path}:{h.line + 1}: {h.name} mismatch: file has {h.value}, "
                       f"{url} is {actual}", file=sys.stderr)
+                status = 1
+            elif pair.version in unchanged.get((pair.path, pair.dep_name, h.name), set()):
+                print(f"::error file={pair.path},line={h.line + 1}::{pair.dep_name} {pair.version} is unchanged "
+                      f"from {args.base}, but {url} no longer matches {h.name} (file has {h.value}, download is "
+                      f"{actual}); the release changed under the same version, check it before touching the hash",
+                      file=sys.stderr)
                 status = 1
             else:
                 lines[h.line] = lines[h.line].replace(h.value, actual)

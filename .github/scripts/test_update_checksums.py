@@ -115,29 +115,73 @@ def test_list_fails_on_a_checksum_renovate_cannot_see(tmp_path, capsys):
     assert "packaging/linux/fetch.sh:2: TOOL_SHA256 has no # renovate: comment" in capsys.readouterr().err
 
 
-def test_update_rewrites_a_stale_checksum_and_leaves_the_rest(tmp_path):
-    content = b"new release"
-    fresh = uc.hashlib.sha256(content).hexdigest()
-    path = write(tmp_path, "docker/shared/install.sh", f"""\
+NINJA_URL = "https://github.com/ninja-build/ninja/releases/download/v{}/ninja-linux.zip"
+
+
+def ninja_script(version: str, sha: str) -> str:
+    return f"""\
 # renovate: datasource=github-releases depName=ninja-build/ninja
-NINJA_VERSION=1.14.0
-NINJA_SHA256={HASH_A}
+NINJA_VERSION={version}
+NINJA_SHA256={sha}
 echo done
-""")
+"""
+
+
+def update(tmp_path, base_files: dict[str, str], content: bytes = b"new release"):
+    """Runs the rewrite mode against a base whose files are base_files."""
     fetched = []
 
     def fetch(url: str) -> bytes:
         fetched.append(url)
         return content
 
-    assert uc.main(["--repo-root", str(tmp_path)], fetch=fetch) == 0
-    assert fetched == ["https://github.com/ninja-build/ninja/releases/download/v1.14.0/ninja-linux.zip"]
-    assert path.read_text() == f"""\
-# renovate: datasource=github-releases depName=ninja-build/ninja
-NINJA_VERSION=1.14.0
-NINJA_SHA256={fresh}
-echo done
-"""
+    status = uc.main(["--base", "origin/master", "--repo-root", str(tmp_path)], fetch=fetch,
+                     read_base=lambda ref, path: base_files.get(path) if ref == "origin/master" else None)
+    return status, fetched
+
+
+def test_update_rewrites_the_checksum_of_a_changed_version(tmp_path):
+    content = b"new release"
+    fresh = uc.hashlib.sha256(content).hexdigest()
+    path = write(tmp_path, "docker/shared/install.sh", ninja_script("1.14.0", HASH_A))
+    status, fetched = update(tmp_path, {"docker/shared/install.sh": ninja_script("1.13.2", HASH_A)}, content)
+    assert status == 0
+    assert fetched == [NINJA_URL.format("1.14.0")]
+    assert path.read_text() == ninja_script("1.14.0", fresh)
+
+
+def test_update_rewrites_the_checksum_of_a_pair_the_base_does_not_have(tmp_path):
+    fresh = uc.hashlib.sha256(b"new release").hexdigest()
+    path = write(tmp_path, "docker/shared/install.sh", ninja_script("1.14.0", HASH_A))
+    assert update(tmp_path, {})[0] == 0
+    assert path.read_text() == ninja_script("1.14.0", fresh)
+
+
+def test_update_refuses_to_rewrite_a_mismatch_of_an_unchanged_version(tmp_path, capsys):
+    # The same version now downloading other bytes is a moved release or a
+    # tampered mirror, not a Renovate bump (#211).
+    text = ninja_script("1.13.2", HASH_A)
+    path = write(tmp_path, "docker/shared/install.sh", text)
+    assert update(tmp_path, {"docker/shared/install.sh": text})[0] == 1
+    assert path.read_text() == text
+    err = capsys.readouterr().err
+    assert "::error" in err and "ninja-build/ninja 1.13.2" in err and NINJA_URL.format("1.13.2") in err
+
+
+def test_update_leaves_an_unchanged_matching_checksum_untouched(tmp_path):
+    content = b"old release"
+    text = ninja_script("1.13.2", uc.hashlib.sha256(content).hexdigest())
+    path = write(tmp_path, "docker/shared/install.sh", text)
+    status, _ = update(tmp_path, {"docker/shared/install.sh": text}, content)
+    assert status == 0
+    assert path.read_text() == text
+
+
+def test_update_needs_a_base(tmp_path, capsys):
+    write(tmp_path, "docker/shared/install.sh", ninja_script("1.14.0", HASH_A))
+    with pytest.raises(SystemExit):
+        uc.main(["--repo-root", str(tmp_path)], fetch=lambda url: b"")
+    assert "--base" in capsys.readouterr().err
 
 
 def test_check_reports_a_mismatch_without_rewriting(tmp_path, capsys):
@@ -165,3 +209,24 @@ def test_list_fails_on_a_pair_in_a_workflow_file(tmp_path, capsys):
     err = capsys.readouterr().err
     assert ".github/workflows/ci.yml:3: anchore/grype" in err
     assert "composite action under .github/actions/" in err
+
+
+def git(root: Path, *args: str) -> None:
+    uc.subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True)
+
+
+def test_the_base_is_read_from_git_and_an_unknown_base_is_an_error(tmp_path, capsys):
+    # A base the checkout lacks (not fetched) must not make every pair look new
+    # and so rewrite every hash (#211).
+    write(tmp_path, "docker/shared/install.sh", ninja_script("1.13.2", HASH_A))
+    git(tmp_path, "init", "-q", "-b", "master")
+    git(tmp_path, "-c", "user.name=t", "-c", "user.email=t@example.com", "add", ".")
+    git(tmp_path, "-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "base")
+    reader = uc.git_reader(tmp_path)
+    assert reader("master", "docker/shared/install.sh") == ninja_script("1.13.2", HASH_A)
+    assert reader("master", "docker/shared/missing.sh") is None
+    with pytest.raises(uc.BaseUnavailable, match="origin/nope"):
+        reader("origin/nope", "docker/shared/install.sh")
+
+    assert uc.main(["--base", "origin/nope", "--repo-root", str(tmp_path)], fetch=lambda url: b"x") == 1
+    assert "origin/nope" in capsys.readouterr().err

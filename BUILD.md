@@ -405,16 +405,18 @@ GRYPE_SHA256: 1d444c5e…
 
 **Checksums.** Renovate's hosted app cannot download a release and hash it, so its PR changes the version and
 leaves the SHA-256 stale. The **Renovate Checksums** workflow runs on every PR from a `renovate/*` branch, recomputes
-each pair from its download URL and pushes a commit with the corrected hashes. GitHub starts no workflows for a
+the hash of each pair whose version differs from the PR's base branch and pushes a commit with the corrected hashes.
+A hash that no longer matches a version the PR did not change is never rewritten: the run fails naming the
+dependency and URL, since the release's bytes changed under the same version and need a look first. GitHub starts no workflows for a
 push made with `GITHUB_TOKEN`, so **close and reopen the PR** after that commit appears to run CI Build on it. The
 new hashes are what the URL served at that moment: where upstream publishes checksums (grype, CMake, Boost), compare
 before merging. Renovate stops rebasing a branch someone else has pushed to; tick *rebase* on the PR to get a fresh
 one (the workflow then fixes the hashes again). Locally:
 
 ```bash
-.github/scripts/update-checksums.py --list    # parse only: every pair has a URL rule (the Format job runs this)
-.github/scripts/update-checksums.py --check   # download and verify every hash
-.github/scripts/update-checksums.py           # download and rewrite stale hashes
+.github/scripts/update-checksums.py --list                 # parse only: every pair has a URL rule (the Format job runs this)
+.github/scripts/update-checksums.py --check                # download and verify every hash
+.github/scripts/update-checksums.py --base origin/master   # rewrite the hashes of versions changed against master
 ```
 
 The Format job also runs `renovate-config-validator` on `renovate.json5`.
