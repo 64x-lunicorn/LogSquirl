@@ -41,6 +41,9 @@ ALLOWED_ACTIONS=(
   'docker/setup-buildx-action@*'
   'ilammy/msvc-dev-cmd@*'
   'jurplel/install-qt-action@*'
+  # install-qt-action runs its implementation from this subdirectory ("$/action");
+  # a pattern matches subdirectories only when it names them.
+  'jurplel/install-qt-action/action@*'
   'mozilla-actions/sccache-action@*'
   'ossf/scorecard-action@*'
   'SamKirkland/FTP-Deploy-Action@*'
