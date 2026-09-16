@@ -361,3 +361,19 @@ repository requires SHA pinning, and the Format job of CI Build runs the same ch
 ```bash
 .github/scripts/check-action-pins.sh
 ```
+
+### Repository settings
+
+Some guarantees live in the repository settings rather than in a workflow file: `GITHUB_TOKEN` is read-only unless a
+job asks for more, workflows cannot create or approve pull requests, only GitHub-owned actions and an explicit list
+of third-party actions may run, SHA pinning is required, and `v*` tags can only be created by an admin and never
+moved or deleted. `.github/scripts/repo-settings.sh` holds that list and both checks and applies it (admin `gh` login
+needed):
+
+```bash
+.github/scripts/repo-settings.sh check   # exit 1 on drift
+.github/scripts/repo-settings.sh apply
+```
+
+A new third-party action has to be added to the script's `ALLOWED_ACTIONS` and applied before the workflow using it
+can run. Because workflows cannot create `v*` tags, push the release tag before dispatching CI Release by hand.
