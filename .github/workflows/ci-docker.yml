@@ -8,12 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       propose_refresh:
-        description: "Open (or update) the image refresh pull request instead of building"
+        description: "Push the image refresh branch and file its issue instead of building"
         type: boolean
         default: false
   schedule:
-    # Monthly: propose a rebuild to pick up OS security patches. It only opens
-    # a pull request; the images CI uses change once that PR is merged (#215).
+    # Monthly: propose a rebuild to pick up OS security patches. It only pushes
+    # a branch and files an issue; the images CI uses change once that branch
+    # is merged through a pull request (#215).
     - cron: '0 4 1 * *'
 
 permissions: {}
@@ -91,20 +92,21 @@ jobs:
             dockerfile.sha256=${{ steps.image.outputs.sha256 }}
 
   # Bumps docker/shared/refresh-stamp, which is part of every image's inputs
-  # hash, and proposes it as a pull request. Merging it pushes to master under
-  # docker/**, so build-images publishes the refreshed images under their new
-  # tags and CI moves to them in the same reviewed step (#215).
+  # hash. Merging the refresh pushes to master under docker/**, so build-images
+  # publishes the refreshed images under their new tags and CI moves to them in
+  # the same reviewed step (#215).
   #
-  # A pull request opened with GITHUB_TOKEN does not trigger workflows, so CI
-  # Build does not run on it by itself; close and reopen the PR (or push a
-  # commit to its branch) to run it. No extra secret is needed for that. The
-  # repository must allow GitHub Actions to create pull requests.
+  # Workflows may not open pull requests in this repository (#201), and a PR
+  # opened with GITHUB_TOKEN would not run CI anyway. The job therefore pushes
+  # the refresh branch and files an issue linking to it; the maintainer opens
+  # the pull request, which runs CI Build like any other (#215).
   propose-refresh:
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.propose_refresh)
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write
-      pull-requests: write
+      issues: write
     env:
       BRANCH: ci/docker-image-refresh
       BASE: ${{ github.event.repository.default_branch }}
@@ -131,8 +133,8 @@ jobs:
           fi
 
       # The branch is regenerated from the base each time, so an unmerged
-      # refresh PR is updated in place rather than joined by a second one.
-      - name: Push the branch and open the pull request
+      # refresh is updated in place, and one open issue tracks it.
+      - name: Push the branch and file the refresh issue
         if: steps.bump.outputs.changed == 'true'
         env:
           TODAY: ${{ steps.bump.outputs.today }}
@@ -145,18 +147,21 @@ jobs:
           git commit -am "ci: refresh the CI build images ($TODAY)"
           git push --force origin "HEAD:refs/heads/$BRANCH"
 
-          open=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq length)
+          title="The CI build images are due for a refresh"
+          open=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq length)
           if [ "$open" != "0" ]; then
-            echo "The refresh pull request is already open; its branch now carries $TODAY"
+            echo "The refresh issue is already open; branch $BRANCH now carries $TODAY"
             exit 0
           fi
 
-          gh pr create --base "$BASE" --head "$BRANCH" \
-            --title "ci: refresh the CI build images ($TODAY)" \
-            --body "$(cat <<'EOF'
-          Bumps `docker/shared/refresh-stamp`, which gives every CI build image a new inputs hash and so a fresh build with current OS packages.
+          compare="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/$BASE...$BRANCH?expand=1"
+          gh issue create --label ci --label dependencies --title "$title" --body "$(cat <<EOF
+          Branch \`$BRANCH\` bumps \`docker/shared/refresh-stamp\` to $TODAY, which gives every CI build image a new inputs hash and so a fresh build with current OS packages.
 
-          - This PR was opened with `GITHUB_TOKEN`, so no workflow has run on it. **Close and reopen it** (or push a commit to its branch) to run CI Build, which builds the refreshed images locally and tests against them.
+          **Open the pull request:** $compare
+
+          - CI Build on that PR builds the refreshed images locally and tests against them.
           - After merge, the Docker Images workflow pushes the images under their new tags; until then every other PR keeps using the current ones.
+          - Close this issue when the PR is merged.
           EOF
           )"

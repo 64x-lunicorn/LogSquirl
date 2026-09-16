@@ -276,10 +276,11 @@ its own `docker/` files do.
 Every `FROM` is pinned by digest (`image:tag@sha256:…`); Dependabot proposes digest bumps as pull requests.
 
 Images are published when files in `docker/` change on master. OS security patches arrive through a monthly
-scheduled run that bumps `docker/shared/refresh-stamp` and opens a pull request; merging it gives every image
-a new hash and so a fresh build. That PR is opened with `GITHUB_TOKEN`, which starts no workflows: close and
-reopen it to run CI Build on it. To propose a refresh by hand, run the **Docker Images** workflow via
-`workflow_dispatch` with *propose_refresh*; running it without that publishes any hash tag still missing.
+scheduled run that bumps `docker/shared/refresh-stamp` on the branch `ci/docker-image-refresh` and files an issue
+linking to it; opening and merging that pull request gives every image a new hash and so a fresh build. Workflows
+may not open pull requests in this repository, so the maintainer opens it, and CI Build runs on it as usual. To
+propose a refresh by hand, run the **Docker Images** workflow via `workflow_dispatch` with *propose_refresh*;
+running it without that publishes any hash tag still missing.
 
 > **AppImage compatibility:** The AppImage is built on the Ubuntu 22.04 (jammy)
 > image on purpose. `linuxdeploy` bundles Qt and libssl but never bundles glibc
