@@ -13,3 +13,4 @@ With text wrapping on, the vertical scrollbar counts whole Log Lines, and nothin
 - The thumb keeps its unwrapped size.
 - Dragging lands on a Log Line's first Visual Line. The one exception is the scrollbar's maximum, which is the bottom Scroll Position: the last Visual Line of the Log File on the Viewport's last row. Finding it wraps backwards from the end of the Log File, at most one Viewport height of Visual Lines.
 - While the view moves through a single very tall Log Line, the thumb does not move.
+- In the Filtered View the scrollbar counts the Log Lines it displays, not the Log Lines of the file: a position on it is a place among the Displayed Lines. Everything above holds there over those positions.
