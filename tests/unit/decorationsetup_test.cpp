@@ -56,7 +56,7 @@ SCENARIO( "A Decoration Setup builds the Line Decorator's Context from a Decorat
         {
             const auto context = setup.context( HighlighterSet{}, SearchLimits{} );
 
-            THEN( "it carries a main-search Highlighter coloured as the Policy says" )
+            THEN( "it carries a main-search Highlighter colored as the Policy says" )
             {
                 REQUIRE( context.mainSearch.has_value() );
                 REQUIRE( context.mainSearch->pattern() == QStringLiteral( "ERROR" ) );
@@ -65,7 +65,7 @@ SCENARIO( "A Decoration Setup builds the Line Decorator's Context from a Decorat
                 REQUIRE_FALSE( context.mainSearch->variateColors() );
             }
 
-            THEN( "the QuickFind colour is the Policy's" )
+            THEN( "the QuickFind color is the Policy's" )
             {
                 REQUIRE( context.quickFindColor == QuickFindBack );
             }
@@ -78,7 +78,7 @@ SCENARIO( "A Decoration Setup builds the Line Decorator's Context from a Decorat
             const auto verdict
                 = decorator.verdictFor( LogLine{ 0_lnum, line }, LineTypeFlags::Plain );
 
-            THEN( "what the Search matched is coloured in the Policy's colour" )
+            THEN( "what the Search matched is colored in the Policy's color" )
             {
                 const auto spans = decorator.decorate( line, verdict ).spans();
                 REQUIRE( spans.size() == 1 );
@@ -90,7 +90,7 @@ SCENARIO( "A Decoration Setup builds the Line Decorator's Context from a Decorat
     }
 }
 
-SCENARIO( "A Decoration Policy that colours no main search builds no main-search Highlighter",
+SCENARIO( "A Decoration Policy that colors no main search builds no main-search Highlighter",
           "[decorationsetup]" )
 {
     GIVEN( "a Policy with main search highlighting switched off" )
@@ -108,7 +108,7 @@ SCENARIO( "A Decoration Policy that colours no main search builds no main-search
         }
     }
 
-    GIVEN( "a Policy that does colour the main search" )
+    GIVEN( "a Policy that does color the main search" )
     {
         DecorationSetup setup;
         setup.setPolicy( colorfulPolicy() );
@@ -143,7 +143,7 @@ SCENARIO( "A Decoration Policy that colours no main search builds no main-search
 SCENARIO( "A Decoration Setup turns the Color Labels it is handed into Highlighters",
           "[decorationsetup]" )
 {
-    GIVEN( "words in two slots and a colour for each" )
+    GIVEN( "words in two slots and a color for each" )
     {
         DecorationSetup setup;
         setup.setPolicy( colorfulPolicy() );
@@ -151,7 +151,7 @@ SCENARIO( "A Decoration Setup turns the Color Labels it is handed into Highlight
             { QStringList{ "warn", "retry" }, QStringList{ "info" } },
             { HighlightColor{ Qt::black, Qt::yellow }, HighlightColor{ Qt::white, Qt::blue } } );
 
-        THEN( "there is one Highlighter per word, in its slot's colour" )
+        THEN( "there is one Highlighter per word, in its slot's color" )
         {
             const auto context = setup.context( HighlighterSet{}, SearchLimits{} );
             REQUIRE( context.colorLabels.size() == 3 );
@@ -162,14 +162,14 @@ SCENARIO( "A Decoration Setup turns the Color Labels it is handed into Highlight
         }
     }
 
-    GIVEN( "more word slots than colours" )
+    GIVEN( "more word slots than colors" )
     {
         DecorationSetup setup;
         setup.setPolicy( colorfulPolicy() );
         setup.setColorLabels( { QStringList{ "warn" }, QStringList{ "info" } },
                               { HighlightColor{ Qt::black, Qt::yellow } } );
 
-        THEN( "only the slots a colour exists for are coloured" )
+        THEN( "only the slots a color exists for are colored" )
         {
             const auto context = setup.context( HighlighterSet{}, SearchLimits{} );
             REQUIRE( context.colorLabels.size() == 1 );
@@ -215,10 +215,10 @@ SCENARIO( "A Decoration Setup passes on the Highlighter Set and Search Limits it
     }
 }
 
-SCENARIO( "The Mark and Match colours are defined once, for every Presentation",
+SCENARIO( "The Mark and Match colors are defined once, for every Presentation",
           "[decorationsetup]" )
 {
-    THEN( "they are the colours both Presentations have always painted" )
+    THEN( "they are the colors both Presentations have always painted" )
     {
         REQUIRE( LineStatusColors::match() == QColor{ Qt::red } );
         REQUIRE( LineStatusColors::mark() == QColor{ "dodgerblue" } );

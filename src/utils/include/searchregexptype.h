@@ -17,8 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LOGSQUIRL_SEARCH_REGEXP_TYPE_H
-#define LOGSQUIRL_SEARCH_REGEXP_TYPE_H
+#pragma once
 
 // How the text of a Search or QuickFind pattern is read: as an extended
 // regular expression, as a wildcard expression, or as a fixed string.
@@ -32,5 +31,3 @@ enum class SearchRegexpType {
     Wildcard,
     FixedString,
 };
-
-#endif

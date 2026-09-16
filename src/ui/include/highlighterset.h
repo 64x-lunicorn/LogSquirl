@@ -47,6 +47,8 @@
 #include "highlighter.h"
 #include "persistable.h"
 
+#include <vector>
+
 struct QuickHighlighter {
     QString name;
     HighlightColor color;
@@ -96,5 +98,20 @@ private:
     // internal structure directly.
     friend class HighlightersDialog;
 };
+
+// The color of each Color Label slot, in slot order, as the Highlighter Set
+// Collection currently holds them. The Decoration Setup is handed these
+// rather than reaching for the collection itself: it is a library below the
+// UI and knows nothing of that singleton.
+inline std::vector<HighlightColor> colorLabelColors()
+{
+    const auto quickHighlighters = HighlighterSetCollection::get().quickHighlighters();
+    std::vector<HighlightColor> colors;
+    colors.reserve( static_cast<size_t>( quickHighlighters.size() ) );
+    for ( const auto& quickHighlighter : quickHighlighters ) {
+        colors.push_back( quickHighlighter.color );
+    }
+    return colors;
+}
 
 #endif

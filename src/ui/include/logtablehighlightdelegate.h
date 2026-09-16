@@ -72,9 +72,9 @@ public:
         decorationSetup_.setQuickFindPattern( quickFindPattern_.get() );
     }
 
-    // Set the color label words (one QStringList per color slot). The colour
+    // Set the color label words (one QStringList per color slot). The color
     // of each slot comes from the Highlighter Set Collection, so a change to
-    // those colours reaches the cells by setting the words again.
+    // those colors reaches the cells by setting the words again.
     void setColorLabelWords( const std::vector<QStringList>& words )
     {
         decorationSetup_.setColorLabels( words, colorLabelColors() );
@@ -86,7 +86,7 @@ public:
         decorationSetup_.setSearchPattern( pattern );
     }
 
-    // Hand over the settings that colour Log Lines. Call it after a settings
+    // Hand over the settings that color Log Lines. Call it after a settings
     // change: paint() reads no setting of its own, so this is the only way a
     // changed one reaches a cell.
     void setDecorationPolicy( const DecorationPolicy& policy )
@@ -369,25 +369,10 @@ public:
     }
 
 private:
-    // The colour of each Color Label slot, in slot order, as the Highlighter
-    // Set Collection currently holds them. The Decoration Setup is handed
-    // these rather than reaching for the collection itself: it is a library
-    // below the UI and knows nothing of that singleton.
-    static std::vector<HighlightColor> colorLabelColors()
-    {
-        const auto quickHighlighters = HighlighterSetCollection::get().quickHighlighters();
-        std::vector<HighlightColor> colors;
-        colors.reserve( static_cast<size_t>( quickHighlighters.size() ) );
-        for ( const auto& quickHighlighter : quickHighlighters ) {
-            colors.push_back( quickHighlighter.color );
-        }
-        return colors;
-    }
-
-    // The Context the Line Decorator matches every colour source against,
+    // The Context the Line Decorator matches every color source against,
     // built by the one module that builds it for either Presentation. The
     // active Highlighter Set is read here, afresh for every cell, so that
-    // switching sets re-colours the table without this delegate being told.
+    // switching sets re-colors the table without this delegate being told.
     LineDecorator::Context buildDecoratorContext() const
     {
         return decorationSetup_.context( HighlighterSetCollection::get().currentActiveSet(),

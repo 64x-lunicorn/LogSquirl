@@ -108,7 +108,7 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // Highlight delegate for match/mark row coloring and text highlighting
     delegate_ = new LogTableHighlightDelegate( this );
     delegate_->setRowMapping( rows_ );
-    // The settings that colour Log Lines reach the delegate through
+    // The settings that color Log Lines reach the delegate through
     // setDecorationPolicy(), which whoever builds this view calls before the
     // first frame and again whenever they change: this view derives no Policy
     // of its own.

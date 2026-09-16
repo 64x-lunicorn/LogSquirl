@@ -361,7 +361,7 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     setViewport( nullptr );
 
     // The Decoration Setup is the one place that builds what the Line
-    // Decorator needs. The settings that colour Log Lines reach it through
+    // Decorator needs. The settings that color Log Lines reach it through
     // setDecorationPolicy(), which whoever builds this view calls before it
     // is first painted and again whenever they change: this view derives no
     // Policy of its own. The QuickFind pattern outlives this view and is not
@@ -1377,30 +1377,11 @@ void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern 
     forceRefresh();
 }
 
-namespace {
-
-// The colour of each Color Label slot, in slot order, as the Highlighter Set
-// Collection currently holds them. The Decoration Setup is handed these
-// rather than reaching for the collection itself: it is a library below the
-// UI and knows nothing of that singleton.
-std::vector<HighlightColor> colorLabelColors()
-{
-    const auto quickHighlighters = HighlighterSetCollection::get().quickHighlighters();
-    std::vector<HighlightColor> colors;
-    colors.reserve( static_cast<size_t>( quickHighlighters.size() ) );
-    for ( const auto& quickHighlighter : quickHighlighters ) {
-        colors.push_back( quickHighlighter.color );
-    }
-    return colors;
-}
-
-} // namespace
-
 void AbstractLogView::setQuickHighlighters(
     const std::vector<QuickHighlighters>& quickHighlighters )
 {
     quickHighlighters_ = quickHighlighters;
-    // The colours are read here, with the words: a repaint builds no
+    // The colors are read here, with the words: a repaint builds no
     // Highlighter, so a later change to them arrives by setting the words
     // again.
     decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
@@ -2295,7 +2276,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     QColor foreColor, backColor;
 
     static const QBrush normalBulletBrush = QBrush( Qt::white );
-    // What a Log Line is -- Match, Mark, or both -- is shown in the colours
+    // What a Log Line is -- Match, Mark, or both -- is shown in the colors
     // defined once beside the Line Decorator, so the gutter bullets here and
     // the Table View's row backgrounds cannot drift apart.
     static const QBrush matchBulletBrush = QBrush( LineStatusColors::match() );

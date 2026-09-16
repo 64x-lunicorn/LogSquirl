@@ -403,9 +403,9 @@ private:
 
     void changeFontSize( bool increase );
 
-    // Hand every view of this Log File the settings that colour Log Lines,
+    // Hand every view of this Log File the settings that color Log Lines,
     // derived once here. No Presentation derives them for itself: this is how
-    // a view just built is coloured, and how a change to them reaches one.
+    // a view just built is colored, and how a change to them reaches one.
     void handDecorationPolicyToViews();
 
     // Tell every view of this Log File whether follow may be engaged at all,

@@ -42,11 +42,6 @@ void DecorationSetup::setPolicy( const DecorationPolicy& policy )
     rebuildMainSearch();
 }
 
-const DecorationPolicy& DecorationSetup::policy() const
-{
-    return policy_;
-}
-
 void DecorationSetup::setSearchPattern( const RegularExpressionPattern& pattern )
 {
     searchPattern_ = pattern;

@@ -85,7 +85,7 @@ public:
     void setSearchPattern( const RegularExpressionPattern& pattern );
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
-    // Hand over the settings that colour Log Lines, after a settings change:
+    // Hand over the settings that color Log Lines, after a settings change:
     // painting reads no setting of its own.
     void setDecorationPolicy( const DecorationPolicy& policy );
 

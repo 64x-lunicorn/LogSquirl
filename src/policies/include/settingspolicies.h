@@ -164,7 +164,7 @@ struct DecorationPolicy {
 // else: the settings of the Text View, of the Table View, and of the
 // Filtered View drawn like the Text View.
 //
-// What a Log Line is coloured in is not here -- that is the Decoration
+// What a Log Line is colored in is not here -- that is the Decoration
 // Policy's axis.
 struct PresentationPolicy {
     // Whether a Log Line too long for the Viewport is drawn as several

@@ -176,7 +176,7 @@ public:
     using QuickHighlighters = QStringList;
     void setQuickHighlighters( const std::vector<QuickHighlighters>& wordHighlighters );
 
-    // Hand over the settings that colour Log Lines. Call it after a settings
+    // Hand over the settings that color Log Lines. Call it after a settings
     // change: painting reads no setting of its own, so this is the only way
     // a changed one reaches the Viewport.
     void setDecorationPolicy( const DecorationPolicy& policy );

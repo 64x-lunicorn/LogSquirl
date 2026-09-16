@@ -881,7 +881,7 @@ void CrawlerWidget::applyConfiguration()
         changeDataStatus( DataStatus::OLD_DATA );
     }
 
-    // Hand every Presentation the settings that colour Log Lines again: none
+    // Hand every Presentation the settings that color Log Lines again: none
     // of them reads a setting while painting, so a change (e.g. toggling
     // main-search highlighting) reaches them only this way -- and without
     // needing a new search.
@@ -905,9 +905,9 @@ void CrawlerWidget::applyHighlighterSetChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyHighlighterSetChange";
 
-    // A Color Label's colour comes from the Highlighter Set Collection and is
+    // A Color Label's color comes from the Highlighter Set Collection and is
     // cached alongside its words, so handing the words over again is what
-    // picks up a colour the user just changed.
+    // picks up a color the user just changed.
     updateColorLabels( colorLabelsManager_.colorLabels() );
 
     // Every view reads the active Highlighter Sets when it paints, so all a
@@ -1611,7 +1611,7 @@ void CrawlerWidget::setup()
         }
     } );
 
-    // Hand the views just built everything they show, colour and search
+    // Hand the views just built everything they show, color and search
     // under, before any of them is painted. Neither Presentation reads these
     // settings for itself; each Policy arrives again, on its own Axis,
     // whenever a settings change re-derives it (#184).

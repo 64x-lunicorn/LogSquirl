@@ -169,9 +169,9 @@ protected:
 
 // The Highlighter Sets a developer has configured, kept out of the images for
 // as long as this object lives and restored when it goes. They are the user's
-// own colouring, read from the collection as the view paints, and no Settings
+// own coloring, read from the collection as the view paints, and no Settings
 // Policy carries them -- which is why they are pinned here and the settings
-// that colour Log Lines are not: those reach the view as its Decoration
+// that color Log Lines are not: those reach the view as its Decoration
 // Policy (see showForPainting()).
 class PinnedPaintingSettings {
 public:
@@ -236,7 +236,7 @@ void showForPainting( PaintingLogView& view, const FakeLogData& logData, const Q
 
     // What the application hands a view it builds: the view reads no setting
     // of its own, so every input to these images is a literal here. These are
-    // the colours the golden images were drawn with.
+    // the colors the golden images were drawn with.
     view.setDecorationPolicy( DecorationPolicy{ .mainSearchHighlight = true,
                                                 .variateMainSearchHighlight = false,
                                                 .mainSearchBackColor = QColor{ 255, 200, 0 },

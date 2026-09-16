@@ -17,14 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LOGSQUIRL_DECORATIONSETUP_H
-#define LOGSQUIRL_DECORATIONSETUP_H
-
-#include <optional>
-#include <vector>
-
-#include <QColor>
-#include <QStringList>
+#pragma once
 
 #include "containers.h"
 #include "highlighter.h"
@@ -32,6 +25,12 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "settingspolicies.h"
+
+#include <QColor>
+#include <QStringList>
+
+#include <optional>
+#include <vector>
 
 // The colors that show what a Log Line *is* rather than what its text says:
 // whether it is a Match, a Mark, or both at once.
@@ -75,9 +74,6 @@ public:
     // Hand over the settings that color Log Lines. Rebuilds the cached
     // main-search Highlighter, since its colors come from the Policy.
     void setPolicy( const DecorationPolicy& policy );
-
-    // The Policy currently in force, as the caller last handed it over.
-    const DecorationPolicy& policy() const;
 
     // Hand over the main Search's pattern. Rebuilds the cached main-search
     // Highlighter; an empty, boolean or excluding pattern builds none, as
@@ -124,5 +120,3 @@ private:
     std::optional<Highlighter> cachedMainSearch_;
     logsquirl::vector<Highlighter> cachedColorLabels_;
 };
-
-#endif

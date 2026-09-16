@@ -245,7 +245,7 @@ _Avoid_: highlight settings, color config, theme (a Theme does not color Log Lin
 The Settings Policy a Presentation needs to show and scroll a Log File: whether text is
 wrapped, whether fast scrolling is on and by what multiplier, whether scrolling may engage
 follow, and whether a recognized Log Format opens as a Table View. What a Log Line is
-coloured in is not part of it — that is the Decoration Policy.
+colored in is not part of it — that is the Decoration Policy.
 _Avoid_: view settings, display config, scroll options
 
 **QuickFind Policy**:
