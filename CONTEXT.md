@@ -255,8 +255,12 @@ _Avoid_: view settings, display config, scroll options
 **QuickFind Policy**:
 The Settings Policy searching interactively needs: how a QuickFind pattern and a pattern
 typed into the Search line are read, whether case is ignored, whether QuickFind is
-incremental, and whether changing the pattern runs the Search. It carries how typed text is
-read, not how a Search runs — that is the Search Policy.
+incremental, and whether changing the pattern runs the Search. It also carries the state a
+Search's button row starts in: whether case is ignored, whether the Search auto-refreshes,
+and whether the pattern is read as a logical combination. Those are starting state, not live
+state — they seed the buttons when a Log File is opened, and a Policy arriving later does not
+set a button the user has since changed by hand. It carries how typed text is read, not how
+a Search runs — that is the Search Policy.
 _Avoid_: find settings, search options
 
 **Axis**:

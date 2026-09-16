@@ -289,6 +289,34 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     {
         return crawler->useRegexpButton_->isChecked();
     }
+
+    // Whether the Search matches case.
+    bool matchCaseChecked() const
+    {
+        return crawler->matchCaseButton_->isChecked();
+    }
+
+    // Whether the Search refreshes as the Log File grows.
+    bool autoRefreshChecked() const
+    {
+        return crawler->searchRefreshButton_->isChecked();
+    }
+
+    // Whether the Search pattern is read as a logical combination.
+    bool booleanCombiningChecked() const
+    {
+        return crawler->booleanButton_->isChecked();
+    }
+
+    // What the user does by hand: clicks the match case, auto-refresh and
+    // logical combining buttons of the search button row.
+    void clickSearchDefaultButtons()
+    {
+        QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
+        QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
+        QTest::mouseClick( crawler->booleanButton_, Qt::LeftButton );
+        QCoreApplication::processEvents();
+    }
 };
 
 using CrawlerWidgetVisitor = CrawlerWidget::access_by<CrawlerWidgetPrivate>;
@@ -1284,6 +1312,91 @@ SCENARIO( "Line numbers and the overview follow the Presentation Policy in every
             {
                 REQUIRE_FALSE( showsLineNumbers( first.textView() ) );
                 REQUIRE( showsLineNumbers( second.filteredView() ) );
+            }
+        }
+    }
+}
+
+// The search defaults ride the QuickFind Policy (#193): the whole search button
+// row starts in the state that Policy says, and none of it is read from the
+// settings store. They are a starting state, not a live one: a user who then
+// sets a button by hand is not editing a setting, and a Policy arriving later
+// leaves that button alone.
+SCENARIO( "The search button row starts in the state the QuickFind Policy says", "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_search_defaults_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_search_defaults_second_XXXXXX" };
+
+    // Every one the other way round from the shipped defaults, so a widget that
+    // still read the settings store would start in the shipped state instead.
+    auto policies = testSettingsPolicies();
+    policies.quickFind.searchIgnoreCaseDefault = true;
+    policies.quickFind.searchAutoRefreshDefault = true;
+    policies.quickFind.searchLogicalCombiningDefault = true;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    GIVEN( "a Log File opened under that Policy" )
+    {
+        CrawlerWidgetVisitor first;
+        openCrawler( session, firstFile, first );
+
+        THEN( "the buttons start as the Policy says" )
+        {
+            REQUIRE_FALSE( first.matchCaseChecked() );
+            REQUIRE( first.autoRefreshChecked() );
+            REQUIRE( first.booleanCombiningChecked() );
+        }
+
+        WHEN( "the user sets the buttons by hand and a changed QuickFind Policy arrives" )
+        {
+            first.clickSearchDefaultButtons();
+            REQUIRE( first.matchCaseChecked() );
+            REQUIRE_FALSE( first.autoRefreshChecked() );
+            REQUIRE_FALSE( first.booleanCombiningChecked() );
+
+            // Changed on the same axis, yet still saying the defaults the user
+            // clicked away from: were the buttons seeded again from it, they
+            // would go back to the state they started in.
+            auto changed = policies;
+            changed.quickFind.incremental = !policies.quickFind.incremental;
+            session.applyPolicies( changed );
+
+            THEN( "the Log File holds the new Policy" )
+            {
+                REQUIRE( first.crawler->quickFindPolicy() == changed.quickFind );
+            }
+
+            THEN( "the buttons keep what the user set" )
+            {
+                REQUIRE( first.matchCaseChecked() );
+                REQUIRE_FALSE( first.autoRefreshChecked() );
+                REQUIRE_FALSE( first.booleanCombiningChecked() );
+            }
+        }
+
+        WHEN( "a Policy with other defaults arrives and another Log File is opened" )
+        {
+            auto changed = policies;
+            changed.quickFind.searchIgnoreCaseDefault = false;
+            changed.quickFind.searchAutoRefreshDefault = false;
+            changed.quickFind.searchLogicalCombiningDefault = false;
+            session.applyPolicies( changed );
+
+            CrawlerWidgetVisitor second;
+            openCrawler( session, secondFile, second );
+
+            THEN( "the new Log File starts as the new Policy says" )
+            {
+                REQUIRE( second.matchCaseChecked() );
+                REQUIRE_FALSE( second.autoRefreshChecked() );
+                REQUIRE_FALSE( second.booleanCombiningChecked() );
+            }
+
+            THEN( "the Log File already open keeps the state it started in" )
+            {
+                REQUIRE_FALSE( first.matchCaseChecked() );
+                REQUIRE( first.autoRefreshChecked() );
+                REQUIRE( first.booleanCombiningChecked() );
             }
         }
     }

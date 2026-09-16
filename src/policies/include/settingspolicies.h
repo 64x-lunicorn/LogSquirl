@@ -218,6 +218,16 @@ struct QuickFindPolicy {
     // not about the run.
     bool autoRunSearchOnPatternChange{};
 
+    // The state the search button row of a Log File starts in: whether its
+    // Search ignores case, refreshes as the Log File grows, and reads the
+    // pattern as a logical combination. Starting state, not live state: they
+    // seed the buttons when the Log File's widget is built, and a Policy
+    // arriving afterwards does not set a button the user may since have
+    // changed by hand.
+    bool searchIgnoreCaseDefault{};
+    bool searchAutoRefreshDefault{};
+    bool searchLogicalCombiningDefault{};
+
     bool operator==( const QuickFindPolicy& ) const = default;
 };
 

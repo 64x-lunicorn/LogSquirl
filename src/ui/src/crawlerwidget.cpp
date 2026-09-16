@@ -1529,13 +1529,13 @@ void CrawlerWidget::setup()
     chartPanel_->hide();
     addWidget( chartPanel_ );
 
-    // Default search checkboxes
-    auto& config = Configuration::get();
-    searchRefreshButton_->setChecked( config.isSearchAutoRefreshDefault() );
-    matchCaseButton_->setChecked( !config.isSearchIgnoreCaseDefault() );
+    // The search button row starts as the QuickFind Policy says. Only here:
+    // a Policy arriving later leaves the buttons as the user has set them.
+    searchRefreshButton_->setChecked( quickFindPolicy_.searchAutoRefreshDefault );
+    matchCaseButton_->setChecked( !quickFindPolicy_.searchIgnoreCaseDefault );
     useRegexpButton_->setChecked( quickFindPolicy_.mainRegexpType
                                   == SearchRegexpType::ExtendedRegexp );
-    booleanButton_->setChecked( config.isSearchLogicalCombiningDefault() );
+    booleanButton_->setChecked( quickFindPolicy_.searchLogicalCombiningDefault );
 
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( searchRefreshButton_->isChecked() );
@@ -1544,7 +1544,7 @@ void CrawlerWidget::setup()
     booleanCombiningChangedHandler( booleanButton_->isChecked() );
 
     // Default splitter position (usually overridden by the config file)
-    setSizes( config.splitterSizes() );
+    setSizes( Configuration::get().splitterSizes() );
 
     registerShortcuts();
     loadIcons();

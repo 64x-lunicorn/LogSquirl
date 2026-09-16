@@ -86,7 +86,10 @@ inline SettingsPolicies testSettingsPolicies()
                        .mainRegexpType = SearchRegexpType::ExtendedRegexp,
                        .ignoreCase = false,
                        .incremental = true,
-                       .autoRunSearchOnPatternChange = false },
+                       .autoRunSearchOnPatternChange = false,
+                       .searchIgnoreCaseDefault = false,
+                       .searchAutoRefreshDefault = false,
+                       .searchLogicalCombiningDefault = false },
     };
 }
 

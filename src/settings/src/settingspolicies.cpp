@@ -76,6 +76,9 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                        .mainRegexpType = config.mainRegexpType(),
                        .ignoreCase = config.qfIgnoreCase(),
                        .incremental = config.isQuickfindIncremental(),
-                       .autoRunSearchOnPatternChange = config.autoRunSearchOnPatternChange() },
+                       .autoRunSearchOnPatternChange = config.autoRunSearchOnPatternChange(),
+                       .searchIgnoreCaseDefault = config.isSearchIgnoreCaseDefault(),
+                       .searchAutoRefreshDefault = config.isSearchAutoRefreshDefault(),
+                       .searchLogicalCombiningDefault = config.isSearchLogicalCombiningDefault() },
     };
 }

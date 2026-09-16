@@ -49,14 +49,13 @@ set(ALLOWED_FILES
     src/mainwindow.cpp
 
     # Axes no Settings Policy covers yet, deliberately left, tracked in #189:
-    # the font (mainFont, useBoldFont, forceFontAntialiasing), the search
-    # defaults (isSearchIgnoreCaseDefault, isSearchAutoRefreshDefault,
-    # isSearchLogicalCombiningDefault), the shortcuts, logging (enableLogging,
-    # loggingLevel) and followFileOnLoad.
+    # the font (mainFont, useBoldFont, forceFontAntialiasing), the shortcuts,
+    # logging (enableLogging, loggingLevel) and followFileOnLoad. The search
+    # defaults ride the QuickFind Policy (#193).
     src/abstractlogview.cpp # shortcuts.
     src/logtableview.cpp    # font.
-    # font, search defaults and shortcuts; it also writes the splitter sizes
-    # and the font size changed from the keyboard.
+    # font and shortcuts; it also reads and writes the splitter sizes and
+    # writes the font size changed from the keyboard.
     src/crawlerwidget.cpp
 
     # Decided to stay (#186): verifySslPeers, one value with one consumer,
