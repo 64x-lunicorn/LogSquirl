@@ -12,6 +12,13 @@ runs:
       shell: sh
       run: |
         set -eu
+        # The offscreen platform reads fonts from a directory, and Qt no longer
+        # ships one: on Windows it found none, so font-dependent cases failed
+        # once they ran in a fresh process, and Qt's two-line warning about it
+        # broke test case discovery. Point it at the system fonts (#217).
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          export QT_QPA_FONTDIR='C:\Windows\Fonts'
+        fi
         cd "$LOGSQUIRL_BUILD_ROOT"
         ctest --output-on-failure --timeout 120 --output-junit ctest-junit.xml
 

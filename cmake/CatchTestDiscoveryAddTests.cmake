@@ -70,6 +70,17 @@ foreach(_logsquirl_catch_name IN LISTS _logsquirl_catch_lines)
                _logsquirl_catch_spec "${_logsquirl_catch_spec}")
     endforeach()
 
+    # A test spec reaches the executable through the command line, which
+    # Windows re-encodes in the ANSI code page: a name outside printable ASCII
+    # then matches nothing. Fail discovery by name instead (#217).
+    if(_logsquirl_catch_name MATCHES "[^ -~]")
+        set(_logsquirl_catch_test "${_logsquirl_catch_target}: test case discovery failed")
+        add_test("${_logsquirl_catch_test}" "${_logsquirl_catch_cmake}" -E echo
+            "test case name is not printable ASCII: ${_logsquirl_catch_name}")
+        set_tests_properties("${_logsquirl_catch_test}" PROPERTIES WILL_FAIL TRUE)
+        continue()
+    endif()
+
     set(_logsquirl_catch_test "${_logsquirl_catch_target}: ${_logsquirl_catch_name}")
     # --warn NoTests: a spec that matches no test case fails instead of passing
     # with zero assertions.
