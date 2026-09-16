@@ -23,9 +23,10 @@
 # often than it was useful. The check therefore keys on the file, and the
 # allowlist carries the justification for each one -- writes included.
 #
-# The allowlist is meant to shrink. An entry that no longer names the settings
-# store fails this check too, so a file that has moved behind a Policy leaves
-# the list with the commit that moves it.
+# The allowlist is meant to shrink, down to the writers, the window chrome and
+# the Axes decided to stay -- not to zero. An entry that no longer names the
+# settings store fails this check too, so a file that has moved behind a Policy
+# leaves the list with the commit that moves it.
 #
 # Usage: cmake -DSOURCES_DIR=<src/ui> -P ui_settings_store_allowlist.cmake
 
@@ -41,21 +42,37 @@ set(ALLOWED_FILES
     src/chartpanel.cpp    # Saves, loads and deletes the Chart Presets.
 
     # Window chrome, one consumer each: no Axis of its own (#183).
-    # minimize-to-tray, confirm-tab-close, toolbar icon size,
-    # allow-multiple-windows, show-dashboard -- all read by the main window
-    # only, which also reads the logging axis listed below. It also ticks and
+    # minimize-to-tray, confirm-tab-close (read, and written from its
+    # "don't ask again"), toolbar icon size, allow-multiple-windows,
+    # show-dashboard -- all read by the main window only. It also ticks and
     # writes the View menu's line numbers and overview toggles; what a
-    # Presentation shows of them rides the Presentation Policy (#192).
+    # Presentation shows of them rides the Presentation Policy (#192). Beside
+    # the chrome it reads three Axes decided to stay, below: the shortcuts,
+    # logging and followFileOnLoad.
     src/mainwindow.cpp
 
-    # Axes no Settings Policy covers yet, deliberately left, tracked in #189:
-    # the shortcuts, logging (enableLogging, loggingLevel) and
-    # followFileOnLoad. The search defaults ride the QuickFind Policy (#193).
-    src/abstractlogview.cpp # shortcuts.
-    # Shortcuts, and the splitter sizes it reads and writes. It also writes the
-    # font on zoom, and is the one place that assembles the font (mainFont,
-    # useBoldFont, forceFontAntialiasing) its views are handed: no Font Policy,
-    # the views are its own children (#194).
+    # Axes decided to stay a direct read -- not waiting for a Policy, and not
+    # what "the allowlist is meant to shrink" is about (CONTEXT.md, Settings
+    # Policy).
+    #
+    # The shortcuts: a keyed table of some seventy actions with a codec of its
+    # own, not the flat snapshot of values a Policy is. Each widget that owns
+    # shortcuts registers them straight from that table -- the main window
+    # above, the two files below -- and a Policy would only rewrap the map.
+    #
+    # Logging (enableLogging, loggingLevel): it configures the process's
+    # logger, outside the lifetime of any Log File. The main window re-applies
+    # it when the options change; start-up applies it outside the widget layer.
+    #
+    # followFileOnLoad: one value with one consumer, the main window, read once
+    # as a file is opened or the Session restored to decide whether following
+    # starts. It is a decision taken at load time, not a setting the Log File
+    # keeps.
+    src/abstractlogview.cpp # The shortcuts.
+    # The shortcuts, and the splitter sizes it reads and writes (window chrome).
+    # It also writes the font on zoom, and is the one place that assembles the
+    # font (mainFont, useBoldFont, forceFontAntialiasing) its views are handed:
+    # decided to stay, no Font Policy, the views are its own children (#194).
     src/crawlerwidget.cpp
 
     # Decided to stay (#186): verifySslPeers, one value with one consumer,

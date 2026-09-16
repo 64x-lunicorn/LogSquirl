@@ -228,7 +228,13 @@ wiring, the Shortcuts and the Highlighter Set collection all live in it and all
 legitimately need the store — so its half is held by a build-time check that `ctest` runs:
 only an allowlisted file, each entry carrying its reason, may name the settings store, and
 the check names every other one that does. The allowlist is meant to shrink as the
-remaining Axes get Policies.
+remaining Axes get Policies, but not to zero. Besides the writers (the Options Dialog among
+them) and window chrome with one consumer each, some Axes deliberately keep a direct read:
+the Shortcuts, a keyed table of actions with a codec of its own rather than a flat snapshot,
+registered by each widget that owns them; logging, which configures the process's logger
+outside the lifetime of any Log File; follow-file-on-load, which the main window alone reads
+once as a file is opened; the font, assembled in one place by the Crawler Widget and handed
+to its own views; and SSL peer verification, one value read by the version checker alone.
 _Avoid_: config object, options, preferences
 
 **Decoration Policy**:
