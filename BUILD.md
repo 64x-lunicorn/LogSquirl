@@ -343,3 +343,21 @@ Manual releases are also supported via `workflow_dispatch` — provide a CI Buil
 | `ci-release.yml` | tag push `v*` | Publish GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis |
+
+### Action pinning
+
+Every third-party action in `.github/workflows/` and `.github/actions/` is pinned to the full commit SHA of a
+release, with that release's exact version as a comment; local actions (`./.github/actions/...`) are exempt:
+
+```yaml
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+```
+
+A tag can be moved to other code, a commit SHA cannot. Dependabot reads the `# vX.Y.Z` comment and bumps SHA and
+comment together. To add or bump an action by hand, resolve the release tag to its commit (peel an annotated tag:
+`gh api repos/<owner>/<repo>/git/ref/tags/<tag>`, then `.../git/tags/<sha>` while the object type is `tag`). The
+repository requires SHA pinning, and the Format job of CI Build runs the same check as
+
+```bash
+.github/scripts/check-action-pins.sh
+```

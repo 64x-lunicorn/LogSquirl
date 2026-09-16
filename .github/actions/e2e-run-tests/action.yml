@@ -10,7 +10,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - uses: actions/download-artifact@v8
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
         name: ${{ inputs.artifact_name }}
         path: build/output
@@ -21,7 +21,7 @@ runs:
         INSTALL_TOOLS: ${{ inputs.install_tools }}
       run: bash -euo pipefail -c "$INSTALL_TOOLS"
 
-    - uses: actions/setup-python@v7
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
       with:
         python-version: '3.12'
 

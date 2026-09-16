@@ -45,13 +45,13 @@ jobs:
     # the last 100 runs, and never below 5 minutes (#218).
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/logsquirl-version
 
       - name: Save version
         run: echo $LOGSQUIRL_VERSION > logsquirl_version.txt
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: logsquirl_version
           path: 'logsquirl_version.txt'
@@ -59,7 +59,8 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Format — clang-format dry-run over project-owned C++ sources. No Qt,
-  # no build; just checks the tree matches .clang-format (#120).
+  # no build; just checks the tree matches .clang-format (#120) and that
+  # every action is pinned to a commit SHA (#202).
   # -----------------------------------------------------------------------
   Format:
     name: Format
@@ -67,9 +68,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v7
+      # A tag can be moved to other code, a commit SHA cannot (#202).
+      - name: Check action pins
+        run: .github/scripts/check-action-pins.sh
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
@@ -107,11 +112,11 @@ jobs:
     # pytest plus two generator runs; no build (#218).
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
@@ -133,7 +138,7 @@ jobs:
             --output sbom-base/logsquirl-sbom-base.cdx.json
           python scripts/sbom/logsquirl_sbom.py validate sbom-base/logsquirl-sbom-base.cdx.json
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sbom-base
           path: sbom-base/logsquirl-sbom-base.cdx.json
@@ -202,10 +207,10 @@ jobs:
     # process per test case since #217 making the test step ~40% longer (#218).
     timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -224,7 +229,7 @@ jobs:
       # The key covers the CPM script as well as the package list (#219).
       - name: Restore CPM cache
         id: cpm_cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: cpm_cache
           key: cpm-Linux-${{ matrix.config.artifacts_id }}-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
@@ -242,7 +247,7 @@ jobs:
         if: >-
           steps.cpm_cache.outputs.cache-hit != 'true'
           && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: cpm_cache
           key: ${{ steps.cpm_cache.outputs.cache-primary-key }}
@@ -250,7 +255,7 @@ jobs:
       - uses: ./.github/actions/docker-run-tests
       - uses: ./.github/actions/docker-package
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -293,10 +298,10 @@ jobs:
       ASAN_OPTIONS: halt_on_error=1:print_stacktrace=1:detect_leaks=0:symbolize=1:abort_on_error=0
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1:symbolize=1
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -312,7 +317,7 @@ jobs:
       # restoring it instead of saving a ~290 MB copy of our own keeps the
       # Actions cache under its limit (#219).
       - name: Restore CPM cache
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: cpm_cache
           key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
@@ -369,7 +374,7 @@ jobs:
     # stretch a master build well past that (#218).
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set brew env
         run: |
@@ -407,7 +412,7 @@ jobs:
           notarization-team: ${{ secrets.APPLE_TEAM_ID }}
           notarization-password: ${{ secrets.APPLE_PASSWORD }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -445,7 +450,7 @@ jobs:
       OPENSSL_VERSION: 3.5.8
       OPENSSL_SHA256: a5377866b476c1661f329d3f25fc35912fa5ef01e614043b9b9a27baf8dd76a4
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # The OpenSSL DLLs are shipped with the Windows package, so their version
       # is pinned above, verified against a SHA-256 and part of the cache key:
@@ -456,7 +461,7 @@ jobs:
       # zip whose DLLs need only the UCRT. The 3.5 line is OpenSSL's LTS.
       - name: Cache openssl
         id: cache-openssl
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ github.workspace }}\openssl-3
           key: OpensslCache-${{ env.OPENSSL_VERSION }}-firedaemon-x64
@@ -511,7 +516,7 @@ jobs:
       - uses: ./.github/actions/prepare-workspace-env
 
       - name: Prepare dev cmd
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
         with:
           arch: ${{ matrix.config.arch }}
 
@@ -525,7 +530,7 @@ jobs:
           sign-cert-pfx: ${{ secrets.WIN_SIGN_CERT_PFX }}
           sign-cert-password: ${{ secrets.WIN_SIGN_CERT_PASSWORD }}
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
@@ -544,7 +549,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-noble
@@ -559,7 +564,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-mac-arm64
@@ -572,7 +577,7 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/e2e-run-tests
         with:
           artifact_name: packages-windows-x64
