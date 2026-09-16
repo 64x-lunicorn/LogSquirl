@@ -694,8 +694,9 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         LOG_DEBUG << "updateFilteredView: restoring selection: "
                   << " absolute line number (0based) " << currentLineNumber_;
         filteredView_->selectAndDisplayLine( currentLineNumber_ );
-        filteredView_->setSearchLimits( openLogFile_->searchStartLine(),
-                                        openLogFile_->searchEndLine() );
+        // The View Set already handed this view the Search Limits, which are
+        // the Open Log File's; only the redraw handing them over did is left.
+        filteredView_->forceRefresh();
     }
 }
 
