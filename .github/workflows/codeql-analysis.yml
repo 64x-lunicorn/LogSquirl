@@ -23,43 +23,59 @@ env:
 
 jobs:
   analyze:
-    name: Analyze
+    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-24.04
-    # Slowest successful run 25 min, median 17 min; a hang would otherwise hold
-    # the runner for the 6-hour default (#218).
-    timeout-minutes: 50
+    # A hang would otherwise hold the runner for the 6-hour default (#218).
+    timeout-minutes: ${{ matrix.timeout }}
 
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - os: linux
-            arch: x64
-            qt_version: 6.10.3
-            qt_arch: linux_gcc_64
-            qt_modules: qt5compat
-            languages: 'cpp'
+        include:
+          # The workflows and composite actions themselves (#204): CodeQL reads
+          # .github/workflows and .github/actions directly, so this entry needs
+          # neither Qt nor a build.
+          - language: actions
+            build-mode: none
+            timeout: 10
+          # Slowest successful run 25 min, median 17 min (#218).
+          - language: cpp
+            build-mode: manual
+            timeout: 50
+            config:
+              os: linux
+              arch: x64
+              qt_version: 6.10.3
+              qt_arch: linux_gcc_64
+              qt_modules: qt5compat
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
       uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
       with:
-        languages: ${{ matrix.config.languages }}
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
         config-file: ./.github/codeql-config.yml
 
+    # Everything up to the analysis builds the C++ code; only cpp needs it.
     - uses: ./.github/actions/agent-setup
+      if: matrix.language == 'cpp'
 
     - name: Prepare compiler env
+      if: matrix.language == 'cpp'
       run: |
         set -euo pipefail
         echo "CC=gcc-13" >> $GITHUB_ENV
         echo "CXX=g++-13" >> $GITHUB_ENV
 
     - name: configure
+      if: matrix.language == 'cpp'
       run: |
         set -euo pipefail
         mkdir build
@@ -67,8 +83,11 @@ jobs:
         cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_GENERIC_CPU=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_VECTORSCAN=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
 
     - name: build
+      if: matrix.language == 'cpp'
       run: |
         cmake --build build -t logsquirl
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+      with:
+        category: /language:${{ matrix.language }}
