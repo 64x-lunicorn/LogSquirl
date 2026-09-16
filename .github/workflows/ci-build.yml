@@ -85,8 +85,9 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Format — clang-format dry-run over project-owned C++ sources. No Qt,
-  # no build; just checks the tree matches .clang-format (#120) and that
-  # every action is pinned to a commit SHA (#202).
+  # no build; just checks the tree matches .clang-format (#120), that
+  # every action is pinned to a commit SHA (#202) and that the Renovate
+  # config and its checksum pairs are sound (#211).
   # -----------------------------------------------------------------------
   Format:
     name: Format
@@ -109,7 +110,10 @@ jobs:
       # Pinned to major version 23: the project's .clang-format sets
       # `Standard: c++23`, an enum value only clang-format >= 23 recognizes.
       - name: Install clang-format
-        run: pip install clang-format==23.1.1
+        env:
+          # renovate: datasource=pypi depName=clang-format
+          CLANG_FORMAT_VERSION: 23.1.1
+        run: pip install "clang-format==$CLANG_FORMAT_VERSION"
 
       - name: Check formatting
         run: |
@@ -123,6 +127,28 @@ jobs:
             fi
           done < <(git ls-files -- '*.cpp' '*.h' '*.hpp' | grep -vE '^(3rdparty/|cpm_cache/|website/)')
           exit $exit_code
+
+      # Every `# renovate:` version with a SHA-256 below it needs a download
+      # URL rule in the script, or a Renovate bump would leave the hash stale
+      # with nothing to refresh it; a SHA-256 without the comment would never
+      # be bumped at all (#211). Parsing only, no network.
+      - name: Check Renovate checksum pairs
+        run: python .github/scripts/update-checksums.py --list
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # An invalid renovate.json5 makes the Renovate app stop and only say so
+      # on its Dependency Dashboard issue; fail the pull request instead (#211).
+      - name: Validate the Renovate config
+        env:
+          # renovate: datasource=npm depName=renovate
+          RENOVATE_VERSION: 44.94.1
+        # Without a file argument it finds renovate.json5 and checks it as a
+        # repository config, which is what the app reads; with one it would be
+        # checked as a self-hosted global config.
+        run: npx --yes --package "renovate@$RENOVATE_VERSION" renovate-config-validator --strict
 
   # -----------------------------------------------------------------------
   # SBOM — the source part of the release SBOM (#212): every CPM package and
@@ -153,6 +179,11 @@ jobs:
 
       - name: Test the SBOM generator
         run: python -m pytest scripts/sbom -p no:cacheprovider
+
+      # The Renovate checksum updater (#211); it shares only pytest with the
+      # SBOM tooling, which this job already installs.
+      - name: Test the checksum updater
+        run: python -m pytest .github/scripts -p no:cacheprovider
 
       - uses: ./.github/actions/logsquirl-version
 

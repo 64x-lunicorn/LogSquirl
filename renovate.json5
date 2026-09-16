@@ -1,0 +1,199 @@
+// Renovate keeps what Dependabot cannot read current (#211): the CPM packages in
+// 3rdparty/CMakeLists.txt and the tool versions pinned in workflows, composite
+// actions, the build images and the packaging scripts.
+//
+// No overlap with Dependabot (.github/dependabot.yml): GitHub Actions, the
+// Docker FROM digests, pip requirements (tests/e2e, scripts/sbom) and npm
+// (website) stay with Dependabot. Only the custom regex managers below are
+// enabled, so Renovate never opens a PR for one of those.
+//
+// Checksums: a version bump here leaves its SHA-256 stale; the Renovate
+// Checksums workflow (.github/workflows/renovate-checksums.yml) recomputes it
+// on the PR branch. See "Dependency updates" in BUILD.md.
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", "schedule:weekly"],
+  enabledManagers: ["custom.regex"],
+  dependencyDashboard: true,
+  labels: ["ci", "dependencies"],
+  timezone: "Europe/Berlin",
+  // Dependabot's cooldown (#204): a release is proposed once it is a week old.
+  minimumReleaseAge: "7 days",
+  separateMajorMinor: true,
+  // A pull request per dependency; the groups below are the exceptions.
+  prConcurrentLimit: 10,
+
+  customDatasources: {
+    // Renovate has no SourceForge datasource. The NSIS 3 file listing links
+    // one folder per release (/projects/nsis/files/NSIS%203/3.12/).
+    nsis: {
+      defaultRegistryUrlTemplate: "https://sourceforge.net/projects/nsis/files/NSIS%203/",
+      format: "html",
+    },
+  },
+
+  customManagers: [
+    {
+      // `# renovate: datasource=... depName=...` directly above a version
+      // line (YAML `NAME: v`, shell `NAME=v` / `NAME="v"`, Dockerfile
+      // `ENV NAME=v`). The SHA-256 lines below it are refreshed by
+      // .github/scripts/update-checksums.py, which reads the same files.
+      customType: "regex",
+      description: "Pinned tool versions under a # renovate: comment",
+      managerFilePatterns: [
+        "/^\\.github/workflows/[^/]+\\.yml$/",
+        "/^\\.github/actions/[^/]+/action\\.yml$/",
+        "/^docker/[^/]+/Dockerfile$/",
+        "/^docker/shared/[^/]+\\.sh$/",
+        "/^packaging/.+\\.sh$/",
+      ],
+      matchStrings: [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*(?:ENV\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*(?::\\s*|=)[\"']?(?<currentValue>[^\"'\\s]+)[\"']?",
+      ],
+    },
+    {
+      // A CPM package cut from a release: VERSION, the release commit and its
+      // tag in the comment. currentValue is VERSION; Renovate replaces every
+      // occurrence of it in the matched block (autoReplaceGlobalMatch), so
+      // VERSION, the SHA (currentDigest, the commit of the new tag) and the
+      // `# <tag>` comment move together in one commit.
+      customType: "regex",
+      description: "CPM packages pinned to a release commit",
+      managerFilePatterns: ["/^3rdparty/CMakeLists\\.txt$/"],
+      matchStrings: [
+        "GITHUB_REPOSITORY\\s+(?<depName>[\\w.-]+/[\\w.-]+)\\s+VERSION\\s+(?<currentValue>\\S+)\\s+GIT_TAG\\s+(?<currentDigest>[0-9a-f]{40})\\s*#\\s*v?\\S+",
+      ],
+      datasourceTemplate: "github-tags",
+      extractVersionTemplate: "^v?(?<version>\\d+(?:\\.\\d+)*)$",
+    },
+    {
+      // uchardet lives on freedesktop.org's GitLab. git-tags, not gitlab-tags:
+      // gitlab-tags looks the new commit up by the stripped version (0.0.9)
+      // instead of the tag (v0.0.9) and finds none, so it never proposes one.
+      customType: "regex",
+      description: "CPM packages pinned to a release commit on another Git host",
+      managerFilePatterns: ["/^3rdparty/CMakeLists\\.txt$/"],
+      matchStrings: [
+        "GIT_REPOSITORY\\s+(?<packageName>https://[^/\\s]+/(?<depName>[\\w.-]+/[\\w.-]+?))(?:\\.git)?\\s+VERSION\\s+(?<currentValue>\\S+)\\s+GIT_TAG\\s+(?<currentDigest>[0-9a-f]{40})\\s*#\\s*v?\\S+",
+      ],
+      datasourceTemplate: "git-tags",
+      extractVersionTemplate: "^v?(?<version>\\d+(?:\\.\\d+)*)$",
+    },
+    {
+      // VectorCamp/vectorscan has no VERSION argument; its tags read
+      // vectorscan/<version>, the form its comment keeps.
+      customType: "regex",
+      description: "CPM packages pinned to a release commit without VERSION",
+      managerFilePatterns: ["/^3rdparty/CMakeLists\\.txt$/"],
+      matchStrings: [
+        "GITHUB_REPOSITORY\\s+(?<depName>VectorCamp/vectorscan)\\s+GIT_TAG\\s+(?<currentDigest>[0-9a-f]{40})\\s*#\\s*vectorscan/(?<currentValue>\\S+)",
+      ],
+      datasourceTemplate: "github-tags",
+      extractVersionTemplate: "^vectorscan/(?<version>\\d+\\.\\d+\\.\\d+)$",
+    },
+    {
+      // Forks and upstreams without releases (maddy, oneTBB, KDToolBox,
+      // sentry-native, ...) are pinned to a commit with no tag comment. They
+      // track their default branch; dependencyDashboardApproval below keeps a
+      // new branch head from opening a PR until someone asks for it.
+      customType: "regex",
+      description: "CPM packages pinned to a branch commit",
+      managerFilePatterns: ["/^3rdparty/CMakeLists\\.txt$/"],
+      matchStrings: [
+        "GITHUB_REPOSITORY\\s+(?<depName>[\\w.-]+/[\\w.-]+)\\s+GIT_TAG\\s+(?<currentDigest>[0-9a-f]{40})[ \\t]*\\n",
+      ],
+      datasourceTemplate: "github-digest",
+      // The one default branch that is not master.
+      currentValueTemplate: "{{#if (equals depName 'variar/klogg_karchive')}}main{{else}}master{{/if}}",
+      depTypeTemplate: "cpm-branch",
+    },
+    {
+      // The aqtinstall commit install-qt-action installs Qt with (#251):
+      // tracks master until a release after 3.3.0 lets the pin go back to a
+      // PyPI version.
+      customType: "regex",
+      description: "aqtinstall pinned to a commit",
+      managerFilePatterns: ["/^\\.github/actions/agent-setup/action\\.yml$/"],
+      matchStrings: [
+        "aqtsource:\\s*git\\+https://github\\.com/(?<depName>miurahr/aqtinstall)\\.git@(?<currentDigest>[0-9a-f]{40})",
+      ],
+      datasourceTemplate: "github-digest",
+      currentValueTemplate: "master",
+    },
+    {
+      // Qt is one version everywhere: the Mac/Windows CI matrices, CodeQL,
+      // the four build images and BUILD.md. No comment per occurrence, so a
+      // new matrix entry or image is picked up as it is written.
+      customType: "regex",
+      description: "Qt version",
+      managerFilePatterns: [
+        "/^\\.github/workflows/(ci-build|codeql-analysis)\\.yml$/",
+        "/^docker/[^/]+/Dockerfile$/",
+        "/^BUILD\\.md$/",
+      ],
+      matchStrings: [
+        "\\bqt_version:\\s*(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "\\bENV QT_VERSION=(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "CI builds use Qt (?<currentValue>\\d+\\.\\d+\\.\\d+)",
+      ],
+      datasourceTemplate: "github-tags",
+      depNameTemplate: "qt/qtbase",
+      extractVersionTemplate: "^v(?<version>\\d+\\.\\d+\\.\\d+)$",
+    },
+  ],
+
+  packageRules: [
+    {
+      // All Qt occurrences in one PR, including a major/minor split: the
+      // SBOM job fails when they disagree (scripts/sbom/logsquirl_sbom.py).
+      matchDepNames: ["qt/qtbase"],
+      groupName: "Qt",
+      separateMajorMinor: false,
+      // Tags without a matching extractVersion (v6.12.0-beta1) are dropped;
+      // this also keeps any other suffix out.
+      allowedVersions: "/^\\d+\\.\\d+\\.\\d+$/",
+    },
+    {
+      // A tool bump in docker/ rebuilds every build image, so the image tools
+      // move in one PR. Ninja and sccache are also pinned for the native
+      // agents (agent-setup) and stay on the images' version.
+      matchDepNames: ["Kitware/CMake", "ninja-build/ninja", "adrian-thurston/ragel", "mozilla/sccache"],
+      groupName: "build tools",
+    },
+    {
+      // Both linuxdeploy tools are released together and bundle together.
+      matchDepNames: ["linuxdeploy/linuxdeploy", "linuxdeploy/linuxdeploy-plugin-qt"],
+      groupName: "linuxdeploy",
+      // Tags read 1-alpha-<date>-<n>; the rolling `continuous` tag never matches.
+      versioning: "regex:^(?<major>\\d+)-alpha-(?<minor>\\d{8})-(?<patch>\\d+)$",
+    },
+    {
+      // The Windows package ships OpenSSL 3.5, OpenSSL's LTS line (#199).
+      matchDepNames: ["openssl/openssl"],
+      allowedVersions: "<3.6.0",
+    },
+    {
+      // Ragel 7 is a development line; the images build 6.x.
+      matchDepNames: ["adrian-thurston/ragel"],
+      allowedVersions: "<7",
+    },
+    {
+      // `git ls-remote` carries no tag dates either; uchardet releases rarely.
+      matchDatasources: ["git-tags"],
+      minimumReleaseAgeBehaviour: "timestamp-optional",
+    },
+    {
+      matchDepNames: ["nsis"],
+      extractVersion: "^/projects/nsis/files/NSIS%203/(?<version>\\d+\\.\\d+(?:\\.\\d+)?)/$",
+      // A file listing carries no release dates, so the week's wait cannot
+      // apply; without this Renovate would never propose a version.
+      minimumReleaseAgeBehaviour: "timestamp-optional",
+    },
+    {
+      // Branch heads of forks and release-less upstreams change without a
+      // release to review: listed on the Dependency Dashboard, PR on request.
+      matchDepTypes: ["cpm-branch"],
+      dependencyDashboardApproval: true,
+    },
+  ],
+}

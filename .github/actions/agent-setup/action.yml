@@ -53,6 +53,7 @@ runs:
       uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       with:
         # Without it the action fetches whatever sccache release is latest (#199).
+        # renovate: datasource=github-releases depName=mozilla/sccache
         version: v0.18.0
 
     - name: Enable sccache GitHub Actions cache backend

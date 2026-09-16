@@ -251,11 +251,11 @@ jobs:
 
       # sentry-cli runs with SENTRY_AUTH_TOKEN in its environment, so it is a
       # fixed release binary checked against a known SHA-256 instead of whatever
-      # an install script piped into bash returns (#200). To bump: pick a
-      # getsentry/sentry-cli release, `sha256sum` its sentry-cli-Linux-x86_64
-      # asset and update both values.
+      # an install script piped into bash returns (#200). Renovate bumps the
+      # version and .github/workflows/renovate-checksums.yml the hash (#211).
       - name: Install sentry-cli
         env:
+          # renovate: datasource=github-releases depName=getsentry/sentry-cli
           SENTRY_CLI_VERSION: "3.8.0"
           SENTRY_CLI_SHA256: "13f8cb34ae01a6a272d7d7c22e277a105286615b4020de900ea95a8de47cdbb6"
         run: |

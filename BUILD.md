@@ -346,6 +346,7 @@ Manual releases are also supported via `workflow_dispatch` — provide a CI Buil
 | `ci-build.yml` | push/PR to master | Build + test all platforms |
 | `ci-release.yml` | tag push `v*` | Publish GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
+| `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 ### Action pinning
@@ -365,6 +366,59 @@ repository requires SHA pinning, and the Format job of CI Build runs the same ch
 ```bash
 .github/scripts/check-action-pins.sh
 ```
+
+### Dependency updates
+
+Two bots propose dependency updates as pull requests, each for what the other cannot read, so no dependency gets
+PRs from both:
+
+- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines,
+  the pip requirements of `scripts/sbom` and `tests/e2e`, and the website's npm packages.
+- **Renovate** (`renovate.json5`, only its custom regex managers are enabled): the CPM packages in
+  `3rdparty/CMakeLists.txt` and every tool version pinned in workflows, composite actions, the build images and the
+  packaging scripts: Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg, sentry-cli,
+  linuxdeploy, clang-format, aqtinstall and the Renovate config validator itself.
+
+Both wait until a release is seven days old and run weekly; Renovate lists everything it tracks on its
+**Dependency Dashboard** issue. Renovate's grouping:
+
+- one PR per dependency, with a major version in a PR of its own;
+- **Qt** in one PR across the CI matrices, CodeQL, the four Dockerfiles and this file (the SBOM job fails when they differ);
+- **build tools** (CMake, Ninja, Ragel, sccache) in one PR, since a bump in `docker/` rebuilds every build image;
+- **linuxdeploy** and its Qt plugin together;
+- a CPM package pinned to a release updates `VERSION`, the commit SHA and the `# <tag>` comment in one change;
+- a CPM package without releases (forks such as `variar/oneTBB`, `KDAB/KDToolBox`, `getsentry/sentry-native`) tracks
+  its default branch and only gets a PR once its checkbox on the Dependency Dashboard is ticked.
+
+A tool pin that is downloaded and verified is written as a block Renovate and the checksum script both read; to add
+one, follow the same form and add its download URL to `URLS` in `.github/scripts/update-checksums.py`:
+
+```yaml
+# renovate: datasource=github-releases depName=anchore/grype
+GRYPE_VERSION: 0.118.0
+GRYPE_SHA256: 1d444c5e…
+```
+
+**Checksums.** Renovate's hosted app cannot download a release and hash it, so its PR changes the version and
+leaves the SHA-256 stale. The **Renovate Checksums** workflow runs on every PR from a `renovate/*` branch, recomputes
+each pair from its download URL and pushes a commit with the corrected hashes. GitHub starts no workflows for a
+push made with `GITHUB_TOKEN`, so **close and reopen the PR** after that commit appears to run CI Build on it. The
+new hashes are what the URL served at that moment: where upstream publishes checksums (grype, CMake, Boost), compare
+before merging. Renovate stops rebasing a branch someone else has pushed to; tick *rebase* on the PR to get a fresh
+one (the workflow then fixes the hashes again). Locally:
+
+```bash
+.github/scripts/update-checksums.py --list    # parse only: every pair has a URL rule (the Format job runs this)
+.github/scripts/update-checksums.py --check   # download and verify every hash
+.github/scripts/update-checksums.py           # download and rewrite stale hashes
+```
+
+The Format job also runs `renovate-config-validator` on `renovate.json5`.
+
+**Setting it up.** Install the [Renovate GitHub App](https://github.com/apps/renovate) for this repository only.
+Because `renovate.json5` already exists, Renovate skips its onboarding PR; on its first scheduled run it opens the
+Dependency Dashboard issue and the PRs for everything already outdated (for example Catch2, xxHash, mimalloc,
+simdutf, CMake). Merge them one at a time, closing and reopening each PR once the checksum commit is on it.
 
 ### Repository settings
 

@@ -5,10 +5,12 @@ set -euo pipefail
 # they are fetched at a fixed release tag and checked against a known SHA-256
 # before they execute. The `continuous` tag is rewritten on every upstream
 # push, which made the bundled tooling (and so the AppImage) change underneath
-# us without review (#200). To bump: pick a new release tag, download the asset,
-# `sha256sum` it and update the pair below.
+# us without review (#200). Renovate bumps each tag and
+# .github/workflows/renovate-checksums.yml its hash (#211).
+# renovate: datasource=github-releases depName=linuxdeploy/linuxdeploy
 LINUXDEPLOY_TAG="1-alpha-20251107-1"
 LINUXDEPLOY_SHA256="c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d"
+# renovate: datasource=github-releases depName=linuxdeploy/linuxdeploy-plugin-qt
 LINUXDEPLOY_PLUGIN_QT_TAG="1-alpha-20250213-1"
 LINUXDEPLOY_PLUGIN_QT_SHA256="15106be885c1c48a021198e7e1e9a48ce9d02a86dd0a1848f00bdbf3c1c92724"
 

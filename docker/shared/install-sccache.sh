@@ -6,6 +6,7 @@
 # Installs to /opt/bin (not /usr/local) because CI mounts the workspace over /usr/local.
 set -eu
 
+# renovate: datasource=github-releases depName=mozilla/sccache
 SCCACHE_VERSION=0.17.0
 SCCACHE_SHA256=67c4a96dd237c1f518f6b36083f270f9976d516f1e57fce891755ea782e50006
 ARCHIVE=sccache-v${SCCACHE_VERSION}-x86_64-unknown-linux-musl
