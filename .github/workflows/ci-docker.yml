@@ -28,12 +28,20 @@ jobs:
   # CI Build pulls, plus :latest for humans. A hash tag is never overwritten:
   # an open PR's CI keeps resolving to the very image it started with, and new
   # OS packages arrive only through a new hash (#215).
+  #
+  # Each image is scanned before it is pushed, pushed with SBOM and provenance
+  # attestations, and signed keyless by digest; CI Build refuses a pulled image
+  # whose signature does not come from this workflow on master (#216). Only
+  # master may push: a hash tag is never overwritten, so an image signed from
+  # a dispatched branch would stay unverifiable under that hash for good.
   build-images:
-    if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')) || (github.event_name == 'workflow_dispatch' && !inputs.propose_refresh)
+    if: github.ref == 'refs/heads/master' && ((github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')) || (github.event_name == 'workflow_dispatch' && !inputs.propose_refresh))
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
+      security-events: write # Trivy SARIF upload to code scanning (#216)
+      id-token: write # keyless cosign signature via Fulcio (#216)
 
     strategy:
       fail-fast: false
@@ -76,20 +84,96 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # The default docker driver cannot store SBOM or provenance attestations;
+      # a docker-container builder can, and it keeps the build cache between
+      # the scan build and the push build below (#216).
+      - name: Set up Buildx
+        if: steps.image.outputs.exists != 'true'
+        uses: docker/setup-buildx-action@v4
+
+      # Built into the local daemon first so Trivy scans the image before it
+      # exists on GHCR. The docker exporter cannot carry attestations, so they
+      # are added by the push build, which replays this build from the cache
+      # and so pushes the same layers (#216).
+      #
       # The context is docker/ so every image can copy docker/shared. The label
       # keeps its historical name; it repeats the inputs hash of the tag.
+      - name: Build for scanning
+        if: steps.image.outputs.exists != 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: docker
+          file: ${{ matrix.container_root }}/Dockerfile
+          load: true
+          push: false
+          provenance: false
+          sbom: false
+          tags: ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ steps.image.outputs.sha256 }}
+          labels: |
+            dockerfile.sha256=${{ steps.image.outputs.sha256 }}
+
+      # Findings are reported, not enforced: these are build images, never
+      # shipped, and an unfixed-upstream distro CVE turning the job red would
+      # stop every image update (including the one that picks up the fix). The
+      # SARIF goes to code scanning under a per-image category so each image
+      # keeps its own alert set. ignore-unfixed drops findings nobody can act
+      # on by rebuilding (#216).
+      - name: Scan image
+        if: steps.image.outputs.exists != 'true'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ steps.image.outputs.sha256 }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          exit-code: '0'
+          format: sarif
+          output: trivy-${{ matrix.image_name }}.sarif
+
+      - name: Upload scan to code scanning
+        if: steps.image.outputs.exists != 'true'
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-${{ matrix.image_name }}.sarif
+          category: trivy-image-${{ matrix.image_name }}
+
+      # buildx attaches the SBOM and the max-mode provenance to the pushed
+      # image index; the step's digest output is that index digest, which is
+      # what gets signed and what CI Build verifies and pulls (#216).
       - name: Build and push
+        id: push
         if: steps.image.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: docker
           file: ${{ matrix.container_root }}/Dockerfile
           push: true
+          sbom: true
+          provenance: mode=max
           tags: |
             ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ steps.image.outputs.sha256 }}
             ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:latest
           labels: |
             dockerfile.sha256=${{ steps.image.outputs.sha256 }}
+
+      - name: Install cosign
+        if: steps.image.outputs.exists != 'true'
+        uses: sigstore/cosign-installer@v4
+
+      # Keyless: the Fulcio certificate names this workflow file and ref, which
+      # is exactly the identity CI Build pins (docker-pull-or-build). Signing
+      # by digest, not tag, so the signature covers the bytes that were pushed.
+      # cosign signs rather than actions/attest-build-provenance: buildx already
+      # supplies provenance, and the signature is what CI Build checks (#216).
+      - name: Sign image
+        if: steps.image.outputs.exists != 'true'
+        env:
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          cosign sign --yes "$IMAGE@$DIGEST"
 
   # Bumps docker/shared/refresh-stamp, which is part of every image's inputs
   # hash. Merging the refresh pushes to master under docker/**, so build-images

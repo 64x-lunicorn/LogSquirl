@@ -273,6 +273,17 @@ and never overwrites an existing hash tag. CI Build computes the same hash from 
 published yet) it builds the image locally under the same ref. So an open PR's toolchain changes only when
 its own `docker/` files do.
 
+Before pushing, the Docker Images workflow scans each image with Trivy (CRITICAL and HIGH, fixed upstream only) and
+uploads the result to code scanning under `trivy-image-<name>`; findings are reported there but do not fail the
+build. The pushed image carries buildx SBOM and provenance attestations and a keyless cosign signature. CI Build
+refuses a pulled image whose signature does not come from `ci-docker.yml` on master; to check one by hand:
+
+```sh
+cosign verify ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:<hash> \
+  --certificate-identity-regexp '^https://github\.com/64x-lunicorn/LogSquirl/\.github/workflows/ci-docker\.yml@refs/heads/master$' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
 Every `FROM` is pinned by digest (`image:tag@sha256:…`); Dependabot proposes digest bumps as pull requests.
 
 Images are published when files in `docker/` change on master. OS security patches arrive through a monthly
@@ -280,7 +291,7 @@ scheduled run that bumps `docker/shared/refresh-stamp` on the branch `ci/docker-
 linking to it; opening and merging that pull request gives every image a new hash and so a fresh build. Workflows
 may not open pull requests in this repository, so the maintainer opens it, and CI Build runs on it as usual. To
 propose a refresh by hand, run the **Docker Images** workflow via `workflow_dispatch` with *propose_refresh*;
-running it without that publishes any hash tag still missing.
+running it on master without that publishes any hash tag still missing.
 
 > **AppImage compatibility:** The AppImage is built on the Ubuntu 22.04 (jammy)
 > image on purpose. `linuxdeploy` bundles Qt and libssl but never bundles glibc

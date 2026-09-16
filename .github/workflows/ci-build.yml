@@ -156,7 +156,8 @@ jobs:
       # matrix.config.image carries no tag: the action tags it with the image
       # inputs hash and exports the ref as LOGSQUIRL_CONTAINER for every later
       # step, so the run is unaffected by what the Docker Images workflow pushes
-      # meanwhile (#215).
+      # meanwhile (#215). A pulled image must carry the Docker Images workflow's
+      # cosign signature or the job fails; the action installs cosign (#216).
       - uses: ./.github/actions/docker-pull-or-build
         with:
           image: ${{ matrix.config.image }}
