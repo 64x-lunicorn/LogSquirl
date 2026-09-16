@@ -25,12 +25,19 @@ cpmaddpackage(
   GITHUB_REPOSITORY simdutf/simdutf
   VERSION 5.6.2
   GIT_TAG 58c12ff5d84665e26e80547e5f0d72b29ba1c5d4 # v5.6.2
+  # The gh: shorthand this and the other expanded calls came from implied
+  # EXCLUDE_FROM_ALL and SYSTEM; without them their install rules (simdutf's
+  # tools) join the packages (#209).
+  EXCLUDE_FROM_ALL YES
+  SYSTEM YES
 )
 cpmaddpackage(
   NAME type_safe
   GITHUB_REPOSITORY foonathan/type_safe
   VERSION 0.2.4
   GIT_TAG 1dbea7936a1e389caa692d01bb3f5ba4b6da7d82 # v0.2.4
+  EXCLUDE_FROM_ALL YES
+  SYSTEM YES
 )
 cpmaddpackage(
   NAME CRoaring
@@ -44,6 +51,8 @@ cpmaddpackage(
   GITHUB_REPOSITORY lemire/streamvbyte
   VERSION 1.0.0
   GIT_TAG c43294a81501e0fdf14adc83818d47f7f9bc1bb6 # v1.0.0
+  EXCLUDE_FROM_ALL YES
+  SYSTEM YES
 )
 
 if(APPLE)
@@ -363,6 +372,8 @@ if(LOGSQUIRL_BUILD_TESTS)
     GITHUB_REPOSITORY bombela/backward-cpp
     VERSION 1.6
     GIT_TAG 3bb9240cb15459768adb3e7d963a20e1523a6294 # v1.6
+    EXCLUDE_FROM_ALL YES
+    SYSTEM YES
   )
   cpmaddpackage(
     NAME
