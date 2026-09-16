@@ -1,3 +1,6 @@
+# The release here must match the directory name, the GHCR image name and
+# CI Build's os_version/check_container, or the RPM is built on one Fedora and
+# install-checked on another (#198).
 FROM fedora:44
 
 RUN dnf update -y && \

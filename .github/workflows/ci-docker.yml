@@ -32,8 +32,8 @@ jobs:
             image_name: ubuntu-noble
           - container_root: docker/ubuntu22.04
             image_name: ubuntu-jammy
-          - container_root: docker/fedora43
-            image_name: fedora43
+          - container_root: docker/fedora44
+            image_name: fedora44
 
     steps:
       - uses: actions/checkout@v7

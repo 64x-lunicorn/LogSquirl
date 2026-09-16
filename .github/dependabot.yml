@@ -25,9 +25,16 @@ updates:
       - "dependencies"
 
   - package-ecosystem: "docker"
-    directory: "/docker/fedora43"
+    directory: "/docker/fedora44"
     schedule:
       interval: "weekly"
+    # A Fedora release bump is not a digest bump: the directory, the GHCR image
+    # name and CI Build's os_version/check_container all name the release, so a
+    # Dockerfile-only bump builds on one Fedora and install-checks on another
+    # (this is how fedora43 came to say FROM fedora:44). Move releases by hand (#198).
+    ignore:
+      - dependency-name: "fedora"
+        update-types: ["version-update:semver-major"]
     labels:
       - "ci"
       - "dependencies"

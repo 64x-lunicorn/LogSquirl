@@ -262,7 +262,7 @@ Linux builds use pre-built Docker images hosted on GHCR:
 | `ghcr.io/64x-lunicorn/logsquirl-oracle10` | Oracle Linux 10 | Qt 6, GCC, RPM |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy` | Ubuntu 22.04 | Qt 6, GCC 12, AppImage |
-| `ghcr.io/64x-lunicorn/logsquirl-fedora43` | Fedora 43 | Qt 6, GCC, RPM |
+| `ghcr.io/64x-lunicorn/logsquirl-fedora44` | Fedora 44 | Qt 6, GCC, RPM |
 
 Every image is built with `docker/` as its build context, so all four install sccache
 from the one script `docker/shared/install-sccache.sh`; bumping sccache is an edit to that file only.

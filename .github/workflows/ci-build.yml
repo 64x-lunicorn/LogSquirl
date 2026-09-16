@@ -131,15 +131,15 @@ jobs:
             cmake_opts:
 
           - os: fedora
-            os_version: 43
+            os_version: 44
             arch: x64
             check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
             cpack_gen: RPM
             artifacts_id: fedora
             package_suffix: rpm
-            check_container: fedora:43
-            container_root: docker/fedora43
-            container: ghcr.io/64x-lunicorn/logsquirl-fedora43:latest
+            check_container: fedora:44
+            container_root: docker/fedora44
+            container: ghcr.io/64x-lunicorn/logsquirl-fedora44:latest
             cmake_opts:
 
     runs-on: ubuntu-24.04
