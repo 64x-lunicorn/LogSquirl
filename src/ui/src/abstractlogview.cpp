@@ -360,6 +360,14 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
 {
     setViewport( nullptr );
 
+    // The Decoration Setup is the one place that builds what the Line
+    // Decorator needs. The settings that color Log Lines reach it through
+    // setDecorationPolicy(), which whoever builds this view calls before it
+    // is first painted and again whenever they change: this view derives no
+    // Policy of its own. The QuickFind pattern outlives this view and is not
+    // owned by the setup.
+    decorationSetup_.setQuickFindPattern( quickFindPattern_ );
+
     // Initialise char dimensions from the pixmap-based font metrics so that
     // updateScrollBars() computes sensible values even before the first
     // resizeEvent() (which calls updateDisplaySize()).
@@ -832,9 +840,9 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
 
     // Fast scroll: multiply scroll delta when Alt (Option on macOS) is held
     const bool isFastScroll = wheelEvent->modifiers().testFlag( Qt::AltModifier )
-                              && Configuration::get().fastScrollEnabled();
+                              && presentationPolicy_.fastScrollEnabled;
     if ( isFastScroll ) {
-        yDelta *= Configuration::get().fastScrollMultiplier();
+        yDelta *= presentationPolicy_.fastScrollMultiplier;
     }
 
     // LOG_DEBUG << "wheelEvent";
@@ -844,7 +852,7 @@ void AbstractLogView::wheelEvent( QWheelEvent* wheelEvent )
     if ( followMode_ )
         jumpToBottom();
 
-    const auto allowFollowOnScroll = Configuration::get().allowFollowOnScroll();
+    const auto allowFollowOnScroll = presentationPolicy_.allowFollowOnScroll;
     if ( scrollPosition_ == bottomScrollPosition() ) {
         if ( allowFollowOnScroll || yDelta > 0 ) {
             // First see if we need to block the elastic (on Mac)
@@ -1365,6 +1373,7 @@ void AbstractLogView::allowFollowMode( bool allow )
 void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern )
 {
     searchPattern_ = pattern;
+    decorationSetup_.setSearchPattern( pattern );
     forceRefresh();
 }
 
@@ -1372,7 +1381,24 @@ void AbstractLogView::setQuickHighlighters(
     const std::vector<QuickHighlighters>& quickHighlighters )
 {
     quickHighlighters_ = quickHighlighters;
+    // The colors are read here, with the words: a repaint builds no
+    // Highlighter, so a later change to them arrives by setting the words
+    // again.
+    decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
     forceRefresh();
+}
+
+void AbstractLogView::setDecorationPolicy( const DecorationPolicy& policy )
+{
+    decorationSetup_.setPolicy( policy );
+    forceRefresh();
+}
+
+void AbstractLogView::setPresentationPolicy( const PresentationPolicy& policy )
+{
+    // Nothing is repainted: what this Policy says reaches the view only when
+    // it is scrolled, and it is read from here each time.
+    presentationPolicy_ = policy;
 }
 
 void AbstractLogView::followSet( bool checked )
@@ -2247,13 +2273,15 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     const QPalette& palette = viewport()->palette();
     const HighlighterSet& highlighterSet = HighlighterSetCollection::get().currentActiveSet();
-    const auto& quickHighlighters = HighlighterSetCollection::get().quickHighlighters();
     QColor foreColor, backColor;
 
     static const QBrush normalBulletBrush = QBrush( Qt::white );
-    static const QBrush matchBulletBrush = QBrush( Qt::red );
-    static const QBrush markBrush = QBrush( "dodgerblue" );
-    static const QBrush markedMatchBrush = QBrush( "violet" );
+    // What a Log Line is -- Match, Mark, or both -- is shown in the colors
+    // defined once beside the Line Decorator, so the gutter bullets here and
+    // the Table View's row backgrounds cannot drift apart.
+    static const QBrush matchBulletBrush = QBrush( LineStatusColors::match() );
+    static const QBrush markBrush = QBrush( LineStatusColors::mark() );
+    static const QBrush markedMatchBrush = QBrush( LineStatusColors::markedMatch() );
 
     // Layout constants moved to anonymous namespace (see top of file).
 
@@ -2317,61 +2345,23 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         return index;
     }();
 
-    const auto highlightPatternMatches = Configuration::get().mainSearchHighlight();
-    const auto variateHighlightPatternMatches = Configuration::get().variateMainSearchHighlight();
-
-    std::optional<Highlighter> patternHighlight;
-    if ( highlightPatternMatches && !searchPattern_.isBoolean && !searchPattern_.isExclude
-         && !searchPattern_.pattern.isEmpty() ) {
-        const auto mainSearchBackColor = Configuration::get().mainSearchBackColor();
-        patternHighlight = Highlighter{};
-        patternHighlight->setHighlightOnlyMatch( true );
-        patternHighlight->setVariateColors( variateHighlightPatternMatches );
-        patternHighlight->setPattern( searchPattern_.pattern );
-        patternHighlight->setIgnoreCase( !searchPattern_.isCaseSensitive );
-        patternHighlight->setUseRegex( !searchPattern_.isPlainText );
-
-        patternHighlight->setBackColor( mainSearchBackColor );
-        patternHighlight->setForeColor( Qt::black );
-    }
-
-    logsquirl::vector<Highlighter> additionalHighlighters;
-    for ( auto i = 0u; i < quickHighlighters_.size(); ++i ) {
-        const auto quickHighlighterIndex = static_cast<int>( i );
-        if ( quickHighlighterIndex >= quickHighlighters.size() ) {
-            LOG_WARNING << "Not enough quickHighlighters configured";
-            break;
-        }
-
-        const auto quickHighlighter = quickHighlighters.at( quickHighlighterIndex );
-
-        std::transform( quickHighlighters_[ i ].begin(), quickHighlighters_[ i ].end(),
-                        std::back_inserter( additionalHighlighters ),
-                        [ quickHighlighter ]( const QString& word ) {
-                            Highlighter h{ word, false, true, quickHighlighter.color.foreColor,
-                                           quickHighlighter.color.backColor };
-                            h.setUseRegex( false );
-                            return h;
-                        } );
-    }
-
     // The Line Decorator owns the colour precedence rule (whole-line
     // Highlighter, main search, Color Labels, QuickFind); it is
     // constructed once per repaint with the stable context, not once per
-    // line. Every source it matches works against the raw line, so its
-    // Decoration is in raw-space too -- the loop below maps that Decoration
-    // to display columns once per line rather than once per match.
-    // Selection is the one source left out of its context: it comes from
-    // mouse/pixel positions against the already-rendered (tab-expanded)
-    // text, so it is display-space already and needs no translation.
-    const LineDecorator lineDecorator{ LineDecorator::Context{
-        highlighterSet,
-        patternHighlight,
-        additionalHighlighters,
-        quickFindPattern_->getMatcher(),
-        Configuration::get().qfBackColor(),
-        SearchLimits{ searchStartIndex, searchEndIndex - 1_lcount },
-    } };
+    // line. That context is built by the Decoration Setup, the one module
+    // that builds one for either Presentation -- painting reads no setting
+    // and builds no Highlighter itself. Only what the setup cannot know
+    // before the repaint is passed in: the active Highlighter Set, and the
+    // Search Limits in the line numbering this view displays.
+    //
+    // Every source it matches works against the raw line, so its Decoration
+    // is in raw-space too -- the loop below maps that Decoration to display
+    // columns once per line rather than once per match. Selection is the one
+    // source left out of its context: it comes from mouse/pixel positions
+    // against the already-rendered (tab-expanded) text, so it is
+    // display-space already and needs no translation.
+    const LineDecorator lineDecorator{ decorationSetup_.context(
+        highlighterSet, SearchLimits{ searchStartIndex, searchEndIndex - 1_lcount } ) };
 
     // A Line Verdict for a line that should show no Highlighter/main-search/
     // Color Label colour -- used for the reversed-selection line below,

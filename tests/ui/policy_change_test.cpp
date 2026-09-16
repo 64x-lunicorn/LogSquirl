@@ -25,8 +25,11 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
+#include "crawlerwidget.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
+#include "logformatcatalog.h"
+#include "session.h"
 
 // Settings arrive as a snapshot, so a changed setting needs an explicit
 // path back to whatever is already running (#95). A Log File is the end of
@@ -192,6 +195,56 @@ SCENARIO( "A changed Indexing Policy reaches a Log File that is already open",
             THEN( "the reindex ran under the new Policy and the file is complete" )
             {
                 REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A changed Watch Policy reaches the views of a Log File that is already open",
+          "[ui][settings]" )
+{
+    QTemporaryFile file{ "policy_change_watch_XXXXXX" };
+    REQUIRE( generateTestFile( file ) );
+
+    GIVEN( "a Log File opened while nothing is watched" )
+    {
+        auto policies = testSettingsPolicies();
+        policies.watch.nativeWatchEnabled = false;
+        policies.watch.pollingEnabled = false;
+
+        Session session{ policies, std::make_shared<LogFormatCatalog>() };
+        // Destroyed before the Session it was opened from: it is declared
+        // after it, so it goes first.
+        std::unique_ptr<CrawlerWidget> crawler{ static_cast<CrawlerWidget*>(
+            session.open( file.fileName(), [] { return new CrawlerWidget(); } ) ) };
+
+        THEN( "its views were built knowing that following is not possible" )
+        {
+            REQUIRE_FALSE( crawler->watchPolicy().anyWatchEnabled() );
+        }
+
+        WHEN( "a Watch Policy that polls arrives" )
+        {
+            auto changed = policies;
+            changed.watch.pollingEnabled = true;
+            session.applyPolicies( changed );
+
+            THEN( "the open Log File holds it, without having been opened again" )
+            {
+                REQUIRE( crawler->watchPolicy().anyWatchEnabled() );
+                REQUIRE( crawler->watchPolicy().pollingEnabled );
+            }
+        }
+
+        WHEN( "a Policy that changes some other axis arrives" )
+        {
+            auto changed = policies;
+            changed.search.contextLinesCount = 3;
+            session.applyPolicies( changed );
+
+            THEN( "the Watch Policy it holds is left exactly as it was" )
+            {
+                REQUIRE_FALSE( crawler->watchPolicy().anyWatchEnabled() );
             }
         }
     }

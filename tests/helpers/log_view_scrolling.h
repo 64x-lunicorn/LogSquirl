@@ -22,16 +22,12 @@
 
 // Scrolling a text view by Visual Lines, its bottom, re-wrapping it and jumping
 // in it, checked the same way for the main view and the Filtered View (#153,
-// #154, #155).
+// #154, #155). The Log Files these run on are in log_view_log_files.h.
 //
-// The view is shown one column wide, so every character of a Log Line is one
-// Visual Line whatever font the platform picks, and every expected Scroll
-// Position follows from the text alone.
-//
-// What is on a row of the Viewport is found by double-clicking it: the word
-// under the click gets selected. A Log Line that ends in "x z" has a space as
-// the Visual Line above its last one, so a word on the last row is exact to
-// the row whatever the font.
+// Input is simulated: the wheel, the keys, the mouse and the scrollbar all go
+// through the widget. What sits on a row of the Viewport is then asked of the
+// view's own Viewport layout, the one its hit testing and its painting read.
+// Nothing here re-derives where a Log Line is drawn.
 
 #include <catch2/catch.hpp>
 
@@ -44,80 +40,15 @@
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QSignalSpy>
-#include <QStringList>
 #include <QWheelEvent>
 
 #include "abstractlogview.h"
+#include "log_view_log_files.h"
 #include "quickfindpattern.h"
+#include "test_policies.h"
 #include "viewportlayout.h"
 
 namespace logviewscrolling {
-
-// A Log Line of TallLineVisualLines characters, between Log Lines of one.
-constexpr uint64_t LinesBeforeTallLine = 10;
-constexpr uint64_t TallLineVisualLines = 300;
-constexpr uint64_t LinesAfterTallLine = 100;
-inline const LineNumber TallLine{ LinesBeforeTallLine };
-
-// The word the Log Files below end in.
-inline const QString LastWord = QStringLiteral( "z" );
-
-// Log Lines of one Visual Line after the tall one, the last of them LastWord.
-inline QStringList tallLogLines()
-{
-    QStringList lines;
-    for ( uint64_t i = 0; i < LinesBeforeTallLine; ++i ) {
-        lines << QStringLiteral( "a" );
-    }
-    lines << QString( static_cast<qsizetype>( TallLineVisualLines ), QLatin1Char( 'x' ) );
-    for ( uint64_t i = 1; i < LinesAfterTallLine; ++i ) {
-        lines << QStringLiteral( "b" );
-    }
-    lines << LastWord;
-    return lines;
-}
-
-// A Log Line of 301 Visual Lines, far taller than the Viewport: "x x ... x"
-// ending in lastWord.
-inline QString tallLineEndingIn( const QString& lastWord )
-{
-    return QStringLiteral( "x " ).repeated( 150 ) + lastWord;
-}
-
-// A Log File whose last Log Line is taller than the Viewport.
-inline QStringList tallLastLogLines()
-{
-    QStringList lines;
-    for ( uint64_t i = 0; i < LinesBeforeTallLine; ++i ) {
-        lines << QStringLiteral( "a" );
-    }
-    lines << tallLineEndingIn( LastWord );
-    return lines;
-}
-
-// Fewer Log Lines than the Viewport has rows, one of them taller than the Viewport.
-inline QStringList fewLogLinesOneTallerThanTheViewport()
-{
-    return QStringList{ QStringLiteral( "a" ), tallLineEndingIn( QStringLiteral( "y" ) ),
-                        LastWord };
-}
-
-// Four Visual Lines: fewer than any Viewport 200 px high has rows.
-inline QStringList fewerVisualLinesThanRows()
-{
-    return QStringList{ QStringLiteral( "a" ), QStringLiteral( "bb" ), LastWord };
-}
-
-// How many Visual Lines of tallLogLines() are above position.
-inline uint64_t visualLinesAbove( ScrollPosition position )
-{
-    const auto line = position.lineNumber.get();
-    if ( line <= LinesBeforeTallLine ) {
-        return line + position.visualLineIndex;
-    }
-    return LinesBeforeTallLine + TallLineVisualLines + ( line - LinesBeforeTallLine - 1 )
-           + position.visualLineIndex;
-}
 
 // Shows view with text wrapping in a Viewport one column wide, and lower than
 // the tall Log Line: the margins plus seven pixels, too few for two columns of
@@ -130,20 +61,83 @@ inline void showOneColumnWide( AbstractLogView& view )
     view.resize( ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth + 7, 200 );
     view.show();
     QCoreApplication::processEvents();
+
+    // What the application hands a view it builds, so that scrolling here
+    // behaves as it does there. A view reads no setting of its own.
+    view.setPresentationPolicy( testSettingsPolicies().presentation );
+
     view.updateData();
+}
+
+// The Viewport's top row.
+constexpr int TopRowY = 1;
+
+// The Viewport's last row.
+inline int lastRowY( const AbstractLogView& view )
+{
+    return view.viewport()->height() - 1;
 }
 
 // A point on the text of the top row.
 inline QPointF topRowText()
 {
-    return QPointF{ ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth + 2, 1 };
+    return QPointF{ ViewportLayout::BulletAreaWidth + 2 * ViewportLayout::SeparatorWidth + 2,
+                    TopRowY };
 }
 
-inline void turnWheel( AbstractLogView& view, int angleDeltaY )
+// --- what the view says sits where ----------------------------------------
+
+// The Visual Line the view draws on the Viewport row at yPos, as its own
+// Viewport layout places it. Every row asked about below shows text.
+inline VisualLine visualLineAtRow( const AbstractLogView& view, int yPos )
+{
+    const auto layout = view.viewportLayout();
+    const auto onRow = layout.visualLineAtPoint( yPos );
+    REQUIRE( onRow.has_value() );
+    return layout.visualLines()[ *onRow ];
+}
+
+// The display column of its Log Line the Viewport's top row starts at.
+inline LineColumn topRowColumn( const AbstractLogView& view )
+{
+    return visualLineAtRow( view, TopRowY ).firstColumn;
+}
+
+// Requires that the Viewport row at yPos holds display column column: the
+// character that was there is still on that row, wherever along it a re-wrap
+// has moved it.
+inline void requireRowHoldsColumn( const AbstractLogView& view, int yPos, LineColumn column )
+{
+    const auto row = visualLineAtRow( view, yPos );
+    INFO( "row " << yPos << " holds columns " << row.firstColumn.get() << " up to "
+                 << ( row.firstColumn + row.length ).get() << ", looking for " << column.get() );
+    REQUIRE( row.firstColumn <= column );
+    REQUIRE( column < row.firstColumn + row.length );
+}
+
+// Requires that the Viewport row at yPos shows the end of the Log File: the
+// Visual Line holding the last character of its last Log Line.
+//
+// logLines is what the Log File holds now. The Viewport layout cannot know it:
+// it is bounded by the Viewport and counts no Visual Lines per Log File
+// (docs/adr/0001), so the Log File itself is asked.
+inline void requireLogFileEndsOnRow( const AbstractLogView& view, int yPos, LinesCount logLines )
+{
+    const auto row = visualLineAtRow( view, yPos );
+    REQUIRE( row.lineNumber == LineNumber( logLines.get() - 1 ) );
+    REQUIRE( row.firstColumn + row.length == LineColumn( row.lineLength.get() ) );
+}
+
+// --- simulated input ------------------------------------------------------
+
+// Turns the wheel one notch of angleDeltaY over the top row. modifiers are the
+// keys held while turning it -- the fast scroll modifier among them.
+inline void turnWheel( AbstractLogView& view, int angleDeltaY,
+                       Qt::KeyboardModifiers modifiers = Qt::NoModifier )
 {
     const auto inside = topRowText();
     QWheelEvent wheel( inside, view.viewport()->mapToGlobal( inside ), QPoint{},
-                       QPoint{ 0, angleDeltaY }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase,
+                       QPoint{ 0, angleDeltaY }, Qt::NoButton, modifiers, Qt::NoScrollPhase,
                        false );
     QCoreApplication::sendEvent( view.viewport(), &wheel );
 }
@@ -152,6 +146,14 @@ inline void pressKey( AbstractLogView& view, Qt::Key key )
 {
     QKeyEvent press( QEvent::KeyPress, key, Qt::NoModifier );
     QCoreApplication::sendEvent( &view, &press );
+}
+
+// The same key pressed times over.
+inline void pressKey( AbstractLogView& view, Qt::Key key, int times )
+{
+    for ( int step = 0; step < times; ++step ) {
+        pressKey( view, key );
+    }
 }
 
 inline void doubleClickTopRow( AbstractLogView& view )
@@ -169,10 +171,16 @@ inline void moveTo( AbstractLogView& view, ScrollPosition position )
     const auto line = static_cast<int>( position.lineNumber.get() );
     view.verticalScrollBar()->setValue( line == 0 ? 1 : 0 );
     view.verticalScrollBar()->setValue( line );
-    for ( size_t step = 0; step < position.visualLineIndex; ++step ) {
-        pressKey( view, Qt::Key_Down );
-    }
+    pressKey( view, Qt::Key_Down, static_cast<int>( position.visualLineIndex ) );
     REQUIRE( view.scrollPosition() == position );
+}
+
+// Drags the thumb to the top, then all the way down.
+inline void dragToScrollbarMaximum( AbstractLogView& view )
+{
+    auto* scrollBar = view.verticalScrollBar();
+    scrollBar->setSliderPosition( 0 );
+    scrollBar->setSliderPosition( scrollBar->maximum() );
 }
 
 // Three Visual Lines per notch of the wheel for as long as this lives,
@@ -198,6 +206,20 @@ private:
     int previous_;
 };
 
+// --- scrolling by Visual Lines (#153) -------------------------------------
+
+// Requires that the notch just turned, from before to after, moved the view as
+// far as its own Visual Lines of arrow key: back over it, and forward again.
+// The yardstick is the view's single-Visual-Line step, not arithmetic of ours.
+inline void requireNotchMatchesArrowKeys( AbstractLogView& view, ScrollPosition before,
+                                          ScrollPosition after, Qt::Key back, Qt::Key forward )
+{
+    pressKey( view, back, PinnedWheelScrollLines::Lines );
+    REQUIRE( view.scrollPosition() == before );
+    pressKey( view, forward, PinnedWheelScrollLines::Lines );
+    REQUIRE( view.scrollPosition() == after );
+}
+
 inline void requireWheelStepsMoveTheSameVisualLinesEverywhere( AbstractLogView& view )
 {
     const PinnedWheelScrollLines pinned;
@@ -210,8 +232,7 @@ inline void requireWheelStepsMoveTheSameVisualLinesEverywhere( AbstractLogView& 
         const auto after = view.scrollPosition();
         INFO( "down from " << before.lineNumber.get() << ":" << before.visualLineIndex << " to "
                            << after.lineNumber.get() << ":" << after.visualLineIndex );
-        REQUIRE( visualLinesAbove( after )
-                 == visualLinesAbove( before ) + PinnedWheelScrollLines::Lines );
+        requireNotchMatchesArrowKeys( view, before, after, Qt::Key_Up, Qt::Key_Down );
         reachedLastVisualLineOfTallLine
             = reachedLastVisualLineOfTallLine
               || after == ScrollPosition{ TallLine, TallLineVisualLines - 1 };
@@ -224,8 +245,7 @@ inline void requireWheelStepsMoveTheSameVisualLinesEverywhere( AbstractLogView& 
         const auto after = view.scrollPosition();
         INFO( "up from " << before.lineNumber.get() << ":" << before.visualLineIndex << " to "
                          << after.lineNumber.get() << ":" << after.visualLineIndex );
-        REQUIRE( visualLinesAbove( after ) + PinnedWheelScrollLines::Lines
-                 == visualLinesAbove( before ) );
+        requireNotchMatchesArrowKeys( view, before, after, Qt::Key_Down, Qt::Key_Up );
     }
 }
 
@@ -294,46 +314,8 @@ inline void requireWrapToggleKeepsTheLogLineAtTheTop( AbstractLogView& view )
 
 // --- the bottom (#154) ----------------------------------------------------
 
-// The word on the Viewport row at y, as double-clicking it selects it. When
-// there is no word there -- a space, or no Visual Line at all -- the whole Log
-// File stays selected instead.
-inline QString wordAt( AbstractLogView& view, int x, int y )
-{
-    view.selectAll();
-    const QPointF onText{ static_cast<qreal>( x ), static_cast<qreal>( y ) };
-    QMouseEvent click( QEvent::MouseButtonDblClick, onText, view.viewport()->mapToGlobal( onText ),
-                       Qt::LeftButton, Qt::LeftButton, Qt::NoModifier );
-    QCoreApplication::sendEvent( view.viewport(), &click );
-    return view.getSelectedText();
-}
-
-// The word at the start of the Viewport row at y.
-inline QString wordAtRow( AbstractLogView& view, int y )
-{
-    return wordAt( view, static_cast<int>( topRowText().x() ), y );
-}
-
-inline QString wordOnLastRow( AbstractLogView& view )
-{
-    return wordAtRow( view, view.viewport()->height() - 1 );
-}
-
-// The row right above the bar follow mode hooks at the bottom of the Viewport.
-inline QString wordAbovePullToFollowBar( AbstractLogView& view )
-{
-    return wordAtRow( view,
-                      view.viewport()->height() - 1 - ViewportLayout::PullToFollowHookedHeight );
-}
-
-// Drags the thumb to the top, then all the way down.
-inline void dragToScrollbarMaximum( AbstractLogView& view )
-{
-    auto* scrollBar = view.verticalScrollBar();
-    scrollBar->setSliderPosition( 0 );
-    scrollBar->setSliderPosition( scrollBar->maximum() );
-}
-
-inline void requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( AbstractLogView& view )
+inline void requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( AbstractLogView& view,
+                                                                       LinesCount logLines )
 {
     auto* scrollBar = view.verticalScrollBar();
     REQUIRE( scrollBar->maximum() > 0 );
@@ -344,10 +326,10 @@ inline void requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( AbstractL
     // last Visual Line of the Log File.
     REQUIRE( view.scrollPosition().lineNumber.get()
              == static_cast<uint64_t>( scrollBar->maximum() ) );
-    REQUIRE( wordOnLastRow( view ) == LastWord );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
 }
 
-inline void requireScrollingStopsAtTheBottom( AbstractLogView& view )
+inline void requireScrollingStopsAtTheBottom( AbstractLogView& view, LinesCount logLines )
 {
     const PinnedWheelScrollLines pinned;
     dragToScrollbarMaximum( view );
@@ -357,13 +339,14 @@ inline void requireScrollingStopsAtTheBottom( AbstractLogView& view )
     REQUIRE( view.scrollPosition() == bottom );
     pressKey( view, Qt::Key_PageDown );
     REQUIRE( view.scrollPosition() == bottom );
-    REQUIRE( wordOnLastRow( view ) == LastWord );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
 
     turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
     REQUIRE( view.scrollPosition() == bottom );
 }
 
-inline void requireScrollingDownFromTheTopReachesTheBottom( AbstractLogView& view )
+inline void requireScrollingDownFromTheTopReachesTheBottom( AbstractLogView& view,
+                                                            LinesCount logLines )
 {
     const PinnedWheelScrollLines pinned;
 
@@ -376,7 +359,7 @@ inline void requireScrollingDownFromTheTopReachesTheBottom( AbstractLogView& vie
         }
     }
     const auto reachedByPages = view.scrollPosition();
-    REQUIRE( wordOnLastRow( view ) == LastWord );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
 
     moveTo( view, ScrollPosition{} );
     for ( int notch = 0; notch < 1000 && view.scrollPosition() != reachedByPages; ++notch ) {
@@ -389,7 +372,8 @@ inline void requireScrollingDownFromTheTopReachesTheBottom( AbstractLogView& vie
 }
 
 // The view, one column wide and showing tallLastLogLines().
-inline void requireScrollbarMovedToItsMaximumLandsAtTheBottom( AbstractLogView& view )
+inline void requireScrollbarMovedToItsMaximumLandsAtTheBottom( AbstractLogView& view,
+                                                               LinesCount logLines )
 {
     auto* scrollBar = view.verticalScrollBar();
     dragToScrollbarMaximum( view );
@@ -408,7 +392,7 @@ inline void requireScrollbarMovedToItsMaximumLandsAtTheBottom( AbstractLogView& 
     moveUpToFifthVisualLine();
     scrollBar->triggerAction( QAbstractSlider::SliderToMaximum );
     REQUIRE( view.scrollPosition() == bottom );
-    REQUIRE( wordOnLastRow( view ) == LastWord );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
 
     // The thumb pressed, dragged down to where it already is, and released.
     moveUpToFifthVisualLine();
@@ -433,49 +417,52 @@ inline void requireFewerVisualLinesThanRowsShowFromTheTop( AbstractLogView& view
     pressKey( view, Qt::Key_PageDown );
     turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
     REQUIRE( view.scrollPosition() == ScrollPosition{} );
-    REQUIRE( wordAtRow( view, 1 ) == QStringLiteral( "a" ) );
+
+    const auto topRow = visualLineAtRow( view, TopRowY );
+    REQUIRE( topRow.lineNumber == 0_lnum );
+    REQUIRE( topRow.wrappedLineIndex == 0 );
 }
 
-// grow adds to the Log Lines the view shows, ending them in newLastWord, and
-// tells the view.
+// Adds to the Log Lines the view shows and tells the view, returning what the
+// Log File holds afterwards.
+using GrowLogFile = std::function<LinesCount()>;
+
 inline void requireFollowKeepsTheLastVisualLineOnTheLastRow( AbstractLogView& view,
-                                                             const std::function<void()>& grow,
-                                                             const QString& newLastWord )
+                                                             const GrowLogFile& grow )
 {
     view.followSet( true );
-    grow();
+    const auto logLines = grow();
     const auto followed = view.scrollPosition();
 
     // Follow mode hooks the pull-to-follow bar under the last Visual Line.
-    REQUIRE( wordAbovePullToFollowBar( view ) == newLastWord );
+    requireLogFileEndsOnRow( view, lastRowY( view ) - ViewportLayout::PullToFollowHookedHeight,
+                             logLines );
 
     // Where it follows to is the bottom Scroll Position.
     view.followSet( false );
     dragToScrollbarMaximum( view );
     REQUIRE( view.scrollPosition() == followed );
-    REQUIRE( wordOnLastRow( view ) == newLastWord );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
 }
 
-// grow adds Log Lines below the last one the view shows, and tells the view.
 inline void requireGrowthWithoutFollowLeavesTheBottomView( AbstractLogView& view,
-                                                           const std::function<void()>& grow )
+                                                           const GrowLogFile& grow )
 {
     dragToScrollbarMaximum( view );
     const auto before = view.scrollPosition();
-    const auto lastWordBefore = wordOnLastRow( view );
+    const auto lastRowBefore = visualLineAtRow( view, lastRowY( view ) );
 
     grow();
 
     REQUIRE( view.scrollPosition() == before );
-    REQUIRE( wordOnLastRow( view ) == lastWordBefore );
+    REQUIRE( visualLineAtRow( view, lastRowY( view ) ) == lastRowBefore );
     REQUIRE( view.verticalScrollBar()->maximum() > static_cast<int>( before.lineNumber.get() ) );
 }
 
 // --- re-wrapping and jumps (#155) ------------------------------------------
 
 // How many pixels wider than one column showWide() makes the text: at least
-// six columns of any font up to 33 pixels wide, so no numbered word below is
-// ever split.
+// six columns of any font up to 33 pixels wide.
 constexpr int WideTextPx = 200;
 
 inline void resizeText( AbstractLogView& view, int extraWidthPx )
@@ -498,102 +485,59 @@ inline void showNarrow( AbstractLogView& view )
     resizeText( view, 0 );
 }
 
-// The word numbered n: five digits.
-inline QString numberedWord( int n )
-{
-    return QStringLiteral( "%1" ).arg( n, 5, 10, QLatin1Char( '0' ) );
-}
-
-constexpr int WordLength = 6;
-constexpr int NumberedWords = 400;
-inline const LineNumber WordsLine{ LinesBeforeTallLine };
-
-// Log Lines of one Visual Line around a Log Line of NumberedWords words, each
-// with the space after it WordLength characters.
-inline QStringList numberedWordsLogLines()
-{
-    QStringList lines;
-    for ( uint64_t i = 0; i < LinesBeforeTallLine; ++i ) {
-        lines << QStringLiteral( "a" );
-    }
-    QString words;
-    for ( int word = 0; word < NumberedWords; ++word ) {
-        words += numberedWord( word ) + QLatin1Char( ' ' );
-    }
-    lines << words;
-    for ( uint64_t i = 1; i < LinesAfterTallLine; ++i ) {
-        lines << QStringLiteral( "b" );
-    }
-    lines << LastWord;
-    return lines;
-}
-
-// Every word on the Viewport row at y, left to right.
-inline QStringList wordsOnRow( AbstractLogView& view, int y )
-{
-    QStringList words;
-    for ( int x = static_cast<int>( topRowText().x() ); x < view.viewport()->width(); ++x ) {
-        const auto word = wordAt( view, x, y );
-        if ( !word.contains( QChar::LineFeed ) && ( words.isEmpty() || words.last() != word ) ) {
-            words << word;
-        }
-    }
-    return words;
-}
-
-// The view, WideTextPx wider than one column and showing numberedWordsLogLines(),
-// partway through the Log Line of words; rewrap changes how many columns its
-// text has.
+// The view, WideTextPx wider than one column and showing tallLogLines(),
+// partway through the Log Line taller than the Viewport; rewrap changes how
+// many columns its text has.
 inline void requireRewrapKeepsTheTopRowText( AbstractLogView& view,
                                              const std::function<void()>& rewrap )
 {
-    moveTo( view, ScrollPosition{ WordsLine, 5 } );
-    const auto topWord = wordAt( view, static_cast<int>( topRowText().x() ), 1 );
-    REQUIRE( topWord.size() == WordLength - 1 );
+    moveTo( view, ScrollPosition{ TallLine, 5 } );
+    const auto topColumn = topRowColumn( view );
+    REQUIRE( topColumn > 0_lcol );
 
     rewrap();
 
-    REQUIRE( view.scrollPosition().lineNumber == WordsLine );
+    REQUIRE( view.scrollPosition().lineNumber == TallLine );
     REQUIRE( view.scrollPosition().visualLineIndex > 0 );
-    REQUIRE( wordsOnRow( view, 1 ).contains( topWord ) );
+    requireRowHoldsColumn( view, TopRowY, topColumn );
 }
 
-// The view, one column wide and showing numberedWordsLogLines().
+// The view, one column wide and showing tallLogLines().
 inline void requireResizingKeepsTheTopRowText( AbstractLogView& view )
 {
-    // Inside word 37, on its third digit.
-    moveTo( view, ScrollPosition{ WordsLine, 37 * WordLength + 2 } );
-    REQUIRE( wordAtRow( view, 1 ) == numberedWord( 37 ) );
+    // Partway down the Log Line taller than the Viewport. One column wide, a
+    // Visual Line is exactly one display column.
+    constexpr size_t PartwayDown = 224;
+    const LineColumn partway{ static_cast<LineColumn::UnderlyingType>( PartwayDown ) };
+    moveTo( view, ScrollPosition{ TallLine, PartwayDown } );
+    REQUIRE( topRowColumn( view ) == partway );
 
     showWide( view );
-    REQUIRE( view.scrollPosition().lineNumber == WordsLine );
+    REQUIRE( view.scrollPosition().lineNumber == TallLine );
     REQUIRE( view.scrollPosition().visualLineIndex > 0 );
-    const auto wideTopRow = wordsOnRow( view, 1 );
-    REQUIRE( wideTopRow.contains( numberedWord( 37 ) ) );
+    requireRowHoldsColumn( view, TopRowY, partway );
+    const auto wideTopColumn = topRowColumn( view );
 
     // Narrowed again, the top row holds the first character of the wide one.
     showNarrow( view );
     REQUIRE( view.scrollPosition()
-             == ScrollPosition{ WordsLine,
-                                static_cast<size_t>( wideTopRow.first().toInt() * WordLength ) } );
-    REQUIRE( wordAtRow( view, 1 ) == wideTopRow.first() );
+             == ScrollPosition{ TallLine, static_cast<size_t>( wideTopColumn.get() ) } );
+    REQUIRE( topRowColumn( view ) == wideTopColumn );
 }
 
 // The view, one column wide and showing tallLastLogLines().
-inline void requireResizingKeepsTheViewAtTheBottom( AbstractLogView& view )
+inline void requireResizingKeepsTheViewAtTheBottom( AbstractLogView& view, LinesCount logLines )
 {
-    const auto lastRow = [ &view ]() { return view.viewport()->height() - 1; };
-
     showWide( view );
     dragToScrollbarMaximum( view );
-    REQUIRE( wordsOnRow( view, lastRow() ).contains( LastWord ) );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
 
     showNarrow( view );
-    REQUIRE( wordOnLastRow( view ) == LastWord );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
     REQUIRE( view.verticalScrollBar()->value() == view.verticalScrollBar()->maximum() );
 
     showWide( view );
-    REQUIRE( wordsOnRow( view, lastRow() ).contains( LastWord ) );
+    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
     REQUIRE( view.verticalScrollBar()->value() == view.verticalScrollBar()->maximum() );
 }
 
@@ -629,19 +573,6 @@ inline void requireJumpOffScreenPutsTheFirstVisualLineOnTheTopRow( AbstractLogVi
     REQUIRE( view.scrollPosition() == bottom );
 }
 
-inline const QString FoundText = QStringLiteral( "found" );
-constexpr size_t FoundVisualLine = 39;
-
-// tallLogLines(), with FoundText starting at the 40th character of the tall Log Line.
-inline QStringList quickFindLogLines()
-{
-    auto lines = tallLogLines();
-    lines[ static_cast<qsizetype>( TallLine.get() ) ]
-        = QString( static_cast<qsizetype>( FoundVisualLine ), QLatin1Char( 'x' ) ) + FoundText
-          + QString( 256, QLatin1Char( 'x' ) );
-    return lines;
-}
-
 // Searches forward for FoundText with QuickFind, and waits for its result.
 inline void quickFindFoundText( AbstractLogView& view, QuickFindPattern& quickFindPattern )
 {
@@ -659,9 +590,10 @@ requireQuickFindPutsTheVisualLineOfTheFoundTextOnTheTopRow( AbstractLogView& vie
     moveTo( view, ScrollPosition{} );
     quickFindFoundText( view, quickFindPattern );
     REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine, FoundVisualLine } );
-    REQUIRE( wordAtRow( view, 1 )
-             == QString( static_cast<qsizetype>( FoundVisualLine ), QLatin1Char( 'x' ) ) + FoundText
-                    + QString( 256, QLatin1Char( 'x' ) ) );
+
+    const auto topRow = visualLineAtRow( view, TopRowY );
+    REQUIRE( topRow.lineNumber == TallLine );
+    REQUIRE( topRow.wrappedLineIndex == FoundVisualLine );
 }
 
 // The view, one column wide and showing quickFindLogLines().

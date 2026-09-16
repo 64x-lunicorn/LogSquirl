@@ -99,8 +99,10 @@ const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
 // Implementation of the view context for the CrawlerWidget
 class CrawlerWidgetContext : public ViewContextInterface {
 public:
-    // Construct from the stored string representation
-    explicit CrawlerWidgetContext( const QString& string );
+    // Construct from the stored string representation. A context stored
+    // before the Search line's regexp type was part of one falls back to what
+    // the QuickFind Policy says, which is why one is taken here.
+    CrawlerWidgetContext( const QString& string, const QuickFindPolicy& quickFindPolicy );
     // Construct from the value passsed
     CrawlerWidgetContext( QList<int> sizes, bool ignoreCase, bool autoRefresh, bool followFile,
                           bool useRegexp, bool inverseRegexp, bool useBooleanCombination,
@@ -169,8 +171,10 @@ public:
     }
 
 private:
-    void loadFromString( const QString& string );
-    void loadFromJson( const QString& json );
+    // useRegexpByPolicy: what the QuickFind Policy says the Search line reads
+    // its pattern as, used when the stored context does not say.
+    void loadFromString( const QString& string, bool useRegexpByPolicy );
+    void loadFromJson( const QString& json, bool useRegexpByPolicy );
 
 private:
     QList<int> sizes_;
@@ -356,6 +360,75 @@ void CrawlerWidget::doSetRecognitionPolicy( const RecognitionPolicy& policy )
     recognitionPolicy_ = policy;
 }
 
+void CrawlerWidget::doSetPresentationPolicy( const PresentationPolicy& policy )
+{
+    presentationPolicy_ = policy;
+
+    // Before setup() there are no views yet; each is handed the Policy as it
+    // is built. Afterwards a changed Policy reaches every text view of this
+    // Log File, the Filtered Views of kept Searches included, so that it takes
+    // effect without the Log File being opened again.
+    if ( logMainView_ == nullptr ) {
+        return;
+    }
+
+    logMainView_->setPresentationPolicy( policy );
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->setPresentationPolicy( policy );
+        }
+    }
+}
+
+void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
+{
+    quickFindPolicy_ = policy;
+
+    if ( logTableView_ != nullptr ) {
+        logTableView_->setQuickFindPolicy( policy );
+    }
+
+    // The QuickFind bar and the mux that dispatches to this Log File belong to
+    // the window, which holds no Policy of its own: this is how a changed
+    // Policy reaches a QuickFind already on screen.
+    Q_EMIT quickFindPolicyChanged( policy );
+}
+
+void CrawlerWidget::doSetWatchPolicy( const WatchPolicy& policy )
+{
+    watchPolicy_ = policy;
+
+    // Before setup() there are no views yet; setup() hands them the allowance
+    // once they exist. Afterwards a changed Policy takes following away from
+    // every view of this Log File, or gives it back, without the Log File
+    // being opened again.
+    if ( logMainView_ == nullptr ) {
+        return;
+    }
+
+    handFollowAllowanceToViews();
+}
+
+void CrawlerWidget::doSetFileAccessPolicy( const FileAccessPolicy& policy )
+{
+    fileAccessPolicy_ = policy;
+}
+
+const PresentationPolicy& CrawlerWidget::presentationPolicy() const
+{
+    return presentationPolicy_;
+}
+
+const QuickFindPolicy& CrawlerWidget::quickFindPolicy() const
+{
+    return quickFindPolicy_;
+}
+
+const WatchPolicy& CrawlerWidget::watchPolicy() const
+{
+    return watchPolicy_;
+}
+
 void CrawlerWidget::doSetSavedSearches( SavedSearches* saved_searches )
 {
     savedSearches_ = saved_searches;
@@ -369,7 +442,7 @@ void CrawlerWidget::doSetViewContext( const QString& view_context )
 {
     LOG_DEBUG << "CrawlerWidget::doSetViewContext: " << view_context.toLocal8Bit().data();
 
-    const auto context = CrawlerWidgetContext{ view_context };
+    const auto context = CrawlerWidgetContext{ view_context, quickFindPolicy_ };
 
     setSizes( context.sizes() );
     matchCaseButton_->setChecked( !context.ignoreCase() );
@@ -381,8 +454,7 @@ void CrawlerWidget::doSetViewContext( const QString& view_context )
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( context.autoRefresh() );
 
-    const auto& config = Configuration::get();
-    logMainView_->followSet( context.followFile() && config.anyFileWatchEnabled() );
+    logMainView_->followSet( context.followFile() && watchPolicy_.anyWatchEnabled() );
 
     const auto savedMarks = context.marks();
     std::transform( savedMarks.cbegin(), savedMarks.cend(), std::back_inserter( savedMarkedLines_ ),
@@ -434,7 +506,8 @@ void CrawlerWidget::startNewSearch()
         // The setting is the starting state for a new view; the views that
         // already exist follow the View menu instead.
         filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                          Configuration::get().useTextWrap() );
+                                          presentationPolicy_.useTextWrap );
+        filteredView_->setPresentationPolicy( presentationPolicy_ );
         filteredViewsData_[ filteredView_ ] = logFilteredData_;
 
         connectAllFilteredViewSlots( filteredView_ );
@@ -742,6 +815,18 @@ void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& 
     markLinesFromMain( linesInMain );
 }
 
+void CrawlerWidget::handFollowAllowanceToViews()
+{
+    const auto isFollowModeAllowed = watchPolicy_.anyWatchEnabled();
+
+    logMainView_->allowFollowMode( isFollowModeAllowed );
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->allowFollowMode( isFollowModeAllowed );
+        }
+    }
+}
+
 void CrawlerWidget::applyConfiguration()
 {
     const auto& config = Configuration::get();
@@ -751,7 +836,10 @@ void CrawlerWidget::applyConfiguration()
 
     // Deliberately not here: file watching, Context Lines and hiding ANSI
     // color sequences. They are driven by Settings Policies, re-derived and
-    // handed down per axis when a setting actually changes (#95, #107). A
+    // handed down per axis when a setting actually changes (#95, #107). The
+    // follow allowance below is no exception: it is re-handed from the Watch
+    // Policy this widget already holds, never read from the settings, so that
+    // a Filtered View added since is given the same answer as the rest. A
     // Highlighter Set change does not come here either, but goes to
     // applyHighlighterSetChange().
 
@@ -770,8 +858,7 @@ void CrawlerWidget::applyConfiguration()
 
     logMainView_->setLineNumbersVisible( config.mainLineNumbersVisible() );
 
-    const auto isFollowModeAllowed = config.anyFileWatchEnabled();
-    logMainView_->allowFollowMode( isFollowModeAllowed );
+    handFollowAllowanceToViews();
     overview_.setVisible( config.isOverviewVisible() );
     logMainView_->refreshOverview();
     for ( auto* presentation : presentations() ) {
@@ -784,7 +871,6 @@ void CrawlerWidget::applyConfiguration()
     for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
         auto fv = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) );
         fv->setLineNumbersVisible( config.filteredLineNumbersVisible() );
-        fv->allowFollowMode( isFollowModeAllowed );
         fv->updateFont( font );
     }
 
@@ -795,14 +881,34 @@ void CrawlerWidget::applyConfiguration()
         changeDataStatus( DataStatus::OLD_DATA );
     }
 
-    // Let the table view pick up a Configuration change (e.g. toggling
-    // main-search highlighting) without needing a new search
-    logTableView_->refreshMainSearchHighlighter();
+    // Hand every Presentation the settings that color Log Lines again: none
+    // of them reads a setting while painting, so a change (e.g. toggling
+    // main-search highlighting) reaches them only this way -- and without
+    // needing a new search.
+    handDecorationPolicyToViews();
+}
+
+void CrawlerWidget::handDecorationPolicyToViews()
+{
+    const auto decorationPolicy = deriveDecorationPolicy( Configuration::get() );
+    logMainView_->setDecorationPolicy( decorationPolicy );
+    logTableView_->setDecorationPolicy( decorationPolicy );
+    filteredView_->setDecorationPolicy( decorationPolicy );
+    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
+        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
+            view->setDecorationPolicy( decorationPolicy );
+        }
+    }
 }
 
 void CrawlerWidget::applyHighlighterSetChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyHighlighterSetChange";
+
+    // A Color Label's color comes from the Highlighter Set Collection and is
+    // cached alongside its words, so handing the words over again is what
+    // picks up a color the user just changed.
+    updateColorLabels( colorLabelsManager_.colorLabels() );
 
     // Every view reads the active Highlighter Sets when it paints, so all a
     // change takes is painting again -- the Filtered Views of kept Searches
@@ -1104,7 +1210,7 @@ void CrawlerWidget::setSearchPattern( const QString& searchPattern )
     // Set the focus to lineEdit so that the user can press 'Return' immediately
     searchLineEdit_->lineEdit()->setFocus();
 
-    if ( Configuration::get().autoRunSearchOnPatternChange() ) {
+    if ( quickFindPolicy_.autoRunSearchOnPatternChange ) {
         dispatchToMainThread( [ this ] { startNewSearch(); } );
     }
 }
@@ -1158,11 +1264,11 @@ void CrawlerWidget::setup()
 
     overviewWidget_ = new OverviewWidget();
     logMainView_ = new LogMainView( logData_.get(), quickFindPattern_.get(), &overview_,
-                                    overviewWidget_, Configuration::get().useTextWrap() );
+                                    overviewWidget_, presentationPolicy_.useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
 
     filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                      Configuration::get().useTextWrap() );
+                                      presentationPolicy_.useTextWrap );
     filteredViewsData_[ filteredView_ ] = logFilteredData_;
     filteredView_->setContentsMargins( 2, 0, 2, 0 );
 
@@ -1403,7 +1509,8 @@ void CrawlerWidget::setup()
     auto& config = Configuration::get();
     searchRefreshButton_->setChecked( config.isSearchAutoRefreshDefault() );
     matchCaseButton_->setChecked( !config.isSearchIgnoreCaseDefault() );
-    useRegexpButton_->setChecked( config.mainRegexpType() == SearchRegexpType::ExtendedRegexp );
+    useRegexpButton_->setChecked( quickFindPolicy_.mainRegexpType
+                                  == SearchRegexpType::ExtendedRegexp );
     booleanButton_->setChecked( config.isSearchLogicalCombiningDefault() );
 
     // Manually call the handler as it is not called when changing the state programmatically
@@ -1504,7 +1611,17 @@ void CrawlerWidget::setup()
         }
     } );
 
-    const auto defaultEncodingMib = config.defaultEncodingMib();
+    // Hand the views just built everything they show, color and search
+    // under, before any of them is painted. Neither Presentation reads these
+    // settings for itself; each Policy arrives again, on its own Axis,
+    // whenever a settings change re-derives it (#184).
+    logMainView_->setPresentationPolicy( presentationPolicy_ );
+    filteredView_->setPresentationPolicy( presentationPolicy_ );
+    logTableView_->setQuickFindPolicy( quickFindPolicy_ );
+    handDecorationPolicyToViews();
+    handFollowAllowanceToViews();
+
+    const auto defaultEncodingMib = fileAccessPolicy_.defaultEncodingMib;
     if ( defaultEncodingMib >= 0 ) {
         encodingMib_ = defaultEncodingMib;
     }
@@ -2158,17 +2275,21 @@ void CrawlerWidget::SearchState::startSearch()
 /*
  * CrawlerWidgetContext
  */
-CrawlerWidgetContext::CrawlerWidgetContext( const QString& string )
+CrawlerWidgetContext::CrawlerWidgetContext( const QString& string,
+                                            const QuickFindPolicy& quickFindPolicy )
 {
+    const auto useRegexpByPolicy
+        = quickFindPolicy.mainRegexpType == SearchRegexpType::ExtendedRegexp;
+
     if ( string.startsWith( '{' ) ) {
-        loadFromJson( string );
+        loadFromJson( string, useRegexpByPolicy );
     }
     else {
-        loadFromString( string );
+        loadFromString( string, useRegexpByPolicy );
     }
 }
 
-void CrawlerWidgetContext::loadFromString( const QString& string )
+void CrawlerWidgetContext::loadFromString( const QString& string, bool useRegexpByPolicy )
 {
     QRegularExpression regex( "S(\\d+):(\\d+)" );
     QRegularExpressionMatch match = regex.match( string );
@@ -2209,10 +2330,10 @@ void CrawlerWidgetContext::loadFromString( const QString& string )
         followFile_ = false;
     }
 
-    useRegexp_ = Configuration::get().mainRegexpType() == SearchRegexpType::ExtendedRegexp;
+    useRegexp_ = useRegexpByPolicy;
 }
 
-void CrawlerWidgetContext::loadFromJson( const QString& json )
+void CrawlerWidgetContext::loadFromJson( const QString& json, bool useRegexpByPolicy )
 {
     const auto properties = QJsonDocument::fromJson( json.toLatin1() ).toVariant().toMap();
 
@@ -2230,7 +2351,7 @@ void CrawlerWidgetContext::loadFromJson( const QString& json )
         useRegexp_ = properties.value( "RE" ).toBool();
     }
     else {
-        useRegexp_ = Configuration::get().mainRegexpType() == SearchRegexpType::ExtendedRegexp;
+        useRegexp_ = useRegexpByPolicy;
     }
 
     if ( properties.contains( "IR" ) ) {
@@ -2368,7 +2489,7 @@ void CrawlerWidget::recognizeFormat()
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
     logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
-    if ( Configuration::get().autoShowTableView() && !tableViewToggle_->isChecked() ) {
+    if ( presentationPolicy_.autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );
     }

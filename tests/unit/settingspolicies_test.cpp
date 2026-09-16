@@ -52,10 +52,32 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
                                            .extractArchives = false,
                                            .extractArchivesAlways = true };
         const DecodingPolicy decoding{ .hideAnsiColorSequences = true };
+        const PresentationPolicy presentation{ .useTextWrap = true,
+                                               .fastScrollEnabled = false,
+                                               .fastScrollMultiplier = 6,
+                                               .allowFollowOnScroll = true,
+                                               .autoShowTableView = false };
+        const QuickFindPolicy quickFind{ .quickFindRegexpType = SearchRegexpType::Wildcard,
+                                         .mainRegexpType = SearchRegexpType::FixedString,
+                                         .ignoreCase = true,
+                                         .incremental = false,
+                                         .autoRunSearchOnPatternChange = true };
 
         THEN( "each field holds what was written" )
         {
             REQUIRE( decoding.hideAnsiColorSequences );
+
+            REQUIRE( presentation.useTextWrap );
+            REQUIRE_FALSE( presentation.fastScrollEnabled );
+            REQUIRE( presentation.fastScrollMultiplier == 6 );
+            REQUIRE( presentation.allowFollowOnScroll );
+            REQUIRE_FALSE( presentation.autoShowTableView );
+
+            REQUIRE( quickFind.quickFindRegexpType == SearchRegexpType::Wildcard );
+            REQUIRE( quickFind.mainRegexpType == SearchRegexpType::FixedString );
+            REQUIRE( quickFind.ignoreCase );
+            REQUIRE_FALSE( quickFind.incremental );
+            REQUIRE( quickFind.autoRunSearchOnPatternChange );
 
             REQUIRE_FALSE( search.useParallelSearch );
             REQUIRE( search.threadPoolSize == 3 );
@@ -102,10 +124,22 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
         const FileAccessPolicy fileAccess{};
         const RecognitionPolicy recognition{};
         const DecodingPolicy decoding{};
+        const PresentationPolicy presentation{};
+        const QuickFindPolicy quickFind{};
 
         THEN( "every field is value-initialised" )
         {
             REQUIRE_FALSE( decoding.hideAnsiColorSequences );
+
+            REQUIRE_FALSE( presentation.useTextWrap );
+            REQUIRE_FALSE( presentation.fastScrollEnabled );
+            REQUIRE( presentation.fastScrollMultiplier == 0 );
+            REQUIRE_FALSE( presentation.allowFollowOnScroll );
+            REQUIRE_FALSE( presentation.autoShowTableView );
+
+            REQUIRE_FALSE( quickFind.ignoreCase );
+            REQUIRE_FALSE( quickFind.incremental );
+            REQUIRE_FALSE( quickFind.autoRunSearchOnPatternChange );
 
             REQUIRE_FALSE( search.useParallelSearch );
             REQUIRE( search.threadPoolSize == 0 );
@@ -127,6 +161,65 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE_FALSE( fileAccess.extractArchives );
 
             REQUIRE_FALSE( recognition.enabled );
+        }
+    }
+}
+
+SCENARIO( "The Watch Policy answers whether a Log File is watched at all", "[settingspolicies]" )
+{
+    // The two watch flags are asked about together far more often than
+    // apart: every consumer that only wants to know whether following is
+    // possible asks this one question, so the Policy answers it rather than
+    // each call site spelling the same OR out again.
+    GIVEN( "a Watch Policy with neither route enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = false,
+                                 .pollingEnabled = false,
+                                 .pollIntervalMs = 250 };
+
+        THEN( "nothing is watched" )
+        {
+            REQUIRE_FALSE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "a Watch Policy with only native watching enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = true, .pollingEnabled = false };
+
+        THEN( "the Log File is watched" )
+        {
+            REQUIRE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "a Watch Policy with only polling enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = false, .pollingEnabled = true };
+
+        THEN( "the Log File is watched" )
+        {
+            REQUIRE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "a Watch Policy with both routes enabled" )
+    {
+        const WatchPolicy watch{ .nativeWatchEnabled = true, .pollingEnabled = true };
+
+        THEN( "the Log File is watched" )
+        {
+            REQUIRE( watch.anyWatchEnabled() );
+        }
+    }
+
+    GIVEN( "an underived Watch Policy" )
+    {
+        const WatchPolicy watch{};
+
+        THEN( "it claims no watching, as an underived Policy must" )
+        {
+            REQUIRE_FALSE( watch.anyWatchEnabled() );
         }
     }
 }
@@ -165,6 +258,22 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
 
         // Shipped showing them, so hiding them is the distinctive value.
         config.setHideAnsiColorSequences( true );
+
+        // A different value in each neighbouring field, so a mapping that
+        // reads the wrong getter cannot pass unnoticed.
+        config.setUseTextWrap( true );
+        config.setFastScrollEnabled( false );
+        config.setFastScrollMultiplier( 13 );
+        config.setAllowFollowOnScroll( true );
+        config.setAutoShowTableView( false );
+
+        // The two regexp types differ from each other, so a derivation that
+        // reads one where it means the other is caught.
+        config.setQuickfindRegexpType( SearchRegexpType::Wildcard );
+        config.setMainRegexpType( SearchRegexpType::FixedString );
+        config.setQfIgnoreCase( true );
+        config.setQuickfindIncremental( false );
+        config.setAutoRunSearchOnPatternChange( true );
 
         WHEN( "the Policies are derived from it" )
         {
@@ -216,6 +325,76 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
             THEN( "the Decoding Policy carries whether ANSI color sequences are hidden" )
             {
                 REQUIRE( policies.decoding.hideAnsiColorSequences );
+            }
+
+            THEN( "the Presentation Policy carries what showing a Log File needs" )
+            {
+                REQUIRE( policies.presentation.useTextWrap );
+                REQUIRE_FALSE( policies.presentation.fastScrollEnabled );
+                REQUIRE( policies.presentation.fastScrollMultiplier == 13 );
+                REQUIRE( policies.presentation.allowFollowOnScroll );
+                REQUIRE_FALSE( policies.presentation.autoShowTableView );
+            }
+
+            THEN( "the QuickFind Policy carries what searching interactively needs" )
+            {
+                REQUIRE( policies.quickFind.quickFindRegexpType == SearchRegexpType::Wildcard );
+                REQUIRE( policies.quickFind.mainRegexpType == SearchRegexpType::FixedString );
+                REQUIRE( policies.quickFind.ignoreCase );
+                REQUIRE_FALSE( policies.quickFind.incremental );
+                REQUIRE( policies.quickFind.autoRunSearchOnPatternChange );
+            }
+        }
+
+        WHEN( "QuickFind is made incremental and the Policies are derived again" )
+        {
+            config.setQuickfindIncremental( true );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the QuickFind Policy says so" )
+            {
+                REQUIRE( policies.quickFind.incremental );
+            }
+
+            THEN( "only the QuickFind axis differs from the non-incremental derivation" )
+            {
+                config.setQuickfindIncremental( false );
+                const auto stepwise = deriveSettingsPolicies( config );
+                REQUIRE( policies.quickFind != stepwise.quickFind );
+                REQUIRE( policies.indexing == stepwise.indexing );
+                REQUIRE( policies.search == stepwise.search );
+                REQUIRE( policies.watch == stepwise.watch );
+                REQUIRE( policies.fileAccess == stepwise.fileAccess );
+                REQUIRE( policies.recognition == stepwise.recognition );
+                REQUIRE( policies.decoding == stepwise.decoding );
+                REQUIRE( policies.decoration == stepwise.decoration );
+                REQUIRE( policies.presentation == stepwise.presentation );
+            }
+        }
+
+        WHEN( "text wrapping is switched off and the Policies are derived again" )
+        {
+            config.setUseTextWrap( false );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the Presentation Policy says so" )
+            {
+                REQUIRE_FALSE( policies.presentation.useTextWrap );
+            }
+
+            THEN( "only the Presentation axis differs from the wrapping derivation" )
+            {
+                config.setUseTextWrap( true );
+                const auto wrapping = deriveSettingsPolicies( config );
+                REQUIRE( policies.presentation != wrapping.presentation );
+                REQUIRE( policies.indexing == wrapping.indexing );
+                REQUIRE( policies.search == wrapping.search );
+                REQUIRE( policies.watch == wrapping.watch );
+                REQUIRE( policies.fileAccess == wrapping.fileAccess );
+                REQUIRE( policies.recognition == wrapping.recognition );
+                REQUIRE( policies.decoding == wrapping.decoding );
+                REQUIRE( policies.decoration == wrapping.decoration );
+                REQUIRE( policies.quickFind == wrapping.quickFind );
             }
         }
 

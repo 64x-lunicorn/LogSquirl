@@ -28,6 +28,16 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/plugins_no_qt_widgets.cmake
 )
 
+# The UI half of the Settings Policy seam: the widget layer legitimately links
+# logsquirl_settings, so an undeclared setting cannot be a link error there.
+# Only the allowlisted files may name the settings store (#187).
+add_test(
+    NAME ui_settings_store_allowlist
+    COMMAND ${CMAKE_COMMAND}
+            -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src/ui
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/ui_settings_store_allowlist.cmake
+)
+
 
 
 

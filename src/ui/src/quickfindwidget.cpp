@@ -78,7 +78,6 @@ QuickFindWidget::QuickFindWidget( QWidget* parent )
     layout->addWidget( editQuickFind_ );
 
     ignoreCaseCheck_ = new QCheckBox( "Ignore &case" );
-    ignoreCaseCheck_->setChecked( Configuration::get().qfIgnoreCase() );
     layout->addWidget( ignoreCaseCheck_ );
 
     previousButton_
@@ -117,6 +116,17 @@ QuickFindWidget::QuickFindWidget( QWidget* parent )
     notificationTimer_ = new QTimer( this );
     notificationTimer_->setSingleShot( true );
     connect( notificationTimer_, SIGNAL( timeout() ), this, SLOT( notificationTimeout() ) );
+}
+
+void QuickFindWidget::setQuickFindPolicy( const QuickFindPolicy& policy )
+{
+    quickFindPolicy_ = policy;
+
+    // The box writes the setting back whenever it changes, so a Policy setting
+    // it has to be told apart from the user ticking it: blocked, this neither
+    // starts a QuickFind nor writes the setting we were just handed.
+    const QSignalBlocker blocker( ignoreCaseCheck_ );
+    ignoreCaseCheck_->setChecked( policy.ignoreCase );
 }
 
 void QuickFindWidget::userActivate()
@@ -237,5 +247,5 @@ bool QuickFindWidget::isIgnoreCase() const
 
 bool QuickFindWidget::isRegexSearch() const
 {
-    return ( Configuration::get().quickfindRegexpType() == SearchRegexpType::ExtendedRegexp );
+    return ( quickFindPolicy_.quickFindRegexpType == SearchRegexpType::ExtendedRegexp );
 }

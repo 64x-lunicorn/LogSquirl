@@ -157,12 +157,13 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
 
         THEN( "at the scrollbar's maximum the last Visual Line is on the last row" )
         {
-            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow(
+                view, logFile.filteredData->getNbLine() );
         }
 
         THEN( "keys and the wheel go no further" )
         {
-            requireScrollingStopsAtTheBottom( view );
+            requireScrollingStopsAtTheBottom( view, logFile.filteredData->getNbLine() );
         }
     }
 
@@ -174,28 +175,31 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
 
         THEN( "at the scrollbar's maximum its last Visual Line is on the last row" )
         {
-            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow(
+                view, logFile.filteredData->getNbLine() );
         }
 
         THEN( "pages and the wheel scroll through it down to that same bottom" )
         {
-            requireScrollingDownFromTheTopReachesTheBottom( view );
+            requireScrollingDownFromTheTopReachesTheBottom( view,
+                                                            logFile.filteredData->getNbLine() );
         }
 
         THEN( "moving the scrollbar to its maximum from partway up that Match lands at the "
               "bottom" )
         {
-            requireScrollbarMovedToItsMaximumLandsAtTheBottom( view );
+            requireScrollbarMovedToItsMaximumLandsAtTheBottom( view,
+                                                               logFile.filteredData->getNbLine() );
         }
 
         THEN( "follow mode keeps its new last Visual Line on the last row as it grows" )
         {
             const auto extendLastLine = [ & ]() {
-                logFile.appendToLastLogLine( QStringLiteral( " x x x w" ) );
+                logFile.appendToLastLogLine( QStringLiteral( " x x x x" ) );
                 view.updateData();
+                return logFile.filteredData->getNbLine();
             };
-            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, extendLastLine,
-                                                             QStringLiteral( "w" ) );
+            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, extendLastLine );
         }
     }
 
@@ -221,11 +225,12 @@ SCENARIO( "The bottom of the Filtered View shows exactly its last Visual Line",
         const auto searchTheRest = [ & ]() {
             logFile.searchUpTo( lines.size() );
             view.updateData();
+            return logFile.filteredData->getNbLine();
         };
 
         THEN( "follow mode keeps the new last Visual Line on the last row as Matches are added" )
         {
-            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, searchTheRest, LastWord );
+            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, searchTheRest );
         }
 
         THEN( "without follow mode, a view at the bottom stays where it is" )
@@ -242,9 +247,9 @@ SCENARIO( "A re-wrap keeps the text on the top row of the Filtered View",
 
     QuickFindPattern quickFindPattern;
 
-    GIVEN( "a Match of numbered words taller than the Viewport" )
+    GIVEN( "a Match taller than the Viewport" )
     {
-        FilteredLogFile logFile{ numberedWordsLogLines() };
+        FilteredLogFile logFile{ tallLogLines() };
         FilteredView view( logFile.filteredData.get(), &quickFindPattern, true );
         showOneColumnWide( view );
 
@@ -279,7 +284,7 @@ SCENARIO( "A re-wrap keeps the text on the top row of the Filtered View",
 
         THEN( "it stays at the bottom through a resize" )
         {
-            requireResizingKeepsTheViewAtTheBottom( view );
+            requireResizingKeepsTheViewAtTheBottom( view, logFile.filteredData->getNbLine() );
         }
     }
 }

@@ -60,6 +60,7 @@
 #endif
 
 #include "abstractlogdata.h"
+#include "decorationsetup.h"
 #include "linessaver.h"
 #include "linetypes.h"
 #include "overviewwidget.h"
@@ -67,6 +68,7 @@
 #include "quickfindmux.h"
 #include "regularexpressionpattern.h"
 #include "selection.h"
+#include "settingspolicies.h"
 #include "viewportlayout.h"
 #include "viewtools.h"
 #include "wrappedstring.h"
@@ -173,6 +175,29 @@ public:
 
     using QuickHighlighters = QStringList;
     void setQuickHighlighters( const std::vector<QuickHighlighters>& wordHighlighters );
+
+    // Hand over the settings that color Log Lines. Call it after a settings
+    // change: painting reads no setting of its own, so this is the only way
+    // a changed one reaches the Viewport.
+    void setDecorationPolicy( const DecorationPolicy& policy );
+
+    // Hand over the settings this Presentation shows and scrolls under. Call
+    // it when the view is built and again after a settings change: the view
+    // reads no setting of its own, so this is the only way a changed one
+    // reaches it. Nothing is derived from it and kept, so a change on the
+    // Presentation Axis takes effect without the Log File being opened again.
+    void setPresentationPolicy( const PresentationPolicy& policy );
+
+    // Where every Log Line sits in the Viewport and what sits at any point of
+    // it, including the Visual Lines the Viewport holds right now. This is what
+    // hit testing and painting read, so asking it is asking the view itself.
+    // Built from the Log File and never from a paint, it answers before the
+    // first paint has happened.
+    //
+    // Returns the layout by value. It is a pure value that reads its inputs and
+    // returns answers, so a caller holding one cannot move the view; it is a
+    // snapshot, so ask again once the view has moved or its Log File changed.
+    ViewportLayout viewportLayout() const;
 
     void registerShortcuts();
 
@@ -393,6 +418,17 @@ private:
 
     std::vector<QuickHighlighters> quickHighlighters_ = std::vector<QuickHighlighters>{ 9 };
 
+    // The one module that builds the Line Decorator's Context, shared with
+    // the Table View: it holds the Decoration Policy, the main search
+    // pattern and the Color Labels, and caches the Highlighters built from
+    // them, so a repaint builds no Highlighter of its own.
+    DecorationSetup decorationSetup_;
+
+    // What this Presentation shows and scrolls under, as its holder last
+    // handed it over. Read where it is needed rather than derived into
+    // something kept, so a changed Policy takes effect at once.
+    PresentationPolicy presentationPolicy_;
+
     // Position of the view, those are crucial to control drawing
     // scrollPosition_ gives the position of the view; only scrolling moves it.
     // atBottom_: the view is at the bottom Scroll Position, and draws the last
@@ -519,10 +555,6 @@ private:
     // visible counts and scroll ranges, and cheap because it touches no
     // Log Line.
     ViewportLayout viewportGeometry() const;
-    // The viewport layout including the Visual Lines currently in the Viewport, which is
-    // what hit testing and painting need. Built from the Log File, never from
-    // a paint, so it answers before the first paint has happened.
-    ViewportLayout viewportLayout() const;
 
     const ViewportContent& viewportContent() const;
     ViewportContent buildViewportContent() const;

@@ -109,6 +109,102 @@ SCENARIO( "AbstractLogView updateDisplaySize keeps charWidth_ safe", "[abstractl
     }
 }
 
+SCENARIO( "A text view scrolls under the Presentation Policy it was handed",
+          "[abstractlogview][presentationpolicy]" )
+{
+    using namespace logviewscrolling;
+
+    // No settings store takes part: the Policy is a literal, and what the view
+    // does with the wheel follows from it alone.
+    const FakeLogData logData{ tallLogLines() };
+    QuickFindPattern qfp;
+    TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+    showOneColumnWide( view );
+
+    auto policy = testSettingsPolicies().presentation;
+
+    // The same notch, turned without the modifier: the yardstick the fast one
+    // is compared against.
+    const auto afterAPlainNotch = [ & ]() {
+        moveTo( view, ScrollPosition{} );
+        turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
+        return view.scrollPosition();
+    }();
+    REQUIRE( afterAPlainNotch > ScrollPosition{} );
+
+    GIVEN( "a text view handed a Policy that turns fast scrolling on" )
+    {
+        policy.fastScrollEnabled = true;
+        policy.fastScrollMultiplier = 5;
+        view.setPresentationPolicy( policy );
+
+        WHEN( "the wheel is turned one notch with the fast scroll modifier held" )
+        {
+            moveTo( view, ScrollPosition{} );
+            turnWheel( view, -QWheelEvent::DefaultDeltasPerStep, Qt::AltModifier );
+
+            THEN( "the view moves further than the same notch without it" )
+            {
+                REQUIRE( view.scrollPosition() > afterAPlainNotch );
+            }
+        }
+    }
+
+    GIVEN( "a text view handed a Policy that turns fast scrolling off" )
+    {
+        policy.fastScrollEnabled = false;
+        view.setPresentationPolicy( policy );
+
+        WHEN( "the wheel is turned one notch with the fast scroll modifier held" )
+        {
+            moveTo( view, ScrollPosition{} );
+            turnWheel( view, -QWheelEvent::DefaultDeltasPerStep, Qt::AltModifier );
+
+            THEN( "the view moves exactly as far as it does without the modifier" )
+            {
+                REQUIRE( view.scrollPosition() == afterAPlainNotch );
+            }
+        }
+    }
+}
+
+SCENARIO( "A text view says where a Log Line sits in its Viewport", "[abstractlogview][viewport]" )
+{
+    using namespace logviewscrolling;
+
+    const FakeLogData logData{ tallLogLines() };
+    QuickFindPattern qfp;
+    TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+    showOneColumnWide( view );
+
+    GIVEN( "a view standing partway through a Log Line taller than the Viewport" )
+    {
+        moveTo( view, ScrollPosition{ TallLine, 150 } );
+
+        THEN( "its Viewport layout says which Visual Line the top row shows" )
+        {
+            const auto layout = view.viewportLayout();
+            const auto onTopRow = layout.visualLineAtPoint( TopRowY );
+            REQUIRE( onTopRow.has_value() );
+            REQUIRE( layout.visualLines()[ *onTopRow ].lineNumber == TallLine );
+            REQUIRE( layout.visualLines()[ *onTopRow ].wrappedLineIndex == 150 );
+
+            const auto line = layout.lineAtPoint( TopRowY );
+            REQUIRE( line.has_value() );
+            REQUIRE( *line == TallLine );
+        }
+
+        THEN( "asking it where things sit moves the view nowhere" )
+        {
+            const auto before = view.scrollPosition();
+            const auto layout = view.viewportLayout();
+            layout.lineAtPoint( lastRowY( view ) );
+            layout.filePositionAtPoint( 0, TopRowY );
+            REQUIRE( view.scrollPosition() == before );
+        }
+    }
+}
+
 SCENARIO( "A text view scrolls by Visual Lines", "[abstractlogview][scrollposition]" )
 {
     using namespace logviewscrolling;
@@ -224,12 +320,12 @@ SCENARIO( "The bottom of a wrapped text view shows exactly the last Visual Line 
 
         THEN( "at the scrollbar's maximum its last Visual Line is on the last row" )
         {
-            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view, logData.getNbLine() );
         }
 
         THEN( "keys and the wheel go no further" )
         {
-            requireScrollingStopsAtTheBottom( view );
+            requireScrollingStopsAtTheBottom( view, logData.getNbLine() );
         }
     }
 
@@ -241,23 +337,23 @@ SCENARIO( "The bottom of a wrapped text view shows exactly the last Visual Line 
 
         THEN( "at the scrollbar's maximum its last Visual Line is on the last row" )
         {
-            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view, logData.getNbLine() );
         }
 
         THEN( "pages and the wheel scroll through it down to that same bottom" )
         {
-            requireScrollingDownFromTheTopReachesTheBottom( view );
+            requireScrollingDownFromTheTopReachesTheBottom( view, logData.getNbLine() );
         }
 
         THEN( "moving the scrollbar to its maximum from partway up that Log Line lands at the "
               "bottom" )
         {
-            requireScrollbarMovedToItsMaximumLandsAtTheBottom( view );
+            requireScrollbarMovedToItsMaximumLandsAtTheBottom( view, logData.getNbLine() );
         }
 
         THEN( "keys and the wheel go no further" )
         {
-            requireScrollingStopsAtTheBottom( view );
+            requireScrollingStopsAtTheBottom( view, logData.getNbLine() );
         }
     }
 
@@ -269,8 +365,8 @@ SCENARIO( "The bottom of a wrapped text view shows exactly the last Visual Line 
 
         THEN( "it can be scrolled, down to its last Visual Line on the last row" )
         {
-            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view );
-            requireScrollingDownFromTheTopReachesTheBottom( view );
+            requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( view, logData.getNbLine() );
+            requireScrollingDownFromTheTopReachesTheBottom( view, logData.getNbLine() );
         }
     }
 
@@ -302,15 +398,15 @@ SCENARIO( "A wrapped text view at the bottom as its Log File grows",
 
         const auto appendLines = [ & ]() {
             auto lines = tallLogLines();
-            lines << QStringLiteral( "b" ) << tallLineEndingIn( QStringLiteral( "w" ) );
+            lines << QStringLiteral( "b" ) << tallLine();
             logData.setLines( lines );
             view.updateData();
+            return logData.getNbLine();
         };
 
         THEN( "follow mode keeps the new last Visual Line on the last row" )
         {
-            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, appendLines,
-                                                             QStringLiteral( "w" ) );
+            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, appendLines );
         }
 
         THEN( "without follow mode, a view at the bottom stays where it is" )
@@ -334,15 +430,15 @@ SCENARIO( "A wrapped text view at the bottom as its Log File grows",
 
         const auto extendLastLine = [ & ]() {
             auto lines = tallLastLogLines();
-            lines.last() += QStringLiteral( " x x x w" );
+            lines.last() += QStringLiteral( " x x x x" );
             logData.setLines( lines );
             view.updateData();
+            return logData.getNbLine();
         };
 
         THEN( "follow mode keeps its new last Visual Line on the last row" )
         {
-            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, extendLastLine,
-                                                             QStringLiteral( "w" ) );
+            requireFollowKeepsTheLastVisualLineOnTheLastRow( view, extendLastLine );
         }
     }
 }
@@ -354,9 +450,9 @@ SCENARIO( "A re-wrap keeps the text on the top row of a wrapped text view",
 
     QuickFindPattern qfp;
 
-    GIVEN( "a Log Line of numbered words taller than the Viewport" )
+    GIVEN( "a Log Line taller than the Viewport" )
     {
-        const FakeLogData logData{ numberedWordsLogLines() };
+        const FakeLogData logData{ tallLogLines() };
         TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
         showOneColumnWide( view );
 
@@ -393,7 +489,7 @@ SCENARIO( "A re-wrap keeps the text on the top row of a wrapped text view",
 
         THEN( "it stays at the bottom through a resize" )
         {
-            requireResizingKeepsTheViewAtTheBottom( view );
+            requireResizingKeepsTheViewAtTheBottom( view, logData.getNbLine() );
         }
     }
 }

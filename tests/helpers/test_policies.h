@@ -67,6 +67,18 @@ inline SettingsPolicies testSettingsPolicies()
         .recognition = { .enabled = false },
 
         .decoding = { .hideAnsiColorSequences = false },
+
+        .presentation = { .useTextWrap = false,
+                          .fastScrollEnabled = true,
+                          .fastScrollMultiplier = 5,
+                          .allowFollowOnScroll = true,
+                          .autoShowTableView = false },
+
+        .quickFind = { .quickFindRegexpType = SearchRegexpType::FixedString,
+                       .mainRegexpType = SearchRegexpType::ExtendedRegexp,
+                       .ignoreCase = false,
+                       .incremental = true,
+                       .autoRunSearchOnPatternChange = false },
     };
 }
 

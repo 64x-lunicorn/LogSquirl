@@ -27,6 +27,7 @@
 #include <QString>
 
 #include "quickfindpattern.h"
+#include "settingspolicies.h"
 
 // Interface representing a widget searchable in both direction.
 class SearchableWidgetInterface {
@@ -98,6 +99,12 @@ public:
     // forward.
     void setDirection( QFDirection direction );
 
+    // Hand over the QuickFind Policy this mux dispatches under: whether a
+    // pattern being typed is searched for at once, and how the typed text is
+    // read. The mux holds it and reads no setting of its own; a new one
+    // arriving disturbs nothing in flight, it decides the next QuickFind.
+    void setQuickFindPolicy( const QuickFindPolicy& policy );
+
 Q_SIGNALS:
     void patternChanged( const QString& );
     void notify( const QFNotification& );
@@ -136,6 +143,9 @@ private:
     std::shared_ptr<QuickFindPattern> pattern_;
 
     QFDirection currentDirection_;
+
+    // What this mux dispatches a QuickFind under, as last handed to it
+    QuickFindPolicy quickFindPolicy_;
 
     std::vector<QObject*> registeredSearchables_;
 

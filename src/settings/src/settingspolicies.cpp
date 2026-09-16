@@ -57,5 +57,29 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
         .recognition = { .enabled = config.autoDetectLogFormats() },
 
         .decoding = { .hideAnsiColorSequences = config.hideAnsiColorSequences() },
+
+        .decoration = deriveDecorationPolicy( config ),
+
+        .presentation = { .useTextWrap = config.useTextWrap(),
+                          .fastScrollEnabled = config.fastScrollEnabled(),
+                          .fastScrollMultiplier = config.fastScrollMultiplier(),
+                          .allowFollowOnScroll = config.allowFollowOnScroll(),
+                          .autoShowTableView = config.autoShowTableView() },
+
+        .quickFind = { .quickFindRegexpType = config.quickfindRegexpType(),
+                       .mainRegexpType = config.mainRegexpType(),
+                       .ignoreCase = config.qfIgnoreCase(),
+                       .incremental = config.isQuickfindIncremental(),
+                       .autoRunSearchOnPatternChange = config.autoRunSearchOnPatternChange() },
+    };
+}
+
+DecorationPolicy deriveDecorationPolicy( const Configuration& config )
+{
+    return DecorationPolicy{
+        .mainSearchHighlight = config.mainSearchHighlight(),
+        .variateMainSearchHighlight = config.variateMainSearchHighlight(),
+        .mainSearchBackColor = config.mainSearchBackColor(),
+        .quickFindBackColor = config.qfBackColor(),
     };
 }

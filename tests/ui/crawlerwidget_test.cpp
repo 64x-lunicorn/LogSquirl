@@ -263,6 +263,18 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     {
         return crawler->tabbedFilteredView_->currentIndex();
     }
+
+    // The Filtered View of the current Search.
+    FilteredView* filteredView() const
+    {
+        return crawler->filteredView_;
+    }
+
+    // Whether the Search line reads its pattern as a regexp.
+    bool useRegexpChecked() const
+    {
+        return crawler->useRegexpButton_->isChecked();
+    }
 };
 
 using CrawlerWidgetVisitor = CrawlerWidget::access_by<CrawlerWidgetPrivate>;
@@ -454,6 +466,70 @@ void openCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& 
 }
 
 } // namespace
+
+// The CrawlerWidget holds the Presentation Policy and the QuickFind Policy of
+// its Log File and reads no setting on those two axes for itself (#185).
+// Every Policy below says something other than the shipped default, so a
+// widget that still reached for the settings store would fail these.
+SCENARIO( "The Crawler Widget shows and searches under the Policies it was handed",
+          "[ui][settings]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+
+    GIVEN( "a Policy wrapping text, and one reading the Search line as a fixed string" )
+    {
+        auto policies = testSettingsPolicies();
+        policies.presentation.useTextWrap = true;
+        policies.quickFind.mainRegexpType = SearchRegexpType::FixedString;
+
+        Session session{ policies, std::make_shared<LogFormatCatalog>() };
+        CrawlerWidgetVisitor crawlerVisitor;
+        openCrawler( session, file, crawlerVisitor );
+
+        THEN( "every text view of the Log File wraps" )
+        {
+            REQUIRE( crawlerVisitor.crawler->isTextWrapEnabled() );
+            REQUIRE( crawlerVisitor.filteredView()->isTextWrapEnabled() );
+        }
+
+        THEN( "the Search line does not read its pattern as a regexp" )
+        {
+            REQUIRE( !crawlerVisitor.useRegexpChecked() );
+        }
+
+        WHEN( "a QuickFind Policy reading it as an extended regexp arrives" )
+        {
+            QSignalSpy policyChanged( crawlerVisitor.crawler.get(),
+                                      &CrawlerWidget::quickFindPolicyChanged );
+
+            policies.quickFind.mainRegexpType = SearchRegexpType::ExtendedRegexp;
+            session.applyPolicies( policies );
+
+            THEN( "the Log File already open holds it, and hands it on" )
+            {
+                REQUIRE( crawlerVisitor.crawler->quickFindPolicy().mainRegexpType
+                         == SearchRegexpType::ExtendedRegexp );
+                REQUIRE( policyChanged.count() == 1 );
+            }
+        }
+    }
+
+    GIVEN( "a Policy that does not wrap text" )
+    {
+        auto policies = testSettingsPolicies();
+        policies.presentation.useTextWrap = false;
+
+        Session session{ policies, std::make_shared<LogFormatCatalog>() };
+        CrawlerWidgetVisitor crawlerVisitor;
+        openCrawler( session, file, crawlerVisitor );
+
+        THEN( "no text view of the Log File wraps" )
+        {
+            REQUIRE( !crawlerVisitor.crawler->isTextWrapEnabled() );
+            REQUIRE( !crawlerVisitor.filteredView()->isTextWrapEnabled() );
+        }
+    }
+}
 
 SCENARIO( "Save selected to file writes the selection of the Presentation shown",
           "[ui][presentation]" )

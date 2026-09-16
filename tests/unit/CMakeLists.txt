@@ -5,6 +5,7 @@ add_executable(logsquirl_tests
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp
     configuration_test.cpp
+    decorationsetup_test.cpp
     encodingdetector_test.cpp
     fontutils_test.cpp
     indexcache_test.cpp
@@ -30,6 +31,8 @@ add_executable(logsquirl_tests
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
+    quickfindmux_test.cpp
+    quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
     searchsession_test.cpp

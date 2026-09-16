@@ -25,7 +25,6 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-#include "configuration.h"
 #include "filewatcher.h"
 #include "logformatcatalog.h"
 #include "savedsearches.h"
@@ -306,9 +305,11 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
     FileWatcher::getFileWatcher().setWatchPolicy(
         WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
 
-    auto& config = Configuration::get();
-    const auto autoShowTableView = config.autoShowTableView();
-    config.setAutoShowTableView( true );
+    // Whether a recognized Log Format opens as a Table View rides the
+    // Presentation Policy, handed to the Log File when it is opened: the
+    // Crawler Widget reads no setting of its own for it (#185).
+    auto policies = recognitionEnabled();
+    policies.presentation.autoShowTableView = true;
 
     QTemporaryDir directory;
     REQUIRE( directory.isValid() );
@@ -322,7 +323,7 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
     auto catalog = std::make_shared<LogFormatCatalog>( userFormats );
     catalog->rebuild();
 
-    Session session{ recognitionEnabled(), catalog };
+    Session session{ policies, catalog };
     session.savedSearches().clear();
 
     GIVEN( "a recognized Log File shown as a Table View, with Auto-show Table View enabled" )
@@ -367,6 +368,5 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
         }
     }
 
-    config.setAutoShowTableView( autoShowTableView );
     FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
 }

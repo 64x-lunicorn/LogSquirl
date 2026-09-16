@@ -119,6 +119,12 @@ ViewInterface* Session::openAlways( const QString& file_name,
     view->setData( log_data, log_filtered_data );
     view->setQuickFindPattern( quickFindPattern_ );
     view->setFormatRecognition( policies_.recognition, logFormatCatalog_ );
+    view->setPresentationPolicy( policies_.presentation );
+    view->setQuickFindPolicy( policies_.quickFind );
+    view->setWatchPolicy( policies_.watch );
+    view->setFileAccessPolicy( policies_.fileAccess );
+    // Last: the view builds itself when it is handed these, so every Policy
+    // above has to be in its hands before it does.
     view->setSavedSearches( savedSearches_ );
 
     if ( !view_context.isEmpty() )
@@ -163,6 +169,9 @@ void Session::applyPolicies( const SettingsPolicies& policies )
     const auto searchChanged = policies.search != policies_.search;
     const auto recognitionChanged = policies.recognition != policies_.recognition;
     const auto decodingChanged = policies.decoding != policies_.decoding;
+    const auto presentationChanged = policies.presentation != policies_.presentation;
+    const auto quickFindChanged = policies.quickFind != policies_.quickFind;
+    const auto watchChanged = policies.watch != policies_.watch;
 
     // Every time, changed Policies or not: the user's Log Formats are read
     // again. Log Formats handed out before stay valid for whoever holds them.
@@ -175,7 +184,8 @@ void Session::applyPolicies( const SettingsPolicies& policies )
     // only thing a change to it can do.
     policies_ = policies;
 
-    if ( !indexingChanged && !searchChanged && !recognitionChanged && !decodingChanged ) {
+    if ( !indexingChanged && !searchChanged && !recognitionChanged && !decodingChanged
+         && !presentationChanged && !quickFindChanged && !watchChanged ) {
         return;
     }
 
@@ -186,6 +196,22 @@ void Session::applyPolicies( const SettingsPolicies& policies )
             // Takes effect at the view's next Format Recognition; an open
             // Table View is not torn down.
             openFile.view->setRecognitionPolicy( policies_.recognition );
+        }
+
+        if ( presentationChanged ) {
+            // Reaches the views of every open Log File, not only the one the
+            // active tab shows.
+            openFile.view->setPresentationPolicy( policies_.presentation );
+        }
+
+        if ( quickFindChanged ) {
+            openFile.view->setQuickFindPolicy( policies_.quickFind );
+        }
+
+        if ( watchChanged ) {
+            // Takes following away from the views of a Log File that is
+            // already open, or gives it back, without it being reopened.
+            openFile.view->setWatchPolicy( policies_.watch );
         }
 
         if ( indexingChanged ) {

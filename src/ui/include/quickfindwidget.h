@@ -39,6 +39,8 @@
 #ifndef QUICKFINDWIDGET_H
 #define QUICKFINDWIDGET_H
 
+#include "settingspolicies.h"
+
 #include <QTimer>
 #include <QWidget>
 
@@ -63,6 +65,14 @@ public:
     // Show the widget with the given direction
     // when requested by the user (the widget won't timeout)
     void userActivate();
+
+    // Hand over the QuickFind Policy this bar reads the user's typing under:
+    // whether case is ignored, and how the typed text is read. The bar holds
+    // it and reads no setting of its own. Arriving here it also sets the
+    // ignore-case box, so that a changed setting reaches a bar already on
+    // screen -- without being taken for the user typing, which would start a
+    // QuickFind and write the setting straight back.
+    void setQuickFindPolicy( const QuickFindPolicy& policy );
 
 public Q_SLOTS:
     // Instructs the widget to change the pattern displayed
@@ -110,6 +120,9 @@ private:
     bool isRegexSearch() const;
 
     QTimer* notificationTimer_;
+
+    // What this bar reads the user's typing under, as last handed to it
+    QuickFindPolicy quickFindPolicy_;
 
     QFDirection direction_;
 

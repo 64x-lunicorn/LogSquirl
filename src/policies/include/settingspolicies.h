@@ -20,9 +20,11 @@
 #ifndef LOGSQUIRL_SETTINGS_POLICIES_H
 #define LOGSQUIRL_SETTINGS_POLICIES_H
 
+#include <QColor>
 #include <QString>
 
 #include "regexpengine.h"
+#include "searchregexptype.h"
 
 class Configuration;
 
@@ -91,6 +93,16 @@ struct WatchPolicy {
     bool pollingEnabled{};
     int pollIntervalMs{};
 
+    // Whether the Log File is watched at all, by either route. Most
+    // consumers do not care which of the two is on, only whether following
+    // is possible, so the question is answered here instead of being
+    // spelled out as the same OR at every call site. An underived Policy
+    // answers false.
+    bool anyWatchEnabled() const
+    {
+        return nativeWatchEnabled || pollingEnabled;
+    }
+
     bool operator==( const WatchPolicy& ) const = default;
 };
 
@@ -124,6 +136,82 @@ struct DecodingPolicy {
     bool operator==( const DecodingPolicy& ) const = default;
 };
 
+// What coloring a Log Line needs from the settings, and nothing else. The
+// one module that builds the Line Decorator's context takes it; neither
+// Presentation reads these settings for itself, which is what lets that
+// module be exercised without a settings store.
+//
+// The Highlighter Set, the Color Labels and the QuickFind pattern are not
+// here: they are not settings this axis carries but the user's current
+// coloring, which reaches the Presentations by their own routes.
+struct DecorationPolicy {
+    // Whether what the main Search matched is colored in the Log Lines at
+    // all. When false, no main-search Highlighter is built.
+    bool mainSearchHighlight{};
+    // Whether each distinct matched text gets a shade of its own, so that
+    // two different matches are told apart.
+    bool variateMainSearchHighlight{};
+    // The background the main Search's matches are painted in. Invalid in an
+    // underived Policy, as is the QuickFind one below.
+    QColor mainSearchBackColor{};
+    // The background a QuickFind match is painted in.
+    QColor quickFindBackColor{};
+
+    bool operator==( const DecorationPolicy& ) const = default;
+};
+
+// What a Presentation needs to show and scroll a Log File, and nothing
+// else: the settings of the Text View, of the Table View, and of the
+// Filtered View drawn like the Text View.
+//
+// What a Log Line is colored in is not here -- that is the Decoration
+// Policy's axis.
+struct PresentationPolicy {
+    // Whether a Log Line too long for the Viewport is drawn as several
+    // Visual Lines instead of being cut off.
+    bool useTextWrap{};
+    // Whether holding the modifier key multiplies how far a scroll moves.
+    bool fastScrollEnabled{};
+    // How far it multiplies it. 0 in an underived Policy, which is why
+    // fastScrollEnabled is the flag a consumer tests first.
+    int fastScrollMultiplier{};
+    // Whether scrolling to the end of a Log File may engage follow.
+    bool allowFollowOnScroll{};
+    // Whether a Log File whose Log Format was recognized opens as a Table
+    // View straight away. It rides here rather than with the Recognition
+    // Policy because it says what to show, not what to recognize.
+    bool autoShowTableView{};
+
+    bool operator==( const PresentationPolicy& ) const = default;
+};
+
+// What searching interactively needs, and nothing else: the settings of
+// the QuickFind bar, of the mux that dispatches a QuickFind to the widget
+// the user is in, and of the Presentations that answer one.
+//
+// What a match is painted in is not here; that is the Decoration Policy's
+// axis. This one is about how the text the user types is read.
+struct QuickFindPolicy {
+    // How a QuickFind pattern is read. ExtendedRegexp in an underived
+    // Policy, that being the first enumerator -- as for the main type below.
+    SearchRegexpType quickFindRegexpType{};
+    // How a pattern typed into the Search line is read. It rides this axis
+    // rather than the Search one because it is a question about the text a
+    // widget takes from the user, not about how a Search then runs.
+    SearchRegexpType mainRegexpType{};
+    // Whether a QuickFind pattern matches regardless of case.
+    bool ignoreCase{};
+    // Whether QuickFind moves to a match while the pattern is still being
+    // typed, rather than only once it is confirmed.
+    bool incremental{};
+    // Whether changing the Search pattern starts the Search at once. Here
+    // for the same reason as the main regexp type: it is about the typing,
+    // not about the run.
+    bool autoRunSearchOnPatternChange{};
+
+    bool operator==( const QuickFindPolicy& ) const = default;
+};
+
 // The Policies as one bundle, so the place that builds the application's
 // long-lived objects derives and carries them together.
 struct SettingsPolicies {
@@ -133,6 +221,9 @@ struct SettingsPolicies {
     FileAccessPolicy fileAccess;
     RecognitionPolicy recognition;
     DecodingPolicy decoding;
+    DecorationPolicy decoration;
+    PresentationPolicy presentation;
+    QuickFindPolicy quickFind;
 
     bool operator==( const SettingsPolicies& ) const = default;
 };
@@ -141,5 +232,11 @@ struct SettingsPolicies {
 // application's long-lived objects are built -- not wherever a setting
 // happens to be needed.
 SettingsPolicies deriveSettingsPolicies( const Configuration& config );
+
+// Derives just the Decoration Policy from a Configuration. Declared beside
+// deriveSettingsPolicies() because a Presentation needs this one axis
+// before it is first painted -- earlier than the bundle reaches it -- and
+// both must read the same settings, so there is one derivation, not two.
+DecorationPolicy deriveDecorationPolicy( const Configuration& config );
 
 #endif

@@ -32,6 +32,7 @@
 #include "logpresentation.h"
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
+#include "settingspolicies.h"
 #include "tableviewselection.h"
 
 class AbstractLogData;
@@ -84,8 +85,16 @@ public:
     void setSearchPattern( const RegularExpressionPattern& pattern );
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
-    // Pick up a Configuration change affecting the main search colors.
-    void refreshMainSearchHighlighter();
+    // Hand over the settings that color Log Lines, after a settings change:
+    // painting reads no setting of its own.
+    void setDecorationPolicy( const DecorationPolicy& policy );
+
+    // Hand over the settings that say how the text the user selected is read
+    // as a QuickFind pattern. Call it when the view is built and again after
+    // a settings change: the view reads no setting of its own, and nothing is
+    // derived from this and kept, so a change takes effect at the next
+    // QuickFind.
+    void setQuickFindPolicy( const QuickFindPolicy& policy );
 
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();
@@ -210,6 +219,10 @@ private:
     OptionalLineNumber searchEnd_;
 
     TableViewSelection selection_;
+
+    // How the text the user selected is read as a QuickFind pattern, as this
+    // view's holder last handed it over.
+    QuickFindPolicy quickFindPolicy_;
 
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
     // Searches for Find next and Find previous, off the UI thread.

@@ -1,9 +1,11 @@
 add_library(
   logsquirl_highlighting STATIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/decorationsetup.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightedmatch.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighter.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linedecorator.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/quickfindpattern.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/decorationsetup.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighter.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/linedecorator.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/quickfindpattern.cpp
@@ -23,6 +25,7 @@ target_link_libraries(
          logsquirl_logging
          logsquirl_utils
          logsquirl_logdata
+         logsquirl_policies
          logsquirl_regex
          Qt6::Core
          Qt6::Gui

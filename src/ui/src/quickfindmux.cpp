@@ -19,7 +19,6 @@
 
 #include "log.h"
 
-#include "configuration.h"
 #include "persistentinfo.h"
 #include "quickfindmux.h"
 
@@ -62,6 +61,13 @@ void QuickFindMux::setDirection( QFDirection direction )
     currentDirection_ = direction;
 }
 
+void QuickFindMux::setQuickFindPolicy( const QuickFindPolicy& policy )
+{
+    // Nothing is cancelled or restarted: this Policy says how the next
+    // QuickFind reads what the user types, not what a running one is doing.
+    quickFindPolicy_ = policy;
+}
+
 //
 // Public Q_SLOTS:
 //
@@ -101,14 +107,12 @@ void QuickFindMux::searchBackward()
 
 void QuickFindMux::setNewPattern( const QString& newPattern, bool ignoreCase, bool isRegexSearch )
 {
-    const auto& config = Configuration::get();
-
     LOG_DEBUG << "QuickFindMux::setNewPattern";
 
     // If we must do an incremental search, we do it now
-    if ( config.isQuickfindIncremental() ) {
+    if ( quickFindPolicy_.incremental ) {
         pattern_->changeSearchPattern( newPattern, ignoreCase, isRegexSearch,
-                                       config.quickfindRegexpType()
+                                       quickFindPolicy_.quickFindRegexpType
                                            == SearchRegexpType::ExtendedRegexp );
         if ( auto searchable = getSearchableWidget() ) {
             if ( currentDirection_ == Forward )
@@ -121,13 +125,11 @@ void QuickFindMux::setNewPattern( const QString& newPattern, bool ignoreCase, bo
 
 void QuickFindMux::confirmPattern( const QString& newPattern, bool ignoreCase, bool isRegexSearch )
 {
-    const auto& config = Configuration::get();
-
     pattern_->changeSearchPattern( newPattern, ignoreCase, isRegexSearch,
-                                   config.quickfindRegexpType()
+                                   quickFindPolicy_.quickFindRegexpType
                                        == SearchRegexpType::ExtendedRegexp );
 
-    if ( config.isQuickfindIncremental() ) {
+    if ( quickFindPolicy_.incremental ) {
         if ( auto searchable = getSearchableWidget() )
             searchable->incrementalSearchStop();
     }
@@ -135,7 +137,7 @@ void QuickFindMux::confirmPattern( const QString& newPattern, bool ignoreCase, b
 
 void QuickFindMux::cancelSearch()
 {
-    if ( Configuration::get().isQuickfindIncremental() ) {
+    if ( quickFindPolicy_.incremental ) {
         if ( auto searchable = getSearchableWidget() )
             searchable->incrementalSearchAbort();
     }
@@ -146,7 +148,7 @@ void QuickFindMux::cancelSearch()
 //
 void QuickFindMux::changeQuickFind( const QString& new_pattern, QFDirection new_direction )
 {
-    pattern_->changeSearchPattern( new_pattern, Configuration::get().quickfindRegexpType()
+    pattern_->changeSearchPattern( new_pattern, quickFindPolicy_.quickFindRegexpType
                                                     == SearchRegexpType::ExtendedRegexp );
     setDirection( new_direction );
 }
