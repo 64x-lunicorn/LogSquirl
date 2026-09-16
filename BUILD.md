@@ -321,11 +321,17 @@ The release workflow:
    from the built commit, plus the Qt, OpenSSL and ICU versions found in the
    AppImage, Windows zip and macOS app and what syft finds in them
    (`scripts/sbom/logsquirl_sbom.py`)
-4. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
+4. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
+   grype for the components with a CPE, OSV for the CPM packages by pinned commit
+   and tag. All findings go to code scanning (category `sbom-vulns`); a critical
+   one (CVSS v3/v4 base score ≥ 9.0 or rated critical) stops the release unless
+   `scripts/sbom/vuln-ignore.yml` accepts it with a reason and an expiry date.
+   The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
+5. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
    attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with
    cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
    the checksum file), then publishes the draft. A failure in between leaves a draft.
-5. Updates `latest.json` with the new version (beta or stable field)
+6. Updates `latest.json` with the new version (beta or stable field)
 
 Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag.
 

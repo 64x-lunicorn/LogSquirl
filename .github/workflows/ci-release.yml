@@ -365,12 +365,64 @@ jobs:
           path: sbom/*.cdx.json
           if-no-files-found: error
 
-  # ── Job 5: Publish GitHub Release ──────────────────────────────────────
+  # ── Job 5: Vulnerability scan ──────────────────────────────────────────
+  # Scans the release SBOM: grype matches the components with a CPE (Qt,
+  # Boost and the Qt, OpenSSL and ICU builds found in the packages), OSV the
+  # CPM packages by pinned commit and tag. A critical finding (CVSS v3/v4 base
+  # score >= 9.0 or rated critical) that scripts/sbom/vuln-ignore.yml does not
+  # accept fails this job, and the release job does not run. Every finding goes
+  # to code scanning, also when the gate fails (#213).
+  vuln-scan:
+    runs-on: ubuntu-24.04
+    # grype database download plus a few OSV requests; no run history yet (#218).
+    timeout-minutes: 15
+    needs: [prepare, sbom]
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF to code scanning
+    steps:
+      # The scanner and the ignore file come from this workflow's ref, so an
+      # accepted risk recorded on master applies to a manual release of an
+      # older build.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-sbom
+          path: release-sbom
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install SBOM tooling
+        run: pip install --require-hashes -r scripts/sbom/requirements.txt
+
+      - name: Scan the release SBOM
+        uses: ./.github/actions/sbom-vuln-scan
+        with:
+          sbom: release-sbom/logsquirl-${{ needs.prepare.outputs.version }}-sbom.cdx.json
+          sarif: sbom-vulns.sarif
+          fail-on: critical
+
+      - name: Upload to code scanning
+        if: ${{ !cancelled() && hashFiles('sbom-vulns.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sbom-vulns.sarif
+          category: sbom-vulns
+
+  # ── Job 6: Publish GitHub Release ──────────────────────────────────────
   release:
     runs-on: ubuntu-24.04
-    needs: [prepare, sentry, sbom]
-    # sentry may fail (continue-on-error); a release without its SBOM may not.
-    if: always() && needs.prepare.result == 'success' && needs.sbom.result == 'success'
+    needs: [prepare, sentry, sbom, vuln-scan]
+    # sentry may fail (continue-on-error); a release without its SBOM, or with
+    # a critical vulnerability nobody accepted, may not (#212, #213).
+    if: >-
+      always() && needs.prepare.result == 'success' && needs.sbom.result == 'success'
+      && needs.vuln-scan.result == 'success'
     # Slowest successful run 5 min, mostly asset uploads (#218).
     timeout-minutes: 20
     permissions:
@@ -626,7 +678,7 @@ jobs:
           set -euo pipefail
           gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" -F draft=false --jq '.html_url'
 
-  # ── Job 6: Update latest.json ──────────────────────────────────────────
+  # ── Job 7: Update latest.json ──────────────────────────────────────────
   update-metadata:
     runs-on: ubuntu-24.04
     needs: [prepare, release]

@@ -1,0 +1,60 @@
+name: "Scan an SBOM for known vulnerabilities"
+description: "grype for the CPE-bearing components, OSV for the CPM packages; writes SARIF and gates on critical findings (#213)"
+inputs:
+  sbom:
+    description: "CycloneDX JSON SBOM from scripts/sbom/logsquirl_sbom.py, relative to the workspace"
+    required: true
+  sarif:
+    description: "Where to write the SARIF report, relative to the workspace"
+    required: true
+  fail-on:
+    description: "'critical' fails the step on a critical finding that vuln-ignore.yml does not cover; 'none' only reports"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    # Expects Python with scripts/sbom/requirements.txt installed (the caller's
+    # checkout is where the scanner and the ignore file come from).
+    - name: Install grype
+      shell: bash
+      env:
+        # A fixed grype release checked against its SHA-256 instead of an
+        # install script (#199). To bump: pick an anchore/grype release and copy
+        # the linux_amd64.tar.gz line of its grype_<version>_checksums.txt.
+        # renovate: datasource=github-releases depName=anchore/grype
+        GRYPE_VERSION: 0.118.0
+        GRYPE_SHA256: 1d444c5e7360471815f7158f71935fcecc68a3c417d85c7344f770854300bba2
+      run: |
+        set -euo pipefail
+        tarball="$RUNNER_TEMP/grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+        curl --fail --silent --show-error --location --retry 5 --retry-all-errors --output "$tarball" \
+          "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+        echo "${GRYPE_SHA256}  $tarball" | sha256sum -c -
+        mkdir -p "$RUNNER_TEMP/grype-bin"
+        tar -xzf "$tarball" -C "$RUNNER_TEMP/grype-bin" grype
+        "$RUNNER_TEMP/grype-bin/grype" version
+
+    # No --fail-on here: grype exits non-zero only when it cannot scan (for
+    # example a database it cannot download or one older than grype accepts),
+    # which must fail even a report-only run. Gating happens in the scanner,
+    # after the ignore file is applied.
+    - name: Match the SBOM with grype
+      shell: bash
+      env:
+        SBOM: ${{ inputs.sbom }}
+        GRYPE_CHECK_FOR_APP_UPDATE: "false"
+      run: |
+        set -euo pipefail
+        GRYPE_DB_CACHE_DIR="$RUNNER_TEMP/grype-db" "$RUNNER_TEMP/grype-bin/grype" "sbom:$SBOM" \
+          --output json --file "$RUNNER_TEMP/grype.json"
+
+    - name: Query OSV, apply the ignore file and gate
+      shell: bash
+      env:
+        SBOM: ${{ inputs.sbom }}
+        SARIF: ${{ inputs.sarif }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        set -euo pipefail
+        python scripts/sbom/logsquirl_vulns.py scan --sbom "$SBOM" --grype "$RUNNER_TEMP/grype.json" \
+          --ignore scripts/sbom/vuln-ignore.yml --sarif "$SARIF" --fail-on "$FAIL_ON" --repo-root .
