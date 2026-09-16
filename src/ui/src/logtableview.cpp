@@ -36,7 +36,6 @@
 
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
-#include "configuration.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
 #include "logformattablemodel.h"
@@ -88,22 +87,9 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     viewport()->setMouseTracking( true );
     viewport()->setCursor( Qt::IBeamCursor );
 
-    // Apply the same font the text view uses so appearance is consistent
-    // from the very first frame (the configuration is applied later).
-    {
-        const auto& config = Configuration::get();
-        QFont tableFont = config.mainFont();
-        tableFont.setKerning( false );
-        tableFont.setFixedPitch( true );
-        if ( config.forceFontAntialiasing() ) {
-            tableFont.setStyleStrategy( QFont::PreferAntialias );
-        }
-        tableFont.setBold( config.useBoldFont() );
-        setFont( tableFont );
-
-        const QFontMetrics fm( tableFont );
-        verticalHeader()->setDefaultSectionSize( fm.height() + 2 );
-    }
+    // The font Log Lines are drawn in arrives through updateFont(), which
+    // whoever builds this view calls before the first frame and again whenever
+    // it changes: this view reads no setting for it.
 
     // Highlight delegate for match/mark row coloring and text highlighting
     delegate_ = new LogTableHighlightDelegate( this );

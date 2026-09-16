@@ -56,12 +56,18 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
                                                .fastScrollEnabled = false,
                                                .fastScrollMultiplier = 6,
                                                .allowFollowOnScroll = true,
-                                               .autoShowTableView = false };
+                                               .autoShowTableView = false,
+                                               .mainLineNumbersVisible = true,
+                                               .filteredLineNumbersVisible = false,
+                                               .overviewVisible = true };
         const QuickFindPolicy quickFind{ .quickFindRegexpType = SearchRegexpType::Wildcard,
                                          .mainRegexpType = SearchRegexpType::FixedString,
                                          .ignoreCase = true,
                                          .incremental = false,
-                                         .autoRunSearchOnPatternChange = true };
+                                         .autoRunSearchOnPatternChange = true,
+                                         .searchIgnoreCaseDefault = false,
+                                         .searchAutoRefreshDefault = true,
+                                         .searchLogicalCombiningDefault = false };
 
         THEN( "each field holds what was written" )
         {
@@ -72,12 +78,18 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( presentation.fastScrollMultiplier == 6 );
             REQUIRE( presentation.allowFollowOnScroll );
             REQUIRE_FALSE( presentation.autoShowTableView );
+            REQUIRE( presentation.mainLineNumbersVisible );
+            REQUIRE_FALSE( presentation.filteredLineNumbersVisible );
+            REQUIRE( presentation.overviewVisible );
 
             REQUIRE( quickFind.quickFindRegexpType == SearchRegexpType::Wildcard );
             REQUIRE( quickFind.mainRegexpType == SearchRegexpType::FixedString );
             REQUIRE( quickFind.ignoreCase );
             REQUIRE_FALSE( quickFind.incremental );
             REQUIRE( quickFind.autoRunSearchOnPatternChange );
+            REQUIRE_FALSE( quickFind.searchIgnoreCaseDefault );
+            REQUIRE( quickFind.searchAutoRefreshDefault );
+            REQUIRE_FALSE( quickFind.searchLogicalCombiningDefault );
 
             REQUIRE_FALSE( search.useParallelSearch );
             REQUIRE( search.threadPoolSize == 3 );
@@ -136,10 +148,16 @@ SCENARIO( "A Settings Policy is a value a test can build from literals", "[setti
             REQUIRE( presentation.fastScrollMultiplier == 0 );
             REQUIRE_FALSE( presentation.allowFollowOnScroll );
             REQUIRE_FALSE( presentation.autoShowTableView );
+            REQUIRE_FALSE( presentation.mainLineNumbersVisible );
+            REQUIRE_FALSE( presentation.filteredLineNumbersVisible );
+            REQUIRE_FALSE( presentation.overviewVisible );
 
             REQUIRE_FALSE( quickFind.ignoreCase );
             REQUIRE_FALSE( quickFind.incremental );
             REQUIRE_FALSE( quickFind.autoRunSearchOnPatternChange );
+            REQUIRE_FALSE( quickFind.searchIgnoreCaseDefault );
+            REQUIRE_FALSE( quickFind.searchAutoRefreshDefault );
+            REQUIRE_FALSE( quickFind.searchLogicalCombiningDefault );
 
             REQUIRE_FALSE( search.useParallelSearch );
             REQUIRE( search.threadPoolSize == 0 );
@@ -266,6 +284,11 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         config.setFastScrollMultiplier( 13 );
         config.setAllowFollowOnScroll( true );
         config.setAutoShowTableView( false );
+        // Each shipped the other way round from its neighbour, so all three
+        // flipped still differ from each other.
+        config.setMainLineNumbersVisible( true );
+        config.setFilteredLineNumbersVisible( false );
+        config.setOverviewVisible( false );
 
         // The two regexp types differ from each other, so a derivation that
         // reads one where it means the other is caught.
@@ -274,6 +297,11 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         config.setQfIgnoreCase( true );
         config.setQuickfindIncremental( false );
         config.setAutoRunSearchOnPatternChange( true );
+        // All shipped off; ignore-case left off and the other two switched on,
+        // so a mapping that reads a neighbour's getter cannot pass unnoticed.
+        config.setSearchIgnoreCaseDefault( false );
+        config.setSearchAutoRefreshDefault( true );
+        config.setSearchLogicalCombiningDefault( true );
 
         WHEN( "the Policies are derived from it" )
         {
@@ -334,6 +362,9 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.presentation.fastScrollMultiplier == 13 );
                 REQUIRE( policies.presentation.allowFollowOnScroll );
                 REQUIRE_FALSE( policies.presentation.autoShowTableView );
+                REQUIRE( policies.presentation.mainLineNumbersVisible );
+                REQUIRE_FALSE( policies.presentation.filteredLineNumbersVisible );
+                REQUIRE_FALSE( policies.presentation.overviewVisible );
             }
 
             THEN( "the QuickFind Policy carries what searching interactively needs" )
@@ -343,6 +374,9 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.quickFind.ignoreCase );
                 REQUIRE_FALSE( policies.quickFind.incremental );
                 REQUIRE( policies.quickFind.autoRunSearchOnPatternChange );
+                REQUIRE_FALSE( policies.quickFind.searchIgnoreCaseDefault );
+                REQUIRE( policies.quickFind.searchAutoRefreshDefault );
+                REQUIRE( policies.quickFind.searchLogicalCombiningDefault );
             }
         }
 
@@ -372,6 +406,34 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
             }
         }
 
+        WHEN( "the Search is made to ignore case by default and the Policies are derived again" )
+        {
+            // What the Options Dialog writes: the starting state of the search
+            // buttons, re-derived onto the QuickFind axis.
+            config.setSearchIgnoreCaseDefault( true );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the QuickFind Policy says so" )
+            {
+                REQUIRE( policies.quickFind.searchIgnoreCaseDefault );
+            }
+
+            THEN( "only the QuickFind axis differs from the case-sensitive derivation" )
+            {
+                config.setSearchIgnoreCaseDefault( false );
+                const auto caseSensitive = deriveSettingsPolicies( config );
+                REQUIRE( policies.quickFind != caseSensitive.quickFind );
+                REQUIRE( policies.indexing == caseSensitive.indexing );
+                REQUIRE( policies.search == caseSensitive.search );
+                REQUIRE( policies.watch == caseSensitive.watch );
+                REQUIRE( policies.fileAccess == caseSensitive.fileAccess );
+                REQUIRE( policies.recognition == caseSensitive.recognition );
+                REQUIRE( policies.decoding == caseSensitive.decoding );
+                REQUIRE( policies.decoration == caseSensitive.decoration );
+                REQUIRE( policies.presentation == caseSensitive.presentation );
+            }
+        }
+
         WHEN( "text wrapping is switched off and the Policies are derived again" )
         {
             config.setUseTextWrap( false );
@@ -395,6 +457,34 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.decoding == wrapping.decoding );
                 REQUIRE( policies.decoration == wrapping.decoration );
                 REQUIRE( policies.quickFind == wrapping.quickFind );
+            }
+        }
+
+        WHEN( "the overview is shown again and the Policies are derived again" )
+        {
+            // What the View menu's toggle writes: a Presentation setting like
+            // text wrapping, re-derived onto the same axis.
+            config.setOverviewVisible( true );
+            const auto policies = deriveSettingsPolicies( config );
+
+            THEN( "the Presentation Policy says so" )
+            {
+                REQUIRE( policies.presentation.overviewVisible );
+            }
+
+            THEN( "only the Presentation axis differs from the derivation hiding it" )
+            {
+                config.setOverviewVisible( false );
+                const auto hidden = deriveSettingsPolicies( config );
+                REQUIRE( policies.presentation != hidden.presentation );
+                REQUIRE( policies.indexing == hidden.indexing );
+                REQUIRE( policies.search == hidden.search );
+                REQUIRE( policies.watch == hidden.watch );
+                REQUIRE( policies.fileAccess == hidden.fileAccess );
+                REQUIRE( policies.recognition == hidden.recognition );
+                REQUIRE( policies.decoding == hidden.decoding );
+                REQUIRE( policies.decoration == hidden.decoration );
+                REQUIRE( policies.quickFind == hidden.quickFind );
             }
         }
 

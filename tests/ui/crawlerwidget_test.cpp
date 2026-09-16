@@ -19,6 +19,7 @@
 
 #include <catch2/catch.hpp>
 
+#include <QHeaderView>
 #include <QPointer>
 #include <QScrollBar>
 #include <QShortcut>
@@ -264,16 +265,65 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->tabbedFilteredView_->currentIndex();
     }
 
+    // What the close button of a Filtered View's tab does.
+    void closeFilteredViewTab( int index )
+    {
+        crawler->closeFilteredView( index );
+    }
+
     // The Filtered View of the current Search.
     FilteredView* filteredView() const
     {
         return crawler->filteredView_;
     }
 
+    // Whether the overview of this Log File is shown beside the main view.
+    // Asked of the widget, not of whether it is on screen, so that it answers
+    // for a Log File whose tab is not the current one as well.
+    bool overviewShown() const
+    {
+        return crawler->overview_.isVisible() && !crawler->overviewWidget_->isHidden();
+    }
+
     // Whether the Search line reads its pattern as a regexp.
     bool useRegexpChecked() const
     {
         return crawler->useRegexpButton_->isChecked();
+    }
+
+    // Whether the Search matches case.
+    bool matchCaseChecked() const
+    {
+        return crawler->matchCaseButton_->isChecked();
+    }
+
+    // Whether the Search refreshes as the Log File grows.
+    bool autoRefreshChecked() const
+    {
+        return crawler->searchRefreshButton_->isChecked();
+    }
+
+    // Whether the Search pattern is read as a logical combination.
+    bool booleanCombiningChecked() const
+    {
+        return crawler->booleanButton_->isChecked();
+    }
+
+    // What the user does by hand: clicks the match case, auto-refresh and
+    // logical combining buttons of the search button row.
+    // What the font-size shortcuts and Ctrl+wheel do in any view of the Log File.
+    void zoom( bool increase )
+    {
+        crawler->changeFontSize( increase );
+        QCoreApplication::processEvents();
+    }
+
+    void clickSearchDefaultButtons()
+    {
+        QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
+        QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
+        QTest::mouseClick( crawler->booleanButton_, Qt::LeftButton );
+        QCoreApplication::processEvents();
     }
 };
 
@@ -978,6 +1028,512 @@ SCENARIO( "Every view of every open Log File shows its Log Lines under a changed
                 second.showSized();
                 REQUIRE( showsColor( second.textView(), highlightColor ) );
                 REQUIRE( showsColor( second.filteredView(), highlightColor ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// The Log Files of generateDataFiles(), in which "line 000003" and
+// "line 000007" each end one Log Line. A main-search match is colored only
+// where it matches, and the end of the Log Line lies past the right edge of
+// the view in a wider font -- Windows' offscreen platform draws in one -- so
+// the Search matches from the first column on, which every view shows
+// whatever the font.
+void searchForOneLine( CrawlerWidgetVisitor& crawlerVisitor, const QString& lineEnd )
+{
+    crawlerVisitor.clearSearchPattern();
+    crawlerVisitor.setSearchPattern( "LOGDATA.*" + lineEnd );
+    crawlerVisitor.runSearch();
+    REQUIRE( waitUiState(
+        [ &crawlerVisitor ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
+    QTest::qWait( 50 );
+}
+
+} // namespace
+
+// The Decoration Policy travels as an Axis like the others (#190): the
+// Session hands it to every open Log File, and the CrawlerWidget derives
+// none from the settings store. The store's shipped default colors no
+// main-search match at all, so a view painted in the Policy's color was
+// painted under the Policy.
+SCENARIO( "A changed Decoration Policy reaches every view of every open Log File",
+          "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_decoration_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_decoration_second_XXXXXX" };
+
+    // Colors nothing else in the views is painted with.
+    const QColor openedColor{ 0x21, 0x43, 0x65 };
+    const QColor changedColor{ 0x56, 0x34, 0x12 };
+
+    auto policies = testSettingsPolicies();
+    policies.decoration.mainSearchHighlight = true;
+    policies.decoration.variateMainSearchHighlight = false;
+    policies.decoration.mainSearchBackColor = openedColor;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    const PinnedHighlighterSets pinnedSets;
+    HighlighterSetCollection::get().deactivateAll();
+
+    CrawlerWidgetVisitor first;
+    CrawlerWidgetVisitor second;
+    openCrawler( session, firstFile, first );
+    openCrawler( session, secondFile, second );
+
+    GIVEN( "two Log Files, one with a kept Search in a tab not current" )
+    {
+        searchForOneLine( first, "line 000003" );
+        first.keepSearchResults();
+        searchForOneLine( first, "line 000007" );
+        REQUIRE( first.currentFilteredViewTab() == 1 );
+        REQUIRE( first.filteredViewInTab( 0 ) != nullptr );
+        REQUIRE( first.filteredViewInTab( 1 ) != nullptr );
+
+        searchForOneLine( second, "line 000003" );
+
+        THEN( "every view was painted in the colors of the Policy it was opened under" )
+        {
+            REQUIRE( first.crawler->decorationPolicy() == policies.decoration );
+            REQUIRE( showsColor( first.textView(), openedColor ) );
+            REQUIRE( showsColor( first.filteredViewInTab( 0 ), openedColor ) );
+            REQUIRE( showsColor( first.filteredViewInTab( 1 ), openedColor ) );
+            REQUIRE( showsColor( second.textView(), openedColor ) );
+            REQUIRE( showsColor( second.filteredView(), openedColor ) );
+        }
+
+        // As in a window's tabs: the second Log File is not the current one.
+        second.crawler->hide();
+
+        WHEN( "the Policies re-derived after the main-search color was changed are applied" )
+        {
+            auto changed = policies;
+            changed.decoration.mainSearchBackColor = changedColor;
+            session.applyPolicies( changed );
+            QTest::qWait( 50 );
+
+            THEN( "the main view and both Filtered Views of the first Log File take the new color" )
+            {
+                REQUIRE( first.crawler->decorationPolicy() == changed.decoration );
+                REQUIRE( showsColor( first.textView(), changedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), changedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 1 ), changedColor ) );
+                REQUIRE_FALSE( showsColor( first.textView(), openedColor ) );
+            }
+
+            THEN(
+                "the views of the Log File in the tab not current take it too, with no new Search" )
+            {
+                second.crawler->show();
+                QCoreApplication::processEvents();
+                REQUIRE( second.crawler->decorationPolicy() == changed.decoration );
+                REQUIRE( showsColor( second.textView(), changedColor ) );
+                REQUIRE( showsColor( second.filteredView(), changedColor ) );
+                REQUIRE_FALSE( showsColor( second.textView(), openedColor ) );
+            }
+        }
+
+        WHEN( "a Policy that changes some other axis arrives" )
+        {
+            auto changed = policies;
+            changed.watch.pollingEnabled = false;
+            session.applyPolicies( changed );
+            QTest::qWait( 50 );
+
+            THEN( "the Decoration Policy the views hold is left exactly as it was" )
+            {
+                REQUIRE( first.crawler->decorationPolicy() == policies.decoration );
+                REQUIRE( second.crawler->decorationPolicy() == policies.decoration );
+                REQUIRE( showsColor( first.textView(), openedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), openedColor ) );
+            }
+        }
+
+        WHEN(
+            "the CrawlerWidget applies a Configuration that colors main-search matches otherwise" )
+        {
+            auto& config = Configuration::get();
+            const auto mainSearchHighlight = config.mainSearchHighlight();
+            const auto mainSearchBackColor = config.mainSearchBackColor();
+            config.setEnableMainSearchHighlight( true );
+            config.setMainSearchBackColor( changedColor );
+            first.crawler->applyConfiguration();
+            config.setEnableMainSearchHighlight( mainSearchHighlight );
+            config.setMainSearchBackColor( mainSearchBackColor );
+            QTest::qWait( 50 );
+
+            THEN( "the views still show the Policy's color: only the Policy decides" )
+            {
+                REQUIRE( showsColor( first.textView(), openedColor ) );
+                REQUIRE_FALSE( showsColor( first.textView(), changedColor ) );
+                REQUIRE( showsColor( first.filteredViewInTab( 1 ), openedColor ) );
+            }
+        }
+
+        WHEN( "the kept Search's Filtered View is destroyed and a Policy arrives afterwards" )
+        {
+            const QPointer<FilteredView> kept{ first.filteredViewInTab( 0 ) };
+            first.closeFilteredViewTab( 0 );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+            REQUIRE( kept.isNull() );
+
+            auto changed = policies;
+            changed.decoration.mainSearchBackColor = changedColor;
+            session.applyPolicies( changed );
+            QTest::qWait( 50 );
+
+            THEN( "the surviving one is still reached, and nothing dangles" )
+            {
+                REQUIRE( first.filteredViewInTab( 0 ) != nullptr );
+                REQUIRE( showsColor( first.filteredViewInTab( 0 ), changedColor ) );
+                REQUIRE( showsColor( first.textView(), changedColor ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+bool showsLineNumbers( const AbstractLogView* view )
+{
+    return view->viewportLayout().input().lineNumbersVisible;
+}
+
+} // namespace
+
+// Whether line numbers are drawn and whether the overview is shown ride the
+// Presentation Policy (#192): the CrawlerWidget reads neither from the
+// settings store, so a change reaches every open Log File the way every other
+// Presentation setting does, not only the one in the active tab.
+SCENARIO( "Line numbers and the overview follow the Presentation Policy in every open Log File",
+          "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_line_numbers_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_line_numbers_second_XXXXXX" };
+
+    // The other way round from the shipped defaults, so a widget that still
+    // read the settings store would show the defaults instead.
+    auto policies = testSettingsPolicies();
+    policies.presentation.mainLineNumbersVisible = true;
+    policies.presentation.filteredLineNumbersVisible = false;
+    policies.presentation.overviewVisible = false;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor first;
+    CrawlerWidgetVisitor second;
+    openCrawler( session, firstFile, first );
+    openCrawler( session, secondFile, second );
+
+    GIVEN( "two Log Files, one with a kept Search in a tab not current" )
+    {
+        searchForOneLine( first, "line 000003" );
+        first.keepSearchResults();
+        searchForOneLine( first, "line 000007" );
+        REQUIRE( first.currentFilteredViewTab() == 1 );
+
+        searchForOneLine( second, "line 000003" );
+
+        THEN( "every view shows what the Policy it was opened under says" )
+        {
+            REQUIRE( showsLineNumbers( first.textView() ) );
+            REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 0 ) ) );
+            REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 1 ) ) );
+            REQUIRE_FALSE( first.overviewShown() );
+            REQUIRE( showsLineNumbers( second.textView() ) );
+            REQUIRE_FALSE( showsLineNumbers( second.filteredView() ) );
+            REQUIRE_FALSE( second.overviewShown() );
+        }
+
+        // As in a window's tabs: the second Log File is not the current one.
+        second.crawler->hide();
+
+        WHEN( "the Policies re-derived after line numbers in the main view were switched off "
+              "are applied" )
+        {
+            auto changed = policies;
+            changed.presentation.mainLineNumbersVisible = false;
+            session.applyPolicies( changed );
+
+            THEN( "the main view of either Log File draws none, the tab not current included" )
+            {
+                REQUIRE_FALSE( showsLineNumbers( first.textView() ) );
+                REQUIRE_FALSE( showsLineNumbers( second.textView() ) );
+                REQUIRE( second.crawler->presentationPolicy() == changed.presentation );
+            }
+
+            THEN( "the Filtered Views are left as they were" )
+            {
+                REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 0 ) ) );
+                REQUIRE_FALSE( showsLineNumbers( first.filteredViewInTab( 1 ) ) );
+                REQUIRE_FALSE( showsLineNumbers( second.filteredView() ) );
+            }
+        }
+
+        WHEN( "the Policies re-derived after line numbers in the Filtered View were switched on "
+              "are applied" )
+        {
+            auto changed = policies;
+            changed.presentation.filteredLineNumbersVisible = true;
+            session.applyPolicies( changed );
+
+            THEN( "every Filtered View of either Log File draws them, the kept Search's included" )
+            {
+                REQUIRE( showsLineNumbers( first.filteredViewInTab( 0 ) ) );
+                REQUIRE( showsLineNumbers( first.filteredViewInTab( 1 ) ) );
+                REQUIRE( showsLineNumbers( second.filteredView() ) );
+            }
+
+            THEN( "a Filtered View built by a Search kept afterwards draws them too" )
+            {
+                first.keepSearchResults();
+                searchForOneLine( first, "line 000005" );
+                REQUIRE( first.currentFilteredViewTab() == 2 );
+                REQUIRE( showsLineNumbers( first.filteredViewInTab( 2 ) ) );
+            }
+        }
+
+        WHEN( "the Policies re-derived after the overview was switched on are applied" )
+        {
+            auto changed = policies;
+            changed.presentation.overviewVisible = true;
+            session.applyPolicies( changed );
+
+            THEN( "the overview of either Log File is shown, the tab not current included" )
+            {
+                REQUIRE( first.overviewShown() );
+                REQUIRE( second.overviewShown() );
+            }
+        }
+
+        WHEN( "a Policy that changes some other axis arrives" )
+        {
+            // Set on the views behind the Policy's back: were the Presentation
+            // Policy handed down again, they would be put back as it says.
+            first.textView()->setLineNumbersVisible( false );
+            second.filteredView()->setLineNumbersVisible( true );
+
+            auto changed = policies;
+            changed.watch.pollingEnabled = false;
+            session.applyPolicies( changed );
+
+            THEN( "the Presentation Policy is handed to no view of either Log File" )
+            {
+                REQUIRE_FALSE( showsLineNumbers( first.textView() ) );
+                REQUIRE( showsLineNumbers( second.filteredView() ) );
+            }
+        }
+    }
+}
+
+// The search defaults ride the QuickFind Policy (#193): the whole search button
+// row starts in the state that Policy says, and none of it is read from the
+// settings store. They are a starting state, not a live one: a user who then
+// sets a button by hand is not editing a setting, and a Policy arriving later
+// leaves that button alone.
+SCENARIO( "The search button row starts in the state the QuickFind Policy says", "[ui][settings]" )
+{
+    QTemporaryFile firstFile{ "crawler_search_defaults_first_XXXXXX" };
+    QTemporaryFile secondFile{ "crawler_search_defaults_second_XXXXXX" };
+
+    // Every one the other way round from the shipped defaults, so a widget that
+    // still read the settings store would start in the shipped state instead.
+    auto policies = testSettingsPolicies();
+    policies.quickFind.searchIgnoreCaseDefault = true;
+    policies.quickFind.searchAutoRefreshDefault = true;
+    policies.quickFind.searchLogicalCombiningDefault = true;
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    GIVEN( "a Log File opened under that Policy" )
+    {
+        CrawlerWidgetVisitor first;
+        openCrawler( session, firstFile, first );
+
+        THEN( "the buttons start as the Policy says" )
+        {
+            REQUIRE_FALSE( first.matchCaseChecked() );
+            REQUIRE( first.autoRefreshChecked() );
+            REQUIRE( first.booleanCombiningChecked() );
+        }
+
+        WHEN( "the user sets the buttons by hand and a changed QuickFind Policy arrives" )
+        {
+            first.clickSearchDefaultButtons();
+            REQUIRE( first.matchCaseChecked() );
+            REQUIRE_FALSE( first.autoRefreshChecked() );
+            REQUIRE_FALSE( first.booleanCombiningChecked() );
+
+            // Changed on the same axis, yet still saying the defaults the user
+            // clicked away from: were the buttons seeded again from it, they
+            // would go back to the state they started in.
+            auto changed = policies;
+            changed.quickFind.incremental = !policies.quickFind.incremental;
+            session.applyPolicies( changed );
+
+            THEN( "the Log File holds the new Policy" )
+            {
+                REQUIRE( first.crawler->quickFindPolicy() == changed.quickFind );
+            }
+
+            THEN( "the buttons keep what the user set" )
+            {
+                REQUIRE( first.matchCaseChecked() );
+                REQUIRE_FALSE( first.autoRefreshChecked() );
+                REQUIRE_FALSE( first.booleanCombiningChecked() );
+            }
+        }
+
+        WHEN( "a Policy with other defaults arrives and another Log File is opened" )
+        {
+            auto changed = policies;
+            changed.quickFind.searchIgnoreCaseDefault = false;
+            changed.quickFind.searchAutoRefreshDefault = false;
+            changed.quickFind.searchLogicalCombiningDefault = false;
+            session.applyPolicies( changed );
+
+            CrawlerWidgetVisitor second;
+            openCrawler( session, secondFile, second );
+
+            THEN( "the new Log File starts as the new Policy says" )
+            {
+                REQUIRE( second.matchCaseChecked() );
+                REQUIRE_FALSE( second.autoRefreshChecked() );
+                REQUIRE_FALSE( second.booleanCombiningChecked() );
+            }
+
+            THEN( "the Log File already open keeps the state it started in" )
+            {
+                REQUIRE_FALSE( first.matchCaseChecked() );
+                REQUIRE( first.autoRefreshChecked() );
+                REQUIRE( first.booleanCombiningChecked() );
+            }
+        }
+    }
+}
+
+namespace {
+
+// Holds the three settings that make the font Log Lines are drawn in, and puts
+// back what they were: they live in the settings singleton the other tests
+// share.
+class ConfiguredFont {
+public:
+    ConfiguredFont( const QFont& font, bool bold, bool forceAntialiasing )
+        : font_( Configuration::get().mainFont() )
+        , bold_( Configuration::get().useBoldFont() )
+        , forceAntialiasing_( Configuration::get().forceFontAntialiasing() )
+    {
+        auto& config = Configuration::get();
+        config.setMainFont( font );
+        config.setUseBoldFont( bold );
+        config.setForceFontAntialiasing( forceAntialiasing );
+    }
+
+    ~ConfiguredFont()
+    {
+        auto& config = Configuration::get();
+        config.setMainFont( font_ );
+        config.setUseBoldFont( bold_ );
+        config.setForceFontAntialiasing( forceAntialiasing_ );
+    }
+
+    ConfiguredFont( const ConfiguredFont& ) = delete;
+    ConfiguredFont& operator=( const ConfiguredFont& ) = delete;
+
+private:
+    QFont font_;
+    bool bold_;
+    bool forceAntialiasing_;
+};
+
+// Whether a view draws in the font assembled from the settings: no kerning,
+// fixed pitch, bold and forced antialiasing, at pointSize.
+bool drawsInAssembledFont( const QWidget* view, int pointSize )
+{
+    const auto font = view->font();
+    return !font.kerning() && font.fixedPitch() && font.bold()
+           && ( font.styleStrategy() & QFont::PreferAntialias ) != 0
+           && font.pointSize() == pointSize;
+}
+
+} // namespace
+
+// The font Log Lines are drawn in is assembled from the settings in one place,
+// by the Crawler Widget, and handed to its views: the Table View reads no
+// setting for it (#194). Every view is handed it before it is first painted,
+// and again on every zoom.
+SCENARIO( "Every view of a Log File draws in the configured font from its first frame",
+          "[ui][settings]" )
+{
+    QTemporaryFile file{ "crawler_font_XXXXXX" };
+
+    // Bold and forced antialiasing are the other way round from the shipped
+    // defaults, and the size is not the shipped one either.
+    const auto shippedFont = Configuration{}.mainFont();
+    const auto configuredSize = shippedFont.pointSize() + 4;
+    const ConfiguredFont configured{ QFont{ shippedFont.family(), configuredSize }, true, true };
+
+    auto policies = testSettingsPolicies();
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    GIVEN( "a Log File just opened, not yet painted" )
+    {
+        REQUIRE( generateDataFiles( file ) );
+        session.savedSearches().clear();
+
+        CrawlerWidgetVisitor crawlerVisitor;
+        crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+            session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+
+        THEN( "every view already holds the assembled font" )
+        {
+            REQUIRE( drawsInAssembledFont( crawlerVisitor.tableView(), configuredSize ) );
+            REQUIRE( drawsInAssembledFont( crawlerVisitor.textView(), configuredSize ) );
+            REQUIRE( drawsInAssembledFont( crawlerVisitor.filteredView(), configuredSize ) );
+        }
+
+        WHEN( "it is shown and the configuration is applied afterwards" )
+        {
+            waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+            crawlerVisitor.showSized();
+            crawlerVisitor.showTableView( true );
+            const auto rowHeight
+                = crawlerVisitor.tableView()->verticalHeader()->defaultSectionSize();
+            const auto tableFont = crawlerVisitor.tableView()->font();
+
+            crawlerVisitor.crawler->applyConfiguration();
+            QCoreApplication::processEvents();
+
+            THEN( "the Table View neither changes its font nor resizes its rows" )
+            {
+                REQUIRE( crawlerVisitor.tableView()->font() == tableFont );
+                REQUIRE( crawlerVisitor.tableView()->verticalHeader()->defaultSectionSize()
+                         == rowHeight );
+            }
+        }
+
+        WHEN( "the user zooms in with a kept Search in a tab not current" )
+        {
+            waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
+            waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+            crawlerVisitor.showSized();
+            searchForOneLine( crawlerVisitor, "line 000003" );
+            crawlerVisitor.keepSearchResults();
+            searchForOneLine( crawlerVisitor, "line 000007" );
+            REQUIRE( crawlerVisitor.currentFilteredViewTab() == 1 );
+
+            crawlerVisitor.zoom( true );
+            const auto zoomedSize = Configuration::get().mainFont().pointSize();
+            REQUIRE( zoomedSize > configuredSize );
+
+            THEN( "both Presentations and every Filtered View draw in the assembled, larger font" )
+            {
+                REQUIRE( drawsInAssembledFont( crawlerVisitor.textView(), zoomedSize ) );
+                REQUIRE( drawsInAssembledFont( crawlerVisitor.tableView(), zoomedSize ) );
+                REQUIRE(
+                    drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 0 ), zoomedSize ) );
+                REQUIRE(
+                    drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 1 ), zoomedSize ) );
             }
         }
     }

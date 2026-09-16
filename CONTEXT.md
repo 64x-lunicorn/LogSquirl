@@ -228,7 +228,13 @@ wiring, the Shortcuts and the Highlighter Set collection all live in it and all
 legitimately need the store — so its half is held by a build-time check that `ctest` runs:
 only an allowlisted file, each entry carrying its reason, may name the settings store, and
 the check names every other one that does. The allowlist is meant to shrink as the
-remaining Axes get Policies.
+remaining Axes get Policies, but not to zero. Besides the writers (the Options Dialog among
+them) and window chrome with one consumer each, some Axes deliberately keep a direct read:
+the Shortcuts, a keyed table of actions with a codec of its own rather than a flat snapshot,
+registered by each widget that owns them; logging, which configures the process's logger
+outside the lifetime of any Log File; follow-file-on-load, which the main window alone reads
+once as a file is opened; the font, assembled in one place by the Crawler Widget and handed
+to its own views; and SSL peer verification, one value read by the version checker alone.
 _Avoid_: config object, options, preferences
 
 **Decoration Policy**:
@@ -244,15 +250,23 @@ _Avoid_: highlight settings, color config, theme (a Theme does not color Log Lin
 **Presentation Policy**:
 The Settings Policy a Presentation needs to show and scroll a Log File: whether text is
 wrapped, whether fast scrolling is on and by what multiplier, whether scrolling may engage
-follow, and whether a recognized Log Format opens as a Table View. What a Log Line is
-colored in is not part of it — that is the Decoration Policy.
+follow, whether a recognized Log Format opens as a Table View, whether line numbers are
+drawn in the Text View and, separately, in the Filtered View, and whether the overview is
+shown. The View menu's toggles for the last three write the setting and take the same
+re-derive the Options Dialog does, so a toggle reaches every open Log File, not only the
+active tab. What a Log Line is colored in is not part of it — that is the Decoration
+Policy.
 _Avoid_: view settings, display config, scroll options
 
 **QuickFind Policy**:
 The Settings Policy searching interactively needs: how a QuickFind pattern and a pattern
 typed into the Search line are read, whether case is ignored, whether QuickFind is
-incremental, and whether changing the pattern runs the Search. It carries how typed text is
-read, not how a Search runs — that is the Search Policy.
+incremental, and whether changing the pattern runs the Search. It also carries the state a
+Search's button row starts in: whether case is ignored, whether the Search auto-refreshes,
+and whether the pattern is read as a logical combination. Those are starting state, not live
+state — they seed the buttons when a Log File is opened, and a Policy arriving later does not
+set a button the user has since changed by hand. It carries how typed text is read, not how
+a Search runs — that is the Search Policy.
 _Avoid_: find settings, search options
 
 **Axis**:
