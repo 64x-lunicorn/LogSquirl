@@ -1,0 +1,5 @@
+# Tooling of the release SBOM (#212): the generator tests and the CycloneDX
+# schema validator. CI installs the hash-locked requirements.txt; after a
+# change here, regenerate it with the command at the top of that file.
+cyclonedx-python-lib[json-validation]==11.12.0
+pytest==9.1.1

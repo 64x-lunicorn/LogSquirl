@@ -193,6 +193,7 @@ jobs:
           path: |
             packages-*/**
             logsquirl_version/**
+            sbom-base/**
 
   # ── Job 3: Sentry release + symbol upload ──────────────────────────────
   sentry:
@@ -272,11 +273,104 @@ jobs:
         run: |
           sentry-cli upload-dif ./packages-windows-x64/logsquirl-win-x64-pdb.zip
 
-  # ── Job 4: Publish GitHub Release ──────────────────────────────────────
+  # ── Job 4: SBOM ────────────────────────────────────────────────────────
+  # Completes the source SBOM that CI Build generated from the commit it built
+  # (sbom-base: CPM packages and pinned platform components) with what the
+  # built packages bundle: the Qt, OpenSSL and ICU versions found in the
+  # AppImage, the Windows portable zip and the macOS app, and whatever syft
+  # finds in them. Taking the source part from the build run, not from this
+  # workflow's checkout, keeps it right for a manual release of an older run.
+  # Packages are only unpacked, never executed, and this job holds no write
+  # permission (#212).
+  sbom:
+    runs-on: ubuntu-24.04
+    # Unpacking three packages and a syft scan; no run history yet (#218).
+    timeout-minutes: 20
+    needs: [prepare]
+    if: needs.prepare.outputs.version != ''
+    permissions:
+      contents: read
+    env:
+      LOGSQUIRL_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-artifacts
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install SBOM tooling
+        run: |
+          pip install --require-hashes -r scripts/sbom/requirements.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq squashfs-tools
+
+      - name: Unpack the packages that bundle libraries
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          if [ ! -f sbom-base/logsquirl-sbom-base.cdx.json ]; then
+            echo "::error::The CI Build run has no sbom-base artifact (it predates #212); release a newer run."
+            exit 1
+          fi
+          # Exactly one package per kind, or the scan would describe the wrong file.
+          appimage=(./packages-appimage/*.AppImage)
+          portable=(./packages-windows-x64/*-portable.zip)
+          macapp=(./packages-mac-arm64/*.app.tar.gz)
+          for n in "${#appimage[@]}" "${#portable[@]}" "${#macapp[@]}"; do
+            if [ "$n" -ne 1 ]; then
+              echo "::error::Expected one AppImage, portable zip and macOS app archive: ${appimage[*]} ${portable[*]} ${macapp[*]}"
+              exit 1
+            fi
+          done
+          scan="$RUNNER_TEMP/sbom-scan"
+          mkdir -p "$scan/windows" "$scan/macos"
+          # The SquashFS payload is read at its offset instead of running the
+          # AppImage with --appimage-extract.
+          offset=$(python scripts/sbom/logsquirl_sbom.py appimage-offset "${appimage[0]}")
+          unsquashfs -no-progress -no-xattrs -o "$offset" -d "$scan/appimage" "${appimage[0]}" > /dev/null
+          unzip -q "${portable[0]}" -d "$scan/windows"
+          tar -xzf "${macapp[0]}" -C "$scan/macos"
+
+      - name: Scan the packages with syft
+        uses: anchore/sbom-action@v0
+        with:
+          path: ${{ runner.temp }}/sbom-scan
+          format: cyclonedx-json
+          output-file: ${{ runner.temp }}/syft.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      # --require-detected: a packaging change that stops bundling (or moves)
+      # Qt, OpenSSL or ICU must be looked at, not silently leave them unversioned.
+      - name: Merge and validate the release SBOM
+        run: |
+          set -euo pipefail
+          scan="$RUNNER_TEMP/sbom-scan"
+          sbom="sbom/logsquirl-${LOGSQUIRL_VERSION}-sbom.cdx.json"
+          python scripts/sbom/logsquirl_sbom.py merge --base sbom-base/logsquirl-sbom-base.cdx.json \
+            --scan "appimage=$scan/appimage" --scan "windows=$scan/windows" --scan "macos=$scan/macos" \
+            --syft "$RUNNER_TEMP/syft.cdx.json" --require-detected qt,openssl,icu --output "$sbom"
+          python scripts/sbom/logsquirl_sbom.py validate "$sbom"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-sbom
+          path: sbom/*.cdx.json
+          if-no-files-found: error
+
+  # ── Job 5: Publish GitHub Release ──────────────────────────────────────
   release:
     runs-on: ubuntu-24.04
-    needs: [prepare, sentry]
-    if: always() && needs.prepare.result == 'success'
+    needs: [prepare, sentry, sbom]
+    # sentry may fail (continue-on-error); a release without its SBOM may not.
+    if: always() && needs.prepare.result == 'success' && needs.sbom.result == 'success'
     # Slowest successful run 5 min, mostly asset uploads (#218).
     timeout-minutes: 20
     permissions:
@@ -291,6 +385,13 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: release-artifacts
+
+      # Its own asset directory, so the checksum file, the upload and the
+      # provenance attestation cover the SBOM like every other asset (#212).
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-sbom
+          path: packages-sbom
 
       - name: Cleanup release artifacts
         run: |
@@ -343,7 +444,7 @@ jobs:
           # file and the uploaded assets cannot drift apart (#196).
           required_dirs=(packages-windows-x64 packages-noble packages-oracle
                          packages-fedora packages-appimage packages-mac-arm64
-                         packages-bin)
+                         packages-bin packages-sbom)
           # Symbols are only archived when a Linux build produced .debug files.
           optional_dirs=(linux-debug)
           checksum_name="logsquirl-${LOGSQUIRL_VERSION}-sha256.txt"
@@ -394,7 +495,19 @@ jobs:
               echo "./$dir/*"
             done
             echo "RELEASE_ASSET_GLOBS"
+            # The SBOM attestation binds the SBOM to every other asset (#212).
+            echo "sbom_subjects<<SBOM_SUBJECT_GLOBS"
+            for dir in "${required_dirs[@]}" "${optional_dirs[@]}"; do
+              [ "$dir" = packages-sbom ] || echo "./$dir/*"
+            done
+            echo "SBOM_SUBJECT_GLOBS"
           } >> "$GITHUB_OUTPUT"
+          sbom_files=(./packages-sbom/*.cdx.json)
+          if [ "${#sbom_files[@]}" -ne 1 ]; then
+            echo "::error::Expected one SBOM in packages-sbom, found ${#sbom_files[@]}"
+            exit 1
+          fi
+          echo "sbom_file=${sbom_files[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
         id: changelog
@@ -416,7 +529,8 @@ jobs:
           Every download is listed in `logsquirl-@VERSION@-sha256.txt`. The
           checksum file is signed with Sigstore (`logsquirl-@VERSION@-sha256.txt.sigstore.json`,
           which is itself not listed in the checksum file), and every asset carries a
-          GitHub build provenance attestation.
+          GitHub build provenance attestation. `logsquirl-@VERSION@-sbom.cdx.json` is the
+          CycloneDX software bill of materials of this release, attested for every download.
 
           ```sh
           # 1. Check the signature of the checksum file (needs cosign)
@@ -431,6 +545,9 @@ jobs:
 
           # 3. Or check a single file's build provenance (needs the GitHub CLI)
           gh attestation verify <file> -R 64x-lunicorn/LogSquirl
+
+          # 4. Check that the SBOM describes that file
+          gh attestation verify <file> -R 64x-lunicorn/LogSquirl --predicate-type https://cyclonedx.org/bom
           ```
           NOTES
           section=$(cat "$template")
@@ -461,6 +578,15 @@ jobs:
         uses: actions/attest-build-provenance@v4
         with:
           subject-path: ${{ steps.assets.outputs.files }}
+
+      # actions/attest-sbom is deprecated in favour of actions/attest, which
+      # takes the same sbom-path input. Verify with
+      # gh attestation verify <file> --predicate-type https://cyclonedx.org/bom (#212)
+      - name: Attest SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ steps.assets.outputs.sbom_subjects }}
+          sbom-path: ${{ steps.assets.outputs.sbom_file }}
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.2
@@ -500,7 +626,7 @@ jobs:
           set -euo pipefail
           gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" -F draft=false --jq '.html_url'
 
-  # ── Job 5: Update latest.json ──────────────────────────────────────────
+  # ── Job 6: Update latest.json ──────────────────────────────────────────
   update-metadata:
     runs-on: ubuntu-24.04
     needs: [prepare, release]

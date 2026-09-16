@@ -92,6 +92,54 @@ jobs:
           exit $exit_code
 
   # -----------------------------------------------------------------------
+  # SBOM — the source part of the release SBOM (#212): every CPM package and
+  # the pinned platform components of this commit, i.e. of the binaries this
+  # run builds. A release run (ci-release.yml) adds what the built packages
+  # bundle and publishes the result. Running it on every PR tests the
+  # generator and validates the SBOM against the CycloneDX schema, so a
+  # change to 3rdparty/CMakeLists.txt that the generator cannot describe fails
+  # here instead of in a release.
+  # -----------------------------------------------------------------------
+  SBOM:
+    name: SBOM
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-24.04
+    # pytest plus two generator runs; no build (#218).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install SBOM tooling
+        run: pip install --require-hashes -r scripts/sbom/requirements.txt
+
+      - name: Test the SBOM generator
+        run: python -m pytest scripts/sbom -p no:cacheprovider
+
+      - uses: ./.github/actions/logsquirl-version
+
+      - name: Generate and validate the source SBOM
+        env:
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python scripts/sbom/logsquirl_sbom.py generate --repo-root . \
+            --version "$LOGSQUIRL_VERSION" --commit "$COMMIT" --repository "$GITHUB_REPOSITORY" \
+            --output sbom-base/logsquirl-sbom-base.cdx.json
+          python scripts/sbom/logsquirl_sbom.py validate sbom-base/logsquirl-sbom-base.cdx.json
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom-base
+          path: sbom-base/logsquirl-sbom-base.cdx.json
+          if-no-files-found: error
+
+  # -----------------------------------------------------------------------
   # Stage 1 — Linux (cheapest runners, gates Windows & Mac)
   # -----------------------------------------------------------------------
   Linux:
@@ -539,7 +587,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      [SaveVersion, Format, Linux, Sanitizers, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
+      [SaveVersion, Format, SBOM, Linux, Sanitizers, Windows, Mac, e2e-linux, e2e-mac, e2e-windows]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5

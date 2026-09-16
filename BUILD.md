@@ -316,11 +316,16 @@ Releases are triggered by pushing a git tag to master:
 The release workflow:
 1. Calls `ci-build.yml` to build all platforms
 2. Uploads debug symbols to Sentry (non-blocking)
-3. Creates a draft GitHub Release with all platform packages and the checksum file,
-   attests build provenance for every asset, signs the checksum file keyless with
+3. Builds the release SBOM `logsquirl-<version>-sbom.cdx.json` (CycloneDX 1.6):
+   the CPM packages and pinned platform components that CI Build's SBOM job read
+   from the built commit, plus the Qt, OpenSSL and ICU versions found in the
+   AppImage, Windows zip and macOS app and what syft finds in them
+   (`scripts/sbom/logsquirl_sbom.py`)
+4. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
+   attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with
    cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
    the checksum file), then publishes the draft. A failure in between leaves a draft.
-4. Updates `latest.json` with the new version (beta or stable field)
+5. Updates `latest.json` with the new version (beta or stable field)
 
 Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag.
 

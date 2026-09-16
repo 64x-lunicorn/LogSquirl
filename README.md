@@ -61,7 +61,9 @@ See the release notes for package details and platform requirements.
 
 Want to be sure a download is genuine? Every release has a
 `logsquirl-<version>-sha256.txt` checksum file signed with Sigstore, and every
-asset carries a GitHub build provenance attestation. The **Verifying downloads**
+asset carries a GitHub build provenance attestation. The CycloneDX SBOM
+`logsquirl-<version>-sbom.cdx.json` lists the third-party components a release
+contains. The **Verifying downloads**
 section of the release notes has the `cosign verify-blob`, `sha256sum -c` and
 `gh attestation verify` commands.
 

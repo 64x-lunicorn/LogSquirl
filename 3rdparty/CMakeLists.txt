@@ -14,6 +14,11 @@ set(_TMP_CPM_USE_LOCAL_PACKAGES ${CPM_USE_LOCAL_PACKAGES})
 # without releases (maddy, tbb, ...) were already pinned by SHA. To update a package, resolve the new tag's commit with
 #   git ls-remote https://github.com/<repo> 'refs/tags/<tag>' 'refs/tags/<tag>^{}'
 # (the ^{} line, when present, is the commit of an annotated tag).
+#
+# The release SBOM is generated from the CPMAddPackage calls in this file
+# (scripts/sbom/logsquirl_sbom.py, #212). Keep the NAME/GITHUB_REPOSITORY or
+# GIT_REPOSITORY/GIT_TAG form; a package under a new if() condition fails the
+# SBOM job until the condition is classified in CONDITION_EFFECTS there.
 
 cpmaddpackage(
   NAME simdutf

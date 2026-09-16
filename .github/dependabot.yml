@@ -76,6 +76,20 @@ updates:
   # Lower-bound-only ranges (pytest>=7.0) are already satisfied by new
   # releases, so the default strategy leaves them alone; only a bump that
   # falls outside a range produces a PR.
+  # The SBOM generator's hash-locked validation dependencies (#212).
+  - package-ecosystem: "pip"
+    directory: "/scripts/sbom"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "ci"
+      - "dependencies"
+    groups:
+      sbom-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
   - package-ecosystem: "pip"
     directory: "/tests/e2e"
     schedule:
