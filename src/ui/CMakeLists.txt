@@ -159,6 +159,7 @@ target_link_libraries(
          project_warnings
          logsquirl_logdata
          logsquirl_logformat
+         logsquirl_openlogfile
          logsquirl_versioncheck
          logsquirl_plugins
          logsquirl_highlighting

@@ -67,6 +67,7 @@
 #include "logfiltereddata.h"
 #include "logmainview.h"
 #include "logpresentation.h"
+#include "openlogfile.h"
 #include "overview.h"
 #include "predefinedfilters.h"
 #include "signalmux.h"
@@ -166,13 +167,9 @@ public:
 
 protected:
     // Implementation of the ViewInterface functions
-    void doSetData( std::shared_ptr<LogData> logData,
-                    std::shared_ptr<LogFilteredData> filteredData ) override;
+    void doSetData( std::shared_ptr<OpenLogFile> openLogFile ) override;
     void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) override;
     void doSetSavedSearches( SavedSearches* savedSearches ) override;
-    void doSetFormatRecognition( const RecognitionPolicy& policy,
-                                 std::shared_ptr<const LogFormatCatalog> catalog ) override;
-    void doSetRecognitionPolicy( const RecognitionPolicy& policy ) override;
     void doSetDecorationPolicy( const DecorationPolicy& policy ) override;
     void doSetPresentationPolicy( const PresentationPolicy& policy ) override;
     void doSetQuickFindPolicy( const QuickFindPolicy& policy ) override;
@@ -252,11 +249,12 @@ private Q_SLOTS:
     // Mark Log Lines from a Presentation or a Filtered View.
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
 
-    // failure describes a Failed load, which the user is offered to report.
-    void loadingFinishedHandler( LoadingStatus status, const QString& failure );
-    // Manages the info lines to inform the user the file has changed. A
-    // failure to check the file is offered to be reported.
-    void fileChangedHandler( MonitoredFileStatus status, const QString& failure );
+    // Shows what a finished load brought, as the Open Log File followed it.
+    // A Failed load is offered to be reported.
+    void loadingFinishedHandler( const OpenLogFile::LoadFinished& load );
+    // Shows that the Log File was truncated on disk. A failure to check the
+    // file is offered to be reported.
+    void truncatedHandler( const QString& failure );
 
     void searchForward();
     void searchBackward();
@@ -327,61 +325,14 @@ private Q_SLOTS:
     void filteredViewDestroyed( QObject* view );
 
 private:
-    // State machine holding the state of the search, used to allow/disallow
-    // auto-refresh and inform the user via the info line.
-    class SearchState {
-    public:
-        enum State {
-            NoSearch,
-            Static,
-            Autorefreshing,
-            FileTruncated,
-            TruncatedAutorefreshing,
-        };
-
-        SearchState()
-        {
-            state_ = NoSearch;
-            autoRefreshRequested_ = false;
-        }
-
-        // Reset the state (no search active)
-        void resetState();
-        // The user changed auto-refresh request
-        void setAutorefresh( bool refresh );
-        // The file has been truncated (stops auto-refresh)
-        void truncateFile();
-        // The expression has been changed (stops auto-refresh)
-        void changeExpression();
-        // The search has been stopped (stops auto-refresh)
-        void stopSearch();
-        // The search has been started (enable auto-refresh)
-        void startSearch();
-
-        // Get the state in order to display the proper message
-        State getState() const
-        {
-            return state_;
-        }
-        // Is auto-refresh allowed
-        bool isAutorefreshAllowed() const
-        {
-            return ( state_ == Autorefreshing || state_ == TruncatedAutorefreshing );
-        }
-        bool isFileTruncated() const
-        {
-            return ( state_ == FileTruncated || state_ == TruncatedAutorefreshing );
-        }
-
-    private:
-        State state_;
-        bool autoRefreshRequested_;
-    };
-
     // Private functions
     void setup();
     void setShortcuts();
     void replaceCurrentSearch( const QString& searchText );
+    // Shows a Search just requested, or its invalid pattern.
+    void showSearchRequested( const SearchSession::State& state );
+    // Makes the Filtered View ready for a new Search's results.
+    void prepareForNewSearch();
     void updateSearchCombo();
     AbstractLogView* activeView() const;
     void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
@@ -409,9 +360,9 @@ private:
     // Set hands it to every view.
     static QFont configuredFont();
 
-    // Decide which Log Format applies to the Log File, now that it has loaded.
-    // Only ever called from the load-finished path.
-    void recognizeFormat();
+    // Shows the Log Format the Open Log File just recognized, if any. Only
+    // ever called from the load-finished path.
+    void showRecognizedFormat();
 
     // Forget the recognized Log Format, back in the text view.
     void resetLogFormat();
@@ -433,8 +384,9 @@ private:
 
     SavedSearches* savedSearches_ = nullptr;
 
-    std::shared_ptr<LogData> logData_;
-    std::shared_ptr<LogFilteredData> logFilteredData_;
+    // The Log File this widget shows: its log data, its current Search, and
+    // what they do as the Log File changes on disk.
+    std::shared_ptr<OpenLogFile> openLogFile_;
 
     // Matches overview
     Overview overview_;
@@ -477,9 +429,6 @@ private:
 
     QWidget* qfSavedFocus_ = nullptr;
 
-    // Search state (for auto-refresh and truncation)
-    SearchState searchState_;
-
     // the current dataStatus (whether we have new, not seen, data)
     DataStatus dataStatus_ = DataStatus::OLD_DATA;
 
@@ -493,15 +442,9 @@ private:
     // Current number of matches
     LinesCount nbMatches_;
 
-    LineNumber searchStartLine_;
-    LineNumber searchEndLine_;
-
     // Until we have received confirmation loading is finished, we
     // should consider we are loading something.
     bool loadingInProgress_ = true;
-    bool firstLoadDone_ = false;
-
-    logsquirl::vector<LineNumber> savedMarkedLines_;
 
     // Current encoding setting;
     std::optional<int> encodingMib_;
@@ -510,10 +453,6 @@ private:
     ColorLabelsManager colorLabelsManager_;
 
     ChartPanel* chartPanel_ = nullptr;
-
-    // What Format Recognition runs on
-    RecognitionPolicy recognitionPolicy_;
-    std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
 
     // Every view of this Log File, and what all of them show alike: the
     // Decoration, Presentation and QuickFind Policies, the follow allowance,
@@ -527,15 +466,8 @@ private:
     WatchPolicy watchPolicy_;
     FileAccessPolicy fileAccessPolicy_;
 
-    // Whether the next load to finish is to recognize the Log Format: the
-    // first load, and the one after a manual reload or a truncation.
-    bool formatRecognitionPending_ = true;
-
-    // How many times Format Recognition has run, so a test can tell.
-    int formatRecognitionCount_ = 0;
-
-    // The Log Format recognized for the Log File, if any: one of the
-    // Catalog's own, kept even when the Catalog is rebuilt.
+    // The Log Format the Table View shows, if any: the one the Open Log File
+    // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
 
     // The upper pane shows either the text view or the Table View

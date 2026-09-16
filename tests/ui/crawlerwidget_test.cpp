@@ -43,8 +43,10 @@
 
 #include "configuration.h"
 #include "crawlerwidget.h"
+#include "filewatcher.h"
 #include "filteredview.h"
 #include "highlighterset.h"
+#include "infoline.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
 
@@ -89,12 +91,12 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     LinesCount getLogNbLines()
     {
-        return crawler->logData_->getNbLine();
+        return crawler->openLogFile_->logData()->getNbLine();
     }
 
     LinesCount getLogFilteredNbLines()
     {
-        return crawler->logFilteredData_->getNbLine();
+        return crawler->openLogFile_->filteredData()->getNbLine();
     }
 
     void selectAllInMainView()
@@ -198,7 +200,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
             crawler->recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
             crawler->logTableView_->setLogFormat( crawler->recognizedFormat_.get(),
-                                                  crawler->logData_.get() );
+                                                  crawler->openLogFile_->logData().get() );
             crawler->tableViewToggle_->setVisible( true );
         }
 
@@ -223,7 +225,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     bool isMarked( LineNumber line )
     {
-        return crawler->logFilteredData_->lineTypeByLine( line ).testFlag(
+        return crawler->openLogFile_->filteredData()->lineTypeByLine( line ).testFlag(
             AbstractLogData::LineTypeFlags::Mark );
     }
 
@@ -239,7 +241,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QString logLineString( LineNumber line )
     {
-        return crawler->logData_->getLineString( line );
+        return crawler->openLogFile_->logData()->getLineString( line );
     }
 
     void clearSearchPattern()
@@ -352,6 +354,25 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     {
         crawler->changeFontSize( increase );
         QCoreApplication::processEvents();
+    }
+
+    // What the user does by hand: asks for the Search to follow the Log File.
+    void enableAutoRefresh()
+    {
+        if ( !crawler->searchRefreshButton_->isChecked() ) {
+            QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
+            QCoreApplication::processEvents();
+        }
+    }
+
+    QString searchInfoText() const
+    {
+        return crawler->searchInfoLine_->text();
+    }
+
+    bool isSearchRunning() const
+    {
+        return !crawler->stopButton_->isHidden();
     }
 
     void clickSearchDefaultButtons()
@@ -478,6 +499,78 @@ SCENARIO( "Crawler widget search", "[ui]" )
             }
         }
     }
+}
+
+SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui][autorefresh]" )
+{
+    // Polling as well as native watching, so the truncation is noticed on
+    // any platform without waiting long.
+    FileWatcher::getFileWatcher().setWatchPolicy(
+        WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
+
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "truncated.log" );
+    const auto writeLogLines = [ &path ]( int count ) {
+        QFile file( path );
+        if ( !file.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
+            return false;
+        }
+        for ( int i = 0; i < count; i++ ) {
+            file.write( QString( "LOGDATA is a part of logsquirl, this is line %1\n" )
+                            .arg( i, 6, 10, QChar( '0' ) )
+                            .toUtf8() );
+        }
+        return true;
+    };
+    REQUIRE( writeLogLines( SL_NB_LINES ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset(
+        static_cast<CrawlerWidget*>( session.open( path, []() { return new CrawlerWidget(); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+
+    GIVEN( "an auto-refreshed Search with its matches and a Mark" )
+    {
+        crawlerVisitor.enableAutoRefresh();
+        // Log Lines 10 to 19.
+        crawlerVisitor.setSearchPattern( "line 00001" );
+        crawlerVisitor.runSearch();
+        REQUIRE(
+            waitUiState( [ & ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 10; } ) );
+        crawlerVisitor.markLogLine( 50_lnum );
+        REQUIRE( crawlerVisitor.isMarked( 50_lnum ) );
+
+        WHEN( "the Log File is truncated to fewer Log Lines" )
+        {
+            REQUIRE( writeLogLines( 15 ) );
+
+            REQUIRE( waitUiState( [ & ]() {
+                return crawlerVisitor.getLogNbLines().get() == 15
+                       && crawlerVisitor.getLogFilteredNbLines().get() == 5
+                       && !crawlerVisitor.isSearchRunning();
+            } ) );
+
+            THEN( "the Search started again and shows the matches of the truncated Log File" )
+            {
+                REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 5 );
+                REQUIRE( crawlerVisitor.searchInfoText() == "5 matches found" );
+            }
+
+            THEN( "the Marks are gone" )
+            {
+                REQUIRE_FALSE( crawlerVisitor.isMarked( 50_lnum ) );
+            }
+        }
+    }
+
+    FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
 }
 
 SCENARIO( "Selecting a Match in the Filtered View moves the main view only when it is off screen",

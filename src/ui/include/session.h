@@ -36,9 +36,8 @@
 
 class ViewInterface;
 class ViewContextInterface;
-class LogData;
 class LogFormatCatalog;
-class LogFilteredData;
+class OpenLogFile;
 class SavedSearches;
 
 // File unreadable error
@@ -179,8 +178,7 @@ public:
 private:
     struct OpenFile {
         QString fileName;
-        std::shared_ptr<LogData> logData;
-        std::shared_ptr<LogFilteredData> logFilteredData;
+        std::shared_ptr<OpenLogFile> openLogFile;
         ViewInterface* view;
     };
 

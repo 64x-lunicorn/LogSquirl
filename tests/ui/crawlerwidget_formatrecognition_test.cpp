@@ -110,12 +110,12 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     LinesCount nbLines() const
     {
-        return crawler->logData_->getNbLine();
+        return crawler->openLogFile_->logData()->getNbLine();
     }
 
     int recognitionCount() const
     {
-        return crawler->formatRecognitionCount_;
+        return crawler->openLogFile_->formatRecognitionCount();
     }
 
     const LogFormatDefinition* logFormat() const
@@ -125,7 +125,7 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     const LogFormatCatalog* logFormatCatalog() const
     {
-        return crawler->logFormatCatalog_.get();
+        return crawler->openLogFile_->logFormatCatalog().get();
     }
 
     bool isTableViewToggled() const

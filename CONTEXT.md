@@ -35,7 +35,9 @@ A Log File from the moment it is opened until it is closed, together with what f
 as it changes on disk: its Index, its Searches and their auto-refresh, its Marks, and its
 Log Format. It decides what growing, truncation and reloading mean — a Search continues over
 lines that were added and starts again when the Log File was truncated or reloaded, Marks do
-not survive a truncation or a reload, and Format Recognition is taken again after either.
+not survive a truncation or a reload, and Format Recognition is taken again after either. The
+Marks saved with the Session are handed to it when the Log File is opened and applied once,
+after the first load; saving them stays with the user interface.
 The desktop application and the command line tool follow a Log File the same way because
 both use it.
 _Avoid_: document, loaded file, file session

@@ -27,6 +27,7 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
+#include "openlogfile.h"
 #include "savedsearches.h"
 #include "sessioninfo.h"
 #include "viewinterface.h"
@@ -101,24 +102,25 @@ void Session::getFileInfo( const ViewInterface* view, uint64_t* fileSize, uint64
         return;
     }
 
-    *fileSize = static_cast<uint64_t>( file->logData->getFileSize() );
-    *fileNbLine = file->logData->getNbLine().get();
-    *lastModified = file->logData->getLastModifiedDate();
+    const auto& logData = file->openLogFile->logData();
+    *fileSize = static_cast<uint64_t>( logData->getFileSize() );
+    *fileNbLine = logData->getNbLine().get();
+    *lastModified = logData->getLastModifiedDate();
 }
 
 ViewInterface* Session::openAlways( const QString& file_name,
                                     const std::function<ViewInterface*()>& view_factory,
                                     const QString& view_context )
 {
-    // Create the data objects
-    auto log_data = std::make_shared<LogData>( policies_.indexing, policies_.search,
-                                               policies_.fileAccess, policies_.decoding );
-    auto log_filtered_data = std::shared_ptr<LogFilteredData>( log_data->getNewFilteredData() );
+    // The Open Log File: the log data, its Searches, and what they do as the
+    // Log File changes on disk
+    auto openLogFile = std::make_shared<OpenLogFile>( policies_.indexing, policies_.search,
+                                                      policies_.fileAccess, policies_.decoding,
+                                                      policies_.recognition, logFormatCatalog_ );
 
     ViewInterface* view = view_factory();
-    view->setData( log_data, log_filtered_data );
+    view->setData( openLogFile );
     view->setQuickFindPattern( quickFindPattern_ );
-    view->setFormatRecognition( policies_.recognition, logFormatCatalog_ );
     view->setDecorationPolicy( policies_.decoration );
     view->setPresentationPolicy( policies_.presentation );
     view->setQuickFindPolicy( policies_.quickFind );
@@ -132,10 +134,10 @@ ViewInterface* Session::openAlways( const QString& file_name,
         view->setViewContext( view_context );
 
     // Insert in the hash
-    openFiles_.insert( { view, { file_name, log_data, log_filtered_data, view } } );
+    openFiles_.insert( { view, { file_name, openLogFile, view } } );
 
     // Start loading the file
-    log_data->attachFile( file_name );
+    openLogFile->open( file_name );
 
     return view;
 }
@@ -195,9 +197,9 @@ void Session::applyPolicies( const SettingsPolicies& policies )
         Q_UNUSED( view );
 
         if ( recognitionChanged ) {
-            // Takes effect at the view's next Format Recognition; an open
-            // Table View is not torn down.
-            openFile.view->setRecognitionPolicy( policies_.recognition );
+            // Takes effect at the Log File's next Format Recognition; an
+            // open Table View is not torn down.
+            openFile.openLogFile->setRecognitionPolicy( policies_.recognition );
         }
 
         if ( decorationChanged ) {
@@ -226,21 +228,21 @@ void Session::applyPolicies( const SettingsPolicies& policies )
         }
 
         if ( indexingChanged ) {
-            openFile.logData->setIndexingPolicy( policies_.indexing );
+            openFile.openLogFile->logData()->setIndexingPolicy( policies_.indexing );
         }
 
         if ( searchChanged ) {
             // The Log File hands it on to every LogFilteredData built from
             // it, which is more than the one this Session holds: a tab that
             // kept an earlier Search has its own.
-            openFile.logData->setSearchPolicy( policies_.search );
+            openFile.openLogFile->logData()->setSearchPolicy( policies_.search );
         }
 
         if ( decodingChanged ) {
             // Log Lines read from now on are decoded under it, and the Log
             // File tells its views to read what they show again. Search
             // results already found stay as they were.
-            openFile.logData->setDecodingPolicy( policies_.decoding );
+            openFile.openLogFile->logData()->setDecodingPolicy( policies_.decoding );
         }
     }
 }

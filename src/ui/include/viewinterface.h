@@ -25,9 +25,7 @@
 
 #include "settingspolicies.h"
 
-class LogData;
-class LogFormatCatalog;
-class LogFilteredData;
+class OpenLogFile;
 class SavedSearches;
 class QuickFindPattern;
 
@@ -46,12 +44,12 @@ public:
 // for each type of view.
 class ViewInterface {
 public:
-    // Set the log data and filtered data to associate to this view
-    // Ownership stay with the caller but is shared
-    void setData( std::shared_ptr<LogData> log_data,
-                  std::shared_ptr<LogFilteredData> filtered_data )
+    // Set the Open Log File this view shows. It decides what a change of
+    // the Log File on disk means; the view only shows it. Ownership stays
+    // with the caller but is shared
+    void setData( std::shared_ptr<OpenLogFile> openLogFile )
     {
-        doSetData( log_data, filtered_data );
+        doSetData( std::move( openLogFile ) );
     }
 
     // Set the (shared) quickfind pattern object
@@ -64,21 +62,6 @@ public:
     void setSavedSearches( SavedSearches* saved_searches )
     {
         doSetSavedSearches( saved_searches );
-    }
-
-    // Set what Format Recognition needs: the Recognition Policy and the
-    // application's (shared) Log Format Catalog
-    void setFormatRecognition( const RecognitionPolicy& policy,
-                               std::shared_ptr<const LogFormatCatalog> catalog )
-    {
-        doSetFormatRecognition( policy, std::move( catalog ) );
-    }
-
-    // Hand over a changed Recognition Policy; it takes effect at the next
-    // Format Recognition
-    void setRecognitionPolicy( const RecognitionPolicy& policy )
-    {
-        doSetRecognitionPolicy( policy );
     }
 
     // Hand over the Decoration Policy the views of this Log File color Log
@@ -146,13 +129,9 @@ public:
 
 protected:
     // Virtual functions (using NVI)
-    virtual void doSetData( std::shared_ptr<LogData> log_data,
-                            std::shared_ptr<LogFilteredData> filtered_data ) = 0;
+    virtual void doSetData( std::shared_ptr<OpenLogFile> openLogFile ) = 0;
     virtual void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) = 0;
     virtual void doSetSavedSearches( SavedSearches* saved_searches ) = 0;
-    virtual void doSetFormatRecognition( const RecognitionPolicy& policy,
-                                         std::shared_ptr<const LogFormatCatalog> catalog ) = 0;
-    virtual void doSetRecognitionPolicy( const RecognitionPolicy& policy ) = 0;
     virtual void doSetDecorationPolicy( const DecorationPolicy& policy ) = 0;
     virtual void doSetPresentationPolicy( const PresentationPolicy& policy ) = 0;
     virtual void doSetQuickFindPolicy( const QuickFindPolicy& policy ) = 0;

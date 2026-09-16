@@ -1,0 +1,15 @@
+# The Open Log File is tested on its own: it follows a Log File without the
+# UI library, a widget or the settings store (#244).
+add_executable(logsquirl_openlogfile_tests
+    openlogfile_tests_main.cpp
+    openlogfile_test.cpp
+)
+
+target_link_libraries(logsquirl_openlogfile_tests logsquirl_openlogfile Catch2 Qt6::Test test_utils)
+set_target_properties(logsquirl_openlogfile_tests PROPERTIES AUTOMOC ON)
+
+add_test(
+    NAME logsquirl_openlogfile_tests
+    COMMAND logsquirl_openlogfile_tests
+)
+set_tests_properties(logsquirl_openlogfile_tests PROPERTIES TIMEOUT 120)
