@@ -76,6 +76,10 @@ public:
     {
         return hooked_;
     }
+    bool isHookAllowed() const
+    {
+        return allowHook_;
+    }
 
 protected:
     void timerEvent( QTimerEvent* event ) override;

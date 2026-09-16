@@ -44,6 +44,7 @@ add_executable(logsquirl_tests
     tableviewselection_test.cpp
     theme_test.cpp
     viewportlayout_test.cpp
+    viewset_test.cpp
     wrappedstring_test.cpp
     tests_main.cpp
 )

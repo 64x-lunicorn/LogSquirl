@@ -19,7 +19,12 @@
 
 #pragma once
 
+#include <vector>
+
+#include <QStringList>
+
 #include "linetypes.h"
+#include "settingspolicies.h"
 
 class QFont;
 class QPoint;
@@ -67,6 +72,25 @@ public:
     virtual void rereadLogLines() = 0;
 
     virtual void updateFont( const QFont& font ) = 0;
+
+    // What every view of the Log File shows alike, handed over by its View
+    // Set. A Presentation reads none of it from the settings.
+
+    // The settings that color Log Lines.
+    virtual void setDecorationPolicy( const DecorationPolicy& policy ) = 0;
+    // What the Presentation shows and scrolls under: its line numbers, and
+    // whether it makes room for the Overview both Presentations share.
+    virtual void setPresentationPolicy( const PresentationPolicy& policy ) = 0;
+    // How the text the user selected is read as a QuickFind pattern. The
+    // Text View hands its selection to the window's QuickFind, which reads
+    // the Policy itself, and so ignores it.
+    virtual void setQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
+    // Whether follow may be engaged at all. The Table View follows only as
+    // the Text View does, and so ignores it.
+    virtual void allowFollowMode( bool allow ) = 0;
+    // The words of each Color Label, one list per color slot.
+    virtual void setColorLabels( const std::vector<QStringList>& labels ) = 0;
+    virtual void setSearchLimits( LineNumber startLine, LineNumber endLine ) = 0;
 
     // Save the selected Log Lines to filename, behind a progress dialog.
     // Nothing is saved without a selection.

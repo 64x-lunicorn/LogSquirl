@@ -53,6 +53,10 @@ public:
     // Hand over the settings that color Log Lines. Rebuilds the cached
     // main-search Highlighter, since its colors come from the Policy.
     void setPolicy( const DecorationPolicy& policy );
+    const DecorationPolicy& policy() const
+    {
+        return policy_;
+    }
 
     // Hand over the main Search's pattern. Rebuilds the cached main-search
     // Highlighter; an empty, boolean or excluding pattern builds none, as

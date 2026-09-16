@@ -261,6 +261,21 @@ void LogTableView::setDecorationPolicy( const DecorationPolicy& policy )
     repaintIfActive();
 }
 
+void LogTableView::setPresentationPolicy( const PresentationPolicy& policy )
+{
+    // Both Presentations share the one Overview: the Table View makes room
+    // for it, or takes the room back.
+    if ( overview_ != nullptr ) {
+        overview_->setVisible( policy.overviewVisible );
+    }
+    updateOverview();
+}
+
+void LogTableView::allowFollowMode( bool )
+{
+    // The Table View follows only as the Text View does.
+}
+
 void LogTableView::setQuickFindPolicy( const QuickFindPolicy& policy )
 {
     // Nothing is repainted: this Policy says how a pattern is read, not how a

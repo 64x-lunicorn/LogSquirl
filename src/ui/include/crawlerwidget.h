@@ -71,6 +71,7 @@
 #include "predefinedfilters.h"
 #include "signalmux.h"
 #include "viewinterface.h"
+#include "viewset.h"
 
 #include "logformatdefinition.h"
 #include "settingspolicies.h"
@@ -123,10 +124,11 @@ public:
     bool isTextWrapEnabled() const;
 
     // The Policies this Log File's views show and search under, as last
-    // handed down by the Session. They are held here so that a widget can
-    // be given what it needs instead of reaching for the settings itself:
-    // both Presentations are handed what they need from these (#184), and
-    // this widget's own settings follow (#185).
+    // handed down by the Session. They are held -- the Watch Policy here,
+    // the others by the View Set -- so that a widget can be given what it
+    // needs instead of reaching for the settings itself: every view is
+    // handed what it needs from these (#184, #242), and this widget's own
+    // settings follow (#185).
     const DecorationPolicy& decorationPolicy() const;
     const PresentationPolicy& presentationPolicy() const;
     const QuickFindPolicy& quickFindPolicy() const;
@@ -403,32 +405,11 @@ private:
 
     void changeFontSize( bool increase );
 
-    // Hand every view of this Log File the Decoration Policy this widget
-    // holds, the Filtered Views of kept Searches included. No Presentation
-    // derives it for itself, and neither does this widget: this is how a view
-    // just built is colored, and how a changed Policy reaches one.
-    void handDecorationPolicyToViews();
-
-    // Hand every view of this Log File the Presentation Policy this widget
-    // holds, the Filtered Views of kept Searches included, and show the line
-    // numbers and the overview as it says. None of them is read from the
-    // settings: this is how a view just built shows them, and how a changed
-    // Policy reaches the views of a Log File whose tab is not the current one.
-    void handPresentationPolicyToViews();
-
-    // Tell every view of this Log File whether follow may be engaged at all,
-    // as the Watch Policy this widget holds says. A view allows following
-    // until it is told otherwise, so one just built has to be told too.
-    void handFollowAllowanceToViews();
-
-    // Assemble the font Log Lines are drawn in from the settings -- no
-    // kerning, fixed pitch, the antialias strategy and bold -- and hand it to
-    // every view of this Log File, the Filtered Views of kept Searches
-    // included. This is the one place that font is put together: no view
-    // reads it for itself. A view just built is handed it before its first
-    // paint, and every view again when the configuration is applied or the
-    // user zooms.
-    void handFontToViews();
+    // The font Log Lines are drawn in, assembled from the settings -- no
+    // kerning, fixed pitch, the antialias strategy and bold. This is the one
+    // place that font is put together: no view reads it for itself, the View
+    // Set hands it to every view.
+    static QFont configuredFont();
 
     // Decide which Log Format applies to the Log File, now that it has loaded.
     // Only ever called from the load-finished path.
@@ -446,13 +427,6 @@ private:
     // Connect the signals every Presentation emits to the same slots.
     template <class Presentation>
     void connectPresentation( Presentation* presentation );
-
-    // Call fn with each Filtered View of this Log File, the current one and
-    // those of kept Searches. The current Filtered View is one of the tabs; a
-    // tab closed is gone from them, so a Filtered View destroyed is never
-    // reached.
-    template <class Fn>
-    void forEachFilteredView( Fn&& fn ) const;
 
     // Palette for error notification (yellow background)
     static const QPalette ErrorPalette;
@@ -543,10 +517,10 @@ private:
     RecognitionPolicy recognitionPolicy_;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
 
-    // What this Log File's views color, show, scroll and search under
-    DecorationPolicy decorationPolicy_;
-    PresentationPolicy presentationPolicy_;
-    QuickFindPolicy quickFindPolicy_;
+    // Every view of this Log File, and what all of them show alike: the
+    // Decoration, Presentation and QuickFind Policies, the follow allowance,
+    // the font, the Color Labels and the Search Limits.
+    ViewSet viewSet_;
 
     // Whether this Log File may be followed, and what it was opened under.
     // The File Access Policy is read when the views are built -- the

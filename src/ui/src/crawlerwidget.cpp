@@ -377,40 +377,22 @@ void CrawlerWidget::doSetRecognitionPolicy( const RecognitionPolicy& policy )
 
 void CrawlerWidget::doSetDecorationPolicy( const DecorationPolicy& policy )
 {
-    decorationPolicy_ = policy;
-
-    // Before setup() there are no views yet; setup() hands them the Policy
-    // before any of them is painted. Afterwards a changed Policy re-colors
-    // every view of this Log File, whether or not its tab is the active one.
-    if ( logMainView_ == nullptr ) {
-        return;
-    }
-
-    handDecorationPolicyToViews();
+    // Re-colors every view of this Log File, whether or not its tab is the
+    // active one; a view built later starts with it.
+    viewSet_.setDecorationPolicy( policy );
 }
 
 void CrawlerWidget::doSetPresentationPolicy( const PresentationPolicy& policy )
 {
-    presentationPolicy_ = policy;
-
-    // Before setup() there are no views yet; each is handed the Policy as it
-    // is built. Afterwards a changed Policy reaches every text view of this
-    // Log File, the Filtered Views of kept Searches included, so that it takes
-    // effect without the Log File being opened again.
-    if ( logMainView_ == nullptr ) {
-        return;
-    }
-
-    handPresentationPolicyToViews();
+    // Reaches every view of this Log File, the Filtered Views of kept
+    // Searches included, so that it takes effect without the Log File being
+    // opened again.
+    viewSet_.setPresentationPolicy( policy );
 }
 
 void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
 {
-    quickFindPolicy_ = policy;
-
-    if ( logTableView_ != nullptr ) {
-        logTableView_->setQuickFindPolicy( policy );
-    }
+    viewSet_.setQuickFindPolicy( policy );
 
     // The QuickFind bar and the mux that dispatches to this Log File belong to
     // the window, which takes this Policy from its session: nothing is handed
@@ -421,15 +403,9 @@ void CrawlerWidget::doSetWatchPolicy( const WatchPolicy& policy )
 {
     watchPolicy_ = policy;
 
-    // Before setup() there are no views yet; setup() hands them the allowance
-    // once they exist. Afterwards a changed Policy takes following away from
-    // every view of this Log File, or gives it back, without the Log File
-    // being opened again.
-    if ( logMainView_ == nullptr ) {
-        return;
-    }
-
-    handFollowAllowanceToViews();
+    // Takes following away from every view of this Log File, or gives it
+    // back, without the Log File being opened again.
+    viewSet_.setFollowAllowed( policy.anyWatchEnabled() );
 }
 
 void CrawlerWidget::doSetFileAccessPolicy( const FileAccessPolicy& policy )
@@ -439,17 +415,17 @@ void CrawlerWidget::doSetFileAccessPolicy( const FileAccessPolicy& policy )
 
 const DecorationPolicy& CrawlerWidget::decorationPolicy() const
 {
-    return decorationPolicy_;
+    return viewSet_.decorationPolicy();
 }
 
 const PresentationPolicy& CrawlerWidget::presentationPolicy() const
 {
-    return presentationPolicy_;
+    return viewSet_.presentationPolicy();
 }
 
 const QuickFindPolicy& CrawlerWidget::quickFindPolicy() const
 {
-    return quickFindPolicy_;
+    return viewSet_.quickFindPolicy();
 }
 
 const WatchPolicy& CrawlerWidget::watchPolicy() const
@@ -470,7 +446,7 @@ void CrawlerWidget::doSetViewContext( const QString& view_context )
 {
     LOG_DEBUG << "CrawlerWidget::doSetViewContext: " << view_context.toLocal8Bit().data();
 
-    const auto context = CrawlerWidgetContext{ view_context, quickFindPolicy_ };
+    const auto context = CrawlerWidgetContext{ view_context, viewSet_.quickFindPolicy() };
 
     setSizes( context.sizes() );
     matchCaseButton_->setChecked( !context.ignoreCase() );
@@ -531,16 +507,10 @@ void CrawlerWidget::startNewSearch()
         logFilteredData_->stop();
         logFilteredData_ = logData_->getNewFilteredData();
 
-        // A new Filtered View starts from the Presentation Policy, as the ones
-        // that already exist were handed it in handPresentationPolicyToViews(),
-        // and from the Color Labels and Search Limits the others show.
+        // A new Filtered View starts with everything the others show.
         filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                          presentationPolicy_.useTextWrap );
-        filteredView_->setDecorationPolicy( decorationPolicy_ );
-        filteredView_->setPresentationPolicy( presentationPolicy_ );
-        filteredView_->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
-        filteredView_->setQuickHighlighters( colorLabelsManager_.colorLabels() );
-        filteredView_->setSearchLimits( searchStartLine_, searchEndLine_ );
+                                          viewSet_.presentationPolicy().useTextWrap );
+        viewSet_.addFilteredView( filteredView_ );
         filteredViewsData_[ filteredView_ ] = logFilteredData_;
 
         connectAllFilteredViewSlots( filteredView_ );
@@ -855,44 +825,22 @@ void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& 
     markLinesFromMain( linesInMain );
 }
 
-template <class Fn>
-void CrawlerWidget::forEachFilteredView( Fn&& fn ) const
-{
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            fn( view );
-        }
-    }
-}
-
-void CrawlerWidget::handFollowAllowanceToViews()
-{
-    const auto isFollowModeAllowed = watchPolicy_.anyWatchEnabled();
-
-    logMainView_->allowFollowMode( isFollowModeAllowed );
-    forEachFilteredView(
-        [ & ]( FilteredView* view ) { view->allowFollowMode( isFollowModeAllowed ); } );
-}
-
 void CrawlerWidget::applyConfiguration()
 {
     LOG_DEBUG << "CrawlerWidget::applyConfiguration";
 
     // Deliberately not here: file watching, Context Lines, hiding ANSI color
     // sequences, the colors Log Lines are decorated in, and whether line
-    // numbers and the overview are shown. They are driven by Settings
-    // Policies, re-derived and handed down per axis when a setting actually
-    // changes, to every open Log File (#95, #107, #190, #192). The
-    // follow allowance below is no exception: it is re-handed from the Watch
-    // Policy this widget already holds, never read from the settings, so that
-    // a Filtered View added since is given the same answer as the rest. A
+    // numbers and the overview are shown, nor whether follow is allowed.
+    // They are driven by Settings Policies, re-derived and handed down per
+    // axis when a setting actually changes, to every open Log File (#95,
+    // #107, #190, #192), and a view built since starts with them (#242). A
     // Highlighter Set change does not come here either, but goes to
     // applyHighlighterSetChange().
 
     registerShortcuts();
 
-    handFollowAllowanceToViews();
-    handFontToViews();
+    viewSet_.setFont( configuredFont() );
 
     // Update the SearchLine (history)
     updateSearchCombo();
@@ -902,7 +850,7 @@ void CrawlerWidget::applyConfiguration()
     }
 }
 
-void CrawlerWidget::handFontToViews()
+QFont CrawlerWidget::configuredFont()
 {
     const auto& config = Configuration::get();
     QFont font = config.mainFont();
@@ -918,53 +866,16 @@ void CrawlerWidget::handFontToViews()
 
     font.setBold( config.useBoldFont() );
 
-    for ( auto* presentation : presentations() ) {
-        presentation->updateFont( font );
-    }
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->updateFont( font ); } );
-}
-
-void CrawlerWidget::handDecorationPolicyToViews()
-{
-    logMainView_->setDecorationPolicy( decorationPolicy_ );
-    logTableView_->setDecorationPolicy( decorationPolicy_ );
-    forEachFilteredView(
-        [ & ]( FilteredView* view ) { view->setDecorationPolicy( decorationPolicy_ ); } );
-}
-
-void CrawlerWidget::handPresentationPolicyToViews()
-{
-    logMainView_->setPresentationPolicy( presentationPolicy_ );
-    logMainView_->setLineNumbersVisible( presentationPolicy_.mainLineNumbersVisible );
-    forEachFilteredView( [ & ]( FilteredView* view ) {
-        view->setPresentationPolicy( presentationPolicy_ );
-        view->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
-    } );
-
-    // Both Presentations share the one Overview, so each makes room for it,
-    // or takes the room back, as it now says.
-    overview_.setVisible( presentationPolicy_.overviewVisible );
-    logMainView_->refreshOverview();
-    logTableView_->updateOverview();
+    return font;
 }
 
 void CrawlerWidget::applyHighlighterSetChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyHighlighterSetChange";
 
-    // A Color Label's color comes from the Highlighter Set Collection and is
-    // cached alongside its words, so handing the words over again is what
-    // picks up a color the user just changed.
-    updateColorLabels( colorLabelsManager_.colorLabels() );
-
-    // Every view reads the active Highlighter Sets when it paints, so all a
-    // change takes is painting again -- the Filtered Views of kept Searches
-    // included.
-    for ( auto* presentation : presentations() ) {
-        presentation->updateDecorations();
-    }
-
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->forceRefresh(); } );
+    // Every view of this Log File, the Filtered Views of kept Searches
+    // included, picks up the colors of its Color Labels and paints again.
+    viewSet_.applyHighlighterSetChange();
 }
 
 void CrawlerWidget::doApplyHighlighterSetChange()
@@ -976,14 +887,8 @@ void CrawlerWidget::applyDecodingPolicyChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyDecodingPolicyChange";
 
-    // The views keep the Log Lines they read until told otherwise, and every
-    // Log Line may read differently now -- the Filtered Views of kept
-    // Searches included.
-    for ( auto* presentation : presentations() ) {
-        presentation->rereadLogLines();
-    }
-
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->forceRefresh(); } );
+    // The Filtered Views of kept Searches included.
+    viewSet_.rereadLogLines();
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -1262,7 +1167,7 @@ void CrawlerWidget::setSearchPattern( const QString& searchPattern )
     // Set the focus to lineEdit so that the user can press 'Return' immediately
     searchLineEdit_->lineEdit()->setFocus();
 
-    if ( quickFindPolicy_.autoRunSearchOnPatternChange ) {
+    if ( viewSet_.quickFindPolicy().autoRunSearchOnPatternChange ) {
         dispatchToMainThread( [ this ] { startNewSearch(); } );
     }
 }
@@ -1285,13 +1190,9 @@ void CrawlerWidget::setSearchLimits( LineNumber startLine, LineNumber endLine )
     searchStartLine_ = startLine;
     searchEndLine_ = endLine;
 
-    // The Search Limits belong to the Log File: every Filtered View of it
-    // subdues the same Log Lines, the ones of kept Searches included.
-    logMainView_->setSearchLimits( startLine, endLine );
-    forEachFilteredView(
-        [ & ]( FilteredView* view ) { view->setSearchLimits( startLine, endLine ); } );
-
-    logTableView_->setSearchLimits( startLine, endLine );
+    // The Search Limits belong to the Log File: every view of it subdues the
+    // same Log Lines, the Filtered Views of kept Searches included.
+    viewSet_.setSearchLimits( startLine, endLine );
 }
 
 void CrawlerWidget::clearSearchLimits()
@@ -1319,11 +1220,11 @@ void CrawlerWidget::setup()
 
     overviewWidget_ = new OverviewWidget();
     logMainView_ = new LogMainView( logData_.get(), quickFindPattern_.get(), &overview_,
-                                    overviewWidget_, presentationPolicy_.useTextWrap );
+                                    overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
 
     filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                      presentationPolicy_.useTextWrap );
+                                      viewSet_.presentationPolicy().useTextWrap );
     filteredViewsData_[ filteredView_ ] = logFilteredData_;
     filteredView_->setContentsMargins( 2, 0, 2, 0 );
 
@@ -1546,7 +1447,6 @@ void CrawlerWidget::setup()
     // The table view's overview strip shares the same Overview data as the
     // text view so matches/marks are always in sync.
     logTableView_->setOverview( &overview_, new OverviewWidget() );
-    logTableView_->setColorLabels( colorLabelsManager_.colorLabels() );
 
     mainViewStack_->addWidget( logMainView_ );
     mainViewStack_->addWidget( logTableView_ );
@@ -1562,11 +1462,11 @@ void CrawlerWidget::setup()
 
     // The search button row starts as the QuickFind Policy says. Only here:
     // a Policy arriving later leaves the buttons as the user has set them.
-    searchRefreshButton_->setChecked( quickFindPolicy_.searchAutoRefreshDefault );
-    matchCaseButton_->setChecked( !quickFindPolicy_.searchIgnoreCaseDefault );
-    useRegexpButton_->setChecked( quickFindPolicy_.mainRegexpType
+    searchRefreshButton_->setChecked( viewSet_.quickFindPolicy().searchAutoRefreshDefault );
+    matchCaseButton_->setChecked( !viewSet_.quickFindPolicy().searchIgnoreCaseDefault );
+    useRegexpButton_->setChecked( viewSet_.quickFindPolicy().mainRegexpType
                                   == SearchRegexpType::ExtendedRegexp );
-    booleanButton_->setChecked( quickFindPolicy_.searchLogicalCombiningDefault );
+    booleanButton_->setChecked( viewSet_.quickFindPolicy().searchLogicalCombiningDefault );
 
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( searchRefreshButton_->isChecked() );
@@ -1673,16 +1573,15 @@ void CrawlerWidget::setup()
         }
     } );
 
-    // Hand the views just built everything they show, color and search
-    // under, before any of them is painted. Neither Presentation reads these
+    // The views just built start with everything they show, color and
+    // search under, before any of them is painted. No view reads these
     // settings for itself; each Policy arrives again, on its own Axis,
-    // whenever a settings change re-derives it (#184).
-    handPresentationPolicyToViews();
-    logTableView_->setQuickFindPolicy( quickFindPolicy_ );
-    handDecorationPolicyToViews();
-    handFollowAllowanceToViews();
-    // Nor does any view read the font it draws in: it is handed that too.
-    handFontToViews();
+    // whenever a settings change re-derives it (#184). Nor does any view read
+    // the font it draws in: it is handed that too.
+    viewSet_.setFont( configuredFont() );
+    viewSet_.addPresentation( logMainView_ );
+    viewSet_.addPresentation( logTableView_ );
+    viewSet_.addFilteredView( filteredView_ );
 
     const auto defaultEncodingMib = fileAccessPolicy_.defaultEncodingMib;
     if ( defaultEncodingMib >= 0 ) {
@@ -1868,7 +1767,7 @@ void CrawlerWidget::changeFontSize( bool increase )
         fontConfig.setMainFont( QFont{ fontInfo.family(), *currentSize } );
         // The zoomed font is assembled like any other, bold and antialiasing
         // included, and reaches every view of this Log File.
-        handFontToViews();
+        viewSet_.setFont( configuredFont() );
     }
 }
 
@@ -2260,12 +2159,9 @@ void CrawlerWidget::clearColorLabels()
 void CrawlerWidget::updateColorLabels(
     const ColorLabelsManager::QuickHighlightersCollection& labels )
 {
-    // The Color Labels belong to the Log File: every Filtered View of it
-    // colors them, the ones of kept Searches included.
-    logMainView_->setQuickHighlighters( labels );
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->setQuickHighlighters( labels ); } );
-
-    logTableView_->setColorLabels( labels );
+    // The Color Labels belong to the Log File: every view of it colors them,
+    // the Filtered Views of kept Searches included.
+    viewSet_.setColorLabels( labels );
 }
 
 //
@@ -2543,7 +2439,7 @@ void CrawlerWidget::recognizeFormat()
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
     logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
-    if ( presentationPolicy_.autoShowTableView && !tableViewToggle_->isChecked() ) {
+    if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );
     }

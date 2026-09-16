@@ -83,19 +83,6 @@ public:
 
     void setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern );
     void setSearchPattern( const RegularExpressionPattern& pattern );
-    void setSearchLimits( LineNumber startLine, LineNumber endLine );
-    void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
-    // Hand over the settings that color Log Lines, after a settings change:
-    // painting reads no setting of its own.
-    void setDecorationPolicy( const DecorationPolicy& policy );
-
-    // Hand over the settings that say how the text the user selected is read
-    // as a QuickFind pattern. Call it when the view is built and again after
-    // a settings change: the view reads no setting of its own, and nothing is
-    // derived from this and kept, so a change takes effect at the next
-    // QuickFind.
-    void setQuickFindPolicy( const QuickFindPolicy& policy );
-
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();
 
@@ -115,6 +102,21 @@ public:
     // Drops the Rows read so far; they are read again as they are shown.
     void rereadLogLines() override;
     void updateFont( const QFont& font ) override;
+    // Hand over the settings that color Log Lines, after a settings change:
+    // painting reads no setting of its own.
+    void setDecorationPolicy( const DecorationPolicy& policy ) override;
+    // Shows the Overview as it says; the Table View has no line numbers.
+    void setPresentationPolicy( const PresentationPolicy& policy ) override;
+    // Hand over the settings that say how the text the user selected is read
+    // as a QuickFind pattern. Call it when the view is built and again after
+    // a settings change: the view reads no setting of its own, and nothing is
+    // derived from this and kept, so a change takes effect at the next
+    // QuickFind.
+    void setQuickFindPolicy( const QuickFindPolicy& policy ) override;
+    // Ignored: the Table View follows only as the Text View does.
+    void allowFollowMode( bool allow ) override;
+    void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels ) override;
+    void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
 

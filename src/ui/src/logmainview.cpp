@@ -109,6 +109,41 @@ void LogMainView::updateFont( const QFont& font )
     AbstractLogView::updateFont( font );
 }
 
+void LogMainView::setDecorationPolicy( const DecorationPolicy& policy )
+{
+    AbstractLogView::setDecorationPolicy( policy );
+}
+
+void LogMainView::setPresentationPolicy( const PresentationPolicy& policy )
+{
+    AbstractLogView::setPresentationPolicy( policy );
+    setLineNumbersVisible( policy.mainLineNumbersVisible );
+    // Both Presentations share the one Overview: the Text View makes room
+    // for it, or takes the room back.
+    setOverviewVisible( policy.overviewVisible );
+}
+
+void LogMainView::setQuickFindPolicy( const QuickFindPolicy& )
+{
+    // The selected text goes to the window's QuickFind, which reads the
+    // Policy itself.
+}
+
+void LogMainView::allowFollowMode( bool allow )
+{
+    AbstractLogView::allowFollowMode( allow );
+}
+
+void LogMainView::setColorLabels( const std::vector<QStringList>& labels )
+{
+    setQuickHighlighters( labels );
+}
+
+void LogMainView::setSearchLimits( LineNumber startLine, LineNumber endLine )
+{
+    AbstractLogView::setSearchLimits( startLine, endLine );
+}
+
 void LogMainView::saveSelectedTo( const QString& filename )
 {
     AbstractLogView::saveSelectedTo( filename );

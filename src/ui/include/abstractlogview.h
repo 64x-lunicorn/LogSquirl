@@ -117,6 +117,10 @@ public:
     // overview included -- so there is one declaration to keep in step.
     static constexpr int OverviewWidth = 27;
 
+    // Lets a test read what the view was handed.
+    template <class T>
+    struct access_by;
+
     // Constructor of the widget, the data set is passed.
     // The caller retains ownership of the data set.
     // The pointer to the QFP is used for colouring and QuickFind searches

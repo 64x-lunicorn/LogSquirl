@@ -66,6 +66,13 @@ public:
     void updateDecorations() override;
     void rereadLogLines() override;
     void updateFont( const QFont& font ) override;
+    void setDecorationPolicy( const DecorationPolicy& policy ) override;
+    // Also shows the Text View's line numbers and the Overview as it says.
+    void setPresentationPolicy( const PresentationPolicy& policy ) override;
+    void setQuickFindPolicy( const QuickFindPolicy& policy ) override;
+    void allowFollowMode( bool allow ) override;
+    void setColorLabels( const std::vector<QStringList>& labels ) override;
+    void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     void saveSelectedTo( const QString& filename ) override;
 
 protected:
