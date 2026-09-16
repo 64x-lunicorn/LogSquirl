@@ -280,10 +280,66 @@ jobs:
           cp ./logsquirl_version/logsquirl_version.txt ./packages-bin/
 
       - name: Prepare checksums
+        id: assets
         run: |
-          sha256sum --binary ./packages-bin/* ./packages-noble/* \
-            ./packages-oracle/* ./packages-fedora/* ./packages-appimage/* \
-            2>/dev/null > ./packages-bin/logsquirl-$LOGSQUIRL_VERSION-sha256.txt || true
+          set -euo pipefail
+          shopt -s nullglob
+
+          # The one list of directories whose files become release assets. The
+          # publish step takes its globs from this step's output, so the checksum
+          # file and the uploaded assets cannot drift apart (#196).
+          required_dirs=(packages-windows-x64 packages-noble packages-oracle
+                         packages-fedora packages-appimage packages-mac-arm64
+                         packages-bin)
+          # Symbols are only archived when a Linux build produced .debug files.
+          optional_dirs=(linux-debug)
+          checksum_name="logsquirl-${LOGSQUIRL_VERSION}-sha256.txt"
+
+          # A platform that did not deliver must stop the release, not ship a
+          # release (and checksum file) without it (#196).
+          missing=0
+          for dir in "${required_dirs[@]}"; do
+            found=0
+            for f in "./$dir"/*; do
+              if [ -f "$f" ]; then found=1; break; fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "::error::Release asset directory '$dir' is missing or has no files"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
+
+          # Entries use basenames: users verify with 'sha256sum -c' inside the
+          # folder they downloaded the assets to. Release assets share one flat
+          # namespace, so a duplicate name would also clobber an upload.
+          names=()
+          checksums="$RUNNER_TEMP/$checksum_name"
+          : > "$checksums"
+          for dir in "${required_dirs[@]}" "${optional_dirs[@]}"; do
+            for f in "./$dir"/*; do
+              [ -f "$f" ] || continue
+              name="${f##*/}"
+              [ "$name" != "$checksum_name" ] || continue
+              names+=("$name")
+              (cd "./$dir" && sha256sum --binary -- "$name") >> "$checksums"
+            done
+          done
+          duplicates=$(printf '%s\n' "${names[@]}" | sort | uniq -d)
+          if [ -n "$duplicates" ]; then
+            echo "::error::Release asset names are not unique: $duplicates"
+            exit 1
+          fi
+          mv "$checksums" "./packages-bin/$checksum_name"
+          cat "./packages-bin/$checksum_name"
+
+          {
+            echo "files<<RELEASE_ASSET_GLOBS"
+            for dir in "${required_dirs[@]}" "${optional_dirs[@]}"; do
+              echo "./$dir/*"
+            done
+            echo "RELEASE_ASSET_GLOBS"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Generate changelog
         id: changelog
@@ -297,15 +353,8 @@ jobs:
           name: "LogSquirl ${{ needs.prepare.outputs.tag }}"
           body_path: release_notes.md
           prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
-          files: |
-            ./packages-windows-x64/*
-            ./packages-noble/*
-            ./packages-oracle/*
-            ./packages-fedora/*
-            ./packages-appimage/*
-            ./packages-mac-arm64/*
-            ./packages-bin/*
-            ./linux-debug/*
+          # Same directory list the checksum file was computed from (#196)
+          files: ${{ steps.assets.outputs.files }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
