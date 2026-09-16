@@ -1,8 +1,8 @@
 name: "Pull or build container"
-description: "Pull a build container from GHCR; rebuild it locally when its image inputs hash label no longer matches the checked-in docker/ files"
+description: "Resolve the build container by its image inputs hash, pull it from GHCR or build it locally when that tag does not exist, and export the ref as LOGSQUIRL_CONTAINER"
 inputs:
-  container:
-    description: "Image reference, e.g. ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest"
+  image:
+    description: "Image name without a tag, e.g. ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble"
     required: true
   container_root:
     description: "Directory holding the Dockerfile, e.g. docker/ubuntu24.04"
@@ -10,28 +10,29 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # The tag is the inputs hash of the checked-out docker/ files (#215), so a
+    # run only ever uses an image built from exactly those files: the Docker
+    # Images workflow pushing a newer image cannot change it, and a PR that
+    # edits an image gets a tag that does not exist yet and builds its own.
+    # Every later step runs "$LOGSQUIRL_CONTAINER" rather than a fixed ref; the
+    # value written to GITHUB_ENV is the matrix image name plus a hex hash, never
+    # untrusted input.
     - name: Pull or build container
       shell: bash
       env:
-        CONTAINER: ${{ inputs.container }}
+        IMAGE: ${{ inputs.image }}
         CONTAINER_ROOT: ${{ inputs.container_root }}
-      run: |
+      run: | # zizmor: ignore[github-env]
         set -euo pipefail
-        LOCAL_HASH=$(sh docker/image-hash.sh "$CONTAINER_ROOT")
-        NEED_BUILD=false
+        INPUTS_HASH=$(sh docker/image-hash.sh "$CONTAINER_ROOT")
+        CONTAINER="$IMAGE:$INPUTS_HASH"
 
-        if docker pull "$CONTAINER" 2>/dev/null; then
-          REMOTE_HASH=$(docker inspect --format='{{index .Config.Labels "dockerfile.sha256"}}' "$CONTAINER" 2>/dev/null || echo "")
-          if [ "$LOCAL_HASH" != "$REMOTE_HASH" ]; then
-            echo "::warning::Image inputs changed (local=$LOCAL_HASH remote=$REMOTE_HASH), rebuilding"
-            NEED_BUILD=true
-          fi
+        if docker pull "$CONTAINER"; then
+          echo "Using $CONTAINER from GHCR"
         else
-          echo "::warning::GHCR image not found, building locally"
-          NEED_BUILD=true
+          # The context is docker/ so every image can copy docker/shared.
+          echo "::warning::$CONTAINER is not on GHCR (image inputs changed, or the Docker Images workflow has not pushed it yet); building locally"
+          docker build --label "dockerfile.sha256=$INPUTS_HASH" -t "$CONTAINER" -f "$CONTAINER_ROOT/Dockerfile" docker
         fi
 
-        # The context is docker/ so every image can copy docker/shared.
-        if [ "$NEED_BUILD" = "true" ]; then
-          docker build --label "dockerfile.sha256=$LOCAL_HASH" -t "$CONTAINER" -f "$CONTAINER_ROOT/Dockerfile" docker
-        fi
+        echo "LOGSQUIRL_CONTAINER=$CONTAINER" >> "$GITHUB_ENV"

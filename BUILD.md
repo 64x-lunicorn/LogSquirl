@@ -266,11 +266,20 @@ Linux builds use pre-built Docker images hosted on GHCR:
 
 Every image is built with `docker/` as its build context, so all four install sccache
 from the one script `docker/shared/install-sccache.sh`; bumping sccache is an edit to that file only.
-Each image carries a `dockerfile.sha256` label computed by `docker/image-hash.sh` over its own directory
-and `docker/shared`; CI rebuilds a pulled image locally when that label no longer matches the checkout.
+Images are content-addressed. `docker/image-hash.sh` hashes an image's own directory and `docker/shared`;
+the **Docker Images** workflow pushes each image under that hash as its tag (plus `:latest`, for humans only)
+and never overwrites an existing hash tag. CI Build computes the same hash from its checkout and pulls exactly
+`<image>:<hash>`; when that tag does not exist (a PR that changes `docker/`, or a merge the workflow has not
+published yet) it builds the image locally under the same ref. So an open PR's toolchain changes only when
+its own `docker/` files do.
 
-Images are rebuilt automatically when files in `docker/` change on master, or monthly for OS security patches.
-To rebuild manually, trigger the **Docker Images** workflow via `workflow_dispatch`.
+Every `FROM` is pinned by digest (`image:tag@sha256:…`); Dependabot proposes digest bumps as pull requests.
+
+Images are published when files in `docker/` change on master. OS security patches arrive through a monthly
+scheduled run that bumps `docker/shared/refresh-stamp` and opens a pull request; merging it gives every image
+a new hash and so a fresh build. That PR is opened with `GITHUB_TOKEN`, which starts no workflows: close and
+reopen it to run CI Build on it. To propose a refresh by hand, run the **Docker Images** workflow via
+`workflow_dispatch` with *propose_refresh*; running it without that publishes any hash tag still missing.
 
 > **AppImage compatibility:** The AppImage is built on the Ubuntu 22.04 (jammy)
 > image on purpose. `linuxdeploy` bundles Qt and libssl but never bundles glibc

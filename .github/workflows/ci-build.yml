@@ -104,7 +104,7 @@ jobs:
             package_suffix: rpm
             check_container: oraclelinux:10
             container_root: docker/oracle10
-            container: ghcr.io/64x-lunicorn/logsquirl-oracle10:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-oracle10
             cmake_opts: -DCMAKE_BUILD_WITH_INSTALL_RPATH=on
 
           - os: ubuntu_noble
@@ -116,7 +116,7 @@ jobs:
             package_suffix: deb
             check_container: ubuntu:24.04
             container_root: docker/ubuntu24.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
             cmake_opts:
 
           - os: ubuntu_appimage
@@ -127,7 +127,7 @@ jobs:
             artifacts_id: appimage
             package_suffix: AppImage
             container_root: docker/ubuntu22.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy
             cmake_opts:
 
           - os: fedora
@@ -139,7 +139,7 @@ jobs:
             package_suffix: rpm
             check_container: fedora:44
             container_root: docker/fedora44
-            container: ghcr.io/64x-lunicorn/logsquirl-fedora44:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-fedora44
             cmake_opts:
 
     runs-on: ubuntu-24.04
@@ -153,9 +153,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # matrix.config.image carries no tag: the action tags it with the image
+      # inputs hash and exports the ref as LOGSQUIRL_CONTAINER for every later
+      # step, so the run is unaffected by what the Docker Images workflow pushes
+      # meanwhile (#215).
       - uses: ./.github/actions/docker-pull-or-build
         with:
-          container: ${{ matrix.config.container }}
+          image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
       - name: Restore CPM cache
@@ -193,7 +197,7 @@ jobs:
           - arch: x64
             artifacts_id: asan
             container_root: docker/ubuntu24.04
-            container: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble:latest
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
             # Sentry/crashpad is a release concern and its own crash handler
             # would fight the sanitizer runtime; LTO only slows the link of a
             # build nobody ships. Vectorscan stays ON: it builds and runs clean
@@ -223,7 +227,7 @@ jobs:
 
       - uses: ./.github/actions/docker-pull-or-build
         with:
-          container: ${{ matrix.config.container }}
+          image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
       - name: Restore CPM cache
@@ -248,7 +252,7 @@ jobs:
         run: |
           docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
             --env ASAN_OPTIONS="$ASAN_OPTIONS" --env UBSAN_OPTIONS="$UBSAN_OPTIONS" \
-            -v "$LOGSQUIRL_WORKSPACE":/usr/local ${{ matrix.config.container }} \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
             /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure"
 
   # -----------------------------------------------------------------------

@@ -17,6 +17,8 @@ updates:
           - "minor"
           - "patch"
 
+  # Keeps the digest-pinned FROM lines current (#215); a bump changes the
+  # image inputs hash, so CI builds it on the PR and publishes it on merge.
   - package-ecosystem: "docker"
     directory: "/docker/ubuntu24.04"
     schedule:

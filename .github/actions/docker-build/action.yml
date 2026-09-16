@@ -25,7 +25,7 @@ runs:
           --env LOGSQUIRL_CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS" \
           --env SCCACHE_DIR=/usr/local/sccache_cache \
           --env SCCACHE_CACHE_SIZE=2G \
-          -v "$LOGSQUIRL_WORKSPACE":/usr/local ${{ matrix.config.container }} sleep infinity
+          -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" sleep infinity
 
     - name: configure
       shell: sh

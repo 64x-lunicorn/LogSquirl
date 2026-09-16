@@ -6,17 +6,29 @@ on:
     paths:
       - 'docker/**'
   workflow_dispatch:
+    inputs:
+      propose_refresh:
+        description: "Open (or update) the image refresh pull request instead of building"
+        type: boolean
+        default: false
   schedule:
-    # Monthly rebuild to pick up OS security patches
+    # Monthly: propose a rebuild to pick up OS security patches. It only opens
+    # a pull request; the images CI uses change once that PR is merged (#215).
     - cron: '0 4 1 * *'
+
+permissions: {}
 
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/64x-lunicorn/logsquirl
 
 jobs:
+  # Pushes every image under its inputs hash (docker/image-hash.sh), the tag
+  # CI Build pulls, plus :latest for humans. A hash tag is never overwritten:
+  # an open PR's CI keeps resolving to the very image it started with, and new
+  # OS packages arrive only through a new hash (#215).
   build-images:
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    if: (github.event_name == 'push' && !contains(github.event.head_commit.message, '[skip ci]')) || (github.event_name == 'workflow_dispatch' && !inputs.propose_refresh)
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -37,6 +49,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
         uses: docker/login-action@v4
@@ -45,23 +59,104 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The label keeps its historical name; it covers the image directory
-      # and docker/shared (see docker/image-hash.sh).
-      - name: Compute image inputs hash
-        id: image_hash
+      - name: Resolve image tag
+        id: image
         env:
           CONTAINER_ROOT: ${{ matrix.container_root }}
-        run: echo "sha256=$(sh docker/image-hash.sh "$CONTAINER_ROOT")" >> "$GITHUB_OUTPUT"
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}
+        run: |
+          set -euo pipefail
+          hash=$(sh docker/image-hash.sh "$CONTAINER_ROOT")
+          echo "sha256=$hash" >> "$GITHUB_OUTPUT"
+          if docker buildx imagetools inspect "$IMAGE:$hash" > /dev/null 2>&1; then
+            echo "$IMAGE:$hash already exists; leaving it untouched"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      # The context is docker/ so every image can copy docker/shared.
+      # The context is docker/ so every image can copy docker/shared. The label
+      # keeps its historical name; it repeats the inputs hash of the tag.
       - name: Build and push
+        if: steps.image.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: docker
           file: ${{ matrix.container_root }}/Dockerfile
           push: true
           tags: |
+            ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ steps.image.outputs.sha256 }}
             ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:latest
-            ${{ env.IMAGE_PREFIX }}-${{ matrix.image_name }}:${{ github.sha }}
           labels: |
-            dockerfile.sha256=${{ steps.image_hash.outputs.sha256 }}
+            dockerfile.sha256=${{ steps.image.outputs.sha256 }}
+
+  # Bumps docker/shared/refresh-stamp, which is part of every image's inputs
+  # hash, and proposes it as a pull request. Merging it pushes to master under
+  # docker/**, so build-images publishes the refreshed images under their new
+  # tags and CI moves to them in the same reviewed step (#215).
+  #
+  # A pull request opened with GITHUB_TOKEN does not trigger workflows, so CI
+  # Build does not run on it by itself; close and reopen the PR (or push a
+  # commit to its branch) to run it. No extra secret is needed for that. The
+  # repository must allow GitHub Actions to create pull requests.
+  propose-refresh:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.propose_refresh)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: ci/docker-image-refresh
+      BASE: ${{ github.event.repository.default_branch }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Bump the refresh stamp
+        id: bump
+        run: |
+          set -euo pipefail
+          stamp=docker/shared/refresh-stamp
+          today=$(date -u +%Y-%m-%d)
+          { grep '^#' "$stamp"; echo "$today"; } > "$stamp.new"
+          mv "$stamp.new" "$stamp"
+          if git diff --quiet; then
+            echo "The stamp already reads $today; nothing to propose"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "today=$today" >> "$GITHUB_OUTPUT"
+          fi
+
+      # The branch is regenerated from the base each time, so an unmerged
+      # refresh PR is updated in place rather than joined by a second one.
+      - name: Push the branch and open the pull request
+        if: steps.bump.outputs.changed == 'true'
+        env:
+          TODAY: ${{ steps.bump.outputs.today }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git commit -am "ci: refresh the CI build images ($TODAY)"
+          git push --force origin "HEAD:refs/heads/$BRANCH"
+
+          open=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq length)
+          if [ "$open" != "0" ]; then
+            echo "The refresh pull request is already open; its branch now carries $TODAY"
+            exit 0
+          fi
+
+          gh pr create --base "$BASE" --head "$BRANCH" \
+            --title "ci: refresh the CI build images ($TODAY)" \
+            --body "$(cat <<'EOF'
+          Bumps `docker/shared/refresh-stamp`, which gives every CI build image a new inputs hash and so a fresh build with current OS packages.
+
+          - This PR was opened with `GITHUB_TOKEN`, so no workflow has run on it. **Close and reopen it** (or push a commit to its branch) to run CI Build, which builds the refreshed images locally and tests against them.
+          - After merge, the Docker Images workflow pushes the images under their new tags; until then every other PR keeps using the current ones.
+          EOF
+          )"
