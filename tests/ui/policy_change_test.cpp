@@ -70,8 +70,8 @@ void searchForSingleLine( LogFilteredData* data, const QString& pattern )
 {
     SafeQSignalSpy searchStateSpy{ data, &LogFilteredData::searchStateChanged };
     data->request( RegularExpressionPattern( pattern ) );
-    // The Session reaches Complete before the throttled notification that
-    // carries the results into this object, so wait on the results.
+    // The Search runs on a worker thread: wait until its completion, which
+    // publishes the Matches with it, has reached this object.
     REQUIRE( waitUiState( [ & ]() {
         return data->searchState().phase == SearchSession::Phase::Complete
                && data->getNbMatches() == 1_lcount;

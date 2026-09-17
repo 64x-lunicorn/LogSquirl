@@ -105,7 +105,10 @@ with clang-format before committing.
 - Libraries: `logsquirl_<module>` (e.g., `logsquirl_ui`, `logsquirl_logdata`, `logsquirl_utils`)
 - Executables: `logsquirl`, `logsquirl_portable`, `logsquirl_grep`
 - Test targets: `logsquirl_tests`, `logsquirl_compression_tests`, `logsquirl_plugin_catalog_tests`,
-  `logsquirl_openlogfile_tests`, `logsquirl_itests`
+  `logsquirl_openlogfile_tests`, `logsquirl_textviewscrolling_tests`, `logsquirl_itests`
+- CTest script checks: `logdata_public_headers_no_tbb`, `plugins_no_qt_widgets`,
+  `openlogfile_no_qt_widgets`, `textviewscrolling_no_qt_widgets`, `ui_settings_store_allowlist`,
+  `logsquirl_grep_cli`
 
 ### Module Structure
 
@@ -131,18 +134,23 @@ src/
 ├── app/                  # Application entry points (main, CLI, portable)
 ├── compression/          # Decompression of .gz/.zst/.lz4 files and archives (no Widgets)
 ├── crash_handler/        # Crash handling and issue reporting
-├── filewatch/            # File system watching
+├── filewatch/            # File system watching (the efsw watcher)
+├── filewatch_port/       # File Watch Port: what an Open Log File hears changes through
 ├── logdata/              # Core log data model
 ├── logging/              # Logging infrastructure
 ├── logsquirl_version/    # Version info generation
+├── openlogfile/          # Open Log File: follows a Log File, its Searches and Marks (no Widgets)
 ├── regex/                # Regular expression engine abstraction
 ├── settings/             # Configuration and persistence
+├── textviewscrolling/    # How a text view scrolls: Scroll Position, follow (no Widgets)
 ├── ui/                   # Qt UI components (MainWindow, dialogs, views)
 ├── utils/                # Shared utilities and containers
 └── versioncheck/         # Update checking
 tests/
 ├── unit/                 # Unit tests (Catch2)
 ├── ui/                   # UI integration tests
+├── openlogfile/          # Open Log File tests (Catch2, no Widgets)
+├── textviewscrolling/    # Text view scrolling tests (Catch2, no Widgets)
 ├── e2e/                  # E2E / performance tests (pytest)
 └── helpers/              # Test utilities
 ```
