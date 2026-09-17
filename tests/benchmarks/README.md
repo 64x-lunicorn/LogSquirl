@@ -219,6 +219,11 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
   position** versus **DisplayedLinesCursor, takeForward** (#286).
+- `[tailing]` — following the Log File as it grows (#277), once indexed, with
+  and without fast modification detection: **append, check and index the
+  appended Log Lines**, one change notification for an append of 20 Log
+  Lines, and **check with nothing appended**, a change notification for bytes
+  already indexed. Runs last, as it appends to the Log Files.
 
 A change that adds a new way of reading the same Log Lines adds a `BENCHMARK`
 next to the one it replaces, over the same `contiguousRange()` or
@@ -348,6 +353,67 @@ commit as above, with
 ```cmake
 add_executable(logsquirl_regex_matcher_benchmark regex_matcher_benchmark.cpp)
 target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
+```
+
+# Table View paint benchmark
+
+`logsquirl_tableview_paint_benchmark` (#294) shows a Table View of 10,000 Log
+Lines with a Log Format of six fields on the offscreen platform, sized so that
+exactly 50 Rows are visible, with a Highlighter Set of three whole-line and
+three word-only Highlighters active, and measures
+
+- **paint: a viewport of 50 Rows and 6 columns**: the whole viewport repainted;
+- **hover: the mouse moves to the next Row and back, each painted**: two mouse
+  moves over the viewport, each followed by the repaint it asks for;
+- **hit test: a character in the middle and at the end of a 4000 character
+  cell**: `LogTableHighlightDelegate::charIndexAtX`, which resolves a click or
+  a drag inside a cell to a character.
+
+It uses only what the Table View and its delegate offered before #294, so it
+builds unchanged on origin/master:
+
+```bash
+cmake --build build-release --target logsquirl_tableview_paint_benchmark
+./build-release/output/logsquirl_tableview_paint_benchmark --benchmark-samples 50 > after.txt
+```
+
+For the before side, copy `tableview_paint_benchmark.cpp` into a worktree of
+origin/master and add the target as in `CMakeLists.txt` here, as described for
+the scrolling benchmarks above.
+
+# Displayed Lines benchmark
+
+`logsquirl_displayedlines_benchmark` (#292) measures the Displayed Lines of a
+Search with a million Matches over ten million Log Lines (one in ten), 3
+Context Lines, everything shown and 100 Marks, some on Matches and some two
+Log Lines after one. Links `logsquirl_logdata` only and needs no GUI:
+
+- **progress ticks: 100 batches of 10,000 Matches**: the Matches arriving
+  while the Search runs, without its completion. Before #292 each tick
+  rebuilt the whole union, so this grew quadratically with the Matches.
+- **completion after the progress ticks**: the last batch arrives with the
+  completion, which builds the Context Lines around every Match and Mark.
+- **continuation over 100,000 appended Log Lines**: after a completed Search,
+  the Log File grows and the Search continues over the appended Log Lines in
+  10 ticks and a completion.
+- **toggling a Mark on and off next to a Match**: after a completed Search.
+
+The file builds on commits from before #292: where the Displayed Lines take
+no new Matches, it calls `matchesArrived()` and `searchCompleted()` without
+them, as the Filtered View did then. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_displayedlines_benchmark
+./build-release/output/logsquirl_displayedlines_benchmark --benchmark-samples 20 > after.txt
+```
+
+For the before side, copy `displayedlines_benchmark.cpp` into a worktree of
+origin/master and add the target, as described for the scrolling benchmarks
+above:
+
+```cmake
+add_executable(logsquirl_displayedlines_benchmark displayedlines_benchmark.cpp)
+target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
 ```
 
 # QuickFind benchmark

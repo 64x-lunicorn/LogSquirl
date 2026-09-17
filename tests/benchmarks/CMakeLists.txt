@@ -63,6 +63,24 @@ add_executable(logsquirl_regex_matcher_benchmark
 
 target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
 
+# Painting a shown Table View (#294): a viewport of 50 Rows and 6 columns with
+# a Highlighter Set, the mouse moving between Rows, and the in-cell hit test.
+# Uses only what the Table View offered before #294 (see README.md).
+add_executable(logsquirl_tableview_paint_benchmark
+    tableview_paint_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_tableview_paint_benchmark logsquirl_ui Catch2 test_utils)
+
+# The Displayed Lines of a Search with a million Matches (#292): progress
+# ticks, completion, continuation and toggling a Mark. Links logsquirl_logdata
+# only; builds on commits from before #292 too (see README.md).
+add_executable(logsquirl_displayedlines_benchmark
+    displayedlines_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
+
 # A QuickFind without a match over a Log File of about 1 GB generated at run
 # time (#287). Uses only what QuickFind and LogData offered before #287, so
 # the same file measures both sides of an A/B comparison (see README.md).

@@ -889,3 +889,87 @@ SCENARIO(
         }
     }
 }
+
+namespace {
+
+// Records the region of every paint event a widget receives.
+class PaintedRegions : public QObject {
+public:
+    explicit PaintedRegions( QWidget* widget )
+    {
+        widget->installEventFilter( this );
+    }
+
+    QRegion painted;
+
+protected:
+    bool eventFilter( QObject* watched, QEvent* event ) override
+    {
+        if ( event->type() == QEvent::Paint ) {
+            painted += static_cast<QPaintEvent*>( event )->region();
+        }
+        return QObject::eventFilter( watched, event );
+    }
+};
+
+void moveMouseTo( LogTableView& view, const QPoint& position )
+{
+    QMouseEvent move( QEvent::MouseMove, position, view.viewport()->mapToGlobal( position ),
+                      Qt::NoButton, Qt::NoButton, Qt::NoModifier );
+    QCoreApplication::sendEvent( view.viewport(), &move );
+}
+
+// Where a Row is drawn in the viewport, across its whole width.
+QRect rowRect( const LogTableView& view, int row )
+{
+    return QRect( 0, view.rowViewportPosition( row ), view.viewport()->width(),
+                  view.rowHeight( row ) );
+}
+
+} // namespace
+
+SCENARIO( "Moving the mouse to another Row of the Table View repaints only the two Rows",
+          "[logtableview][hover]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( SaveLines );
+    LogTableView view;
+    open( view, format, logData );
+    view.setActive( true );
+    view.show();
+    REQUIRE( QTest::qWaitForWindowExposed( &view ) );
+    REQUIRE( view.model()->rowCount() == 5 );
+
+    GIVEN( "the mouse over Row 1" )
+    {
+        moveMouseTo( view, centerOfRow( view, 1 ) );
+        QTest::qWait( 20 );
+        PaintedRegions regions( view.viewport() );
+
+        WHEN( "the mouse moves to Row 3" )
+        {
+            moveMouseTo( view, centerOfRow( view, 3 ) );
+            QTest::qWait( 20 );
+
+            THEN( "Rows 1 and 3 are repainted, and no other Row" )
+            {
+                REQUIRE( regions.painted.intersects( rowRect( view, 1 ) ) );
+                REQUIRE( regions.painted.intersects( rowRect( view, 3 ) ) );
+                REQUIRE( ( regions.painted - rowRect( view, 1 ) - rowRect( view, 3 ) ).isEmpty() );
+            }
+        }
+
+        WHEN( "the mouse leaves the Table View" )
+        {
+            QEvent leave( QEvent::Leave );
+            QCoreApplication::sendEvent( view.viewport(), &leave );
+            QTest::qWait( 20 );
+
+            THEN( "only Row 1 is repainted" )
+            {
+                REQUIRE( regions.painted.intersects( rowRect( view, 1 ) ) );
+                REQUIRE( ( regions.painted - rowRect( view, 1 ) ).isEmpty() );
+            }
+        }
+    }
+}

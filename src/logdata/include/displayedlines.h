@@ -26,6 +26,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 
 // Walks displayed Log Lines forwards and backwards from a position. It finds
 // the Log Line at that position with one select() and then steps from Log
@@ -103,13 +104,22 @@ public:
     // Rebuilds them if -- and only if -- the count changed.
     void setContextLinesCount( int contextLinesCount );
 
-    // The Matches grew or were replaced while a Search runs, or were kept
-    // when it stopped. The Context Lines stay as they are until the Search
-    // completes.
+    // The Matches were replaced, or changed in a way not told, while a Search
+    // runs or when it stopped. The Context Lines stay as they are until the
+    // Search completes.
     void matchesArrived();
+    // The Matches grew by newMatches, none of which was a Match before, while
+    // a Search runs or when it stopped. Costs as much as newMatches, not as
+    // all the Matches; the Context Lines stay as they are until the Search
+    // completes.
+    void matchesArrived( const SearchResultArray& newMatches );
     // The Search completed (from a real run or from the cache): the Context
     // Lines are rebuilt around its Matches.
     void searchCompleted();
+    // The Search completed after the Matches grew by newMatches since they
+    // were last told: the Context Lines are brought up to date around every
+    // Log Line that became a Match since they were last built.
+    void searchCompleted( const SearchResultArray& newMatches );
     // The Search was cleared, its pattern was invalid or it failed: there
     // are no Matches, and the Context Lines are dropped with them.
     void searchDiscarded();
@@ -145,9 +155,23 @@ public:
 private:
     // Rebuilds contextLines_ around the Matches and the Marks.
     void rebuildContextLines();
+    // Brings contextLines_ up to date around every Match and Mark, rebuilding
+    // them only when they were not kept up to date. Returns the Log Lines
+    // whose type may have changed, or nothing when everything may have.
+    std::optional<SearchResultArray> updateContextLines();
+    // The Context Lines around lines, within the Log File's nbLogLines: the
+    // neighbours of each, merged into ranges, that are neither a Match nor a
+    // Mark.
+    SearchResultArray contextLinesAround( const SearchResultArray& lines,
+                                          uint64_t nbLogLines ) const;
+    // Adds or removes one Mark's Context Lines and updates what is displayed.
+    void markToggled( uint64_t line, bool added );
+
     // Rebuilds combinedLines_ (or drops it) and picks the displayed set.
-    // Called on every change to what is displayed.
     void refreshLines();
+    // Updates combinedLines_ for a change limited to the Log Lines in
+    // changed, or refreshes them all when the displayed set changes.
+    void refreshLinesAt( const SearchResultArray& changed );
 
     // Which bitmap lines() returns: one of the inputs as it is, or the union
     // of several built into combinedLines_.
@@ -167,4 +191,18 @@ private:
     // otherwise, so a single set is never copied.
     SearchResultArray combinedLines_;
     Source source_ = Source::Matches;
+    // Which set lines() should return for what is shown now.
+    Source pickSource() const;
+
+    // Whether contextLines_ surround every Match and Mark, except the Matches
+    // in matchesWithoutContextLines_, within the first contextLinesEnd_ Log
+    // Lines. Until then, the Context Lines are rebuilt rather than updated.
+    bool contextLinesUpToDate_ = false;
+    // Matches that arrived since the Context Lines were last brought up to
+    // date.
+    SearchResultArray matchesWithoutContextLines_;
+    // How many Log Lines the Log File had when the Context Lines were last
+    // brought up to date: the Context Lines of the Matches and Marks near its
+    // end stop there.
+    uint64_t contextLinesEnd_ = 0;
 };

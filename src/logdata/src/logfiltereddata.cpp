@@ -281,7 +281,9 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
     using Phase = SearchSession::Phase;
 
     // The Search Session's Matches have changed by now; the Displayed Lines
-    // read them in place and only need to know how far.
+    // read them in place and only need to know how far: by the new Matches
+    // alone when they grew, entirely when they were replaced.
+    const auto* newMatches = session_.newMatches();
     switch ( state.phase ) {
     case Phase::Idle:
     case Phase::InvalidPattern:
@@ -292,7 +294,12 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
     case Phase::Complete:
         // From a real run or from the cache alike, so Context Lines never
         // belong to whatever ran previously.
-        displayedLines_.searchCompleted();
+        if ( newMatches != nullptr ) {
+            displayedLines_.searchCompleted( *newMatches );
+        }
+        else {
+            displayedLines_.searchCompleted();
+        }
         LOG_INFO << "Matches size " << readableSize( session_.matches().getSizeInBytes( false ) )
                  << ", marks size "
                  << readableSize( displayedLines_.marks().getSizeInBytes( false ) )
@@ -301,7 +308,12 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
         break;
     case Phase::Running:
     case Phase::Interrupted:
-        displayedLines_.matchesArrived();
+        if ( newMatches != nullptr ) {
+            displayedLines_.matchesArrived( *newMatches );
+        }
+        else {
+            displayedLines_.matchesArrived();
+        }
         break;
     }
 

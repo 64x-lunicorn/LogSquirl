@@ -166,6 +166,8 @@ protected:
     void mouseDoubleClickEvent( QMouseEvent* event ) override;
     void keyPressEvent( QKeyEvent* event ) override;
     bool viewportEvent( QEvent* event ) override;
+    // Paints the visible cells in one paint pass of the delegate.
+    void paintEvent( QPaintEvent* event ) override;
 
 private:
     void rowSelectionChanged();
@@ -183,6 +185,9 @@ private:
     bool applySavedColumnWidths();
     void autoSizeColumns();
     void stretchLastColumn();
+
+    // Repaint the whole width of a Row, if it is shown.
+    void updateRow( int row );
 
     // Pixel X in a cell to the character position there.
     int charAtX( const QModelIndex& index, int pixelX ) const;
