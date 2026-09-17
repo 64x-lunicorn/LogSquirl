@@ -348,9 +348,12 @@ private:
     void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
     void changeDataStatus( DataStatus status );
     // Determines the Encoding the Log File is displayed in. Only when it
-    // differs from the one displayed until now are the Log Lines decoded and
-    // read again.
+    // differs from the one displayed until now are the Log Lines decoded,
+    // read and extracted for the chart again.
     void updateEncoding();
+    // The Log Lines decode differently: the chart drops the points extracted
+    // before and extracts them all again.
+    void restartChartExtraction();
     void changeTopViewSize( int32_t delta );
 
     QString escapeSearchPattern( const QString& searchPattern, bool isRegex = false ) const;

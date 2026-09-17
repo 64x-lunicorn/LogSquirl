@@ -27,6 +27,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QTextCodec>
 #include <QTimer>
 #include <qglobal.h>
 #include <qnamespace.h>
@@ -43,6 +44,7 @@
 #include "logfiltereddata.h"
 
 #include "abstractlogview.h"
+#include "chartpanel.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
@@ -404,6 +406,21 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
             *crawler->logMainView_ );
     }
 
+    // What the user does by hand: shows the chart and adds a series counting
+    // the Log Lines that match pattern.
+    void showChartCounting( const QString& pattern )
+    {
+        crawler->chartPanel_->show();
+        crawler->chartPanel_->addFilterFrequencySeries( { pattern } );
+    }
+
+    // The points the chart shows for its first series.
+    qsizetype chartPoints() const
+    {
+        const auto series = crawler->chartPanel_->seriesDefinitions();
+        return series.isEmpty() ? 0 : series.front().points.size();
+    }
+
     void clickSearchDefaultButtons()
     {
         QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
@@ -640,6 +657,54 @@ SCENARIO( "A Log File growing under an unchanged Encoding keeps what scrolling c
               "decoded differently" )
         {
             REQUIRE( crawlerVisitor.mainViewKeepsBottomLines() );
+        }
+    }
+}
+
+SCENARIO( "The chart extracts its points again under a changed Encoding", "[ui][encoding][chart]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "encoded.log" );
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        for ( int i = 0; i < SL_NB_LINES; i++ ) {
+            file.write( QByteArray( "caf\xC3\xA9 order " ) + QByteArray::number( i ) + "\n" );
+        }
+    }
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+    crawlerVisitor.showSized();
+
+    GIVEN( "a chart counting the Log Lines that read an accented word decoded as UTF-8" )
+    {
+        crawlerVisitor.crawler->setEncoding( QTextCodec::codecForName( "UTF-8" )->mibEnum() );
+        crawlerVisitor.showChartCounting( QString::fromUtf8( "caf\xC3\xA9" ) );
+        REQUIRE(
+            waitUiState( [ & ]() { return crawlerVisitor.chartPoints() == SL_NB_LINES; }, 20000 ) );
+
+        WHEN( "the Log File is displayed as ISO-8859-1, where none reads so" )
+        {
+            crawlerVisitor.crawler->setEncoding(
+                QTextCodec::codecForName( "ISO-8859-1" )->mibEnum() );
+
+            THEN( "the chart drops the points extracted under the old Encoding" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ]() {
+                        return crawlerVisitor.isLoadingFinished()
+                               && crawlerVisitor.chartPoints() == 0;
+                    },
+                    20000 ) );
+            }
         }
     }
 }
