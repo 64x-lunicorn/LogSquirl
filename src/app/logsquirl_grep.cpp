@@ -24,7 +24,9 @@
 #include <mimalloc.h>
 
 #include "configuration.h"
+#include "displayedlines.h"
 #include "loadingstatus.h"
+#include "logdata.h"
 #include "logfiltereddata.h"
 #include "logger.h"
 #include "openlogfile.h"
@@ -44,19 +46,26 @@ void printFailure( const QString& failure )
     std::cerr << "logsquirl_grep: " << failure.toStdString() << std::endl;
 }
 
-void printMatches( LogFilteredData& search, LinesCount nbMatches )
+void printMatches( const LogFilteredData& search, LinesCount nbMatches )
 {
     LOG_INFO << "Searched finished, got " << nbMatches.get() << " matches";
 
-    const auto defaultChunkSize = 1000_lcount;
-    for ( auto chunkStart = 0_lnum; chunkStart < nbMatches;
-          chunkStart = chunkStart + defaultChunkSize ) {
-        auto chunkSize = std::min( defaultChunkSize.get(), nbMatches.get() - chunkStart.get() );
-        auto lines = search.getLines( chunkStart, LinesCount( chunkSize ) );
-        for ( const auto& l : lines ) {
-            std::cout << l.toStdString() << "\n";
-        }
+    // The Displayed Lines are walked once and their text is read in chunks
+    // through the sparse read, as UTF-8 and without a QString in between.
+    const auto displayedLines = search.copyDisplayedLines();
+    const auto& logFile = search.sourceLogData();
+    DisplayedLinesCursor cursor( displayedLines, 0_lnum );
+
+    constexpr auto ChunkSize = 1000_lcount;
+    for ( auto printed = 0_lcount; printed < nbMatches && cursor.hasLine(); ) {
+        const auto chunkSize
+            = LinesCount( std::min( ChunkSize.get(), nbMatches.get() - printed.get() ) );
+        const auto lines = cursor.takeForward( chunkSize );
+        const auto text = logFile.getUtf8LinesSparse( lines );
+        std::cout.write( text.data(), static_cast<std::streamsize>( text.size() ) );
+        printed = printed + LinesCount( static_cast<LinesCount::UnderlyingType>( lines.size() ) );
     }
+    std::cout.flush();
 }
 
 } // namespace

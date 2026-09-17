@@ -90,3 +90,13 @@ add_executable(logsquirl_quickfind_benchmark
 )
 
 target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
+
+# The readers of a Search's Displayed Lines (#288): the Filtered View painting,
+# saving displayed lines, removing the longest of many Marks, and the command
+# line tool printing its matches, which it runs from next to itself. Uses only
+# what they offered before #288, so the same file measures both sides.
+add_executable(logsquirl_filteredview_read_benchmark
+    filteredview_read_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
