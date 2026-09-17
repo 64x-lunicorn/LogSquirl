@@ -317,6 +317,12 @@ and never overwrites an existing hash tag. CI Build computes the same hash from 
 published yet) it builds the image locally under the same ref. So an open PR's toolchain changes only when
 its own `docker/` files do.
 
+The **GHCR Cleanup** workflow (`ghcr-cleanup.yml`, weekly) deletes the image versions no run uses any more: images
+of an earlier hash that are older than 30 days, the old commit SHA tags, and the signatures and manifests that
+belong to them. It keeps `:latest`, the hashes of master's `docker/` directories and anything younger than two days.
+A deleted image a PR still asks for is built locally, as for any new hash. Dispatch it with *dry run* (the default)
+to see what it would delete.
+
 Before pushing, the Docker Images workflow scans each image with Trivy (CRITICAL and HIGH, fixed upstream only) and
 uploads the result to code scanning under `trivy-image-<name>`; findings are reported there but do not fail the
 build. The pushed image carries buildx SBOM and provenance attestations and a keyless cosign signature. CI Build
@@ -475,6 +481,7 @@ before anything is downloaded, because its signing job could not enter the
 | `deploy-website.yml` | push to master changing `website/**`, dispatch (also by CI Release) | Build the website without the pages of unpublished releases and upload it |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
+| `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
