@@ -419,6 +419,9 @@ private:
     OptionalLineNumber markingClickLine_;
 
     Selection selection_;
+    // The length of the selection's text, which newSelection() reports; a
+    // range extended step by step reads only the Log Lines each step adds.
+    SelectedTextLength selectedTextLength_;
     RegularExpressionPattern searchPattern_;
 
     std::vector<QuickHighlighters> quickHighlighters_ = std::vector<QuickHighlighters>{ 9 };
@@ -693,6 +696,8 @@ private:
 
     // Utils functions
     void updateGlobalSelection();
+    // The length of the selection's text, without building it.
+    LineLength selectedTextLength();
 
     void selectAndDisplayRange( FilePosition pos );
 };

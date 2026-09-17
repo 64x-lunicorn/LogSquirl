@@ -554,7 +554,7 @@ void AbstractLogView::mouseMoveEvent( QMouseEvent* mouseEvent )
                     Q_EMIT newSelection(
                         lineNumber, selection_.getSelectedLinesCount( *lines_ ),
                         0_lcol, // portion selection always starts from the first column
-                        LineLength{ getSelectedText().size() } );
+                        selectedTextLength() );
 
                     update();
                 }
@@ -1635,6 +1635,8 @@ void AbstractLogView::refresh( ViewportChange change )
         // The Log Lines are read, expanded and wrapped again when the Viewport
         // is next asked for, by painting or hit testing.
         ++viewportGeneration_;
+        // The Log Lines a selection holds may read differently.
+        selectedTextLength_.forget();
         [[fallthrough]];
     case ViewportChange::Decorations:
         // Painted again from the Log Lines the Viewport holds, each decorated
@@ -1928,7 +1930,7 @@ void AbstractLogView::moveSelection( LinesCount delta, bool isDeltaNegative )
     selectionStartPos_ = FilePosition{ *newLine, 0_lcol };
     selectionCurrentEndPos_ = selectionStartPos_;
     Q_EMIT newSelection( *newLine, selection_.getSelectedLinesCount( *lines_ ), 0_lcol,
-                         LineLength{ getSelectedText().size() } );
+                         selectedTextLength() );
 }
 
 // Make the start of the lines visible
@@ -2025,6 +2027,11 @@ void AbstractLogView::updateGlobalSelection()
     }
 }
 
+LineLength AbstractLogView::selectedTextLength()
+{
+    return selectedTextLength_.of( selection_, *lines_, *logData_ );
+}
+
 void AbstractLogView::selectAndDisplayRange( FilePosition pos )
 {
     disableFollow();
@@ -2032,7 +2039,7 @@ void AbstractLogView::selectAndDisplayRange( FilePosition pos )
     selectionCurrentEndPos_ = pos;
     displayLine( pos.line() );
     Q_EMIT newSelection( pos.line(), selection_.getSelectedLinesCount( *lines_ ), 0_lcol,
-                         LineLength{ getSelectedText().size() } );
+                         selectedTextLength() );
 }
 
 std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
