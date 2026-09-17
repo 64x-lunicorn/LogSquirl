@@ -1,0 +1,60 @@
+/*
+ * Copyright (C) 2026 LogSquirl Contributors
+ *
+ * This file is part of LogSquirl.
+ *
+ * LogSquirl is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LogSquirl is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <catch2/catch.hpp>
+
+#include <cstdlib>
+
+#include <QByteArray>
+
+#include <mimalloc.h>
+
+// Everything that links the utils library links mimalloc, and must see the
+// define that turns on its process initialization and the crash handler's
+// memory telemetry (#282).
+TEST_CASE( "mimalloc is linked with the define that enables it", "[allocator]" )
+{
+#ifdef LOGSQUIRL_USE_MIMALLOC
+    SUCCEED( "LOGSQUIRL_USE_MIMALLOC is defined" );
+#else
+    FAIL( "mimalloc is linked, but LOGSQUIRL_USE_MIMALLOC is not defined" );
+#endif
+}
+
+TEST_CASE( "mimalloc serves malloc only with the process-wide override", "[allocator]" )
+{
+#ifdef LOGSQUIRL_MIMALLOC_OVERRIDE
+    const bool overridden = true;
+#else
+    const bool overridden = false;
+#endif
+
+    void* const block = std::malloc( 64 );
+    REQUIRE( block != nullptr );
+    CHECK( mi_is_in_heap_region( block ) == overridden );
+    std::free( block );
+
+    // Qt allocates through the C runtime from its own library.
+    QByteArray bytes( 4096, 'x' );
+    CHECK( mi_is_in_heap_region( bytes.constData() ) == overridden );
+
+    void* const projectBlock = mi_malloc( 64 );
+    CHECK( mi_is_in_heap_region( projectBlock ) );
+    mi_free( projectBlock );
+}

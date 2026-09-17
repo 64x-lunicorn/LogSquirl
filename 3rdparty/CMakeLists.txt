@@ -587,6 +587,9 @@ else()
   target_link_libraries(logsquirl_mimalloc_wrapper INTERFACE ${MIMALLOC_LIBRARY})
   target_include_directories(logsquirl_mimalloc_wrapper INTERFACE ${MIMALLOC_INCLUDE_DIR})
 endif()
+# Whatever links mimalloc initializes it at process start and reports its
+# memory telemetry with crash reports (#282).
+target_compile_definitions(logsquirl_mimalloc_wrapper INTERFACE LOGSQUIRL_USE_MIMALLOC)
 
 set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
 
