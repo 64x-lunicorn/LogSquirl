@@ -8,6 +8,16 @@
   close button is neutral in every Theme and red only on hover, the toolbar
   path field reads as a read-only field with a visible edge, and combo box
   popups highlight their current item the same way in every Theme (#264).
+- **Flatter look**: Within the same layout, panes, header cells, tool bars and
+  the status bar have no boxes; areas are separated by surface colors, and
+  group boxes are bold section titles. Inputs and buttons have 4 px corners,
+  menus, popups and tooltips 6 px. Tabs are flat with the selected one
+  underlined, and their close button shows on the selected tab and under the
+  mouse. A dialog's default button is filled in the accent color. Scroll bars
+  are 8 px wide. Dark uses five steps of gray, and a Dark palette saved by an
+  earlier version no longer keeps the old, darker window color. High Contrast
+  keeps square corners and every border; its default button is not filled but
+  shows yellow text, and focus in yellow like every button (#265).
 - **Dashboard**: The dashboard uses the application font instead of fixed
   small sizes, shows Recent Files, Favorites and Plugins as cards in one
   column, and emphasizes Open File as the primary action (#266).
