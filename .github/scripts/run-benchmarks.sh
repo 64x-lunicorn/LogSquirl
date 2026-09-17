@@ -63,7 +63,8 @@ for side in before after; do
     # shellcheck disable=SC2016 # expanded by the shell in the container
     if ! in_container "$side" /bin/bash -c '
             set -euo pipefail
-            python3 -m pip install --quiet --break-system-packages "pytest>=7"
+            python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
+                -r .github/requirements/e2e.txt
             cd tests/e2e
             rm -f benchmark_report.json
             python3 -m pytest -m performance -p no:cacheprovider \

@@ -837,8 +837,12 @@ QTextCodec* detectedEncodingOf( const QString& fileName, qint64 fileSize )
     if ( !file.open( QIODevice::ReadOnly ) ) {
         return nullptr;
     }
-    logsquirl::vector<char> block(
-        static_cast<size_t>( std::min( fileSize, qint64{ IndexingBlockSize } ) ) );
+    // The detector only looks at a sample of the block; one byte past the
+    // sample is enough to take the same sample as from the whole block.
+    const auto bytesToRead
+        = std::min( { fileSize, qint64{ IndexingBlockSize },
+                      static_cast<qint64>( EncodingDetector::MaxSampleSize ) + 1 } );
+    logsquirl::vector<char> block( static_cast<size_t>( bytesToRead ) );
     const auto readBytes = file.read( block.data(), logsquirl::ssize( block ) );
     if ( readBytes != logsquirl::ssize( block ) ) {
         return nullptr;

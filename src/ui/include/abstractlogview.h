@@ -44,6 +44,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <qchar.h>
 #include <string_view>
 #include <utility>
@@ -53,6 +54,7 @@
 #include <QBasicTimer>
 #include <QColor>
 #include <QEvent>
+#include <QFont>
 #include <QFontMetrics>
 
 #ifdef GLOGG_PERF_MEASURE_FPS
@@ -75,6 +77,7 @@
 #include "wrappedstring.h"
 
 class QMenu;
+class QPainter;
 class QShortcut;
 
 // Utility class representing a buffer for number entered on the keyboard
@@ -209,10 +212,12 @@ public:
     // Built from the Log File and never from a paint, it answers before the
     // first paint has happened.
     //
-    // Returns the layout by value. It is a pure value that reads its inputs and
-    // returns answers, so a caller holding one cannot move the view; it is a
-    // snapshot, so ask again once the view has moved or its Log File changed.
-    ViewportLayout viewportLayout() const;
+    // The layout is a pure value that reads its inputs and returns answers, so
+    // a caller holding one cannot move the view. The reference is to the
+    // view's own copy, rebuilt only when the view has moved or its Log File
+    // changed: it stays valid until the next call, so ask again rather than
+    // hold it, or copy it to keep a snapshot.
+    const ViewportLayout& viewportLayout() const;
 
     // Which Log Line each position of this view shows. Replacing it repaints
     // the view; the selection, being Log Lines, stays where it is.
@@ -545,6 +550,11 @@ private:
 
     mutable std::optional<ViewportContent> viewportContent_;
     mutable ViewportContentKey viewportContentKey_;
+    // Counts the builds of viewportContent_, so viewportLayout_ knows when
+    // the Visual Lines it holds are stale.
+    mutable uint64_t viewportContentBuilds_ = 0;
+    mutable std::optional<ViewportLayout> viewportLayout_;
+    mutable uint64_t viewportLayoutContentBuild_ = 0;
     // Bumped whenever the Log File content behind the viewport may have
     // changed, so the cached content is rebuilt.
     uint64_t viewportGeneration_ = 0;
@@ -608,6 +618,18 @@ private:
     TextAreaCache textAreaCache_ = { {}, true, {}, 0_lnum, 0_lcol, {} };
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
+
+    // FontUtils::uniformAsciiAdvance() for the font and resolution the text
+    // area was last painted with. Measuring it takes about a hundred glyph
+    // advances and the shaping of a long text, too much for every paint.
+    struct UniformAsciiAdvanceCache {
+        QFont font;
+        int logicalDpiX = 0;
+        int logicalDpiY = 0;
+        std::optional<qreal> advance;
+    };
+    std::optional<UniformAsciiAdvanceCache> uniformAsciiAdvanceCache_;
+    std::optional<qreal> uniformAsciiAdvance( const QPainter& painter );
 
     // The viewport layout, without the Visual Lines: enough to answer margins,
     // visible counts and scroll ranges, and cheap because it touches no

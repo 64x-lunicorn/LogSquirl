@@ -25,13 +25,13 @@ runs:
       with:
         python-version: '3.12'
 
+    # The hash-locked requirements only (#317): the logsquirl-e2e-tests
+    # project itself installs no module, pytest finds the suite's modules
+    # through conftest.py's directory.
     - name: Install E2E dependencies
       shell: bash
-      working-directory: tests/e2e
       run: |
-        set -euo pipefail
-        python -m pip install --upgrade pip
-        pip install -e .
+        pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
 
     - name: Run E2E tests (skip performance)
       shell: bash

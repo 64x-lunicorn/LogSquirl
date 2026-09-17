@@ -29,7 +29,10 @@
 
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QEvent>
 #include <QFileInfo>
+#include <QFont>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMimeData>
@@ -44,24 +47,49 @@ namespace {
 /// Maximum number of recent/favorite entries shown on the dashboard.
 constexpr int kMaxListEntries = 8;
 
+/// Width of the column the logo, actions and cards are laid out in.
+constexpr int kColumnWidth = 560;
+
+/// How much larger than the application font a card's title is.
+constexpr double kTitleScale = 1.25;
+
 /// Stylesheet for clickable file-link buttons (uses palette for theme awareness).
+/// The text keeps the application font.
 const QString kLinkButtonStyle
-    = QStringLiteral( "QPushButton { color: palette(link); border: none; text-align: left;"
-                      " padding: 3px 0px; font-size: 12px; }"
+    = QStringLiteral( "QPushButton { color: palette(link); background: transparent; border: none;"
+                      " text-align: left; padding: 3px 0px; }"
                       "QPushButton:hover { text-decoration: underline; }" );
-
-/// Stylesheet for section headings.
-const QString kSectionHeadingStyle
-    = QStringLiteral( "QLabel { font-weight: bold; font-size: 13px; padding-top: 12px; }" );
-
-/// Stylesheet for shortcut hint text. Hints are secondary text: their color
-/// comes from the Theme's stylesheet (see markAsSecondaryText).
-const QString kHintStyle = QStringLiteral( "QLabel { font-size: 11px; padding: 2px 0px; }" );
 
 /// Gives label the Theme's secondary text color.
 void markAsSecondaryText( QLabel* label )
 {
     label->setProperty( "secondaryText", true );
+}
+
+/// A card: a titled frame in the Theme's surface color, styled by the
+/// Theme's stylesheet (QFrame#dashboardCard). Its entries go into the
+/// returned layout, below the title; the title label is added to titles.
+QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column,
+                      QList<QLabel*>& titles )
+{
+    auto* card = new QFrame( parent );
+    card->setObjectName( QStringLiteral( "dashboardCard" ) );
+    card->setSizePolicy( QSizePolicy::Preferred, QSizePolicy::Maximum );
+    auto* cardLayout = new QVBoxLayout( card );
+    cardLayout->setContentsMargins( 16, 12, 16, 12 );
+    cardLayout->setSpacing( 6 );
+
+    auto* heading = new QLabel( title, card );
+    heading->setObjectName( QStringLiteral( "dashboardCardTitle" ) );
+    cardLayout->addWidget( heading );
+    titles.push_back( heading );
+
+    auto* entries = new QVBoxLayout();
+    entries->setSpacing( 0 );
+    cardLayout->addLayout( entries );
+
+    column->addWidget( card );
+    return entries;
 }
 
 /// Create a clickable QPushButton styled as a link.
@@ -119,13 +147,22 @@ void WelcomeDashboard::buildUi()
     auto* content = new QWidget( scrollArea );
     scrollArea->setWidget( content );
 
-    auto* rootLayout = new QVBoxLayout( content );
-    rootLayout->setAlignment( Qt::AlignHCenter | Qt::AlignTop );
-    rootLayout->setContentsMargins( 40, 30, 40, 30 );
-    rootLayout->setSpacing( 6 );
+    // One centered column: everything is laid out in its width.
+    auto* rootLayout = new QHBoxLayout( content );
+    rootLayout->setContentsMargins( 24, 30, 24, 30 );
+    rootLayout->addStretch();
+    auto* columnWidget = new QWidget( content );
+    columnWidget->setMaximumWidth( kColumnWidth );
+    columnWidget->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Preferred );
+    rootLayout->addWidget( columnWidget, 1000 );
+    rootLayout->addStretch();
+
+    auto* column = new QVBoxLayout( columnWidget );
+    column->setContentsMargins( 0, 0, 0, 0 );
+    column->setSpacing( 12 );
 
     // ---- Logo ----
-    logoLabel_ = new QLabel( content );
+    logoLabel_ = new QLabel( columnWidget );
     logoLabel_->setAlignment( Qt::AlignCenter );
 
     // Use the high-res app logo for the dashboard
@@ -137,104 +174,90 @@ void WelcomeDashboard::buildUi()
     }
     else {
         logoLabel_->setText( QStringLiteral( "LogSquirl" ) );
-        logoLabel_->setStyleSheet( QStringLiteral( "font-size: 28px; font-weight: bold;" ) );
+        titleLabels_.push_back( logoLabel_ );
     }
-    rootLayout->addWidget( logoLabel_ );
+    column->addWidget( logoLabel_ );
 
     // ---- Version ----
-    auto* versionLabel = new QLabel( QStringLiteral( "v%1" ).arg( logsquirlVersion() ), content );
+    auto* versionLabel
+        = new QLabel( QStringLiteral( "v%1" ).arg( logsquirlVersion() ), columnWidget );
     versionLabel->setAlignment( Qt::AlignCenter );
     markAsSecondaryText( versionLabel );
-    versionLabel->setStyleSheet( QStringLiteral( "font-size: 12px;" ) );
-    rootLayout->addWidget( versionLabel );
-
-    rootLayout->addSpacing( 10 );
+    column->addWidget( versionLabel );
 
     // ---- Quick Actions ----
     auto* actionsLayout = new QHBoxLayout();
     actionsLayout->setAlignment( Qt::AlignCenter );
     actionsLayout->setSpacing( 12 );
 
-    auto* openBtn = new QPushButton( tr( "Open File" ), content );
+    auto* openBtn = new QPushButton( tr( "Open File" ), columnWidget );
     openBtn->setMinimumWidth( 110 );
+    // Drawn in the accent color by the Theme's stylesheet.
+    openBtn->setProperty( "primaryAction", true );
     connect( openBtn, &QPushButton::clicked, this, &WelcomeDashboard::openFileDialogRequested );
     actionsLayout->addWidget( openBtn );
 
-    auto* sessionBtn = new QPushButton( tr( "Load Session" ), content );
+    auto* sessionBtn = new QPushButton( tr( "Load Session" ), columnWidget );
     sessionBtn->setMinimumWidth( 110 );
     connect( sessionBtn, &QPushButton::clicked, this, &WelcomeDashboard::loadSessionRequested );
     actionsLayout->addWidget( sessionBtn );
 
-    rootLayout->addLayout( actionsLayout );
+    column->addLayout( actionsLayout );
+    column->addSpacing( 6 );
 
-    rootLayout->addSpacing( 6 );
-
-    // ---- Two-column area: Recent Files | Favorites ----
-    auto* columnsLayout = new QHBoxLayout();
-    columnsLayout->setSpacing( 40 );
-    columnsLayout->setAlignment( Qt::AlignTop | Qt::AlignHCenter );
-
-    // -- Recent Files column --
-    auto* recentColumn = new QVBoxLayout();
-    recentColumn->setSpacing( 2 );
-    auto* recentHeading = new QLabel( tr( "Recent Files" ), content );
-    recentHeading->setStyleSheet( kSectionHeadingStyle );
-    recentColumn->addWidget( recentHeading );
-
-    recentFilesLayout_ = new QVBoxLayout();
-    recentFilesLayout_->setSpacing( 0 );
-    recentColumn->addLayout( recentFilesLayout_ );
-    recentColumn->addStretch();
-    columnsLayout->addLayout( recentColumn );
-
-    // -- Favorites column --
-    auto* favColumn = new QVBoxLayout();
-    favColumn->setSpacing( 2 );
-    auto* favHeading = new QLabel( tr( "Favorites" ), content );
-    favHeading->setStyleSheet( kSectionHeadingStyle );
-    favColumn->addWidget( favHeading );
-
-    favoritesLayout_ = new QVBoxLayout();
-    favoritesLayout_->setSpacing( 0 );
-    favColumn->addLayout( favoritesLayout_ );
-    favColumn->addStretch();
-    columnsLayout->addLayout( favColumn );
-
-    rootLayout->addLayout( columnsLayout );
-
-    rootLayout->addSpacing( 10 );
-
-    // ---- Plugin Status ----
-    auto* pluginHeading = new QLabel( tr( "Plugins" ), content );
-    pluginHeading->setStyleSheet( kSectionHeadingStyle );
-    pluginHeading->setAlignment( Qt::AlignCenter );
-    rootLayout->addWidget( pluginHeading );
-
-    pluginStatusLayout_ = new QVBoxLayout();
+    // ---- Cards: Recent Files, Favorites, Plugins ----
+    recentFilesLayout_ = addCard( tr( "Recent Files" ), columnWidget, column, titleLabels_ );
+    favoritesLayout_ = addCard( tr( "Favorites" ), columnWidget, column, titleLabels_ );
+    pluginStatusLayout_ = addCard( tr( "Plugins" ), columnWidget, column, titleLabels_ );
     pluginStatusLayout_->setSpacing( 2 );
-    pluginStatusLayout_->setAlignment( Qt::AlignHCenter );
-    rootLayout->addLayout( pluginStatusLayout_ );
 
-    rootLayout->addSpacing( 16 );
+    column->addSpacing( 6 );
 
     // ---- Keyboard shortcut hints ----
     auto* shortcutsLabel = new QLabel(
         QStringLiteral( "Ctrl+O Open File  |  Ctrl+W Close Tab  |  Ctrl+F Find  |  F5 Reload" ),
-        content );
+        columnWidget );
     markAsSecondaryText( shortcutsLabel );
-    shortcutsLabel->setStyleSheet( kHintStyle );
     shortcutsLabel->setAlignment( Qt::AlignCenter );
-    rootLayout->addWidget( shortcutsLabel );
+    shortcutsLabel->setWordWrap( true );
+    column->addWidget( shortcutsLabel );
 
     // ---- Drop hint ----
-    auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), content );
+    auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), columnWidget );
     markAsSecondaryText( dropHint );
-    dropHint->setStyleSheet(
-        QStringLiteral( "font-size: 11px; font-style: italic; padding-top: 8px;" ) );
+    auto hintFont = dropHint->font();
+    hintFont.setItalic( true );
+    dropHint->setFont( hintFont );
     dropHint->setAlignment( Qt::AlignCenter );
-    rootLayout->addWidget( dropHint );
+    column->addWidget( dropHint );
 
-    rootLayout->addStretch();
+    column->addStretch();
+
+    updateTitleFonts();
+}
+
+void WelcomeDashboard::updateTitleFonts()
+{
+    auto titleFont = font();
+    titleFont.setBold( true );
+    if ( titleFont.pointSizeF() > 0 ) {
+        titleFont.setPointSizeF( titleFont.pointSizeF() * kTitleScale );
+    }
+    else {
+        titleFont.setPixelSize( qRound( titleFont.pixelSize() * kTitleScale ) );
+    }
+    for ( auto* title : titleLabels_ ) {
+        title->setFont( titleFont );
+    }
+}
+
+void WelcomeDashboard::changeEvent( QEvent* event )
+{
+    QWidget::changeEvent( event );
+    // The titles follow a changed application font.
+    if ( event->type() == QEvent::FontChange ) {
+        updateTitleFonts();
+    }
 }
 
 void WelcomeDashboard::setPlugins( const logsquirl::plugins::PluginCatalog* catalog,
@@ -261,7 +284,6 @@ void WelcomeDashboard::refreshRecentFiles()
     if ( files.isEmpty() ) {
         auto* empty = new QLabel( tr( "No recent files" ), this );
         markAsSecondaryText( empty );
-        empty->setStyleSheet( kHintStyle );
         recentFilesLayout_->addWidget( empty );
         return;
     }
@@ -288,7 +310,6 @@ void WelcomeDashboard::refreshFavorites()
     if ( files.empty() ) {
         auto* empty = new QLabel( tr( "No favorites" ), this );
         markAsSecondaryText( empty );
-        empty->setStyleSheet( kHintStyle );
         favoritesLayout_->addWidget( empty );
         return;
     }
@@ -311,8 +332,6 @@ void WelcomeDashboard::refreshPluginStatus()
     if ( !pluginCatalog_ || !pluginHost_ ) {
         auto* none = new QLabel( tr( "No plugins available" ), this );
         markAsSecondaryText( none );
-        none->setStyleSheet( kHintStyle );
-        none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );
         return;
     }
@@ -323,8 +342,6 @@ void WelcomeDashboard::refreshPluginStatus()
     if ( discovered.empty() ) {
         auto* none = new QLabel( tr( "No plugins installed" ), this );
         markAsSecondaryText( none );
-        none->setStyleSheet( kHintStyle );
-        none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );
         return;
     }
@@ -346,7 +363,6 @@ void WelcomeDashboard::refreshPluginStatus()
                 .arg( color, statusDot, plugin.name().toHtmlEscaped(), versionColor,
                       plugin.version().toHtmlEscaped() ),
             this );
-        row->setAlignment( Qt::AlignCenter );
         row->setTextFormat( Qt::RichText );
         row->setTextInteractionFlags( Qt::NoTextInteraction );
         pluginStatusLayout_->addWidget( row );

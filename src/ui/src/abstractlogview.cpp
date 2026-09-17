@@ -43,6 +43,7 @@
 // each is built with: which Log Line each position shows.
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <complex>
@@ -116,12 +117,25 @@ int textWidth( const QFontMetrics& fm, const QString& text )
     return fm.horizontalAdvance( text );
 }
 
-int textWidth( const QFontMetrics& fm, const QStringView& text )
+// Writes the number right-aligned in at least width characters, as
+// QString( "%1" ).arg( number, width ) does, into text, whose buffer is reused
+// from one Log Line to the next.
+void formatLineNumber( QString& text, LineNumber::UnderlyingType number, int width )
 {
-    if ( text.isEmpty() ) {
-        return 0;
+    std::array<char16_t, std::numeric_limits<LineNumber::UnderlyingType>::digits10 + 1> digits{};
+    int digitCount = 0;
+    do {
+        digits[ static_cast<size_t>( digitCount++ ) ] = static_cast<char16_t>( u'0' + number % 10 );
+        number /= 10;
+    } while ( number != 0 );
+
+    const int size = std::max( width, digitCount );
+    text.resize( size );
+    auto* out = text.data();
+    std::fill_n( out, size - digitCount, QChar( QChar::Space ) );
+    for ( int i = 0; i < digitCount; ++i ) {
+        out[ size - 1 - i ] = QChar( digits[ static_cast<size_t>( i ) ] );
     }
-    return textWidth( fm, QString::fromRawData( text.data(), logsquirl::isize( text ) ) );
 }
 
 std::unique_ptr<QPainter> pixmapPainter( QPaintDevice* paintDevice, const QFont& font )
@@ -231,9 +245,11 @@ public:
     // leftExtraBackgroundPx is the an extra margin to start drawing
     // the coloured // background, going all the way to the element
     // left of the line looks better.
+    // uniformAsciiAdvance is FontUtils::uniformAsciiAdvance() of the painter's
+    // font, worked out once for all the Log Lines painted together.
     void draw( QPainter* painter, int initialXPos, int initialYPos, int lineWidth,
                const WrappedString& wrappedLines, size_t firstVisualLine, size_t visualLineCount,
-               int leftExtraBackgroundPx )
+               int leftExtraBackgroundPx, std::optional<qreal> uniformAsciiAdvance )
     {
         QFontMetrics fm = painter->fontMetrics();
         const int fontHeight = fm.height();
@@ -269,7 +285,7 @@ public:
                     continue;
                 }
 
-                auto chunkWidth = textWidth( fm, chunkText );
+                auto chunkWidth = FontUtils::textWidth( fm, uniformAsciiAdvance, chunkText );
                 if ( xPos == initialXPos ) {
                     // First chunk, we extend the left background a bit,
                     // it looks prettier.
@@ -1697,9 +1713,18 @@ ViewportLayout AbstractLogView::viewportGeometry() const
 // The viewport layout including the Visual Lines in the Viewport. They come from the
 // Log File, never from a paint, so a click or a hover before the first paint
 // resolves correctly.
-ViewportLayout AbstractLogView::viewportLayout() const
+const ViewportLayout& AbstractLogView::viewportLayout() const
 {
-    return ViewportLayout{ viewportGeometry().input(), viewportContent().visualLines };
+    const auto geometry = viewportGeometry();
+    const auto& content = viewportContent();
+
+    if ( !viewportLayout_.has_value() || viewportLayoutContentBuild_ != viewportContentBuilds_
+         || !( viewportLayout_->input() == geometry.input() ) ) {
+        viewportLayout_.emplace( geometry.input(), content.visualLines );
+        viewportLayoutContentBuild_ = viewportContentBuilds_;
+    }
+
+    return *viewportLayout_;
 }
 
 AbstractLogView::ViewportContentKey AbstractLogView::currentViewportContentKey() const
@@ -1730,6 +1755,7 @@ const AbstractLogView::ViewportContent& AbstractLogView::viewportContent() const
         }
         viewportContentKey_ = key;
         viewportContent_ = buildViewportContent( std::move( previous ) );
+        ++viewportContentBuilds_;
     }
 
     return *viewportContent_;
@@ -2216,6 +2242,23 @@ bool AbstractLogView::scrollTextArea( ScrollPosition scrollPosition )
     return true;
 }
 
+std::optional<qreal> AbstractLogView::uniformAsciiAdvance( const QPainter& painter )
+{
+    // The painter's metrics follow its font and its device's resolution.
+    const auto* device = painter.device();
+    const auto& font = painter.font();
+    auto& cache = uniformAsciiAdvanceCache_;
+    if ( !cache.has_value() || cache->font != font || cache->logicalDpiX != device->logicalDpiX()
+         || cache->logicalDpiY != device->logicalDpiY() ) {
+        cache = UniformAsciiAdvanceCache{ .font = font,
+                                          .logicalDpiX = device->logicalDpiX(),
+                                          .logicalDpiY = device->logicalDpiY(),
+                                          .advance = FontUtils::uniformAsciiAdvance(
+                                              painter.fontMetrics() ) };
+    }
+    return cache->advance;
+}
+
 void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
                                     std::optional<int> endRow )
 {
@@ -2229,6 +2272,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
 
     const int fontHeight = charHeight_;
     const int fontAscent = painter->fontMetrics().ascent();
+    const auto asciiAdvance = uniformAsciiAdvance( *painter );
     const LineLength nbVisibleCols = getNbVisibleCols();
     const bool textWrap = scrolling_.textWrap();
     const auto firstColumn = scrolling_.firstColumn();
@@ -2285,6 +2329,9 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
 
     // Update the length of line numbers
     const int nbDigitsInLineNumber = layout.lineNumberDigits();
+    QString lineNumberText;
+    lineNumberText.reserve( nbDigitsInLineNumber );
+    const auto lineNumberTextColor = theme.color( ColorToken::LineNumberText );
 
     // Draw the line numbers area
     int lineNumberAreaStartX = 0;
@@ -2417,7 +2464,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
                                  span.backColor() );
         }
         lineDrawer.draw( painter.get(), xPos, yPos, viewport()->width(), wrappedLineView,
-                         firstVisualLine, visualLineCount, ContentMarginWidth );
+                         firstVisualLine, visualLineCount, ContentMarginWidth, asciiAdvance );
 
         if ( key.selectedAsSingleLine || key.selectionStart >= 0_lcol ) {
             auto selectionPen = QPen( palette.color( QPalette::Highlight ) );
@@ -2479,13 +2526,11 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
 
         // Draw the line number
         if ( lineNumbersVisible_ ) {
-            static const QString lineNumberFormat( "%1" );
             // Shown from 1.
-            const QString& lineNumberStr
-                = lineNumberFormat.arg( lineNumber.get() + 1, nbDigitsInLineNumber );
-            painter->setPen( theme.color( ColorToken::LineNumberText ) );
+            formatLineNumber( lineNumberText, lineNumber.get() + 1, nbDigitsInLineNumber );
+            painter->setPen( lineNumberTextColor );
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, lineTopY + fontAscent,
-                               lineNumberStr );
+                               lineNumberText );
         }
     } // For each line
 }

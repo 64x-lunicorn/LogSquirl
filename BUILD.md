@@ -55,6 +55,11 @@ If a library can't be found, the one provided by CPM will be used.
 ### Configuration options
 
 By default LogSquirl is built without support for reporting crash dumps. This can be enabled via cmake option `-DLOGSQUIRL_USE_SENTRY=ON`.
+Such a build downloads the pinned [minidump-stackwalk](https://github.com/rust-minidump/rust-minidump) release for
+the target (Linux x86-64, macOS arm64/x86-64, Windows x64) at configure time, checks its SHA-256
+(`cmake/MinidumpStackwalk.cmake`) and ships it next to the app as `logsquirl_minidump_dump`; the crash report dialog
+runs it on a pending minidump. `-DLOGSQUIRL_MINIDUMP_STACKWALK=<path>` ships an existing executable instead, for
+offline builds or other targets.
 
 LogSquirl uses Vectorscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
 LogSquirl can be built with only Qt regular expressions backend by passing `-DLOGSQUIRL_USE_VECTORSCAN=OFF` to cmake.
@@ -205,7 +210,7 @@ Formatting follows the `.clang-format` file at the repository root. CI runs a
 matching version before pushing:
 
 ```bash
-pip install clang-format==23.1.1
+pip install --require-hashes -r .github/requirements/clang-format.txt
 clang-format -i <file>
 ```
 
@@ -317,6 +322,12 @@ and never overwrites an existing hash tag. CI Build computes the same hash from 
 published yet) it builds the image locally under the same ref. So an open PR's toolchain changes only when
 its own `docker/` files do.
 
+The **GHCR Cleanup** workflow (`ghcr-cleanup.yml`, weekly) deletes the image versions no run uses any more: images
+of an earlier hash that are older than 30 days, the old commit SHA tags, and the signatures and manifests that
+belong to them. It keeps `:latest`, the hashes of master's `docker/` directories and anything younger than two days.
+A deleted image a PR still asks for is built locally, as for any new hash. Dispatch it with *dry run* (the default)
+to see what it would delete.
+
 Before pushing, the Docker Images workflow scans each image with Trivy (CRITICAL and HIGH, fixed upstream only) and
 uploads the result to code scanning under `trivy-image-<name>`; findings are reported there but do not fail the
 build. The pushed image carries buildx SBOM and provenance attestations and a keyless cosign signature. CI Build
@@ -345,6 +356,19 @@ running it on master without that publishes any hash tag still missing.
 > 22.04 and every newer distribution. Do not move the AppImage build to a newer
 > base unless you intend to drop support for older distros. (The `.deb` is still
 > produced on Ubuntu 24.04 and targets that release and newer.)
+
+> **deb and rpm packages need the distribution's Qt:** unlike the AppImage, the
+> `.deb` and `.rpm` packages do not bundle Qt. They are linked against the Qt of
+> the build image (aqtinstall, `QT_VERSION` in `docker/*/Dockerfile`) and declare
+> the distribution's Qt packages with that version as the minimum
+> (`CPACK_DEBIAN_PACKAGE_DEPENDS` / `CPACK_RPM_PACKAGE_REQUIRES` in
+> `CMakeLists.txt`, taken from the Qt CMake found). On a distribution whose Qt is
+> older, the package manager refuses to install the package; use the AppImage
+> there. CI Build's package check (`packaging/linux/check-package.sh`) verifies in
+> a plain container of each target distribution that the package ships no static
+> libraries, headers (except the Plugin SDK header) or CMake files of its
+> dependencies, that it declares the Qt dependency, and that it installs exactly
+> when the distribution's Qt is new enough; otherwise the job logs a warning.
 
 ### Release Process
 
@@ -378,7 +402,13 @@ The release workflow does not build. It:
    the CPM packages and pinned platform components that CI Build's SBOM job read
    from the built commit, plus the Qt, OpenSSL and ICU versions found in the
    AppImage, Windows zip and macOS app and what syft finds in them
-   (`scripts/sbom/logsquirl_sbom.py`)
+   (`scripts/sbom/logsquirl_sbom.py`). The Ubuntu 22.04 system libraries the
+   AppImage bundles carry no version syft can read: `generate_appimage.sh` asks
+   the build image's dpkg database for the package and version of each one
+   (`logsquirl_sbom.py appimage-debs`, written to `logsquirl_appimage_debs.json`
+   in the AppImage artifact), and the SBOM lists those packages with
+   `pkg:deb/ubuntu/...` purls, which grype matches against the Ubuntu security
+   tracker. The file itself is not a release asset
 5. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
    grype for the components with a CPE, OSV for the CPM packages by pinned commit
    and tag, and Qt's own list of advisories (https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products,
@@ -475,6 +505,7 @@ before anything is downloaded, because its signing job could not enter the
 | `deploy-website.yml` | push to master changing `website/**`, dispatch (also by CI Release) | Build the website without the pages of unpublished releases and upload it |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
+| `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
@@ -509,12 +540,21 @@ repository requires SHA pinning, and the Format job of CI Build runs the same ch
 Two bots propose dependency updates as pull requests, each for what the other cannot read, so no dependency gets
 PRs from both:
 
-- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines,
-  the pip requirements of `scripts/sbom` and `tests/e2e`, and the website's npm packages.
-- **Renovate** (`renovate.json5`, only its custom regex managers are enabled): the CPM packages in
-  `3rdparty/CMakeLists.txt` and every tool version pinned in workflows, composite actions, the build images and the
-  packaging scripts: Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg, sentry-cli,
-  linuxdeploy, clang-format, aqtinstall and the Renovate config validator itself.
+- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines
+  and the website's npm packages.
+- **Renovate** (`renovate.json5`, only its custom regex managers and pip-compile are enabled): the CPM packages in
+  `3rdparty/CMakeLists.txt`, every tool version pinned in workflows, composite actions, the build images, the
+  packaging scripts and `cmake/*.cmake` (Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg,
+  sentry-cli, linuxdeploy, minidump-stackwalk, the aqtinstall commit of `install-qt-action` and the Renovate config
+  validator itself), the digests of CI Build's install-check images (`check_container`), and the hash-locked pip
+  requirements.
+
+**pip requirements.** Every `pip install` in CI and the build images reads a requirements file with exact versions and
+hashes and passes `--require-hashes`: `docker/shared/aqtinstall-requirements.txt` (aqtinstall, installed into a
+throwaway directory that is deleted once Qt is in the image), `.github/requirements/clang-format.txt`,
+`.github/requirements/e2e.txt` and `scripts/sbom/requirements.txt`. Each is generated from the `.in` file next to it by
+the `uv pip compile --generate-hashes --universal` command in its header; after editing a `.in` file, rerun that
+command. Renovate bumps the pins and reruns the command, and re-locks the dependencies below them once a month.
 
 Both wait until a release is seven days old and run weekly; Renovate lists everything it tracks on its
 **Dependency Dashboard** issue. Renovate's grouping:
@@ -529,7 +569,8 @@ Both wait until a release is seven days old and run weekly; Renovate lists every
 
 A tool pin that is downloaded and verified is written as a block Renovate and the checksum script both read; to add
 one, follow the same form and add its download URL to `URLS` in `.github/scripts/update-checksums.py`. The block goes
-into a composite action (`.github/actions/*/action.yml`), a Dockerfile or a script, never into a workflow file: the
+into a composite action (`.github/actions/*/action.yml`), a Dockerfile, a script or a CMake module (`set(NAME "v")`
+lines, as in `cmake/MinidumpStackwalk.cmake`), never into a workflow file: the
 Renovate Checksums workflow pushes with `GITHUB_TOKEN`, which may not change `.github/workflows/`, so
 `update-checksums.py --list` fails on a pair there. That is why OpenSSL (`.github/actions/windows-openssl`) and
 sentry-cli (`.github/actions/install-sentry-cli`) are installed by composite actions:

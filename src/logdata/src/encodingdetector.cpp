@@ -21,6 +21,9 @@
 
 #include <QTextCodec>
 
+#include <string>
+#include <string_view>
+
 #include "containers.h"
 #include "log.h"
 #include <uchardet.h>
@@ -92,22 +95,50 @@ QTextCodec* EncodingDetector::detectEncoding( const logsquirl::vector<char>& blo
     return detectEncoding( block.data(), block.size() );
 }
 
+std::size_t EncodingDetector::sampleSize( const char* bytes, std::size_t size )
+{
+    if ( size <= MaxSampleSize ) {
+        return size;
+    }
+
+    const std::string_view sample{ bytes, MaxSampleSize };
+    const auto lastLineFeed = sample.rfind( '\n' );
+    if ( lastLineFeed == std::string_view::npos ) {
+        return MaxSampleSize;
+    }
+
+    auto end = lastLineFeed + 1;
+    // A UTF-16LE line feed is "\n\0": keep its second byte, so the sample
+    // holds whole code units.
+    if ( end % 2 == 1 && end < size && bytes[ end ] == '\0' ) {
+        ++end;
+    }
+    return end;
+}
+
 QTextCodec* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const
 {
-    UniqueLock lock( mutex_ );
+    size = sampleSize( bytes, size );
 
-    UchardetHolder ud;
+    std::string uchardetGuess;
+    int rc = 0;
+    {
+        // Only uchardet runs under the lock; the codec lookups below are
+        // thread-safe on their own.
+        UniqueLock lock( mutex_ );
 
-    auto rc = ud.handle_data( bytes, size );
-    if ( rc == 0 ) {
-        ud.data_end();
+        UchardetHolder ud;
+        rc = ud.handle_data( bytes, size );
+        if ( rc == 0 ) {
+            ud.data_end();
+            uchardetGuess = ud.get_charset();
+        }
     }
 
     QTextCodec* uchardetCodec = nullptr;
     if ( rc == 0 ) {
-        auto uchardetGuess = ud.get_charset();
         LOG_DEBUG << "Uchardet encoding guess " << uchardetGuess;
-        uchardetCodec = QTextCodec::codecForName( uchardetGuess );
+        uchardetCodec = QTextCodec::codecForName( uchardetGuess.c_str() );
         if ( uchardetCodec ) {
             LOG_DEBUG << "Uchardet codec selected " << uchardetCodec->name().constData();
         }

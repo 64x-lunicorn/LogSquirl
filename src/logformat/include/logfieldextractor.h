@@ -23,6 +23,7 @@
 
 #include <QHash>
 #include <QList>
+#include <QPair>
 #include <QRegularExpression>
 #include <QString>
 #include <QStringList>
@@ -81,6 +82,15 @@ public:
     QStringList columnNames() const;
 
 private:
+    // A pattern with its named capture groups, looked up once when the
+    // extractor is built rather than for every line.
+    struct CompiledPattern {
+        QRegularExpression regex;
+        // Each named group and its index; index -1 for a name that several
+        // groups share, which is then captured by name.
+        QVector<QPair<QString, int>> namedGroups;
+    };
+
     const LogFormatDefinition& format_;
-    QVector<QRegularExpression> compiledPatterns_;
+    QVector<CompiledPattern> compiledPatterns_;
 };

@@ -231,6 +231,82 @@ SCENARIO( "EncodingDetector detects encoding from byte content", "[encoding]" )
     }
 }
 
+SCENARIO( "EncodingDetector looks at a sample of a large block", "[encoding]" )
+{
+    GIVEN( "A block smaller than the sample" )
+    {
+        std::string text = "short line\nanother line without end";
+        logsquirl::vector<char> block( text.begin(), text.end() );
+
+        THEN( "The whole block is the sample" )
+        {
+            REQUIRE( EncodingDetector::sampleSize( block.data(), block.size() ) == block.size() );
+        }
+    }
+
+    GIVEN( "A 5 MB block of UTF-8 lines" )
+    {
+        std::string line = "2026-09-17 12:00:00 INFO gr\xC3\xBC\xC3\x9F Gott \xE2\x82\xAC\n";
+        std::string text;
+        while ( text.size() < 5 * 1024 * 1024 ) {
+            text += line;
+        }
+        logsquirl::vector<char> block( text.begin(), text.end() );
+
+        const auto sample = EncodingDetector::sampleSize( block.data(), block.size() );
+
+        THEN( "The sample is no longer than the sample limit" )
+        {
+            REQUIRE( sample > 0 );
+            REQUIRE( sample <= EncodingDetector::MaxSampleSize );
+        }
+
+        THEN( "The sample ends after a whole line" )
+        {
+            REQUIRE( block[ sample - 1 ] == '\n' );
+        }
+
+        THEN( "The block is still detected as UTF-8" )
+        {
+            auto* codec = EncodingDetector::getInstance().detectEncoding( block );
+            REQUIRE( codec != nullptr );
+            REQUIRE( EncodingParameters( codec ).isUtf8Compatible );
+        }
+    }
+
+    GIVEN( "A large block of UTF-16LE lines" )
+    {
+        std::string text;
+        while ( text.size() < 1024 * 1024 ) {
+            for ( char c : std::string( "log line number one\n" ) ) {
+                text += c;
+                text += '\0';
+            }
+        }
+        logsquirl::vector<char> block( text.begin(), text.end() );
+
+        const auto sample = EncodingDetector::sampleSize( block.data(), block.size() );
+
+        THEN( "The sample keeps whole UTF-16 code units" )
+        {
+            REQUIRE( sample % 2 == 0 );
+            REQUIRE( block[ sample - 2 ] == '\n' );
+            REQUIRE( block[ sample - 1 ] == '\0' );
+        }
+    }
+
+    GIVEN( "A large block without any line feed" )
+    {
+        logsquirl::vector<char> block( 1024 * 1024, 'a' );
+
+        THEN( "The sample is cut at the sample limit" )
+        {
+            REQUIRE( EncodingDetector::sampleSize( block.data(), block.size() )
+                     == EncodingDetector::MaxSampleSize );
+        }
+    }
+}
+
 SCENARIO( "TextCodecHolder manages codec state", "[encoding]" )
 {
     GIVEN( "A holder initialized with UTF-8" )

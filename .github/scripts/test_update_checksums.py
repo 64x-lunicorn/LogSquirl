@@ -70,6 +70,43 @@ def test_a_shell_pair_with_quotes_and_an_underscored_version_url():
         "BOOST_SHA256": "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.bz2"}
 
 
+def test_a_cmake_pair_is_parsed_with_the_url_of_each_platform_asset():
+    # The minidump tool the app ships is downloaded at configure time (#318).
+    text = f"""\
+# renovate: datasource=github-releases depName=rust-minidump/rust-minidump
+set(MINIDUMP_STACKWALK_VERSION "0.27.0")
+set(MINIDUMP_STACKWALK_SHA256_MACOS_ARM64 "{HASH_A}")
+set(MINIDUMP_STACKWALK_SHA256_WINDOWS_X64 {HASH_B})
+
+set(LOGSQUIRL_MINIDUMP_STACKWALK "")
+"""
+    [pair] = uc.parse_pairs(text, "cmake/MinidumpStackwalk.cmake")
+    assert pair.version == "0.27.0"
+    assert [(h.name, h.value, h.line) for h in pair.hashes] == [
+        ("MINIDUMP_STACKWALK_SHA256_MACOS_ARM64", HASH_A, 2), ("MINIDUMP_STACKWALK_SHA256_WINDOWS_X64", HASH_B, 3)]
+    release = "https://github.com/rust-minidump/rust-minidump/releases/download/v0.27.0/"
+    assert uc.download_urls(pair) == {
+        "MINIDUMP_STACKWALK_SHA256_MACOS_ARM64": release + "minidump-stackwalk-aarch64-apple-darwin.tar.xz",
+        "MINIDUMP_STACKWALK_SHA256_WINDOWS_X64": release + "minidump-stackwalk-x86_64-pc-windows-msvc.zip",
+    }
+
+
+def test_the_cmake_modules_are_scanned(tmp_path, capsys):
+    write(tmp_path, "cmake/Tool.cmake", f"""\
+# renovate: datasource=github-releases depName=ninja-build/ninja
+set(NINJA_VERSION 1.13.2)
+set(NINJA_SHA256 "{HASH_A}")
+""")
+    assert uc.main(["--list", "--repo-root", str(tmp_path)]) == 0
+    assert "cmake/Tool.cmake:2 ninja-build/ninja 1.13.2 NINJA_SHA256" in capsys.readouterr().out
+
+
+def test_the_repository_pins_have_a_url_rule(capsys):
+    root = Path(__file__).resolve().parents[2]
+    assert uc.main(["--list", "--repo-root", str(root)]) == 0
+    assert "cmake/MinidumpStackwalk.cmake" in capsys.readouterr().out
+
+
 def test_a_pair_the_url_table_does_not_know_is_an_error():
     text = f"""\
         # renovate: datasource=github-releases depName=someone/newtool

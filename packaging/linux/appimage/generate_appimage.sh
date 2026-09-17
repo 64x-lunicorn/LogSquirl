@@ -53,3 +53,11 @@ export EXTRA_QT_PLUGINS="iconengines;imageformats;platforms"
 
 mkdir ./packages
 cp "./LogSquirl-${LOGSQUIRL_VERSION}-x86_64.AppImage" "./packages/logsquirl-${LOGSQUIRL_VERSION}-x86_64.AppImage"
+
+# The Debian package and version of every system library linuxdeploy bundled,
+# read from this image's dpkg database with the linker search path linuxdeploy
+# used (LD_LIBRARY_PATH first). CI Release adds them to the release SBOM and
+# keeps the file out of the release assets (#227).
+repo_root=$(readlink -f "$(dirname "$0")/../../..")
+python3 "$repo_root/scripts/sbom/logsquirl_sbom.py" appimage-debs --appdir appdir \
+    --output ./packages/logsquirl_appimage_debs.json

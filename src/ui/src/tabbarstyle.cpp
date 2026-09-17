@@ -21,49 +21,21 @@
 
 #include "theme.h"
 
-#include <QtGlobal>
-
 QString closableTabBarStyleSheet( const Theme& theme )
 {
-    const bool inverse = theme.usesInverseIcons();
+    // The same boxed close button in every Theme: neutral, red only on hover
+    // (#264). The images are the application's own on every platform, which
+    // also avoids the missing tab close icons of Qt's macOS style
+    // (QTBUG-61092).
+    const QString variant = theme.usesInverseIcons() ? QStringLiteral( "_inverse" ) : QString();
+    const auto image = QStringLiteral( ":/images/icons8-close-window-16%1.png" ).arg( variant );
+    const auto hoverImage
+        = QStringLiteral( ":/images/icons8-close-window-hover-16%1.png" ).arg( variant );
 
-    QString image;
-    QString hoverImage;
-
-    if ( inverse ) {
-        image = QStringLiteral( ":/images/icons8-close-window-16_inverse.png" );
-        hoverImage = QStringLiteral( ":/images/icons8-close-window-hover-16_inverse.png" );
-    }
-    else {
-#if defined( Q_OS_MAC )
-        // work around Qt macOS bug missing tab close icons
-        // see: https://bugreports.qt.io/browse/QTBUG-61092
-        image = QStringLiteral(
-            ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-16.png" );
-        hoverImage = QStringLiteral(
-            ":/qt-project.org/styles/commonstyle/images/standardbutton-closetab-hover-16.png" );
-#elif defined( Q_OS_WIN )
-        image = QStringLiteral( ":/images/icons8-close-window-16.png" );
-        hoverImage = QStringLiteral( ":/images/icons8-close-window-hover-16.png" );
-#endif
-    }
-
-    QString styleSheet = QStringLiteral( "QTabBar::tab { height: 28px; }" );
-    if ( image.isEmpty() ) {
-        return styleSheet;
-    }
-
-    styleSheet += QStringLiteral( " QTabBar::close-button { image: url(%1); }" ).arg( image );
-    if ( inverse ) {
-        styleSheet
-            += QStringLiteral( " QTabBar::close-button:hover { image: url(%1);"
-                               " background-color: %2; border-radius: 3px; }" )
-                   .arg( hoverImage,
-                         theme.color( ColorToken::CloseButtonHover ).name( QColor::HexRgb ) );
-    }
-    else {
-        styleSheet += QStringLiteral( " QTabBar::close-button:hover { image: url(%1); }" )
-                          .arg( hoverImage );
-    }
-    return styleSheet;
+    return QStringLiteral( "QTabBar::tab { height: 28px; }"
+                           " QTabBar::close-button { image: url(%1); }"
+                           " QTabBar::close-button:hover { image: url(%2);"
+                           " background-color: %3; border-radius: 3px; }" )
+        .arg( image, hoverImage,
+              theme.color( ColorToken::CloseButtonHover ).name( QColor::HexRgb ) );
 }

@@ -244,3 +244,48 @@ SCENARIO( "LogFieldExtractor includes opid-field in columns", "[logformat][extra
         }
     }
 }
+
+SCENARIO( "LogFieldExtractor maps each named group of each pattern", "[logformat][extractor]" )
+{
+    GIVEN( "Two patterns with unnamed and optional groups between the named ones" )
+    {
+        LogFormatDefinition def;
+        def.setName( "groups_test" );
+        QHash<QString, QString> regex;
+        regex[ "a_bracketed" ]
+            = R"(^(\[)(?<timestamp>\S+)(\]) (?:(?<pid>\d+) )?(?<level>[A-Z]+) (?<body>.*)$)";
+        regex[ "b_plain" ] = R"(^(?<when>\S+) (x)(?<body>.*)$)";
+        def.setRegexPatterns( regex );
+        def.setTimestampField( "timestamp" );
+        def.setLevelField( "level" );
+        def.setBodyField( "body" );
+
+        LogFieldExtractor extractor( def );
+
+        THEN( "Every line gets the values of its own named groups" )
+        {
+            for ( int round = 0; round < 3; ++round ) {
+                auto withPid = extractor.extractFields( "[t1] 42 INFO first" );
+                REQUIRE( withPid.isValid() );
+                REQUIRE( withPid.value( "timestamp" ) == "t1" );
+                REQUIRE( withPid.value( "pid" ) == "42" );
+                REQUIRE( withPid.value( "level" ) == "INFO" );
+                REQUIRE( withPid.value( "body" ) == "first" );
+
+                auto withoutPid = extractor.extractFields( "[t2] WARN second" );
+                REQUIRE( withoutPid.isValid() );
+                REQUIRE( withoutPid.value( "timestamp" ) == "t2" );
+                REQUIRE( withoutPid.value( "pid" ).isEmpty() );
+                REQUIRE( withoutPid.value( "level" ) == "WARN" );
+                REQUIRE( withoutPid.value( "body" ) == "second" );
+
+                auto plain = extractor.extractFields( "t3 xthird" );
+                REQUIRE( plain.isValid() );
+                REQUIRE( plain.value( "when" ) == "t3" );
+                REQUIRE( plain.value( "body" ) == "third" );
+                REQUIRE_FALSE( plain.fieldNames().contains( "level" ) );
+                REQUIRE_FALSE( plain.fieldNames().contains( "timestamp" ) );
+            }
+        }
+    }
+}

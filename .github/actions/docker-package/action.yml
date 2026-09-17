@@ -11,11 +11,23 @@ runs:
         docker run -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/build_root && cpack -G ${{ matrix.config.cpack_gen }} "
         docker run --env LOGSQUIRL_VERSION=$LOGSQUIRL_VERSION -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c "cd /usr/local/build_root && mv ./packages/logsquirl-$LOGSQUIRL_VERSION-Linux.${{ matrix.config.package_suffix }} ./packages/logsquirl-$LOGSQUIRL_VERSION-${{ matrix.config.artifacts_id }}.${{ matrix.config.package_suffix }}"
 
+    # In a plain container of the target distribution: the package holds no
+    # static libraries or headers, declares the distribution's Qt with the
+    # build image's Qt version as the minimum, and installs exactly when the
+    # distribution has that Qt (packaging/linux/check-package.sh, #226).
     - name: Check package
-      if: ${{ matrix.config.check_command }}
+      if: ${{ matrix.config.check_container }}
       shell: sh
+      env:
+        CHECK_CONTAINER: ${{ matrix.config.check_container }}
+        PACKAGE_SUFFIX: ${{ matrix.config.package_suffix }}
       run: |
-        docker run --rm -v "$LOGSQUIRL_WORKSPACE/$LOGSQUIRL_BUILD_ROOT/packages":/usr/local ${{ matrix.config.check_container }} /bin/bash -c "${{ matrix.config.check_command }}"
+        set -eu
+        qt_version=$(docker run --rm "$LOGSQUIRL_CONTAINER" printenv QT_VERSION)
+        docker run --rm --env QT_VERSION="$qt_version" \
+          -v "$LOGSQUIRL_WORKSPACE/$LOGSQUIRL_BUILD_ROOT/packages":/usr/local \
+          -v "$LOGSQUIRL_WORKSPACE/packaging/linux/check-package.sh":/opt/check-package.sh:ro \
+          "$CHECK_CONTAINER" /bin/bash -c "/bin/bash /opt/check-package.sh /usr/local/logsquirl-*.$PACKAGE_SUFFIX"
     
     - name: Linux AppImage 
       if: ${{ matrix.config.os == 'ubuntu_appimage' }}

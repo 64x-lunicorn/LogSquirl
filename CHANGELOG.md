@@ -1,3 +1,79 @@
+# Unreleased
+
+## Changes
+
+- **Themes differ in color only**: Light and High Contrast use Dark's sizes
+  and shapes (combo box arrow, menu item padding and icon offset, tab add
+  button); High Contrast keeps only its thicker borders and outlines. The tab
+  close button is neutral in every Theme and red only on hover, the toolbar
+  path field reads as a read-only field with a visible edge, and combo box
+  popups highlight their current item the same way in every Theme (#264).
+- **Dashboard**: The dashboard uses the application font instead of fixed
+  small sizes, shows Recent Files, Favorites and Plugins as cards in one
+  column, and emphasizes Open File as the primary action (#266).
+- **Less work per line**: Logging does not flush after every message; encoding
+  detection reads a 256 KB sample instead of the whole 5 MB block; expanding
+  tabs, painting ASCII text and line numbers, and extracting Log Format fields
+  do less work per line; Sentry's debug output is on only in debug builds
+  (#304).
+
+## Bug fixes
+
+- **Log Lines beyond 4 GiB within one block**: A Log File in which 128
+  consecutive Log Lines span 4 GiB or more (one very long Log Line is enough)
+  shows the right Log Lines; their positions in the Index are no longer
+  truncated to 32 bits, which showed wrong Log Lines in a Release build and
+  aborted a Debug build. The Index Cache format changes with it, so each Log
+  File is indexed once more after the update (#321).
+- **Main font**: Every Configuration uses the fixed-pitch main font style, not
+  only the first one created, so the saved font does not depend on which
+  settings were read first (#229).
+
+## Security
+
+- **OpenSSL on Windows**: The Windows installer and portable zip ship OpenSSL
+  3.5.8 LTS, which has no known vulnerabilities. LogSquirl 26.07.0 for Windows
+  bundles OpenSSL 3.6.2, with 28 known vulnerabilities, three of them
+  critical: CVE-2026-63073 (CVSS 9.8), CVE-2026-34182 (9.1) and
+  CVE-2026-75803 (9.1); Windows users of 26.07.0 should update (#225, #199).
+- **Update offers**: The update check offers a release only when its link in
+  the update feed points to a LogSquirl release page on GitHub; any other
+  link is ignored and logged (#222).
+- **Crash report tool**: The crash report dialog's minidump tool is
+  rust-minidump's `minidump-stackwalk`, downloaded at build time from a pinned
+  release, checked against its SHA-256 and listed in the release SBOM. It
+  replaces Breakpad executables of unknown origin that were committed to the
+  repository; the dialog shows a readable crash report with the stack of each
+  thread (#318).
+- **SBOM of the AppImage**: The release SBOM lists the Ubuntu packages of the
+  system libraries the AppImage bundles, with `pkg:deb` purls, so the
+  vulnerability scan covers them (#227).
+
+## Build and packaging
+
+- **Linux packages declare Qt**: The DEB and RPM packages depend on the
+  distribution's Qt 6 packages, with the Qt version LogSquirl is built with as
+  the minimum. On a distribution with an older Qt the package manager refuses
+  the install instead of LogSquirl failing to start; use the AppImage there.
+  The packages no longer ship CRoaring's static library and headers (#226).
+- **No fast math**: The build no longer uses `-ffast-math` / `/fp:fast`, so
+  chart aggregation follows IEEE floating point rules (#304).
+- **Hash-pinned Python tools**: Every pip install in CI and the build images
+  uses hash-locked requirements with `--require-hashes`, and aqtinstall runs
+  from a throwaway directory, so no stale Python packages (setuptools,
+  msgpack) stay in the images. Renovate keeps the requirements and their
+  hashes current (#317).
+
+## Internal
+
+- **Sentry release job**: Without a Sentry token the release's Sentry job
+  skips its steps and stays green; with one, a failing upload shows as a red
+  job (#228).
+- **CI hardening**: The install-check containers are digest-pinned and kept
+  current by Renovate, a weekly GHCR Cleanup workflow deletes build image
+  versions no CI run uses, and the website deploy verifies the FTPS server
+  certificate (#230).
+
 # v26.10.0-beta1 (2026-09-17)
 
 ## Changes

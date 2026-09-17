@@ -359,9 +359,10 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
         expandedLen = MaxExpandedLineLength;
     }
 
-    // Second pass: build result string in one allocation
-    QString result;
-    result.reserve( expandedLen );
+    // Second pass: write the result straight into one allocation, with no
+    // temporary string per tab
+    QString result( expandedLen, Qt::Uninitialized );
+    auto* out = result.data();
 
     column = initialPosition.get<int>();
     int outPos = 0;
@@ -369,12 +370,12 @@ inline QString untabify( QString&& line, LineColumn initialPosition = 0_lcol )
         if ( src[ i ] == QChar::Tabulation ) {
             const int spaces = TabStop - ( column % TabStop );
             const int toWrite = std::min( spaces, expandedLen - outPos );
-            result.append( QString( toWrite, QChar::Space ) );
+            std::fill_n( out + outPos, toWrite, QChar( QChar::Space ) );
             column += spaces;
             outPos += toWrite;
         }
         else {
-            result.append( src[ i ] == QChar::Null ? QChar::Space : src[ i ] );
+            out[ outPos ] = src[ i ] == QChar::Null ? QChar( QChar::Space ) : src[ i ];
             ++column;
             ++outPos;
         }

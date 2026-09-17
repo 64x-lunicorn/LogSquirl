@@ -1354,3 +1354,59 @@ SCENARIO( "A log view at its bottom paints Log Lines appended as a new view does
         }
     }
 }
+
+namespace {
+
+// QuickFind and a Color Label, whose backgrounds are as wide as the text
+// measures; unlike decorateEverything(), no click that depends on the font.
+void highlightWithoutSelecting( AbstractLogView& view, QuickFindPattern& quickFindPattern )
+{
+    quickFindPattern.changeSearchPattern( QStringLiteral( "retry|idle" ),
+                                          /* useExtendedRegexp */ true );
+    auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+    colorLabels[ 1 ] << QStringLiteral( "INFO" );
+    view.setQuickHighlighters( colorLabels );
+}
+
+} // namespace
+
+SCENARIO( "A log view paints in a new font as a view that started with it does",
+          "[logviewpainting]" )
+{
+    // The view keeps what it measured of a font between paints (#304); a
+    // new font must be measured again.
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+    auto largerFont = font;
+    largerFont.setPixelSize( font.pixelSize() * 3 / 2 );
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view with QuickFind and a Color Label painted in the test font, text wrapping "
+               << ( textWrap ? "on" : "off" ) )
+        {
+            const FakeLogData logData{ paintedTexts() };
+            QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            // Its very first paint already in the test font.
+            view.updateFont( font );
+            showForPainting( view, logData, font, { .textWrap = textWrap } );
+            highlightWithoutSelecting( view, quickFindPattern );
+            grabViewport( view );
+
+            WHEN( "it is given a larger font" )
+            {
+                view.updateFont( largerFont );
+                const auto painted = grabViewport( view );
+
+                THEN( "it paints what a view shown in the larger font paints" )
+                {
+                    QuickFindPattern freshQuickFindPattern;
+                    PaintingLogView fresh( &logData, &freshQuickFindPattern, textWrap );
+                    showForPainting( fresh, logData, largerFont, { .textWrap = textWrap } );
+                    highlightWithoutSelecting( fresh, freshQuickFindPattern );
+                    requireSameImage( grabViewport( fresh ), painted, "a new font" );
+                }
+            }
+        }
+    }
+}

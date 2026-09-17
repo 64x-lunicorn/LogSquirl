@@ -19,10 +19,15 @@
 
 #include "updateoffer.h"
 
+#include <algorithm>
+
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QUrl>
 #include <QVersionNumber>
+
+#include "log.h"
 
 namespace logsquirl::versioncheck {
 
@@ -38,6 +43,37 @@ QVersionNumber baseOf( const QString& version )
 bool isPrerelease( const QString& releaseName )
 {
     return releaseName.contains( u'-' );
+}
+
+// Every release page of LogSquirl lies below this; an update is only offered
+// for one of them (#222, ADR 0005).
+constexpr auto ReleasePagesPrefix = "https://github.com/64x-lunicorn/LogSquirl/releases/";
+constexpr auto ReleasePagesPath = "/64x-lunicorn/LogSquirl/releases/";
+
+// The url must begin with exactly the prefix, and what a browser makes of it
+// must still be a page below the prefix: no user info, port, dot segments,
+// backslashes or characters a strict parser rejects.
+bool isReleasePage( const QString& url )
+{
+    if ( !url.startsWith( QLatin1String( ReleasePagesPrefix ) ) ) {
+        return false;
+    }
+
+    const QUrl parsed( url, QUrl::StrictMode );
+    if ( !parsed.isValid() || parsed.scheme() != QLatin1String( "https" )
+         || parsed.host() != QLatin1String( "github.com" ) || !parsed.userInfo().isEmpty()
+         || parsed.port() != -1 ) {
+        return false;
+    }
+
+    const auto path = parsed.path( QUrl::FullyDecoded );
+    if ( !path.startsWith( QLatin1String( ReleasePagesPath ) ) || path.contains( u'\\' ) ) {
+        return false;
+    }
+    const auto segments = path.split( u'/' );
+    return std::none_of( segments.begin(), segments.end(), []( const QString& segment ) {
+        return segment == QLatin1String( "." ) || segment == QLatin1String( ".." );
+    } );
 }
 
 struct Release {
@@ -89,8 +125,15 @@ std::optional<UpdateOffer> findUpdateOffer( const QByteArray& feed, const QStrin
     const bool offersBeta = betaCheckingEnabled || ( runsBeta && !runsStable );
 
     const auto offerable = [ &runningVersion ]( const Release& release ) {
-        return !release.name.isEmpty() && !release.url.isEmpty()
-               && isNewer( release, runningVersion );
+        if ( release.name.isEmpty() || !isNewer( release, runningVersion ) ) {
+            return false;
+        }
+        if ( !isReleasePage( release.url ) ) {
+            LOG_WARNING << "Update feed: not offering " << release.name << ", its url "
+                        << release.url << " is not a LogSquirl release page";
+            return false;
+        }
+        return true;
     };
     const Release* chosen = nullptr;
     if ( offerable( stable ) ) {

@@ -45,6 +45,9 @@ cpmaddpackage(
   VERSION 4.2.1
   GIT_TAG 3ef7b44a4f74af09fe19bb84d30bc35cab130561 # v4.2.1
   OPTIONS "ROARING_USE_CPM OFF" "ENABLE_ROARING_TESTS OFF"
+  # Without it CRoaring's install rules put libroaring.a, its headers and CMake
+  # config into the deb and rpm packages (#226).
+  EXCLUDE_FROM_ALL YES
 )
 cpmaddpackage(
   NAME streamvbyte

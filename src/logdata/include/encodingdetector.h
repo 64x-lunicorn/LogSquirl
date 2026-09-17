@@ -76,6 +76,16 @@ public:
     EncodingDetector( const EncodingDetector&& ) = delete;
     EncodingDetector& operator=( const EncodingDetector&& ) = delete;
 
+    // The detector looks at no more than this many leading bytes of a block:
+    // a guess from a few hundred kilobytes is as good as one from the whole
+    // indexing block, and costs a fraction of the time.
+    static constexpr std::size_t MaxSampleSize = 256 * 1024;
+
+    // How many leading bytes of the block the detector looks at: all of a
+    // short block, else at most MaxSampleSize, ending after the last line
+    // feed in there so no character is cut in half.
+    static std::size_t sampleSize( const char* bytes, std::size_t size );
+
     QTextCodec* detectEncoding( const logsquirl::vector<char>& block ) const;
     QTextCodec* detectEncoding( const char* bytes, std::size_t size ) const;
 

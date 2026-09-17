@@ -154,8 +154,13 @@ def test_the_release_named_by_the_changelog_is_the_one_expected_elsewhere(tmp_pa
 def test_the_preparation_of_this_repository_passes():
     root = Path(__file__).parents[2]
     head_cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
+    changelog = (root / "CHANGELOG.md").read_text(encoding="utf-8")
+    # The entries of pull requests after the last preparation sit above it
+    # under Unreleased; the preparation itself is the release section below.
+    if changelog.startswith(rp.UNRELEASED + "\n"):
+        changelog = changelog[changelog.index("\n# v"):].lstrip("\n")
     assert rp.release_preparation_problems(
         base_cmake=cmake("26.07.0"), head_cmake=head_cmake,
-        changelog=(root / "CHANGELOG.md").read_text(encoding="utf-8"),
+        changelog=changelog,
         feed=json.loads((root / "latest.json").read_text(encoding="utf-8")),
         news_dir=root / "website/src/content/docs/news") == []

@@ -57,7 +57,10 @@ and choose the package for your platform.
 | :--- | :--- | :--- |
 | NSIS installer | `.pkg` installer | AppImage, DEB, or RPM |
 
-See the release notes for package details and platform requirements.
+See the release notes for package details and platform requirements. The DEB and
+RPM packages use your distribution's Qt and install only when it is at least the Qt
+version LogSquirl was built with; on other distributions, use the AppImage, which
+brings its own Qt.
 
 Want to be sure a download is genuine? Every release has a
 `logsquirl-<version>-sha256.txt` checksum file signed with Sigstore, and every

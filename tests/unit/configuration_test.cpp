@@ -671,6 +671,49 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
 
 } // namespace
 
+// The main font is resolved as a fixed-pitch outline font. Every
+// Configuration resolves its own, not only the first one of the process (#229).
+SCENARIO( "Every Configuration resolves its main font", "[configuration]" )
+{
+    const auto isResolved = []( const QFont& font ) {
+        return font.styleHint() == QFont::Courier
+               && ( font.styleStrategy() & QFont::PreferOutline ) != 0;
+    };
+
+    GIVEN( "A Configuration whose main font was already resolved" )
+    {
+        const Configuration first;
+        REQUIRE( isResolved( first.mainFont() ) );
+
+        WHEN( "Another Configuration is built in the same process" )
+        {
+            Configuration second;
+
+            THEN( "Its main font is resolved too" )
+            {
+                CHECK( isResolved( second.mainFont() ) );
+            }
+
+            THEN( "A main font set on it is resolved" )
+            {
+                second.setMainFont( QFont( "DejaVu Sans Mono", 12 ) );
+                CHECK( isResolved( second.mainFont() ) );
+                CHECK( second.mainFont().pointSize() == 12 );
+            }
+
+            THEN( "A main font loaded into it is resolved" )
+            {
+                SettingsFile file;
+                file.setValue( "mainFont.family", "DejaVu Sans Mono" );
+                file.setValue( "mainFont.size", 13 );
+                const auto loaded = file.load();
+                CHECK( isResolved( loaded.mainFont() ) );
+                CHECK( loaded.mainFont().pointSize() == 13 );
+            }
+        }
+    }
+}
+
 SCENARIO( "Every stored setting survives a save and a load", "[configuration]" )
 {
     GIVEN( "A Configuration where every setting holds a value other than its default" )

@@ -39,12 +39,30 @@
 
 static constexpr size_t SimdIndexBlockSize = 128;
 
+// A block spanning 4 GiB or more holds its offsets unpacked, 8 bytes each.
+static constexpr size_t WideOffsetBytes = sizeof( uint64_t );
+static constexpr size_t WideBlockBytes = SimdIndexBlockSize * WideOffsetBytes;
+
+// A packed block starts with one control byte per four offsets; each 2-bit
+// code in it gives the length of one offset, 1 to 4 bytes.
+static constexpr size_t PackedControlBytes = ( SimdIndexBlockSize + 3 ) / 4;
+
+static size_t packedBlockBytes( const uint8_t* block )
+{
+    size_t bytes = PackedControlBytes;
+    for ( size_t i = 0; i < PackedControlBytes; ++i ) {
+        for ( unsigned shift = 0; shift < 8; shift += 2 ) {
+            bytes += ( ( block[ i ] >> shift ) & 3u ) + 1u;
+        }
+    }
+    return bytes;
+}
+
 void CompressedLinePositionStorage::move_from( CompressedLinePositionStorage&& orig ) noexcept
 {
     blocks_ = std::move( orig.blocks_ );
     packedLinesStorage_ = std::move( orig.packedLinesStorage_ );
     currentLinesBlock_ = std::move( orig.currentLinesBlock_ );
-    currentLinesBlockShifted_ = std::move( orig.currentLinesBlockShifted_ );
     // Without it, the next compressed block would be written over the first.
     packedLinesStorageUsedSize_ = orig.packedLinesStorageUsedSize_;
 
@@ -82,8 +100,6 @@ void CompressedLinePositionStorage::append( OffsetInFile pos )
     assert( ( pos > lastPos_ ) || ( pos == 0_offset ) );
 
     currentLinesBlock_.push_back( pos );
-    currentLinesBlockShifted_.push_back(
-        type_safe::narrow_cast<uint32_t>( pos.get() - currentLinesBlock_.front().get() ) );
 
     if ( currentLinesBlock_.size() == SimdIndexBlockSize ) {
         compress_current_block();
@@ -96,20 +112,71 @@ void CompressedLinePositionStorage::append( OffsetInFile pos )
 void CompressedLinePositionStorage::compress_current_block()
 {
     BlockMetadata& block = blocks_.emplace_back();
+    const auto firstPosition = currentLinesBlock_.front().get();
     block.firstLineOffset = currentLinesBlock_.front();
+    block.storageOffsetAndWideFlag = packedLinesStorageUsedSize_;
 
-    const size_t packedLinesSize = streamvbyte_max_compressedbytes( SimdIndexBlockSize );
-    packedLinesStorage_.resize( packedLinesStorageUsedSize_ + packedLinesSize );
-    block.packetStorageOffset = packedLinesStorageUsedSize_;
+    // Positions only grow, so the last one is the farthest from the first.
+    const auto span = static_cast<uint64_t>( currentLinesBlock_.back().get() - firstPosition );
+    if ( span > std::numeric_limits<uint32_t>::max() ) {
+        block.storageOffsetAndWideFlag |= BlockMetadata::WideFlag;
+        packedLinesStorage_.resize( packedLinesStorageUsedSize_ + WideBlockBytes );
+        auto* out = packedLinesStorage_.data() + packedLinesStorageUsedSize_;
+        for ( const auto position : currentLinesBlock_ ) {
+            qToLittleEndian( static_cast<uint64_t>( position.get() - firstPosition ), out );
+            out += WideOffsetBytes;
+        }
+        packedLinesStorageUsedSize_ += WideBlockBytes;
+    }
+    else {
+        std::array<uint32_t, SimdIndexBlockSize> shifted;
+        std::transform( currentLinesBlock_.begin(), currentLinesBlock_.end(), shifted.begin(),
+                        [ firstPosition ]( OffsetInFile pos ) {
+                            return static_cast<uint32_t>( pos.get() - firstPosition );
+                        } );
 
-    const size_t packedBytes
-        = streamvbyte_delta_encode( currentLinesBlockShifted_.data(), SimdIndexBlockSize,
-                                    packedLinesStorage_.data() + block.packetStorageOffset, 0 );
-
-    packedLinesStorageUsedSize_ += packedBytes;
+        const size_t packedLinesSize = streamvbyte_max_compressedbytes( SimdIndexBlockSize );
+        packedLinesStorage_.resize( packedLinesStorageUsedSize_ + packedLinesSize );
+        packedLinesStorageUsedSize_ += streamvbyte_delta_encode(
+            shifted.data(), SimdIndexBlockSize,
+            packedLinesStorage_.data() + block.packetStorageOffset(), 0 );
+    }
 
     currentLinesBlock_.clear();
-    currentLinesBlockShifted_.clear();
+}
+
+OffsetInFile CompressedLinePositionStorage::position_in_block( const BlockMetadata& block,
+                                                               size_t indexInBlock ) const
+{
+    if ( block.hasWideOffsets() ) {
+        const auto offset = qFromLittleEndian<uint64_t>(
+            &packedLinesStorage_[ block.packetStorageOffset() + indexInBlock * WideOffsetBytes ] );
+        return block.firstLineOffset + OffsetInFile( static_cast<int64_t>( offset ) );
+    }
+
+    std::array<uint32_t, SimdIndexBlockSize> unpackedBlock;
+    streamvbyte_delta_decode( &packedLinesStorage_[ block.packetStorageOffset() ],
+                              unpackedBlock.data(), SimdIndexBlockSize, 0 );
+    return block.firstLineOffset + OffsetInFile( unpackedBlock[ indexInBlock ] );
+}
+
+void CompressedLinePositionStorage::unpack_block( const BlockMetadata& block, size_t first,
+                                                  size_t last, OffsetInFile* out ) const
+{
+    if ( block.hasWideOffsets() ) {
+        for ( auto index = first; index < last; ++index ) {
+            *out++ = position_in_block( block, index );
+        }
+        return;
+    }
+
+    std::array<uint32_t, SimdIndexBlockSize> unpackedBlock;
+    streamvbyte_delta_decode( &packedLinesStorage_[ block.packetStorageOffset() ],
+                              unpackedBlock.data(), SimdIndexBlockSize, 0 );
+    std::transform(
+        unpackedBlock.begin() + static_cast<std::ptrdiff_t>( first ),
+        unpackedBlock.begin() + static_cast<std::ptrdiff_t>( last ), out,
+        [ &block ]( uint32_t pos ) { return OffsetInFile( pos ) + block.firstLineOffset; } );
 }
 
 OffsetInFile CompressedLinePositionStorage::at( LineNumber index ) const
@@ -127,12 +194,7 @@ OffsetInFile CompressedLinePositionStorage::at( LineNumber index ) const
         return currentLinesBlock_[ indexInBlock ];
     }
 
-    const BlockMetadata& block = blocks_[ blockIndex ];
-    std::array<uint32_t, SimdIndexBlockSize> unpackedBlock;
-    streamvbyte_delta_decode( &packedLinesStorage_[ block.packetStorageOffset ],
-                              unpackedBlock.data(), SimdIndexBlockSize, 0 );
-
-    return block.firstLineOffset + OffsetInFile( unpackedBlock[ indexInBlock ] );
+    return position_in_block( blocks_[ blockIndex ], indexInBlock );
 }
 
 void CompressedLinePositionStorage::append_list( const logsquirl::vector<OffsetInFile>& positions )
@@ -150,14 +212,8 @@ void CompressedLinePositionStorage::append_list( const logsquirl::vector<OffsetI
         const auto count = std::min( SimdIndexBlockSize - currentLinesBlock_.size(),
                                      static_cast<size_t>( positions.end() - next ) );
         const auto blockEnd = next + static_cast<std::ptrdiff_t>( count );
-        const auto firstInBlock
-            = currentLinesBlock_.empty() ? next->get() : currentLinesBlock_.front().get();
 
         currentLinesBlock_.insert( currentLinesBlock_.end(), next, blockEnd );
-        std::transform( next, blockEnd, std::back_inserter( currentLinesBlockShifted_ ),
-                        [ firstInBlock ]( OffsetInFile pos ) {
-                            return type_safe::narrow_cast<uint32_t>( pos.get() - firstInBlock );
-                        } );
         next = blockEnd;
 
         if ( currentLinesBlock_.size() == SimdIndexBlockSize ) {
@@ -172,17 +228,8 @@ void CompressedLinePositionStorage::append_list( const logsquirl::vector<OffsetI
 void CompressedLinePositionStorage::uncompress_last_block()
 {
     currentLinesBlock_.resize( SimdIndexBlockSize );
-    currentLinesBlockShifted_.resize( SimdIndexBlockSize );
     const BlockMetadata& block = blocks_.back();
-
-    streamvbyte_delta_decode( &packedLinesStorage_[ block.packetStorageOffset ],
-                              currentLinesBlockShifted_.data(), SimdIndexBlockSize, 0 );
-
-    std::transform( currentLinesBlockShifted_.begin(), currentLinesBlockShifted_.end(),
-                    currentLinesBlock_.begin(), [ &block ]( uint32_t pos ) {
-                        return OffsetInFile( pos ) + block.firstLineOffset;
-                    } );
-
+    unpack_block( block, 0, SimdIndexBlockSize, currentLinesBlock_.data() );
     blocks_.pop_back();
 }
 
@@ -196,7 +243,6 @@ void CompressedLinePositionStorage::pop_back()
 
     if ( !currentLinesBlock_.empty() ) {
         currentLinesBlock_.pop_back();
-        currentLinesBlockShifted_.pop_back();
     }
 
     if ( nbLines_.get() == 0 ) {
@@ -234,19 +280,14 @@ logsquirl::vector<OffsetInFile> CompressedLinePositionStorage::range( LineNumber
     else {
         size_t lastBlockToUnpack = std::min( lastBlockIndex, blocks_.size() - 1 );
         for ( size_t blockIndex = firstBlockIndex; blockIndex <= lastBlockToUnpack; ++blockIndex ) {
-            const BlockMetadata& block = blocks_[ blockIndex ];
-            std::array<uint32_t, SimdIndexBlockSize> unpackedBlock;
-            streamvbyte_delta_decode( &packedLinesStorage_[ block.packetStorageOffset ],
-                                      unpackedBlock.data(), SimdIndexBlockSize, 0 );
             const size_t copyFromIndex = blockIndex == firstBlockIndex ? indexInFirstBlock : 0u;
             const size_t copyToIndex
-                = blockIndex == lastBlockIndex ? indexInLastBlock + 1 : unpackedBlock.size();
+                = blockIndex == lastBlockIndex ? indexInLastBlock + 1 : SimdIndexBlockSize;
 
-            std::transform( unpackedBlock.begin() + copyFromIndex,
-                            unpackedBlock.begin() + copyToIndex, std::back_inserter( result ),
-                            [ &block ]( uint32_t pos ) {
-                                return OffsetInFile( pos ) + block.firstLineOffset;
-                            } );
+            const auto resultSize = result.size();
+            result.resize( resultSize + copyToIndex - copyFromIndex );
+            unpack_block( blocks_[ blockIndex ], copyFromIndex, copyToIndex,
+                          result.data() + resultSize );
         }
 
         if ( lastBlockIndex == blocks_.size() ) {
@@ -265,7 +306,8 @@ void CompressedLinePositionStorage::serialize( QDataStream& out ) const
     out << static_cast<quint32>( blocks_.size() );
     for ( const auto& block : blocks_ ) {
         out << static_cast<qint64>( block.firstLineOffset.get() );
-        out << static_cast<quint64>( block.packetStorageOffset );
+        // A block spanning 4 GiB or more is flagged in the top bit (#321).
+        out << static_cast<quint64>( block.storageOffsetAndWideFlag );
     }
 
     // Packed byte storage
@@ -306,7 +348,9 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
         if ( in.status() != QDataStream::Ok ) {
             return false;
         }
-        blocks_.push_back( BlockMetadata{ OffsetInFile( firstOffset ), storageOffset } );
+        auto& block = blocks_.emplace_back();
+        block.firstLineOffset = OffsetInFile( firstOffset );
+        block.storageOffsetAndWideFlag = storageOffset;
     }
 
     // Packed byte storage
@@ -315,7 +359,8 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
     if ( in.status() != QDataStream::Ok || packedSize > 2'000'000'000ULL ) {
         return false;
     }
-    packedLinesStorage_.resize( static_cast<size_t>( packedSize ) );
+    // streamvbyte's decoder reads up to STREAMVBYTE_PADDING bytes past a block.
+    packedLinesStorage_.resize( static_cast<size_t>( packedSize ) + STREAMVBYTE_PADDING );
     packedLinesStorageUsedSize_ = static_cast<size_t>( packedSize );
     if ( packedSize > 0 ) {
         if ( in.readRawData( reinterpret_cast<char*>( packedLinesStorage_.data() ),
@@ -324,38 +369,49 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
             return false;
         }
     }
+    // Every byte of a block must lie within the packed bytes.
+    const bool blocksInPackedBytes = std::all_of(
+        blocks_.begin(), blocks_.end(), [ this, packedSize ]( const BlockMetadata& block ) {
+            const uint64_t offset = block.packetStorageOffset();
+            if ( offset > packedSize ) {
+                return false;
+            }
+            const uint64_t available = packedSize - offset;
+            if ( block.hasWideOffsets() ) {
+                return WideBlockBytes <= available;
+            }
+            return PackedControlBytes <= available
+                   && packedBlockBytes( &packedLinesStorage_[ static_cast<size_t>( offset ) ] )
+                          <= available;
+        } );
+    if ( !blocksInPackedBytes ) {
+        return false;
+    }
 
     // Uncompressed tail block
     quint32 tailCount = 0;
     in >> tailCount;
-    if ( in.status() != QDataStream::Ok || tailCount > 128 ) {
+    // A full tail is always packed into a block at once.
+    if ( in.status() != QDataStream::Ok || tailCount >= SimdIndexBlockSize ) {
         return false;
     }
     currentLinesBlock_.clear();
     currentLinesBlock_.reserve( tailCount );
-    currentLinesBlockShifted_.clear();
-    currentLinesBlockShifted_.reserve( tailCount );
-    OffsetInFile blockBase( 0 );
     for ( quint32 i = 0; i < tailCount; ++i ) {
         qint64 val = 0;
         in >> val;
         if ( in.status() != QDataStream::Ok ) {
             return false;
         }
-        const auto off = OffsetInFile( val );
-        currentLinesBlock_.push_back( off );
-        if ( i == 0 ) {
-            blockBase = off;
-        }
-        currentLinesBlockShifted_.push_back(
-            type_safe::narrow_cast<uint32_t>( off.get() - blockBase.get() ) );
+        currentLinesBlock_.push_back( OffsetInFile( val ) );
     }
 
     // Scalar state
     qint64 lines = 0;
     qint64 lastP = 0;
     in >> lines >> lastP;
-    if ( in.status() != QDataStream::Ok ) {
+    if ( in.status() != QDataStream::Ok
+         || static_cast<quint64>( lines ) != blocks_.size() * SimdIndexBlockSize + tailCount ) {
         return false;
     }
     nbLines_ = LinesCount( static_cast<LinesCount::UnderlyingType>( lines ) );

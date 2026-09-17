@@ -1,11 +1,12 @@
 // Renovate keeps what Dependabot cannot read current (#211): the CPM packages in
-// 3rdparty/CMakeLists.txt and the tool versions pinned in workflows, composite
-// actions, the build images and the packaging scripts.
+// 3rdparty/CMakeLists.txt, the tool versions pinned in workflows, composite
+// actions, the build images and the packaging scripts, the digests of CI
+// Build's install-check images, and the hash-locked pip requirements (#317).
 //
 // No overlap with Dependabot (.github/dependabot.yml): GitHub Actions, the
-// Docker FROM digests, pip requirements (tests/e2e, scripts/sbom) and npm
-// (website) stay with Dependabot. Only the custom regex managers below are
-// enabled, so Renovate never opens a PR for one of those.
+// Docker FROM digests and npm (website) stay with Dependabot. Only the custom
+// regex managers and pip-compile below are enabled, so Renovate never opens a
+// PR for one of those.
 //
 // Checksums: a version bump here leaves its SHA-256 stale; the Renovate
 // Checksums workflow (.github/workflows/renovate-checksums.yml) recomputes it
@@ -13,7 +14,7 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["config:recommended", "schedule:weekly"],
-  enabledManagers: ["custom.regex"],
+  enabledManagers: ["custom.regex", "pip-compile"],
   dependencyDashboard: true,
   labels: ["ci", "dependencies"],
   timezone: "Europe/Berlin",
@@ -32,11 +33,31 @@
     },
   },
 
+  // Every pip install in CI and the build images reads a requirements file
+  // locked with hashes by `uv pip compile --generate-hashes` (#317). The
+  // manager bumps the pin in the .in file and reruns the command in the lock
+  // file's header, so the hashes move with the version.
+  "pip-compile": {
+    managerFilePatterns: [
+      "/^docker/shared/aqtinstall-requirements\\.txt$/",
+      "/^\\.github/requirements/[^/]+\\.txt$/",
+      "/^scripts/sbom/requirements\\.txt$/",
+    ],
+  },
+  // A version bump re-locks only what the bumped package needs; this re-locks
+  // the dependencies below the pins (e.g. requests, urllib3) once a month, so
+  // they do not go stale. Only pip-compile supports it among the enabled
+  // managers (#317).
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["* 0-6 1 * *"],
+  },
+
   customManagers: [
     {
       // `# renovate: datasource=... depName=...` directly above a version
       // line (YAML `NAME: v`, shell `NAME=v` / `NAME="v"`, Dockerfile
-      // `ENV NAME=v`). The SHA-256 lines below it are refreshed by
+      // `ENV NAME=v`, CMake `set(NAME v)`). The SHA-256 lines below it are refreshed by
       // .github/scripts/update-checksums.py, which reads the same files.
       customType: "regex",
       description: "Pinned tool versions under a # renovate: comment",
@@ -46,9 +67,12 @@
         "/^docker/[^/]+/Dockerfile$/",
         "/^docker/shared/[^/]+\\.sh$/",
         "/^packaging/.+\\.sh$/",
+        "/^cmake/[^/]+\\.cmake$/",
       ],
       matchStrings: [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*(?:ENV\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*(?::\\s*|=)[\"']?(?<currentValue>[^\"'\\s]+)[\"']?",
+        // CMake `set(NAME v)` / `set(NAME "v")` (cmake/MinidumpStackwalk.cmake, #318).
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*set\\(\\s*[A-Za-z_][A-Za-z0-9_]*\\s+\"?(?<currentValue>[^\"\\s)]+)\"?\\s*\\)",
       ],
     },
     {
@@ -119,6 +143,20 @@
       ],
       datasourceTemplate: "github-digest",
       currentValueTemplate: "master",
+    },
+    {
+      // The clean distribution images CI Build install-checks the packages in
+      // (#230): digest-pinned like the FROM lines Dependabot keeps current.
+      // Only the digest moves (see packageRules); the release in the tag moves
+      // by hand with its build image.
+      customType: "regex",
+      description: "Install-check container digests",
+      managerFilePatterns: ["/^\\.github/workflows/ci-build\\.yml$/"],
+      matchStrings: [
+        "check_container:\\s*(?<depName>[a-z0-9./-]+):(?<currentValue>[\\w.-]+)@(?<currentDigest>sha256:[0-9a-f]{64})",
+      ],
+      datasourceTemplate: "docker",
+      depTypeTemplate: "check-container",
     },
     {
       // Qt is one version everywhere: the Mac/Windows CI matrices, CodeQL,
@@ -194,6 +232,19 @@
       // A file listing carries no release dates, so the week's wait cannot
       // apply; without this Renovate would never propose a version.
       minimumReleaseAgeBehaviour: "timestamp-optional",
+    },
+    {
+      // An install-check image names the same release as its build image,
+      // the GHCR image name and os_version (#198); a new release is moved by
+      // hand, so only digest updates are proposed, all in one PR.
+      matchDepTypes: ["check-container"],
+      matchUpdateTypes: ["major", "minor", "patch"],
+      enabled: false,
+    },
+    {
+      matchDepTypes: ["check-container"],
+      matchUpdateTypes: ["digest"],
+      groupName: "install-check images",
     },
     {
       // Branch heads of forks and release-less upstreams change without a
