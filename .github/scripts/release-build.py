@@ -91,10 +91,26 @@ def _is_ci_build(run: dict) -> bool:
     return (run.get("path") or "").split("@", 1)[0] == WORKFLOW_PATH
 
 
+def _id(item: dict, what: str) -> int:
+    """The numeric id of an API object; a response without one is an error, not a crash."""
+    value = item.get("id")
+    if not isinstance(value, int):
+        raise ReleaseError(f"unexpected API response: {what} {item.get('name', '')} has no id.")
+    return value
+
+
+def _repo_name(run: dict, key: str) -> str | None:
+    return (run.get(key) or {}).get("full_name")
+
+
+def _succeeded(run: dict) -> bool:
+    return run.get("status") == "completed" and run.get("conclusion") == "success"
+
+
 def _is_master_push(run: dict, repository: str) -> bool:
     return (run.get("event") == "push" and run.get("head_branch") == RELEASE_BRANCH
-            and (run.get("head_repository") or {}).get("full_name") == repository
-            and (run.get("repository") or {}).get("full_name") == repository)
+            and _repo_name(run, "head_repository") == repository
+            and _repo_name(run, "repository") == repository)
 
 
 def check_run(run: dict, *, commit: str, repository: str) -> None:
@@ -102,17 +118,18 @@ def check_run(run: dict, *, commit: str, repository: str) -> None:
     who = _describe(run)
     if not _is_ci_build(run):
         raise ReleaseError(f"{who} is from {run.get('path')}, not the CI Build workflow.")
-    if run.get("status") != "completed" or run.get("conclusion") != "success":
+    if not _succeeded(run):
         raise ReleaseError(f"{who} did not succeed (status '{run.get('status')}', "
                            f"conclusion '{run.get('conclusion')}').")
     if not _is_master_push(run, repository):
-        head_repo = (run.get("head_repository") or {}).get("full_name")
+        head_repo = _repo_name(run, "head_repository")
         raise ReleaseError(f"{who} was triggered by '{run.get('event')}' on branch "
                            f"'{run.get('head_branch')}' of {head_repo}; only a push to "
                            f"{RELEASE_BRANCH} of {repository} can be released.")
     if run.get("head_sha") != commit:
         raise ReleaseError(f"{who} built commit {run.get('head_sha')}, but the tag points "
                            f"to {commit}; a release publishes the build of its own commit.")
+    _id(run, "CI run")
 
 
 def select_run(runs: list[dict], *, commit: str, repository: str) -> dict:
@@ -125,8 +142,9 @@ def select_run(runs: list[dict], *, commit: str, repository: str) -> dict:
             f"Only a push to {RELEASE_BRANCH} creates one; a commit marked [skip ci], or one "
             "whose changes CI Build ignores (paths-ignore), has none. Tag a commit that "
             "CI Build built, or push a change and tag that commit.")
-    good = [r for r in candidates
-            if r.get("status") == "completed" and r.get("conclusion") == "success"]
+    good = [r for r in candidates if _succeeded(r)]
+    for r in good:
+        _id(r, "CI run")
     if not good:
         states = ", ".join(f"run {r.get('id')} {r.get('status')}/{r.get('conclusion')}"
                            for r in candidates)
@@ -140,22 +158,26 @@ def select_artifacts(artifacts: list[dict], *, run_id: int, commit: str) -> dict
     """Artifact ID per required name; of several with one name (a re-run), the latest."""
     latest: dict[str, dict] = {}
     for a in artifacts:
-        if a.get("name") in REQUIRED_ARTIFACTS:
-            if a["name"] not in latest or a["id"] > latest[a["name"]]["id"]:
-                latest[a["name"]] = a
+        name = a.get("name")
+        if name in REQUIRED_ARTIFACTS:
+            if name not in latest or _id(a, "artifact") > _id(latest[name], "artifact"):
+                latest[name] = a
     missing = [n for n in REQUIRED_ARTIFACTS if n not in latest]
     if missing:
         raise ReleaseError(f"CI run {run_id} has no artifact {', '.join(missing)}.")
-    for name, a in latest.items():
+    ids: dict[str, int] = {}
+    for name in REQUIRED_ARTIFACTS:
+        a = latest[name]
+        ids[name] = _id(a, "artifact")
         origin = a.get("workflow_run") or {}
         if origin.get("id") != run_id or origin.get("head_sha") != commit:
-            raise ReleaseError(f"Artifact {name} ({a['id']}) belongs to run {origin.get('id')} "
+            raise ReleaseError(f"Artifact {name} ({ids[name]}) belongs to run {origin.get('id')} "
                                f"of commit {origin.get('head_sha')}, not to run {run_id} "
                                f"of commit {commit}.")
         if a.get("expired"):
             raise ReleaseError(f"Artifact {name} of CI run {run_id} has expired; re-run "
                                "that CI Build to release this commit.")
-    return {name: latest[name]["id"] for name in REQUIRED_ARTIFACTS}
+    return ids
 
 
 def _sbom_commit(bom: dict) -> str | None:
@@ -173,11 +195,12 @@ def check_build(root: Path, *, tag: str, commit: str) -> str:
         if not directory.is_dir() or not any(p.is_file() for p in directory.iterdir()):
             raise ReleaseError(f"Downloaded artifact {name} is missing or empty.")
 
-    lines = (root / VERSION_FILE).read_text().split()
-    if len(lines) != 1 or not _VERSION.fullmatch(lines[0]):
-        raise ReleaseError(f"{VERSION_FILE} does not hold one YY.MM.PATCH.BUILD version: {lines!r}")
-    version = lines[0]
-    if _VERSION.fullmatch(version).group(1) != base:
+    words = (root / VERSION_FILE).read_text().split()
+    match = _VERSION.fullmatch(words[0]) if len(words) == 1 else None
+    if not match:
+        raise ReleaseError(f"{VERSION_FILE} does not hold one YY.MM.PATCH.BUILD version: {words!r}")
+    version = match.group(0)
+    if match.group(1) != base:
         raise ReleaseError(
             f"The CI Build of commit {commit} carries version {version}, but tag {tag} "
             f"releases {base}. Set project(VERSION {base}) in CMakeLists.txt on "
@@ -208,6 +231,21 @@ def _gh_api(path: str) -> dict:
     return json.loads(result.stdout)
 
 
+def paginate(fetch, path: str, key: str, *, per_page: int = 100) -> list[dict]:
+    """Every item of a paged REST listing (runs, artifacts): the items under key
+    of each page, until total_count is reached or a page comes back empty."""
+    items: list[dict] = []
+    separator = "&" if "?" in path else "?"
+    page = 1
+    while True:
+        body = fetch(f"{path}{separator}per_page={per_page}&page={page}")
+        batch = body.get(key) or []
+        items.extend(batch)
+        if not batch or len(items) >= body.get("total_count", 0):
+            return items
+        page += 1
+
+
 def _output(**values: str) -> None:
     lines = "".join(f"{k}={v}\n" for k, v in values.items())
     target = os.environ.get("GITHUB_OUTPUT")
@@ -224,13 +262,15 @@ def _find_run(repository: str, commit: str, run_id: str | None) -> None:
         run = _gh_api(f"repos/{repository}/actions/runs/{run_id}")
         check_run(run, commit=commit, repository=repository)
     else:
-        runs = _gh_api(f"repos/{repository}/actions/workflows/{Path(WORKFLOW_PATH).name}/runs"
-                       f"?head_sha={commit}&event=push&branch={RELEASE_BRANCH}&per_page=100")
-        run = select_run(runs.get("workflow_runs", []), commit=commit, repository=repository)
+        runs = paginate(_gh_api, f"repos/{repository}/actions/workflows/"
+                        f"{Path(WORKFLOW_PATH).name}/runs?head_sha={commit}&event=push"
+                        f"&branch={RELEASE_BRANCH}", "workflow_runs")
+        run = select_run(runs, commit=commit, repository=repository)
+    run_id = _id(run, "CI run")
     print(f"Releasing {_describe(run)}: {run.get('html_url')}", file=sys.stderr)
-    artifacts = _gh_api(f"repos/{repository}/actions/runs/{run['id']}/artifacts?per_page=100")
-    ids = select_artifacts(artifacts.get("artifacts", []), run_id=run["id"], commit=commit)
-    _output(run_id=str(run["id"]), artifact_ids=",".join(str(i) for i in ids.values()))
+    artifacts = paginate(_gh_api, f"repos/{repository}/actions/runs/{run_id}/artifacts", "artifacts")
+    ids = select_artifacts(artifacts, run_id=run_id, commit=commit)
+    _output(run_id=str(run_id), artifact_ids=",".join(str(i) for i in ids.values()))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -256,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
             _find_run(args.repository, args.commit, args.run_id)
         else:
             _output(version=check_build(args.root, tag=args.tag, commit=args.commit))
-    except (ReleaseError, OSError, ValueError) as err:
+    except (ReleaseError, OSError, ValueError, KeyError, TypeError, AttributeError) as err:
         # One line: the annotation ends at the first newline.
         print(f"::error::{' '.join(str(err).split())}")
         return 1

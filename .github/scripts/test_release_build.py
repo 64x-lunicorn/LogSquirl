@@ -215,3 +215,55 @@ def test_an_empty_package_directory_stops_the_release(tmp_path):
     (tmp_path / "packages-mac-arm64/logsquirl-mac-arm64.dmg").unlink()
     with pytest.raises(rb.ReleaseError, match="packages-mac-arm64"):
         rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+# ── robustness ─────────────────────────────────────────────────────────────
+
+def test_every_page_of_a_listing_is_read():
+    pages = {1: {"total_count": 3, "artifacts": [{"id": 1}, {"id": 2}]},
+             2: {"total_count": 3, "artifacts": [{"id": 3}]}}
+    calls = []
+
+    def fetch(path):
+        calls.append(path)
+        return pages.get(int(path.rsplit("page=", 1)[1]), {"total_count": 3, "artifacts": []})
+
+    items = rb.paginate(fetch, "repos/x/actions/runs/1/artifacts", "artifacts", per_page=2)
+    assert [a["id"] for a in items] == [1, 2, 3]
+    assert calls == ["repos/x/actions/runs/1/artifacts?per_page=2&page=1",
+                     "repos/x/actions/runs/1/artifacts?per_page=2&page=2"]
+
+
+def test_a_listing_path_with_a_query_gets_its_page_appended():
+    seen = []
+    rb.paginate(lambda p: seen.append(p) or {"total_count": 0, "runs": []}, "runs?event=push", "runs")
+    assert seen == ["runs?event=push&per_page=100&page=1"]
+
+
+def test_a_listing_that_ends_early_stops_instead_of_looping():
+    seen = []
+    items = rb.paginate(lambda p: seen.append(p) or {"total_count": 50, "runs": []}, "runs", "runs")
+    assert items == [] and len(seen) == 1
+
+
+def test_an_artifact_without_an_id_is_an_error_not_a_crash():
+    arts = all_artifacts()
+    del arts[-1]["id"]
+    with pytest.raises(rb.ReleaseError, match="unexpected"):
+        rb.select_artifacts(arts, run_id=35187407744, commit=COMMIT)
+
+
+def test_a_run_without_an_id_is_an_error_not_a_crash():
+    bad = run()
+    del bad["id"]
+    with pytest.raises(rb.ReleaseError, match="unexpected"):
+        rb.select_run([bad], commit=COMMIT, repository=REPO)
+
+
+def test_the_command_line_turns_an_unexpected_response_into_an_annotation(monkeypatch, capsys):
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    no_id = run()
+    del no_id["id"]
+    monkeypatch.setattr(rb, "_gh_api", lambda path: no_id)
+    assert rb.main(["find-run", "--repository", REPO, "--commit", COMMIT, "--run-id", "5"]) == 1
+    assert capsys.readouterr().out.startswith("::error::")
