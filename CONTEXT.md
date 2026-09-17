@@ -248,6 +248,13 @@ A plugin is loaded when the host has initialised it, and enabled when the config
 says to load it.
 _Avoid_: plugin manager, plugin loader (the loader only opens one library)
 
+**Application Plugins**:
+The one Plugin Catalog and the one Plugin Host of the application, shared by every window.
+The plugins are discovered and loaded once, after the first window is on screen; a window
+opened later neither rescans nor loads them again. What depends on a loaded plugin, such as
+opening a Log File a converter plugin handles, waits until they have loaded.
+_Avoid_: plugin registry, per-window plugins
+
 **Plugin UI Port**:
 Everything the plugin layer needs from the user interface to show what a plugin
 contributes — status widgets, sidebar tabs, footer widgets, menu actions and the parent

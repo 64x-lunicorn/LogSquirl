@@ -103,6 +103,12 @@ public:
      */
     void setUiPort( PluginUiPort* uiPort );
 
+    /** The Plugin UI Port set with setUiPort(), or nullptr. */
+    PluginUiPort* uiPort() const
+    {
+        return uiPort_;
+    }
+
     /**
      * Load and initialise a plugin the catalog lists, by its ID.
      * @return Empty string on success, error message on failure.

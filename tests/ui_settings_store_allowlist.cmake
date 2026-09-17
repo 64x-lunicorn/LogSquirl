@@ -46,10 +46,10 @@ set(ALLOWED_FILES
     # "don't ask again"), toolbar icon size, allow-multiple-windows,
     # show-dashboard -- all read by the main window only. It also ticks and
     # writes the View menu's line numbers and overview toggles; what a
-    # Presentation shows of them rides the Presentation Policy (#192). It
-    # hands the Plugin Host the plugin auto-load settings and keeps the
-    # plugins a first run enables, so the plugin layer needs no store (#236). Beside
-    # the chrome it reads three Axes decided to stay, below: the shortcuts,
+    # Presentation shows of them rides the Presentation Policy (#192). The
+    # plugin auto-load settings are handed to the Plugin Host by the
+    # application, which loads the plugins once for every window (#236, #303).
+    # Beside the chrome it reads three Axes decided to stay, below: the shortcuts,
     # logging and followFileOnLoad.
     src/mainwindow.cpp
 
