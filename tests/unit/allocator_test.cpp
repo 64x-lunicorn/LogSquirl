@@ -62,7 +62,16 @@ TEST_CASE( "mimalloc serves malloc only with the process-wide override", "[alloc
     QByteArray bytes( 4096, 'x' );
     CHECK( mi_is_in_heap_region( bytes.constData() ) == overridden );
 
+    // Under AddressSanitizer mimalloc hands its allocations to the sanitizer,
+    // so they are not in a mimalloc heap region.
+#if defined( __SANITIZE_ADDRESS__ )
+    const bool addressSanitizer = true;
+#elif defined( __has_feature )
+    const bool addressSanitizer = __has_feature( address_sanitizer );
+#else
+    const bool addressSanitizer = false;
+#endif
     void* const projectBlock = mi_malloc( 64 );
-    CHECK( mi_is_in_heap_region( projectBlock ) );
+    CHECK( mi_is_in_heap_region( projectBlock ) != addressSanitizer );
     mi_free( projectBlock );
 }
