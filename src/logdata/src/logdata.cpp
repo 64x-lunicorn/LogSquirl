@@ -571,8 +571,7 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
 
         if ( !reads.empty() ) {
             ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
-            const auto textDecoder = codec_.makeDecoder();
-            const auto lineFeedWidth = textDecoder.encodingParams.lineFeedWidth;
+            const auto lineFeedWidth = codec_.encodingParameters().lineFeedWidth;
 
             logsquirl::vector<char> buffer;
             for ( const auto& read : reads ) {
@@ -595,6 +594,11 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
                         decodedLine = QStringLiteral( "LOGSQUIRL WARNING: file read failed" );
                     }
                     else {
+                        // Each Log Line is decoded on its own, as
+                        // getLineString() does: a character cut short at the
+                        // end of one must not reach the next, and a byte order
+                        // mark starting any of them is dropped.
+                        const auto textDecoder = codec_.makeDecoder();
                         decodedLine = textDecoder.decoder->toUnicode(
                             buffer.data() + line.begin, type_safe::narrow_cast<int>( length ) );
                         if ( hideAnsiColorSequences ) {

@@ -159,8 +159,8 @@ public:
     // The text of a sparse set of Log Lines, one entry per Log Line asked
     // for and in the order asked: for each, what getLineString() returns.
     // Nearby Log Lines are merged into runs and each run is read at once,
-    // under one lock, with one text decoder and one ANSI color filter for the
-    // whole call. lines may come in any order and repeat; a Log Line past the
+    // under one lock, with one Decoding Policy for the whole call; each Log
+    // Line is decoded on its own. lines may come in any order and repeat; a Log Line past the
     // last one reads as it does on its own. Safe off the UI thread, like
     // getLinesRaw().
     logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
