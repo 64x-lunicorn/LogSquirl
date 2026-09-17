@@ -338,12 +338,6 @@ private:
     ScrollAnswer landAtBottomOnMaximum( int sliderPosition, int value );
 
     std::size_t visualLineCount( LineNumber line, LineLength columns ) const;
-    // How many Visual Lines each line wraps into, for a walk over the lines
-    // from one line on, downwards or upwards, passing at most mostLines lines.
-    // Their texts are read in batches that double in size, so the walk reads
-    // no more than twice the lines it passes and in few reads.
-    VisualLineCounter batchedVisualLineCounter( LineLength columns, bool downwards,
-                                                std::uint64_t mostLines ) const;
     // position, with a Visual Line past the end of its line brought back to
     // that line's last.
     ScrollPosition withinLogLine( ScrollPosition position ) const;
