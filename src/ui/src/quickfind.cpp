@@ -44,6 +44,9 @@
 
 #include <QtConcurrent>
 
+#include <algorithm>
+#include <cstddef>
+
 #include "abstractlogdata.h"
 #include "dispatch_to.h"
 #include "linetypes.h"
@@ -52,6 +55,13 @@
 #include "selection.h"
 
 #include "quickfind.h"
+
+namespace {
+// How many Log Lines QuickFind reads at a time: few enough that their text
+// takes little memory even when Log Lines are long, many enough that reading
+// them costs little more than their bytes.
+constexpr LinesCount QuickFindBlockLines{ 1000 };
+} // namespace
 
 void SearchingNotifier::reset()
 {
@@ -63,9 +73,12 @@ void SearchingNotifier::sendNotification( LineNumber current_line, LinesCount nb
                                           bool backward )
 {
     LOG_DEBUG << "Emitting Searching....";
-    const auto progress = static_cast<int>(
-        backward ? ( ( nb_lines.get() - current_line.get() ) / nb_lines.get() * 100 )
-                 : ( current_line.get() / nb_lines.get() ) * 100 );
+    // The share of the Log Lines already searched: those before the current
+    // one forwards, those from it on backwards.
+    const auto total = std::max( nb_lines.get(), LinesCount::UnderlyingType{ 1 } );
+    const auto current = std::min( current_line.get(), total );
+    const auto searched = backward ? total - current : current;
+    const auto progress = static_cast<int>( searched * 100 / total );
 
     Q_EMIT notify( QFNotificationProgress( progress ) );
     startTime_ = QTime::currentTime().addMSecs( -800 );
@@ -114,9 +127,87 @@ LineNumber QuickFindLines::logLineAt( LineNumber position ) const
     return lineAtPosition( *lines_, position ).value_or( 0_lnum );
 }
 
-QString QuickFindLines::expandedLineString( LineNumber logLine ) const
+QuickFindLines::Cursor QuickFindLines::cursorAt( LineNumber position ) const
 {
-    return logFile_->getExpandedLineString( logLine );
+    return lines_ ? Cursor( *lines_, position ) : Cursor( count_, position );
+}
+
+logsquirl::vector<QString>
+QuickFindLines::expandedLinesText( std::span<const LineNumber> logLines ) const
+{
+    return logFile_->getExpandedLinesSparse( logLines );
+}
+
+QuickFindLines::AttachedReader QuickFindLines::attachReader() const
+{
+    return AttachedReader( *logFile_ );
+}
+
+QuickFindLines::AttachedReader::AttachedReader( const AbstractLogData& logFile )
+    : logFile_( logFile )
+{
+    logFile_.attachReader();
+}
+
+QuickFindLines::AttachedReader::~AttachedReader()
+{
+    logFile_.detachReader();
+}
+
+QuickFindLines::Cursor::Cursor( LinesCount count, LineNumber position )
+    : count_( static_cast<std::int64_t>( count.get() ) )
+    , position_( static_cast<std::int64_t>( std::min( position.get(), count.get() ) ) )
+{
+}
+
+QuickFindLines::Cursor::Cursor( const SearchResultArray& lines, LineNumber position )
+    : lines_( std::in_place, lines, position )
+{
+}
+
+logsquirl::vector<LineNumber> QuickFindLines::Cursor::takeForward( LinesCount count )
+{
+    if ( lines_ ) {
+        return lines_->takeForward( count );
+    }
+
+    const auto end = std::min( count_, position_ + static_cast<std::int64_t>( count.get() ) );
+    logsquirl::vector<LineNumber> logLines;
+    logLines.reserve( static_cast<std::size_t>( std::max( end - position_, std::int64_t{ 0 } ) ) );
+    for ( ; position_ < end; ++position_ ) {
+        logLines.emplace_back( static_cast<LineNumber::UnderlyingType>( position_ ) );
+    }
+    return logLines;
+}
+
+logsquirl::vector<LineNumber> QuickFindLines::Cursor::takeBackward( LinesCount count )
+{
+    if ( lines_ ) {
+        return lines_->takeBackward( count );
+    }
+
+    if ( position_ < 0 || position_ >= count_ ) {
+        return {};
+    }
+    const auto first
+        = std::max( std::int64_t{ 0 }, position_ + 1 - static_cast<std::int64_t>( count.get() ) );
+    logsquirl::vector<LineNumber> logLines;
+    logLines.reserve( static_cast<std::size_t>( position_ + 1 - first ) );
+    for ( auto logLine = first; logLine <= position_; ++logLine ) {
+        logLines.emplace_back( static_cast<LineNumber::UnderlyingType>( logLine ) );
+    }
+    position_ = first - 1;
+    return logLines;
+}
+
+void QuickFindLines::Cursor::previous()
+{
+    if ( lines_ ) {
+        lines_->previous();
+    }
+    else if ( position_ >= 0 ) {
+        --position_;
+    }
 }
 
 void QuickFind::LastMatchPosition::set( LineNumber line, LineColumn column )
@@ -367,35 +458,36 @@ QuickFind::SearchResult QuickFind::doSearchForward( const QuickFindLines& lines,
     auto line = start_position.line();
     auto position = lines.positionOf( line );
     LOG_DEBUG << "Start searching at line " << line;
-    // We look at the rest of the first line
+    // On the Log Line the search starts on, only the rest of it after the
+    // start column is searched.
     const bool startsOnALine = position < nb_lines && lines.logLineAt( position ) == line;
-    if ( startsOnALine
-         && matcher.isLineMatching( lines.expandedLineString( line ), start_position.column() ) ) {
-        std::tie( found_start_col, found_end_col ) = matcher.getLastMatch();
-        found = true;
-    }
-    else {
-        searchingNotifier_.reset();
-        // And then the rest of the lines
-        if ( startsOnALine ) {
-            ++position;
+
+    // The Log File stays open from one block to the next.
+    const auto reader = lines.attachReader();
+    searchingNotifier_.reset();
+    auto cursor = lines.cursorAt( position );
+    bool firstBlock = true;
+    while ( !found && !interruptRequested_ ) {
+        const auto block = cursor.takeForward( QuickFindBlockLines );
+        if ( block.empty() ) {
+            break;
         }
-        while ( position < nb_lines ) {
-            line = lines.logLineAt( position );
-            if ( matcher.isLineMatching( lines.expandedLineString( line ) ) ) {
+        const auto text = lines.expandedLinesText( block );
+        for ( std::size_t index = 0; index < block.size() && !interruptRequested_; ++index ) {
+            const auto column
+                = firstBlock && index == 0 && startsOnALine ? start_position.column() : 0_lcol;
+            if ( matcher.isLineMatching( text[ index ], column ) ) {
                 std::tie( found_start_col, found_end_col ) = matcher.getLastMatch();
+                line = block[ index ];
                 found = true;
                 break;
             }
-            ++position;
-
-            // See if we need to notify of the ongoing search
-            searchingNotifier_.ping( position, nb_lines, false );
-
-            if ( interruptRequested_ ) {
-                break;
-            }
         }
+        firstBlock = false;
+        position += LinesCount( static_cast<LinesCount::UnderlyingType>( block.size() ) );
+
+        // See if we need to notify of the ongoing search
+        searchingNotifier_.ping( position, nb_lines, false );
     }
 
     if ( found ) {
@@ -447,33 +539,43 @@ QuickFind::SearchResult QuickFind::doSearchBackward( const QuickFindLines& lines
     // The lines before the start are those at positions below this one.
     auto position = lines.positionOf( line );
     LOG_DEBUG << "Start searching at line " << line;
-    // We look at the beginning of the first line
-    if ( ( start_position.column() > 0_lcol ) && position < nb_lines
-         && lines.logLineAt( position ) == line
-         && ( matcher.isLineMatchingBackward( lines.expandedLineString( line ),
-                                              start_position.column() ) ) ) {
-        std::tie( start_col, end_col ) = matcher.getLastMatch();
-        found = true;
+    // On the Log Line the search starts on, only the beginning of it before
+    // the start column is searched, and only if there is one.
+    const bool searchesStartLine = start_position.column() > 0_lcol && position < nb_lines
+                                   && lines.logLineAt( position ) == line;
+
+    // The Log File stays open from one block to the next.
+    const auto reader = lines.attachReader();
+    searchingNotifier_.reset();
+    auto cursor = lines.cursorAt( position );
+    if ( searchesStartLine ) {
+        ++position;
     }
     else {
-        searchingNotifier_.reset();
-        // And then the rest of the lines
-        while ( position > 0_lnum ) {
-            --position;
-            line = lines.logLineAt( position );
-            if ( matcher.isLineMatchingBackward( lines.expandedLineString( line ) ) ) {
+        cursor.previous();
+    }
+    bool firstBlock = true;
+    while ( !found && !interruptRequested_ ) {
+        const auto block = cursor.takeBackward( QuickFindBlockLines );
+        if ( block.empty() ) {
+            break;
+        }
+        const auto text = lines.expandedLinesText( block );
+        for ( auto index = block.size(); index > 0 && !interruptRequested_; --index ) {
+            const bool onStartLine = firstBlock && index == block.size() && searchesStartLine;
+            const auto column = onStartLine ? start_position.column() : LineColumn{ -1 };
+            if ( matcher.isLineMatchingBackward( text[ index - 1 ], column ) ) {
                 std::tie( start_col, end_col ) = matcher.getLastMatch();
+                line = block[ index - 1 ];
                 found = true;
                 break;
             }
-
-            // See if we need to notify of the ongoing search
-            searchingNotifier_.ping( position, nb_lines, true );
-
-            if ( interruptRequested_ ) {
-                break;
-            }
         }
+        firstBlock = false;
+        position = position - LinesCount( static_cast<LinesCount::UnderlyingType>( block.size() ) );
+
+        // See if we need to notify of the ongoing search
+        searchingNotifier_.ping( position, nb_lines, true );
     }
 
     if ( found ) {
