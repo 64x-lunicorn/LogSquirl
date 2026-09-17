@@ -71,3 +71,12 @@ add_executable(logsquirl_tableview_paint_benchmark
 )
 
 target_link_libraries(logsquirl_tableview_paint_benchmark logsquirl_ui Catch2 test_utils)
+
+# The Displayed Lines of a Search with a million Matches (#292): progress
+# ticks, completion, continuation and toggling a Mark. Links logsquirl_logdata
+# only; builds on commits from before #292 too (see README.md).
+add_executable(logsquirl_displayedlines_benchmark
+    displayedlines_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
