@@ -23,6 +23,7 @@
 #include "encodingdetector.h"
 #include "linetypes.h"
 
+#include <QByteArray>
 #include <QString>
 #include <QTextCodec>
 #include <QtGlobal>
@@ -46,10 +47,14 @@ struct RawLines {
 
 public:
     logsquirl::vector<QString> decodeLines() const;
+
+    // Every Log Line of the block, without its line feed, in UTF-8 as a Search
+    // matches it. A view stays valid while the block does and until the next
+    // call: it points into buffer, or into UTF-8 converted for this call.
     logsquirl::vector<std::string_view> buildUtf8View() const;
 
 private:
-    mutable logsquirl::vector<char> utf8Data_;
+    mutable QByteArray utf8Data_;
 };
 
 // Where a Search reads the Log Lines it matches from: it hands out blocks of

@@ -40,6 +40,7 @@ add_executable(logsquirl_tests
     pluginuiadapter_test.cpp
     quickfind_test.cpp
     quickfindmux_test.cpp
+    searchblockutf8view_test.cpp
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp

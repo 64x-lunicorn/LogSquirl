@@ -70,10 +70,14 @@ EncodingParameters::EncodingParameters( const QTextCodec* codec )
     static constexpr QChar LineFeed( QChar::LineFeed );
     static constexpr int Utf8Mib = 106;
     static constexpr int Utf16LEMib = 1014;
+    static constexpr int Utf16BEMib = 1013;
+    static constexpr int Latin1Mib = 4;
     static constexpr int UsAsciiMib = 3;
 
     isUtf8Compatible = codec->mibEnum() == Utf8Mib || codec->mibEnum() == UsAsciiMib;
     isUtf16LE = codec->mibEnum() == Utf16LEMib;
+    isUtf16BE = codec->mibEnum() == Utf16BEMib;
+    isLatin1 = codec->mibEnum() == Latin1Mib;
 
     QTextCodec::ConverterState convertState( QTextCodec::IgnoreHeader );
     const QByteArray encodedLineFeed = codec->fromUnicode( &LineFeed, 1, &convertState );
