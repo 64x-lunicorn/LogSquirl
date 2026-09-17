@@ -115,7 +115,12 @@ class QObject;
     X( SliderGroove )                                                                              \
     X( ErrorBackground )                                                                           \
     X( ErrorText )                                                                                 \
-    X( PullToFollowStripe )
+    X( PullToFollowStripe )                                                                        \
+    X( DefaultButton )                                                                             \
+    X( DefaultButtonText )                                                                         \
+    X( DefaultButtonBorder )                                                                       \
+    X( DefaultButtonHover )                                                                        \
+    X( DefaultButtonFocusBorder )
 
 // Non-color Tokens: sizes, paddings, border styles and icon images, as
 // stylesheet values.
@@ -145,7 +150,10 @@ class QObject;
     X( ProgressChunkBorderWidth )                                                                  \
     X( RadioIndicatorRadius )                                                                      \
     X( IndeterminateIcon )                                                                         \
-    X( DisabledIndeterminateIcon )
+    X( DisabledIndeterminateIcon )                                                                 \
+    X( ControlRadius )                                                                             \
+    X( PopupRadius )                                                                               \
+    X( BoxBorderWidth )
 
 #define LOGSQUIRL_TOKEN_ENUMERATOR( name ) name,
 #define LOGSQUIRL_TOKEN_COUNT( name ) +1

@@ -147,6 +147,16 @@ std::function<Qt::ColorScheme()>& systemColorSchemeSource()
     return source;
 }
 
+// Every earlier version saved its full default dark palette. A stored color
+// that was the default before a Dark Token changed is that old default, not
+// a choice, so it does not override the new one.
+bool isRetiredDarkDefault( const QString& token, const QColor& color )
+{
+    // Window before the flatter look (#265).
+    return token == Theme::tokenName( ColorToken::Window )
+           && color == QColor::fromString( QLatin1String( "#121212" ) );
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -241,6 +251,12 @@ Theme Theme::light()
         { ErrorBackground, "#F8D7DA" },
         { ErrorText, "#58151C" },
         { PullToFollowStripe, "#868E96" },
+        // The default button of a dialog: filled in the accent color.
+        { DefaultButton, "#0056B3" },
+        { DefaultButtonText, "#FFFFFF" },
+        { DefaultButtonBorder, "#0056B3" },
+        { DefaultButtonHover, "#004494" },
+        { DefaultButtonFocusBorder, "#212529" },
     } );
 
     using enum StyleToken;
@@ -251,13 +267,13 @@ Theme Theme::light()
         { ToolButtonPadding, "3px" },
         { InputPadding, "3px 6px" },
         { ComboArrowSize, "12px" },
-        { TabPaneOffset, "-1px" },
+        { TabPaneOffset, "0px" },
         { TabAddButtonPadding, "0 6px" },
         { TabAddButtonMargin, "2px 4px" },
         { TabAddButtonMinWidth, "20px" },
-        { ScrollBarExtent, "12px" },
-        { HandleRadius, "4px" },
-        { MenuBarItemRadius, "2px" },
+        { ScrollBarExtent, "8px" },
+        { HandleRadius, "3px" },
+        { MenuBarItemRadius, "4px" },
         { MenuItemPadding, "5px 24px 5px 28px" },
         { MenuIconOffset, "6px" },
         { IndicatorSize, "16px" },
@@ -272,6 +288,11 @@ Theme Theme::light()
         { RadioIndicatorRadius, "10px" },
         { IndeterminateIcon, "url(:/icons/dash-light.svg)" },
         { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-light.svg)" },
+        { ControlRadius, "4px" },
+        { PopupRadius, "6px" },
+        // Panes, header cells and group boxes have no box: surface colors
+        // separate them.
+        { BoxBorderWidth, "0px" },
     } );
     return theme;
 }
@@ -285,7 +306,7 @@ Theme Theme::dark()
 
     using enum ColorToken;
     theme.setColors( {
-        { Window, "#121212" },
+        { Window, "#1E1E1E" },
         { WindowText, "#E0E0E0" },
         { Base, "#1E1E1E" },
         { AlternateBase, "#252526" },
@@ -306,68 +327,74 @@ Theme Theme::dark()
         { PlaceholderText, "#80E0E0E0" },
         // Fusion draws frames and tab-bar base lines in these: none is
         // brighter than Border. Mid is Border itself, for palette(mid) borders.
-        { Light, "#333333" },
+        { Light, "#3A3A3E" },
         { Midlight, "#2D2D30" },
-        { Mid, "#333333" },
-        { Dark, "#1A1A1A" },
+        { Mid, "#3A3A3E" },
+        { Dark, "#1E1E1E" },
         { Shadow, "#000000" },
 
-        { Chrome, "#171717" },
+        { Chrome, "#252526" },
         { Pane, "#1E1E1E" },
-        { Panel, "#252526" },
+        { Panel, "#2D2D30" },
         { Menu, "#252526" },
-        { Border, "#333333" },
-        { InputBorder, "#444444" },
-        { PopupBorder, "#333333" },
-        { ToolTipBorder, "#444444" },
-        { DisabledBorder, "#2A2A2A" },
-        { DisabledBackground, "#1A1A1A" },
-        { Hover, "#2D2D30" },
+        { Border, "#3A3A3E" },
+        { InputBorder, "#505050" },
+        { PopupBorder, "#3A3A3E" },
+        { ToolTipBorder, "#505050" },
+        { DisabledBorder, "#2D2D30" },
+        { DisabledBackground, "#1E1E1E" },
+        { Hover, "#3A3A3E" },
         { HoverText, "#E0E0E0" },
-        { HoverBorder, "#333333" },
-        { InputHoverBorder, "#444444" },
-        { HeaderHover, "#2D2D30" },
+        { HoverBorder, "#3A3A3E" },
+        { InputHoverBorder, "#505050" },
+        { HeaderHover, "#3A3A3E" },
         { ButtonHover, "#3A3A3E" },
         { ToolButtonHover, "#3A3A3E" },
-        { ButtonPressed, "#1A1A1E" },
-        { ButtonPressedBorder, "#555555" },
+        { ButtonPressed, "#1E1E1E" },
+        { ButtonPressedBorder, "#505050" },
         { PressedText, "#E0E0E0" },
         { Checked, "#1E3A5F" },
         { CheckedBorder, "#2D5A8F" },
         { TabAddButtonHover, "#3A3A3E" },
-        { TabAddButtonPressed, "#1A1A1E" },
-        { TabAddButtonPressedBorder, "#555555" },
+        { TabAddButtonPressed, "#1E1E1E" },
+        { TabAddButtonPressedBorder, "#505050" },
         { TabUnderline, "transparent" },
         { CloseButtonHover, "#C42B1C" },
         { SecondaryText, "#A0A0A0" },
-        { ScrollBarTrack, "#1A1A1A" },
-        { Handle, "#555555" },
+        { ScrollBarTrack, "#1E1E1E" },
+        { Handle, "#505050" },
         { HandleHover, "#777777" },
         { Indicator, "#2D2D30" },
         { IndicatorBorder, "#777777" },
         { IndicatorIndeterminate, "#1E3A5F" },
         { IndicatorDisabled, "#252526" },
-        { IndicatorDisabledBorder, "#555555" },
+        { IndicatorDisabledBorder, "#505050" },
         { StatusOk, "#2EA043" },
         { StatusWarning, "#D29922" },
         { StatusInactive, "#6E7681" },
         { StatusInfo, "#388BFD" },
         { StatusText, "#FFFFFF" },
         // White on Highlight stays below 4.5:1, so dark text.
-        { HighlightedSecondaryText, "#121212" },
+        { HighlightedSecondaryText, "#1E1E1E" },
         { BadgeBackground, "#3A3A3E" },
         { BadgeText, "#E0E0E0" },
         { ViewportMargin, "#252526" },
-        { ViewportMarginBorder, "#333333" },
+        { ViewportMarginBorder, "#3A3A3E" },
         { LineNumberText, "#A0A0A0" },
         { Bullet, "#1E1E1E" },
         { BulletOutline, "#A0A0A0" },
         // Highlight; follows an overridden Highlight (see fromName).
         { ProgressChunk, "#4D90FE" },
-        { SliderGroove, "#555555" },
+        { SliderGroove, "#505050" },
         { ErrorBackground, "#5A1D1D" },
         { ErrorText, "#FFDADA" },
         { PullToFollowStripe, "#777777" },
+        // White on Highlight stays below 4.5:1: a darker accent, 4.75:1.
+        { DefaultButton, "#2F6FDB" },
+        { DefaultButtonText, "#FFFFFF" },
+        { DefaultButtonBorder, "#2F6FDB" },
+        { DefaultButtonHover, "#2A66C9" },
+        { DefaultButtonFocusBorder, "#E0E0E0" },
     } );
 
     using enum StyleToken;
@@ -378,13 +405,13 @@ Theme Theme::dark()
         { ToolButtonPadding, "3px" },
         { InputPadding, "3px 6px" },
         { ComboArrowSize, "12px" },
-        { TabPaneOffset, "-1px" },
+        { TabPaneOffset, "0px" },
         { TabAddButtonPadding, "0 6px" },
         { TabAddButtonMargin, "2px 4px" },
         { TabAddButtonMinWidth, "20px" },
-        { ScrollBarExtent, "12px" },
-        { HandleRadius, "4px" },
-        { MenuBarItemRadius, "2px" },
+        { ScrollBarExtent, "8px" },
+        { HandleRadius, "3px" },
+        { MenuBarItemRadius, "4px" },
         { MenuItemPadding, "5px 24px 5px 28px" },
         { MenuIconOffset, "6px" },
         { IndicatorSize, "16px" },
@@ -398,6 +425,9 @@ Theme Theme::dark()
         { RadioIndicatorRadius, "10px" },
         { IndeterminateIcon, "url(:/icons/dash-dark.svg)" },
         { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-dark.svg)" },
+        { ControlRadius, "4px" },
+        { PopupRadius, "6px" },
+        { BoxBorderWidth, "0px" },
     } );
     return theme;
 }
@@ -496,6 +526,14 @@ Theme Theme::highContrast()
         { ErrorBackground, "#C00000" },
         { ErrorText, "#FFFFFF" },
         { PullToFollowStripe, "#FFFF00" },
+        // Not filled: yellow text on black reaches AAA. Its border shows focus
+        // like every push button's, since in a dialog the focused push button
+        // becomes the default one.
+        { DefaultButton, "#000000" },
+        { DefaultButtonText, "#FFFF00" },
+        { DefaultButtonBorder, "#FFFFFF" },
+        { DefaultButtonHover, "#1F1F1F" },
+        { DefaultButtonFocusBorder, "#FFFF00" },
     } );
 
     using enum StyleToken;
@@ -512,9 +550,9 @@ Theme Theme::highContrast()
         { TabAddButtonPadding, "0 6px" },
         { TabAddButtonMargin, "2px 4px" },
         { TabAddButtonMinWidth, "20px" },
-        { ScrollBarExtent, "14px" },
-        { HandleRadius, "4px" },
-        { MenuBarItemRadius, "2px" },
+        { ScrollBarExtent, "10px" },
+        { HandleRadius, "0px" },
+        { MenuBarItemRadius, "0px" },
         { MenuItemPadding, "5px 24px 5px 28px" },
         { MenuIconOffset, "6px" },
         { IndicatorSize, "16px" },
@@ -529,6 +567,10 @@ Theme Theme::highContrast()
         { RadioIndicatorRadius, "10px" },
         { IndeterminateIcon, "url(:/icons/dash-hc.svg)" },
         { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-hc.svg)" },
+        // Square corners, and every box keeps its border.
+        { ControlRadius, "0px" },
+        { PopupRadius, "0px" },
+        { BoxBorderWidth, "2px" },
     } );
     return theme;
 }
@@ -590,6 +632,9 @@ void Theme::applyOverrides( const std::map<QString, QString>& overrides )
         const auto color = QColor::fromString( value );
         if ( found == names.end() || !color.isValid() ) {
             LOG_WARNING << "Ignoring dark palette override " << key << "=" << value;
+            continue;
+        }
+        if ( isRetiredDarkDefault( key, color ) ) {
             continue;
         }
         colors_[ static_cast<std::size_t>( found - names.begin() ) ] = color;

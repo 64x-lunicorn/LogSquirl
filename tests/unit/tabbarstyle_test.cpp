@@ -84,6 +84,26 @@ SCENARIO( "A closable tab bar takes its close button from the Theme", "[theme]" 
 
     GIVEN( "any built-in Theme" )
     {
+        WHEN( "its closable tab bar stylesheet is built" )
+        {
+            THEN( "the close button shows on the selected tab, and on another tab only under "
+                  "the mouse" )
+            {
+                for ( const auto& name :
+                      { Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey } ) {
+                    const auto styleSheet = closableTabBarStyleSheet(
+                        Theme::fromName( name, Qt::ColorScheme::Light ) );
+                    INFO( name.data() );
+                    const auto hidden
+                        = styleSheet.indexOf( "QTabBar::close-button:!selected { image: none; }" );
+                    const auto hovered = styleSheet.indexOf( "QTabBar::close-button:hover {" );
+                    REQUIRE( hidden >= 0 );
+                    // Of two equally specific rules the later wins.
+                    REQUIRE( hovered > hidden );
+                }
+            }
+        }
+
         WHEN( "the hover color of its close button is removed from the stylesheet" )
         {
             THEN( "the stylesheet names no color of its own" )
