@@ -62,3 +62,12 @@ add_executable(logsquirl_regex_matcher_benchmark
 )
 
 target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
+
+# Painting a shown Table View (#294): a viewport of 50 Rows and 6 columns with
+# a Highlighter Set, the mouse moving between Rows, and the in-cell hit test.
+# Uses only what the Table View offered before #294 (see README.md).
+add_executable(logsquirl_tableview_paint_benchmark
+    tableview_paint_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_tableview_paint_benchmark logsquirl_ui Catch2 test_utils)

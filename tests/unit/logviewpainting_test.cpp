@@ -668,7 +668,7 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
             WHEN( "the Log File changes, and the view is painted and hovered over" )
             {
                 logData.linesFetched = 0;
-                view.forceRefresh();
+                view.rereadLogLines();
                 view.viewport()->grab();
 
                 const QPoint overText{ ViewWidth / 2, ViewHeight / 2 };
@@ -686,10 +686,143 @@ SCENARIO( "The log view expands and wraps a viewport once per change", "[logview
     }
 }
 
+// A view tells a change of Decoration from a change of text (#295). What only
+// decorates the Log Lines in the Viewport -- QuickFind typing, the Search
+// pattern and its progress, Color Labels, the Decoration Policy, the Search
+// Limits, Marks -- is repainted from the text the view has already read;
+// only what changes the text -- a reload, another Encoding, Log Lines
+// appended -- reads the Log Lines again.
+SCENARIO( "The log view repaints a changed Decoration without reading the Log Lines again",
+          "[logviewpainting]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view painted with text wrapping " << ( textWrap ? "on" : "off" ) )
+        {
+            CountingLogData logData{ paintedTexts() };
+            QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font, { .textWrap = textWrap } );
+            const auto before = grabViewport( view );
+            logData.linesFetched = 0;
+
+            WHEN( "a QuickFind pattern is typed character by character" )
+            {
+                std::optional<QImage> painted;
+                for ( const auto* typed : { "i", "id", "idl", "idle" } ) {
+                    quickFindPattern.changeSearchPattern( QString::fromLatin1( typed ),
+                                                          /* useExtendedRegexp */ false );
+                    painted = grabViewport( view );
+                }
+
+                THEN( "each keystroke is painted from the Log Lines already read" )
+                {
+                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( painted != before );
+                }
+            }
+
+            WHEN( "the Search pattern changes" )
+            {
+                view.setSearchPattern( RegularExpressionPattern{ QStringLiteral( "INFO" ) } );
+                const auto painted = grabViewport( view );
+
+                THEN( "it is painted from the Log Lines already read" )
+                {
+                    REQUIRE( logData.linesFetched == 0 );
+                    REQUIRE( painted != before );
+                }
+            }
+
+            WHEN( "the Color Labels change" )
+            {
+                auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+                colorLabels[ 0 ] << QStringLiteral( "idle" );
+                view.setQuickHighlighters( colorLabels );
+                grabViewport( view );
+
+                THEN( "they are painted from the Log Lines already read" )
+                {
+                    REQUIRE( logData.linesFetched == 0 );
+                }
+            }
+
+            WHEN( "the Decoration Policy changes" )
+            {
+                view.setDecorationPolicy( DecorationPolicy{ .mainSearchHighlight = false } );
+                grabViewport( view );
+
+                THEN( "it is painted from the Log Lines already read" )
+                {
+                    REQUIRE( logData.linesFetched == 0 );
+                }
+            }
+
+            WHEN( "the Search Limits change" )
+            {
+                view.setSearchLimits( 2_lnum, 6_lnum );
+                grabViewport( view );
+
+                THEN( "they are painted from the Log Lines already read" )
+                {
+                    REQUIRE( logData.linesFetched == 0 );
+                }
+            }
+
+            WHEN( "Matches or Marks change, as a Search progresses or a Mark is set" )
+            {
+                view.updateDecorations();
+                grabViewport( view );
+
+                THEN( "they are painted from the Log Lines already read" )
+                {
+                    REQUIRE( logData.linesFetched == 0 );
+                }
+            }
+
+            WHEN( "the Log File is reloaded" )
+            {
+                view.updateData();
+                grabViewport( view );
+
+                THEN( "the Log Lines are read again, once" )
+                {
+                    REQUIRE( logData.linesFetched == 1 );
+                }
+            }
+
+            WHEN( "the Log Lines are to be read again, as after a change of Encoding" )
+            {
+                view.rereadLogLines();
+                grabViewport( view );
+
+                THEN( "the Log Lines are read again, once" )
+                {
+                    REQUIRE( logData.linesFetched == 1 );
+                }
+            }
+
+            WHEN( "Log Lines are appended" )
+            {
+                logData.setLines( paintedTexts() << QStringLiteral( "10:00:32 INFO  appended" ) );
+                view.updateData();
+                grabViewport( view );
+
+                THEN( "the Log Lines are read again, once" )
+                {
+                    REQUIRE( logData.linesFetched == 1 );
+                }
+            }
+        }
+    }
+}
+
 // Painting draws from the cached viewport content (#137), which a change to
 // the text of a Log Line does not invalidate by itself: the Log File's line
 // count stays the same. Every change to a Log File reaches the view through
-// updateData() or forceRefresh(), and after either the new text is painted.
+// updateData() or rereadLogLines(), and after either the new text is painted.
 SCENARIO( "The log view paints a Log Line's new text when its line count stays the same",
           "[logviewpainting]" )
 {
@@ -731,10 +864,10 @@ SCENARIO( "The log view paints a Log Line's new text when its line count stays t
                 }
             }
 
-            WHEN( "the text of Log Lines changes and the view is told through forceRefresh()" )
+            WHEN( "the text of Log Lines changes and the view is told through rereadLogLines()" )
             {
                 logData.setLines( changedTexts );
-                view.forceRefresh();
+                view.rereadLogLines();
 
                 THEN( "it paints the new text" )
                 {

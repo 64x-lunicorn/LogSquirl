@@ -944,7 +944,7 @@ void AbstractLogView::applyScroll( const ScrollAnswer& answer )
     }
 
     if ( answer.redraw ) {
-        forceRefresh();
+        updateDecorations();
     }
 }
 
@@ -1037,7 +1037,8 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
 void AbstractLogView::setLineMapping( std::unique_ptr<const LineMapping> lines )
 {
     lines_ = std::move( lines );
-    forceRefresh();
+    // Each position may show another Log Line now.
+    rereadLogLines();
 }
 
 const LineMapping& AbstractLogView::lineMapping() const
@@ -1180,7 +1181,7 @@ void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern 
 {
     searchPattern_ = pattern;
     decorationSetup_.setSearchPattern( pattern );
-    forceRefresh();
+    updateDecorations();
 }
 
 void AbstractLogView::setQuickHighlighters(
@@ -1191,13 +1192,13 @@ void AbstractLogView::setQuickHighlighters(
     // Highlighter, so a later change to them arrives by setting the words
     // again.
     decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
-    forceRefresh();
+    updateDecorations();
 }
 
 void AbstractLogView::setDecorationPolicy( const DecorationPolicy& policy )
 {
     decorationSetup_.setPolicy( policy );
-    forceRefresh();
+    updateDecorations();
 }
 
 void AbstractLogView::setPresentationPolicy( const PresentationPolicy& policy )
@@ -1217,7 +1218,9 @@ void AbstractLogView::textWrapSet( bool checked )
     // The Log Line at the top stays.
     scrolling_.setTextWrap( checked );
     updateScrollBars();
-    forceRefresh();
+    // No need to drop the Viewport's text here: it is kept only for the text
+    // wrapping it was wrapped with, so the new one reads and wraps it again.
+    updateDecorations();
 }
 
 void AbstractLogView::refreshOverview()
@@ -1254,7 +1257,7 @@ void AbstractLogView::handlePatternUpdated()
     LOG_DEBUG << "AbstractLogView::handlePatternUpdated()";
 
     quickFind_->resetLimits();
-    forceRefresh();
+    updateDecorations();
 }
 
 // OR the current selection with the current search expression
@@ -1398,7 +1401,7 @@ DisplayedLinesReader AbstractLogView::linesToSave() const
 
 void AbstractLogView::updateSearchLimits()
 {
-    forceRefresh();
+    updateDecorations();
 
     Q_EMIT changeSearchLimits( searchStart_, searchEnd_ );
 }
@@ -1429,7 +1432,7 @@ void AbstractLogView::setSelectionEnd()
         selection_.selectRange( *selectionStart_, *selectionEnd );
         selectionStart_ = {};
 
-        forceRefresh();
+        updateDecorations();
     }
 }
 
@@ -1471,7 +1474,7 @@ void AbstractLogView::updateData()
         overview_->updateCurrentPosition( scrollPosition.lineNumber, lastLine );
     }
 
-    forceRefresh();
+    rereadLogLines();
 }
 
 void AbstractLogView::updateFont( const QFont& font )
@@ -1546,7 +1549,7 @@ void AbstractLogView::selectAll()
     if ( first.has_value() && last.has_value() ) {
         selection_.selectRange( *first, *last );
     }
-    forceRefresh();
+    updateDecorations();
 }
 
 void AbstractLogView::trySelectLine( LineNumber lineToSelect )
@@ -1600,11 +1603,29 @@ void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
     updateDisplaySize();
 }
 
-void AbstractLogView::forceRefresh()
+void AbstractLogView::updateDecorations()
 {
-    // Invalidate our caches
-    textAreaCache_.invalid_ = true;
-    ++viewportGeneration_;
+    refresh( ViewportChange::Decorations );
+}
+
+void AbstractLogView::rereadLogLines()
+{
+    refresh( ViewportChange::Text );
+}
+
+void AbstractLogView::refresh( ViewportChange change )
+{
+    switch ( change ) {
+    case ViewportChange::Text:
+        // The Log Lines are read, expanded and wrapped again when the Viewport
+        // is next asked for, by painting or hit testing.
+        ++viewportGeneration_;
+        [[fallthrough]];
+    case ViewportChange::Decorations:
+        // Painted again from the Log Lines the Viewport holds.
+        textAreaCache_.invalid_ = true;
+        break;
+    }
     update();
 }
 
@@ -1613,7 +1634,7 @@ void AbstractLogView::setSearchLimits( LineNumber startLine, LineNumber endLine 
     searchStart_ = startLine;
     searchEnd_ = endLine;
 
-    forceRefresh();
+    updateDecorations();
 }
 
 //
@@ -1771,8 +1792,8 @@ void AbstractLogView::displayPosition( FilePosition position )
 {
     const auto target = scrolling_.visualLineOf( position );
     if ( viewportLayout().showsWholeVisualLine( target ) ) {
-        // Invalidate our cache
-        forceRefresh();
+        // The view stays; only the selection is painted anew.
+        updateDecorations();
     }
     else {
         applyScroll( scrolling_.scrollTo( target ) );
@@ -1895,7 +1916,7 @@ void AbstractLogView::selectWordAtPosition( const FilePosition& pos )
 
     selection_.selectPortion( pos.line(), selectionStart, selectionEnd );
     updateGlobalSelection();
-    forceRefresh();
+    updateDecorations();
 }
 
 // Update the system global (middle click) selection (X11 only)

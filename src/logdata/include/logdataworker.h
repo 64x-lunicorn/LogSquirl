@@ -46,6 +46,7 @@
 #include <qthreadpool.h>
 #include <variant>
 
+#include <QDateTime>
 #include <QFile>
 #include <QObject>
 #include <QTextCodec>
@@ -60,6 +61,7 @@
 #include "synchronization.h"
 
 #include "encodingdetector.h"
+#include "headerandtaildigests.h"
 #include "indexedhash.h"
 #include "linepositionarray.h"
 #include "loadingstatus.h"
@@ -78,6 +80,15 @@ struct ResumedIndex {
     FileDigest digestBeforeOffset;
     QTextCodec* encoding = nullptr;
     bool fastModificationDetection = true;
+};
+
+// The digests an indexing run takes of the bytes it indexes, going on from
+// those of the bytes indexed before it. The run builds them outside the index
+// lock, as it parses its blocks, and publishes what they come to.
+struct IndexedBytesDigests {
+    // Of every byte indexed; nothing without a full digest.
+    std::optional<FileDigest> full;
+    HeaderAndTailDigests headerAndTail;
 };
 
 template <typename Data, typename LockGuard>
@@ -160,17 +171,18 @@ public:
         data_->addAll( blockSize, length, linePosition, encoding, fullDigest );
     }
 
-    // Hands the digest of the bytes indexed so far to an indexing run, which
-    // goes on building it outside the lock; nothing without a full digest.
-    // The run hands it back with returnFullDigestBuilder() once it is done.
-    std::optional<FileDigest> takeFullDigestBuilder()
+    // Hands the digests of the bytes indexed so far to an indexing run, which
+    // goes on building them outside the lock, and hands them back with
+    // returnDigests() once it is done. Clearing the indexing data meanwhile
+    // leaves digests of nothing to go on from.
+    IndexedBytesDigests takeDigests()
     {
-        return data_->takeFullDigestBuilder();
+        return data_->takeDigests();
     }
 
-    void returnFullDigestBuilder( FileDigest&& builder )
+    void returnDigests( IndexedBytesDigests&& digests )
     {
-        data_->returnFullDigestBuilder( std::move( builder ) );
+        data_->returnDigests( std::move( digests ) );
     }
 
     void setHeaderHash( quint64 digest, qint64 size )
@@ -184,6 +196,18 @@ public:
         data_->hash_.tailSize = size;
         data_->hash_.tailOffset = offset;
         data_->hash_.tailDigest = digest;
+    }
+
+    // The modification time the Log File had when its bytes were last
+    // indexed, or checked in full; invalid when that is not known.
+    QDateTime getIndexedModificationTime() const
+    {
+        return data_->indexedModificationTime_;
+    }
+
+    void setIndexedModificationTime( const QDateTime& modificationTime )
+    {
+        data_->indexedModificationTime_ = modificationTime;
     }
 
     int getProgress() const
@@ -237,6 +261,8 @@ public:
     using ConstAccessor = IndexingDataAccessor<const IndexingData*, SharedLock>;
     using MutateAccessor = IndexingDataAccessor<IndexingData*, UniqueLock>;
 
+    IndexingData();
+
 private:
     qint64 getIndexedSize() const;
 
@@ -265,8 +291,8 @@ private:
     void addAll( qint64 blockSize, LineLength length, const FastLinePositionArray& linePosition,
                  QTextCodec* encoding, std::optional<quint64> fullDigest );
 
-    std::optional<FileDigest> takeFullDigestBuilder();
-    void returnFullDigestBuilder( FileDigest&& builder );
+    IndexedBytesDigests takeDigests();
+    void returnDigests( IndexedBytesDigests&& digests );
 
     // Completely clear the indexing data.
     void clear( const IndexingPolicy& policy );
@@ -299,6 +325,8 @@ private:
 
     FileDigest hashBuilder_;
     IndexedHash hash_;
+    HeaderAndTailDigests headerAndTailDigests_;
+    QDateTime indexedModificationTime_;
 
     QTextCodec* encodingGuess_{};
     QTextCodec* encodingForced_{};
@@ -321,9 +349,9 @@ struct IndexingState {
     QTextCodec* encodingGuess{};
     QTextCodec* fileTextCodec{};
 
-    // The digest of the bytes indexed so far, built as blocks are parsed and
-    // outside the index lock; nothing without a full digest.
-    std::optional<FileDigest> fullDigest;
+    // Taken from the indexing data when the run starts, and built on as
+    // blocks are parsed.
+    std::optional<IndexedBytesDigests> digests;
 };
 
 using OperationResult = std::variant<bool, MonitoredFileStatus>;
@@ -395,6 +423,16 @@ private:
                                           const BlockBuffer& block, IndexingState& state ) const;
 
     void guessEncoding( const BlockBuffer& block, IndexingState& state ) const;
+
+    struct HeaderAndTail {
+        // Nothing when the header recorded already is a whole block, which
+        // appending cannot change.
+        std::optional<RangeDigest> header;
+        RangeDigest tail;
+    };
+
+    HeaderAndTail recordHeaderAndTail( QFile& file, qint64 end, HeaderAndTailDigests& digests,
+                                       bool hasWholeBlockHeader ) const;
 
     // The next block of the file for the indexing graph, with the time spent
     // reading it added to ioDuration; nothing once the file is read, reading

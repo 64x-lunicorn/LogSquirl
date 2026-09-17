@@ -70,6 +70,11 @@
 
 constexpr int IndexingBlockSize = 5 * 1024 * 1024;
 
+IndexingData::IndexingData()
+    : headerAndTailDigests_( IndexingBlockSize )
+{
+}
+
 qint64 IndexingData::getIndexedSize() const
 {
     return hash_.size;
@@ -143,17 +148,23 @@ void IndexingData::addAll( qint64 blockSize, LineLength length,
     encodingGuess_ = encoding;
 }
 
-std::optional<FileDigest> IndexingData::takeFullDigestBuilder()
+IndexedBytesDigests IndexingData::takeDigests()
 {
-    if ( useFastModificationDetection_ ) {
-        return std::nullopt;
-    }
-    return std::exchange( hashBuilder_, FileDigest{} );
+    auto full = useFastModificationDetection_
+                    ? std::nullopt
+                    : std::optional<FileDigest>( std::exchange( hashBuilder_, FileDigest{} ) );
+    return IndexedBytesDigests{ .full = std::move( full ),
+                                .headerAndTail
+                                = std::exchange( headerAndTailDigests_,
+                                                 HeaderAndTailDigests( IndexingBlockSize ) ) };
 }
 
-void IndexingData::returnFullDigestBuilder( FileDigest&& builder )
+void IndexingData::returnDigests( IndexedBytesDigests&& digests )
 {
-    hashBuilder_ = std::move( builder );
+    if ( digests.full ) {
+        hashBuilder_ = std::move( *digests.full );
+    }
+    headerAndTailDigests_ = std::move( digests.headerAndTail );
 }
 
 int IndexingData::getProgress() const
@@ -171,6 +182,8 @@ void IndexingData::clear( const IndexingPolicy& policy )
     maxLength_ = 0_length;
     hash_ = {};
     hashBuilder_.reset();
+    headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     if ( policy.useCompressedIndex ) {
         linePosition_ = LinePositionArrayType( LinePositionArray{} );
     }
@@ -194,6 +207,10 @@ void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength m
     maxLength_ = maxLength;
     hash_ = hash;
     hashBuilder_.reset();
+    // The cache checked the header and tail only, and took no digests to go
+    // on from.
+    headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     encodingGuess_ = encoding;
     encodingForced_ = nullptr;
     progress_ = 100;
@@ -211,6 +228,8 @@ void IndexingData::resumeFromCache( ResumedIndex&& resumed )
     // The header and tail digests are taken again once indexing is done.
     hash_ = {};
     hash_.size = resumed.offset.get();
+    headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     hashBuilder_ = std::move( resumed.digestBeforeOffset );
     if ( !useFastModificationDetection_ ) {
         hash_.fullDigest = hashBuilder_.digest();
@@ -623,8 +642,12 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
         const auto linePositions = parseDataBlock( blockBeginning, block, state );
 
         std::optional<quint64> fullDigest;
-        if ( state.fullDigest ) {
-            fullDigest = state.fullDigest->addData( block.data(), block.size() ).digest();
+        if ( state.digests ) {
+            state.digests->headerAndTail.add( blockBeginning, block.data(),
+                                              logsquirl::ssize( block ) );
+            if ( state.digests->full ) {
+                fullDigest = state.digests->full->addData( block.data(), block.size() ).digest();
+            }
         }
 
         // Update the caller for progress indication
@@ -658,6 +681,62 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
     LOG_DEBUG << "Indexing block " << blockBeginning << " done";
 }
 
+namespace {
+
+// A digest of the bytes of file in [offset, offset + size), or of those
+// there are.
+RangeDigest digestReadFrom( QFile& file, qint64 offset, qint64 size )
+{
+    QByteArray bytes( static_cast<qsizetype>( size ), Qt::Uninitialized );
+    const auto readBytes = file.seek( offset ) ? file.read( bytes.data(), size ) : qint64{ 0 };
+    FileDigest digest;
+    digest.addData( bytes.constData(), static_cast<size_t>( std::max( readBytes, qint64{ 0 } ) ) );
+    return { offset, std::max( readBytes, qint64{ 0 } ), digest.digest() };
+}
+
+} // namespace
+
+// The header and tail digests of the bytes indexed up to end. Indexing
+// appended bytes reads neither again (#277): the tail digest goes on from
+// the bytes just indexed, and a header of a whole block cannot change by
+// appending. Only what the digests taken while indexing do not cover, as
+// after a cached Index was loaded, is read from the Log File again. Taken
+// from the digests the run built, outside the index lock; the caller
+// publishes them.
+IndexOperation::HeaderAndTail IndexOperation::recordHeaderAndTail( QFile& file, qint64 end,
+                                                                   HeaderAndTailDigests& digests,
+                                                                   bool hasWholeBlockHeader ) const
+{
+    HeaderAndTail recorded;
+
+    auto tail = digests.tail( end );
+    if ( !tail ) {
+        const auto range = HeaderAndTailDigests::tailRange( IndexingBlockSize, end );
+        QByteArray bytes( static_cast<qsizetype>( range.size ), Qt::Uninitialized );
+        const auto readBytes
+            = file.seek( range.offset ) ? file.read( bytes.data(), range.size ) : qint64{ -1 };
+        if ( readBytes == range.size ) {
+            digests.add( range.offset, bytes.constData(), readBytes );
+            tail = digests.tail( end );
+        }
+        if ( !tail ) {
+            // The Log File is shorter than what was indexed: the digest of
+            // what there is will not match when it is checked.
+            tail = digestReadFrom( file, range.offset, range.size );
+        }
+    }
+    recorded.tail = *tail;
+
+    if ( hasWholeBlockHeader ) {
+        return recorded;
+    }
+    recorded.header = digests.header( end );
+    if ( !recorded.header ) {
+        recorded.header = digestReadFrom( file, 0, std::min( end, qint64{ IndexingBlockSize } ) );
+    }
+    return recorded;
+}
+
 void IndexOperation::doIndex( OffsetInFile initialPosition )
 {
     LOG_INFO << "Indexing file " << fileName_;
@@ -683,12 +762,15 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     IndexingState state;
     state.pos = initialPosition.get();
     state.file_size = file.size();
+    bool hasWholeBlockHeader = false;
 
     {
-        // Exclusive, as the digest builder is taken out: this run builds the
-        // full digest on, outside the lock, and hands it back once done.
+        // Exclusive, as the digests are taken out: this run builds them on,
+        // outside the lock, and hands them back once done.
         IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-        state.fullDigest = scopedAccessor.takeFullDigestBuilder();
+        state.digests = scopedAccessor.takeDigests();
+        state.digests->headerAndTail.expectLogFileSize( state.file_size );
+        hasWholeBlockHeader = scopedAccessor.getHash().headerSize == IndexingBlockSize;
 
         state.fileTextCodec = scopedAccessor.getForcedEncoding();
         if ( !state.fileTextCodec ) {
@@ -757,27 +839,19 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
 
     LOG_DEBUG << "Indexed up to " << state.pos;
 
-    // The header and tail digests are read and computed before the index
-    // lock is taken to publish them.
+    // The header and tail digests, and the modification time, are taken
+    // before the index lock is taken to publish them: they may read the Log
+    // File.
     const auto endFilePos = file.pos();
-    file.reset();
-    QByteArray hashBuffer( IndexingBlockSize, Qt::Uninitialized );
-    const auto headerHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-    FileDigest fastHashDigest;
-    fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( headerHashSize ) );
-    const auto headerDigest = fastHashDigest.digest();
+    const auto headerAndTail = recordHeaderAndTail( file, endFilePos, state.digests->headerAndTail,
+                                                    hasWholeBlockHeader );
 
-    auto tailDigest = headerDigest;
-    qint64 tailHashOffset = 0;
-    auto tailHashSize = headerHashSize;
-    if ( endFilePos > hashBuffer.size() ) {
-        tailHashOffset = endFilePos - hashBuffer.size();
-        file.seek( tailHashOffset );
-        tailHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-        fastHashDigest.reset();
-        fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( tailHashSize ) );
-        tailDigest = fastHashDigest.digest();
-    }
+    // Only while nothing was appended since the last read: a check of a Log
+    // File of the indexed size that still has this modification time need
+    // not read all of it again.
+    const QFileInfo indexedFile( fileName_ );
+    const auto indexedModificationTime
+        = indexedFile.size() == endFilePos ? indexedFile.lastModified() : QDateTime{};
 
     IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
@@ -792,12 +866,13 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
         scopedAccessor.addAll( 0, 0_length, line_position, state.encodingGuess, std::nullopt );
     }
 
-    scopedAccessor.setHeaderHash( headerDigest, headerHashSize );
-    scopedAccessor.setTailHash( tailDigest, tailHashOffset, tailHashSize );
-
-    if ( state.fullDigest ) {
-        scopedAccessor.returnFullDigestBuilder( std::move( *state.fullDigest ) );
+    scopedAccessor.setTailHash( headerAndTail.tail.digest, headerAndTail.tail.offset,
+                                headerAndTail.tail.size );
+    if ( headerAndTail.header ) {
+        scopedAccessor.setHeaderHash( headerAndTail.header->digest, headerAndTail.header->size );
     }
+    scopedAccessor.setIndexedModificationTime( indexedModificationTime );
+    scopedAccessor.returnDigests( std::move( *state.digests ) );
 
     const auto indexingEndTime = high_resolution_clock::now();
     const auto duration = duration_cast<microseconds>( indexingEndTime - indexingStartTime );
@@ -1092,13 +1167,36 @@ OperationResult CheckFileChangesOperation::reportFailure( const QString& failure
 
 MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
 {
-    const auto indexedHash = IndexingData::ConstAccessor{ indexing_data_.get() }.getHash();
-    const auto coverage = indexingPolicy_.fastModificationDetection ? DigestCoverage::HeaderAndTail
-                                                                    : DigestCoverage::Full;
+    IndexedHash indexedHash;
+    QDateTime indexedModificationTime;
+    {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        indexedHash = scopedAccessor.getHash();
+        indexedModificationTime = scopedAccessor.getIndexedModificationTime();
+    }
+
+    // Taken before the Log File is read, so a change made while it is read
+    // is not taken for checked.
+    const auto modificationTime = QFileInfo( fileName_ ).lastModified();
+
+    // Without fast modification detection, a Log File that grew is still
+    // told from its header and tail, and one that did not is read end to end
+    // only when it was modified since it was last indexed or checked:
+    // following a Log File that grows by small appends does not read all of
+    // it for every change (#277).
+    auto coverage = DigestCoverage::FullUnlessGrown;
+    if ( indexingPolicy_.fastModificationDetection
+         || ( indexedModificationTime.isValid() && modificationTime == indexedModificationTime ) ) {
+        coverage = DigestCoverage::HeaderAndTail;
+    }
 
     switch ( indexFit( indexedHash, fileName_, coverage ) ) {
     case IndexFit::Unchanged:
         LOG_INFO << "No change in file";
+        if ( coverage == DigestCoverage::FullUnlessGrown ) {
+            IndexingData::MutateAccessor{ indexing_data_.get() }.setIndexedModificationTime(
+                modificationTime );
+        }
         return MonitoredFileStatus::Unchanged;
     case IndexFit::Grown:
         LOG_INFO << "New data on disk";
