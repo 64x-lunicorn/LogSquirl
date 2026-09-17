@@ -96,6 +96,13 @@ jobs:
           fi
           echo "commit=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
+      # The release notes are the tag's CHANGELOG section. Checked here, so a
+      # missing section stops the release before anything is signed (#307).
+      - name: Check the CHANGELOG has the tag's section
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: .github/scripts/release-build.py release-notes --tag "$TAG" --out "$RUNNER_TEMP/release_notes.md"
+
       # Only a successful CI Build that ran for a push to master and built the
       # tagged commit may be released: pull request builds come from
       # unreviewed branches, and a build of another commit is not what the tag
@@ -573,13 +580,15 @@ jobs:
           fi
           echo "sbom_file=${sbom_files[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          python3 scripts/gen_changelog.py > release_notes.md 2>/dev/null || echo "See commit history for changes." > release_notes.md
+      # The notes are the tag's CHANGELOG section; without one the job fails
+      # here, before the draft exists (#307).
+      - name: Write release notes
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: .github/scripts/release-build.py release-notes --tag "$TAG" --out release_notes.md
 
       # The verification commands name this release's files, so they are added
-      # here rather than in gen_changelog.py, which knows nothing about assets (#214).
+      # here rather than in the CHANGELOG, which knows nothing about assets (#214).
       - name: Append verification instructions
         run: |
           set -euo pipefail

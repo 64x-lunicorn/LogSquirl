@@ -277,6 +277,10 @@ version already. Before tagging `vX.Y.Z` (or a pre-release `vX.Y.Z-betaN`), set
 `VERSION X.Y.Z` in `CMakeLists.txt` on master and let CI Build pass. CI Release
 refuses a build whose base version is not the tag's, naming both.
 
+The same commit must also carry the release's section in `CHANGELOG.md`, headed
+`# vX.Y.Z (YYYY-MM-DD)` (or `# vX.Y.Z-betaN (YYYY-MM-DD)`): that section is the
+release's notes. CI Release fails before anything is signed when it is missing.
+
 ### Docker Build Containers
 
 Linux builds use pre-built Docker images hosted on GHCR:
@@ -329,8 +333,8 @@ running it on master without that publishes any hash tag still missing.
 ### Release Process
 
 Releases are triggered by pushing a git tag to a master commit whose CI Build
-push run succeeded and whose `CMakeLists.txt` declares the tag's version (see
-*Version Numbering*):
+push run succeeded, whose `CMakeLists.txt` declares the tag's version and whose
+`CHANGELOG.md` has the tag's section (see *Version Numbering*):
 
 - **Stable release**: push a semver tag like `v26.04.0`
 - **Beta release**: push a pre-release tag like `v26.04.0-beta.1`
@@ -372,7 +376,8 @@ The release workflow does not build. It:
    the secret they run unkeyed. The file is read
    from master even for a tag release, so accepting a risk and re-running the failed job is enough.
    The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
-6. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
+6. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file, and as its notes
+   the tag's `CHANGELOG.md` section followed by how to verify the downloads,
    attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with
    cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
    the checksum file), then publishes the draft. A failure in between leaves a draft.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Finds and checks the CI Build a release publishes (#197, #221).
+"""Finds and checks the CI Build a release publishes, and its notes (#197, #221, #307).
 
 A release does not build. It publishes the packages of the successful CI Build
 run for a push to master that built the tagged commit, signed in CI Release.
@@ -24,6 +24,9 @@ is, and whether the downloaded build is the one the tag names:
       version of a CI Build is project(VERSION) in CMakeLists.txt, so a tag
       must name the version its commit declares.
       Outputs: version
+  release-notes --tag T --out FILE [--changelog CHANGELOG.md]
+      Writes T's CHANGELOG section, without its heading, to FILE; a
+      CHANGELOG without a section for T rejects the release (#307).
 
 Outputs are appended to $GITHUB_OUTPUT as name=value lines, or printed when
 it is not set. A rejected release exits 1 with an ::error:: annotation.
@@ -199,6 +202,30 @@ def _sbom_commit(bom: dict) -> str | None:
     return None
 
 
+def release_notes(changelog: str, *, tag: str) -> str:
+    """The CHANGELOG section of a release tag, without its heading (#307).
+
+    The section starts at the level-one heading naming the tag's version
+    (`# v26.10.0-beta1 (2026-09-17)`, or the older `# 26.04.2 (2026-04-19):`)
+    and ends at the next level-one heading; the `---` separator before that
+    heading is not part of it.
+    """
+    parse_tag(tag)
+    heading = re.compile(rf"# v?{re.escape(tag[1:])}(?=[\s:(]|$).*")
+    lines = changelog.splitlines()
+    start = next((i for i, line in enumerate(lines) if heading.fullmatch(line)), None)
+    if start is None:
+        raise ReleaseError(f"CHANGELOG.md has no section for {tag}: add a heading "
+                           f"'# {tag} (YYYY-MM-DD)' before tagging.")
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("# ")), len(lines))
+    section = lines[start + 1:end]
+    while section and section[-1].strip() in ("", "---"):
+        section.pop()
+    while section and not section[0].strip():
+        section.pop(0)
+    return "\n".join(section) + "\n"
+
+
 def check_build(root: Path, *, tag: str, commit: str) -> str:
     """Returns the version of the downloaded build if it is the tag's build."""
     base, _ = parse_tag(tag)
@@ -338,6 +365,10 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--tag", required=True)
     build.add_argument("--commit", required=True)
     build.add_argument("--root", type=Path, default=Path("."))
+    notes = sub.add_parser("release-notes")
+    notes.add_argument("--tag", required=True)
+    notes.add_argument("--changelog", type=Path, default=Path("CHANGELOG.md"))
+    notes.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
 
     try:
@@ -346,6 +377,9 @@ def main(argv: list[str] | None = None) -> int:
             _output(tag=args.tag, base_version=base, is_prerelease=str(prerelease).lower())
         elif args.command == "find-run":
             _find_run(args.repository, args.commit, args.run_id)
+        elif args.command == "release-notes":
+            text = release_notes(args.changelog.read_text(encoding="utf-8"), tag=args.tag)
+            args.out.write_text(text, encoding="utf-8")
         else:
             _output(version=check_build(args.root, tag=args.tag, commit=args.commit))
     except (ReleaseError, OSError, ValueError, KeyError, TypeError, AttributeError,
