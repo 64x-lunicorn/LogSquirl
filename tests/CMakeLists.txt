@@ -76,6 +76,14 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/architecture_flags.cmake
 )
 
+# The releases are optimized fully and keep their debug information (#280).
+add_test(
+    NAME full_optimization_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/full_optimization_flags.cmake
+)
+
 
 
 
