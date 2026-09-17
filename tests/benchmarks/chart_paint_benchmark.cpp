@@ -36,6 +36,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 
+#include <cstdint>
 #include <random>
 
 #define CATCH_CONFIG_ENABLE_BENCHMARKING

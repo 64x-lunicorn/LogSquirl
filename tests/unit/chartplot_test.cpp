@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <map>
 #include <numeric>
 #include <random>

@@ -23,6 +23,7 @@
 #include <array>
 #include <cmath>
 #include <numeric>
+#include <utility>
 
 #include <QColor>
 #include <QPainter>

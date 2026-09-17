@@ -24,6 +24,7 @@
 #include <catch2/catch.hpp>
 
 #include <algorithm>
+#include <cstdint>
 #include <optional>
 #include <random>
 
