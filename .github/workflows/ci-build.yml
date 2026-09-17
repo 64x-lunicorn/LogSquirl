@@ -513,13 +513,9 @@ jobs:
 
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
+      # Unsigned, like the macOS packages: CI Build references no signing
+      # secret, so none can reach a job outside the `release` environment (#203).
       - uses: ./.github/actions/agent-package-win
-        with:
-          s3-key-id: ${{ secrets.WIN_CS_KEY_ID }}
-          s3-secret: ${{ secrets.WIN_CS_SECRET }}
-          s3-bucket: ${{ secrets.WIN_CS_BUCKET }}
-          sign-cert-pfx: ${{ secrets.WIN_SIGN_CERT_PFX }}
-          sign-cert-password: ${{ secrets.WIN_SIGN_CERT_PASSWORD }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
