@@ -17,6 +17,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/settings_during_run_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filterspanel_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_switch_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/theme_screenshots_test.cpp
 )
 
 if(NOT APPLE)
@@ -36,6 +37,9 @@ set_target_properties(logsquirl_itests PROPERTIES AUTOMOC ON AUTORCC ON)
 # theme_switch_test opens dialogs whose headers include uic-generated headers.
 target_include_directories(logsquirl_itests PRIVATE
     $<TARGET_PROPERTY:logsquirl_ui,BINARY_DIR>/logsquirl_ui_autogen/include)
+
+# theme_screenshots_test copies the demo log from test_data/ (#253).
+target_compile_definitions(logsquirl_itests PRIVATE LOGSQUIRL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 add_backward(logsquirl_itests)
 
