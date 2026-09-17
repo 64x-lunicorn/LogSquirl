@@ -42,6 +42,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 
 #include <QByteArray>
 #include <QList>
@@ -175,9 +176,12 @@ private:
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
     logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
                                                    LinesCount number ) const override;
-    logsquirl::vector<QString>
-    doGetLines( LineNumber first, LinesCount number,
-                const std::function<QString( LineNumber )>& lineGetter ) const;
+    // The text of the Log Lines displayed at [first, first + number), read
+    // from the Log File at once with readSparse; empty past the last one.
+    logsquirl::vector<QString> readDisplayedLines(
+        LineNumber first, LinesCount number,
+        logsquirl::vector<QString> ( LogData::*readSparse )( std::span<const LineNumber> )
+            const ) const;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;

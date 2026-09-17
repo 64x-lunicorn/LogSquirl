@@ -46,7 +46,7 @@
 
 #include <algorithm>
 #include <functional>
-#include <numeric>
+#include <span>
 #include <vector>
 
 #include "logdata.h"
@@ -351,30 +351,25 @@ QString LogFilteredData::doGetExpandedLineString( LineNumber index ) const
 logsquirl::vector<QString> LogFilteredData::doGetLines( LineNumber first_line,
                                                         LinesCount number ) const
 {
-    return doGetLines( first_line, number,
-                       [ this ]( const auto& line ) { return doGetLineString( line ); } );
+    return readDisplayedLines( first_line, number, &LogData::getLinesSparse );
 }
 
 // Implementation of the virtual function.
 logsquirl::vector<QString> LogFilteredData::doGetExpandedLines( LineNumber first_line,
                                                                 LinesCount number ) const
 {
-    return doGetLines( first_line, number,
-                       [ this ]( const auto& line ) { return doGetExpandedLineString( line ); } );
+    return readDisplayedLines( first_line, number, &LogData::getExpandedLinesSparse );
 }
 
-logsquirl::vector<QString>
-LogFilteredData::doGetLines( LineNumber first_line, LinesCount number,
-                             const std::function<QString( LineNumber )>& lineGetter ) const
+logsquirl::vector<QString> LogFilteredData::readDisplayedLines(
+    LineNumber first_line, LinesCount number,
+    logsquirl::vector<QString> ( LogData::*readSparse )( std::span<const LineNumber> ) const ) const
 {
-    logsquirl::vector<LineNumber::UnderlyingType> lineNumbers( number.get() );
-    std::iota( lineNumbers.begin(), lineNumbers.end(), first_line.get() );
-
-    logsquirl::vector<QString> lines( number.get() );
-    std::transform(
-        lineNumbers.cbegin(), lineNumbers.cend(), lines.begin(),
-        [ &lineGetter ]( const auto& line ) { return lineGetter( LineNumber( line ) ); } );
-
+    // The displayed Log Lines are walked from the first position on and read
+    // at once; the positions past the last one read as nothing.
+    const auto logLines = displayedLines_.cursorAt( first_line ).takeForward( number );
+    auto lines = ( sourceLogData_->*readSparse )( logLines );
+    lines.resize( number.get() );
     return lines;
 }
 
