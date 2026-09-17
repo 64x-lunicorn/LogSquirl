@@ -31,6 +31,9 @@
 #include <QStyleOptionViewItem>
 #include <QTableView>
 
+#include <map>
+#include <vector>
+
 namespace {
 
 using LineTypeFlags = AbstractLogData::LineTypeFlags;
@@ -762,3 +765,252 @@ SCENARIO( "A click in a Table View cell away from its text resolves to the neare
         }
     }
 }
+
+// ── One paint pass decides each Row once (#294) ────────────────────────────
+//
+// QTableView paints cell by cell. Within one paint pass the Line Decorator's
+// Context is built once and each Row's Line Verdict is decided once, from its
+// raw Log Line, however many cells the Row has -- and the table looks exactly
+// as it does when every cell is painted on its own.
+
+namespace {
+
+// The Highlighter Sets and which of them are active, restored when this
+// object goes: nothing a test activates leaks into the tests that run next.
+class PinnedHighlighterSets {
+public:
+    PinnedHighlighterSets()
+        : sets_( HighlighterSetCollection::get().highlighterSets() )
+        , activeSetIds_( HighlighterSetCollection::get().activeSetIds() )
+    {
+    }
+
+    ~PinnedHighlighterSets()
+    {
+        auto& collection = HighlighterSetCollection::get();
+        collection.setHighlighterSets( sets_ );
+        collection.deactivateAll();
+        for ( const auto& setId : activeSetIds_ ) {
+            collection.activateSet( setId );
+        }
+    }
+
+    PinnedHighlighterSets( const PinnedHighlighterSets& ) = delete;
+    PinnedHighlighterSets& operator=( const PinnedHighlighterSets& ) = delete;
+
+private:
+    QList<HighlighterSet> sets_;
+    QStringList activeSetIds_;
+};
+
+// Activates a Highlighter Set with a whole-line Highlighter for ERROR and a
+// word-only one for host.
+void activateTableHighlighters()
+{
+    auto set = HighlighterSet::createNewSet( "logtablehighlightdelegate_test" );
+    set.addHighlighter(
+        Highlighter{ "ERROR", false, false, QColor{ Qt::white }, QColor{ 200, 0, 0 } } );
+    set.addHighlighter(
+        Highlighter{ "host", false, true, QColor{ Qt::black }, QColor{ 0, 200, 0 } } );
+    auto& collection = HighlighterSetCollection::get();
+    collection.deactivateAll();
+    auto sets = collection.highlighterSets();
+    sets.append( set );
+    collection.setHighlighterSets( sets );
+    collection.activateSet( set.id() );
+}
+
+// A model that counts, per Row, how often a Row's raw Log Line is read: the
+// Line Verdict is decided from it, so a Row whose raw Log Line is read once
+// had the Highlighter Set matched against its Log Line once.
+class RawLineCountingModel : public QStandardItemModel {
+public:
+    using QStandardItemModel::QStandardItemModel;
+
+    QVariant data( const QModelIndex& index, int role ) const override
+    {
+        if ( role == LogFormatTableModel::RawLineRole ) {
+            ++rawLineReads[ index.row() ];
+        }
+        return QStandardItemModel::data( index, role );
+    }
+
+    mutable std::map<int, int> rawLineReads;
+};
+
+constexpr int TableRows = 4;
+constexpr int TableColumns = 3;
+constexpr int CellWidth = 160;
+constexpr int CellHeight = 22;
+
+void fillTable( QStandardItemModel& model )
+{
+    const QStringList hosts = { "host1", "host2", "host3", "host4" };
+    for ( int row = 0; row < TableRows; ++row ) {
+        const QString level = row % 2 == 1 ? "ERROR" : "INFO";
+        const QString body = QString( "message %1 from host" ).arg( row );
+        model.setData( model.index( row, 0 ), hosts[ row ] );
+        model.setData( model.index( row, 1 ), level );
+        model.setData( model.index( row, 2 ), body );
+        for ( int column = 0; column < TableColumns; ++column ) {
+            model.setData( model.index( row, column ), hosts[ row ] + " " + level + " " + body,
+                           LogFormatTableModel::RawLineRole );
+        }
+    }
+}
+
+QRect cellRect( int row, int column )
+{
+    return QRect( column * CellWidth, row * CellHeight, CellWidth, CellHeight );
+}
+
+// The option QTableView hands the delegate for a cell: odd Rows alternate,
+// Row 3 is selected as a whole.
+QStyleOptionViewItem cellOption( const QFont& font, int row, int column )
+{
+    QStyleOptionViewItem option;
+    option.rect = cellRect( row, column );
+    option.font = font;
+    option.state = QStyle::State_Enabled;
+    if ( row == 3 ) {
+        option.state |= QStyle::State_Selected;
+    }
+    if ( row % 2 == 1 ) {
+        option.features |= QStyleOptionViewItem::Alternate;
+    }
+    option.palette.setColor( QPalette::Base, Qt::white );
+    option.palette.setColor( QPalette::Text, Qt::black );
+    option.palette.setColor( QPalette::Highlight, QColor{ 0, 0, 200 } );
+    option.palette.setColor( QPalette::HighlightedText, Qt::white );
+    return option;
+}
+
+// The delegate as LogTableView sets it up: Row 2 under the mouse cursor and
+// characters selected in the last cell of Row 0.
+void setUpDelegate( LogTableHighlightDelegate& delegate )
+{
+    delegate.setHoverRow( 2 );
+    delegate.setPortionSelection( 0, 2, 2, 9 );
+}
+
+QImage emptyTableImage()
+{
+    QImage image( TableColumns * CellWidth, TableRows * CellHeight, QImage::Format_ARGB32 );
+    image.fill( Qt::white );
+    return image;
+}
+
+} // namespace
+
+SCENARIO( "A paint pass paints the Table View exactly as painting each cell on its own does",
+          "[logtablehighlightdelegate][paintpass]" )
+{
+    const auto font = paintingtestfont::requirePaintingTestFont();
+    const PinnedHighlighterSets pinnedSets;
+    activateTableHighlighters();
+
+    GIVEN( "Rows with a whole-line and a word-only Highlighter, alternating, hovered, selected "
+           "as a whole and with characters selected" )
+    {
+        QStandardItemModel model( TableRows, TableColumns );
+        fillTable( model );
+
+        // Each cell by a delegate of its own, so nothing one cell decided can
+        // reach another.
+        auto eachCellOnItsOwn = emptyTableImage();
+        {
+            QPainter painter( &eachCellOnItsOwn );
+            painter.setFont( font );
+            for ( int row = 0; row < TableRows; ++row ) {
+                for ( int column = 0; column < TableColumns; ++column ) {
+                    LogTableHighlightDelegate delegate;
+                    setUpDelegate( delegate );
+                    delegate.paint( &painter, cellOption( font, row, column ),
+                                    model.index( row, column ) );
+                }
+            }
+        }
+
+        WHEN( "every cell is painted in one paint pass" )
+        {
+            LogTableHighlightDelegate delegate;
+            setUpDelegate( delegate );
+            auto inOnePass = emptyTableImage();
+            {
+                QPainter painter( &inOnePass );
+                painter.setFont( font );
+                const auto pass = delegate.paintPass();
+                for ( int row = 0; row < TableRows; ++row ) {
+                    for ( int column = 0; column < TableColumns; ++column ) {
+                        delegate.paint( &painter, cellOption( font, row, column ),
+                                        model.index( row, column ) );
+                    }
+                }
+            }
+
+            THEN( "the table looks the same" )
+            {
+                REQUIRE( inOnePass == eachCellOnItsOwn );
+            }
+        }
+    }
+}
+
+SCENARIO( "A paint pass decides each Row's Line Verdict once, not once per cell",
+          "[logtablehighlightdelegate][paintpass]" )
+{
+    const PinnedHighlighterSets pinnedSets;
+    activateTableHighlighters();
+
+    GIVEN( "a table of several Rows and columns" )
+    {
+        RawLineCountingModel model( TableRows, TableColumns );
+        fillTable( model );
+        model.rawLineReads.clear();
+
+        LogTableHighlightDelegate delegate;
+        auto image = emptyTableImage();
+        QPainter painter( &image );
+
+        WHEN( "every cell is painted in one paint pass, some of them twice, as when a paint "
+              "event's region has overlapping parts" )
+        {
+            {
+                const auto pass = delegate.paintPass();
+                for ( int time = 0; time < 2; ++time ) {
+                    for ( int row = 0; row < TableRows; ++row ) {
+                        for ( int column = 0; column < TableColumns; ++column ) {
+                            delegate.paint( &painter,
+                                            cellOption( QApplication::font(), row, column ),
+                                            model.index( row, column ) );
+                        }
+                    }
+                }
+            }
+
+            THEN( "each Row's raw Log Line is read once" )
+            {
+                REQUIRE( model.rawLineReads
+                         == std::map<int, int>{ { 0, 1 }, { 1, 1 }, { 2, 1 }, { 3, 1 } } );
+            }
+
+            AND_WHEN( "the cells are painted in the next paint pass" )
+            {
+                model.rawLineReads.clear();
+                {
+                    const auto pass = delegate.paintPass();
+                    delegate.paint( &painter, cellOption( QApplication::font(), 1, 0 ),
+                                    model.index( 1, 0 ) );
+                    delegate.paint( &painter, cellOption( QApplication::font(), 1, 1 ),
+                                    model.index( 1, 1 ) );
+                }
+
+                THEN( "the Row is decided afresh, once" )
+                {
+                    REQUIRE( model.rawLineReads == std::map<int, int>{ { 1, 1 } } );
+                }
+            }
+        }
+    }
+}
+

@@ -33,6 +33,7 @@
 
 #include <memory>
 #include <optional>
+#include <unordered_map>
 #include <vector>
 
 // Delegate that applies highlighter-set and search-pattern coloring to table view cells.
@@ -149,7 +150,18 @@ public:
                                      const std::optional<HighlightedMatch>& selection
                                      = std::nullopt )
     {
-        const LineDecorator lineDecorator{ context };
+        return decorationFor( LineDecorator{ context }, rowVerdict, lineNumber, lineType, cellText,
+                              selection );
+    }
+
+    // The same, with a Line Decorator already built from the Context, so a
+    // paint pass builds it once rather than once per cell.
+    static Decoration decorationFor( const LineDecorator& lineDecorator,
+                                     const LineVerdict& rowVerdict, LineNumber lineNumber,
+                                     AbstractLogData::LineType lineType, const QString& cellText,
+                                     const std::optional<HighlightedMatch>& selection
+                                     = std::nullopt )
+    {
         logsquirl::vector<HighlightedMatch> cellHighlighterSpans;
         if ( !cellText.isEmpty() && !rowVerdict.isOutsideSearchLimits()
              && !rowVerdict.isSelectedAsWhole() ) {
@@ -162,6 +174,37 @@ public:
                                        std::move( cellHighlighterSpans ),
                                        rowVerdict.isSelectedAsWhole() };
         return lineDecorator.decorate( cellText, cellVerdict, selection );
+    }
+
+    // While the object paintPass() returns lives, the cells painted belong to
+    // one paint pass: the Line Decorator's Context is built once for all of
+    // them and each Row's Line Verdict is decided once, from its raw Log
+    // Line, however many of its cells are painted. LogTableView opens one
+    // around each paint event. Nothing may change what a cell shows while a
+    // pass is open. Outside a pass, each cell is painted on its own.
+    class PaintPass {
+    public:
+        explicit PaintPass( const LogTableHighlightDelegate* delegate )
+            : delegate_{ delegate }
+        {
+            delegate_->paintPass_.emplace();
+        }
+
+        ~PaintPass()
+        {
+            delegate_->paintPass_.reset();
+        }
+
+        PaintPass( const PaintPass& ) = delete;
+        PaintPass& operator=( const PaintPass& ) = delete;
+
+    private:
+        const LogTableHighlightDelegate* delegate_;
+    };
+
+    [[nodiscard]] PaintPass paintPass() const
+    {
+        return PaintPass{ this };
     }
 
     void paint( QPainter* painter, const QStyleOptionViewItem& option,
@@ -198,25 +241,20 @@ public:
             linePalette.base = linePalette.base.darker( 108 );
         }
 
-        // The row-level Line Verdict is decided from the raw Log Line -- a
-        // whole-line Highlighter, the Search Limits and the selection are
-        // facts about the whole line, not about one field of it.
-        const auto lineNumber = rows_->logLineAt( index.row() );
-        const auto rawLine = index.data( LogFormatTableModel::RawLineRole ).toString();
-        const auto currentLineType = filteredData_ ? filteredData_->lineTypeByLine( lineNumber )
-                                                   : AbstractLogData::LineTypeFlags::Plain;
+        // Outside a paint pass, this cell is a pass of its own.
+        std::optional<PaintPassState> ownPass;
+        auto& pass = paintPass_.has_value() ? *paintPass_ : ownPass.emplace();
 
-        const auto context = buildDecoratorContext( linePalette );
-        const auto rowVerdict = LineDecorator{ context }.verdictFor(
-            LogLine{ lineNumber, rawLine }, currentLineType, isSelectedAsWhole );
+        const auto& lineDecorator = decoratorFor( pass, linePalette );
+        const auto& row = rowFor( pass, lineDecorator, index, isSelectedAsWhole );
 
         // The Decoration covers the cell's whole text; its line colours also
         // fill the rest of the cell, so a whole-line Highlighter, a Mark or
         // a Match colours the whole row, as this view has no gutter.
         const auto cellText = index.data( Qt::DisplayRole ).toString();
         const auto selectionSpan = selectionSpanFor( index, cellText, opt, hasPortionOnRow );
-        const auto decoration = decorationFor( context, rowVerdict, lineNumber, currentLineType,
-                                               cellText, selectionSpan );
+        const auto decoration = decorationFor( lineDecorator, row.verdict, row.lineNumber,
+                                               row.lineType, cellText, selectionSpan );
 
         painter->fillRect( opt.rect, decoration.lineColors().backColor );
         paintDecoratedText( painter, opt, cellText, decoration );
@@ -271,15 +309,85 @@ public:
     }
 
 private:
-    // The Context the Line Decorator matches every color source against,
-    // built by the one module that builds it for either Presentation. The
-    // active Highlighter Set is read here, afresh for every cell, so that
-    // switching sets re-colors the table without this delegate being told.
-    LineDecorator::Context buildDecoratorContext( const LinePalette& linePalette ) const
+    // What a paint pass decided once for all the cells it paints.
+    struct PaintPassState {
+        // A Row's Line Verdict, with what it was decided from.
+        struct Row {
+            LineNumber lineNumber;
+            AbstractLogData::LineType lineType;
+            bool isSelectedAsWhole = false;
+            LineVerdict verdict;
+        };
+
+        // A Line Decorator for each Row base the pass met: plain,
+        // alternating, under the mouse cursor. They differ in the palette
+        // only.
+        struct Decorator {
+            LinePalette palette;
+            LineDecorator lineDecorator;
+        };
+
+        std::optional<LineDecorator::Context> context;
+        std::vector<Decorator> decorators;
+        std::unordered_map<int, Row> rows;
+    };
+
+    static bool isSamePalette( const LinePalette& lhs, const LinePalette& rhs )
     {
-        return decorationSetup_.context( HighlighterSetCollection::get().currentActiveSet(),
-                                         searchLimits_, linePalette,
-                                         LineStatusDisplay::AsBackground );
+        return lhs.text == rhs.text && lhs.base == rhs.base && lhs.subduedText == rhs.subduedText
+               && lhs.selectedText == rhs.selectedText && lhs.selection == rhs.selection;
+    }
+
+    // The Line Decorator for a Row of the given palette. The Context the
+    // Line Decorator matches every color source against is built by the one
+    // module that builds it for either Presentation, once per pass. The
+    // active Highlighter Set is read then, so that switching sets re-colors
+    // the table without this delegate being told. The collection keeps that
+    // set compiled, so every copy of it shares the compiled expression.
+    const LineDecorator& decoratorFor( PaintPassState& pass, const LinePalette& linePalette ) const
+    {
+        for ( const auto& decorator : pass.decorators ) {
+            if ( isSamePalette( decorator.palette, linePalette ) ) {
+                return decorator.lineDecorator;
+            }
+        }
+
+        if ( !pass.context.has_value() ) {
+            pass.context = decorationSetup_.context(
+                HighlighterSetCollection::get().currentActiveSet(), searchLimits_, linePalette,
+                LineStatusDisplay::AsBackground );
+        }
+        auto context = *pass.context;
+        context.palette = linePalette;
+        pass.decorators.push_back( { linePalette, LineDecorator{ std::move( context ) } } );
+        return pass.decorators.back().lineDecorator;
+    }
+
+    // The Row of a cell, its Line Verdict decided the first time the pass
+    // meets it. The row-level Line Verdict is decided from the raw Log Line
+    // -- a whole-line Highlighter, the Search Limits and the selection are
+    // facts about the whole line, not about one field of it. The Line
+    // Verdict does not depend on the palette, so any of the pass's Line
+    // Decorators decides it.
+    const PaintPassState::Row& rowFor( PaintPassState& pass, const LineDecorator& lineDecorator,
+                                       const QModelIndex& index, bool isSelectedAsWhole ) const
+    {
+        const auto found = pass.rows.find( index.row() );
+        if ( found != pass.rows.end() && found->second.isSelectedAsWhole == isSelectedAsWhole ) {
+            return found->second;
+        }
+
+        const auto lineNumber = rows_->logLineAt( index.row() );
+        const auto rawLine = index.data( LogFormatTableModel::RawLineRole ).toString();
+        const auto lineType = filteredData_ ? filteredData_->lineTypeByLine( lineNumber )
+                                            : AbstractLogData::LineTypeFlags::Plain;
+        auto verdict = lineDecorator.verdictFor( LogLine{ lineNumber, rawLine }, lineType,
+                                                 isSelectedAsWhole );
+        return pass.rows
+            .insert_or_assign( index.row(),
+                               PaintPassState::Row{ lineNumber, lineType, isSelectedAsWhole,
+                                                    std::move( verdict ) } )
+            .first->second;
     }
 
     // The portion (in-cell text) selection decorate() should overlay on
@@ -363,4 +471,7 @@ private:
 
     // Hover row (set by LogTableView from mouse tracking)
     int hoverRow_ = -1;
+
+    // The paint pass open, if any.
+    mutable std::optional<PaintPassState> paintPass_;
 };

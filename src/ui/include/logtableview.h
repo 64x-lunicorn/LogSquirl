@@ -166,6 +166,8 @@ protected:
     void mouseDoubleClickEvent( QMouseEvent* event ) override;
     void keyPressEvent( QKeyEvent* event ) override;
     bool viewportEvent( QEvent* event ) override;
+    // Paints the visible cells in one paint pass of the delegate.
+    void paintEvent( QPaintEvent* event ) override;
 
 private:
     void rowSelectionChanged();

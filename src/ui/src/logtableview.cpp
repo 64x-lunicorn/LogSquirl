@@ -592,6 +592,12 @@ void LogTableView::keyPressEvent( QKeyEvent* event )
     QTableView::keyPressEvent( event );
 }
 
+void LogTableView::paintEvent( QPaintEvent* event )
+{
+    const auto paintPass = delegate_->paintPass();
+    QTableView::paintEvent( event );
+}
+
 int LogTableView::charAtX( const QModelIndex& index, int pixelX ) const
 {
     return LogTableHighlightDelegate::charIndexAtX( index.data( Qt::DisplayRole ).toString(),
