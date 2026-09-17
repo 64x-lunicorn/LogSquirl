@@ -237,6 +237,7 @@ Theme Theme::light()
         { Bullet, "#FFFFFF" },
         { BulletOutline, "#495057" },
         { ProgressChunk, "#0056B3" },
+        { SliderGroove, "#ADB5BD" },
     } );
 
     using enum StyleToken;
@@ -264,6 +265,8 @@ Theme Theme::light()
         { CloseIcon, "url(:/icons/close-light.svg)" },
         { DisabledBorderStyle, "solid" },
         { ProgressChunkBorderWidth, "0px" },
+        // Half the indicator and its 2px border: a circle.
+        { RadioIndicatorRadius, "8px" },
     } );
     return theme;
 }
@@ -356,6 +359,7 @@ Theme Theme::dark()
         { BulletOutline, "#A0A0A0" },
         // Highlight; follows an overridden Highlight (see fromName).
         { ProgressChunk, "#4D90FE" },
+        { SliderGroove, "#555555" },
     } );
 
     using enum StyleToken;
@@ -383,6 +387,7 @@ Theme Theme::dark()
         { CloseIcon, "url(:/icons/close-dark.svg)" },
         { DisabledBorderStyle, "solid" },
         { ProgressChunkBorderWidth, "0px" },
+        { RadioIndicatorRadius, "10px" },
     } );
     return theme;
 }
@@ -475,6 +480,7 @@ Theme Theme::highContrast()
         // No single text color reaches 4.5:1 on both black and yellow, so the
         // filled part is black too, outlined in Highlight.
         { ProgressChunk, "#000000" },
+        { SliderGroove, "#FFFFFF" },
     } );
 
     using enum StyleToken;
@@ -503,6 +509,7 @@ Theme Theme::highContrast()
         // A disabled button differs from an enabled one by more than a gray.
         { DisabledBorderStyle, "dashed" },
         { ProgressChunkBorderWidth, "2px" },
+        { RadioIndicatorRadius, "8px" },
     } );
     return theme;
 }

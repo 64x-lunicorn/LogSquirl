@@ -111,7 +111,8 @@ class QObject;
     X( LineNumberText )                                                                            \
     X( Bullet )                                                                                    \
     X( BulletOutline )                                                                             \
-    X( ProgressChunk )
+    X( ProgressChunk )                                                                             \
+    X( SliderGroove )
 
 // Non-color Tokens: sizes, paddings, border styles and icon images, as
 // stylesheet values.
@@ -138,7 +139,8 @@ class QObject;
     X( DisabledCheckIcon )                                                                         \
     X( CloseIcon )                                                                                 \
     X( DisabledBorderStyle )                                                                       \
-    X( ProgressChunkBorderWidth )
+    X( ProgressChunkBorderWidth )                                                                  \
+    X( RadioIndicatorRadius )
 
 #define LOGSQUIRL_TOKEN_ENUMERATOR( name ) name,
 #define LOGSQUIRL_TOKEN_COUNT( name ) +1
