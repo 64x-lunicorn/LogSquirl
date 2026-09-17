@@ -49,6 +49,8 @@ Session::Session( const SettingsPolicies& policies,
     // Get the global search history (it remains the property
     // of the Persistent)
     savedSearches_ = &SavedSearches::getSynced();
+    // Read once, at startup: restoring and opening Log Files afterwards read
+    // the in-memory Session info (#301).
     SessionInfo::getSynced();
 
     quickFindPattern_ = std::make_shared<QuickFindPattern>();
@@ -318,7 +320,7 @@ void Session::applyHighlighterSetChange()
 
 std::vector<WindowSession> Session::windowSessions()
 {
-    const auto& session = SessionInfo::getSynced();
+    const auto& session = SessionInfo::get();
     const auto& sessionWindows = session.windows();
 
     std::vector<WindowSession> windows;
@@ -365,7 +367,7 @@ ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& 
     // The view context saved for this Log File in any window, if it was
     // open when the Session was last saved.
     const auto savedViewContext = [ &fileName ]() {
-        const auto& session = SessionInfo::getSynced();
+        const auto& session = SessionInfo::get();
         for ( const auto& windowId : session.windows() ) {
             const auto openedFiles = session.openFiles( windowId );
             const auto saved = std::find_if(
@@ -385,7 +387,7 @@ ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& 
 
 OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* currentFileIndex )
 {
-    const auto& session = SessionInfo::getSynced();
+    const auto& session = SessionInfo::get();
 
     std::vector<SessionInfo::OpenFile> session_files = session.openFiles( windowId_ );
     LOG_DEBUG << "Session returned " << session_files.size();
@@ -410,14 +412,20 @@ WindowSession::WindowSession( std::shared_ptr<Session> appSession, const QString
     , windowIndex_{ index }
 {
     LOG_INFO << "created session for " << id;
-    auto sessionInfo = SessionInfo::getSynced();
+    // A window restored from the Session is already in it; only a new window
+    // is added, and saved.
+    if ( SessionInfo::get().windows().contains( id ) ) {
+        return;
+    }
+
+    auto& sessionInfo = SessionInfo::getSynced();
     sessionInfo.add( id );
     sessionInfo.save();
 }
 
 void WindowSession::restoreGeometry( QByteArray* geometry ) const
 {
-    const auto& session = SessionInfo::getSynced();
+    const auto& session = SessionInfo::get();
     *geometry = session.geometry( windowId_ );
 }
 

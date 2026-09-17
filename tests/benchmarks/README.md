@@ -281,6 +281,33 @@ target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOU
 target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
 ```
 
+# Session restore benchmark
+
+`logsquirl_session_restore_benchmark` restores a Session of 20 tabs as the
+application does at startup (#301): it writes 20 small Log Files and a stored
+Session of one window with those 20 files (view contexts, custom tab names,
+tab groups) into the settings store, then measures
+
+- **build, restore windows and Log Files, add tabs**: the Session is built,
+  its window list, geometry and Log Files are restored and every Log File
+  gets its tab, named and styled from the tab names and tab groups;
+- **add and style the tabs only**: the 20 tabs alone, without opening the
+  Log Files, where the settings reads are most of the cost.
+
+The settings store is the portable one next to the binary, as for the tests,
+not the macOS preferences daemon the application uses; what was stored before
+is written back at the end. The file uses only what the Session and the tab
+area offered before #301, so it builds unchanged on origin/master:
+
+```bash
+cmake --build build-release --target logsquirl_session_restore_benchmark
+./build-release/output/logsquirl_session_restore_benchmark --benchmark-samples 50 > after.txt
+```
+
+For the before side, copy `session_restore_benchmark.cpp` into a worktree of
+origin/master and add the target as in `CMakeLists.txt` here, as described for
+the scrolling benchmarks above.
+
 # Regex matcher benchmark
 
 `logsquirl_regex_matcher_benchmark` (#279) matches a block of 20,000 Log
@@ -295,7 +322,8 @@ Each case runs on both regex engines:
   lookahead, so all of them go through the prefilter.
 
 **three Highlighters, one with a lookahead** creates a matcher for each of
-2,000 Log Lines, as a Highlighter Set does when it colors a Log Line.
+2,000 Log Lines, as a Highlighter Set on origin/master does when it colors a
+Log Line.
 
 Links `logsquirl_regex` only. Run it in an optimized build:
 
@@ -312,3 +340,27 @@ commit as above, with
 add_executable(logsquirl_regex_matcher_benchmark regex_matcher_benchmark.cpp)
 target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
 ```
+
+# Before and after in CI
+
+The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a
+branch and master in the optimized configuration the Linux packages ship
+(RelWithDebInfo with LTO, in the Ubuntu 24.04 build container), runs every
+benchmark listed in `CMakeLists.txt` here and the e2e performance suite on both,
+on the same runner, and shows a before/after table per benchmark in the job
+summary. The raw reports and the comparison as JSON are in the
+`benchmark-results` artifact.
+
+```bash
+gh workflow run benchmarks.yml -f ref=my-branch            # against master
+gh workflow run benchmarks.yml -f ref=my-branch -f base_ref=<tag> -f log_file_mb=1024
+```
+
+By default the before side is built with this branch's `tests/benchmarks`, so
+both sides run the same benchmark code, as described above for comparing by
+hand; a benchmark that does not compile on the before side is only measured
+after. The comparison (`.github/scripts/benchmark-compare.py`) also works on
+two local runs: put each side's `--reporter xml` output under
+`<dir>/catch2/<binary>.xml` and run it with `--before <dir> --after <dir>`.
+
+The workflow can only be dispatched once it is on master.

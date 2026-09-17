@@ -42,6 +42,7 @@
 #include <QColor>
 #include <QMetaType>
 #include <QRegularExpression>
+#include <QStringView>
 #include <memory>
 #include <optional>
 #include <qcolor.h>
@@ -102,7 +103,7 @@ public:
     void compile() const;
 
 private:
-    std::pair<QColor, QColor> vairateColors( const QString& match ) const;
+    std::pair<QColor, QColor> vairateColors( QStringView match ) const;
 
 private:
     QRegularExpression regexp_;

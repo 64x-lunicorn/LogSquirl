@@ -93,7 +93,7 @@ void TabbedCrawlerWidget::loadIcons()
 void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )
 {
     const auto tabLabel = QFileInfo( fileName ).fileName();
-    const auto tabName = TabNameMapping::getSynced().tabName( fileName );
+    const auto tabName = TabNameMapping::get().tabName( fileName );
 
     myTabBar_.setTabIcon( index, olddata_icon_ );
     myTabBar_.setTabText( index, tabName.isEmpty() ? tabLabel : tabName );
@@ -116,14 +116,14 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )
 QString TabbedCrawlerWidget::baseTabName( int index ) const
 {
     const auto path = tabPathAt( index );
-    const auto customName = TabNameMapping::getSynced().tabName( path );
+    const auto customName = TabNameMapping::get().tabName( path );
     return customName.isEmpty() ? QFileInfo( path ).fileName() : customName;
 }
 
 void TabbedCrawlerWidget::updateTabGroupAppearance( int index )
 {
     const auto path = tabPathAt( index );
-    const auto group = TabGroupInfo::getSynced().groupForTab( path );
+    const auto group = TabGroupInfo::get().groupForTab( path );
     const auto name = baseTabName( index );
 
     if ( group.has_value() ) {

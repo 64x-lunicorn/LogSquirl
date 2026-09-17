@@ -43,6 +43,16 @@ add_executable(logsquirl_logdata_read_benchmark
 target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
 target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
 
+# Restoring a Session of 20 tabs at startup (#301): the Session info, tab
+# names and tab groups read from the settings store. Uses only what the
+# Session and the tab area offered before #301 (see README.md).
+add_executable(logsquirl_session_restore_benchmark
+    session_restore_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_session_restore_benchmark logsquirl_ui Catch2 test_utils)
+set_target_properties(logsquirl_session_restore_benchmark PROPERTIES AUTOMOC ON)
+
 # Matching a block of Log Lines with patterns Vectorscan rejects and with
 # boolean expressions, on both regex engines (#279). Links logsquirl_regex
 # only; uses only what the regex module offered before #279, so the same file
