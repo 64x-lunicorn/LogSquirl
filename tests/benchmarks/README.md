@@ -210,7 +210,8 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
   Find reads today, each next to the same Log Lines in one sparse read
-  (**getLinesSparse**, **getExpandedLinesSparse**, #286).
+  (**getLinesSparse**, **getExpandedLinesSparse**, #286), and the same Log
+  Lines as UTF-8 (**getUtf8LinesSparse**, #288).
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
   position** versus **DisplayedLinesCursor, takeForward** (#286).
