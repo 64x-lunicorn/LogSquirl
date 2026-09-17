@@ -333,4 +333,40 @@ MatcherVariant HsRegularExpression::createMatcher() const
             regexps_, HsMultiMatcher{ database_, std::move( matcherScratch ), patterns_.size() } );
     }
 }
+
+#ifdef LOGSQUIRL_HYPERSCAN_RUNTIME_DISPATCH
+// Hyperscan is delay-loaded on Windows (#281): the first call into it asks this
+// hook for the DLL, which loads the build chosen for the CPU. The hook lives in
+// the object file that calls Hyperscan, so every executable that calls it links
+// the hook too; one without the hook would load the SSE4.2 build hs.dll.
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+
+#include <delayimp.h>
+
+#include <cstring>
+
+#include "hyperscanruntime.h"
+
+namespace {
+
+FARPROC WINAPI loadHyperscanOnFirstCall( unsigned notification, PDelayLoadInfo info )
+{
+    if ( notification == dliNotePreLoadLibrary && _stricmp( info->szDll, "hs.dll" ) == 0 ) {
+        return reinterpret_cast<FARPROC>( loadHyperscanLibrary() );
+    }
+    return nullptr;
+}
+
+} // namespace
+
+// NOLINTNEXTLINE: the name and type delayimp.lib calls the hook through.
+const PfnDliHook __pfnDliNotifyHook2 = loadHyperscanOnFirstCall;
+#endif
+
 #endif
