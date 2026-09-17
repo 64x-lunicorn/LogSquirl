@@ -87,6 +87,16 @@ logsquirl_add_catch_tests(logsquirl_tests
     EXTRA_ARGS -platform offscreen
     TIMEOUT 120)
 
+# A scrolled text view moves what it painted in device pixels, so the painting
+# after a scroll is also compared with a full repaint at a device pixel ratio
+# of 2 (#296).
+add_test(NAME logsquirl_tests_scrollrepaint_device_pixel_ratio_2
+    COMMAND logsquirl_tests "[scrollrepaint]" -platform offscreen
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+set_tests_properties(logsquirl_tests_scrollrepaint_device_pixel_ratio_2 PROPERTIES
+    ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2"
+    TIMEOUT 120)
+
 # The compression library is tested on its own, without the UI library or
 # Qt Widgets (#169).
 add_executable(logsquirl_compression_tests

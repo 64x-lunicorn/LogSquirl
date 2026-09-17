@@ -450,8 +450,32 @@ private:
     // into its calls and applies its answers (#246).
     TextViewScrolling scrolling_;
 
+    // Everything a Log Line's Decoration depends on that can change while the
+    // Log Line stays in the Viewport. The Decorations change as a whole,
+    // counted by the generation; the selection changes line by line, so a
+    // Log Line's own part of it is compared.
+    struct DecorationKey {
+        uint64_t generation = 0;
+        qint64 palette = 0;
+        bool selectedAsWhole = false;
+        bool selectedAsSingleLine = false;
+        LineColumn selectionStart{ -1 };
+        LineColumn selectionEnd{ -1 };
+
+        bool operator==( const DecorationKey& ) const = default;
+    };
+
+    // A Log Line decorated for the Viewport, kept for as long as its key holds.
+    struct DecoratedLogLine {
+        DecorationKey key;
+        AbstractLogData::LineType lineType;
+        Decoration decoration;
+    };
+
     // A Log Line in the Viewport, both as the Log File holds it and as it is drawn.
     struct ViewportLogLine {
+        // Its position in the view.
+        LineNumber position{ 0 };
         // The Log Line, not its position in the view.
         LineNumber lineNumber{ 0 };
         // The text as the Log File holds it, which the Line Decorator matches against.
@@ -463,6 +487,9 @@ private:
         size_t firstVisualLine = 0;
         // How many of its Visual Lines, from firstVisualLine on, are in the Viewport.
         size_t visualLineCount = 0;
+        // How it was last decorated. Painting fills it in, and a Log Line that
+        // stays in the Viewport as it scrolls keeps it.
+        mutable std::optional<DecoratedLogLine> decorated;
     };
 
     // The Log Lines currently in the Viewport, with the Visual Lines they occupy.
@@ -491,6 +518,17 @@ private:
         uint64_t generation = 0;
 
         bool operator==( const ViewportContentKey& ) const = default;
+
+        // Whether the Log Lines read, expanded and wrapped for other, which
+        // may stand elsewhere, are still right for this: only scrolling
+        // happened in between.
+        bool onlyScrolledFrom( const ViewportContentKey& other ) const
+        {
+            auto scrolled = other;
+            scrolled.scrollPosition = scrollPosition;
+            scrolled.firstColumn = firstColumn;
+            return scrolled == *this;
+        }
     };
 
     mutable std::optional<ViewportContent> viewportContent_;
@@ -498,6 +536,9 @@ private:
     // Bumped whenever the Log File content behind the viewport may have
     // changed, so the cached content is rebuilt.
     uint64_t viewportGeneration_ = 0;
+    // Bumped whenever the Decorations may have changed, so every Log Line in
+    // the Viewport is decorated again.
+    uint64_t decorationGeneration_ = 0;
 
     // What changed about the Log Lines in the Viewport, and so what a refresh
     // redoes. A change of the Scroll Position, the first column or the
@@ -545,12 +586,14 @@ private:
         ScrollPosition scroll_position_;
         LineNumber last_line_;
         LineColumn first_column_;
+        // What the Log Lines in the pixmap were read for.
+        ViewportContentKey content_key_;
     };
     struct PullToFollowCache {
         QPixmap pixmap_;
         LineLength nb_columns_;
     };
-    TextAreaCache textAreaCache_ = { {}, true, {}, 0_lnum, 0_lcol };
+    TextAreaCache textAreaCache_ = { {}, true, {}, 0_lnum, 0_lcol, {} };
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
 
@@ -559,8 +602,21 @@ private:
     // Log Line.
     ViewportLayout viewportGeometry() const;
 
+    ViewportContentKey currentViewportContentKey() const;
     const ViewportContent& viewportContent() const;
-    ViewportContent buildViewportContent() const;
+    // The content at the current Scroll Position. Log Lines previous holds at
+    // the same positions are taken from it rather than read again.
+    ViewportContent buildViewportContent( std::optional<ViewportContent> previous ) const;
+
+    // What a Log Line's Decoration depends on now.
+    DecorationKey decorationKey( LineNumber logLine ) const;
+
+    // Moves the text area pixmap by the Visual Lines the view scrolled since
+    // it was painted, and paints only the rows that came into view. Only
+    // without text wrapping, where a row is a Log Line, and only when nothing
+    // but the Scroll Position changed for the Log Lines still in view.
+    // Returns false, having changed nothing, when it cannot.
+    bool scrollTextArea( ScrollPosition scrollPosition );
 
     LinesCount getNbVisibleLines() const;
     LineLength getNbVisibleCols() const;
@@ -623,7 +679,10 @@ private:
     // hovered line and a repaint.
     void scrollPositionMoved();
 
-    void drawTextArea( QPaintDevice* paintDevice );
+    // Paints the rows of the text area from firstRow up to, not including,
+    // endRow -- all of them by default -- and leaves the others as they are.
+    void drawTextArea( QPaintDevice* paintDevice, int firstRow = 0,
+                       std::optional<int> endRow = std::nullopt );
     QPixmap drawPullToFollowBar( int width, qreal pixelRatio );
 
     // Leaves follow: a move away from the bottom by the user.
