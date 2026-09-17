@@ -280,3 +280,35 @@ add_executable(logsquirl_logdata_read_benchmark logdata_read_benchmark.cpp)
 target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
 target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
 ```
+
+# Regex matcher benchmark
+
+`logsquirl_regex_matcher_benchmark` (#279) matches a block of 20,000 Log
+Lines, one in ten DEBUG, the way a Search does: one matcher for the block.
+Each case runs on both regex engines:
+
+- **lookahead**: `^(?!.*DEBUG)`, which Vectorscan rejects, so a Search runs
+  it through Vectorscan as a prefilter and confirms each candidate Log Line
+  with QRegularExpression.
+- **boolean expression of four sub-patterns**: regexes Vectorscan compiles.
+- **boolean expression with a lookahead**: three sub-patterns, one of them a
+  lookahead, so all of them go through the prefilter.
+
+**three Highlighters, one with a lookahead** creates a matcher for each of
+2,000 Log Lines, as a Highlighter Set does when it colors a Log Line.
+
+Links `logsquirl_regex` only. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_regex_matcher_benchmark
+./build-release/output/logsquirl_regex_matcher_benchmark --benchmark-samples 50 > after.txt
+```
+
+`regex_matcher_benchmark.cpp` uses only what the regex module offered before
+#279, so it builds unchanged on such a commit: copy it into a worktree of that
+commit as above, with
+
+```cmake
+add_executable(logsquirl_regex_matcher_benchmark regex_matcher_benchmark.cpp)
+target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
+```

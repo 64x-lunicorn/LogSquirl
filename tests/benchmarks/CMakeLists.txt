@@ -42,3 +42,13 @@ add_executable(logsquirl_logdata_read_benchmark
 
 target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
 target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
+
+# Matching a block of Log Lines with patterns Vectorscan rejects and with
+# boolean expressions, on both regex engines (#279). Links logsquirl_regex
+# only; uses only what the regex module offered before #279, so the same file
+# measures both sides of an A/B comparison.
+add_executable(logsquirl_regex_matcher_benchmark
+    regex_matcher_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
