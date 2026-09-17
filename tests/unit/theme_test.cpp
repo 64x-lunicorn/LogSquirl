@@ -371,8 +371,10 @@ SCENARIO( "A stored dark palette overrides Dark Tokens", "[theme]" )
     GIVEN( "the palette stored by earlier versions" )
     {
         // Every earlier version saved its full default dark palette.
+        // PROPOSAL (#323): Window moved from #121212 to #1E1E1E; a stored
+        // #121212 would still override it. Implementing #265 needs a
+        // migration of that stored value; left out of this comparison.
         const std::map<QString, QString> storedDefaults{
-            { "Window", "#121212" },
             { "WindowText", "#E0E0E0" },
             { "Base", "#1E1E1E" },
             { "AlternateBase", "#252526" },
@@ -838,10 +840,15 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
         const auto outline = pixels( highContrast.value( StyleToken::OutlineWidth ) );
         const auto darkOutline = pixels( dark.value( StyleToken::OutlineWidth ) );
 
-        const std::vector<StyleToken> borderTokens{ StyleToken::BorderWidth,
-                                                    StyleToken::OutlineWidth,
-                                                    StyleToken::ProgressChunkBorderWidth,
-                                                    StyleToken::DisabledBorderStyle };
+        // High Contrast draws square corners (#265).
+        const std::vector<StyleToken> radiusTokens{ StyleToken::ControlRadius,
+                                                    StyleToken::PopupRadius,
+                                                    StyleToken::HandleRadius,
+                                                    StyleToken::MenuBarItemRadius };
+        const std::vector<StyleToken> borderTokens{
+            StyleToken::BorderWidth, StyleToken::OutlineWidth, StyleToken::BoxBorderWidth,
+            StyleToken::ProgressChunkBorderWidth, StyleToken::DisabledBorderStyle
+        };
         const std::vector<StyleToken> paddingsInBorder{ StyleToken::ButtonPadding,
                                                         StyleToken::ToolButtonPadding,
                                                         StyleToken::InputPadding };
@@ -850,6 +857,14 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
         {
             REQUIRE( border >= darkBorder );
             REQUIRE( outline >= darkOutline );
+        }
+
+        THEN( "its corners are square" )
+        {
+            for ( const auto token : radiusTokens ) {
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( pixels( highContrast.value( token ) ) == 0 );
+            }
         }
 
         THEN( "a padding inside a border shrinks by as much as the border grows" )
@@ -861,11 +876,13 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
             }
         }
 
-        THEN( "the tab pane overlaps the tabs by its border, and a scroll bar's outline adds "
-              "to its extent" )
+        THEN( "the tab pane overlaps the tabs by its box border, and a scroll bar's outline "
+              "adds to its extent" )
         {
-            REQUIRE( pixels( highContrast.value( StyleToken::TabPaneOffset ) ) == -border );
-            REQUIRE( pixels( dark.value( StyleToken::TabPaneOffset ) ) == -darkBorder );
+            REQUIRE( pixels( highContrast.value( StyleToken::TabPaneOffset ) )
+                     == -pixels( highContrast.value( StyleToken::BoxBorderWidth ) ) );
+            REQUIRE( pixels( dark.value( StyleToken::TabPaneOffset ) )
+                     == -pixels( dark.value( StyleToken::BoxBorderWidth ) ) );
             REQUIRE( pixels( highContrast.value( StyleToken::ScrollBarExtent ) ) - 2 * outline
                      == pixels( dark.value( StyleToken::ScrollBarExtent ) ) - 2 * darkOutline );
         }
@@ -876,6 +893,8 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
                 if ( image.match( dark.value( token ) ).hasMatch()
                      || std::find( borderTokens.begin(), borderTokens.end(), token )
                             != borderTokens.end()
+                     || std::find( radiusTokens.begin(), radiusTokens.end(), token )
+                            != radiusTokens.end()
                      || std::find( paddingsInBorder.begin(), paddingsInBorder.end(), token )
                             != paddingsInBorder.end()
                      || token == StyleToken::TabPaneOffset
