@@ -79,6 +79,12 @@ jobs:
           # and content in clear text (#206).
           protocol: ftps
           port: 21
+          # The action defaults to `loose`, which accepts any certificate and
+          # so any server posing as FTP_SERVER. `strict` verifies the chain
+          # and the host name; a deploy failing with a certificate error
+          # means FTP_SERVER does not name the host the certificate is for
+          # (#230).
+          security: strict
           local-dir: website/dist/
           server-dir: /
           # No dangerous-clean-slate: it wiped the server before every upload,
