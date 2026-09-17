@@ -9,5 +9,7 @@
         <file alias="arrow-up-dark.svg">icons/arrow-up-dark.svg</file>
         <file alias="arrow-down-light.svg">icons/arrow-down-light.svg</file>
         <file alias="arrow-down-hc.svg">icons/arrow-down-hc.svg</file>
+        <file alias="arrow-up-light.svg">icons/arrow-up-light.svg</file>
+        <file alias="arrow-up-hc.svg">icons/arrow-up-hc.svg</file>
     </qresource>
 </RCC>

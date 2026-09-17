@@ -433,3 +433,72 @@ SCENARIO( "A user stylesheet applies on top of the Theme's stylesheet", "[theme]
         }
     }
 }
+
+SCENARIO( "A Theme's arrow icons point in their own direction", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its up-arrow and down-arrow Tokens name different icons" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.value( StyleToken::ArrowUpIcon )
+                         != theme.value( StyleToken::ArrowDownIcon ) );
+                REQUIRE( theme.value( StyleToken::ArrowUpIcon ).contains( "arrow-up" ) );
+                REQUIRE( theme.value( StyleToken::ArrowDownIcon ).contains( "arrow-down" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Every size Token is a stylesheet length with a unit", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        // An image Token names an icon or none; every other style Token is a
+        // size: one to four lengths, each with a unit unless it is 0.
+        static const QRegularExpression image( "^(url\\(.+\\)|none)$" );
+        static const QRegularExpression length( "^(-?\\d+(\\.\\d+)?(px|pt|em|ex)|-?0)$" );
+
+        THEN( "every length of every size Token carries a unit" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                for ( const auto token : allStyleTokens() ) {
+                    const auto value = theme.value( token );
+                    if ( image.match( value ).hasMatch() ) {
+                        continue;
+                    }
+                    INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString()
+                                             << " = " << value.toStdString() );
+                    const auto lengths = value.split( ' ', Qt::SkipEmptyParts );
+                    REQUIRE( lengths.size() >= 1 );
+                    REQUIRE( lengths.size() <= 4 );
+                    for ( const auto& part : lengths ) {
+                        INFO( part.toStdString() );
+                        REQUIRE( length.match( part ).hasMatch() );
+                    }
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "Dark draws no frame line brighter than its border", "[theme]" )
+{
+    GIVEN( "the Dark Theme" )
+    {
+        const auto dark = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light );
+
+        THEN( "none of the palette roles Fusion draws frames with is lighter than Border" )
+        {
+            const auto border = dark.color( ColorToken::Border ).lightness();
+            for ( const auto token : { ColorToken::Light, ColorToken::Midlight, ColorToken::Mid,
+                                       ColorToken::Dark, ColorToken::Shadow } ) {
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( dark.color( token ).lightness() <= border );
+            }
+        }
+    }
+}
