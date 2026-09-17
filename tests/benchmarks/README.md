@@ -249,3 +249,27 @@ add_executable(logsquirl_logdata_benchmark logdata_benchmark.cpp)
 target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2 test_utils)
 CMAKE
 ```
+
+# Before and after in CI
+
+The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a
+branch and master in the optimized configuration the Linux packages ship
+(RelWithDebInfo with LTO, in the Ubuntu 24.04 build container), runs every
+benchmark listed in `CMakeLists.txt` here and the e2e performance suite on both,
+on the same runner, and shows a before/after table per benchmark in the job
+summary. The raw reports and the comparison as JSON are in the
+`benchmark-results` artifact.
+
+```bash
+gh workflow run benchmarks.yml -f ref=my-branch            # against master
+gh workflow run benchmarks.yml -f ref=my-branch -f base_ref=<tag> -f log_file_mb=1024
+```
+
+By default the before side is built with this branch's `tests/benchmarks`, so
+both sides run the same benchmark code, as described above for comparing by
+hand; a benchmark that does not compile on the before side is only measured
+after. The comparison (`.github/scripts/benchmark-compare.py`) also works on
+two local runs: put each side's `--reporter xml` output under
+`<dir>/catch2/<binary>.xml` and run it with `--before <dir> --after <dir>`.
+
+The workflow can only be dispatched once it is on master.
