@@ -19,11 +19,14 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
@@ -34,6 +37,7 @@
 #include "test_utils.h"
 
 #include "atomicflag.h"
+#include "filedigest.h"
 #include "logdata.h"
 #include "logdataworker.h"
 #include "progress.h"
@@ -512,6 +516,293 @@ SCENARIO( "An indexing pass completes even when TBB has no worker thread to spar
             {
                 REQUIRE( logData.getNbLine().get() == 20000 );
                 REQUIRE( logData.getLineString( LineNumber( 19999 ) ).startsWith( "line 19999 " ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// An Index followed as its Log File changes, the way an Open Log File
+// follows it: a full index first, then a check on every change and a
+// partial index for what was appended.
+class FollowedIndex {
+public:
+    FollowedIndex( const QString& fileName, const IndexingPolicy& policy )
+        : fileName_( fileName )
+        , policy_( policy )
+    {
+        FullIndexOperation operation{ fileName_, data_, interruptRequest_, policy_ };
+        REQUIRE( std::get<bool>( operation.run() ) );
+    }
+
+    MonitoredFileStatus checkForChanges()
+    {
+        CheckFileChangesOperation operation{ fileName_, data_, interruptRequest_, policy_ };
+        return std::get<MonitoredFileStatus>( operation.run() );
+    }
+
+    // Returns how many bytes the partial index read.
+    qint64 indexAppendedLines()
+    {
+        PartialIndexOperation operation{ fileName_, data_, interruptRequest_, policy_ };
+        REQUIRE( std::get<bool>( operation.run() ) );
+        return operation.bytesIndexed();
+    }
+
+    IndexedHash hash() const
+    {
+        return IndexingData::ConstAccessor{ data_.get() }.getHash();
+    }
+
+    LinesCount lines() const
+    {
+        return IndexingData::ConstAccessor{ data_.get() }.getNbLines();
+    }
+
+private:
+    QString fileName_;
+    IndexingPolicy policy_;
+    std::shared_ptr<IndexingData> data_ = std::make_shared<IndexingData>();
+    AtomicFlag interruptRequest_;
+};
+
+constexpr qint64 IndexingBlock = 5 * 1024 * 1024;
+
+quint64 digestOfFileRange( const QString& path, qint64 offset, qint64 size )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    REQUIRE( file.seek( offset ) );
+    const auto bytes = file.read( size );
+    REQUIRE( bytes.size() == size );
+    FileDigest digest;
+    digest.addData( bytes );
+    return digest.digest();
+}
+
+// The header and tail digests recorded are those of the Log File as it is,
+// and the tail is at least half an indexing block long.
+void requireHeaderAndTailOf( const IndexedHash& hash, const QString& path )
+{
+    const auto size = QFileInfo( path ).size();
+    REQUIRE( hash.size == size );
+    REQUIRE( hash.headerSize == std::min( size, IndexingBlock ) );
+    REQUIRE( hash.headerDigest == digestOfFileRange( path, 0, hash.headerSize ) );
+    REQUIRE( hash.tailOffset + hash.tailSize == size );
+    REQUIRE( hash.tailSize >= std::min( size, IndexingBlock / 2 ) );
+    REQUIRE( hash.tailSize <= IndexingBlock );
+    REQUIRE( hash.tailDigest == digestOfFileRange( path, hash.tailOffset, hash.tailSize ) );
+}
+
+void setModificationTime( const QString& path, const QDateTime& time )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::ReadWrite ) );
+    REQUIRE( file.setFileTime( time, QFileDevice::FileModificationTime ) );
+}
+
+} // namespace
+
+SCENARIO( "Following a growing Log File reads only what was appended", "[indexing][follow]" )
+{
+    QTemporaryDir logDir;
+    REQUIRE( logDir.isValid() );
+
+    auto policy = testSettingsPolicies().indexing;
+    policy.useIndexCache = false;
+    policy.fastModificationDetection = GENERATE( false, true );
+    INFO( "fast modification detection " << policy.fastModificationDetection );
+
+    const auto logFile = logDir.filePath( "followed.log" );
+
+    GIVEN( "an Index of a Log File spanning several indexing blocks" )
+    {
+        // About 11 MiB: the header and tail digests cover different ranges,
+        // with bytes between them.
+        const auto content = linesOf( 0, 11000, 1024 );
+        writeContent( logFile, content );
+        FollowedIndex index( logFile, policy );
+        requireHeaderAndTailOf( index.hash(), logFile );
+
+        WHEN( "small appends follow one another, each checked and indexed" )
+        {
+            // 300 KiB each, together crossing a multiple of half a block.
+            for ( int append = 0; append < 12; ++append ) {
+                const auto appended = linesOf( 11000 + append * 300, 300, 1000 );
+                appendContent( logFile, appended );
+                INFO( "append " << append );
+
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::DataAdded );
+                REQUIRE( index.indexAppendedLines() == appended.size() );
+                requireHeaderAndTailOf( index.hash(), logFile );
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Unchanged );
+            }
+
+            THEN( "the Index is the one a full index builds" )
+            {
+                const auto full = runFullIndex( logFile, policy );
+                const auto followed = index.hash();
+                REQUIRE( index.lines() == full.lines );
+                REQUIRE( followed.size == full.hash.size );
+                REQUIRE( followed.fullDigest == full.hash.fullDigest );
+                REQUIRE( followed.headerDigest == full.hash.headerDigest );
+                REQUIRE( followed.tailOffset == full.hash.tailOffset );
+                REQUIRE( followed.tailSize == full.hash.tailSize );
+                REQUIRE( followed.tailDigest == full.hash.tailDigest );
+            }
+        }
+
+        WHEN( "a byte of its header changes before appended lines are indexed" )
+        {
+            overwriteByte( logFile, 100, 'y' );
+            appendContent( logFile, linesOf( 11000, 10 ) );
+            index.indexAppendedLines();
+
+            THEN( "indexing the appended lines does not take the changed header over" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+
+        WHEN( "a byte of its tail changes before appended lines are indexed" )
+        {
+            overwriteByte( logFile, content.size() - 10, 'y' );
+            appendContent( logFile, linesOf( 11000, 10 ) );
+            index.indexAppendedLines();
+
+            THEN( "indexing the appended lines does not take the changed tail over" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+
+        WHEN( "it is truncated" )
+        {
+            writeContent( logFile, content.left( content.size() / 2 ) );
+
+            THEN( "the check tells it was truncated" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+
+        WHEN( "it is replaced by a smaller Log File" )
+        {
+            writeContent( logFile, linesOf( 1, 100 ) );
+
+            THEN( "the check tells it was truncated" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+
+        WHEN( "it is replaced by a Log File of the same size and other content" )
+        {
+            auto replaced = content;
+            replaced.replace( "line", "LINE" );
+            REQUIRE( replaced.size() == content.size() );
+            writeContent( logFile, replaced );
+
+            THEN( "the check tells it was truncated" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+
+        WHEN( "it is replaced by a larger Log File with another header" )
+        {
+            writeContent( logFile, "another header\n" + content + linesOf( 0, 10 ) );
+
+            THEN( "the check tells it was truncated" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+
+        WHEN( "it is appended to, and a byte of its tail changed" )
+        {
+            overwriteByte( logFile, content.size() - 10, 'y' );
+            appendContent( logFile, linesOf( 11000, 10 ) );
+
+            THEN( "the check tells it was truncated" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+
+        WHEN( "a byte between its header and tail changes in place, and it is modified later" )
+        {
+            const auto indexed = QFileInfo( logFile ).lastModified();
+            overwriteByte( logFile, IndexingBlock + IndexingBlock / 4, 'y' );
+            setModificationTime( logFile, indexed.addSecs( 10 ) );
+
+            THEN( "only a check without fast modification detection reads it and notices" )
+            {
+                REQUIRE( index.checkForChanges()
+                         == ( policy.fastModificationDetection ? MonitoredFileStatus::Unchanged
+                                                               : MonitoredFileStatus::Truncated ) );
+            }
+        }
+
+        WHEN( "a byte between its header and tail changes in place, its modification time kept" )
+        {
+            const auto indexed = QFileInfo( logFile ).lastModified();
+            overwriteByte( logFile, IndexingBlock + IndexingBlock / 4, 'y' );
+            setModificationTime( logFile, indexed );
+
+            THEN( "the check does not read it again, and takes it for unchanged" )
+            {
+                // The risk accepted so that a change notification for bytes
+                // already indexed costs no read of the whole Log File.
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Unchanged );
+            }
+        }
+
+        WHEN( "a byte between its header and tail changes and lines are appended" )
+        {
+            overwriteByte( logFile, IndexingBlock + IndexingBlock / 4, 'y' );
+            appendContent( logFile, linesOf( 11000, 10 ) );
+
+            THEN( "the check takes it for grown: only the header and tail are read" )
+            {
+                // The risk accepted so that following a growing Log File does
+                // not read all of it for every append; a reload reads it all.
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::DataAdded );
+            }
+        }
+    }
+
+    GIVEN( "an Index of a Log File shorter than one indexing block" )
+    {
+        writeContent( logFile, linesOf( 0, 100 ) );
+        FollowedIndex index( logFile, policy );
+
+        WHEN( "it grows past one indexing block in appends" )
+        {
+            for ( int append = 0; append < 8; ++append ) {
+                const auto appended = linesOf( 100 + append * 1000, 1000, 1000 );
+                appendContent( logFile, appended );
+                INFO( "append " << append );
+
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::DataAdded );
+                REQUIRE( index.indexAppendedLines() == appended.size() );
+                requireHeaderAndTailOf( index.hash(), logFile );
+            }
+
+            THEN( "its whole first block is its header" )
+            {
+                REQUIRE( index.hash().headerSize == IndexingBlock );
+            }
+        }
+
+        WHEN( "it is replaced by a larger Log File with another header" )
+        {
+            writeContent( logFile, "another header\n" + linesOf( 0, 200 ) );
+
+            THEN( "the check tells it was truncated" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
             }
         }
     }

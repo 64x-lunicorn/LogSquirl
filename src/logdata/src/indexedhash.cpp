@@ -57,6 +57,7 @@ bool recordedBytesMatch( QFile& logFile, const IndexedHash& recorded, DigestCove
 {
     switch ( coverage ) {
     case DigestCoverage::Full:
+    case DigestCoverage::FullUnlessGrown:
         return digestMatches( logFile, 0, recorded.size, recorded.fullDigest );
     case DigestCoverage::HeaderAndTail:
         // A Log File no longer than one digest block has its tail digest
@@ -83,6 +84,9 @@ IndexFit indexFit( const IndexedHash& recorded, const QString& logFilePath,
     }
 
     const auto size = logFile.size();
+    if ( coverage == DigestCoverage::FullUnlessGrown ) {
+        coverage = size > recorded.size ? DigestCoverage::HeaderAndTail : DigestCoverage::Full;
+    }
     if ( size == 0 || size < recorded.size || !recordedBytesMatch( logFile, recorded, coverage ) ) {
         return IndexFit::Changed;
     }

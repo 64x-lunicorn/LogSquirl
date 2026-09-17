@@ -219,6 +219,11 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
   position** versus **DisplayedLinesCursor, takeForward** (#286).
+- `[tailing]` — following the Log File as it grows (#277), once indexed, with
+  and without fast modification detection: **append, check and index the
+  appended Log Lines**, one change notification for an append of 20 Log
+  Lines, and **check with nothing appended**, a change notification for bytes
+  already indexed. Runs last, as it appends to the Log Files.
 
 A change that adds a new way of reading the same Log Lines adds a `BENCHMARK`
 next to the one it replaces, over the same `contiguousRange()` or

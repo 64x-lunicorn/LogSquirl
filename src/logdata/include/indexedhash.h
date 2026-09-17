@@ -63,10 +63,16 @@ enum class DigestCoverage {
     /// Index Cache checks.
     HeaderAndTail,
     /// The full digest: every byte the Index was built from is read again.
-    /// Only a hash recorded without fast modification detection has one, so
-    /// only the change detection of an Open Log File indexed that way asks
-    /// for it.
+    /// Only a hash recorded without fast modification detection has one.
     Full,
+    /// The header and tail digests when the Log File has grown, the full
+    /// digest otherwise. What following a Log File indexed without fast
+    /// modification detection asks: an append is told from the header and
+    /// tail alone, so a Log File growing by small appends is not read end to
+    /// end on every change. A Log File that grew while bytes between its
+    /// header and tail changed passes as Grown, the risk fast modification
+    /// detection takes on every check.
+    FullUnlessGrown,
 };
 
 /// The one rule that decides whether an Index still fits its Log File, which
