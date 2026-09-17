@@ -38,6 +38,7 @@ add_executable(logsquirl_tests
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
+    searchdata_test.cpp
     searchfailure_test.cpp
     searchsession_test.cpp
     settingspolicies_test.cpp
