@@ -128,13 +128,11 @@ jobs:
         with:
           python-version: '3.12'
 
-      # Pinned to major version 23: the project's .clang-format sets
-      # `Standard: c++23`, an enum value only clang-format >= 23 recognizes.
+      # Version 23 and the hashes live in .github/requirements/clang-format.txt,
+      # which Renovate keeps current (#317).
       - name: Install clang-format
-        env:
-          # renovate: datasource=pypi depName=clang-format
-          CLANG_FORMAT_VERSION: 23.1.1
-        run: pip install "clang-format==$CLANG_FORMAT_VERSION"
+        run: |
+          pip install --require-hashes --only-binary :all: -r .github/requirements/clang-format.txt
 
       - name: Check formatting
         run: |

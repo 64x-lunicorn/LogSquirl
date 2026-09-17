@@ -1,0 +1,4 @@
+# aqtinstall installs Qt into the build images (#317). The images install the
+# hash-locked aqtinstall-requirements.txt into a throwaway directory; after a
+# change here, regenerate it with the command at the top of that file.
+aqtinstall==3.3.0

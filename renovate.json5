@@ -1,12 +1,12 @@
 // Renovate keeps what Dependabot cannot read current (#211): the CPM packages in
 // 3rdparty/CMakeLists.txt, the tool versions pinned in workflows, composite
-// actions, the build images and the packaging scripts, and the digests of CI
-// Build's install-check images (#230).
+// actions, the build images and the packaging scripts, the digests of CI
+// Build's install-check images, and the hash-locked pip requirements (#317).
 //
 // No overlap with Dependabot (.github/dependabot.yml): GitHub Actions, the
-// Docker FROM digests, pip requirements (tests/e2e, scripts/sbom) and npm
-// (website) stay with Dependabot. Only the custom regex managers below are
-// enabled, so Renovate never opens a PR for one of those.
+// Docker FROM digests and npm (website) stay with Dependabot. Only the custom
+// regex managers and pip-compile below are enabled, so Renovate never opens a
+// PR for one of those.
 //
 // Checksums: a version bump here leaves its SHA-256 stale; the Renovate
 // Checksums workflow (.github/workflows/renovate-checksums.yml) recomputes it
@@ -14,7 +14,7 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   extends: ["config:recommended", "schedule:weekly"],
-  enabledManagers: ["custom.regex"],
+  enabledManagers: ["custom.regex", "pip-compile"],
   dependencyDashboard: true,
   labels: ["ci", "dependencies"],
   timezone: "Europe/Berlin",
@@ -31,6 +31,26 @@
       defaultRegistryUrlTemplate: "https://sourceforge.net/projects/nsis/files/NSIS%203/",
       format: "html",
     },
+  },
+
+  // Every pip install in CI and the build images reads a requirements file
+  // locked with hashes by `uv pip compile --generate-hashes` (#317). The
+  // manager bumps the pin in the .in file and reruns the command in the lock
+  // file's header, so the hashes move with the version.
+  "pip-compile": {
+    managerFilePatterns: [
+      "/^docker/shared/aqtinstall-requirements\\.txt$/",
+      "/^\\.github/requirements/[^/]+\\.txt$/",
+      "/^scripts/sbom/requirements\\.txt$/",
+    ],
+  },
+  // A version bump re-locks only what the bumped package needs; this re-locks
+  // the dependencies below the pins (e.g. requests, urllib3) once a month, so
+  // they do not go stale. Only pip-compile supports it among the enabled
+  // managers (#317).
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["* 0-6 1 * *"],
   },
 
   customManagers: [

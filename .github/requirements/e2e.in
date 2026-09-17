@@ -1,0 +1,5 @@
+# What CI installs to run the E2E suite (E2E jobs, Benchmarks) (#317). CI
+# installs the hash-locked e2e.txt; after a change here, regenerate it with the
+# command at the top of that file. It lives here rather than in tests/e2e
+# because Renovate's recommended config ignores tests/ directories.
+pytest==9.1.1

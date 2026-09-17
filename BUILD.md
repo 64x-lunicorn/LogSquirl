@@ -205,7 +205,7 @@ Formatting follows the `.clang-format` file at the repository root. CI runs a
 matching version before pushing:
 
 ```bash
-pip install clang-format==23.1.1
+pip install --require-hashes -r .github/requirements/clang-format.txt
 clang-format -i <file>
 ```
 
@@ -509,12 +509,20 @@ repository requires SHA pinning, and the Format job of CI Build runs the same ch
 Two bots propose dependency updates as pull requests, each for what the other cannot read, so no dependency gets
 PRs from both:
 
-- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines,
-  the pip requirements of `scripts/sbom` and `tests/e2e`, and the website's npm packages.
-- **Renovate** (`renovate.json5`, only its custom regex managers are enabled): the CPM packages in
-  `3rdparty/CMakeLists.txt` and every tool version pinned in workflows, composite actions, the build images and the
-  packaging scripts: Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg, sentry-cli,
-  linuxdeploy, clang-format, aqtinstall and the Renovate config validator itself.
+- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines
+  and the website's npm packages.
+- **Renovate** (`renovate.json5`, only its custom regex managers and pip-compile are enabled): the CPM packages in
+  `3rdparty/CMakeLists.txt`, every tool version pinned in workflows, composite actions, the build images and the
+  packaging scripts (Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg, sentry-cli,
+  linuxdeploy, the aqtinstall commit of `install-qt-action` and the Renovate config validator itself), the digests of
+  CI Build's install-check images (`check_container`), and the hash-locked pip requirements.
+
+**pip requirements.** Every `pip install` in CI and the build images reads a requirements file with exact versions and
+hashes and passes `--require-hashes`: `docker/shared/aqtinstall-requirements.txt` (aqtinstall, installed into a
+throwaway directory that is deleted once Qt is in the image), `.github/requirements/clang-format.txt`,
+`.github/requirements/e2e.txt` and `scripts/sbom/requirements.txt`. Each is generated from the `.in` file next to it by
+the `uv pip compile --generate-hashes --universal` command in its header; after editing a `.in` file, rerun that
+command. Renovate bumps the pins and reruns the command, and re-locks the dependencies below them once a month.
 
 Both wait until a release is seven days old and run weekly; Renovate lists everything it tracks on its
 **Dependency Dashboard** issue. Renovate's grouping:

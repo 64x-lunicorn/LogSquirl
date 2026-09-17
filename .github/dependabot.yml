@@ -1,8 +1,9 @@
 version: 2
 # Renovate (renovate.json5, #211) covers what Dependabot cannot read: the CPM
-# packages in 3rdparty/CMakeLists.txt and the tool versions pinned in
-# workflows, composite actions, Dockerfile ENV lines and scripts. It runs only
-# its custom regex managers, so no dependency below is proposed by both.
+# packages in 3rdparty/CMakeLists.txt, the tool versions pinned in workflows,
+# composite actions, Dockerfile ENV lines and scripts, and the hash-locked pip
+# requirements (#317). It runs only its custom regex managers and pip-compile,
+# so no dependency below is proposed by both.
 #
 # Every entry has a cooldown: a release is only proposed once it is a week
 # old, so a compromised or broken version is usually yanked before it reaches
@@ -91,38 +92,9 @@ updates:
           - "minor"
           - "patch"
 
-  # Lower-bound-only ranges (pytest>=7.0) are already satisfied by new
-  # releases, so the default strategy leaves them alone; only a bump that
-  # falls outside a range produces a PR.
-  # The SBOM generator's hash-locked validation dependencies (#212).
-  - package-ecosystem: "pip"
-    directory: "/scripts/sbom"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    labels:
-      - "ci"
-      - "dependencies"
-    groups:
-      sbom-minor-patch:
-        update-types:
-          - "minor"
-          - "patch"
-
-  - package-ecosystem: "pip"
-    directory: "/tests/e2e"
-    schedule:
-      interval: "weekly"
-    cooldown:
-      default-days: 7
-    labels:
-      - "dependencies"
-    groups:
-      pip-minor-patch:
-        update-types:
-          - "minor"
-          - "patch"
+  # No pip entry: every pip requirements file is locked with hashes, and
+  # Renovate's pip-compile manager keeps the pins and the hashes current
+  # (renovate.json5, #317).
 
   - package-ecosystem: "npm"
     directory: "/website"
