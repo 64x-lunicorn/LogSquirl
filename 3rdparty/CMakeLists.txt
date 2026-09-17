@@ -564,9 +564,9 @@ cpmaddpackage(
   GITHUB_REPOSITORY
   microsoft/mimalloc
   VERSION
-  2.1.7
+  2.5.2
   GIT_TAG
-  8c532c32c3c96e5ba1f2283e032f69ead8add00f # v2.1.7
+  2406cc5f3ab6d6e54fe560cdd66fa46eee775312 # v2.5.2
   EXCLUDE_FROM_ALL
   YES
   OPTIONS

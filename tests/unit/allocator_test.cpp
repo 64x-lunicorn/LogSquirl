@@ -37,6 +37,14 @@ TEST_CASE( "mimalloc is linked with the define that enables it", "[allocator]" )
 #endif
 }
 
+TEST_CASE( "mimalloc is a current 2.x release", "[allocator]" )
+{
+    // Since 2.2 mi_version() reads major * 10000 + minor * 100 + patch, so
+    // 2.5.0 is 20500 (2.1.7 still read 217).
+    CHECK( mi_version() >= 20500 );
+    CHECK( mi_version() < 30000 );
+}
+
 TEST_CASE( "mimalloc serves malloc only with the process-wide override", "[allocator]" )
 {
 #ifdef LOGSQUIRL_MIMALLOC_OVERRIDE
