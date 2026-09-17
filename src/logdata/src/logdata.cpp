@@ -617,6 +617,8 @@ void LogData::readSparseLines( std::span<const LineNumber> lines, OnLine&& onLin
             const auto length = line.end - line.begin - lineFeedWidth;
 
             SparseReadLine readLine{ .request = line.request,
+                                     .bytes = {},
+                                     .warning = {},
                                      .hideAnsiColorSequences = hideAnsiColorSequences };
             constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
             if ( length >= maxlength ) {

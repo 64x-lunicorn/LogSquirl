@@ -226,7 +226,7 @@ SCENARIO( "Indexing in blocks finds the Log Lines a scan of the whole Log File f
     const auto blockSize
         = GENERATE( qint64{ 1 }, qint64{ 2 }, qint64{ 3 }, qint64{ 5 }, qint64{ 16 }, qint64{ 17 },
                     qint64{ 64 }, qint64{ 1000 }, DefaultIndexingBlockSize );
-    const auto& encoded = GENERATE( from_range( std::begin( Encodings ), std::end( Encodings ) ) );
+    const auto encoded = GENERATE( from_range( std::begin( Encodings ), std::end( Encodings ) ) );
     auto* codec = QTextCodec::codecForName( encoded.encoding );
     REQUIRE( codec != nullptr );
 
