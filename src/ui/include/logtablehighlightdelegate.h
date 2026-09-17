@@ -284,16 +284,31 @@ public:
             return 0;
         }
 
+        // The first caret whose prefix is wider than the click, found by
+        // bisecting: prefix advances only grow, so a long cell measures a
+        // handful of prefixes rather than every one of them.
         const int textLen = static_cast<int>( cellText.size() );
-        for ( int i = 1; i <= textLen; ++i ) {
-            const int charRight = fm.horizontalAdvance( cellText.left( i ) );
-            if ( relativeX < charRight ) {
-                // Before or after this character, whichever edge is closer
-                const int charLeft = fm.horizontalAdvance( cellText.left( i - 1 ) );
-                return ( relativeX - charLeft < charRight - relativeX ) ? i - 1 : i;
+        const auto prefixAdvance
+            = [ & ]( int length ) { return fm.horizontalAdvance( cellText.left( length ) ); };
+        int low = 1;
+        int high = textLen + 1;
+        while ( low < high ) {
+            const int middle = low + ( high - low ) / 2;
+            if ( relativeX < prefixAdvance( middle ) ) {
+                high = middle;
+            }
+            else {
+                low = middle + 1;
             }
         }
-        return textLen;
+        if ( low > textLen ) {
+            return textLen;
+        }
+
+        // Before or after this character, whichever edge is closer
+        const int charRight = prefixAdvance( low );
+        const int charLeft = prefixAdvance( low - 1 );
+        return ( relativeX - charLeft < charRight - relativeX ) ? low - 1 : low;
     }
 
     // Return a size hint that accounts for the full text width (no clipping).

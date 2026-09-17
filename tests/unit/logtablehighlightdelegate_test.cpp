@@ -1014,3 +1014,54 @@ SCENARIO( "A paint pass decides each Row's Line Verdict once, not once per cell"
     }
 }
 
+// ── The hit test measures no more than it needs (#294) ──────────────────────
+
+SCENARIO( "A click in a long Table View cell resolves to the caret position nearest to it",
+          "[logtablehighlightdelegate][hittest]" )
+{
+    auto font = QApplication::font();
+    font.setPixelSize( 13 );
+    const QFontMetrics fm( font );
+    const int cellLeft = 11;
+
+    GIVEN( "a long cell of characters of different widths" )
+    {
+        QString cellText;
+        for ( int i = 0; i < 12; ++i ) {
+            cellText += "iWm.ll wide MMM narrow iii | ";
+        }
+        const int textLength = static_cast<int>( cellText.size() );
+
+        // The advance of each prefix, measured once here.
+        std::vector<int> prefixAdvance;
+        for ( int i = 0; i <= textLength; ++i ) {
+            prefixAdvance.push_back( fm.horizontalAdvance( cellText.left( i ) ) );
+        }
+
+        THEN( "every pixel resolves to the caret whose prefix advance is nearest, the left one "
+              "on a tie" )
+        {
+            const int textLeft = cellLeft + LogTableHighlightDelegate::HorizontalTextPadding;
+            for ( int x = 0; x <= textLeft + prefixAdvance.back() + 3; ++x ) {
+                const int relativeX = x - textLeft;
+                int expected = textLength;
+                if ( relativeX <= 0 ) {
+                    expected = 0;
+                }
+                else {
+                    for ( int i = 1; i <= textLength; ++i ) {
+                        const int right = prefixAdvance[ static_cast<size_t>( i ) ];
+                        if ( relativeX < right ) {
+                            const int left = prefixAdvance[ static_cast<size_t>( i - 1 ) ];
+                            expected = relativeX - left < right - relativeX ? i - 1 : i;
+                            break;
+                        }
+                    }
+                }
+                INFO( "x = " << x );
+                REQUIRE( LogTableHighlightDelegate::charIndexAtX( cellText, fm, cellLeft, x )
+                         == expected );
+            }
+        }
+    }
+}
