@@ -17,15 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef OPENLOGFILE_H
-#define OPENLOGFILE_H
-
-#include <memory>
-
-#include <QMetaObject>
-#include <QMetaType>
-#include <QObject>
-#include <QString>
+#pragma once
 
 #include "linetypes.h"
 #include "loadingstatus.h"
@@ -34,6 +26,13 @@
 #include "searchautorefresh.h"
 #include "searchsession.h"
 #include "settingspolicies.h"
+
+#include <QMetaObject>
+#include <QMetaType>
+#include <QObject>
+#include <QString>
+
+#include <memory>
 
 class FileWatchPort;
 class LogData;
@@ -233,5 +232,3 @@ private:
 };
 
 Q_DECLARE_METATYPE( OpenLogFile::LoadFinished )
-
-#endif

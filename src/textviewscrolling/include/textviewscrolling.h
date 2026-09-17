@@ -17,19 +17,19 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TEXTVIEWSCROLLING_H
-#define TEXTVIEWSCROLLING_H
-
-#include <cstdint>
-#include <optional>
-
-#include <QString>
+#pragma once
 
 #include "linetypes.h"
 #include "settingspolicies.h"
 #include "viewportlayout.h"
 #include "viewtools.h"
 #include "wrappedstring.h"
+
+#include <QString>
+
+#include <cstddef>
+#include <cstdint>
+#include <optional>
 
 // How a text view scrolls: its Scroll Position, follow with its elastic hook,
 // the bottom of the Log File, keeping the reading position across a re-wrap
@@ -148,6 +148,8 @@ public:
 
     // --- what it holds -------------------------------------------------
 
+    // The Scroll Position: the Log Line at the top of the Viewport and which of
+    // its Visual Lines is shown first.
     ScrollPosition position() const
     {
         return position_;
@@ -157,14 +159,17 @@ public:
     {
         return firstColumn_;
     }
+    // Whether long Log Lines are wrapped into several Visual Lines.
     bool textWrap() const
     {
         return textWrap_;
     }
+    // Whether follow is engaged: the view stays at the bottom of the Log File.
     bool follows() const
     {
         return follow_;
     }
+    // Whether pulling past the bottom may engage follow (see allowFollow()).
     bool followAllowed() const
     {
         return elasticHook_.isHookAllowed();
@@ -198,7 +203,7 @@ public:
         return logFileBottom().scrollPosition;
     }
     // Visual Lines a page moves.
-    int64_t visualLinesPerPage() const;
+    std::int64_t visualLinesPerPage() const;
     // The Visual Line of the line holding position, at the current width.
     ScrollPosition visualLineOf( FilePosition position ) const;
     // The text of a line as drawn at the current text wrapping.
@@ -218,7 +223,7 @@ public:
     ScrollAnswer scrollTo( ScrollPosition position );
     // A step by a key or selection autoscroll, visualLines down (up when
     // negative). As the scrollbar's own steps do, a step up leaves follow.
-    ScrollAnswer stepVisualLines( int64_t visualLines );
+    ScrollAnswer stepVisualLines( std::int64_t visualLines );
     // Page Down, or Page Up.
     ScrollAnswer stepPage( bool down );
     // A turn of the wheel that pulls (WheelTurn::pixels() is not 0). At the
@@ -302,12 +307,12 @@ private:
     ScrollAnswer answer( bool scrolled ) const;
     static void merge( ScrollAnswer& into, const ScrollAnswer& step );
 
-    ScrollAnswer scrollByVisualLines( int64_t visualLines );
+    ScrollAnswer scrollByVisualLines( std::int64_t visualLines );
     // How many Visual Lines a wheel turn scrolls down (up when negative).
-    int64_t wheelVisualLines( const WheelTurn& turn );
+    std::int64_t wheelVisualLines( const WheelTurn& turn );
     ScrollAnswer landAtBottomOnMaximum( int sliderPosition, int value );
 
-    size_t visualLineCount( LineNumber line, LineLength columns ) const;
+    std::size_t visualLineCount( LineNumber line, LineLength columns ) const;
     // position, with a Visual Line past the end of its line brought back to
     // that line's last.
     ScrollPosition withinLogLine( ScrollPosition position ) const;
@@ -345,5 +350,3 @@ private:
     mutable std::optional<LogFileBottom> logFileBottom_;
     mutable LogFileBottomKey logFileBottomKey_;
 };
-
-#endif

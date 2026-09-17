@@ -19,16 +19,17 @@
 
 #pragma once
 
-#include <optional>
-#include <utility>
-#include <vector>
+#include "linetypes.h"
+#include "settingspolicies.h"
 
 #include <QFont>
 #include <QPointer>
 #include <QStringList>
 
-#include "linetypes.h"
-#include "settingspolicies.h"
+#include <cstddef>
+#include <optional>
+#include <utility>
+#include <vector>
 
 class FilteredView;
 class LogPresentation;
@@ -50,6 +51,9 @@ class ViewSet {
 public:
     // The words of each Color Label, one list per color slot.
     using ColorLabels = std::vector<QStringList>;
+    // How many Color Labels there are: one per color slot, each with its own
+    // shortcut, as many as ColorLabelsManager holds.
+    static constexpr std::size_t ColorLabelCount = 9;
 
     // Add a view, and hand it everything held so far.
     void addPresentation( LogPresentation* presentation );
@@ -66,6 +70,7 @@ public:
     void setFollowAllowed( bool allowed );
     // The font Log Lines are drawn in. Until one is set, a view keeps its own.
     void setFont( const QFont& font );
+    // The words of every Color Label, one list per color slot.
     void setColorLabels( const ColorLabels& labels );
     // Until they are set, a view keeps the Search Limits it was built with.
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
@@ -85,6 +90,7 @@ public:
     // Decoding Policy was replaced.
     void rereadLogLines();
 
+    // What was handed to the View Set last, which a view added now starts with.
     const DecorationPolicy& decorationPolicy() const
     {
         return decorationPolicy_;
@@ -101,6 +107,7 @@ public:
     {
         return followAllowed_;
     }
+    // None until a font was set.
     const std::optional<QFont>& font() const
     {
         return font_;
@@ -109,6 +116,8 @@ public:
     {
         return colorLabels_;
     }
+    // The first Log Line searched and the end of the Search Limits; none until
+    // they were set.
     const std::optional<std::pair<LineNumber, LineNumber>>& searchLimits() const
     {
         return searchLimits_;
@@ -131,6 +140,6 @@ private:
     QuickFindPolicy quickFindPolicy_;
     bool followAllowed_ = true;
     std::optional<QFont> font_;
-    ColorLabels colorLabels_ = ColorLabels( 9 );
+    ColorLabels colorLabels_ = ColorLabels( ColorLabelCount );
     std::optional<std::pair<LineNumber, LineNumber>> searchLimits_;
 };

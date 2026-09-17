@@ -25,17 +25,17 @@
 // A scrollbar is simulated as Qt's behaves: it clamps its value to its range,
 // and tells scrolling whenever its value changes, also when scrolling moved it.
 
-#include <catch2/catch.hpp>
+#include "log_view_log_files.h"
+#include "textviewscrolling.h"
+
+#include <QString>
+#include <QStringList>
 
 #include <algorithm>
 #include <cstdint>
 #include <vector>
 
-#include <QString>
-#include <QStringList>
-
-#include "log_view_log_files.h"
-#include "textviewscrolling.h"
+#include <catch2/catch.hpp>
 
 namespace {
 

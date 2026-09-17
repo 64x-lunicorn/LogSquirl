@@ -17,13 +17,13 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include "indexedhash.h"
+#include "indexedhashfixture.h"
 
 #include <QFile>
 #include <QTemporaryDir>
 
-#include "indexedhash.h"
-#include "indexedhashfixture.h"
+#include <catch2/catch.hpp>
 
 // The rule that decides whether an Index still fits its Log File, on its
 // own. The Index Cache and the change detection of an Open Log File both ask

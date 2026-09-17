@@ -20,10 +20,10 @@
 // Runner for the text view scrolling tests. It uses QCoreApplication on
 // purpose: scrolling knows no widget (#246). The elastic hook runs a timer.
 
+#include <QCoreApplication>
+
 #define CATCH_CONFIG_RUNNER
 #include <catch2/catch.hpp>
-
-#include <QCoreApplication>
 
 int main( int argc, char* argv[] )
 {

@@ -17,18 +17,6 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
-
-#include <algorithm>
-#include <memory>
-#include <vector>
-
-#include <QCoreApplication>
-#include <QFile>
-#include <QHash>
-#include <QList>
-#include <QTemporaryDir>
-
 #include "fake_file_watch.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
@@ -37,6 +25,18 @@
 #include "openlogfile.h"
 #include "test_policies.h"
 #include "test_utils.h"
+
+#include <QCoreApplication>
+#include <QFile>
+#include <QHash>
+#include <QList>
+#include <QTemporaryDir>
+
+#include <algorithm>
+#include <memory>
+#include <vector>
+
+#include <catch2/catch.hpp>
 
 // What a Log File changing on disk means is decided by the Open Log File;
 // these tests follow real Log Files on disk without any widget. It hears of a

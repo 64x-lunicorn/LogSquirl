@@ -19,10 +19,10 @@
 
 #include "linemapping.h"
 
-#include <memory>
-
 #include "logdata.h"
 #include "logfiltereddata.h"
+
+#include <memory>
 
 bool LineMapping::shows( LineNumber logLine ) const
 {

@@ -17,8 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FILEWATCHPORT_H
-#define FILEWATCHPORT_H
+#pragma once
 
 #include <QObject>
 #include <QString>
@@ -54,5 +53,3 @@ Q_SIGNALS:
     // A watched file changed on disk in some way.
     void fileChanged( const QString& fileName );
 };
-
-#endif

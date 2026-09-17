@@ -26,17 +26,6 @@
 // builds unchanged on both sides of an A/B comparison. See
 // tests/benchmarks/README.md.
 
-#define CATCH_CONFIG_ENABLE_BENCHMARKING
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
-
-#include <algorithm>
-
-#include <QApplication>
-#include <QKeyEvent>
-#include <QScrollBar>
-#include <QWheelEvent>
-
 #include "abstractlogdata.h"
 #include "abstractlogview.h"
 #include "configuration.h"
@@ -45,6 +34,17 @@
 #include "persistentinfo.h"
 #include "quickfindpattern.h"
 #include "test_policies.h"
+
+#include <QApplication>
+#include <QKeyEvent>
+#include <QScrollBar>
+#include <QWheelEvent>
+
+#include <algorithm>
+
+#define CATCH_CONFIG_ENABLE_BENCHMARKING
+#define CATCH_CONFIG_RUNNER
+#include <catch2/catch.hpp>
 
 // The settings library, which the UI library links, asks every executable.
 const bool PersistentInfo::ForcePortable = true;

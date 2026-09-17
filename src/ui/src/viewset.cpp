@@ -19,10 +19,10 @@
 
 #include "viewset.h"
 
-#include <algorithm>
-
 #include "filteredview.h"
 #include "logpresentation.h"
+
+#include <algorithm>
 
 template <class Fn>
 void ViewSet::forEachFilteredView( Fn&& fn ) const

@@ -17,24 +17,23 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LOGSQUIRL_TESTS_INDEXEDHASHFIXTURE_H
-#define LOGSQUIRL_TESTS_INDEXEDHASHFIXTURE_H
+#pragma once
 
 // Helpers shared by the tests of what an Index records about its Log File:
 // the Index Cache's and the rule that decides whether an Index still fits
 // its Log File (#235). The Log Files are real files, and their hash is
 // computed from them the way the indexer computes it.
 
-#include <catch2/catch.hpp>
-
-#include <cstddef>
+#include "filedigest.h"
+#include "indexedhash.h"
 
 #include <QByteArray>
 #include <QFile>
 #include <QString>
 
-#include "filedigest.h"
-#include "indexedhash.h"
+#include <cstddef>
+
+#include <catch2/catch.hpp>
 
 inline constexpr qint64 DigestBlockSize = 5 * 1024 * 1024;
 
@@ -48,7 +47,7 @@ inline void writeFile( const QString& path, const QByteArray& content )
 inline quint64 digestOf( const QByteArray& data )
 {
     FileDigest digest;
-    digest.addData( data.constData(), static_cast<size_t>( data.size() ) );
+    digest.addData( data.constData(), static_cast<std::size_t>( data.size() ) );
     return digest.digest();
 }
 
@@ -82,5 +81,3 @@ inline IndexedHash hashOfFile( const QString& path )
     }
     return hash;
 }
-
-#endif

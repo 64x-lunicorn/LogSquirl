@@ -19,13 +19,13 @@
 
 #include "indexedhash.h"
 
-#include <algorithm>
-#include <cstddef>
+#include "filedigest.h"
 
 #include <QByteArray>
 #include <QFile>
 
-#include "filedigest.h"
+#include <algorithm>
+#include <cstddef>
 
 namespace {
 

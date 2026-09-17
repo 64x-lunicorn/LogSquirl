@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <limits>
 #include <utility>
@@ -118,12 +120,12 @@ const LogFileBottom& TextViewScrolling::logFileBottom() const
     return *logFileBottom_;
 }
 
-int64_t TextViewScrolling::visualLinesPerPage() const
+std::int64_t TextViewScrolling::visualLinesPerPage() const
 {
-    return static_cast<int64_t>( ViewportLayout{ layoutInput() }.visualLinesPerPage().get() );
+    return static_cast<std::int64_t>( ViewportLayout{ layoutInput() }.visualLinesPerPage().get() );
 }
 
-size_t TextViewScrolling::visualLineCount( LineNumber line, LineLength columns ) const
+std::size_t TextViewScrolling::visualLineCount( LineNumber line, LineLength columns ) const
 {
     if ( !textWrap_ ) {
         return 1;
@@ -208,7 +210,7 @@ ScrollAnswer TextViewScrolling::scrollTo( ScrollPosition position )
     return answer( true );
 }
 
-ScrollAnswer TextViewScrolling::scrollByVisualLines( int64_t visualLines )
+ScrollAnswer TextViewScrolling::scrollByVisualLines( std::int64_t visualLines )
 {
     const auto columns = ViewportLayout{ layoutInput() }.visibleColumns();
     return scrollTo( moveScrollPosition(
@@ -216,7 +218,7 @@ ScrollAnswer TextViewScrolling::scrollByVisualLines( int64_t visualLines )
         [ this, columns ]( LineNumber line ) { return visualLineCount( line, columns ); } ) );
 }
 
-ScrollAnswer TextViewScrolling::stepVisualLines( int64_t visualLines )
+ScrollAnswer TextViewScrolling::stepVisualLines( std::int64_t visualLines )
 {
     ScrollAnswer result;
     if ( visualLines < 0 && follow_ ) {
@@ -289,7 +291,7 @@ ScrollAnswer TextViewScrolling::turnWheel( const WheelTurn& turn )
     return result;
 }
 
-int64_t TextViewScrolling::wheelVisualLines( const WheelTurn& turn )
+std::int64_t TextViewScrolling::wheelVisualLines( const WheelTurn& turn )
 {
     // What QScrollBar makes of a wheel turn, with Visual Lines for its steps:
     // linesPerNotch per notch, a fraction of a step carried over to the next
@@ -298,10 +300,10 @@ int64_t TextViewScrolling::wheelVisualLines( const WheelTurn& turn )
     const auto notches
         = static_cast<double>( turn.angleDeltaY ) / static_cast<double>( DeltasPerNotch );
 
-    int64_t visualLinesUp = 0;
+    std::int64_t visualLinesUp = 0;
     if ( turn.pageHeld ) {
         wheelVisualLinesPending_ = 0;
-        visualLinesUp = static_cast<int64_t>( notches * static_cast<double>( page ) );
+        visualLinesUp = static_cast<std::int64_t>( notches * static_cast<double>( page ) );
     }
     else {
         const auto turned = turn.linesPerNotch * notches;
@@ -310,7 +312,7 @@ int64_t TextViewScrolling::wheelVisualLines( const WheelTurn& turn )
             wheelVisualLinesPending_ = 0;
         }
         wheelVisualLinesPending_ += turned;
-        visualLinesUp = static_cast<int64_t>( wheelVisualLinesPending_ );
+        visualLinesUp = static_cast<std::int64_t>( wheelVisualLinesPending_ );
         wheelVisualLinesPending_ -= static_cast<double>( visualLinesUp );
     }
 

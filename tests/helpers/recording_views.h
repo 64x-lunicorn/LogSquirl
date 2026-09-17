@@ -17,16 +17,15 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef RECORDING_VIEWS_H
-#define RECORDING_VIEWS_H
+#pragma once
+
+#include "viewinterface.h"
+
+#include <QString>
 
 #include <memory>
 #include <utility>
 #include <vector>
-
-#include <QString>
-
-#include "viewinterface.h"
 
 // The views of a Log File as a test sees them: the second adapter behind the
 // seam the Session builds a Log File's views through (#248), next to the
@@ -99,5 +98,3 @@ private:
     ViewBuild build_;
     std::vector<ViewChange> changes_;
 };
-
-#endif

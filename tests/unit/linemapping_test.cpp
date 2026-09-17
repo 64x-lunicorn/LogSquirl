@@ -20,20 +20,20 @@
 // A text view is handed a LineMapping (#243): what it asks of one is tested
 // here over a mapping whose shown Log Lines and Marks are plain vectors.
 
-#include <catch2/catch.hpp>
+#include "abstractlogview.h"
+#include "fake_log_data.h"
+#include "linemapping.h"
+#include "quickfindpattern.h"
+#include "selection.h"
+
+#include <QSignalSpy>
 
 #include <algorithm>
 #include <iterator>
 #include <memory>
 #include <vector>
 
-#include <QSignalSpy>
-
-#include "abstractlogview.h"
-#include "fake_log_data.h"
-#include "linemapping.h"
-#include "quickfindpattern.h"
-#include "selection.h"
+#include <catch2/catch.hpp>
 
 namespace {
 

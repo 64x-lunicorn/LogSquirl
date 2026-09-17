@@ -17,8 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef GENERATED_LOG_LINES_H
-#define GENERATED_LOG_LINES_H
+#pragma once
 
 // The Log Lines the scrolling benchmarks scroll through: a million of them,
 // generated from their number, so that reading one costs the same wherever it
@@ -29,17 +28,17 @@
 // Uses nothing newer than what origin/master had before #246, so that the text
 // view benchmark can be built on both sides of an A/B comparison.
 
-#include <cstdint>
-
 #include <QLatin1Char>
 #include <QString>
 
+#include <cstdint>
+
 namespace scrollingbenchmark {
 
-constexpr uint64_t LogLineCount = 1'000'000;
+constexpr std::uint64_t LogLineCount = 1'000'000;
 constexpr int LongestLogLine = 40 + 560;
 
-inline QString generatedLogLine( uint64_t index )
+inline QString generatedLogLine( std::uint64_t index )
 {
     // A cheap scramble, so that neighbouring Log Lines differ in length.
     const auto scrambled = ( index * 2654435761u ) % 1000u;
@@ -55,5 +54,3 @@ inline QString generatedLogLine( uint64_t index )
 }
 
 } // namespace scrollingbenchmark
-
-#endif

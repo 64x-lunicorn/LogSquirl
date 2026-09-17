@@ -17,8 +17,14 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef IN_MEMORY_BLOCK_SOURCE_H
-#define IN_MEMORY_BLOCK_SOURCE_H
+#pragma once
+
+#include "searchblocksource.h"
+
+#include <QByteArray>
+#include <QString>
+#include <QStringList>
+#include <QTextCodec>
 
 #include <atomic>
 #include <condition_variable>
@@ -29,13 +35,6 @@
 #include <string>
 #include <utility>
 #include <vector>
-
-#include <QByteArray>
-#include <QString>
-#include <QStringList>
-#include <QTextCodec>
-
-#include "searchblocksource.h"
 
 // Log Lines held in memory, handed to a Search as UTF-8 blocks: no file on
 // disk and no indexing. Safe to use from the Search's threads while the test
@@ -182,5 +181,3 @@ private:
 
     mutable std::atomic<int> attachedReaders_{ 0 };
 };
-
-#endif // IN_MEMORY_BLOCK_SOURCE_H

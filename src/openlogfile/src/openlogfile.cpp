@@ -19,14 +19,14 @@
 
 #include "openlogfile.h"
 
-#include <utility>
-
 #include "filewatchport.h"
 #include "formatrecognition.h"
 #include "log.h"
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
+
+#include <utility>
 
 OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
                           const FileAccessPolicy& fileAccessPolicy,

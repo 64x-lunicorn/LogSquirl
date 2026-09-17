@@ -17,17 +17,16 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LINEMAPPING_H
-#define LINEMAPPING_H
-
-#include <optional>
-#include <utility>
+#pragma once
 
 #include "abstractlogdata.h"
 #include "containers.h"
 #include "linessaver.h"
 #include "linetypes.h"
 #include "quickfind.h"
+
+#include <optional>
+#include <utility>
 
 class LogFilteredData;
 
@@ -130,5 +129,3 @@ public:
 private:
     const LogFilteredData* filteredData_;
 };
-
-#endif

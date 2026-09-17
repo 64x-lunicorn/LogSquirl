@@ -24,16 +24,16 @@
 //
 // See tests/benchmarks/README.md for how to run this and compare two runs.
 
-#define CATCH_CONFIG_ENABLE_BENCHMARKING
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
-
-#include <algorithm>
+#include "generated_log_lines.h"
+#include "textviewscrolling.h"
 
 #include <QCoreApplication>
 
-#include "generated_log_lines.h"
-#include "textviewscrolling.h"
+#include <algorithm>
+
+#define CATCH_CONFIG_ENABLE_BENCHMARKING
+#define CATCH_CONFIG_RUNNER
+#include <catch2/catch.hpp>
 
 namespace {
 

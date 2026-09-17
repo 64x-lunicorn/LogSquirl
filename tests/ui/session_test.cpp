@@ -17,13 +17,6 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
-
-#include <memory>
-#include <vector>
-
-#include <QTemporaryFile>
-
 #include "recording_views.h"
 #include "test_policies.h"
 
@@ -31,6 +24,13 @@
 #include "openlogfile.h"
 #include "savedsearches.h"
 #include "session.h"
+
+#include <QTemporaryFile>
+
+#include <memory>
+#include <vector>
+
+#include <catch2/catch.hpp>
 
 // The Session builds the views of every Log File it opens through one seam
 // (#248): one value to build them from, and afterwards only what changed and

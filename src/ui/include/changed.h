@@ -17,8 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef CHANGED_H
-#define CHANGED_H
+#pragma once
 
 // What a writer tells the Session it has changed -- all it says: the Session
 // works out what follows from it and who has to hear of it (#245).
@@ -34,5 +33,3 @@ enum class Changed {
     // color. Highlighter Sets are the user's coloring, not a setting.
     HighlighterSets,
 };
-
-#endif

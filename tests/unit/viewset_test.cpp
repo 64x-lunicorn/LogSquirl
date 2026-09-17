@@ -22,13 +22,13 @@
 // view added later -- a kept Search's Filtered View -- starts with all of it
 // (#242).
 
-#include <catch2/catch.hpp>
-
-#include <algorithm>
-#include <memory>
-#include <optional>
-#include <utility>
-#include <vector>
+#include "filteredview.h"
+#include "logdata.h"
+#include "logfiltereddata.h"
+#include "logpresentation.h"
+#include "quickfindpattern.h"
+#include "test_policies.h"
+#include "viewset.h"
 
 #include <QCoreApplication>
 #include <QFont>
@@ -38,13 +38,13 @@
 #include <QShortcut>
 #include <QString>
 
-#include "filteredview.h"
-#include "logdata.h"
-#include "logfiltereddata.h"
-#include "logpresentation.h"
-#include "quickfindpattern.h"
-#include "test_policies.h"
-#include "viewset.h"
+#include <algorithm>
+#include <memory>
+#include <optional>
+#include <utility>
+#include <vector>
+
+#include <catch2/catch.hpp>
 
 struct ViewSetTest {};
 
@@ -183,7 +183,7 @@ QFont handedFont()
 
 ViewSet::ColorLabels handedColorLabels()
 {
-    auto labels = ViewSet::ColorLabels( 9 );
+    auto labels = ViewSet::ColorLabels( ViewSet::ColorLabelCount );
     labels[ 0 ] << QStringLiteral( "warning" );
     labels[ 4 ] << QStringLiteral( "timeout" ) << QStringLiteral( "retry" );
     return labels;

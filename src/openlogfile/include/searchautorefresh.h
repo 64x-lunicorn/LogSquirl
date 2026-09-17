@@ -17,8 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef SEARCHAUTOREFRESH_H
-#define SEARCHAUTOREFRESH_H
+#pragma once
 
 // Whether the Search of an Open Log File follows the Log File as it changes
 // on disk: the auto-refresh state machine. It decides whether a Search may be
@@ -53,11 +52,13 @@ public:
     // A Search was started: auto-refreshed if the user asked for it.
     void startSearch();
 
+    // Where the Search stands in the auto-refresh state machine.
     State state() const
     {
         return state_;
     }
 
+    // Whether the user asked for auto-refresh, whether or not it is suspended.
     bool isAutoRefreshRequested() const
     {
         return autoRefreshRequested_;
@@ -69,6 +70,7 @@ public:
         return state_ == State::Autorefreshing || state_ == State::TruncatedAutorefreshing;
     }
 
+    // Whether the Log File was truncated under the Search.
     bool isFileTruncated() const
     {
         return state_ == State::FileTruncated || state_ == State::TruncatedAutorefreshing;
@@ -78,5 +80,3 @@ private:
     State state_ = State::NoSearch;
     bool autoRefreshRequested_ = false;
 };
-
-#endif

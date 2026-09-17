@@ -21,12 +21,6 @@
 // the Displayed Lines: a Mark or a Match added above the selection leaves it
 // on the same Log Line (#243).
 
-#include <catch2/catch.hpp>
-
-#include <QShortcut>
-#include <QSignalSpy>
-#include <QTemporaryFile>
-
 #include "configuration.h"
 #include "filteredview.h"
 #include "logdata.h"
@@ -36,6 +30,12 @@
 #include "shortcuts.h"
 #include "test_policies.h"
 #include "test_utils.h"
+
+#include <QShortcut>
+#include <QSignalSpy>
+#include <QTemporaryFile>
+
+#include <catch2/catch.hpp>
 
 namespace {
 

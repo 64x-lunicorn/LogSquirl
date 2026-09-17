@@ -17,7 +17,13 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include "in_memory_block_source.h"
+#include "logfiltereddataworker.h"
+#include "regularexpression.h"
+#include "test_policies.h"
+
+#include <QObject>
+#include <QString>
 
 #include <atomic>
 #include <cstdint>
@@ -25,13 +31,7 @@
 #include <optional>
 #include <stdexcept>
 
-#include <QObject>
-#include <QString>
-
-#include "in_memory_block_source.h"
-#include "logfiltereddataworker.h"
-#include "regularexpression.h"
-#include "test_policies.h"
+#include <catch2/catch.hpp>
 
 namespace {
 

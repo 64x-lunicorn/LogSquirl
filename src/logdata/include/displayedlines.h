@@ -17,14 +17,13 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LOGSQUIRL_DISPLAYED_LINES_H
-#define LOGSQUIRL_DISPLAYED_LINES_H
-
-#include <functional>
+#pragma once
 
 #include "abstractlogdata.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
+
+#include <functional>
 
 // The Displayed Lines: the Log Lines the Filtered View shows, in order --
 // the Matches, the Marks and, while they are shown, the Context Lines around
@@ -117,5 +116,3 @@ private:
     SearchResultArray combinedLines_;
     Source source_ = Source::Matches;
 };
-
-#endif

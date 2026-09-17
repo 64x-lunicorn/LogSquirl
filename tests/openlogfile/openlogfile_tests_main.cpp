@@ -20,14 +20,14 @@
 // Runner for the Open Log File's tests. It uses QCoreApplication on purpose:
 // the Open Log File follows a Log File without any widget (#244).
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include "linetypes.h"
+#include "searchsession.h"
 
 #include <QCoreApplication>
 #include <QMetaType>
 
-#include "linetypes.h"
-#include "searchsession.h"
+#define CATCH_CONFIG_RUNNER
+#include <catch2/catch.hpp>
 
 int main( int argc, char* argv[] )
 {

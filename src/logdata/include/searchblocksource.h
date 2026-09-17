@@ -17,19 +17,18 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LOGSQUIRL_SEARCH_BLOCK_SOURCE_H
-#define LOGSQUIRL_SEARCH_BLOCK_SOURCE_H
+#pragma once
 
-#include <string_view>
+#include "containers.h"
+#include "encodingdetector.h"
+#include "linetypes.h"
 
 #include <QRegularExpression>
 #include <QString>
 #include <QTextCodec>
 #include <QtGlobal>
 
-#include "containers.h"
-#include "encodingdetector.h"
-#include "linetypes.h"
+#include <string_view>
 
 // A block of raw Log Lines [startLine, startLine + endOfLines.size()): the
 // bytes as they are in the Log File, where each Log Line ends, and how to
@@ -84,5 +83,3 @@ public:
     virtual void attachReader() const = 0;
     virtual void detachReader() const = 0;
 };
-
-#endif

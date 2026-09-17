@@ -17,19 +17,18 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef FAKE_FILE_WATCH_H
-#define FAKE_FILE_WATCH_H
+#pragma once
 
-#include <algorithm>
-#include <vector>
+#include "policyfilewatchport.h"
+#include "settingspolicies.h"
 
 #include <QByteArray>
 #include <QFile>
 #include <QIODevice>
 #include <QString>
 
-#include "policyfilewatchport.h"
-#include "settingspolicies.h"
+#include <algorithm>
+#include <vector>
 
 // A File Watch Port that watches nothing on its own: it reports a change to a
 // watched file when a test says so, at once, with no watcher, no polling and
@@ -127,5 +126,3 @@ private:
     std::vector<WatchPolicy> watchPolicies_;
     int replacements_ = 0;
 };
-
-#endif

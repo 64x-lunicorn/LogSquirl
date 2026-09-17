@@ -21,14 +21,6 @@
 // "previous Mark" up to the nearest Mark above, in the main view and in the
 // Filtered View alike; with no Mark further that way neither moves (#233).
 
-#include <catch2/catch.hpp>
-
-#include <cstdint>
-
-#include <QShortcut>
-#include <QSignalSpy>
-#include <QTemporaryFile>
-
 #include "configuration.h"
 #include "filteredview.h"
 #include "logdata.h"
@@ -39,6 +31,14 @@
 #include "shortcuts.h"
 #include "test_policies.h"
 #include "test_utils.h"
+
+#include <QShortcut>
+#include <QSignalSpy>
+#include <QTemporaryFile>
+
+#include <cstdint>
+
+#include <catch2/catch.hpp>
 
 namespace {
 

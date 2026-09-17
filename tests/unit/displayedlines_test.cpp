@@ -17,13 +17,13 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include "displayedlines.h"
 
 #include <cstdint>
 #include <initializer_list>
 #include <vector>
 
-#include "displayedlines.h"
+#include <catch2/catch.hpp>
 
 // The Displayed Lines over plain bitmaps: the Matches stand in for the ones
 // a Search Session holds, and the Log File is just a line count.

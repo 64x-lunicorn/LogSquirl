@@ -17,8 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef POLICYFILEWATCHPORT_H
-#define POLICYFILEWATCHPORT_H
+#pragma once
 
 #include "filewatchport.h"
 #include "settingspolicies.h"
@@ -36,5 +35,3 @@ public:
     // included.
     virtual void setWatchPolicy( const WatchPolicy& policy ) = 0;
 };
-
-#endif
