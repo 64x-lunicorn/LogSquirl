@@ -69,6 +69,8 @@
 #include <QShortcut>
 #include <QStandardItemModel>
 #include <QStringListModel>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QTimer>
 #include <qglobal.h>
 #include <qobject.h>
@@ -107,6 +109,31 @@ void offerIssueReport( const QString& failure )
         IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, failure );
     } );
 }
+
+// The Search line keeps room for this many characters, whatever else is in
+// its row (#261).
+constexpr int SearchLineMinimumCharacters = 20;
+
+// A combo box that gives way when its row runs out of width: it keeps the
+// width of its longest item while there is room, and shrinks down to a few
+// characters of its font before the Search line has to (#261).
+class YieldingComboBox : public QComboBox {
+public:
+    QSize minimumSizeHint() const override
+    {
+        constexpr int MinimumCharacters = 5;
+
+        QStyleOptionComboBox option;
+        initStyleOption( &option );
+        const auto contents
+            = QSize( fontMetrics().horizontalAdvance( QLatin1Char( 'X' ) ) * MinimumCharacters,
+                     fontMetrics().height() );
+        const auto minimum
+            = style()->sizeFromContents( QStyle::CT_ComboBox, &option, contents, this );
+        return { std::min( minimum.width(), QComboBox::minimumSizeHint().width() ),
+                 QComboBox::minimumSizeHint().height() };
+    }
+};
 
 } // namespace
 
@@ -1224,7 +1251,7 @@ void CrawlerWidget::setup()
     visibilityView->setMovement( QListView::Static );
     // visibilityView->setMinimumWidth( 170 ); // Only needed with custom style-sheet
 
-    visibilityBox_ = new QComboBox();
+    visibilityBox_ = new YieldingComboBox();
     visibilityBox_->setModel( visibilityModel_ );
     visibilityBox_->setView( visibilityView );
 
@@ -1257,7 +1284,10 @@ void CrawlerWidget::setup()
     searchInfoLine_->setFrameStyle( QFrame::StyledPanel );
     searchInfoLine_->setFrameShadow( QFrame::Sunken );
     searchInfoLine_->setLineWidth( 1 );
-    searchInfoLine_->setSizePolicy( QSizePolicy::Minimum, QSizePolicy::Minimum );
+    // The match count gives way to the Search line when the row runs out of
+    // width: it elides rather than keep the width of its whole text (#261).
+    searchInfoLine_->setSizePolicy( QSizePolicy::Preferred, QSizePolicy::Minimum );
+    searchInfoLine_->setElidesText( true );
     auto searchInfoLineSizePolicy = searchInfoLine_->sizePolicy();
     searchInfoLineSizePolicy.setRetainSizeWhenHidden( false );
     searchInfoLine_->setSizePolicy( searchInfoLineSizePolicy );
@@ -1307,6 +1337,9 @@ void CrawlerWidget::setup()
     searchLineEdit_->addItems( savedSearches_->recentSearches() );
     searchLineEdit_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
     searchLineEdit_->setSizeAdjustPolicy( QComboBox::AdjustToMinimumContentsLengthWithIcon );
+    // Whatever else is in the row, the Search line keeps room for about 20
+    // characters of the font it shows (#261).
+    searchLineEdit_->setMinimumContentsLength( SearchLineMinimumCharacters );
     searchLineEdit_->lineEdit()->setMaxLength( std::numeric_limits<int>::max() / 1024 );
     searchLineEdit_->setContentsMargins( 2, 2, 2, 2 );
     searchLineEdit_->setAccessibleName( tr( "Search pattern" ) );

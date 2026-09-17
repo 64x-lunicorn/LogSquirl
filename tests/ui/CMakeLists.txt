@@ -17,6 +17,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/settings_during_run_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filterspanel_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_switch_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sidebar_layout_test.cpp
 )
 
 if(NOT APPLE)
