@@ -1,21 +1,5 @@
-# The port an Open Log File hears about changes on disk through (#249). The
-# log data and the Open Log File link only this, never the watcher below: a
-# lookup of the watcher from the engine is a build error.
-add_library(
-  logsquirl_filewatch_port STATIC ${CMAKE_CURRENT_SOURCE_DIR}/port/include/filewatchport.h
-                              ${CMAKE_CURRENT_SOURCE_DIR}/port/include/policyfilewatchport.h
-                              ${CMAKE_CURRENT_SOURCE_DIR}/port/src/filewatchport.cpp
-)
-
-set_target_properties(logsquirl_filewatch_port PROPERTIES AUTOMOC ON)
-
-target_include_directories(logsquirl_filewatch_port PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/port/include")
-# The Watch Policy is a Settings Policy: the port names it, the settings store
-# it does not.
-target_link_libraries(logsquirl_filewatch_port PUBLIC project_options project_warnings Qt6::Core
-                                                      logsquirl_policies)
-
-# The efsw-based watcher: the adapter the application hands over.
+# The efsw-based watcher: the adapter the application hands over. The port
+# it implements is its own module, src/filewatch_port.
 add_library(
   logsquirl_filewatch STATIC ${CMAKE_CURRENT_SOURCE_DIR}/include/filewatcher.h
                          ${CMAKE_CURRENT_SOURCE_DIR}/src/filewatcher.cpp
@@ -37,6 +21,5 @@ target_link_libraries(
 )
 
 if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_filewatch_port PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
   set_property(TARGET logsquirl_filewatch PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
