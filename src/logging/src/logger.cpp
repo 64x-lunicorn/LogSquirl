@@ -21,18 +21,24 @@
 #include "log.h"
 
 #include <atomic>
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <shared_mutex>
 
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
-#include <QTextStream>
 
 namespace logging {
+
+// log.h's inline needLogging() mirrors LogLevel with plain numbers.
+static_assert( detail::logLevelOf( QtFatalMsg ) == static_cast<uint8_t>( LogLevel::Fatal ) );
+static_assert( detail::logLevelOf( QtCriticalMsg ) == static_cast<uint8_t>( LogLevel::Error ) );
+static_assert( detail::logLevelOf( QtWarningMsg ) == static_cast<uint8_t>( LogLevel::Warning ) );
+static_assert( detail::logLevelOf( QtInfoMsg ) == static_cast<uint8_t>( LogLevel::Info ) );
+static_assert( detail::logLevelOf( QtDebugMsg ) == static_cast<uint8_t>( LogLevel::Debug ) );
 
 void logsquirlFileMessageHandler( QtMsgType type, const QMessageLogContext& context,
                                   const QString& msg );
@@ -63,14 +69,20 @@ public:
         // reallocation on Windows CI, never locally).
         ScopedLock lock( mutex_ );
 
-        const auto formattedMessage = qFormatLogMessage( type, context, msg );
-        const auto messageToPrint = formattedMessage.toUtf8();
+        auto messageToPrint = qFormatLogMessage( type, context, msg ).toUtf8();
+        messageToPrint.append( '\n' );
 
-        QTextStream ts( logFile_.get() );
-        ts << messageToPrint << '\n';
+        const auto flush = shouldFlush( type );
+
+        if ( logFile_ ) {
+            logFile_->write( messageToPrint );
+            if ( flush ) {
+                logFile_->flush();
+            }
+        }
 
         if ( isConsoleLogEnabled_ ) {
-            std::cout << messageToPrint.constData() << std::endl;
+            writeToConsole( messageToPrint, flush );
         }
     }
 
@@ -85,10 +97,10 @@ public:
         // must happen under the lock, not before it.
         ScopedLock lock( mutex_ );
 
-        const auto formattedMessage = qFormatLogMessage( type, context, msg );
-        const auto messageToPrint = formattedMessage.toUtf8();
+        auto messageToPrint = qFormatLogMessage( type, context, msg ).toUtf8();
+        messageToPrint.append( '\n' );
 
-        std::cout << messageToPrint.constData() << std::endl;
+        writeToConsole( messageToPrint, shouldFlush( type ) );
     }
 
     void enableLogging( bool isEnabled, uint8_t logLevel )
@@ -135,19 +147,37 @@ public:
         return isConsoleLogEnabled_ || isFileLogEnabled_;
     }
 
-    bool needLogging( QtMsgType type ) const
-    {
-        if ( !isAnyEnabled() || static_cast<uint8_t>( logLevel( type ) ) > logLevel_ ) {
-            return false;
-        }
-        return true;
-    }
-
 private:
     Logger() = default;
 
+    // Writing is buffered: flushing every message (std::endl) cost a
+    // syscall per log line. Errors and fatal messages are still flushed
+    // at once so they survive a crash that follows them; everything else
+    // is flushed at least once a second and at shutdown (QFile and
+    // std::cout flush when they are destroyed).
+    bool shouldFlush( QtMsgType type )
+    {
+        const auto now = std::chrono::steady_clock::now();
+        if ( type == QtFatalMsg || type == QtCriticalMsg || now - lastFlush_ >= FlushInterval ) {
+            lastFlush_ = now;
+            return true;
+        }
+        return false;
+    }
+
+    static void writeToConsole( const QByteArray& message, bool flush )
+    {
+        std::cout.write( message.constData(), message.size() );
+        if ( flush ) {
+            std::cout.flush();
+        }
+    }
+
     void setMessageHandler()
     {
+        detail::maxLogLevel = static_cast<uint8_t>( logLevel_ );
+        detail::isAnyLogEnabled = isAnyEnabled();
+
         if ( !isAnyEnabled() ) {
             qInstallMessageHandler( logging::logsquirlNoopMessageHandler );
         }
@@ -160,29 +190,12 @@ private:
     }
 
 private:
-    static LogLevel logLevel( QtMsgType type )
-    {
-        switch ( type ) {
-        case QtFatalMsg:
-            return LogLevel::Fatal;
-        case QtCriticalMsg:
-            return LogLevel::Error;
+    static constexpr auto FlushInterval = std::chrono::seconds( 1 );
 
-        case QtWarningMsg:
-            return LogLevel::Warning;
+    std::mutex mutex_;
+    using ScopedLock = std::scoped_lock<std::mutex>;
 
-        case QtInfoMsg:
-            return LogLevel::Info;
-        case QtDebugMsg:
-            return LogLevel::Debug;
-        default:
-            return LogLevel::Info;
-        }
-    }
-
-private:
-    mutable std::shared_mutex mutex_;
-    using ScopedLock = std::unique_lock<std::shared_mutex>;
+    std::chrono::steady_clock::time_point lastFlush_;
 
     std::atomic_bool isConsoleLogEnabled_ = false;
     std::atomic_bool isFileLogEnabled_ = false;
@@ -212,11 +225,6 @@ void logsquirlConsoleMessageHandler( QtMsgType type, const QMessageLogContext& c
                                      const QString& msg )
 {
     Logger::instance().consoleMessageHandler( type, context, msg );
-}
-
-bool needLogging( QtMsgType type )
-{
-    return Logger::instance().needLogging( type );
 }
 
 } // namespace logging
