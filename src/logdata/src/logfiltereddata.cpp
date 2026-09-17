@@ -43,8 +43,8 @@
 #include "log.h"
 
 #include <QString>
-#include <QTimer>
 
+#include <algorithm>
 #include <functional>
 #include <numeric>
 #include <vector>
@@ -65,19 +65,13 @@ LogFilteredData::~LogFilteredData()
 // Usual constructor: just copy the data, the search is started by request()
 LogFilteredData::LogFilteredData( const LogData* logData, const SearchPolicy& searchPolicy )
     : AbstractLogData()
-    , matching_lines_( SearchResultArray() )
-    , visibility_()
-    , session_( *logData, searchPolicy )
+    , sourceLogData_( logData )
+    , maxLengthMarks_( 0_length )
+    , session_( logData->searchBlockSource(), searchPolicy )
+    , displayedLines_(
+          session_.matches(), [ logData ] { return logData->getNbLine(); },
+          searchPolicy.contextLinesCount )
 {
-    // Starts with an empty result list
-    maxLength_ = 0_length;
-    maxLengthMarks_ = 0_length;
-    nbLinesProcessed_ = 0_lcount;
-
-    sourceLogData_ = logData;
-
-    visibility_ = VisibilityFlags::Marks | VisibilityFlags::Matches;
-
     connect( &session_, &SearchSession::stateChanged, this,
              &LogFilteredData::handleSessionStateChanged );
 }
@@ -127,12 +121,6 @@ LineNumber LogFilteredData::getLineIndexNumber( LineNumber lineNumber ) const
     return findFilteredLine( lineNumber );
 }
 
-// Scan the list for the 'lineNumber' passed
-bool LogFilteredData::isLineMatched( LineNumber lineNumber ) const
-{
-    return matching_lines_.contains( lineNumber.get() );
-}
-
 LinesCount LogFilteredData::getNbTotalLines() const
 {
     return sourceLogData_->getNbLine();
@@ -140,17 +128,17 @@ LinesCount LogFilteredData::getNbTotalLines() const
 
 LinesCount LogFilteredData::getNbMatches() const
 {
-    return LinesCount( matching_lines_.cardinality() );
+    return LinesCount( session_.matches().cardinality() );
 }
 
 LinesCount LogFilteredData::getNbMarks() const
 {
-    return LinesCount( marks_.cardinality() );
+    return LinesCount( displayedLines_.marks().cardinality() );
 }
 
 SearchResultArray LogFilteredData::copyDisplayedLines() const
 {
-    return currentResultArray();
+    return displayedLines_.lines();
 }
 
 const LogData& LogFilteredData::sourceLogData() const
@@ -165,26 +153,13 @@ LogFilteredData::LineType LogFilteredData::lineTypeByIndex( LineNumber index ) c
 
 LogFilteredData::LineType LogFilteredData::lineTypeByLine( LineNumber lineNumber ) const
 {
-    LineType line_type = LineTypeFlags::Plain;
-
-    if ( isLineMarked( lineNumber ) )
-        line_type |= LineTypeFlags::Mark;
-
-    if ( isLineMatched( lineNumber ) )
-        line_type |= LineTypeFlags::Match;
-
-    // Mark as context only if line is not already a match or mark
-    if ( line_type == LineTypeFlags::Plain && session_.contextLines().contains( lineNumber.get() ) )
-        line_type |= LineTypeFlags::Context;
-
-    return line_type;
+    return displayedLines_.lineType( lineNumber );
 }
 
 void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>& callback ) const
 {
     using CallbackFn = std::function<void( LineNumber )>;
-    const auto& currentResults = currentResultArray();
-    currentResults.iterate(
+    displayedLines_.lines().iterate(
         []( uint64_t line, void* context ) -> bool {
             auto* callbackFn = static_cast<CallbackFn*>( context );
             callbackFn->operator()( LineNumber( line ) );
@@ -195,34 +170,21 @@ void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>&
 
 void LogFilteredData::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
-    // Marks are the one input to Context Lines the Session doesn't own, so
-    // push the current set before handing over a Policy that may make it
-    // rebuild them.
-    session_.setMarks( marks_ );
     session_.setSearchPolicy( searchPolicy );
-    refreshDisplayedLines();
+    displayedLines_.setContextLinesCount( searchPolicy.contextLinesCount );
 }
 
-void LogFilteredData::rebuildContextLines()
-{
-    // Marks are the one input to Context Lines the Session doesn't own;
-    // push the current set before asking it to recompute.
-    session_.setMarks( marks_ );
-    session_.rebuildContextLines();
-    refreshDisplayedLines();
-}
-
-// Delegation to our Marks object
+// Delegation to the Displayed Lines
 
 void LogFilteredData::toggleMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
-        if ( !marks_.addChecked( line.get() ) ) {
-            marks_.remove( line.get() );
-            updateMaxLengthMarks( {}, line );
+        if ( displayedLines_.addMark( line ) ) {
+            updateMaxLengthMarks( line, {} );
         }
         else {
-            updateMaxLengthMarks( line, {} );
+            displayedLines_.removeMark( line );
+            updateMaxLengthMarks( {}, line );
         }
     }
     else {
@@ -233,7 +195,7 @@ void LogFilteredData::toggleMark( LineNumber line )
 void LogFilteredData::addMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
-        marks_.add( line.get() );
+        displayedLines_.addMark( line );
         updateMaxLengthMarks( line, {} );
     }
     else {
@@ -241,52 +203,25 @@ void LogFilteredData::addMark( LineNumber line )
     }
 }
 
-bool LogFilteredData::isLineMarked( LineNumber line ) const
-{
-    return marks_.contains( line.get() );
-}
-
 OptionalLineNumber LogFilteredData::getMarkAfter( LineNumber line ) const
 {
-    OptionalLineNumber marked_line;
-    const LineNumber::UnderlyingType rank = marks_.rank( line.get() );
-    LineNumber::UnderlyingType nextMark;
-    if ( marks_.select( rank, &nextMark ) ) {
-        marked_line = LineNumber( nextMark );
-    }
-
-    return marked_line;
+    return displayedLines_.markAfter( line );
 }
 
 OptionalLineNumber LogFilteredData::getMarkBefore( LineNumber line ) const
 {
-    OptionalLineNumber marked_line;
-
-    const LineNumber::UnderlyingType rank = marks_.rank( line.get() );
-
-    if ( rank < 2 ) {
-        return marked_line;
-    }
-
-    LineNumber::UnderlyingType nextMark;
-    if ( marks_.select( rank - 2, &nextMark ) ) {
-        marked_line = LineNumber( nextMark );
-    }
-
-    return marked_line;
+    return displayedLines_.markBefore( line );
 }
 
 void LogFilteredData::deleteMark( LineNumber line )
 {
-    marks_.remove( line.get() );
+    displayedLines_.removeMark( line );
     updateMaxLengthMarks( {}, line );
 }
 
 void LogFilteredData::updateMaxLengthMarks( OptionalLineNumber added_line,
                                             OptionalLineNumber removed_line )
 {
-    marks_and_matches_ = matching_lines_ | marks_;
-
     if ( added_line.has_value() ) {
         maxLengthMarks_ = qMax( maxLengthMarks_, sourceLogData_->getLineLength( *added_line ) );
     }
@@ -296,7 +231,7 @@ void LogFilteredData::updateMaxLengthMarks( OptionalLineNumber added_line,
          && sourceLogData_->getLineLength( *removed_line ) >= maxLengthMarks_ ) {
         LOG_DEBUG << "deleteMark recalculating longest mark";
         maxLengthMarks_ = 0_length;
-        marks_.iterate(
+        displayedLines_.marks().iterate(
             []( uint64_t line, void* context ) -> bool {
                 auto* self = static_cast<LogFilteredData*>( context );
                 self->maxLengthMarks_
@@ -306,22 +241,18 @@ void LogFilteredData::updateMaxLengthMarks( OptionalLineNumber added_line,
             },
             static_cast<void*>( this ) );
     }
-
-    rebuildContextLines();
 }
 
 void LogFilteredData::clearMarks()
 {
-    marks_ = {};
-    marks_and_matches_ = matching_lines_;
+    displayedLines_.clearMarks();
     maxLengthMarks_ = 0_length;
-    rebuildContextLines();
 }
 
 QList<LineNumber> LogFilteredData::getMarks() const
 {
     QList<LineNumber> markedLines;
-    marks_.iterate(
+    displayedLines_.marks().iterate(
         []( uint64_t line, void* context ) -> bool {
             static_cast<QList<LineNumber>*>( context )->append( LineNumber( line ) );
             return true;
@@ -333,13 +264,13 @@ QList<LineNumber> LogFilteredData::getMarks() const
 
 void LogFilteredData::setVisibility( Visibility visi )
 {
-    visibility_ = visi;
-    refreshDisplayedLines();
+    // Each visibility flag has the value of the line type it shows.
+    displayedLines_.setShown( LineType::fromInt( visi.toInt() ) );
 }
 
 LogFilteredData::Visibility LogFilteredData::visibility() const
 {
-    return visibility_;
+    return Visibility::fromInt( displayedLines_.shown().toInt() );
 }
 
 //
@@ -349,55 +280,29 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
 {
     using Phase = SearchSession::Phase;
 
-    if ( state.phase == Phase::Idle || state.phase == Phase::InvalidPattern ) {
-        // Nothing was run (or the run was abandoned): nothing to keep.
-        matching_lines_ = SearchResultArray();
-        marks_and_matches_ = marks_;
-    }
-    else if ( state.fromCache || session_.currentSearchId() != lastSyncedSearchId_ ) {
-        // A cache hit, or the first notification of a run (fresh or a
-        // continuation) we have not synced from yet: session_.matches()
-        // is already exactly right, so take it wholesale rather than
-        // union it in -- this only runs once per run, not per tick. The
-        // previous marks_and_matches_ basis is stale too, so it gets the
-        // same full recompute (also a once-per-run cost, not a per-tick
-        // one).
-        matching_lines_ = session_.matches();
-        marks_and_matches_ = matching_lines_ | marks_;
-        // Drain whatever the Session already accumulated as "new" before
-        // this wholesale copy, so the next (incremental) tick doesn't
-        // re-apply matches this copy already included.
-        session_.takeNewMatches();
-    }
-    else {
-        // Another tick of a run already synced from: apply just what's
-        // new since the last tick to both bitmaps, instead of copying/
-        // re-unioning the whole (potentially large) accumulated match set
-        // every ~100ms -- marks_ hasn't changed since the last tick, so
-        // the same delta that grows matching_lines_ also grows
-        // marks_and_matches_ correctly.
-        const auto delta = session_.takeNewMatches();
-        matching_lines_ |= delta;
-        marks_and_matches_ |= delta;
-    }
-    lastSyncedSearchId_ = session_.currentSearchId();
-
-    maxLength_ = session_.maxLength();
-    nbLinesProcessed_ = session_.processedLines();
-
-    // Matches changed, and so may have the Context Lines: the Session
-    // rebuilds or clears them on completion, on a cache hit, on going idle
-    // and on an invalid pattern, and every one of those reaches us here.
-    refreshDisplayedLines();
-
-    if ( state.phase == Phase::Complete ) {
-        // Caching and the Context Lines rebuild (for a cache hit too, so
-        // Context Lines never belong to whatever ran previously) already
-        // happened inside the Session, whose own completion path this
-        // state came from.
-        LOG_INFO << "Matches size " << readableSize( matching_lines_.getSizeInBytes( false ) )
-                 << ", marks size " << readableSize( marks_.getSizeInBytes( false ) )
-                 << ", union size " << readableSize( marks_and_matches_.getSizeInBytes( false ) );
+    // The Search Session's Matches have changed by now; the Displayed Lines
+    // read them in place and only need to know how far.
+    switch ( state.phase ) {
+    case Phase::Idle:
+    case Phase::InvalidPattern:
+    case Phase::Failed:
+        // Nothing was run (or the run was abandoned or failed): nothing to keep.
+        displayedLines_.searchDiscarded();
+        break;
+    case Phase::Complete:
+        // From a real run or from the cache alike, so Context Lines never
+        // belong to whatever ran previously.
+        displayedLines_.searchCompleted();
+        LOG_INFO << "Matches size " << readableSize( session_.matches().getSizeInBytes( false ) )
+                 << ", marks size "
+                 << readableSize( displayedLines_.marks().getSizeInBytes( false ) )
+                 << ", displayed lines size "
+                 << readableSize( displayedLines_.lines().getSizeInBytes( false ) );
+        break;
+    case Phase::Running:
+    case Phase::Interrupted:
+        displayedLines_.matchesArrived();
+        break;
     }
 
     Q_EMIT searchStateChanged( state );
@@ -405,62 +310,21 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
 
 LineNumber LogFilteredData::findLogDataLine( LineNumber index ) const
 {
-    const auto& currentResults = currentResultArray();
+    const auto line = displayedLines_.logLineAt( index );
+    if ( line.has_value() ) {
+        return *line;
+    }
 
-    LineNumber::UnderlyingType line = {};
-    if ( currentResults.select( index.get(), &line ) ) {
-        return LineNumber( line );
+    if ( displayedLines_.count().get() > 0 ) {
+        LOG_ERROR << "Index too big in LogFilteredData: " << index << " cache size "
+                  << displayedLines_.count();
     }
-    else {
-        if ( !currentResults.isEmpty() ) {
-            LOG_ERROR << "Index too big in LogFilteredData: " << index << " cache size "
-                      << currentResults.cardinality();
-        }
-        return maxValue<LineNumber>();
-    }
-}
-
-const SearchResultArray& LogFilteredData::currentResultArray() const
-{
-    return context_lines_shown_ ? lines_with_context_ : baseResultArray();
-}
-
-const SearchResultArray& LogFilteredData::baseResultArray() const
-{
-    if ( visibility_.testFlag( VisibilityFlags::Marks )
-         && visibility_.testFlag( VisibilityFlags::Matches ) ) {
-        return marks_and_matches_;
-    }
-    else if ( visibility_.testFlag( VisibilityFlags::Matches ) ) {
-        return matching_lines_;
-    }
-    else {
-        return marks_;
-    }
-}
-
-void LogFilteredData::refreshDisplayedLines()
-{
-    const auto& contextLines = session_.contextLines();
-    context_lines_shown_
-        = visibility_.testFlag( VisibilityFlags::Context ) && !contextLines.isEmpty();
-
-    if ( context_lines_shown_ ) {
-        lines_with_context_ = baseResultArray() | contextLines;
-    }
-    else {
-        lines_with_context_ = SearchResultArray();
-    }
+    return maxValue<LineNumber>();
 }
 
 LineNumber LogFilteredData::findFilteredLine( LineNumber lineNum ) const
 {
-    LineNumber::UnderlyingType index = currentResultArray().rank( lineNum.get() );
-
-    if ( index > 0 ) {
-        index--;
-    }
-    return LineNumber( index );
+    return displayedLines_.positionOf( lineNum );
 }
 
 // Implementation of the virtual function.
@@ -522,14 +386,13 @@ LineNumber LogFilteredData::doGetLineNumber( LineNumber index ) const
 // Implementation of the virtual function.
 LinesCount LogFilteredData::doGetNbLine() const
 {
-    const LinesCount::UnderlyingType nbLines = currentResultArray().cardinality();
-    return LinesCount( nbLines );
+    return displayedLines_.count();
 }
 
 // Implementation of the virtual function.
 LineLength LogFilteredData::doGetMaxLength() const
 {
-    return qMax( maxLength_, maxLengthMarks_ );
+    return qMax( session_.maxLength(), maxLengthMarks_ );
 }
 
 // Implementation of the virtual function.

@@ -49,6 +49,7 @@
 #include <QStringList>
 
 #include "abstractlogdata.h"
+#include "displayedlines.h"
 #include "hsregularexpression.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
@@ -58,9 +59,10 @@
 class LogData;
 class QTimer;
 
-// A list of matches found in a LogData, it stores all the matching lines,
-// which can be accessed using the AbstractLogData interface, together with
-// the original line number where they were found.
+// The Filtered View's log data: presents the Displayed Lines (the Matches
+// of its Search Session, the Marks and the Context Lines) through the
+// AbstractLogData interface, together with the Log Line each one is, and
+// relays the Search Session's state changes.
 // Constructing such objet does not start the search.
 // This object should be constructed by a LogData.
 class LogFilteredData : public AbstractLogData {
@@ -108,7 +110,7 @@ public:
     LineType lineTypeByIndex( LineNumber index ) const;
     LineType lineTypeByLine( LineNumber lineNumber ) const;
 
-    // Marks interface (delegated to a Marks object)
+    // Marks interface (delegated to the Displayed Lines)
 
     // Add a mark at the given line
     void addMark( LineNumber line );
@@ -145,10 +147,6 @@ public:
     // was built from does the calling, so every LogFilteredData is reached,
     // not only the one the active tab happens to be showing.
     void setSearchPolicy( const SearchPolicy& searchPolicy );
-
-    // Rebuilds context (breadcrumb) lines around matches/marks.
-    // Call after search completes or contextLinesCount changes.
-    void rebuildContextLines();
 
     // The Search Session's current typed state (pattern, range, match
     // count, progress, phase, whether results came from cache).
@@ -191,55 +189,19 @@ private:
     void doAttachReader() const override;
     void doDetachReader() const override;
 
-    // Insert new mark into filteredItemsCache_.
-    void updateCacheWithMark( uint32_t index, LineNumber line );
-
-    // Returns whether the line number passed is in our list of matching ones.
-    bool isLineMatched( LineNumber lineNumber ) const;
-    // Returns wheither the passed line has a mark on it.
-    bool isLineMarked( LineNumber line ) const;
-
-    // List of the matching line numbers
-    SearchResultArray matching_lines_;
-    SearchResultArray marks_;
-    SearchResultArray marks_and_matches_;
-    // The displayed lines when Context Lines are shown: the base set chosen
-    // by the visibility united with session_.contextLines(). Built by
-    // refreshDisplayedLines() when one of its inputs changes, so a lookup
-    // only ever reads it.
-    SearchResultArray lines_with_context_;
-    // Whether lines_with_context_ is what the Filtered View shows, rather
-    // than the base set on its own (Context Lines hidden or empty).
-    bool context_lines_shown_ = false;
-
     const LogData* sourceLogData_;
 
-    LineLength maxLength_;
+    // The longest Marked Log Line, kept up to date as Marks change.
     LineLength maxLengthMarks_;
-    // Number of lines of the LogData that has been searched for:
-    LinesCount nbLinesProcessed_;
 
-    Visibility visibility_;
-
-    // Owns the pattern, the run in flight, its results and its progress.
+    // Owns the pattern, the run in flight, its Matches and its progress.
     SearchSession session_;
-
-    // The run id matching_lines_ was last synced from. When a notification
-    // carries the same id, only the delta since then needs to be applied;
-    // a different id (a new run, a continuation, a cache hit) means
-    // matching_lines_ must be replaced wholesale instead.
-    SearchId lastSyncedSearchId_{ 0 };
+    // Owns the Marks and the Context Lines, and reads session_'s Matches in
+    // place: declared after session_, so it never outlives them.
+    DisplayedLines displayedLines_;
 
 private:
     // Utility functions
-    // The displayed lines. A pure read: never builds anything.
-    const SearchResultArray& currentResultArray() const;
-    // The Matches, the Marks or both, as the visibility chooses.
-    const SearchResultArray& baseResultArray() const;
-    // Rebuilds lines_with_context_ from the base set and the Search
-    // Session's Context Lines. Called on every change to either, or to the
-    // visibility.
-    void refreshDisplayedLines();
     LineNumber findLogDataLine( LineNumber lineNum ) const;
     LineNumber findFilteredLine( LineNumber lineNum ) const;
 

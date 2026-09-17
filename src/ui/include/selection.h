@@ -28,6 +28,7 @@
 #include "linetypes.h"
 
 class AbstractLogData;
+class LineMapping;
 
 class Portion {
 public:
@@ -74,7 +75,10 @@ private:
     LineColumn endColumn_;
 };
 
-// Represents a selection in an AbstractLogView
+// Represents a selection in an AbstractLogView, in Log Lines: a Mark or a
+// Match added above it leaves it on the same Log Lines. A range holds the Log
+// Lines the view shows from its first through its last, which the view's
+// LineMapping lists.
 class Selection {
 public:
     // Construct an empty selection
@@ -137,10 +141,13 @@ public:
     // Returns whether a portion is selected or not on the passed line.
     // If so, returns the portion position.
     Portion getPortionForLine( LineNumber line ) const;
-    // Get a list of selected line(s), in order.
-    logsquirl::vector<LineNumber> getLines() const;
+    // The selected Log Line(s) lines shows, in order: a single line or a
+    // portion whether shown or not.
+    logsquirl::vector<LineNumber> getLines( const LineMapping& lines ) const;
 
-    LinesCount getSelectedLinesCount() const;
+    // How many Log Lines a range selects, as lines shows them; 0 for a single
+    // line or a portion.
+    LinesCount getSelectedLinesCount( const LineMapping& lines ) const;
 
     // Returns wether the line passed is selected (entirely).
     bool isLineSelected( LineNumber line ) const;
@@ -151,8 +158,10 @@ public:
     // Returns the line selected or -1 if not a single line selection
     OptionalLineNumber selectedLine() const;
 
-    // Returns the text selected from the passed AbstractLogData
-    QString getSelectedText( const AbstractLogData* logData, bool lineNumbers = false ) const;
+    // Returns the text selected. A range reads the lines shown by position
+    // from shownLines, the Log Lines lines shows at each position.
+    QString getSelectedText( const LineMapping& lines, const AbstractLogData& shownLines,
+                             bool lineNumbers = false ) const;
 
     // Return the position immediately after the current selection
     // (used for searches).
@@ -162,13 +171,10 @@ public:
     // Idem from the position immediately before selection.
     FilePosition getPreviousPosition() const;
 
-    // The same selection with every line number passed through map, for
-    // converting between a view's lines and Log Lines.
-    Selection mapLines( const std::function<LineNumber( LineNumber )>& map ) const;
-
 private:
     std::map<LineNumber, QString>
-    getSelectionWithLineNumbers( const AbstractLogData* logData ) const;
+    getSelectionWithLineNumbers( const LineMapping& lines,
+                                 const AbstractLogData& shownLines ) const;
 
 private:
     // Line number currently selected, or -1 if none selected

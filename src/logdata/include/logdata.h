@@ -54,13 +54,31 @@
 
 #include "abstractlogdata.h"
 #include "fileholder.h"
-#include "filewatcher.h"
 #include "loadingstatus.h"
 #include "logdataoperation.h"
 #include "logdataworker.h"
+#include "searchblocksource.h"
 #include "settingspolicies.h"
 
+class LogData;
 class LogFilteredData;
+
+// The log data as the block source a Search reads its Log Lines through.
+class LogDataBlockSource final : public SearchBlockSource {
+public:
+    explicit LogDataBlockSource( const LogData& logData )
+        : logData_( logData )
+    {
+    }
+
+    LinesCount getNbLines() const override;
+    RawLines getLinesRaw( LineNumber first, LinesCount number ) const override;
+    void attachReader() const override;
+    void detachReader() const override;
+
+private:
+    const LogData& logData_;
+};
 
 // Thrown when trying to attach an already attached LogData
 class CantReattachErr {};
@@ -131,46 +149,47 @@ public:
     // File only by reopening it, so a setter would promise more than it
     // could deliver.
 
-    struct RawLines {
-        LineNumber startLine;
-
-        logsquirl::vector<char> buffer;
-        logsquirl::vector<qint64> endOfLines;
-
-        TextDecoder textDecoder;
-
-        QRegularExpression prefilterPattern;
-
-    public:
-        logsquirl::vector<QString> decodeLines() const;
-        logsquirl::vector<std::string_view> buildUtf8View() const;
-
-    private:
-        mutable logsquirl::vector<char> utf8Data_;
-    };
+    // A block of raw Log Lines, as a Search reads them.
+    using RawLines = ::RawLines;
 
     RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
+
+    // What a Search on this Log File reads its Log Lines through. Lives as
+    // long as this object.
+    const SearchBlockSource& searchBlockSource() const;
+
+    // A change on disk was heard of for fileName: this Log File or another
+    // watched one. The Log File is checked on disk -- reopened first when it
+    // was replaced under its name -- and fileChanged() tells what changed.
+    // A change to another file is ignored unless this one was replaced.
+    //
+    // This object watches nothing itself: whoever follows the Log File
+    // hears of changes and calls this (see OpenLogFile). Call it only once a
+    // file is attached.
+    void fileChangedOnDisk( const QString& fileName );
 
 Q_SIGNALS:
     // Sent during the 'attach' process to signal progress
     // percent being the percentage of completion.
     void loadingProgressed( int percent );
-    // Signal the client the file is fully loaded and available.
-    void loadingFinished( LoadingStatus status );
+    // Signal the client the file is fully loaded and available. When
+    // loading failed, the status is Failed and failure describes what went
+    // wrong; it is empty otherwise. Reporting it is up to the client.
+    void loadingFinished( LoadingStatus status, const QString& failure = {} );
     // Sent when the file on disk has changed, will be followed
-    // by loadingProgressed if needed and then a loadingFinished.
-    void fileChanged( MonitoredFileStatus status );
+    // by loadingProgressed if needed and then a loadingFinished. When
+    // checking the file failed, failure describes what went wrong and the
+    // file is taken as truncated.
+    void fileChanged( MonitoredFileStatus status, const QString& failure = {} );
     // Sent when the Decoding Policy was replaced: every Log Line may read
     // differently now, though the Log File itself did not change.
     void decodingPolicyChanged();
 
 private Q_SLOTS:
-    // Consider reloading the file when it changes on disk updated
-    void fileChangedOnDisk( const QString& filename );
     // Called when the worker thread signals the current operation ended
-    void indexingFinished( LoadingStatus status );
+    void indexingFinished( LoadingStatus status, const QString& failure );
     // Called when the worker thread signals the current operation ended
-    void checkFileChangesFinished( MonitoredFileStatus status );
+    void checkFileChangesFinished( MonitoredFileStatus status, const QString& failure );
 
 private:
     // Implementation of virtual functions
@@ -228,6 +247,8 @@ private:
     // Read by getLinesRaw() on the Search's threads, so it is only ever
     // touched under the indexing data's lock.
     DecodingPolicy decodingPolicy_;
+
+    LogDataBlockSource searchBlockSource_{ *this };
 };
 
 #endif

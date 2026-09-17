@@ -20,6 +20,7 @@
 #include <catch2/catch.hpp>
 
 #include "logtablehighlightdelegate.h"
+#include "painting_test_font.h"
 
 #include <QApplication>
 #include <QFontMetrics>
@@ -34,6 +35,10 @@ namespace {
 
 using LineTypeFlags = AbstractLogData::LineTypeFlags;
 
+const LinePalette TestPalette{ QColor{ 10, 10, 10 }, QColor{ 250, 250, 250 },
+                               QColor{ 128, 128, 128 }, QColor{ 240, 240, 200 },
+                               QColor{ 30, 60, 200 } };
+
 HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMatch,
                                    const QColor& foreColor, const QColor& backColor )
 {
@@ -44,8 +49,10 @@ HighlighterSet setWithHighlighter( const QString& pattern, bool highlightOnlyMat
 
 LineDecorator::Context emptyDecoratorContext()
 {
-    return LineDecorator::Context{ HighlighterSet{},   std::nullopt,         {},
-                                   QuickFindMatcher{}, QColor{ Qt::yellow }, SearchLimits{} };
+    return LineDecorator::Context{
+        HighlighterSet{},     std::nullopt,   {},          QuickFindMatcher{},
+        QColor{ Qt::yellow }, SearchLimits{}, TestPalette, LineStatusDisplay::AsBackground
+    };
 }
 
 } // namespace
@@ -190,10 +197,11 @@ SCENARIO( "A whole-line Highlighter colours the whole row, not just the "
                     context, rowVerdict, 0_lnum, LineTypeFlags::Plain, "unrelated field text" );
 
                 THEN( "no bogus span leaks in from the raw line's own coordinate space -- the "
-                      "whole row's colour is applied by paint() from the row verdict above, "
-                      "not by a span here" )
+                      "cell's text carries the whole row's colour from the row verdict above" )
                 {
-                    REQUIRE( decoration.spans().empty() );
+                    REQUIRE( decoration.spans().size() == 1 );
+                    REQUIRE( decoration.spans().front().backColor() == QColor{ Qt::red } );
+                    REQUIRE( decoration.lineColors().backColor == QColor{ Qt::red } );
                 }
             }
         }
@@ -223,7 +231,7 @@ SCENARIO( "A word-only Highlighter matches the cell's own text, not the raw "
 
             THEN( "the match is positioned within the cell's own text, not the raw line's" )
             {
-                REQUIRE( decoration.spans().size() == 1 );
+                REQUIRE( decoration.spans().size() == 2 );
                 const auto& span = decoration.spans().front();
                 REQUIRE( span.startColumn() == LineColumn{ cellText.indexOf( "ERROR" ) } );
                 REQUIRE( span.size() == LineLength{ 5 } );
@@ -237,9 +245,10 @@ SCENARIO( "A word-only Highlighter matches the cell's own text, not the raw "
             const auto decoration = LogTableHighlightDelegate::decorationFor(
                 context, rowVerdict, 0_lnum, LineTypeFlags::Plain, "unrelated field" );
 
-            THEN( "no span is produced for this cell" )
+            THEN( "the cell's text is all in the row's own colours" )
             {
-                REQUIRE( decoration.spans().empty() );
+                REQUIRE( decoration.spans().size() == 1 );
+                REQUIRE( decoration.spans().front().backColor() == TestPalette.base );
             }
         }
     }
@@ -249,7 +258,7 @@ SCENARIO( "A row outside the Search Limits is subdued in the Table View, "
           "as in the text view",
           "[logtablehighlightdelegate][decorationfor]" )
 {
-    GIVEN( "a whole-line Highlighter and Search Limits restricted to lines 5-10" )
+    GIVEN( "a whole-line Highlighter and Search Limits from line 5 up to, not including, line 10" )
     {
         auto context = emptyDecoratorContext();
         context.highlighterSet
@@ -273,7 +282,9 @@ SCENARIO( "A row outside the Search Limits is subdued in the Table View, "
             {
                 const auto decoration = LogTableHighlightDelegate::decorationFor(
                     context, rowVerdict, 0_lnum, LineTypeFlags::Plain, cellText );
-                REQUIRE( decoration.spans().empty() );
+                REQUIRE( decoration.spans().size() == 1 );
+                REQUIRE( decoration.spans().front().foreColor() == TestPalette.subduedText );
+                REQUIRE( decoration.spans().front().backColor() == TestPalette.base );
             }
         }
 
@@ -286,8 +297,88 @@ SCENARIO( "A row outside the Search Limits is subdued in the Table View, "
             THEN( "the Highlighter colour still applies" )
             {
                 REQUIRE_FALSE( rowVerdict.isOutsideSearchLimits() );
-                REQUIRE_FALSE( decoration.spans().empty() );
+                REQUIRE( decoration.spans().front().backColor() == QColor{ Qt::red } );
             }
+        }
+    }
+}
+
+// The Search Limits as the Presentations hold them: half-open, from the first
+// Log Line searched up to the Log Line after the last one. The Text View's
+// painting test subdues the same Log Lines for the same limits (#232).
+namespace {
+
+const QColor SubduedTextColor{ 150, 150, 150 };
+
+// Whether paint() draws the Row of the given Log Line subdued, with the
+// Search Limits handed to the delegate the way LogTableView hands them.
+bool isRowSubdued( LineNumber logLine, LineNumber searchStart, LineNumber searchEnd )
+{
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    // One Row per Log Line, so the Row painted is the Log Line's number.
+    const auto row = static_cast<int>( logLine.get() );
+    QStandardItemModel model( row + 1, 1 );
+    model.setData( model.index( row, 0 ), "MMMMMMMM" );
+
+    LogTableHighlightDelegate delegate;
+    delegate.setSearchLimits( searchStart, searchEnd );
+
+    const QRect cellRect( 0, 0, 120, 24 );
+    QImage image( cellRect.size(), QImage::Format_ARGB32 );
+    image.fill( Qt::white );
+
+    QStyleOptionViewItem option;
+    option.rect = cellRect;
+    option.font = font;
+    option.state = QStyle::State_Enabled;
+    option.palette.setColor( QPalette::Base, Qt::white );
+    option.palette.setColor( QPalette::Text, Qt::black );
+    option.palette.setColor( QPalette::Disabled, QPalette::Text, SubduedTextColor );
+
+    QPainter painter( &image );
+    painter.setFont( font );
+    delegate.paint( &painter, option, model.index( row, 0 ) );
+    painter.end();
+
+    for ( int y = 0; y < image.height(); ++y ) {
+        for ( int x = 0; x < image.width(); ++x ) {
+            if ( image.pixel( x, y ) == SubduedTextColor.rgb() ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+SCENARIO( "The Table View subdues exactly the Log Lines outside the Search Limits",
+          "[logtablehighlightdelegate][searchlimits]" )
+{
+    GIVEN( "Search Limits from Log Line 8 up to, not including, Log Line 12" )
+    {
+        const auto searchStart = 8_lnum;
+        const auto searchEnd = 12_lnum;
+
+        THEN( "the Log Line before the first one searched is subdued" )
+        {
+            REQUIRE( isRowSubdued( 7_lnum, searchStart, searchEnd ) );
+        }
+
+        THEN( "the first Log Line searched is not subdued" )
+        {
+            REQUIRE_FALSE( isRowSubdued( 8_lnum, searchStart, searchEnd ) );
+        }
+
+        THEN( "the last Log Line searched is not subdued" )
+        {
+            REQUIRE_FALSE( isRowSubdued( 11_lnum, searchStart, searchEnd ) );
+        }
+
+        THEN( "the Log Line directly after the end is subdued" )
+        {
+            REQUIRE( isRowSubdued( 12_lnum, searchStart, searchEnd ) );
         }
     }
 }
@@ -312,8 +403,8 @@ SCENARIO( "Main search matches are highlighted in the Table View",
 
             THEN( "the matched word carries the main search colour" )
             {
-                REQUIRE( decoration.spans().size() == 1 );
-                const auto& span = decoration.spans().front();
+                REQUIRE( decoration.spans().size() == 3 );
+                const auto& span = decoration.spans()[ 1 ];
                 REQUIRE( span.startColumn() == LineColumn{ cellText.indexOf( "field" ) } );
                 REQUIRE( span.size() == LineLength{ 5 } );
                 REQUIRE( span.backColor() == QColor{ Qt::yellow } );
@@ -394,196 +485,99 @@ SCENARIO( "A fully selected row overrides Highlighter colour everywhere",
     }
 }
 
-// ── rowColorsFor tests (issue #82) ──────────────────────────────────────────
+// ── A Row's own colours come from the Line Decorator (#82, #241) ────────────
 //
-// Marking a Log Line already wired the setter, the LineType read used by
-// AbstractLogView's gutter bullet, and the repaint -- only the Table View's
-// own read of that LineType, to turn it into a row background, was ever
-// missing. rowColorsFor() is that read, isolated from live singletons so it
-// can be tested directly.
+// The Table View has no gutter, so a Mark or a Match colours the Row's
+// background; which colour a Row gets is the Line Decorator's decision, tested
+// in linedecorator_test.cpp. These see it painted.
 
-SCENARIO( "rowColorsFor renders a Match line's row background in the "
-          "text view's bullet colour",
-          "[logtablehighlightdelegate][rowcolors]" )
+namespace {
+
+const QColor PaintedSelectionColor{ 0, 0, 200 };
+const QColor PaintedQuickFindColor{ 0, 220, 220 };
+
+// Paints one cell of the given text into an image, as LogTableView would with
+// a QuickFind pattern for "World", the Row selected as a whole or not.
+QImage paintRow( const QString& cellText, bool selectedAsWhole )
 {
-    GIVEN( "a Line Verdict for a Match line, with no whole-line Highlighter" )
-    {
-        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Match, false };
+    const auto font = paintingtestfont::requirePaintingTestFont();
 
-        WHEN( "deciding the row colours" )
-        {
-            const auto colors = LogTableHighlightDelegate::rowColorsFor(
-                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+    QStandardItemModel model( 1, 1 );
+    model.setData( model.index( 0, 0 ), cellText );
 
-            THEN( "the row background is the text view's match bullet colour (red)" )
-            {
-                REQUIRE( colors.backColor == QColor{ Qt::red } );
+    LogTableHighlightDelegate delegate;
+    auto quickFindPattern = std::make_shared<QuickFindPattern>();
+    quickFindPattern->changeSearchPattern( "World", false, false );
+    delegate.setQuickFindPattern( quickFindPattern );
+    DecorationPolicy policy;
+    policy.quickFindBackColor = PaintedQuickFindColor;
+    delegate.setDecorationPolicy( policy );
+
+    const QRect cellRect( 0, 0, 240, 24 );
+    QImage image( cellRect.size(), QImage::Format_ARGB32 );
+    image.fill( Qt::white );
+
+    QStyleOptionViewItem option;
+    option.rect = cellRect;
+    option.font = font;
+    option.state = QStyle::State_Enabled;
+    if ( selectedAsWhole ) {
+        option.state |= QStyle::State_Selected;
+    }
+    option.palette.setColor( QPalette::Base, Qt::white );
+    option.palette.setColor( QPalette::Text, Qt::black );
+    option.palette.setColor( QPalette::Highlight, PaintedSelectionColor );
+    option.palette.setColor( QPalette::HighlightedText, Qt::white );
+
+    QPainter painter( &image );
+    painter.setFont( font );
+    delegate.paint( &painter, option, model.index( 0, 0 ) );
+    painter.end();
+    return image;
+}
+
+bool containsColor( const QImage& image, const QColor& color )
+{
+    for ( int y = 0; y < image.height(); ++y ) {
+        for ( int x = 0; x < image.width(); ++x ) {
+            if ( image.pixel( x, y ) == color.rgb() ) {
+                return true;
             }
         }
     }
+    return false;
 }
 
-SCENARIO( "rowColorsFor renders a Mark line's row background in the "
-          "text view's bullet colour",
-          "[logtablehighlightdelegate][rowcolors]" )
+} // namespace
+
+SCENARIO( "A Row selected as a whole keeps its QuickFind match visible",
+          "[logtablehighlightdelegate][selectedaswhole]" )
 {
-    GIVEN( "a Line Verdict for a Mark-only line" )
+    GIVEN( "a Row whose text QuickFind matches" )
     {
-        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Mark, false };
-
-        WHEN( "deciding the row colours" )
+        WHEN( "the Row is selected as a whole" )
         {
-            const auto colors = LogTableHighlightDelegate::rowColorsFor(
-                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+            const auto painted = paintRow( "Hello World", true );
 
-            THEN( "the row background is the text view's mark bullet colour (dodgerblue)" )
+            THEN( "the Row shows the selection colour" )
             {
-                REQUIRE( colors.backColor == QColor{ "dodgerblue" } );
+                REQUIRE( containsColor( painted, PaintedSelectionColor ) );
+            }
+
+            THEN( "the QuickFind match is painted on top of it" )
+            {
+                REQUIRE( containsColor( painted, PaintedQuickFindColor ) );
             }
         }
-    }
-}
 
-SCENARIO( "rowColorsFor gives a Mark+Match line its own distinct colour, "
-          "as the text view's bullet does",
-          "[logtablehighlightdelegate][rowcolors]" )
-{
-    GIVEN( "a Line Verdict for a line that is both Mark and Match" )
-    {
-        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Mark | LineTypeFlags::Match,
-                                   false };
-
-        WHEN( "deciding the row colours" )
+        WHEN( "the Row is not selected" )
         {
-            const auto colors = LogTableHighlightDelegate::rowColorsFor(
-                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
+            const auto painted = paintRow( "Hello World", false );
 
-            THEN( "the row background is the text view's marked-match bullet colour (violet), "
-                  "not plain match or plain mark" )
+            THEN( "the QuickFind match is painted, and no selection colour" )
             {
-                REQUIRE( colors.backColor == QColor{ "violet" } );
-            }
-        }
-    }
-}
-
-SCENARIO( "rowColorsFor leaves a Plain line's row background untouched",
-          "[logtablehighlightdelegate][rowcolors]" )
-{
-    GIVEN( "a Line Verdict for a Plain line" )
-    {
-        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Plain, false };
-
-        WHEN( "deciding the row colours" )
-        {
-            const auto colors = LogTableHighlightDelegate::rowColorsFor(
-                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
-
-            THEN( "the default background is unchanged" )
-            {
-                REQUIRE( colors.backColor == QColor{ Qt::white } );
-                REQUIRE( colors.foreColor == QColor{ Qt::black } );
-            }
-        }
-    }
-}
-
-SCENARIO( "rowColorsFor dims a Context Line's foreground, as the text view does",
-          "[logtablehighlightdelegate][rowcolors]" )
-{
-    GIVEN( "a Line Verdict for a Context Line" )
-    {
-        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Context, false };
-
-        WHEN( "deciding the row colours" )
-        {
-            const auto colors = LogTableHighlightDelegate::rowColorsFor(
-                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
-
-            THEN( "the foreground is subdued (reduced alpha), matching the text view's dimming" )
-            {
-                REQUIRE( colors.foreColor.alpha() == 128 );
-            }
-
-            AND_THEN( "the background is untouched -- the text view dims foreground only" )
-            {
-                REQUIRE( colors.backColor == QColor{ Qt::white } );
-            }
-        }
-    }
-}
-
-SCENARIO( "rowColorsFor gives Search Limits the highest precedence, "
-          "suppressing Mark/Match colour outside the limits",
-          "[logtablehighlightdelegate][rowcolors]" )
-{
-    GIVEN( "a Line Verdict for a Match line that is outside the Search Limits" )
-    {
-        const LineVerdict verdict{ std::nullopt, LineTypeFlags::Match,
-                                   /* isOutsideSearchLimits = */ true };
-
-        WHEN( "deciding the row colours" )
-        {
-            const auto colors = LogTableHighlightDelegate::rowColorsFor(
-                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
-
-            THEN( "the disabled foreground wins and the match colour does not show" )
-            {
-                REQUIRE( colors.foreColor == QColor{ Qt::gray } );
-                REQUIRE( colors.backColor == QColor{ Qt::white } );
-            }
-        }
-    }
-}
-
-SCENARIO( "rowColorsFor gives a whole-line Highlighter precedence over "
-          "Mark/Match row colour",
-          "[logtablehighlightdelegate][rowcolors]" )
-{
-    GIVEN( "a Line Verdict for a Match line that also carries a whole-line Highlighter" )
-    {
-        const HighlightColor wholeLine{ QColor{ Qt::white }, QColor{ Qt::green } };
-        const LineVerdict verdict{ wholeLine, LineTypeFlags::Match, false };
-
-        WHEN( "deciding the row colours" )
-        {
-            const auto colors = LogTableHighlightDelegate::rowColorsFor(
-                verdict, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
-
-            THEN( "the Highlighter's own colour wins over the match colour" )
-            {
-                REQUIRE( colors.backColor == QColor{ Qt::green } );
-                REQUIRE( colors.foreColor == QColor{ Qt::white } );
-            }
-        }
-    }
-}
-
-// A regression test for the bug itself: marking a line (via LogFilteredData,
-// the same path CrawlerWidget::markLinesFromMain drives) must change what
-// rowColorsFor() -- and therefore paint() -- produces for that line. Before
-// this fix, the row-level LineType was read into the Line Verdict but never
-// consulted for colour, so this would fail: the "before" and "after" colours
-// were identical no matter what the LineType said.
-SCENARIO( "Marking a line changes the Table View's row background",
-          "[logtablehighlightdelegate][rowcolors][regression]" )
-{
-    GIVEN( "an unmarked Plain line" )
-    {
-        const LineVerdict before{ std::nullopt, LineTypeFlags::Plain, false };
-        const auto beforeColors = LogTableHighlightDelegate::rowColorsFor(
-            before, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
-
-        WHEN( "the line is marked (LineType now carries the Mark flag)" )
-        {
-            const LineVerdict after{ std::nullopt, LineTypeFlags::Mark, false };
-            const auto afterColors = LogTableHighlightDelegate::rowColorsFor(
-                after, QColor{ Qt::black }, QColor{ Qt::white }, QColor{ Qt::gray } );
-
-            THEN( "the row background actually changes" )
-            {
-                REQUIRE( beforeColors.backColor != afterColors.backColor );
-                REQUIRE( afterColors.backColor == QColor{ "dodgerblue" } );
+                REQUIRE( containsColor( painted, PaintedQuickFindColor ) );
+                REQUIRE_FALSE( containsColor( painted, PaintedSelectionColor ) );
             }
         }
     }

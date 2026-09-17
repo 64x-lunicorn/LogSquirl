@@ -17,9 +17,13 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "log.h"
-#include <exception>
 #ifndef LOGSQUIRL_CLIPBOARD_H
+#define LOGSQUIRL_CLIPBOARD_H
+
+#include <exception>
+#include <utility>
+
+#include "log.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -43,6 +47,24 @@ static inline void sendTextToClipboard( QString text, bool updateSelection = fal
         }
     } catch ( const std::exception& ex ) {
         LOG_ERROR << "Failed to send text to clipboard: " << ex.what();
+    }
+}
+
+// Copy what a Presentation has selected, the one way every Presentation
+// copies: a null character in a Log Line is copied as a space, a selection
+// that cannot be read is logged and copies nothing, and nor does an empty one.
+template <typename ReadSelection>
+static inline void sendSelectionToClipboard( ReadSelection&& readSelection )
+{
+    try {
+        QString text = readSelection();
+        if ( text.isEmpty() ) {
+            return;
+        }
+        text.replace( QChar::Null, QChar::Space );
+        sendTextToClipboard( std::move( text ) );
+    } catch ( const std::exception& err ) {
+        LOG_ERROR << "failed to copy data to clipboard " << err.what();
     }
 }
 #endif

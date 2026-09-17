@@ -46,10 +46,18 @@ set(ALLOWED_FILES
     # "don't ask again"), toolbar icon size, allow-multiple-windows,
     # show-dashboard -- all read by the main window only. It also ticks and
     # writes the View menu's line numbers and overview toggles; what a
-    # Presentation shows of them rides the Presentation Policy (#192). Beside
+    # Presentation shows of them rides the Presentation Policy (#192). It
+    # hands the Plugin Host the plugin auto-load settings and keeps the
+    # plugins a first run enables, so the plugin layer needs no store (#236). Beside
     # the chrome it reads three Axes decided to stay, below: the shortcuts,
     # logging and followFileOnLoad.
     src/mainwindow.cpp
+
+    # Derives the Policies. The Session is the one entry for a settings change
+    # (#245): it re-derives the Policies from the store and hands each changed
+    # Axis down. It reads the store for nothing else -- deriveSettingsPolicies()
+    # is the only call made on it.
+    src/session.cpp
 
     # Axes decided to stay a direct read -- not waiting for a Policy, and not
     # what "the allowlist is meant to shrink" is about (CONTEXT.md, Settings

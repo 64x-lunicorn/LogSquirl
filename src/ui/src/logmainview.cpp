@@ -44,19 +44,17 @@
 #include "logmainview.h"
 
 #include "abstractlogdata.h"
-#include "log.h"
 #include "logfiltereddata.h"
 #include "overview.h"
-
-#include "shortcuts.h"
 
 LogMainView::LogMainView( const LogData* newLogData, const QuickFindPattern* const quickFindPattern,
                           Overview* overview, OverviewWidget* overview_widget, bool initialTextWrap,
                           QWidget* parent )
-    : AbstractLogView( newLogData, quickFindPattern, initialTextWrap, parent )
+    : AbstractLogView( newLogData, std::make_unique<EveryLogLine>( newLogData ), quickFindPattern,
+                       initialTextWrap, parent )
+    , logFile_( newLogData )
+    , filteredData_( nullptr )
 {
-    filteredData_ = nullptr;
-
     // The main data has a real (non NULL) Overview
     setOverview( overview, overview_widget );
 }
@@ -65,6 +63,7 @@ LogMainView::LogMainView( const LogData* newLogData, const QuickFindPattern* con
 void LogMainView::useNewFiltering( LogFilteredData* filteredData )
 {
     filteredData_ = filteredData;
+    setLineMapping( std::make_unique<EveryLogLine>( logFile_, filteredData_ ) );
 
     if ( getOverview() != nullptr )
         getOverview()->setFilteredData( filteredData_ );
@@ -109,33 +108,47 @@ void LogMainView::updateFont( const QFont& font )
     AbstractLogView::updateFont( font );
 }
 
+void LogMainView::registerShortcuts()
+{
+    AbstractLogView::registerShortcuts();
+}
+
+void LogMainView::setDecorationPolicy( const DecorationPolicy& policy )
+{
+    AbstractLogView::setDecorationPolicy( policy );
+}
+
+void LogMainView::setPresentationPolicy( const PresentationPolicy& policy )
+{
+    AbstractLogView::setPresentationPolicy( policy );
+    setLineNumbersVisible( policy.mainLineNumbersVisible );
+    // Both Presentations share the one Overview: the Text View makes room
+    // for it, or takes the room back.
+    setOverviewVisible( policy.overviewVisible );
+}
+
+void LogMainView::setQuickFindPolicy( const QuickFindPolicy& )
+{
+    // The selected text goes to the window's QuickFind, which reads the
+    // Policy itself.
+}
+
+void LogMainView::allowFollowMode( bool allow )
+{
+    AbstractLogView::allowFollowMode( allow );
+}
+
+void LogMainView::setColorLabels( const std::vector<QStringList>& labels )
+{
+    setQuickHighlighters( labels );
+}
+
+void LogMainView::setSearchLimits( LineNumber startLine, LineNumber endLine )
+{
+    AbstractLogView::setSearchLimits( startLine, endLine );
+}
+
 void LogMainView::saveSelectedTo( const QString& filename )
 {
     AbstractLogView::saveSelectedTo( filename );
-}
-
-AbstractLogData::LineType LogMainView::lineType( LineNumber lineNumber ) const
-{
-    if ( filteredData_ ) {
-        return filteredData_->lineTypeByLine( lineNumber );
-    }
-    return AbstractLogData::LineTypeFlags::Plain;
-}
-
-void LogMainView::doRegisterShortcuts()
-{
-    LOG_INFO << "Registering shortcuts for main view";
-    AbstractLogView::doRegisterShortcuts();
-    registerShortcut( ShortcutAction::LogViewNextMark, [ this ] {
-        const auto line = filteredData_->getMarkAfter( getViewPosition() );
-        if ( line.has_value() ) {
-            selectAndDisplayLine( *line );
-        }
-    } );
-    registerShortcut( ShortcutAction::LogViewPrevMark, [ this ] {
-        const auto line = filteredData_->getMarkBefore( getViewPosition() );
-        if ( line.has_value() ) {
-            selectAndDisplayLine( *line );
-        }
-    } );
 }

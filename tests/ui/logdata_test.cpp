@@ -19,7 +19,10 @@
 
 #include <catch2/catch.hpp>
 
+#include <functional>
 #include <iostream>
+#include <memory>
+#include <stdexcept>
 
 #include <QFileInfo>
 #include <QProcess>
@@ -27,6 +30,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QTextCodec>
 #include <QThread>
 
 #include "file_write_helper.h"
@@ -34,7 +38,6 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
-#include "filewatcher.h"
 #include "logdata.h"
 
 static const qint64 SL_NB_LINES = 500LL;
@@ -92,12 +95,14 @@ private:
 namespace {
 
 #ifdef _WIN32
-void writeDataToFileBackground( QFile& file, int numberOfLines = 200,
-                                WriteFileModification flag = WriteFileModification::None )
+// Calls whenWritten, on context's thread, once the file has been written.
+void writeDataToFileBackground( QFile& file, int numberOfLines, WriteFileModification flag,
+                                QObject* context, std::function<void()> whenWritten )
 {
     auto thread = new WriteFileThread( &file, numberOfLines, flag );
-    thread->start();
+    QObject::connect( thread, &WriteFileThread::finished, context, std::move( whenWritten ) );
     QObject::connect( thread, &WriteFileThread::finished, thread, &WriteFileThread::deleteLater );
+    thread->start();
 }
 #endif
 void writeDataToFile( QFile& file, int numberOfLines = 200,
@@ -143,14 +148,9 @@ TEST_CASE( "Logdata decoding lines", "[logdata]" )
 
 TEST_CASE( "Logdata reading changing file", "[logdata]" )
 {
-    // File watching holds a Watch Policy and reads no setting of its own
-    // (#93), so a test that expects a change on disk to be noticed has to
-    // hand it one. Polling as well as native watching, at a far shorter
-    // interval than the shipped one, so the test does not wait on the
-    // platform having working native notifications.
-    FileWatcher::getFileWatcher().setWatchPolicy(
-        WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
-
+    // The log data watches nothing itself (#249): whoever follows the Log
+    // File tells it of a change on disk, and here the test does, once it has
+    // changed the file.
     const auto policies = testSettingsPolicies();
     LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
 
@@ -164,7 +164,8 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
 
     SafeQSignalSpy finishedSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
     // Start loading it
-    logData.attachFile( QFileInfo{ file }.absoluteFilePath() );
+    const auto path = QFileInfo{ file }.absoluteFilePath();
+    logData.attachFile( path );
     waitUiState( [ &logData ] { return logData.getNbLine() == 200_lcount; } );
     REQUIRE( finishedSpy.safeWait() );
     REQUIRE( finishedSpy.count() == 1 );
@@ -178,9 +179,11 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
     if ( file.isOpen() ) {
         // To test the edge case when the final line is not complete
 #ifdef Q_OS_WIN
-        writeDataToFileBackground( file, 200, WriteFileModification::EndWithPartialLineBegin );
+        writeDataToFileBackground( file, 200, WriteFileModification::EndWithPartialLineBegin,
+                                   &logData, [ & ] { logData.fileChangedOnDisk( path ); } );
 #else
         writeDataToFile( file, 200, WriteFileModification::EndWithPartialLineBegin );
+        logData.fileChangedOnDisk( path );
 #endif
     }
 
@@ -197,9 +200,11 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
         // Add a couple more lines, including the end of the unfinished one.
         if ( file.isOpen() ) {
 #ifdef Q_OS_WIN
-            writeDataToFileBackground( file, 20, WriteFileModification::StartWithPartialLineEnd );
+            writeDataToFileBackground( file, 20, WriteFileModification::StartWithPartialLineEnd,
+                                       &logData, [ & ] { logData.fileChangedOnDisk( path ); } );
 #else
             writeDataToFile( file, 20, WriteFileModification::StartWithPartialLineEnd );
+            logData.fileChangedOnDisk( path );
 #endif
         }
 
@@ -217,6 +222,7 @@ TEST_CASE( "Logdata reading changing file", "[logdata]" )
     {
         // Truncate the file
         writeDataToFile( file, 0, WriteFileModification::Truncate );
+        logData.fileChangedOnDisk( path );
 
         waitUiState( [ &logData ] { return logData.getNbLine() == 0_lcount; } );
 
@@ -288,6 +294,90 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
             {
                 CHECK_THROWS_AS( log_data.attachFile( QFileInfo{ bigFile }.absoluteFilePath() ),
                                  CantReattachErr );
+            }
+        }
+    }
+}
+
+namespace {
+
+// An Encoding the indexing fails on: asked for its name by any thread but the
+// one that made it, it throws. That thread is the one a test runs on, so
+// only the indexing, which runs on a thread of its own, fails.
+class UnusableEncoding : public QTextCodec {
+public:
+    ~UnusableEncoding() override = default;
+
+    QByteArray name() const override
+    {
+        if ( QThread::currentThread() != owner_ ) {
+            throw std::runtime_error( "the Encoding cannot be used" );
+        }
+        return "LogSquirl-Unusable-Encoding";
+    }
+
+    int mibEnum() const override
+    {
+        return -4242;
+    }
+
+protected:
+    QString convertToUnicode( const char* in, int length, ConverterState* ) const override
+    {
+        return QString::fromLatin1( in, length );
+    }
+
+    QByteArray convertFromUnicode( const QChar* in, int length, ConverterState* ) const override
+    {
+        return QString( in, length ).toLatin1();
+    }
+
+private:
+    const QThread* owner_ = QThread::currentThread();
+};
+
+} // namespace
+
+SCENARIO( "A Log File that fails to index reports the failure as its loading status", "[logdata]" )
+{
+    QTemporaryFile file{ "logdata_test_failure_XXXXXX" };
+    if ( file.open() ) {
+        writeDataToFile( file, SL_NB_LINES );
+    }
+
+    // Made only once the Log File has loaded, and gone only once the Log
+    // File is: while it exists, every look-up of an Encoding by name asks it.
+    std::unique_ptr<UnusableEncoding> unusableEncoding;
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+
+    GIVEN( "a loaded Log File" )
+    {
+        SafeQSignalSpy endSpy( &logData, SIGNAL( loadingFinished( LoadingStatus, QString ) ) );
+        logData.attachFile( QFileInfo{ file }.absoluteFilePath() );
+        REQUIRE( endSpy.safeWait( 10000 ) );
+        REQUIRE( logData.getNbLine() == LinesCount( SL_NB_LINES ) );
+        endSpy.clear();
+
+        WHEN( "it is reloaded with an Encoding the indexing fails on" )
+        {
+            unusableEncoding = std::make_unique<UnusableEncoding>();
+            logData.reload( unusableEncoding.get() );
+
+            REQUIRE( endSpy.safeWait( 10000 ) );
+
+            THEN( "loading finishes Failed, with a description, and no dialog" )
+            {
+                REQUIRE( endSpy.count() == 1 );
+                const auto arguments = endSpy.takeFirst();
+                REQUIRE( arguments.at( 0 ).value<LoadingStatus>() == LoadingStatus::Failed );
+                REQUIRE( arguments.at( 1 ).toString().contains( "the Encoding cannot be used" ) );
+            }
+
+            THEN( "the Index it had is dropped" )
+            {
+                REQUIRE( logData.getNbLine() == 0_lcount );
             }
         }
     }

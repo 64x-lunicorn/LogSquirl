@@ -6,11 +6,14 @@ add_executable(logsquirl_tests
     chipmunkimporter_test.cpp
     configuration_test.cpp
     decorationsetup_test.cpp
+    displayedlines_test.cpp
     encodingdetector_test.cpp
     fontutils_test.cpp
     indexcache_test.cpp
+    indexedhash_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
+    linemapping_test.cpp
     linessaver_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
@@ -35,12 +38,14 @@ add_executable(logsquirl_tests
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
+    searchfailure_test.cpp
     searchsession_test.cpp
     settingspolicies_test.cpp
     tabbarstyle_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
     viewportlayout_test.cpp
+    viewset_test.cpp
     wrappedstring_test.cpp
     tests_main.cpp
 )

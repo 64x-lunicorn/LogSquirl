@@ -19,7 +19,12 @@
 
 #pragma once
 
+#include <vector>
+
+#include <QStringList>
+
 #include "linetypes.h"
+#include "settingspolicies.h"
 
 class QFont;
 class QPoint;
@@ -36,6 +41,9 @@ class QString;
 // ones, with the same arguments and meaning, and the coordinator connects
 // each Presentation to the same slots. Nothing but convention keeps the two
 // halves in step, so a signal added to one Presentation is added to all.
+// What only the Text View does (turning following on or off, zooming with
+// the wheel, the exit-view shortcut) signals outside the set, and only the
+// Text View declares it.
 //
 // Everything a Presentation hands out, or is handed, is a Log Line, never a
 // position in its own widget.
@@ -64,6 +72,29 @@ public:
     virtual void rereadLogLines() = 0;
 
     virtual void updateFont( const QFont& font ) = 0;
+
+    // Register the shortcuts anew, as the settings now say: they have no
+    // Policy, so the Presentation reads them itself.
+    virtual void registerShortcuts() = 0;
+
+    // What every view of the Log File shows alike, handed over by its View
+    // Set. A Presentation reads none of it from the settings.
+
+    // The settings that color Log Lines.
+    virtual void setDecorationPolicy( const DecorationPolicy& policy ) = 0;
+    // What the Presentation shows and scrolls under: its line numbers, and
+    // whether it makes room for the Overview both Presentations share.
+    virtual void setPresentationPolicy( const PresentationPolicy& policy ) = 0;
+    // How the text the user selected is read as a QuickFind pattern. The
+    // Text View hands its selection to the window's QuickFind, which reads
+    // the Policy itself, and so ignores it.
+    virtual void setQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
+    // Whether follow may be engaged at all. The Table View follows only as
+    // the Text View does, and so ignores it.
+    virtual void allowFollowMode( bool allow ) = 0;
+    // The words of each Color Label, one list per color slot.
+    virtual void setColorLabels( const std::vector<QStringList>& labels ) = 0;
+    virtual void setSearchLimits( LineNumber startLine, LineNumber endLine ) = 0;
 
     // Save the selected Log Lines to filename, behind a progress dialog.
     // Nothing is saved without a selection.

@@ -87,14 +87,19 @@ if(LOGSQUIRL_USE_LTO)
   set_property(TARGET logsquirl_grep PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 endif()
 
-target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui)
-target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui)
+# The application looks the file watcher up and hands it to the Session; the
+# engine is handed its port and does not link it (#249).
+target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
+target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
 # main.cpp caps TBB's concurrency itself (#168).
 target_link_libraries(logsquirl PRIVATE tbb)
 target_link_libraries(logsquirl_portable PRIVATE tbb)
 # logsquirl_grep derives the Policies itself (there is no LogSquirlApp
 # here), so unlike the log data library it does link the settings library.
-target_link_libraries(logsquirl_grep PUBLIC ${MAIN_LIBS} logsquirl_settings)
+# It reports a failure the engine reports by printing it, and so does not
+# link the crash handler (#240). It follows its Log File through the Open Log
+# File (#247), handing it no File Watch Port: it links no file watcher.
+target_link_libraries(logsquirl_grep PUBLIC logsquirl_openlogfile kdsingleapp logsquirl_settings)
 
 target_compile_definitions(logsquirl_portable PUBLIC -DLOGSQUIRL_PORTABLE)
 

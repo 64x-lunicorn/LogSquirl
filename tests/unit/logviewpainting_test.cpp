@@ -150,20 +150,26 @@ QStringList paintedTexts( std::optional<size_t> count = std::nullopt )
     return texts;
 }
 
-class PaintingLogView : public AbstractLogView {
+// Every Log Line at its own position, a Match or a Mark as paintedLines() says.
+class PaintedLineTypes : public EveryLogLine {
 public:
-    PaintingLogView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern,
-                     bool textWrap )
-        : AbstractLogView( logData, quickFindPattern, textWrap )
-    {
-    }
+    using EveryLogLine::EveryLogLine;
 
-protected:
-    AbstractLogData::LineType lineType( LineNumber lineNumber ) const override
+    LineType lineType( LineNumber lineNumber ) const override
     {
         const auto& lines = paintedLines();
         return lineNumber.get() < lines.size() ? lines[ lineNumber.get() ].type
                                                : AbstractLogData::LineType{};
+    }
+};
+
+class PaintingLogView : public AbstractLogView {
+public:
+    PaintingLogView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern,
+                     bool textWrap )
+        : AbstractLogView( logData, std::make_unique<PaintedLineTypes>( logData ), quickFindPattern,
+                           textWrap )
+    {
     }
 };
 
@@ -552,6 +558,72 @@ SCENARIO( "The log view paints the pull-to-follow bar where it places the text",
                                                 .pullPx = 370 },
                                               QStringLiteral( "pull-hooked-short-file" ) );
             }
+        }
+    }
+}
+
+// The Search Limits are half-open, from the first Log Line searched up to the
+// Log Line after the last one, as the Presentations hold them. The Table
+// View's delegate test subdues the same Log Lines for the same limits (#232).
+namespace {
+
+// Whether the view, unwrapped and scrolled to the top, draws the given Log
+// Line subdued: its text in the palette's disabled text color. Only the
+// text is looked at -- the separator beside the bullets is drawn in that
+// color on every row.
+bool isLogLineSubdued( const QImage& painted, LineNumber logLine )
+{
+    const QColor subdued = fixedPalette().color( QPalette::Disabled, QPalette::Text );
+    // The image is in device pixels; the rows and columns are logical ones.
+    const auto scale = painted.devicePixelRatio();
+    const auto toDevice = [ scale ]( int logical ) { return static_cast<int>( logical * scale ); };
+    const int top = static_cast<int>( logLine.get() ) * paintingtestfont::CharHeight;
+    for ( int y = toDevice( top ); y < toDevice( top + paintingtestfont::CharHeight ); ++y ) {
+        for ( int x = toDevice( 40 ); x < toDevice( 120 ); ++x ) {
+            if ( painted.pixel( x, y ) == subdued.rgb() ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+SCENARIO( "The log view subdues exactly the Log Lines outside the Search Limits",
+          "[logviewpainting][searchlimits]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    GIVEN( "Search Limits from Log Line 8 up to, not including, Log Line 12" )
+    {
+        const FakeLogData logData{ paintedTexts() };
+        const QuickFindPattern quickFindPattern;
+        PaintingLogView view( &logData, &quickFindPattern, false );
+        showForPainting( view, logData, font, {} );
+
+        view.setSearchLimits( 8_lnum, 12_lnum );
+        const auto painted = grabViewport( view );
+
+        THEN( "the Log Line before the first one searched is subdued" )
+        {
+            REQUIRE( isLogLineSubdued( painted, 7_lnum ) );
+        }
+
+        THEN( "the first Log Line searched is not subdued" )
+        {
+            REQUIRE_FALSE( isLogLineSubdued( painted, 8_lnum ) );
+        }
+
+        THEN( "the last Log Line searched is not subdued" )
+        {
+            REQUIRE_FALSE( isLogLineSubdued( painted, 11_lnum ) );
+        }
+
+        THEN( "the Log Line directly after the end is subdued" )
+        {
+            REQUIRE( isLogLineSubdued( painted, 12_lnum ) );
         }
     }
 }

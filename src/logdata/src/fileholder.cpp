@@ -1,7 +1,5 @@
 #include "fileholder.h"
 
-#include <filewatcher.h>
-
 #ifdef Q_OS_WIN
 #include <fcntl.h>
 #include <io.h>
@@ -73,15 +71,6 @@ FileHolder::FileHolder( bool keepClosed )
 FileHolder::~FileHolder()
 {
     LOG_INFO << "destroy file holder " << reinterpret_cast<void*>( this ) << " for " << file_name_;
-
-    try {
-        // Remove the current file from the watch list
-        if ( attached_file_ ) {
-            FileWatcher::getFileWatcher().removeFile( file_name_ );
-        }
-    } catch ( const std::exception& e ) {
-        LOG_ERROR << "Failed to destroy FileHolder: " << e.what();
-    }
 }
 
 FileId FileHolder::getFileId()

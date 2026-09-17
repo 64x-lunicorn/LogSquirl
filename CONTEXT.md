@@ -35,10 +35,23 @@ A Log File from the moment it is opened until it is closed, together with what f
 as it changes on disk: its Index, its Searches and their auto-refresh, its Marks, and its
 Log Format. It decides what growing, truncation and reloading mean — a Search continues over
 lines that were added and starts again when the Log File was truncated or reloaded, Marks do
-not survive a truncation or a reload, and Format Recognition is taken again after either.
+not survive a truncation or a reload, and Format Recognition is taken again after either. The
+Marks saved with the Session are handed to it when the Log File is opened and applied once,
+after the first load; saving them stays with the user interface. A Search requested before
+the Log File has first loaded waits for that load and then runs over the whole Log File.
+It hears of changes on disk through the File Watch Port handed to it when it is built.
 The desktop application and the command line tool follow a Log File the same way because
 both use it.
 _Avoid_: document, loaded file, file session
+
+**File Watch Port**:
+Everything an Open Log File needs from file watching: to have its Log File watched from its
+first load until it is closed, and to hear that a watched file changed on disk. It does not
+say what changed — the log data checks the file for growth, truncation or replacement. The
+efsw watcher, which follows the Watch Policy, is the adapter the application hands over; the
+tests hand over a fake that reports a change when they say so. Nothing in the engine looks a
+watcher up by itself.
+_Avoid_: file watcher singleton, watch service
 
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
@@ -92,7 +105,9 @@ supersedes the one in flight rather than waiting for it.
 _Avoid_: search manager, search controller, search engine
 
 **Filtered View**:
-The lower pane, showing only the Log Lines a Search selected.
+The lower pane, showing only the Log Lines a Search selected. Its selection, Marks and
+Search Limits are Log Lines like the main view's; only its Scroll Position counts places
+among the Log Lines it shows.
 _Avoid_: results pane, filter window
 
 **QuickFind**:
@@ -106,7 +121,8 @@ _Avoid_: saved search, bookmark
 
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
-subdued.
+subdued. Half-open everywhere: from the first Log Line searched up to, not including, its
+end — the Log Line after the last one searched. No Presentation converts the end.
 _Avoid_: search range, scope
 
 **Match**:
@@ -294,16 +310,27 @@ Search's button row starts in: whether case is ignored, whether the Search auto-
 and whether the pattern is read as a logical combination. Those are starting state, not live
 state — they seed the buttons when a Log File is opened, and a Policy arriving later does not
 set a button the user has since changed by hand. It carries how typed text is read, not how
-a Search runs — that is the Search Policy.
+a Search runs — that is the Search Policy. The QuickFind bar belongs to a window, not to a
+Log File, so the window takes this Policy from its session: the same one whichever tab or
+Filtered View is in front, and taken again whenever a setting changes.
 _Avoid_: find settings, search options
 
 **Axis**:
 One Settings Policy, seen as the unit a change travels in. A changed setting is re-derived
 into Policies and handed down one axis at a time, so changing a Highlighter Set does not
-restart file watching, and changing the poll interval does not disturb a Search.
+restart file watching, and changing the poll interval does not disturb a Search. Every change
+travels through the Session: a writer only says that the settings, or the Highlighter Sets,
+changed; the Session re-derives the Policies and hands each changed Axis to the file watcher,
+every window and every open Log File, and tells every open Log File to read what has no
+Policy — the font, the shortcuts — again. Bringing a tab to the front applies nothing.
 _Avoid_: category, group, domain
 
 **Session**:
 The set of Log Files currently open, their tabs, and the position and view state restored
 for each on the next start.
+It builds the views of every Log File it opens in one call, from one value: the Open Log
+File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
+if any — opening a Log File by hand and restoring it on start take the same path. After that
+it hands the views only what changed, one change per open Log File, and asks for their view
+state when it is saved.
 _Avoid_: workspace, project, layout

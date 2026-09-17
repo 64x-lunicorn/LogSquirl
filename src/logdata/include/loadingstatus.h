@@ -22,8 +22,11 @@
 
 #include <QMetaType>
 
-// Loading status of a file
-enum class LoadingStatus { Successful, Interrupted, NoMemory };
+// Loading status of a file. A Failed load comes with a description of what
+// went wrong: the engine reports it and opens no dialog, and each caller
+// decides what to do with it -- the desktop application offers an issue
+// report, the command line tool prints it and exits non-zero.
+enum class LoadingStatus { Successful, Interrupted, NoMemory, Failed };
 
 enum class MonitoredFileStatus { Unchanged, DataAdded, Truncated };
 

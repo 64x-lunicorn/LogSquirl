@@ -2,6 +2,7 @@ add_library(
   logsquirl_logdata STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/abstractlogdata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/compressedlinestorage.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/displayedlines.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdetector.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linepositionarray.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loadingstatus.h
@@ -10,14 +11,17 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddataworker.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsession.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linetypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileholder.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filedigest.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexcache.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/indexedhash.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/readablesize.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/compressedlinestorage.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/displayedlines.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdetector.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataoperation.cpp
@@ -28,6 +32,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileholder.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filedigest.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexcache.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/indexedhash.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/readablesize.cpp
   src/filedigest.cpp
 )
@@ -45,11 +50,10 @@ target_link_libraries(
   logsquirl_logdata
   PUBLIC project_options
          project_warnings
-         logsquirl_crash_handler
          logsquirl_policies
          logsquirl_utils
          logsquirl_regex
-         logsquirl_filewatch
+         logsquirl_filewatch_port
          Qt${QT_VERSION_MAJOR}::Core
          roaring
          roaring-headers-cpp

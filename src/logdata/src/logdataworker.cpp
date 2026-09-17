@@ -47,17 +47,15 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QMessageBox>
 #include <QSemaphore>
 #include <tuple>
 
 #include <tbb/flow_graph.h>
 
 #include "containers.h"
-#include "dispatch_to.h"
 #include "encodingdetector.h"
 #include "indexcache.h"
-#include "issuereporter.h"
+#include "indexedhash.h"
 #include "linepositionarray.h"
 #include "linetypes.h"
 #include "log.h"
@@ -357,22 +355,16 @@ void LogDataWorker::interrupt()
     interruptRequest_.set();
 }
 
-void LogDataWorker::onIndexingFinished( bool result )
+void LogDataWorker::onIndexingFinished( LoadingStatus status, const QString& failure )
 {
-    if ( result ) {
-        LOG_INFO << "finished indexing in worker thread";
-        Q_EMIT indexingFinished( LoadingStatus::Successful );
-    }
-    else {
-        LOG_INFO << "indexing interrupted in worker thread";
-        Q_EMIT indexingFinished( LoadingStatus::Interrupted );
-    }
+    LOG_INFO << "indexing finished in worker thread, status " << static_cast<int>( status );
+    Q_EMIT indexingFinished( status, failure );
 }
 
-void LogDataWorker::onCheckFileFinished( const MonitoredFileStatus result )
+void LogDataWorker::onCheckFileFinished( const MonitoredFileStatus result, const QString& failure )
 {
     LOG_INFO << "checking file finished in worker thread";
-    Q_EMIT checkFileChangesFinished( result );
+    Q_EMIT checkFileChangesFinished( result, failure );
 }
 
 //
@@ -619,15 +611,10 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
 
     if ( !block.empty() ) {
         const auto linePositions = parseDataBlock( blockBeginning, block, state );
-        auto maxLength = state.max_length;
-        if ( maxLength > std::numeric_limits<LineLength::UnderlyingType>::max() ) {
-            LOG_ERROR << "Too long lines " << maxLength;
-            maxLength = std::numeric_limits<LineLength::UnderlyingType>::max();
-        }
-
-        scopedAccessor.addAll(
-            block, LineLength( type_safe::narrow_cast<LineLength::UnderlyingType>( maxLength ) ),
-            linePositions, state.encodingGuess );
+        // Measured as a qsizetype, 64 bits wide in every build shipped: no Log
+        // Line is too long to measure, so none is reported as such.
+        scopedAccessor.addAll( block, LineLength( state.max_length ), linePositions,
+                               state.encodingGuess );
 
         // Update the caller for progress indication
         const auto progress
@@ -795,17 +782,6 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
         scopedAccessor.clear( indexingPolicy_ );
     }
 
-    if ( scopedAccessor.getMaxLength().get()
-         == std::numeric_limits<LineLength::UnderlyingType>::max() ) {
-        dispatchToMainThread( [] {
-            QMessageBox::critical( nullptr, "LogSquirl",
-                                   "Can't index file: some lines are too long",
-                                   QMessageBox::Close );
-        } );
-
-        scopedAccessor.clear( indexingPolicy_ );
-    }
-
     if ( !scopedAccessor.getEncodingGuess() ) {
         scopedAccessor.setEncodingGuess( QTextCodec::codecForLocale() );
     }
@@ -932,246 +908,171 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
     return true;
 }
 
-// Called in the worker thread's context
-OperationResult FullIndexOperation::run()
+OperationResult IndexOperation::run()
 {
     try {
-        LOG_INFO << "FullIndexOperation::run(), file " << fileName_.toStdString();
+        return doRun();
+    } catch ( const std::exception& err ) {
+        const auto failure
+            = QString( "%1 failed: %2" ).arg( metaObject()->className(), err.what() );
+        LOG_ERROR << failure;
+        return reportFailure( failure );
+    }
+}
 
-        // From this run's own Indexing Policy, so the cache asked for an
-        // Index here and the one handed the new Index afterwards are
-        // necessarily the same run's.
-        const auto indexCache = indexCacheFor( indexingPolicy_ );
+OperationResult IndexOperation::reportFailure( const QString& failure )
+{
+    {
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        scopedAccessor.clear( indexingPolicy_ );
+    }
 
-        // The cache hands out an Index only while the bytes it was built from
-        // are unchanged, complete for the size it was built at. Whether that
-        // is all of the Log File, or it has grown since, is decided here.
-        auto cached = indexCache.tryLoad( fileName_ );
-        const auto fileSize = cached ? QFileInfo( fileName_ ).size() : qint64{ 0 };
+    Q_EMIT indexingFinished( LoadingStatus::Failed, failure );
+    return false;
+}
 
-        if ( cached && cached->hash.size == fileSize ) {
-            LOG_INFO << "Using cached index for " << fileName_;
+// Called in the worker thread's context
+OperationResult FullIndexOperation::doRun()
+{
+    LOG_INFO << "FullIndexOperation::run(), file " << fileName_.toStdString();
 
-            auto* codec = QTextCodec::codecForName( cached->encodingName );
-            if ( !codec ) {
-                codec = QTextCodec::codecForLocale();
-            }
+    // From this run's own Indexing Policy, so the cache asked for an
+    // Index here and the one handed the new Index afterwards are
+    // necessarily the same run's.
+    const auto indexCache = indexCacheFor( indexingPolicy_ );
 
-            {
-                IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-                scopedAccessor.loadFromCache( std::move( cached->linePosition ), cached->maxLength,
-                                              cached->hash, codec,
-                                              indexingPolicy_.fastModificationDetection );
-                if ( forcedEncoding_ ) {
-                    scopedAccessor.forceEncoding( forcedEncoding_ );
-                }
-            }
+    // The cache hands out an Index only while the bytes it was built from
+    // are unchanged, complete for the size it was built at. Whether that
+    // is all of the Log File, or it has grown since, is decided here.
+    auto cached = indexCache.tryLoad( fileName_ );
+    const auto fileSize = cached ? QFileInfo( fileName_ ).size() : qint64{ 0 };
 
-            Q_EMIT indexingProgressed( 100 );
-            Q_EMIT indexingFinished( true );
-            return true;
+    if ( cached && cached->hash.size == fileSize ) {
+        LOG_INFO << "Using cached index for " << fileName_;
+
+        auto* codec = QTextCodec::codecForName( cached->encodingName );
+        if ( !codec ) {
+            codec = QTextCodec::codecForLocale();
         }
 
-        if ( cached && resumeFrom( *cached, fileSize ) ) {
-            // Read into a local first: an accessor held for the duration of
-            // doIndex() would keep indexing from taking its own.
-            const auto resumeOffset
-                = IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize();
-            doIndex( OffsetInFile( resumeOffset ) );
-        }
-        else if ( cached && interruptRequest_ ) {
-            // Checking the cached Index was interrupted, which is not a sign
-            // it cannot be gone on from: stop, rather than throw away what
-            // there is and start indexing the whole Log File over.
-            LOG_INFO << "FullIndexOperation: interrupted while checking the cached index of "
-                     << fileName_;
-            Q_EMIT indexingFinished( false );
-            return false;
-        }
-        else {
-            Q_EMIT indexingProgressed( 0 );
-            {
-                IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-                scopedAccessor.clear( indexingPolicy_ );
+        {
+            IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+            scopedAccessor.loadFromCache( std::move( cached->linePosition ), cached->maxLength,
+                                          cached->hash, codec,
+                                          indexingPolicy_.fastModificationDetection );
+            if ( forcedEncoding_ ) {
                 scopedAccessor.forceEncoding( forcedEncoding_ );
             }
-
-            doIndex( 0_offset );
         }
 
-        LOG_INFO << "FullIndexOperation: ... finished, interrupt = "
-                 << static_cast<bool>( interruptRequest_ );
+        Q_EMIT indexingProgressed( 100 );
+        Q_EMIT indexingFinished( LoadingStatus::Successful, {} );
+        return true;
+    }
 
-        const auto result = interruptRequest_ ? false : true;
-
-        // The cache decides for itself whether it keeps this Index.
-        if ( result ) {
-            IndexingData::ConstAccessor accessor{ indexing_data_.get() };
-            if ( const auto* linePos = accessor.getCompressedLinePosition() ) {
-                const auto* codec = accessor.getEncodingGuess();
-                const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
-
-                indexCache.trySave( fileName_, *linePos, accessor.getMaxLength(),
-                                    accessor.getHash(), encodingName, linePos->hasFakeFinalLF() );
-            }
-        }
-
-        Q_EMIT indexingFinished( result );
-        return result;
-    } catch ( const std::exception& err ) {
-        const auto errorString = QString( "FullIndexOperation failed: %1" ).arg( err.what() );
-        LOG_ERROR << errorString;
-        dispatchToMainThread( [ errorString ]() {
-            IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, errorString );
-        } );
-
-        {
-            IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-            scopedAccessor.clear( indexingPolicy_ );
-        }
-
-        Q_EMIT indexingFinished( false );
+    if ( cached && resumeFrom( *cached, fileSize ) ) {
+        // Read into a local first: an accessor held for the duration of
+        // doIndex() would keep indexing from taking its own.
+        const auto resumeOffset
+            = IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize();
+        doIndex( OffsetInFile( resumeOffset ) );
+    }
+    else if ( cached && interruptRequest_ ) {
+        // Checking the cached Index was interrupted, which is not a sign
+        // it cannot be gone on from: stop, rather than throw away what
+        // there is and start indexing the whole Log File over.
+        LOG_INFO << "FullIndexOperation: interrupted while checking the cached index of "
+                 << fileName_;
+        Q_EMIT indexingFinished( LoadingStatus::Interrupted, {} );
         return false;
     }
-}
-
-OperationResult PartialIndexOperation::run()
-{
-    try {
-        LOG_INFO << "PartialIndexOperation::run(), file " << fileName_.toStdString();
-
-        const auto initialPosition
-            = OffsetInFile( IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize() );
-
-        LOG_INFO << "PartialIndexOperation: Starting the count at " << initialPosition << " ...";
-
+    else {
         Q_EMIT indexingProgressed( 0 );
-
-        doIndex( initialPosition );
-
-        LOG_INFO << "PartialIndexOperation: ... finished counting.";
-
-        const auto result = interruptRequest_ ? false : true;
-        Q_EMIT indexingFinished( result );
-        return result;
-    } catch ( const std::exception& err ) {
-        const auto errorString = QString( "PartialIndexOperation failed: %1" ).arg( err.what() );
-        LOG_ERROR << errorString;
-        dispatchToMainThread( [ errorString ]() {
-            IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, errorString );
-        } );
-
         {
             IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
             scopedAccessor.clear( indexingPolicy_ );
+            scopedAccessor.forceEncoding( forcedEncoding_ );
         }
 
-        Q_EMIT indexingFinished( false );
-        return false;
+        doIndex( 0_offset );
     }
+
+    LOG_INFO << "FullIndexOperation: ... finished, interrupt = "
+             << static_cast<bool>( interruptRequest_ );
+
+    const auto result = interruptRequest_ ? false : true;
+
+    // The cache decides for itself whether it keeps this Index.
+    if ( result ) {
+        IndexingData::ConstAccessor accessor{ indexing_data_.get() };
+        if ( const auto* linePos = accessor.getCompressedLinePosition() ) {
+            const auto* codec = accessor.getEncodingGuess();
+            const auto encodingName = codec ? codec->name() : QByteArray( "UTF-8" );
+
+            indexCache.trySave( fileName_, *linePos, accessor.getMaxLength(), accessor.getHash(),
+                                encodingName, linePos->hasFakeFinalLF() );
+        }
+    }
+
+    Q_EMIT indexingFinished( result ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} );
+    return result;
 }
 
-OperationResult CheckFileChangesOperation::run()
+OperationResult PartialIndexOperation::doRun()
 {
-    try {
-        LOG_INFO << "CheckFileChangesOperation::run(), file " << fileName_.toStdString();
-        const auto result = doCheckFileChanges();
-        Q_EMIT fileCheckFinished( result );
-        return result;
-    } catch ( const std::exception& err ) {
-        const auto errorString
-            = QString( "CheckFileChangesOperation failed: %1" ).arg( err.what() );
-        LOG_ERROR << errorString;
-        dispatchToMainThread( [ errorString ]() {
-            IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, errorString );
-        } );
-        Q_EMIT fileCheckFinished( MonitoredFileStatus::Truncated );
-        return MonitoredFileStatus::Truncated;
-    }
+    LOG_INFO << "PartialIndexOperation::run(), file " << fileName_.toStdString();
+
+    const auto initialPosition
+        = OffsetInFile( IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize() );
+
+    LOG_INFO << "PartialIndexOperation: Starting the count at " << initialPosition << " ...";
+
+    Q_EMIT indexingProgressed( 0 );
+
+    doIndex( initialPosition );
+
+    LOG_INFO << "PartialIndexOperation: ... finished counting.";
+
+    const auto result = interruptRequest_ ? false : true;
+    Q_EMIT indexingFinished( result ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} );
+    return result;
+}
+
+OperationResult CheckFileChangesOperation::doRun()
+{
+    LOG_INFO << "CheckFileChangesOperation::run(), file " << fileName_.toStdString();
+    const auto result = doCheckFileChanges();
+    Q_EMIT fileCheckFinished( result, {} );
+    return result;
+}
+
+// What changed cannot be told when checking failed, so the Log File is
+// taken as truncated: it is indexed again from the start.
+OperationResult CheckFileChangesOperation::reportFailure( const QString& failure )
+{
+    Q_EMIT fileCheckFinished( MonitoredFileStatus::Truncated, failure );
+    return MonitoredFileStatus::Truncated;
 }
 
 MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
 {
-    QFileInfo info( fileName_ );
     const auto indexedHash = IndexingData::ConstAccessor{ indexing_data_.get() }.getHash();
-    const auto realFileSize = info.size();
+    const auto coverage = indexingPolicy_.fastModificationDetection ? DigestCoverage::HeaderAndTail
+                                                                    : DigestCoverage::Full;
 
-    if ( realFileSize == 0 || realFileSize < indexedHash.size ) {
-        LOG_INFO << "File truncated";
+    switch ( indexFit( indexedHash, fileName_, coverage ) ) {
+    case IndexFit::Unchanged:
+        LOG_INFO << "No change in file";
+        return MonitoredFileStatus::Unchanged;
+    case IndexFit::Grown:
+        LOG_INFO << "New data on disk";
+        return MonitoredFileStatus::DataAdded;
+    case IndexFit::Changed:
+        LOG_INFO << "File truncated or changed in indexed range";
+        return MonitoredFileStatus::Truncated;
+    case IndexFit::LogFileUnreadable:
+        LOG_INFO << "File failed to open";
         return MonitoredFileStatus::Truncated;
     }
-    else {
-        QFile file( fileName_ );
-
-        QByteArray buffer{ IndexingBlockSize, Qt::Uninitialized };
-
-        bool isFileModified = false;
-        const auto fastModificationDetection = indexingPolicy_.fastModificationDetection;
-
-        if ( !file.isOpen() && !file.open( QIODevice::ReadOnly ) ) {
-            LOG_INFO << "File failed to open";
-            return MonitoredFileStatus::Truncated;
-        }
-
-        const auto getDigest = [ &file, &buffer ]( const qint64 indexedSize ) {
-            FileDigest fileDigest;
-            auto readSize = 0ll;
-            auto totalSize = 0ll;
-            do {
-                const auto bytesToRead
-                    = std::min( static_cast<qint64>( buffer.size() ), indexedSize - totalSize );
-                readSize = file.read( buffer.data(), bytesToRead );
-
-                if ( readSize > 0 ) {
-                    fileDigest.addData( buffer.data(), static_cast<size_t>( readSize ) );
-                    totalSize += readSize;
-                }
-
-            } while ( readSize > 0 && totalSize < indexedSize );
-
-            return fileDigest.digest();
-        };
-        if ( fastModificationDetection ) {
-            const auto headerDigest = getDigest( indexedHash.headerSize );
-
-            LOG_INFO << "indexed header xxhash " << indexedHash.headerDigest;
-            LOG_INFO << "current header xxhash " << headerDigest << ", size "
-                     << indexedHash.headerSize;
-
-            isFileModified = headerDigest != indexedHash.headerDigest;
-
-            if ( !isFileModified ) {
-                file.seek( indexedHash.tailOffset );
-                const auto tailDigest = getDigest( indexedHash.tailSize );
-
-                LOG_INFO << "indexed tail xxhash " << indexedHash.tailDigest;
-                LOG_INFO << "current tail xxhash " << tailDigest << ", size "
-                         << indexedHash.tailSize;
-
-                isFileModified = tailDigest != indexedHash.tailDigest;
-            }
-        }
-        else {
-
-            const auto realHashDigest = getDigest( indexedHash.size );
-
-            LOG_INFO << "indexed xxhash " << indexedHash.fullDigest;
-            LOG_INFO << "current xxhash " << realHashDigest;
-
-            isFileModified = realHashDigest != indexedHash.fullDigest;
-        }
-
-        if ( isFileModified ) {
-            LOG_INFO << "File changed in indexed range";
-            return MonitoredFileStatus::Truncated;
-        }
-        else if ( realFileSize > indexedHash.size ) {
-            LOG_INFO << "New data on disk";
-            return MonitoredFileStatus::DataAdded;
-        }
-        else {
-            LOG_INFO << "No change in file";
-            return MonitoredFileStatus::Unchanged;
-        }
-    }
+    return MonitoredFileStatus::Truncated;
 }

@@ -83,19 +83,6 @@ public:
 
     void setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern );
     void setSearchPattern( const RegularExpressionPattern& pattern );
-    void setSearchLimits( LineNumber startLine, LineNumber endLine );
-    void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
-    // Hand over the settings that color Log Lines, after a settings change:
-    // painting reads no setting of its own.
-    void setDecorationPolicy( const DecorationPolicy& policy );
-
-    // Hand over the settings that say how the text the user selected is read
-    // as a QuickFind pattern. Call it when the view is built and again after
-    // a settings change: the view reads no setting of its own, and nothing is
-    // derived from this and kept, so a change takes effect at the next
-    // QuickFind.
-    void setQuickFindPolicy( const QuickFindPolicy& policy );
-
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();
 
@@ -115,6 +102,22 @@ public:
     // Drops the Rows read so far; they are read again as they are shown.
     void rereadLogLines() override;
     void updateFont( const QFont& font ) override;
+    void registerShortcuts() override;
+    // Hand over the settings that color Log Lines, after a settings change:
+    // painting reads no setting of its own.
+    void setDecorationPolicy( const DecorationPolicy& policy ) override;
+    // Shows the Overview as it says; the Table View has no line numbers.
+    void setPresentationPolicy( const PresentationPolicy& policy ) override;
+    // Hand over the settings that say how the text the user selected is read
+    // as a QuickFind pattern. Call it when the view is built and again after
+    // a settings change: the view reads no setting of its own, and nothing is
+    // derived from this and kept, so a change takes effect at the next
+    // QuickFind.
+    void setQuickFindPolicy( const QuickFindPolicy& policy ) override;
+    // Ignored: the Table View follows only as the Text View does.
+    void allowFollowMode( bool allow ) override;
+    void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels ) override;
+    void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
 
@@ -128,9 +131,10 @@ public Q_SLOTS:
 
 Q_SIGNALS:
     // The signals every Presentation emits, named and meant as the Text
-    // View's (see LogPresentation). Those the Table View offers the user
-    // nothing to send yet are declared all the same, so its holder connects
-    // them as it does the Text View's.
+    // View's (see LogPresentation). The Table View declares only those it
+    // emits: turning following on or off from the view, zooming with the
+    // wheel and the exit-view shortcut are the Text View's alone, and their
+    // signals are not in the set.
 
     // Sent when a new Row is selected: the Log Line of the first selected Row.
     void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
@@ -149,10 +153,7 @@ Q_SIGNALS:
     void sendSelectionToScratchpad();
     void replaceScratchpadWithSelection();
     void saveDefaultSplitterSizes();
-    void followModeChanged( bool enabled );
     void activity();
-    void changeFontSize( bool increase );
-    void exitView();
 
 protected:
     // The context menu for the current selection, opened at pos in viewport

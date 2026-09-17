@@ -39,8 +39,12 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstddef>
 #include <exception>
+#include <memory>
+#include <mutex>
 #include <qsemaphore.h>
+#include <unordered_map>
 #include <utility>
 
 #include <robin_hood.h>
@@ -48,15 +52,13 @@
 #include <tbb/info.h>
 #include <vector>
 
-#include "dispatch_to.h"
-#include "issuereporter.h"
 #include "linetypes.h"
 #include "log.h"
 #include "progress.h"
 #include "runnable_lambda.h"
 
-#include "logdata.h"
 #include "regularexpression.h"
+#include "searchblocksource.h"
 
 #include "logfiltereddataworker.h"
 #include "synchronization.h"
@@ -79,7 +81,7 @@ struct PartialSearchResults {
 
 struct SearchBlockData {
     SearchBlockData() = default;
-    SearchBlockData( LineNumber start, LogData::RawLines blockLines )
+    SearchBlockData( LineNumber start, RawLines blockLines )
         : chunkStart( start )
         , lines( std::move( blockLines ) )
     {
@@ -92,12 +94,53 @@ struct SearchBlockData {
     SearchBlockData& operator=( SearchBlockData&& ) = default;
 
     LineNumber chunkStart;
-    LogData::RawLines lines;
+    RawLines lines;
 
     PartialSearchResults searchResults;
 };
 
-PartialSearchResults filterLines( const PatternMatcher& matcher, const LogData::RawLines& rawLines,
+// The blocks a Search has read and not yet combined. They are owned here, not
+// by the pointers passed through the search graph: a failure -- a block that
+// cannot be read, say -- cancels the graph, and the blocks it holds then never
+// reach the node that combines them. Whatever is left when the Search ends is
+// released with this. One lock per block, none per Log Line.
+class ReadBlocks {
+public:
+    ReadBlocks() = default;
+    ReadBlocks( const ReadBlocks& ) = delete;
+    ReadBlocks( ReadBlocks&& ) = delete;
+    ReadBlocks& operator=( const ReadBlocks& ) = delete;
+    ReadBlocks& operator=( ReadBlocks&& ) = delete;
+    ~ReadBlocks() = default;
+
+    SearchBlockData* add( std::unique_ptr<SearchBlockData> block )
+    {
+        auto* added = block.get();
+        std::lock_guard lock( mutex_ );
+        blocks_.emplace( added, std::move( block ) );
+        return added;
+    }
+
+    // The block was combined: its Log Lines are let go of at once.
+    void release( SearchBlockData* block )
+    {
+        std::unique_ptr<SearchBlockData> released;
+        {
+            std::lock_guard lock( mutex_ );
+            const auto found = blocks_.find( block );
+            if ( found != blocks_.end() ) {
+                released = std::move( found->second );
+                blocks_.erase( found );
+            }
+        }
+    }
+
+private:
+    std::mutex mutex_;
+    std::unordered_map<SearchBlockData*, std::unique_ptr<SearchBlockData>> blocks_;
+};
+
+PartialSearchResults filterLines( const PatternMatcher& matcher, const RawLines& rawLines,
                                   LineNumber chunkStart )
 {
     LOG_DEBUG << "Filter lines at " << chunkStart;
@@ -172,9 +215,9 @@ void SearchData::clear()
     newMatches_ = {};
 }
 
-LogFilteredDataWorker::LogFilteredDataWorker( const LogData& sourceLogData,
+LogFilteredDataWorker::LogFilteredDataWorker( const SearchBlockSource& blockSource,
                                               const SearchPolicy& searchPolicy )
-    : sourceLogData_( sourceLogData )
+    : blockSource_( blockSource )
     , searchPolicy_( searchPolicy )
 {
     operationsPool_.setMaxThreadCount( 1 );
@@ -236,7 +279,7 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
         // updating activeSearchId_ until this run finished on its own, defeating
         // supersession entirely (the same trap the destructor's wait avoids).
         auto operationRequested = std::make_unique<FullSearchOperation>(
-            sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
+            blockSource_, id, activeSearchId_, compiledExpression, startLine, endLine,
             searchPolicy );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
@@ -264,8 +307,8 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
             // See the comment in search(): not holding operationsMutex_ here is what
             // lets a superseding call proceed without waiting for this run to finish.
             auto operationRequested = std::make_unique<UpdateSearchOperation>(
-                sourceLogData_, id, activeSearchId_, compiledExpression, startLine, endLine,
-                position, searchPolicy );
+                blockSource_, id, activeSearchId_, compiledExpression, startLine, endLine, position,
+                searchPolicy );
             connectSignalsAndRun( operationRequested.get() );
         } ) );
 
@@ -299,7 +342,7 @@ SearchResults LogFilteredDataWorker::getSearchResults() const
 // Operations implementation
 //
 
-SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchId,
+SearchOperation::SearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
                                   const std::atomic<uint64_t>& activeSearchId,
                                   std::shared_ptr<const RegularExpression> compiledExpression,
                                   LineNumber startLine, LineNumber endLine,
@@ -308,7 +351,7 @@ SearchOperation::SearchOperation( const LogData& sourceLogData, SearchId searchI
     : searchId_( searchId )
     , activeSearchId_( activeSearchId )
     , compiledExpression_( std::move( compiledExpression ) )
-    , sourceLogData_( sourceLogData )
+    , blockSource_( blockSource )
     , startLine_( startLine )
     , endLine_( endLine )
     , searchPolicy_( searchPolicy )
@@ -323,7 +366,7 @@ bool SearchOperation::isSuperseded() const
 
 void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 {
-    const auto nbSourceLines = sourceLogData_.getNbLine();
+    const auto nbSourceLines = blockSource_.getNbLines();
 
     LOG_INFO << "Searching from line " << initialLine << " to " << nbSourceLines;
 
@@ -348,6 +391,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     LOG_INFO << "Using " << matchingThreadsCount << " matching threads";
 
+    // Declared before the graph, so that it outlives the graph and every node.
+    ReadBlocks readBlocks;
+
     // The graph pulls its blocks from an input_node while this thread waits in
     // wait_for_all(), which makes this thread one of those running the graph.
     // Pushing blocks in from here instead, sleeping whenever the limiter was
@@ -364,6 +410,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
         = LinesCount( static_cast<LinesCount::UnderlyingType>( searchReadBufferSizeLines ) );
 
     std::chrono::microseconds fileReadingDuration{ 0 };
+    // Counted per block, as the blocks are read, for the io perf reported below.
+    std::size_t bytesRead = 0;
 
     using BlockDataType = SearchBlockData*;
     auto blockPrefetcher
@@ -430,9 +478,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
             searchGraph, 1, [ & ]( const BlockDataType& blockData ) {
                 if ( isSuperseded() ) {
                     LOG_INFO << "Match processor interrupted";
-                    // The processor owns the block once it reaches this node; release the
-                    // heap-allocated SearchBlockData even on the interrupt path to avoid leaks.
-                    delete blockData;
+                    // Released on the interrupt path too, not only when the Search ends.
+                    readBlocks.release( blockData );
                     return tbb::flow::continue_msg{};
                 }
 
@@ -461,7 +508,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                               << ", " << matchResults.processedLines << " lines read.";
                 }
 
-                delete blockData;
+                readBlocks.release( blockData );
 
                 const auto matchProcessorEndTime = high_resolution_clock::now();
                 matchCombiningDuration += duration_cast<microseconds>( matchProcessorEndTime
@@ -506,10 +553,10 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
             const auto linesInChunk
                 = LinesCount( qMin( nbLinesInChunk.get(), ( endLine - chunkStart ).get() ) );
-            BlockDataType blockData
-                = new SearchBlockData{ chunkStart,
-                                       sourceLogData_.getLinesRaw( chunkStart, linesInChunk ) };
+            BlockDataType blockData = readBlocks.add( std::make_unique<SearchBlockData>(
+                chunkStart, blockSource_.getLinesRaw( chunkStart, linesInChunk ) ) );
 
+            bytesRead += blockData->lines.buffer.size();
             chunkStart = chunkStart + nbLinesInChunk;
             fileReadingDuration += duration_cast<microseconds>( high_resolution_clock::now()
                                                                 - lineSourceStartTime );
@@ -532,8 +579,6 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
         LOG_INFO << "Matching took " << std::get<microseconds>( regexMatcher );
     }
 
-    const auto totalFileSize = sourceLogData_.getFileSize();
-
     // A small file searches in well under a millisecond; dividing by the
     // millisecond count would then divide by zero, and casting the resulting
     // infinity to an integer is undefined behaviour (UBSan aborts on it).
@@ -545,17 +590,31 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                     static_cast<double>( ( endLine - initialLine ).get() ) / elapsedSeconds ) )
              << " lines/s";
     LOG_INFO << "Searching io perf "
-             << ( static_cast<double>( totalFileSize ) / elapsedSeconds ) / ( 1024 * 1024 )
-             << " MiB/s";
+             << ( static_cast<double>( bytesRead ) / elapsedSeconds ) / ( 1024 * 1024 ) << " MiB/s";
 
     // Completion is reported once, here, rather than folded into the last progress
     // tick -- that is what lets a superseded/interrupted run be told apart from a
     // genuinely finished one instead of both claiming 100%.
-    Q_EMIT searchFinished( searchId_, nbMatches, initialLine, isSuperseded() );
+    Q_EMIT searchFinished( searchId_, nbMatches, initialLine, isSuperseded(), {} );
+}
+
+void SearchOperation::run( SearchData& searchData )
+{
+    try {
+        doRun( searchData );
+    } catch ( const std::exception& err ) {
+        const auto failure
+            = QString( "%1 failed: %2" ).arg( metaObject()->className(), err.what() );
+        LOG_ERROR << failure;
+        searchData.clear();
+        // Still reported finished: whoever started this run paired it with
+        // one attachReader() that only searchFinished balances.
+        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, false, failure );
+    }
 }
 
 // Called in the worker thread's context
-void FullSearchOperation::run( SearchData& searchData )
+void FullSearchOperation::doRun( SearchData& searchData )
 {
     if ( isSuperseded() ) {
         // Superseded before we even started (e.g. several patterns were typed in
@@ -564,51 +623,33 @@ void FullSearchOperation::run( SearchData& searchData )
         // whoever started us paired it with one attachReader() that only our
         // searchFinished balances with a detachReader().
         LOG_INFO << "Search superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, true );
+        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, true, {} );
         return;
     }
 
-    try {
-        // Clear the shared data
-        searchData.clear();
-        doSearch( searchData, 0_lnum );
-    } catch ( const std::exception& err ) {
-        const auto errorString = QString( "FullSearchOperation failed: %1" ).arg( err.what() );
-        LOG_ERROR << errorString;
-        dispatchToMainThread( [ errorString ]() {
-            IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, errorString );
-        } );
-        searchData.clear();
-    }
+    // Clear the shared data
+    searchData.clear();
+    doSearch( searchData, 0_lnum );
 }
 
 // Called in the worker thread's context
-void UpdateSearchOperation::run( SearchData& searchData )
+void UpdateSearchOperation::doRun( SearchData& searchData )
 {
     if ( isSuperseded() ) {
         LOG_INFO << "Search update superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, 0_lcount, initialPosition_, true );
+        Q_EMIT searchFinished( searchId_, 0_lcount, initialPosition_, true, {} );
         return;
     }
 
-    try {
-        auto initialLine = qMax( searchData.getLastProcessedLine(), initialPosition_ );
+    auto initialLine = qMax( searchData.getLastProcessedLine(), initialPosition_ );
 
-        if ( initialLine.get() >= 1 ) {
-            // We need to re-search the last line because it might have
-            // been updated (if it was not LF-terminated)
-            --initialLine;
-            // In case the last line matched, we don't want it to match twice.
-            searchData.deleteMatch( initialLine );
-        }
-
-        doSearch( searchData, initialLine );
-    } catch ( const std::exception& err ) {
-        const auto errorString = QString( "UpdateSearchOpertaion failed: %1" ).arg( err.what() );
-        LOG_ERROR << errorString;
-        dispatchToMainThread( [ errorString ]() {
-            IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, errorString );
-        } );
-        searchData.clear();
+    if ( initialLine.get() >= 1 ) {
+        // We need to re-search the last line because it might have
+        // been updated (if it was not LF-terminated)
+        --initialLine;
+        // In case the last line matched, we don't want it to match twice.
+        searchData.deleteMatch( initialLine );
     }
+
+    doSearch( searchData, initialLine );
 }

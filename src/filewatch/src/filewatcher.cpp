@@ -346,6 +346,12 @@ FileWatcher& FileWatcher::getFileWatcher()
     return *instance;
 }
 
+std::shared_ptr<FileWatcher> FileWatcher::sharedFileWatcher()
+{
+    // Never deletes: the watcher outlives every holder of this pointer.
+    return std::shared_ptr<FileWatcher>( &getFileWatcher(), []( FileWatcher* ) {} );
+}
+
 void FileWatcher::addFile( const QString& fileName )
 {
     efswWatcher_->addFile( fileName );
