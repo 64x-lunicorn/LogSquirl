@@ -29,11 +29,18 @@
 // numbers show the re-parse part of the cost and a lower bound of the sync
 // part. What was in the store before is written back at the end.
 //
+// A second case restores a Session of several large Log Files (#300) and
+// measures the time until the current tab's Log File has loaded, and until
+// every tab's has. Before #300 every Log File started loading at once; after
+// it the current tab's loads first and the others one after another.
+//
 // Only API that origin/master already had is used, so this file builds
 // unchanged on both sides of an A/B comparison. See tests/benchmarks/README.md.
 
 #include "configuration.h"
+#include "generated_log_file.h"
 #include "logformatcatalog.h"
+#include "openlogfile.h"
 #include "persistentinfo.h"
 #include "recording_views.h"
 #include "session.h"
@@ -45,10 +52,12 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QEventLoop>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QWidget>
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -178,7 +187,168 @@ int restoreSession( const std::shared_ptr<LogFormatCatalog>& catalog )
     return tabs;
 }
 
+// The number in an environment variable, or `fallback` when it holds none.
+std::uint64_t numberFromEnvironment( const char* name, std::uint64_t fallback )
+{
+    bool isNumber = false;
+    const auto requested = qgetenv( name ).toULongLong( &isNumber );
+    return ( isNumber && requested > 0 ) ? requested : fallback;
+}
+
+// Several large Log Files saved as the one window of the last Session, the
+// last one its current tab: 4 Log Files of 32 MiB each by default, or
+// LOGSQUIRL_BENCHMARK_SESSION_LOG_FILES of LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB
+// MiB each.
+class LargeLogFileSession {
+public:
+    LargeLogFileSession()
+        : savedSession_( SessionInfo::getSynced() )
+    {
+        REQUIRE( dir_.isValid() );
+
+        const auto count = numberFromEnvironment( "LOGSQUIRL_BENCHMARK_SESSION_LOG_FILES", 4 );
+        const auto bytes
+            = numberFromEnvironment( "LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB", 32 ) * 1024 * 1024;
+
+        std::vector<SessionInfo::OpenFile> openFiles;
+        for ( std::uint64_t i = 0; i < count; ++i ) {
+            const auto path = dir_.filePath( QStringLiteral( "large-%1.log" ).arg( i ) );
+            bool written = false;
+            logdatabenchmark::writeGeneratedLogFile(
+                path, logdatabenchmark::LogFileShape::ShortLines, bytes, written );
+            REQUIRE( written );
+            openFiles.emplace_back( path, 0, QString{} );
+        }
+        fileCount_ = static_cast<int>( count );
+
+        SessionInfo session;
+        session.add( WindowId );
+        session.setOpenFiles( WindowId, openFiles );
+        session.save();
+
+        PersistentInfo::getSettings( session_settings{} ).sync();
+        SessionInfo::getSynced();
+    }
+
+    ~LargeLogFileSession()
+    {
+        savedSession_.save();
+        PersistentInfo::getSettings( session_settings{} ).sync();
+        SessionInfo::getSynced();
+    }
+
+    LargeLogFileSession( const LargeLogFileSession& ) = delete;
+    LargeLogFileSession& operator=( const LargeLogFileSession& ) = delete;
+
+    int fileCount() const
+    {
+        return fileCount_;
+    }
+
+    static constexpr const char* WindowId = "session_restore_benchmark_large";
+
+private:
+    SessionInfo savedSession_;
+    QTemporaryDir dir_;
+    int fileCount_ = 0;
+};
+
+// A restored Session and the views of its Log Files, which it outlives.
+struct RestoredSession {
+    std::shared_ptr<Session> appSession;
+    std::vector<RecordingViews*> built;
+
+    RestoredSession() = default;
+    RestoredSession( const RestoredSession& ) = delete;
+    RestoredSession& operator=( const RestoredSession& ) = delete;
+
+    ~RestoredSession()
+    {
+        for ( auto* views : built ) {
+            delete views;
+        }
+    }
+};
+
+enum class Loaded { CurrentTab, EveryTab };
+
+// Restores the large Log File Session, as the application does at startup,
+// and returns once the current tab's Log File, or every tab's, has loaded.
+std::unique_ptr<RestoredSession>
+restoreUntilLoaded( const std::shared_ptr<LogFormatCatalog>& catalog, Loaded loaded )
+{
+    auto restored = std::make_unique<RestoredSession>();
+    restored->appSession = std::make_shared<Session>( testSettingsPolicies(), catalog );
+
+    auto currentFileIndex = -1;
+    for ( auto& window : restored->appSession->windowSessions() ) {
+        if ( window.windowId() == LargeLogFileSession::WindowId ) {
+            window.restore( RecordingViews::factory( restored->built ), &currentFileIndex );
+        }
+    }
+    REQUIRE( currentFileIndex >= 0 );
+
+    // The connections go with this object.
+    QObject waiting;
+    QEventLoop loop;
+    auto remaining = 0;
+    for ( auto tab = 0; tab < static_cast<int>( restored->built.size() ); ++tab ) {
+        if ( loaded == Loaded::CurrentTab && tab != currentFileIndex ) {
+            continue;
+        }
+        ++remaining;
+        QObject::connect( restored->built[ static_cast<size_t>( tab ) ]->build().openLogFile.get(),
+                          &OpenLogFile::loadingFinished, &waiting, [ &remaining, &loop ] {
+                              if ( --remaining == 0 ) {
+                                  loop.quit();
+                              }
+                          } );
+    }
+    loop.exec();
+
+    return restored;
+}
+
 } // namespace
+
+TEST_CASE( "Restoring a Session of several large Log Files", "[session-restore-benchmark]" )
+{
+    LargeLogFileSession stored;
+    const auto catalog = std::make_shared<LogFormatCatalog>();
+
+    REQUIRE( restoreUntilLoaded( catalog, Loaded::EveryTab )->built.size()
+             == static_cast<size_t>( stored.fileCount() ) );
+
+    // Restores the Session once per run. The last run's Session is torn down
+    // after the measurement; with more than one run per sample, a run tears
+    // down the one before it first, so that Log Files still loading in the
+    // background do not compete with it. Log Files this large take one run
+    // per sample.
+    const auto measureRestore = [ &catalog ]( Catch::Benchmark::Chronometer& meter,
+                                              Loaded loaded ) {
+        std::vector<std::unique_ptr<RestoredSession>> runs( static_cast<size_t>( meter.runs() ) );
+        meter.measure( [ &runs, &catalog, loaded ]( int run ) {
+            const auto index = static_cast<size_t>( run );
+            if ( index > 0 ) {
+                runs[ index - 1 ].reset();
+            }
+            runs[ index ] = restoreUntilLoaded( catalog, loaded );
+            return runs[ index ]->built.size();
+        } );
+    };
+
+    BENCHMARK_ADVANCED( "large Log Files: restore until the current tab has loaded" )(
+        Catch::Benchmark::Chronometer meter )
+    {
+        measureRestore( meter, Loaded::CurrentTab );
+    };
+
+    BENCHMARK_ADVANCED( "large Log Files: restore until every tab has loaded" )(
+        Catch::Benchmark::Chronometer meter )
+    {
+        measureRestore( meter, Loaded::EveryTab );
+    };
+}
 
 TEST_CASE( "Restoring a Session of 20 tabs at startup", "[session-restore-benchmark]" )
 {

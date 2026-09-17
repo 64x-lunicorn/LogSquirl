@@ -298,6 +298,21 @@ tab groups) into the settings store, then measures
 - **add and style the tabs only**: the 20 tabs alone, without opening the
   Log Files, where the settings reads are most of the cost.
 
+A second case restores a Session of several large Log Files (#300), written
+at run time into a temporary directory, the last one the current tab, and
+measures
+
+- **restore until the current tab has loaded**: the time until the user can
+  work in the current tab;
+- **restore until every tab has loaded**: the time until every Log File of
+  the Session has loaded.
+
+Before #300 every Log File starts loading at once and competes with the
+current tab's; after it the current tab's loads first and the others one
+after another. There are 4 Log Files of 32 MiB each by default; set
+`LOGSQUIRL_BENCHMARK_SESSION_LOG_FILES` and
+`LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB` for more or larger ones.
+
 The settings store is the portable one next to the binary, as for the tests,
 not the macOS preferences daemon the application uses; what was stored before
 is written back at the end. The file uses only what the Session and the tab
@@ -308,8 +323,8 @@ cmake --build build-release --target logsquirl_session_restore_benchmark
 ./build-release/output/logsquirl_session_restore_benchmark --benchmark-samples 50 > after.txt
 ```
 
-For the before side, copy `session_restore_benchmark.cpp` into a worktree of
-origin/master and add the target as in `CMakeLists.txt` here, as described for
+For the before side, copy `session_restore_benchmark.cpp` and
+`generated_log_file.h` into a worktree of origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
 
 # Regex matcher benchmark
