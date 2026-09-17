@@ -54,6 +54,7 @@
 #include "hsregularexpression.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
+#include "marklengths.h"
 #include "searchsession.h"
 #include "synchronization.h"
 
@@ -195,8 +196,9 @@ private:
 
     const LogData* sourceLogData_;
 
-    // The longest Marked Log Line, kept up to date as Marks change.
-    LineLength maxLengthMarks_;
+    // The length of every marked Log Line, remembered when it was marked, so
+    // the longest Mark is known without reading the marked Log Lines again.
+    MarkLengths markLengths_;
 
     // Owns the pattern, the run in flight, its Matches and its progress.
     SearchSession session_;
@@ -208,9 +210,6 @@ private:
     // Utility functions
     LineNumber findLogDataLine( LineNumber lineNum ) const;
     LineNumber findFilteredLine( LineNumber lineNum ) const;
-
-    // update maxLengthMarks_ when a Marks was changed.
-    void updateMaxLengthMarks( OptionalLineNumber added_line, OptionalLineNumber removed_line );
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( LogFilteredData::Visibility )

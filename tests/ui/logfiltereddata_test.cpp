@@ -1249,3 +1249,64 @@ SCENARIO( "The Displayed Lines read in a block as each of them does on its own",
         REQUIRE( read( from, 10_lcount )[ 3 ].isEmpty() );
     }
 }
+
+SCENARIO( "The Filtered View is as wide as its longest Mark as Marks come and go",
+          "[logdata][marks]" )
+{
+    // Log Line n is n + 1 characters long.
+    QTemporaryFile file{ "filtered_test_mark_lengths_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < 100; ++line ) {
+        file.write( QByteArray( line + 1, 'x' ) + "\n" );
+    }
+    file.flush();
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    auto filtered_data = logData.getNewFilteredData();
+    REQUIRE( filtered_data->getMaxLength() == 0_length );
+
+    GIVEN( "Marks on Log Lines 9, 29, 19 and 49, one of them marked twice" )
+    {
+        filtered_data->addMark( 9_lnum );
+        filtered_data->toggleMark( 29_lnum );
+        filtered_data->addMark( 19_lnum );
+        filtered_data->addMark( 49_lnum );
+        filtered_data->addMark( 49_lnum );
+
+        THEN( "it is as wide as the longest Mark" )
+        {
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 50 ) );
+        }
+
+        WHEN( "the longest Marks are removed one after another" )
+        {
+            filtered_data->deleteMark( 49_lnum );
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 30 ) );
+            filtered_data->toggleMark( 29_lnum );
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
+
+            THEN( "a shorter Mark removed, or a Log Line not marked, leaves the width" )
+            {
+                filtered_data->deleteMark( 9_lnum );
+                filtered_data->deleteMark( 70_lnum );
+                REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
+            }
+        }
+
+        WHEN( "every Mark is cleared" )
+        {
+            filtered_data->clearMarks();
+
+            THEN( "it is as wide as no Mark" )
+            {
+                REQUIRE( filtered_data->getMaxLength() == 0_length );
+            }
+        }
+    }
+}
