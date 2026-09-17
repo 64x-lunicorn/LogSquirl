@@ -95,9 +95,6 @@
 #include "shortcuts.h"
 #include "theme.h"
 
-// Palette for error signaling (yellow background)
-const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
-
 namespace {
 
 // The desktop application's answer to a failure the engine reports for a
@@ -660,8 +657,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
             printSearchInfoMessage( nbMatches );
         }
         else if ( isFailed ) {
-            searchInfoLine_->setPalette( ErrorPalette );
-            searchInfoLine_->setText( tr( "Search failed" ) );
+            showSearchInfoError( tr( "Search failed" ) );
             offerIssueReport( state.errorString );
         }
         searchInfoLine_->hideGauge();
@@ -1470,6 +1466,9 @@ void CrawlerWidget::setup()
     Theme::whenApplied( this, [ this ] {
         loadIcons();
         searchInfoLineDefaultPalette_ = palette();
+        if ( searchInfoLineShowsError_ ) {
+            searchInfoLine_->setPalette( searchInfoErrorPalette() );
+        }
     } );
 
     // Connect the signals
@@ -2032,6 +2031,7 @@ void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
         clearButton_->hide();
         searchButton_->hide();
         searchInfoLine_->hide();
+        searchInfoLineShowsError_ = false;
         logMainView_->setSearchPattern( state.pattern );
         filteredView_->setSearchPattern( state.pattern );
         logTableView_->setSearchPattern( state.pattern );
@@ -2046,8 +2046,7 @@ void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
         QString errorMessage = tr( "Error in expression" );
         errorMessage += ": ";
         errorMessage += state.errorString;
-        searchInfoLine_->setPalette( ErrorPalette );
-        searchInfoLine_->setText( errorMessage );
+        showSearchInfoError( errorMessage );
         searchInfoLine_->show();
 
         logMainView_->setSearchPattern( {} );
@@ -2095,8 +2094,25 @@ void CrawlerWidget::printSearchInfoMessage( LinesCount nbMatches )
     }
 
     searchInfoLine_->setPalette( searchInfoLineDefaultPalette_ );
+    searchInfoLineShowsError_ = false;
     searchInfoLine_->setText( text );
     searchInfoLine_->setVisible( !text.isEmpty() );
+}
+
+QPalette CrawlerWidget::searchInfoErrorPalette() const
+{
+    const Theme& theme = Theme::active();
+    auto palette = searchInfoLineDefaultPalette_;
+    palette.setColor( QPalette::Window, theme.color( ColorToken::ErrorBackground ) );
+    palette.setColor( QPalette::WindowText, theme.color( ColorToken::ErrorText ) );
+    return palette;
+}
+
+void CrawlerWidget::showSearchInfoError( const QString& message )
+{
+    searchInfoLine_->setPalette( searchInfoErrorPalette() );
+    searchInfoLineShowsError_ = true;
+    searchInfoLine_->setText( message );
 }
 
 // Change the data status and, if needed, advise upstream.

@@ -730,3 +730,37 @@ SCENARIO( "A radio button indicator is round in every Theme", "[theme]" )
         }
     }
 }
+
+SCENARIO( "An error marker's text is readable in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its error text has at least WCAG AA contrast against the error background" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::ErrorText ),
+                                        theme.color( ColorToken::ErrorBackground ) )
+                         >= 4.5 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The pull-to-follow bar's stripes stand out in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "the stripes have at least 3:1 contrast against the window color they are drawn on" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::PullToFollowStripe ),
+                                        theme.color( ColorToken::Window ) )
+                         >= 3.0 );
+            }
+        }
+    }
+}

@@ -238,6 +238,9 @@ Theme Theme::light()
         { BulletOutline, "#495057" },
         { ProgressChunk, "#0056B3" },
         { SliderGroove, "#ADB5BD" },
+        { ErrorBackground, "#F8D7DA" },
+        { ErrorText, "#58151C" },
+        { PullToFollowStripe, "#868E96" },
     } );
 
     using enum StyleToken;
@@ -362,6 +365,9 @@ Theme Theme::dark()
         // Highlight; follows an overridden Highlight (see fromName).
         { ProgressChunk, "#4D90FE" },
         { SliderGroove, "#555555" },
+        { ErrorBackground, "#5A1D1D" },
+        { ErrorText, "#FFDADA" },
+        { PullToFollowStripe, "#777777" },
     } );
 
     using enum StyleToken;
@@ -485,6 +491,11 @@ Theme Theme::highContrast()
         // filled part is black too, outlined in Highlight.
         { ProgressChunk, "#000000" },
         { SliderGroove, "#FFFFFF" },
+        // Red for errors, as for destructive actions; darker than pure red,
+        // on which white text stays below 4.5:1.
+        { ErrorBackground, "#C00000" },
+        { ErrorText, "#FFFFFF" },
+        { PullToFollowStripe, "#FFFF00" },
     } );
 
     using enum StyleToken;

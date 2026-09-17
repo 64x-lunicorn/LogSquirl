@@ -499,18 +499,26 @@ void OptionsDialog::checkShortcutsOnDuplicate() const
         return;
     }
 
-    const auto DEFAULT_BACKGROUND = shortcutsTable->item( 0, PRIMARY_COL )->background();
+    // A conflict is marked in the Theme's error colors; an item without its
+    // own brushes shows the table's.
+    const auto markConflict = []( QTableWidgetItem* item ) {
+        const Theme& theme = Theme::active();
+        item->setBackground( theme.color( ColorToken::ErrorBackground ) );
+        item->setForeground( theme.color( ColorToken::ErrorText ) );
+    };
 
     for ( auto shortcutRow = 0; shortcutRow < shortcutsTable->rowCount(); ++shortcutRow ) {
-        shortcutsTable->item( shortcutRow, PRIMARY_COL )->setBackground( DEFAULT_BACKGROUND );
-        shortcutsTable->item( shortcutRow, SECONDARY_COL )->setBackground( DEFAULT_BACKGROUND );
+        for ( const auto column : { PRIMARY_COL, SECONDARY_COL } ) {
+            shortcutsTable->item( shortcutRow, column )->setBackground( QBrush{} );
+            shortcutsTable->item( shortcutRow, column )->setForeground( QBrush{} );
+        }
     }
 
     std::unordered_map<std::string, std::pair<int, int>> uniqueShortcuts;
     bool hasDuplicateShortcuts = false;
     for ( auto shortcutRow = 0; shortcutRow < shortcutsTable->rowCount(); ++shortcutRow ) {
 
-        auto hasDuplicates = [ &uniqueShortcuts, shortcutRow, this ]( int ncol ) {
+        auto hasDuplicates = [ &uniqueShortcuts, &markConflict, shortcutRow, this ]( int ncol ) {
             auto keySequence = static_cast<KeySequencePresenter*>(
                                    shortcutsTable->cellWidget( shortcutRow, ncol ) )
                                    ->keySequence();
@@ -519,9 +527,8 @@ void OptionsDialog::checkShortcutsOnDuplicate() const
                 if ( auto it = uniqueShortcuts.find( keySequence.toStdString() );
                      it != uniqueShortcuts.end() ) {
 
-                    shortcutsTable->item( it->second.first, it->second.second )
-                        ->setBackground( Qt::red );
-                    shortcutsTable->item( shortcutRow, ncol )->setBackground( Qt::red );
+                    markConflict( shortcutsTable->item( it->second.first, it->second.second ) );
+                    markConflict( shortcutsTable->item( shortcutRow, ncol ) );
 
                     return true;
                 }
