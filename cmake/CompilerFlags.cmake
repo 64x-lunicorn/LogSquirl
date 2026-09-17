@@ -1,9 +1,12 @@
 function(set_project_compile_flags project_name)
 
-  set(MSVC_FLAGS /fp:fast)
+  # No -ffast-math or /fp:fast: they let the compiler assume there are no
+  # NaNs or infinities and reorder floating point arithmetic, so chart values
+  # and aggregations could differ between compilers and optimization levels.
+  set(MSVC_FLAGS)
   set(MSVC_DEFINITIONS -DNOMINMAX)
 
-  set(CLANG_FLAGS -ffast-math)
+  set(CLANG_FLAGS)
 
   set(CLANG_DEFINITIONS)
 
