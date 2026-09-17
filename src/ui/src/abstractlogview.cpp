@@ -2132,7 +2132,7 @@ bool AbstractLogView::scrollTextArea( ScrollPosition scrollPosition )
     const auto rowDevicePx = static_cast<int>( std::lround( rowHeightPx ) );
     const int rows = static_cast<int>( getNbVisibleLines().get() );
     if ( rowDevicePx <= 0 || std::abs( rowHeightPx - rowDevicePx ) > 1e-6
-         || pixmap.height() < rows * rowDevicePx
+         || pixmap.height() != rows * rowDevicePx
          || !qFuzzyCompare( pixelRatio, viewport()->devicePixelRatio() ) ) {
         return false;
     }
