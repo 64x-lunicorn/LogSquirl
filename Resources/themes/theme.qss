@@ -646,6 +646,36 @@ QLabel[secondaryText="true"] {
 
 
 /* ===========================================================
+ *  Dashboard — the cards requires:
+ *  frame->setObjectName("dashboardCard");
+ *  and its primary action:
+ *  button->setProperty("primaryAction", true);
+ * =========================================================== */
+QFrame#dashboardCard {
+    background-color: @Panel@;
+    border: @OutlineWidth@ solid @Border@;
+    border-radius: 4px;
+}
+
+QPushButton[primaryAction="true"] {
+    background-color: @Highlight@;
+    border-color: @Highlight@;
+    color: @HighlightedText@;
+}
+QPushButton[primaryAction="true"]:hover {
+    border-color: @Text@;
+}
+QPushButton[primaryAction="true"]:focus {
+    border-color: @Text@;
+}
+QPushButton[primaryAction="true"]:pressed {
+    background-color: @ButtonPressed@;
+    border-color: @ButtonPressedBorder@;
+    color: @PressedText@;
+}
+
+
+/* ===========================================================
  *  Toolbar
  * =========================================================== */
 QToolBar {

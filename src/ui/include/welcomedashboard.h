@@ -20,6 +20,7 @@
 #ifndef LOGSQUIRL_WELCOMEDASHBOARD_H
 #define LOGSQUIRL_WELCOMEDASHBOARD_H
 
+#include <QList>
 #include <QWidget>
 
 class QLabel;
@@ -32,8 +33,9 @@ class PluginHost;
 
 /// Dashboard widget shown in the main window when no log tabs are open.
 ///
-/// Displays the application logo, version info, recent/favorite files,
-/// quick-action buttons, loaded plugin status, and keyboard shortcut hints.
+/// Displays the application logo, version info, quick-action buttons, cards
+/// for recent files, favorites and plugin status in one column, and keyboard
+/// shortcut hints.
 /// Emits signals when the user clicks an item so MainWindow can open files.
 class WelcomeDashboard : public QWidget {
     Q_OBJECT
@@ -64,10 +66,15 @@ Q_SIGNALS:
 protected:
     void dragEnterEvent( QDragEnterEvent* event ) override;
     void dropEvent( QDropEvent* event ) override;
+    void changeEvent( QEvent* event ) override;
 
 private:
     /// Build the full widget layout (called once from constructor).
     void buildUi();
+
+    /// Gives the section titles the application font, bold and a quarter
+    /// larger.
+    void updateTitleFonts();
 
     /// Populate the recent-files section.
     void refreshRecentFiles();
@@ -82,6 +89,7 @@ private:
     QVBoxLayout* favoritesLayout_ = nullptr;
     QVBoxLayout* pluginStatusLayout_ = nullptr;
     QLabel* logoLabel_ = nullptr;
+    QList<QLabel*> titleLabels_;
 
     const logsquirl::plugins::PluginCatalog* pluginCatalog_ = nullptr;
     const logsquirl::plugins::PluginHost* pluginHost_ = nullptr;
