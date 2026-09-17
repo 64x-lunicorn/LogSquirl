@@ -156,7 +156,14 @@ void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
     // We must be hidden until we have an Overview
     assert( overview_ != nullptr );
 
-    overview_->updateView( static_cast<unsigned>( height() ) );
+    // A recompute put off while a Search runs is painted once it is due.
+    const auto recomputeDue = overview_->updateView( static_cast<unsigned>( height() ) );
+    if ( recomputeDue.has_value() ) {
+        recomputeTimer_.start( static_cast<int>( recomputeDue->count() ), this );
+    }
+    else {
+        recomputeTimer_.stop();
+    }
 
     {
         QPainter painter( this );
@@ -169,7 +176,7 @@ void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
 
         // The 'match' lines
         painter.setPen( match_color );
-        const auto matchLines = *( overview_->getMatchLines() );
+        const auto& matchLines = *( overview_->getMatchLines() );
         for ( const auto& line : matchLines ) {
             painter.setOpacity( ( 1.0 / Overview::WeightedLine::WEIGHT_STEPS )
                                 * ( line.weight() + 1 ) );
@@ -180,7 +187,7 @@ void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
 
         // The 'mark' lines
         painter.setPen( mark_color );
-        const auto markLines = *( overview_->getMarkLines() );
+        const auto& markLines = *( overview_->getMarkLines() );
         for ( const auto& line : markLines ) {
             painter.setOpacity( ( 1.0 / Overview::WeightedLine::WEIGHT_STEPS )
                                 * ( line.weight() + 1 ) );
@@ -254,7 +261,11 @@ void OverviewWidget::removeHighlight()
 
 void OverviewWidget::timerEvent( QTimerEvent* event )
 {
-    if ( event->timerId() == highlightTimer_.timerId() ) {
+    if ( event->timerId() == recomputeTimer_.timerId() ) {
+        recomputeTimer_.stop();
+        update();
+    }
+    else if ( event->timerId() == highlightTimer_.timerId() ) {
         LOG_DEBUG << "OverviewWidget::timerEvent";
         if ( highlightedTTL_ > 0 ) {
             --highlightedTTL_;

@@ -24,6 +24,8 @@
 #include <QString>
 #include <cstddef>
 #include <functional>
+#include <optional>
+#include <utility>
 
 #include "linetypes.h"
 
@@ -149,6 +151,12 @@ public:
     // line or a portion.
     LinesCount getSelectedLinesCount( const LineMapping& lines ) const;
 
+    // The first and last position of the Log Lines a range selects, as lines
+    // shows them; none for a single line or a portion, or when a range has
+    // no Log Line shown.
+    std::optional<std::pair<LineNumber, LineNumber>>
+    getSelectedPositions( const LineMapping& lines ) const;
+
     // Returns wether the line passed is selected (entirely).
     bool isLineSelected( LineNumber line ) const;
 
@@ -204,6 +212,45 @@ private:
     };
     struct SelectedPartial selectedPartial_;
     struct SelectedRange selectedRange_;
+};
+
+// The length of a selection's text, as getSelectedText() builds it, known
+// without building that text: a single line or a portion reads its one Log
+// Line, a range the text of its Log Lines one by one. It remembers the last
+// range it measured, so a range grown or shrunk at either end -- a selection
+// extended by the mouse or the keyboard -- reads only the Log Lines it gained
+// or lost rather than all of them again.
+class SelectedTextLength {
+public:
+    // The length of selection.getSelectedText( lines, shownLines ).
+    LineLength of( const Selection& selection, const LineMapping& lines,
+                   const AbstractLogData& shownLines );
+
+    // The text shown may have changed: the next range is read in full.
+    void forget();
+
+private:
+    // The Log Lines at positions [first, last] and the sum of their lengths.
+    struct Measured {
+        const AbstractLogData* shownLines = nullptr;
+        LineNumber first;
+        LineNumber last;
+        LinesCount lines;
+        uint64_t length = 0;
+        // How many of them, from the first, are empty; known once asked for
+        // while the first position stays.
+        std::optional<uint64_t> leadingEmptyLines;
+    };
+
+    // The number and total length of the lines shown at [first, last].
+    static std::pair<LinesCount, uint64_t> measure( const AbstractLogData& shownLines,
+                                                    LineNumber first, LineNumber last );
+
+    // How many of the lines shown at [first, last], from the first, are empty.
+    static uint64_t leadingEmptyLines( const AbstractLogData& shownLines, LineNumber first,
+                                       LineNumber last );
+
+    std::optional<Measured> measured_;
 };
 
 #endif

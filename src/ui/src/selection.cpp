@@ -23,6 +23,7 @@
 // There are three types of selection, only one type might be active
 // at any time.
 
+#include <algorithm>
 #include <numeric>
 
 #include "abstractlogdata.h"
@@ -162,6 +163,15 @@ LinesCount Selection::getSelectedLinesCount( const LineMapping& lines ) const
     return positions.has_value() ? ( positions->second - positions->first ) + 1_lcount : 0_lcount;
 }
 
+std::optional<std::pair<LineNumber, LineNumber>>
+Selection::getSelectedPositions( const LineMapping& lines ) const
+{
+    if ( !selectedRange_.startLine.has_value() ) {
+        return std::nullopt;
+    }
+    return lines.positionsFromTo( *selectedRange_.startLine, selectedRange_.endLine );
+}
+
 // The tab behaviour is a bit odd at the moment, full lines are not expanded
 // but partials (part of line) are, they probably should not ideally.
 QString Selection::getSelectedText( const LineMapping& lines, const AbstractLogData& shownLines,
@@ -234,6 +244,118 @@ Selection::getSelectionWithLineNumbers( const LineMapping& lines,
     }
 
     return selectionData;
+}
+
+LineLength SelectedTextLength::of( const Selection& selection, const LineMapping& lines,
+                                   const AbstractLogData& shownLines )
+{
+    if ( selection.isSingleLine() || selection.isPortion() ) {
+        // One Log Line: its text is read once either way.
+        return LineLength( static_cast<LineLength::UnderlyingType>(
+            selection.getSelectedText( lines, shownLines ).size() ) );
+    }
+
+    const auto positions = selection.getSelectedPositions( lines );
+    if ( !positions.has_value() ) {
+        return 0_length;
+    }
+    const auto [ first, last ] = *positions;
+
+    const bool overlapsMeasured = measured_.has_value() && measured_->shownLines == &shownLines
+                                  && first <= measured_->last && measured_->first <= last;
+    if ( overlapsMeasured ) {
+        auto& measured = *measured_;
+        // Add what the range gained and take away what it lost at either end.
+        const auto grow = [ & ]( LineNumber from, LineNumber to ) {
+            const auto [ count, length ] = measure( shownLines, from, to );
+            measured.lines = LinesCount( measured.lines.get() + count.get() );
+            measured.length += length;
+        };
+        const auto shrink = [ & ]( LineNumber from, LineNumber to ) {
+            const auto [ count, length ] = measure( shownLines, from, to );
+            measured.lines = LinesCount( measured.lines.get() - count.get() );
+            measured.length -= length;
+        };
+        if ( first < measured.first ) {
+            grow( first, measured.first - 1_lcount );
+        }
+        else if ( first > measured.first ) {
+            shrink( measured.first, first - 1_lcount );
+        }
+        if ( last > measured.last ) {
+            grow( measured.last + 1_lcount, last );
+        }
+        else if ( last < measured.last ) {
+            shrink( last + 1_lcount, measured.last );
+        }
+        if ( first != measured.first ) {
+            measured.leadingEmptyLines.reset();
+        }
+        measured.first = first;
+        measured.last = last;
+    }
+    else {
+        const auto [ count, length ] = measure( shownLines, first, last );
+        measured_ = Measured{ &shownLines, first, last, count, length, std::nullopt };
+    }
+
+    if ( measured_->length == 0 ) {
+        return 0_length;
+    }
+
+    // getSelectedText() joins the Log Lines with a line ending, but only once
+    // the text is not empty: none follows the empty Log Lines it starts with.
+    if ( !measured_->leadingEmptyLines.has_value() ) {
+        measured_->leadingEmptyLines = leadingEmptyLines( shownLines, first, last );
+    }
+#if defined( Q_OS_WIN )
+    constexpr uint64_t LineEndingLength = 2;
+#else
+    constexpr uint64_t LineEndingLength = 1;
+#endif
+    const auto lineEndings = measured_->lines.get() - 1 - *measured_->leadingEmptyLines;
+    return LineLength( static_cast<LineLength::UnderlyingType>(
+        measured_->length + lineEndings * LineEndingLength ) );
+}
+
+void SelectedTextLength::forget()
+{
+    measured_.reset();
+}
+
+uint64_t SelectedTextLength::leadingEmptyLines( const AbstractLogData& shownLines, LineNumber first,
+                                                LineNumber last )
+{
+    uint64_t empty = 0;
+    for ( auto position = first; position <= last; ++position ) {
+        if ( !shownLines.getLineString( position ).isEmpty() ) {
+            break;
+        }
+        ++empty;
+    }
+    return empty;
+}
+
+std::pair<LinesCount, uint64_t> SelectedTextLength::measure( const AbstractLogData& shownLines,
+                                                             LineNumber first, LineNumber last )
+{
+    // Read in bounded batches, so a long range never holds all its text at once.
+    constexpr uint64_t BatchLines = 1024;
+
+    uint64_t count = 0;
+    uint64_t length = 0;
+    for ( auto position = first.get(); position <= last.get(); position += BatchLines ) {
+        const auto batch = std::min( BatchLines, last.get() - position + 1 );
+        const auto text = shownLines.getLines( LineNumber( position ), LinesCount( batch ) );
+        for ( const auto& line : text ) {
+            length += static_cast<uint64_t>( line.size() );
+        }
+        count += text.size();
+        if ( text.size() < batch ) {
+            break;
+        }
+    }
+    return { LinesCount( count ), length };
 }
 
 FilePosition Selection::getNextPosition() const

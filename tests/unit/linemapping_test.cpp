@@ -21,16 +21,20 @@
 // here over a mapping whose shown Log Lines and Marks are plain vectors.
 
 #include "abstractlogview.h"
+#include "configuration.h"
 #include "fake_log_data.h"
 #include "linemapping.h"
 #include "quickfindpattern.h"
 #include "selection.h"
+#include "shortcuts.h"
 
+#include <QShortcut>
 #include <QSignalSpy>
 
 #include <algorithm>
 #include <iterator>
 #include <memory>
+#include <tuple>
 #include <vector>
 
 #include <catch2/catch.hpp>
@@ -268,6 +272,240 @@ SCENARIO( "A text view keeps its selection on the same Log Line when the lines i
         {
             REQUIRE( qvariant_cast<LineNumber>( selected.last().at( 0 ) ) == 10_lnum );
             REQUIRE( view.getSelectedText() == logLineText( 10 ) );
+        }
+    }
+}
+
+namespace {
+
+// Log Lines with tabs, characters outside the Basic Multilingual Plane and an
+// empty one, whose expanded text has its tabs expanded as a Log File's has.
+// Counts the Log Lines read (FakeLogData reads several at once one by one).
+class CountingLogData : public FakeLogData {
+public:
+    using FakeLogData::FakeLogData;
+
+    mutable uint64_t linesRead = 0;
+
+protected:
+    QString doGetLineString( LineNumber line ) const override
+    {
+        ++linesRead;
+        return FakeLogData::doGetLineString( line );
+    }
+    QString doGetExpandedLineString( LineNumber line ) const override
+    {
+        ++linesRead;
+        return untabify( FakeLogData::doGetLineString( line ) );
+    }
+};
+
+QStringList mixedLogLineTexts()
+{
+    QStringList texts;
+    for ( int line = 0; line < NbLogLines; ++line ) {
+        switch ( line % 5 ) {
+        case 0:
+            texts.append( QStringLiteral( "log\tline %1\twith tabs" ).arg( line ) );
+            break;
+        case 1:
+            texts.append( QStringLiteral( "wide 日本 \U0001F600 line %1" ).arg( line ) );
+            break;
+        case 2:
+            texts.append( QString{} );
+            break;
+        default:
+            texts.append( logLineText( static_cast<uint64_t>( line ) ) );
+        }
+    }
+    return texts;
+}
+
+LineLength textLength( const Selection& selection, const LineMapping& lines,
+                       const AbstractLogData& shownText )
+{
+    return LineLength( static_cast<LineLength::UnderlyingType>(
+        selection.getSelectedText( lines, shownText ).size() ) );
+}
+
+void triggerShortcut( QWidget& view, const char* action )
+{
+    const auto keys = ShortcutAction::shortcutKeys( action, Configuration::get().shortcuts() );
+    REQUIRE_FALSE( keys.isEmpty() );
+
+    for ( auto* shortcut : view.findChildren<QShortcut*>() ) {
+        if ( shortcut->key() == keys.first() ) {
+            Q_EMIT shortcut->activated();
+            return;
+        }
+    }
+    FAIL( "no shortcut for " << action );
+}
+
+} // namespace
+
+SCENARIO( "The length of a selection's text is known without building the text",
+          "[linemapping][selection]" )
+{
+    const CountingLogData logFile{ mixedLogLineTexts() };
+
+    GIVEN( "every Log Line shown, some with tabs, wide characters or none at all" )
+    {
+        const EveryLogLine lines{ &logFile };
+        SelectedTextLength length;
+
+        const auto requireSameLength = [ & ]( const Selection& selection ) {
+            REQUIRE( length.of( selection, lines, logFile )
+                     == textLength( selection, lines, logFile ) );
+        };
+
+        THEN( "a single Log Line's length is its text's" )
+        {
+            for ( uint64_t line = 0; line < 5; ++line ) {
+                Selection selection;
+                selection.selectLine( LineNumber( line ) );
+                requireSameLength( selection );
+            }
+        }
+
+        THEN( "a portion's length is its expanded text's, also where it passes the end" )
+        {
+            Selection selection;
+            selection.selectPortion( 0_lnum, 2_lcol, 12_lcol );
+            requireSameLength( selection );
+            selection.selectPortion( 0_lnum, 20_lcol, 200_lcol );
+            requireSameLength( selection );
+            selection.selectPortion( 1_lnum, 3_lcol, 9_lcol );
+            requireSameLength( selection );
+            selection.selectPortion( 2_lnum, 0_lcol, 4_lcol );
+            requireSameLength( selection );
+            selection.selectPortion( 3_lnum, 90_lcol, 95_lcol );
+            requireSameLength( selection );
+        }
+
+        THEN( "a range's length is its text's, however it grows, shrinks or moves" )
+        {
+            Selection selection;
+            const std::vector<std::pair<uint64_t, uint64_t>> ranges{
+                { 4, 4 },   { 4, 5 },   { 4, 9 },   { 3, 9 },   { 0, 9 },   { 2, 7 },
+                { 7, 7 },   { 7, 29 },  { 20, 29 }, { 0, 3 },   { 12, 18 }, { 10, 20 },
+                { 14, 16 }, { 16, 14 }, { 0, 29 },  { 29, 29 }, { 28, 40 },
+            };
+            for ( const auto& [ first, last ] : ranges ) {
+                selection.selectRange( LineNumber( first ), LineNumber( last ) );
+                INFO( "range " << first << " to " << last );
+                requireSameLength( selection );
+            }
+        }
+
+        WHEN( "a range grows one Log Line at a time" )
+        {
+            Selection selection;
+            selection.selectRange( 0_lnum, 0_lnum );
+            REQUIRE( length.of( selection, lines, logFile )
+                     == textLength( selection, lines, logFile ) );
+            logFile.linesRead = 0;
+
+            for ( uint64_t last = 1; last < NbLogLines; ++last ) {
+                selection.selectRange( 0_lnum, LineNumber( last ) );
+                std::ignore = length.of( selection, lines, logFile );
+            }
+
+            THEN( "each step reads only the Log Line it added" )
+            {
+                REQUIRE( logFile.linesRead == NbLogLines - 1 );
+                REQUIRE( length.of( selection, lines, logFile )
+                         == textLength( selection, lines, logFile ) );
+            }
+        }
+
+        WHEN( "the text shown changed" )
+        {
+            CountingLogData changing{ mixedLogLineTexts() };
+            const EveryLogLine changingLines{ &changing };
+            Selection selection;
+            selection.selectRange( 0_lnum, 9_lnum );
+            std::ignore = length.of( selection, changingLines, changing );
+
+            changing.setLines( logLineTexts( everyLogLine() ) );
+            length.forget();
+
+            THEN( "the length is that of the new text" )
+            {
+                REQUIRE( length.of( selection, changingLines, changing )
+                         == textLength( selection, changingLines, changing ) );
+            }
+        }
+    }
+
+    GIVEN( "only some Log Lines shown, their text read by position" )
+    {
+        const std::vector<uint64_t> shown{ 0, 1, 3, 5, 6, 10, 11, 12, 20, 25 };
+        QStringList shownTexts;
+        const auto everyText = mixedLogLineTexts();
+        for ( const auto line : shown ) {
+            shownTexts.append( everyText[ static_cast<qsizetype>( line ) ] );
+        }
+        const CountingLogData shownText{ shownTexts };
+        const VectorLines lines{ &logFile, shown };
+        SelectedTextLength length;
+
+        THEN( "a range's length is that of the Log Lines shown in it" )
+        {
+            Selection selection;
+            const std::vector<std::pair<uint64_t, uint64_t>> ranges{
+                { 1, 6 }, { 1, 12 }, { 2, 12 }, { 0, 29 }, { 7, 9 }, { 11, 11 }, { 11, 25 },
+            };
+            for ( const auto& [ first, last ] : ranges ) {
+                selection.selectRange( LineNumber( first ), LineNumber( last ) );
+                INFO( "range " << first << " to " << last );
+                REQUIRE( length.of( selection, lines, shownText )
+                         == textLength( selection, lines, shownText ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A text view extending its selection line by line reads only the Log Lines it adds",
+          "[linemapping][abstractlogview][selection]" )
+{
+    constexpr uint64_t NbManyLogLines = 2000;
+    QStringList texts;
+    for ( uint64_t line = 0; line < NbManyLogLines; ++line ) {
+        texts.append( line % 7 == 0 ? QStringLiteral( "tab\tline %1" ).arg( line )
+                                    : logLineText( line ) );
+    }
+    CountingLogData logFile{ texts };
+    QuickFindPattern quickFindPattern;
+    AbstractLogView view( &logFile, std::make_unique<EveryLogLine>( &logFile ), &quickFindPattern,
+                          false );
+    view.resize( 400, 200 );
+    view.registerShortcuts();
+
+    view.selectAndDisplayLine( 10_lnum );
+    QSignalSpy selected( &view, &AbstractLogView::newSelection );
+    logFile.linesRead = 0;
+
+    WHEN( "Shift+Down extends it over 500 Log Lines" )
+    {
+        constexpr uint64_t Steps = 500;
+        for ( uint64_t step = 0; step < Steps; ++step ) {
+            triggerShortcut( view, ShortcutAction::LogViewSelectLinesDown );
+        }
+        const auto linesRead = logFile.linesRead;
+
+        THEN( "it reports the length of the selected text" )
+        {
+            REQUIRE( selected.count() == static_cast<int>( Steps ) );
+            REQUIRE( qvariant_cast<LinesCount>( selected.last().at( 1 ) )
+                     == LinesCount( Steps + 1 ) );
+            REQUIRE( qvariant_cast<LineLength>( selected.last().at( 3 ) ).get()
+                     == view.getSelectedText().size() );
+        }
+
+        THEN( "it read about one Log Line per step, not the whole selection each time" )
+        {
+            REQUIRE( linesRead < 4 * Steps );
         }
     }
 }

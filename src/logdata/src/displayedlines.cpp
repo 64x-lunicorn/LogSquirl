@@ -35,6 +35,7 @@ DisplayedLines::DisplayedLines( const SearchResultArray& matches,
 void DisplayedLines::setShown( LineType shown )
 {
     shown_ = shown;
+    ++rewrites_;
     refreshLines();
 }
 
@@ -50,6 +51,7 @@ void DisplayedLines::setContextLinesCount( int contextLinesCount )
     }
 
     contextLinesCount_ = contextLinesCount;
+    ++rewrites_;
     rebuildContextLines();
     refreshLines();
 }
@@ -57,6 +59,7 @@ void DisplayedLines::setContextLinesCount( int contextLinesCount )
 void DisplayedLines::matchesArrived()
 {
     // Whatever the Context Lines were built around may be gone.
+    ++rewrites_;
     contextLinesUpToDate_ = false;
     matchesWithoutContextLines_ = SearchResultArray();
     refreshLines();
@@ -64,6 +67,10 @@ void DisplayedLines::matchesArrived()
 
 void DisplayedLines::matchesArrived( const SearchResultArray& newMatches )
 {
+    uint64_t formerEnd = 0;
+    if ( !comeAfterEverything( newMatches, formerEnd ) ) {
+        ++rewrites_;
+    }
     if ( contextLinesUpToDate_ ) {
         matchesWithoutContextLines_ |= newMatches;
     }
@@ -72,20 +79,38 @@ void DisplayedLines::matchesArrived( const SearchResultArray& newMatches )
 
 void DisplayedLines::searchCompleted()
 {
+    ++rewrites_;
     rebuildContextLines();
     refreshLines();
 }
 
 void DisplayedLines::searchCompleted( const SearchResultArray& newMatches )
 {
+    uint64_t formerEnd = 0;
+    const bool appended = comeAfterEverything( newMatches, formerEnd );
+
     if ( contextLinesUpToDate_ ) {
         matchesWithoutContextLines_ |= newMatches;
     }
 
     auto changed = updateContextLines();
     if ( !changed ) {
+        // The Context Lines were rebuilt: they may change anywhere.
+        ++rewrites_;
         refreshLines();
         return;
+    }
+    if ( !appended ) {
+        ++rewrites_;
+    }
+    else {
+        // The Matches and Marks among the changed Log Lines were displayed
+        // already, as what they are; only the Context Lines it changed count.
+        auto contextLinesChanged = *changed - matches_;
+        contextLinesChanged -= marks_;
+        if ( !contextLinesChanged.isEmpty() && contextLinesChanged.minimum() < formerEnd ) {
+            ++rewrites_;
+        }
     }
     *changed |= newMatches;
     refreshLinesAt( *changed );
@@ -94,6 +119,7 @@ void DisplayedLines::searchCompleted( const SearchResultArray& newMatches )
 void DisplayedLines::searchDiscarded()
 {
     // The Marks lose their Context Lines too, until they are next rebuilt.
+    ++rewrites_;
     contextLines_ = SearchResultArray();
     contextLinesUpToDate_ = false;
     matchesWithoutContextLines_ = SearchResultArray();
@@ -121,6 +147,7 @@ bool DisplayedLines::removeMark( LineNumber line )
 void DisplayedLines::clearMarks()
 {
     marks_ = SearchResultArray();
+    ++rewrites_;
     rebuildContextLines();
     refreshLines();
 }
@@ -213,6 +240,76 @@ LineNumber DisplayedLines::positionOf( LineNumber line ) const
 DisplayedLinesCursor DisplayedLines::cursorAt( LineNumber position ) const
 {
     return DisplayedLinesCursor( lines(), position );
+}
+
+DisplayedLines::Count DisplayedLines::countIn( LineNumber first, LineNumber end ) const
+{
+    if ( first >= end ) {
+        return {};
+    }
+
+    // The Log Lines of set in [first, end).
+    const auto countOf = [ first, end ]( const SearchResultArray& set ) {
+        const auto upToEnd = set.rank( end.get() - 1 );
+        const auto beforeFirst = first.get() > 0 ? set.rank( first.get() - 1 ) : uint64_t{ 0 };
+        return upToEnd - beforeFirst;
+    };
+
+    const auto& displayed = lines();
+    const auto displayedCount = countOf( displayed );
+    if ( displayedCount == 0 ) {
+        return {};
+    }
+
+    if ( shown_.testFlag( LineTypeFlags::Match ) ) {
+        // Every Match is displayed.
+        const auto matchCount = countOf( matches_ );
+        return { matchCount, displayedCount - matchCount };
+    }
+
+    // The Marks alone are displayed; some may be Matches too.
+    Count count;
+    auto line = displayed.begin();
+    line.move_equalorlarger( first.get() );
+    for ( ; line != displayed.end() && *line < end.get(); ++line ) {
+        if ( matches_.contains( *line ) ) {
+            ++count.matches;
+        }
+        else {
+            ++count.others;
+        }
+    }
+    return count;
+}
+
+uint64_t DisplayedLines::rewrites() const
+{
+    return rewrites_;
+}
+
+bool DisplayedLines::comeAfterEverything( const SearchResultArray& newMatches,
+                                          uint64_t& formerEnd ) const
+{
+    const auto formerMatches = matches_.cardinality() - newMatches.cardinality();
+    formerEnd = 0;
+    if ( formerMatches > 0 ) {
+        uint64_t lastFormerMatch = 0;
+        if ( !matches_.select( formerMatches - 1, &lastFormerMatch ) ) {
+            return false;
+        }
+        formerEnd = lastFormerMatch + 1;
+    }
+    if ( !marks_.isEmpty() ) {
+        formerEnd = std::max( formerEnd, marks_.maximum() + 1 );
+    }
+    if ( !contextLines_.isEmpty() ) {
+        formerEnd = std::max( formerEnd, contextLines_.maximum() + 1 );
+    }
+
+    // The Matches before the first new one are exactly the former ones.
+    return newMatches.isEmpty()
+           || ( newMatches.minimum() >= formerEnd
+                && matches_.rank( newMatches.minimum() ) == formerMatches + 1 );
 }
 
 void DisplayedLines::rebuildContextLines()
@@ -326,6 +423,7 @@ SearchResultArray DisplayedLines::contextLinesAround( const SearchResultArray& l
 
 void DisplayedLines::markToggled( uint64_t line, bool added )
 {
+    ++rewrites_;
     // As a rebuild would, the Context Lines come up to date around every
     // Match first.
     auto changed = updateContextLines();
