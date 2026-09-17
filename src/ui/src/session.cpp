@@ -59,6 +59,13 @@ Session::Session( const SettingsPolicies& policies,
 Session::~Session()
 {
     // FIXME Clean up all the data objects...
+
+    // The views may keep an Open Log File beyond the Session: what it tells
+    // of its first load must not reach a Session that is gone.
+    for ( auto& [ view, openFile ] : openFiles_ ) {
+        Q_UNUSED( view );
+        QObject::disconnect( openFile.firstLoadFinished );
+    }
 }
 
 ViewInterface* Session::getViewIfOpen( const QString& file_name ) const
@@ -75,7 +82,7 @@ ViewInterface* Session::getViewIfOpen( const QString& file_name ) const
 }
 
 ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFactory,
-                              const QString& viewContext )
+                              const QString& viewContext, Loading loading )
 {
     // The Open Log File: the log data, its Searches, and what they do as the
     // Log File changes on disk
@@ -97,19 +104,90 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
     } );
 
     // Insert in the hash
-    openFiles_.insert( { view, { fileName, openLogFile, view } } );
+    auto& openFile
+        = openFiles_.insert( { view, { fileName, openLogFile, view, FirstLoad::Queued, {} } } )
+              .first->second;
 
-    // Start loading the file
-    openLogFile->open( fileName );
+    if ( loading == Loading::Now ) {
+        startFirstLoad( openFile );
+    }
+    else {
+        queuedLoads_.push_back( view );
+        startNextQueuedLoad();
+    }
 
     return view;
+}
+
+void Session::startLoading( const ViewInterface* view )
+{
+    const auto it = openFiles_.find( view );
+    if ( it == openFiles_.end() || it->second.firstLoad != FirstLoad::Queued ) {
+        return;
+    }
+
+    queuedLoads_.erase( std::remove( queuedLoads_.begin(), queuedLoads_.end(), view ),
+                        queuedLoads_.end() );
+    startFirstLoad( it->second );
+}
+
+void Session::startFirstLoad( OpenFile& file )
+{
+    file.firstLoad = FirstLoad::Loading;
+
+    // Bound to the Open Log File, which the views may keep beyond this
+    // Session: the destructor and close() disconnect it first.
+    const auto* view = file.view;
+    file.firstLoadFinished
+        = QObject::connect( file.openLogFile.get(), &OpenLogFile::loadingFinished,
+                            file.openLogFile.get(), [ this, view ] { finishFirstLoad( view ); } );
+
+    file.openLogFile->open( file.fileName );
+}
+
+void Session::finishFirstLoad( const ViewInterface* view )
+{
+    const auto it = openFiles_.find( view );
+    if ( it == openFiles_.end() ) {
+        return;
+    }
+    QObject::disconnect( it->second.firstLoadFinished );
+    it->second.firstLoad = FirstLoad::Finished;
+
+    // Whether it loaded, failed or was interrupted, the next Log File in the
+    // queue has its turn.
+    startNextQueuedLoad();
+}
+
+void Session::startNextQueuedLoad()
+{
+    if ( queueHolds_ > 0 || queuedLoads_.empty() ) {
+        return;
+    }
+
+    const auto isLoading = std::any_of( openFiles_.begin(), openFiles_.end(), []( const auto& o ) {
+        return o.second.firstLoad == FirstLoad::Loading;
+    } );
+    if ( isLoading ) {
+        return;
+    }
+
+    const auto* view = queuedLoads_.front();
+    queuedLoads_.pop_front();
+    startFirstLoad( openFiles_.at( view ) );
 }
 
 void Session::close( const ViewInterface* view )
 {
     const auto it = openFiles_.find( view );
     if ( it != openFiles_.end() ) {
+        QObject::disconnect( it->second.firstLoadFinished );
+        queuedLoads_.erase( std::remove( queuedLoads_.begin(), queuedLoads_.end(), view ),
+                            queuedLoads_.end() );
         openFiles_.erase( it );
+
+        // A Log File closed while it loaded no longer holds up the queue.
+        startNextQueuedLoad();
     }
     else {
         LOG_WARNING << "Session::close: view not found in open files";
@@ -393,13 +471,41 @@ OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* cur
     LOG_DEBUG << "Session returned " << session_files.size();
     OpenedFilesList result;
 
-    for ( const auto& file : session_files ) {
-        LOG_DEBUG << "Create view for " << file.fileName;
-        // The same path as opening a Log File by hand.
-        ViewInterface* view = appSession_->open( file.fileName, viewFactory, file.viewContext );
-        result.emplace_back( file.fileName, view );
-        openedFiles_.emplace_back( file.fileName );
+    // The current file is the last one.
+    const auto currentFile = logsquirl::isize( session_files ) - 1;
+
+    {
+        // No queued Log File starts before the current one has, whatever its
+        // place in the window (#300).
+        struct QueueHold {
+            Session& session;
+            explicit QueueHold( Session& s )
+                : session( s )
+            {
+                ++session.queueHolds_;
+            }
+            ~QueueHold()
+            {
+                --session.queueHolds_;
+            }
+            QueueHold( const QueueHold& ) = delete;
+            QueueHold& operator=( const QueueHold& ) = delete;
+        } hold{ *appSession_ };
+
+        for ( auto i = 0; i < logsquirl::isize( session_files ); ++i ) {
+            const auto& file = session_files[ static_cast<size_t>( i ) ];
+            LOG_DEBUG << "Create view for " << file.fileName;
+            // The same path as opening a Log File by hand.
+            ViewInterface* view = appSession_->open( file.fileName, viewFactory, file.viewContext,
+                                                     i == currentFile ? Session::Loading::Now
+                                                                      : Session::Loading::Queued );
+            result.emplace_back( file.fileName, view );
+            openedFiles_.emplace_back( file.fileName );
+        }
     }
+
+    // Starts only if the current file has already finished loading, or failed.
+    appSession_->startNextQueuedLoad();
 
     *currentFileIndex = logsquirl::isize( result ) - 1;
 

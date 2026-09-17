@@ -471,8 +471,7 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     auto context = std::make_shared<const CrawlerWidgetContext>(
         sizes(), ( !matchCaseButton_->isChecked() ), searchRefreshButton_->isChecked(),
         logMainView_->isFollowEnabled(), useRegexpButton_->isChecked(), inverseButton_->isChecked(),
-        booleanButton_->isChecked(), openLogFile_->filteredData()->getMarks(), chartJson,
-        chartPanel_->isVisible() );
+        booleanButton_->isChecked(), openLogFile_->marks(), chartJson, chartPanel_->isVisible() );
 
     return static_cast<std::shared_ptr<const ViewContextInterface>>( context );
 }

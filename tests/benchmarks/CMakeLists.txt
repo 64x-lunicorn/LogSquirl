@@ -44,8 +44,9 @@ target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOU
 target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
 
 # Restoring a Session of 20 tabs at startup (#301): the Session info, tab
-# names and tab groups read from the settings store. Uses only what the
-# Session and the tab area offered before #301 (see README.md).
+# names and tab groups read from the settings store; and a Session of several
+# large Log Files until its current tab, or every tab, has loaded (#300). Uses
+# only what the Session and the tab area offered before #301 (see README.md).
 add_executable(logsquirl_session_restore_benchmark
     session_restore_benchmark.cpp
 )
