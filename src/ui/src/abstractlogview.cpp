@@ -387,11 +387,12 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     setMouseTracking( true );
 
     // The text area cache holds a paint in the Theme's colors, the margins'
-    // Tokens and the palette alike; after a Theme switch it is painted again.
-    // The Log Lines themselves are unchanged, so nothing is expanded or
-    // wrapped again.
+    // Tokens and the palette alike, and so does the pull-to-follow bar's; after
+    // a Theme switch both are painted again. The Log Lines themselves are
+    // unchanged, so nothing is expanded or wrapped again.
     Theme::whenApplied( this, [ this ] {
         textAreaCache_.invalid_ = true;
+        pullToFollowCache_.nb_columns_ = 0_length;
         viewport()->update();
     } );
 
@@ -2271,8 +2272,8 @@ QPixmap AbstractLogView::drawPullToFollowBar( int width, qreal pixelRatio )
     const int nbBars = width / ( barWidth * 2 ) + 1;
 
     QPainter painter( &pixmap );
-    painter.setPen( QPen( QColor( 0, 0, 0, 0 ) ) );
-    painter.setBrush( QBrush( QColor( "lightyellow" ) ) );
+    painter.setPen( Qt::NoPen );
+    painter.setBrush( Theme::active().color( ColorToken::PullToFollowStripe ) );
 
     for ( int i = 0; i < nbBars; ++i ) {
         QPoint points[ 4 ] = { { ( i * 2 + 1 ) * barWidth, 0 },

@@ -112,7 +112,10 @@ class QObject;
     X( Bullet )                                                                                    \
     X( BulletOutline )                                                                             \
     X( ProgressChunk )                                                                             \
-    X( SliderGroove )
+    X( SliderGroove )                                                                              \
+    X( ErrorBackground )                                                                           \
+    X( ErrorText )                                                                                 \
+    X( PullToFollowStripe )
 
 // Non-color Tokens: sizes, paddings, border styles and icon images, as
 // stylesheet values.

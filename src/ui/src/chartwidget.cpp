@@ -19,6 +19,8 @@
 
 #include "chartwidget.h"
 
+#include "theme.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -290,11 +292,14 @@ void ChartWidget::drawTooltip( QPainter& painter ) const
         bgRect.moveTop( px.y() + 10 );
     }
 
-    painter.setPen( Qt::NoPen );
-    painter.setBrush( QColor( 255, 255, 225, 230 ) );
+    // In the tooltip Tokens, like every other tooltip. Read at every paint, so
+    // a Theme switch reaches the next one.
+    const Theme& theme = Theme::active();
+    painter.setPen( theme.color( ColorToken::ToolTipBorder ) );
+    painter.setBrush( theme.color( ColorToken::ToolTipBase ) );
     painter.drawRoundedRect( bgRect, 3, 3 );
 
-    painter.setPen( Qt::black );
+    painter.setPen( theme.color( ColorToken::ToolTipText ) );
     painter.drawText( bgRect.adjusted( 4, 2, -4, -2 ), Qt::AlignLeft | Qt::TextWordWrap, text );
 }
 

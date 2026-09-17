@@ -205,6 +205,34 @@ SCENARIO( "The overview shows Matches and Marks in every Theme", "[ui][theme][ov
     }
 }
 
+SCENARIO( "A highlighted line is flashed in the Theme's highlight color", "[ui][theme][overview]" )
+{
+    OverviewOfMarkedLogFile fixture;
+
+    const auto themeName
+        = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey );
+    INFO( themeName.toStdString() );
+    Theme::apply( themeName );
+    QCoreApplication::processEvents();
+    const auto& theme = Theme::active();
+
+    WHEN( "a Log Line is highlighted" )
+    {
+        constexpr int HighlightedRow = 30;
+        fixture.widget.highlightLine( LineNumber( HighlightedRow ) );
+        const auto image = fixture.widget.grab().toImage();
+
+        THEN( "the highlight frame is drawn in the Theme's highlight color, 3:1 against the "
+              "background" )
+        {
+            // The first frame's top edge, two rows above the Log Line's row.
+            const QColor frame( image.pixel( OverviewWidth / 2, HighlightedRow - 2 ) );
+            REQUIRE( frame == theme.color( ColorToken::Highlight ) );
+            REQUIRE( contrast( frame, theme.color( ColorToken::Window ) ) >= 3.0 );
+        }
+    }
+}
+
 SCENARIO( "A Theme switch repaints the overview", "[ui][theme][overview]" )
 {
     Theme::apply( Theme::LightKey );

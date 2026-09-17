@@ -20,6 +20,7 @@
 // This file implements OverviewWidget.  This class is responsable for
 // managing and painting the matches overview widget.
 
+#include <QBitmap>
 #include <QMouseEvent>
 #include <QPainter>
 #include <algorithm>
@@ -42,10 +43,10 @@
 #define SX( x ) S( x )
 
 // width height colours char/pixel
-// Colours
+// Colours: only the shape is used, painting chooses the color.
 #define HIGHLIGHT_XPM_LEAD_LINE                                                                    \
     SX( HIGHLIGHT_XPM_WIDTH )                                                                      \
-    " " SX( HIGHLIGHT_XPM_HEIGHT ) " 2 1", "  s mask c none", "x c #572F80"
+    " " SX( HIGHLIGHT_XPM_HEIGHT ) " 2 1", "  s mask c none", "x c black"
 
 const char* const highlight_xpm[][ 14 ] = {
     {
@@ -205,9 +206,12 @@ void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
     static const QColor match_color( LineStatusColors::match() );
     static const QColor mark_color( LineStatusColors::mark() );
 
-    static const QPixmap highlight_pixmap[] = {
-        QPixmap( highlight_xpm[ 0 ] ), QPixmap( highlight_xpm[ 1 ] ), QPixmap( highlight_xpm[ 2 ] ),
-        QPixmap( highlight_xpm[ 3 ] ), QPixmap( highlight_xpm[ 4 ] ), QPixmap( highlight_xpm[ 5 ] ),
+    // Only the shapes of the highlight frames: they are drawn in the Theme's
+    // Highlight color.
+    static const QBitmap highlight_pixmap[] = {
+        QPixmap( highlight_xpm[ 0 ] ).mask(), QPixmap( highlight_xpm[ 1 ] ).mask(),
+        QPixmap( highlight_xpm[ 2 ] ).mask(), QPixmap( highlight_xpm[ 3 ] ).mask(),
+        QPixmap( highlight_xpm[ 4 ] ).mask(), QPixmap( highlight_xpm[ 5 ] ).mask(),
     };
 
     // We must be hidden until we have an Overview
@@ -262,6 +266,8 @@ void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
             int position = overview_->yFromFileLine( *highlightedLine_ );
             int pixmapY = std::clamp( position - ( HIGHLIGHT_XPM_HEIGHT / 2 ), 0,
                                       height() - HIGHLIGHT_XPM_HEIGHT );
+            painter.setPen( palette().color( QPalette::Highlight ) );
+            painter.setBackgroundMode( Qt::TransparentMode );
             painter.drawPixmap( ( width() - HIGHLIGHT_XPM_WIDTH ) / 2, pixmapY,
                                 highlight_pixmap[ INITIAL_TTL_VALUE - highlightedTTL_ ] );
         }
