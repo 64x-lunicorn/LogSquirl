@@ -39,6 +39,7 @@
 #ifndef LOGDATA_H
 #define LOGDATA_H
 
+#include <cstddef>
 #include <memory>
 
 #include <QDateTime>
@@ -236,6 +237,23 @@ private:
     logsquirl::vector<QString>
     getSparseLinesFromFile( std::span<const LineNumber> lines,
                             QString ( *processLine )( QString&& ) ) const;
+
+    // A Log Line of a sparse read, as the Log File gave it.
+    struct SparseReadLine {
+        // Where it was asked for in the lines read.
+        std::size_t request = 0;
+        // Its bytes, without its line feed; empty when it could not be read.
+        std::string_view bytes;
+        // What it reads as when it could not be read; empty otherwise.
+        std::string_view warning;
+        bool hideAnsiColorSequences = false;
+    };
+    // Reads the Log Lines asked for that are indexed, nearby ones merged into
+    // runs, and calls onLine( const SparseReadLine& ) for each, in the order
+    // read. Log Lines past the last one are not called for. The Index is
+    // looked at under its lock, the Log File is read without it.
+    template <typename OnLine>
+    void readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const;
 
 private:
     mutable std::unique_ptr<FileHolder> attached_file_;
