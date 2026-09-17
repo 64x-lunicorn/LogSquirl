@@ -69,7 +69,7 @@ function(logsquirl_add_hyperscan_windows_runtime TARGET)
     CMAKE_CACHE_ARGS ${cache_args}
     BUILD_COMMAND "${CMAKE_COMMAND}" --build "${binary_dir}" --target hs
     COMMAND
-      "${CMAKE_LINKER}" /nologo /DLL /DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF "/DEF:${ARG_SOURCE_DIR}/hs.def"
+      "${CMAKE_LINKER}" /nologo /MACHINE:X64 /DLL /DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF "/DEF:${ARG_SOURCE_DIR}/hs.def"
       "/OUT:${binary_dir}/${ARG_DLL_NAME}.dll" "/IMPLIB:${import_library}" "${static_library}"
     INSTALL_COMMAND "${CMAKE_COMMAND}" -E copy "${binary_dir}/${ARG_DLL_NAME}.dll" "${binary_dir}/${ARG_DLL_NAME}.pdb"
                     "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
