@@ -18,12 +18,14 @@
  */
 
 #include <atomic>
+#include <random>
 #include <thread>
 #include <utility>
 #include <vector>
 
 #include <catch2/catch.hpp>
 
+#include "crc32.h"
 #include "linedecorator.h"
 
 namespace {
@@ -1047,13 +1049,26 @@ SCENARIO( "A word-only Highlighter that varies its colors keeps them per matched
 
             THEN( "each captured name gets the colors its text varies them to" )
             {
-                // The colors color variation gave these names before #293.
+                // The colors color variation gave these names before #293: a
+                // darkening factor drawn from a generator seeded with the CRC32
+                // of the text. The distribution is the standard library's own,
+                // so the values are computed here, not written down.
+                const auto varied = []( const QString& name ) {
+                    std::uniform_int_distribution<int> distribution( 100 - 30, 100 + 30 );
+                    std::minstd_rand0 generator( Crc32::calculate( name.toUtf8() ) );
+                    const auto factor = distribution( generator );
+                    return std::make_pair( QColor{ 200, 100, 50 }.darker( factor ).name(),
+                                           QColor{ 20, 40, 160 }.darker( factor ).name() );
+                };
                 REQUIRE( spanColumns( verdict ) == Columns{ { 5, 5 }, { 16, 3 } } );
                 const auto& spans = verdict.highlighterSpans();
-                REQUIRE( spans[ 0 ].foreColor().name().toStdString() == "#d06834" );
-                REQUIRE( spans[ 0 ].backColor().name().toStdString() == "#152aa6" );
-                REQUIRE( spans[ 1 ].foreColor().name().toStdString() == "#e47239" );
-                REQUIRE( spans[ 1 ].backColor().name().toStdString() == "#172eb6" );
+                REQUIRE(
+                    std::make_pair( spans[ 0 ].foreColor().name(), spans[ 0 ].backColor().name() )
+                    == varied( "alice" ) );
+                REQUIRE(
+                    std::make_pair( spans[ 1 ].foreColor().name(), spans[ 1 ].backColor().name() )
+                    == varied( "bob" ) );
+                REQUIRE( varied( "alice" ) != varied( "bob" ) );
             }
         }
     }
