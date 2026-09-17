@@ -95,6 +95,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
+#include "theme.h"
 #include "wrappedstring.h"
 
 #ifdef Q_OS_WIN
@@ -384,6 +385,15 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
 
     // Hovering
     setMouseTracking( true );
+
+    // The text area cache holds a paint in the Theme's colors, the margins'
+    // Tokens and the palette alike; after a Theme switch it is painted again.
+    // The Log Lines themselves are unchanged, so nothing is expanded or
+    // wrapped again.
+    Theme::whenApplied( this, [ this ] {
+        textAreaCache_.invalid_ = true;
+        viewport()->update();
+    } );
 
     connect( quickFindPattern_, SIGNAL( patternUpdated() ), this, SLOT( handlePatternUpdated() ) );
     connect( quickFind_, SIGNAL( notify( const QFNotification& ) ), this,
@@ -2028,7 +2038,12 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     const QPalette& palette = viewport()->palette();
     const HighlighterSet& highlighterSet = HighlighterSetCollection::get().currentActiveSet();
 
-    static const QBrush normalBulletBrush = QBrush( Qt::white );
+    // The margins are the Theme's; read at every repaint, so a Theme switch
+    // reaches them (see the refresh registered in the constructor).
+    const Theme& theme = Theme::active();
+    const QColor marginColor = theme.color( ColorToken::ViewportMargin );
+    const QColor marginBorderColor = theme.color( ColorToken::ViewportMarginBorder );
+    const QBrush normalBulletBrush = QBrush( theme.color( ColorToken::Bullet ) );
     // What a Log Line is -- Match, Mark, or both -- is shown in the colors
     // defined once beside the Line Decorator, so the gutter bullets here and
     // the Table View's row backgrounds cannot drift apart.
@@ -2052,8 +2067,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
                        palette.color( QPalette::Window ) );
 
     // First draw the bullet left margin
-    painter->setPen( palette.color( QPalette::Text ) );
-    painter->fillRect( 0, 0, BulletAreaWidth, paintDeviceHeight, Qt::darkGray );
+    painter->setPen( marginBorderColor );
+    painter->fillRect( 0, 0, BulletAreaWidth, paintDeviceHeight, marginColor );
 
     // Column at which the content should start (pixels)
     int contentStartPosX = layout.bulletZoneWidthPx();
@@ -2067,9 +2082,8 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         const auto lineNumberAreaWidth = layout.lineNumberAreaWidthPx();
         lineNumberAreaStartX = contentStartPosX;
 
-        painter->setPen( palette.color( QPalette::Text ) );
         painter->fillRect( contentStartPosX - SeparatorWidth, 0,
-                           lineNumberAreaWidth + SeparatorWidth, paintDeviceHeight, Qt::darkGray );
+                           lineNumberAreaWidth + SeparatorWidth, paintDeviceHeight, marginColor );
 
         painter->drawLine( contentStartPosX + lineNumberAreaWidth - SeparatorWidth, 0,
                            contentStartPosX + lineNumberAreaWidth - SeparatorWidth,
@@ -2080,7 +2094,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
     }
     else {
         painter->fillRect( contentStartPosX - SeparatorWidth, 0, SeparatorWidth + 1,
-                           paintDeviceHeight, palette.color( QPalette::Disabled, QPalette::Text ) );
+                           paintDeviceHeight, marginBorderColor );
         // contentStartPosX += SEPARATOR_WIDTH;
     }
 
@@ -2199,7 +2213,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         }
 
         // Then draw the bullet
-        painter->setPen( Qt::black );
+        painter->setPen( theme.color( ColorToken::BulletOutline ) );
         const int circleSize = 3;
         const int arrowHeight = 4;
         const int middleXLine = BulletAreaWidth / 2;
@@ -2239,7 +2253,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
             // Shown from 1.
             const QString& lineNumberStr
                 = lineNumberFormat.arg( lineNumber.get() + 1, nbDigitsInLineNumber );
-            painter->setPen( Qt::white );
+            painter->setPen( theme.color( ColorToken::LineNumberText ) );
             painter->drawText( lineNumberAreaStartX + LineNumberPadding, lineTopY + fontAscent,
                                lineNumberStr );
         }

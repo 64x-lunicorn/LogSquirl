@@ -544,3 +544,20 @@ SCENARIO( "The Command Palette's badge and shortcut Tokens are readable in every
         }
     }
 }
+
+SCENARIO( "Every Theme's line numbers read against its Viewport margin", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its line-number text has at least WCAG AA contrast against its margin" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::LineNumberText ),
+                                        theme.color( ColorToken::ViewportMargin ) )
+                         >= 4.5 );
+            }
+        }
+    }
+}

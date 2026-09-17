@@ -105,7 +105,12 @@ class QObject;
     X( StatusText )                                                                                \
     X( HighlightedSecondaryText )                                                                  \
     X( BadgeBackground )                                                                           \
-    X( BadgeText )
+    X( BadgeText )                                                                                 \
+    X( ViewportMargin )                                                                            \
+    X( ViewportMarginBorder )                                                                      \
+    X( LineNumberText )                                                                            \
+    X( Bullet )                                                                                    \
+    X( BulletOutline )
 
 // Non-color Tokens: sizes, paddings and icon images, as stylesheet values.
 #define LOGSQUIRL_STYLE_TOKENS( X )                                                                \
