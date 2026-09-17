@@ -80,7 +80,3 @@ find_package(
   REQUIRED
 )
 target_link_libraries(logsquirl_logdata PUBLIC Qt6::Core5Compat)
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_logdata PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()

@@ -214,6 +214,22 @@ set(BUILD_SHARED_LIBS OFF)
 add_custom_target(ci_build)
 
 add_subdirectory(3rdparty)
+
+# Link time optimization covers every target of LogSquirl itself, the
+# libraries, the applications, the tests and the benchmarks, and nothing else
+# (#280). Set here, after the third-party libraries were added, it does not
+# reach their targets, whose own build systems decide.
+if(LOGSQUIRL_USE_LTO)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT LOGSQUIRL_IPO_SUPPORTED OUTPUT LOGSQUIRL_IPO_OUTPUT LANGUAGES C CXX)
+  if(NOT LOGSQUIRL_IPO_SUPPORTED)
+    message(SEND_ERROR "Link time optimization is not supported: ${LOGSQUIRL_IPO_OUTPUT}\n"
+                       "Configure with -DLOGSQUIRL_USE_LTO=OFF to build without it."
+    )
+  endif()
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
+
 add_subdirectory(src)
 add_subdirectory(website)
 

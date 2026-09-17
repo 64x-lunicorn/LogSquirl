@@ -84,6 +84,39 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/full_optimization_flags.cmake
 )
 
+# Link time optimization covers every compiled target under src/ and tests/
+# alike (#280).
+function(logsquirl_compiled_targets dir out_var)
+  get_property(_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+  get_property(_subdirs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+  set(_compiled "")
+  foreach(_target IN LISTS _targets)
+    get_target_property(_type ${_target} TYPE)
+    if(_type MATCHES "^(EXECUTABLE|STATIC_LIBRARY|SHARED_LIBRARY|MODULE_LIBRARY|OBJECT_LIBRARY)$")
+      list(APPEND _compiled ${_target})
+    endif()
+  endforeach()
+  foreach(_subdir IN LISTS _subdirs)
+    logsquirl_compiled_targets("${_subdir}" _below)
+    list(APPEND _compiled ${_below})
+  endforeach()
+  set(${out_var} "${_compiled}" PARENT_SCOPE)
+endfunction()
+logsquirl_compiled_targets("${CMAKE_SOURCE_DIR}/src" _lto_targets)
+logsquirl_compiled_targets("${CMAKE_CURRENT_SOURCE_DIR}" _lto_tests)
+set(_lto_entries "")
+foreach(_target IN LISTS _lto_targets _lto_tests)
+  list(APPEND _lto_entries "${_target}=$<TARGET_PROPERTY:${_target},INTERPROCEDURAL_OPTIMIZATION>")
+endforeach()
+list(JOIN _lto_entries "|" _lto_entries)
+add_test(
+    NAME lto_covers_project_targets
+    COMMAND ${CMAKE_COMMAND}
+            -DUSE_LTO=${LOGSQUIRL_USE_LTO}
+            "-DTARGETS=${_lto_entries}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/lto_covers_project_targets.cmake
+)
+
 
 
 

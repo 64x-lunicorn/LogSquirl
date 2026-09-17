@@ -144,10 +144,6 @@ set_property(
   PROPERTY AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/ui"
 )
 
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_ui PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
-
 target_include_directories(logsquirl_ui PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(
   logsquirl_ui

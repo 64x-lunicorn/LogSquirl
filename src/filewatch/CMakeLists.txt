@@ -19,7 +19,3 @@ target_link_libraries(
          kdtoolbox
          efsw
 )
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_filewatch PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
