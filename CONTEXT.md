@@ -258,9 +258,11 @@ _Avoid_: plugin registry, per-window plugins
 **Plugin UI Port**:
 Everything the plugin layer needs from the user interface to show what a plugin
 contributes — status widgets, sidebar tabs, footer widgets, menu actions and the parent
-of its configuration dialog. The plugin layer calls it and knows no widgets; the main
-window implements it. Every contribution belongs to one plugin, and all of them are
-taken away again when that plugin is unloaded.
+of its configuration dialog. The plugin layer calls it and knows no widgets; every main
+window implements it. The Application Plugins hand each contribution on to every window: a
+menu action shows in all of them, a widget, which exists once, in the most recently active
+window, and it moves to another window when that one closes. Every contribution belongs to
+one plugin, and all of them are taken away again when that plugin is unloaded.
 _Avoid_: plugin UI bridge, widget signals, UI host
 
 ### Session and settings

@@ -30,18 +30,24 @@
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QLabel>
+#include <QMenu>
+#include <QPointer>
 #include <QStandardPaths>
+#include <QTabWidget>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QWindow>
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
 #include <memory>
 
 using logsquirl::plugins::ApplicationPlugins;
 using logsquirl::plugins::PluginCatalog;
 using logsquirl::plugins::PluginHost;
+using logsquirl::plugins::PluginWidgetHandle;
 
 namespace {
 
@@ -101,6 +107,37 @@ QString logFileTabText( const MainWindow& window )
         }
     }
     return {};
+}
+
+/// The action of the window's Plugins menu with the given text, or nullptr.
+QAction* pluginMenuAction( const MainWindow& window, const QString& text )
+{
+    for ( const auto* menu : window.findChildren<QMenu*>() ) {
+        if ( menu->title() != QStringLiteral( "Plugins" ) ) {
+            continue;
+        }
+        for ( auto* action : menu->actions() ) {
+            if ( action->text() == text ) {
+                return action;
+            }
+        }
+    }
+    return nullptr;
+}
+
+/// Whether one of the window's sidebar tabs shows the widget.
+bool showsInSidebar( const MainWindow& window, QWidget* widget )
+{
+    const auto tabWidgets = window.findChildren<QTabWidget*>();
+    return std::ranges::any_of(
+        tabWidgets, [ widget ]( const QTabWidget* tabs ) { return tabs->indexOf( widget ) >= 0; } );
+}
+
+int pluginActionTriggers = 0;
+
+void countPluginAction( void* )
+{
+    ++pluginActionTriggers;
 }
 
 } // namespace
@@ -254,5 +291,75 @@ SCENARIO( "A Log File opened before the plugins loaded is opened with the conver
         window.reset();
         plugins.reset();
         qunsetenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" );
+    }
+}
+
+SCENARIO( "What plugins contribute shows in every window", "[ui][plugins][applicationplugins]" )
+{
+    GIVEN( "Two shown windows and a plugin that contributes a menu action and a sidebar tab" )
+    {
+        const auto pluginId = QStringLiteral( "com.test.ui-plugin" );
+        const auto actionLabel = QStringLiteral( "Run Test Plugin" );
+        QPointer<QLabel> sidebarWidget = new QLabel( QStringLiteral( "plugin sidebar" ) );
+        pluginActionTriggers = 0;
+
+        // Contributes as a plugin does while it is initialised: through the
+        // Plugin UI Port of the host.
+        auto plugins
+            = std::make_shared<ApplicationPlugins>( [ & ]( PluginCatalog&, PluginHost& host ) {
+                  REQUIRE( host.uiPort() );
+                  host.uiPort()->addMenuAction( pluginId, QStringLiteral( "Tools" ), actionLabel,
+                                                countPluginAction, nullptr );
+                  host.uiPort()->addSidebarTab( pluginId, QStringLiteral( "Test Plugin" ),
+                                                PluginWidgetHandle{ sidebarWidget.data() } );
+              } );
+        const auto session = newSession();
+
+        auto first = std::make_unique<MainWindow>( WindowSession{ session, "First", 0 }, plugins );
+        first->show();
+        REQUIRE( waitUiState( [ & ] { return plugins->isLoaded(); }, 5000 ) );
+        auto second
+            = std::make_unique<MainWindow>( WindowSession{ session, "Second", 1 }, plugins );
+        second->show();
+        QTest::qWait( 50 );
+
+        THEN( "both windows have the plugin's menu action, and it works in both" )
+        {
+            auto* firstAction = pluginMenuAction( *first, actionLabel );
+            auto* secondAction = pluginMenuAction( *second, actionLabel );
+            REQUIRE( firstAction );
+            REQUIRE( secondAction );
+            firstAction->trigger();
+            secondAction->trigger();
+            REQUIRE( pluginActionTriggers == 2 );
+        }
+
+        THEN( "the sidebar tab shows in the first window" )
+        {
+            REQUIRE( showsInSidebar( *first, sidebarWidget ) );
+            REQUIRE_FALSE( showsInSidebar( *second, sidebarWidget ) );
+        }
+
+        WHEN( "the first window closes" )
+        {
+            first->close();
+            first.reset();
+            QTest::qWait( 50 );
+
+            THEN( "the second window keeps the menu action and shows the sidebar tab" )
+            {
+                REQUIRE( sidebarWidget );
+                REQUIRE( showsInSidebar( *second, sidebarWidget ) );
+                auto* action = pluginMenuAction( *second, actionLabel );
+                REQUIRE( action );
+                action->trigger();
+                REQUIRE( pluginActionTriggers == 1 );
+            }
+        }
+
+        second.reset();
+        first.reset();
+        plugins.reset();
+        delete sidebarWidget.data();
     }
 }
