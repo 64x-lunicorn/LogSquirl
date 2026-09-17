@@ -69,6 +69,11 @@
 
 constexpr int IndexingBlockSize = 5 * 1024 * 1024;
 
+IndexingData::IndexingData()
+    : headerAndTailDigests_( IndexingBlockSize )
+{
+}
+
 qint64 IndexingData::getIndexedSize() const
 {
     return hash_.size;
@@ -135,6 +140,7 @@ void IndexingData::addAll( const logsquirl::vector<char>& block, LineLength leng
         linePosition_ );
 
     if ( !block.empty() ) {
+        headerAndTailDigests_.add( hash_.size, block.data(), logsquirl::ssize( block ) );
         hash_.size += logsquirl::ssize( block );
 
         if ( !useFastModificationDetection_ ) {
@@ -161,6 +167,7 @@ void IndexingData::clear( const IndexingPolicy& policy )
     maxLength_ = 0_length;
     hash_ = {};
     hashBuilder_.reset();
+    headerAndTailDigests_.reset();
     if ( policy.useCompressedIndex ) {
         linePosition_ = LinePositionArrayType( LinePositionArray{} );
     }
@@ -184,6 +191,9 @@ void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength m
     maxLength_ = maxLength;
     hash_ = hash;
     hashBuilder_.reset();
+    // The cache checked the header and tail only, and took no digests to go
+    // on from.
+    headerAndTailDigests_.reset();
     encodingGuess_ = encoding;
     encodingForced_ = nullptr;
     progress_ = 100;
@@ -201,6 +211,7 @@ void IndexingData::resumeFromCache( ResumedIndex&& resumed )
     // The header and tail digests are taken again once indexing is done.
     hash_ = {};
     hash_.size = resumed.offset.get();
+    headerAndTailDigests_.reset();
     hashBuilder_ = std::move( resumed.digestBeforeOffset );
     if ( !useFastModificationDetection_ ) {
         hash_.fullDigest = hashBuilder_.digest();
@@ -633,6 +644,57 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
     LOG_DEBUG << "Indexing block " << blockBeginning << " done";
 }
 
+namespace {
+
+// A digest of the bytes of file in [offset, offset + size), or of those
+// there are.
+RangeDigest digestReadFrom( QFile& file, qint64 offset, qint64 size )
+{
+    QByteArray bytes( static_cast<qsizetype>( size ), Qt::Uninitialized );
+    const auto readBytes = file.seek( offset ) ? file.read( bytes.data(), size ) : qint64{ 0 };
+    FileDigest digest;
+    digest.addData( bytes.constData(), static_cast<size_t>( std::max( readBytes, qint64{ 0 } ) ) );
+    return { offset, std::max( readBytes, qint64{ 0 } ), digest.digest() };
+}
+
+} // namespace
+
+// The header and tail digests of the bytes indexed up to end. Indexing
+// appended bytes reads neither again (#277): the tail digest goes on from
+// the bytes just indexed, and a header of a whole block cannot change by
+// appending. Only what the digests taken while indexing do not cover, as
+// after a cached Index was loaded, is read from the Log File again.
+void IndexOperation::recordHeaderAndTail( QFile& file, qint64 end,
+                                          IndexingData::MutateAccessor& scopedAccessor ) const
+{
+    auto tail = scopedAccessor.indexedTailDigest( end );
+    if ( !tail ) {
+        const auto range = HeaderAndTailDigests::tailRange( IndexingBlockSize, end );
+        QByteArray bytes( static_cast<qsizetype>( range.size ), Qt::Uninitialized );
+        const auto readBytes
+            = file.seek( range.offset ) ? file.read( bytes.data(), range.size ) : qint64{ -1 };
+        if ( readBytes == range.size ) {
+            scopedAccessor.digestIndexedBytesAgain( range.offset, bytes.constData(), readBytes );
+            tail = scopedAccessor.indexedTailDigest( end );
+        }
+        if ( !tail ) {
+            // The Log File is shorter than what was indexed: the digest of
+            // what there is will not match when it is checked.
+            tail = digestReadFrom( file, range.offset, range.size );
+        }
+    }
+    scopedAccessor.setTailHash( tail->digest, tail->offset, tail->size );
+
+    if ( scopedAccessor.getHash().headerSize == IndexingBlockSize ) {
+        return;
+    }
+    auto header = scopedAccessor.indexedHeaderDigest( end );
+    if ( !header ) {
+        header = digestReadFrom( file, 0, std::min( end, qint64{ IndexingBlockSize } ) );
+    }
+    scopedAccessor.setHeaderHash( header->digest, header->size );
+}
+
 void IndexOperation::doIndex( OffsetInFile initialPosition )
 {
     LOG_INFO << "Indexing file " << fileName_;
@@ -660,7 +722,8 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     state.file_size = file.size();
 
     {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        scopedAccessor.expectLogFileSize( state.file_size );
 
         state.fileTextCodec = scopedAccessor.getForcedEncoding();
         if ( !state.fileTextCodec ) {
@@ -743,25 +806,8 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     }
 
     const auto endFilePos = file.pos();
-    file.reset();
-    QByteArray hashBuffer( IndexingBlockSize, Qt::Uninitialized );
-    const auto headerHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-    FileDigest fastHashDigest;
-    fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( headerHashSize ) );
+    recordHeaderAndTail( file, endFilePos, scopedAccessor );
 
-    scopedAccessor.setHeaderHash( fastHashDigest.digest(), headerHashSize );
-
-    if ( endFilePos <= hashBuffer.size() ) {
-        scopedAccessor.setTailHash( fastHashDigest.digest(), 0, headerHashSize );
-    }
-    else {
-        const auto tailHashOffset = endFilePos - hashBuffer.size();
-        file.seek( tailHashOffset );
-        const auto tailHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-        fastHashDigest.reset();
-        fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( tailHashSize ) );
-        scopedAccessor.setTailHash( fastHashDigest.digest(), tailHashOffset, tailHashSize );
-    }
 
     const auto indexingEndTime = high_resolution_clock::now();
     const auto duration = duration_cast<microseconds>( indexingEndTime - indexingStartTime );

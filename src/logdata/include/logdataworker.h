@@ -60,6 +60,7 @@
 #include "synchronization.h"
 
 #include "encodingdetector.h"
+#include "headerandtaildigests.h"
 #include "indexedhash.h"
 #include "linepositionarray.h"
 #include "loadingstatus.h"
@@ -172,6 +173,33 @@ public:
         data_->hash_.tailDigest = digest;
     }
 
+    // The Log File is expected to be at least this long once the bytes
+    // indexed from now on are added, so their header and tail digests need
+    // not be taken of the bytes before its tail.
+    void expectLogFileSize( qint64 size )
+    {
+        data_->headerAndTailDigests_.expectLogFileSize( size );
+    }
+
+    // The header and tail digests of the bytes indexed up to end, as taken
+    // while they were added; nothing for what they do not cover.
+    std::optional<RangeDigest> indexedHeaderDigest( qint64 end ) const
+    {
+        return data_->headerAndTailDigests_.header( end );
+    }
+
+    std::optional<RangeDigest> indexedTailDigest( qint64 end ) const
+    {
+        return data_->headerAndTailDigests_.tail( end );
+    }
+
+    // Takes the header and tail digests of indexed bytes read again from
+    // the Log File, for those the digests taken while adding do not cover.
+    void digestIndexedBytesAgain( qint64 offset, const char* data, qint64 size )
+    {
+        data_->headerAndTailDigests_.add( offset, data, size );
+    }
+
     int getProgress() const
     {
         return data_->getProgress();
@@ -222,6 +250,8 @@ class IndexingData {
 public:
     using ConstAccessor = IndexingDataAccessor<const IndexingData*, SharedLock>;
     using MutateAccessor = IndexingDataAccessor<IndexingData*, UniqueLock>;
+
+    IndexingData();
 
 private:
     qint64 getIndexedSize() const;
@@ -282,6 +312,7 @@ private:
 
     FileDigest hashBuilder_;
     IndexedHash hash_;
+    HeaderAndTailDigests headerAndTailDigests_;
 
     QTextCodec* encodingGuess_{};
     QTextCodec* encodingForced_{};
@@ -375,6 +406,9 @@ private:
 
     void guessEncoding( const BlockBuffer& block, IndexingData::MutateAccessor& scopedAccessor,
                         IndexingState& state ) const;
+
+    void recordHeaderAndTail( QFile& file, qint64 end,
+                              IndexingData::MutateAccessor& scopedAccessor ) const;
 
     // The next block of the file for the indexing graph, with the time spent
     // reading it added to ioDuration; nothing once the file is read, reading
