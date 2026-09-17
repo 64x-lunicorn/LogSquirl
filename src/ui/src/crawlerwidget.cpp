@@ -1752,20 +1752,22 @@ void CrawlerWidget::changeFontSize( bool increase )
 {
     auto& fontConfig = Configuration::get();
 
-    auto fontInfo = QFontInfo( fontConfig.mainFont() );
+    const auto font = fontConfig.mainFont();
+    const auto fontInfo = QFontInfo( font );
     const auto availableSizes = FontUtils::availableFontSizes( fontInfo.family() );
 
-    auto currentSize
-        = std::find( availableSizes.cbegin(), availableSizes.cend(), fontInfo.pointSize() );
-    if ( increase && currentSize != std::prev( availableSizes.cend() ) ) {
-        currentSize = std::next( currentSize );
-    }
-    else if ( !increase && currentSize != availableSizes.begin() ) {
-        currentSize = std::prev( currentSize );
+    // The zoom steps from the configured size, which need not be one of the
+    // offered sizes; what Qt resolved it to only stands in when it has none.
+    // The resolved size can be anything -- -1 where no font could be resolved
+    // at all, as on Windows' offscreen platform without fonts (#220).
+    const auto currentSize = font.pointSize() > 0 ? font.pointSize() : fontInfo.pointSize();
+    if ( currentSize <= 0 ) {
+        return;
     }
 
-    if ( currentSize != availableSizes.cend() ) {
-        fontConfig.setMainFont( QFont{ fontInfo.family(), *currentSize } );
+    const auto zoomedSize = FontUtils::zoomedFontSize( availableSizes, currentSize, increase );
+    if ( zoomedSize != currentSize ) {
+        fontConfig.setMainFont( QFont{ fontInfo.family(), zoomedSize } );
         // The zoomed font is assembled like any other, bold and antialiasing
         // included, and reaches every view of every open Log File. Nothing
         // but the font was written, so nothing else is applied again.

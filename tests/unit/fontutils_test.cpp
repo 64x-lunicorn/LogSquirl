@@ -157,3 +157,43 @@ TEST_CASE( "FontUtils::validatedFixedPitchFont rejects a fallback family that is
 
     REQUIRE( QFontDatabase::isFixedPitch( QFontInfo( validated ).family() ) );
 }
+
+TEST_CASE( "FontUtils::zoomedFontSize steps to the next offered size", "[fontutils]" )
+{
+    const QList<int> sizes{ 8, 9, 10, 12, 14 };
+
+    SECTION( "from an offered size" )
+    {
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 10, true ) == 12 );
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 10, false ) == 9 );
+    }
+
+    // The size a zoom starts from need not be offered: a settings file can
+    // hold any size, and a font Qt cannot resolve reports one of its own.
+    // Looking it up stepped past the end of the sizes (#220).
+    SECTION( "from a size between two offered sizes" )
+    {
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 11, true ) == 12 );
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 11, false ) == 10 );
+    }
+
+    SECTION( "from a size outside the offered sizes" )
+    {
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 20, false ) == 14 );
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 4, true ) == 8 );
+    }
+
+    SECTION( "beyond the largest or smallest size, the size stays" )
+    {
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 14, true ) == 14 );
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 20, true ) == 20 );
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 8, false ) == 8 );
+        REQUIRE( FontUtils::zoomedFontSize( sizes, 4, false ) == 4 );
+    }
+
+    SECTION( "without offered sizes, the size stays" )
+    {
+        REQUIRE( FontUtils::zoomedFontSize( {}, 10, true ) == 10 );
+        REQUIRE( FontUtils::zoomedFontSize( {}, 10, false ) == 10 );
+    }
+}
