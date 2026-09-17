@@ -210,6 +210,22 @@ Each Catch2 test case is its own ctest test named `<test executable>: <test case
 single case runs with e.g. `ctest -R "^logsquirl_tests: Scenario: QuickFind"`. The tests
 run one after another: the Qt test executables share one portable settings file.
 
+### Theme screenshots
+
+A hidden UI test renders every Theme (Light, Dark, High Contrast) to PNG files: the main window
+with a Log File and a Search, the sidebar, every menu, the Command Palette, the dialogs and a
+gallery of every standard widget in every state. It is not part of `ctest` or CI; run it by its
+tag, offscreen (no display or screen-recording permission needed), into a directory of your choice:
+
+```
+LOGSQUIRL_SCREENSHOT_DIR=/path/to/shots build/output/logsquirl_itests -platform offscreen "[.screenshots]"
+```
+
+Each image is named `<view>_<theme>.png`, so the Themes of one view sort together. Render once
+before and once after a Theme change into two directories to compare them side by side. The Log
+File shown is a copy of `test_data/screenshot_demo.txt` under `/tmp/logsquirl-screenshots`, so no
+path of your machine appears in the images.
+
 ### E2E integration tests (Python / pytest)
 
 End-to-end tests exercise the compiled `logsquirl_grep` and `logsquirl` binaries
