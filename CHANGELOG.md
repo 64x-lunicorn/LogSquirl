@@ -255,6 +255,13 @@
 - **Shortcut conflicts**: A conflict in the first row of the shortcuts table
   no longer marks every shortcut cell once another shortcut is edited.
 
+- **Update notifications**: A LogSquirl installed from a release is offered
+  the newer stable release, and with "check for beta versions" also a newer
+  beta; a LogSquirl running a beta is offered the next beta or the stable
+  release. The option used to have no effect, and every notification linked
+  to a "continuous" build page that does not exist. A build of a version that
+  is not released yet is offered nothing.
+
 ## Security
 
 - **Qt 6.11.2**: All packages are built with Qt 6.11.2 instead of 6.10.3,
@@ -329,6 +336,11 @@
   merges. A clang-format check, an AddressSanitizer/UndefinedBehaviorSanitizer
   test run, one CTest test per Catch2 test case with JUnit reports, and job
   timeouts were added.
+
+- **Release notes from the changelog**: The notes of a GitHub release are
+  its section of this changelog, followed by how to verify the downloads. A
+  release without a changelog section is stopped before anything is signed;
+  26.07.0 was published with empty notes.
 
 - **Chocolatey package removed**: The Chocolatey package source is gone.
   LogSquirl was never published on Chocolatey: no workflow built the package,

@@ -383,6 +383,22 @@ The release workflow does not build. It:
    the checksum file), then publishes the draft. A failure in between leaves a draft.
 7. Updates `latest.json` with the new version (beta or stable field)
 
+`latest.json` on master is the update feed LogSquirl reads at start-up
+(`src/versioncheck`). Its fields:
+
+| Field | Written by | Used for |
+|-------|------------|----------|
+| `stable`, `stable_url`, `stable_build` | CI Release, stable tag | The latest stable release: its name, release page and the `YY.MM.PATCH.BUILD` it was published from |
+| `beta`, `beta_url`, `beta_build` | CI Release, pre-release tag | The latest beta, offered to users with "check for beta versions" on and to users running a beta |
+| `releases` | Release preparation (by hand) | Every published release name; a running version that was only published as betas runs a beta |
+| `changelog` | Release preparation (by hand) | One line per release, listed in the update notification for the releases a user skips |
+| `ci`, `ci_url` | CI Release, stable tag (`ci` only) | Read only by LogSquirl 26.07.0 and older, which append an OS suffix to `ci_url`; it ends in `#`, so they land on the latest release page |
+| `stable_version`, `beta_version` | CI Release | Not read by the application |
+
+A release is offered when its build is newer than the running one; betas and
+the stable release of a version share `YY.MM.PATCH` and differ only in the
+build. Without a `*_build` field only a newer `YY.MM.PATCH` is offered.
+
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or
 `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`) with that tag

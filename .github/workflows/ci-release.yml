@@ -724,21 +724,28 @@ jobs:
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           IS_PRERELEASE: ${{ needs.prepare.outputs.is_prerelease }}
+          BUILD_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           VERSION="${TAG#v}"
           URL="https://github.com/64x-lunicorn/LogSquirl/releases/tag/${TAG}"
 
+          # *_build is the YY.MM.PATCH.BUILD the release was published from:
+          # betas and the stable release of a version share YY.MM.PATCH, so the
+          # application compares builds to tell them apart (#306). A stable
+          # release also sets `ci`, the only field LogSquirl 26.07.0 and older
+          # read; they append an OS suffix to `ci_url`, which ends in `#` so the
+          # suffix is a fragment of the latest release page.
           # jq and mv are separate commands: set -e ignores a failure inside an
           # && list, and a failed jq used to end in a green job that committed
           # nothing (#218).
           if [ "$IS_PRERELEASE" = "true" ]; then
-            jq --arg ver "$VERSION" --arg url "$URL" \
-               '.beta = $ver | .beta_url = $url | .beta_version = $ver' latest.json > latest.json.tmp
+            jq --arg ver "$VERSION" --arg url "$URL" --arg build "$BUILD_VERSION" \
+               '.beta = $ver | .beta_url = $url | .beta_version = $ver | .beta_build = $build' latest.json > latest.json.tmp
             COMMIT_MSG="chore: update latest.json with beta ${VERSION} [skip ci]"
           else
-            jq --arg ver "$VERSION" --arg url "$URL" \
-               '.stable = $ver | .stable_url = $url | .stable_version = $ver' latest.json > latest.json.tmp
+            jq --arg ver "$VERSION" --arg url "$URL" --arg build "$BUILD_VERSION" \
+               '.stable = $ver | .stable_url = $url | .stable_version = $ver | .stable_build = $build | .ci = $ver' latest.json > latest.json.tmp
             COMMIT_MSG="chore: update latest.json with ${VERSION} [skip ci]"
           fi
           mv latest.json.tmp latest.json

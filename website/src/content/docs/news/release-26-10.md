@@ -28,6 +28,7 @@ This is a beta: please [report problems](https://github.com/64x-lunicorn/LogSqui
 - **Saving drops lines**: Saving a line count that is a multiple of 5,000 left out the last 5,000 lines. Cancel now works, and a cancelled save leaves the file untouched.
 - **Settings reach every tab**: Search and QuickFind colors, Highlighter Sets, zoom, fonts, shortcuts, Context Lines and View menu toggles now apply to every open log file, not only the current tab. Search highlight colors are kept across restarts.
 - **Marks and Search state**: Next/previous Mark in the Filtered View go the right way, cleared Marks disappear there, reloading no longer brings back saved Marks, and a running Search no longer leaks its state onto another tab.
+- **Update notifications**: Installed releases are offered the newer stable release, and with "check for beta versions" the newer beta; a beta is offered the next beta or its stable release. Notifications used to link to a page that does not exist.
 - **logsquirl_grep**: Reports invalid patterns and failures with a non-zero exit code instead of hanging.
 
 ### Security

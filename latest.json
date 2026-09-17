@@ -1,6 +1,6 @@
 {
   "ci": "26.07.0",
-  "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous",
+  "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/latest#",
   "stable": "26.07.0",
   "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.07.0",
   "beta": "26.07.0",
@@ -74,5 +74,7 @@
     }
   ],
   "stable_version": "26.07.0",
-  "beta_version": "26.07.0"
+  "beta_version": "26.07.0",
+  "stable_build": "26.07.0.741",
+  "beta_build": "26.07.0.741"
 }
