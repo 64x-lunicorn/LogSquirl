@@ -175,8 +175,16 @@ public:
                                                : AbstractLogData::LineType{};
     }
 
+    // How many Log Lines the Log File holds, unless it is the view's lines:
+    // a Filtered View's Log File grows while its Displayed Lines stay.
+    LinesCount logLineCount() const override
+    {
+        return logFileLineCount.value_or( EveryLogLine::logLineCount() );
+    }
+
     mutable std::vector<LineNumber> asked;
     std::map<LineNumber::UnderlyingType, LineType> changedTypes;
+    std::optional<LinesCount> logFileLineCount;
 };
 
 class PaintingLogView : public AbstractLogView {
@@ -1240,6 +1248,46 @@ SCENARIO( "A scrolled log view repaints what changed about the Log Lines it kept
                     scrollViewTo( fresh, view.scrollPosition() );
                     fresh.rereadLogLines();
                     requireSameImage( grabViewport( fresh ), painted, "the text changed" );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "A scrolled log view paints its line numbers as wide as a full repaint does",
+          "[logviewpainting][scrollrepaint]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view showing line numbers of two digits, text wrapping "
+               << ( textWrap ? "on" : "off" ) )
+        {
+            const FakeLogData logData{ paintedTexts() };
+            const QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font,
+                             { .textWrap = textWrap, .lineNumbersVisible = true } );
+            scrollViewTo( view, ScrollPosition{ 8_lnum, 0 } );
+            grabViewport( view );
+
+            WHEN( "its Log File grows to line numbers of three digits, the lines it shows "
+                  "staying the same, and it is scrolled one Visual Line down" )
+            {
+                view.lineTypes().logFileLineCount = 100_lcount;
+                pressKey( view, Qt::Key_Down );
+                const auto painted = grabViewport( view );
+
+                THEN( "it paints what a full repaint paints" )
+                {
+                    PaintingLogView fresh( &logData, &quickFindPattern, textWrap );
+                    fresh.lineTypes().logFileLineCount = 100_lcount;
+                    showForPainting( fresh, logData, font,
+                                     { .textWrap = textWrap, .lineNumbersVisible = true } );
+                    scrollViewTo( fresh, view.scrollPosition() );
+                    fresh.rereadLogLines();
+                    requireSameImage( grabViewport( fresh ), painted, "line numbers grown wider" );
                 }
             }
         }

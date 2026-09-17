@@ -463,6 +463,9 @@ private:
     struct DecorationKey {
         uint64_t generation = 0;
         qint64 palette = 0;
+        // The palette's colors differ as the window is active or not, which
+        // its cache key does not tell.
+        QPalette::ColorGroup colorGroup = QPalette::Active;
         bool selectedAsWhole = false;
         bool selectedAsSingleLine = false;
         LineColumn selectionStart{ -1 };
@@ -521,6 +524,9 @@ private:
         int charHeight = -1;
         bool textWrap = false;
         bool lineNumbersVisible = false;
+        // Grows with the Log File's line count, which a Filtered View's
+        // Displayed Lines need not follow.
+        int lineNumberAreaWidth = 0;
         uint64_t generation = 0;
 
         bool operator==( const ViewportContentKey& ) const = default;

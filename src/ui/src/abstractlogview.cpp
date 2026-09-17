@@ -477,6 +477,18 @@ void AbstractLogView::changeEvent( QEvent* changeEvent )
         if ( !isActiveWindow() )
             autoScrollTimer_.stop();
     }
+
+    switch ( changeEvent->type() ) {
+    case QEvent::ActivationChange:
+    case QEvent::EnabledChange:
+    case QEvent::PaletteChange:
+        // The palette's colors are taken from another color group, or are
+        // others: what was painted and decorated in the old ones is not kept.
+        refresh( ViewportChange::Decorations );
+        break;
+    default:
+        break;
+    }
     viewport()->update();
 }
 
@@ -998,8 +1010,11 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     auto start = std::chrono::system_clock::now();
 
     // Can we use our cache?
+    // The layout can change without the view being told, as when a Filtered
+    // View's Log File grows wider line numbers: the key tells.
     if ( textAreaCache_.invalid_ || ( textAreaCache_.first_column_ != firstColumn )
-         || ( textAreaCache_.scroll_position_ != scrollPosition ) ) {
+         || ( textAreaCache_.scroll_position_ != scrollPosition )
+         || !( textAreaCache_.content_key_ == currentViewportContentKey() ) ) {
         // Only scrolled: what is still in view is moved, not painted again.
         if ( textAreaCache_.invalid_ || textAreaCache_.first_column_ != firstColumn
              || !scrollTextArea( scrollPosition ) ) {
@@ -1678,11 +1693,17 @@ ViewportLayout AbstractLogView::viewportLayout() const
 
 AbstractLogView::ViewportContentKey AbstractLogView::currentViewportContentKey() const
 {
-    return ViewportContentKey{ scrolling_.position(), scrolling_.firstColumn(),
-                               logData_->getNbLine(), viewport()->width(),
-                               viewport()->height(),  charWidth_,
-                               charHeight_,           scrolling_.textWrap(),
-                               lineNumbersVisible_,   viewportGeneration_ };
+    return ViewportContentKey{ .scrollPosition = scrolling_.position(),
+                               .firstColumn = scrolling_.firstColumn(),
+                               .totalLines = logData_->getNbLine(),
+                               .viewportWidth = viewport()->width(),
+                               .viewportHeight = viewport()->height(),
+                               .charWidth = charWidth_,
+                               .charHeight = charHeight_,
+                               .textWrap = scrolling_.textWrap(),
+                               .lineNumbersVisible = lineNumbersVisible_,
+                               .lineNumberAreaWidth = viewportGeometry().lineNumberAreaWidthPx(),
+                               .generation = viewportGeneration_ };
 }
 
 const AbstractLogView::ViewportContent& AbstractLogView::viewportContent() const
@@ -1827,6 +1848,7 @@ AbstractLogView::DecorationKey AbstractLogView::decorationKey( LineNumber logLin
     const bool lineSelected = selection_.isLineSelected( logLine );
     return DecorationKey{ .generation = decorationGeneration_,
                           .palette = viewport()->palette().cacheKey(),
+                          .colorGroup = viewport()->palette().currentColorGroup(),
                           .selectedAsWhole = lineSelected && !selection_.isSingleLine(),
                           .selectedAsSingleLine = lineSelected && selection_.isSingleLine(),
                           .selectionStart
