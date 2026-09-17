@@ -1,7 +1,8 @@
 # Fails when the compiler flags chosen for a target architecture are wrong:
 # when an arm64 build is not given a portable CPU with LOGSQUIRL_GENERIC_CPU,
 # when Linux aarch64 is handed x86 SIMD flags, or when the flags follow the
-# machine building instead of the machine the build is for (#285).
+# machine building instead of the machine the build is for, or when MSVC
+# gives an ARM64 build x86 flags (#285).
 #
 # Usage: cmake -DMODULE_DIR=<cmake/> -P architecture_flags.cmake
 
@@ -42,3 +43,10 @@ expect("" PROCESSOR arm64 SYSTEM_NAME Darwin OSX_ARCHITECTURES "arm64;x86_64" GE
 
 # An architecture with no known flags gets none rather than x86 ones.
 expect("" PROCESSOR riscv64 SYSTEM_NAME Linux GENERIC_CPU ON)
+
+# MSVC: x86 flags only for x86 targets, AVX2 only for local builds.
+expect("/D__SSE4_1__=1;/D__SSE4_2__=1;/arch:AVX2" PROCESSOR x64 SYSTEM_NAME Windows GENERIC_CPU OFF MSVC)
+expect("/D__SSE4_1__=1;/D__SSE4_2__=1" PROCESSOR x64 SYSTEM_NAME Windows GENERIC_CPU ON MSVC)
+expect("/D__SSE4_1__=1;/D__SSE4_2__=1;/arch:AVX2" PROCESSOR X86 SYSTEM_NAME Windows GENERIC_CPU OFF MSVC)
+expect("" PROCESSOR ARM64 SYSTEM_NAME Windows GENERIC_CPU OFF MSVC)
+expect("" PROCESSOR ARM64 SYSTEM_NAME Windows GENERIC_CPU ON MSVC)

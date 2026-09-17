@@ -129,14 +129,23 @@ if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4")
   endif(CMAKE_C_FLAGS MATCHES "/W[0-4]")
 
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
-
-  # Enable AVX2 code generation for local (non-generic) builds
-  if(NOT LOGSQUIRL_GENERIC_CPU)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /arch:AVX2")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+  # Chosen for the architecture the compiler generates code for, so an ARM64
+  # build gets no x86 flags (#285).
+  include(ArchitectureFlags)
+  if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID)
+    set(LOGSQUIRL_TARGET_PROCESSOR "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}")
+  else()
+    set(LOGSQUIRL_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
   endif()
+  logsquirl_architecture_flags(
+    LOGSQUIRL_ARCHITECTURE_FLAGS
+    MSVC
+    PROCESSOR "${LOGSQUIRL_TARGET_PROCESSOR}"
+    SYSTEM_NAME "${CMAKE_SYSTEM_NAME}"
+    GENERIC_CPU "${LOGSQUIRL_GENERIC_CPU}"
+  )
+  message("Architecture flags for ${CMAKE_SYSTEM_NAME} ${LOGSQUIRL_TARGET_PROCESSOR}: ${LOGSQUIRL_ARCHITECTURE_FLAGS}")
+  ucm_add_flags(C CXX ${LOGSQUIRL_ARCHITECTURE_FLAGS})
 
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj ")
 else()
