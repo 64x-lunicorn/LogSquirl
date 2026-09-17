@@ -171,37 +171,47 @@ PartialSearchResults filterLines( const PatternMatcher& matcher, const RawLines&
 SearchResults SearchData::takeCurrentResults() const
 {
     UniqueLock lock( dataMutex_ );
-    return SearchResults{ std::exchange( newMatches_, {} ), maxLength_, nbLinesProcessed_ };
+    return SearchResults{ std::exchange( newMatches_, {} ), maxLength_,
+                          LinesCount{ searchedUntil_.get() } };
 }
 
-void SearchData::addAll( LineLength length, const SearchResultArray& matches,
-                         LinesCount matchedLines, LinesCount processedLines )
+void SearchData::searchFrom( LineNumber line )
+{
+    UniqueLock lock( dataMutex_ );
+    searchedUntil_ = line;
+    searchedAhead_.clear();
+}
+
+void SearchData::addAll( LineLength length, const SearchResultArray& matches, LineNumber blockStart,
+                         LinesCount blockLines )
 {
     UniqueLock lock( dataMutex_ );
 
     maxLength_ = qMax( maxLength_, length );
-    nbLinesProcessed_ = qMax( nbLinesProcessed_, processedLines );
-    nbMatches_ += matchedLines;
-
     newMatches_ |= matches;
-}
 
-LinesCount SearchData::getNbMatches() const
-{
-    SharedLock lock( dataMutex_ );
-    return nbMatches_;
+    const auto blockEnd = blockStart.get() + blockLines.get();
+    if ( blockStart > searchedUntil_ ) {
+        auto& searchedEnd = searchedAhead_[ blockStart.get() ];
+        searchedEnd = std::max( searchedEnd, blockEnd );
+        return;
+    }
+
+    // The block reaches the Log Lines searched without a gap: so do the
+    // blocks combined beyond it that now follow on.
+    auto searchedUntil = std::max( searchedUntil_.get(), blockEnd );
+    auto ahead = searchedAhead_.begin();
+    while ( ahead != searchedAhead_.end() && ahead->first <= searchedUntil ) {
+        searchedUntil = std::max( searchedUntil, ahead->second );
+        ahead = searchedAhead_.erase( ahead );
+    }
+    searchedUntil_ = LineNumber( searchedUntil );
 }
 
 LineNumber SearchData::getLastProcessedLine() const
 {
     SharedLock lock( dataMutex_ );
-    return LineNumber{ nbLinesProcessed_.get() };
-}
-
-void SearchData::deleteMatch( LineNumber line )
-{
-    UniqueLock lock( dataMutex_ );
-    matches_.remove( line.get() );
+    return searchedUntil_;
 }
 
 void SearchData::clear()
@@ -209,9 +219,8 @@ void SearchData::clear()
     UniqueLock locker( dataMutex_ );
 
     maxLength_ = LineLength( 0 );
-    nbLinesProcessed_ = LinesCount( 0 );
-    nbMatches_ = LinesCount( 0 );
-    matches_ = {};
+    searchedUntil_ = LineNumber( 0 );
+    searchedAhead_.clear();
     newMatches_ = {};
 }
 
@@ -404,6 +413,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     if ( initialLine < startLine_ ) {
         initialLine = startLine_;
     }
+    searchData.searchFrom( initialLine );
 
     const auto endLine = qMin( LineNumber( nbSourceLines.get() ), endLine_ );
     const auto nbLinesInChunk
@@ -467,7 +477,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     const auto totalLines = endLine - initialLine;
     LinesCount totalProcessedLines = 0_lcount;
     LineLength maxLength = 0_length;
-    LinesCount nbMatches = searchData.getNbMatches();
+    // Only to report progress when Matches were found: what the Search Session
+    // counts are the Matches themselves.
+    LinesCount nbMatches = 0_lcount;
     auto reportedMatches = nbMatches;
     int reportedPercentage = 0;
 
@@ -494,15 +506,12 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                         = LinesCount( matchResults.matchingLines.cardinality() );
                     nbMatches += matchesCount;
 
-                    const auto processedLines = LinesCount{ matchResults.chunkStart.get()
-                                                            + matchResults.processedLines.get() };
-
                     totalProcessedLines += matchResults.processedLines;
 
                     // After each block, copy the data to shared data
                     // and update the client
-                    searchData.addAll( maxLength, matchResults.matchingLines, matchesCount,
-                                       processedLines );
+                    searchData.addAll( maxLength, matchResults.matchingLines,
+                                       matchResults.chunkStart, matchResults.processedLines );
 
                     LOG_DEBUG << "done Searching chunk starting at " << matchResults.chunkStart
                               << ", " << matchResults.processedLines << " lines read.";
@@ -518,8 +527,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
                 if ( percentage > reportedPercentage || nbMatches > reportedMatches ) {
 
-                    Q_EMIT searchProgressed( nbMatches, std::min( 99, percentage ), initialLine,
-                                             searchId_ );
+                    Q_EMIT searchProgressed( std::min( 99, percentage ), initialLine, searchId_ );
 
                     reportedPercentage = percentage;
                     reportedMatches = nbMatches;
@@ -595,7 +603,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
     // Completion is reported once, here, rather than folded into the last progress
     // tick -- that is what lets a superseded/interrupted run be told apart from a
     // genuinely finished one instead of both claiming 100%.
-    Q_EMIT searchFinished( searchId_, nbMatches, initialLine, isSuperseded(), {} );
+    Q_EMIT searchFinished( searchId_, initialLine, isSuperseded(), {} );
 }
 
 void SearchOperation::run( SearchData& searchData )
@@ -609,7 +617,7 @@ void SearchOperation::run( SearchData& searchData )
         searchData.clear();
         // Still reported finished: whoever started this run paired it with
         // one attachReader() that only searchFinished balances.
-        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, false, failure );
+        Q_EMIT searchFinished( searchId_, startLine_, false, failure );
     }
 }
 
@@ -623,7 +631,7 @@ void FullSearchOperation::doRun( SearchData& searchData )
         // whoever started us paired it with one attachReader() that only our
         // searchFinished balances with a detachReader().
         LOG_INFO << "Search superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, 0_lcount, startLine_, true, {} );
+        Q_EMIT searchFinished( searchId_, startLine_, true, {} );
         return;
     }
 
@@ -637,7 +645,7 @@ void UpdateSearchOperation::doRun( SearchData& searchData )
 {
     if ( isSuperseded() ) {
         LOG_INFO << "Search update superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, 0_lcount, initialPosition_, true, {} );
+        Q_EMIT searchFinished( searchId_, initialPosition_, true, {} );
         return;
     }
 
@@ -645,10 +653,9 @@ void UpdateSearchOperation::doRun( SearchData& searchData )
 
     if ( initialLine.get() >= 1 ) {
         // We need to re-search the last line because it might have
-        // been updated (if it was not LF-terminated)
+        // been updated (if it was not LF-terminated). If it matches again,
+        // it is still one Match: the Matches are a set of Log Lines.
         --initialLine;
-        // In case the last line matched, we don't want it to match twice.
-        searchData.deleteMatch( initialLine );
     }
 
     doSearch( searchData, initialLine );

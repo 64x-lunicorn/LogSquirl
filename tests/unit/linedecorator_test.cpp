@@ -17,6 +17,11 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <atomic>
+#include <thread>
+#include <utility>
+#include <vector>
+
 #include <catch2/catch.hpp>
 
 #include "linedecorator.h"
@@ -871,6 +876,184 @@ SCENARIO( "A Decoration covers the whole text without gaps", "[linedecorator][co
             {
                 REQUIRE( decoration.spans().empty() );
                 REQUIRE( decoration.lineColors().backColor == TestPalette.base );
+            }
+        }
+    }
+}
+
+// Issue #293: matching a Log Line against the Highlighter Set reuses what it
+// scanned the previous line with instead of setting it up again for every
+// line. These scenarios pin down that nothing one line leaves behind shows
+// in the next one, whichever Highlighter Set and thread it comes from.
+namespace {
+
+// The start column and length of every Highlighter span, in order.
+logsquirl::vector<std::pair<int, int>> spanColumns( const LineVerdict& verdict )
+{
+    logsquirl::vector<std::pair<int, int>> columns;
+    for ( const auto& span : verdict.highlighterSpans() ) {
+        columns.emplace_back( static_cast<int>( span.startColumn().get() ),
+                              static_cast<int>( span.size().get() ) );
+    }
+    return columns;
+}
+
+LineDecorator decoratorWith( HighlighterSet set )
+{
+    auto context = emptyContext();
+    context.highlighterSet = std::move( set );
+    return LineDecorator{ std::move( context ) };
+}
+
+HighlighterSet errorAndWarnSet()
+{
+    auto set = HighlighterSet::createNewSet( "errors and warnings" );
+    set.addHighlighter(
+        Highlighter{ "ERROR", false, true, QColor{ Qt::white }, QColor{ Qt::red } } );
+    set.addHighlighter(
+        Highlighter{ "WARN", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } } );
+    return set;
+}
+
+using Columns = logsquirl::vector<std::pair<int, int>>;
+
+} // namespace
+
+SCENARIO( "Each Log Line is matched against the Highlighter Set on its own",
+          "[linedecorator][highlighter-reuse]" )
+{
+    GIVEN( "a decorator with word-only Highlighters for ERROR and WARN" )
+    {
+        const auto decorator = decoratorWith( errorAndWarnSet() );
+
+        WHEN( "a very long line is followed by short ones" )
+        {
+            const QString longLine = QString( 5000, QChar{ 'x' } ) + "WARN";
+            const auto longVerdict
+                = decorator.verdictFor( LogLine{ 0_lnum, longLine }, LineTypeFlags::Plain );
+            const auto noMatchVerdict
+                = decorator.verdictFor( LogLine{ 1_lnum, "xx" }, LineTypeFlags::Plain );
+            const auto shortVerdict
+                = decorator.verdictFor( LogLine{ 2_lnum, "an ERROR" }, LineTypeFlags::Plain );
+
+            THEN( "every line gets only its own matches" )
+            {
+                REQUIRE( spanColumns( longVerdict ) == Columns{ { 5000, 4 } } );
+                REQUIRE( spanColumns( noMatchVerdict ).empty() );
+                REQUIRE( spanColumns( shortVerdict ) == Columns{ { 3, 5 } } );
+            }
+        }
+
+        WHEN( "a line with multi-byte characters is followed by a plain one" )
+        {
+            const auto wideVerdict = decorator.verdictFor(
+                LogLine{ 0_lnum, QStringLiteral( "Größe → ERROR" ) }, LineTypeFlags::Plain );
+            const auto plainVerdict
+                = decorator.verdictFor( LogLine{ 1_lnum, "WARN ok" }, LineTypeFlags::Plain );
+
+            THEN( "the columns are the lines' own characters" )
+            {
+                REQUIRE( spanColumns( wideVerdict ) == Columns{ { 8, 5 } } );
+                REQUIRE( spanColumns( plainVerdict ) == Columns{ { 0, 4 } } );
+            }
+        }
+    }
+
+    GIVEN( "two decorators with different Highlighter Sets on one thread" )
+    {
+        const auto errorsAndWarnings = decoratorWith( errorAndWarnSet() );
+        const auto infoOnly = decoratorWith(
+            setWithHighlighter( "INFO", true, QColor{ Qt::white }, QColor{ Qt::green } ) );
+
+        WHEN( "they match lines in turn" )
+        {
+            const QString text = "INFO then ERROR";
+            Columns fromErrors;
+            Columns fromInfo;
+            for ( int i = 0; i < 3; ++i ) {
+                fromErrors = spanColumns(
+                    errorsAndWarnings.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain ) );
+                fromInfo = spanColumns(
+                    infoOnly.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain ) );
+            }
+
+            THEN( "each matches with its own Highlighter Set" )
+            {
+                REQUIRE( fromErrors == Columns{ { 10, 5 } } );
+                REQUIRE( fromInfo == Columns{ { 0, 4 } } );
+            }
+        }
+    }
+
+    GIVEN( "one compiled Highlighter Set shared by decorators on several threads" )
+    {
+        auto set = errorAndWarnSet();
+        set.compile();
+
+        WHEN( "every thread matches many lines at once" )
+        {
+            constexpr int ThreadCount = 4;
+            constexpr int LinesPerThread = 500;
+            std::atomic<int> wrongVerdicts{ 0 };
+
+            std::vector<std::thread> threads;
+            for ( int t = 0; t < ThreadCount; ++t ) {
+                threads.emplace_back( [ set, t, &wrongVerdicts ] {
+                    const auto decorator = decoratorWith( set );
+                    for ( int i = 0; i < LinesPerThread; ++i ) {
+                        // Each thread and line puts the match somewhere else.
+                        const int padding = ( t * 7 + i ) % 40;
+                        const QString text
+                            = QString( padding, QChar{ ' ' } ) + ( i % 2 == 0 ? "ERROR" : "WARN" );
+                        const auto columns = spanColumns(
+                            decorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain ) );
+                        const Columns expected{ { padding, i % 2 == 0 ? 5 : 4 } };
+                        if ( columns != expected ) {
+                            ++wrongVerdicts;
+                        }
+                    }
+                } );
+            }
+            for ( auto& thread : threads ) {
+                thread.join();
+            }
+
+            THEN( "every line gets exactly its own match" )
+            {
+                REQUIRE( wrongVerdicts.load() == 0 );
+            }
+        }
+    }
+}
+
+SCENARIO( "A word-only Highlighter that varies its colors keeps them per matched text",
+          "[linedecorator][highlighter-reuse]" )
+{
+    GIVEN( "a Highlighter with a capture group and color variation" )
+    {
+        Highlighter highlighter{ "user=(\\w+)", false, true, QColor{ 200, 100, 50 },
+                                 QColor{ 20, 40, 160 } };
+        highlighter.setVariateColors( true );
+        highlighter.setColorVariance( 30 );
+        auto set = HighlighterSet::createNewSet( "users" );
+        set.addHighlighter( highlighter );
+        const auto decorator = decoratorWith( set );
+
+        WHEN( "a line names two users" )
+        {
+            const QString text = "user=alice user=bob";
+            const auto verdict
+                = decorator.verdictFor( LogLine{ 0_lnum, text }, LineTypeFlags::Plain );
+
+            THEN( "each captured name gets the colors its text varies them to" )
+            {
+                // The colors color variation gave these names before #293.
+                REQUIRE( spanColumns( verdict ) == Columns{ { 5, 5 }, { 16, 3 } } );
+                const auto& spans = verdict.highlighterSpans();
+                REQUIRE( spans[ 0 ].foreColor().name().toStdString() == "#d06834" );
+                REQUIRE( spans[ 0 ].backColor().name().toStdString() == "#152aa6" );
+                REQUIRE( spans[ 1 ].foreColor().name().toStdString() == "#e47239" );
+                REQUIRE( spans[ 1 ].backColor().name().toStdString() == "#172eb6" );
             }
         }
     }

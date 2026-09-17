@@ -39,7 +39,9 @@
 // This file implements classes Highlighter and HighlighterSet
 
 #include <algorithm>
+#include <cstddef>
 #include <iterator>
+#include <memory>
 #include <qcolor.h>
 #include <random>
 #include <utility>
@@ -57,6 +59,46 @@
 #include "uuid.h"
 
 #include "highlighter.h"
+
+namespace {
+
+// What matching a Log Line against a Highlighter Set sets up once and then
+// reuses for every line after it: a matcher for the set's compiled
+// expression, which owns its own Hyperscan scratch space, and the buffer the
+// line is converted to UTF-8 in. Setting both up for every painted line cost
+// a scratch clone and an allocation of four times the line length per line.
+// Every copy of a compiled Highlighter Set shares its compiled expression, so
+// the matcher also outlives the copy a Line Decorator takes for one repaint.
+//
+// One per thread: a scratch space must never serve two scans at once, and
+// nothing ties matching a Highlighter Set to one thread.
+struct HighlighterScan {
+    // The compiled expression the matcher was made for. Held weakly, so a
+    // Highlighter Set replaced by another one is noticed: its control block
+    // outlives it, and no newly compiled expression can share it.
+    std::weak_ptr<const MultiRegularExpression> expression;
+    std::unique_ptr<MultiPatternMatcher> matcher;
+    logsquirl::vector<char> utf8Buffer;
+};
+
+HighlighterScan& highlighterScanOfThisThread()
+{
+    thread_local HighlighterScan scan;
+    return scan;
+}
+
+// A buffer grown past this for one very long line is released again after
+// that line rather than kept for the lifetime of the thread.
+constexpr size_t MaxKeptUtf8BufferSize = 1024 * 1024;
+
+bool isMadeFor( const HighlighterScan& scan,
+                const std::shared_ptr<MultiRegularExpression>& expression )
+{
+    return scan.matcher && !scan.expression.owner_before( expression )
+           && !expression.owner_before( scan.expression );
+}
+
+} // namespace
 
 QRegularExpression::PatternOptions getPatternOptions( bool ignoreCase )
 {
@@ -157,7 +199,7 @@ void Highlighter::setBackColor( const QColor& backColor )
     color_.backColor = backColor;
 }
 
-std::pair<QColor, QColor> Highlighter::vairateColors( const QString& match ) const
+std::pair<QColor, QColor> Highlighter::vairateColors( QStringView match ) const
 {
     if ( !( variateColors_ && highlightOnlyMatch_ ) ) {
         return std::make_pair( color_.foreColor, color_.backColor );
@@ -219,7 +261,9 @@ bool Highlighter::matchLine( const QString& line,
             matches.reserve( static_cast<size_t>( match.lastCapturedIndex() ) );
             for ( int i = 1; i <= match.lastCapturedIndex(); ++i ) {
 
-                const auto colors = vairateColors( match.captured( i ) );
+                // A view, not a copy: the captured text is only read when
+                // color variation needs it.
+                const auto colors = vairateColors( match.capturedView( i ) );
 
                 matches.emplace_back( LineColumn{ match.capturedStart( i ) },
                                       LineLength{ match.capturedLength( i ) }, colors.first,
@@ -227,7 +271,7 @@ bool Highlighter::matchLine( const QString& line,
             }
         }
         else {
-            const auto colors = vairateColors( match.captured( 0 ) );
+            const auto colors = vairateColors( match.capturedView( 0 ) );
 
             matches.emplace_back( LineColumn{ match.capturedStart( 0 ) },
                                   LineLength{ match.capturedLength( 0 ) }, colors.first,
@@ -277,6 +321,13 @@ void HighlighterSet::compile() const
                     []( const Highlighter& hl ) { return hl.expressionPattern(); } );
 
     compiledExpression_ = std::make_shared<MultiRegularExpression>( patterns );
+
+    // The Highlighters too: copies of this set share them, so compiling each
+    // one lazily on its first match would race when copies match on several
+    // threads at once.
+    for ( const auto& highlighter : std::as_const( highlighterList_ ) ) {
+        highlighter.compile();
+    }
 }
 
 HighlighterMatchType HighlighterSet::matchLine( const QString& line,
@@ -296,14 +347,26 @@ HighlighterMatchType HighlighterSet::matchLine( const QString& line,
         compile();
     }
 
-    logsquirl::vector<char> utf8Data( static_cast<size_t>( line.size() * 4 ) );
-    const auto resultSize
-        = simdutf::convert_utf16_to_utf8( reinterpret_cast<const char16_t*>( line.utf16() ),
-                                          static_cast<size_t>( line.size() ), utf8Data.data() );
+    auto& scan = highlighterScanOfThisThread();
+    if ( !isMadeFor( scan, compiledExpression_ ) ) {
+        scan.matcher = compiledExpression_->createMatcher();
+        scan.expression = compiledExpression_;
+    }
 
-    auto matcher = compiledExpression_->createMatcher();
+    const auto utf8Size = static_cast<size_t>( line.size() ) * 4;
+    if ( scan.utf8Buffer.size() < utf8Size ) {
+        scan.utf8Buffer.resize( utf8Size );
+    }
+    const auto resultSize = simdutf::convert_utf16_to_utf8(
+        reinterpret_cast<const char16_t*>( line.utf16() ), static_cast<size_t>( line.size() ),
+        scan.utf8Buffer.data() );
+
     logsquirl::vector<std::pair<RegularExpressionPattern, bool>> matchedPatterns
-        = matcher->match( std::string_view{ utf8Data.data(), resultSize } );
+        = scan.matcher->match( std::string_view{ scan.utf8Buffer.data(), resultSize } );
+
+    if ( scan.utf8Buffer.size() > MaxKeptUtf8BufferSize ) {
+        scan.utf8Buffer = {};
+    }
 
     auto matchType = HighlighterMatchType::NoMatch;
 
