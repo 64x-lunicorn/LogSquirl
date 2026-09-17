@@ -210,6 +210,11 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
   Find reads today.
+- `[tailing]` — following the Log File as it grows (#277), once indexed, with
+  and without fast modification detection: **append, check and index the
+  appended Log Lines**, one change notification for an append of 20 Log
+  Lines, and **check with nothing appended**, a change notification for bytes
+  already indexed. Runs last, as it appends to the Log Files.
 
 A change that adds a new way of reading the same Log Lines adds a `BENCHMARK`
 next to the one it replaces, over the same `contiguousRange()` or
