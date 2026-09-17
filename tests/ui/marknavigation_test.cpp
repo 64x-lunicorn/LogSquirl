@@ -127,18 +127,21 @@ void requireMarkNavigationMovesDownAndUp( AbstractLogView& view )
     const LineNumber aboveMarks{ 2 };
     const LineNumber betweenMarks{ 8 };
     const LineNumber belowMarks{ 15 };
+    // As goToMark() returns them.
+    const auto firstMark = static_cast<int64_t>( FirstMark.get() );
+    const auto lastMark = static_cast<int64_t>( LastMark.get() );
 
     // Next Mark goes down to the nearest Mark below.
-    CHECK( next( aboveMarks ) == FirstMark.get() );
-    CHECK( next( FirstMark ) == LastMark.get() );
-    CHECK( next( betweenMarks ) == LastMark.get() );
+    CHECK( next( aboveMarks ) == firstMark );
+    CHECK( next( FirstMark ) == lastMark );
+    CHECK( next( betweenMarks ) == lastMark );
     CHECK( next( LastMark ) == NoMark );
     CHECK( next( belowMarks ) == NoMark );
 
     // Previous Mark goes up to the nearest Mark above.
-    CHECK( previous( belowMarks ) == LastMark.get() );
-    CHECK( previous( LastMark ) == FirstMark.get() );
-    CHECK( previous( betweenMarks ) == FirstMark.get() );
+    CHECK( previous( belowMarks ) == lastMark );
+    CHECK( previous( LastMark ) == firstMark );
+    CHECK( previous( betweenMarks ) == firstMark );
     CHECK( previous( FirstMark ) == NoMark );
     CHECK( previous( aboveMarks ) == NoMark );
     CHECK( previous( 0_lnum ) == NoMark );

@@ -81,15 +81,15 @@ struct ViewBuild {
 struct ViewChange {
     // The views hold it and repaint; nothing is torn down, no Presentation is
     // rebuilt and no Search is run again.
-    std::optional<DecorationPolicy> decoration;
+    std::optional<DecorationPolicy> decoration{};
     // The views show and scroll under it; nothing is torn down.
-    std::optional<PresentationPolicy> presentation;
+    std::optional<PresentationPolicy> presentation{};
     // How the views' Search line reads its pattern and what the Table View
     // hands a QuickFind. The window's QuickFind bar reads it from the Session.
-    std::optional<QuickFindPolicy> quickFind;
+    std::optional<QuickFindPolicy> quickFind{};
     // Whether following is offered at all, taken away and given back without
     // the Log File being opened again.
-    std::optional<WatchPolicy> watch;
+    std::optional<WatchPolicy> watch{};
 
     // The settings changed: what has no Policy -- the font, the shortcuts
     // (CONTEXT.md, Settings Policy), how long the Search history is -- is
