@@ -311,10 +311,6 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          if [ ! -f sbom-base/logsquirl-sbom-base.cdx.json ]; then
-            echo "::error::The CI Build run has no sbom-base artifact (it predates #212); release a newer run."
-            exit 1
-          fi
           # Exactly one package per kind, or the scan would describe the wrong file.
           appimage=(./packages-appimage/*.AppImage)
           portable=(./packages-windows-x64/*-portable.zip)

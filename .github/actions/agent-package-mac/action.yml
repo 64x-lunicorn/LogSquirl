@@ -38,7 +38,8 @@ runs:
           "$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
 
     # ── 2. Create the (unsigned) DMG ──────────────────────────────────────
-    - uses: ./.github/actions/mac-create-dmg
+    - name: Mac create DMG
+      uses: ./.github/actions/mac-create-dmg
       with:
         app: ${{ env.LOGSQUIRL_BUILD_ROOT }}/output/logsquirl.app
         dmg: ${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.dmg
