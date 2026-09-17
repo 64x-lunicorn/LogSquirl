@@ -592,6 +592,21 @@ jobs:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: .github/scripts/release-build.py release-notes --tag "$TAG" --out release_notes.md
 
+      # The deb and rpm packages install only with a new enough distribution
+      # Qt (#226); the version is the one the SBOM records for this build.
+      - name: Append the Linux package requirements
+        run: |
+          set -euo pipefail
+          qt=$(jq -r '[.components[] | select(.["bom-ref"] == "platform:qt") | .version] | if length == 1 then .[0] else error("expected one Qt component") end' ./packages-sbom/*.cdx.json)
+          cat >> release_notes.md <<NOTES
+
+          ## Linux packages
+
+          The \`.deb\` and \`.rpm\` packages use the distribution's Qt and declare Qt ${qt} as their
+          minimum version, so they install only where the distribution provides Qt ${qt} or newer.
+          On other distributions, use the AppImage, which brings its own Qt.
+          NOTES
+
       # The verification commands name this release's files, so they are added
       # here rather than in the CHANGELOG, which knows nothing about assets (#214).
       - name: Append verification instructions

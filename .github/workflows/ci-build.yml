@@ -255,7 +255,6 @@ jobs:
           - os: oraclelinux
             os_version: 10
             arch: x64
-            check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
             cpack_gen: RPM
             artifacts_id: oracle
             package_suffix: rpm
@@ -267,7 +266,6 @@ jobs:
           - os: ubuntu_noble
             os_version: 24.04
             arch: x64
-            check_command: apt-get update && apt install --dry-run /usr/local/logsquirl*.deb
             cpack_gen: DEB
             artifacts_id: noble
             package_suffix: deb
@@ -290,7 +288,6 @@ jobs:
           - os: fedora
             os_version: 44
             arch: x64
-            check_command: dnf install -y --setopt tsflags=test /usr/local/logsquirl*.rpm
             cpack_gen: RPM
             artifacts_id: fedora
             package_suffix: rpm

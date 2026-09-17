@@ -323,13 +323,37 @@ if(UNIX)
     set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/64x-lunicorn/LogSquirl")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "LogSquirl Contributors <${CPACK_PACKAGE_CONTACT}>")
     # Qt is installed via aqtinstall (not distro packages), so auto-dependency
-    # detection would generate unsatisfiable requires like libQt6Core.so.6(Qt_6.10).
+    # detection would find no package owning libQt6Core.so.6 and fail.
     set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS NO)
+
+    # The packages do not bundle Qt, but the binary needs at least the Qt it was
+    # built against (it references the Qt_6.<minor> symbol versions). So they
+    # declare the distribution's Qt packages with that version as the minimum:
+    # on a distribution with an older Qt the install fails, instead of the
+    # start. Users of such a distribution take the AppImage (#226).
+    # Core, Network, Concurrent, Xml; Gui, Widgets; the xcb platform plugin;
+    # Core5Compat; the SVG image format and icon engine plugins.
+    set(LOGSQUIRL_QT_MIN "${LOGSQUIRL_QT_VERSION}")
+    set(_deb_qt_depends)
+    foreach(_lib core gui widgets network concurrent xml)
+      # Ubuntu 24.04 and Debian 13 renamed the libraries for the 64-bit time_t transition.
+      list(APPEND _deb_qt_depends "libqt6${_lib}6t64 (>= ${LOGSQUIRL_QT_MIN}) | libqt6${_lib}6 (>= ${LOGSQUIRL_QT_MIN})")
+    endforeach()
+    foreach(_pkg libqt6core5compat6 libqt6svg6 qt6-qpa-plugins)
+      list(APPEND _deb_qt_depends "${_pkg} (>= ${LOGSQUIRL_QT_MIN})")
+    endforeach()
+    list(JOIN _deb_qt_depends ", " CPACK_DEBIAN_PACKAGE_DEPENDS)
 
     #RPM
     set(CPACK_RPM_PACKAGE_ARCHITECTURE "x86_64")
     set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
     set(CPACK_RPM_PACKAGE_AUTOREQ NO)
+    # Fedora and Oracle Linux package names; see the deb dependencies above (#226).
+    set(_rpm_qt_requires)
+    foreach(_pkg qt6-qtbase qt6-qtbase-gui qt6-qt5compat qt6-qtsvg)
+      list(APPEND _rpm_qt_requires "${_pkg} >= ${LOGSQUIRL_QT_MIN}")
+    endforeach()
+    list(JOIN _rpm_qt_requires ", " CPACK_RPM_PACKAGE_REQUIRES)
     set(CPACK_RPM_PACKAGE_URL "https://github.com/64x-lunicorn/LogSquirl")
     set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
         /usr/share/applications
