@@ -138,7 +138,8 @@ TEST_CASE( "Highlighting Log Lines", "[regex-benchmark][highlight]" )
     const LogLineBlock block;
 
     // A Highlighter Set of three Highlighters, one with a lookahead. The
-    // Highlighter Set creates a matcher for every Log Line it colors.
+    // Highlighter Set on origin/master creates a matcher for every Log Line it
+    // colors.
     const MultiRegularExpression expression( {
         RegularExpressionPattern( "^(?!.*DEBUG).*ERROR", true, false, false, false ),
         RegularExpressionPattern( "worker-[0-9]+", true, false, false, false ),
