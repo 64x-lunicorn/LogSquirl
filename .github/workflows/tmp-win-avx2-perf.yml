@@ -63,7 +63,7 @@ jobs:
       - name: Run the grep e2e performance suite on both sides
         shell: bash
         run: |
-          set -uo pipefail
+          set +e -uo pipefail
           python tests/e2e/generate_test_data.py
           (cd tests/e2e && pip install -e . > /dev/null)
           mkdir -p "$RUNNER_TEMP/results"
@@ -74,7 +74,7 @@ jobs:
           done
           run() {
             label=$1; side=$2; shift 2
-            (cd tests/e2e && env "$@" pytest -q -m performance -k TestGrepPerformance --binary-dir "$RUNNER_TEMP/bin/$side" --bench-report json -p no:cacheprovider > "$RUNNER_TEMP/results/$label.txt" 2>&1)
+            (cd tests/e2e && env "$@" pytest test_performance.py -q -m performance -k TestGrepPerformance "--binary-dir=$RUNNER_TEMP/bin/$side" --bench-report=json -p no:cacheprovider > "$RUNNER_TEMP/results/$label.txt" 2>&1)
             cp tests/e2e/benchmark_report.json "$RUNNER_TEMP/results/$label.json"
             tail -5 "$RUNNER_TEMP/results/$label.txt"
           }
