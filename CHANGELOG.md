@@ -346,6 +346,16 @@
   release without a changelog section is stopped before anything is signed;
   26.07.0 was published with empty notes.
 
+- **Release checks before merge**: A pull request is checked before merge
+  for a valid update feed, a website that builds without broken links, a
+  CHANGELOG entry (or the `no-changelog` label) and, when it changes the
+  version, a complete release preparation. Every pull request now reports
+  the required CI check, also one that changes only the website or the feed.
+- **Website release pages**: The release overview, the home page and the
+  sidebar are generated from the release pages, and a release's page goes
+  live once its GitHub release is published. The 26.06 page names the
+  published release, 26.06.1.
+
 ## Internal
 
 - **Plugin Catalog and Plugin Host**: The former plugin manager class is split
