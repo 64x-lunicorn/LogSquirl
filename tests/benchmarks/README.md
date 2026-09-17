@@ -308,6 +308,41 @@ For the before side, copy `session_restore_benchmark.cpp` into a worktree of
 origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
 
+# Displayed Lines benchmark
+
+`logsquirl_displayedlines_benchmark` (#292) measures the Displayed Lines of a
+Search with a million Matches over ten million Log Lines (one in ten), 3
+Context Lines, everything shown and 100 Marks, some on Matches and some two
+Log Lines after one. Links `logsquirl_logdata` only and needs no GUI:
+
+- **progress ticks: 100 batches of 10,000 Matches**: the Matches arriving
+  while the Search runs, without its completion. Before #292 each tick
+  rebuilt the whole union, so this grew quadratically with the Matches.
+- **completion after the progress ticks**: the last batch arrives with the
+  completion, which builds the Context Lines around every Match and Mark.
+- **continuation over 100,000 appended Log Lines**: after a completed Search,
+  the Log File grows and the Search continues over the appended Log Lines in
+  10 ticks and a completion.
+- **toggling a Mark on and off next to a Match**: after a completed Search.
+
+The file builds on commits from before #292: where the Displayed Lines take
+no new Matches, it calls `matchesArrived()` and `searchCompleted()` without
+them, as the Filtered View did then. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_displayedlines_benchmark
+./build-release/output/logsquirl_displayedlines_benchmark --benchmark-samples 20 > after.txt
+```
+
+For the before side, copy `displayedlines_benchmark.cpp` into a worktree of
+origin/master and add the target, as described for the scrolling benchmarks
+above:
+
+```cmake
+add_executable(logsquirl_displayedlines_benchmark displayedlines_benchmark.cpp)
+target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
+```
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a

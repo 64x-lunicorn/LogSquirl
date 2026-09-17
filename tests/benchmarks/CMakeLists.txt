@@ -52,3 +52,12 @@ add_executable(logsquirl_session_restore_benchmark
 
 target_link_libraries(logsquirl_session_restore_benchmark logsquirl_ui Catch2 test_utils)
 set_target_properties(logsquirl_session_restore_benchmark PROPERTIES AUTOMOC ON)
+
+# The Displayed Lines of a Search with a million Matches (#292): progress
+# ticks, completion, continuation and toggling a Mark. Links logsquirl_logdata
+# only; builds on commits from before #292 too (see README.md).
+add_executable(logsquirl_displayedlines_benchmark
+    displayedlines_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
