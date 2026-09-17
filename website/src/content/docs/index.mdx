@@ -8,6 +8,7 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
+import ReleaseCards from '../../components/ReleaseCards.astro';
 import mainwindow from '@assets/screenshots/mainwindow.png';
 import dark from '@assets/screenshots/dark.png';
 import scratchpad from '@assets/screenshots/scratchpad.png';
@@ -15,11 +16,7 @@ import highlighters from '@assets/screenshots/highlighters.png';
 
 ## Latest Release
 
-<CardGrid>
-  <LinkCard title="v26.07.0" description="Stable release — Windows dark mode icon fixes, AppImage runs on Ubuntu 22.04, correct release version numbering." href="/news/release-26-07/" />
-  <LinkCard title="v26.10.0-beta1" description="Beta — Crash and Search stall fixes, scrolling through wrapped lines, Table View on par with the Text View, System theme, Qt 6.11.2, signed checksums and SBOM." href="/news/release-26-10/" />
-  <LinkCard title="All Releases" description="View all release notes and download links." href="/news/" />
-</CardGrid>
+<ReleaseCards view="home" />
 
 [![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
 

@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import starlightLinksValidator from 'starlight-links-validator';
+import { readReleases } from './src/releases.mjs';
 
 export default defineConfig({
   site: 'https://logsquirl.lunicorn-lab.de',
@@ -39,14 +40,8 @@ export default defineConfig({
           label: 'Releases',
           items: [
             { label: 'Overview', slug: 'news' },
-            { label: 'v26.10.0-beta1', slug: 'news/release-26-10' },
-            { label: 'v26.07.0', slug: 'news/release-26-07' },
-            { label: 'v26.06.0', slug: 'news/release-26-06' },
-            { label: 'v26.05.0-beta1', slug: 'news/release-26-05' },
-            { label: 'v26.04.1', slug: 'news/release-26-04' },
-            { label: 'v26.03 (Beta)', slug: 'news/release-26-03' },
-            { label: 'v22.06', slug: 'news/release-22-06' },
-            { label: 'v20.12', slug: 'news/release-20-12' },
+            // One entry per release page, newest first (#313).
+            ...readReleases().map((release) => ({ label: release.label, slug: release.slug })),
           ],
         },
         {

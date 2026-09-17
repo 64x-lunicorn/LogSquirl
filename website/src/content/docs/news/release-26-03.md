@@ -1,6 +1,11 @@
 ---
 title: Version 26.03 (Beta)
 description: First LogSquirl release — JWT decoder, Filters Panel, Chipmunk import, and CI/CD modernization.
+release:
+  version: 26.03.2
+  date: 2026-03-27
+  channel: stable
+  label: v26.03 (Beta)
 ---
 
 ## Version 26.03 (Beta)

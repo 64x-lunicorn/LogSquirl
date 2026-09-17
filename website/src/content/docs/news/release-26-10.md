@@ -1,6 +1,10 @@
 ---
 title: Version 26.10.0-beta1
 description: Crash and Search stall fixes, scrolling through wrapped lines, a Table View on par with the Text View, System theme and live theme switching, Qt 6.11.2, signed checksums and SBOM.
+release:
+  version: 26.10.0-beta1
+  date: 2026-09-17
+  channel: beta
 ---
 
 ## Version 26.10.0-beta1 (September 2026)

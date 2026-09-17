@@ -1,6 +1,10 @@
 ---
 title: Version 26.07.0
 description: Windows dark mode icon fixes, AppImage runs on Ubuntu 22.04, correct release version numbering.
+release:
+  version: 26.07.0
+  date: 2026-07-13
+  channel: stable
 ---
 
 ## Version 26.07.0 (July 2026)

@@ -1,9 +1,13 @@
 ---
-title: Version 26.06.0
+title: Version 26.06.1
 description: Auto log format detection, chart templates, table view, Filters Panel improvements, 15 CodeQL security fixes, and viewport rendering fixes.
+release:
+  version: 26.06.1
+  date: 2026-06-18
+  channel: stable
 ---
 
-## Version 26.06.0 (June 2026)
+## Version 26.06.1 (June 2026)
 
 This is the first stable release of the v26.05/06 cycle, graduating the beta feature set to stable and shipping three additional months of improvements: auto log format detection with a structured table view, format-aware chart templates, Filters Panel usability improvements, 15 security fixes, and a comprehensive round of viewport and table view bug fixes.
 

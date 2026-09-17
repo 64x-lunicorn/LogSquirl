@@ -1,6 +1,10 @@
 ---
 title: Version 26.04.1
 description: Chart Panel, Log Merge, Tab Groups, Breadcrumbs, Vectorscan, Plugin System, and more.
+release:
+  version: 26.04.1
+  date: 2026-04-19
+  channel: stable
 ---
 
 ## Version 26.04.1 (April 2026)
