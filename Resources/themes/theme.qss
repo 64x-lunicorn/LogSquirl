@@ -21,7 +21,11 @@ QPushButton {
     padding: @ButtonPadding@;
     color: @ButtonText@;
 }
-QPushButton:hover    { background-color: @ButtonHover@; border-color: @InputHoverBorder@; }
+QPushButton:hover    {
+    background-color: @ButtonHover@;
+    border-color: @InputHoverBorder@;
+    color: @HoverText@;
+}
 QPushButton:pressed  {
     background-color: @ButtonPressed@;
     border-color: @ButtonPressedBorder@;
@@ -31,6 +35,7 @@ QPushButton:focus    { border-color: @Highlight@; }
 QPushButton:disabled {
     background-color: @DisabledBackground@;
     border-color: @DisabledBorder@;
+    border-style: @DisabledBorderStyle@;
     color: @DisabledButtonText@;
 }
 
@@ -615,7 +620,8 @@ QProgressBar {
     max-height: 16px;
 }
 QProgressBar::chunk {
-    background-color: @Highlight@;
+    background-color: @ProgressChunk@;
+    border: @ProgressChunkBorderWidth@ solid @Highlight@;
     border-radius: 2px;
 }
 

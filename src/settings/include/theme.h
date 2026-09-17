@@ -105,9 +105,11 @@ class QObject;
     X( StatusText )                                                                                \
     X( HighlightedSecondaryText )                                                                  \
     X( BadgeBackground )                                                                           \
-    X( BadgeText )
+    X( BadgeText )                                                                                 \
+    X( ProgressChunk )
 
-// Non-color Tokens: sizes, paddings and icon images, as stylesheet values.
+// Non-color Tokens: sizes, paddings, border styles and icon images, as
+// stylesheet values.
 #define LOGSQUIRL_STYLE_TOKENS( X )                                                                \
     X( BorderWidth )                                                                               \
     X( OutlineWidth )                                                                              \
@@ -129,7 +131,9 @@ class QObject;
     X( ArrowUpIcon )                                                                               \
     X( CheckIcon )                                                                                 \
     X( DisabledCheckIcon )                                                                         \
-    X( CloseIcon )
+    X( CloseIcon )                                                                                 \
+    X( DisabledBorderStyle )                                                                       \
+    X( ProgressChunkBorderWidth )
 
 #define LOGSQUIRL_TOKEN_ENUMERATOR( name ) name,
 #define LOGSQUIRL_TOKEN_COUNT( name ) +1
@@ -175,6 +179,11 @@ public:
     // Whether two-tone icons show their inverse (light) variant, which a dark
     // Theme needs. Every choice between the two icon variants asks this.
     bool usesInverseIcons() const;
+
+    // Whether a checked button shows the inverse (light) variant of its icon:
+    // whether the Checked Token is dark. Differs from usesInverseIcons() where
+    // a dark Theme checks buttons with a light color, as High Contrast does.
+    bool usesInverseIconsWhenChecked() const;
 
     // The color this Theme gives token.
     QColor color( ColorToken token ) const;

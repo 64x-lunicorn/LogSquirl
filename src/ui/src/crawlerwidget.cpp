@@ -1409,7 +1409,6 @@ void CrawlerWidget::setup()
     tableViewToggle_->setToolTip( tr( "Toggle table/text view" ) );
     tableViewToggle_->setAccessibleName( tr( "Toggle table view" ) );
     tableViewToggle_->setCheckable( true );
-    tableViewToggle_->setIcon( iconLoader_.load( "icons8-table" ) );
     tableViewToggle_->setToolButtonStyle( Qt::ToolButtonIconOnly );
     tableViewToggle_->setContentsMargins( 2, 2, 2, 2 );
     tableViewToggle_->setVisible( false );
@@ -1964,15 +1963,16 @@ void CrawlerWidget::registerShortcuts()
 
 void CrawlerWidget::loadIcons()
 {
-    searchRefreshButton_->setIcon( iconLoader_.load( "icons8-search-refresh" ) );
-    useRegexpButton_->setIcon( iconLoader_.load( "regex" ) );
-    inverseButton_->setIcon( iconLoader_.load( "icons8-not-equal" ) );
-    booleanButton_->setIcon( iconLoader_.load( "icons8-venn-diagram" ) );
+    searchRefreshButton_->setIcon( iconLoader_.loadCheckable( "icons8-search-refresh" ) );
+    useRegexpButton_->setIcon( iconLoader_.loadCheckable( "regex" ) );
+    inverseButton_->setIcon( iconLoader_.loadCheckable( "icons8-not-equal" ) );
+    booleanButton_->setIcon( iconLoader_.loadCheckable( "icons8-venn-diagram" ) );
     clearButton_->setIcon( iconLoader_.load( "icons8-delete" ) );
     searchButton_->setIcon( iconLoader_.load( "icons8-search" ) );
-    keepSearchResultsButton_->setIcon( iconLoader_.load( "icons8-lock" ) );
-    matchCaseButton_->setIcon( iconLoader_.load( "icons8-font-size" ) );
+    keepSearchResultsButton_->setIcon( iconLoader_.loadCheckable( "icons8-lock" ) );
+    matchCaseButton_->setIcon( iconLoader_.loadCheckable( "icons8-font-size" ) );
     stopButton_->setIcon( iconLoader_.load( "icons8-close-window" ) );
+    tableViewToggle_->setIcon( iconLoader_.loadCheckable( "icons8-table" ) );
 }
 
 // Create a new search using the text passed, replace the currently

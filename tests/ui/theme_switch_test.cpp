@@ -23,6 +23,7 @@
 #include "filteredview.h"
 #include "filterspanel.h"
 #include "highlightersdialog.h"
+#include "iconloader.h"
 #include "infoline.h"
 #include "logformatcatalog.h"
 #include "logtableview.h"
@@ -53,6 +54,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QMessageBox>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSignalSpy>
@@ -822,6 +824,123 @@ SCENARIO( "The Command Palette's badges and shortcuts are readable in every Them
                         CHECK( textContrast( image, shortcutArea, rowBackground ) >= 4.5 );
                     }
                 }
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+SCENARIO( "High Contrast shows checked, hovered, disabled and progress states legibly",
+          "[ui][theme]" )
+{
+    GIVEN( "the High Contrast Theme" )
+    {
+        Theme::apply( Theme::HighContrastKey );
+        const auto& theme = Theme::active();
+
+        WHEN( "a tool button with an icon is checked" )
+        {
+            QToolButton button;
+            button.setCheckable( true );
+            button.setIcon( IconLoader{}.loadCheckable( "regex" ) );
+            button.setChecked( true );
+            button.show();
+            QTest::qWait( 20 );
+            const auto image = button.grab().toImage();
+
+            THEN( "it is yellow and its icon reaches 3:1 against it" )
+            {
+                const auto background = theme.color( ColorToken::Checked );
+                REQUIRE( image.pixelColor( image.width() / 2, 3 ).rgb() == background.rgb() );
+                QRect iconArea( QPoint( 0, 0 ), button.iconSize() );
+                iconArea.moveCenter( image.rect().center() );
+                REQUIRE( textContrast( image, iconArea, background ) >= 3.0 );
+            }
+        }
+
+        WHEN( "an icon is loaded for anything but a checkable button" )
+        {
+            const auto icon = IconLoader{}.load( "regex" );
+
+            THEN( "it has no checked variant of its own: a selected tab or checked menu item "
+                  "stays on a black background" )
+            {
+                REQUIRE( icon.availableSizes( QIcon::Normal, QIcon::On ).isEmpty() );
+            }
+        }
+
+        WHEN( "a push button is hovered" )
+        {
+            QPushButton button( QStringLiteral( "Button" ) );
+            button.setFocusPolicy( Qt::NoFocus );
+            button.show();
+            QTest::qWait( 20 );
+            const auto normal = button.grab().toImage();
+            QTest::mouseMove( &button, button.rect().center() );
+            QTest::qWait( 20 );
+            const auto hovered = button.grab().toImage();
+
+            THEN( "its background and border change" )
+            {
+                const QPoint inside( 4, button.height() / 2 );
+                REQUIRE( hovered.pixelColor( inside ).rgb()
+                         == theme.color( ColorToken::ButtonHover ).rgb() );
+                REQUIRE( normal.pixelColor( inside ).rgb() != hovered.pixelColor( inside ).rgb() );
+                const QPoint border( button.width() / 2, 0 );
+                REQUIRE( hovered.pixelColor( border ).rgb()
+                         == theme.color( ColorToken::InputHoverBorder ).rgb() );
+            }
+        }
+
+        WHEN( "a push button is disabled" )
+        {
+            QPushButton button( QStringLiteral( "Button" ) );
+            button.setEnabled( false );
+            button.show();
+            QTest::qWait( 20 );
+            const auto image = button.grab().toImage();
+
+            THEN( "its border is drawn in the disabled border color, never the enabled one" )
+            {
+                const auto disabledBorder = theme.color( ColorToken::DisabledBorder ).rgb();
+                bool found = false;
+                for ( int x = 4; x < image.width() - 4; ++x ) {
+                    const auto pixel = image.pixelColor( x, 0 ).rgb();
+                    REQUIRE( pixel != theme.color( ColorToken::InputBorder ).rgb() );
+                    found = found || pixel == disabledBorder;
+                }
+                REQUIRE( found );
+            }
+        }
+
+        WHEN( "a progress bar is half filled" )
+        {
+            QProgressBar bar;
+            bar.setRange( 0, 100 );
+            bar.setValue( 50 );
+            bar.setTextVisible( true );
+            bar.resize( 200, 16 );
+            bar.show();
+            QTest::qWait( 20 );
+            const auto image = bar.grab().toImage();
+
+            THEN( "its text reaches 4.5:1 over the filled and over the empty part" )
+            {
+                // The text on either side of the chunk's end, kept clear of
+                // the bar's border and the chunk's outline, whose own contrast
+                // would pass for the text's.
+                const int clear = 5;
+                const auto textWidth = QFontMetrics( bar.font() ).horizontalAdvance( bar.text() );
+                const auto middle = image.width() / 2;
+                const QRect filledText( middle - textWidth / 2, clear, textWidth / 2 - clear,
+                                        image.height() - 2 * clear );
+                const QRect emptyText( middle + clear, clear, textWidth / 2 - clear,
+                                       image.height() - 2 * clear );
+                const auto filled = image.pixelColor( 6, image.height() / 2 );
+                const auto empty = image.pixelColor( image.width() - 6, image.height() / 2 );
+                REQUIRE( textContrast( image, filledText, filled ) >= 4.5 );
+                REQUIRE( textContrast( image, emptyText, empty ) >= 4.5 );
             }
         }
 
