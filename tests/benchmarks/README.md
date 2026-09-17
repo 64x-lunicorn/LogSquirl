@@ -308,6 +308,32 @@ For the before side, copy `session_restore_benchmark.cpp` into a worktree of
 origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
 
+# Table View paint benchmark
+
+`logsquirl_tableview_paint_benchmark` (#294) shows a Table View of 10,000 Log
+Lines with a Log Format of six fields on the offscreen platform, sized so that
+exactly 50 Rows are visible, with a Highlighter Set of three whole-line and
+three word-only Highlighters active, and measures
+
+- **paint: a viewport of 50 Rows and 6 columns**: the whole viewport repainted;
+- **hover: the mouse moves to the next Row and back, each painted**: two mouse
+  moves over the viewport, each followed by the repaint it asks for;
+- **hit test: a character in the middle and at the end of a 4000 character
+  cell**: `LogTableHighlightDelegate::charIndexAtX`, which resolves a click or
+  a drag inside a cell to a character.
+
+It uses only what the Table View and its delegate offered before #294, so it
+builds unchanged on origin/master:
+
+```bash
+cmake --build build-release --target logsquirl_tableview_paint_benchmark
+./build-release/output/logsquirl_tableview_paint_benchmark --benchmark-samples 50 > after.txt
+```
+
+For the before side, copy `tableview_paint_benchmark.cpp` into a worktree of
+origin/master and add the target as in `CMakeLists.txt` here, as described for
+the scrolling benchmarks above.
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a
