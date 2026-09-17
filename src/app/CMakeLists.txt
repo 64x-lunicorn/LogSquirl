@@ -223,14 +223,6 @@ if(LOGSQUIRL_USE_SENTRY)
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy crash_handler"
     )
-
-    add_custom_command(
-      TARGET logsquirl
-      POST_BUILD
-      COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      COMMENT "Copy stackwalk"
-    )
   else()
     add_custom_command(
       TARGET logsquirl
@@ -239,32 +231,33 @@ if(LOGSQUIRL_USE_SENTRY)
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       COMMENT "Copy crash_handler"
     )
+  endif()
 
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-      add_custom_command(
-        TARGET logsquirl
-        POST_BUILD
-        COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump_x64.exe $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump.exe
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Copy stackwalk"
-      )
-    else()
-      add_custom_command(
-        TARGET logsquirl
-        POST_BUILD
-        COMMAND cmake -E copy ${SYMS_TOOLS}/minidump_dump_x86.exe $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump.exe
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Copy stackwalk"
-      )
-    endif()
+  # minidump-stackwalk (cmake/MinidumpStackwalk.cmake) keeps the name of the
+  # Breakpad minidump_dump it replaced, which the installers and the crash
+  # handler use (#318).
+  if(WIN32)
+    set(_minidump_tool_name logsquirl_minidump_dump.exe)
+  else()
+    set(_minidump_tool_name logsquirl_minidump_dump)
+  endif()
+  if(LOGSQUIRL_MINIDUMP_TOOL)
+    add_custom_command(
+      TARGET logsquirl
+      POST_BUILD
+      COMMAND cmake -E copy ${LOGSQUIRL_MINIDUMP_TOOL} $<TARGET_FILE_DIR:logsquirl>/${_minidump_tool_name}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      COMMENT "Copy minidump-stackwalk"
+    )
+    set(_minidump_tool_install $<TARGET_FILE_DIR:logsquirl>/${_minidump_tool_name})
   endif()
 
   if(APPLE)
-    install(PROGRAMS $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler
+    install(PROGRAMS ${_minidump_tool_install} $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler
             DESTINATION $<TARGET_BUNDLE_CONTENT_DIR:logsquirl>/MacOS
     )
   elseif(NOT WIN32)
-    install(PROGRAMS $<TARGET_FILE_DIR:logsquirl>/logsquirl_minidump_dump $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler
+    install(PROGRAMS ${_minidump_tool_install} $<TARGET_FILE_DIR:logsquirl>/logsquirl_crashpad_handler
             DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
   endif()
