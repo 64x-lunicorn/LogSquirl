@@ -5,8 +5,12 @@ carries the tag's version. No network, no gh."""
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
+import plistlib
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -168,6 +172,30 @@ def write_build(root: Path, *, version=VERSION, commit=COMMIT, sbom_version=None
                             ("packages-mac-arm64", "logsquirl-mac-arm64.dmg")]:
         (root / directory).mkdir()
         (root / directory / name).write_bytes(b"x")
+    write_portable(root, exe=b"MZ...\0" + version.encode() + b"\0...")
+    write_mac_app(root, bundle_version=version.rsplit(".", 1)[0],
+                  binary=b"\xcf\xfa\xed\xfe\0" + version.encode() + b"\0")
+
+
+def write_portable(root: Path, *, exe: bytes | None):
+    with zipfile.ZipFile(root / "packages-windows-x64/logsquirl-win-x64-portable.zip", "w") as z:
+        z.writestr("platforms/qwindows.dll", b"MZ")
+        if exe is not None:
+            z.writestr("logsquirl_portable.exe", exe)
+
+
+def write_mac_app(root: Path, *, bundle_version: str | None, binary: bytes | None):
+    def add(tar, name, data):
+        info = tarfile.TarInfo(name)
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+
+    with tarfile.open(root / "packages-mac-arm64/logsquirl-arm64.app.tar.gz", "w:gz") as tar:
+        if bundle_version is not None:
+            add(tar, "logsquirl.app/Contents/Info.plist", plistlib.dumps(
+                {"CFBundleVersion": bundle_version, "CFBundleShortVersionString": "26.08"}))
+        if binary is not None:
+            add(tar, "logsquirl.app/Contents/MacOS/logsquirl", binary)
 
 
 def test_a_build_of_the_tagged_commit_with_the_tag_version_passes(tmp_path):
@@ -212,8 +240,39 @@ def test_a_linux_package_without_the_version_in_its_name_stops_the_release(tmp_p
 
 def test_an_empty_package_directory_stops_the_release(tmp_path):
     write_build(tmp_path)
-    (tmp_path / "packages-mac-arm64/logsquirl-mac-arm64.dmg").unlink()
+    for f in (tmp_path / "packages-mac-arm64").iterdir():
+        f.unlink()
     with pytest.raises(rb.ReleaseError, match="packages-mac-arm64"):
+        rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+# The Windows and macOS package names carry no version; the binaries in them do.
+
+@pytest.mark.parametrize("exe", [None, b"MZ 26.08.0.1 ", b"MZ 26.08.0.10661 ", b"MZ 126.08.0.1066 "])
+def test_a_windows_executable_without_the_exact_version_stops_the_release(tmp_path, exe):
+    write_build(tmp_path)
+    write_portable(tmp_path, exe=exe)
+    with pytest.raises(rb.ReleaseError, match="logsquirl-win-x64-portable.zip"):
+        rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+def test_a_missing_portable_zip_stops_the_release(tmp_path):
+    write_build(tmp_path)
+    (tmp_path / "packages-windows-x64/logsquirl-win-x64-portable.zip").unlink()
+    with pytest.raises(rb.ReleaseError, match="logsquirl-win-x64-portable.zip"):
+        rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+@pytest.mark.parametrize("bundle_version, binary", [
+    ("26.07.0", b"26.08.0.1066"),
+    (None, b"26.08.0.1066"),
+    ("26.08.0", b"26.08.0.1065"),
+    ("26.08.0", None),
+])
+def test_a_mac_app_without_the_version_stops_the_release(tmp_path, bundle_version, binary):
+    write_build(tmp_path)
+    write_mac_app(tmp_path, bundle_version=bundle_version, binary=binary)
+    with pytest.raises(rb.ReleaseError, match="logsquirl-arm64.app.tar.gz"):
         rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
 
 

@@ -19,9 +19,10 @@ is, and whether the downloaded build is the one the tag names:
   check-build --tag T --commit SHA [--root DIR]
       The downloaded artifacts in DIR (one directory per artifact) come from
       SHA (the SBOM records the commit) and carry T's version: the version
-      file, the SBOM and the Linux package names. The base version of a CI
-      Build is project(VERSION) in CMakeLists.txt, so a tag must name the
-      version its commit declares.
+      file, the SBOM, the Linux package names, logsquirl_portable.exe in the
+      Windows portable zip, and the macOS app's binary and CFBundleVersion. The base
+      version of a CI Build is project(VERSION) in CMakeLists.txt, so a tag
+      must name the version its commit declares.
       Outputs: version
 
 Outputs are appended to $GITHUB_OUTPUT as name=value lines, or printed when
@@ -34,9 +35,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import plistlib
 import re
 import subprocess
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 WORKFLOW_PATH = ".github/workflows/ci-build.yml"
@@ -60,6 +64,14 @@ VERSIONED_PACKAGES = {
     "packages-fedora": "logsquirl-{version}-fedora.rpm",
     "packages-appimage": "logsquirl-{version}-x86_64.AppImage",
 }
+# Windows and macOS package names carry no version, so the binaries inside
+# are checked: the version string compiled in (src/logsquirl_version) and the
+# app bundle's CFBundleVersion (YY.MM.PATCH).
+WINDOWS_PORTABLE = "packages-windows-x64/logsquirl-win-x64-portable.zip"
+WINDOWS_EXE = "logsquirl_portable.exe"
+MAC_APP = "packages-mac-arm64/logsquirl-arm64.app.tar.gz"
+MAC_INFO_PLIST = "logsquirl.app/Contents/Info.plist"
+MAC_BINARY = "logsquirl.app/Contents/MacOS/logsquirl"
 VERSION_FILE = "logsquirl_version/logsquirl_version.txt"
 SBOM_FILE = "sbom-base/logsquirl-sbom-base.cdx.json"
 
@@ -219,7 +231,47 @@ def check_build(root: Path, *, tag: str, commit: str) -> str:
         if not (root / directory / expected).is_file():
             found = sorted(p.name for p in (root / directory).iterdir())
             raise ReleaseError(f"{directory} has no {expected} (found {', '.join(found)}).")
+    _check_windows(root / WINDOWS_PORTABLE, version)
+    _check_mac(root / MAC_APP, version, base)
     return version
+
+
+def _carries(data: bytes, version: str) -> bool:
+    """The binary holds the version string itself, not merely a longer one containing it."""
+    return re.search(rb"(?<![0-9.])" + re.escape(version.encode()) + rb"(?![0-9])", data) is not None
+
+
+def _check_windows(portable: Path, version: str) -> None:
+    # The installer is NSIS-compressed; the portable zip holds the executable.
+    where = f"packages-windows-x64/{portable.name}"
+    if not portable.is_file():
+        raise ReleaseError(f"{where} is missing.")
+    with zipfile.ZipFile(portable) as z:
+        exes = [n for n in z.namelist() if n.rsplit("/", 1)[-1] == WINDOWS_EXE]
+        if len(exes) != 1:
+            raise ReleaseError(f"{where} holds {len(exes)} {WINDOWS_EXE} instead of one.")
+        if not _carries(z.read(exes[0]), version):
+            raise ReleaseError(f"{where}: {exes[0]} was not built as version {version}.")
+
+
+def _check_mac(archive: Path, version: str, base: str) -> None:
+    where = f"packages-mac-arm64/{archive.name}"
+    if not archive.is_file():
+        raise ReleaseError(f"{where} is missing.")
+    info = binary = None
+    with tarfile.open(archive, "r:gz") as tar:
+        for member in tar:
+            if member.name == MAC_INFO_PLIST:
+                info = tar.extractfile(member).read()
+            elif member.name == MAC_BINARY:
+                binary = tar.extractfile(member).read()
+    if info is None or binary is None:
+        raise ReleaseError(f"{where} lacks {MAC_INFO_PLIST} or {MAC_BINARY}.")
+    bundle_version = plistlib.loads(info).get("CFBundleVersion")
+    if bundle_version != base:
+        raise ReleaseError(f"{where}: CFBundleVersion is {bundle_version}, not {base}.")
+    if not _carries(binary, version):
+        raise ReleaseError(f"{where}: {MAC_BINARY} was not built as version {version}.")
 
 
 # ── command line ────────────────────────────────────────────────────────────
@@ -296,7 +348,8 @@ def main(argv: list[str] | None = None) -> int:
             _find_run(args.repository, args.commit, args.run_id)
         else:
             _output(version=check_build(args.root, tag=args.tag, commit=args.commit))
-    except (ReleaseError, OSError, ValueError, KeyError, TypeError, AttributeError) as err:
+    except (ReleaseError, OSError, ValueError, KeyError, TypeError, AttributeError,
+            tarfile.TarError, zipfile.BadZipFile) as err:
         # One line: the annotation ends at the first newline.
         print(f"::error::{' '.join(str(err).split())}")
         return 1
