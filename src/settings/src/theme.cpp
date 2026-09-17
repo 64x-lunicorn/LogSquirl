@@ -227,6 +227,10 @@ Theme Theme::light()
         { StatusInactive, "#6E7681" },
         { StatusInfo, "#388BFD" },
         { StatusText, "#FFFFFF" },
+        // Shortcuts in a selected row; SecondaryText is on Base.
+        { HighlightedSecondaryText, "#FFFFFF" },
+        { BadgeBackground, "#DEE2E6" },
+        { BadgeText, "#212529" },
     } );
 
     using enum StyleToken;
@@ -333,6 +337,10 @@ Theme Theme::dark()
         { StatusInactive, "#6E7681" },
         { StatusInfo, "#388BFD" },
         { StatusText, "#FFFFFF" },
+        // White on Highlight stays below 4.5:1, so dark text.
+        { HighlightedSecondaryText, "#121212" },
+        { BadgeBackground, "#3A3A3E" },
+        { BadgeText, "#E0E0E0" },
     } );
 
     using enum StyleToken;
@@ -439,6 +447,9 @@ Theme Theme::highContrast()
         { StatusInactive, "#A6A6A6" },
         { StatusInfo, "#00FFFF" },
         { StatusText, "#000000" },
+        { HighlightedSecondaryText, "#000000" },
+        { BadgeBackground, "#FFFFFF" },
+        { BadgeText, "#000000" },
     } );
 
     using enum StyleToken;

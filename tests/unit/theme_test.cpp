@@ -19,6 +19,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <map>
 #include <vector>
 
@@ -106,6 +108,23 @@ std::vector<RoleToken> paletteRoleTokens()
         }
     }
     return result;
+}
+
+// The WCAG 2 contrast ratio of two opaque colors, from 1:1 to 21:1.
+double contrastRatio( const QColor& a, const QColor& b )
+{
+    const auto luminance = []( const QColor& color ) {
+        const auto linear = []( float value ) {
+            const double channel = static_cast<double>( value );
+            return channel <= 0.04045 ? channel / 12.92
+                                      : std::pow( ( channel + 0.055 ) / 1.055, 2.4 );
+        };
+        return 0.2126 * linear( color.redF() ) + 0.7152 * linear( color.greenF() )
+               + 0.0722 * linear( color.blueF() );
+    };
+    const auto first = luminance( a );
+    const auto second = luminance( b );
+    return ( std::max( first, second ) + 0.05 ) / ( std::min( first, second ) + 0.05 );
 }
 
 } // namespace
@@ -498,6 +517,29 @@ SCENARIO( "Dark draws no frame line brighter than its border", "[theme]" )
                                        ColorToken::Dark, ColorToken::Shadow } ) {
                 INFO( Theme::tokenName( token ).toStdString() );
                 REQUIRE( dark.color( token ).lightness() <= border );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Command Palette's badge and shortcut Tokens are readable in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "badge text on the badge and shortcut text on a row, selected or not, reach 4.5:1" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::BadgeText ),
+                                        theme.color( ColorToken::BadgeBackground ) )
+                         >= 4.5 );
+                REQUIRE( contrastRatio( theme.color( ColorToken::SecondaryText ),
+                                        theme.color( ColorToken::Base ) )
+                         >= 4.5 );
+                REQUIRE( contrastRatio( theme.color( ColorToken::HighlightedSecondaryText ),
+                                        theme.color( ColorToken::Highlight ) )
+                         >= 4.5 );
             }
         }
     }

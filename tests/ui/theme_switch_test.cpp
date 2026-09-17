@@ -17,6 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "commandpalette.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filteredview.h"
@@ -65,6 +66,9 @@
 #include <QToolButton>
 
 #include <catch2/catch.hpp>
+
+#include <algorithm>
+#include <cmath>
 
 // Changing the Theme while the application runs (#173).
 //
@@ -232,6 +236,36 @@ struct MainWindowFixture {
     TabbedCrawlerWidget* tabArea = nullptr;
     int baseTabCount = 0;
 };
+
+// The WCAG 2 contrast ratio of two opaque colors, from 1:1 to 21:1.
+double contrastRatio( const QColor& a, const QColor& b )
+{
+    const auto luminance = []( const QColor& color ) {
+        const auto linear = []( float value ) {
+            const double channel = static_cast<double>( value );
+            return channel <= 0.04045 ? channel / 12.92
+                                      : std::pow( ( channel + 0.055 ) / 1.055, 2.4 );
+        };
+        return 0.2126 * linear( color.redF() ) + 0.7152 * linear( color.greenF() )
+               + 0.0722 * linear( color.blueF() );
+    };
+    const auto first = luminance( a );
+    const auto second = luminance( b );
+    return ( std::max( first, second ) + 0.05 ) / ( std::min( first, second ) + 0.05 );
+}
+
+// The highest contrast any pixel of area reaches against background: that of
+// the core of the text drawn there, whose edges are blended into background.
+double textContrast( const QImage& image, const QRect& area, const QColor& background )
+{
+    double best = 1.0;
+    for ( int y = area.top(); y <= area.bottom(); ++y ) {
+        for ( int x = area.left(); x <= area.right(); ++x ) {
+            best = std::max( best, contrastRatio( image.pixelColor( x, y ), background ) );
+        }
+    }
+    return best;
+}
 
 } // namespace
 
@@ -712,6 +746,81 @@ SCENARIO( "The Dashboard's hints are drawn in the Theme's secondary text color",
                     INFO( label->text().toStdString() );
                     REQUIRE( label->palette().color( QPalette::WindowText )
                              == Theme::active().color( ColorToken::SecondaryText ) );
+                }
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+SCENARIO( "The Command Palette's badges and shortcuts are readable in every Theme", "[ui][theme]" )
+{
+    GIVEN( "an open Command Palette with a selected and an unselected command" )
+    {
+        Theme::apply( Theme::LightKey );
+        CommandPalette palette;
+        palette.setCommands( {
+            { QStringLiteral( "Open File" ),
+              QStringLiteral( "File" ),
+              QStringLiteral( "Ctrl+O" ),
+              {} },
+            { QStringLiteral( "Find" ), QStringLiteral( "Edit" ), QStringLiteral( "Ctrl+F" ), {} },
+        } );
+        palette.show();
+        QTest::qWait( 20 );
+        auto* list = palette.findChild<QListWidget*>();
+        REQUIRE( list != nullptr );
+        REQUIRE( list->count() == 2 );
+        REQUIRE( list->currentRow() == 0 );
+
+        WHEN( "each Theme is applied in turn" )
+        {
+            THEN( "every badge has the Theme's badge color, and badge and shortcut text reach "
+                  "4.5:1 in the selected and the unselected row" )
+            {
+                for ( const auto& name :
+                      { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
+                        QString( Theme::LightKey ) } ) {
+                    Theme::apply( name );
+                    QCoreApplication::processEvents();
+                    const auto image = list->viewport()->grab().toImage();
+                    const auto& theme = Theme::active();
+
+                    for ( int row = 0; row < list->count(); ++row ) {
+                        const auto* item = list->item( row );
+                        const auto rect = list->visualItemRect( item );
+                        const auto category = item->data( Qt::UserRole + 1 ).toString();
+                        const auto shortcut = item->data( Qt::UserRole + 2 ).toString();
+                        const auto rowBackground
+                            = image.pixelColor( rect.right() - 1, rect.top() + 1 );
+                        INFO( name.toStdString()
+                              << ( row == 0 ? " selected" : " unselected" ) << " row" );
+
+                        // Where the delegate puts them: the shortcut right-aligned
+                        // 8px from the edge, the badge 24px left of it.
+                        const auto shortcutWidth
+                            = QFontMetrics( list->font() ).horizontalAdvance( shortcut );
+                        const QRect shortcutArea( rect.right() - 8 - shortcutWidth, rect.top(),
+                                                  shortcutWidth, rect.height() );
+                        auto badgeFont = list->font();
+                        badgeFont.setPointSizeF( badgeFont.pointSizeF() * 0.85 );
+                        const QFontMetrics badgeMetrics( badgeFont );
+                        const int badgeWidth = badgeMetrics.boundingRect( category ).width() + 8;
+                        const int badgeHeight = badgeMetrics.height() + 2;
+                        const QRect badge( rect.right() - badgeWidth - shortcutWidth - 24,
+                                           rect.top() + ( rect.height() - badgeHeight ) / 2,
+                                           badgeWidth, badgeHeight );
+                        const auto badgeBackground
+                            = image.pixelColor( badge.right() - 1, badge.center().y() );
+
+                        CHECK( badgeBackground.rgb()
+                               == theme.color( ColorToken::BadgeBackground ).rgb() );
+                        CHECK(
+                            textContrast( image, badge.adjusted( 2, 2, -2, -2 ), badgeBackground )
+                            >= 4.5 );
+                        CHECK( textContrast( image, shortcutArea, rowBackground ) >= 4.5 );
+                    }
                 }
             }
         }

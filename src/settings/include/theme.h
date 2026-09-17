@@ -102,7 +102,10 @@ class QObject;
     X( StatusWarning )                                                                             \
     X( StatusInactive )                                                                            \
     X( StatusInfo )                                                                                \
-    X( StatusText )
+    X( StatusText )                                                                                \
+    X( HighlightedSecondaryText )                                                                  \
+    X( BadgeBackground )                                                                           \
+    X( BadgeText )
 
 // Non-color Tokens: sizes, paddings and icon images, as stylesheet values.
 #define LOGSQUIRL_STYLE_TOKENS( X )                                                                \
