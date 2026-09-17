@@ -52,3 +52,13 @@ add_executable(logsquirl_session_restore_benchmark
 
 target_link_libraries(logsquirl_session_restore_benchmark logsquirl_ui Catch2 test_utils)
 set_target_properties(logsquirl_session_restore_benchmark PROPERTIES AUTOMOC ON)
+
+# Matching a block of Log Lines with patterns Vectorscan rejects and with
+# boolean expressions, on both regex engines (#279). Links logsquirl_regex
+# only; uses only what the regex module offered before #279, so the same file
+# measures both sides of an A/B comparison.
+add_executable(logsquirl_regex_matcher_benchmark
+    regex_matcher_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
