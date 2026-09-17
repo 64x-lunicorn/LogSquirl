@@ -183,6 +183,11 @@ LineNumber DisplayedLines::positionOf( LineNumber line ) const
     return LineNumber( rank > 0 ? rank - 1 : 0 );
 }
 
+DisplayedLinesCursor DisplayedLines::cursorAt( LineNumber position ) const
+{
+    return DisplayedLinesCursor( lines(), position );
+}
+
 void DisplayedLines::rebuildContextLines()
 {
     contextLines_ = SearchResultArray();
@@ -256,4 +261,91 @@ void DisplayedLines::refreshLines()
     }
 
     combinedLines_ = SearchResultArray();
+}
+
+DisplayedLinesCursor::DisplayedLinesCursor( const SearchResultArray& lines, LineNumber position )
+    : lines_( &lines )
+    , count_( static_cast<std::int64_t>( lines.cardinality() ) )
+    , position_( std::min( static_cast<std::int64_t>( position.get() ), count_ ) )
+    , iterator_( lines.end() )
+{
+    if ( position_ < count_ ) {
+        selectPosition();
+    }
+}
+
+bool DisplayedLinesCursor::hasLine() const
+{
+    return position_ >= 0 && position_ < count_;
+}
+
+LineNumber DisplayedLinesCursor::position() const
+{
+    return LineNumber( static_cast<LineNumber::UnderlyingType>( position_ ) );
+}
+
+LineNumber DisplayedLinesCursor::logLine() const
+{
+    return LineNumber( *iterator_ );
+}
+
+void DisplayedLinesCursor::next()
+{
+    if ( position_ >= count_ ) {
+        return;
+    }
+
+    ++position_;
+    if ( position_ == 0 ) {
+        iterator_ = lines_->begin();
+    }
+    else if ( position_ < count_ ) {
+        ++iterator_;
+    }
+}
+
+void DisplayedLinesCursor::previous()
+{
+    if ( position_ < 0 ) {
+        return;
+    }
+
+    --position_;
+    if ( position_ == count_ - 1 && position_ >= 0 ) {
+        // From past the last Log Line: the iterator there cannot step back
+        // over empty containers, so the last one is looked up once.
+        selectPosition();
+    }
+    else if ( position_ >= 0 ) {
+        --iterator_;
+    }
+}
+
+logsquirl::vector<LineNumber> DisplayedLinesCursor::takeForward( LinesCount count )
+{
+    logsquirl::vector<LineNumber> taken;
+    taken.reserve( static_cast<std::size_t>(
+        std::max( std::int64_t{ 0 },
+                  std::min( static_cast<std::int64_t>( count.get() ), count_ - position_ ) ) ) );
+    for ( ; hasLine() && taken.size() < count.get(); next() ) {
+        taken.push_back( logLine() );
+    }
+    return taken;
+}
+
+logsquirl::vector<LineNumber> DisplayedLinesCursor::takeBackward( LinesCount count )
+{
+    logsquirl::vector<LineNumber> taken;
+    for ( ; hasLine() && taken.size() < count.get(); previous() ) {
+        taken.push_back( logLine() );
+    }
+    std::reverse( taken.begin(), taken.end() );
+    return taken;
+}
+
+void DisplayedLinesCursor::selectPosition()
+{
+    LineNumber::UnderlyingType line = {};
+    lines_->select( static_cast<LineNumber::UnderlyingType>( position_ ), &line );
+    iterator_.move_equalorlarger( line );
 }

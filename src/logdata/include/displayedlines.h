@@ -20,10 +20,58 @@
 #pragma once
 
 #include "abstractlogdata.h"
+#include "containers.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
 
+#include <cstdint>
 #include <functional>
+
+// Walks displayed Log Lines forwards and backwards from a position. It finds
+// the Log Line at that position with one select() and then steps from Log
+// Line to Log Line, so walking n of them costs n steps rather than n selects,
+// each of which is linear in the number of containers of the bitmap.
+//
+// It reads the lines in place, as the Displayed Lines' lines() or a copy of
+// them (ADR 0002): they must neither change nor go away while it walks them.
+class DisplayedLinesCursor {
+public:
+    // Stands on the Log Line at position, or on none when position is past
+    // the last one.
+    DisplayedLinesCursor( const SearchResultArray& lines, LineNumber position );
+
+    // Whether the cursor stands on a Log Line: not once it stepped past the
+    // last one or before the first one.
+    bool hasLine() const;
+    // The position the cursor stands on; only while it hasLine().
+    LineNumber position() const;
+    // The Log Line the cursor stands on; only while it hasLine().
+    LineNumber logLine() const;
+
+    // Steps to the next Log Line; past the last one it stands on none. From
+    // before the first one it steps onto the first one.
+    void next();
+    // Steps to the previous Log Line; before the first one it stands on none.
+    // From past the last one it steps onto the last one.
+    void previous();
+
+    // The Log Line the cursor stands on and those after it, at most count of
+    // them in ascending order; the cursor is left on the one after them.
+    logsquirl::vector<LineNumber> takeForward( LinesCount count );
+    // The Log Line the cursor stands on and those before it, at most count of
+    // them in ascending order; the cursor is left on the one before them.
+    logsquirl::vector<LineNumber> takeBackward( LinesCount count );
+
+private:
+    // Puts iterator_ on the Log Line at position_, which must be one.
+    void selectPosition();
+
+    const SearchResultArray* lines_;
+    std::int64_t count_;
+    // -1 before the first Log Line, count_ past the last one.
+    std::int64_t position_;
+    SearchResultArray::const_iterator iterator_;
+};
 
 // The Displayed Lines: the Log Lines the Filtered View shows, in order --
 // the Matches, the Marks and, while they are shown, the Context Lines around
@@ -89,6 +137,10 @@ public:
     // The position of a displayed Log Line. For a Log Line not displayed,
     // the position of the last displayed one before it (0 if there is none).
     LineNumber positionOf( LineNumber line ) const;
+    // A cursor on the Log Line displayed at position, to walk the displayed
+    // lines from there without looking up each position. Valid while nothing
+    // displayed changes.
+    DisplayedLinesCursor cursorAt( LineNumber position ) const;
 
 private:
     // Rebuilds contextLines_ around the Matches and the Marks.
