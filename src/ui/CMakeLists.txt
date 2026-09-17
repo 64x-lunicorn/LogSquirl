@@ -55,6 +55,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/welcomedashboard.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseries.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartextraction.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/chartplot.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartpanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chartseriesdialog.h
@@ -121,6 +122,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mergecontroller.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/welcomedashboard.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartextraction.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/chartplot.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartwidget.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartpanel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/chartseriesdialog.cpp
