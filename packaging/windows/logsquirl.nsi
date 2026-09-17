@@ -250,4 +250,3 @@ Section "Uninstall"
     Delete "$SMPROGRAMS\logsquirl.lnk"
 SectionEnd
 
-;!uninstfinalize 'packaging\windows\codesign_client.exe --debug "%1"'
