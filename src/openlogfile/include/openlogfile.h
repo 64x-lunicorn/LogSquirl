@@ -75,6 +75,10 @@ public:
         // Loaded from its start -- the Log File was opened or reloaded by
         // hand -- rather than loaded again after it changed on disk.
         bool fromStart = false;
+        // Log Lines were only added at the end of the Log File since the last
+        // load: the ones loaded before are as they were, but for the last of
+        // them, which may have grown longer. A view can keep what it read.
+        bool onlyAppended = false;
         // The Search started again over the Log File, which had been
         // truncated under it.
         bool searchRestarted = false;
@@ -227,6 +231,11 @@ private:
     LineNumber searchEndLine_;
 
     bool firstLoadDone_ = false;
+    // What changed on disk since the last load finished: whether Log Lines
+    // were added, and whether the Log File was truncated, which a later
+    // growth does not undo.
+    bool grewSinceLoad_ = false;
+    bool truncatedSinceLoad_ = false;
     logsquirl::vector<LineNumber> savedMarks_;
 
     RecognitionPolicy recognitionPolicy_;

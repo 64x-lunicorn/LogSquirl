@@ -49,7 +49,13 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
+#include <functional>
+#include <map>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include <QCoreApplication>
 #include <QDir>
@@ -150,27 +156,54 @@ QStringList paintedTexts( std::optional<size_t> count = std::nullopt )
     return texts;
 }
 
-// Every Log Line at its own position, a Match or a Mark as paintedLines() says.
+// Every Log Line at its own position, a Match or a Mark as paintedLines() says,
+// unless a test has made it something else. It remembers which Log Lines the
+// view asked about: a view decorating a Log Line asks what it is.
 class PaintedLineTypes : public EveryLogLine {
 public:
     using EveryLogLine::EveryLogLine;
 
     LineType lineType( LineNumber lineNumber ) const override
     {
+        asked.push_back( lineNumber );
+        if ( const auto changed = changedTypes.find( lineNumber.get() );
+             changed != changedTypes.end() ) {
+            return changed->second;
+        }
         const auto& lines = paintedLines();
         return lineNumber.get() < lines.size() ? lines[ lineNumber.get() ].type
                                                : AbstractLogData::LineType{};
     }
+
+    mutable std::vector<LineNumber> asked;
+    std::map<LineNumber::UnderlyingType, LineType> changedTypes;
 };
 
 class PaintingLogView : public AbstractLogView {
 public:
     PaintingLogView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern,
                      bool textWrap )
-        : AbstractLogView( logData, std::make_unique<PaintedLineTypes>( logData ), quickFindPattern,
+        : PaintingLogView( logData, std::make_unique<PaintedLineTypes>( logData ), quickFindPattern,
                            textWrap )
     {
     }
+
+    // What the view was handed to tell what each Log Line is.
+    PaintedLineTypes& lineTypes()
+    {
+        return *lineTypes_;
+    }
+
+private:
+    PaintingLogView( const AbstractLogData* logData, std::unique_ptr<PaintedLineTypes> lineTypes,
+                     const QuickFindPattern* quickFindPattern, bool textWrap )
+        : AbstractLogView( logData, std::move( lineTypes ), quickFindPattern, textWrap )
+    {
+        lineTypes_ = dynamic_cast<PaintedLineTypes*>(
+            const_cast<LineMapping*>( &AbstractLogView::lineMapping() ) );
+    }
+
+    PaintedLineTypes* lineTypes_ = nullptr;
 };
 
 // The Highlighter Sets a developer has configured, kept out of the images for
@@ -630,17 +663,25 @@ SCENARIO( "The log view subdues exactly the Log Lines outside the Search Limits"
 
 namespace {
 
-// A FakeLogData that counts how often the Log Lines of a viewport are fetched.
+// A FakeLogData that counts how often Log Lines are fetched.
 class CountingLogData : public FakeLogData {
 public:
     using FakeLogData::FakeLogData;
 
+    // Every fetch of Log Lines.
     mutable int linesFetched = 0;
+    // The fetches of the Log Lines at the top of the Log File, where the
+    // views these tests count stand. Scrolling reads Log Lines of its own at
+    // the end of the Log File, to find its bottom.
+    mutable int topLinesFetched = 0;
 
 protected:
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
     {
         ++linesFetched;
+        if ( first == 0_lnum ) {
+            ++topLinesFetched;
+        }
         return FakeLogData::doGetLines( first, count );
     }
 };
@@ -707,6 +748,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
             showForPainting( view, logData, font, { .textWrap = textWrap } );
             const auto before = grabViewport( view );
             logData.linesFetched = 0;
+            logData.topLinesFetched = 0;
 
             WHEN( "a QuickFind pattern is typed character by character" )
             {
@@ -787,9 +829,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
                 view.updateData();
                 grabViewport( view );
 
-                THEN( "the Log Lines are read again, once" )
+                THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.topLinesFetched == 1 );
                 }
             }
 
@@ -798,9 +840,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
                 view.rereadLogLines();
                 grabViewport( view );
 
-                THEN( "the Log Lines are read again, once" )
+                THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.topLinesFetched == 1 );
                 }
             }
 
@@ -810,9 +852,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
                 view.updateData();
                 grabViewport( view );
 
-                THEN( "the Log Lines are read again, once" )
+                THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.topLinesFetched == 1 );
                 }
             }
         }
@@ -872,6 +914,379 @@ SCENARIO( "The log view paints a Log Line's new text when its line count stays t
                 THEN( "it paints the new text" )
                 {
                     REQUIRE( firstDifference( expected, grabViewport( view ) ) == std::nullopt );
+                }
+            }
+        }
+    }
+}
+
+// Scrolling repaints only what it exposes (#296): a small vertical scroll
+// without text wrapping moves what the Viewport already painted and draws
+// only the Visual Lines that came into view, and the Log Lines already read
+// and decorated for the Viewport are kept, with or without text wrapping.
+// Whatever it saves, the view must look exactly as if it had painted
+// everything anew.
+//
+// ctest also runs these at a device pixel ratio of 2 (QT_SCALE_FACTOR=2),
+// where moving what was painted is counted in device pixels.
+namespace {
+
+// Moves the view to position the way a user can reach it: the scrollbar to
+// its Log Line, then the arrow key down to its Visual Line.
+void scrollViewTo( AbstractLogView& view, ScrollPosition position )
+{
+    view.verticalScrollBar()->setValue( static_cast<int>( position.lineNumber.get() ) );
+    for ( size_t step = 0; step < position.visualLineIndex; ++step ) {
+        QKeyEvent down( QEvent::KeyPress, Qt::Key_Down, Qt::NoModifier );
+        QCoreApplication::sendEvent( &view, &down );
+    }
+    REQUIRE( view.scrollPosition() == position );
+}
+
+void pressKey( AbstractLogView& view, Qt::Key key )
+{
+    QKeyEvent press( QEvent::KeyPress, key, Qt::NoModifier );
+    QCoreApplication::sendEvent( &view, &press );
+}
+
+void turnWheel( AbstractLogView& view, int angleDeltaY )
+{
+    const QPointF inside{ ViewWidth / 2.0, 8.0 };
+    QWheelEvent wheel( inside, view.viewport()->mapToGlobal( inside ), QPoint{},
+                       QPoint{ 0, angleDeltaY }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase,
+                       false );
+    QCoreApplication::sendEvent( view.viewport(), &wheel );
+}
+
+void clickLogLine( AbstractLogView& view, LineNumber logLine, Qt::KeyboardModifiers modifiers )
+{
+    const auto rect = view.viewportLayout().rectForLine( logLine );
+    REQUIRE( rect.height > 0 );
+    const QPointF onText{ ViewWidth / 2.0, rect.y + paintingtestfont::CharHeight / 2.0 };
+    const auto global = view.viewport()->mapToGlobal( onText );
+    QMouseEvent press( QEvent::MouseButtonPress, onText, global, Qt::LeftButton, Qt::LeftButton,
+                       modifiers );
+    QCoreApplication::sendEvent( view.viewport(), &press );
+    QMouseEvent release( QEvent::MouseButtonRelease, onText, global, Qt::LeftButton, Qt::NoButton,
+                         modifiers );
+    QCoreApplication::sendEvent( view.viewport(), &release );
+}
+
+// Every source of color at once: Matches and Marks (paintedLines()), the
+// Search pattern (showForPainting()), a QuickFind pattern, a Color Label and
+// a selection of three Log Lines, made from the top of the Log File.
+void decorateEverything( AbstractLogView& view, QuickFindPattern& quickFindPattern )
+{
+    quickFindPattern.changeSearchPattern( QStringLiteral( "retry|idle" ),
+                                          /* useExtendedRegexp */ true );
+    auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+    colorLabels[ 1 ] << QStringLiteral( "INFO" );
+    view.setQuickHighlighters( colorLabels );
+
+    clickLogLine( view, 8_lnum, Qt::NoModifier );
+    clickLogLine( view, 10_lnum, Qt::ShiftModifier );
+    REQUIRE( view.scrollPosition() == ScrollPosition{} );
+}
+
+// What a view decorated like view paints at its Scroll Position when it
+// paints everything anew. It has a QuickFind pattern of its own: typing into
+// the one view shares would repaint that view from scratch as well.
+QImage repaintedFromScratch( const AbstractLogView& view, const QFont& font, bool textWrap,
+                             const FakeLogData& logData )
+{
+    QuickFindPattern quickFindPattern;
+    PaintingLogView fresh( &logData, &quickFindPattern, textWrap );
+    showForPainting( fresh, logData, font, { .textWrap = textWrap } );
+    decorateEverything( fresh, quickFindPattern );
+    scrollViewTo( fresh, view.scrollPosition() );
+    // Nothing kept from before: the Log Lines read again, every row painted.
+    fresh.rereadLogLines();
+    return grabViewport( fresh );
+}
+
+void requireSameImage( const QImage& expected, const QImage& painted, const std::string& step )
+{
+    INFO( "after " << step << ", at a device pixel ratio of " << painted.devicePixelRatio() );
+    const auto difference = firstDifference( expected, painted );
+    if ( difference ) {
+        const auto paintedPath
+            = QDir::temp().filePath( QStringLiteral( "logsquirl-scrolled-actual.png" ) );
+        const auto expectedPath
+            = QDir::temp().filePath( QStringLiteral( "logsquirl-scrolled-expected.png" ) );
+        painted.save( paintedPath );
+        expected.save( expectedPath );
+        FAIL( "Scrolling painted other pixels than a full repaint: "
+              << difference->toStdString() << ". Painted " << paintedPath.toStdString()
+              << ", expected " << expectedPath.toStdString() );
+    }
+}
+
+} // namespace
+
+SCENARIO( "A scrolled log view paints exactly what a full repaint paints",
+          "[logviewpainting][scrollrepaint]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    if ( qEnvironmentVariableIsSet( "LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO" ) ) {
+        // The run that is meant to paint at a higher device pixel ratio must
+        // actually do so, or it verifies nothing new.
+        const QWidget probe;
+        REQUIRE( probe.devicePixelRatio()
+                 == qEnvironmentVariable( "LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO" ).toDouble() );
+    }
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view with Matches, Marks, a Search, QuickFind, a Color Label and a selection, "
+               "text wrapping "
+               << ( textWrap ? "on" : "off" ) )
+        {
+            const FakeLogData logData{ paintedTexts() };
+            QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font, { .textWrap = textWrap } );
+            decorateEverything( view, quickFindPattern );
+            grabViewport( view );
+
+            WHEN( "it is scrolled in small steps, each painted" )
+            {
+                const std::vector<std::pair<std::string, std::function<void()>>> steps = {
+                    { "a key down", [ & ] { pressKey( view, Qt::Key_Down ); } },
+                    { "another key down", [ & ] { pressKey( view, Qt::Key_Down ); } },
+                    { "a notch of the wheel down", [ & ] { turnWheel( view, -120 ); } },
+                    { "a key up", [ & ] { pressKey( view, Qt::Key_Up ); } },
+                    { "two notches of the wheel down",
+                      [ & ] {
+                          turnWheel( view, -120 );
+                          turnWheel( view, -120 );
+                      } },
+                    { "a key down past the selection", [ & ] { pressKey( view, Qt::Key_Down ); } },
+                    { "a notch of the wheel up", [ & ] { turnWheel( view, 120 ); } },
+                    { "the scrollbar two Log Lines down",
+                      [ & ] {
+                          view.verticalScrollBar()->setValue( view.verticalScrollBar()->value()
+                                                              + 2 );
+                      } },
+                    { "a page down", [ & ] { pressKey( view, Qt::Key_PageDown ); } },
+                    { "a key up at the bottom", [ & ] { pressKey( view, Qt::Key_Up ); } },
+                };
+
+                THEN( "after every step it paints what a full repaint paints" )
+                {
+                    auto before = view.scrollPosition();
+                    for ( const auto& [ name, step ] : steps ) {
+                        step();
+                        const auto painted = grabViewport( view );
+                        INFO( "Scroll Position " << view.scrollPosition().lineNumber.get() << ":"
+                                                 << view.scrollPosition().visualLineIndex );
+                        requireSameImage( repaintedFromScratch( view, font, textWrap, logData ),
+                                          painted, name );
+                        REQUIRE( view.scrollPosition() != before );
+                        before = view.scrollPosition();
+                    }
+                }
+            }
+
+            WHEN( "a Log Line below the Viewport is selected, which scrolls it into view" )
+            {
+                // Log Lines 8 to 21 fill the Viewport's 14 whole rows; Log Line
+                // 22 is on the row below them, out of sight. Selecting it
+                // scrolls it up, as far as the bottom lets it go, without
+                // the view being told of a new Decoration first.
+                scrollViewTo( view, ScrollPosition{ 8_lnum, 0 } );
+                grabViewport( view );
+                view.selectAndDisplayLine( 22_lnum );
+                REQUIRE( view.scrollPosition().lineNumber > 8_lnum );
+                const auto painted = grabViewport( view );
+
+                THEN( "the Log Lines whose selection changed are painted as a full repaint "
+                      "paints them" )
+                {
+                    requireSameImage(
+                        [ & ] {
+                            QuickFindPattern freshQuickFindPattern;
+                            PaintingLogView fresh( &logData, &freshQuickFindPattern, textWrap );
+                            showForPainting( fresh, logData, font, { .textWrap = textWrap } );
+                            decorateEverything( fresh, freshQuickFindPattern );
+                            scrollViewTo( fresh, ScrollPosition{ 8_lnum, 0 } );
+                            fresh.selectAndDisplayLine( 22_lnum );
+                            REQUIRE( fresh.scrollPosition() == view.scrollPosition() );
+                            fresh.rereadLogLines();
+                            return grabViewport( fresh );
+                        }(),
+                        painted, "a selection that scrolled" );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "A scroll of one Visual Line decorates only the Log Lines it exposes",
+          "[logviewpainting][scrollrepaint]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view painted from Log Line 8, text wrapping " << ( textWrap ? "on" : "off" ) )
+        {
+            // From Log Line 8 on every Log Line is one Visual Line, and the
+            // Viewport's 15 rows hold Log Lines 8 to 22.
+            const FakeLogData logData{ paintedTexts() };
+            const QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font, { .textWrap = textWrap } );
+            scrollViewTo( view, ScrollPosition{ 8_lnum, 0 } );
+            grabViewport( view );
+            view.lineTypes().asked.clear();
+
+            WHEN( "it is scrolled one Visual Line down and painted" )
+            {
+                pressKey( view, Qt::Key_Down );
+                grabViewport( view );
+
+                THEN( "only the Log Line that came into view at the bottom is decorated" )
+                {
+                    REQUIRE( view.lineTypes().asked == std::vector<LineNumber>{ 23_lnum } );
+                }
+            }
+
+            WHEN( "it is scrolled one Visual Line up and painted" )
+            {
+                pressKey( view, Qt::Key_Up );
+                grabViewport( view );
+
+                THEN( "only the Log Line that came into view at the top is decorated" )
+                {
+                    REQUIRE( view.lineTypes().asked == std::vector<LineNumber>{ 7_lnum } );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "A scrolled log view repaints what changed about the Log Lines it kept",
+          "[logviewpainting][scrollrepaint]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view scrolled down a few Visual Lines, text wrapping "
+               << ( textWrap ? "on" : "off" ) )
+        {
+            FakeLogData logData{ paintedTexts() };
+            QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font, { .textWrap = textWrap } );
+            grabViewport( view );
+            for ( int step = 0; step < 3; ++step ) {
+                pressKey( view, Qt::Key_Down );
+                grabViewport( view );
+            }
+
+            WHEN( "a Log Line in view becomes a Mark and the view is told of a new Decoration" )
+            {
+                view.lineTypes().changedTypes[ 12 ] = LineTypeFlags::Mark;
+                view.updateDecorations();
+                pressKey( view, Qt::Key_Down );
+                const auto painted = grabViewport( view );
+
+                THEN( "it is painted as a Mark" )
+                {
+                    PaintingLogView fresh( &logData, &quickFindPattern, textWrap );
+                    fresh.lineTypes().changedTypes[ 12 ] = LineTypeFlags::Mark;
+                    showForPainting( fresh, logData, font, { .textWrap = textWrap } );
+                    scrollViewTo( fresh, view.scrollPosition() );
+                    fresh.rereadLogLines();
+                    requireSameImage( grabViewport( fresh ), painted, "a new Mark" );
+                }
+            }
+
+            WHEN( "a QuickFind pattern is typed" )
+            {
+                quickFindPattern.changeSearchPattern( QStringLiteral( "idle" ),
+                                                      /* useExtendedRegexp */ false );
+                pressKey( view, Qt::Key_Down );
+                const auto painted = grabViewport( view );
+
+                THEN( "its matches are painted" )
+                {
+                    PaintingLogView fresh( &logData, &quickFindPattern, textWrap );
+                    showForPainting( fresh, logData, font, { .textWrap = textWrap } );
+                    scrollViewTo( fresh, view.scrollPosition() );
+                    fresh.rereadLogLines();
+                    requireSameImage( grabViewport( fresh ), painted, "QuickFind typed" );
+                }
+            }
+
+            WHEN( "the text of the Log Lines in view changes and the view reads them again" )
+            {
+                auto changedTexts = paintedTexts();
+                for ( auto& text : changedTexts ) {
+                    text.replace( QStringLiteral( "idle" ), QStringLiteral( "busy" ) );
+                }
+                logData.setLines( changedTexts );
+                view.rereadLogLines();
+                pressKey( view, Qt::Key_Down );
+                const auto painted = grabViewport( view );
+
+                THEN( "the new text is painted" )
+                {
+                    const FakeLogData changedLogData{ changedTexts };
+                    PaintingLogView fresh( &changedLogData, &quickFindPattern, textWrap );
+                    showForPainting( fresh, changedLogData, font, { .textWrap = textWrap } );
+                    scrollViewTo( fresh, view.scrollPosition() );
+                    fresh.rereadLogLines();
+                    requireSameImage( grabViewport( fresh ), painted, "the text changed" );
+                }
+            }
+        }
+    }
+}
+
+// Told that Log Lines were only appended, scrolling keeps the Visual Lines it
+// counted for the bottom of the Log File, but for the last Log Line, which may
+// have grown (#296).
+SCENARIO( "A log view at its bottom paints Log Lines appended as a new view does",
+          "[logviewpainting][scrollrepaint]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view at the bottom of its Log File, text wrapping "
+               << ( textWrap ? "on" : "off" ) )
+        {
+            FakeLogData logData{ paintedTexts() };
+            const QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font, { .textWrap = textWrap } );
+            view.followSet( true );
+            grabViewport( view );
+
+            WHEN( "its last Log Line grows, Log Lines are appended and it is told only that" )
+            {
+                auto grown = paintedTexts();
+                grown.last() += QStringLiteral( " and grows longer, long enough for another row" );
+                grown << QStringLiteral( "10:00:32 INFO  appended" )
+                      << QStringLiteral( "10:00:33 ERROR appended, and long enough to be wrapped "
+                                         "onto a second Visual Line" );
+                logData.setLines( grown );
+                view.updateData( LinesChange::Appended );
+                // As a finished load hands every view the whole Log File.
+                view.setSearchLimits( 0_lnum, LineNumber( logData.getNbLine().get() ) );
+                const auto painted = grabViewport( view );
+
+                THEN( "it paints the new bottom of the Log File as a view that read it all does" )
+                {
+                    const FakeLogData grownLogData{ grown };
+                    PaintingLogView fresh( &grownLogData, &quickFindPattern, textWrap );
+                    showForPainting( fresh, grownLogData, font, { .textWrap = textWrap } );
+                    fresh.followSet( true );
+                    REQUIRE( fresh.scrollPosition() == view.scrollPosition() );
+                    requireSameImage( grabViewport( fresh ), painted, "Log Lines appended" );
                 }
             }
         }

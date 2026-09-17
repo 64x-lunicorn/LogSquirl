@@ -429,6 +429,13 @@ QString AbstractLogView::ScrolledLines::lineText( LineNumber position ) const
     return view_.logData_->getLineString( position );
 }
 
+logsquirl::vector<QString> AbstractLogView::ScrolledLines::lineTexts( LineNumber first,
+                                                                      LinesCount count ) const
+{
+    // Read together, as the Viewport reads them.
+    return view_.logData_->getLines( first, count );
+}
+
 ScrollingViewport AbstractLogView::ScrolledLines::viewport() const
 {
     const auto* area = view_.viewport();
@@ -993,12 +1000,17 @@ void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
     // Can we use our cache?
     if ( textAreaCache_.invalid_ || ( textAreaCache_.first_column_ != firstColumn )
          || ( textAreaCache_.scroll_position_ != scrollPosition ) ) {
-        // Full redraw
-        drawTextArea( &textAreaCache_.pixmap_ );
+        // Only scrolled: what is still in view is moved, not painted again.
+        if ( textAreaCache_.invalid_ || textAreaCache_.first_column_ != firstColumn
+             || !scrollTextArea( scrollPosition ) ) {
+            // Full redraw
+            drawTextArea( &textAreaCache_.pixmap_ );
+        }
 
         textAreaCache_.invalid_ = false;
         textAreaCache_.scroll_position_ = scrollPosition;
         textAreaCache_.first_column_ = firstColumn;
+        textAreaCache_.content_key_ = viewportContentKey_;
 
         LOG_DEBUG << "End of writing "
                   << std::chrono::duration_cast<std::chrono::microseconds>(
@@ -1440,14 +1452,14 @@ void AbstractLogView::setSelectionEnd()
 // Public functions
 //
 
-void AbstractLogView::updateData()
+void AbstractLogView::updateData( LinesChange change )
 {
     LOG_DEBUG << "AbstractLogView::updateData";
 
     const auto lastLineNumber = LineNumber( logData_->getNbLine().get() );
 
     // Past the Log Lines there are now, the view goes back to the top.
-    if ( scrolling_.dataChanged() ) {
+    if ( scrolling_.dataChanged( change ) ) {
         verticalScrollBar()->setValue( 0 );
         horizontalScrollBar()->setValue( 0 );
     }
@@ -1474,7 +1486,8 @@ void AbstractLogView::updateData()
         overview_->updateCurrentPosition( scrollPosition.lineNumber, lastLine );
     }
 
-    rereadLogLines();
+    // Not rereadLogLines(): scrolling was told already what changed.
+    refresh( ViewportChange::Text );
 }
 
 void AbstractLogView::updateFont( const QFont& font )
@@ -1610,6 +1623,8 @@ void AbstractLogView::updateDecorations()
 
 void AbstractLogView::rereadLogLines()
 {
+    // Nothing scrolling counted for the Log Lines holds any longer.
+    scrolling_.linesReread();
     refresh( ViewportChange::Text );
 }
 
@@ -1622,7 +1637,9 @@ void AbstractLogView::refresh( ViewportChange change )
         ++viewportGeneration_;
         [[fallthrough]];
     case ViewportChange::Decorations:
-        // Painted again from the Log Lines the Viewport holds.
+        // Painted again from the Log Lines the Viewport holds, each decorated
+        // again.
+        ++decorationGeneration_;
         textAreaCache_.invalid_ = true;
         break;
     }
@@ -1657,23 +1674,35 @@ ViewportLayout AbstractLogView::viewportLayout() const
     return ViewportLayout{ viewportGeometry().input(), viewportContent().visualLines };
 }
 
+AbstractLogView::ViewportContentKey AbstractLogView::currentViewportContentKey() const
+{
+    return ViewportContentKey{ scrolling_.position(), scrolling_.firstColumn(),
+                               logData_->getNbLine(), viewport()->width(),
+                               viewport()->height(),  charWidth_,
+                               charHeight_,           scrolling_.textWrap(),
+                               lineNumbersVisible_,   viewportGeneration_ };
+}
+
 const AbstractLogView::ViewportContent& AbstractLogView::viewportContent() const
 {
-    const ViewportContentKey key{ scrolling_.position(), scrolling_.firstColumn(),
-                                  logData_->getNbLine(), viewport()->width(),
-                                  viewport()->height(),  charWidth_,
-                                  charHeight_,           scrolling_.textWrap(),
-                                  lineNumbersVisible_,   viewportGeneration_ };
+    const auto key = currentViewportContentKey();
 
     if ( !viewportContent_.has_value() || !( viewportContentKey_ == key ) ) {
+        // After a scroll the Log Lines still in the Viewport are kept, with
+        // their Decorations; anything else reads them all again.
+        std::optional<ViewportContent> previous;
+        if ( viewportContent_.has_value() && key.onlyScrolledFrom( viewportContentKey_ ) ) {
+            previous = std::move( viewportContent_ );
+        }
         viewportContentKey_ = key;
-        viewportContent_ = buildViewportContent();
+        viewportContent_ = buildViewportContent( std::move( previous ) );
     }
 
     return *viewportContent_;
 }
 
-AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
+AbstractLogView::ViewportContent
+AbstractLogView::buildViewportContent( std::optional<ViewportContent> previous ) const
 {
     ViewportContent content;
 
@@ -1693,17 +1722,66 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
     // Viewport, and no more, however many a Log Line wraps into.
     const auto maxVisualLines = static_cast<size_t>( geometry.visibleLines().get() );
 
-    auto rawLines = logData_->getLines( scrollPosition.lineNumber, nbLines );
-    content.logLines.reserve( rawLines.size() );
+    // The Log Lines the previous content holds, by position: they were read,
+    // expanded and wrapped for the same text and width.
+    const auto kept = [ &previous ]( LineNumber position ) -> ViewportLogLine* {
+        if ( !previous.has_value() || previous->logLines.empty() ) {
+            return nullptr;
+        }
+        const auto first = previous->logLines.front().position;
+        if ( position < first ) {
+            return nullptr;
+        }
+        const auto index = position.get() - first.get();
+        return index < previous->logLines.size() ? &previous->logLines[ index ] : nullptr;
+    };
+
+    content.logLines.reserve( nbLines.get() );
     content.visualLines.reserve( maxVisualLines );
 
-    for ( size_t index = 0; index < rawLines.size() && content.visualLines.size() < maxVisualLines;
+    // Log Lines not kept, read together as far as the next one kept.
+    logsquirl::vector<QString> readLines;
+    LineNumber readFrom{ 0 };
+
+    for ( size_t index = 0; index < nbLines.get() && content.visualLines.size() < maxVisualLines;
           ++index ) {
-        auto wrappedLine = scrolling_.wrap( rawLines[ index ], visibleColumns );
+        const auto position = scrollPosition.lineNumber + LinesCount( index );
+
+        if ( auto* keptLine = kept( position ); keptLine == nullptr ) {
+            if ( readLines.empty() || position.get() - readFrom.get() >= readLines.size() ) {
+                auto count = 1_lcount;
+                while ( index + count.get() < nbLines.get()
+                        && kept( position + count ) == nullptr ) {
+                    count = count + 1_lcount;
+                }
+                readLines = logData_->getLines( position, count );
+                readFrom = position;
+            }
+            if ( position.get() - readFrom.get() >= readLines.size() ) {
+                // The Log File holds fewer Log Lines than it said.
+                break;
+            }
+        }
+
+        auto logLine = [ & ]() {
+            if ( auto* keptLine = kept( position ); keptLine != nullptr ) {
+                return std::move( *keptLine );
+            }
+            auto& text = readLines[ position.get() - readFrom.get() ];
+            auto wrapped = scrolling_.wrap( text, visibleColumns );
+            return ViewportLogLine{ position,
+                                    lines_->logLineAt( position ).value_or( position ),
+                                    std::move( text ),
+                                    std::move( wrapped ),
+                                    0,
+                                    0,
+                                    std::nullopt };
+        }();
+
+        const auto& wrappedLine = logLine.wrapped;
         const auto lineLength = LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
             wrappedLine.unwrappedLine().size() ) };
 
-        const auto position = scrollPosition.lineNumber + LinesCount( index );
         const auto wrappedCount = wrappedLine.wrappedLinesCount();
         const auto visualLineLength = [ &wrappedLine ]( size_t wrappedLineIndex ) {
             return LineLength{ type_safe::narrow_cast<LineLength::UnderlyingType>(
@@ -1733,12 +1811,26 @@ AbstractLogView::ViewportContent AbstractLogView::buildViewportContent() const
             ++visualLineCount;
         }
 
-        content.logLines.push_back( ViewportLogLine{
-            lines_->logLineAt( position ).value_or( position ), std::move( rawLines[ index ] ),
-            std::move( wrappedLine ), firstVisualLine, visualLineCount } );
+        logLine.firstVisualLine = firstVisualLine;
+        logLine.visualLineCount = visualLineCount;
+        content.logLines.push_back( std::move( logLine ) );
     }
 
     return content;
+}
+
+AbstractLogView::DecorationKey AbstractLogView::decorationKey( LineNumber logLine ) const
+{
+    const auto portion = selection_.getPortionForLine( logLine );
+    const bool lineSelected = selection_.isLineSelected( logLine );
+    return DecorationKey{ .generation = decorationGeneration_,
+                          .palette = viewport()->palette().cacheKey(),
+                          .selectedAsWhole = lineSelected && !selection_.isSingleLine(),
+                          .selectedAsSingleLine = lineSelected && selection_.isSingleLine(),
+                          .selectionStart
+                          = portion.isValid() ? portion.startColumn() : LineColumn{ -1 },
+                          .selectionEnd
+                          = portion.isValid() ? portion.endColumn() : LineColumn{ -1 } };
 }
 
 // Returns the number of lines visible in the viewport
@@ -2025,7 +2117,68 @@ void AbstractLogView::updateScrollBars()
     applyScroll( scrolling_.keepAboveBottom() );
 }
 
-void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
+bool AbstractLogView::scrollTextArea( ScrollPosition scrollPosition )
+{
+    auto& pixmap = textAreaCache_.pixmap_;
+    const auto before = textAreaCache_.scroll_position_;
+    if ( scrolling_.textWrap() || pixmap.isNull() || before.visualLineIndex != 0
+         || scrollPosition.visualLineIndex != 0 ) {
+        return false;
+    }
+
+    // Moved in device pixels, so a row must be a whole number of them.
+    const auto pixelRatio = pixmap.devicePixelRatio();
+    const auto rowHeightPx = static_cast<double>( charHeight_ ) * pixelRatio;
+    const auto rowDevicePx = static_cast<int>( std::lround( rowHeightPx ) );
+    const int rows = static_cast<int>( getNbVisibleLines().get() );
+    if ( rowDevicePx <= 0 || std::abs( rowHeightPx - rowDevicePx ) > 1e-6
+         || pixmap.height() != rows * rowDevicePx
+         || !qFuzzyCompare( pixelRatio, viewport()->devicePixelRatio() ) ) {
+        return false;
+    }
+
+    const auto rowsMoved = static_cast<int64_t>( scrollPosition.lineNumber.get() )
+                           - static_cast<int64_t>( before.lineNumber.get() );
+    if ( rowsMoved == 0 || std::abs( rowsMoved ) >= rows ) {
+        return false;
+    }
+
+    // The Log Lines still in view must be the ones painted, read for the same
+    // text and layout and decorated the same.
+    const auto& content = viewportContent();
+    if ( !viewportContentKey_.onlyScrolledFrom( textAreaCache_.content_key_ ) ) {
+        return false;
+    }
+    const auto keptFirst = rowsMoved > 0 ? 0 : static_cast<int>( -rowsMoved );
+    const auto keptEnd = rowsMoved > 0 ? rows - static_cast<int>( rowsMoved ) : rows;
+    for ( int row = keptFirst; row < keptEnd && row < logsquirl::isize( content.logLines );
+          ++row ) {
+        const auto& logLine = content.logLines[ static_cast<size_t>( row ) ];
+        if ( !logLine.decorated.has_value()
+             || !( logLine.decorated->key == decorationKey( logLine.lineNumber ) ) ) {
+            return false;
+        }
+    }
+
+    const auto shiftPx = static_cast<int>( -rowsMoved ) * rowDevicePx;
+    pixmap.scroll( 0, shiftPx, pixmap.rect() );
+
+    // The rows that came into view. The first and the last row are painted
+    // again too: the margins' lines start and end in them, and moved
+    // elsewhere those ends would show.
+    if ( rowsMoved > 0 ) {
+        drawTextArea( &pixmap, 0, 1 );
+        drawTextArea( &pixmap, keptEnd - 1, rows );
+    }
+    else {
+        drawTextArea( &pixmap, 0, keptFirst + 1 );
+        drawTextArea( &pixmap, rows - 1, rows );
+    }
+    return true;
+}
+
+void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
+                                    std::optional<int> endRow )
 {
     // LOG_DEBUG << "devicePixelRatio: " << viewport()->devicePixelRatio();
     // LOG_DEBUG << "viewport size: " << viewport()->size().width();
@@ -2068,6 +2221,13 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     LOG_DEBUG << "drawing " << content.logLines.size() << " Log Lines";
     LOG_DEBUG << "Height: " << paintDeviceHeight;
+
+    // Rows outside [firstRow, endRow) keep what they show.
+    const int lastRow = endRow.value_or( std::numeric_limits<int>::max() / fontHeight );
+    if ( firstRow > 0 || endRow.has_value() ) {
+        painter->setClipRect( 0, firstRow * fontHeight, paintDeviceWidth,
+                              ( lastRow - firstRow ) * fontHeight );
+    }
 
     painter->fillRect( 0, 0, paintDeviceWidth, paintDeviceHeight,
                        palette.color( QPalette::Window ) );
@@ -2129,37 +2289,58 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
 
     // Position in pixel of the base line of the line to print
     int yPos = 0;
+    // The row of the Visual Line drawn at yPos.
+    int row = 0;
     for ( const auto& viewportLogLine : content.logLines ) {
         const auto lineNumber = viewportLogLine.lineNumber;
         const QString& logLine = viewportLogLine.text;
 
+        const int lineRows = static_cast<int>( viewportLogLine.visualLineCount );
+        if ( row + lineRows <= firstRow || row >= lastRow ) {
+            // Not painted, so not decorated either.
+            row += lineRows;
+            yPos += fontHeight * lineRows;
+            continue;
+        }
+        row += lineRows;
+
         const int xPos = layout.textOriginX();
-
-        using LineTypeFlags = AbstractLogData::LineTypeFlags;
-        const auto currentLineType = lines_->lineType( lineNumber );
-
-        const bool isSelectedAsWhole
-            = selection_.isLineSelected( lineNumber ) && !selection_.isSingleLine();
-        const auto verdict = lineDecorator.verdictFor( LogLine{ lineNumber, logLine },
-                                                       currentLineType, isSelectedAsWhole );
 
         const auto& wrappedLineView = viewportLogLine.wrapped;
         const QStringView expandedLine = wrappedLineView.unwrappedLine();
 
-        // Is there something selected in the line? Selection columns come
-        // from mouse/pixel positions against the rendered (tab-expanded)
-        // text, so they are moved to raw columns for the Line Decorator.
-        const auto selectionPortion = selection_.getPortionForLine( lineNumber );
-        std::optional<HighlightedMatch> rawSelection;
-        if ( selectionPortion.isValid() ) {
-            rawSelection = inRawColumns(
-                logLine, HighlightedMatch{ selectionPortion.startColumn(), selectionPortion.size(),
-                                           palette.color( QPalette::HighlightedText ),
-                                           palette.color( QPalette::Highlight ) } );
+        // A Log Line is decorated once for as long as nothing its Decoration
+        // depends on changes, however often it is painted as the view scrolls.
+        const auto key = decorationKey( lineNumber );
+        if ( !viewportLogLine.decorated.has_value()
+             || !( viewportLogLine.decorated->key == key ) ) {
+            const auto lineType = lines_->lineType( lineNumber );
+            const auto verdict = lineDecorator.verdictFor( LogLine{ lineNumber, logLine }, lineType,
+                                                           key.selectedAsWhole );
+
+            // Is there something selected in the line? Selection columns come
+            // from mouse/pixel positions against the rendered (tab-expanded)
+            // text, so they are moved to raw columns for the Line Decorator.
+            const auto selectionPortion = selection_.getPortionForLine( lineNumber );
+            std::optional<HighlightedMatch> rawSelection;
+            if ( selectionPortion.isValid() ) {
+                rawSelection = inRawColumns(
+                    logLine,
+                    HighlightedMatch{ selectionPortion.startColumn(), selectionPortion.size(),
+                                      palette.color( QPalette::HighlightedText ),
+                                      palette.color( QPalette::Highlight ) } );
+            }
+
+            viewportLogLine.decorated
+                = DecoratedLogLine{ key, lineType,
+                                    lineDecorator.decorate( logLine, verdict, rawSelection )
+                                        .inDisplayColumns( logLine,
+                                                           LineLength{ expandedLine.size() } ) };
         }
 
-        const auto decoration = lineDecorator.decorate( logLine, verdict, rawSelection )
-                                    .inDisplayColumns( logLine, LineLength{ expandedLine.size() } );
+        using LineTypeFlags = AbstractLogData::LineTypeFlags;
+        const auto currentLineType = viewportLogLine.decorated->lineType;
+        const auto& decoration = viewportLogLine.decorated->decoration;
         const auto& lineColors = decoration.lineColors();
 
         // Only the Visual Lines in the Viewport are drawn: the Log Line at the
@@ -2195,8 +2376,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice )
         lineDrawer.draw( painter.get(), xPos, yPos, viewport()->width(), wrappedLineView,
                          firstVisualLine, visualLineCount, ContentMarginWidth );
 
-        if ( ( selection_.isLineSelected( lineNumber ) && selection_.isSingleLine() )
-             || selection_.getPortionForLine( lineNumber ).isValid() ) {
+        if ( key.selectedAsSingleLine || key.selectionStart >= 0_lcol ) {
             auto selectionPen = QPen( palette.color( QPalette::Highlight ) );
             selectionPen.setWidth( 1 );
             painter->setPen( selectionPen );

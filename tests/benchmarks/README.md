@@ -153,6 +153,11 @@ so a Log Line wraps into one Visual Line or several).
   Search pattern and the Search Limits changed. "Log Lines read again"
   repaints after `updateData()`, the cost each of them paid before a view
   told a change of Decoration from a change of text.
+  Its "one-line scroll" cases (#296) step a view 20 Visual Lines down and up
+  one key press at a time, each step painted, with and without text
+  wrapping: without it a step moves what was painted and paints the one Log
+  Line exposed, with it the Log Lines still in view are not read or
+  decorated again.
 
 Both are Catch2 benchmarks; run them in an optimized build, as the Debug
 numbers say little about scrolling cost:

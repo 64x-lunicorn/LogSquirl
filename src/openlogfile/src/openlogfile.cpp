@@ -111,6 +111,7 @@ void OpenLogFile::reload()
 
     // A reload is loaded from its start, like the first load.
     firstLoadDone_ = false;
+    truncatedSinceLoad_ = true;
 }
 
 void OpenLogFile::stopLoading()
@@ -258,6 +259,9 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     load.status = status;
     load.failure = failure;
     load.fromStart = !firstLoadDone_;
+    load.onlyAppended = firstLoadDone_ && grewSinceLoad_ && !truncatedSinceLoad_;
+    grewSinceLoad_ = false;
+    truncatedSinceLoad_ = false;
 
     const auto nbLines = LineNumber( logData_->getNbLine().get() );
 
@@ -326,6 +330,7 @@ void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& 
 {
     switch ( status ) {
     case MonitoredFileStatus::Truncated:
+        truncatedSinceLoad_ = true;
         // Marks do not survive a truncation.
         filteredData_->clearMarks();
         if ( searchRequested_ ) {
@@ -344,6 +349,9 @@ void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& 
         Q_EMIT truncated( failure );
         break;
     case MonitoredFileStatus::DataAdded:
+        grewSinceLoad_ = true;
+        Q_EMIT grew( failure );
+        break;
     case MonitoredFileStatus::Unchanged:
         Q_EMIT grew( failure );
         break;
