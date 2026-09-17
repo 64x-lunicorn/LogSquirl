@@ -23,10 +23,12 @@
 // and the next begins (a thousand Log Lines each).
 
 #include "fake_log_data.h"
+#include "logdata.h"
 #include "qfnotifications.h"
 #include "quickfind.h"
 #include "quickfindpattern.h"
 #include "selection.h"
+#include "test_policies.h"
 #include "test_utils.h"
 
 #include <QStringList>
@@ -331,6 +333,17 @@ SCENARIO( "QuickFind reads Log Lines in blocks, with a reader attached", "[quick
             REQUIRE( logFile.readers == 0 );
         }
     }
+}
+
+SCENARIO( "QuickFind on a Log File with no file attached yet finds nothing", "[quickfind]" )
+{
+    const auto policies = testSettingsPolicies();
+    const LogData logFile( policies.indexing, policies.search, policies.fileAccess,
+                           policies.decoding );
+    QuickFindRun quickFind( [ & ]() { return QuickFindLines::everyLogLine( logFile ); } );
+
+    REQUIRE_FALSE( quickFind.forwardFrom( 0_lnum, QStringLiteral( "line" ) ).hasMatch );
+    REQUIRE_FALSE( quickFind.backwardFrom( 0_lnum, QStringLiteral( "line" ) ).hasMatch );
 }
 
 SCENARIO( "QuickFind reports the progress of a long search in intermediate percentages",
