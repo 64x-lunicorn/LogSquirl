@@ -20,7 +20,8 @@
     "26.04.2",
     "26.05.0-beta1",
     "26.06.1",
-    "26.07.0"
+    "26.07.0",
+    "26.10.0-beta1"
   ],
   "changelog": [
     {
@@ -66,6 +67,10 @@
     {
       "version": "26.07.0",
       "description": "Windows dark mode icon fixes, AppImage runs on Ubuntu 22.04, correct release version numbering"
+    },
+    {
+      "version": "26.10.0-beta1",
+      "description": "Crash and Search stall fixes, scrolling through wrapped lines, Table View on par with Text View, System theme, live theme switching, Qt 6.11.2, signed checksums and SBOM"
     }
   ],
   "stable_version": "26.07.0",
