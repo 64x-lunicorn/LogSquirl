@@ -100,3 +100,12 @@ add_executable(logsquirl_filteredview_read_benchmark
 )
 
 target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
+
+# A chart following a growing Log File (#298): Log Lines appended to a Log File
+# of about 128 MiB and the chart brought up to date after each load. Uses only
+# what the chart panel offered before #298 (see README.md).
+add_executable(logsquirl_chart_follow_benchmark
+    chart_follow_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
