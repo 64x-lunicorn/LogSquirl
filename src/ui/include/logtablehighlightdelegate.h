@@ -94,11 +94,12 @@ public:
         decorationSetup_.setPolicy( policy );
     }
 
-    // Set the Search Limits: rows outside this range are shown subdued.
+    // Set the Search Limits: rows outside this range are shown subdued. The
+    // end is the Log Line after the last one searched, as the Line Decorator
+    // takes it.
     void setSearchLimits( LineNumber startLine, LineNumber endLine )
     {
-        searchStart_ = startLine;
-        searchEnd_ = endLine;
+        searchLimits_ = SearchLimits{ startLine, endLine };
     }
 
     // Set the current portion (in-cell text) selection for painting.
@@ -133,12 +134,12 @@ public:
 
     // Compose the Decoration for one cell given an explicit Line Decorator
     // Context and the row-level Line Verdict (decided from the raw Log
-    // Line -- a whole-line Highlighter and the Search Limits are facts
-    // about the whole line, not about one field of it). A word-only
-    // Highlighter's matched span, main search, Color Labels and QuickFind
-    // all match the cell's own text directly, so no mapping from cell
-    // column back to raw line offset is needed -- only the whole-line
-    // colour and the Search Limits gate carry over from the row verdict.
+    // Line -- a whole-line Highlighter, the Search Limits and whether the
+    // Row is selected as a whole are facts about the whole line, not about
+    // one field of it). A word-only Highlighter's matched span, main
+    // search, Color Labels and QuickFind all match the cell's own text
+    // directly, so no mapping from cell column back to raw line offset is
+    // needed -- only the whole-line facts carry over from the row verdict.
     // This is the same composition rule paint() applies with its own live
     // Context; exposed here with an explicit Context so it can be tested
     // without touching the live Highlighter Set or Configuration.
@@ -149,55 +150,18 @@ public:
                                      = std::nullopt )
     {
         const LineDecorator lineDecorator{ context };
-        const auto cellHighlighterVerdict
-            = lineDecorator.verdictFor( LogLine{ lineNumber, cellText }, lineType );
+        logsquirl::vector<HighlightedMatch> cellHighlighterSpans;
+        if ( !cellText.isEmpty() && !rowVerdict.isOutsideSearchLimits()
+             && !rowVerdict.isSelectedAsWhole() ) {
+            cellHighlighterSpans
+                = lineDecorator.verdictFor( LogLine{ lineNumber, cellText }, lineType )
+                      .highlighterSpans();
+        }
         const LineVerdict cellVerdict{ rowVerdict.wholeLineHighlight(), lineType,
                                        rowVerdict.isOutsideSearchLimits(),
-                                       cellHighlighterVerdict.highlighterSpans() };
+                                       std::move( cellHighlighterSpans ),
+                                       rowVerdict.isSelectedAsWhole() };
         return lineDecorator.decorate( cellText, cellVerdict, selection );
-    }
-
-    // The row's foreground and background colour, decided from its Line
-    // Verdict. Mirrors AbstractLogView's per-line colour derivation so the
-    // Table View reads the same facts the text view's gutter bullet reads --
-    // it just has nowhere but the row background to show them, having no
-    // gutter of its own. Precedence, highest to lowest: Search Limits (the
-    // whole row is subdued, nothing else shows), a whole-line Highlighter
-    // (an explicit, deliberate user rule), then Mark/Match -- consistent
-    // with the text view's bullet colours, including the distinct colour
-    // for a line that is both. A Context Line is dimmed on top of whatever
-    // colour was decided, exactly as the text view dims its foreground.
-    struct RowColors {
-        QColor foreColor;
-        QColor backColor;
-    };
-
-    static RowColors rowColorsFor( const LineVerdict& rowVerdict, QColor defaultForeColor,
-                                   QColor defaultBackColor, QColor disabledForeColor )
-    {
-        QColor foreColor = defaultForeColor;
-        QColor backColor = defaultBackColor;
-
-        if ( rowVerdict.isOutsideSearchLimits() ) {
-            foreColor = disabledForeColor;
-        }
-        else if ( const auto wholeLine = rowVerdict.wholeLineHighlight(); wholeLine.has_value() ) {
-            foreColor = wholeLine->foreColor;
-            backColor = wholeLine->backColor;
-        }
-        else if ( rowVerdict.isMark() ) {
-            backColor
-                = rowVerdict.isMatch() ? LineStatusColors::markedMatch() : LineStatusColors::mark();
-        }
-        else if ( rowVerdict.isMatch() ) {
-            backColor = LineStatusColors::match();
-        }
-
-        if ( rowVerdict.isContextLine() ) {
-            foreColor.setAlpha( 128 );
-        }
-
-        return { foreColor, backColor };
     }
 
     void paint( QPainter* painter, const QStyleOptionViewItem& option,
@@ -221,103 +185,41 @@ public:
         // was told about most recently, and it needs the rest of the row to
         // keep showing Highlighter colour around it.
         const bool hasPortionOnRow = ( portionRow_ >= 0 && index.row() == portionRow_ );
-        const bool isFullRowSelected = ( opt.state & QStyle::State_Selected ) && !hasPortionOnRow;
+        const bool isSelectedAsWhole = ( opt.state & QStyle::State_Selected ) && !hasPortionOnRow;
 
-        if ( isFullRowSelected ) {
-            // The selection colour overrides everything else in the cell
-            // (it is decorate()'s highest-precedence source, and here it
-            // covers the whole cell), so there is nothing to gain from
-            // matching Highlighters, main search or QuickFind against it --
-            // skip straight to the plain solid selection, the same
-            // shortcut the text view takes for a fully selected line.
-            const auto backColor = opt.palette.color( QPalette::Highlight );
-            const auto foreColor = opt.palette.color( QPalette::HighlightedText );
-            painter->fillRect( opt.rect, backColor );
-            const auto cellText = index.data( Qt::DisplayRole ).toString();
-            if ( !cellText.isEmpty() ) {
-                const auto textRect
-                    = opt.rect.adjusted( HorizontalTextPadding, 0, -HorizontalTextPadding, 0 );
-                const auto fm = painter->fontMetrics();
-                const int yOffset = ( opt.rect.height() - fm.height() ) / 2;
-                const int baseline = opt.rect.top() + yOffset + fm.ascent();
-                painter->setPen( foreColor );
-                painter->drawText( textRect.left(), baseline, cellText );
-            }
-            painter->restore();
-            return;
-        }
-
-        auto backColor = opt.palette.color( QPalette::Base );
-        auto foreColor = opt.palette.color( QPalette::Text );
-
-        // Alternating row colour
+        // The Row's base: alternating Rows and the Row under the mouse
+        // cursor are tinted. What the Row then shows over it is the Line
+        // Decorator's decision.
+        auto linePalette = LinePalette::fromPalette( opt.palette );
         if ( opt.features & QStyleOptionViewItem::Alternate ) {
-            backColor = backColor.darker( 105 );
+            linePalette.base = linePalette.base.darker( 105 );
         }
-        // Subtle hover highlight for the row under the mouse cursor
         if ( hoverRow_ >= 0 && index.row() == hoverRow_ ) {
-            backColor = backColor.darker( 108 );
+            linePalette.base = linePalette.base.darker( 108 );
         }
 
-        // The Line Decorator owns the colour precedence rule. The row-level
-        // Line Verdict is decided from the raw Log Line -- a whole-line
-        // Highlighter and the Search Limits are facts about the whole line,
-        // not about one field of it -- so this needs the row's line number
-        // and raw text even before we know whether this particular cell
-        // has any text of its own.
+        // The row-level Line Verdict is decided from the raw Log Line -- a
+        // whole-line Highlighter, the Search Limits and the selection are
+        // facts about the whole line, not about one field of it.
         const auto lineNumber = rows_->logLineAt( index.row() );
         const auto rawLine = index.data( LogFormatTableModel::RawLineRole ).toString();
         const auto currentLineType = filteredData_ ? filteredData_->lineTypeByLine( lineNumber )
                                                    : AbstractLogData::LineTypeFlags::Plain;
 
-        const auto context = buildDecoratorContext();
-        const LineDecorator lineDecorator{ context };
-        const auto rowVerdict
-            = lineDecorator.verdictFor( LogLine{ lineNumber, rawLine }, currentLineType );
+        const auto context = buildDecoratorContext( linePalette );
+        const auto rowVerdict = LineDecorator{ context }.verdictFor(
+            LogLine{ lineNumber, rawLine }, currentLineType, isSelectedAsWhole );
 
-        // A whole-line Highlighter colours the whole row: every cell gets
-        // the same background/foreground, not just the one whose text
-        // happens to contain the matched word. Mark and Match colour the
-        // row background the same way, since this view has no gutter to
-        // draw a bullet in.
-        const auto rowColors
-            = rowColorsFor( rowVerdict, foreColor, backColor,
-                            opt.palette.brush( QPalette::Disabled, QPalette::Text ).color() );
-        foreColor = rowColors.foreColor;
-        backColor = rowColors.backColor;
-
-        painter->fillRect( opt.rect, backColor );
-
+        // The Decoration covers the cell's whole text; its line colours also
+        // fill the rest of the cell, so a whole-line Highlighter, a Mark or
+        // a Match colours the whole row, as this view has no gutter.
         const auto cellText = index.data( Qt::DisplayRole ).toString();
-        if ( cellText.isEmpty() ) {
-            painter->restore();
-            return;
-        }
-
-        // A word-only Highlighter, main search, Color Labels and QuickFind
-        // all match the cell's own text directly -- no mapping from cell
-        // column back to raw line offset is needed. A portion (in-cell
-        // text) selection is the highest-precedence source decorate()
-        // knows about: it wins wherever it overlaps but leaves Highlighter
-        // colour showing everywhere else, so a partially selected row
-        // still shows it outside the selection.
         const auto selectionSpan = selectionSpanFor( index, cellText, opt, hasPortionOnRow );
         const auto decoration = decorationFor( context, rowVerdict, lineNumber, currentLineType,
                                                cellText, selectionSpan );
 
-        if ( !decoration.spans().empty() ) {
-            paintHighlightedText( painter, opt, cellText, decoration.spans(), foreColor );
-        }
-        else {
-            const auto textRect
-                = opt.rect.adjusted( HorizontalTextPadding, 0, -HorizontalTextPadding, 0 );
-            const auto fm = painter->fontMetrics();
-            // Center text vertically: offset = (cellHeight - fontHeight) / 2
-            const int yOffset = ( opt.rect.height() - fm.height() ) / 2;
-            const int baseline = opt.rect.top() + yOffset + fm.ascent();
-            painter->setPen( foreColor );
-            painter->drawText( textRect.left(), baseline, cellText );
-        }
+        painter->fillRect( opt.rect, decoration.lineColors().backColor );
+        paintDecoratedText( painter, opt, cellText, decoration );
 
         painter->restore();
     }
@@ -373,10 +275,11 @@ private:
     // built by the one module that builds it for either Presentation. The
     // active Highlighter Set is read here, afresh for every cell, so that
     // switching sets re-colors the table without this delegate being told.
-    LineDecorator::Context buildDecoratorContext() const
+    LineDecorator::Context buildDecoratorContext( const LinePalette& linePalette ) const
     {
         return decorationSetup_.context( HighlighterSetCollection::get().currentActiveSet(),
-                                         SearchLimits{ searchStart_, searchEnd_ } );
+                                         searchLimits_, linePalette,
+                                         LineStatusDisplay::AsBackground );
     }
 
     // The portion (in-cell text) selection decorate() should overlay on
@@ -405,14 +308,15 @@ private:
                                  opt.palette.color( QPalette::Highlight ) };
     }
 
-    // Paint cell text with highlight segments. The spans are already an
-    // ordered, non-overlapping Decoration, so no sorting or overlap
-    // handling is needed here.
-    static void paintHighlightedText( QPainter* painter, const QStyleOptionViewItem& opt,
-                                      const QString& cellText,
-                                      const logsquirl::vector<HighlightedMatch>& cellMatches,
-                                      const QColor& foreColor )
+    // Paint a cell's text as its Decoration says. The spans cover the whole
+    // text in order, so each is drawn as it is, one after the other.
+    static void paintDecoratedText( QPainter* painter, const QStyleOptionViewItem& opt,
+                                    const QString& cellText, const Decoration& decoration )
     {
+        if ( decoration.spans().empty() ) {
+            return;
+        }
+
         const auto textRect
             = opt.rect.adjusted( HorizontalTextPadding, 0, -HorizontalTextPadding, 0 );
         const auto fm = painter->fontMetrics();
@@ -423,38 +327,18 @@ private:
         const int baseline = cellY + yOffset + fm.ascent();
 
         int x = textRect.left();
-
-        int pos = 0;
-        for ( const auto& match : cellMatches ) {
-            const auto matchStart = static_cast<int>( match.startColumn().get() );
-            const auto matchLen = static_cast<int>( match.size().get() );
-
-            if ( matchStart < pos ) {
-                continue;
+        for ( const auto& span : decoration.spans() ) {
+            // A span covering the whole text shares it rather than copying.
+            const auto spanText = cellText.mid( static_cast<qsizetype>( span.startColumn().get() ),
+                                                static_cast<qsizetype>( span.size().get() ) );
+            const auto spanWidth = fm.horizontalAdvance( spanText );
+            if ( span.backColor() != decoration.lineColors().backColor ) {
+                // The cell is already filled with the line colours.
+                painter->fillRect( x, cellY, spanWidth, cellH, span.backColor() );
             }
-
-            if ( matchStart > pos ) {
-                const auto before = cellText.mid( pos, matchStart - pos );
-                painter->setPen( foreColor );
-                painter->drawText( x, baseline, before );
-                x += fm.horizontalAdvance( before );
-            }
-
-            const auto matchText = cellText.mid( matchStart, matchLen );
-            const auto matchWidth = fm.horizontalAdvance( matchText );
-            if ( match.backColor().isValid() ) {
-                painter->fillRect( x, cellY, matchWidth, cellH, match.backColor() );
-            }
-            painter->setPen( match.foreColor().isValid() ? match.foreColor() : foreColor );
-            painter->drawText( x, baseline, matchText );
-            x += matchWidth;
-            pos = matchStart + matchLen;
-        }
-
-        if ( pos < cellText.size() ) {
-            const auto remaining = cellText.mid( pos );
-            painter->setPen( foreColor );
-            painter->drawText( x, baseline, remaining );
+            painter->setPen( span.foreColor() );
+            painter->drawText( x, baseline, spanText );
+            x += spanWidth;
         }
     }
 
@@ -468,9 +352,8 @@ private:
     DecorationSetup decorationSetup_;
 
     // Search Limits (set by LogTableView, mirroring what it hands the text
-    // view)
-    LineNumber searchStart_{ 0_lnum };
-    LineNumber searchEnd_{ 0_lnum };
+    // view); until then, none, so no row is subdued.
+    SearchLimits searchLimits_;
 
     // Portion selection state (set by LogTableView from mouse events)
     int portionRow_ = -1;

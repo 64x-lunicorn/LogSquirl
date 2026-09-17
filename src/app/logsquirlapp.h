@@ -93,11 +93,6 @@ public:
         qRegisterMetaType<QFNotificationInterrupted>( "QFNotificationInterrupted" );
         qRegisterMetaType<QuickFindMatcher>( "QuickFindMatcher" );
 
-        // File watching is a process-wide singleton that reads no setting
-        // of its own (#93). It is handed its Policy here, before any
-        // window exists and so before any Log File can be added to it.
-        FileWatcher::getFileWatcher().setWatchPolicy( settingsPolicies_.watch );
-
         if ( singleApplication_.isPrimaryInstance() ) {
             QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
                               &messageReceiver_, &MessageReceiver::receiveMessage,
@@ -118,15 +113,6 @@ public:
     bool isSecondary() const
     {
         return !singleApplication_.isPrimaryInstance();
-    }
-
-    // The Settings Policies, derived once here -- this is the place
-    // that already owns the session and the windows, so it is the place
-    // that resolves what each part of the application is allowed to know
-    // about the settings.
-    const SettingsPolicies& settingsPolicies() const
-    {
-        return settingsPolicies_;
     }
 
     qint64 primaryPid() const
@@ -164,7 +150,8 @@ public:
     MainWindow* reloadSession()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_ );
+            session_
+                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -206,7 +193,8 @@ public:
     MainWindow* newWindow()
     {
         if ( !session_ ) {
-            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_ );
+            session_
+                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
         }
 
         const auto previousSessions = session_->windowSessions();
@@ -276,40 +264,8 @@ private:
         connect( window, &MainWindow::windowClosed,
                  [ this, window ]() { onWindowClosed( *window ); } );
         connect( window, &MainWindow::exitRequested, [ this ] { exitApplication(); } );
-        connect( window, &MainWindow::settingsChanged, this, &LogSquirlApp::onSettingsChanged );
 
         return window;
-    }
-
-    // A setting has been written. The Policies are derived here, so they
-    // are re-derived here, and each axis is handed to its live consumers
-    // -- but only the axes that actually changed: changing a Highlighter
-    // Set must not restart file watching or rebuild Context Lines, and
-    // changing the poll interval must not disturb a Search.
-    //
-    // The Session is reached even when no Policy changed: it rebuilds the
-    // Log Format Catalog on every apply, so an edited user Log Format is
-    // picked up without any setting having changed.
-    void onSettingsChanged()
-    {
-        const auto policies = deriveSettingsPolicies( Configuration::get() );
-
-        if ( policies.watch != settingsPolicies_.watch ) {
-            FileWatcher::getFileWatcher().setWatchPolicy( policies.watch );
-        }
-
-        settingsPolicies_ = policies;
-
-        // Indexing, Search and Recognition reach every open Log File
-        // through the Session, which is what holds them; the File Access
-        // Policy reaches only the ones opened from now on, which is all it
-        // can do.
-        if ( session_ ) {
-            session_->applyPolicies( settingsPolicies_ );
-        }
-        else {
-            logFormatCatalog_->rebuild();
-        }
     }
 
     void onWindowActivated( MainWindow& window )
@@ -386,12 +342,19 @@ private:
 
     MessageReceiver messageReceiver_;
 
+    // The one file watcher, looked up here and nowhere else: the Session
+    // hands it the Watch Policy, and to every Log File it opens as their File
+    // Watch Port (#249, #245). File watching reads no setting of its own
+    // (#93).
+    const std::shared_ptr<FileWatcher> fileWatcher_ = FileWatcher::sharedFileWatcher();
+
     std::shared_ptr<Session> session_;
 
-    // Derived at construction: main() has already called
-    // Configuration::getSynced() by the time a LogSquirlApp exists (the
-    // high-DPI attributes have to be set before the QApplication is
-    // built), so the settings are loaded and this snapshot is complete.
+    // The Policies the Session starts with, derived at construction: main()
+    // has already called Configuration::getSynced() by the time a
+    // LogSquirlApp exists (the high-DPI attributes have to be set before the
+    // QApplication is built), so the settings are loaded and this snapshot is
+    // complete. A settings change is re-derived by the Session (#245).
     SettingsPolicies settingsPolicies_ = deriveSettingsPolicies( Configuration::get() );
 
     // The application's one Log Format Catalog, built once here, beside

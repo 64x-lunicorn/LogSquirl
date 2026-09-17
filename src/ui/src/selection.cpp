@@ -27,6 +27,7 @@
 
 #include "abstractlogdata.h"
 #include "containers.h"
+#include "linemapping.h"
 #include "linetypes.h"
 #include "log.h"
 #include "selection.h"
@@ -37,25 +38,6 @@ Selection::Selection()
     selectedPartial_.endColumn = 0_lcol;
 
     selectedRange_.endLine = 0_lnum;
-}
-
-Selection Selection::mapLines( const std::function<LineNumber( LineNumber )>& map ) const
-{
-    Selection mapped = *this;
-
-    if ( selectedLine_.has_value() ) {
-        mapped.selectedLine_ = map( *selectedLine_ );
-    }
-    if ( selectedPartial_.line.has_value() ) {
-        mapped.selectedPartial_.line = map( *selectedPartial_.line );
-    }
-    if ( selectedRange_.startLine.has_value() ) {
-        mapped.selectedRange_.startLine = map( *selectedRange_.startLine );
-        mapped.selectedRange_.endLine = map( selectedRange_.endLine );
-        mapped.selectedRange_.firstLine = map( selectedRange_.firstLine );
-    }
-
-    return mapped;
 }
 
 void Selection::selectPortion( LineNumber line, LineColumn startColumn, LineColumn endColumn )
@@ -152,7 +134,7 @@ OptionalLineNumber Selection::selectedLine() const
     return selectedLine_;
 }
 
-logsquirl::vector<LineNumber> Selection::getLines() const
+logsquirl::vector<LineNumber> Selection::getLines( const LineMapping& lines ) const
 {
     logsquirl::vector<LineNumber> selection;
 
@@ -163,23 +145,29 @@ logsquirl::vector<LineNumber> Selection::getLines() const
         selection.push_back( *selectedPartial_.line );
     }
     else if ( selectedRange_.startLine.has_value() ) {
-        selection.resize( selectedRange_.size().get() );
-        std::iota( selection.begin(), selection.end(), *selectedRange_.startLine );
+        selection = lines.shownLogLinesFromTo( *selectedRange_.startLine, selectedRange_.endLine );
     }
 
     return selection;
 }
 
-LinesCount Selection::getSelectedLinesCount() const
+LinesCount Selection::getSelectedLinesCount( const LineMapping& lines ) const
 {
-    return selectedRange_.size();
+    if ( !selectedRange_.startLine.has_value() ) {
+        return 0_lcount;
+    }
+
+    const auto positions
+        = lines.positionsFromTo( *selectedRange_.startLine, selectedRange_.endLine );
+    return positions.has_value() ? ( positions->second - positions->first ) + 1_lcount : 0_lcount;
 }
 
 // The tab behaviour is a bit odd at the moment, full lines are not expanded
 // but partials (part of line) are, they probably should not ideally.
-QString Selection::getSelectedText( const AbstractLogData* logData, bool lineNumbers ) const
+QString Selection::getSelectedText( const LineMapping& lines, const AbstractLogData& shownLines,
+                                    bool lineNumbers ) const
 {
-    const auto selectionData = getSelectionWithLineNumbers( logData );
+    const auto selectionData = getSelectionWithLineNumbers( lines, shownLines );
 
     QString text;
 
@@ -209,27 +197,39 @@ QString Selection::getSelectedText( const AbstractLogData* logData, bool lineNum
 }
 
 std::map<LineNumber, QString>
-Selection::getSelectionWithLineNumbers( const AbstractLogData* logData ) const
+Selection::getSelectionWithLineNumbers( const LineMapping& lines,
+                                        const AbstractLogData& shownLines ) const
 {
     std::map<LineNumber, QString> selectionData;
 
     if ( selectedLine_.has_value() ) {
-        selectionData.emplace( logData->getLineNumber( selectedLine_.value() ),
-                               logData->getLineString( *selectedLine_ ) );
+        selectionData.emplace( *selectedLine_, lines.logFile().getLineString( *selectedLine_ ) );
     }
     else if ( selectedPartial_.line.has_value() ) {
         selectionData.emplace(
-            logData->getLineNumber( selectedPartial_.line.value() ),
-            logData->getExpandedLineString( *selectedPartial_.line )
+            *selectedPartial_.line,
+            lines.logFile()
+                .getExpandedLineString( *selectedPartial_.line )
                 .mid( selectedPartial_.startColumn.get(), selectedPartial_.size().get() ) );
     }
     else if ( selectedRange_.startLine.has_value() ) {
-        const auto list = logData->getLines( *selectedRange_.startLine, selectedRange_.size() );
-        LineNumber ln = *selectedRange_.startLine;
+        const auto positions
+            = lines.positionsFromTo( *selectedRange_.startLine, selectedRange_.endLine );
+        if ( !positions.has_value() ) {
+            return selectionData;
+        }
 
-        for ( const auto& line : list ) {
-            selectionData.emplace( logData->getLineNumber( ln ), line );
-            ln++;
+        // Read in one go by position, as the view shows them.
+        const auto [ firstPosition, lastPosition ] = *positions;
+        const auto text
+            = shownLines.getLines( firstPosition, ( lastPosition - firstPosition ) + 1_lcount );
+        auto position = firstPosition;
+        for ( const auto& line : text ) {
+            const auto logLine = lines.logLineAt( position );
+            if ( logLine.has_value() ) {
+                selectionData.emplace( *logLine, line );
+            }
+            ++position;
         }
     }
 

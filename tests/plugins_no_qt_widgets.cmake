@@ -2,6 +2,11 @@
 # src/plugins includes a Qt Widgets header, or when logsquirl_plugins links
 # Qt6::Widgets. What plugins show goes through the Plugin UI Port (#175).
 #
+# Fails too when logsquirl_plugins links logsquirl_settings. The Plugin Host
+# is handed which plugins to load and keeps no settings (#236); without the
+# settings library, naming the settings store in the plugin layer does not
+# compile, so the link is the one thing to guard.
+#
 # Usage: cmake -DSOURCES_DIR=<src/plugins>
 #              -DWIDGETS_INCLUDE_DIRS=<Qt6::Widgets include dirs, |-separated>
 #              -DLINK_LIBRARIES=<logsquirl_plugins link libraries, |-separated>
@@ -20,6 +25,12 @@ if(NOT _link_libraries)
 endif()
 if("Qt6::Widgets" IN_LIST _link_libraries OR "Qt::Widgets" IN_LIST _link_libraries)
   message(FATAL_ERROR "logsquirl_plugins links Qt Widgets: ${_link_libraries}")
+endif()
+if("logsquirl_settings" IN_LIST _link_libraries)
+  message(
+    FATAL_ERROR
+      "logsquirl_plugins links the settings store: ${_link_libraries}\n"
+      "Hand the Plugin Host what it needs from its caller instead (#236).")
 endif()
 
 # Every header Qt Widgets installs, by file name (QWidget, qwidget.h, ...).
@@ -60,4 +71,6 @@ if(_offenders)
 endif()
 
 list(LENGTH _sources _count)
-message(STATUS "${_count} plugin layer files, none includes a Qt Widgets header")
+message(
+  STATUS "${_count} plugin layer files, none includes a Qt Widgets header, "
+         "and the plugin layer does not link the settings store")

@@ -111,12 +111,6 @@ public:
         : AbstractLogView( logData, quickFindPattern, textWrap )
     {
     }
-
-protected:
-    AbstractLogData::LineType lineType( LineNumber ) const override
-    {
-        return {};
-    }
 };
 
 void showForInteraction( AbstractLogView& view )

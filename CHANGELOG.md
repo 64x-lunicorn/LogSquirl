@@ -25,6 +25,33 @@
 
 ## Bug fixes
 
+- **Search Limits in the Table View**: The Table View subdues exactly the Log
+  Lines outside the Search Limits, like the Text View; it used to leave the
+  Log Line right after the end of the limits unsubdued. The Filtered View no
+  longer draws a Log Line shown before the start of the Search Limits as
+  inside them.
+- **Next and previous Mark**: In the Filtered View, "next Mark" now moves down
+  and "previous Mark" up, as in the main view; they were swapped. In the main
+  view, "previous Mark" no longer skips a Mark when the selected Log Line has
+  none.
+- **Kept Searches**: Color Labels, Search Limits and shortcut changes now reach
+  the Filtered Views of kept Searches, not only the current one, and a
+  Filtered View built for a newly kept Search starts with the current Color
+  Labels and Search Limits.
+- **Highlighter Set changes in every Log File**: Changing the Highlighter Sets
+  re-colors the Color Labels of every open Log File, in every window, not only
+  the current tab.
+- **Zoom and settings reach every Log File**: A zoom changes the font of every
+  open Log File and nothing else, and a changed font or shortcut in the
+  Options reaches Log Files in background tabs without switching to them.
+- **QuickFind on a whole-line selection**: A Table View Row selected as a
+  whole now shows its QuickFind matches, as the Text View does.
+- **Searching while loading**: A Search requested while a Log File is first
+  loading now runs over the whole Log File once loading has finished.
+- **logsquirl_grep failures**: The command line tool prints an invalid
+  pattern, a failed load or a failed Search to stderr and exits with a
+  non-zero code instead of hanging, and reports a missing Log File argument
+  instead of crashing.
 - **Plugin widgets at exit**: A status or footer widget a plugin had removed
   was still deleted with the main window. That could crash LogSquirl on exit
   when the plugin deleted the widget itself or its library was already

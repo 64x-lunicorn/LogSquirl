@@ -30,7 +30,7 @@
 #include <QFileInfo>
 #include <QSaveFile>
 
-#include "filedigest.h"
+#include "indexedhash.h"
 #include "log.h"
 
 namespace {
@@ -59,60 +59,6 @@ QString resolvedPath( const QString& path )
     const QFileInfo info( path );
     const auto canonical = info.canonicalFilePath();
     return canonical.isEmpty() ? QDir::cleanPath( info.absoluteFilePath() ) : canonical;
-}
-
-/// Whether the given range of the Log File has the given digest, computed
-/// with the same FileDigest the indexer records it with. Read in chunks, so
-/// a corrupt size in a cache file cannot make this allocate without bound.
-bool digestMatches( QFile& logFile, qint64 offset, qint64 size, quint64 expectedDigest )
-{
-    if ( offset < 0 || size < 0 || !logFile.seek( offset ) ) {
-        return false;
-    }
-
-    constexpr qint64 ChunkSize = 1024 * 1024;
-    QByteArray buffer( static_cast<qsizetype>( std::min( size, ChunkSize ) ), Qt::Uninitialized );
-    FileDigest digest;
-    for ( auto remaining = size; remaining > 0; ) {
-        const auto readBytes
-            = logFile.read( buffer.data(), std::min( remaining, qint64{ buffer.size() } ) );
-        if ( readBytes <= 0 ) {
-            return false;
-        }
-        digest.addData( buffer.data(), static_cast<size_t>( readBytes ) );
-        remaining -= readBytes;
-    }
-    return digest.digest() == expectedDigest;
-}
-
-enum class Fit { Fits, Stale, LogFileUnreadable };
-
-/// Whether an Index recorded with this hash still fits the Log File: the
-/// bytes it was built from are still there, unchanged. The Log File is no
-/// shorter, and the header and tail digests, taken again at their stored
-/// offsets, match; a grown Log File still contains the stored tail range. A
-/// Log File that exists but cannot be opened right now -- locked by another
-/// program, say -- says nothing about the Index either way.
-Fit fitOf( const IndexedHash& hash, const QString& filePath )
-{
-    QFile logFile( filePath );
-    if ( !logFile.exists() ) {
-        return Fit::Stale;
-    }
-    if ( !logFile.open( QIODevice::ReadOnly ) ) {
-        return Fit::LogFileUnreadable;
-    }
-    if ( logFile.size() < hash.size
-         || !digestMatches( logFile, 0, hash.headerSize, hash.headerDigest ) ) {
-        return Fit::Stale;
-    }
-
-    // A Log File no longer than one digest block has its tail digest taken
-    // at offset 0, which is its header digest again.
-    return hash.tailOffset == 0
-                   || digestMatches( logFile, hash.tailOffset, hash.tailSize, hash.tailDigest )
-               ? Fit::Fits
-               : Fit::Stale;
 }
 
 } // namespace
@@ -178,13 +124,17 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
 
         // Checked before the line positions are read: a stale entry is
         // found out without deserializing the Index it holds.
-        switch ( fitOf( hash, filePath ) ) {
-        case Fit::Fits:
+        // An Index fits a Log File that has grown since as well: it is
+        // complete for the size it was built at. Every recorded hash has
+        // header and tail digests, but only some a full digest.
+        switch ( indexFit( hash, filePath, DigestCoverage::HeaderAndTail ) ) {
+        case IndexFit::Unchanged:
+        case IndexFit::Grown:
             break;
-        case Fit::Stale:
+        case IndexFit::Changed:
             LOG_INFO << "Cached index stale for " << filePath;
             return std::nullopt;
-        case Fit::LogFileUnreadable:
+        case IndexFit::LogFileUnreadable:
             keepEntry = true;
             return std::nullopt;
         }

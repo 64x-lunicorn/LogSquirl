@@ -2,9 +2,7 @@ add_library(
   logsquirl_crash_handler STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/crashhandler.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/issuereporter.h
-  ${CMAKE_CURRENT_SOURCE_DIR}/include/memory_info.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/issuereporter.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/memory_info.cpp
 )
 
 set_target_properties(logsquirl_crash_handler PROPERTIES AUTOMOC ON)

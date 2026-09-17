@@ -25,7 +25,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 
-#include "filewatcher.h"
+#include "fake_file_watch.h"
 #include "logformatcatalog.h"
 #include "savedsearches.h"
 #include "session.h"
@@ -110,12 +110,12 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     LinesCount nbLines() const
     {
-        return crawler->logData_->getNbLine();
+        return crawler->openLogFile_->logData()->getNbLine();
     }
 
     int recognitionCount() const
     {
-        return crawler->formatRecognitionCount_;
+        return crawler->openLogFile_->formatRecognitionCount();
     }
 
     const LogFormatDefinition* logFormat() const
@@ -125,7 +125,7 @@ struct CrawlerWidget::access_by<FormatRecognitionAccess> {
 
     const LogFormatCatalog* logFormatCatalog() const
     {
-        return crawler->logFormatCatalog_.get();
+        return crawler->openLogFile_->logFormatCatalog().get();
     }
 
     bool isTableViewToggled() const
@@ -151,7 +151,7 @@ namespace {
 std::unique_ptr<CrawlerAccess> openLogFile( Session& session, const QString& path )
 {
     return std::make_unique<CrawlerAccess>(
-        session.open( path, [] { return new CrawlerWidget(); } ) );
+        session.open( path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) );
 }
 
 SettingsPolicies recognitionEnabled()
@@ -300,11 +300,6 @@ SCENARIO( "A changed Recognition Policy takes effect at the next Format Recognit
 SCENARIO( "A truncated Log File is recognized exactly once when it has loaded again",
           "[ui][formatrecognition]" )
 {
-    // Polling as well as native watching, so the truncation is noticed on
-    // any platform without waiting long.
-    FileWatcher::getFileWatcher().setWatchPolicy(
-        WatchPolicy{ .nativeWatchEnabled = true, .pollingEnabled = true, .pollIntervalMs = 100 } );
-
     // Whether a recognized Log Format opens as a Table View rides the
     // Presentation Policy, handed to the Log File when it is opened: the
     // Crawler Widget reads no setting of its own for it (#185).
@@ -323,7 +318,9 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
     auto catalog = std::make_shared<LogFormatCatalog>( userFormats );
     catalog->rebuild();
 
-    Session session{ policies, catalog };
+    // The Log File hears of each change at once, when the test reports it.
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ policies, catalog, fileWatch };
     session.savedSearches().clear();
 
     GIVEN( "a recognized Log File shown as a Table View, with Auto-show Table View enabled" )
@@ -340,6 +337,7 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
                 QFile file( path );
                 REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
             }
+            REQUIRE( fileWatch->reportChange( path ) );
             REQUIRE( waitUiState( [ & ] { return logFile->nbLines() == 0_lcount; } ) );
             REQUIRE( logFile->logFormat() == nullptr );
 
@@ -348,6 +346,7 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
                 REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Append ) );
                 writeLogLines( file );
             }
+            REQUIRE( fileWatch->reportChange( path ) );
             REQUIRE( logFile->waitLoaded( LinesCount( LineCount ) ) );
             REQUIRE( waitUiState( [ & ] { return logFile->recognitionCount() >= 2; } ) );
 
@@ -367,6 +366,4 @@ SCENARIO( "A truncated Log File is recognized exactly once when it has loaded ag
             }
         }
     }
-
-    FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
 }

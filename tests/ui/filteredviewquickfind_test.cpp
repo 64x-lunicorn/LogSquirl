@@ -93,12 +93,6 @@ struct QuickFindLogFile {
                       >= 100;
     }
 
-    // The Log Line the view's line viewLine shows now.
-    LineNumber logLineAt( LineNumber viewLine ) const
-    {
-        return filteredData->getMatchingLineNumber( viewLine );
-    }
-
     SettingsPolicies policies;
     QTemporaryFile file{ "filtered_view_quickfind_test_XXXXXX" };
     LogData logData;
@@ -112,11 +106,11 @@ void waitForQuickFindWorker()
     REQUIRE( QThreadPool::globalInstance()->waitForDone( 10000 ) );
 }
 
-// The Log Line the view selected with the newSelection signal at index.
-LineNumber selectedLogLine( const QuickFindLogFile& logFile, const QSignalSpy& selected,
-                            qsizetype index = 0 )
+// The Log Line the view selected with the newSelection signal at index: the
+// Filtered View hands out Log Lines, never its positions.
+LineNumber selectedLogLine( const QSignalSpy& selected, qsizetype index = 0 )
 {
-    return logFile.logLineAt( qvariant_cast<LineNumber>( selected.at( index ).at( 0 ) ) );
+    return qvariant_cast<LineNumber>( selected.at( index ).at( 0 ) );
 }
 
 void usePattern( QuickFindPattern& quickFindPattern, const QString& regularExpression )
@@ -159,7 +153,7 @@ SCENARIO( "a Filtered View QuickFind lands on the Log Line that matched when Mar
     view.updateData();
 
     REQUIRE( ( selected.count() > 0 || selected.wait( 10000 ) ) );
-    REQUIRE( selectedLogLine( logFile, selected ) == 500_lnum );
+    REQUIRE( selectedLogLine( selected ) == 500_lnum );
     REQUIRE( view.getSelectedText() == QStringLiteral( "line 000500" ) );
 }
 
@@ -192,14 +186,15 @@ SCENARIO( "a Filtered View QuickFind whose matched line is no longer displayed w
             {
                 REQUIRE( ( selected.count() > 0 || selected.wait( 10000 ) ) );
                 REQUIRE( selected.count() == 1 );
-                REQUIRE( selectedLogLine( logFile, selected ) == 15_lnum );
+                REQUIRE( selectedLogLine( selected ) == 15_lnum );
             }
         }
 
         WHEN( "a backward QuickFind from the last line matched Log Line 15, and its Mark is "
               "deleted" )
         {
-            view.selectAndDisplayLine( LineNumber( logFile.filteredData->getNbLine().get() - 1 ) );
+            view.selectAndDisplayLine( logFile.filteredData->getMatchingLineNumber(
+                LineNumber( logFile.filteredData->getNbLine().get() - 1 ) ) );
             QSignalSpy selected( &view, &AbstractLogView::newSelection );
             view.searchBackward();
             waitForQuickFindWorker();
@@ -210,7 +205,7 @@ SCENARIO( "a Filtered View QuickFind whose matched line is no longer displayed w
             {
                 REQUIRE( ( selected.count() > 0 || selected.wait( 10000 ) ) );
                 REQUIRE( selected.count() == 1 );
-                REQUIRE( selectedLogLine( logFile, selected ) == 5_lnum );
+                REQUIRE( selectedLogLine( selected ) == 5_lnum );
             }
         }
     }
@@ -256,14 +251,14 @@ SCENARIO( "incremental QuickFind in the Filtered View restores its initial selec
     FilteredView view( logFile.filteredData.get(), &quickFindPattern, false );
 
     // Log Line 100 is the 11th displayed line.
-    view.selectAndDisplayLine( 10_lnum );
+    view.selectAndDisplayLine( 100_lnum );
     REQUIRE( view.getSelectedText() == QuickFindLogFile::logLineText( 100 ) );
 
     usePattern( quickFindPattern, QStringLiteral( "line 000500" ) );
     QSignalSpy selected( &view, &AbstractLogView::newSelection );
     view.incrementallySearchForward();
     REQUIRE( ( selected.count() > 0 || selected.wait( 10000 ) ) );
-    REQUIRE( selectedLogLine( logFile, selected ) == 500_lnum );
+    REQUIRE( selectedLogLine( selected ) == 500_lnum );
 
     SECTION( "aborting after Marks were added selects Log Line 100 again" )
     {
@@ -305,12 +300,12 @@ SCENARIO( "a Filtered View QuickFind runs while Marks change",
     int selections = 0;
     int wrongSelections = 0;
     QObject::connect( &view, &AbstractLogView::newSelection, &view,
-                      [ & ]( LineNumber viewLine, LinesCount, LineColumn, LineLength ) {
+                      [ & ]( LineNumber logLine, LinesCount, LineColumn, LineLength ) {
                           if ( selectingByHand ) {
                               return;
                           }
                           ++selections;
-                          const auto text = logFile.filteredData->getExpandedLineString( viewLine );
+                          const auto text = logFile.logData.getExpandedLineString( logLine );
                           if ( !endsInSeven.match( text ).hasMatch() ) {
                               ++wrongSelections;
                           }

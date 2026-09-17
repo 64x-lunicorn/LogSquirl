@@ -126,12 +126,6 @@ public:
     }
 
     using AbstractLogView::createContextMenu;
-
-protected:
-    AbstractLogData::LineType lineType( LineNumber ) const override
-    {
-        return {};
-    }
 };
 
 const QStringList SaveLines = {
@@ -581,7 +575,73 @@ void choose( const QMenu& menu, const QString& entry )
     FAIL( "no entry " << entry.toStdString() );
 }
 
+// A Log Format whose body is the whole Log Line, so the characters of its
+// cell are those of the Log Line.
+LogFormatDefinition makeWholeLineFormat()
+{
+    LogFormatDefinition format;
+    format.setName( "logtableview_test_whole_line" );
+    format.setTitle( "Table View whole line test" );
+
+    QHash<QString, QString> regex;
+    regex[ "basic" ] = R"(^(?<body>.*)$)";
+    format.setRegexPatterns( regex );
+    format.setBodyField( "body" );
+
+    return format;
+}
+
+// The column the Table View shows the body in; the two before it stay empty.
+constexpr int BodyColumn = 2;
+
 } // namespace
+
+SCENARIO( "The Text View and the Table View copy a Log Line holding a null character alike",
+          "[logtableview][copy]" )
+{
+    const auto format = makeWholeLineFormat();
+    const QStringList lines = { QString( "before" ) + QChar( QChar::Null ) + QString( "after" ) };
+    FakeLogData logData( lines );
+
+    GIVEN( "the Log Line selected in the Text View, and in the Table View every character "
+           "of the cell showing it" )
+    {
+        QuickFindPattern quickFindPattern;
+        TextView textView( &logData, &quickFindPattern );
+        textView.resize( 800, 400 );
+        textView.selectAndDisplayLine( 0_lnum );
+
+        InspectedTableView tableView;
+        open( tableView, format, logData );
+        tableView.setActive( true );
+        tableView.show();
+        QCoreApplication::processEvents();
+        const auto cell = tableView.visualRect( tableView.model()->index( 0, BodyColumn ) );
+        QTest::mousePress( tableView.viewport(), Qt::LeftButton, {},
+                           QPoint( cell.left(), cell.center().y() ) );
+        QTest::mouseMove( tableView.viewport(), QPoint( cell.right(), cell.center().y() ) );
+        QTest::mouseRelease( tableView.viewport(), Qt::LeftButton, {},
+                             QPoint( cell.right(), cell.center().y() ) );
+        REQUIRE( tableView.selectedText().size() == lines[ 0 ].size() );
+
+        WHEN( "each copies it from its context menu" )
+        {
+            QApplication::clipboard()->clear();
+            choose( *textView.createContextMenu( QPoint( 100, 2 ) ), "&Copy this line" );
+            const auto fromTextView = QApplication::clipboard()->text();
+
+            QApplication::clipboard()->clear();
+            choose( *tableView.createContextMenu( cell.center() ), "&Copy" );
+            const auto fromTableView = QApplication::clipboard()->text();
+
+            THEN( "both copy the same text, with a space for the null character" )
+            {
+                REQUIRE( fromTextView == "before after" );
+                REQUIRE( fromTableView == fromTextView );
+            }
+        }
+    }
+}
 
 SCENARIO( "Search Limits set from the Table View's context menu are those of the Log Line under "
           "the cursor",

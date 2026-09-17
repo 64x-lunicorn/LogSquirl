@@ -32,26 +32,6 @@
 #include <optional>
 #include <vector>
 
-// The colors that show what a Log Line *is* rather than what its text says:
-// whether it is a Match, a Mark, or both at once.
-//
-// Defined once here because every Presentation shows the same three facts,
-// each in the only place it has: the Text View paints them as a gutter
-// bullet, the Table View -- which has no gutter -- as the row background,
-// the overview strip as a line. They have to agree, and a comment asking two
-// copies to stay in step is not what keeps them agreeing.
-struct LineStatusColors {
-    // The color of a Log Line the current Search selected.
-    static QColor match();
-
-    // The color of a Log Line the user flagged by hand.
-    static QColor mark();
-
-    // The color of a Log Line that is a Mark and a Match at once. Its own
-    // color, so that neither fact hides the other.
-    static QColor markedMatch();
-};
-
 // The one owner of the setup both Presentations need before anything is
 // painted: it builds the Line Decorator's Context, and it is the only place
 // that builds one.
@@ -65,15 +45,18 @@ struct LineStatusColors {
 // and keeps the compiled form, so a Highlighter that outlives the repaint is
 // what stops the regex being recompiled for every line or every cell drawn.
 //
-// Selection is deliberately not part of the Context. It arrives in display
-// space, from pixel positions against the already tab-expanded text, while
-// every other color source matches the raw Log Line; the caller overlays it
-// afterwards, in the space it belongs to.
+// Selection is deliberately not part of the Context: it is a fact about one
+// line, which the caller hands the Line Decorator with each line -- in raw
+// columns, as every other color source is matched.
 class DecorationSetup {
 public:
     // Hand over the settings that color Log Lines. Rebuilds the cached
     // main-search Highlighter, since its colors come from the Policy.
     void setPolicy( const DecorationPolicy& policy );
+    const DecorationPolicy& policy() const
+    {
+        return policy_;
+    }
 
     // Hand over the main Search's pattern. Rebuilds the cached main-search
     // Highlighter; an empty, boolean or excluding pattern builds none, as
@@ -95,12 +78,14 @@ public:
 
     // The Context the Line Decorator resolves every color source against,
     // for the active Highlighter Set and the Search Limits in force at this
-    // moment. Both are passed in rather than stored: the active set is the
+    // moment, the Presentation's palette and where it shows a line's Match
+    // and Mark. They are passed in rather than stored: the active set is the
     // user's current coloring, which changes without this module hearing of
-    // it, and the Text View's limits are known only once it knows which Log
-    // Lines it is about to draw.
-    LineDecorator::Context context( const HighlighterSet& highlighterSet,
-                                    SearchLimits searchLimits ) const;
+    // it, the Text View's limits are known only once it knows which Log
+    // Lines it is about to draw, and the palette belongs to the widget.
+    LineDecorator::Context context( const HighlighterSet& highlighterSet, SearchLimits searchLimits,
+                                    const LinePalette& palette,
+                                    LineStatusDisplay lineStatus ) const;
 
 private:
     // Rebuild the cached main-search Highlighter from the Policy and the

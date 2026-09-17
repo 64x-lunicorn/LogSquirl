@@ -43,15 +43,14 @@
 #include <cassert>
 
 #include "filteredview.h"
-#include "logdata.h"
-#include "shortcuts.h"
 
 FilteredView::FilteredView( LogFilteredData* newLogData,
                             const QuickFindPattern* const quickFindPattern, bool initialTextWrap,
                             QWidget* parent )
-    : AbstractLogView( newLogData, quickFindPattern, initialTextWrap, parent )
+    : AbstractLogView( newLogData, std::make_unique<FilteredViewLines>( newLogData ),
+                       quickFindPattern, initialTextWrap, parent )
 {
-    // We keep a copy of the filtered data for fast lookup of the line type
+    // Kept for what is visible in the view
     logFilteredData_ = newLogData;
 }
 
@@ -69,86 +68,4 @@ FilteredView::Visibility FilteredView::visibility() const
     assert( logFilteredData_ );
 
     return logFilteredData_->visibility();
-}
-
-// For the filtered view, a line is always matching!
-AbstractLogData::LineType FilteredView::lineType( LineNumber lineNumber ) const
-{
-    // line in filteredview corresponds to index
-    return logFilteredData_->lineTypeByIndex( lineNumber );
-}
-
-LineNumber FilteredView::displayLineNumber( LineNumber lineNumber ) const
-{
-    // Display a 1-based index
-    return logFilteredData_->getMatchingLineNumber( lineNumber ) + 1_lcount;
-}
-
-LineNumber FilteredView::lineIndex( LineNumber lineNumber ) const
-{
-    return logFilteredData_->getLineIndexNumber( lineNumber );
-}
-
-LineNumber FilteredView::maxDisplayLineNumber() const
-{
-    return LineNumber( logFilteredData_->getNbTotalLines().get() );
-}
-
-QuickFindLines FilteredView::quickFindLines() const
-{
-    // The worker reads the Log File's text, which is safe off the UI thread,
-    // and never the LogFilteredData, which the UI thread goes on changing.
-    return QuickFindLines::someLogLines( logFilteredData_->sourceLogData(),
-                                         logFilteredData_->copyDisplayedLines() );
-}
-
-DisplayedLinesReader FilteredView::linesToSave() const
-{
-    // As for QuickFind, the save reads the Log File's text and never the
-    // LogFilteredData, which the UI thread goes on changing.
-    return [ logFile = &logFilteredData_->sourceLogData(),
-             lines = std::make_shared<const SearchResultArray>(
-                 logFilteredData_->copyDisplayedLines() ) ]( LineNumber first, LinesCount count ) {
-        logsquirl::vector<QString> text;
-        text.reserve( count.get() );
-        for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
-            const auto logLine = lineAtPosition( *lines, LineNumber( position ) );
-            text.push_back( logLine.has_value() ? logFile->getLineString( *logLine ) : QString{} );
-        }
-        return text;
-    };
-}
-
-void FilteredView::doRegisterShortcuts()
-{
-    LOG_INFO << "Registering shortcuts for filtered view";
-    AbstractLogView::doRegisterShortcuts();
-    registerShortcut( ShortcutAction::LogViewNextMark, [ this ] {
-        using LineTypeFlags = LogFilteredData::LineTypeFlags;
-        auto i = getViewPosition() - 1_lcount;
-        bool foundMark = false;
-        for ( ; i != 0_lnum; --i ) {
-            if ( lineType( i ).testFlag( LineTypeFlags::Mark ) ) {
-                foundMark = true;
-                break;
-            }
-        }
-
-        if ( !foundMark ) {
-            foundMark = lineType( i ).testFlag( LineTypeFlags::Mark );
-        }
-
-        if ( foundMark ) {
-            selectAndDisplayLine( i );
-        }
-    } );
-    registerShortcut( ShortcutAction::LogViewPrevMark, [ this ] {
-        const auto nbLines = logFilteredData_->getNbLine();
-        for ( auto i = getViewPosition() + 1_lcount; i < nbLines; ++i ) {
-            if ( lineType( i ).testFlag( LogFilteredData::LineTypeFlags::Mark ) ) {
-                selectAndDisplayLine( i );
-                break;
-            }
-        }
-    } );
 }

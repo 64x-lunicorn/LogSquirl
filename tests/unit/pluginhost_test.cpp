@@ -19,7 +19,6 @@
 
 #include <catch2/catch.hpp>
 
-#include "configuration.h"
 #include "logsquirl_plugin_api.h"
 #include "plugincatalog.h"
 #include "pluginhost.h"
@@ -208,35 +207,6 @@ void installManifest( const QString& root, const QString& id, const QString& lib
                         .arg( id, library )
                         .toUtf8() );
 }
-
-/// Sets the plugin settings autoLoadPlugins() reads, and puts the configuration back when it goes.
-struct PluginSettings {
-    PluginSettings( bool autoLoad, const QStringList& enabled )
-        : saved_( Configuration::get() )
-    {
-        auto& config = Configuration::get();
-        config.setPluginsAutoLoad( autoLoad );
-        config.setEnabledPlugins( enabled );
-    }
-
-    ~PluginSettings()
-    {
-        Configuration::get() = saved_;
-        if ( restoreSettingsFile ) {
-            Configuration::get().save();
-        }
-    }
-
-    PluginSettings( const PluginSettings& ) = delete;
-    PluginSettings& operator=( const PluginSettings& ) = delete;
-
-    /// Set when the scenario makes the host save the configuration to the settings
-    /// file: that file then gets the configuration from before the scenario back.
-    bool restoreSettingsFile = false;
-
-private:
-    Configuration saved_;
-};
 
 void menuCallback( void* ) {}
 
@@ -521,21 +491,22 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
         WHEN( "Auto-load is enabled but no plugin is enabled" )
         {
-            const PluginSettings settings( true, {} );
-            const auto errors = host.autoLoadPlugins();
+            const auto loaded = host.autoLoadPlugins( { .autoLoad = true, .enabled = {} } );
 
-            THEN( "Nothing is loaded and there are no errors" )
+            THEN( "Nothing is loaded or enabled, and there are no errors" )
             {
-                REQUIRE( errors.isEmpty() );
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
                 REQUIRE( host.loadedPluginIds().isEmpty() );
             }
         }
 
         WHEN( "The configuration enables plugins the catalog does not list" )
         {
-            const PluginSettings settings(
-                true, QStringList{ "com.example.nonexistent", "com.example.missing" } );
-            const auto errors = host.autoLoadPlugins();
+            const auto errors = host.autoLoadPlugins( { .autoLoad = true,
+                                                        .enabled = { "com.example.nonexistent",
+                                                                     "com.example.missing" } } )
+                                    .errors;
 
             THEN( "They are skipped without an error" )
             {
@@ -568,24 +539,38 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
         WHEN( "Auto-load is disabled and both plugins are enabled" )
         {
-            const PluginSettings settings( false, QStringList{ ProbeId, missingId } );
-            const auto errors = host.autoLoadPlugins();
+            const auto loaded
+                = host.autoLoadPlugins( { .autoLoad = false, .enabled = { ProbeId, missingId } } );
 
-            THEN( "Nothing is loaded and there are no errors" )
+            THEN( "Nothing is loaded or enabled, and there are no errors" )
             {
-                REQUIRE( errors.isEmpty() );
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
+                REQUIRE( host.loadedPluginIds().isEmpty() );
+            }
+        }
+
+        WHEN( "Auto-load is disabled and no plugin has been enabled yet" )
+        {
+            const auto loaded = host.autoLoadPlugins( { .autoLoad = false, .enabled = {} } );
+
+            THEN( "Nothing is loaded or enabled" )
+            {
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
                 REQUIRE( host.loadedPluginIds().isEmpty() );
             }
         }
 
         WHEN( "The probe plugin is enabled" )
         {
-            const PluginSettings settings( true, QStringList{ ProbeId } );
-            const auto errors = host.autoLoadPlugins();
+            const auto loaded
+                = host.autoLoadPlugins( { .autoLoad = true, .enabled = { ProbeId } } );
 
-            THEN( "It is loaded and announced" )
+            THEN( "It is loaded and announced, and no plugin is enabled besides it" )
             {
-                REQUIRE( errors.isEmpty() );
+                REQUIRE( loaded.errors.isEmpty() );
+                REQUIRE_FALSE( loaded.enabledOnFirstRun );
                 REQUIRE( host.isLoaded( ProbeId ) );
                 REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
                 REQUIRE( loadedSignals == QStringList{ ProbeId } );
@@ -593,7 +578,8 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
             AND_WHEN( "The plugins are loaded again" )
             {
-                const auto againErrors = host.autoLoadPlugins();
+                const auto againErrors
+                    = host.autoLoadPlugins( { .autoLoad = true, .enabled = { ProbeId } } ).errors;
 
                 THEN( "The loaded plugin is skipped" )
                 {
@@ -605,8 +591,8 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
         WHEN( "The plugin whose library is missing is enabled" )
         {
-            const PluginSettings settings( true, QStringList{ missingId } );
-            const auto errors = host.autoLoadPlugins();
+            const auto errors
+                = host.autoLoadPlugins( { .autoLoad = true, .enabled = { missingId } } ).errors;
 
             THEN( "Loading it fails with an error naming the plugin" )
             {
@@ -618,20 +604,19 @@ SCENARIO( "The Plugin Host loads the plugins enabled in the configuration",
 
         WHEN( "No plugin has been enabled yet" )
         {
-            PluginSettings settings( true, {} );
-            // autoLoadPlugins() saves the plugins it enables on a first run.
-            settings.restoreSettingsFile = true;
-            const auto errors = host.autoLoadPlugins();
+            const auto loaded = host.autoLoadPlugins( { .autoLoad = true, .enabled = {} } );
 
-            THEN( "Every plugin in the catalog is enabled and those that can be are loaded" )
+            THEN( "Every plugin in the catalog is enabled, for the caller to keep, and those "
+                  "that can be are loaded" )
             {
+                REQUIRE( loaded.enabledOnFirstRun );
                 // Discovery order depends on the file system.
-                auto enabled = Configuration::get().enabledPlugins();
+                auto enabled = *loaded.enabledOnFirstRun;
                 enabled.sort();
                 auto expected = QStringList{ ProbeId, missingId };
                 expected.sort();
                 REQUIRE( enabled == expected );
-                REQUIRE( errors.size() == 1 );
+                REQUIRE( loaded.errors.size() == 1 );
                 REQUIRE( host.loadedPluginIds() == QStringList{ ProbeId } );
             }
         }

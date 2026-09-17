@@ -24,6 +24,10 @@
 // in it, checked the same way for the main view and the Filtered View (#153,
 // #154, #155). The Log Files these run on are in log_view_log_files.h.
 //
+// The scrolling rules themselves are checked without a widget in
+// tests/textviewscrolling (#246). What is left here checks that a text view
+// hands Qt's events to them and applies their answers.
+//
 // Input is simulated: the wheel, the keys, the mouse and the scrollbar all go
 // through the widget. What sits on a row of the Viewport is then asked of the
 // view's own Viewport layout, the one its hit testing and its painting read.
@@ -249,33 +253,6 @@ inline void requireWheelStepsMoveTheSameVisualLinesEverywhere( AbstractLogView& 
     }
 }
 
-inline void requireArrowKeysStepOneVisualLineAcrossLogLines( AbstractLogView& view )
-{
-    const ScrollPosition lastOfTallLine{ TallLine, TallLineVisualLines - 1 };
-    moveTo( view, lastOfTallLine );
-
-    pressKey( view, Qt::Key_Down );
-    REQUIRE( view.scrollPosition() == ScrollPosition{ TallLine + 1_lcount, 0 } );
-
-    pressKey( view, Qt::Key_Up );
-    REQUIRE( view.scrollPosition() == lastOfTallLine );
-}
-
-inline void requirePageDownThenPageUpReturns( AbstractLogView& view )
-{
-    for ( const auto start : { ScrollPosition{ 5_lnum, 0 }, ScrollPosition{ TallLine, 150 },
-                               ScrollPosition{ TallLine, TallLineVisualLines - 2 } } ) {
-        INFO( "from " << start.lineNumber.get() << ":" << start.visualLineIndex );
-        moveTo( view, start );
-
-        pressKey( view, Qt::Key_PageDown );
-        REQUIRE( view.scrollPosition() > start );
-
-        pressKey( view, Qt::Key_PageUp );
-        REQUIRE( view.scrollPosition() == start );
-    }
-}
-
 inline void requireScrollbarCountsWholeLogLines( AbstractLogView& view )
 {
     const PinnedWheelScrollLines pinned;
@@ -329,48 +306,6 @@ inline void requireScrollbarMaximumShowsTheLastVisualLineOnTheLastRow( AbstractL
     requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
 }
 
-inline void requireScrollingStopsAtTheBottom( AbstractLogView& view, LinesCount logLines )
-{
-    const PinnedWheelScrollLines pinned;
-    dragToScrollbarMaximum( view );
-    const auto bottom = view.scrollPosition();
-
-    pressKey( view, Qt::Key_Down );
-    REQUIRE( view.scrollPosition() == bottom );
-    pressKey( view, Qt::Key_PageDown );
-    REQUIRE( view.scrollPosition() == bottom );
-    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
-
-    turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
-    REQUIRE( view.scrollPosition() == bottom );
-}
-
-inline void requireScrollingDownFromTheTopReachesTheBottom( AbstractLogView& view,
-                                                            LinesCount logLines )
-{
-    const PinnedWheelScrollLines pinned;
-
-    moveTo( view, ScrollPosition{} );
-    for ( int page = 0; page < 1000; ++page ) {
-        const auto before = view.scrollPosition();
-        pressKey( view, Qt::Key_PageDown );
-        if ( view.scrollPosition() == before ) {
-            break;
-        }
-    }
-    const auto reachedByPages = view.scrollPosition();
-    requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
-
-    moveTo( view, ScrollPosition{} );
-    for ( int notch = 0; notch < 1000 && view.scrollPosition() != reachedByPages; ++notch ) {
-        turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
-    }
-    REQUIRE( view.scrollPosition() == reachedByPages );
-
-    dragToScrollbarMaximum( view );
-    REQUIRE( view.scrollPosition() == reachedByPages );
-}
-
 // The view, one column wide and showing tallLastLogLines().
 inline void requireScrollbarMovedToItsMaximumLandsAtTheBottom( AbstractLogView& view,
                                                                LinesCount logLines )
@@ -407,22 +342,6 @@ inline void requireScrollbarMovedToItsMaximumLandsAtTheBottom( AbstractLogView& 
              == ScrollPosition{ bottom.lineNumber, bottom.visualLineIndex - 1 } );
 }
 
-inline void requireFewerVisualLinesThanRowsShowFromTheTop( AbstractLogView& view )
-{
-    const PinnedWheelScrollLines pinned;
-
-    REQUIRE( view.verticalScrollBar()->maximum() == 0 );
-    REQUIRE( view.scrollPosition() == ScrollPosition{} );
-
-    pressKey( view, Qt::Key_PageDown );
-    turnWheel( view, -QWheelEvent::DefaultDeltasPerStep );
-    REQUIRE( view.scrollPosition() == ScrollPosition{} );
-
-    const auto topRow = visualLineAtRow( view, TopRowY );
-    REQUIRE( topRow.lineNumber == 0_lnum );
-    REQUIRE( topRow.wrappedLineIndex == 0 );
-}
-
 // Adds to the Log Lines the view shows and tells the view, returning what the
 // Log File holds afterwards.
 using GrowLogFile = std::function<LinesCount()>;
@@ -443,20 +362,6 @@ inline void requireFollowKeepsTheLastVisualLineOnTheLastRow( AbstractLogView& vi
     dragToScrollbarMaximum( view );
     REQUIRE( view.scrollPosition() == followed );
     requireLogFileEndsOnRow( view, lastRowY( view ), logLines );
-}
-
-inline void requireGrowthWithoutFollowLeavesTheBottomView( AbstractLogView& view,
-                                                           const GrowLogFile& grow )
-{
-    dragToScrollbarMaximum( view );
-    const auto before = view.scrollPosition();
-    const auto lastRowBefore = visualLineAtRow( view, lastRowY( view ) );
-
-    grow();
-
-    REQUIRE( view.scrollPosition() == before );
-    REQUIRE( visualLineAtRow( view, lastRowY( view ) ) == lastRowBefore );
-    REQUIRE( view.verticalScrollBar()->maximum() > static_cast<int>( before.lineNumber.get() ) );
 }
 
 // --- re-wrapping and jumps (#155) ------------------------------------------

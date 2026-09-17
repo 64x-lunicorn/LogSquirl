@@ -113,7 +113,6 @@
 #include "progress.h"
 #include "readablesize.h"
 #include "recentfiles.h"
-#include "sessioninfo.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
 #include "theme.h"
@@ -172,7 +171,6 @@ MainWindow::MainWindow( WindowSession session )
     // Send actions to the crawlerwidget
     signalMux_.connect( this, SIGNAL( followSet( bool ) ), SIGNAL( followSet( bool ) ) );
     signalMux_.connect( this, SIGNAL( textWrapSet( bool ) ), SIGNAL( textWrapSet( bool ) ) );
-    signalMux_.connect( this, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
     signalMux_.connect( this, SIGNAL( enteringQuickFind() ), SLOT( enteringQuickFind() ) );
     signalMux_.connect( &quickFindWidget_, SIGNAL( close() ), SLOT( exitingQuickFind() ) );
 
@@ -184,11 +182,6 @@ MainWindow::MainWindow( WindowSession session )
         SLOT( lineNumberHandler( LineNumber, LinesCount, LineColumn, LineLength ) ) );
     signalMux_.connect( SIGNAL( saveCurrentSearchAsPredefinedFilter( QString ) ), this,
                         SLOT( newPredefinedFilterHandler( QString ) ) );
-
-    // Only the Log File in front is connected, which is the one whose Policy
-    // the QuickFind bar and the mux are to follow.
-    signalMux_.connect( SIGNAL( quickFindPolicyChanged( const QuickFindPolicy& ) ), this,
-                        SLOT( applyQuickFindPolicy( const QuickFindPolicy& ) ) );
 
     signalMux_.connect( SIGNAL( sendToScratchpad( QString ) ), this,
                         SLOT( sendToScratchpad( QString ) ) );
@@ -306,6 +299,10 @@ MainWindow::MainWindow( WindowSession session )
 
     // Construct the QuickFind bar
     quickFindWidget_.hide();
+    applyQuickFindPolicy();
+
+    // Told of every settings change, whichever window it was made in.
+    session_.addWindow( this );
 
     // Build the central layout with the tab widget, quick-find bar, and
     // welcome dashboard as a permanent pinned first tab (if enabled).
@@ -372,8 +369,16 @@ MainWindow::MainWindow( WindowSession session )
 
     // Auto-load previously enabled plugins (signals are now connected, so
     // register_status_widget / register_menu_action will be delivered).
-    const auto pluginErrors = pluginHost_.autoLoadPlugins();
-    for ( const auto& error : pluginErrors ) {
+    // The host reads no settings: it is handed them, and a first run's
+    // default, every discovered plugin enabled, is kept here.
+    const auto autoLoaded = pluginHost_.autoLoadPlugins(
+        { .autoLoad = config.pluginsAutoLoad(), .enabled = config.enabledPlugins() } );
+    if ( autoLoaded.enabledOnFirstRun ) {
+        auto& pluginConfig = Configuration::get();
+        pluginConfig.setEnabledPlugins( *autoLoaded.enabledOnFirstRun );
+        pluginConfig.save();
+    }
+    for ( const auto& error : autoLoaded.errors ) {
         LOG_WARNING << "Plugin auto-load error: " << error;
     }
 
@@ -406,25 +411,28 @@ void MainWindow::reloadSession()
     const auto followFileOnLoad
         = config.followFileOnLoad() && session_.watchPolicy().anyWatchEnabled();
 
-    int current_file_index = -1;
-    const auto openedFiles
-        = session_.restore( [] { return new CrawlerWidget(); }, &current_file_index );
+    // The widgets are kept as they are built, in the order the Session opens
+    // their Log Files, so that nothing has to be cast back from the views.
+    std::vector<CrawlerWidget*> crawlers;
+    int currentFileIndex = -1;
+    const auto openedFiles = session_.restore(
+        [ &crawlers ]( const ViewBuild& build ) {
+            crawlers.push_back( new CrawlerWidget( build ) );
+            return crawlers.back();
+        },
+        &currentFileIndex );
 
-    for ( const auto& open_file : openedFiles ) {
-        QString file_name = { open_file.first };
-        auto* crawler_widget = static_cast<CrawlerWidget*>( open_file.second );
+    for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
+        auto* crawlerWidget = crawlers[ i ];
+        mainTabWidget_.addCrawler( crawlerWidget, openedFiles[ i ].first );
 
-        if ( crawler_widget ) {
-            mainTabWidget_.addCrawler( crawler_widget, file_name );
-
-            if ( followFileOnLoad ) {
-                signalCrawlerToFollowFile( crawler_widget );
-            }
+        if ( followFileOnLoad ) {
+            signalCrawlerToFollowFile( crawlerWidget );
         }
     }
 
-    if ( current_file_index >= 0 ) {
-        mainTabWidget_.setCurrentIndex( current_file_index );
+    if ( currentFileIndex >= 0 ) {
+        mainTabWidget_.setCurrentIndex( currentFileIndex );
 
         if ( followFileOnLoad ) {
             followAction->setChecked( true );
@@ -1020,12 +1028,10 @@ void MainWindow::createMenus()
 
     highlightersMenu = new HighlightersMenu( tr( menu::highlightersTitle ), menuBar() );
     menuBar()->addMenu( highlightersMenu );
-    highlightersMenu->setApplyChange( [ this ]() {
-        auto crawler = currentCrawlerWidget();
-        if ( crawler != nullptr ) {
-            crawler->applyHighlighterSetChange();
-        }
-    } );
+    // Every open Log File is re-colored, not only the one the current tab
+    // shows: the others would keep the colors their Color Labels had.
+    highlightersMenu->setApplyChange(
+        [ this ]() { session_.applyChange( Changed::HighlighterSets ); } );
 
     toolsMenu->addAction( predefinedFiltersDialogAction );
     toolsMenu->addAction( importChipmunkFiltersAction );
@@ -1440,14 +1446,14 @@ void MainWindow::openUrl()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyHighlighterSetChange() ) );
 
-    connect( &dialog, &HighlightersDialog::optionsChanged,
-             [ this ]() { updateHighlightersMenu(); } );
+    // Reaches every open Log File, in every window, not only the current tab.
+    connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
+        session_.applyChange( Changed::HighlighterSets );
+        updateHighlightersMenu();
+    } );
 
     dialog.exec();
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ),
-                           SLOT( applyHighlighterSetChange() ) );
 }
 
 // Opens dialog to configure predefined filters
@@ -1455,13 +1461,12 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
 {
     PredefinedFiltersDialog dialog( newFilter, this );
 
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
-
+    // The Predefined Filters are no setting a Log File shows: only the filters
+    // panel lists them.
     connect( &dialog, &PredefinedFiltersDialog::optionsChanged,
              [ this ]() { filtersPanel_.refreshFilters(); } );
 
     dialog.exec();
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 }
 
 // Opens the 'Options' modal dialog box
@@ -1469,30 +1474,26 @@ void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
     OptionsDialog dialog( *logFormatCatalog, this );
-    signalMux_.connect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
 
-    connect( &dialog, &OptionsDialog::optionsChanged, [ this ]() {
-        // The settings store has changed: whoever derives the Policies
-        // re-derives them and hands the changed axes down. Beside the View
-        // menu's toggles of what a Presentation shows, this is the only place
-        // that writes a setting a Policy names, and it comes first so that
-        // what follows reads Policies already re-derived -- the follow action
-        // below is enabled from the Watch Policy.
-        Q_EMIT settingsChanged();
-
-        const auto& config = Configuration::get();
-        logging::enableFileLogging( config.enableLogging(),
-                                    static_cast<logging::LogLevel>( config.loggingLevel() ) );
-
-        newWindowAction->setVisible( config.allowMultipleWindows() );
-        followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
-
-        updateShortcuts();
-        updateRecentFileActions();
-    } );
+    // The dialog only says that the settings changed; the Session takes it
+    // from there, to every open Log File and every window, this one included.
+    connect( &dialog, &OptionsDialog::optionsChanged,
+             [ this ]() { session_.applyChange( Changed::Settings ); } );
     dialog.exec();
+}
 
-    signalMux_.disconnect( &dialog, SIGNAL( optionsChanged() ), SLOT( applyConfiguration() ) );
+void MainWindow::applySettingsChange()
+{
+    const auto& config = Configuration::get();
+    logging::enableFileLogging( config.enableLogging(),
+                                static_cast<logging::LogLevel>( config.loggingLevel() ) );
+
+    newWindowAction->setVisible( config.allowMultipleWindows() );
+    followAction->setEnabled( session_.watchPolicy().anyWatchEnabled() );
+    applyQuickFindPolicy();
+
+    updateShortcuts();
+    updateRecentFileActions();
 }
 
 void MainWindow::showPluginDialog()
@@ -1793,11 +1794,9 @@ void MainWindow::importChipmunkFilters()
                                   .arg( filtersAdded )
                                   .arg( highlighterAdded ? 1 : 0 ) );
 
-    // The imported Highlighter Set may be active: paint the current Log File
-    // again with it.
-    if ( auto crawler = currentCrawlerWidget() ) {
-        crawler->applyHighlighterSetChange();
-    }
+    // The imported Highlighter Set may be active: paint every open Log File
+    // again with it, not only the one the current tab shows.
+    session_.applyChange( Changed::HighlighterSets );
 }
 
 void MainWindow::encodingChanged( QAction* action )
@@ -1816,16 +1815,15 @@ void MainWindow::encodingChanged( QAction* action )
 }
 
 // The three View-menu toggles below write a setting the Presentation Policy
-// names. They take the Options Dialog's path back to what is running, not
-// optionsChanged(): that one reaches the current tab only through the signal
-// mux, and re-derives nothing, so every other open Log File would go on
-// showing the old setting (#192).
+// names. They take the Options Dialog's path back to what is running, the
+// Session, so that every open Log File shows the new setting, not only the
+// current tab (#192, #245).
 void MainWindow::toggleOverviewVisibility( bool isVisible )
 {
     auto& config = Configuration::get();
     config.setOverviewVisible( isVisible );
     config.save();
-    Q_EMIT settingsChanged();
+    session_.applyChange( Changed::Settings );
 }
 
 void MainWindow::toggleMainLineNumbersVisibility( bool isVisible )
@@ -1834,7 +1832,7 @@ void MainWindow::toggleMainLineNumbersVisibility( bool isVisible )
 
     config.setMainLineNumbersVisible( isVisible );
     config.save();
-    Q_EMIT settingsChanged();
+    session_.applyChange( Changed::Settings );
 }
 
 void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
@@ -1843,7 +1841,7 @@ void MainWindow::toggleFilteredLineNumbersVisibility( bool isVisible )
 
     config.setFilteredLineNumbersVisible( isVisible );
     config.save();
-    Q_EMIT settingsChanged();
+    session_.applyChange( Changed::Settings );
 }
 
 void MainWindow::changeFollowMode( bool follow )
@@ -1976,13 +1974,13 @@ void MainWindow::handleFilteredViewChanged()
             = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
         if ( crawler_widget ) {
             quickFindMux_.registerSelector( crawler_widget );
-            applyQuickFindPolicy( crawler_widget->quickFindPolicy() );
         }
     }
 }
 
-void MainWindow::applyQuickFindPolicy( const QuickFindPolicy& policy )
+void MainWindow::applyQuickFindPolicy()
 {
+    const auto& policy = session_.quickFindPolicy();
     quickFindMux_.setQuickFindPolicy( policy );
     quickFindWidget_.setQuickFindPolicy( policy );
 }
@@ -2099,10 +2097,10 @@ void MainWindow::currentTabChanged( int index )
         }
         signalMux_.setCurrentDocument( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
-        applyQuickFindPolicy( crawler_widget->quickFindPolicy() );
 
-        // New tab is set up with fonts etc...
-        Q_EMIT optionsChanged();
+        // No configuration is applied here: a settings change has already
+        // reached this Log File, in front or not (#245).
+        crawler_widget->broughtToFront();
 
         updateMenuBarFromDocument( crawler_widget );
         updateTitleBar( session_.getFilename( crawler_widget ) );
@@ -2196,6 +2194,11 @@ void MainWindow::loadFileNonInteractive( const QString& file_name )
 //
 
 // Closes the application
+MainWindow::~MainWindow()
+{
+    session_.removeWindow( this );
+}
+
 void MainWindow::closeEvent( QCloseEvent* event )
 {
     if ( !isCloseFromTray_ && this->isVisible() && Configuration::get().minimizeToTray() ) {
@@ -2372,13 +2375,23 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
     LOG_DEBUG << "loadFile ( " << fileName.toStdString() << " )";
 
     // First check if the file is already open...
-    auto* existing_crawler = static_cast<CrawlerWidget*>( session_.getViewIfOpen( fileName ) );
-
-    if ( existing_crawler ) {
-        auto* crawlerWindow = qobject_cast<MainWindow*>( existing_crawler->window() );
-        if ( crawlerWindow ) {
-            crawlerWindow->mainTabWidget_.setCurrentWidget( existing_crawler );
-            crawlerWindow->activateWindow();
+    if ( const auto* existingView = session_.getViewIfOpen( fileName ) ) {
+        // Found among the tabs of every window, rather than cast back from
+        // the views the Session knows.
+        for ( auto* topLevel : QApplication::topLevelWidgets() ) {
+            auto* crawlerWindow = qobject_cast<MainWindow*>( topLevel );
+            if ( !crawlerWindow ) {
+                continue;
+            }
+            for ( int i = 0; i < crawlerWindow->mainTabWidget_.count(); ++i ) {
+                auto* crawler
+                    = qobject_cast<CrawlerWidget*>( crawlerWindow->mainTabWidget_.widget( i ) );
+                if ( crawler && static_cast<const ViewInterface*>( crawler ) == existingView ) {
+                    crawlerWindow->mainTabWidget_.setCurrentWidget( crawler );
+                    crawlerWindow->activateWindow();
+                    return true;
+                }
+            }
         }
         return true;
     }
@@ -2406,44 +2419,27 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
         loadingFileName = fileName;
 
         try {
-            const auto previousViewContext = [ &fileName ]() {
-                const auto& session = SessionInfo::getSynced();
-                const auto& windows = session.windows();
-                for ( const auto& windowId : windows ) {
-                    const auto openedFiles = session.openFiles( windowId );
-                    const auto existingContext
-                        = std::find_if( openedFiles.begin(), openedFiles.end(),
-                                        [ &fileName ]( const auto& context ) {
-                                            return context.fileName == fileName;
-                                        } );
-                    if ( existingContext != openedFiles.end() ) {
-                        return existingContext->viewContext;
-                    }
-                }
-                return QString{};
-            }();
+            // The view context saved for this Log File, if any, is restored
+            // as the Session restores it: while its views are built.
+            CrawlerWidget* crawlerWidget = nullptr;
+            session_.open( fileName, [ &crawlerWidget ]( const ViewBuild& build ) {
+                crawlerWidget = new CrawlerWidget( build );
+                return crawlerWidget;
+            } );
 
-            CrawlerWidget* crawler_widget = static_cast<CrawlerWidget*>(
-                session_.open( fileName, []() { return new CrawlerWidget(); } ) );
-
-            if ( !crawler_widget ) {
+            if ( !crawlerWidget ) {
                 LOG_ERROR << "Can't create crawler for " << fileName.toStdString();
                 return false;
             }
 
             // We won't show the widget until the file is fully loaded
-            crawler_widget->hide();
-
-            if ( !previousViewContext.isEmpty() ) {
-                LOG_INFO << "Found existing context";
-                crawler_widget->setViewContext( previousViewContext );
-            }
+            crawlerWidget->hide();
 
             // We disable the tab widget to avoid having someone switch
             // tab during loading. (maybe FIXME)
             // mainTabWidget_.setEnabled( false );
 
-            int index = mainTabWidget_.addCrawler( crawler_widget, fileName );
+            int index = mainTabWidget_.addCrawler( crawlerWidget, fileName );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -2455,7 +2451,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             const auto& config = Configuration::get();
             if ( session_.watchPolicy().anyWatchEnabled()
                  && ( followFile || config.followFileOnLoad() ) ) {
-                signalCrawlerToFollowFile( crawler_widget );
+                signalCrawlerToFollowFile( crawlerWidget );
                 followAction->setChecked( true );
             }
         } catch ( ... ) {

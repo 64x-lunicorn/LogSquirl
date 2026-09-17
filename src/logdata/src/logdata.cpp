@@ -75,10 +75,6 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     , codec_( QTextCodec::codecForName( "ISO-8859-1" ) )
     , decodingPolicy_( decodingPolicy )
 {
-    // Initialise the file watcher
-    connect( &FileWatcher::getFileWatcher(), &FileWatcher::fileChanged, this,
-             &LogData::fileChangedOnDisk, Qt::QueuedConnection );
-
     auto worker = std::make_unique<LogDataWorker>( indexing_data_, indexingPolicy_ );
 
     // Forward the update signal
@@ -102,10 +98,6 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
 LogData::~LogData()
 {
     LOG_DEBUG << "Destroying log data";
-
-    // Disconnect FileWatcher before shutdown to prevent new operations
-    // from being enqueued via fileChangedOnDisk() during teardown
-    disconnect( &FileWatcher::getFileWatcher(), nullptr, this, nullptr );
 
     operationQueue_.shutdown();
 }
@@ -199,6 +191,11 @@ void LogData::fileChangedOnDisk( const QString& filename )
 {
     LOG_INFO << "signalFileChanged " << filename << ", indexed file " << indexingFileName_;
 
+    if ( !attached_file_ ) {
+        LOG_WARNING << "no Log File attached, nothing to check";
+        return;
+    }
+
     QFileInfo info( indexingFileName_ );
     const auto currentFileId = FileId::getFileId( indexingFileName_ );
     const auto attachedFileId = attached_file_->getFileId();
@@ -239,7 +236,7 @@ void LogData::fileChangedOnDisk( const QString& filename )
     operationQueue_.enqueueOperation<CheckDataChangesOperation>();
 }
 
-void LogData::indexingFinished( LoadingStatus status )
+void LogData::indexingFinished( LoadingStatus status, const QString& failure )
 {
     attached_file_->detachReader();
 
@@ -248,8 +245,6 @@ void LogData::indexingFinished( LoadingStatus status )
              << IndexingData::ConstAccessor{ indexing_data_.get() }.getNbLines() << " lines.";
 
     if ( status == LoadingStatus::Successful ) {
-        FileWatcher::getFileWatcher().addFile( indexingFileName_ );
-
         // Update the modified date/time if the file exists
         lastModifiedDate_ = QDateTime();
         QFileInfo fileInfo( indexingFileName_ );
@@ -260,12 +255,12 @@ void LogData::indexingFinished( LoadingStatus status )
     fileChangedOnDisk_ = MonitoredFileStatus::Unchanged;
 
     LOG_DEBUG << "Sending indexingFinished.";
-    Q_EMIT loadingFinished( status );
+    Q_EMIT loadingFinished( status, failure );
 
     operationQueue_.finishOperationAndStartNext();
 }
 
-void LogData::checkFileChangesFinished( MonitoredFileStatus status )
+void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QString& failure )
 {
     attached_file_->detachReader();
 
@@ -292,7 +287,7 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status )
 
     if ( status != MonitoredFileStatus::Unchanged
          || fileChangedOnDisk_ == MonitoredFileStatus::Truncated ) {
-        Q_EMIT fileChanged( fileChangedOnDisk_ );
+        Q_EMIT fileChanged( fileChangedOnDisk_, failure );
     }
 
     operationQueue_.finishOperationAndStartNext();
@@ -389,6 +384,31 @@ logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
 LineNumber LogData::doGetLineNumber( LineNumber index ) const
 {
     return index;
+}
+
+const SearchBlockSource& LogData::searchBlockSource() const
+{
+    return searchBlockSource_;
+}
+
+LinesCount LogDataBlockSource::getNbLines() const
+{
+    return logData_.getNbLine();
+}
+
+RawLines LogDataBlockSource::getLinesRaw( LineNumber first, LinesCount number ) const
+{
+    return logData_.getLinesRaw( first, number );
+}
+
+void LogDataBlockSource::attachReader() const
+{
+    logData_.attachReader();
+}
+
+void LogDataBlockSource::detachReader() const
+{
+    logData_.detachReader();
 }
 
 LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number ) const
@@ -507,7 +527,7 @@ void LogData::doDetachReader() const
     attached_file_->detachReader();
 }
 
-logsquirl::vector<QString> LogData::RawLines::decodeLines() const
+logsquirl::vector<QString> RawLines::decodeLines() const
 {
     if ( this->endOfLines.empty() ) {
         return logsquirl::vector<QString>();
@@ -562,7 +582,7 @@ logsquirl::vector<QString> LogData::RawLines::decodeLines() const
     return decodedLines;
 }
 
-logsquirl::vector<std::string_view> LogData::RawLines::buildUtf8View() const
+logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
 {
     logsquirl::vector<std::string_view> lines;
     if ( this->endOfLines.empty() || textDecoder.decoder == nullptr ) {

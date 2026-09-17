@@ -81,9 +81,9 @@
 #include "configuration.h"
 #include "dispatch_to.h"
 #include "fontutils.h"
-#include "formatrecognition.h"
 #include "highlightersmenu.h"
 #include "infoline.h"
+#include "issuereporter.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
@@ -95,6 +95,20 @@
 
 // Palette for error signaling (yellow background)
 const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
+
+namespace {
+
+// The desktop application's answer to a failure the engine reports for a
+// Log File or a Search: offer the user to report it as an issue. Opened once
+// the handler that received the failure has returned, not inside it.
+void offerIssueReport( const QString& failure )
+{
+    dispatchToMainThread( [ failure ]() {
+        IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, failure );
+    } );
+}
+
+} // namespace
 
 // Implementation of the view context for the CrawlerWidget
 class CrawlerWidgetContext : public ViewContextInterface {
@@ -193,9 +207,28 @@ private:
 
 // Constructor only does trivial construction. The real work is done once
 // the data is attached.
-CrawlerWidget::CrawlerWidget( QWidget* parent )
+CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     : QSplitter( parent )
 {
+    openLogFile_ = build.openLogFile;
+    quickFindPattern_ = build.quickFindPattern;
+    savedSearches_ = build.savedSearches;
+    changeReport_ = build.changeReport;
+
+    // Every view built below starts with these; a view built later, too (#242).
+    viewSet_.setDecorationPolicy( build.policies.decoration );
+    viewSet_.setPresentationPolicy( build.policies.presentation );
+    viewSet_.setQuickFindPolicy( build.policies.quickFind );
+    applyWatchPolicy( build.policies.watch );
+    // The Encoding a Log File is read with by default is settled when it is
+    // opened.
+    fileAccessPolicy_ = build.policies.fileAccess;
+
+    setup();
+
+    if ( !build.viewContext.isEmpty() ) {
+        restoreViewContext( build.viewContext );
+    }
 }
 
 // The top line is first one on the main display
@@ -273,28 +306,17 @@ void CrawlerWidget::doSendAllStateSignals()
 
 void CrawlerWidget::stopLoading()
 {
-    logFilteredData_->stop();
-    logData_->interruptLoading();
+    openLogFile_->stopLoading();
 }
 
 void CrawlerWidget::reload()
 {
-    searchState_.resetState();
-    constexpr auto DropCache = true;
-    logFilteredData_->request( DropCache );
-    logFilteredData_->clearMarks();
+    // The Open Log File drops the Search and the Marks, and recognizes the
+    // Log Format again once it has loaded. A reload is loaded from its start
+    // like the first load, so the "new data" icon is not triggered.
+    openLogFile_->reload();
     filteredView_->updateData();
     printSearchInfoMessage();
-
-    // A manual reload recognizes the Log Format again, so an edited user
-    // Log Format is picked up by reloading.
-    formatRecognitionPending_ = true;
-
-    logData_->reload();
-
-    // A reload is considered as a first load,
-    // this is to prevent the "new data" icon to be triggered.
-    firstLoadDone_ = false;
 }
 
 void CrawlerWidget::setEncoding( std::optional<int> mib )
@@ -323,9 +345,9 @@ void CrawlerWidget::goToLine()
 
         const auto selectedLine
             = LineNumber( static_cast<LineNumber::UnderlyingType>( newLine - 1 ) );
-        filteredView_->trySelectLine( logFilteredData_->getLineIndexNumber( selectedLine ) );
+        filteredView_->trySelectLine( selectedLine );
 
-        const auto nbLines = logData_->getNbLine();
+        const auto nbLines = openLogFile_->logData()->getNbLine();
         if ( nbLines.get() > 0 ) {
             presentation_->showLogLine(
                 std::min( selectedLine, LineNumber( nbLines.get() ) - 1_lcount ) );
@@ -336,106 +358,61 @@ void CrawlerWidget::goToLine()
 //
 // Protected functions
 //
-void CrawlerWidget::doSetData( std::shared_ptr<LogData> logData,
-                               std::shared_ptr<LogFilteredData> filteredData )
+void CrawlerWidget::doApplyChange( const ViewChange& change )
 {
-    logData_ = std::move( logData );
-    logFilteredData_ = std::move( filteredData );
-}
-
-void CrawlerWidget::doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp )
-{
-    quickFindPattern_ = std::move( qfp );
-}
-
-void CrawlerWidget::doSetFormatRecognition( const RecognitionPolicy& policy,
-                                            std::shared_ptr<const LogFormatCatalog> catalog )
-{
-    recognitionPolicy_ = policy;
-    logFormatCatalog_ = std::move( catalog );
-}
-
-void CrawlerWidget::doSetRecognitionPolicy( const RecognitionPolicy& policy )
-{
-    recognitionPolicy_ = policy;
-}
-
-void CrawlerWidget::doSetDecorationPolicy( const DecorationPolicy& policy )
-{
-    decorationPolicy_ = policy;
-
-    // Before setup() there are no views yet; setup() hands them the Policy
-    // before any of them is painted. Afterwards a changed Policy re-colors
-    // every view of this Log File, whether or not its tab is the active one.
-    if ( logMainView_ == nullptr ) {
-        return;
+    // Each reaches every view of this Log File, the Filtered Views of kept
+    // Searches included, whether or not its tab is the active one, without
+    // the Log File being opened again; a view built later starts with it.
+    if ( change.decoration ) {
+        viewSet_.setDecorationPolicy( *change.decoration );
+    }
+    if ( change.presentation ) {
+        viewSet_.setPresentationPolicy( *change.presentation );
+    }
+    if ( change.quickFind ) {
+        // The QuickFind bar and the mux that dispatches to this Log File
+        // belong to the window, which takes this Policy from its session:
+        // nothing is handed on from here.
+        viewSet_.setQuickFindPolicy( *change.quickFind );
+    }
+    if ( change.watch ) {
+        applyWatchPolicy( *change.watch );
     }
 
-    handDecorationPolicyToViews();
-}
-
-void CrawlerWidget::doSetPresentationPolicy( const PresentationPolicy& policy )
-{
-    presentationPolicy_ = policy;
-
-    // Before setup() there are no views yet; each is handed the Policy as it
-    // is built. Afterwards a changed Policy reaches every text view of this
-    // Log File, the Filtered Views of kept Searches included, so that it takes
-    // effect without the Log File being opened again.
-    if ( logMainView_ == nullptr ) {
-        return;
+    // After the Policies, which what is read again may depend on.
+    if ( change.rereadSettingsWithoutPolicy ) {
+        rereadSettingsWithoutPolicy();
     }
-
-    handPresentationPolicyToViews();
-}
-
-void CrawlerWidget::doSetQuickFindPolicy( const QuickFindPolicy& policy )
-{
-    quickFindPolicy_ = policy;
-
-    if ( logTableView_ != nullptr ) {
-        logTableView_->setQuickFindPolicy( policy );
+    else if ( change.font ) {
+        viewSet_.setFont( configuredFont() );
     }
-
-    // The QuickFind bar and the mux that dispatches to this Log File belong to
-    // the window, which holds no Policy of its own: this is how a changed
-    // Policy reaches a QuickFind already on screen.
-    Q_EMIT quickFindPolicyChanged( policy );
+    if ( change.highlighterSets ) {
+        applyHighlighterSetChange();
+    }
 }
 
-void CrawlerWidget::doSetWatchPolicy( const WatchPolicy& policy )
+void CrawlerWidget::applyWatchPolicy( const WatchPolicy& policy )
 {
     watchPolicy_ = policy;
 
-    // Before setup() there are no views yet; setup() hands them the allowance
-    // once they exist. Afterwards a changed Policy takes following away from
-    // every view of this Log File, or gives it back, without the Log File
-    // being opened again.
-    if ( logMainView_ == nullptr ) {
-        return;
-    }
-
-    handFollowAllowanceToViews();
-}
-
-void CrawlerWidget::doSetFileAccessPolicy( const FileAccessPolicy& policy )
-{
-    fileAccessPolicy_ = policy;
+    // Takes following away from every view of this Log File, or gives it
+    // back, without the Log File being opened again.
+    viewSet_.setFollowAllowed( policy.anyWatchEnabled() );
 }
 
 const DecorationPolicy& CrawlerWidget::decorationPolicy() const
 {
-    return decorationPolicy_;
+    return viewSet_.decorationPolicy();
 }
 
 const PresentationPolicy& CrawlerWidget::presentationPolicy() const
 {
-    return presentationPolicy_;
+    return viewSet_.presentationPolicy();
 }
 
 const QuickFindPolicy& CrawlerWidget::quickFindPolicy() const
 {
-    return quickFindPolicy_;
+    return viewSet_.quickFindPolicy();
 }
 
 const WatchPolicy& CrawlerWidget::watchPolicy() const
@@ -443,20 +420,11 @@ const WatchPolicy& CrawlerWidget::watchPolicy() const
     return watchPolicy_;
 }
 
-void CrawlerWidget::doSetSavedSearches( SavedSearches* saved_searches )
+void CrawlerWidget::restoreViewContext( const QString& viewContext )
 {
-    savedSearches_ = saved_searches;
+    LOG_DEBUG << "CrawlerWidget::restoreViewContext: " << viewContext.toLocal8Bit().data();
 
-    // We do setup now, assuming doSetData has been called before
-    // us, that's not great really...
-    setup();
-}
-
-void CrawlerWidget::doSetViewContext( const QString& view_context )
-{
-    LOG_DEBUG << "CrawlerWidget::doSetViewContext: " << view_context.toLocal8Bit().data();
-
-    const auto context = CrawlerWidgetContext{ view_context, quickFindPolicy_ };
+    const auto context = CrawlerWidgetContext{ viewContext, viewSet_.quickFindPolicy() };
 
     setSizes( context.sizes() );
     matchCaseButton_->setChecked( !context.ignoreCase() );
@@ -470,9 +438,13 @@ void CrawlerWidget::doSetViewContext( const QString& view_context )
 
     logMainView_->followSet( context.followFile() && watchPolicy_.anyWatchEnabled() );
 
+    // Saving and restoring Marks with the Session is the user interface's;
+    // when they are applied is the Open Log File's.
     const auto savedMarks = context.marks();
-    std::transform( savedMarks.cbegin(), savedMarks.cend(), std::back_inserter( savedMarkedLines_ ),
+    logsquirl::vector<LineNumber> savedMarkedLines;
+    std::transform( savedMarks.cbegin(), savedMarks.cend(), std::back_inserter( savedMarkedLines ),
                     []( const auto& l ) { return LineNumber( l ); } );
+    openLogFile_->restoreMarks( savedMarkedLines );
 
     // Restore chart series and visibility
     const auto chartJson = context.chartSeriesJson();
@@ -499,7 +471,7 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     auto context = std::make_shared<const CrawlerWidgetContext>(
         sizes(), ( !matchCaseButton_->isChecked() ), searchRefreshButton_->isChecked(),
         logMainView_->isFollowEnabled(), useRegexpButton_->isChecked(), inverseButton_->isChecked(),
-        booleanButton_->isChecked(), logFilteredData_->getMarks(), chartJson,
+        booleanButton_->isChecked(), openLogFile_->filteredData()->getMarks(), chartJson,
         chartPanel_->isVisible() );
 
     return static_cast<std::shared_ptr<const ViewContextInterface>>( context );
@@ -514,29 +486,27 @@ void CrawlerWidget::startNewSearch()
     if ( keepSearchResultsButton_->isChecked() ) {
         keepSearchResultsButton_->setChecked( false );
 
-        logFilteredData_->stop();
-        logFilteredData_ = logData_->getNewFilteredData();
+        const auto search = openLogFile_->startAnotherSearch();
 
-        // A new Filtered View starts from the Presentation Policy, as the ones
-        // that already exist were handed it in handPresentationPolicyToViews().
-        filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                          presentationPolicy_.useTextWrap );
-        filteredView_->setDecorationPolicy( decorationPolicy_ );
-        filteredView_->setPresentationPolicy( presentationPolicy_ );
-        filteredView_->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
-        filteredViewsData_[ filteredView_ ] = logFilteredData_;
+        // A new Filtered View starts with everything the others show.
+        filteredView_ = new FilteredView( search.get(), quickFindPattern_.get(),
+                                          viewSet_.presentationPolicy().useTextWrap );
+        viewSet_.addFilteredView( filteredView_ );
+        filteredViewsData_[ filteredView_ ] = search;
 
         connectAllFilteredViewSlots( filteredView_ );
 
         auto index = tabbedFilteredView_->addTab( filteredView_, "" );
         tabbedFilteredView_->setCurrentIndex( index );
 
-        connect( logFilteredData_.get(), &LogFilteredData::searchStateChanged, this,
+        connect( search.get(), &LogFilteredData::searchStateChanged, this,
                  &CrawlerWidget::updateFilteredView, Qt::QueuedConnection );
 
-        logMainView_->useNewFiltering( logFilteredData_.get() );
+        logMainView_->useNewFiltering( openLogFile_->filteredData().get() );
 
-        applyConfiguration();
+        // The View Set handed the new Filtered View its font; its shortcuts
+        // are registered here.
+        registerShortcuts();
     }
 
     tabbedFilteredView_->setTabText( tabbedFilteredView_->currentIndex(),
@@ -556,8 +526,7 @@ void CrawlerWidget::startNewSearch()
 
 void CrawlerWidget::stopSearch()
 {
-    logFilteredData_->stop();
-    searchState_.stopSearch();
+    openLogFile_->stopSearch();
     printSearchInfoMessage();
 
     // An interrupted run no longer reports completion (it is not one), so the
@@ -627,11 +596,11 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     // Every tab's LogFilteredData keeps its own persistent connection to
     // this slot, so a tab switched away from (e.g. via stop() in
     // changeFilteredView()) can still have a notification queued when it
-    // arrives here -- after logFilteredData_ has already moved on to the
+    // arrives here -- after the current Search has already moved on to the
     // newly-active tab. Since everything below mutates shared, single UI
     // (searchInfoLine_, stopButton_, ...), a stale notification from a
     // no-longer-active tab must not be allowed to touch it.
-    if ( sender() != logFilteredData_.get() ) {
+    if ( sender() != openLogFile_->filteredData().get() ) {
         return;
     }
 
@@ -647,19 +616,26 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     const auto nbMatches = state.matchCount;
     const auto progress = state.progress;
     const bool isComplete = ( state.phase == SearchSession::Phase::Complete );
-    const bool isDone = isComplete || state.phase == SearchSession::Phase::Interrupted
+    const bool isFailed = ( state.phase == SearchSession::Phase::Failed );
+    const bool isDone = isComplete || isFailed || state.phase == SearchSession::Phase::Interrupted
                         || state.phase == SearchSession::Phase::InvalidPattern;
 
     searchInfoLine_->show();
 
     if ( isDone ) {
-        // Searching done, one way or another. Only a real completion gets
-        // its message from here -- Interrupted/InvalidPattern already had
+        // Searching done, one way or another. Only a real completion and a
+        // failure, which the engine reports only here, get their message
+        // from here -- Interrupted/InvalidPattern already had
         // theirs set by whoever drove the Session into that phase
         // (stopSearch(), replaceCurrentSearch()'s error path), and
         // re-deriving one from a bare phase here would just guess.
         if ( isComplete ) {
             printSearchInfoMessage( nbMatches );
+        }
+        else if ( isFailed ) {
+            searchInfoLine_->setPalette( ErrorPalette );
+            searchInfoLine_->setText( tr( "Search failed" ) );
+            offerIssueReport( state.errorString );
         }
         searchInfoLine_->hideGauge();
         // De-activate the stop button
@@ -693,7 +669,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         filteredView_->updateData();
 
         // Update the match overview
-        overview_.updateData( logData_->getNbLine() );
+        overview_.updateData( openLogFile_->logData()->getNbLine() );
 
         // New data found icon: fires for a continuation (autorefresh
         // extending the range) and equally for a fresh search whose
@@ -716,27 +692,26 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     // only if the completed run's range still matches the current Search
     // Limits, so a limits change while a search was in flight doesn't
     // apply a stale range to the just-finished (different-range) result.
-    if ( isComplete && !state.isContinuation && state.startLine == searchStartLine_
+    if ( isComplete && !state.isContinuation && state.startLine == openLogFile_->searchStartLine()
          && !isFollowEnabled() ) {
-        const auto currenLineIndex = logFilteredData_->getLineIndexNumber( currentLineNumber_ );
         LOG_DEBUG << "updateFilteredView: restoring selection: "
-                  << " absolute line number (0based) " << currentLineNumber_ << " index "
-                  << currenLineIndex;
-        filteredView_->selectAndDisplayLine( currenLineIndex );
-        filteredView_->setSearchLimits( searchStartLine_, searchEndLine_ );
+                  << " absolute line number (0based) " << currentLineNumber_;
+        filteredView_->selectAndDisplayLine( currentLineNumber_ );
+        // The View Set already handed this view the Search Limits, which are
+        // the Open Log File's; only the redraw handing them over did is left.
+        filteredView_->forceRefresh();
     }
 }
 
-void CrawlerWidget::jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nLines,
-                                        LineColumn startCol, LineLength nSymbols )
+void CrawlerWidget::jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,
+                                        LineLength nSymbols )
 {
     if ( syncingSelection_ ) {
         return;
     }
 
-    const auto mainViewLine = logFilteredData_->getMatchingLineNumber( filteredLineNb );
     syncingSelection_ = true;
-    presentation_->showLogLinePortion( mainViewLine, nLines, startCol, nSymbols );
+    presentation_->showLogLinePortion( logLine, nLines, startCol, nSymbols );
     syncingSelection_ = false;
 }
 
@@ -762,14 +737,11 @@ void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
 
     // A Row selected in the Table View selects its Log Line, or the Match
     // before it, in the Filtered View too.
-    if ( reporter != nullptr && reporter == logTableView_ && !syncingSelection_ && logFilteredData_
-         && logFilteredData_->getNbLine().get() > 0 ) {
-        const auto filteredIndex = logFilteredData_->getLineIndexNumber( line );
-        if ( filteredIndex < logFilteredData_->getNbLine() ) {
-            syncingSelection_ = true;
-            filteredView_->selectAndDisplayLine( filteredIndex );
-            syncingSelection_ = false;
-        }
+    if ( reporter != nullptr && reporter == logTableView_ && !syncingSelection_
+         && openLogFile_->filteredData() && openLogFile_->filteredData()->getNbLine().get() > 0 ) {
+        syncingSelection_ = true;
+        filteredView_->selectAndDisplayLine( line );
+        syncingSelection_ = false;
     }
 
     Q_EMIT newSelection( line, nLines, startCol, nSymbols );
@@ -782,13 +754,13 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
 
     bool markAdded = false;
     for ( const auto& line : lines ) {
-        if ( line >= logData_->getNbLine() ) {
+        if ( line >= openLogFile_->logData()->getNbLine() ) {
             continue;
         }
 
-        if ( !logFilteredData_->lineTypeByLine( line ).testFlag(
+        if ( !openLogFile_->filteredData()->lineTypeByLine( line ).testFlag(
                  AbstractLogData::LineTypeFlags::Mark ) ) {
-            logFilteredData_->addMark( line );
+            openLogFile_->filteredData()->addMark( line );
             markAdded = true;
         }
         else {
@@ -798,7 +770,7 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
 
     if ( !markAdded ) {
         for ( const auto& line : alreadyMarkedLines ) {
-            logFilteredData_->toggleMark( line );
+            openLogFile_->filteredData()->toggleMark( line );
         }
     }
 
@@ -806,7 +778,7 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
     filteredView_->updateData();
 
     // Update the match overview
-    overview_.updateData( logData_->getNbLine() );
+    overview_.updateData( openLogFile_->logData()->getNbLine() );
 
     // Also update the Presentations for the colored bullets.
     update();
@@ -815,70 +787,61 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
     }
 }
 
-void CrawlerWidget::markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines )
+void CrawlerWidget::broughtToFront()
 {
-    logsquirl::vector<LineNumber> linesInMain( lines.size() );
-    std::transform( lines.cbegin(), lines.cend(), linesInMain.begin(),
-                    [ this ]( const auto& filteredLine ) {
-                        if ( filteredLine < logData_->getNbLine() ) {
-                            return logFilteredData_->getMatchingLineNumber( filteredLine );
-                        }
-                        else {
-                            return maxValue<LineNumber>();
-                        }
-                    } );
+    LOG_DEBUG << "CrawlerWidget::broughtToFront";
 
-    markLinesFromMain( linesInMain );
-}
-
-template <class Fn>
-void CrawlerWidget::forEachFilteredView( Fn&& fn ) const
-{
-    for ( auto i = 0; i < tabbedFilteredView_->count(); ++i ) {
-        if ( auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( i ) ) ) {
-            fn( view );
-        }
-    }
-}
-
-void CrawlerWidget::handFollowAllowanceToViews()
-{
-    const auto isFollowModeAllowed = watchPolicy_.anyWatchEnabled();
-
-    logMainView_->allowFollowMode( isFollowModeAllowed );
-    forEachFilteredView(
-        [ & ]( FilteredView* view ) { view->allowFollowMode( isFollowModeAllowed ); } );
-}
-
-void CrawlerWidget::applyConfiguration()
-{
-    LOG_DEBUG << "CrawlerWidget::applyConfiguration";
-
-    // Deliberately not here: file watching, Context Lines, hiding ANSI color
-    // sequences, the colors Log Lines are decorated in, and whether line
-    // numbers and the overview are shown. They are driven by Settings
-    // Policies, re-derived and handed down per axis when a setting actually
-    // changes, to every open Log File (#95, #107, #190, #192). The
-    // follow allowance below is no exception: it is re-handed from the Watch
-    // Policy this widget already holds, never read from the settings, so that
-    // a Filtered View added since is given the same answer as the rest. A
-    // Highlighter Set change does not come here either, but goes to
-    // applyHighlighterSetChange().
-
-    registerShortcuts();
-
-    handFollowAllowanceToViews();
-    handFontToViews();
-
-    // Update the SearchLine (history)
+    // Another tab may have added to the Search history since.
     updateSearchCombo();
 
+    // The new data a followed Log File had while in the background has now
+    // been seen.
     if ( isFollowEnabled() ) {
         changeDataStatus( DataStatus::OLD_DATA );
     }
 }
 
-void CrawlerWidget::handFontToViews()
+void CrawlerWidget::rereadSettingsWithoutPolicy()
+{
+    LOG_DEBUG << "CrawlerWidget::rereadSettingsWithoutPolicy";
+
+    // Nothing else: file watching, Context Lines, hiding ANSI color
+    // sequences, the colors Log Lines are decorated in, whether line numbers
+    // and the overview are shown and whether follow is allowed are driven by
+    // Settings Policies, handed down per Axis when a setting actually changes
+    // (#95, #107, #190, #192), and a view built since starts with them (#242).
+    // The font and the shortcuts have no Policy, so they are read again, and
+    // the Search history, which may have been given another length.
+
+    registerShortcuts();
+
+    viewSet_.setFont( configuredFont() );
+
+    updateSearchCombo();
+}
+
+void CrawlerWidget::reportChange( Changed change )
+{
+    if ( changeReport_ ) {
+        changeReport_( change );
+        return;
+    }
+
+    // Not opened through a Session: only this Log File can be told.
+    switch ( change ) {
+    case Changed::Settings:
+        rereadSettingsWithoutPolicy();
+        break;
+    case Changed::Font:
+        viewSet_.setFont( configuredFont() );
+        break;
+    case Changed::HighlighterSets:
+        applyHighlighterSetChange();
+        break;
+    }
+}
+
+QFont CrawlerWidget::configuredFont()
 {
     const auto& config = Configuration::get();
     QFont font = config.mainFont();
@@ -894,67 +857,24 @@ void CrawlerWidget::handFontToViews()
 
     font.setBold( config.useBoldFont() );
 
-    for ( auto* presentation : presentations() ) {
-        presentation->updateFont( font );
-    }
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->updateFont( font ); } );
-}
-
-void CrawlerWidget::handDecorationPolicyToViews()
-{
-    logMainView_->setDecorationPolicy( decorationPolicy_ );
-    logTableView_->setDecorationPolicy( decorationPolicy_ );
-    forEachFilteredView(
-        [ & ]( FilteredView* view ) { view->setDecorationPolicy( decorationPolicy_ ); } );
-}
-
-void CrawlerWidget::handPresentationPolicyToViews()
-{
-    logMainView_->setPresentationPolicy( presentationPolicy_ );
-    logMainView_->setLineNumbersVisible( presentationPolicy_.mainLineNumbersVisible );
-    forEachFilteredView( [ & ]( FilteredView* view ) {
-        view->setPresentationPolicy( presentationPolicy_ );
-        view->setLineNumbersVisible( presentationPolicy_.filteredLineNumbersVisible );
-    } );
-
-    // Both Presentations share the one Overview, so each makes room for it,
-    // or takes the room back, as it now says.
-    overview_.setVisible( presentationPolicy_.overviewVisible );
-    logMainView_->refreshOverview();
-    logTableView_->updateOverview();
+    return font;
 }
 
 void CrawlerWidget::applyHighlighterSetChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyHighlighterSetChange";
 
-    // A Color Label's color comes from the Highlighter Set Collection and is
-    // cached alongside its words, so handing the words over again is what
-    // picks up a color the user just changed.
-    updateColorLabels( colorLabelsManager_.colorLabels() );
-
-    // Every view reads the active Highlighter Sets when it paints, so all a
-    // change takes is painting again -- the Filtered Views of kept Searches
-    // included.
-    for ( auto* presentation : presentations() ) {
-        presentation->updateDecorations();
-    }
-
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->forceRefresh(); } );
+    // Every view of this Log File, the Filtered Views of kept Searches
+    // included, picks up the colors of its Color Labels and paints again.
+    viewSet_.applyHighlighterSetChange();
 }
 
 void CrawlerWidget::applyDecodingPolicyChange()
 {
     LOG_DEBUG << "CrawlerWidget::applyDecodingPolicyChange";
 
-    // The views keep the Log Lines they read until told otherwise, and every
-    // Log Line may read differently now -- the Filtered Views of kept
-    // Searches included.
-    for ( auto* presentation : presentations() ) {
-        presentation->rereadLogLines();
-    }
-
-    forEachFilteredView( [ & ]( FilteredView* view ) { view->forceRefresh(); } );
+    // The Filtered Views of kept Searches included.
+    viewSet_.rereadLogLines();
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -977,89 +897,71 @@ void CrawlerWidget::exitingQuickFind()
         qfSavedFocus_->setFocus();
 }
 
-void CrawlerWidget::loadingFinishedHandler( LoadingStatus status )
+void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& load )
 {
-    LOG_INFO << "file loading finished, status " << static_cast<int>( status );
+    LOG_INFO << "file loading finished, status " << static_cast<int>( load.status );
+
+    if ( load.status == LoadingStatus::Failed ) {
+        offerIssueReport( load.failure );
+    }
 
     // We need to refresh the main window because the view lines on the
     // overview have probably changed.
-    overview_.updateData( logData_->getNbLine() );
+    overview_.updateData( openLogFile_->logData()->getNbLine() );
 
     // FIXME, handle topLine
     // logMainView_->updateData( logData_, topLine );
     logMainView_->updateData();
 
-    // Shall we Forbid starting a search when loading in progress?
-    // searchButton_->setEnabled( false );
-
-    // searchButton_->setEnabled( true );
-
-    // See if we need to auto-refresh the search
-    if ( searchState_.isAutorefreshAllowed() ) {
-        searchEndLine_ = LineNumber( logData_->getNbLine().get() );
-        if ( searchState_.isFileTruncated() )
-            // We need to restart the search
-            replaceCurrentSearch( searchLineEdit_->currentText() );
-        else
-            logFilteredData_->request( logFilteredData_->searchState().pattern, searchStartLine_,
-                                       searchEndLine_ );
+    // The Open Log File has refreshed the Search already; one it started
+    // again over the truncated Log File is shown like any new Search.
+    if ( load.searchRestarted ) {
+        prepareForNewSearch();
+        showSearchRequested( openLogFile_->filteredData()->searchState() );
     }
 
     // Set the encoding for the views
     updateEncoding();
 
-    clearSearchLimits();
+    // The Search Limits are the whole Log File again; every view shows it.
+    viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
 
     // Also change the data available icon
-    if ( firstLoadDone_ ) {
+    if ( !load.fromStart ) {
         changeDataStatus( DataStatus::NEW_DATA );
     }
     else {
-        firstLoadDone_ = true;
-        for ( const auto& m : savedMarkedLines_ ) {
-            logFilteredData_->addMark( m );
-        }
         logMainView_->setFocus();
     }
 
     loadingInProgress_ = false;
 
-    // Recognize the Log Format after the first load, a manual reload or a
-    // truncation. A Log File with no Log Lines yet has nothing to recognize
-    // from, so it waits for a load that brings some.
-    if ( formatRecognitionPending_ && logData_->getNbLine().get() > 0 ) {
-        formatRecognitionPending_ = false;
-        recognizeFormat();
+    if ( load.formatRecognized ) {
+        showRecognizedFormat();
     }
     else {
         // File was updated — refresh table model contents
-        logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
+        logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
     }
 
-    Q_EMIT loadingFinished( status );
+    Q_EMIT loadingFinished( load.status );
 }
 
-void CrawlerWidget::fileChangedHandler( MonitoredFileStatus status )
+void CrawlerWidget::truncatedHandler( const QString& failure )
 {
-    // Handle the case where the file has been truncated
-    if ( status == MonitoredFileStatus::Truncated ) {
-        // Clear all marks (TODO offer the option to keep them)
-        logFilteredData_->clearMarks();
-        if ( !searchInfoLine_->text().isEmpty() ) {
-            // Invalidate the search
-            constexpr auto DropCache = true;
-            logFilteredData_->request( DropCache );
-            filteredView_->updateData();
-            searchState_.truncateFile();
-            printSearchInfoMessage();
-            nbMatches_ = 0_lcount;
-        }
-
-        // Forget the Log Format so it is recognized again once the
-        // truncated Log File has loaded
-        resetLogFormat();
-        formatRecognitionPending_ = true;
+    if ( !failure.isEmpty() ) {
+        offerIssueReport( failure );
     }
+
+    // The Open Log File has cleared the Marks, dropped an active Search and
+    // forgotten the Log Format.
+    if ( openLogFile_->searchAutoRefresh().isFileTruncated() ) {
+        filteredView_->updateData();
+        printSearchInfoMessage();
+        nbMatches_ = 0_lcount;
+    }
+
+    resetLogFormat();
 }
 
 // Returns a pointer to the window in which the search should be done
@@ -1102,14 +1004,14 @@ void CrawlerWidget::resetStateOnSearchPatternChanges()
 {
     // We suspend auto-refresh
 
-    searchState_.changeExpression();
-    printSearchInfoMessage( logFilteredData_->getNbMatches() );
+    openLogFile_->changeSearchExpression();
+    printSearchInfoMessage( openLogFile_->filteredData()->getNbMatches() );
 }
 
 void CrawlerWidget::searchRefreshChangedHandler( bool isRefreshing )
 {
-    searchState_.setAutorefresh( isRefreshing );
-    printSearchInfoMessage( logFilteredData_->getNbMatches() );
+    openLogFile_->setAutoRefresh( isRefreshing );
+    printSearchInfoMessage( openLogFile_->filteredData()->getNbMatches() );
 }
 
 void CrawlerWidget::matchCaseChangedHandler( bool shouldMatchCase )
@@ -1142,9 +1044,8 @@ void CrawlerWidget::changeFilteredViewVisibility( int index )
 
     filteredView_->setVisibility( visibility );
 
-    if ( logFilteredData_->getNbLine() > 0_lcount ) {
-        const auto lineIndex = logFilteredData_->getLineIndexNumber( currentLineNumber_ );
-        filteredView_->selectAndDisplayLine( lineIndex );
+    if ( openLogFile_->filteredData()->getNbLine() > 0_lcount ) {
+        filteredView_->selectAndDisplayLine( currentLineNumber_ );
     }
 }
 
@@ -1225,17 +1126,15 @@ void CrawlerWidget::setSearchPattern( const QString& searchPattern )
     // Set the focus to lineEdit so that the user can press 'Return' immediately
     searchLineEdit_->lineEdit()->setFocus();
 
-    if ( quickFindPolicy_.autoRunSearchOnPatternChange ) {
+    if ( viewSet_.quickFindPolicy().autoRunSearchOnPatternChange ) {
         dispatchToMainThread( [ this ] { startNewSearch(); } );
     }
 }
 
 void CrawlerWidget::mouseHoveredOverMatch( LineNumber line )
 {
-    const auto line_in_mainview = logFilteredData_->getMatchingLineNumber( line );
-
-    overviewWidget_->highlightLine( line_in_mainview );
-    logTableView_->highlightOverviewLine( line_in_mainview );
+    overviewWidget_->highlightLine( line );
+    logTableView_->highlightOverviewLine( line );
 }
 
 void CrawlerWidget::activityDetected()
@@ -1245,18 +1144,17 @@ void CrawlerWidget::activityDetected()
 
 void CrawlerWidget::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
-    searchStartLine_ = startLine;
-    searchEndLine_ = endLine;
+    // The Log Lines the next Search runs over.
+    openLogFile_->setSearchLimits( startLine, endLine );
 
-    logMainView_->setSearchLimits( startLine, endLine );
-    filteredView_->setSearchLimits( startLine, endLine );
-
-    logTableView_->setSearchLimits( startLine, endLine );
+    // The Search Limits belong to the Log File: every view of it subdues the
+    // same Log Lines, the Filtered Views of kept Searches included.
+    viewSet_.setSearchLimits( startLine, endLine );
 }
 
 void CrawlerWidget::clearSearchLimits()
 {
-    setSearchLimits( 0_lnum, LineNumber( logData_->getNbLine().get() ) );
+    setSearchLimits( 0_lnum, LineNumber( openLogFile_->logData()->getNbLine().get() ) );
 }
 
 //
@@ -1270,28 +1168,28 @@ void CrawlerWidget::setup()
     LOG_INFO << "Setup crawler widget";
     setOrientation( Qt::Vertical );
 
-    assert( logData_ );
-    assert( logFilteredData_ );
+    assert( openLogFile_ );
 
     // The views
     auto bottomWindow = new QWidget;
     bottomWindow->setContentsMargins( 2, 0, 2, 0 );
 
     overviewWidget_ = new OverviewWidget();
-    logMainView_ = new LogMainView( logData_.get(), quickFindPattern_.get(), &overview_,
-                                    overviewWidget_, presentationPolicy_.useTextWrap );
+    logMainView_
+        = new LogMainView( openLogFile_->logData().get(), quickFindPattern_.get(), &overview_,
+                           overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
 
-    filteredView_ = new FilteredView( logFilteredData_.get(), quickFindPattern_.get(),
-                                      presentationPolicy_.useTextWrap );
-    filteredViewsData_[ filteredView_ ] = logFilteredData_;
+    filteredView_ = new FilteredView( openLogFile_->filteredData().get(), quickFindPattern_.get(),
+                                      viewSet_.presentationPolicy().useTextWrap );
+    filteredViewsData_[ filteredView_ ] = openLogFile_->filteredData();
     filteredView_->setContentsMargins( 2, 0, 2, 0 );
 
     overviewWidget_->setOverview( &overview_ );
     overviewWidget_->setParent( logMainView_ );
 
     // Connect the search to the top view
-    logMainView_->useNewFiltering( logFilteredData_.get() );
+    logMainView_->useNewFiltering( openLogFile_->filteredData().get() );
 
     // Construct the visibility button
     using VisibilityFlags = LogFilteredData::VisibilityFlags;
@@ -1506,7 +1404,6 @@ void CrawlerWidget::setup()
     // The table view's overview strip shares the same Overview data as the
     // text view so matches/marks are always in sync.
     logTableView_->setOverview( &overview_, new OverviewWidget() );
-    logTableView_->setColorLabels( colorLabelsManager_.colorLabels() );
 
     mainViewStack_->addWidget( logMainView_ );
     mainViewStack_->addWidget( logTableView_ );
@@ -1522,11 +1419,11 @@ void CrawlerWidget::setup()
 
     // The search button row starts as the QuickFind Policy says. Only here:
     // a Policy arriving later leaves the buttons as the user has set them.
-    searchRefreshButton_->setChecked( quickFindPolicy_.searchAutoRefreshDefault );
-    matchCaseButton_->setChecked( !quickFindPolicy_.searchIgnoreCaseDefault );
-    useRegexpButton_->setChecked( quickFindPolicy_.mainRegexpType
+    searchRefreshButton_->setChecked( viewSet_.quickFindPolicy().searchAutoRefreshDefault );
+    matchCaseButton_->setChecked( !viewSet_.quickFindPolicy().searchIgnoreCaseDefault );
+    useRegexpButton_->setChecked( viewSet_.quickFindPolicy().mainRegexpType
                                   == SearchRegexpType::ExtendedRegexp );
-    booleanButton_->setChecked( quickFindPolicy_.searchLogicalCombiningDefault );
+    booleanButton_->setChecked( viewSet_.quickFindPolicy().searchLogicalCombiningDefault );
 
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( searchRefreshButton_->isChecked() );
@@ -1537,7 +1434,6 @@ void CrawlerWidget::setup()
     // Default splitter position (usually overridden by the config file)
     setSizes( Configuration::get().splitterSizes() );
 
-    registerShortcuts();
     loadIcons();
     Theme::whenApplied( this, [ this ] {
         loadIcons();
@@ -1569,6 +1465,13 @@ void CrawlerWidget::setup()
     connectPresentation( logMainView_ );
     connectPresentation( logTableView_ );
 
+    // What only the Text View lets the user do: leave following by moving
+    // away from the bottom, or start it at the bottom, and zoom with the
+    // wheel. The Table View has neither, and so no such signals.
+    connect( logMainView_, &LogMainView::followModeChanged, this,
+             &CrawlerWidget::followModeChanged );
+    connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
+
     // Follow option (down): the Text View follows
     connect( this, &CrawlerWidget::followSet, logMainView_, &LogMainView::followSet );
 
@@ -1580,17 +1483,25 @@ void CrawlerWidget::setup()
     connect( tabbedFilteredView_, &QTabWidget::tabCloseRequested, this,
              &CrawlerWidget::closeFilteredView );
 
-    connect( logFilteredData_.get(), &LogFilteredData::searchStateChanged, this,
+    // Every Search keeps its own connection, so a notification is told
+    // apart by its sender: see updateFilteredView().
+    connect( openLogFile_->filteredData().get(), &LogFilteredData::searchStateChanged, this,
              &CrawlerWidget::updateFilteredView, Qt::QueuedConnection );
 
     // Sent load file update to MainWindow (for status update)
-    connect( logData_.get(), &LogData::loadingProgressed, this, &CrawlerWidget::loadingProgressed );
-    connect( logData_.get(), &LogData::loadingFinished, this,
+    connect( openLogFile_.get(), &OpenLogFile::loadingProgressed, this,
+             &CrawlerWidget::loadingProgressed );
+    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
              &CrawlerWidget::loadingFinishedHandler );
-    connect( logData_.get(), &LogData::fileChanged, this, &CrawlerWidget::fileChangedHandler );
+    connect( openLogFile_.get(), &OpenLogFile::truncated, this, &CrawlerWidget::truncatedHandler );
+    connect( openLogFile_.get(), &OpenLogFile::grew, this, []( const QString& failure ) {
+        if ( !failure.isEmpty() ) {
+            offerIssueReport( failure );
+        }
+    } );
     // From the Log File rather than from the Session, so a CrawlerWidget in
     // a tab that is not current is reached too.
-    connect( logData_.get(), &LogData::decodingPolicyChanged, this,
+    connect( openLogFile_->logData().get(), &LogData::decodingPolicyChanged, this,
              &CrawlerWidget::applyDecodingPolicyChange );
 
     // Search auto-refresh
@@ -1615,27 +1526,29 @@ void CrawlerWidget::setup()
     connectAllFilteredViewSlots( filteredView_ );
 
     // Wire chart panel — provide log data and connect click-to-navigate.
-    chartPanel_->setLogData( logData_ );
+    chartPanel_->setLogData( openLogFile_->logData() );
     connect( chartPanel_, &ChartPanel::lineSelected, this,
              [ this ]( LineNumber line ) { presentation_->showLogLine( line ); } );
 
     // Refresh chart data when the file finishes loading.
-    connect( logData_.get(), &LogData::loadingFinished, this, [ this ]( auto ) {
+    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this, [ this ]( const auto& ) {
         if ( chartPanel_->isVisible() ) {
             chartPanel_->extractData();
         }
     } );
 
-    // Hand the views just built everything they show, color and search
-    // under, before any of them is painted. Neither Presentation reads these
+    // The views just built start with everything they show, color and
+    // search under, before any of them is painted. No view reads these
     // settings for itself; each Policy arrives again, on its own Axis,
-    // whenever a settings change re-derives it (#184).
-    handPresentationPolicyToViews();
-    logTableView_->setQuickFindPolicy( quickFindPolicy_ );
-    handDecorationPolicyToViews();
-    handFollowAllowanceToViews();
-    // Nor does any view read the font it draws in: it is handed that too.
-    handFontToViews();
+    // whenever a settings change re-derives it (#184). Nor does any view read
+    // the font it draws in: it is handed that too.
+    viewSet_.setFont( configuredFont() );
+    viewSet_.addPresentation( logMainView_ );
+    viewSet_.addPresentation( logTableView_ );
+    viewSet_.addFilteredView( filteredView_ );
+
+    // Once every view is in the View Set, which registers theirs too.
+    registerShortcuts();
 
     const auto defaultEncodingMib = fileAccessPolicy_.defaultEncodingMib;
     if ( defaultEncodingMib >= 0 ) {
@@ -1654,8 +1567,9 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
 
     connect( presentation, &Presentation::markLines, this, &CrawlerWidget::markLinesFromMain );
 
+    // A Highlighter Set ticked in a view's menu reaches every open Log File.
     connect( presentation, &Presentation::highlightersChange, this,
-             &CrawlerWidget::applyHighlighterSetChange );
+             [ this ]() { reportChange( Changed::HighlighterSets ); } );
 
     connect( presentation, QOverload<const QString&>::of( &Presentation::addToSearch ), this,
              &CrawlerWidget::addToSearch );
@@ -1665,10 +1579,6 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
 
     connect( presentation, QOverload<const QString&>::of( &Presentation::replaceSearch ), this,
              &CrawlerWidget::replaceSearch );
-
-    // Follow option (up)
-    connect( presentation, &Presentation::followModeChanged, this,
-             &CrawlerWidget::followModeChanged );
 
     // Detect activity in the views
     connect( presentation, &Presentation::activity, this, &CrawlerWidget::activityDetected );
@@ -1681,8 +1591,6 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
 
     connect( presentation, &Presentation::saveDefaultSplitterSizes, this,
              &CrawlerWidget::saveSplitterSizes );
-
-    connect( presentation, &Presentation::changeFontSize, this, &CrawlerWidget::changeFontSize );
 
     connect( presentation, &Presentation::clearColorLabels, this,
              &CrawlerWidget::clearColorLabels );
@@ -1699,17 +1607,19 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
 
 void CrawlerWidget::changeFilteredView( int tabIndex )
 {
-    logFilteredData_->stop();
-    if ( tabIndex >= 0 ) {
+    if ( tabIndex < 0 ) {
+        openLogFile_->filteredData()->stop();
+    }
+    else {
         auto* tabFilteredView
             = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( tabIndex ) );
 
         filteredView_ = tabFilteredView;
-        logFilteredData_ = filteredViewsData_.at( tabFilteredView );
+        openLogFile_->makeSearchCurrent( filteredViewsData_.at( tabFilteredView ) );
 
         Q_EMIT filteredViewChanged();
 
-        logMainView_->useNewFiltering( logFilteredData_.get() );
+        logMainView_->useNewFiltering( openLogFile_->filteredData().get() );
         changeFilteredViewVisibility( visibilityBox_->currentIndex() );
     }
 }
@@ -1826,8 +1736,9 @@ void CrawlerWidget::changeFontSize( bool increase )
     if ( currentSize != availableSizes.cend() ) {
         fontConfig.setMainFont( QFont{ fontInfo.family(), *currentSize } );
         // The zoomed font is assembled like any other, bold and antialiasing
-        // included, and reaches every view of this Log File.
-        handFontToViews();
+        // included, and reaches every view of every open Log File. Nothing
+        // but the font was written, so nothing else is applied again.
+        reportChange( Changed::Font );
     }
 }
 
@@ -1837,10 +1748,11 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( view, &FilteredView::newSelection, this, &CrawlerWidget::jumpToMatchingLine );
 
-    connect( view, &FilteredView::markLines, this, &CrawlerWidget::markLinesFromFiltered );
+    // The Filtered View hands out Log Lines, as the main view does.
+    connect( view, &FilteredView::markLines, this, &CrawlerWidget::markLinesFromMain );
 
     connect( view, &FilteredView::highlightersChange, this,
-             &CrawlerWidget::applyHighlighterSetChange );
+             [ this ]() { reportChange( Changed::HighlighterSets ); } );
 
     connect( view, QOverload<const QString&>::of( &FilteredView::addToSearch ), this,
              &CrawlerWidget::addToSearch );
@@ -1891,10 +1803,8 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( view, &AbstractLogView::clearColorLabels, this, &CrawlerWidget::clearColorLabels );
 
+    // The exit-view shortcut is the Text View's; the Table View has none.
     connect( logMainView_, &LogMainView::exitView, view,
-             QOverload<>::of( &FilteredView::setFocus ) );
-
-    connect( logTableView_, &LogTableView::exitView, view,
              QOverload<>::of( &FilteredView::setFocus ) );
 }
 
@@ -2015,8 +1925,8 @@ void CrawlerWidget::registerShortcuts()
         configuredShortcuts, shortcuts_, this, Qt::WidgetWithChildrenShortcut,
         ShortcutAction::LogViewClearColorLabels, [ this ]() { clearColorLabels(); } );
 
-    logMainView_->registerShortcuts();
-    filteredView_->registerShortcuts();
+    // Every view of this Log File, the Filtered Views of kept Searches included.
+    viewSet_.registerShortcuts();
 }
 
 void CrawlerWidget::loadIcons()
@@ -2038,24 +1948,13 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
 {
     LOG_INFO << "replacing current search with " << searchText;
 
-    // request() (below) supersedes whatever search is in flight: any of its
+    // The request supersedes whatever search is in flight: any of its
     // results still arriving after this point carry its (now stale) id and
     // are discarded on arrival, so there is nothing to wait for here.
 
-    nbMatches_ = 0_lcount;
-
-    // Switch to "Marks and matches" view when in "Marks" view
-    using VisibilityFlags = LogFilteredData::VisibilityFlags;
-    if ( !filteredView_->visibility().testFlag( VisibilityFlags::Matches ) ) {
-        visibilityBox_->setCurrentIndex( 0 );
-    }
-
     // Clear and recompute the content of the filtered window.
-    logFilteredData_->request();
-    filteredView_->updateData();
-
-    // Update the match overview
-    overview_.updateData( logData_->getNbLine() );
+    openLogFile_->clearSearch();
+    prepareForNewSearch();
 
     if ( !searchText.isEmpty() ) {
 
@@ -2064,54 +1963,63 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
             searchText, matchCaseButton_->isChecked(), inverseButton_->isChecked(),
             booleanButton_->isChecked(), !useRegexpButton_->isChecked() );
 
-        // Start a new asynchronous search -- the Session validates the
-        // pattern itself; on failure it goes to InvalidPattern synchronously
-        // (without touching the worker), so state() is already conclusive.
-        logFilteredData_->request( regexpPattern, searchStartLine_, searchEndLine_ );
-        const auto state = logFilteredData_->searchState();
-
-        if ( state.phase != SearchSession::Phase::InvalidPattern ) {
-            // Activate the stop button
-            stopButton_->setEnabled( true );
-            stopButton_->show();
-            clearButton_->hide();
-            searchButton_->hide();
-            // Accept auto-refresh of the search
-            searchState_.startSearch();
-            searchInfoLine_->hide();
-            logMainView_->setSearchPattern( regexpPattern );
-            filteredView_->setSearchPattern( regexpPattern );
-            logTableView_->setSearchPattern( regexpPattern );
-        }
-        else {
-            // The regexp is wrong. The request() just above already drove
-            // the Session to InvalidPattern, which on its own clears
-            // results/Context Lines the same way an idle request() would
-            // -- no separate clear needed here.
-            filteredView_->updateData();
-            searchState_.resetState();
-
-            // Inform the user
-            QString errorMessage = tr( "Error in expression" );
-            // const int offset = regexp.patternErrorOffset();
-            // if ( offset != -1 ) {
-            //     errorMessage += " at position ";
-            //     errorMessage += QString::number( offset );
-            // }
-            errorMessage += ": ";
-            errorMessage += state.errorString;
-            searchInfoLine_->setPalette( ErrorPalette );
-            searchInfoLine_->setText( errorMessage );
-            searchInfoLine_->show();
-
-            logMainView_->setSearchPattern( {} );
-            filteredView_->setSearchPattern( {} );
-            logTableView_->setSearchPattern( {} );
-        }
+        // Start a new asynchronous search over the Search Limits -- the
+        // Session validates the pattern itself; on failure it goes to
+        // InvalidPattern synchronously (without touching the worker), so the
+        // state is already conclusive.
+        showSearchRequested( openLogFile_->requestSearch( regexpPattern ) );
     }
     else {
-        searchState_.resetState();
         printSearchInfoMessage();
+    }
+}
+
+void CrawlerWidget::prepareForNewSearch()
+{
+    nbMatches_ = 0_lcount;
+
+    // Switch to "Marks and matches" view when in "Marks" view
+    using VisibilityFlags = LogFilteredData::VisibilityFlags;
+    if ( !filteredView_->visibility().testFlag( VisibilityFlags::Matches ) ) {
+        visibilityBox_->setCurrentIndex( 0 );
+    }
+
+    filteredView_->updateData();
+
+    // Update the match overview
+    overview_.updateData( openLogFile_->logData()->getNbLine() );
+}
+
+void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
+{
+    if ( state.phase != SearchSession::Phase::InvalidPattern ) {
+        // Activate the stop button
+        stopButton_->setEnabled( true );
+        stopButton_->show();
+        clearButton_->hide();
+        searchButton_->hide();
+        searchInfoLine_->hide();
+        logMainView_->setSearchPattern( state.pattern );
+        filteredView_->setSearchPattern( state.pattern );
+        logTableView_->setSearchPattern( state.pattern );
+    }
+    else {
+        // The regexp is wrong. The request already drove the Session to
+        // InvalidPattern, which on its own clears results/Context Lines the
+        // same way an idle request would -- no separate clear needed here.
+        filteredView_->updateData();
+
+        // Inform the user
+        QString errorMessage = tr( "Error in expression" );
+        errorMessage += ": ";
+        errorMessage += state.errorString;
+        searchInfoLine_->setPalette( ErrorPalette );
+        searchInfoLine_->setText( errorMessage );
+        searchInfoLine_->show();
+
+        logMainView_->setSearchPattern( {} );
+        filteredView_->setSearchPattern( {} );
+        logTableView_->setSearchPattern( {} );
     }
 }
 
@@ -2136,18 +2044,19 @@ void CrawlerWidget::printSearchInfoMessage( LinesCount nbMatches )
 {
     QString text;
 
-    switch ( searchState_.getState() ) {
-    case SearchState::NoSearch:
+    using State = SearchAutoRefresh::State;
+    switch ( openLogFile_->searchAutoRefresh().state() ) {
+    case State::NoSearch:
         // Blank text is fine
         break;
-    case SearchState::Static:
-    case SearchState::Autorefreshing:
+    case State::Static:
+    case State::Autorefreshing:
         // Some languages translate the plural the same as the singular, so use the full string
         text = nbMatches.get() > 1 ? tr( "%1 matches found" ).arg( nbMatches.get() )
                                    : tr( "%1 match found" ).arg( nbMatches.get() );
         break;
-    case SearchState::FileTruncated:
-    case SearchState::TruncatedAutorefreshing:
+    case State::FileTruncated:
+    case State::TruncatedAutorefreshing:
         text = tr( "File truncated on disk" );
         break;
     }
@@ -2174,7 +2083,7 @@ void CrawlerWidget::updateEncoding()
     const QTextCodec* textCodec = [ this ]() {
         QTextCodec* codec = nullptr;
         if ( !encodingMib_ ) {
-            codec = logData_->getDetectedEncoding();
+            codec = openLogFile_->logData()->getDetectedEncoding();
         }
         else {
             codec = QTextCodec::codecForMib( *encodingMib_ );
@@ -2185,11 +2094,11 @@ void CrawlerWidget::updateEncoding()
     QString encodingPrefix = encodingMib_ ? tr( "Displayed as %1" ) : tr( "Detected as %1" );
     encodingText_ = encodingPrefix.arg( textCodec->name().constData() );
 
-    logData_->interruptLoading();
+    openLogFile_->logData()->interruptLoading();
 
-    logData_->setDisplayEncoding( textCodec->name().constData() );
+    openLogFile_->logData()->setDisplayEncoding( textCodec->name().constData() );
     logMainView_->forceRefresh();
-    logFilteredData_->setDisplayEncoding( textCodec->name().constData() );
+    openLogFile_->filteredData()->setDisplayEncoding( textCodec->name().constData() );
     filteredView_->forceRefresh();
 }
 
@@ -2221,68 +2130,9 @@ void CrawlerWidget::clearColorLabels()
 void CrawlerWidget::updateColorLabels(
     const ColorLabelsManager::QuickHighlightersCollection& labels )
 {
-    logMainView_->setQuickHighlighters( labels );
-    filteredView_->setQuickHighlighters( labels );
-
-    logTableView_->setColorLabels( labels );
-}
-
-//
-// SearchState implementation
-//
-void CrawlerWidget::SearchState::resetState()
-{
-    state_ = NoSearch;
-}
-
-void CrawlerWidget::SearchState::setAutorefresh( bool refresh )
-{
-    autoRefreshRequested_ = refresh;
-
-    if ( refresh ) {
-        if ( state_ == Static )
-            state_ = Autorefreshing;
-        /*
-        else if ( state_ == FileTruncated )
-            state_ = TruncatedAutorefreshing;
-        */
-    }
-    else {
-        if ( state_ == Autorefreshing )
-            state_ = Static;
-        else if ( state_ == TruncatedAutorefreshing )
-            state_ = FileTruncated;
-    }
-}
-
-void CrawlerWidget::SearchState::truncateFile()
-{
-    if ( state_ == Autorefreshing || state_ == TruncatedAutorefreshing ) {
-        state_ = TruncatedAutorefreshing;
-    }
-    else {
-        state_ = FileTruncated;
-    }
-}
-
-void CrawlerWidget::SearchState::changeExpression()
-{
-    if ( state_ == Autorefreshing )
-        state_ = Static;
-}
-
-void CrawlerWidget::SearchState::stopSearch()
-{
-    if ( state_ == Autorefreshing )
-        state_ = Static;
-}
-
-void CrawlerWidget::SearchState::startSearch()
-{
-    if ( autoRefreshRequested_ )
-        state_ = Autorefreshing;
-    else
-        state_ = Static;
+    // The Color Labels belong to the Log File: every view of it colors them,
+    // the Filtered Views of kept Searches included.
+    viewSet_.setColorLabels( labels );
 }
 
 /*
@@ -2438,7 +2288,7 @@ void CrawlerWidget::toggleTableView()
     if ( showTable ) {
         // Defer model population so the view switch renders immediately
         QTimer::singleShot( 0, this, [ this ]() {
-            logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
+            logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
         } );
     }
 }
@@ -2461,17 +2311,11 @@ std::array<LogPresentation*, 2> CrawlerWidget::presentations() const
     return { logMainView_, logTableView_ };
 }
 
-// Decide which Log Format applies to the Log File. Called from the
+// Show the Log Format the Open Log File recognized. Called from the
 // load-finished path only, once per first load, manual reload or truncation.
-void CrawlerWidget::recognizeFormat()
+void CrawlerWidget::showRecognizedFormat()
 {
-    if ( !logData_ || !logFormatCatalog_ ) {
-        return;
-    }
-
-    ++formatRecognitionCount_;
-    auto recognized
-        = FormatRecognition::recognize( *logData_, recognitionPolicy_, *logFormatCatalog_ );
+    auto recognized = openLogFile_->logFormat();
 
     if ( !recognized ) {
         if ( recognizedFormat_ ) {
@@ -2483,15 +2327,14 @@ void CrawlerWidget::recognizeFormat()
     if ( recognized == recognizedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
-        logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
+        logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
         return;
     }
 
-    LOG_INFO << "Recognized log format: " << recognized->name().toStdString();
     // The Table View still points at the previous Log Format until it is
     // handed the new one, so the previous one stays alive until then.
     const auto previousFormat = std::exchange( recognizedFormat_, std::move( recognized ) );
-    logTableView_->setLogFormat( recognizedFormat_.get(), logData_.get() );
+    logTableView_->setLogFormat( recognizedFormat_.get(), openLogFile_->logData().get() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
         tr( "Toggle table/text view (%1)" ).arg( recognizedFormat_->title() ) );
@@ -2501,8 +2344,8 @@ void CrawlerWidget::recognizeFormat()
 
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
-    logTableView_->updateData( logFilteredData_.get(), isFollowEnabled() );
-    if ( presentationPolicy_.autoShowTableView && !tableViewToggle_->isChecked() ) {
+    logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
+    if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );
     }

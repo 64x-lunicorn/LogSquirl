@@ -45,7 +45,8 @@
 
 #include <QKeyEvent>
 
-// Class implementing the filtered (bottom) view widget.
+// Class implementing the filtered (bottom) view widget: a text view showing
+// the Displayed Lines of a Search, one after another.
 class FilteredView : public AbstractLogView {
     Q_OBJECT
 public:
@@ -56,22 +57,6 @@ public:
     using Visibility = LogFilteredData::Visibility;
     void setVisibility( Visibility visi );
     Visibility visibility() const;
-
-protected:
-    LogFilteredData::LineType lineType( LineNumber lineNumber ) const override;
-
-    // Number of the filtered line relative to the unfiltered source
-    LineNumber displayLineNumber( LineNumber lineNumber ) const override;
-    LineNumber lineIndex( LineNumber lineNumber ) const override;
-    LineNumber maxDisplayLineNumber() const override;
-
-    // A copy of the displayed lines, read from the Log File they come from.
-    QuickFindLines quickFindLines() const override;
-    // Reads through a copy of the displayed lines, from the Log File they
-    // come from.
-    DisplayedLinesReader linesToSave() const override;
-
-    void doRegisterShortcuts() override;
 
 private:
     LogFilteredData* logFilteredData_;

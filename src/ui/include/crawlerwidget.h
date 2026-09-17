@@ -42,6 +42,7 @@
 
 #include <array>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <optional>
 
@@ -67,10 +68,12 @@
 #include "logfiltereddata.h"
 #include "logmainview.h"
 #include "logpresentation.h"
+#include "openlogfile.h"
 #include "overview.h"
 #include "predefinedfilters.h"
 #include "signalmux.h"
 #include "viewinterface.h"
+#include "viewset.h"
 
 #include "logformatdefinition.h"
 #include "settingspolicies.h"
@@ -94,7 +97,9 @@ class CrawlerWidget : public QSplitter,
     Q_OBJECT
 
 public:
-    CrawlerWidget( QWidget* parent = nullptr );
+    // Builds every view of the Log File from everything they show it with,
+    // and restores the view context in it, if any (#248).
+    explicit CrawlerWidget( const ViewBuild& build, QWidget* parent = nullptr );
 
     // Get the line number of the first line displayed.
     LineNumber getTopLine() const;
@@ -123,10 +128,11 @@ public:
     bool isTextWrapEnabled() const;
 
     // The Policies this Log File's views show and search under, as last
-    // handed down by the Session. They are held here so that a widget can
-    // be given what it needs instead of reaching for the settings itself:
-    // both Presentations are handed what they need from these (#184), and
-    // this widget's own settings follow (#185).
+    // handed down by the Session. They are held -- the Watch Policy here,
+    // the others by the View Set -- so that a widget can be given what it
+    // needs instead of reaching for the settings itself: every view is
+    // handed what it needs from these (#184, #242), and this widget's own
+    // settings follow (#185).
     const DecorationPolicy& decorationPolicy() const;
     const PresentationPolicy& presentationPolicy() const;
     const QuickFindPolicy& quickFindPolicy() const;
@@ -146,8 +152,11 @@ public Q_SLOTS:
     void focusSearchEdit();
     void goToLine();
 
-    // Instructs the widget to reconfigure itself because Config() has changed.
-    void applyConfiguration();
+    // Takes what a tab brought to the front shows afresh -- the Search
+    // history, which another tab may have added to, and the status of its
+    // data. No configuration: that reaches every open Log File when it
+    // changes, whichever tab is in front (#245).
+    void broughtToFront();
 
     // Paints every view of this Log File again with the Highlighter Sets now
     // active. A Highlighter Set is user data, not a setting, so nothing is
@@ -164,19 +173,7 @@ public:
 
 protected:
     // Implementation of the ViewInterface functions
-    void doSetData( std::shared_ptr<LogData> logData,
-                    std::shared_ptr<LogFilteredData> filteredData ) override;
-    void doSetQuickFindPattern( std::shared_ptr<QuickFindPattern> qfp ) override;
-    void doSetSavedSearches( SavedSearches* savedSearches ) override;
-    void doSetFormatRecognition( const RecognitionPolicy& policy,
-                                 std::shared_ptr<const LogFormatCatalog> catalog ) override;
-    void doSetRecognitionPolicy( const RecognitionPolicy& policy ) override;
-    void doSetDecorationPolicy( const DecorationPolicy& policy ) override;
-    void doSetPresentationPolicy( const PresentationPolicy& policy ) override;
-    void doSetQuickFindPolicy( const QuickFindPolicy& policy ) override;
-    void doSetWatchPolicy( const WatchPolicy& policy ) override;
-    void doSetFileAccessPolicy( const FileAccessPolicy& policy ) override;
-    void doSetViewContext( const QString& viewContext ) override;
+    void doApplyChange( const ViewChange& change ) override;
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
     // Implementation of the mux selector interface
@@ -221,11 +218,6 @@ Q_SIGNALS:
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
 
-    // Sent when this Log File has been handed a QuickFind Policy, so that the
-    // QuickFind bar and the mux -- which belong to the window, not to a Log
-    // File -- follow it without reading a setting of their own.
-    void quickFindPolicyChanged( const QuickFindPolicy& policy );
-
 public Q_SLOTS:
     // Apply a list of predefined filters as the current search pattern.
     void setSearchPatternFromPredefinedFilters( const QList<PredefinedFilter>& filters );
@@ -245,20 +237,21 @@ private Q_SLOTS:
     void updateFilteredView( SearchSession::State state );
     // Called when a new line has been selected in the filtered view,
     // to instruct the main view to jump to the matching line.
-    void jumpToMatchingLine( LineNumber filteredLineNb, LinesCount nLines, LineColumn startCol,
+    void jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols );
     // Called when the Presentation shown is on a new Log Line; the
     // Presentations not shown follow it.
     void updateLineNumberHandler( LineNumber line, LinesCount nLines, LineColumn startCol,
                                   LineLength nSymbols );
-    // Mark Log Lines from a Presentation.
+    // Mark Log Lines from a Presentation or a Filtered View.
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
-    // Mark a line that has been clicked on the filtered (bottom) view.
-    void markLinesFromFiltered( const logsquirl::vector<LineNumber>& lines );
 
-    void loadingFinishedHandler( LoadingStatus status );
-    // Manages the info lines to inform the user the file has changed.
-    void fileChangedHandler( MonitoredFileStatus );
+    // Shows what a finished load brought, as the Open Log File followed it.
+    // A Failed load is offered to be reported.
+    void loadingFinishedHandler( const OpenLogFile::LoadFinished& load );
+    // Shows that the Log File was truncated on disk. A failure to check the
+    // file is offered to be reported.
+    void truncatedHandler( const QString& failure );
 
     void searchForward();
     void searchBackward();
@@ -300,7 +293,7 @@ private Q_SLOTS:
     // Search Context Menu
     void showSearchContextMenu();
 
-    // Called when a match is hovered on in the filtered view
+    // Called when a match is hovered on in the filtered view, with its Log Line
     void mouseHoveredOverMatch( LineNumber line );
 
     // Called when there was activity in the views
@@ -329,62 +322,28 @@ private Q_SLOTS:
     void filteredViewDestroyed( QObject* view );
 
 private:
-    // State machine holding the state of the search, used to allow/disallow
-    // auto-refresh and inform the user via the info line.
-    class SearchState {
-    public:
-        enum State {
-            NoSearch,
-            Static,
-            Autorefreshing,
-            FileTruncated,
-            TruncatedAutorefreshing,
-        };
-
-        SearchState()
-        {
-            state_ = NoSearch;
-            autoRefreshRequested_ = false;
-        }
-
-        // Reset the state (no search active)
-        void resetState();
-        // The user changed auto-refresh request
-        void setAutorefresh( bool refresh );
-        // The file has been truncated (stops auto-refresh)
-        void truncateFile();
-        // The expression has been changed (stops auto-refresh)
-        void changeExpression();
-        // The search has been stopped (stops auto-refresh)
-        void stopSearch();
-        // The search has been started (enable auto-refresh)
-        void startSearch();
-
-        // Get the state in order to display the proper message
-        State getState() const
-        {
-            return state_;
-        }
-        // Is auto-refresh allowed
-        bool isAutorefreshAllowed() const
-        {
-            return ( state_ == Autorefreshing || state_ == TruncatedAutorefreshing );
-        }
-        bool isFileTruncated() const
-        {
-            return ( state_ == FileTruncated || state_ == TruncatedAutorefreshing );
-        }
-
-    private:
-        State state_;
-        bool autoRefreshRequested_;
-    };
-
     // Private functions
     void setup();
+
+    // What a changed Watch Policy does to this Log File's views.
+    void applyWatchPolicy( const WatchPolicy& policy );
+    // Reads what has no Policy -- the font, the shortcuts, the length of the
+    // Search history -- again.
+    void rereadSettingsWithoutPolicy();
+    // Restores the view context saved with the Session, once the views are
+    // built.
+    void restoreViewContext( const QString& viewContext );
+
     void setShortcuts();
     void replaceCurrentSearch( const QString& searchText );
+    // Shows a Search just requested, or its invalid pattern.
+    void showSearchRequested( const SearchSession::State& state );
+    // Makes the Filtered View ready for a new Search's results.
+    void prepareForNewSearch();
     void updateSearchCombo();
+    // Tells whom the Session handed over of a change this Log File's views
+    // wrote themselves, so that it reaches every open Log File.
+    void reportChange( Changed change );
     AbstractLogView* activeView() const;
     void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
     void changeDataStatus( DataStatus status );
@@ -405,36 +364,15 @@ private:
 
     void changeFontSize( bool increase );
 
-    // Hand every view of this Log File the Decoration Policy this widget
-    // holds, the Filtered Views of kept Searches included. No Presentation
-    // derives it for itself, and neither does this widget: this is how a view
-    // just built is colored, and how a changed Policy reaches one.
-    void handDecorationPolicyToViews();
+    // The font Log Lines are drawn in, assembled from the settings -- no
+    // kerning, fixed pitch, the antialias strategy and bold. This is the one
+    // place that font is put together: no view reads it for itself, the View
+    // Set hands it to every view.
+    static QFont configuredFont();
 
-    // Hand every view of this Log File the Presentation Policy this widget
-    // holds, the Filtered Views of kept Searches included, and show the line
-    // numbers and the overview as it says. None of them is read from the
-    // settings: this is how a view just built shows them, and how a changed
-    // Policy reaches the views of a Log File whose tab is not the current one.
-    void handPresentationPolicyToViews();
-
-    // Tell every view of this Log File whether follow may be engaged at all,
-    // as the Watch Policy this widget holds says. A view allows following
-    // until it is told otherwise, so one just built has to be told too.
-    void handFollowAllowanceToViews();
-
-    // Assemble the font Log Lines are drawn in from the settings -- no
-    // kerning, fixed pitch, the antialias strategy and bold -- and hand it to
-    // every view of this Log File, the Filtered Views of kept Searches
-    // included. This is the one place that font is put together: no view
-    // reads it for itself. A view just built is handed it before its first
-    // paint, and every view again when the configuration is applied or the
-    // user zooms.
-    void handFontToViews();
-
-    // Decide which Log Format applies to the Log File, now that it has loaded.
-    // Only ever called from the load-finished path.
-    void recognizeFormat();
+    // Shows the Log Format the Open Log File just recognized, if any. Only
+    // ever called from the load-finished path.
+    void showRecognizedFormat();
 
     // Forget the recognized Log Format, back in the text view.
     void resetLogFormat();
@@ -449,13 +387,6 @@ private:
     template <class Presentation>
     void connectPresentation( Presentation* presentation );
 
-    // Call fn with each Filtered View of this Log File, the current one and
-    // those of kept Searches. The current Filtered View is one of the tabs; a
-    // tab closed is gone from them, so a Filtered View destroyed is never
-    // reached.
-    template <class Fn>
-    void forEachFilteredView( Fn&& fn ) const;
-
     // Palette for error notification (yellow background)
     static const QPalette ErrorPalette;
 
@@ -463,8 +394,9 @@ private:
 
     SavedSearches* savedSearches_ = nullptr;
 
-    std::shared_ptr<LogData> logData_;
-    std::shared_ptr<LogFilteredData> logFilteredData_;
+    // The Log File this widget shows: its log data, its current Search, and
+    // what they do as the Log File changes on disk.
+    std::shared_ptr<OpenLogFile> openLogFile_;
 
     // Matches overview
     Overview overview_;
@@ -507,9 +439,6 @@ private:
 
     QWidget* qfSavedFocus_ = nullptr;
 
-    // Search state (for auto-refresh and truncation)
-    SearchState searchState_;
-
     // the current dataStatus (whether we have new, not seen, data)
     DataStatus dataStatus_ = DataStatus::OLD_DATA;
 
@@ -523,15 +452,9 @@ private:
     // Current number of matches
     LinesCount nbMatches_;
 
-    LineNumber searchStartLine_;
-    LineNumber searchEndLine_;
-
     // Until we have received confirmation loading is finished, we
     // should consider we are loading something.
     bool loadingInProgress_ = true;
-    bool firstLoadDone_ = false;
-
-    logsquirl::vector<LineNumber> savedMarkedLines_;
 
     // Current encoding setting;
     std::optional<int> encodingMib_;
@@ -541,14 +464,10 @@ private:
 
     ChartPanel* chartPanel_ = nullptr;
 
-    // What Format Recognition runs on
-    RecognitionPolicy recognitionPolicy_;
-    std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
-
-    // What this Log File's views color, show, scroll and search under
-    DecorationPolicy decorationPolicy_;
-    PresentationPolicy presentationPolicy_;
-    QuickFindPolicy quickFindPolicy_;
+    // Every view of this Log File, and what all of them show alike: the
+    // Decoration, Presentation and QuickFind Policies, the follow allowance,
+    // the font, the Color Labels and the Search Limits.
+    ViewSet viewSet_;
 
     // Whether this Log File may be followed, and what it was opened under.
     // The File Access Policy is read when the views are built -- the
@@ -557,15 +476,11 @@ private:
     WatchPolicy watchPolicy_;
     FileAccessPolicy fileAccessPolicy_;
 
-    // Whether the next load to finish is to recognize the Log Format: the
-    // first load, and the one after a manual reload or a truncation.
-    bool formatRecognitionPending_ = true;
+    // Whom a change the views write themselves is told to: the Session.
+    std::function<void( Changed )> changeReport_;
 
-    // How many times Format Recognition has run, so a test can tell.
-    int formatRecognitionCount_ = 0;
-
-    // The Log Format recognized for the Log File, if any: one of the
-    // Catalog's own, kept even when the Catalog is rebuilt.
+    // The Log Format the Table View shows, if any: the one the Open Log File
+    // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
 
     // The upper pane shows either the text view or the Table View

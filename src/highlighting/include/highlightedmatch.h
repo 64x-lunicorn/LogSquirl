@@ -79,7 +79,7 @@ public:
     {
     }
 
-    logsquirl::vector<HighlightedMatch> matches() const
+    const logsquirl::vector<HighlightedMatch>& matches() const
     {
         return matches_;
     }

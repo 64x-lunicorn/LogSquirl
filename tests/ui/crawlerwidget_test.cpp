@@ -43,10 +43,13 @@
 
 #include "configuration.h"
 #include "crawlerwidget.h"
+#include "fake_file_watch.h"
 #include "filteredview.h"
 #include "highlighterset.h"
+#include "infoline.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
+#include "shortcuts.h"
 
 static const qint64 SL_NB_LINES = 100LL;
 
@@ -89,12 +92,12 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     LinesCount getLogNbLines()
     {
-        return crawler->logData_->getNbLine();
+        return crawler->openLogFile_->logData()->getNbLine();
     }
 
     LinesCount getLogFilteredNbLines()
     {
-        return crawler->logFilteredData_->getNbLine();
+        return crawler->openLogFile_->filteredData()->getNbLine();
     }
 
     void selectAllInMainView()
@@ -198,7 +201,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
             crawler->recognizedFormat_ = std::make_shared<const LogFormatDefinition>( format );
             crawler->logTableView_->setLogFormat( crawler->recognizedFormat_.get(),
-                                                  crawler->logData_.get() );
+                                                  crawler->openLogFile_->logData().get() );
             crawler->tableViewToggle_->setVisible( true );
         }
 
@@ -223,7 +226,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     bool isMarked( LineNumber line )
     {
-        return crawler->logFilteredData_->lineTypeByLine( line ).testFlag(
+        return crawler->openLogFile_->filteredData()->lineTypeByLine( line ).testFlag(
             AbstractLogData::LineTypeFlags::Mark );
     }
 
@@ -239,7 +242,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     QString logLineString( LineNumber line )
     {
-        return crawler->logData_->getLineString( line );
+        return crawler->openLogFile_->logData()->getLineString( line );
     }
 
     void clearSearchPattern()
@@ -263,6 +266,42 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     int currentFilteredViewTab()
     {
         return crawler->tabbedFilteredView_->currentIndex();
+    }
+
+    // What the Color Label shortcuts and menus do: the text selected in the
+    // main view, here the whole of the given Log Line, gets the label.
+    void addColorLabelToLogLine( LineNumber line, size_t label )
+    {
+        crawler->logMainView_->selectAndDisplayLine( line );
+        crawler->addColorLabelToSelection( label );
+        QCoreApplication::processEvents();
+    }
+
+    // What "clear all Color Labels" does in any view of the Log File.
+    void clearColorLabels()
+    {
+        crawler->clearColorLabels();
+        QCoreApplication::processEvents();
+    }
+
+    // What the Search Limits context menu entries do in any view.
+    void setSearchLimits( LineNumber startLine, LineNumber endLine )
+    {
+        crawler->setSearchLimits( startLine, endLine );
+        QCoreApplication::processEvents();
+    }
+
+    void clearSearchLimits()
+    {
+        crawler->clearSearchLimits();
+        QCoreApplication::processEvents();
+    }
+
+    // What marking a Log Line in the main view does.
+    void markLogLine( LineNumber line )
+    {
+        crawler->markLinesFromMain( { line } );
+        QCoreApplication::processEvents();
     }
 
     // What the close button of a Filtered View's tab does.
@@ -318,6 +357,25 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         QCoreApplication::processEvents();
     }
 
+    // What the user does by hand: asks for the Search to follow the Log File.
+    void enableAutoRefresh()
+    {
+        if ( !crawler->searchRefreshButton_->isChecked() ) {
+            QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
+            QCoreApplication::processEvents();
+        }
+    }
+
+    QString searchInfoText() const
+    {
+        return crawler->searchInfoLine_->text();
+    }
+
+    bool isSearchRunning() const
+    {
+        return !crawler->stopButton_->isHidden();
+    }
+
     void clickSearchDefaultButtons()
     {
         QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
@@ -340,8 +398,8 @@ SCENARIO( "Crawler widget search", "[ui]" )
     REQUIRE( session.savedSearches().recentSearches().empty() );
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -444,6 +502,74 @@ SCENARIO( "Crawler widget search", "[ui]" )
     }
 }
 
+SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui][autorefresh]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "truncated.log" );
+    const auto writeLogLines = [ &path ]( int count ) {
+        QFile file( path );
+        if ( !file.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
+            return false;
+        }
+        for ( int i = 0; i < count; i++ ) {
+            file.write( QString( "LOGDATA is a part of logsquirl, this is line %1\n" )
+                            .arg( i, 6, 10, QChar( '0' ) )
+                            .toUtf8() );
+        }
+        return true;
+    };
+    REQUIRE( writeLogLines( SL_NB_LINES ) );
+
+    // The Log File hears of the truncation at once, when the test reports it.
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
+    session.savedSearches().clear();
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+
+    GIVEN( "an auto-refreshed Search with its matches and a Mark" )
+    {
+        crawlerVisitor.enableAutoRefresh();
+        // Log Lines 10 to 19.
+        crawlerVisitor.setSearchPattern( "line 00001" );
+        crawlerVisitor.runSearch();
+        REQUIRE(
+            waitUiState( [ & ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 10; } ) );
+        crawlerVisitor.markLogLine( 50_lnum );
+        REQUIRE( crawlerVisitor.isMarked( 50_lnum ) );
+
+        WHEN( "the Log File is truncated to fewer Log Lines" )
+        {
+            REQUIRE( writeLogLines( 15 ) );
+            REQUIRE( fileWatch->reportChange( path ) );
+
+            REQUIRE( waitUiState( [ & ]() {
+                return crawlerVisitor.getLogNbLines().get() == 15
+                       && crawlerVisitor.getLogFilteredNbLines().get() == 5
+                       && !crawlerVisitor.isSearchRunning();
+            } ) );
+
+            THEN( "the Search started again and shows the matches of the truncated Log File" )
+            {
+                REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 5 );
+                REQUIRE( crawlerVisitor.searchInfoText() == "5 matches found" );
+            }
+
+            THEN( "the Marks are gone" )
+            {
+                REQUIRE_FALSE( crawlerVisitor.isMarked( 50_lnum ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "Selecting a Match in the Filtered View moves the main view only when it is off screen",
           "[ui][jump]" )
 {
@@ -454,8 +580,8 @@ SCENARIO( "Selecting a Match in the Filtered View moves the main view only when 
     session.savedSearches().clear();
 
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -507,8 +633,8 @@ void openCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& 
     REQUIRE( generateDataFiles( file ) );
     session.savedSearches().clear();
 
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
     waitUiState( [ & ]() { return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES; } );
     waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
@@ -549,17 +675,15 @@ SCENARIO( "The Crawler Widget shows and searches under the Policies it was hande
 
         WHEN( "a QuickFind Policy reading it as an extended regexp arrives" )
         {
-            QSignalSpy policyChanged( crawlerVisitor.crawler.get(),
-                                      &CrawlerWidget::quickFindPolicyChanged );
-
             policies.quickFind.mainRegexpType = SearchRegexpType::ExtendedRegexp;
             session.applyPolicies( policies );
 
-            THEN( "the Log File already open holds it, and hands it on" )
+            // Nothing is handed on to the window: its QuickFind bar takes the
+            // Policy from its session (#231).
+            THEN( "the Log File already open holds it" )
             {
                 REQUIRE( crawlerVisitor.crawler->quickFindPolicy().mainRegexpType
                          == SearchRegexpType::ExtendedRegexp );
-                REQUIRE( policyChanged.count() == 1 );
             }
         }
     }
@@ -733,19 +857,22 @@ SCENARIO( "A Row selected in the Table View is selected in the Filtered View too
 
 namespace {
 
-// The Highlighter Sets, and which of them are active, restored when this
-// object goes: nothing a test ticks leaks into the tests that run next.
+// The Highlighter Sets, which of them are active, and the colors of the Color
+// Labels, restored when this object goes: nothing a test ticks leaks into the
+// tests that run next.
 class PinnedHighlighterSets {
 public:
     PinnedHighlighterSets()
         : sets_( HighlighterSetCollection::get().highlighterSets() )
         , activeSetIds_( HighlighterSetCollection::get().activeSetIds() )
+        , colorLabels_( HighlighterSetCollection::get().quickHighlighters() )
     {
     }
 
     ~PinnedHighlighterSets()
     {
         auto& collection = HighlighterSetCollection::get();
+        collection.setQuickHighlighters( colorLabels_ );
         collection.setHighlighterSets( sets_ );
         collection.deactivateAll();
         for ( const auto& setId : activeSetIds_ ) {
@@ -759,6 +886,7 @@ public:
 private:
     QList<HighlighterSet> sets_;
     QStringList activeSetIds_;
+    QList<QuickHighlighter> colorLabels_;
 };
 
 bool showsColor( QWidget* view, const QColor& color )
@@ -889,8 +1017,8 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
     policies.decoding.hideAnsiColorSequences = false;
     Session session{ policies, std::make_shared<LogFormatCatalog>() };
     CrawlerWidgetVisitor crawlerVisitor;
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
     REQUIRE( waitUiState( [ &crawlerVisitor ]() {
         return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
     } ) );
@@ -907,12 +1035,14 @@ SCENARIO( "Hiding ANSI color sequences reaches an open Log File through its Deco
             REQUIRE( crawlerVisitor.logLineString( 1_lnum ) == "ERROR: disk full" );
         }
 
-        AND_WHEN( "the CrawlerWidget applies a Configuration that still shows them" )
+        AND_WHEN( "the CrawlerWidget reads the settings without a Policy again, while the store "
+                  "still shows them" )
         {
             auto& config = Configuration::get();
             const auto hideAnsiColorSequences = config.hideAnsiColorSequences();
             config.setHideAnsiColorSequences( false );
-            crawlerVisitor.crawler->applyConfiguration();
+            crawlerVisitor.crawler->applyChange(
+                ViewChange{ .rereadSettingsWithoutPolicy = true } );
             config.setHideAnsiColorSequences( hideAnsiColorSequences );
 
             THEN( "the Log Line still reads without them: only the Policy decides" )
@@ -937,8 +1067,8 @@ void writeAnsiLogFile( QTemporaryFile& file )
 void openAnsiCrawler( Session& session, QTemporaryFile& file, CrawlerWidgetVisitor& crawlerVisitor )
 {
     writeAnsiLogFile( file );
-    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-        session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
     REQUIRE( waitUiState( [ &crawlerVisitor ]() {
         return crawlerVisitor.getLogNbLines().get() == 3 && crawlerVisitor.isLoadingFinished();
     } ) );
@@ -1150,15 +1280,15 @@ SCENARIO( "A changed Decoration Policy reaches every view of every open Log File
             }
         }
 
-        WHEN(
-            "the CrawlerWidget applies a Configuration that colors main-search matches otherwise" )
+        WHEN( "the CrawlerWidget reads the settings without a Policy again, while the store "
+              "colors main-search matches otherwise" )
         {
             auto& config = Configuration::get();
             const auto mainSearchHighlight = config.mainSearchHighlight();
             const auto mainSearchBackColor = config.mainSearchBackColor();
             config.setEnableMainSearchHighlight( true );
             config.setMainSearchBackColor( changedColor );
-            first.crawler->applyConfiguration();
+            first.crawler->applyChange( ViewChange{ .rereadSettingsWithoutPolicy = true } );
             config.setEnableMainSearchHighlight( mainSearchHighlight );
             config.setMainSearchBackColor( mainSearchBackColor );
             QTest::qWait( 50 );
@@ -1483,7 +1613,8 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
 
         CrawlerWidgetVisitor crawlerVisitor;
         crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
-            session.open( file.fileName(), []() { return new CrawlerWidget(); } ) ) );
+            session.open( file.fileName(),
+                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
 
         THEN( "every view already holds the assembled font" )
         {
@@ -1492,7 +1623,7 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
             REQUIRE( drawsInAssembledFont( crawlerVisitor.filteredView(), configuredSize ) );
         }
 
-        WHEN( "it is shown and the configuration is applied afterwards" )
+        WHEN( "it is shown and the settings without a Policy are read again afterwards" )
         {
             waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
             crawlerVisitor.showSized();
@@ -1501,7 +1632,8 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
                 = crawlerVisitor.tableView()->verticalHeader()->defaultSectionSize();
             const auto tableFont = crawlerVisitor.tableView()->font();
 
-            crawlerVisitor.crawler->applyConfiguration();
+            crawlerVisitor.crawler->applyChange(
+                ViewChange{ .rereadSettingsWithoutPolicy = true } );
             QCoreApplication::processEvents();
 
             THEN( "the Table View neither changes its font nor resizes its rows" )
@@ -1534,6 +1666,462 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
                     drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 0 ), zoomedSize ) );
                 REQUIRE(
                     drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 1 ), zoomedSize ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// A palette in which a Log Line outside the Search Limits is drawn in a color
+// of its own: the one of the platform may draw it as any other.
+QPalette subduingPalette()
+{
+    QPalette palette;
+    palette.setColor( QPalette::Base, Qt::white );
+    palette.setColor( QPalette::Text, Qt::black );
+    palette.setColor( QPalette::Disabled, QPalette::Text, QColor{ 0x6b, 0x5a, 0x49 } );
+    return palette;
+}
+
+// How many pixels of the view are painted in the color a Log Line outside the
+// Search Limits is subdued in. The separator beside the bullets is drawn in
+// it too, so only a change of the count within one view says something.
+int subduedPixels( QWidget* view )
+{
+    const auto subdued = subduingPalette().color( QPalette::Disabled, QPalette::Text ).rgb();
+    const auto image = view->grab().toImage();
+    auto count = 0;
+    for ( auto y = 0; y < image.height(); ++y ) {
+        for ( auto x = 0; x < image.width(); ++x ) {
+            if ( image.pixelColor( x, y ).rgb() == subdued ) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+
+// The Color Labels of the Highlighter Set Collection, the first two in colors
+// nothing else in the views is painted with.
+void setColorLabelColors( const QColor& first, const QColor& second )
+{
+    auto& collection = HighlighterSetCollection::get();
+    auto labels = collection.quickHighlighters();
+    while ( labels.size() < 2 ) {
+        labels.append( QuickHighlighter{ "label", HighlightColor{ Qt::black, Qt::white }, true } );
+    }
+    labels[ 0 ].color = HighlightColor{ Qt::white, first };
+    labels[ 1 ].color = HighlightColor{ Qt::white, second };
+    collection.setQuickHighlighters( labels );
+}
+
+} // namespace
+
+// Color Labels and Search Limits belong to the Log File, not to one of its
+// Filtered Views (#234): a change is painted in every Filtered View the Log
+// File has, the ones of kept Searches in tabs not current included, and a
+// Filtered View built afterwards starts with them.
+SCENARIO( "Color Labels and Search Limits reach every Filtered View of the Log File",
+          "[ui][decoration]" )
+{
+    QTemporaryFile file{ "crawler_labels_limits_XXXXXX" };
+
+    // Colors nothing else in the views is painted with.
+    const QColor firstLabelColor{ 0x13, 0x57, 0x9b };
+    const QColor secondLabelColor{ 0x9b, 0x57, 0x13 };
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    const PinnedHighlighterSets pinnedSets;
+    HighlighterSetCollection::get().deactivateAll();
+    setColorLabelColors( firstLabelColor, secondLabelColor );
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+    // Handed down to every view of the Log File, the ones built later included.
+    crawlerVisitor.crawler->setPalette( subduingPalette() );
+
+    GIVEN( "a kept Search in a tab not current, both Searches showing Log Line 3" )
+    {
+        searchForOneLine( crawlerVisitor, "line 000003" );
+        crawlerVisitor.keepSearchResults();
+        searchForOneLine( crawlerVisitor, "line 000003" );
+        REQUIRE( crawlerVisitor.currentFilteredViewTab() == 1 );
+        REQUIRE( crawlerVisitor.filteredViewInTab( 0 ) != nullptr );
+        REQUIRE( crawlerVisitor.filteredViewInTab( 1 ) != nullptr );
+
+        REQUIRE_FALSE( showsColor( crawlerVisitor.filteredViewInTab( 0 ), firstLabelColor ) );
+        REQUIRE_FALSE( showsColor( crawlerVisitor.filteredViewInTab( 1 ), firstLabelColor ) );
+
+        WHEN( "Log Line 3 gets a Color Label" )
+        {
+            crawlerVisitor.addColorLabelToLogLine( 3_lnum, 0 );
+
+            THEN( "every Filtered View colors it, the kept Search's included" )
+            {
+                REQUIRE( showsColor( crawlerVisitor.textView(), firstLabelColor ) );
+                REQUIRE( showsColor( crawlerVisitor.filteredViewInTab( 1 ), firstLabelColor ) );
+                REQUIRE( showsColor( crawlerVisitor.filteredViewInTab( 0 ), firstLabelColor ) );
+            }
+
+            AND_WHEN( "the text is given another Color Label" )
+            {
+                crawlerVisitor.addColorLabelToLogLine( 3_lnum, 1 );
+
+                THEN( "every Filtered View colors it in the other label's color" )
+                {
+                    for ( const auto tab : { 0, 1 } ) {
+                        CAPTURE( tab );
+                        auto* view = crawlerVisitor.filteredViewInTab( tab );
+                        REQUIRE( showsColor( view, secondLabelColor ) );
+                        REQUIRE_FALSE( showsColor( view, firstLabelColor ) );
+                    }
+                }
+            }
+
+            AND_WHEN( "the Color Labels are cleared" )
+            {
+                crawlerVisitor.clearColorLabels();
+
+                THEN( "no Filtered View colors it any more, the kept Search's included" )
+                {
+                    REQUIRE_FALSE(
+                        showsColor( crawlerVisitor.filteredViewInTab( 0 ), firstLabelColor ) );
+                    REQUIRE_FALSE(
+                        showsColor( crawlerVisitor.filteredViewInTab( 1 ), firstLabelColor ) );
+                }
+            }
+        }
+
+        WHEN( "Search Limits are set that end before Log Line 3" )
+        {
+            const auto keptBefore = subduedPixels( crawlerVisitor.filteredViewInTab( 0 ) );
+            const auto currentBefore = subduedPixels( crawlerVisitor.filteredViewInTab( 1 ) );
+
+            crawlerVisitor.setSearchLimits( 0_lnum, 3_lnum );
+
+            THEN( "every Filtered View subdues it, the kept Search's included" )
+            {
+                REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 1 ) ) > currentBefore );
+                REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 0 ) ) > keptBefore );
+            }
+
+            AND_WHEN( "the Search Limits are cleared" )
+            {
+                crawlerVisitor.clearSearchLimits();
+
+                THEN( "no Filtered View subdues it any more, the kept Search's included" )
+                {
+                    REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 1 ) )
+                             == currentBefore );
+                    REQUIRE( subduedPixels( crawlerVisitor.filteredViewInTab( 0 ) ) == keptBefore );
+                }
+            }
+        }
+
+        // The Search Limits reach the Line Decorator as Log Lines: a Log Line
+        // shown before a start the Filtered View doesn't show is outside them
+        // (#243).
+        WHEN( "a Search shows Log Lines 3 and 7, and Search Limits start between them" )
+        {
+            crawlerVisitor.clearSearchPattern();
+            crawlerVisitor.setSearchPattern( "LOGDATA.*line 00000[37]" );
+            crawlerVisitor.runSearch();
+            REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+                return crawlerVisitor.getLogFilteredNbLines().get() == 2;
+            } ) );
+            QTest::qWait( 50 );
+
+            auto* view = crawlerVisitor.filteredView();
+            const auto inside = subduedPixels( view );
+
+            crawlerVisitor.setSearchLimits( 5_lnum, 10_lnum );
+            const auto firstOutside = subduedPixels( view );
+
+            crawlerVisitor.setSearchLimits( 8_lnum, 10_lnum );
+            const auto bothOutside = subduedPixels( view );
+
+            THEN( "Log Line 3 is subdued, and Log Line 7 is not" )
+            {
+                REQUIRE( firstOutside > inside );
+                REQUIRE( bothOutside > firstOutside );
+            }
+        }
+
+        WHEN( "with a Color Label on Log Line 7 and Search Limits that end after it, "
+              "a Search is kept and a new one shows Log Line 7 and the marked 9" )
+        {
+            crawlerVisitor.addColorLabelToLogLine( 7_lnum, 0 );
+            crawlerVisitor.setSearchLimits( 0_lnum, 8_lnum );
+
+            crawlerVisitor.keepSearchResults();
+            searchForOneLine( crawlerVisitor, "line 000007" );
+            REQUIRE( crawlerVisitor.currentFilteredViewTab() == 2 );
+            crawlerVisitor.markLogLine( 9_lnum );
+            REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 2 );
+
+            THEN( "the new Filtered View starts with the Color Label" )
+            {
+                REQUIRE( showsColor( crawlerVisitor.filteredViewInTab( 2 ), firstLabelColor ) );
+            }
+
+            THEN( "the new Filtered View starts with the Search Limits: Log Line 9 is subdued" )
+            {
+                const auto limited = subduedPixels( crawlerVisitor.filteredViewInTab( 2 ) );
+                crawlerVisitor.clearSearchLimits();
+                REQUIRE( limited > subduedPixels( crawlerVisitor.filteredViewInTab( 2 ) ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// What the application does once a Highlighter Set, or the color of a Color
+// Label, has been changed -- in the Highlighters dialog, the Highlighters
+// menu or by an import: it tells the Session, whatever window it happened in.
+void changeHighlighterSets( Session& session )
+{
+    session.applyChange( Changed::HighlighterSets );
+    QCoreApplication::processEvents();
+}
+
+} // namespace
+
+// A Color Label caches its color alongside its words in each Log File, so a
+// change of the Highlighter Set Collection has to reach every open Log File,
+// not only the one the current tab shows (#237).
+SCENARIO( "A Highlighter Set change re-colors Color Labels in every open Log File",
+          "[ui][highlighters]" )
+{
+    QTemporaryFile currentFile{ "crawler_labels_current_XXXXXX" };
+    QTemporaryFile backgroundFile{ "crawler_labels_background_XXXXXX" };
+
+    // Colors nothing else in the views is painted with.
+    const QColor oldLabelColor{ 0x13, 0x57, 0x9b };
+    const QColor newLabelColor{ 0x57, 0x9b, 0x13 };
+    const QColor otherLabelColor{ 0x9b, 0x57, 0x13 };
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    const PinnedHighlighterSets pinnedSets;
+    HighlighterSetCollection::get().deactivateAll();
+    setColorLabelColors( oldLabelColor, otherLabelColor );
+
+    // Destroyed before the Session they were opened from.
+    CrawlerWidgetVisitor current;
+    openCrawler( session, currentFile, current );
+    CrawlerWidgetVisitor background;
+    openCrawler( session, backgroundFile, background );
+
+    GIVEN( "two open Log Files, both with a Color Label on Log Line 3, one in the background" )
+    {
+        current.addColorLabelToLogLine( 3_lnum, 0 );
+        background.addColorLabelToLogLine( 3_lnum, 0 );
+
+        REQUIRE( showsColor( current.textView(), oldLabelColor ) );
+        REQUIRE( showsColor( background.textView(), oldLabelColor ) );
+
+        // As a tab not current is.
+        background.crawler->hide();
+        QCoreApplication::processEvents();
+
+        WHEN( "the Color Label is given another color in the Highlighter Set Collection" )
+        {
+            setColorLabelColors( newLabelColor, otherLabelColor );
+            changeHighlighterSets( session );
+
+            THEN( "the current Log File shows the new color" )
+            {
+                REQUIRE( showsColor( current.textView(), newLabelColor ) );
+                REQUIRE_FALSE( showsColor( current.textView(), oldLabelColor ) );
+            }
+
+            THEN( "the Log File in the background shows it too" )
+            {
+                REQUIRE( showsColor( background.textView(), newLabelColor ) );
+                REQUIRE_FALSE( showsColor( background.textView(), oldLabelColor ) );
+            }
+
+            AND_WHEN( "the Log File in the background is brought to the front" )
+            {
+                background.showSized();
+
+                THEN( "it shows the new color without any further action" )
+                {
+                    REQUIRE( showsColor( background.textView(), newLabelColor ) );
+                    REQUIRE_FALSE( showsColor( background.textView(), oldLabelColor ) );
+                }
+            }
+        }
+    }
+}
+
+namespace {
+
+// The keys of the shortcuts a Crawler Widget has registered and not yet let go.
+QStringList shortcutKeysOf( const QObject& crawler )
+{
+    QStringList keys;
+    for ( const auto& shortcut : shortcutsOf( crawler ) ) {
+        if ( !shortcut.isNull() ) {
+            keys.append( shortcut->key().toString() );
+        }
+    }
+    return keys;
+}
+
+// Holds the configured shortcuts, and puts back what they were.
+class ConfiguredShortcuts {
+public:
+    ConfiguredShortcuts()
+        : shortcuts_( Configuration::get().shortcuts() )
+    {
+    }
+
+    ~ConfiguredShortcuts()
+    {
+        Configuration::get().setShortcuts( shortcuts_ );
+    }
+
+    ConfiguredShortcuts( const ConfiguredShortcuts& ) = delete;
+    ConfiguredShortcuts& operator=( const ConfiguredShortcuts& ) = delete;
+
+private:
+    std::map<std::string, QStringList> shortcuts_;
+};
+
+} // namespace
+
+// The font and the shortcuts have no Policy, but a change to them travels the
+// way a Policy does: the Session tells every open Log File to read them again,
+// not only the one the current tab shows, and a tab brought to the front
+// applies nothing (#245).
+SCENARIO( "A changed font or shortcut reaches every open Log File", "[ui][settings]" )
+{
+    QTemporaryFile currentFile{ "crawler_settings_current_XXXXXX" };
+    QTemporaryFile backgroundFile{ "crawler_settings_background_XXXXXX" };
+
+    const auto shippedFont = Configuration{}.mainFont();
+    const auto openedSize = shippedFont.pointSize() + 2;
+    const ConfiguredFont configured{ QFont{ shippedFont.family(), openedSize }, true, true };
+    const ConfiguredShortcuts configuredShortcuts;
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    // Destroyed before the Session they were opened from.
+    CrawlerWidgetVisitor current;
+    openCrawler( session, currentFile, current );
+    CrawlerWidgetVisitor background;
+    openCrawler( session, backgroundFile, background );
+
+    const QString changedKey = QStringLiteral( "Ctrl+Alt+Shift+F11" );
+
+    GIVEN( "two open Log Files, one in the background" )
+    {
+        // As a tab not current is.
+        background.crawler->hide();
+        QCoreApplication::processEvents();
+
+        REQUIRE( drawsInAssembledFont( background.textView(), openedSize ) );
+        REQUIRE_FALSE( shortcutKeysOf( *background.crawler ).contains( changedKey ) );
+
+        const auto changedSize = openedSize + 3;
+        auto& config = Configuration::get();
+
+        WHEN( "the font and a shortcut are changed in the settings and the Session is told" )
+        {
+            config.setMainFont( QFont{ shippedFont.family(), changedSize } );
+            auto shortcuts = config.shortcuts();
+            shortcuts[ ShortcutAction::LogViewClearColorLabels ] = QStringList{ changedKey };
+            config.setShortcuts( shortcuts );
+
+            session.applyChange( Changed::Settings );
+            QCoreApplication::processEvents();
+
+            THEN( "the Log File in the background draws in the new font, without being brought "
+                  "to the front" )
+            {
+                REQUIRE( drawsInAssembledFont( background.textView(), changedSize ) );
+                REQUIRE( drawsInAssembledFont( background.filteredView(), changedSize ) );
+            }
+
+            THEN( "the Log File in the background answers to the new shortcut" )
+            {
+                REQUIRE( shortcutKeysOf( *background.crawler ).contains( changedKey ) );
+            }
+
+            THEN( "the current Log File takes both too" )
+            {
+                REQUIRE( drawsInAssembledFont( current.textView(), changedSize ) );
+                REQUIRE( shortcutKeysOf( *current.crawler ).contains( changedKey ) );
+            }
+        }
+
+        WHEN( "a Search is kept, a view's shortcut is changed in the settings and the Session is "
+              "told" )
+        {
+            searchForOneLine( current, "line 000003" );
+            current.keepSearchResults();
+            searchForOneLine( current, "line 000007" );
+            REQUIRE( current.currentFilteredViewTab() == 1 );
+
+            auto shortcuts = config.shortcuts();
+            shortcuts[ ShortcutAction::LogViewJumpToTop ] = QStringList{ changedKey };
+            config.setShortcuts( shortcuts );
+
+            session.applyChange( Changed::Settings );
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+
+            THEN( "the kept Search's Filtered View answers to it, as the current one does" )
+            {
+                REQUIRE( shortcutKeysOf( *current.filteredViewInTab( 0 ) ).contains( changedKey ) );
+                REQUIRE( shortcutKeysOf( *current.filteredViewInTab( 1 ) ).contains( changedKey ) );
+                REQUIRE( shortcutKeysOf( *current.textView() ).contains( changedKey ) );
+            }
+        }
+
+        WHEN( "the user zooms in the current Log File" )
+        {
+            // A key listed twice for a view -- the platform's standard
+            // bindings can repeat one the defaults list, as on Linux --
+            // released a shortcut, deleted only later: it is gone before the
+            // shortcuts are counted.
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+            const auto shortcutsBefore = shortcutsOf( *background.crawler );
+            current.zoom( true );
+            // Shortcuts registered anew delete the old ones later.
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+            const auto zoomedSize = Configuration::get().mainFont().pointSize();
+            REQUIRE( zoomedSize > openedSize );
+
+            THEN( "the Log File in the background draws in the zoomed font too" )
+            {
+                REQUIRE( drawsInAssembledFont( background.textView(), zoomedSize ) );
+                REQUIRE( drawsInAssembledFont( background.filteredView(), zoomedSize ) );
+            }
+
+            THEN( "only the font is taken again: the shortcuts are not rebuilt" )
+            {
+                REQUIRE( allAlive( shortcutsBefore ) );
+            }
+        }
+
+        WHEN( "the font is changed in the settings, nobody is told, and the Log File in the "
+              "background is brought to the front" )
+        {
+            const auto shortcutsBefore = shortcutsOf( *background.crawler );
+            config.setMainFont( QFont{ shippedFont.family(), changedSize } );
+
+            background.crawler->broughtToFront();
+            background.showSized();
+
+            THEN( "it applies no configuration: neither the font nor its shortcuts are taken "
+                  "again" )
+            {
+                REQUIRE( drawsInAssembledFont( background.textView(), openedSize ) );
+                REQUIRE( allAlive( shortcutsBefore ) );
             }
         }
     }
