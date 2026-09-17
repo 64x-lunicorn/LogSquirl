@@ -22,9 +22,13 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
-from releases import sections
+from typing import NamedTuple
+
+from releases import (feed_changelog_versions, is_release_of, release_heading, report,
+                      sections)
 
 UNRELEASED = "# Unreleased"
 NO_CHANGELOG_LABEL = "no-changelog"
@@ -41,7 +45,8 @@ def changelog_entry_problem(*, base: str, head: str, labels: list[str], author: 
     if unreleased and unreleased != base_sections.get(UNRELEASED, ""):
         return None
     # A release preparation turns the Unreleased section into a release section.
-    if head_sections and head_sections[0][0] != UNRELEASED and head_sections[0][0] not in base_sections:
+    if (head_sections and release_heading(head_sections[0][0])
+            and head_sections[0][0] not in base_sections):
         return None
     return (f"CHANGELOG.md: add an entry under '{UNRELEASED}' for this change, "
             f"or add the '{NO_CHANGELOG_LABEL}' label if it needs none.")
@@ -56,13 +61,17 @@ def _project_version(cmake: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _expected(version: str, release: str | None) -> tuple[str, str, callable]:
-    """The expected release name, the words saying a pre-release matches too,
-    and which names match."""
+class _Expected(NamedTuple):
+    """The release a preparation must name everywhere."""
+    name: str          # in messages
+    or_prerelease: str  # " or a pre-release of it" while the CHANGELOG names none
+    matches: Callable[[str], bool]
+
+
+def _expected(version: str, release: str | None) -> _Expected:
     if release:
-        return release, "", lambda name: name == release
-    prerelease = re.compile(rf"{re.escape(version)}(-(alpha|beta|rc)\.?[0-9]+)?")
-    return version, " or a pre-release of it", lambda name: bool(prerelease.fullmatch(str(name)))
+        return _Expected(release, "", lambda name: name == release)
+    return _Expected(version, " or a pre-release of it", is_release_of(version))
 
 
 def release_preparation_problems(*, base_cmake: str, head_cmake: str, changelog: str, feed,
@@ -75,22 +84,20 @@ def release_preparation_problems(*, base_cmake: str, head_cmake: str, changelog:
     found = []
     all_sections = sections(changelog)
     top = all_sections[0][0] if all_sections else "(nothing)"
-    heading = re.fullmatch(rf"# v({re.escape(version)}(-(alpha|beta|rc)\.?[0-9]+)?)( \(.*\))?", top)
-    release = heading.group(1) if heading else None
+    named = release_heading(top)
+    release = named if named and is_release_of(version)(named) else None
     if not release:
         found.append(f"CHANGELOG.md: the version is now {version}, but the top section is '{top}'; "
                      f"turn it into '# v{version} (YYYY-MM-DD)' or a pre-release such as "
                      f"'# v{version}-beta1 (YYYY-MM-DD)'")
-    expected, or_prerelease, matches = _expected(version, release)
-
-    entries = feed.get("changelog", []) if isinstance(feed, dict) else []
-    if not any(isinstance(e, dict) and matches(e.get("version")) for e in entries):
-        found.append(f"latest.json: no changelog entry for {expected}{or_prerelease}")
+    expected = _expected(version, release)
+    if not any(expected.matches(name) for name in feed_changelog_versions(feed)):
+        found.append(f"latest.json: no changelog entry for {expected.name}{expected.or_prerelease}")
 
     pages = [m.group(1) for page in sorted(news_dir.glob("release-*.md"))
              if (m := _PAGE_VERSION.search(page.read_text(encoding="utf-8")))]
-    if not any(matches(name) for name in pages):
-        found.append(f"website: no release page with 'version: {expected}'{or_prerelease}")
+    if not any(expected.matches(name) for name in pages):
+        found.append(f"website: no release page with 'version: {expected.name}'{expected.or_prerelease}")
     return found
 
 
@@ -126,9 +133,7 @@ def main(argv: list[str] | None = None) -> int:
                 news_dir=args.news_dir)
     except (OSError, ValueError) as err:
         found = [str(err)]
-    for message in found:
-        print(f"::error::{' '.join(message.split())}")
-    return 1 if found else 0
+    return report(found)
 
 
 if __name__ == "__main__":

@@ -39,7 +39,9 @@ jobs:
   # -----------------------------------------------------------------------
   # Changes — what a pull request changes: `build` unless it changes only the
   # files a push ignores (paths-ignore above, keep both lists equal), `website`
-  # when it changes the website. A push or dispatch always builds (#310, #311).
+  # when it changes the website. A push or dispatch always builds and leaves
+  # the website to Deploy Website, so a website problem cannot block the
+  # release candidate (#310, #311).
   # -----------------------------------------------------------------------
   Changes:
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
@@ -61,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
-            printf 'build=true\nwebsite=true\n' >> "$GITHUB_OUTPUT"
+            printf 'build=true\nwebsite=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           build=false
@@ -634,11 +636,6 @@ jobs:
           # lz4 has no Chocolatey package; tests skip gracefully
           install_tools: choco install zstandard --no-progress -y
 
-  # ---------------------------------------------------------------------------
-  # Aggregate gate — the single required status check on master (#115).
-  # Runs even when a dependency failed or was cancelled, so it can turn that
-  # into its own failure; skipped only when the whole run is a [skip ci] run.
-  # ---------------------------------------------------------------------------
   # -----------------------------------------------------------------------
   # Website — the build the deploy runs, including its link check, for a pull
   # request that changes the website; no secrets (#311).
@@ -668,6 +665,25 @@ jobs:
       - name: Build and check links
         run: cd website && npm run build
 
+      # The deploy leaves out the pages of unpublished releases (#315); a link
+      # to one of them would fail the deploy after the merge, so build that
+      # variant here too. Public release listing, no secrets.
+      - name: Build and check links as deployed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq '.[] | select(.draft | not) | .tag_name' > "$RUNNER_TEMP/published-releases.txt"
+          cd website
+          node scripts/leave-out-unpublished.mjs "$RUNNER_TEMP/published-releases.txt"
+          npm run build
+
+  # ---------------------------------------------------------------------------
+  # Aggregate gate — the single required status check on master (#115).
+  # Runs even when a dependency failed or was cancelled, so it can turn that
+  # into its own failure; skipped only when the whole run is a [skip ci] run.
+  # ---------------------------------------------------------------------------
   ci-passed:
     name: CI passed
     needs:

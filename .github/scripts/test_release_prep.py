@@ -72,6 +72,11 @@ def test_a_release_preparation_that_turns_unreleased_into_the_release_passes():
     assert rp.changelog_entry_problem(base=WITH_ENTRY, head=prepared, labels=[], author="someone") is None
 
 
+def test_a_new_top_heading_that_is_not_a_release_is_not_an_entry():
+    stray = "# Notes\n\nSomething.\n\n---\n\n" + RELEASED
+    assert rp.changelog_entry_problem(base=RELEASED, head=stray, labels=[], author="someone") is not None
+
+
 def test_the_command_line_reads_both_changelogs(tmp_path, capsys):
     base, head = tmp_path / "base.md", tmp_path / "head.md"
     base.write_text(RELEASED, encoding="utf-8")

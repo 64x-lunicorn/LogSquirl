@@ -7,9 +7,15 @@ on sys.path (as a script, or under pytest).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterable
 
-# Accepts the historical formats: v26.04.2, v26.05.0-beta1, v26.03.1-beta.2
-_TAG = re.compile(r"v([0-9]+\.[0-9]+\.[0-9]+)(-(?:alpha|beta|rc)\.?[0-9]+)?")
+# The suffix of a pre-release name; accepts the historical formats
+# 26.05.0-beta1 and 26.03.1-beta.2.
+PRERELEASE = r"-(?:alpha|beta|rc)\.?[0-9]+"
+_TAG = re.compile(rf"v([0-9]+\.[0-9]+\.[0-9]+)({PRERELEASE})?")
+# A release section's heading: `# v26.10.0-beta1 (2026-09-17)`, or the older
+# `# 26.04.2 (2026-04-19):`.
+_RELEASE_HEADING = re.compile(rf"# v?([0-9]+\.[0-9]+\.[0-9]+(?:{PRERELEASE})?)(?:[\s:(].*)?")
 
 
 class ReleaseError(Exception):
@@ -59,3 +65,33 @@ def sections(changelog: str) -> list[tuple[str, str]]:
             body.pop(0)
         result.append((heading, "\n".join(body)))
     return result
+
+
+def release_heading(line: str) -> str | None:
+    """The release name a CHANGELOG heading line names, or None when it names none."""
+    match = _RELEASE_HEADING.fullmatch(line)
+    return match.group(1) if match else None
+
+
+def is_release_of(version: str) -> Callable[[str], bool]:
+    """Whether a release name is version X.Y.Z itself or a pre-release of it."""
+    pattern = re.compile(rf"{re.escape(version)}(?:{PRERELEASE})?")
+    return lambda name: isinstance(name, str) and pattern.fullmatch(name) is not None
+
+
+def feed_changelog_versions(feed) -> set[str]:
+    """The release names the update feed's changelog describes."""
+    entries = feed.get("changelog", []) if isinstance(feed, dict) else []
+    entries = entries if isinstance(entries, list) else []
+    return {e["version"] for e in entries
+            if isinstance(e, dict) and isinstance(e.get("version"), str) and e["version"]}
+
+
+def report(problems: Iterable[str]) -> int:
+    """Prints one ::error:: annotation per problem; the exit code of a check."""
+    found = False
+    for problem in problems:
+        # One line each: an annotation ends at the first newline.
+        print(f"::error::{' '.join(problem.split())}")
+        found = True
+    return 1 if found else 0

@@ -26,7 +26,7 @@ import re
 import sys
 from pathlib import Path
 
-from releases import ReleaseError, parse_tag
+from releases import ReleaseError, feed_changelog_versions, parse_tag, report
 
 RELEASE_PAGE = "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v"
 _BUILD = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)\.([0-9]+)")
@@ -67,18 +67,16 @@ def problems(feed) -> list[str]:
     if not isinstance(changelog, list):
         found.append("'changelog' is not a list")
         changelog = []
-    described = set()
     for number, entry in enumerate(changelog, start=1):
         entry = entry if isinstance(entry, dict) else {}
         if not _is_text(entry.get("version")):
             found.append(f"changelog entry {number} has no version")
-        else:
-            described.add(entry["version"])
         if not _is_text(entry.get("description")):
             found.append(f"changelog entry {number} has no description")
 
     if _is_text(feed.get("ci_url")) and not feed["ci_url"].endswith("#"):
         found.append("'ci_url' must end in '#'")
+    described = feed_changelog_versions(feed)
     for channel in ("stable", "beta"):
         name = feed.get(channel)
         if not _is_text(name):
@@ -152,9 +150,7 @@ def main(argv: list[str] | None = None) -> int:
             found = problems(feed)
         elif args.command == "check-tag":
             parse_tag(args.tag)
-            entries = feed.get("changelog", []) if isinstance(feed, dict) else []
-            names = {e.get("version") for e in entries if isinstance(e, dict)}
-            found = [] if args.tag[1:] in names else [
+            found = [] if args.tag[1:] in feed_changelog_versions(feed) else [
                 f"{args.feed.name} has no changelog entry for {args.tag[1:]}: add one "
                 "with the release preparation before tagging."]
         else:
@@ -164,10 +160,7 @@ def main(argv: list[str] | None = None) -> int:
             found = []
     except (ReleaseError, OSError) as err:
         found = [str(err)]
-    for problem in found:
-        # One line each: an annotation ends at the first newline.
-        print(f"::error::{' '.join(problem.split())}")
-    return 1 if found else 0
+    return report(found)
 
 
 if __name__ == "__main__":
