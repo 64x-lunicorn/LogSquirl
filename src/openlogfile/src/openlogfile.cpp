@@ -85,6 +85,14 @@ void OpenLogFile::restoreMarks( const logsquirl::vector<LineNumber>& marks )
     savedMarks_.insert( savedMarks_.end(), marks.begin(), marks.end() );
 }
 
+QList<LineNumber> OpenLogFile::marks() const
+{
+    if ( !firstLoadDone_ ) {
+        return QList<LineNumber>( savedMarks_.begin(), savedMarks_.end() );
+    }
+    return filteredData_->getMarks();
+}
+
 void OpenLogFile::reload()
 {
     autoRefresh_.resetState();

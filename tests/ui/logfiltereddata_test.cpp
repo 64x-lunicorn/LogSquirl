@@ -1277,3 +1277,124 @@ SCENARIO( "the Filtered View's lines can be read from a second thread while the 
     REQUIRE( uiErrors == 0 );
     REQUIRE( workerErrors == 0 );
 }
+
+SCENARIO( "The Displayed Lines read in a block as each of them does on its own",
+          "[logdata][sparse-read]" )
+{
+    auto policies = testSettingsPolicies();
+    policies.search.contextLinesCount = 2;
+    LogDataLoader logDataLoader( policies );
+    const auto& logData = logDataLoader.log_data;
+
+    auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+    filtered_data->setVisibility( AllVisible );
+    SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
+    requestSearch( filtered_data.get(), EveryTenthLine, searchStateSpy );
+    filtered_data->addMark( 5_lnum );
+    filtered_data->addMark( 256_lnum );
+    filtered_data->addMark( 499_lnum );
+
+    const auto nbDisplayed = filtered_data->getNbLine();
+    REQUIRE( nbDisplayed > filtered_data->getNbMatches() );
+
+    // What the Filtered View showed at each position when it read them one
+    // by one: the displayed Log Line's text, or nothing past the last one.
+    const auto oneByOne = [ & ]( LineNumber first, LinesCount count, bool expanded ) {
+        std::vector<QString> text;
+        for ( auto position = first; position < first + count; ++position ) {
+            if ( position < nbDisplayed ) {
+                const auto line = filtered_data->getMatchingLineNumber( position );
+                text.push_back( expanded ? logData.getExpandedLineString( line )
+                                         : logData.getLineString( line ) );
+            }
+            else {
+                text.emplace_back();
+            }
+        }
+        return text;
+    };
+
+    const auto expanded = GENERATE( false, true );
+    const auto [ first, count ]
+        = GENERATE( std::pair{ 0_lnum, 30_lcount }, std::pair{ 17_lnum, 1_lcount },
+                    std::pair{ 40_lnum, 60_lcount }, std::pair{ 0_lnum, 0_lcount } );
+    CAPTURE( expanded, first, count );
+    const auto read = [ &, expanded = expanded ]( LineNumber from, LinesCount number ) {
+        const auto lines = expanded ? filtered_data->getExpandedLines( from, number )
+                                    : filtered_data->getLines( from, number );
+        return std::vector<QString>( lines.begin(), lines.end() );
+    };
+
+    THEN( "a block of positions reads as each position does on its own" )
+    {
+        REQUIRE( read( first, count ) == oneByOne( first, count, expanded ) );
+    }
+
+    THEN( "a block reaching past the last position reads nothing there" )
+    {
+        const auto from = LineNumber( nbDisplayed.get() - 3 );
+        REQUIRE( read( from, 10_lcount ) == oneByOne( from, 10_lcount, expanded ) );
+        REQUIRE( read( from, 10_lcount )[ 3 ].isEmpty() );
+    }
+}
+
+SCENARIO( "The Filtered View is as wide as its longest Mark as Marks come and go",
+          "[logdata][marks]" )
+{
+    // Log Line n is n + 1 characters long.
+    QTemporaryFile file{ "filtered_test_mark_lengths_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < 100; ++line ) {
+        file.write( QByteArray( line + 1, 'x' ) + "\n" );
+    }
+    file.flush();
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    auto filtered_data = logData.getNewFilteredData();
+    REQUIRE( filtered_data->getMaxLength() == 0_length );
+
+    GIVEN( "Marks on Log Lines 9, 29, 19 and 49, one of them marked twice" )
+    {
+        filtered_data->addMark( 9_lnum );
+        filtered_data->toggleMark( 29_lnum );
+        filtered_data->addMark( 19_lnum );
+        filtered_data->addMark( 49_lnum );
+        filtered_data->addMark( 49_lnum );
+
+        THEN( "it is as wide as the longest Mark" )
+        {
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 50 ) );
+        }
+
+        WHEN( "the longest Marks are removed one after another" )
+        {
+            filtered_data->deleteMark( 49_lnum );
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 30 ) );
+            filtered_data->toggleMark( 29_lnum );
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
+
+            THEN( "a shorter Mark removed, or a Log Line not marked, leaves the width" )
+            {
+                filtered_data->deleteMark( 9_lnum );
+                filtered_data->deleteMark( 70_lnum );
+                REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
+            }
+        }
+
+        WHEN( "every Mark is cleared" )
+        {
+            filtered_data->clearMarks();
+
+            THEN( "it is as wide as no Mark" )
+            {
+                REQUIRE( filtered_data->getMaxLength() == 0_length );
+            }
+        }
+    }
+}

@@ -678,6 +678,109 @@ SCENARIO( "A followed Log File that changed where it is not checked is read agai
 
 namespace {
 
+// What the command line tool printed for each Log Line before it read them as
+// UTF-8: the Log Line's text, converted to UTF-8, and a line feed.
+std::string utf8OneByOne( const LogData& logData, const std::vector<LineNumber>& lines )
+{
+    std::string text;
+    for ( const auto line : lines ) {
+        text += logData.getLineString( line ).toStdString();
+        text += '\n';
+    }
+    return text;
+}
+
+} // namespace
+
+SCENARIO( "A sparse set of Log Lines reads as UTF-8 byte for byte as their text converted to it",
+          "[logdata][sparse-read][utf8]" )
+{
+    // Log Lines a UTF-8 decoder may treat in a way of its own: valid text in
+    // and outside ASCII, a carriage return, tabs, an ANSI color sequence, a
+    // NUL, byte order marks, noncharacters, and byte sequences that are not
+    // UTF-8 -- overlong, a surrogate, past U+10FFFF, a lone continuation byte
+    // and a sequence cut short at the end of the Log Line.
+    const std::vector<QByteArray> kinds{
+        QByteArray( "\xEF\xBB\xBF"
+                    "starts with a byte order mark" ),
+        QByteArray( "plain ASCII text" ),
+        QByteArray( "ends with a carriage return\r" ),
+        QByteArray( "\tcolumn\tafter tabs" ),
+        QByteArray(),
+        QByteArray( "\x1B[31mcolored\x1B[0m" ),
+        QByteArray( "a NUL \0 in the middle", 21 ),
+        QByteArray( "gr\xC3\xBC\xC3\x9F"
+                    "e \xE2\x98\x83 \xF0\x9F\x90\xBF" ),
+        QByteArray( "noncharacters \xEF\xBF\xBE \xEF\xBF\xBF \xF4\x8F\xBF\xBF" ),
+        QByteArray( "\xEF\xBB\xBF"
+                    "a byte order mark on a later Log Line" ),
+        QByteArray( "a zero width no-break space \xEF\xBB\xBF inside" ),
+        QByteArray( "overlong \xC0\xAF and \xE0\x80\xAF" ),
+        QByteArray( "a surrogate \xED\xA0\x80 here" ),
+        QByteArray( "past U+10FFFF \xF4\x90\x80\x80 and \xF5\x80" ),
+        QByteArray( "a lone continuation byte \x80 here" ),
+        QByteArray( "cut short at the end \xE2\x82" ),
+        QByteArray( "latin-1 \xE9t\xE9"
+                    "\r" ),
+    };
+
+    constexpr int LineCount = 500;
+    QTemporaryFile file{ "logdata_test_utf8_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < LineCount; ++line ) {
+        file.write( kinds[ static_cast<size_t>( line ) % kinds.size() ] );
+        file.write( QByteArray::number( line ) );
+        if ( line + 1 < LineCount ) {
+            file.write( "\n" );
+        }
+    }
+    file.flush();
+
+    const auto hideAnsiColorSequences = GENERATE( false, true );
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = hideAnsiColorSequences;
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+
+    const std::string encoding = GENERATE( "", "UTF-8", "ISO-8859-1" );
+    if ( !encoding.empty() ) {
+        logData.setDisplayEncoding( encoding.c_str() );
+    }
+
+    CAPTURE( hideAnsiColorSequences, encoding );
+
+    GIVEN( "a Log File of Log Lines of every kind" )
+    {
+        THEN( "every Log Line reads as its text converted to UTF-8" )
+        {
+            std::vector<LineNumber> lines;
+            for ( uint64_t line = 0; line < LineCount; ++line ) {
+                lines.emplace_back( line );
+            }
+            REQUIRE( logData.getUtf8LinesSparse( lines ) == utf8OneByOne( logData, lines ) );
+        }
+
+        THEN( "sparse Log Lines, out of order, twice and past the last one read the same" )
+        {
+            const std::vector<LineNumber> lines{ 3_lnum, 14_lnum, 15_lnum,  16_lnum,  400_lnum,
+                                                 9_lnum, 9_lnum,  499_lnum, 500_lnum, 1000_lnum };
+            REQUIRE( logData.getUtf8LinesSparse( lines ) == utf8OneByOne( logData, lines ) );
+        }
+
+        THEN( "no Log Lines read as nothing" )
+        {
+            REQUIRE( logData.getUtf8LinesSparse( {} ).empty() );
+        }
+    }
+}
+
+namespace {
+
 // Log Lines of one length, each telling its own number, so that a Log Line
 // read at any time can be checked against what it must read as.
 constexpr int NumberedLineLength = 99;
@@ -775,6 +878,19 @@ SCENARIO( "Log Lines read after their Log File shrank on disk, before it is inde
             REQUIRE( isReadWarning( text[ 3 ] ) );
         }
 
+        THEN( "a sparse set of Log Lines read as UTF-8 reads as warnings past its end" )
+        {
+            const std::vector<LineNumber> lines{ 10_lnum, 199_lnum, 200_lnum, 450_lnum };
+            const auto text = QString::fromStdString( logData.getUtf8LinesSparse( lines ) );
+            const auto readLines = text.split( QLatin1Char( '\n' ) );
+            REQUIRE( readLines.size() == 5 );
+            REQUIRE( readLines[ 0 ] == numberedLogLine( 10 ) );
+            REQUIRE( readLines[ 1 ] == numberedLogLine( 199 ) );
+            REQUIRE( isReadWarning( readLines[ 2 ] ) );
+            REQUIRE( isReadWarning( readLines[ 3 ] ) );
+            REQUIRE( readLines[ 4 ].isEmpty() );
+        }
+
         THEN( "a Search reads no more Log Lines past its end than there are bytes for" )
         {
             const auto rawLines = logData.getLinesRaw( 150_lnum, 300_lcount );
@@ -837,6 +953,21 @@ SCENARIO( "Log Lines read while their Log File is indexed", "[logdata][concurren
                 if ( sparseText[ request ] != numberedLogLine( sparse[ request ].get() )
                      && !isReadWarning( sparseText[ request ] ) ) {
                     ++wrong;
+                }
+            }
+
+            const auto utf8Lines = QString::fromStdString( logData.getUtf8LinesSparse( sparse ) )
+                                       .split( QLatin1Char( '\n' ) );
+            if ( utf8Lines.size() != static_cast<qsizetype>( sparse.size() + 1 ) ) {
+                ++wrong;
+            }
+            else {
+                for ( std::size_t request = 0; request < sparse.size(); ++request ) {
+                    const auto& utf8Line = utf8Lines[ static_cast<qsizetype>( request ) ];
+                    if ( utf8Line != numberedLogLine( sparse[ request ].get() )
+                         && !isReadWarning( utf8Line ) ) {
+                        ++wrong;
+                    }
                 }
             }
         }

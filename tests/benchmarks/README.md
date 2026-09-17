@@ -214,8 +214,9 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
 - `[sparse-read]` — every hundredth Log Line from the start, 10,000 of them:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
-  Find reads today, each next to the same Log Lines in one sparse read
-  (**getLinesSparse**, **getExpandedLinesSparse**, #286).
+  Find read before #287, each next to the same Log Lines in one sparse read
+  (**getLinesSparse**, **getExpandedLinesSparse**, #286), and the same Log
+  Lines as UTF-8 (**getUtf8LinesSparse**, #288).
 - `[read-while-indexing]` — not a Catch2 `BENCHMARK`: while the Log File is
   indexed, a reader thread asks for the line count, one Log Line
   (**getLineString**) and 60 Log Lines with tabs expanded
@@ -315,6 +316,21 @@ tab groups) into the settings store, then measures
 - **add and style the tabs only**: the 20 tabs alone, without opening the
   Log Files, where the settings reads are most of the cost.
 
+A second case restores a Session of several large Log Files (#300), written
+at run time into a temporary directory, the last one the current tab, and
+measures
+
+- **restore until the current tab has loaded**: the time until the user can
+  work in the current tab;
+- **restore until every tab has loaded**: the time until every Log File of
+  the Session has loaded.
+
+Before #300 every Log File starts loading at once and competes with the
+current tab's; after it the current tab's loads first and the others one
+after another. There are 4 Log Files of 32 MiB each by default; set
+`LOGSQUIRL_BENCHMARK_SESSION_LOG_FILES` and
+`LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB` for more or larger ones.
+
 The settings store is the portable one next to the binary, as for the tests,
 not the macOS preferences daemon the application uses; what was stored before
 is written back at the end. The file uses only what the Session and the tab
@@ -325,8 +341,8 @@ cmake --build build-release --target logsquirl_session_restore_benchmark
 ./build-release/output/logsquirl_session_restore_benchmark --benchmark-samples 50 > after.txt
 ```
 
-For the before side, copy `session_restore_benchmark.cpp` into a worktree of
-origin/master and add the target as in `CMakeLists.txt` here, as described for
+For the before side, copy `session_restore_benchmark.cpp` and
+`generated_log_file.h` into a worktree of origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
 
 # Regex matcher benchmark
@@ -423,6 +439,78 @@ add_executable(logsquirl_displayedlines_benchmark displayedlines_benchmark.cpp)
 target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
 ```
 
+# QuickFind benchmark
+
+`logsquirl_quickfind_benchmark` (#287) runs a QuickFind for text no Log Line
+holds, so it reads and matches every Log Line it searches, over the generated
+Log File of short Log Lines described above (about 1 GB, or
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB`). Each case runs forwards from the first Log
+Line and backwards from the last one:
+
+- **every Log Line**, as the main view searches;
+- **every tenth Log Line**, as a Filtered View searches the Matches of a
+  Search.
+
+`[file-kept-open]` runs them on a Log File kept open between reads.
+`[file-kept-closed]` runs them with "keep file closed" set; it is hidden, so a
+run of every benchmark leaves it out, because before #287 QuickFind reopened
+the Log File for every Log Line and a single run takes minutes.
+
+```bash
+cmake --build build-release --target logsquirl_quickfind_benchmark
+./build-release/output/logsquirl_quickfind_benchmark --benchmark-samples 10 > after.txt
+./build-release/output/logsquirl_quickfind_benchmark "[file-kept-closed]" --benchmark-samples 3
+
+# A quick check on a Log File of 8 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=8 ./build/output/logsquirl_quickfind_benchmark --benchmark-samples 2
+```
+
+`quickfind_benchmark.cpp` uses only what QuickFind and LogData offered before
+#287. For the before side, copy it and `generated_log_file.h` into a worktree
+of origin/master as above, with
+
+```cmake
+add_executable(logsquirl_quickfind_benchmark quickfind_benchmark.cpp)
+target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
+```
+
+# Chart follow benchmark
+
+`logsquirl_chart_follow_benchmark` (#298) charts a generated Log File of about
+128 MiB (short lines, `generated_log_file.h`) with three series -- a number on
+every Log Line, a count of ERROR Log Lines and a timestamp X-axis bucketed per
+second -- then appends Log Lines to it, has the log data load them as a change
+on disk does, and calls `ChartPanel::extractData()` after each load, as the
+crawler widget does with a visible chart. The first extraction is not measured.
+
+- **append 20 Log Lines, chart updated**: one append, measured until the chart
+  holds a point for every Log Line. Before #298 every update extracted the
+  whole Log File again, so this grew with its size; afterwards it does not.
+- **10 appends of 20 Log Lines in quick succession, chart updated**: a busy
+  Log File, the chart asked to update after each load without waiting for it.
+  Before #298 each request cancelled the running extraction, waited for it on
+  the GUI thread and started over from the first Log Line.
+
+The panel is not shown, so painting the chart is not measured. Where the panel
+has an update delay (#298), the benchmark sets it to zero. Set
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB` for another size; a full run needs its size
+free in `TMPDIR`. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_chart_follow_benchmark
+./build-release/output/logsquirl_chart_follow_benchmark --benchmark-samples 10 > after.txt
+```
+
+`chart_follow_benchmark.cpp` uses only what the chart panel offered before #298
+(the update delay only under `__has_include( "chartextraction.h" )`), so it
+builds unchanged on origin/master: copy it and `generated_log_file.h` into a
+worktree of that commit as described for the scrolling benchmarks above, with
+
+```cmake
+add_executable(logsquirl_chart_follow_benchmark chart_follow_benchmark.cpp)
+target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
+```
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a
@@ -446,3 +534,38 @@ two local runs: put each side's `--reporter xml` output under
 `<dir>/catch2/<binary>.xml` and run it with `--before <dir> --after <dir>`.
 
 The workflow can only be dispatched once it is on master.
+
+# Filtered View read benchmark
+
+`logsquirl_filteredview_read_benchmark` (#288) measures the readers of a
+Search's Displayed Lines. It writes a Log File of short Log Lines (256 MiB, or
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB`) into a temporary directory, indexes it and
+runs a Search matching every eighth Log Line, without Context Lines, before
+the first case:
+
+- `[paint]` — **getLines, a screen at each of 200 Scroll Positions**: 60 rows
+  read from the Filtered View's log data at 200 positions spread over the
+  matches, as painting does.
+- `[save]` — **the first 100,000 displayed lines, as UTF-8**: a save through
+  the Filtered View's `linesToSave()` into memory.
+- `[marks]` — **remove the longest Mark and add it back**, among 10,000
+  Marks spread over the Log File.
+- `[grep]` — **logsquirl_grep, every eighth Log Line**: the command line
+  tool run on the same Log File with its output discarded. It is taken from
+  the directory of the benchmark binary and skipped when it is not there.
+
+The file uses only what these offered before #288, so it builds on
+origin/master with `generated_log_file.h` copied next to it:
+
+```bash
+cmake --build build-release --target logsquirl_filteredview_read_benchmark logsquirl_grep
+./build-release/output/logsquirl_filteredview_read_benchmark --benchmark-samples 10 > after.txt
+
+# A quick check on a Log File of 16 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 ./build/output/logsquirl_filteredview_read_benchmark --benchmark-samples 2
+```
+
+```cmake
+add_executable(logsquirl_filteredview_read_benchmark filteredview_read_benchmark.cpp)
+target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
+```

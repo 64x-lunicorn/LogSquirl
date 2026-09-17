@@ -270,7 +270,14 @@ TEST_CASE( "Reading a sparse set of Log Lines", "[logdata-benchmark][sparse-read
             return characters;
         };
 
-        // As Quick Find reads today.
+        // The same Log Lines as UTF-8, as the command line tool prints them
+        // (#288).
+        BENCHMARK( caseName( shape, "getUtf8LinesSparse" ) )
+        {
+            return logData.getUtf8LinesSparse( lines ).size();
+        };
+
+        // As Quick Find read before #287.
         BENCHMARK( caseName( shape, "getExpandedLineString, line by line" ) )
         {
             qsizetype characters = 0;

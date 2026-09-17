@@ -44,8 +44,9 @@ target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOU
 target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
 
 # Restoring a Session of 20 tabs at startup (#301): the Session info, tab
-# names and tab groups read from the settings store. Uses only what the
-# Session and the tab area offered before #301 (see README.md).
+# names and tab groups read from the settings store; and a Session of several
+# large Log Files until its current tab, or every tab, has loaded (#300). Uses
+# only what the Session and the tab area offered before #301 (see README.md).
 add_executable(logsquirl_session_restore_benchmark
     session_restore_benchmark.cpp
 )
@@ -80,3 +81,31 @@ add_executable(logsquirl_displayedlines_benchmark
 )
 
 target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
+
+# A QuickFind without a match over a Log File of about 1 GB generated at run
+# time (#287). Uses only what QuickFind and LogData offered before #287, so
+# the same file measures both sides of an A/B comparison (see README.md).
+add_executable(logsquirl_quickfind_benchmark
+    quickfind_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
+
+# The readers of a Search's Displayed Lines (#288): the Filtered View painting,
+# saving displayed lines, removing the longest of many Marks, and the command
+# line tool printing its matches, which it runs from next to itself. Uses only
+# what they offered before #288, so the same file measures both sides.
+add_executable(logsquirl_filteredview_read_benchmark
+    filteredview_read_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
+
+# A chart following a growing Log File (#298): Log Lines appended to a Log File
+# of about 128 MiB and the chart brought up to date after each load. Uses only
+# what the chart panel offered before #298 (see README.md).
+add_executable(logsquirl_chart_follow_benchmark
+    chart_follow_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)

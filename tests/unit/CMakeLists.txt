@@ -2,6 +2,7 @@
 add_executable(logsquirl_tests
     abstractlogview_test.cpp
     ansicolorsequences_test.cpp
+    chartextraction_test.cpp
     chartseries_test.cpp
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp
@@ -19,6 +20,7 @@ add_executable(logsquirl_tests
     linessaver_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
+    marklengths_test.cpp
     formatrecognition_test.cpp
     logfieldextractor_test.cpp
     logformatcatalog_test.cpp
@@ -36,6 +38,7 @@ add_executable(logsquirl_tests
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
+    quickfind_test.cpp
     quickfindmux_test.cpp
     quickfindwidget_test.cpp
     regularexpression_test.cpp

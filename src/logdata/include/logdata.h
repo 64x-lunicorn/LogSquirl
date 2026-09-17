@@ -50,6 +50,7 @@
 #include <qregularexpression.h>
 #include <qtextcodec.h>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -163,9 +164,15 @@ public:
     // last one reads as it does on its own. Safe off the UI thread, like
     // getLinesRaw().
     logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
-    // As getLinesSparse(), with tabs expanded: for each Log Line, what
-    // getExpandedLineString() returns.
-    logsquirl::vector<QString> getExpandedLinesSparse( std::span<const LineNumber> lines ) const;
+    // getExpandedLinesSparse(), from AbstractLogData, reads Log Lines the
+    // same way, with tabs expanded.
+
+    // As getLinesSparse(), as UTF-8: for each Log Line asked for, in the order
+    // asked, what getLineString() returns converted to UTF-8, followed by a
+    // line feed -- byte for byte. A Log Line that is UTF-8 in a UTF-8 Log
+    // File, or ASCII in an ASCII compatible one, is copied as it was read and
+    // never decoded; any other is decoded on its own and converted back.
+    std::string getUtf8LinesSparse( std::span<const LineNumber> lines ) const;
 
     // What a Search on this Log File reads its Log Lines through. Lives as
     // long as this object.
@@ -211,6 +218,8 @@ private:
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
     logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
                                                    LinesCount number ) const override;
+    logsquirl::vector<QString>
+    doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const override;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
