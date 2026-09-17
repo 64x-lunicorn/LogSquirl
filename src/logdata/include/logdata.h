@@ -49,6 +49,7 @@
 #include <QTextCodec>
 #include <qregularexpression.h>
 #include <qtextcodec.h>
+#include <span>
 #include <string_view>
 #include <vector>
 
@@ -154,6 +155,18 @@ public:
 
     RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
 
+    // The text of a sparse set of Log Lines, one entry per Log Line asked
+    // for and in the order asked: for each, what getLineString() returns.
+    // Nearby Log Lines are merged into runs and each run is read at once,
+    // under one lock, with one text decoder and one ANSI color filter for the
+    // whole call. lines may come in any order and repeat; a Log Line past the
+    // last one reads as it does on its own. Safe off the UI thread, like
+    // getLinesRaw().
+    logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
+    // As getLinesSparse(), with tabs expanded: for each Log Line, what
+    // getExpandedLineString() returns.
+    logsquirl::vector<QString> getExpandedLinesSparse( std::span<const LineNumber> lines ) const;
+
     // What a Search on this Log File reads its Log Lines through. Lives as
     // long as this object.
     const SearchBlockSource& searchBlockSource() const;
@@ -211,6 +224,9 @@ private:
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
+    logsquirl::vector<QString>
+    getSparseLinesFromFile( std::span<const LineNumber> lines,
+                            QString ( *processLine )( QString&& ) ) const;
 
 private:
     mutable std::unique_ptr<FileHolder> attached_file_;

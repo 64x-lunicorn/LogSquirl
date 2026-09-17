@@ -445,3 +445,135 @@ SCENARIO( "A Log File read hiding ANSI color sequences", "[logdata][ansi]" )
         }
     }
 }
+
+namespace {
+
+// What reading each Log Line on its own returns, plain or with tabs expanded.
+std::vector<QString> linesOneByOne( const LogData& logData, const std::vector<LineNumber>& lines,
+                                    bool expanded )
+{
+    std::vector<QString> text;
+    for ( const auto line : lines ) {
+        text.push_back( expanded ? logData.getExpandedLineString( line )
+                                 : logData.getLineString( line ) );
+    }
+    return text;
+}
+
+std::vector<QString> asStd( const logsquirl::vector<QString>& lines )
+{
+    return { lines.begin(), lines.end() };
+}
+
+} // namespace
+
+SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
+          "[logdata][sparse-read]" )
+{
+    constexpr int LineCount = 2000;
+
+    // Log Lines of different lengths, some with tabs, a carriage return, an
+    // ANSI color sequence or characters outside ASCII, some empty, and a last
+    // one without a line feed.
+    const auto logLine = []( int line ) -> QByteArray {
+        switch ( line % 7 ) {
+        case 0:
+            return QStringLiteral( "%1\tcolumn\tafter tabs" ).arg( line ).toUtf8();
+        case 1:
+            return QStringLiteral( "%1 ends with a carriage return\r" ).arg( line ).toUtf8();
+        case 2:
+            return {};
+        case 3:
+            return QStringLiteral( "\x1B[31m%1 colored\x1B[0m" ).arg( line ).toUtf8();
+        case 4:
+            return QStringLiteral( "%1 grüße ☃" ).arg( line ).toUtf8();
+        default:
+            return QStringLiteral( "%1 %2" ).arg( line ).arg( QString( line % 50, 'x' ) ).toUtf8();
+        }
+    };
+
+    QTemporaryFile file{ "logdata_test_sparse_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < LineCount; ++line ) {
+        file.write( logLine( line ) );
+        if ( line + 1 < LineCount ) {
+            file.write( "\n" );
+        }
+    }
+    file.flush();
+
+    const auto hideAnsiColorSequences = GENERATE( false, true );
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = hideAnsiColorSequences;
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+
+    const auto expanded = GENERATE( false, true );
+    const auto readSparse = [ &logData, expanded ]( const std::vector<LineNumber>& lines ) {
+        return asStd( expanded ? logData.getExpandedLinesSparse( lines )
+                               : logData.getLinesSparse( lines ) );
+    };
+
+    CAPTURE( hideAnsiColorSequences, expanded );
+
+    GIVEN( "a Log File of Log Lines of every kind" )
+    {
+        THEN( "contiguous Log Lines read as each does on its own" )
+        {
+            std::vector<LineNumber> lines;
+            for ( uint64_t line = 100; line < 150; ++line ) {
+                lines.emplace_back( line );
+            }
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "sparse Log Lines, near and far apart, read as each does on its own" )
+        {
+            std::vector<LineNumber> lines{ 1_lnum,    2_lnum,    5_lnum,   40_lnum,
+                                           41_lnum,   700_lnum,  703_lnum, 1500_lnum,
+                                           1501_lnum, 1502_lnum, 1777_lnum };
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "every tenth Log Line reads as each does on its own" )
+        {
+            std::vector<LineNumber> lines;
+            for ( uint64_t line = 3; line < LineCount; line += 10 ) {
+                lines.emplace_back( line );
+            }
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "the first and the last Log Line read as each does on its own" )
+        {
+            const std::vector<LineNumber> lines{ 0_lnum, LineNumber( LineCount - 1 ) };
+            const auto text = readSparse( lines );
+            REQUIRE( text == linesOneByOne( logData, lines, expanded ) );
+            REQUIRE( text.back().startsWith( QString::number( LineCount - 1 ) ) );
+        }
+
+        THEN( "Log Lines past the last one read as each does on its own" )
+        {
+            const std::vector<LineNumber> lines{ LineNumber( LineCount - 2 ),
+                                                 LineNumber( LineCount ),
+                                                 LineNumber( LineCount + 100 ) };
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "Log Lines asked for out of order or twice come back in the order asked" )
+        {
+            const std::vector<LineNumber> lines{ 900_lnum, 3_lnum, 900_lnum, 4_lnum };
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "no Log Lines read as nothing" )
+        {
+            REQUIRE( readSparse( {} ).empty() );
+        }
+    }
+}

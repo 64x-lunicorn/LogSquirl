@@ -155,6 +155,167 @@ SCENARIO( "The Displayed Lines map positions to Log Lines and back", "[displayed
     }
 }
 
+namespace {
+
+// The Log Lines a cursor stands on, stepping forwards until it has none.
+Lines walkForward( DisplayedLinesCursor cursor )
+{
+    Lines lines;
+    for ( ; cursor.hasLine(); cursor.next() ) {
+        lines.push_back( cursor.logLine().get() );
+    }
+    return lines;
+}
+
+// The Log Lines a cursor stands on, stepping backwards until it has none.
+Lines walkBackward( DisplayedLinesCursor cursor )
+{
+    Lines lines;
+    for ( ; cursor.hasLine(); cursor.previous() ) {
+        lines.push_back( cursor.logLine().get() );
+    }
+    return lines;
+}
+
+Lines numbersOf( const logsquirl::vector<LineNumber>& lines )
+{
+    Lines numbers;
+    for ( const auto line : lines ) {
+        numbers.push_back( line.get() );
+    }
+    return numbers;
+}
+
+} // namespace
+
+SCENARIO( "The Displayed Lines are walked from a position", "[displayedlines]" )
+{
+    LogFile logFile;
+    logFile.matches = bitmapOf( { 3, 7, 50 } );
+    auto displayed = displayedLinesOf( logFile, 1 );
+    displayed.searchCompleted();
+    displayed.addMark( 90_lnum );
+    displayed.setShown( Everything );
+
+    // Position:          0  1  2  3  4  5  6   7   8   9   10  11
+    const Lines expected{ 2, 3, 4, 6, 7, 8, 49, 50, 51, 89, 90, 91 };
+
+    THEN( "walking forwards from a position meets the Log Lines from it to the last" )
+    {
+        REQUIRE( walkForward( displayed.cursorAt( 0_lnum ) ) == expected );
+        REQUIRE( walkForward( displayed.cursorAt( 7_lnum ) ) == Lines{ 50, 51, 89, 90, 91 } );
+        REQUIRE( walkForward( displayed.cursorAt( 11_lnum ) ) == Lines{ 91 } );
+    }
+
+    THEN( "walking backwards from a position meets the Log Lines from it to the first" )
+    {
+        REQUIRE( walkBackward( displayed.cursorAt( 11_lnum ) )
+                 == Lines{ 91, 90, 89, 51, 50, 49, 8, 7, 6, 4, 3, 2 } );
+        REQUIRE( walkBackward( displayed.cursorAt( 4_lnum ) ) == Lines{ 7, 6, 4, 3, 2 } );
+        REQUIRE( walkBackward( displayed.cursorAt( 0_lnum ) ) == Lines{ 2 } );
+    }
+
+    THEN( "the cursor knows the position it stands on" )
+    {
+        auto cursor = displayed.cursorAt( 5_lnum );
+        REQUIRE( cursor.position() == 5_lnum );
+        cursor.next();
+        REQUIRE( cursor.position() == 6_lnum );
+        REQUIRE( cursor.logLine() == 49_lnum );
+        cursor.previous();
+        cursor.previous();
+        REQUIRE( cursor.position() == 4_lnum );
+        REQUIRE( cursor.logLine() == 7_lnum );
+    }
+
+    THEN( "a position past the last displayed Log Line stands on none" )
+    {
+        auto cursor = displayed.cursorAt( 12_lnum );
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE_FALSE( displayed.cursorAt( 1000_lnum ).hasLine() );
+        REQUIRE_FALSE( displayed.cursorAt( maxValue<LineNumber>() ).hasLine() );
+
+        WHEN( "it steps back" )
+        {
+            cursor.previous();
+
+            THEN( "it stands on the last displayed Log Line" )
+            {
+                REQUIRE( cursor.hasLine() );
+                REQUIRE( cursor.position() == 11_lnum );
+                REQUIRE( cursor.logLine() == 91_lnum );
+            }
+        }
+    }
+
+    THEN( "stepping back before the first displayed Log Line and forwards again returns to it" )
+    {
+        auto cursor = displayed.cursorAt( 0_lnum );
+        cursor.previous();
+        REQUIRE_FALSE( cursor.hasLine() );
+        cursor.next();
+        REQUIRE( cursor.hasLine() );
+        REQUIRE( cursor.position() == 0_lnum );
+        REQUIRE( cursor.logLine() == 2_lnum );
+    }
+
+    THEN( "Log Lines are taken forwards in blocks" )
+    {
+        auto cursor = displayed.cursorAt( 2_lnum );
+        REQUIRE( numbersOf( cursor.takeForward( 4_lcount ) ) == Lines{ 4, 6, 7, 8 } );
+        REQUIRE( cursor.position() == 6_lnum );
+        REQUIRE( numbersOf( cursor.takeForward( 4_lcount ) ) == Lines{ 49, 50, 51, 89 } );
+        REQUIRE( numbersOf( cursor.takeForward( 4_lcount ) ) == Lines{ 90, 91 } );
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE( cursor.takeForward( 4_lcount ).empty() );
+    }
+
+    THEN( "Log Lines are taken backwards in blocks, each block in ascending order" )
+    {
+        auto cursor = displayed.cursorAt( 9_lnum );
+        REQUIRE( numbersOf( cursor.takeBackward( 4_lcount ) ) == Lines{ 49, 50, 51, 89 } );
+        REQUIRE( cursor.position() == 5_lnum );
+        REQUIRE( numbersOf( cursor.takeBackward( 4_lcount ) ) == Lines{ 4, 6, 7, 8 } );
+        REQUIRE( numbersOf( cursor.takeBackward( 4_lcount ) ) == Lines{ 2, 3 } );
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE( cursor.takeBackward( 4_lcount ).empty() );
+    }
+}
+
+SCENARIO( "A copy of the Displayed Lines is walked from a position", "[displayedlines]" )
+{
+    // Far apart, so the Log Lines sit in different 32-bit buckets of the
+    // bitmap, one of which is left empty by a removed line.
+    const uint64_t high = uint64_t{ 1 } << 32;
+    auto lines = bitmapOf( { 5, high + 1, 2 * high + 7, 3 * high + 2 } );
+    lines.remove( 2 * high + 7 );
+
+    THEN( "the walk passes the empty bucket both ways" )
+    {
+        REQUIRE( walkForward( DisplayedLinesCursor( lines, 0_lnum ) )
+                 == Lines{ 5, high + 1, 3 * high + 2 } );
+        REQUIRE( walkBackward( DisplayedLinesCursor( lines, 2_lnum ) )
+                 == Lines{ 3 * high + 2, high + 1, 5 } );
+
+        DisplayedLinesCursor pastTheEnd( lines, 3_lnum );
+        pastTheEnd.previous();
+        REQUIRE( pastTheEnd.logLine() == LineNumber( 3 * high + 2 ) );
+    }
+
+    THEN( "over no lines the cursor stands on none" )
+    {
+        const SearchResultArray none;
+        DisplayedLinesCursor cursor( none, 0_lnum );
+        REQUIRE_FALSE( cursor.hasLine() );
+        cursor.previous();
+        REQUIRE_FALSE( cursor.hasLine() );
+        cursor.next();
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE( cursor.takeForward( 3_lcount ).empty() );
+        REQUIRE( cursor.takeBackward( 3_lcount ).empty() );
+    }
+}
+
 SCENARIO( "The Displayed Lines compute Context Lines around Matches and Marks", "[displayedlines]" )
 {
     LogFile logFile;

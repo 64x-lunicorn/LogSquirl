@@ -31,6 +31,7 @@
 #include "generated_log_file.h"
 #include "test_policies.h"
 
+#include "displayedlines.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
@@ -250,6 +251,16 @@ TEST_CASE( "Reading a sparse set of Log Lines", "[logdata-benchmark][sparse-read
             return characters;
         };
 
+        // The same Log Lines in one sparse read (#286).
+        BENCHMARK( caseName( shape, "getLinesSparse" ) )
+        {
+            qsizetype characters = 0;
+            for ( const auto& text : logData.getLinesSparse( lines ) ) {
+                characters += text.size();
+            }
+            return characters;
+        };
+
         // As Quick Find reads today.
         BENCHMARK( caseName( shape, "getExpandedLineString, line by line" ) )
         {
@@ -259,7 +270,49 @@ TEST_CASE( "Reading a sparse set of Log Lines", "[logdata-benchmark][sparse-read
             }
             return characters;
         };
+
+        // The same Log Lines in one sparse read, tabs expanded (#286).
+        BENCHMARK( caseName( shape, "getExpandedLinesSparse" ) )
+        {
+            qsizetype characters = 0;
+            for ( const auto& text : logData.getExpandedLinesSparse( lines ) ) {
+                characters += text.size();
+            }
+            return characters;
+        };
     }
+}
+
+TEST_CASE( "Walking the Displayed Lines from a position", "[logdata-benchmark][displayed-lines]" )
+{
+    // Every third Log Line of 30 million displayed, as a Search with many
+    // Matches leaves them, walked for ReadLineCount positions from the middle.
+    SearchResultArray lines;
+    for ( std::uint64_t line = 0; line < 30'000'000; line += 3 ) {
+        lines.add( line );
+    }
+    const auto first = LineNumber( lines.cardinality() / 2 );
+
+    // As the Filtered View, saving and Quick Find look positions up today.
+    BENCHMARK( "lineAtPosition, position by position" )
+    {
+        std::uint64_t sum = 0;
+        for ( std::uint64_t position = 0; position < ReadLineCount; ++position ) {
+            sum += lineAtPosition( lines, first + LinesCount( position ) ).value_or( 0_lnum ).get();
+        }
+        return sum;
+    };
+
+    // One select(), then stepping from Log Line to Log Line (#286).
+    BENCHMARK( "DisplayedLinesCursor, takeForward" )
+    {
+        std::uint64_t sum = 0;
+        DisplayedLinesCursor cursor( lines, first );
+        for ( const auto line : cursor.takeForward( LinesCount( ReadLineCount ) ) ) {
+            sum += line.get();
+        }
+        return sum;
+    };
 }
 
 int main( int argc, char* argv[] )

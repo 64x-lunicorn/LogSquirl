@@ -43,6 +43,7 @@ add_executable(logsquirl_tests
     searchfailure_test.cpp
     searchsession_test.cpp
     settingspolicies_test.cpp
+    sparselineread_test.cpp
     tabbarstyle_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
