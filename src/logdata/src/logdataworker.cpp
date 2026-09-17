@@ -695,13 +695,13 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     // as soon as the blocks already read have gone through the graph.
     tbb::flow::graph indexingGraph;
 
-    auto tokens = tbb::flow::input_node<Token>( indexingGraph,
-                                                [ &readingDone ]( tbb::flow_control& control ) {
-                                                    if ( readingDone ) {
-                                                        control.stop();
-                                                    }
-                                                    return Token{};
-                                                } );
+    const auto nextToken = [ &readingDone ]( tbb::flow_control& control ) {
+        if ( readingDone ) {
+            control.stop();
+        }
+        return Token{};
+    };
+    auto tokens = tbb::flow::input_node<Token>( indexingGraph, nextToken );
 
     auto readBuffer = tbb::flow::limiter_node<Token, TokensBack>(
         indexingGraph, static_cast<size_t>( blocksInFlight ) );
@@ -710,22 +710,19 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
 
     using BlockReader
         = tbb::flow::multifunction_node<Token, std::tuple<IndexingBlock*, TokensBack>>;
-    auto blockReader = BlockReader( indexingGraph, tbb::flow::serial,
-                                    [ & ]( const Token&, BlockReader::output_ports_type& ports ) {
-                                        auto* block = readingDone
-                                                          ? nullptr
-                                                          : readNextBlock( file, reading, blockPool,
-                                                                           state, ioDuration );
-                                        if ( block ) {
-                                            std::get<0>( ports ).try_put( block );
-                                        }
-                                        else {
-                                            // The token of a block not read goes back to the read
-                                            // buffer.
-                                            readingDone = true;
-                                            std::get<1>( ports ).try_put( TokensBack{ 1 } );
-                                        }
-                                    } );
+    const auto readBlock = [ & ]( const Token&, BlockReader::output_ports_type& ports ) {
+        auto* block
+            = readingDone ? nullptr : readNextBlock( file, reading, blockPool, state, ioDuration );
+        if ( block ) {
+            std::get<0>( ports ).try_put( block );
+        }
+        else {
+            // The token of a block not read goes back to the read buffer.
+            readingDone = true;
+            std::get<1>( ports ).try_put( TokensBack{ 1 } );
+        }
+    };
+    auto blockReader = BlockReader( indexingGraph, tbb::flow::serial, readBlock );
 
     auto blockParser = tbb::flow::function_node<IndexingBlock*, IndexingBlock*>(
         indexingGraph, tbb::flow::unlimited, []( IndexingBlock* block ) {

@@ -349,8 +349,8 @@ private:
 struct IndexingState {
 
     EncodingParameters encodingParams;
-    // Where the Log Line the blocks stitched so far run out with starts, and
-    // how many spaces its tabs widen it by so far.
+    // Where the Log Line running out of the blocks stitched so far starts,
+    // and how many spaces its tabs widen it by so far.
     OffsetInFile::UnderlyingType pos{};
     std::int64_t additional_spaces{};
     std::int64_t max_length{};
