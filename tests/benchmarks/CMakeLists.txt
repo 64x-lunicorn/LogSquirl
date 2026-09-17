@@ -24,3 +24,11 @@ add_executable(logsquirl_textview_scroll_benchmark
 )
 
 target_link_libraries(logsquirl_textview_scroll_benchmark logsquirl_ui Catch2 test_utils)
+
+# Indexing a Log File and reading its Log Lines (#275), on Log Files of about
+# 1 GB generated at run time: links logsquirl_logdata only.
+add_executable(logsquirl_logdata_benchmark
+    logdata_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2 test_utils)
