@@ -35,7 +35,7 @@ DisplayedLines::DisplayedLines( const SearchResultArray& matches,
 void DisplayedLines::setShown( LineType shown )
 {
     shown_ = shown;
-    ++rewrites_;
+    rewritten();
     refreshLines();
 }
 
@@ -51,7 +51,7 @@ void DisplayedLines::setContextLinesCount( int contextLinesCount )
     }
 
     contextLinesCount_ = contextLinesCount;
-    ++rewrites_;
+    rewritten();
     rebuildContextLines();
     refreshLines();
 }
@@ -59,7 +59,7 @@ void DisplayedLines::setContextLinesCount( int contextLinesCount )
 void DisplayedLines::matchesArrived()
 {
     // Whatever the Context Lines were built around may be gone.
-    ++rewrites_;
+    rewritten();
     contextLinesUpToDate_ = false;
     matchesWithoutContextLines_ = SearchResultArray();
     refreshLines();
@@ -69,7 +69,7 @@ void DisplayedLines::matchesArrived( const SearchResultArray& newMatches )
 {
     uint64_t formerEnd = 0;
     if ( !comeAfterEverything( newMatches, formerEnd ) ) {
-        ++rewrites_;
+        rewritten();
     }
     if ( contextLinesUpToDate_ ) {
         matchesWithoutContextLines_ |= newMatches;
@@ -79,7 +79,7 @@ void DisplayedLines::matchesArrived( const SearchResultArray& newMatches )
 
 void DisplayedLines::searchCompleted()
 {
-    ++rewrites_;
+    rewritten();
     rebuildContextLines();
     refreshLines();
 }
@@ -96,12 +96,12 @@ void DisplayedLines::searchCompleted( const SearchResultArray& newMatches )
     auto changed = updateContextLines();
     if ( !changed ) {
         // The Context Lines were rebuilt: they may change anywhere.
-        ++rewrites_;
+        rewritten();
         refreshLines();
         return;
     }
     if ( !appended ) {
-        ++rewrites_;
+        rewritten();
     }
     else {
         // The Matches and Marks among the changed Log Lines were displayed
@@ -109,7 +109,7 @@ void DisplayedLines::searchCompleted( const SearchResultArray& newMatches )
         auto contextLinesChanged = *changed - matches_;
         contextLinesChanged -= marks_;
         if ( !contextLinesChanged.isEmpty() && contextLinesChanged.minimum() < formerEnd ) {
-            ++rewrites_;
+            rewritten();
         }
     }
     *changed |= newMatches;
@@ -119,7 +119,7 @@ void DisplayedLines::searchCompleted( const SearchResultArray& newMatches )
 void DisplayedLines::searchDiscarded()
 {
     // The Marks lose their Context Lines too, until they are next rebuilt.
-    ++rewrites_;
+    rewritten();
     contextLines_ = SearchResultArray();
     contextLinesUpToDate_ = false;
     matchesWithoutContextLines_ = SearchResultArray();
@@ -147,7 +147,7 @@ bool DisplayedLines::removeMark( LineNumber line )
 void DisplayedLines::clearMarks()
 {
     marks_ = SearchResultArray();
-    ++rewrites_;
+    rewritten();
     rebuildContextLines();
     refreshLines();
 }
@@ -287,6 +287,11 @@ uint64_t DisplayedLines::rewrites() const
     return rewrites_;
 }
 
+void DisplayedLines::rewritten()
+{
+    ++rewrites_;
+}
+
 bool DisplayedLines::comeAfterEverything( const SearchResultArray& newMatches,
                                           uint64_t& formerEnd ) const
 {
@@ -423,7 +428,7 @@ SearchResultArray DisplayedLines::contextLinesAround( const SearchResultArray& l
 
 void DisplayedLines::markToggled( uint64_t line, bool added )
 {
-    ++rewrites_;
+    rewritten();
     // As a rebuild would, the Context Lines come up to date around every
     // Match first.
     auto changed = updateContextLines();

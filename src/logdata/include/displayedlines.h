@@ -183,6 +183,10 @@ private:
     // Adds or removes one Mark's Context Lines and updates what is displayed.
     void markToggled( uint64_t line, bool added );
 
+    // Tells rewrites() that the displayed Log Lines, or what they are,
+    // changed other than by Matches added after everything displayed.
+    void rewritten();
+
     // Rebuilds combinedLines_ (or drops it) and picks the displayed set.
     void refreshLines();
     // Updates combinedLines_ for a change limited to the Log Lines in
@@ -210,7 +214,11 @@ private:
     // Which set lines() should return for what is shown now.
     Source pickSource() const;
 
-    // Counts the changes rewrites() tells.
+    // Counts the changes rewrites() tells. Invariant: every change to the
+    // displayed Log Lines, or to what they are, calls rewritten() --
+    // except Matches added after every Log Line displayed, which
+    // whoever counted up to the last one can count on from there. Changed only
+    // through rewritten().
     uint64_t rewrites_ = 0;
     // Whether newMatches, just added to the Matches, all come after every Log
     // Line that was a Match, a Mark or a Context Line before; formerEnd is set
