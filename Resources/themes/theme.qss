@@ -17,7 +17,7 @@
 QPushButton {
     background-color: @Button@;
     border: @BorderWidth@ solid @InputBorder@;
-    border-radius: 3px;
+    border-radius: @ControlRadius@;
     padding: @ButtonPadding@;
     color: @ButtonText@;
 }
@@ -32,6 +32,34 @@ QPushButton:pressed  {
     color: @PressedText@;
 }
 QPushButton:focus    { border-color: @Highlight@; }
+
+/* The default button of a dialog, and the Dashboard's primary action
+ * (button->setProperty("primaryAction", true)): filled in the accent color,
+ * in High Contrast only its text is in the accent color. Before :disabled,
+ * which wins over it. */
+QPushButton:default,
+QPushButton[primaryAction="true"] {
+    background-color: @DefaultButton@;
+    border-color: @DefaultButtonBorder@;
+    color: @DefaultButtonText@;
+}
+QPushButton:default:hover,
+QPushButton[primaryAction="true"]:hover {
+    background-color: @DefaultButtonHover@;
+    border-color: @DefaultButtonBorder@;
+    color: @DefaultButtonText@;
+}
+QPushButton:default:focus,
+QPushButton[primaryAction="true"]:focus {
+    border-color: @DefaultButtonFocusBorder@;
+}
+QPushButton:default:pressed,
+QPushButton[primaryAction="true"]:pressed {
+    background-color: @ButtonPressed@;
+    border-color: @ButtonPressedBorder@;
+    color: @PressedText@;
+}
+
 QPushButton:disabled {
     background-color: @DisabledBackground@;
     border-color: @DisabledBorder@;
@@ -46,7 +74,7 @@ QPushButton:disabled {
 QToolButton {
     background-color: transparent;
     border: @BorderWidth@ solid transparent;
-    border-radius: 3px;
+    border-radius: @ControlRadius@;
     padding: @ToolButtonPadding@;
     color: @ButtonText@;
 }
@@ -80,7 +108,7 @@ QSpinBox,
 QDoubleSpinBox {
     background-color: @Base@;
     border: @BorderWidth@ solid @InputBorder@;
-    border-radius: 3px;
+    border-radius: @ControlRadius@;
     padding: @InputPadding@;
     color: @Text@;
 }
@@ -109,8 +137,8 @@ QComboBox::drop-down {
     subcontrol-position: right center;
     width: 20px;
     border-left: @BorderWidth@ solid @InputBorder@;
-    border-top-right-radius: 3px;
-    border-bottom-right-radius: 3px;
+    border-top-right-radius: @ControlRadius@;
+    border-bottom-right-radius: @ControlRadius@;
     background-color: transparent;
 }
 QComboBox::drop-down:hover {
@@ -126,6 +154,7 @@ QComboBox QAbstractItemView {
     background-color: @Pane@;
     color: @Text@;
     border: @BorderWidth@ solid @PopupBorder@;
+    border-radius: @PopupRadius@;
     selection-background-color: @Highlight@;
     selection-color: @HighlightedText@;
     padding: 2px;
@@ -190,7 +219,7 @@ QDoubleSpinBox::down-arrow {
 QPlainTextEdit {
     background-color: @Base@;
     border: @BorderWidth@ solid @InputBorder@;
-    border-radius: 3px;
+    border-radius: @ControlRadius@;
     padding: 4px;
     color: @Text@;
 }
@@ -204,16 +233,15 @@ QPlainTextEdit:focus {
  * =========================================================== */
 QTabWidget::pane {
     background: @Pane@;
-    border: @BorderWidth@ solid @Border@;
+    border: @BoxBorderWidth@ solid @Border@;
     top: @TabPaneOffset@;   /* avoid a double border between tab and pane */
 }
 
+/* Flat tabs: the selected one is underlined in Highlight. */
 QTabBar::tab {
-    background-color: @Panel@;
-    border: @BorderWidth@ solid @Border@;
+    background-color: transparent;
+    border: @BoxBorderWidth@ solid @Border@;
     border-bottom: 2px solid @TabUnderline@;
-    border-top-left-radius: 3px;
-    border-top-right-radius: 3px;
     padding: 4px 4px;
     margin-right: 0px;
     color: @Text@;
@@ -224,7 +252,7 @@ QTabBar::tab:hover:!selected {
     border-bottom-color: @TabUnderline@;
 }
 QTabBar::tab:selected {
-    background-color: @Pane@;
+    background-color: transparent;
     border-bottom-color: @Highlight@;
 }
 
@@ -244,8 +272,8 @@ QTabBar::close-button:hover {
 /* Tab overflow scroller buttons */
 QTabBar QToolButton {
     background-color: @Panel@;
-    border: @BorderWidth@ solid @Border@;
-    border-radius: 2px;
+    border: @BoxBorderWidth@ solid @Border@;
+    border-radius: @ControlRadius@;
     padding: 2px;
 }
 QTabBar QToolButton:hover {
@@ -260,7 +288,7 @@ QTabBar QToolButton:hover {
 QToolButton#tabAddButton {
     background-color: transparent;
     border: @BorderWidth@ solid transparent;
-    border-radius: 3px;
+    border-radius: @ControlRadius@;
     font-size: 14px;
     font-weight: bold;
     padding: @TabAddButtonPadding@;
@@ -294,7 +322,7 @@ QScrollBar::handle:vertical {
     background: @Handle@;
     border-radius: @HandleRadius@;
     min-height: 24px;
-    margin: 2px;
+    margin: 1px;
 }
 QScrollBar::handle:vertical:hover {
     background: @HandleHover@;
@@ -310,7 +338,7 @@ QScrollBar::handle:horizontal {
     background: @Handle@;
     border-radius: @HandleRadius@;
     min-width: 24px;
-    margin: 2px;
+    margin: 1px;
 }
 QScrollBar::handle:horizontal:hover {
     background: @HandleHover@;
@@ -339,7 +367,7 @@ QToolTip {
     background-color: @ToolTipBase@;
     color: @ToolTipText@;
     border: @BorderWidth@ solid @ToolTipBorder@;
-    border-radius: 3px;
+    border-radius: @PopupRadius@;
     padding: 4px;
 }
 
@@ -351,7 +379,7 @@ QTreeView,
 QListView,
 QListWidget {
     background-color: @Base@;
-    border: @BorderWidth@ solid @Border@;
+    border: @BoxBorderWidth@ solid @Border@;
     alternate-background-color: @AlternateBase@;
     color: @Text@;
 }
@@ -376,7 +404,7 @@ QListWidget::item:hover {
 QTableWidget,
 QTableView {
     background-color: @Base@;
-    border: @BorderWidth@ solid @Border@;
+    border: @BoxBorderWidth@ solid @Border@;
     alternate-background-color: @AlternateBase@;
     gridline-color: @Border@;
     color: @Text@;
@@ -389,7 +417,7 @@ QTableView::item:selected {
 
 QHeaderView::section {
     background-color: @Panel@;
-    border: @BorderWidth@ solid @Border@;
+    border: @BoxBorderWidth@ solid @Border@;
     padding: 4px 6px;
     color: @Text@;
 }
@@ -405,7 +433,7 @@ QHeaderView::section:hover {
  * =========================================================== */
 QMenuBar {
     background-color: @Chrome@;
-    border-bottom: @BorderWidth@ solid @Border@;
+    border-bottom: @BoxBorderWidth@ solid @Border@;
     color: @WindowText@;
 }
 QMenuBar::item {
@@ -430,7 +458,8 @@ QMenuBar::item:pressed {
  * =========================================================== */
 QMenu {
     background-color: @Menu@;
-    border: @BorderWidth@ solid @Border@;
+    border: @BorderWidth@ solid @PopupBorder@;
+    border-radius: @PopupRadius@;
     padding: 4px 0;
     color: @WindowText@;
 }
@@ -622,9 +651,11 @@ QSlider::handle:disabled {
 /* ===========================================================
  *  Group boxes
  * =========================================================== */
+/* A group box is a bold section title; only High Contrast draws its box. */
 QGroupBox {
-    border: @BorderWidth@ solid @Border@;
-    border-radius: 4px;
+    border: @BoxBorderWidth@ solid @Border@;
+    border-radius: @ControlRadius@;
+    font-weight: bold;
     margin-top: 8px;
     padding-top: 10px;
 }
@@ -646,32 +677,13 @@ QLabel[secondaryText="true"] {
 
 
 /* ===========================================================
- *  Dashboard — the cards requires:
+ *  Dashboard cards — requires:
  *  frame->setObjectName("dashboardCard");
- *  and its primary action:
- *  button->setProperty("primaryAction", true);
  * =========================================================== */
 QFrame#dashboardCard {
     background-color: @Panel@;
     border: @OutlineWidth@ solid @Border@;
-    border-radius: 4px;
-}
-
-QPushButton[primaryAction="true"] {
-    background-color: @Highlight@;
-    border-color: @Highlight@;
-    color: @HighlightedText@;
-}
-QPushButton[primaryAction="true"]:hover {
-    border-color: @Text@;
-}
-QPushButton[primaryAction="true"]:focus {
-    border-color: @Text@;
-}
-QPushButton[primaryAction="true"]:pressed {
-    background-color: @ButtonPressed@;
-    border-color: @ButtonPressedBorder@;
-    color: @PressedText@;
+    border-radius: @PopupRadius@;
 }
 
 
@@ -680,7 +692,7 @@ QPushButton[primaryAction="true"]:pressed {
  * =========================================================== */
 QToolBar {
     background-color: @Chrome@;
-    border-bottom: @BorderWidth@ solid @Border@;
+    border-bottom: @BoxBorderWidth@ solid @Border@;
     spacing: 2px;
     padding: 2px;
 }
@@ -703,7 +715,7 @@ QToolBar::separator {
  */
 PathLine {
     border: @BorderWidth@ solid @InputBorder@;
-    border-radius: 3px;
+    border-radius: @ControlRadius@;
     qproperty-indent: 4;
 }
 
@@ -752,12 +764,12 @@ QDockWidget::title {
     background-color: @Panel@;
     padding: 4px;
     border: @OutlineWidth@ solid @Border@;
-    border-bottom: 1px solid @Border@;
+    border-bottom: @BoxBorderWidth@ solid @Border@;
 }
 
 QStatusBar {
     background-color: @Chrome@;
-    border-top: @BorderWidth@ solid @Border@;
+    border-top: @BoxBorderWidth@ solid @Border@;
     color: @WindowText@;
 }
 QStatusBar::item {
@@ -770,8 +782,8 @@ QStatusBar::item {
  * =========================================================== */
 QProgressBar {
     background-color: @Panel@;
-    border: @BorderWidth@ solid @Border@;
-    border-radius: 3px;
+    border: @BoxBorderWidth@ solid @Border@;
+    border-radius: @ControlRadius@;
     text-align: center;
     color: @Text@;
     max-height: 16px;

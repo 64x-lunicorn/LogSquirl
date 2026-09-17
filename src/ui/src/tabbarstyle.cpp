@@ -24,9 +24,9 @@
 QString closableTabBarStyleSheet( const Theme& theme )
 {
     // The same boxed close button in every Theme: neutral, red only on hover
-    // (#264). The images are the application's own on every platform, which
-    // also avoids the missing tab close icons of Qt's macOS style
-    // (QTBUG-61092).
+    // (#264), shown only on the selected tab and under the mouse (#265). The
+    // images are the application's own on every platform, which also avoids
+    // the missing tab close icons of Qt's macOS style (QTBUG-61092).
     const QString variant = theme.usesInverseIcons() ? QStringLiteral( "_inverse" ) : QString();
     const auto image = QStringLiteral( ":/images/icons8-close-window-16%1.png" ).arg( variant );
     const auto hoverImage
@@ -34,6 +34,7 @@ QString closableTabBarStyleSheet( const Theme& theme )
 
     return QStringLiteral( "QTabBar::tab { height: 28px; }"
                            " QTabBar::close-button { image: url(%1); }"
+                           " QTabBar::close-button:!selected { image: none; }"
                            " QTabBar::close-button:hover { image: url(%2);"
                            " background-color: %3; border-radius: 3px; }" )
         .arg( image, hoverImage,
