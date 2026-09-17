@@ -78,10 +78,10 @@ there a statically linked mimalloc does not take over Qt's allocations.
 To measure the override, build the same commit twice, once with the option and once without, and compare the
 benchmarks (`tests/benchmarks/README.md`) and the e2e performance suite of both builds. To have the **Benchmarks**
 workflow do that on one runner, push a throwaway branch whose only commit turns the option's default to `ON` in
-`CMakeLists.txt`, and dispatch the workflow with that branch as `ref` and its parent as `base_ref`:
+`CMakeLists.txt`, and dispatch the workflow from that branch with its parent as `base_ref`:
 
 ```bash
-gh workflow run benchmarks.yml -f ref=<override-branch> -f base_ref=<branch without it>
+gh workflow run benchmarks.yml --ref <override-branch> -f base_ref=<branch without it>
 ```
 
 ### Plugin SDK

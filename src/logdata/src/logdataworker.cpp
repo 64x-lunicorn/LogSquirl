@@ -465,7 +465,7 @@ IndexOperation::readNextBlock( QFile& file, indexing_blocks::BlockReading& readi
     ioDuration += duration_cast<microseconds>( clock::now() - ioStartTime );
 
     const auto available = std::int64_t{ reading.bytesAhead } + readBytes;
-    block->size = std::min( available, pool.blockSize() );
+    block->size = std::min<std::int64_t>( available, pool.blockSize() );
     if ( block->size == 0 ) {
         pool.release( block );
         return nullptr;

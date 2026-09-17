@@ -609,9 +609,19 @@ summary. The raw reports and the comparison as JSON are in the
 `benchmark-results` artifact.
 
 ```bash
-gh workflow run benchmarks.yml -f ref=my-branch            # against master
-gh workflow run benchmarks.yml -f ref=my-branch -f base_ref=<tag> -f log_file_mb=1024
+gh workflow run benchmarks.yml --ref my-branch            # against master
+gh workflow run benchmarks.yml --ref my-branch -f base_ref=<tag> -f log_file_mb=1024
 ```
+
+The after side is the commit the run is dispatched from, so the branch must
+contain the workflow file. The before side is where that commit forks from
+`base_ref` (`git merge-base`): the tip of `base_ref` when the branch is up to
+date with it, otherwise the older commit the branch starts from. Both sides
+thus come from the history of the dispatched commit and never from an
+arbitrary ref: a run dispatched from master writes master's Actions caches,
+which every branch and pull request restores, and the code a run builds and
+executes can reach the cache token. To measure a pull request from a fork,
+push it to a branch in this repository first.
 
 By default the before side is built with this branch's `tests/benchmarks`, so
 both sides run the same benchmark code, as described above for comparing by
