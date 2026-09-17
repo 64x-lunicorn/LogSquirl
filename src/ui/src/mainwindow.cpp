@@ -344,15 +344,11 @@ MainWindow::MainWindow( WindowSession session,
         welcomeDashboard_->refresh();
     }
 
-    // The Plugin Host shows what plugins contribute in one window: the first
-    // one built, which is wired before the plugins load so what they
-    // register while loading (status widgets, menu actions) is shown.
+    // What plugins contribute shows in every window (#303); added before the
+    // plugins load, so what they register while loading is shown.
     pluginUi_ = std::make_unique<PluginUiAdapter>( *this, *pluginsMenu, pluginMenuSeparator_,
                                                    *sidebarTabs_ );
-    auto& pluginHost = plugins_->host();
-    if ( !pluginHost.uiPort() ) {
-        pluginHost.setUiPort( pluginUi_.get() );
-    }
+    plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 
     plugins_->whenLoaded( this, [ this ] {
@@ -2219,14 +2215,8 @@ MainWindow::~MainWindow()
 
     // The Plugin Host outlives this window. What plugins show here is taken
     // out before the window's widgets go, so no plugin widget is deleted with
-    // them, and the host shows nothing here any more.
-    auto& pluginHost = plugins_->host();
-    if ( pluginHost.uiPort() == pluginUi_.get() ) {
-        for ( const auto& pluginId : pluginHost.loadedPluginIds() ) {
-            pluginUi_->removeContributions( pluginId );
-        }
-        pluginHost.setUiPort( nullptr );
-    }
+    // them; their widgets move to the most recently active remaining window.
+    plugins_->uiPort().removeWindow( pluginUi_.get() );
 }
 
 void MainWindow::closeEvent( QCloseEvent* event )
@@ -2308,6 +2298,7 @@ bool MainWindow::event( QEvent* event )
 {
     if ( event->type() == QEvent::WindowActivate ) {
         servePluginCallbacks();
+        plugins_->uiPort().activateWindow( pluginUi_.get() );
         Q_EMIT windowActivated();
     }
     else if ( event->type() == QEvent::Show ) {

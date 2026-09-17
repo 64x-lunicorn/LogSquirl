@@ -30,6 +30,8 @@ ApplicationPlugins::ApplicationPlugins( LoadStep loadStep, QObject* parent )
     : QObject( parent )
     , loadStep_( std::move( loadStep ) )
 {
+    host_.setUiPort( &uiPort_ );
+
     // Once for the application, rather than once per window listening.
     connect( &host_, &PluginHost::notificationRequested, this,
              []( const QString& message ) { LOG_INFO << "Plugin notification: " << message; } );

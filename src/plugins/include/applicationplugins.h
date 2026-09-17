@@ -21,6 +21,7 @@
 
 #include "plugincatalog.h"
 #include "pluginhost.h"
+#include "sharedpluginuiport.h"
 
 #include <QObject>
 
@@ -73,6 +74,16 @@ public:
     }
 
     /**
+     * The Plugin UI Port the host shows plugin contributions through. Every
+     * window adds its own port to it, so the contributions show in every
+     * window.
+     */
+    SharedPluginUiPort& uiPort()
+    {
+        return uiPort_;
+    }
+
+    /**
      * Load the plugins after the events already queued, unless that was
      * asked for before. Emits loaded() once they are.
      */
@@ -102,6 +113,10 @@ private:
 
     LoadStep loadStep_;
     State state_ = State::NotAsked;
+
+    // Declared before host_, which removes the contributions of the plugins
+    // it unloads through it and must go first.
+    SharedPluginUiPort uiPort_;
 
     // Declared before host_, which looks plugins up in it and must go first.
     PluginCatalog catalog_;
