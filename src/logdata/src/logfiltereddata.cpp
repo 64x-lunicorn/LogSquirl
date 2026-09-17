@@ -46,7 +46,7 @@
 
 #include <algorithm>
 #include <functional>
-#include <numeric>
+#include <span>
 #include <vector>
 
 #include "logdata.h"
@@ -66,7 +66,6 @@ LogFilteredData::~LogFilteredData()
 LogFilteredData::LogFilteredData( const LogData* logData, const SearchPolicy& searchPolicy )
     : AbstractLogData()
     , sourceLogData_( logData )
-    , maxLengthMarks_( 0_length )
     , session_( logData->searchBlockSource(), searchPolicy )
     , displayedLines_(
           session_.matches(), [ logData ] { return logData->getNbLine(); },
@@ -180,11 +179,11 @@ void LogFilteredData::toggleMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
         if ( displayedLines_.addMark( line ) ) {
-            updateMaxLengthMarks( line, {} );
+            markLengths_.add( line, sourceLogData_->getLineLength( line ) );
         }
         else {
             displayedLines_.removeMark( line );
-            updateMaxLengthMarks( {}, line );
+            markLengths_.remove( line );
         }
     }
     else {
@@ -196,7 +195,9 @@ void LogFilteredData::addMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
         displayedLines_.addMark( line );
-        updateMaxLengthMarks( line, {} );
+        if ( !markLengths_.contains( line ) ) {
+            markLengths_.add( line, sourceLogData_->getLineLength( line ) );
+        }
     }
     else {
         LOG_ERROR << "LogFilteredData::addMark trying to create a mark outside of the file.";
@@ -216,37 +217,13 @@ OptionalLineNumber LogFilteredData::getMarkBefore( LineNumber line ) const
 void LogFilteredData::deleteMark( LineNumber line )
 {
     displayedLines_.removeMark( line );
-    updateMaxLengthMarks( {}, line );
-}
-
-void LogFilteredData::updateMaxLengthMarks( OptionalLineNumber added_line,
-                                            OptionalLineNumber removed_line )
-{
-    if ( added_line.has_value() ) {
-        maxLengthMarks_ = qMax( maxLengthMarks_, sourceLogData_->getLineLength( *added_line ) );
-    }
-
-    // Now update the max length if needed
-    if ( removed_line.has_value()
-         && sourceLogData_->getLineLength( *removed_line ) >= maxLengthMarks_ ) {
-        LOG_DEBUG << "deleteMark recalculating longest mark";
-        maxLengthMarks_ = 0_length;
-        displayedLines_.marks().iterate(
-            []( uint64_t line, void* context ) -> bool {
-                auto* self = static_cast<LogFilteredData*>( context );
-                self->maxLengthMarks_
-                    = qMax( self->maxLengthMarks_,
-                            self->sourceLogData_->getLineLength( LineNumber( line ) ) );
-                return true;
-            },
-            static_cast<void*>( this ) );
-    }
+    markLengths_.remove( line );
 }
 
 void LogFilteredData::clearMarks()
 {
     displayedLines_.clearMarks();
-    maxLengthMarks_ = 0_length;
+    markLengths_.clear();
 }
 
 QList<LineNumber> LogFilteredData::getMarks() const
@@ -363,30 +340,25 @@ QString LogFilteredData::doGetExpandedLineString( LineNumber index ) const
 logsquirl::vector<QString> LogFilteredData::doGetLines( LineNumber first_line,
                                                         LinesCount number ) const
 {
-    return doGetLines( first_line, number,
-                       [ this ]( const auto& line ) { return doGetLineString( line ); } );
+    return readDisplayedLines( first_line, number, &LogData::getLinesSparse );
 }
 
 // Implementation of the virtual function.
 logsquirl::vector<QString> LogFilteredData::doGetExpandedLines( LineNumber first_line,
                                                                 LinesCount number ) const
 {
-    return doGetLines( first_line, number,
-                       [ this ]( const auto& line ) { return doGetExpandedLineString( line ); } );
+    return readDisplayedLines( first_line, number, &LogData::getExpandedLinesSparse );
 }
 
-logsquirl::vector<QString>
-LogFilteredData::doGetLines( LineNumber first_line, LinesCount number,
-                             const std::function<QString( LineNumber )>& lineGetter ) const
+logsquirl::vector<QString> LogFilteredData::readDisplayedLines(
+    LineNumber first_line, LinesCount number,
+    logsquirl::vector<QString> ( LogData::*readSparse )( std::span<const LineNumber> ) const ) const
 {
-    logsquirl::vector<LineNumber::UnderlyingType> lineNumbers( number.get() );
-    std::iota( lineNumbers.begin(), lineNumbers.end(), first_line.get() );
-
-    logsquirl::vector<QString> lines( number.get() );
-    std::transform(
-        lineNumbers.cbegin(), lineNumbers.cend(), lines.begin(),
-        [ &lineGetter ]( const auto& line ) { return lineGetter( LineNumber( line ) ); } );
-
+    // The displayed Log Lines are walked from the first position on and read
+    // at once; the positions past the last one read as nothing.
+    const auto logLines = displayedLines_.cursorAt( first_line ).takeForward( number );
+    auto lines = ( sourceLogData_->*readSparse )( logLines );
+    lines.resize( number.get() );
     return lines;
 }
 
@@ -404,7 +376,7 @@ LinesCount LogFilteredData::doGetNbLine() const
 // Implementation of the virtual function.
 LineLength LogFilteredData::doGetMaxLength() const
 {
-    return qMax( session_.maxLength(), maxLengthMarks_ );
+    return qMax( session_.maxLength(), markLengths_.longest() );
 }
 
 // Implementation of the virtual function.

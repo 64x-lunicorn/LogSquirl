@@ -910,7 +910,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
     // FIXME, handle topLine
     // logMainView_->updateData( logData_, topLine );
-    logMainView_->updateData();
+    logMainView_->updateData( load.onlyAppended ? LinesChange::Appended : LinesChange::Any );
 
     // The Open Log File has refreshed the Search already; one it started
     // again over the truncated Log File is shown like any new Search.
@@ -1529,12 +1529,19 @@ void CrawlerWidget::setup()
     connect( chartPanel_, &ChartPanel::lineSelected, this,
              [ this ]( LineNumber line ) { presentation_->showLogLine( line ); } );
 
-    // Refresh chart data when the file finishes loading.
-    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this, [ this ]( const auto& ) {
-        if ( chartPanel_->isVisible() ) {
-            chartPanel_->extractData();
-        }
-    } );
+    // Refresh chart data when the file finishes loading: only the appended
+    // Log Lines, unless the Log File was truncated or loaded from its start.
+    connect( openLogFile_.get(), &OpenLogFile::truncated, chartPanel_,
+             &ChartPanel::logFileTruncated );
+    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
+             [ this ]( const OpenLogFile::LoadFinished& load ) {
+                 if ( load.fromStart ) {
+                     chartPanel_->logFileTruncated();
+                 }
+                 if ( chartPanel_->isVisible() ) {
+                     chartPanel_->extractData();
+                 }
+             } );
 
     // The views just built start with everything they show, color and
     // search under, before any of them is painted. No view reads these

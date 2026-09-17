@@ -153,6 +153,11 @@ so a Log Line wraps into one Visual Line or several).
   Search pattern and the Search Limits changed. "Log Lines read again"
   repaints after `updateData()`, the cost each of them paid before a view
   told a change of Decoration from a change of text.
+  Its "one-line scroll" cases (#296) step a view 20 Visual Lines down and up
+  one key press at a time, each step painted, with and without text
+  wrapping: without it a step moves what was painted and paints the one Log
+  Line exposed, with it the Log Lines still in view are not read or
+  decorated again.
 
 Both are Catch2 benchmarks; run them in an optimized build, as the Debug
 numbers say little about scrolling cost:
@@ -215,7 +220,8 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
   Find read before #287, each next to the same Log Lines in one sparse read
-  (**getLinesSparse**, **getExpandedLinesSparse**, #286).
+  (**getLinesSparse**, **getExpandedLinesSparse**, #286), and the same Log
+  Lines as UTF-8 (**getUtf8LinesSparse**, #288).
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
   position** versus **DisplayedLinesCursor, takeForward** (#286).
@@ -466,6 +472,43 @@ add_executable(logsquirl_quickfind_benchmark quickfind_benchmark.cpp)
 target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
 ```
 
+# Chart follow benchmark
+
+`logsquirl_chart_follow_benchmark` (#298) charts a generated Log File of about
+128 MiB (short lines, `generated_log_file.h`) with three series -- a number on
+every Log Line, a count of ERROR Log Lines and a timestamp X-axis bucketed per
+second -- then appends Log Lines to it, has the log data load them as a change
+on disk does, and calls `ChartPanel::extractData()` after each load, as the
+crawler widget does with a visible chart. The first extraction is not measured.
+
+- **append 20 Log Lines, chart updated**: one append, measured until the chart
+  holds a point for every Log Line. Before #298 every update extracted the
+  whole Log File again, so this grew with its size; afterwards it does not.
+- **10 appends of 20 Log Lines in quick succession, chart updated**: a busy
+  Log File, the chart asked to update after each load without waiting for it.
+  Before #298 each request cancelled the running extraction, waited for it on
+  the GUI thread and started over from the first Log Line.
+
+The panel is not shown, so painting the chart is not measured. Where the panel
+has an update delay (#298), the benchmark sets it to zero. Set
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB` for another size; a full run needs its size
+free in `TMPDIR`. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_chart_follow_benchmark
+./build-release/output/logsquirl_chart_follow_benchmark --benchmark-samples 10 > after.txt
+```
+
+`chart_follow_benchmark.cpp` uses only what the chart panel offered before #298
+(the update delay only under `__has_include( "chartextraction.h" )`), so it
+builds unchanged on origin/master: copy it and `generated_log_file.h` into a
+worktree of that commit as described for the scrolling benchmarks above, with
+
+```cmake
+add_executable(logsquirl_chart_follow_benchmark chart_follow_benchmark.cpp)
+target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
+```
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a
@@ -489,3 +532,38 @@ two local runs: put each side's `--reporter xml` output under
 `<dir>/catch2/<binary>.xml` and run it with `--before <dir> --after <dir>`.
 
 The workflow can only be dispatched once it is on master.
+
+# Filtered View read benchmark
+
+`logsquirl_filteredview_read_benchmark` (#288) measures the readers of a
+Search's Displayed Lines. It writes a Log File of short Log Lines (256 MiB, or
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB`) into a temporary directory, indexes it and
+runs a Search matching every eighth Log Line, without Context Lines, before
+the first case:
+
+- `[paint]` — **getLines, a screen at each of 200 Scroll Positions**: 60 rows
+  read from the Filtered View's log data at 200 positions spread over the
+  matches, as painting does.
+- `[save]` — **the first 100,000 displayed lines, as UTF-8**: a save through
+  the Filtered View's `linesToSave()` into memory.
+- `[marks]` — **remove the longest Mark and add it back**, among 10,000
+  Marks spread over the Log File.
+- `[grep]` — **logsquirl_grep, every eighth Log Line**: the command line
+  tool run on the same Log File with its output discarded. It is taken from
+  the directory of the benchmark binary and skipped when it is not there.
+
+The file uses only what these offered before #288, so it builds on
+origin/master with `generated_log_file.h` copied next to it:
+
+```bash
+cmake --build build-release --target logsquirl_filteredview_read_benchmark logsquirl_grep
+./build-release/output/logsquirl_filteredview_read_benchmark --benchmark-samples 10 > after.txt
+
+# A quick check on a Log File of 16 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 ./build/output/logsquirl_filteredview_read_benchmark --benchmark-samples 2
+```
+
+```cmake
+add_executable(logsquirl_filteredview_read_benchmark filteredview_read_benchmark.cpp)
+target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
+```

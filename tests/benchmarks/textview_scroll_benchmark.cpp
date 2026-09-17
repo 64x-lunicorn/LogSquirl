@@ -113,8 +113,9 @@ protected:
 
 class BenchmarkedView : public AbstractLogView {
 public:
-    BenchmarkedView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern )
-        : AbstractLogView( logData, quickFindPattern, /* initialTextWrap */ true )
+    BenchmarkedView( const AbstractLogData* logData, const QuickFindPattern* quickFindPattern,
+                     bool textWrap = true )
+        : AbstractLogView( logData, quickFindPattern, textWrap )
     {
     }
 
@@ -221,6 +222,55 @@ TEST_CASE( "text view scroll benchmarks", "[textview-scroll-benchmark]" )
         view.resize( 800, 600 );
         view.viewport()->repaint();
         return view.getTopLine();
+    };
+}
+
+// Scrolling a shown view one Visual Line at a time, each step painted (#296):
+// what a key held down or a slow wheel does. Without text wrapping a step moves
+// what was painted and paints the one Log Line exposed; with it, the Log Lines
+// still in view are neither read nor decorated again.
+TEST_CASE( "text view one-line scroll benchmarks", "[textview-scroll-benchmark]" )
+{
+    GeneratedLogData logData;
+    const QuickFindPattern quickFindPattern;
+
+    const auto scrollOneLineAtATime = []( BenchmarkedView& view ) {
+        for ( int step = 0; step < 20; ++step ) {
+            pressKey( view, Qt::Key_Down );
+            view.viewport()->repaint();
+        }
+        for ( int step = 0; step < 20; ++step ) {
+            pressKey( view, Qt::Key_Up );
+            view.viewport()->repaint();
+        }
+        return view.getTopLine();
+    };
+
+    const auto show = [ & ]( BenchmarkedView& view ) {
+        view.setFrameShape( QFrame::NoFrame );
+        view.resize( 800, 600 );
+        view.show();
+        QCoreApplication::processEvents();
+        view.setPresentationPolicy( testSettingsPolicies().presentation );
+        view.updateData();
+        view.setSearchPattern( RegularExpressionPattern{ QStringLiteral( "worker-3" ) } );
+        view.verticalScrollBar()->setValue( view.verticalScrollBar()->maximum() / 2 );
+        view.viewport()->repaint();
+    };
+
+    BenchmarkedView unwrapped( &logData, &quickFindPattern, /* textWrap */ false );
+    show( unwrapped );
+    BENCHMARK( "keys: 20 Visual Lines down and 20 up one at a time, each painted, unwrapped" )
+    {
+        return scrollOneLineAtATime( unwrapped );
+    };
+    unwrapped.hide();
+
+    BenchmarkedView wrapped( &logData, &quickFindPattern, /* textWrap */ true );
+    show( wrapped );
+    BENCHMARK( "keys: 20 Visual Lines down and 20 up one at a time, each painted, wrapped" )
+    {
+        return scrollOneLineAtATime( wrapped );
     };
 }
 
