@@ -319,15 +319,22 @@ void SearchSession::resetResults()
     nbLinesProcessed_ = 0_lcount;
 }
 
-void SearchSession::applyIncomingResults( const SearchResults& results )
+void SearchSession::applyIncomingResults( SearchResults results )
 {
+    // Only as many set operations as the batch has containers, not as many
+    // as the Matches found so far.
+    results.newMatches -= matches_;
     arrivedMatches_ |= results.newMatches;
     maxLength_ = results.maxLength;
     nbLinesProcessed_ = results.processedLines;
+
+    const auto matchCount = LinesCount( matches_.cardinality() + arrivedMatches_.cardinality() );
+    ScopedLock lock( stateMutex_ );
+    state_.matchCount = matchCount;
 }
 
-void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
-                                            LineNumber /*initialLine*/, SearchId searchId )
+void SearchSession::handleSearchProgressed( int progress, LineNumber /*initialLine*/,
+                                            SearchId searchId )
 {
     if ( searchId != currentSearchId_ ) {
         // Progress from a run we've since superseded; its results are stale.
@@ -338,7 +345,6 @@ void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
 
     {
         ScopedLock lock( stateMutex_ );
-        state_.matchCount = nbMatches;
         state_.progress = progress;
     }
 
@@ -346,9 +352,8 @@ void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
     Q_EMIT resultsReady();
 }
 
-void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatches,
-                                          LineNumber /*initialLine*/, bool interrupted,
-                                          const QString& failure )
+void SearchSession::handleSearchFinished( SearchId searchId, LineNumber /*initialLine*/,
+                                          bool interrupted, const QString& failure )
 {
     // Every request()/completeFromCache() that reached the worker did
     // exactly one attachReader(); this is its matching detachReader(),
@@ -402,7 +407,6 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
 
     {
         ScopedLock lock( stateMutex_ );
-        state_.matchCount = nbMatches;
         state_.progress = 100;
         state_.phase = Phase::Complete;
     }

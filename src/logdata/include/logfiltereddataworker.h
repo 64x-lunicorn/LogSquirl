@@ -41,6 +41,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <map>
 #include <memory>
 
 #include <QObject>
@@ -126,25 +127,31 @@ struct SearchResults {
 
 // This class is a mutex protected set of search result data.
 // It is thread safe.
+//
+// The blocks of a parallel Search are combined in whatever order their
+// matching finishes. The Log Lines counted as processed are only those up to
+// the first one not searched yet, so that a Search continued from there leaves
+// no Log Line out; a block combined beyond that gap counts once the gap is
+// closed. How many Matches there are is not counted here: the Matches are a
+// set, and a Log Line searched again (the last one, when a Search continues)
+// is in it once however often it matched.
 class SearchData {
 public:
     // will clear new matches
     SearchResults takeCurrentResults() const;
 
-    // Atomically add to all the existing search data.
-    void addAll( LineLength length, const SearchResultArray& matches, LinesCount nbMatches,
-                 LinesCount nbLinesProcessed );
-    // Get the number of matches
-    LinesCount getNbMatches() const;
-    // Get the last matched line number
-    // That is "last" as in biggest, not latest
-    // 0 if no matches have been found yet
-    LineNumber getLastMatchedLineNumber() const;
+    // Starts counting the Log Lines searched from line: those before it count
+    // as searched, whatever was combined from it on no longer does. The
+    // Matches already found are kept.
+    void searchFrom( LineNumber line );
 
+    // Atomically add the Matches of the block of blockLines Log Lines from
+    // blockStart, which has been searched.
+    void addAll( LineLength length, const SearchResultArray& matches, LineNumber blockStart,
+                 LinesCount blockLines );
+
+    // The first Log Line not searched yet: every Log Line before it was.
     LineNumber getLastProcessedLine() const;
-
-    // Delete the match for the passed line (if it exist)
-    void deleteMatch( LineNumber line );
 
     // Atomically clear the data.
     void clear();
@@ -152,11 +159,12 @@ public:
 private:
     mutable SharedMutex dataMutex_;
 
-    SearchResultArray matches_;
     mutable SearchResultArray newMatches_;
     LineLength maxLength_{ 0 };
-    LinesCount nbLinesProcessed_{ 0 };
-    LinesCount nbMatches_{ 0 };
+    LineNumber searchedUntil_{ 0 };
+    // The blocks combined beyond searchedUntil_, by their first Log Line, with
+    // the Log Line after their last one.
+    std::map<LineNumber::UnderlyingType, LineNumber::UnderlyingType> searchedAhead_;
 };
 
 class SearchOperation : public QObject {
@@ -184,13 +192,12 @@ public:
     void run( SearchData& result );
 
 Q_SIGNALS:
-    void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine,
-                           SearchId searchId );
+    void searchProgressed( int percent, LineNumber initialLine, SearchId searchId );
     // interrupted is true when this run was superseded by another (or explicitly
     // interrupted) before it reached the end of its range. failure describes
     // what went wrong when the run failed, and is empty otherwise.
-    void searchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                         bool interrupted, const QString& failure );
+    void searchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
+                         const QString& failure );
 
 protected:
     // The run itself, which run() reports the failure of.
@@ -291,13 +298,12 @@ public:
 Q_SIGNALS:
     // Sent during the indexing process to signal progress
     // percent being the percentage of completion.
-    void searchProgressed( LinesCount nbMatches, int percent, LineNumber initialLine,
-                           SearchId searchId );
+    void searchProgressed( int percent, LineNumber initialLine, SearchId searchId );
     // Sent once a run stops, one way or another. interrupted is true when the
     // run was superseded or explicitly interrupted before reaching its end;
     // failure describes what went wrong when the run failed.
-    void searchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                         bool interrupted, const QString& failure );
+    void searchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
+                         const QString& failure );
 
 private:
     void connectSignalsAndRun( SearchOperation* operationRequested );

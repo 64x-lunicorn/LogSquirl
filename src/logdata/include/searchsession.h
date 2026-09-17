@@ -121,10 +121,9 @@ Q_SIGNALS:
     void stateChanged( SearchSession::State state );
 
 private Q_SLOTS:
-    void handleSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine,
-                                 SearchId searchId );
-    void handleSearchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                               bool interrupted, const QString& failure );
+    void handleSearchProgressed( int progress, LineNumber initialLine, SearchId searchId );
+    void handleSearchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
+                               const QString& failure );
     // Emits the state change the throttler held back, unless one has been
     // reported directly since.
     void emitThrottledStateChanged();
@@ -138,9 +137,10 @@ private:
                    LineNumber endLine, bool isContinuation,
                    std::shared_ptr<const RegularExpression> compiledExpression );
     // Absorbs a worker result batch into arrivedMatches_/maxLength_/
-    // nbLinesProcessed_. Shared by handleSearchProgressed and
-    // handleSearchFinished, which otherwise duplicate this exactly.
-    void applyIncomingResults( const SearchResults& results );
+    // nbLinesProcessed_, and counts the Matches anew. Shared by
+    // handleSearchProgressed and handleSearchFinished, which otherwise
+    // duplicate this exactly.
+    void applyIncomingResults( SearchResults results );
     // Replaces state_ under stateMutex_ in one step, so each call site
     // builds one complete State value instead of hand-editing a handful
     // of fields (and risking missing one) under the lock.
@@ -182,7 +182,10 @@ private:
     SearchResultArray matches_;
     // Matches the worker reported since the last state change was; they
     // join matches_ when the next one is (notifyStateChanged()), so matches_
-    // never changes behind a reader's back.
+    // never changes behind a reader's back. None of them is in matches_
+    // already, so the match count is the size of both together: it is
+    // counted from the Matches, never incremented beside them, and a Log Line
+    // searched again is not counted twice.
     SearchResultArray arrivedMatches_;
     // A progress tick is waiting in the throttler to be reported.
     bool stateChangePending_ = false;
