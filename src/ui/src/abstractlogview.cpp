@@ -2016,15 +2016,14 @@ void AbstractLogView::selectWordAtPosition( const FilePosition& pos )
 // Update the system global (middle click) selection (X11 only)
 void AbstractLogView::updateGlobalSelection()
 {
-    try {
-        auto clipboard = QApplication::clipboard();
-        // Updating it only for "non-trivial" (range or portion) selections
-        if ( !selection_.isSingleLine() )
-            clipboard->setText( selection_.getSelectedText( *lines_, *logData_ ),
-                                QClipboard::Selection );
-    } catch ( std::exception& err ) {
-        LOG_ERROR << "failed to copy data to clipboard " << err.what();
+    // Updating it only for "non-trivial" (range or portion) selections
+    if ( selection_.isSingleLine() ) {
+        return;
     }
+    // Where there is no selection clipboard, the selected text is not built.
+    sendTextToSelectionClipboard( QApplication::clipboard(), [ this ]() {
+        return selection_.getSelectedText( *lines_, *logData_ );
+    } );
 }
 
 LineLength AbstractLogView::selectedTextLength()

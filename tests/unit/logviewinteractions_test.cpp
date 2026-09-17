@@ -31,14 +31,17 @@
 #include <vector>
 
 #include <QAbstractEventDispatcher>
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QCursor>
 #include <QFontInfo>
+#include <QGuiApplication>
 #include <QMouseEvent>
 #include <QScrollBar>
 #include <QTimerEvent>
 
 #include "abstractlogview.h"
+#include "clipboard.h"
 #include "fake_log_data.h"
 #include "painting_test_font.h"
 #include "quickfindpattern.h"
@@ -230,6 +233,15 @@ SCENARIO( "Selecting, hovering, marking and autoscrolling through the log view",
                     selected.remove( QChar::CarriageReturn );
                     REQUIRE( selected == interactionLines().mid( 0, 3 ).join( QChar::LineFeed ) );
                 }
+
+                THEN( "the selection clipboard holds them where the platform has one" )
+                {
+                    const auto* clipboard = QGuiApplication::clipboard();
+                    if ( clipboard->supportsSelection() ) {
+                        REQUIRE( clipboard->text( QClipboard::Selection )
+                                 == view.getSelectedText() );
+                    }
+                }
             }
 
             WHEN( "the mouse moves over the bullet zone, and then onto the text" )
@@ -337,5 +349,37 @@ SCENARIO( "Selecting, hovering, marking and autoscrolling through the log view",
                 }
             }
         }
+    }
+}
+
+SCENARIO( "The selection clipboard is filled only where the platform has one",
+          "[logviewinteractions][clipboard]" )
+{
+    auto* clipboard = QGuiApplication::clipboard();
+    int textsRead = 0;
+
+    const bool filled = sendTextToSelectionClipboard( clipboard, [ & ]() {
+        ++textsRead;
+        return QStringLiteral( "selected text" );
+    } );
+
+    THEN( "the text is read and handed over there, and elsewhere not even read" )
+    {
+        REQUIRE( filled == clipboard->supportsSelection() );
+        REQUIRE( textsRead == ( clipboard->supportsSelection() ? 1 : 0 ) );
+        if ( clipboard->supportsSelection() ) {
+            REQUIRE( clipboard->text( QClipboard::Selection )
+                     == QStringLiteral( "selected text" ) );
+        }
+    }
+
+    THEN( "without a clipboard nothing is read" )
+    {
+        textsRead = 0;
+        REQUIRE_FALSE( sendTextToSelectionClipboard( nullptr, [ & ]() {
+            ++textsRead;
+            return QString{};
+        } ) );
+        REQUIRE( textsRead == 0 );
     }
 }
