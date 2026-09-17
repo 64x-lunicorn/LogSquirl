@@ -233,6 +233,7 @@ SCENARIO( "The Displayed Lines are walked from a position", "[displayedlines]" )
         auto cursor = displayed.cursorAt( 12_lnum );
         REQUIRE_FALSE( cursor.hasLine() );
         REQUIRE_FALSE( displayed.cursorAt( 1000_lnum ).hasLine() );
+        REQUIRE_FALSE( displayed.cursorAt( maxValue<LineNumber>() ).hasLine() );
 
         WHEN( "it steps back" )
         {

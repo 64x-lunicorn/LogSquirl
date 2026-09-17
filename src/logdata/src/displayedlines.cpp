@@ -266,7 +266,9 @@ void DisplayedLines::refreshLines()
 DisplayedLinesCursor::DisplayedLinesCursor( const SearchResultArray& lines, LineNumber position )
     : lines_( &lines )
     , count_( static_cast<std::int64_t>( lines.cardinality() ) )
-    , position_( std::min( static_cast<std::int64_t>( position.get() ), count_ ) )
+    , position_( position.get() < static_cast<LineNumber::UnderlyingType>( count_ )
+                     ? static_cast<std::int64_t>( position.get() )
+                     : count_ )
     , iterator_( lines.end() )
 {
     if ( position_ < count_ ) {
