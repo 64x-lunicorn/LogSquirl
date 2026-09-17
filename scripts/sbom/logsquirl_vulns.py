@@ -766,6 +766,7 @@ _PIN_LOCATIONS = {
     # The Windows package's OpenSSL; its pin is in a composite action (#211).
     "openssl": (".github/actions/windows-openssl/action.yml", r"OPENSSL_VERSION:"),
     "boost": (".github/actions/agent-setup/action.yml", r"BOOST_VERSION="),
+    "minidump-stackwalk": ("cmake/MinidumpStackwalk.cmake", r"MINIDUMP_STACKWALK_VERSION "),
 }
 _FALLBACK_LOCATION = "scripts/sbom/logsquirl_sbom.py"
 

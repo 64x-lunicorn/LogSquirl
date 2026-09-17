@@ -55,6 +55,11 @@ If a library can't be found, the one provided by CPM will be used.
 ### Configuration options
 
 By default LogSquirl is built without support for reporting crash dumps. This can be enabled via cmake option `-DLOGSQUIRL_USE_SENTRY=ON`.
+Such a build downloads the pinned [minidump-stackwalk](https://github.com/rust-minidump/rust-minidump) release for
+the target (Linux x86-64, macOS arm64/x86-64, Windows x64) at configure time, checks its SHA-256
+(`cmake/MinidumpStackwalk.cmake`) and ships it next to the app as `logsquirl_minidump_dump`; the crash report dialog
+runs it on a pending minidump. `-DLOGSQUIRL_MINIDUMP_STACKWALK=<path>` ships an existing executable instead, for
+offline builds or other targets.
 
 LogSquirl uses Vectorscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
 LogSquirl can be built with only Qt regular expressions backend by passing `-DLOGSQUIRL_USE_VECTORSCAN=OFF` to cmake.
@@ -512,9 +517,9 @@ PRs from both:
 - **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines,
   the pip requirements of `scripts/sbom` and `tests/e2e`, and the website's npm packages.
 - **Renovate** (`renovate.json5`, only its custom regex managers are enabled): the CPM packages in
-  `3rdparty/CMakeLists.txt` and every tool version pinned in workflows, composite actions, the build images and the
-  packaging scripts: Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg, sentry-cli,
-  linuxdeploy, clang-format, aqtinstall and the Renovate config validator itself.
+  `3rdparty/CMakeLists.txt` and every tool version pinned in workflows, composite actions, the build images, the
+  packaging scripts and `cmake/*.cmake`: Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg,
+  sentry-cli, linuxdeploy, minidump-stackwalk, clang-format, aqtinstall and the Renovate config validator itself.
 
 Both wait until a release is seven days old and run weekly; Renovate lists everything it tracks on its
 **Dependency Dashboard** issue. Renovate's grouping:
@@ -529,7 +534,8 @@ Both wait until a release is seven days old and run weekly; Renovate lists every
 
 A tool pin that is downloaded and verified is written as a block Renovate and the checksum script both read; to add
 one, follow the same form and add its download URL to `URLS` in `.github/scripts/update-checksums.py`. The block goes
-into a composite action (`.github/actions/*/action.yml`), a Dockerfile or a script, never into a workflow file: the
+into a composite action (`.github/actions/*/action.yml`), a Dockerfile, a script or a CMake module (`set(NAME "v")`
+lines, as in `cmake/MinidumpStackwalk.cmake`), never into a workflow file: the
 Renovate Checksums workflow pushes with `GITHUB_TOKEN`, which may not change `.github/workflows/`, so
 `update-checksums.py --list` fails on a pair there. That is why OpenSSL (`.github/actions/windows-openssl`) and
 sentry-cli (`.github/actions/install-sentry-cli`) are installed by composite actions:
