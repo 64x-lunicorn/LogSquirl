@@ -131,20 +131,21 @@ static constexpr auto ClipboardMaxTry = 5;
 QTranslator MainWindow::mTranslator;
 QTranslator MainWindow::mQtTranslator;
 
-MainWindow::MainWindow( WindowSession session )
+MainWindow::MainWindow( WindowSession session,
+                        std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins )
     : session_( std::move( session ) )
     , mainIcon_()
     , signalMux_()
     , quickFindMux_( session_.getQuickFindPattern() )
     , mainTabWidget_()
     , tempDir_( QDir::temp().filePath( "logsquirl_temp_" ) )
+    , plugins_( std::move( plugins ) )
 {
     createActions();
 
-    // Discover plugins before createMenus() so the Sources and Plugins
-    // menus can list discovered plugins immediately.
-    pluginCatalog_.discoverPlugins();
-
+    // The plugins are not discovered here: they load once for the
+    // application, after the first window shows (#303). The Sources menu and
+    // the dashboard list them once they have.
     createMenus();
     createToolBars();
 
@@ -329,7 +330,7 @@ MainWindow::MainWindow( WindowSession session )
 
     if ( config.showDashboard() ) {
         welcomeDashboard_ = new WelcomeDashboard();
-        welcomeDashboard_->setPlugins( &pluginCatalog_, &pluginHost_ );
+        welcomeDashboard_->setPlugins( &plugins_->catalog(), &plugins_->host() );
 
         // Insert dashboard as the permanent first tab (index 0)
         mainTabWidget_.insertTab( 0, welcomeDashboard_, tr( "Dashboard" ) );
@@ -362,44 +363,19 @@ MainWindow::MainWindow( WindowSession session )
         welcomeDashboard_->refresh();
     }
 
-    // Wire the Plugin UI Port and the plugin host signals before
-    // autoLoadPlugins(), so what plugins register while they load (status
-    // widgets, menu actions) is shown immediately.
+    // What plugins contribute shows in every window (#303); added before the
+    // plugins load, so what they register while loading is shown.
     pluginUi_ = std::make_unique<PluginUiAdapter>( *this, *pluginsMenu, pluginMenuSeparator_,
                                                    *sidebarTabs_ );
-    pluginHost_.setUiPort( pluginUi_.get() );
+    plugins_->uiPort().addWindow( pluginUi_.get() );
+    servePluginCallbacks();
 
-    connect( &pluginHost_, &logsquirl::plugins::PluginHost::dataSourceStarted, this,
-             &MainWindow::handleDataSourceStarted );
-    connect( &pluginHost_, &logsquirl::plugins::PluginHost::dataSourceStopped, this,
-             &MainWindow::handleDataSourceStopped );
-    connect( &pluginHost_, &logsquirl::plugins::PluginHost::notificationRequested, this,
-             []( const QString& msg ) { LOG_INFO << "Plugin notification: " << msg; } );
-
-    // Let plugins request opening files
-    pluginHost_.setOpenFileCallback(
-        [ this ]( const QString& path, bool follow ) { loadFile( path, follow ); } );
-
-    // Let plugins query the currently active file path
-    pluginHost_.setActiveFilePathCallback( [ this ]() -> QString {
-        auto* crawler = currentCrawlerWidget();
-        return crawler ? session_.getFilename( crawler ) : QString();
+    plugins_->whenLoaded( this, [ this ] {
+        updateSourcesMenu();
+        if ( welcomeDashboard_ ) {
+            welcomeDashboard_->refresh();
+        }
     } );
-
-    // Auto-load previously enabled plugins (signals are now connected, so
-    // register_status_widget / register_menu_action will be delivered).
-    // The host reads no settings: it is handed them, and a first run's
-    // default, every discovered plugin enabled, is kept here.
-    const auto autoLoaded = pluginHost_.autoLoadPlugins(
-        { .autoLoad = config.pluginsAutoLoad(), .enabled = config.enabledPlugins() } );
-    if ( autoLoaded.enabledOnFirstRun ) {
-        auto& pluginConfig = Configuration::get();
-        pluginConfig.setEnabledPlugins( *autoLoaded.enabledOnFirstRun );
-        pluginConfig.save();
-    }
-    for ( const auto& error : autoLoaded.errors ) {
-        LOG_WARNING << "Plugin auto-load error: " << error;
-    }
 
     updateTitleBar( "" );
     loadIcons();
@@ -441,6 +417,10 @@ void MainWindow::reloadSession()
         },
         &currentFileIndex );
 
+    // Only the current tab's Log File loads now, the others after it (#300).
+    // Adding a tab makes it current for a moment, which is not the user
+    // activating it.
+    restoringSession_ = true;
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
         auto* crawlerWidget = crawlers[ i ];
         mainTabWidget_.addCrawler( crawlerWidget, openedFiles[ i ].first );
@@ -449,9 +429,11 @@ void MainWindow::reloadSession()
             signalCrawlerToFollowFile( crawlerWidget );
         }
     }
+    restoringSession_ = false;
 
-    if ( currentFileIndex >= 0 ) {
-        mainTabWidget_.setCurrentIndex( currentFileIndex );
+    if ( currentFileIndex >= 0 && static_cast<size_t>( currentFileIndex ) < crawlers.size() ) {
+        // By widget: the Dashboard tab, if any, comes before the Log Files.
+        mainTabWidget_.setCurrentWidget( crawlers[ static_cast<size_t>( currentFileIndex ) ] );
 
         if ( followFileOnLoad ) {
             followAction->setChecked( true );
@@ -1073,21 +1055,8 @@ void MainWindow::createMenus()
     pluginMenuSeparator_ = pluginsMenu->addSeparator();
     pluginsMenu->addAction( pluginsAction );
 
-    // Build Sources sub-menu from DataSource plugins
     sourcesMenu = menuBar()->addMenu( tr( "Sources" ) );
-    for ( const auto& meta : pluginCatalog_.discoveredPlugins() ) {
-        if ( meta.type() == LOGSQUIRL_PLUGIN_DATASOURCE ) {
-            auto* action = new QAction( meta.name(), this );
-            action->setStatusTip( tr( "Start %1 data source" ).arg( meta.name() ) );
-            const auto id = meta.id();
-            connect( action, &QAction::triggered, this,
-                     [ this, id ]() { startPluginDataSource( id ); } );
-            sourcesMenu->addAction( action );
-        }
-    }
-    if ( sourcesMenu->isEmpty() ) {
-        sourcesMenu->addAction( tr( "(no data source plugins)" ) )->setEnabled( false );
-    }
+    updateSourcesMenu();
 
     helpMenu = menuBar()->addMenu( tr( menu::helpTitle ) );
     helpMenu->addAction( showDocumentationAction );
@@ -1219,7 +1188,7 @@ void MainWindow::open()
     // Build file filter including converter plugins
     QStringList filters;
     filters << tr( "All files (*)" );
-    filters << pluginHost_.converterFileFilters();
+    filters << plugins_->host().converterFileFilters();
     const auto filter = filters.join( ";;" );
 
     const auto selectedFiles = QFileDialog::getOpenFileUrls(
@@ -1515,17 +1484,59 @@ void MainWindow::applySettingsChange()
     updateRecentFileActions();
 }
 
+void MainWindow::updateSourcesMenu()
+{
+    sourcesMenu->clear();
+    for ( const auto& meta : plugins_->catalog().discoveredPlugins() ) {
+        if ( meta.type() == LOGSQUIRL_PLUGIN_DATASOURCE ) {
+            auto* action = new QAction( meta.name(), sourcesMenu );
+            action->setStatusTip( tr( "Start %1 data source" ).arg( meta.name() ) );
+            const auto id = meta.id();
+            connect( action, &QAction::triggered, this,
+                     [ this, id ]() { startPluginDataSource( id ); } );
+            sourcesMenu->addAction( action );
+        }
+    }
+    if ( sourcesMenu->isEmpty() ) {
+        sourcesMenu->addAction( tr( "(no data source plugins)" ) )->setEnabled( false );
+    }
+}
+
+void MainWindow::servePluginCallbacks()
+{
+    auto& pluginHost = plugins_->host();
+
+    // Plugins open files in, and ask for the active file of, the window the
+    // user worked in last. A window that is gone serves them no more.
+    pluginHost.setOpenFileCallback(
+        [ window = QPointer<MainWindow>( this ) ]( const QString& path, bool follow ) {
+            if ( window ) {
+                window->loadFile( path, follow );
+            }
+        } );
+    pluginHost.setActiveFilePathCallback( [ window = QPointer<MainWindow>( this ) ]() -> QString {
+        if ( !window ) {
+            return {};
+        }
+        auto* crawler = window->currentCrawlerWidget();
+        return crawler ? window->session_.getFilename( crawler ) : QString();
+    } );
+}
+
 void MainWindow::showPluginDialog()
 {
-    PluginDialog dialog( pluginCatalog_, pluginHost_, this );
+    PluginDialog dialog( plugins_->catalog(), plugins_->host(), this );
     dialog.exec();
+    updateSourcesMenu();
 }
 
 void MainWindow::startPluginDataSource( const QString& pluginId )
 {
+    auto& pluginHost = plugins_->host();
+
     // Auto-load the plugin if it is not yet loaded
-    if ( !pluginHost_.isLoaded( pluginId ) ) {
-        const auto loadError = pluginHost_.loadPlugin( pluginId );
+    if ( !pluginHost.isLoaded( pluginId ) ) {
+        const auto loadError = pluginHost.loadPlugin( pluginId );
         if ( !loadError.isEmpty() ) {
             QMessageBox::warning( this, tr( "Plugin Error" ),
                                   tr( "Failed to load plugin:\n%1" ).arg( loadError ) );
@@ -1533,7 +1544,12 @@ void MainWindow::startPluginDataSource( const QString& pluginId )
         }
     }
 
-    const auto error = pluginHost_.startDataSource( pluginId );
+    // Every window shares the Plugin Host: the data source this window starts
+    // opens in this window only.
+    const auto started = connect( &pluginHost, &logsquirl::plugins::PluginHost::dataSourceStarted,
+                                  this, &MainWindow::handleDataSourceStarted );
+    const auto error = pluginHost.startDataSource( pluginId );
+    disconnect( started );
     if ( !error.isEmpty() ) {
         QMessageBox::warning( this, tr( "DataSource Error" ), error );
     }
@@ -1555,13 +1571,6 @@ void MainWindow::handleDataSourceStarted( const QString& pluginId, const QString
                                           tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) );
         }
     }
-}
-
-void MainWindow::handleDataSourceStopped( const QString& pluginId )
-{
-    LOG_INFO << "DataSource stopped: " << pluginId;
-    // The file remains open — the user can still browse it.
-    // Optionally we could disable follow mode on the associated tab here.
 }
 
 void MainWindow::about()
@@ -2114,6 +2123,12 @@ void MainWindow::currentTabChanged( int index )
         if ( !crawler_widget ) {
             return;
         }
+        // A restored Log File still waiting for its turn loads now that the
+        // user looks at its tab (#300).
+        if ( !restoringSession_ ) {
+            session_.startLoading( crawler_widget );
+        }
+
         signalMux_.setCurrentDocument( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
 
@@ -2128,7 +2143,7 @@ void MainWindow::currentTabChanged( int index )
         editMenu->setEnabled( true );
 
         // Notify plugins about the active file change
-        pluginHost_.notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
+        plugins_->host().notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
     }
     else {
         // Dashboard tab or no tab — clear the document state
@@ -2153,7 +2168,7 @@ void MainWindow::currentTabChanged( int index )
         addToFavoritesMenuAction->setEnabled( false );
 
         // Notify plugins that no file is active
-        pluginHost_.notifyActiveFileChanged( QString() );
+        plugins_->host().notifyActiveFileChanged( QString() );
 
         // Refresh dashboard when it becomes visible
         if ( isDashboardTab( mainTabWidget_, index ) ) {
@@ -2216,6 +2231,11 @@ void MainWindow::loadFileNonInteractive( const QString& file_name )
 MainWindow::~MainWindow()
 {
     session_.removeWindow( this );
+
+    // The Plugin Host outlives this window. What plugins show here is taken
+    // out before the window's widgets go, so no plugin widget is deleted with
+    // them; their widgets move to the most recently active remaining window.
+    plugins_->uiPort().removeWindow( pluginUi_.get() );
 }
 
 void MainWindow::closeEvent( QCloseEvent* event )
@@ -2282,13 +2302,35 @@ void MainWindow::dropEvent( QDropEvent* event )
     }
 }
 
+bool MainWindow::eventFilter( QObject* watched, QEvent* event )
+{
+    if ( waitingForExposure_ && watched == windowHandle() && event->type() == QEvent::Expose
+         && windowHandle()->isExposed() ) {
+        waitingForExposure_ = false;
+        windowHandle()->removeEventFilter( this );
+        plugins_->loadSoon();
+    }
+    return QMainWindow::eventFilter( watched, event );
+}
+
 bool MainWindow::event( QEvent* event )
 {
     if ( event->type() == QEvent::WindowActivate ) {
+        servePluginCallbacks();
+        plugins_->uiPort().activateWindow( pluginUi_.get() );
         Q_EMIT windowActivated();
     }
     else if ( event->type() == QEvent::Show ) {
         if ( this->windowHandle() ) {
+            // The plugins load once for the application, after this window
+            // is on screen rather than while it is built (#303): once the
+            // window system has exposed it, which paints it before the
+            // loading queued here runs.
+            if ( !plugins_->isLoaded() && !waitingForExposure_ ) {
+                waitingForExposure_ = true;
+                this->windowHandle()->installEventFilter( this );
+            }
+
             std::call_once( screenChangesConnect_, [ this ]() {
                 logScreenInfo( this->windowHandle()->screen() );
                 connect( this->windowHandle(), &QWindow::screenChanged,
@@ -2393,6 +2435,22 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
 {
     LOG_DEBUG << "loadFile ( " << fileName.toStdString() << " )";
 
+    // Whether a converter plugin opens this file is only known once the
+    // plugins have loaded. A file asked for before -- from the command line,
+    // by another instance, dropped at once -- waits for them rather than
+    // being opened without its converter (#303).
+    if ( !plugins_->isLoaded() ) {
+        LOG_INFO << "Opening " << fileName << " once the plugins have loaded";
+        plugins_->whenLoaded(
+            this, [ this, fileName, followFile ] { loadFile( fileName, followFile ); } );
+        // A window just shown has them load once it is on screen; any other
+        // window asks for them itself.
+        if ( !waitingForExposure_ ) {
+            plugins_->loadSoon();
+        }
+        return true;
+    }
+
     // First check if the file is already open...
     if ( const auto* existingView = session_.getViewIfOpen( fileName ) ) {
         // Found among the tabs of every window, rather than cast back from
@@ -2416,13 +2474,14 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
     }
 
     // Check if a converter plugin handles this file extension (Phase 4)
+    auto& pluginHost = plugins_->host();
     const auto ext = QFileInfo( fileName ).suffix().toLower();
-    const auto converterId = pluginHost_.converterForExtension( ext );
+    const auto converterId = pluginHost.converterForExtension( ext );
     if ( !converterId.isEmpty() ) {
         auto* tempFile = new QTemporaryFile(
             tempDir_.filePath( QFileInfo( fileName ).fileName() + ".txt" ), this );
         if ( tempFile->open() ) {
-            const auto rc = pluginHost_.runConverter( converterId, fileName, tempFile->fileName() );
+            const auto rc = pluginHost.runConverter( converterId, fileName, tempFile->fileName() );
             if ( rc == 0 ) {
                 return loadFile( tempFile->fileName(), followFile );
             }
@@ -2670,7 +2729,7 @@ void MainWindow::updateFavoritesMenu()
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesAction->setData( true );
 
-    const auto& favorites = FavoriteFiles::getSynced().favorites();
+    const auto& favorites = FavoriteFiles::get().favorites();
     auto crawler = currentCrawlerWidget();
 
     addToFavoritesAction->setEnabled( crawler != nullptr );

@@ -35,6 +35,7 @@ DisplayedLines::DisplayedLines( const SearchResultArray& matches,
 void DisplayedLines::setShown( LineType shown )
 {
     shown_ = shown;
+    rewritten();
     refreshLines();
 }
 
@@ -50,24 +51,78 @@ void DisplayedLines::setContextLinesCount( int contextLinesCount )
     }
 
     contextLinesCount_ = contextLinesCount;
+    rewritten();
     rebuildContextLines();
     refreshLines();
 }
 
 void DisplayedLines::matchesArrived()
 {
+    // Whatever the Context Lines were built around may be gone.
+    rewritten();
+    contextLinesUpToDate_ = false;
+    matchesWithoutContextLines_ = SearchResultArray();
     refreshLines();
+}
+
+void DisplayedLines::matchesArrived( const SearchResultArray& newMatches )
+{
+    uint64_t formerEnd = 0;
+    if ( !comeAfterEverything( newMatches, formerEnd ) ) {
+        rewritten();
+    }
+    if ( contextLinesUpToDate_ ) {
+        matchesWithoutContextLines_ |= newMatches;
+    }
+    refreshLinesAt( newMatches );
 }
 
 void DisplayedLines::searchCompleted()
 {
+    rewritten();
     rebuildContextLines();
     refreshLines();
 }
 
+void DisplayedLines::searchCompleted( const SearchResultArray& newMatches )
+{
+    uint64_t formerEnd = 0;
+    const bool appended = comeAfterEverything( newMatches, formerEnd );
+
+    if ( contextLinesUpToDate_ ) {
+        matchesWithoutContextLines_ |= newMatches;
+    }
+
+    auto changed = updateContextLines();
+    if ( !changed ) {
+        // The Context Lines were rebuilt: they may change anywhere.
+        rewritten();
+        refreshLines();
+        return;
+    }
+    if ( !appended ) {
+        rewritten();
+    }
+    else {
+        // The Matches and Marks among the changed Log Lines were displayed
+        // already, as what they are; only the Context Lines it changed count.
+        auto contextLinesChanged = *changed - matches_;
+        contextLinesChanged -= marks_;
+        if ( !contextLinesChanged.isEmpty() && contextLinesChanged.minimum() < formerEnd ) {
+            rewritten();
+        }
+    }
+    *changed |= newMatches;
+    refreshLinesAt( *changed );
+}
+
 void DisplayedLines::searchDiscarded()
 {
+    // The Marks lose their Context Lines too, until they are next rebuilt.
+    rewritten();
     contextLines_ = SearchResultArray();
+    contextLinesUpToDate_ = false;
+    matchesWithoutContextLines_ = SearchResultArray();
     refreshLines();
 }
 
@@ -75,8 +130,7 @@ bool DisplayedLines::addMark( LineNumber line )
 {
     const bool added = marks_.addChecked( line.get() );
     if ( added ) {
-        rebuildContextLines();
-        refreshLines();
+        markToggled( line.get(), true );
     }
     return added;
 }
@@ -85,8 +139,7 @@ bool DisplayedLines::removeMark( LineNumber line )
 {
     const bool removed = marks_.removeChecked( line.get() );
     if ( removed ) {
-        rebuildContextLines();
-        refreshLines();
+        markToggled( line.get(), false );
     }
     return removed;
 }
@@ -94,6 +147,7 @@ bool DisplayedLines::removeMark( LineNumber line )
 void DisplayedLines::clearMarks()
 {
     marks_ = SearchResultArray();
+    rewritten();
     rebuildContextLines();
     refreshLines();
 }
@@ -183,51 +237,243 @@ LineNumber DisplayedLines::positionOf( LineNumber line ) const
     return LineNumber( rank > 0 ? rank - 1 : 0 );
 }
 
+DisplayedLinesCursor DisplayedLines::cursorAt( LineNumber position ) const
+{
+    return DisplayedLinesCursor( lines(), position );
+}
+
+DisplayedLines::Count DisplayedLines::countIn( LineNumber first, LineNumber end ) const
+{
+    if ( first >= end ) {
+        return {};
+    }
+
+    // The Log Lines of set in [first, end).
+    const auto countOf = [ first, end ]( const SearchResultArray& set ) {
+        const auto upToEnd = set.rank( end.get() - 1 );
+        const auto beforeFirst = first.get() > 0 ? set.rank( first.get() - 1 ) : uint64_t{ 0 };
+        return upToEnd - beforeFirst;
+    };
+
+    const auto& displayed = lines();
+    const auto displayedCount = countOf( displayed );
+    if ( displayedCount == 0 ) {
+        return {};
+    }
+
+    if ( shown_.testFlag( LineTypeFlags::Match ) ) {
+        // Every Match is displayed.
+        const auto matchCount = countOf( matches_ );
+        return { matchCount, displayedCount - matchCount };
+    }
+
+    // The Marks alone are displayed; some may be Matches too.
+    Count count;
+    auto line = displayed.begin();
+    line.move_equalorlarger( first.get() );
+    for ( ; line != displayed.end() && *line < end.get(); ++line ) {
+        if ( matches_.contains( *line ) ) {
+            ++count.matches;
+        }
+        else {
+            ++count.others;
+        }
+    }
+    return count;
+}
+
+uint64_t DisplayedLines::rewrites() const
+{
+    return rewrites_;
+}
+
+void DisplayedLines::rewritten()
+{
+    ++rewrites_;
+}
+
+bool DisplayedLines::comeAfterEverything( const SearchResultArray& newMatches,
+                                          uint64_t& formerEnd ) const
+{
+    const auto formerMatches = matches_.cardinality() - newMatches.cardinality();
+    formerEnd = 0;
+    if ( formerMatches > 0 ) {
+        uint64_t lastFormerMatch = 0;
+        if ( !matches_.select( formerMatches - 1, &lastFormerMatch ) ) {
+            return false;
+        }
+        formerEnd = lastFormerMatch + 1;
+    }
+    if ( !marks_.isEmpty() ) {
+        formerEnd = std::max( formerEnd, marks_.maximum() + 1 );
+    }
+    if ( !contextLines_.isEmpty() ) {
+        formerEnd = std::max( formerEnd, contextLines_.maximum() + 1 );
+    }
+
+    // The Matches before the first new one are exactly the former ones.
+    return newMatches.isEmpty()
+           || ( newMatches.minimum() >= formerEnd
+                && matches_.rank( newMatches.minimum() ) == formerMatches + 1 );
+}
+
 void DisplayedLines::rebuildContextLines()
 {
     contextLines_ = SearchResultArray();
+    matchesWithoutContextLines_ = SearchResultArray();
+    contextLinesUpToDate_ = true;
+    contextLinesEnd_ = nbLogLines_().get();
 
-    if ( contextLinesCount_ <= 0 ) {
+    if ( contextLinesCount_ <= 0 || contextLinesEnd_ == 0 ) {
         return;
     }
 
+    if ( marks_.isEmpty() ) {
+        contextLines_ = contextLinesAround( matches_, contextLinesEnd_ );
+    }
+    else {
+        contextLines_ = contextLinesAround( matches_ | marks_, contextLinesEnd_ );
+    }
+}
+
+std::optional<SearchResultArray> DisplayedLines::updateContextLines()
+{
     const auto nbLogLines = nbLogLines_().get();
-    if ( nbLogLines == 0 ) {
-        return;
+    if ( !contextLinesUpToDate_ || nbLogLines < contextLinesEnd_ ) {
+        rebuildContextLines();
+        return std::nullopt;
     }
 
-    // Expand each Match and Mark +-contextLinesCount_ Log Lines.
-    SearchResultArray matchesAndMarks;
-    if ( !marks_.isEmpty() ) {
-        matchesAndMarks = matches_ | marks_;
+    // The Log Lines whose Context Lines are missing: the Matches that arrived
+    // since, and -- when the Log File grew -- the Matches and Marks whose
+    // Context Lines its former end cut off.
+    auto around = std::exchange( matchesWithoutContextLines_, SearchResultArray() );
+    const auto reach = static_cast<uint64_t>( std::max( contextLinesCount_, 0 ) );
+    if ( reach > 0 && nbLogLines > contextLinesEnd_ ) {
+        SearchResultArray nearFormerEnd;
+        nearFormerEnd.addRange( contextLinesEnd_ > reach ? contextLinesEnd_ - reach : 0,
+                                nbLogLines + reach );
+        around |= nearFormerEnd & matches_;
+        around |= nearFormerEnd & marks_;
     }
-    const auto& around = marks_.isEmpty() ? matches_ : matchesAndMarks;
+    contextLinesEnd_ = nbLogLines;
 
+    if ( reach == 0 ) {
+        return around;
+    }
+
+    auto added = contextLinesAround( around, nbLogLines );
+    // A Log Line that became a Match is no longer a Context Line.
+    contextLines_ -= around;
+    contextLines_ |= added;
+
+    added |= around;
+    return added;
+}
+
+SearchResultArray DisplayedLines::contextLinesAround( const SearchResultArray& lines,
+                                                      uint64_t nbLogLines ) const
+{
+    SearchResultArray contextLines;
+    if ( contextLinesCount_ <= 0 || nbLogLines == 0 ) {
+        return contextLines;
+    }
+
+    // Expand each Log Line +-contextLinesCount_ Log Lines, merging the
+    // neighbourhoods that touch into one range: [runFirst, runEnd).
     struct Expansion {
         SearchResultArray* contextLines;
-        const SearchResultArray* around;
         uint64_t reach;
-        uint64_t lastLine;
+        uint64_t nbLogLines;
+        uint64_t runFirst = 0;
+        uint64_t runEnd = 0;
+        bool inRun = false;
     };
-    Expansion expansion{ &contextLines_, &around, static_cast<uint64_t>( contextLinesCount_ ),
-                         nbLogLines - 1 };
+    Expansion expansion{ &contextLines, static_cast<uint64_t>( contextLinesCount_ ), nbLogLines };
 
-    around.iterate(
+    lines.iterate(
         []( uint64_t line, void* context ) -> bool {
-            const auto* e = static_cast<Expansion*>( context );
+            auto* e = static_cast<Expansion*>( context );
             const auto first = line > e->reach ? line - e->reach : uint64_t{ 0 };
-            const auto last = std::min( line + e->reach, e->lastLine );
-            for ( auto neighbour = first; neighbour <= last; ++neighbour ) {
-                if ( !e->around->contains( neighbour ) ) {
-                    e->contextLines->add( neighbour );
+            if ( first >= e->nbLogLines ) {
+                // So are all the Log Lines after it.
+                return false;
+            }
+            const auto end = std::min( line + e->reach + 1, e->nbLogLines );
+            if ( e->inRun && first <= e->runEnd ) {
+                e->runEnd = std::max( e->runEnd, end );
+            }
+            else {
+                if ( e->inRun ) {
+                    e->contextLines->addRange( e->runFirst, e->runEnd );
                 }
+                e->runFirst = first;
+                e->runEnd = end;
+                e->inRun = true;
             }
             return true;
         },
         static_cast<void*>( &expansion ) );
+
+    if ( expansion.inRun ) {
+        contextLines.addRange( expansion.runFirst, expansion.runEnd );
+    }
+
+    contextLines -= matches_;
+    if ( !marks_.isEmpty() ) {
+        contextLines -= marks_;
+    }
+    return contextLines;
 }
 
-void DisplayedLines::refreshLines()
+void DisplayedLines::markToggled( uint64_t line, bool added )
+{
+    rewritten();
+    // As a rebuild would, the Context Lines come up to date around every
+    // Match first.
+    auto changed = updateContextLines();
+    if ( !changed ) {
+        refreshLines();
+        return;
+    }
+    changed->add( line );
+
+    const auto reach = static_cast<uint64_t>( std::max( contextLinesCount_, 0 ) );
+    if ( reach > 0 ) {
+        if ( added ) {
+            SearchResultArray mark;
+            mark.add( line );
+            const auto addedContextLines = contextLinesAround( mark, contextLinesEnd_ );
+            contextLines_.remove( line );
+            contextLines_ |= addedContextLines;
+            *changed |= addedContextLines;
+        }
+        else if ( !matches_.contains( line ) ) {
+            // The Log Lines the Mark reached are Context Lines now only if
+            // another Match or Mark reaches them, from up to twice as far.
+            const auto first = line > reach ? line - reach : uint64_t{ 0 };
+            const auto end = std::min( line + reach + 1, contextLinesEnd_ );
+
+            SearchResultArray reached;
+            reached.addRange( first, end );
+
+            SearchResultArray neighbourhood;
+            neighbourhood.addRange( line > 2 * reach ? line - 2 * reach : uint64_t{ 0 },
+                                    line + 2 * reach + 1 );
+            auto neighbours = neighbourhood & matches_;
+            neighbours |= neighbourhood & marks_;
+
+            contextLines_.removeRange( first, end );
+            contextLines_ |= contextLinesAround( neighbours, contextLinesEnd_ ) & reached;
+            *changed |= reached;
+        }
+        // A removed Mark that is a Match keeps its Context Lines.
+    }
+
+    refreshLinesAt( *changed );
+}
+
+DisplayedLines::Source DisplayedLines::pickSource() const
 {
     const bool matchesShown = shown_.testFlag( LineTypeFlags::Match );
     const bool marksShown = shown_.testFlag( LineTypeFlags::Mark ) || !matchesShown;
@@ -235,25 +481,145 @@ void DisplayedLines::refreshLines()
         = shown_.testFlag( LineTypeFlags::Context ) && !contextLines_.isEmpty();
 
     if ( !contextLinesShown && !( matchesShown && marksShown ) ) {
-        source_ = matchesShown ? Source::Matches : Source::Marks;
+        return matchesShown ? Source::Matches : Source::Marks;
     }
-    else if ( !contextLinesShown && marks_.isEmpty() ) {
-        source_ = Source::Matches;
+    if ( !contextLinesShown && marks_.isEmpty() ) {
+        return Source::Matches;
     }
-    else if ( !contextLinesShown && matches_.isEmpty() ) {
-        source_ = Source::Marks;
+    if ( !contextLinesShown && matches_.isEmpty() ) {
+        return Source::Marks;
     }
-    else {
-        source_ = Source::Combined;
-        combinedLines_ = contextLinesShown ? contextLines_ : SearchResultArray();
-        if ( matchesShown ) {
-            combinedLines_ |= matches_;
-        }
-        if ( marksShown ) {
-            combinedLines_ |= marks_;
-        }
+    return Source::Combined;
+}
+
+void DisplayedLines::refreshLines()
+{
+    source_ = pickSource();
+    if ( source_ != Source::Combined ) {
+        combinedLines_ = SearchResultArray();
         return;
     }
 
-    combinedLines_ = SearchResultArray();
+    const bool matchesShown = shown_.testFlag( LineTypeFlags::Match );
+    const bool marksShown = shown_.testFlag( LineTypeFlags::Mark ) || !matchesShown;
+
+    combinedLines_
+        = shown_.testFlag( LineTypeFlags::Context ) ? contextLines_ : SearchResultArray();
+    if ( matchesShown ) {
+        combinedLines_ |= matches_;
+    }
+    if ( marksShown ) {
+        combinedLines_ |= marks_;
+    }
+}
+
+void DisplayedLines::refreshLinesAt( const SearchResultArray& changed )
+{
+    if ( source_ != Source::Combined || pickSource() != Source::Combined ) {
+        refreshLines();
+        return;
+    }
+
+    const bool matchesShown = shown_.testFlag( LineTypeFlags::Match );
+    const bool marksShown = shown_.testFlag( LineTypeFlags::Mark ) || !matchesShown;
+
+    combinedLines_ -= changed;
+    if ( shown_.testFlag( LineTypeFlags::Context ) ) {
+        combinedLines_ |= changed & contextLines_;
+    }
+    if ( matchesShown ) {
+        combinedLines_ |= changed & matches_;
+    }
+    if ( marksShown ) {
+        combinedLines_ |= changed & marks_;
+    }
+}
+
+DisplayedLinesCursor::DisplayedLinesCursor( const SearchResultArray& lines, LineNumber position )
+    : lines_( &lines )
+    , count_( static_cast<std::int64_t>( lines.cardinality() ) )
+    , position_( position.get() < static_cast<LineNumber::UnderlyingType>( count_ )
+                     ? static_cast<std::int64_t>( position.get() )
+                     : count_ )
+    , iterator_( lines.end() )
+{
+    if ( position_ < count_ ) {
+        selectPosition();
+    }
+}
+
+bool DisplayedLinesCursor::hasLine() const
+{
+    return position_ >= 0 && position_ < count_;
+}
+
+LineNumber DisplayedLinesCursor::position() const
+{
+    return LineNumber( static_cast<LineNumber::UnderlyingType>( position_ ) );
+}
+
+LineNumber DisplayedLinesCursor::logLine() const
+{
+    return LineNumber( *iterator_ );
+}
+
+void DisplayedLinesCursor::next()
+{
+    if ( position_ >= count_ ) {
+        return;
+    }
+
+    ++position_;
+    if ( position_ == 0 ) {
+        iterator_ = lines_->begin();
+    }
+    else if ( position_ < count_ ) {
+        ++iterator_;
+    }
+}
+
+void DisplayedLinesCursor::previous()
+{
+    if ( position_ < 0 ) {
+        return;
+    }
+
+    --position_;
+    if ( position_ == count_ - 1 && position_ >= 0 ) {
+        // From past the last Log Line: the iterator there cannot step back
+        // over empty containers, so the last one is looked up once.
+        selectPosition();
+    }
+    else if ( position_ >= 0 ) {
+        --iterator_;
+    }
+}
+
+logsquirl::vector<LineNumber> DisplayedLinesCursor::takeForward( LinesCount count )
+{
+    logsquirl::vector<LineNumber> taken;
+    taken.reserve( static_cast<std::size_t>(
+        std::max( std::int64_t{ 0 },
+                  std::min( static_cast<std::int64_t>( count.get() ), count_ - position_ ) ) ) );
+    for ( ; hasLine() && taken.size() < count.get(); next() ) {
+        taken.push_back( logLine() );
+    }
+    return taken;
+}
+
+logsquirl::vector<LineNumber> DisplayedLinesCursor::takeBackward( LinesCount count )
+{
+    logsquirl::vector<LineNumber> taken;
+    for ( ; hasLine() && taken.size() < count.get(); previous() ) {
+        taken.push_back( logLine() );
+    }
+    std::reverse( taken.begin(), taken.end() );
+    return taken;
+}
+
+void DisplayedLinesCursor::selectPosition()
+{
+    LineNumber::UnderlyingType line = {};
+    lines_->select( static_cast<LineNumber::UnderlyingType>( position_ ), &line );
+    iterator_.move_equalorlarger( line );
 }

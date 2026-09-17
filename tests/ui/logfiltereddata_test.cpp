@@ -1115,6 +1115,94 @@ SCENARIO( "the Filtered View shows the right lines with Context Lines after each
     REQUIRE( wrongNotifications == 0 );
 }
 
+SCENARIO( "A continued Search shows the same lines as the Search run from scratch",
+          "[logdata][search][context]" )
+{
+    const auto policies = contextLinesPolicies();
+    LogDataLoader logDataLoader{ policies, ContextLinesFileLines };
+    const RegularExpressionPattern pattern( EveryTenthLine );
+    const auto half = LineNumber( ContextLinesFileLines / 2 );
+    const auto whole = LineNumber( ContextLinesFileLines );
+
+    const auto waitForCompletion = []( SafeQSignalSpy& spy ) {
+        REQUIRE( waitUiState( [ & ]() {
+            return spy.count() > 0
+                   && lastSearchState( spy ).phase == SearchSession::Phase::Complete;
+        } ) );
+        QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
+    };
+
+    // Marks on a Match, next to one and near where the first run stopped.
+    const auto addMarks = []( LogFilteredData& filtered ) {
+        for ( const auto line : { 5_lnum, 20_lnum, 998_lnum, 1003_lnum } ) {
+            filtered.addMark( line );
+        }
+        filtered.setVisibility( AllVisible );
+    };
+
+    auto continued = logDataLoader.log_data.getNewFilteredData();
+    addMarks( *continued );
+    int wrongNotifications = 0;
+    QObject::connect( continued.get(), &LogFilteredData::searchStateChanged, continued.get(),
+                      [ & ]( const SearchSession::State& ) {
+                          if ( displayedLines( *continued )
+                               != expectedDisplayedLines( *continued ) ) {
+                              ++wrongNotifications;
+                          }
+                      } );
+    {
+        SafeQSignalSpy spy{ continued.get(), &LogFilteredData::searchStateChanged };
+        continued->request( pattern, 0_lnum, half );
+        waitForCompletion( spy );
+    }
+    {
+        SafeQSignalSpy spy{ continued.get(), &LogFilteredData::searchStateChanged };
+        continued->request( pattern, 0_lnum, whole );
+        REQUIRE( continued->searchState().isContinuation );
+        waitForCompletion( spy );
+    }
+    REQUIRE( wrongNotifications == 0 );
+
+    auto fromScratch = logDataLoader.log_data.getNewFilteredData();
+    addMarks( *fromScratch );
+    {
+        SafeQSignalSpy spy{ fromScratch.get(), &LogFilteredData::searchStateChanged };
+        fromScratch->request( pattern, 0_lnum, whole );
+        REQUIRE_FALSE( fromScratch->searchState().isContinuation );
+        waitForCompletion( spy );
+    }
+
+    const auto lineTypes = []( const LogFilteredData& filtered ) {
+        std::vector<LineType::Int> types;
+        for ( LineNumber::UnderlyingType line = 0; line < ContextLinesFileLines; ++line ) {
+            types.push_back(
+                static_cast<LineType::Int>( filtered.lineTypeByLine( LineNumber( line ) ) ) );
+        }
+        return types;
+    };
+
+    REQUIRE( toFlags( continued->lineTypeByLine( 1005_lnum ) ) == LineTypeFlags::Context );
+    REQUIRE( displayedLines( *continued ) == displayedLines( *fromScratch ) );
+    REQUIRE( lineTypes( *continued ) == lineTypes( *fromScratch ) );
+
+    WHEN( "a Mark is toggled off and on again" )
+    {
+        continued->toggleMark( 1003_lnum );
+        fromScratch->toggleMark( 1003_lnum );
+        REQUIRE( toFlags( continued->lineTypeByLine( 1005_lnum ) ) == LineTypeFlags::Plain );
+        REQUIRE( displayedLines( *continued ) == displayedLines( *fromScratch ) );
+        REQUIRE( lineTypes( *continued ) == lineTypes( *fromScratch ) );
+
+        continued->toggleMark( 1003_lnum );
+        fromScratch->toggleMark( 1003_lnum );
+        THEN( "both still show the same lines" )
+        {
+            REQUIRE( displayedLines( *continued ) == displayedLines( *fromScratch ) );
+            REQUIRE( lineTypes( *continued ) == lineTypes( *fromScratch ) );
+        }
+    }
+}
+
 SCENARIO( "iterating over the Filtered View's lines while making lookups from the callback",
           "[logdata][search][context]" )
 {
@@ -1188,4 +1276,167 @@ SCENARIO( "the Filtered View's lines can be read from a second thread while the 
 
     REQUIRE( uiErrors == 0 );
     REQUIRE( workerErrors == 0 );
+}
+
+SCENARIO( "The Displayed Lines read in a block as each of them does on its own",
+          "[logdata][sparse-read]" )
+{
+    auto policies = testSettingsPolicies();
+    policies.search.contextLinesCount = 2;
+    LogDataLoader logDataLoader( policies );
+    const auto& logData = logDataLoader.log_data;
+
+    auto filtered_data = logDataLoader.log_data.getNewFilteredData();
+    filtered_data->setVisibility( AllVisible );
+    SafeQSignalSpy searchStateSpy{ filtered_data.get(), &LogFilteredData::searchStateChanged };
+    requestSearch( filtered_data.get(), EveryTenthLine, searchStateSpy );
+    filtered_data->addMark( 5_lnum );
+    filtered_data->addMark( 256_lnum );
+    filtered_data->addMark( 499_lnum );
+
+    const auto nbDisplayed = filtered_data->getNbLine();
+    REQUIRE( nbDisplayed > filtered_data->getNbMatches() );
+
+    // What the Filtered View showed at each position when it read them one
+    // by one: the displayed Log Line's text, or nothing past the last one.
+    const auto oneByOne = [ & ]( LineNumber first, LinesCount count, bool expanded ) {
+        std::vector<QString> text;
+        for ( auto position = first; position < first + count; ++position ) {
+            if ( position < nbDisplayed ) {
+                const auto line = filtered_data->getMatchingLineNumber( position );
+                text.push_back( expanded ? logData.getExpandedLineString( line )
+                                         : logData.getLineString( line ) );
+            }
+            else {
+                text.emplace_back();
+            }
+        }
+        return text;
+    };
+
+    const auto expanded = GENERATE( false, true );
+    const auto [ first, count ]
+        = GENERATE( std::pair{ 0_lnum, 30_lcount }, std::pair{ 17_lnum, 1_lcount },
+                    std::pair{ 40_lnum, 60_lcount }, std::pair{ 0_lnum, 0_lcount } );
+    CAPTURE( expanded, first, count );
+    const auto read = [ &, expanded = expanded ]( LineNumber from, LinesCount number ) {
+        const auto lines = expanded ? filtered_data->getExpandedLines( from, number )
+                                    : filtered_data->getLines( from, number );
+        return std::vector<QString>( lines.begin(), lines.end() );
+    };
+
+    THEN( "a block of positions reads as each position does on its own" )
+    {
+        REQUIRE( read( first, count ) == oneByOne( first, count, expanded ) );
+    }
+
+    THEN( "a block reaching past the last position reads nothing there" )
+    {
+        const auto from = LineNumber( nbDisplayed.get() - 3 );
+        REQUIRE( read( from, 10_lcount ) == oneByOne( from, 10_lcount, expanded ) );
+        REQUIRE( read( from, 10_lcount )[ 3 ].isEmpty() );
+    }
+}
+
+SCENARIO( "The Filtered View is as wide as its longest Mark as Marks come and go",
+          "[logdata][marks]" )
+{
+    // Log Line n is n + 1 characters long.
+    QTemporaryFile file{ "filtered_test_mark_lengths_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < 100; ++line ) {
+        file.write( QByteArray( line + 1, 'x' ) + "\n" );
+    }
+    file.flush();
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    auto filtered_data = logData.getNewFilteredData();
+    REQUIRE( filtered_data->getMaxLength() == 0_length );
+
+    GIVEN( "Marks on Log Lines 9, 29, 19 and 49, one of them marked twice" )
+    {
+        filtered_data->addMark( 9_lnum );
+        filtered_data->toggleMark( 29_lnum );
+        filtered_data->addMark( 19_lnum );
+        filtered_data->addMark( 49_lnum );
+        filtered_data->addMark( 49_lnum );
+
+        THEN( "it is as wide as the longest Mark" )
+        {
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 50 ) );
+        }
+
+        WHEN( "the longest Marks are removed one after another" )
+        {
+            filtered_data->deleteMark( 49_lnum );
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 30 ) );
+            filtered_data->toggleMark( 29_lnum );
+            REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
+
+            THEN( "a shorter Mark removed, or a Log Line not marked, leaves the width" )
+            {
+                filtered_data->deleteMark( 9_lnum );
+                filtered_data->deleteMark( 70_lnum );
+                REQUIRE( filtered_data->getMaxLength() == LineLength( 20 ) );
+            }
+        }
+
+        WHEN( "every Mark is cleared" )
+        {
+            filtered_data->clearMarks();
+
+            THEN( "it is as wide as no Mark" )
+            {
+                REQUIRE( filtered_data->getMaxLength() == 0_length );
+            }
+        }
+
+        // Log Line n of the Log File written instead is 100 - n characters long.
+        const auto rewriteLogFile = [ &file ] {
+            QFile rewritten( file.fileName() );
+            REQUIRE( rewritten.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+            for ( int line = 0; line < 100; ++line ) {
+                rewritten.write( QByteArray( 100 - line, 'y' ) + "\n" );
+            }
+        };
+
+        WHEN( "the Log File is written again with other lengths and reloaded" )
+        {
+            rewriteLogFile();
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            logData.reload();
+            REQUIRE( loadEndSpy.safeWait( 10000 ) );
+
+            THEN( "it is as wide as the longest Mark reads now" )
+            {
+                REQUIRE( filtered_data->getMaxLength() == LineLength( 91 ) );
+            }
+        }
+
+        WHEN( "the Log File is cut short under Log Lines 29 and 49 and indexed again" )
+        {
+            {
+                QFile truncated( file.fileName() );
+                REQUIRE( truncated.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+                for ( int line = 0; line < 25; ++line ) {
+                    truncated.write( QByteArray( 30 - line, 'z' ) + "\n" );
+                }
+            }
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            logData.fileChangedOnDisk( file.fileName() );
+            REQUIRE( loadEndSpy.safeWait( 10000 ) );
+            REQUIRE( logData.getNbLine() == 25_lcount );
+
+            THEN( "the Marks past its end are no wider than nothing" )
+            {
+                REQUIRE( filtered_data->getMaxLength() == LineLength( 21 ) );
+            }
+        }
+    }
 }

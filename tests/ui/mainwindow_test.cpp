@@ -40,6 +40,7 @@
 #include <QPushButton>
 #include <QTemporaryFile>
 
+#include "applicationplugins.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filteredview.h"
@@ -60,13 +61,14 @@ SCENARIO( "Main window tests", "[ui]" )
     auto appSession
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
     WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
     std::unique_ptr<MainWindow> mainWindow;
     std::unique_ptr<SafeQSignalSpy> activateSpy;
     std::unique_ptr<SafeQSignalSpy> exitSpy;
     QTimer::singleShot( 0, [ & ] {
         LOG_INFO << "Initialize main window";
-        mainWindow.reset( new MainWindow( windowSession ) );
+        mainWindow.reset( new MainWindow( windowSession, plugins ) );
         exitSpy.reset( new SafeQSignalSpy( mainWindow.get(), SIGNAL( exitRequested() ) ) );
         activateSpy.reset( new SafeQSignalSpy( mainWindow.get(), SIGNAL( windowActivated() ) ) );
     } );
@@ -210,6 +212,7 @@ SCENARIO( "Toggling line numbers or the overview from the View menu reaches ever
     auto appSession = std::make_shared<Session>( deriveSettingsPolicies( config ),
                                                  std::make_shared<LogFormatCatalog>() );
     WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
     QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_toggle_first_XXXXXX" ) };
     QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_toggle_second_XXXXXX" ) };
@@ -220,7 +223,8 @@ SCENARIO( "Toggling line numbers or the overview from the View menu reaches ever
     }
 
     std::unique_ptr<MainWindow> mainWindow;
-    QTimer::singleShot( 0, [ & ] { mainWindow.reset( new MainWindow( windowSession ) ); } );
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
     mainWindow->show();
@@ -326,6 +330,7 @@ SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with s
     auto appSession = std::make_shared<Session>( deriveSettingsPolicies( config ),
                                                  std::make_shared<LogFormatCatalog>() );
     WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
 
     QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_quickfind_first_XXXXXX" ) };
     QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_quickfind_second_XXXXXX" ) };
@@ -336,7 +341,8 @@ SCENARIO( "A changed QuickFind setting reaches the window's QuickFind bar with s
     }
 
     std::unique_ptr<MainWindow> mainWindow;
-    QTimer::singleShot( 0, [ & ] { mainWindow.reset( new MainWindow( windowSession ) ); } );
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
     QTest::qWait( 100 );
     REQUIRE( mainWindow != nullptr );
     mainWindow->show();

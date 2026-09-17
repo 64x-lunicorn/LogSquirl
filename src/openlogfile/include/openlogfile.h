@@ -27,6 +27,7 @@
 #include "searchsession.h"
 #include "settingspolicies.h"
 
+#include <QList>
 #include <QMetaObject>
 #include <QMetaType>
 #include <QObject>
@@ -74,6 +75,10 @@ public:
         // Loaded from its start -- the Log File was opened or reloaded by
         // hand -- rather than loaded again after it changed on disk.
         bool fromStart = false;
+        // Log Lines were only added at the end of the Log File since the last
+        // load: the ones loaded before are as they were, but for the last of
+        // them, which may have grown longer. A view can keep what it read.
+        bool onlyAppended = false;
         // The Search started again over the Log File, which had been
         // truncated under it.
         bool searchRestarted = false;
@@ -105,6 +110,12 @@ public:
     // Marks saved with the Session for this Log File, applied once, when the
     // first load has finished. Hand them over before that.
     void restoreMarks( const logsquirl::vector<LineNumber>& marks );
+
+    // The Marks of the Log File, as saving the Session keeps them: until the
+    // first load has finished, the Marks saved with the Session, so that a
+    // Log File that has not loaded yet -- a restored tab waiting for its turn
+    // (#300) -- does not lose them.
+    QList<LineNumber> marks() const;
 
     // Loads the Log File again from its start: the Search is dropped with its
     // cached results, the Marks are cleared and the Log Format is recognized
@@ -220,6 +231,11 @@ private:
     LineNumber searchEndLine_;
 
     bool firstLoadDone_ = false;
+    // What changed on disk since the last load finished: whether Log Lines
+    // were added, and whether the Log File was truncated, which a later
+    // growth does not undo.
+    bool grewSinceLoad_ = false;
+    bool truncatedSinceLoad_ = false;
     logsquirl::vector<LineNumber> savedMarks_;
 
     RecognitionPolicy recognitionPolicy_;

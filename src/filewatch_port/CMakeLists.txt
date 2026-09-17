@@ -15,7 +15,3 @@ target_include_directories(logsquirl_filewatch_port PUBLIC "${CMAKE_CURRENT_SOUR
 # it does not.
 target_link_libraries(logsquirl_filewatch_port PUBLIC project_options project_warnings Qt6::Core
                                                       logsquirl_policies)
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_filewatch_port PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()

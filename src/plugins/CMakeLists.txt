@@ -20,14 +20,18 @@ target_link_libraries(
 
 add_library(
   logsquirl_plugins STATIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/applicationplugins.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginloader.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginhost.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginrepository.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pluginuiport.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/sharedpluginuiport.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/streamwriter.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/applicationplugins.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginloader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginhost.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pluginrepository.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/sharedpluginuiport.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/streamwriter.cpp
 )
 

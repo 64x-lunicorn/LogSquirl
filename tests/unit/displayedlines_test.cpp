@@ -21,6 +21,8 @@
 
 #include <cstdint>
 #include <initializer_list>
+#include <random>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch.hpp>
@@ -152,6 +154,167 @@ SCENARIO( "The Displayed Lines map positions to Log Lines and back", "[displayed
     THEN( "a position past the last displayed Log Line holds none" )
     {
         REQUIRE_FALSE( displayed.logLineAt( LineNumber( expected.size() ) ).has_value() );
+    }
+}
+
+namespace {
+
+// The Log Lines a cursor stands on, stepping forwards until it has none.
+Lines walkForward( DisplayedLinesCursor cursor )
+{
+    Lines lines;
+    for ( ; cursor.hasLine(); cursor.next() ) {
+        lines.push_back( cursor.logLine().get() );
+    }
+    return lines;
+}
+
+// The Log Lines a cursor stands on, stepping backwards until it has none.
+Lines walkBackward( DisplayedLinesCursor cursor )
+{
+    Lines lines;
+    for ( ; cursor.hasLine(); cursor.previous() ) {
+        lines.push_back( cursor.logLine().get() );
+    }
+    return lines;
+}
+
+Lines numbersOf( const logsquirl::vector<LineNumber>& lines )
+{
+    Lines numbers;
+    for ( const auto line : lines ) {
+        numbers.push_back( line.get() );
+    }
+    return numbers;
+}
+
+} // namespace
+
+SCENARIO( "The Displayed Lines are walked from a position", "[displayedlines]" )
+{
+    LogFile logFile;
+    logFile.matches = bitmapOf( { 3, 7, 50 } );
+    auto displayed = displayedLinesOf( logFile, 1 );
+    displayed.searchCompleted();
+    displayed.addMark( 90_lnum );
+    displayed.setShown( Everything );
+
+    // Position:          0  1  2  3  4  5  6   7   8   9   10  11
+    const Lines expected{ 2, 3, 4, 6, 7, 8, 49, 50, 51, 89, 90, 91 };
+
+    THEN( "walking forwards from a position meets the Log Lines from it to the last" )
+    {
+        REQUIRE( walkForward( displayed.cursorAt( 0_lnum ) ) == expected );
+        REQUIRE( walkForward( displayed.cursorAt( 7_lnum ) ) == Lines{ 50, 51, 89, 90, 91 } );
+        REQUIRE( walkForward( displayed.cursorAt( 11_lnum ) ) == Lines{ 91 } );
+    }
+
+    THEN( "walking backwards from a position meets the Log Lines from it to the first" )
+    {
+        REQUIRE( walkBackward( displayed.cursorAt( 11_lnum ) )
+                 == Lines{ 91, 90, 89, 51, 50, 49, 8, 7, 6, 4, 3, 2 } );
+        REQUIRE( walkBackward( displayed.cursorAt( 4_lnum ) ) == Lines{ 7, 6, 4, 3, 2 } );
+        REQUIRE( walkBackward( displayed.cursorAt( 0_lnum ) ) == Lines{ 2 } );
+    }
+
+    THEN( "the cursor knows the position it stands on" )
+    {
+        auto cursor = displayed.cursorAt( 5_lnum );
+        REQUIRE( cursor.position() == 5_lnum );
+        cursor.next();
+        REQUIRE( cursor.position() == 6_lnum );
+        REQUIRE( cursor.logLine() == 49_lnum );
+        cursor.previous();
+        cursor.previous();
+        REQUIRE( cursor.position() == 4_lnum );
+        REQUIRE( cursor.logLine() == 7_lnum );
+    }
+
+    THEN( "a position past the last displayed Log Line stands on none" )
+    {
+        auto cursor = displayed.cursorAt( 12_lnum );
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE_FALSE( displayed.cursorAt( 1000_lnum ).hasLine() );
+        REQUIRE_FALSE( displayed.cursorAt( maxValue<LineNumber>() ).hasLine() );
+
+        WHEN( "it steps back" )
+        {
+            cursor.previous();
+
+            THEN( "it stands on the last displayed Log Line" )
+            {
+                REQUIRE( cursor.hasLine() );
+                REQUIRE( cursor.position() == 11_lnum );
+                REQUIRE( cursor.logLine() == 91_lnum );
+            }
+        }
+    }
+
+    THEN( "stepping back before the first displayed Log Line and forwards again returns to it" )
+    {
+        auto cursor = displayed.cursorAt( 0_lnum );
+        cursor.previous();
+        REQUIRE_FALSE( cursor.hasLine() );
+        cursor.next();
+        REQUIRE( cursor.hasLine() );
+        REQUIRE( cursor.position() == 0_lnum );
+        REQUIRE( cursor.logLine() == 2_lnum );
+    }
+
+    THEN( "Log Lines are taken forwards in blocks" )
+    {
+        auto cursor = displayed.cursorAt( 2_lnum );
+        REQUIRE( numbersOf( cursor.takeForward( 4_lcount ) ) == Lines{ 4, 6, 7, 8 } );
+        REQUIRE( cursor.position() == 6_lnum );
+        REQUIRE( numbersOf( cursor.takeForward( 4_lcount ) ) == Lines{ 49, 50, 51, 89 } );
+        REQUIRE( numbersOf( cursor.takeForward( 4_lcount ) ) == Lines{ 90, 91 } );
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE( cursor.takeForward( 4_lcount ).empty() );
+    }
+
+    THEN( "Log Lines are taken backwards in blocks, each block in ascending order" )
+    {
+        auto cursor = displayed.cursorAt( 9_lnum );
+        REQUIRE( numbersOf( cursor.takeBackward( 4_lcount ) ) == Lines{ 49, 50, 51, 89 } );
+        REQUIRE( cursor.position() == 5_lnum );
+        REQUIRE( numbersOf( cursor.takeBackward( 4_lcount ) ) == Lines{ 4, 6, 7, 8 } );
+        REQUIRE( numbersOf( cursor.takeBackward( 4_lcount ) ) == Lines{ 2, 3 } );
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE( cursor.takeBackward( 4_lcount ).empty() );
+    }
+}
+
+SCENARIO( "A copy of the Displayed Lines is walked from a position", "[displayedlines]" )
+{
+    // Far apart, so the Log Lines sit in different 32-bit buckets of the
+    // bitmap, one of which is left empty by a removed line.
+    const uint64_t high = uint64_t{ 1 } << 32;
+    auto lines = bitmapOf( { 5, high + 1, 2 * high + 7, 3 * high + 2 } );
+    lines.remove( 2 * high + 7 );
+
+    THEN( "the walk passes the empty bucket both ways" )
+    {
+        REQUIRE( walkForward( DisplayedLinesCursor( lines, 0_lnum ) )
+                 == Lines{ 5, high + 1, 3 * high + 2 } );
+        REQUIRE( walkBackward( DisplayedLinesCursor( lines, 2_lnum ) )
+                 == Lines{ 3 * high + 2, high + 1, 5 } );
+
+        DisplayedLinesCursor pastTheEnd( lines, 3_lnum );
+        pastTheEnd.previous();
+        REQUIRE( pastTheEnd.logLine() == LineNumber( 3 * high + 2 ) );
+    }
+
+    THEN( "over no lines the cursor stands on none" )
+    {
+        const SearchResultArray none;
+        DisplayedLinesCursor cursor( none, 0_lnum );
+        REQUIRE_FALSE( cursor.hasLine() );
+        cursor.previous();
+        REQUIRE_FALSE( cursor.hasLine() );
+        cursor.next();
+        REQUIRE_FALSE( cursor.hasLine() );
+        REQUIRE( cursor.takeForward( 3_lcount ).empty() );
+        REQUIRE( cursor.takeBackward( 3_lcount ).empty() );
     }
 }
 
@@ -320,6 +483,426 @@ SCENARIO( "The Displayed Lines follow new Matches arriving", "[displayedlines]" 
         {
             REQUIRE( linesOf( displayed.lines() ) == Lines{ 10, 70 } );
             REQUIRE( displayed.logLineAt( 1_lnum ) == OptionalLineNumber{ 70_lnum } );
+        }
+    }
+}
+
+namespace {
+
+// What the Displayed Lines should be once their Context Lines are up to date,
+// worked out Log Line by Log Line from the definitions: a Context Line is a
+// Log Line of the Log File within reach of a Match or a Mark that is neither.
+struct ExpectedLines {
+    Lines lines;
+    std::vector<LineType> types;
+};
+
+ExpectedLines expectedLinesOf( const LogFile& logFile, const SearchResultArray& marks, int reach,
+                               LineType shown, uint64_t linesChecked )
+{
+    const bool matchesShown = shown.testFlag( LineTypeFlags::Match );
+    const bool marksShown = shown.testFlag( LineTypeFlags::Mark ) || !matchesShown;
+    const bool contextShown = shown.testFlag( LineTypeFlags::Context );
+
+    const auto isMatchOrMark = [ & ]( uint64_t line ) {
+        return logFile.matches.contains( line ) || marks.contains( line );
+    };
+
+    ExpectedLines expected;
+    for ( uint64_t line = 0; line < linesChecked; ++line ) {
+        LineType type = LineTypeFlags::Plain;
+        if ( logFile.matches.contains( line ) ) {
+            type |= LineTypeFlags::Match;
+        }
+        if ( marks.contains( line ) ) {
+            type |= LineTypeFlags::Mark;
+        }
+        if ( type == LineTypeFlags::Plain && line < logFile.nbLines ) {
+            for ( uint64_t distance = 1; distance <= static_cast<uint64_t>( reach ); ++distance ) {
+                if ( ( line >= distance && isMatchOrMark( line - distance ) )
+                     || isMatchOrMark( line + distance ) ) {
+                    type |= LineTypeFlags::Context;
+                    break;
+                }
+            }
+        }
+        expected.types.push_back( type );
+
+        if ( ( matchesShown && type.testFlag( LineTypeFlags::Match ) )
+             || ( marksShown && type.testFlag( LineTypeFlags::Mark ) )
+             || ( contextShown && type.testFlag( LineTypeFlags::Context ) ) ) {
+            expected.lines.push_back( line );
+        }
+    }
+    return expected;
+}
+
+std::vector<LineType> lineTypesOf( const DisplayedLines& displayed, uint64_t linesChecked )
+{
+    std::vector<LineType> types;
+    for ( uint64_t line = 0; line < linesChecked; ++line ) {
+        types.push_back( displayed.lineType( LineNumber( line ) ) );
+    }
+    return types;
+}
+
+// Two Displayed Lines over the same Matches: one told of every change by its
+// delta, the other told only that something changed, so it rebuilds.
+struct IncrementalAndRebuilt {
+    IncrementalAndRebuilt( LogFile& file, int contextLinesCount, LineType shown )
+        : logFile( file )
+        , reach( contextLinesCount )
+        , incremental( displayedLinesOf( file, contextLinesCount ) )
+        , rebuilt( displayedLinesOf( file, contextLinesCount ) )
+    {
+        incremental.setShown( shown );
+        rebuilt.setShown( shown );
+    }
+
+    // Some Log Lines became Matches while the Search runs.
+    void matchesArrived( const SearchResultArray& newMatches )
+    {
+        logFile.matches |= newMatches;
+        incremental.matchesArrived( newMatches );
+        rebuilt.matchesArrived();
+    }
+
+    // Another Search replaced the Matches: neither is told by how much.
+    void matchesReplaced( SearchResultArray matches )
+    {
+        logFile.matches = std::move( matches );
+        incremental.matchesArrived();
+        rebuilt.matchesArrived();
+    }
+
+    void searchDiscarded()
+    {
+        logFile.matches = SearchResultArray{};
+        incremental.searchDiscarded();
+        rebuilt.searchDiscarded();
+    }
+
+    void searchCompleted( const SearchResultArray& newMatches )
+    {
+        logFile.matches |= newMatches;
+        incremental.searchCompleted( newMatches );
+        rebuilt.searchCompleted();
+    }
+
+    void toggleMark( uint64_t line )
+    {
+        if ( !incremental.addMark( LineNumber( line ) ) ) {
+            REQUIRE( incremental.removeMark( LineNumber( line ) ) );
+            REQUIRE( rebuilt.removeMark( LineNumber( line ) ) );
+        }
+        else {
+            REQUIRE( rebuilt.addMark( LineNumber( line ) ) );
+        }
+    }
+
+    uint64_t linesChecked() const
+    {
+        return logFile.nbLines + static_cast<uint64_t>( reach ) + 2;
+    }
+
+    // Both agree, whether or not the Context Lines are up to date.
+    void requireSame() const
+    {
+        REQUIRE( linesOf( incremental.lines() ) == linesOf( rebuilt.lines() ) );
+        REQUIRE( linesByPosition( incremental ) == linesOf( rebuilt.lines() ) );
+        REQUIRE( lineTypesOf( incremental, linesChecked() )
+                 == lineTypesOf( rebuilt, linesChecked() ) );
+    }
+
+    // Both agree with the definitions: every Match and Mark has its Context
+    // Lines.
+    void requireUpToDate() const
+    {
+        requireSame();
+        const auto expected = expectedLinesOf( logFile, incremental.marks(), reach,
+                                               incremental.shown(), linesChecked() );
+        REQUIRE( linesOf( incremental.lines() ) == expected.lines );
+        REQUIRE( lineTypesOf( incremental, linesChecked() ) == expected.types );
+    }
+
+    LogFile& logFile;
+    int reach;
+    DisplayedLines incremental;
+    DisplayedLines rebuilt;
+};
+
+// Random Matches over [first, end), about one Log Line in density, split in
+// batches the way a Search reports its progress.
+std::vector<SearchResultArray> matchBatches( std::mt19937& random, uint64_t first, uint64_t end,
+                                             int density, int nbBatches )
+{
+    std::vector<SearchResultArray> batches( static_cast<size_t>( nbBatches ) );
+    std::uniform_int_distribution<int> isMatch( 0, density - 1 );
+    std::uniform_int_distribution<int> batch( 0, nbBatches - 1 );
+    for ( auto line = first; line < end; ++line ) {
+        if ( isMatch( random ) == 0 ) {
+            batches[ static_cast<size_t>( batch( random ) ) ].add( line );
+        }
+    }
+    return batches;
+}
+
+const std::vector<LineType> ShownCombinations{
+    LineType{ LineTypeFlags::Match },
+    LineType{ LineTypeFlags::Mark },
+    LineType{ LineTypeFlags::Context },
+    LineType{ LineTypeFlags::Match } | LineTypeFlags::Mark,
+    LineType{ LineTypeFlags::Match } | LineTypeFlags::Context,
+    LineType{ LineTypeFlags::Mark } | LineTypeFlags::Context,
+    Everything,
+};
+
+} // namespace
+
+SCENARIO( "The Displayed Lines updated by their delta equal a full rebuild",
+          "[displayedlines][incremental]" )
+{
+    const int contextLinesCount = GENERATE( 0, 1, 3 );
+    const auto shown = GENERATE( from_range( ShownCombinations ) );
+    INFO( "Context Lines: " << contextLinesCount << ", shown: " << shown.toInt() );
+
+    std::mt19937 random( 292 );
+    LogFile logFile;
+    logFile.nbLines = 1000;
+    IncrementalAndRebuilt displayed( logFile, contextLinesCount, shown );
+
+    // Marks set before any Search: some will be Matches, some neighbours of
+    // Matches, one on the last Log Line.
+    for ( const uint64_t line : { 0u, 41u, 42u, 500u, 503u, 999u } ) {
+        displayed.toggleMark( line );
+    }
+    displayed.requireUpToDate();
+
+    WHEN( "a Search reports its Matches in progress ticks and completes" )
+    {
+        auto batches = matchBatches( random, 0, logFile.nbLines, 7, 8 );
+        for ( size_t tick = 0; tick + 1 < batches.size(); ++tick ) {
+            displayed.matchesArrived( batches[ tick ] );
+            displayed.requireSame();
+        }
+        displayed.searchCompleted( batches.back() );
+
+        THEN( "every Match and Mark has its Context Lines" )
+        {
+            displayed.requireUpToDate();
+        }
+
+        AND_WHEN( "Marks are toggled on and off, on Matches, next to them and on their own" )
+        {
+            std::uniform_int_distribution<uint64_t> line( 0, logFile.nbLines - 1 );
+            for ( int toggle = 0; toggle < 60; ++toggle ) {
+                displayed.toggleMark( line( random ) );
+                displayed.requireUpToDate();
+            }
+
+            THEN( "removing every Mark leaves the Context Lines of the Matches alone" )
+            {
+                auto marks = linesOf( displayed.incremental.marks() );
+                for ( const auto mark : marks ) {
+                    displayed.toggleMark( mark );
+                    displayed.requireUpToDate();
+                }
+                REQUIRE( displayed.incremental.marks().isEmpty() );
+            }
+        }
+
+        AND_WHEN( "the Log File grows and the Search continues over the appended Log Lines" )
+        {
+            // A Match on the former last Log Line gets the Context Lines the
+            // end of the Log File cut off.
+            displayed.matchesArrived( bitmapOf( { 999 } ) - logFile.matches );
+            displayed.toggleMark( 1003 );
+            logFile.nbLines = 1500;
+
+            auto appended = matchBatches( random, 1000, logFile.nbLines, 5, 4 );
+            for ( size_t tick = 0; tick + 1 < appended.size(); ++tick ) {
+                displayed.matchesArrived( appended[ tick ] );
+                displayed.requireSame();
+            }
+            displayed.searchCompleted( appended.back() );
+
+            THEN( "the appended Matches and those before them have their Context Lines" )
+            {
+                displayed.requireUpToDate();
+            }
+        }
+
+        AND_WHEN( "another Search replaces the Matches and reports new ones by their delta" )
+        {
+            displayed.matchesReplaced( SearchResultArray{} );
+            displayed.requireSame();
+            auto batches2 = matchBatches( random, 0, logFile.nbLines, 11, 4 );
+            for ( size_t tick = 0; tick + 1 < batches2.size(); ++tick ) {
+                displayed.matchesArrived( batches2[ tick ] );
+                displayed.requireSame();
+            }
+            displayed.searchCompleted( batches2.back() );
+
+            THEN( "the Context Lines belong to the new Matches only" )
+            {
+                displayed.requireUpToDate();
+            }
+        }
+
+        AND_WHEN( "the Search is discarded, a Mark toggled and another Search runs" )
+        {
+            displayed.searchDiscarded();
+            displayed.requireSame();
+            displayed.toggleMark( 300 );
+            displayed.requireUpToDate();
+            displayed.matchesReplaced( SearchResultArray{} );
+            auto batches2 = matchBatches( random, 0, logFile.nbLines, 13, 3 );
+            displayed.matchesArrived( batches2[ 0 ] );
+            displayed.matchesArrived( batches2[ 1 ] );
+            displayed.requireSame();
+            displayed.searchCompleted( batches2[ 2 ] );
+
+            THEN( "every Match and Mark has its Context Lines" )
+            {
+                displayed.requireUpToDate();
+            }
+        }
+
+        AND_WHEN( "Marks are toggled while a Search continues" )
+        {
+            logFile.nbLines = 1200;
+            auto appended = matchBatches( random, 1000, logFile.nbLines, 3, 3 );
+            displayed.matchesArrived( appended[ 0 ] );
+            displayed.toggleMark( 1010 );
+            displayed.requireUpToDate();
+            displayed.toggleMark( 1010 );
+            displayed.requireUpToDate();
+            displayed.matchesArrived( appended[ 1 ] );
+            displayed.requireSame();
+            displayed.searchCompleted( appended[ 2 ] );
+
+            THEN( "every Match and Mark has its Context Lines" )
+            {
+                displayed.requireUpToDate();
+            }
+        }
+    }
+}
+
+SCENARIO( "The Displayed Lines count the Matches and the other Log Lines in a range",
+          "[displayedlines]" )
+{
+    LogFile logFile;
+    logFile.matches = bitmapOf( { 10, 20, 30, 40 } );
+    auto displayed = displayedLinesOf( logFile, 1 );
+    displayed.searchCompleted();
+    displayed.addMark( 20_lnum );
+    displayed.addMark( 25_lnum );
+    displayed.addMark( 60_lnum );
+
+    const auto requireCount
+        = [ & ]( uint64_t first, uint64_t end, uint64_t matches, uint64_t others ) {
+              INFO( "[" << first << ", " << end << ")" );
+              const auto count = displayed.countIn( LineNumber( first ), LineNumber( end ) );
+              REQUIRE( count.matches == matches );
+              REQUIRE( count.others == others );
+          };
+
+    THEN( "with Matches and Marks shown, a marked Match counts as a Match" )
+    {
+        requireCount( 0, 100, 4, 2 );
+        requireCount( 10, 21, 2, 0 );
+        requireCount( 21, 60, 2, 1 );
+        requireCount( 60, 61, 0, 1 );
+        requireCount( 61, 100, 0, 0 );
+        requireCount( 30, 30, 0, 0 );
+    }
+
+    WHEN( "the Context Lines are shown too" )
+    {
+        displayed.setShown( Everything );
+
+        THEN( "they count with the Marks" )
+        {
+            // Context Lines 9, 11, 19, 21, 24, 26, 29, 31, 39, 41, 59, 61.
+            requireCount( 0, 100, 4, 14 );
+            requireCount( 9, 12, 1, 2 );
+        }
+    }
+
+    WHEN( "only the Marks are shown" )
+    {
+        displayed.setShown( LineType{ LineTypeFlags::Mark } );
+
+        THEN( "a marked Match still counts as a Match" )
+        {
+            requireCount( 0, 100, 1, 2 );
+            requireCount( 21, 100, 0, 2 );
+        }
+    }
+}
+
+SCENARIO( "The Displayed Lines tell whether they changed only past their last Log Line",
+          "[displayedlines]" )
+{
+    LogFile logFile;
+    logFile.matches = bitmapOf( { 10, 20 } );
+    auto displayed = displayedLinesOf( logFile, 0 );
+    displayed.searchCompleted();
+    displayed.addMark( 30_lnum );
+    auto rewrites = displayed.rewrites();
+
+    WHEN( "Matches arrive after every Match and Mark" )
+    {
+        const auto newMatches = bitmapOf( { 40, 50 } );
+        logFile.matches |= newMatches;
+        displayed.matchesArrived( newMatches );
+
+        THEN( "it is no rewrite, and neither is completing the Search after more of them" )
+        {
+            REQUIRE( displayed.rewrites() == rewrites );
+
+            const auto lastMatches = bitmapOf( { 60 } );
+            logFile.matches |= lastMatches;
+            displayed.searchCompleted( lastMatches );
+            REQUIRE( displayed.rewrites() == rewrites );
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 10, 20, 30, 40, 50, 60 } );
+        }
+    }
+
+    WHEN( "a Match arrives before a Mark" )
+    {
+        const auto newMatches = bitmapOf( { 25, 40 } );
+        logFile.matches |= newMatches;
+        displayed.matchesArrived( newMatches );
+
+        THEN( "it is a rewrite" )
+        {
+            REQUIRE( displayed.rewrites() != rewrites );
+        }
+    }
+
+    WHEN( "the Matches are replaced" )
+    {
+        logFile.matches = bitmapOf( { 50 } );
+        displayed.matchesArrived();
+
+        THEN( "it is a rewrite" )
+        {
+            REQUIRE( displayed.rewrites() != rewrites );
+        }
+    }
+
+    WHEN( "a Mark is added past the last Log Line" )
+    {
+        displayed.addMark( 90_lnum );
+
+        THEN( "it is a rewrite, as is any change of the Marks or of what is shown" )
+        {
+            REQUIRE( displayed.rewrites() != rewrites );
+            rewrites = displayed.rewrites();
+            displayed.setShown( Everything );
+            REQUIRE( displayed.rewrites() != rewrites );
         }
     }
 }

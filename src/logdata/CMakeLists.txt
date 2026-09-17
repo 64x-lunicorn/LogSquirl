@@ -1,6 +1,7 @@
 add_library(
   logsquirl_logdata STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/abstractlogdata.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/ansicolorsequences.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/compressedlinestorage.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayedlines.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdetector.h
@@ -11,15 +12,19 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddataworker.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/marklengths.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsession.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/sparselineread.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linetypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/fileholder.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filedigest.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexcache.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/headerandtaildigests.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/indexedhash.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/readablesize.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogdata.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/ansicolorsequences.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/compressedlinestorage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayedlines.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdetector.cpp
@@ -28,11 +33,16 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataworker.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddataworker.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/marklengths.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/searchsession.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/sparselineread.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/fileholder.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filedigest.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexcache.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/headerandtaildigests.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexedhash.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/readablesize.cpp
   src/filedigest.cpp
 )
@@ -78,7 +88,3 @@ find_package(
   REQUIRED
 )
 target_link_libraries(logsquirl_logdata PUBLIC Qt6::Core5Compat)
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_logdata PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()

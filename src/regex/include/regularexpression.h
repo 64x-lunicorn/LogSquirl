@@ -62,6 +62,9 @@ private:
     QString errorString_;
 
     HsRegularExpression hsExpression_;
+    // The sub-patterns compiled once for the Qt engine, shared by every
+    // matcher this expression creates.
+    CompiledRegularExpressions qtRegexps_;
 
     friend class PatternMatcher;
 };

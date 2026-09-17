@@ -26,6 +26,17 @@ option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
 option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
 option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
 option(LOGSQUIRL_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
+# Off: only LogSquirl's own containers, roaring and Vectorscan allocate through
+# mimalloc. On: mimalloc serves malloc and operator new for the whole process,
+# Qt included. Off until A/B measurements decide it per platform (#282).
+option(LOGSQUIRL_MIMALLOC_OVERRIDE "Let mimalloc serve malloc and new for the whole process (Linux only)" OFF)
+if(LOGSQUIRL_MIMALLOC_OVERRIDE AND NOT (UNIX AND NOT APPLE))
+  # Only an ELF executable's malloc interposes the shared libraries' calls. On
+  # macOS a statically linked mimalloc serves the executable but not Qt, and
+  # frees Qt's blocks it never allocated; on Windows it cannot redirect the
+  # CRT without the mimalloc DLL and mimalloc-redirect.dll.
+  message(FATAL_ERROR "LOGSQUIRL_MIMALLOC_OVERRIDE is only supported on Linux")
+endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
   set(LOGSQUIRL_ARCH 32)
@@ -118,29 +129,39 @@ if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W4")
   endif(CMAKE_C_FLAGS MATCHES "/W[0-4]")
 
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D __SSE4_1__=1 /D __SSE4_2__=1")
-
-  # Enable AVX2 code generation for local (non-generic) builds
-  if(NOT LOGSQUIRL_GENERIC_CPU)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /arch:AVX2")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+  # Chosen for the architecture the compiler generates code for, so an ARM64
+  # build gets no x86 flags (#285).
+  include(ArchitectureFlags)
+  if(CMAKE_CXX_COMPILER_ARCHITECTURE_ID)
+    set(LOGSQUIRL_TARGET_PROCESSOR "${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}")
+  else()
+    set(LOGSQUIRL_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
   endif()
+  logsquirl_architecture_flags(
+    LOGSQUIRL_ARCHITECTURE_FLAGS
+    MSVC
+    PROCESSOR "${LOGSQUIRL_TARGET_PROCESSOR}"
+    SYSTEM_NAME "${CMAKE_SYSTEM_NAME}"
+    GENERIC_CPU "${LOGSQUIRL_GENERIC_CPU}"
+  )
+  message("Architecture flags for ${CMAKE_SYSTEM_NAME} ${LOGSQUIRL_TARGET_PROCESSOR}: ${LOGSQUIRL_ARCHITECTURE_FLAGS}")
+  ucm_add_flags(C CXX ${LOGSQUIRL_ARCHITECTURE_FLAGS})
 
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj ")
 else()
   ucm_add_flags(CXX "-fno-sized-deallocation -fno-omit-frame-pointer")
 
-  if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64")
-    ucm_add_flags(C CXX "-march=native -mtune=generic")
-  else()
-    ucm_add_flags(C CXX "-mmmx -msse -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mpopcnt")
-    if(LOGSQUIRL_GENERIC_CPU)
-      ucm_add_flags(C CXX "-march=x86-64 -mtune=generic")
-    else()
-      ucm_add_flags(C CXX "-march=native -mtune=generic")
-    endif()
-  endif()
+  # Chosen for the target architecture, not the host (#285).
+  include(ArchitectureFlags)
+  logsquirl_architecture_flags(
+    LOGSQUIRL_ARCHITECTURE_FLAGS
+    PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}"
+    SYSTEM_NAME "${CMAKE_SYSTEM_NAME}"
+    OSX_ARCHITECTURES ${CMAKE_OSX_ARCHITECTURES}
+    GENERIC_CPU "${LOGSQUIRL_GENERIC_CPU}"
+  )
+  message("Architecture flags for ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}: ${LOGSQUIRL_ARCHITECTURE_FLAGS}")
+  ucm_add_flags(C CXX ${LOGSQUIRL_ARCHITECTURE_FLAGS})
 endif(MSVC)
 
 if(WIN32)
@@ -213,6 +234,22 @@ set(BUILD_SHARED_LIBS OFF)
 add_custom_target(ci_build)
 
 add_subdirectory(3rdparty)
+
+# Link time optimization covers every target of LogSquirl itself, the
+# libraries, the applications, the tests and the benchmarks, and nothing else
+# (#280). Set here, after the third-party libraries were added, it does not
+# reach their targets, whose own build systems decide.
+if(LOGSQUIRL_USE_LTO)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT LOGSQUIRL_IPO_SUPPORTED OUTPUT LOGSQUIRL_IPO_OUTPUT LANGUAGES C CXX)
+  if(NOT LOGSQUIRL_IPO_SUPPORTED)
+    message(SEND_ERROR "Link time optimization is not supported: ${LOGSQUIRL_IPO_OUTPUT}\n"
+                       "Configure with -DLOGSQUIRL_USE_LTO=OFF to build without it."
+    )
+  endif()
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+endif()
+
 add_subdirectory(src)
 add_subdirectory(website)
 

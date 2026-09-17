@@ -65,7 +65,9 @@ bool writeLogFile( QTemporaryFile& file )
 // another test does not leak in.
 struct Window {
     explicit Window( std::shared_ptr<Session> appSession, const QString& windowId )
-        : mainWindow( std::make_unique<MainWindow>( WindowSession{ appSession, windowId, 0 } ) )
+        : mainWindow( std::make_unique<MainWindow>(
+              WindowSession{ appSession, windowId, 0 },
+              std::make_shared<logsquirl::plugins::ApplicationPlugins>() ) )
     {
         mainWindow->resize( WindowWidth, WindowHeight );
         mainWindow->show();

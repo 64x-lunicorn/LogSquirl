@@ -36,6 +36,9 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <array>
+#include <atomic>
 #include <chrono>
 #include <exception>
 #include <functional>
@@ -49,6 +52,7 @@
 #include <QFileInfo>
 #include <QSemaphore>
 #include <tuple>
+#include <utility>
 
 #include <tbb/flow_graph.h>
 
@@ -56,6 +60,7 @@
 #include "encodingdetector.h"
 #include "indexcache.h"
 #include "indexedhash.h"
+#include "indexingblocks.h"
 #include "linepositionarray.h"
 #include "linetypes.h"
 #include "log.h"
@@ -67,7 +72,12 @@
 
 #include "logdataworker.h"
 
-constexpr int IndexingBlockSize = 5 * 1024 * 1024;
+constexpr int IndexingBlockSize = IndexOperation::DefaultBlockSize;
+
+IndexingData::IndexingData()
+    : headerAndTailDigests_( IndexingBlockSize )
+{
+}
 
 qint64 IndexingData::getIndexedSize() const
 {
@@ -125,25 +135,40 @@ QTextCodec* IndexingData::getForcedEncoding() const
     return encodingForced_;
 }
 
-void IndexingData::addAll( const logsquirl::vector<char>& block, LineLength length,
-                           const FastLinePositionArray& newLinePosition, QTextCodec* encoding )
-
+void IndexingData::addAll( qint64 blockSize, LineLength length,
+                           const FastLinePositionArray& newLinePosition, QTextCodec* encoding,
+                           std::optional<quint64> fullDigest )
 {
     maxLength_ = std::max( maxLength_, length );
     std::visit(
         [ &newLinePosition ]( auto& linePosition ) { linePosition.append_list( newLinePosition ); },
         linePosition_ );
 
-    if ( !block.empty() ) {
-        hash_.size += logsquirl::ssize( block );
-
-        if ( !useFastModificationDetection_ ) {
-            hashBuilder_.addData( block.data(), block.size() );
-            hash_.fullDigest = hashBuilder_.digest();
-        }
+    hash_.size += blockSize;
+    if ( fullDigest ) {
+        hash_.fullDigest = *fullDigest;
     }
 
     encodingGuess_ = encoding;
+}
+
+IndexedBytesDigests IndexingData::takeDigests()
+{
+    auto full = useFastModificationDetection_
+                    ? std::nullopt
+                    : std::optional<FileDigest>( std::exchange( hashBuilder_, FileDigest{} ) );
+    return IndexedBytesDigests{ .full = std::move( full ),
+                                .headerAndTail
+                                = std::exchange( headerAndTailDigests_,
+                                                 HeaderAndTailDigests( IndexingBlockSize ) ) };
+}
+
+void IndexingData::returnDigests( IndexedBytesDigests&& digests )
+{
+    if ( digests.full ) {
+        hashBuilder_ = std::move( *digests.full );
+    }
+    headerAndTailDigests_ = std::move( digests.headerAndTail );
 }
 
 int IndexingData::getProgress() const
@@ -161,6 +186,8 @@ void IndexingData::clear( const IndexingPolicy& policy )
     maxLength_ = 0_length;
     hash_ = {};
     hashBuilder_.reset();
+    headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     if ( policy.useCompressedIndex ) {
         linePosition_ = LinePositionArrayType( LinePositionArray{} );
     }
@@ -184,6 +211,10 @@ void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength m
     maxLength_ = maxLength;
     hash_ = hash;
     hashBuilder_.reset();
+    // The cache checked the header and tail only, and took no digests to go
+    // on from.
+    headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     encodingGuess_ = encoding;
     encodingForced_ = nullptr;
     progress_ = 100;
@@ -201,6 +232,8 @@ void IndexingData::resumeFromCache( ResumedIndex&& resumed )
     // The header and tail digests are taken again once indexing is done.
     hash_ = {};
     hash_.size = resumed.offset.get();
+    headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     hashBuilder_ = std::move( resumed.digestBeforeOffset );
     if ( !useFastModificationDetection_ ) {
         hash_.fullDigest = hashBuilder_.digest();
@@ -370,182 +403,16 @@ void LogDataWorker::onCheckFileFinished( const MonitoredFileStatus result, const
 //
 // Operations implementation
 //
-namespace parse_data_block {
-
-std::string_view::size_type findNextMultiByteDelimeter( EncodingParameters encodingParams,
-                                                        std::string_view data, char delimeter )
-{
-    auto nextDelimeter = data.find( delimeter );
-
-    if ( nextDelimeter == std::string_view::npos ) {
-        return nextDelimeter;
-    }
-
-    const auto isNotDelimeter = [ &encodingParams, data ]( std::string_view::size_type checkPos ) {
-        const auto lineFeedWidth
-            = static_cast<std::string_view::size_type>( encodingParams.lineFeedWidth );
-
-        const auto isCheckForward = encodingParams.lineFeedIndex == 0;
-
-        if ( isCheckForward && checkPos + lineFeedWidth > data.size() ) {
-            return true;
-        }
-        else if ( !isCheckForward && checkPos < lineFeedWidth - 1 ) {
-            return true;
-        }
-
-        for ( auto i = 1u; i < lineFeedWidth; ++i ) {
-            const auto nextByte = isCheckForward ? data[ checkPos + i ] : data[ checkPos - i ];
-            if ( nextByte != '\0' ) {
-                return true;
-            }
-        }
-
-        return false;
-    };
-
-    while ( nextDelimeter != std::string_view::npos && isNotDelimeter( nextDelimeter ) ) {
-        nextDelimeter = data.find( delimeter, nextDelimeter + 1 );
-    }
-
-    return nextDelimeter;
-}
-
-std::string_view::size_type findNextSingleByteDelimeter( EncodingParameters, std::string_view data,
-                                                         char delimeter )
-{
-    return data.find( delimeter );
-}
-
-int charOffsetWithinBlock( const char* blockStart, const char* pointer,
-                           const EncodingParameters& encodingParams )
-{
-    return type_safe::narrow_cast<int>( std::distance( blockStart, pointer ) )
-           - encodingParams.getBeforeCrOffset();
-}
-
-using FindDelimeter = std::string_view::size_type ( * )( EncodingParameters encodingParams,
-                                                         std::string_view, char );
-
-LineLength::UnderlyingType
-expandTabsInLine( const logsquirl::vector<char>& block, std::string_view blockToExpand,
-                  int posWithinBlock, EncodingParameters encodingParams,
-                  FindDelimeter findNextDelimeter,
-                  LineLength::UnderlyingType initialAdditionalSpaces = 0 )
-{
-    auto additionalSpaces = initialAdditionalSpaces;
-    while ( !blockToExpand.empty() ) {
-        const auto nextTab = findNextDelimeter( encodingParams, blockToExpand, '\t' );
-        if ( nextTab == std::string_view::npos ) {
-            break;
-        }
-
-        const auto tabPosWithinBlock
-            = charOffsetWithinBlock( block.data(), blockToExpand.data() + nextTab, encodingParams );
-
-        LOG_DEBUG << "Tab at " << tabPosWithinBlock;
-
-        const auto currentExpandedSize = tabPosWithinBlock - posWithinBlock + additionalSpaces;
-
-        additionalSpaces += TabStop - ( currentExpandedSize % TabStop ) - 1;
-        if ( nextTab >= blockToExpand.size() ) {
-            break;
-        }
-
-        blockToExpand.remove_prefix( nextTab + 1 );
-    }
-
-    return additionalSpaces;
-}
-
-std::tuple<bool, int, LineLength::UnderlyingType>
-findNextLineFeed( const logsquirl::vector<char>& block, int posWithinBlock,
-                  const IndexingState& state, FindDelimeter findNextDelimeter )
-{
-    const auto searchStart = block.data() + posWithinBlock;
-    const auto searchLineSize = static_cast<size_t>( logsquirl::ssize( block ) - posWithinBlock );
-
-    const auto blockView = std::string_view( searchStart, searchLineSize );
-    const auto nextLineFeed = findNextDelimeter( state.encodingParams, blockView, '\n' );
-
-    const auto isEndOfBlock = nextLineFeed == std::string_view::npos;
-    const auto nextLineSize = !isEndOfBlock ? nextLineFeed : searchLineSize;
-
-    posWithinBlock
-        = charOffsetWithinBlock( block.data(), searchStart + nextLineSize, state.encodingParams );
-
-    const auto additionalSpaces
-        = expandTabsInLine( block, blockView.substr( 0, nextLineSize ), posWithinBlock,
-                            state.encodingParams, findNextDelimeter, state.additional_spaces );
-
-    return std::make_tuple( isEndOfBlock, posWithinBlock, additionalSpaces );
-}
-} // namespace parse_data_block
-
-FastLinePositionArray IndexOperation::parseDataBlock( OffsetInFile::UnderlyingType blockBeginning,
-                                                      const logsquirl::vector<char>& block,
-                                                      IndexingState& state ) const
-{
-    using namespace parse_data_block;
-
-    FindDelimeter findNextDelimeter;
-    if ( state.encodingParams.lineFeedWidth == 1 ) {
-        findNextDelimeter = findNextSingleByteDelimeter;
-    }
-    else {
-        findNextDelimeter = findNextMultiByteDelimeter;
-    }
-
-    bool isEndOfBlock = false;
-    FastLinePositionArray linePositions;
-
-    while ( !isEndOfBlock ) {
-        if ( state.pos > blockBeginning + logsquirl::ssize( block ) ) {
-            LOG_ERROR << "Trying to parse out of block: " << state.pos << " " << blockBeginning
-                      << " " << block.size();
-            break;
-        }
-
-        auto posWithinBlock = type_safe::narrow_cast<int>(
-            state.pos >= blockBeginning ? ( state.pos - blockBeginning ) : 0 );
-
-        isEndOfBlock = posWithinBlock == logsquirl::ssize( block );
-
-        if ( !isEndOfBlock ) {
-            std::tie( isEndOfBlock, posWithinBlock, state.additional_spaces )
-                = findNextLineFeed( block, posWithinBlock, state, findNextDelimeter );
-        }
-
-        const auto currentDataEnd = posWithinBlock + blockBeginning;
-
-        const auto length
-            = type_safe::narrow_cast<LineLength::UnderlyingType>( currentDataEnd - state.pos )
-                  / state.encodingParams.lineFeedWidth
-              + state.additional_spaces;
-
-        state.max_length = std::max( state.max_length, length );
-
-        if ( !isEndOfBlock ) {
-            state.end = currentDataEnd;
-            state.pos = state.end + state.encodingParams.lineFeedWidth;
-            state.additional_spaces = 0;
-            linePositions.append( OffsetInFile( state.pos ) );
-        }
-    }
-
-    return linePositions;
-}
-
-void IndexOperation::guessEncoding( const logsquirl::vector<char>& block,
-                                    IndexingData::MutateAccessor& scopedAccessor,
+void IndexOperation::guessEncoding( const char* bytes, std::size_t size,
                                     IndexingState& state ) const
 {
     if ( !state.encodingGuess ) {
-        state.encodingGuess = EncodingDetector::getInstance().detectEncoding( block );
+        state.encodingGuess = EncodingDetector::getInstance().detectEncoding( bytes, size );
         LOG_INFO << "Encoding guess " << state.encodingGuess->name().toStdString();
     }
 
     if ( !state.fileTextCodec ) {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
         state.fileTextCodec = scopedAccessor.getForcedEncoding();
 
         if ( !state.fileTextCodec ) {
@@ -563,74 +430,179 @@ void IndexOperation::guessEncoding( const logsquirl::vector<char>& block,
               << state.encodingParams.lineFeedWidth;
 }
 
-std::optional<IndexOperation::BlockData>
-IndexOperation::readNextBlock( QFile& file, std::chrono::microseconds& ioDuration )
+indexing_blocks::IndexingBlock*
+IndexOperation::readNextBlock( QFile& file, indexing_blocks::BlockReading& reading,
+                               indexing_blocks::IndexingBlockPool& pool, IndexingState& state,
+                               std::chrono::microseconds& ioDuration )
 {
     using namespace std::chrono;
+    using namespace indexing_blocks;
     using clock = high_resolution_clock;
 
-    if ( interruptRequest_ || file.atEnd() ) {
-        return std::nullopt;
+    if ( interruptRequest_ || ( reading.bytesAhead == 0 && file.atEnd() ) ) {
+        return nullptr;
     }
 
-    BlockData blockData{ file.pos(), new BlockBuffer( IndexingBlockSize ) };
+    auto* block = pool.acquire();
+    auto* bytes = block->bytes();
+
+    // The bytes read past the block before, and those right before it, are
+    // kept in the reading: the block's buffer has room around its bytes.
+    std::copy_n( reading.behind.data(), reading.bytesBehind, bytes - reading.bytesBehind );
+    std::copy_n( reading.ahead.data(), reading.bytesAhead, bytes );
 
     const auto ioStartTime = clock::now();
     const auto readBytes
-        = file.read( blockData.second->data(), logsquirl::ssize( *blockData.second ) );
+        = file.read( bytes + reading.bytesAhead,
+                     pool.blockSize() + MaxDelimiterNeighbours - reading.bytesAhead );
 
     if ( readBytes < 0 ) {
         LOG_ERROR << "Reading past the end of file";
-        // The buffer never reaches the graph, whose consumer would otherwise
-        // free it; release it here so it does not leak.
-        delete blockData.second;
-        return std::nullopt;
-    }
-
-    if ( readBytes < logsquirl::ssize( *blockData.second ) ) {
-        blockData.second->resize( static_cast<size_t>( readBytes ) );
+        pool.release( block );
+        return nullptr;
     }
     bytesIndexed_ += readBytes;
-
     ioDuration += duration_cast<microseconds>( clock::now() - ioStartTime );
 
-    LOG_DEBUG << "Read block " << blockData.first << " size " << blockData.second->size();
-    return blockData;
+    const auto available = std::int64_t{ reading.bytesAhead } + readBytes;
+    block->size = std::min<std::int64_t>( available, pool.blockSize() );
+    if ( block->size == 0 ) {
+        pool.release( block );
+        return nullptr;
+    }
+    block->bytesBefore = reading.bytesBehind;
+    block->bytesAfter = static_cast<int>( available - block->size );
+    block->sequence = reading.blocksRead++;
+    block->beginning = reading.end;
+
+    reading.end += block->size;
+    reading.bytesAhead = block->bytesAfter;
+    std::copy_n( bytes + block->size, reading.bytesAhead, reading.ahead.data() );
+    reading.bytesBehind = static_cast<int>(
+        std::min( std::int64_t{ MaxDelimiterNeighbours }, block->bytesBefore + block->size ) );
+    std::copy_n( bytes + block->size - reading.bytesBehind, reading.bytesBehind,
+                 reading.behind.data() );
+
+    // Detected from the first block alone, before any block is parsed.
+    if ( block->sequence == 0 ) {
+        guessEncoding( bytes, static_cast<std::size_t>( block->size ), state );
+    }
+    block->encoding = state.encodingParams;
+
+    LOG_DEBUG << "Read block " << block->beginning << " size " << block->size;
+    return block;
 }
 
-void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& blockData )
+void IndexOperation::indexNextBlock( IndexingState& state,
+                                     const indexing_blocks::IndexingBlock& block )
 {
-    const auto& blockBeginning = blockData.first;
-    const auto& block = *blockData.second;
+    using namespace indexing_blocks;
 
-    LOG_DEBUG << "Indexing block " << blockBeginning << " start";
+    LOG_DEBUG << "Indexing block " << block.beginning << " start";
 
-    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+    // Stitching the block to those before it and hashing it take no index
+    // lock: only publishing the parsed block below takes the exclusive one.
+    OpenLogLine line{ .start = state.pos, .widening = state.additional_spaces };
+    if ( const auto crossingLineLength = stitchBlock( block, line ) ) {
+        state.max_length = std::max( state.max_length, *crossingLineLength );
+    }
+    state.max_length
+        = std::max( { state.max_length, block.maxLength, openLineLength( block, line ) } );
+    state.pos = line.start;
+    state.additional_spaces = line.widening;
 
-    guessEncoding( block, scopedAccessor, state );
+    std::optional<quint64> fullDigest;
+    if ( state.digests ) {
+        state.digests->headerAndTail.add( block.beginning, block.bytes(), block.size );
+        if ( state.digests->full ) {
+            fullDigest = state.digests->full
+                             ->addData( block.bytes(), static_cast<std::size_t>( block.size ) )
+                             .digest();
+        }
+    }
 
-    if ( !block.empty() ) {
-        const auto linePositions = parseDataBlock( blockBeginning, block, state );
-        // Measured as a qsizetype, 64 bits wide in every build shipped: no Log
-        // Line is too long to measure, so none is reported as such.
-        scopedAccessor.addAll( block, LineLength( state.max_length ), linePositions,
-                               state.encodingGuess );
+    // Update the caller for progress indication
+    const auto progress
+        = ( state.file_size > 0 ) ? calculateProgress( state.pos, state.file_size ) : 100;
 
-        // Update the caller for progress indication
-        const auto progress
-            = ( state.file_size > 0 ) ? calculateProgress( state.pos, state.file_size ) : 100;
+    bool progressed = false;
+    {
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        // Measured as a qsizetype, 64 bits wide in every build shipped: no
+        // Log Line is too long to measure, so none is reported as such.
+        scopedAccessor.addAll(
+            block.size,
+            LineLength( type_safe::narrow_cast<LineLength::UnderlyingType>( state.max_length ) ),
+            block.endOfLines, state.encodingGuess, fullDigest );
 
         if ( progress != scopedAccessor.getProgress() ) {
             scopedAccessor.setProgress( progress );
-            LOG_DEBUG << "Indexing progress " << progress << ", indexed size " << state.pos;
-            Q_EMIT indexingProgressed( progress );
+            progressed = true;
         }
     }
-    else {
-        scopedAccessor.setEncodingGuess( state.encodingGuess );
+
+    if ( progressed ) {
+        LOG_DEBUG << "Indexing progress " << progress << ", indexed size " << state.pos;
+        Q_EMIT indexingProgressed( progress );
     }
 
-    LOG_DEBUG << "Indexing block " << blockBeginning << " done";
+    LOG_DEBUG << "Indexing block " << block.beginning << " done";
+}
+
+namespace {
+
+// A digest of the bytes of file in [offset, offset + size), or of those
+// there are.
+RangeDigest digestReadFrom( QFile& file, qint64 offset, qint64 size )
+{
+    QByteArray bytes( static_cast<qsizetype>( size ), Qt::Uninitialized );
+    const auto readBytes = file.seek( offset ) ? file.read( bytes.data(), size ) : qint64{ 0 };
+    FileDigest digest;
+    digest.addData( bytes.constData(), static_cast<size_t>( std::max( readBytes, qint64{ 0 } ) ) );
+    return { offset, std::max( readBytes, qint64{ 0 } ), digest.digest() };
+}
+
+} // namespace
+
+// The header and tail digests of the bytes indexed up to end. Indexing
+// appended bytes reads neither again (#277): the tail digest goes on from
+// the bytes just indexed, and a header of a whole block cannot change by
+// appending. Only what the digests taken while indexing do not cover, as
+// after a cached Index was loaded, is read from the Log File again. Taken
+// from the digests the run built, outside the index lock; the caller
+// publishes them.
+IndexOperation::HeaderAndTail IndexOperation::recordHeaderAndTail( QFile& file, qint64 end,
+                                                                   HeaderAndTailDigests& digests,
+                                                                   bool hasWholeBlockHeader ) const
+{
+    HeaderAndTail recorded;
+
+    auto tail = digests.tail( end );
+    if ( !tail ) {
+        const auto range = HeaderAndTailDigests::tailRange( IndexingBlockSize, end );
+        QByteArray bytes( static_cast<qsizetype>( range.size ), Qt::Uninitialized );
+        const auto readBytes
+            = file.seek( range.offset ) ? file.read( bytes.data(), range.size ) : qint64{ -1 };
+        if ( readBytes == range.size ) {
+            digests.add( range.offset, bytes.constData(), readBytes );
+            tail = digests.tail( end );
+        }
+        if ( !tail ) {
+            // The Log File is shorter than what was indexed: the digest of
+            // what there is will not match when it is checked.
+            tail = digestReadFrom( file, range.offset, range.size );
+        }
+    }
+    recorded.tail = *tail;
+
+    if ( hasWholeBlockHeader ) {
+        return recorded;
+    }
+    recorded.header = digests.header( end );
+    if ( !recorded.header ) {
+        recorded.header = digestReadFrom( file, 0, std::min( end, qint64{ IndexingBlockSize } ) );
+    }
+    return recorded;
 }
 
 void IndexOperation::doIndex( OffsetInFile initialPosition )
@@ -658,9 +630,15 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     IndexingState state;
     state.pos = initialPosition.get();
     state.file_size = file.size();
+    bool hasWholeBlockHeader = false;
 
     {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        // Exclusive, as the digests are taken out: this run builds them on,
+        // outside the lock, and hands them back once done.
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        state.digests = scopedAccessor.takeDigests();
+        state.digests->headerAndTail.expectLogFileSize( state.file_size );
+        hasWholeBlockHeader = scopedAccessor.getHash().headerSize == IndexingBlockSize;
 
         state.fileTextCodec = scopedAccessor.getForcedEncoding();
         if ( !state.fileTextCodec ) {
@@ -676,9 +654,14 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     // From this run's own Indexing Policy: no settings object is read here
     // at all, so the options dialog writing from the UI thread while this
     // pass over the Log File is in flight cannot be observed by it (#94).
-    const auto prefetchBufferSize = static_cast<size_t>( indexingPolicy_.readBufferSizeMb );
+    // The read buffer is in MiB: it bounds the blocks read and not yet
+    // stitched, and so the block buffers allocated (#290).
+    const auto blocksInFlight
+        = indexing_blocks::blocksInReadBuffer( indexingPolicy_.readBufferSizeMb, blockSize_ );
 
-    LOG_INFO << "Prefetch buffer " << readableSize( prefetchBufferSize * IndexingBlockSize );
+    LOG_INFO << "Prefetch buffer "
+             << readableSize( static_cast<uint64_t>( blocksInFlight * blockSize_ ) ) << ", "
+             << blocksInFlight << " blocks";
 
     using namespace std::chrono;
     using clock = high_resolution_clock;
@@ -686,50 +669,110 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
 
     const auto indexingStartTime = clock::now();
 
+    // Declared before the graph, so that the blocks outlive every node.
+    indexing_blocks::IndexingBlockPool blockPool( blockSize_ );
+    indexing_blocks::BlockReading reading{ .end = state.pos };
+    std::atomic<bool> readingDone{ false };
+
+    using indexing_blocks::IndexingBlock;
+    using Token = tbb::flow::continue_msg;
+    // Integral, rather than a continue_msg: the decrementer of a continue_msg
+    // only counts once every edge into it has sent one, and both reading and
+    // stitching give tokens back.
+    using TokensBack = std::int64_t;
+
+    // Blocks are read one after the other, parsed each on its own in
+    // parallel, and stitched to the Log Lines before them in file order
+    // (#290). A token is let through the read buffer for every block read, so
+    // that no more blocks than it holds are ever read and not yet stitched.
+    //
+    // The graph pulls its tokens from an input_node while this thread waits
+    // in wait_for_all(), which makes this thread one of those running the
+    // graph. Pushing blocks in from here instead, sleeping whenever the
+    // limiter was full, only worked while TBB had a worker free for this
+    // graph (#146; the same stall hit Search in #142). Once reading stops, at
+    // the end of the file, on a read error or on an interrupt, the pass ends
+    // as soon as the blocks already read have gone through the graph.
     tbb::flow::graph indexingGraph;
-    auto blockPrefetcher = tbb::flow::limiter_node<BlockData>( indexingGraph, prefetchBufferSize );
-    auto blockQueue = tbb::flow::queue_node<BlockData>( indexingGraph );
 
-    auto blockParser = tbb::flow::function_node<BlockData, tbb::flow::continue_msg>(
-        indexingGraph, tbb::flow::serial, [ this, &state ]( const BlockData& blockData ) {
-            indexNextBlock( state, blockData );
-            delete blockData.second;
-            return tbb::flow::continue_msg{};
-        } );
+    const auto nextToken = [ &readingDone ]( tbb::flow_control& control ) {
+        if ( readingDone ) {
+            control.stop();
+        }
+        return Token{};
+    };
+    auto tokens = tbb::flow::input_node<Token>( indexingGraph, nextToken );
 
-    tbb::flow::make_edge( blockPrefetcher, blockQueue );
-    tbb::flow::make_edge( blockQueue, blockParser );
-    tbb::flow::make_edge( blockParser, blockPrefetcher.decrementer() );
+    auto readBuffer = tbb::flow::limiter_node<Token, TokensBack>(
+        indexingGraph, static_cast<size_t>( blocksInFlight ) );
 
-    // The graph pulls its blocks from an input_node while this thread waits in
-    // wait_for_all(), which makes this thread one of those running the graph.
-    // Pushing blocks in from here instead, sleeping whenever the limiter was
-    // full, only worked while TBB had a worker free for this graph (#146; the
-    // same stall hit Search in #142). Once blockReader stops, reading at the
-    // end of the file, on a read error or on an interrupt, the pass ends as
-    // soon as the blocks already read have gone through the graph.
     file.seek( state.pos );
 
-    auto blockReader = tbb::flow::input_node<BlockData>(
-        indexingGraph, [ this, &file, &ioDuration ]( tbb::flow_control& control ) -> BlockData {
-            auto blockData = readNextBlock( file, ioDuration );
-            if ( !blockData ) {
-                control.stop();
-                return {};
-            }
-            return *blockData;
+    using BlockReader
+        = tbb::flow::multifunction_node<Token, std::tuple<IndexingBlock*, TokensBack>>;
+    const auto readBlock = [ & ]( const Token&, BlockReader::output_ports_type& ports ) {
+        auto* block
+            = readingDone ? nullptr : readNextBlock( file, reading, blockPool, state, ioDuration );
+        if ( block ) {
+            std::get<0>( ports ).try_put( block );
+        }
+        else {
+            // The token of a block not read goes back to the read buffer.
+            readingDone = true;
+            std::get<1>( ports ).try_put( TokensBack{ 1 } );
+        }
+    };
+    auto blockReader = BlockReader( indexingGraph, tbb::flow::serial, readBlock );
+
+    auto blockParser = tbb::flow::function_node<IndexingBlock*, IndexingBlock*>(
+        indexingGraph, tbb::flow::unlimited, []( IndexingBlock* block ) {
+            indexing_blocks::parseBlock( *block );
+            return block;
         } );
 
-    tbb::flow::make_edge( blockReader, blockPrefetcher );
+    auto inFileOrder = tbb::flow::sequencer_node<IndexingBlock*>(
+        indexingGraph, []( IndexingBlock* const& block ) { return block->sequence; } );
+
+    auto blockStitcher = tbb::flow::function_node<IndexingBlock*, TokensBack>(
+        indexingGraph, tbb::flow::serial, [ this, &state, &blockPool ]( IndexingBlock* block ) {
+            indexNextBlock( state, *block );
+            blockPool.release( block );
+            return TokensBack{ 1 };
+        } );
+
+    tbb::flow::make_edge( tokens, readBuffer );
+    tbb::flow::make_edge( readBuffer, blockReader );
+    tbb::flow::make_edge( tbb::flow::output_port<0>( blockReader ), blockParser );
+    tbb::flow::make_edge( tbb::flow::output_port<1>( blockReader ), readBuffer.decrementer() );
+    tbb::flow::make_edge( blockParser, inFileOrder );
+    tbb::flow::make_edge( inFileOrder, blockStitcher );
+    tbb::flow::make_edge( blockStitcher, readBuffer.decrementer() );
 
     LOG_INFO << "Reading blocks";
-    blockReader.activate();
+    tokens.activate();
     indexingGraph.wait_for_all();
     LOG_INFO << "Reading blocks done";
 
-    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+    blockBuffersAllocated_ = blockPool.allocated();
 
     LOG_DEBUG << "Indexed up to " << state.pos;
+
+    // The header and tail digests, and the modification time, are taken
+    // before the index lock is taken to publish them: they may read the Log
+    // File. What was indexed ends where the last block read ends: reading
+    // looks a few bytes past it.
+    const auto endFilePos = reading.end;
+    const auto headerAndTail = recordHeaderAndTail( file, endFilePos, state.digests->headerAndTail,
+                                                    hasWholeBlockHeader );
+
+    // Only while nothing was appended since the last read: a check of a Log
+    // File of the indexed size that still has this modification time need
+    // not read all of it again.
+    const QFileInfo indexedFile( fileName_ );
+    const auto indexedModificationTime
+        = indexedFile.size() == endFilePos ? indexedFile.lastModified() : QDateTime{};
+
+    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
     // Check if there is a non LF terminated line at the end of the file
     if ( !interruptRequest_ && state.file_size > state.pos ) {
@@ -739,29 +782,16 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
         line_position.append( OffsetInFile( state.file_size + 1 ) );
         line_position.setFakeFinalLF();
 
-        scopedAccessor.addAll( {}, 0_length, line_position, state.encodingGuess );
+        scopedAccessor.addAll( 0, 0_length, line_position, state.encodingGuess, std::nullopt );
     }
 
-    const auto endFilePos = file.pos();
-    file.reset();
-    QByteArray hashBuffer( IndexingBlockSize, Qt::Uninitialized );
-    const auto headerHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-    FileDigest fastHashDigest;
-    fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( headerHashSize ) );
-
-    scopedAccessor.setHeaderHash( fastHashDigest.digest(), headerHashSize );
-
-    if ( endFilePos <= hashBuffer.size() ) {
-        scopedAccessor.setTailHash( fastHashDigest.digest(), 0, headerHashSize );
+    scopedAccessor.setTailHash( headerAndTail.tail.digest, headerAndTail.tail.offset,
+                                headerAndTail.tail.size );
+    if ( headerAndTail.header ) {
+        scopedAccessor.setHeaderHash( headerAndTail.header->digest, headerAndTail.header->size );
     }
-    else {
-        const auto tailHashOffset = endFilePos - hashBuffer.size();
-        file.seek( tailHashOffset );
-        const auto tailHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-        fastHashDigest.reset();
-        fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( tailHashSize ) );
-        scopedAccessor.setTailHash( fastHashDigest.digest(), tailHashOffset, tailHashSize );
-    }
+    scopedAccessor.setIndexedModificationTime( indexedModificationTime );
+    scopedAccessor.returnDigests( std::move( *state.digests ) );
 
     const auto indexingEndTime = high_resolution_clock::now();
     const auto duration = duration_cast<microseconds>( indexingEndTime - indexingStartTime );
@@ -1056,13 +1086,36 @@ OperationResult CheckFileChangesOperation::reportFailure( const QString& failure
 
 MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
 {
-    const auto indexedHash = IndexingData::ConstAccessor{ indexing_data_.get() }.getHash();
-    const auto coverage = indexingPolicy_.fastModificationDetection ? DigestCoverage::HeaderAndTail
-                                                                    : DigestCoverage::Full;
+    IndexedHash indexedHash;
+    QDateTime indexedModificationTime;
+    {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        indexedHash = scopedAccessor.getHash();
+        indexedModificationTime = scopedAccessor.getIndexedModificationTime();
+    }
+
+    // Taken before the Log File is read, so a change made while it is read
+    // is not taken for checked.
+    const auto modificationTime = QFileInfo( fileName_ ).lastModified();
+
+    // Without fast modification detection, a Log File that grew is still
+    // told from its header and tail, and one that did not is read end to end
+    // only when it was modified since it was last indexed or checked:
+    // following a Log File that grows by small appends does not read all of
+    // it for every change (#277).
+    auto coverage = DigestCoverage::FullUnlessGrown;
+    if ( indexingPolicy_.fastModificationDetection
+         || ( indexedModificationTime.isValid() && modificationTime == indexedModificationTime ) ) {
+        coverage = DigestCoverage::HeaderAndTail;
+    }
 
     switch ( indexFit( indexedHash, fileName_, coverage ) ) {
     case IndexFit::Unchanged:
         LOG_INFO << "No change in file";
+        if ( coverage == DigestCoverage::FullUnlessGrown ) {
+            IndexingData::MutateAccessor{ indexing_data_.get() }.setIndexedModificationTime(
+                modificationTime );
+        }
         return MonitoredFileStatus::Unchanged;
     case IndexFit::Grown:
         LOG_INFO << "New data on disk";

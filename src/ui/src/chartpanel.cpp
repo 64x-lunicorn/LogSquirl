@@ -19,11 +19,9 @@
 
 #include "chartpanel.h"
 
-#include <cmath>
+#include <algorithm>
 
 #include <QComboBox>
-#include <QDate>
-#include <QDateTime>
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QJsonArray>
@@ -31,9 +29,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
-#include <QRegularExpression>
 #include <QTimer>
-#include <QtConcurrent>
 
 #include "chartseriesdialog.h"
 #include "charttemplategenerator.h"
@@ -136,19 +132,19 @@ ChartPanel::ChartPanel( QWidget* parent )
     connect( chartWidget_, &ChartWidget::lineSelected, this, &ChartPanel::lineSelected );
     layout->addWidget( chartWidget_, 1 );
 
-    // Connect the extraction watcher to the finish handler.
-    connect( &extractionWatcher_, &QFutureWatcher<QVector<ChartSeriesDefinition>>::finished, this,
-             &ChartPanel::onExtractionFinished );
+    connect( &extraction_, &ChartExtraction::started, this, &ChartPanel::onExtractionStarted );
+    connect( &extraction_, &ChartExtraction::extracted, this, &ChartPanel::onExtracted );
+
+    progressTimer_.setInterval( 100 );
+    connect( &progressTimer_, &QTimer::timeout, this, &ChartPanel::showProgress );
 }
 
-ChartPanel::~ChartPanel()
-{
-    cancelExtraction();
-}
+ChartPanel::~ChartPanel() = default;
 
 void ChartPanel::setLogData( const std::shared_ptr<LogData>& logData )
 {
     logData_ = logData;
+    extraction_.setLogData( logData );
 }
 
 void ChartPanel::setLogFormat( const LogFormatDefinition* format )
@@ -164,305 +160,60 @@ void ChartPanel::extractData()
         return;
     }
 
-    startAsyncExtraction();
+    extraction_.update();
+}
+
+void ChartPanel::logFileTruncated()
+{
+    extraction_.restart();
+}
+
+void ChartPanel::setUpdateDelay( std::chrono::milliseconds delay )
+{
+    extraction_.setUpdateDelay( delay );
 }
 
 // ---------------------------------------------------------------------------
 // Async extraction
 // ---------------------------------------------------------------------------
 
-void ChartPanel::cancelExtraction()
+void ChartPanel::seriesChanged()
 {
-    if ( cancelFlag_ ) {
-        cancelFlag_->store( true );
-    }
-    extractionWatcher_.waitForFinished();
+    extraction_.setSeries( series_ );
+    extractData();
+    showProgress();
 }
 
-void ChartPanel::startAsyncExtraction()
+void ChartPanel::onExtractionStarted()
 {
-    // Cancel any running extraction first.
-    cancelExtraction();
-
-    // Snapshot series definitions for the worker (without points).
-    auto seriesCopy = series_;
-    for ( auto& s : seriesCopy ) {
-        s.points.clear();
+    // Appending a few Log Lines is extracted in no time: showing progress for
+    // it would only flicker.
+    constexpr uint64_t linesWorthProgress = 100'000;
+    if ( extraction_.linesToExtract().get() >= linesWorthProgress ) {
+        progressBar_->setRange( 0, 100 );
+        progressBar_->setValue( 0 );
+        progressBar_->setVisible( true );
+        progressTimer_.start();
     }
-
-    auto logData = logData_;
-    auto cancel = std::make_shared<std::atomic<bool>>( false );
-    cancelFlag_ = cancel;
-
-    const auto totalLines = logData->getNbLine().get();
-
-    progressBar_->setRange( 0, 100 );
-    progressBar_->setValue( 0 );
-    progressBar_->setVisible( true );
-
-    // Set up a timer to poll progress while the worker runs.
-    auto* progressTimer = new QTimer( this );
-    auto progressLinesProcessed = std::make_shared<std::atomic<uint64_t>>( 0 );
-    connect( progressTimer, &QTimer::timeout, this, [ this, totalLines, progressLinesProcessed ]() {
-        if ( totalLines > 0 ) {
-            const auto processed = progressLinesProcessed->load();
-            const int pct = static_cast<int>( ( processed * 100 ) / totalLines );
-            progressBar_->setValue( std::min( pct, 99 ) );
-        }
-    } );
-    progressTimer->start( 100 );
-
-    // Capture the timer pointer so we can stop it when done.
-    // Disconnect any previous progress-timer connection to prevent stale
-    // lambda captures from firing on subsequent extractions.
-    if ( progressConnection_ ) {
-        disconnect( progressConnection_ );
-    }
-    progressConnection_
-        = connect( &extractionWatcher_, &QFutureWatcher<QVector<ChartSeriesDefinition>>::finished,
-                   this, [ progressTimer ]() {
-                       progressTimer->stop();
-                       progressTimer->deleteLater();
-                   } );
-
-    auto future = QtConcurrent::run( [ seriesCopy, logData, cancel, totalLines,
-                                       progressLinesProcessed ]() mutable
-                                         -> QVector<ChartSeriesDefinition> {
-        // ---------------------------------------------------------------
-        // Pre-compute regex groups to avoid redundant matches per line.
-        //
-        // When using format-aware templates many series share the same
-        // Y-pattern (the format's main regex) and/or the same X-pattern
-        // (timestamp extraction).  Grouping them lets us run each unique
-        // regex only once per line and distribute the result.
-        //
-        // Additionally, when xPattern == pattern we can reuse the
-        // Y-match for X extraction — eliminating the separate X-regex
-        // run entirely.
-        // ---------------------------------------------------------------
-
-        // Group series indices by unique Y-pattern string.
-        struct RegexGroup {
-            QRegularExpression regex;
-            QVector<int> indices;
-        };
-
-        QHash<QString, RegexGroup> yGroups;
-        for ( int si = 0; si < seriesCopy.size(); ++si ) {
-            const auto& s = seriesCopy[ si ];
-            if ( !s.compiledRegex.isValid() ) {
-                continue;
-            }
-            auto& g = yGroups[ s.pattern ];
-            if ( g.indices.isEmpty() ) {
-                g.regex = s.compiledRegex;
-            }
-            g.indices.append( si );
-        }
-
-        // Collect unique X-regexes that differ from their Y-pattern.
-        QHash<QString, QRegularExpression> uniqueXRegexes;
-        for ( int si = 0; si < seriesCopy.size(); ++si ) {
-            const auto& s = seriesCopy[ si ];
-            if ( !s.hasCustomXAxis() || !s.compiledXRegex.isValid() ) {
-                continue;
-            }
-            if ( s.xPattern == s.pattern ) {
-                continue; // will reuse Y match
-            }
-            uniqueXRegexes.insert( s.xPattern, s.compiledXRegex );
-        }
-
-        // Track which series can reuse the Y-match for X extraction.
-        QVector<bool> reuseYForX( seriesCopy.size(), false );
-        for ( int si = 0; si < seriesCopy.size(); ++si ) {
-            const auto& s = seriesCopy[ si ];
-            if ( s.hasCustomXAxis() && s.xPattern == s.pattern ) {
-                reuseYForX[ si ] = true;
-            }
-        }
-
-        // Cache QDate::currentDate() outside the hot loop.
-        const auto currentYear = QDate::currentDate().year();
-
-        constexpr uint64_t batchSize = 5000;
-
-        for ( uint64_t start = 0; start < totalLines; start += batchSize ) {
-            if ( cancel->load() ) {
-                return {};
-            }
-
-            const auto count = std::min( batchSize, totalLines - start );
-            const auto lines
-                = logData->getExpandedLines( LineNumber( start ), LinesCount( count ) );
-
-            for ( uint64_t i = 0; i < static_cast<uint64_t>( lines.size() ); ++i ) {
-                const auto lineNum = LineNumber( start + i );
-                const auto& lineText = lines[ static_cast<size_t>( i ) ];
-
-                // 1. Run each unique Y-regex once for this line.
-                QHash<QString, QRegularExpressionMatch> yCache;
-                for ( auto it = yGroups.cbegin(); it != yGroups.cend(); ++it ) {
-                    auto m = it.value().regex.match( lineText );
-                    if ( m.hasMatch() ) {
-                        yCache.insert( it.key(), std::move( m ) );
-                    }
-                }
-                if ( yCache.isEmpty() ) {
-                    continue; // no series matches this line
-                }
-
-                // 2. Run each unique X-regex once (only those
-                //    that differ from Y-pattern).
-                QHash<QString, QRegularExpressionMatch> xCache;
-                for ( auto it = uniqueXRegexes.cbegin(); it != uniqueXRegexes.cend(); ++it ) {
-                    auto m = it.value().match( lineText );
-                    if ( m.hasMatch() ) {
-                        xCache.insert( it.key(), std::move( m ) );
-                    }
-                }
-
-                // 3. Timestamp parse cache: same raw text on the
-                //    same line always yields the same epoch-ms.
-                QHash<QString, double> tsCache;
-
-                // 4. Distribute cached matches to all series.
-                for ( int si = 0; si < seriesCopy.size(); ++si ) {
-                    auto& s = seriesCopy[ si ];
-
-                    auto yIt = yCache.constFind( s.pattern );
-                    if ( yIt == yCache.cend() ) {
-                        continue;
-                    }
-                    const auto& yMatch = yIt.value();
-
-                    // Extract Y value.
-                    double yVal = 1.0;
-                    if ( s.captureGroup > 0 && yMatch.lastCapturedIndex() >= s.captureGroup ) {
-                        bool ok = false;
-                        yVal = yMatch.captured( s.captureGroup ).toDouble( &ok );
-                        if ( !ok ) {
-                            yVal = 1.0;
-                        }
-                    }
-
-                    // Extract X value.
-                    double xVal = static_cast<double>( lineNum.get() );
-                    QString xLabel;
-
-                    if ( s.hasCustomXAxis() ) {
-                        // Pick the match to read X from: either
-                        // the Y-match (when patterns are the same)
-                        // or the dedicated X-match.
-                        const QRegularExpressionMatch* xMatchPtr = nullptr;
-                        if ( reuseYForX[ si ] ) {
-                            xMatchPtr = &yMatch;
-                        }
-                        else {
-                            auto xIt = xCache.constFind( s.xPattern );
-                            if ( xIt != xCache.cend() ) {
-                                xMatchPtr = &xIt.value();
-                            }
-                        }
-
-                        if ( xMatchPtr && xMatchPtr->lastCapturedIndex() >= s.xCaptureGroup ) {
-                            const auto captured = xMatchPtr->captured( s.xCaptureGroup );
-
-                            if ( s.isTimestampXAxis() ) {
-                                // Check per-line timestamp cache.
-                                auto tsIt = tsCache.constFind( captured );
-                                if ( tsIt != tsCache.cend() ) {
-                                    xVal = tsIt.value();
-                                    xLabel = captured;
-                                }
-                                else {
-                                    auto dt = QDateTime::fromString( captured, s.xTimestampFormat );
-                                    if ( dt.isValid() ) {
-                                        if ( dt.date().year() < 1970 ) {
-                                            dt.setDate( QDate( currentYear, dt.date().month(),
-                                                               dt.date().day() ) );
-                                        }
-                                        xVal = static_cast<double>( dt.toMSecsSinceEpoch() );
-                                        xLabel = captured;
-                                        tsCache.insert( captured, xVal );
-                                    }
-                                }
-                            }
-                            else {
-                                bool ok = false;
-                                const auto numVal = captured.toDouble( &ok );
-                                if ( ok ) {
-                                    xVal = numVal;
-                                }
-                            }
-                        }
-                    }
-
-                    s.points.append( { lineNum, xVal, yVal, xLabel } );
-                }
-            }
-
-            progressLinesProcessed->store( start + count );
-        }
-
-        // Aggregate into time buckets where configured.
-        for ( auto& s : seriesCopy ) {
-            if ( cancel->load() ) {
-                return {};
-            }
-            if ( !s.isBucketed() || s.points.isEmpty() ) {
-                continue;
-            }
-
-            const auto bucket = static_cast<double>( s.bucketSizeMs );
-            QVector<ChartPoint> bucketed;
-
-            double bucketStart = std::floor( s.points.first().xValue / bucket ) * bucket;
-            double bucketSum = 0.0;
-            LineNumber bucketLine = s.points.first().line;
-
-            for ( const auto& pt : s.points ) {
-                const double ptBucket = std::floor( pt.xValue / bucket ) * bucket;
-                if ( ptBucket != bucketStart ) {
-                    const double mid = bucketStart + bucket / 2.0;
-                    const auto dt = QDateTime::fromMSecsSinceEpoch( static_cast<qint64>( mid ) );
-                    bucketed.append( { bucketLine, mid, bucketSum, dt.toString( "HH:mm:ss" ) } );
-                    bucketStart = ptBucket;
-                    bucketSum = 0.0;
-                    bucketLine = pt.line;
-                }
-                bucketSum += pt.value;
-            }
-            const double mid = bucketStart + bucket / 2.0;
-            const auto dt = QDateTime::fromMSecsSinceEpoch( static_cast<qint64>( mid ) );
-            bucketed.append( { bucketLine, mid, bucketSum, dt.toString( "HH:mm:ss" ) } );
-
-            s.points = bucketed;
-        }
-
-        return seriesCopy;
-    } );
-
-    extractionWatcher_.setFuture( future );
 }
 
-void ChartPanel::onExtractionFinished()
+void ChartPanel::showProgress()
 {
+    if ( !extraction_.isExtracting() ) {
+        progressTimer_.stop();
+        progressBar_->setVisible( false );
+        return;
+    }
+    progressBar_->setValue( std::min( extraction_.progress(), 99 ) );
+}
+
+void ChartPanel::onExtracted()
+{
+    progressTimer_.stop();
     progressBar_->setVisible( false );
 
-    if ( cancelFlag_ && cancelFlag_->load() ) {
-        // Extraction was cancelled — discard results.
-        return;
-    }
-
-    const auto result = extractionWatcher_.result();
-    if ( result.isEmpty() ) {
-        return;
-    }
-
-    // Merge extracted points back into our series definitions.
-    for ( int i = 0; i < series_.size() && i < result.size(); ++i ) {
-        series_[ i ].points = result[ i ].points;
+    for ( qsizetype i = 0; i < series_.size(); ++i ) {
+        series_[ i ].points = extraction_.points( i );
     }
 
     chartWidget_->setSeriesList( series_ );
@@ -480,6 +231,7 @@ void ChartPanel::setSeriesDefinitions( const QVector<ChartSeriesDefinition>& def
         s.compilePattern();
     }
     rebuildSeriesCombo();
+    extraction_.setSeries( series_ );
 }
 
 void ChartPanel::addFilterFrequencySeries( const QStringList& patterns )
@@ -510,7 +262,7 @@ void ChartPanel::addFilterFrequencySeries( const QStringList& patterns )
         }
     }
     rebuildSeriesCombo();
-    extractData();
+    seriesChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -524,7 +276,7 @@ void ChartPanel::addSeries()
     if ( dlg.exec() == QDialog::Accepted ) {
         series_.append( dlg.series() );
         rebuildSeriesCombo();
-        extractData();
+        seriesChanged();
     }
 }
 
@@ -538,7 +290,7 @@ void ChartPanel::addSeriesWizard()
     if ( dlg.exec() == QDialog::Accepted ) {
         series_.append( dlg.series() );
         rebuildSeriesCombo();
-        extractData();
+        seriesChanged();
     }
 }
 
@@ -557,7 +309,7 @@ void ChartPanel::editSeries()
         updated.id = series_[ idx ].id;
         series_[ idx ] = updated;
         rebuildSeriesCombo();
-        extractData();
+        seriesChanged();
     }
 }
 
@@ -569,7 +321,7 @@ void ChartPanel::removeSeries()
     }
     series_.removeAt( idx );
     rebuildSeriesCombo();
-    extractData();
+    seriesChanged();
 }
 
 void ChartPanel::fitView()
@@ -672,7 +424,7 @@ void ChartPanel::loadPreset()
     }
     series_ = defs;
     rebuildSeriesCombo();
-    extractData();
+    seriesChanged();
 }
 
 void ChartPanel::deletePreset()
@@ -747,7 +499,7 @@ void ChartPanel::importPreset()
 
     series_.append( defs );
     rebuildSeriesCombo();
-    extractData();
+    seriesChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -855,5 +607,5 @@ void ChartPanel::addTemplateSeries( const QVector<ChartSeriesDefinition>& defs )
         }
     }
     rebuildSeriesCombo();
-    extractData();
+    seriesChanged();
 }

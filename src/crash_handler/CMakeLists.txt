@@ -25,7 +25,3 @@ if(LOGSQUIRL_USE_SENTRY)
   target_sources(logsquirl_crash_handler PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/crashhandler.cpp)
   target_link_libraries(logsquirl_crash_handler PUBLIC sentry crashpad_client)
 endif()
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_crash_handler PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()

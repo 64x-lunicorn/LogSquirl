@@ -589,7 +589,8 @@ void renderMainWindow( const QString& logFile, const Screenshots& screenshots )
 
     auto session
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
-    MainWindow mainWindow( WindowSession{ session, "Main", 0 } );
+    MainWindow mainWindow( WindowSession{ session, "Main", 0 },
+                           std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
     mainWindow.resize( 1400, 850 );
     mainWindow.show();
     settle( 300 );

@@ -64,7 +64,18 @@ public:
     QString lineText( LineNumber position ) const override
     {
         ++linesRead;
+        ++readsOfLines;
         return lines_.at( static_cast<qsizetype>( position.get() ) );
+    }
+    logsquirl::vector<QString> lineTexts( LineNumber first, LinesCount count ) const override
+    {
+        ++readsOfLines;
+        logsquirl::vector<QString> texts;
+        for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
+            ++linesRead;
+            texts.push_back( lines_.at( static_cast<qsizetype>( position ) ) );
+        }
+        return texts;
     }
     ScrollingViewport viewport() const override
     {
@@ -77,6 +88,8 @@ public:
                                  .widthPx = OneColumnWidePx,
                                  .heightPx = Rows * CharHeightPx };
     mutable uint64_t linesRead = 0;
+    // How often lines were read: one at a time or several together.
+    mutable uint64_t readsOfLines = 0;
 };
 
 // A text view reduced to what scrolling needs of it: its lines, its Viewport
@@ -167,11 +180,12 @@ public:
         REQUIRE( scrolling.position() == position );
     }
 
-    void setLines( QStringList lines )
+    // The Log File changed to lines; change says how.
+    void setLines( QStringList lines, LinesChange change = LinesChange::Any )
     {
         text.lines_ = std::move( lines );
         text.viewport_.largestDisplayLineNumber = text.lineCount().get();
-        if ( scrolling.dataChanged() ) {
+        if ( scrolling.dataChanged( change ) ) {
             setScrollBarValue( 0 );
         }
         updateScrollBars();
@@ -577,6 +591,33 @@ SCENARIO( "A text view at the bottom as its Log File changes", "[textviewscrolli
             view.setLines( grown );
             view.requireLogFileEndsOnLastRow();
         }
+
+        THEN( "follow keeps its new last Visual Line on the last row when told Log Lines were "
+              "only appended" )
+        {
+            view.apply( view.scrolling.followSet( true ) );
+            view.setLines( grown, LinesChange::Appended );
+            view.requireLogFileEndsOnLastRow();
+        }
+    }
+
+    GIVEN( "Log Lines appended, and the view told so" )
+    {
+        View view{ fewerVisualLinesThanRows() };
+        view.apply( view.scrolling.followSet( true ) );
+
+        THEN( "follow keeps the new last Visual Line on the last row, append after append" )
+        {
+            auto grown = fewerVisualLinesThanRows();
+            for ( int append = 0; append < 30; ++append ) {
+                grown << ( append % 5 == 0 ? tallLine() : QStringLiteral( "c" ) );
+                view.setLines( grown, LinesChange::Appended );
+                if ( view.scrolling.bottomScrollPosition() != ScrollPosition{} ) {
+                    view.requireLogFileEndsOnLastRow();
+                }
+                REQUIRE( view.scrollBarValue == view.scrollBarMaximum );
+            }
+        }
     }
 
     GIVEN( "a view standing past the Log Lines there are after a change" )
@@ -862,12 +903,86 @@ SCENARIO( "No scrolling step reads more than the Viewport and what it passes ove
             REQUIRE( view.text.linesRead <= 3 );
         }
 
+        THEN( "a Log Line appended, the view told so, reads only it and the Log Line before it" )
+        {
+            view.setLines( view.text.lines_ );
+            auto grown = view.text.lines_;
+            grown << QStringLiteral( "c" );
+            view.text.linesRead = 0;
+            view.setLines( grown, LinesChange::Appended );
+            REQUIRE( view.text.linesRead <= 2 );
+        }
+
+        THEN( "a page down reads the Log Lines it passes over together, not one by one" )
+        {
+            view.setScrollBarValue( 50000 );
+            view.text.linesRead = 0;
+            view.text.readsOfLines = 0;
+            view.page( true );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 50020_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
+            // Reads that double in size: 1, 1 (two lines are read one by one),
+            // 4, 8 and the 6 left.
+            REQUIRE( view.text.readsOfLines <= 5 );
+        }
+
+        THEN( "a page up reads the Log Lines it passes over together, not one by one" )
+        {
+            view.setScrollBarValue( 50000 );
+            view.text.linesRead = 0;
+            view.text.readsOfLines = 0;
+            view.page( false );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 49980_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
+            REQUIRE( view.text.readsOfLines <= 5 );
+        }
+
+        THEN( "the Log File changing reads the Log Lines at its end together" )
+        {
+            view.text.readsOfLines = 0;
+            view.setLines( view.text.lines_ );
+            REQUIRE( view.text.readsOfLines <= 5 );
+        }
+
         THEN( "a resize reads no more Log Lines than the Viewport has rows" )
         {
             view.setScrollBarValue( 50000 );
             view.text.linesRead = 0;
             view.changeViewport( WideWidthPx );
             REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
+        }
+    }
+
+    GIVEN( "a wrapped view of 100,000 Log Lines of two Visual Lines each" )
+    {
+        QStringList lines;
+        for ( int line = 0; line < 100000; ++line ) {
+            lines << QStringLiteral( "bb" );
+        }
+        View view{ lines };
+        view.setScrollBarValue( 50000 );
+        view.text.linesRead = 0;
+
+        THEN( "a page down reads no Log Line past the ones it passes over" )
+        {
+            view.page( true );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 50010_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows / 2 ) );
+        }
+
+        THEN( "a page up reads no Log Line past the ones it passes over" )
+        {
+            view.page( false );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 49990_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows / 2 ) );
+        }
+
+        THEN( "a notch of the wheel reads its Log Lines one at a time" )
+        {
+            view.text.readsOfLines = 0;
+            view.turnWheel( -Notch );
+            REQUIRE( view.text.linesRead <= 2 );
+            REQUIRE( view.text.readsOfLines == view.text.linesRead );
         }
     }
 

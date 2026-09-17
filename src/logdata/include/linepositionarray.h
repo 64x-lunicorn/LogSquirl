@@ -123,6 +123,12 @@ public:
         storage_.pop_back();
     }
 
+    // Remove every element, keeping the memory allocated for them
+    void clear()
+    {
+        storage_.clear();
+    }
+
     operator const logsquirl::vector<OffsetInFile>&() const
     {
         return storage_;
@@ -203,6 +209,13 @@ public:
     void pop_back()
     {
         array.pop_back();
+        fakeFinalLF_ = false;
+    }
+
+    // Remove every line position, keeping the storage allocated for them.
+    void clear()
+    {
+        array.clear();
         fakeFinalLF_ = false;
     }
 

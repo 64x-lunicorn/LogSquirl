@@ -50,6 +50,25 @@ static inline void sendTextToClipboard( QString text, bool updateSelection = fal
     }
 }
 
+// Fill the selection clipboard -- the one a middle click pastes, on X11 --
+// with the text readText returns, only where the platform has one: elsewhere
+// the text is not even read. Returns whether it was filled.
+template <typename ReadText>
+static inline bool sendTextToSelectionClipboard( QClipboard* clipboard, ReadText&& readText )
+{
+    if ( clipboard == nullptr || !clipboard->supportsSelection() ) {
+        return false;
+    }
+
+    try {
+        clipboard->setText( readText(), QClipboard::Selection );
+        return true;
+    } catch ( const std::exception& err ) {
+        LOG_ERROR << "failed to copy data to the selection clipboard " << err.what();
+        return false;
+    }
+}
+
 // Copy what a Presentation has selected, the one way every Presentation
 // copies: a null character in a Log Line is copied as a space, a selection
 // that cannot be read is logged and copies nothing, and nor does an empty one.

@@ -24,6 +24,7 @@
 #include "synchronization.h"
 
 #include <QByteArray>
+#include <cstddef>
 #include <memory>
 
 class QTextCodec;
@@ -35,6 +36,8 @@ struct EncodingParameters {
 
     bool isUtf8Compatible{ false };
     bool isUtf16LE{ false };
+    bool isUtf16BE{ false };
+    bool isLatin1{ false };
 
     int lineFeedWidth{ 1 };
     int lineFeedIndex{ 0 };
@@ -74,6 +77,7 @@ public:
     EncodingDetector& operator=( const EncodingDetector&& ) = delete;
 
     QTextCodec* detectEncoding( const logsquirl::vector<char>& block ) const;
+    QTextCodec* detectEncoding( const char* bytes, std::size_t size ) const;
 
 private:
     EncodingDetector() = default;

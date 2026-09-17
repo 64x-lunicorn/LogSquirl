@@ -20,13 +20,17 @@
 #include "recording_views.h"
 #include "test_policies.h"
 
+#include "containers.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
 #include "savedsearches.h"
 #include "session.h"
+#include "sessioninfo.h"
 
 #include <QTemporaryFile>
+#include <QTest>
 
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -289,4 +293,194 @@ SCENARIO( "A zoom hands every open Log File the font alone", "[ui][session]" )
     }
 
     session.removeWindow( &window );
+}
+
+SCENARIO( "Restoring a Session reads the settings store once, at startup, not per Log File",
+          "[ui][session]" )
+{
+    // What the Session read at startup stands in the in-memory Session info
+    // only, never saved: were a Log File restored or opened from a fresh read
+    // of the settings store, it would not find its view context there (#301).
+    // The settings store holds a saved Session, as after any earlier run.
+    SessionInfo::getSynced().save();
+
+    TwoLogFiles files;
+    const auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    const auto windowId = QStringLiteral( "session_test_window_301" );
+
+    auto& readAtStartup = SessionInfo::get();
+    readAtStartup.add( windowId );
+    readAtStartup.setOpenFiles(
+        windowId, { { files.first.fileName(), 0, QStringLiteral( "first context" ) },
+                    { files.second.fileName(), 0, QStringLiteral( "second context" ) } } );
+
+    WindowSession window{ appSession, windowId, 0 };
+    OpenedViews views;
+
+    WHEN( "the window's Log Files are restored" )
+    {
+        int currentFileIndex = -1;
+        const auto restored
+            = window.restore( RecordingViews::factory( views.built ), &currentFileIndex );
+
+        THEN( "each is built with the view context read at startup" )
+        {
+            REQUIRE( restored.size() == 2 );
+            REQUIRE( views.built.size() == 2 );
+            REQUIRE( views.built[ 0 ]->build().viewContext == "first context" );
+            REQUIRE( views.built[ 1 ]->build().viewContext == "second context" );
+            REQUIRE( currentFileIndex == 1 );
+        }
+    }
+
+    WHEN( "the Log Files are opened one by one in the window" )
+    {
+        window.open( files.first.fileName(), RecordingViews::factory( views.built ) );
+        window.open( files.second.fileName(), RecordingViews::factory( views.built ) );
+
+        THEN( "each is built with the view context read at startup" )
+        {
+            REQUIRE( views.built.size() == 2 );
+            REQUIRE( views.built[ 0 ]->build().viewContext == "first context" );
+            REQUIRE( views.built[ 1 ]->build().viewContext == "second context" );
+        }
+    }
+
+    // Leave the in-memory Session info as the settings store has it.
+    SessionInfo::getSynced();
+}
+
+namespace {
+
+// Writes Log Lines to file until it holds at least `bytes`.
+void writeLogLines( QTemporaryFile& file, qint64 bytes )
+{
+    REQUIRE( file.open() );
+    const QByteArray line = "2026-09-17 12:34:56.789 INFO [worker-1] request handled in 42 ms\n";
+    qint64 written = 0;
+    while ( written < bytes ) {
+        written += file.write( line );
+    }
+    REQUIRE( file.flush() );
+}
+
+// Three Log Files to be saved as the one window of the last Session, the last
+// one its current tab (#300). The first is far larger than the other two, so that
+// Log Files loading side by side would finish in a different order than Log
+// Files loading one after another.
+struct ThreeTabSession {
+    QTemporaryFile large{ "session_test_large_XXXXXX" };
+    QTemporaryFile small{ "session_test_small_XXXXXX" };
+    QTemporaryFile current{ "session_test_current_XXXXXX" };
+    const QString windowId = QStringLiteral( "session_test_window_300" );
+
+    ThreeTabSession()
+    {
+        writeLogLines( large, 16 * 1024 * 1024 );
+        writeLogLines( small, 1024 );
+        writeLogLines( current, 1024 * 1024 );
+    }
+
+    // Saves them in the Session info read at startup. Building a Session reads
+    // the settings store again, so this comes after.
+    void store() const
+    {
+        auto& readAtStartup = SessionInfo::get();
+        readAtStartup.add( windowId );
+        readAtStartup.setOpenFiles( windowId, { { large.fileName(), 0, QString{} },
+                                                { small.fileName(), 0, QString{} },
+                                                { current.fileName(), 0, QString{} } } );
+    }
+
+    ~ThreeTabSession()
+    {
+        // Leave the in-memory Session info as the settings store has it.
+        SessionInfo::getSynced();
+    }
+
+    ThreeTabSession( const ThreeTabSession& ) = delete;
+    ThreeTabSession& operator=( const ThreeTabSession& ) = delete;
+};
+
+// The tabs whose Log File finished its first load, in the order they did.
+struct LoadOrder {
+    std::vector<int> finished;
+
+    void follow( const std::vector<RecordingViews*>& views )
+    {
+        for ( auto tab = 0; tab < logsquirl::isize( views ); ++tab ) {
+            QObject::connect( views[ static_cast<size_t>( tab ) ]->build().openLogFile.get(),
+                              &OpenLogFile::loadingFinished, [ this, tab ] {
+                                  if ( std::find( finished.begin(), finished.end(), tab )
+                                       == finished.end() ) {
+                                      finished.push_back( tab );
+                                  }
+                              } );
+        }
+    }
+
+    bool waitFor( size_t count )
+    {
+        return QTest::qWaitFor( [ this, count ] { return finished.size() >= count; }, 120000 );
+    }
+};
+
+} // namespace
+
+SCENARIO( "Restoring a Session loads the current tab's Log File before the others",
+          "[ui][session]" )
+{
+    ThreeTabSession stored;
+    const auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    stored.store();
+    WindowSession window{ appSession, stored.windowId, 0 };
+    OpenedViews views;
+    LoadOrder order;
+
+    int currentFileIndex = -1;
+    const auto restored
+        = window.restore( RecordingViews::factory( views.built ), &currentFileIndex );
+    REQUIRE( restored.size() == 3 );
+    REQUIRE( currentFileIndex == 2 );
+    order.follow( views.built );
+
+    WHEN( "no other tab is activated" )
+    {
+        REQUIRE( order.waitFor( 3 ) );
+
+        THEN( "the current tab loads first, and the others one after another, in tab order" )
+        {
+            REQUIRE( order.finished == std::vector<int>{ 2, 0, 1 } );
+        }
+    }
+
+    WHEN( "another tab is activated once the current tab has loaded" )
+    {
+        REQUIRE( order.waitFor( 1 ) );
+        REQUIRE( order.finished == std::vector<int>{ 2 } );
+        window.startLoading( restored[ 1 ].second );
+        REQUIRE( order.waitFor( 3 ) );
+
+        THEN( "its Log File loads at once, without waiting for the tabs before it" )
+        {
+            REQUIRE( order.finished == std::vector<int>{ 2, 1, 0 } );
+        }
+    }
+
+    WHEN( "the current tab is closed before its Log File has loaded" )
+    {
+        window.close( restored[ 2 ].second );
+        // Its views are still here, so it goes on loading; only the other
+        // tabs are looked at.
+        REQUIRE( order.waitFor( 3 ) );
+        order.finished.erase( std::remove( order.finished.begin(), order.finished.end(), 2 ),
+                              order.finished.end() );
+
+        THEN( "the other tabs' Log Files load all the same, one after another" )
+        {
+            REQUIRE( order.finished == std::vector<int>{ 0, 1 } );
+        }
+    }
 }

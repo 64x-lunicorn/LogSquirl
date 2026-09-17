@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <iterator>
 #include <numeric>
+#include <optional>
 #include <qregularexpression.h>
 #include <string_view>
 
@@ -130,9 +131,9 @@ MatchedPatterns HsNoopMatcher::match( const std::string_view& ) const
     return {};
 }
 
-HsPrefilterMatcher::HsPrefilterMatcher( const logsquirl::vector<RegularExpressionPattern>& patterns,
+HsPrefilterMatcher::HsPrefilterMatcher( CompiledRegularExpressions regexps,
                                         HsMultiMatcher&& hsMatcher )
-    : patterns_( patterns )
+    : regexps_( std::move( regexps ) )
     , hsMatcher_( std::move( hsMatcher ) )
 
 {
@@ -142,12 +143,14 @@ MatchedPatterns HsPrefilterMatcher::match( const std::string_view& utf8Data ) co
 {
     MatchedPatterns matchingPatterns = hsMatcher_.match( utf8Data );
 
+    // Converted once, and only when the prefilter found a candidate.
+    std::optional<QString> line;
     for ( size_t i = 0u; i < matchingPatterns.size(); ++i ) {
         if ( matchingPatterns[ i ] ) {
-            matchingPatterns[ i ]
-                = static_cast<QRegularExpression>( patterns_[ i ] )
-                      .match( QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) ) )
-                      .hasMatch();
+            if ( !line ) {
+                line = QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) );
+            }
+            matchingPatterns[ i ] = regexps_[ i ].match( *line ).hasMatch();
         }
     }
 
@@ -260,9 +263,12 @@ HsRegularExpression::HsRegularExpression(
             database_.get() );
     }
 
+    if ( !isHsValid() || isPrefilter_ ) {
+        regexps_ = compileRegularExpressions( patterns_ );
+    }
+
     if ( !isHsValid() ) {
-        for ( const auto& pattern : patterns_ ) {
-            const auto regex = static_cast<QRegularExpression>( pattern );
+        for ( const auto& regex : regexps_ ) {
             if ( !regex.isValid() ) {
                 isValid_ = false;
                 errorMessage_ = regex.errorString();
@@ -293,7 +299,7 @@ QString HsRegularExpression::errorString() const
 MatcherVariant HsRegularExpression::createMatcher() const
 {
     if ( !isHsValid() ) {
-        return MatcherVariant{ DefaultRegularExpressionMatcher( patterns_ ) };
+        return MatcherVariant{ DefaultRegularExpressionMatcher( regexps_ ) };
     }
 
     if ( !database_ || !scratch_ ) {
@@ -324,7 +330,7 @@ MatcherVariant HsRegularExpression::createMatcher() const
     }
     else {
         return HsPrefilterMatcher(
-            patterns_, HsMultiMatcher{ database_, std::move( matcherScratch ), patterns_.size() } );
+            regexps_, HsMultiMatcher{ database_, std::move( matcherScratch ), patterns_.size() } );
     }
 }
 #endif

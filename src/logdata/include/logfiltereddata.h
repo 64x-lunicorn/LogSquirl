@@ -42,6 +42,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 
 #include <QByteArray>
 #include <QList>
@@ -53,6 +54,7 @@
 #include "hsregularexpression.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
+#include "marklengths.h"
 #include "searchsession.h"
 #include "synchronization.h"
 
@@ -124,6 +126,11 @@ public:
     void toggleMark( LineNumber line );
     // Completely clear the marks list.
     void clearMarks();
+    // The Log Lines of the Log File from firstChanged on may read differently
+    // now: it was indexed again, cut short or appended to, or is decoded
+    // differently. The lengths remembered for the Marks among them are read
+    // again; a Mark past the last Log Line is as wide as nothing.
+    void logLinesChanged( LineNumber firstChanged = 0_lnum );
     // Get all marked lines
     QList<LineNumber> getMarks() const;
 
@@ -141,6 +148,13 @@ public:
     Visibility visibility() const;
 
     void iterateOverLines( const std::function<void( LineNumber )>& callback ) const;
+
+    // How many of the Log Lines displayed in [first, end) are Matches and how
+    // many are not, whatever the visibility (see DisplayedLines::countIn()).
+    DisplayedLines::Count countDisplayedLines( LineNumber first, LineNumber end ) const;
+    // Changes whenever the displayed lines change other than by Matches added
+    // after all of them (see DisplayedLines::rewrites()).
+    uint64_t displayedLinesRewrites() const;
 
     // Replaces the Search Policy, for this object and its Search Session.
     // Called when a setting on the Search axis changed; the Log File this
@@ -175,9 +189,12 @@ private:
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
     logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
                                                    LinesCount number ) const override;
-    logsquirl::vector<QString>
-    doGetLines( LineNumber first, LinesCount number,
-                const std::function<QString( LineNumber )>& lineGetter ) const;
+    // The text of the Log Lines displayed at [first, first + number), read
+    // from the Log File at once with readSparse; empty past the last one.
+    logsquirl::vector<QString> readDisplayedLines(
+        LineNumber first, LinesCount number,
+        logsquirl::vector<QString> ( LogData::*readSparse )( std::span<const LineNumber> )
+            const ) const;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
@@ -191,8 +208,9 @@ private:
 
     const LogData* sourceLogData_;
 
-    // The longest Marked Log Line, kept up to date as Marks change.
-    LineLength maxLengthMarks_;
+    // The length of every marked Log Line, remembered when it was marked, so
+    // the longest Mark is known without reading the marked Log Lines again.
+    MarkLengths markLengths_;
 
     // Owns the pattern, the run in flight, its Matches and its progress.
     SearchSession session_;
@@ -204,9 +222,6 @@ private:
     // Utility functions
     LineNumber findLogDataLine( LineNumber lineNum ) const;
     LineNumber findFilteredLine( LineNumber lineNum ) const;
-
-    // update maxLengthMarks_ when a Marks was changed.
-    void updateMaxLengthMarks( OptionalLineNumber added_line, OptionalLineNumber removed_line );
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS( LogFilteredData::Visibility )

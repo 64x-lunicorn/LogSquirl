@@ -42,10 +42,10 @@
 //
 // Beyond serving Log Lines, a test can make it fail every block read from
 // then on (failReading), or every one from the n-th read on
-// (failReadingFromBlock), hold the Search's next block read until released
-// (holdReading / waitUntilReadingHeld / releaseReading), and see which blocks
-// were read (readBlocks) and whether every run's reader was detached again
-// (attachedReaders).
+// (failReadingFromBlock), hold the Search's next block read, or its n-th one,
+// until released (holdReading / holdReadingFromBlock / waitUntilReadingHeld /
+// releaseReading), and see which blocks were read (readBlocks) and whether
+// every run's reader was detached again (attachedReaders).
 class InMemoryBlockSource final : public SearchBlockSource {
 public:
     struct Block {
@@ -89,6 +89,13 @@ public:
         held_ = true;
     }
 
+    // The reads before, counted from 0 across every run, are not held.
+    void holdReadingFromBlock( std::size_t blockIndex )
+    {
+        std::lock_guard lock( mutex_ );
+        holdFromBlock_ = blockIndex;
+    }
+
     // Blocks until a Search is waiting in a held block read.
     void waitUntilReadingHeld()
     {
@@ -101,6 +108,7 @@ public:
         {
             std::lock_guard lock( mutex_ );
             held_ = false;
+            holdFromBlock_ = NoBlock;
         }
         changed_.notify_all();
     }
@@ -126,10 +134,10 @@ public:
     {
         std::unique_lock lock( mutex_ );
 
-        if ( held_ ) {
+        if ( held_ || readBlocks_.size() >= holdFromBlock_ ) {
             readerHeld_ = true;
             changed_.notify_all();
-            changed_.wait( lock, [ this ] { return !held_; } );
+            changed_.wait( lock, [ this ] { return !held_ && holdFromBlock_ == NoBlock; } );
             readerHeld_ = false;
         }
 
@@ -175,7 +183,10 @@ private:
     std::vector<std::string> lines_;
     std::string failure_;
     std::size_t failFromBlock_ = 0;
+    static constexpr std::size_t NoBlock = static_cast<std::size_t>( -1 );
+
     bool held_ = false;
+    std::size_t holdFromBlock_ = NoBlock;
     mutable bool readerHeld_ = false;
     mutable std::vector<Block> readBlocks_;
 

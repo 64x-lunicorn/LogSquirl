@@ -25,6 +25,7 @@
 #include <iterator>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -43,33 +44,48 @@
 
 using MatchedPatterns = std::string;
 
+using CompiledRegularExpressions = logsquirl::vector<QRegularExpression>;
+
+// Compiles every pattern once, for all the matchers an expression creates.
+// Those matchers share the compiled patterns (QRegularExpression is implicitly
+// shared) and may match on several search threads at once, so optimize()
+// compiles and JITs each pattern here, while only one thread has it: every
+// match after that only reads the compiled pattern, with a JIT stack per
+// thread. A pattern that does not compile stays invalid and reports why.
+inline CompiledRegularExpressions
+compileRegularExpressions( const logsquirl::vector<RegularExpressionPattern>& patterns )
+{
+    CompiledRegularExpressions regexps;
+    regexps.reserve( patterns.size() );
+    for ( const auto& pattern : patterns ) {
+        regexps.push_back( static_cast<QRegularExpression>( pattern ) );
+        regexps.back().optimize();
+    }
+    return regexps;
+}
+
 class DefaultRegularExpressionMatcher {
 public:
-    explicit DefaultRegularExpressionMatcher(
-        const logsquirl::vector<RegularExpressionPattern>& patterns )
+    explicit DefaultRegularExpressionMatcher( CompiledRegularExpressions regexps )
+        : regexp_( std::move( regexps ) )
     {
-        std::transform(
-            patterns.cbegin(), patterns.cend(), std::back_inserter( regexp_ ),
-            []( const auto& pattern ) { return static_cast<QRegularExpression>( pattern ); } );
     }
 
     MatchedPatterns match( const std::string_view& utf8Data ) const
     {
+        // One conversion per Log Line, however many sub-patterns match it.
+        const auto line = QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) );
+
         MatchedPatterns matchedPatterns( regexp_.size(), 0 );
         std::transform(
             regexp_.cbegin(), regexp_.cend(), matchedPatterns.begin(),
-            [ utf8Data ]( const auto& regexp ) {
-                return regexp
-                    .match( QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) ) )
-                    .hasMatch();
-                ;
-            } );
+            [ &line ]( const auto& regexp ) { return regexp.match( line ).hasMatch(); } );
 
         return matchedPatterns;
     }
 
 private:
-    logsquirl::vector<QRegularExpression> regexp_;
+    CompiledRegularExpressions regexp_;
 };
 
 #ifdef LOGSQUIRL_HAS_HS
@@ -130,13 +146,12 @@ public:
 
 class HsPrefilterMatcher {
 public:
-    HsPrefilterMatcher( const logsquirl::vector<RegularExpressionPattern>& patterns,
-                        HsMultiMatcher&& hsMatcher );
+    HsPrefilterMatcher( CompiledRegularExpressions regexps, HsMultiMatcher&& hsMatcher );
 
     MatchedPatterns match( const std::string_view& utf8Data ) const;
 
 private:
-    logsquirl::vector<RegularExpressionPattern> patterns_;
+    CompiledRegularExpressions regexps_;
     HsMultiMatcher hsMatcher_;
 };
 
@@ -168,6 +183,9 @@ private:
     HsScratch scratch_;
 
     logsquirl::vector<RegularExpressionPattern> patterns_;
+    // Compiled only when matching needs QRegularExpression: Vectorscan could
+    // not take the patterns, or took them only as a prefilter.
+    CompiledRegularExpressions regexps_;
 
     bool isValid_ = true;
     QString errorMessage_;
@@ -188,10 +206,9 @@ public:
     }
 
     explicit HsRegularExpression( const logsquirl::vector<RegularExpressionPattern>& patterns )
-        : patterns_( patterns )
+        : regexps_( compileRegularExpressions( patterns ) )
     {
-        for ( const auto& pattern : patterns_ ) {
-            const auto& regex = static_cast<QRegularExpression>( pattern );
+        for ( const auto& regex : regexps_ ) {
             if ( !regex.isValid() ) {
                 isValid_ = false;
                 errorString_ = regex.errorString();
@@ -212,14 +229,14 @@ public:
 
     MatcherVariant createMatcher() const
     {
-        return MatcherVariant{ DefaultRegularExpressionMatcher( patterns_ ) };
+        return MatcherVariant{ DefaultRegularExpressionMatcher( regexps_ ) };
     }
 
 private:
     bool isValid_ = true;
     QString errorString_;
 
-    logsquirl::vector<RegularExpressionPattern> patterns_;
+    CompiledRegularExpressions regexps_;
 };
 
 #endif

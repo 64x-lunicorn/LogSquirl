@@ -173,6 +173,12 @@
       allowedVersions: "<3.6.0",
     },
     {
+      // mimalloc 3 is a new design line next to 2.x, not its successor
+      // release; LogSquirl measures and ships 2.x (#282).
+      matchDepNames: ["microsoft/mimalloc"],
+      allowedVersions: "<3",
+    },
+    {
       // Ragel 7 is a development line; the images build 6.x.
       matchDepNames: ["adrian-thurston/ragel"],
       allowedVersions: "<7",

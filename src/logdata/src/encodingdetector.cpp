@@ -70,10 +70,14 @@ EncodingParameters::EncodingParameters( const QTextCodec* codec )
     static constexpr QChar LineFeed( QChar::LineFeed );
     static constexpr int Utf8Mib = 106;
     static constexpr int Utf16LEMib = 1014;
+    static constexpr int Utf16BEMib = 1013;
+    static constexpr int Latin1Mib = 4;
     static constexpr int UsAsciiMib = 3;
 
     isUtf8Compatible = codec->mibEnum() == Utf8Mib || codec->mibEnum() == UsAsciiMib;
     isUtf16LE = codec->mibEnum() == Utf16LEMib;
+    isUtf16BE = codec->mibEnum() == Utf16BEMib;
+    isLatin1 = codec->mibEnum() == Latin1Mib;
 
     QTextCodec::ConverterState convertState( QTextCodec::IgnoreHeader );
     const QByteArray encodedLineFeed = codec->fromUnicode( &LineFeed, 1, &convertState );
@@ -85,11 +89,16 @@ EncodingParameters::EncodingParameters( const QTextCodec* codec )
 
 QTextCodec* EncodingDetector::detectEncoding( const logsquirl::vector<char>& block ) const
 {
+    return detectEncoding( block.data(), block.size() );
+}
+
+QTextCodec* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const
+{
     UniqueLock lock( mutex_ );
 
     UchardetHolder ud;
 
-    auto rc = ud.handle_data( block.data(), block.size() );
+    auto rc = ud.handle_data( bytes, size );
     if ( rc == 0 ) {
         ud.data_end();
     }
@@ -107,7 +116,7 @@ QTextCodec* EncodingDetector::detectEncoding( const logsquirl::vector<char>& blo
         }
     }
 
-    QByteArray blockArray = QByteArray::fromRawData( block.data(), logsquirl::isize( block ) );
+    QByteArray blockArray = QByteArray::fromRawData( bytes, static_cast<qsizetype>( size ) );
 
     auto encodingGuess = uchardetCodec ? QTextCodec::codecForUtfText( blockArray, uchardetCodec )
                                        : QTextCodec::codecForUtfText( blockArray );

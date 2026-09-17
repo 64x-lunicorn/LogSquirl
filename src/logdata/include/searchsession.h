@@ -114,6 +114,12 @@ public:
     // a stateChanged() -- so a reader there can hold on to the reference
     // instead of copying, and catch up whenever it is told of a change.
     const SearchResultArray& matches() const;
+    // While stateChanged() is emitted: the Matches that joined matches() with
+    // it, none of which was a Match before -- so whoever follows the Matches
+    // can update by them alone. nullptr when the Matches were replaced since
+    // the previous stateChanged() (a new run, a cache hit, a reset): then only
+    // all of them tell what changed.
+    const SearchResultArray* newMatches() const;
     LineLength maxLength() const;
     LinesCount processedLines() const;
 
@@ -121,10 +127,9 @@ Q_SIGNALS:
     void stateChanged( SearchSession::State state );
 
 private Q_SLOTS:
-    void handleSearchProgressed( LinesCount nbMatches, int progress, LineNumber initialLine,
-                                 SearchId searchId );
-    void handleSearchFinished( SearchId searchId, LinesCount nbMatches, LineNumber initialLine,
-                               bool interrupted, const QString& failure );
+    void handleSearchProgressed( int progress, LineNumber initialLine, SearchId searchId );
+    void handleSearchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
+                               const QString& failure );
     // Emits the state change the throttler held back, unless one has been
     // reported directly since.
     void emitThrottledStateChanged();
@@ -138,14 +143,16 @@ private:
                    LineNumber endLine, bool isContinuation,
                    std::shared_ptr<const RegularExpression> compiledExpression );
     // Absorbs a worker result batch into arrivedMatches_/maxLength_/
-    // nbLinesProcessed_. Shared by handleSearchProgressed and
-    // handleSearchFinished, which otherwise duplicate this exactly.
-    void applyIncomingResults( const SearchResults& results );
+    // nbLinesProcessed_, and counts the Matches anew. Shared by
+    // handleSearchProgressed and handleSearchFinished, which otherwise
+    // duplicate this exactly.
+    void applyIncomingResults( SearchResults results );
     // Replaces state_ under stateMutex_ in one step, so each call site
     // builds one complete State value instead of hand-editing a handful
     // of fields (and risking missing one) under the lock.
     void applyState( State newState );
-    // Moves arrivedMatches_ into matches_.
+    // Moves arrivedMatches_ into matches_, and into newMatches_ unless the
+    // Matches were replaced since the last state change was reported.
     void publishArrivedMatches();
     // Publishes the Matches that arrived and reports the current state: the
     // one way stateChanged() is emitted. Progress goes through the throttler
@@ -182,8 +189,17 @@ private:
     SearchResultArray matches_;
     // Matches the worker reported since the last state change was; they
     // join matches_ when the next one is (notifyStateChanged()), so matches_
-    // never changes behind a reader's back.
+    // never changes behind a reader's back. None of them is in matches_
+    // already, so the match count is the size of both together: it is
+    // counted from the Matches, never incremented beside them, and a Log Line
+    // searched again is not counted twice.
     SearchResultArray arrivedMatches_;
+    // The Matches that joined matches_ since the last state change was
+    // reported, kept only while it is (newMatches()).
+    SearchResultArray newMatches_;
+    // matches_ were replaced rather than grown since the last state change
+    // was reported.
+    bool matchesReplaced_ = true;
     // A progress tick is waiting in the throttler to be reported.
     bool stateChangePending_ = false;
     LineLength maxLength_{ 0 };

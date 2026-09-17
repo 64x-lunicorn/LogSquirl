@@ -81,6 +81,19 @@ if(NOT (_stdout STREQUAL "line 10 fizz\nline 12 fizz\nline 14 fizz\nline 16 fizz
   fail("a regular expression Search prints the Log Lines it matched")
 endif()
 
+# Matching Log Lines are printed as they are in the file: tabs kept, a
+# carriage return before the line feed dropped, the last Log Line too.
+set(_crlf_file "${WORK_DIR}/grep-crlf.log")
+file(WRITE "${_crlf_file}"
+     "first fizz\r\nno match here\r\n\tcolumn\tfizz\nbuzz\nfizz at the end\r\n")
+run_grep("${_crlf_file}" -e fizz)
+if(NOT _result STREQUAL "0")
+  fail("a Search in a Log File with carriage returns exits with 0")
+endif()
+if(NOT (_stdout STREQUAL "first fizz\n\tcolumn\tfizz\nfizz at the end\n"))
+  fail("a Search prints its Log Lines without their carriage returns")
+endif()
+
 # No match is no failure.
 run_grep("${_log_file}" -e "no such text")
 if(NOT _result STREQUAL "0")

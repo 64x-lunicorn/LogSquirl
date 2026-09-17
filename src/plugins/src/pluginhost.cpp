@@ -284,9 +284,27 @@ StreamWriter* PluginHost::streamWriter( const QString& pluginId )
 
 // ── Converter registry (Phase 4) ───────────────────────────────────────────────
 
+namespace {
+
+// "har", ".har" and "*.har" all name the same extension: a converter declares
+// ".har", a file name's suffix is "har".
+QString bareExtension( const QString& extension )
+{
+    auto bare = extension.trimmed().toLower();
+    while ( bare.startsWith( '*' ) || bare.startsWith( '.' ) ) {
+        bare.remove( 0, 1 );
+    }
+    return bare;
+}
+
+} // namespace
+
 QString PluginHost::converterForExtension( const QString& extension ) const
 {
-    const auto ext = extension.toLower();
+    const auto ext = bareExtension( extension );
+    if ( ext.isEmpty() ) {
+        return {};
+    }
     for ( const auto& [ id, ctx ] : loaded_ ) {
         if ( !ctx->handle.isConverter() ) {
             continue;
@@ -294,7 +312,7 @@ QString PluginHost::converterForExtension( const QString& extension ) const
         // Extensions are semicolon-separated, e.g. ".har;.pcap"
         const auto exts = ctx->handle.converterExtensions().split( ';', Qt::SkipEmptyParts );
         for ( const auto& e : exts ) {
-            if ( e.trimmed().toLower() == ext ) {
+            if ( bareExtension( e ) == ext ) {
                 return id;
             }
         }

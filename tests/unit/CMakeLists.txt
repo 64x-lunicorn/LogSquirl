@@ -1,6 +1,12 @@
 # Add test cpp file
 add_executable(logsquirl_tests
     abstractlogview_test.cpp
+    allocator_test.cpp
+    applicationplugins_test.cpp
+    ansicolorsequences_test.cpp
+    chartextraction_test.cpp
+    chartplot_test.cpp
+    chartwidget_test.cpp
     chartseries_test.cpp
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp
@@ -10,6 +16,7 @@ add_executable(logsquirl_tests
     encodingdetector_test.cpp
     fontutils_test.cpp
     indexcache_test.cpp
+    headerandtaildigests_test.cpp
     indexedhash_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
@@ -17,6 +24,7 @@ add_executable(logsquirl_tests
     linessaver_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
+    marklengths_test.cpp
     formatrecognition_test.cpp
     logfieldextractor_test.cpp
     logformatcatalog_test.cpp
@@ -35,13 +43,18 @@ add_executable(logsquirl_tests
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
+    sharedpluginuiport_test.cpp
+    quickfind_test.cpp
     quickfindmux_test.cpp
+    searchblockutf8view_test.cpp
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
+    searchdata_test.cpp
     searchfailure_test.cpp
     searchsession_test.cpp
     settingspolicies_test.cpp
+    sparselineread_test.cpp
     tabbarstyle_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
@@ -83,6 +96,16 @@ target_compile_definitions(logsquirl_tests PRIVATE
 # third of the suite in a Debug build and is slower under the sanitizers.
 logsquirl_add_catch_tests(logsquirl_tests
     EXTRA_ARGS -platform offscreen
+    TIMEOUT 120)
+
+# A scrolled text view moves what it painted in device pixels, so the painting
+# after a scroll is also compared with a full repaint at a device pixel ratio
+# of 2 (#296).
+add_test(NAME logsquirl_tests_scrollrepaint_device_pixel_ratio_2
+    COMMAND logsquirl_tests "[scrollrepaint]" -platform offscreen
+    WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+set_tests_properties(logsquirl_tests_scrollrepaint_device_pixel_ratio_2 PROPERTIES
+    ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2"
     TIMEOUT 120)
 
 # The compression library is tested on its own, without the UI library or

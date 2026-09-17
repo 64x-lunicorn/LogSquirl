@@ -39,6 +39,7 @@
 #ifndef LOGDATA_H
 #define LOGDATA_H
 
+#include <cstddef>
 #include <memory>
 
 #include <QDateTime>
@@ -49,6 +50,8 @@
 #include <QTextCodec>
 #include <qregularexpression.h>
 #include <qtextcodec.h>
+#include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -154,6 +157,24 @@ public:
 
     RawLines getLinesRaw( LineNumber first, LinesCount number ) const;
 
+    // The text of a sparse set of Log Lines, one entry per Log Line asked
+    // for and in the order asked: for each, what getLineString() returns.
+    // Nearby Log Lines are merged into runs and each run is read at once,
+    // under one lock, with one Decoding Policy for the whole call; each Log
+    // Line is decoded on its own. lines may come in any order and repeat; a Log Line past the
+    // last one reads as it does on its own. Safe off the UI thread, like
+    // getLinesRaw().
+    logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
+    // getExpandedLinesSparse(), from AbstractLogData, reads Log Lines the
+    // same way, with tabs expanded.
+
+    // As getLinesSparse(), as UTF-8: for each Log Line asked for, in the order
+    // asked, what getLineString() returns converted to UTF-8, followed by a
+    // line feed -- byte for byte. A Log Line that is UTF-8 in a UTF-8 Log
+    // File, or ASCII in an ASCII compatible one, is copied as it was read and
+    // never decoded; any other is decoded on its own and converted back.
+    std::string getUtf8LinesSparse( std::span<const LineNumber> lines ) const;
+
     // What a Search on this Log File reads its Log Lines through. Lives as
     // long as this object.
     const SearchBlockSource& searchBlockSource() const;
@@ -198,6 +219,8 @@ private:
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
     logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
                                                    LinesCount number ) const override;
+    logsquirl::vector<QString>
+    doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const override;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
@@ -208,9 +231,32 @@ private:
     void doDetachReader() const override;
 
     void reOpenFile() const;
+    // Tells every LogFilteredData handed out that the Log Lines from
+    // firstChanged on may read differently now.
+    void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
+    logsquirl::vector<QString>
+    getSparseLinesFromFile( std::span<const LineNumber> lines,
+                            QString ( *processLine )( QString&& ) ) const;
+
+    // A Log Line of a sparse read, as the Log File gave it.
+    struct SparseReadLine {
+        // Where it was asked for in the lines read.
+        std::size_t request = 0;
+        // Its bytes, without its line feed; empty when it could not be read.
+        std::string_view bytes;
+        // What it reads as when it could not be read; empty otherwise.
+        std::string_view warning;
+        bool hideAnsiColorSequences = false;
+    };
+    // Reads the Log Lines asked for that are indexed, nearby ones merged into
+    // runs, and calls onLine( const SparseReadLine& ) for each, in the order
+    // read. Log Lines past the last one are not called for. The Index is
+    // looked at under its lock, the Log File is read without it.
+    template <typename OnLine>
+    void readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const;
 
 private:
     mutable std::unique_ptr<FileHolder> attached_file_;
@@ -243,6 +289,8 @@ private:
     // Codec to decode text
     TextCodecHolder codec_;
     MonitoredFileStatus fileChangedOnDisk_;
+    // How many Log Lines were indexed before the data added on disk is.
+    LinesCount nbLinesBeforeDataAdded_;
 
     // Read by getLinesRaw() on the Search's threads, so it is only ever
     // touched under the indexing data's lock.

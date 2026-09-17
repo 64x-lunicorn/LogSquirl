@@ -59,9 +59,25 @@ By default LogSquirl is built without support for reporting crash dumps. This ca
 LogSquirl uses Vectorscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
 LogSquirl can be built with only Qt regular expressions backend by passing `-DLOGSQUIRL_USE_VECTORSCAN=OFF` to cmake.
 
-LogSquirl can use custom memory allocator. By default it uses TBB memory allocator for Windows, mimalloc on Linux and default system allocator on MacOS.
-Memory allocator override can be turned off by passing `-DLOGSQUIRL_OVERRIDE_MALLOC`. If you want to use TBB allocator on Linux then pass
-`-DLOGSQUIRL_USE_MIMALLOC=OFF`.
+Releases are `RelWithDebInfo` builds. LogSquirl optimizes that build type as fully as `Release`
+(`-O3` with GCC and Clang, `/Ob2` and a non-incremental `/OPT:REF /OPT:ICF` link with MSVC) and keeps its
+debug information for crash reports. Link time optimization is on for every LogSquirl target, not for the
+third-party libraries; turn it off with `-DLOGSQUIRL_USE_LTO=OFF`, which makes linking a lot faster during development.
+
+LogSquirl links [mimalloc](https://github.com/microsoft/mimalloc) on every platform. By default only LogSquirl's own
+containers, roaring and Vectorscan allocate through it; Qt and the standard containers use the system allocator.
+On Linux, `-DLOGSQUIRL_MIMALLOC_OVERRIDE=ON` lets mimalloc serve `malloc` and `new` for the whole process, Qt included.
+The option is off until measurements decide it per platform (#282), and configuring fails with it on macOS or Windows:
+there a statically linked mimalloc does not take over Qt's allocations.
+
+To measure the override, build the same commit twice, once with the option and once without, and compare the
+benchmarks (`tests/benchmarks/README.md`) and the e2e performance suite of both builds. To have the **Benchmarks**
+workflow do that on one runner, push a throwaway branch whose only commit turns the option's default to `ON` in
+`CMakeLists.txt`, and dispatch the workflow from that branch with its parent as `base_ref`:
+
+```bash
+gh workflow run benchmarks.yml --ref <override-branch> -f base_ref=<branch without it>
+```
 
 ### Plugin SDK
 

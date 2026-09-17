@@ -10,10 +10,6 @@ add_library(
 
 set_target_properties(logsquirl_compression PROPERTIES AUTOMOC ON)
 
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_compression PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
-
 target_include_directories(logsquirl_compression PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 # decompressor.h uses the header-only atomicflag.h. Take only the include

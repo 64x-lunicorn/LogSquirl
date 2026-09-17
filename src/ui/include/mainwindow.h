@@ -53,6 +53,7 @@
 #include <memory>
 #include <mutex>
 
+#include "applicationplugins.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "downloader.h"
@@ -60,8 +61,6 @@
 #include "iconloader.h"
 #include "mergecontroller.h"
 #include "pathline.h"
-#include "plugincatalog.h"
-#include "pluginhost.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
 #include "quickfindwidget.h"
@@ -85,7 +84,10 @@ class MainWindow : public QMainWindow, public SessionWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow( WindowSession session );
+    // Every window of the application uses the same Application Plugins
+    // (#303); the first window shown has them loaded.
+    MainWindow( WindowSession session,
+                std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins );
     ~MainWindow() override;
 
     MainWindow( const MainWindow& ) = delete;
@@ -122,6 +124,7 @@ protected:
     void dropEvent( QDropEvent* event ) override;
 
     bool event( QEvent* event ) override;
+    bool eventFilter( QObject* watched, QEvent* event ) override;
 
 private:
     enum class ActionInitiator { User, App };
@@ -170,7 +173,10 @@ private Q_SLOTS:
     void startPluginDataSource( const QString& pluginId );
     void handleDataSourceStarted( const QString& pluginId, const QString& displayName,
                                   const QString& filePath );
-    void handleDataSourceStopped( const QString& pluginId );
+    // List the data source plugins the catalog knows in the Sources menu.
+    void updateSourcesMenu();
+    // Make this window the one plugins open files in and ask for the active file.
+    void servePluginCallbacks();
     void encodingChanged( QAction* action );
     void addToFavorites();
     void removeFromFavorites();
@@ -269,6 +275,9 @@ private:
 
     WindowSession session_;
     QString loadingFileName;
+    // While the Session's tabs are added: each becomes current in turn, and
+    // none of them is to start loading for that (#300).
+    bool restoringSession_ = false;
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;
@@ -392,18 +401,19 @@ private:
     bool isMaximized_ = false;
     bool isCloseFromTray_ = false;
 
+    // Shown, and waiting for the window system to expose the window before
+    // asking for the plugins to load (#303).
+    bool waitingForExposure_ = false;
+
     std::once_flag screenChangesConnect_;
 
-    // Which plugins are installed. Declared before pluginHost_, which looks
-    // plugins up in it.
-    logsquirl::plugins::PluginCatalog pluginCatalog_;
+    // The application's one Plugin Catalog and Plugin Host, shared by every
+    // window and loaded once, after the first window shows (#303).
+    std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
 
-    // Shows what plugins contribute. Declared before pluginHost_ so it
-    // outlives it: unloading the plugins on destruction still reaches it.
+    // Shows what plugins contribute, when this window is the one the Plugin
+    // Host shows them in: the first window built.
     std::unique_ptr<PluginUiAdapter> pluginUi_;
-
-    // Loads the enabled plugins from the catalog and serves their callbacks.
-    logsquirl::plugins::PluginHost pluginHost_{ pluginCatalog_ };
 
     // Separator between plugin actions (top) and management actions (bottom).
     QAction* pluginMenuSeparator_ = nullptr;

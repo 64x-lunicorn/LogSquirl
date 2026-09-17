@@ -19,6 +19,11 @@
 
 #include <catch2/catch.hpp>
 
+#include <atomic>
+#include <memory>
+#include <string_view>
+#include <thread>
+
 #include "regularexpression.h"
 #include "regularexpressionpattern.h"
 
@@ -321,6 +326,149 @@ SCENARIO( "The matching engine is the caller's choice", "[regex][engine]" )
                 REQUIRE_FALSE( vectorscanMatcher->hasMatch( "an error here" ) );
                 REQUIRE_FALSE( qtMatcher->hasMatch( "an error here" ) );
             }
+        }
+    }
+}
+
+SCENARIO( "Patterns Vectorscan rejects still match like the Qt engine", "[regex][prefilter]" )
+{
+    // Vectorscan cannot compile lookaround; such a Search runs
+    // Vectorscan as a prefilter and confirms each candidate Log Line with
+    // QRegularExpression (#279).
+    const auto lines = { "2026-01-01 INFO started",
+                         "2026-01-01 DEBUG cache warm",
+                         "2026-01-01 ERROR größe überschritten",
+                         "ERROR ERROR repeated",
+                         "",
+                         "debug in lower case" };
+
+    GIVEN( "a lookahead pattern compiled for both engines" )
+    {
+        RegularExpression vectorscan( makeRegex( "^(?!.*DEBUG)" ), RegexpEngine::Vectorscan );
+        RegularExpression qt( makeRegex( "^(?!.*DEBUG)" ), RegexpEngine::QRegularExpression );
+        REQUIRE( vectorscan.isValid() );
+        REQUIRE( qt.isValid() );
+
+        auto vectorscanMatcher = vectorscan.createMatcher();
+        auto qtMatcher = qt.createMatcher();
+
+        THEN( "every Log Line without DEBUG matches, on both engines" )
+        {
+            for ( const auto* line : lines ) {
+                const bool expected
+                    = std::string_view{ line }.find( "DEBUG" ) == std::string_view::npos;
+                REQUIRE( vectorscanMatcher->hasMatch( line ) == expected );
+                REQUIRE( qtMatcher->hasMatch( line ) == expected );
+            }
+        }
+    }
+
+    GIVEN( "a lookbehind pattern" )
+    {
+        RegularExpression expression( makeRegex( "(?<=ERROR) ERROR" ), TestEngine );
+        REQUIRE( expression.isValid() );
+        auto matcher = expression.createMatcher();
+
+        THEN( "only ERROR after ERROR matches, again and again" )
+        {
+            for ( int round = 0; round < 3; ++round ) {
+                REQUIRE( matcher->hasMatch( "ERROR ERROR repeated" ) );
+                REQUIRE_FALSE( matcher->hasMatch( "2026-01-01 ERROR once" ) );
+            }
+        }
+    }
+
+    GIVEN( "a boolean expression of several sub-patterns, one with a lookahead" )
+    {
+        const auto pattern = RegularExpressionPattern(
+            "(\"^(?!.*DEBUG)\") and ((\"größe\") or (\"started\")) and not (\"cache\")", true,
+            false, true, false );
+        RegularExpression vectorscan( pattern, RegexpEngine::Vectorscan );
+        RegularExpression qt( pattern, RegexpEngine::QRegularExpression );
+        REQUIRE( vectorscan.isValid() );
+        REQUIRE( qt.isValid() );
+
+        auto vectorscanMatcher = vectorscan.createMatcher();
+        auto qtMatcher = qt.createMatcher();
+
+        THEN( "both engines select the same Log Lines" )
+        {
+            for ( const auto* line : { "2026-01-01 INFO started", "2026-01-01 DEBUG started",
+                                       "2026-01-01 ERROR größe überschritten",
+                                       "2026-01-01 INFO cache started", "nothing here" } ) {
+                const std::string_view view{ line };
+                const bool expected = view.find( "DEBUG" ) == std::string_view::npos
+                                      && view.find( "cache" ) == std::string_view::npos
+                                      && ( view.find( "größe" ) != std::string_view::npos
+                                           || view.find( "started" ) != std::string_view::npos );
+                REQUIRE( vectorscanMatcher->hasMatch( line ) == expected );
+                REQUIRE( qtMatcher->hasMatch( line ) == expected );
+            }
+        }
+    }
+
+    GIVEN( "matchers of one lookahead Search running on several threads at once" )
+    {
+        for ( auto engine : { RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression } ) {
+            RegularExpression expression( makeRegex( "^(?!.*DEBUG).*ERROR" ), engine );
+            REQUIRE( expression.isValid() );
+
+            constexpr int Threads = 4;
+            logsquirl::vector<std::unique_ptr<PatternMatcher>> matchers;
+            for ( int i = 0; i < Threads; ++i ) {
+                matchers.push_back( expression.createMatcher() );
+            }
+
+            std::atomic<int> wrongResults = 0;
+            logsquirl::vector<std::thread> threads;
+            for ( int i = 0; i < Threads; ++i ) {
+                threads.emplace_back(
+                    [ &matcher = *matchers[ static_cast<size_t>( i ) ], &wrongResults ] {
+                        for ( int n = 0; n < 2000; ++n ) {
+                            if ( !matcher.hasMatch( "2026-01-01 ERROR failed" )
+                                 || matcher.hasMatch( "2026-01-01 DEBUG ERROR ignored" ) ) {
+                                ++wrongResults;
+                            }
+                        }
+                    } );
+            }
+            for ( auto& thread : threads ) {
+                thread.join();
+            }
+
+            THEN( "every thread gets the right result" )
+            {
+                REQUIRE( wrongResults == 0 );
+            }
+        }
+    }
+}
+
+SCENARIO( "Highlighter patterns Vectorscan rejects", "[regex][prefilter]" )
+{
+    GIVEN( "several patterns, one with a lookahead" )
+    {
+        MultiRegularExpression expression( { makeRegex( "^(?!.*DEBUG)" ), makeRegex( "ERROR" ),
+                                             makeRegex( "(?<!DEBUG) ERROR" ) } );
+        auto matcher = expression.createMatcher();
+
+        THEN( "each pattern reports its own match" )
+        {
+            const auto result = matcher->match( "DEBUG ERROR" );
+            REQUIRE( result.size() == 3 );
+            REQUIRE_FALSE( result[ 0 ].second );
+            REQUIRE( result[ 1 ].second );
+            REQUIRE_FALSE( result[ 2 ].second );
+
+            const auto second = matcher->match( "INFO ERROR" );
+            REQUIRE( second[ 0 ].second );
+            REQUIRE( second[ 1 ].second );
+            REQUIRE( second[ 2 ].second );
+
+            const auto other = matcher->match( "INFO fine" );
+            REQUIRE( other[ 0 ].second );
+            REQUIRE_FALSE( other[ 1 ].second );
+            REQUIRE_FALSE( other[ 2 ].second );
         }
     }
 }

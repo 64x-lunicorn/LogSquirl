@@ -42,7 +42,9 @@
 #include <QColor>
 #include <QMetaType>
 #include <QRegularExpression>
+#include <QStringView>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <qcolor.h>
 #include <qregularexpression.h>
@@ -99,15 +101,30 @@ public:
 
     RegularExpressionPattern expressionPattern() const;
 
-    void compile() const;
+private:
+    std::pair<QColor, QColor> vairateColors( QStringView match ) const;
+
+    const QRegularExpression& compiledRegexp() const;
+
+    // Changing the pattern, its options or whether it is a regular
+    // expression gives the Highlighter a new, uncompiled one.
+    void patternChanged();
 
 private:
-    std::pair<QColor, QColor> vairateColors( const QString& match ) const;
+    // The regular expression a Highlighter matches with, compiled on its
+    // first match: compiling every Highlighter of a set up front costs a
+    // PCRE2 compile and JIT for each one, although most never match a line.
+    // Copies of a Highlighter, and so every copy of a Highlighter Set,
+    // share it, and those copies may match on several threads at once, so
+    // std::call_once compiles it exactly once and a match only reads it.
+    struct CompiledRegexp {
+        std::once_flag compiled;
+        QRegularExpression regexp;
+    };
 
-private:
     QRegularExpression regexp_;
 
-    mutable std::optional<QRegularExpression> optimizedRegexp_;
+    std::shared_ptr<CompiledRegexp> compiledRegexp_ = std::make_shared<CompiledRegexp>();
 
     bool useRegex_ = true;
     bool highlightOnlyMatch_ = false;

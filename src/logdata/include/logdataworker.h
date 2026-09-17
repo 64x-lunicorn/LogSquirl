@@ -42,13 +42,23 @@
 #include "containers.h"
 #include "linetypes.h"
 #include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <qthreadpool.h>
 #include <variant>
 
+#include <QDateTime>
 #include <QFile>
 #include <QObject>
 #include <QTextCodec>
+
+namespace indexing_blocks {
+struct IndexingBlock;
+struct BlockReading;
+class IndexingBlockPool;
+} // namespace indexing_blocks
 
 // No TBB here: the indexing graph is an implementation detail of
 // logdataworker.cpp, and TBB is a private dependency of the log data
@@ -60,6 +70,7 @@
 #include "synchronization.h"
 
 #include "encodingdetector.h"
+#include "headerandtaildigests.h"
 #include "indexedhash.h"
 #include "linepositionarray.h"
 #include "loadingstatus.h"
@@ -78,6 +89,15 @@ struct ResumedIndex {
     FileDigest digestBeforeOffset;
     QTextCodec* encoding = nullptr;
     bool fastModificationDetection = true;
+};
+
+// The digests an indexing run takes of the bytes it indexes, going on from
+// those of the bytes indexed before it. The run builds them outside the index
+// lock, as it parses its blocks, and publishes what they come to.
+struct IndexedBytesDigests {
+    // Of every byte indexed; nothing without a full digest.
+    std::optional<FileDigest> full;
+    HeaderAndTailDigests headerAndTail;
 };
 
 template <typename Data, typename LockGuard>
@@ -151,12 +171,27 @@ public:
         return data_->forceEncoding( codec );
     }
 
-    // Atomically add to all the existing
-    // indexing data.
-    void addAll( const logsquirl::vector<char>& block, LineLength length,
-                 const FastLinePositionArray& linePosition, QTextCodec* encoding )
+    // Atomically add a block parsed beforehand to all the existing
+    // indexing data: blockSize bytes more are indexed, and fullDigest, when
+    // there is one, is the digest of every byte indexed so far.
+    void addAll( qint64 blockSize, LineLength length, const FastLinePositionArray& linePosition,
+                 QTextCodec* encoding, std::optional<quint64> fullDigest )
     {
-        data_->addAll( block, length, linePosition, encoding );
+        data_->addAll( blockSize, length, linePosition, encoding, fullDigest );
+    }
+
+    // Hands the digests of the bytes indexed so far to an indexing run, which
+    // goes on building them outside the lock, and hands them back with
+    // returnDigests() once it is done. Clearing the indexing data meanwhile
+    // leaves digests of nothing to go on from.
+    IndexedBytesDigests takeDigests()
+    {
+        return data_->takeDigests();
+    }
+
+    void returnDigests( IndexedBytesDigests&& digests )
+    {
+        data_->returnDigests( std::move( digests ) );
     }
 
     void setHeaderHash( quint64 digest, qint64 size )
@@ -170,6 +205,18 @@ public:
         data_->hash_.tailSize = size;
         data_->hash_.tailOffset = offset;
         data_->hash_.tailDigest = digest;
+    }
+
+    // The modification time the Log File had when its bytes were last
+    // indexed, or checked in full; invalid when that is not known.
+    QDateTime getIndexedModificationTime() const
+    {
+        return data_->indexedModificationTime_;
+    }
+
+    void setIndexedModificationTime( const QDateTime& modificationTime )
+    {
+        data_->indexedModificationTime_ = modificationTime;
     }
 
     int getProgress() const
@@ -223,6 +270,8 @@ public:
     using ConstAccessor = IndexingDataAccessor<const IndexingData*, SharedLock>;
     using MutateAccessor = IndexingDataAccessor<IndexingData*, UniqueLock>;
 
+    IndexingData();
+
 private:
     qint64 getIndexedSize() const;
 
@@ -248,8 +297,11 @@ private:
 
     // Atomically add to all the existing
     // indexing data.
-    void addAll( const logsquirl::vector<char>& block, LineLength length,
-                 const FastLinePositionArray& linePosition, QTextCodec* encoding );
+    void addAll( qint64 blockSize, LineLength length, const FastLinePositionArray& linePosition,
+                 QTextCodec* encoding, std::optional<quint64> fullDigest );
+
+    IndexedBytesDigests takeDigests();
+    void returnDigests( IndexedBytesDigests&& digests );
 
     // Completely clear the indexing data.
     void clear( const IndexingPolicy& policy );
@@ -282,6 +334,8 @@ private:
 
     FileDigest hashBuilder_;
     IndexedHash hash_;
+    HeaderAndTailDigests headerAndTailDigests_;
+    QDateTime indexedModificationTime_;
 
     QTextCodec* encodingGuess_{};
     QTextCodec* encodingForced_{};
@@ -295,14 +349,19 @@ private:
 struct IndexingState {
 
     EncodingParameters encodingParams;
+    // Where the Log Line running out of the blocks stitched so far starts,
+    // and how many spaces its tabs widen it by so far.
     OffsetInFile::UnderlyingType pos{};
-    LineLength::UnderlyingType max_length{};
-    LineLength::UnderlyingType additional_spaces{};
-    OffsetInFile::UnderlyingType end{};
+    std::int64_t additional_spaces{};
+    std::int64_t max_length{};
     OffsetInFile::UnderlyingType file_size{};
 
     QTextCodec* encodingGuess{};
     QTextCodec* fileTextCodec{};
+
+    // Taken from the indexing data when the run starts, and built on as
+    // blocks are parsed.
+    std::optional<IndexedBytesDigests> digests;
 };
 
 using OperationResult = std::variant<bool, MonitoredFileStatus>;
@@ -339,6 +398,25 @@ public:
         return bytesIndexed_.load();
     }
 
+    // The size of the blocks a Log File is read and parsed in.
+    static constexpr qint64 DefaultBlockSize = 5 * 1024 * 1024;
+
+    // Sets the size of the blocks the Log File is read and parsed in. Only
+    // tests pick another than the default, tiny ones, so that many Log Lines
+    // cross from one block into the next.
+    void setBlockSize( qint64 blockSize )
+    {
+        blockSize_ = blockSize;
+    }
+
+    // How many block buffers the last indexing pass of this operation
+    // allocated: they are reused from one block to the next, and no more are
+    // allocated than the read buffer holds.
+    qint64 blockBuffersAllocated() const
+    {
+        return blockBuffersAllocated_.load();
+    }
+
 Q_SIGNALS:
     void indexingProgressed( int );
     // failure describes what went wrong when status is Failed, and is empty
@@ -357,9 +435,6 @@ protected:
     // Failed.
     virtual OperationResult reportFailure( const QString& failure );
 
-    using BlockBuffer = logsquirl::vector<char>;
-    using BlockData = std::pair<OffsetInFile::UnderlyingType, BlockBuffer*>;
-
     // Returns the total size indexed
     // Modify the passed linePosition and maxLength
     void doIndex( OffsetInFile initialPosition );
@@ -370,19 +445,36 @@ protected:
     const IndexingPolicy indexingPolicy_;
 
 private:
-    FastLinePositionArray parseDataBlock( OffsetInFile::UnderlyingType blockBegining,
-                                          const BlockBuffer& block, IndexingState& state ) const;
+    void guessEncoding( const char* bytes, std::size_t size, IndexingState& state ) const;
 
-    void guessEncoding( const BlockBuffer& block, IndexingData::MutateAccessor& scopedAccessor,
-                        IndexingState& state ) const;
+    struct HeaderAndTail {
+        // Nothing when the header recorded already is a whole block, which
+        // appending cannot change.
+        std::optional<RangeDigest> header;
+        RangeDigest tail;
+    };
 
-    // The next block of the file for the indexing graph, with the time spent
-    // reading it added to ioDuration; nothing once the file is read, reading
-    // fails or the indexing is interrupted.
-    std::optional<BlockData> readNextBlock( QFile& file, std::chrono::microseconds& ioDuration );
-    void indexNextBlock( IndexingState& state, const BlockData& blockData );
+    HeaderAndTail recordHeaderAndTail( QFile& file, qint64 end, HeaderAndTailDigests& digests,
+                                       bool hasWholeBlockHeader ) const;
+
+    // The next block of the file for the indexing graph, from the pool, with
+    // the time spent reading it added to ioDuration; nothing once the file is
+    // read, reading fails or the indexing is interrupted. The encoding is
+    // detected from the first block.
+    indexing_blocks::IndexingBlock* readNextBlock( QFile& file,
+                                                   indexing_blocks::BlockReading& reading,
+                                                   indexing_blocks::IndexingBlockPool& pool,
+                                                   IndexingState& state,
+                                                   std::chrono::microseconds& ioDuration );
+    // Stitches a block parsed on its own to the blocks before it and
+    // publishes it to the indexing data, in file order. Only publishing takes
+    // the exclusive index lock: reading Log Lines waits for no more than the
+    // block's offsets being appended.
+    void indexNextBlock( IndexingState& state, const indexing_blocks::IndexingBlock& block );
 
     std::atomic<qint64> bytesIndexed_{ 0 };
+    std::atomic<qint64> blockBuffersAllocated_{ 0 };
+    qint64 blockSize_ = DefaultBlockSize;
 };
 
 class FullIndexOperation : public IndexOperation {

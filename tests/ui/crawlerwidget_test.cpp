@@ -28,6 +28,7 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QTextCodec>
 #include <QTimer>
 #include <qglobal.h>
 #include <qnamespace.h>
@@ -36,12 +37,15 @@
 #include "logformatcatalog.h"
 #include "savedsearches.h"
 #include "session.h"
+#include "sessioninfo.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
 #include "logdata.h"
 #include "logfiltereddata.h"
 
+#include "abstractlogview.h"
+#include "chartpanel.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
@@ -52,6 +56,8 @@
 #include "logformatdefinition.h"
 #include "logtableview.h"
 #include "shortcuts.h"
+#include "textviewscrolling.h"
+
 #include "theme.h"
 
 static const qint64 SL_NB_LINES = 100LL;
@@ -83,6 +89,25 @@ bool generateDataFiles( QTemporaryFile& file )
 } // namespace
 
 struct CrawlerWidgetPrivate {};
+
+template <>
+struct TextViewScrolling::access_by<CrawlerWidgetPrivate> {
+    // Whether the Visual Lines of the bottom lines are kept from the last
+    // count, to be extended when lines are appended.
+    static bool bottomLinesKept( const TextViewScrolling& scrolling )
+    {
+        return scrolling.bottomLines_.has_value();
+    }
+};
+
+template <>
+struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
+    static bool bottomLinesKept( const AbstractLogView& view )
+    {
+        return TextViewScrolling::access_by<CrawlerWidgetPrivate>::bottomLinesKept(
+            view.scrolling_ );
+    }
+};
 
 template <>
 struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
@@ -379,6 +404,27 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return !crawler->stopButton_->isHidden();
     }
 
+    bool mainViewKeepsBottomLines() const
+    {
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::bottomLinesKept(
+            *crawler->logMainView_ );
+    }
+
+    // What the user does by hand: shows the chart and adds a series counting
+    // the Log Lines that match pattern.
+    void showChartCounting( const QString& pattern )
+    {
+        crawler->chartPanel_->show();
+        crawler->chartPanel_->addFilterFrequencySeries( { pattern } );
+    }
+
+    // The points the chart shows for its first series.
+    qsizetype chartPoints() const
+    {
+        const auto series = crawler->chartPanel_->seriesDefinitions();
+        return series.isEmpty() ? 0 : series.front().points.size();
+    }
+
     void clickSearchDefaultButtons()
     {
         QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
@@ -584,6 +630,100 @@ SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui]
             THEN( "the Marks are gone" )
             {
                 REQUIRE_FALSE( crawlerVisitor.isMarked( 50_lnum ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Log File growing under an unchanged Encoding keeps what scrolling counted",
+          "[ui][encoding]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "growing.log" );
+    QByteArray content;
+    for ( int i = 0; i < SL_NB_LINES; i++ ) {
+        content += QString( "LOGDATA is a part of logsquirl, this is line %1\n" )
+                       .arg( i, 6, 10, QChar( '0' ) )
+                       .toUtf8();
+    }
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        REQUIRE( file.write( content ) == content.size() );
+    }
+
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+    crawlerVisitor.showSized();
+
+    WHEN( "Log Lines are appended to the Log File" )
+    {
+        REQUIRE( fileWatch->grow( path, "one more Log Line\nand another\n" ) );
+        REQUIRE( waitUiState( [ & ]() {
+            return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES + 2
+                   && crawlerVisitor.isLoadingFinished();
+        } ) );
+        QCoreApplication::processEvents();
+
+        THEN( "the main view keeps the Visual Lines counted for its bottom, as nothing was "
+              "decoded differently" )
+        {
+            REQUIRE( crawlerVisitor.mainViewKeepsBottomLines() );
+        }
+    }
+}
+
+SCENARIO( "The chart extracts its points again under a changed Encoding", "[ui][encoding][chart]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "encoded.log" );
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        for ( int i = 0; i < SL_NB_LINES; i++ ) {
+            file.write( QByteArray( "caf\xC3\xA9 order " ) + QByteArray::number( i ) + "\n" );
+        }
+    }
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+    crawlerVisitor.showSized();
+
+    GIVEN( "a chart counting the Log Lines that read an accented word decoded as UTF-8" )
+    {
+        crawlerVisitor.crawler->setEncoding( QTextCodec::codecForName( "UTF-8" )->mibEnum() );
+        crawlerVisitor.showChartCounting( QString::fromUtf8( "caf\xC3\xA9" ) );
+        REQUIRE(
+            waitUiState( [ & ]() { return crawlerVisitor.chartPoints() == SL_NB_LINES; }, 20000 ) );
+
+        WHEN( "the Log File is displayed as ISO-8859-1, where none reads so" )
+        {
+            crawlerVisitor.crawler->setEncoding(
+                QTextCodec::codecForName( "ISO-8859-1" )->mibEnum() );
+
+            THEN( "the chart drops the points extracted under the old Encoding" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ]() {
+                        return crawlerVisitor.isLoadingFinished()
+                               && crawlerVisitor.chartPoints() == 0;
+                    },
+                    20000 ) );
             }
         }
     }
@@ -2205,6 +2345,143 @@ SCENARIO( "A changed font or shortcut reaches every open Log File", "[ui][settin
             {
                 REQUIRE( drawsInAssembledFont( background.textView(), openedSize ) );
                 REQUIRE( allAlive( shortcutsBefore ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// The tabs of one window restored from the Session info, as the main window
+// restores them at startup: a Crawler Widget per Log File, in tab order.
+struct RestoredWindow {
+    // Before the Crawler Widgets, which it outlives.
+    std::shared_ptr<Session> appSession;
+    std::unique_ptr<WindowSession> window;
+    std::vector<std::unique_ptr<CrawlerWidget>> tabs;
+
+    // Restores the window with these Log Files and view contexts, the last one
+    // its current tab. Building a Session reads the settings store again, so
+    // the Session info is written after it.
+    RestoredWindow( const QString& windowId,
+                    const std::vector<std::pair<QString, QString>>& openFiles )
+        : appSession( std::make_shared<Session>( testSettingsPolicies(),
+                                                 std::make_shared<LogFormatCatalog>() ) )
+    {
+        std::vector<SessionInfo::OpenFile> saved;
+        for ( const auto& [ fileName, viewContext ] : openFiles ) {
+            saved.emplace_back( fileName, 0, viewContext );
+        }
+        auto& readAtStartup = SessionInfo::get();
+        readAtStartup.add( windowId );
+        readAtStartup.setOpenFiles( windowId, saved );
+
+        window = std::make_unique<WindowSession>( appSession, windowId, 0 );
+        int currentFileIndex = -1;
+        window->restore(
+            [ this ]( const ViewBuild& build ) {
+                tabs.emplace_back( new CrawlerWidget( build ) );
+                return tabs.back().get();
+            },
+            &currentFileIndex );
+        REQUIRE( tabs.size() == openFiles.size() );
+    }
+
+    ~RestoredWindow()
+    {
+        tabs.clear();
+        // Leave the in-memory Session info as the settings store has it.
+        SessionInfo::getSynced();
+    }
+
+    RestoredWindow( const RestoredWindow& ) = delete;
+    RestoredWindow& operator=( const RestoredWindow& ) = delete;
+};
+
+} // namespace
+
+SCENARIO( "A restored tab whose Log File loads after the current one shows what was saved for it",
+          "[ui][session]" )
+{
+    const auto windowId = QStringLiteral( "crawlerwidget_test_window_300" );
+    QTemporaryFile marked{ "crawler_test_marked_XXXXXX" };
+    QTemporaryFile current{ "crawler_test_current_XXXXXX" };
+    REQUIRE( generateDataFiles( marked ) );
+    REQUIRE( generateDataFiles( current ) );
+
+    // What was saved for the Log File in an earlier run: two Marks and a Search
+    // that matches case.
+    const auto savedContext = [ & ] {
+        Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+        CrawlerWidgetVisitor earlier;
+        earlier.crawler.reset( static_cast<CrawlerWidget*>(
+            session.open( marked.fileName(),
+                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        REQUIRE( waitUiState( [ & ] { return earlier.isLoadingFinished(); } ) );
+        earlier.markLogLine( 3_lnum );
+        earlier.markLogLine( 7_lnum );
+        earlier.enableCaseSensitiveSearch();
+        REQUIRE( earlier.isMarked( 3_lnum ) );
+        return earlier.crawler->context()->toString();
+    }();
+
+    // The tab of the marked Log File, not the current one.
+    const auto activate = []( RestoredWindow& restored ) {
+        CrawlerWidgetVisitor tab;
+        tab.crawler = std::move( restored.tabs.front() );
+        restored.window->startLoading( tab.crawler.get() );
+        return tab;
+    };
+
+    GIVEN( "a Session restored with that Log File in a tab that is not the current one" )
+    {
+        RestoredWindow restored{
+            windowId, { { marked.fileName(), savedContext }, { current.fileName(), {} } }
+        };
+
+        WHEN( "its tab is activated" )
+        {
+            auto tab = activate( restored );
+            REQUIRE( waitUiState( [ & ] {
+                return tab.isLoadingFinished() && tab.getLogNbLines().get() == SL_NB_LINES;
+            } ) );
+
+            THEN( "it shows the Log File with its Marks and its Search settings" )
+            {
+                REQUIRE( tab.isMarked( 3_lnum ) );
+                REQUIRE( tab.isMarked( 7_lnum ) );
+                REQUIRE_FALSE( tab.isMarked( 5_lnum ) );
+                REQUIRE( tab.matchCaseChecked() );
+            }
+
+            THEN( "a Search runs over the whole Log File" )
+            {
+                tab.render();
+                tab.clearSearchPattern();
+                tab.setSearchPattern( "this is line" );
+                tab.runSearch();
+                REQUIRE( waitUiState(
+                    [ & ] { return tab.getLogFilteredNbLines().get() == SL_NB_LINES; } ) );
+            }
+        }
+
+        WHEN( "the Session is saved and restored again before that Log File has loaded" )
+        {
+            const auto savedAgain = restored.tabs.front()->context()->toString();
+            restored.tabs.clear();
+            RestoredWindow restoredAgain{
+                windowId, { { marked.fileName(), savedAgain }, { current.fileName(), {} } }
+            };
+            auto tab = activate( restoredAgain );
+            REQUIRE( waitUiState( [ & ] {
+                return tab.isLoadingFinished() && tab.getLogNbLines().get() == SL_NB_LINES;
+            } ) );
+
+            THEN( "its Marks were kept" )
+            {
+                REQUIRE( tab.isMarked( 3_lnum ) );
+                REQUIRE( tab.isMarked( 7_lnum ) );
+                REQUIRE( tab.matchCaseChecked() );
             }
         }
     }

@@ -169,8 +169,8 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
     // would, so its late results don't land on top of this cache hit.
     invalidateCurrentRun();
 
+    resetResults();
     matches_ = matches;
-    arrivedMatches_ = SearchResultArray();
     maxLength_ = maxLength;
     nbLinesProcessed_ = LinesCount( endLine.get() );
     currentSearchKey_ = makeCacheKey( pattern, startLine, endLine );
@@ -240,6 +240,11 @@ SearchSession::State SearchSession::state() const
 const SearchResultArray& SearchSession::matches() const
 {
     return matches_;
+}
+
+const SearchResultArray* SearchSession::newMatches() const
+{
+    return matchesReplaced_ ? nullptr : &newMatches_;
 }
 
 LineLength SearchSession::maxLength() const
@@ -315,19 +320,28 @@ void SearchSession::resetResults()
 {
     matches_ = SearchResultArray();
     arrivedMatches_ = SearchResultArray();
+    newMatches_ = SearchResultArray();
+    matchesReplaced_ = true;
     maxLength_ = 0_length;
     nbLinesProcessed_ = 0_lcount;
 }
 
-void SearchSession::applyIncomingResults( const SearchResults& results )
+void SearchSession::applyIncomingResults( SearchResults results )
 {
+    // Only as many set operations as the batch has containers, not as many
+    // as the Matches found so far.
+    results.newMatches -= matches_;
     arrivedMatches_ |= results.newMatches;
     maxLength_ = results.maxLength;
     nbLinesProcessed_ = results.processedLines;
+
+    const auto matchCount = LinesCount( matches_.cardinality() + arrivedMatches_.cardinality() );
+    ScopedLock lock( stateMutex_ );
+    state_.matchCount = matchCount;
 }
 
-void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
-                                            LineNumber /*initialLine*/, SearchId searchId )
+void SearchSession::handleSearchProgressed( int progress, LineNumber /*initialLine*/,
+                                            SearchId searchId )
 {
     if ( searchId != currentSearchId_ ) {
         // Progress from a run we've since superseded; its results are stale.
@@ -338,7 +352,6 @@ void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
 
     {
         ScopedLock lock( stateMutex_ );
-        state_.matchCount = nbMatches;
         state_.progress = progress;
     }
 
@@ -346,9 +359,8 @@ void SearchSession::handleSearchProgressed( LinesCount nbMatches, int progress,
     Q_EMIT resultsReady();
 }
 
-void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatches,
-                                          LineNumber /*initialLine*/, bool interrupted,
-                                          const QString& failure )
+void SearchSession::handleSearchFinished( SearchId searchId, LineNumber /*initialLine*/,
+                                          bool interrupted, const QString& failure )
 {
     // Every request()/completeFromCache() that reached the worker did
     // exactly one attachReader(); this is its matching detachReader(),
@@ -402,7 +414,6 @@ void SearchSession::handleSearchFinished( SearchId searchId, LinesCount nbMatche
 
     {
         ScopedLock lock( stateMutex_ );
-        state_.matchCount = nbMatches;
         state_.progress = 100;
         state_.phase = Phase::Complete;
     }
@@ -426,7 +437,17 @@ void SearchSession::publishArrivedMatches()
         return;
     }
     matches_ |= arrivedMatches_;
-    arrivedMatches_ = SearchResultArray();
+    if ( matchesReplaced_ ) {
+        // All of matches_ tell what changed; no need to keep these apart.
+        arrivedMatches_ = SearchResultArray();
+    }
+    else if ( newMatches_.isEmpty() ) {
+        newMatches_ = std::exchange( arrivedMatches_, SearchResultArray() );
+    }
+    else {
+        newMatches_ |= arrivedMatches_;
+        arrivedMatches_ = SearchResultArray();
+    }
 }
 
 void SearchSession::notifyStateChanged()
@@ -434,4 +455,6 @@ void SearchSession::notifyStateChanged()
     publishArrivedMatches();
     stateChangePending_ = false;
     Q_EMIT stateChanged( state() );
+    newMatches_ = SearchResultArray();
+    matchesReplaced_ = false;
 }

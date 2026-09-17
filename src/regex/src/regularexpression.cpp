@@ -136,6 +136,10 @@ RegularExpression::RegularExpression( const RegularExpressionPattern& pattern, R
         isValid_ = hsExpression_.isValid();
         errorString_ = hsExpression_.errorString();
 
+        if ( engine_ != RegexpEngine::Vectorscan ) {
+            qtRegexps_ = compileRegularExpressions( subPatterns_ );
+        }
+
     } catch ( std::exception& err ) {
         isValid_ = false;
         errorString_ = err.what();
@@ -193,12 +197,10 @@ PatternMatcher::PatternMatcher( const RegularExpression& expression )
     : isInverse_( expression.isInverse_ )
     , isBooleanCombination_( expression.isBooleanCombination_ )
     , mainPatternId_( expression.subPatterns_.front().id() )
-    , matcher_( expression.hsExpression_.createMatcher() )
+    , matcher_( expression.engine_ == RegexpEngine::Vectorscan
+                    ? expression.hsExpression_.createMatcher()
+                    : MatcherVariant{ DefaultRegularExpressionMatcher( expression.qtRegexps_ ) } )
 {
-    const auto useVectorscanEngine = expression.engine_ == RegexpEngine::Vectorscan;
-    if ( !useVectorscanEngine ) {
-        matcher_ = DefaultRegularExpressionMatcher( expression.subPatterns_ );
-    }
 
     if ( expression.isBooleanCombination_ ) {
         evaluator_ = std::make_unique<BooleanExpressionEvaluator>(

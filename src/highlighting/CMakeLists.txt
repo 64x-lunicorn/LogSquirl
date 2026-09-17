@@ -13,10 +13,6 @@ add_library(
 
 set_target_properties(logsquirl_highlighting PROPERTIES AUTOMOC ON)
 
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_highlighting PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
-
 target_include_directories(logsquirl_highlighting PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(
   logsquirl_highlighting

@@ -20,6 +20,7 @@
 #ifndef SESSION_H
 #define SESSION_H
 
+#include <deque>
 #include <functional>
 #include <memory>
 #include <string>
@@ -29,6 +30,7 @@
 
 #include <QByteArray>
 #include <QDateTime>
+#include <QMetaObject>
 
 #include "changed.h"
 #include "log.h"
@@ -109,8 +111,23 @@ public:
     // saved Searches, whom to report a change to and, when one is given, the
     // view context to restore. Opening a file and restoring a Session both
     // come here.
+    //
+    // A Log File opened with Loading::Queued is not loaded yet: it waits for
+    // its turn behind the Log Files queued before it, and starts loading once
+    // no Log File the Session opened is loading any longer -- at once, if none
+    // is. Restoring a Session queues every Log File but the current tab's, so
+    // that they do not compete with it for the disk and the threads (#300).
+    // Its views are built all the same, and what they are asked before it
+    // loads -- a Search, the Marks saved with the Session -- waits for that
+    // load, as it waits for any first load.
+    enum class Loading { Now, Queued };
     ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
-                         const QString& viewContext = {} );
+                         const QString& viewContext = {}, Loading loading = Loading::Now );
+
+    // Starts loading the Log File of these views now if it is still queued,
+    // ahead of the Log Files queued before it: its tab was activated. Does
+    // nothing for a Log File that is loading or has loaded.
+    void startLoading( const ViewInterface* view );
 
     // Close the file identified by the view passed
     // Throw an exception if it does not exist.
@@ -229,11 +246,26 @@ public:
     }
 
 private:
+    // Where the first load of an open Log File stands. Only the first load
+    // counts: a Log File growing or reloaded later holds nobody up.
+    enum class FirstLoad { Queued, Loading, Finished };
+
     struct OpenFile {
         QString fileName;
         std::shared_ptr<OpenLogFile> openLogFile;
         ViewInterface* view;
+        FirstLoad firstLoad = FirstLoad::Queued;
+        // Hears of the end of the first load; disconnected once it did.
+        QMetaObject::Connection firstLoadFinished;
     };
+
+    // Starts the first load of an open Log File.
+    void startFirstLoad( OpenFile& file );
+    // The first load of an open Log File finished.
+    void finishFirstLoad( const ViewInterface* view );
+    // Starts the Log File first in the queue, if no first load is running
+    // and the queue is not held.
+    void startNextQueuedLoad();
 
     void applySettingsChange();
     void applyFontChange();
@@ -269,6 +301,14 @@ private:
 
     // Told of every settings change.
     std::vector<SessionWindow*> windows_;
+
+    // The views of the Log Files opened with Loading::Queued that have not
+    // started loading, in the order they were opened.
+    std::deque<const ViewInterface*> queuedLoads_;
+    // While a window restores its Log Files, none of them starts loading from
+    // the queue: the current tab's has to start first, whatever its place in
+    // the window.
+    int queueHolds_ = 0;
 
     bool exitRequested_ = false;
 
@@ -383,7 +423,18 @@ public:
     // (see ::open)
     // returns a vector of pairs (file_name, view) and the index of the
     // current file (or -1 if none).
+    //
+    // Only the current file starts loading; the others are queued and load
+    // one after another once it has loaded, unless startLoading() is called
+    // for one first (#300).
     OpenedFilesList restore( const ViewFactory& viewFactory, int* currentFileIndex );
+
+    // Starts loading a restored Log File that is still queued, now: its tab
+    // was activated. See the Session's own.
+    void startLoading( const ViewInterface* view )
+    {
+        appSession_->startLoading( view );
+    }
 
     // Get the geometry string from persistent storage for this session.
     void restoreGeometry( QByteArray* geometry ) const;

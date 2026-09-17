@@ -495,8 +495,7 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     auto context = std::make_shared<const CrawlerWidgetContext>(
         sizes(), ( !matchCaseButton_->isChecked() ), searchRefreshButton_->isChecked(),
         logMainView_->isFollowEnabled(), useRegexpButton_->isChecked(), inverseButton_->isChecked(),
-        booleanButton_->isChecked(), openLogFile_->filteredData()->getMarks(), chartJson,
-        chartPanel_->isVisible() );
+        booleanButton_->isChecked(), openLogFile_->marks(), chartJson, chartPanel_->isVisible() );
 
     return static_cast<std::shared_ptr<const ViewContextInterface>>( context );
 }
@@ -691,8 +690,10 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         // Recompute the content of the filtered window.
         filteredView_->updateData();
 
-        // Update the match overview
-        overview_.updateData( openLogFile_->logData()->getNbLine() );
+        // Update the match overview: while the Search runs, at a bounded rate.
+        overview_.updateData( openLogFile_->logData()->getNbLine(),
+                              isDone ? Overview::UpdatePace::Now
+                                     : Overview::UpdatePace::WhileSearching );
 
         // New data found icon: fires for a continuation (autorefresh
         // extending the range) and equally for a fresh search whose
@@ -722,7 +723,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         filteredView_->selectAndDisplayLine( currentLineNumber_ );
         // The View Set already handed this view the Search Limits, which are
         // the Open Log File's; only the redraw handing them over did is left.
-        filteredView_->forceRefresh();
+        filteredView_->updateDecorations();
     }
 }
 
@@ -898,6 +899,7 @@ void CrawlerWidget::applyDecodingPolicyChange()
 
     // The Filtered Views of kept Searches included.
     viewSet_.rereadLogLines();
+    restartChartExtraction();
 }
 
 void CrawlerWidget::enteringQuickFind()
@@ -934,7 +936,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
     // FIXME, handle topLine
     // logMainView_->updateData( logData_, topLine );
-    logMainView_->updateData();
+    logMainView_->updateData( load.onlyAppended ? LinesChange::Appended : LinesChange::Any );
 
     // The Open Log File has refreshed the Search already; one it started
     // again over the truncated Log File is shown like any new Search.
@@ -1561,12 +1563,19 @@ void CrawlerWidget::setup()
     connect( chartPanel_, &ChartPanel::lineSelected, this,
              [ this ]( LineNumber line ) { presentation_->showLogLine( line ); } );
 
-    // Refresh chart data when the file finishes loading.
-    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this, [ this ]( const auto& ) {
-        if ( chartPanel_->isVisible() ) {
-            chartPanel_->extractData();
-        }
-    } );
+    // Refresh chart data when the file finishes loading: only the appended
+    // Log Lines, unless the Log File was truncated or loaded from its start.
+    connect( openLogFile_.get(), &OpenLogFile::truncated, chartPanel_,
+             &ChartPanel::logFileTruncated );
+    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
+             [ this ]( const OpenLogFile::LoadFinished& load ) {
+                 if ( load.fromStart ) {
+                     chartPanel_->logFileTruncated();
+                 }
+                 if ( chartPanel_->isVisible() ) {
+                     chartPanel_->extractData();
+                 }
+             } );
 
     // The views just built start with everything they show, color and
     // search under, before any of them is painted. No view reads these
@@ -2145,12 +2154,31 @@ void CrawlerWidget::updateEncoding()
     QString encodingPrefix = encodingMib_ ? tr( "Displayed as %1" ) : tr( "Detected as %1" );
     encodingText_ = encodingPrefix.arg( textCodec->name().constData() );
 
+    // Asked after every load: a Log File that only grew keeps what its views
+    // read and counted, and its chart what it extracted.
+    if ( displayedEncodingMib_ == textCodec->mibEnum() ) {
+        return;
+    }
+    displayedEncodingMib_ = textCodec->mibEnum();
+
     openLogFile_->logData()->interruptLoading();
 
     openLogFile_->logData()->setDisplayEncoding( textCodec->name().constData() );
-    logMainView_->forceRefresh();
     openLogFile_->filteredData()->setDisplayEncoding( textCodec->name().constData() );
-    filteredView_->forceRefresh();
+    // The Filtered Views of kept Searches included.
+    viewSet_.rereadLogLines();
+    restartChartExtraction();
+}
+
+void CrawlerWidget::restartChartExtraction()
+{
+    // The reload another Encoding needs is not a load from the start, which
+    // restarts the extraction by itself; another Decoding Policy reloads
+    // nothing at all.
+    chartPanel_->logFileTruncated();
+    if ( chartPanel_->isVisible() ) {
+        chartPanel_->extractData();
+    }
 }
 
 // Change the respective size of the two views

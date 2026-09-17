@@ -401,3 +401,126 @@ SCENARIO( "A Search whose block cannot be read fails", "[searchsession]" )
         }
     }
 }
+
+SCENARIO( "The match count stays exact while a Search continues over a growing Log File",
+          "[searchsession]" )
+{
+    auto policies = testSettingsPolicies();
+    policies.search.readBufferSizeLines = 4;
+    // The last Log Line is a match to begin with (27 is "fizz"), and so is the
+    // last of every three Log Lines appended below.
+    InMemoryBlockSource blockSource( numberedLines( 28 ) );
+    SearchSession session( blockSource, policies.search );
+
+    // Whether a reported count ever differed from the Matches reported with it.
+    bool countDiffered = false;
+    QObject::connect( &session, &SearchSession::stateChanged, &session,
+                      [ & ]( const SearchSession::State& state ) {
+                          if ( state.matchCount.get() != session.matches().cardinality() ) {
+                              countDiffered = true;
+                          }
+                      } );
+
+    const RegularExpressionPattern pattern( "fizz" );
+    session.request( pattern, 0_lnum, 28_lnum );
+    REQUIRE( waitUntilSettled( session ) );
+    REQUIRE( session.state().matchCount == 10_lcount );
+
+    WHEN( "Log Lines ending on a match are appended several times" )
+    {
+        auto nbLines = 28;
+        for ( auto growth = 0; growth < 5; ++growth ) {
+            blockSource.appendLines( numberedLines( 3, nbLines ) );
+            nbLines += 3;
+            session.request( pattern, 0_lnum, LineNumber( static_cast<uint64_t>( nbLines ) ) );
+            REQUIRE( session.state().isContinuation );
+            REQUIRE( waitUntilSettled( session ) );
+
+            // Each growth adds exactly one "fizz" Log Line: the last one.
+            const auto state = session.state();
+            REQUIRE( state.phase == Phase::Complete );
+            REQUIRE( session.matches() == fizzLines( nbLines ) );
+            REQUIRE( state.matchCount == LinesCount( fizzLines( nbLines ).cardinality() ) );
+        }
+
+        THEN( "every count reported agreed with the Matches reported with it" )
+        {
+            QTest::qWait( 250 );
+            REQUIRE_FALSE( countDiffered );
+        }
+    }
+}
+
+SCENARIO( "A parallel Search interrupted mid-way continues without skipping a Log Line",
+          "[searchsession]" )
+{
+    auto policies = testSettingsPolicies();
+    policies.search.useParallelSearch = true;
+    policies.search.threadPoolSize = 4;
+    policies.search.readBufferSizeLines = 10;
+    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    SearchSession session( blockSource, policies.search );
+
+    // Whether a reported count ever differed from the Matches reported with it.
+    bool countDiffered = false;
+    QObject::connect( &session, &SearchSession::stateChanged, &session,
+                      [ & ]( const SearchSession::State& state ) {
+                          if ( state.matchCount.get() != session.matches().cardinality() ) {
+                              countDiffered = true;
+                          }
+                      } );
+
+    const RegularExpressionPattern pattern( "fizz" );
+
+    GIVEN( "a Search stopped while its 13th block read is held" )
+    {
+        blockSource.holdReadingFromBlock( 12 );
+        session.request( pattern, 0_lnum, 300_lnum );
+        blockSource.waitUntilReadingHeld();
+        // The twelve blocks read before it are searched and combined, in
+        // whatever order their matching finishes.
+        REQUIRE( QTest::qWaitFor( [ &session ] { return session.processedLines() == 120_lcount; },
+                                  10000 ) );
+
+        session.stop();
+        blockSource.releaseReading();
+        REQUIRE( QTest::qWaitFor( [ &blockSource ] { return blockSource.attachedReaders() == 0; },
+                                  10000 ) );
+        REQUIRE( session.state().phase == Phase::Interrupted );
+
+        const auto searchedBefore = session.processedLines();
+        REQUIRE( searchedBefore == 120_lcount );
+        const auto blocksBefore = blockSource.readBlocks().size();
+
+        WHEN( "it continues over Log Lines appended since" )
+        {
+            blockSource.appendLines( numberedLines( 30, 300 ) );
+            session.request( pattern, 0_lnum, 330_lnum );
+            REQUIRE( session.state().isContinuation );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "it finds every match once, and the count agrees with the Matches" )
+            {
+                const auto state = session.state();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( session.matches() == fizzLines( 330 ) );
+                REQUIRE( state.matchCount == LinesCount( fizzLines( 330 ).cardinality() ) );
+                REQUIRE( session.processedLines() == 330_lcount );
+                QTest::qWait( 250 );
+                REQUIRE_FALSE( countDiffered );
+            }
+
+            THEN( "it reads every Log Line from the last one searched before, each once" )
+            {
+                const auto blocks = blockSource.readBlocks();
+                REQUIRE( blocks.size() > blocksBefore );
+                auto next = LineNumber( searchedBefore.get() - 1 );
+                for ( auto block = blocksBefore; block < blocks.size(); ++block ) {
+                    REQUIRE( blocks[ block ].first == next );
+                    next = next + blocks[ block ].number;
+                }
+                REQUIRE( next.get() >= 330 );
+            }
+        }
+    }
+}

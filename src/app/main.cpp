@@ -75,7 +75,11 @@ const bool PersistentInfo::ForcePortable = true;
 const bool PersistentInfo::ForcePortable = false;
 #endif
 
-void setApplicationAttributes( bool enableQtHdpi, int scaleFactorRounding )
+// Nothing here reads a setting: a secondary instance sets these attributes
+// too, and it never loads the settings (#302). Qt 6 always scales for high
+// DPI, so the "enable high DPI" and "scale factor rounding" settings have
+// nothing left to set here.
+void setApplicationAttributes()
 {
     // When QNetworkAccessManager is instantiated it regularly starts polling
     // all network interfaces to see if anything changes and if so, what. This
@@ -89,9 +93,6 @@ void setApplicationAttributes( bool enableQtHdpi, int scaleFactorRounding )
     // - https://bugreports.qt.io/browse/QTBUG-46015
     qputenv( "QT_BEARER_POLL_TIMEOUT", QByteArray::number( std::numeric_limits<int>::max() ) );
 
-    Q_UNUSED( enableQtHdpi );
-    Q_UNUSED( scaleFactorRounding );
-
     QCoreApplication::setAttribute( Qt::AA_DontShowIconsInMenus );
 }
 
@@ -101,13 +102,26 @@ int main( int argc, char* argv[] )
     mi_process_init();
 #endif
 
-    const auto& config = Configuration::getSynced();
-    setApplicationAttributes( config.enableQtHighDpi(), config.scaleFactorRounding() );
+    setApplicationAttributes();
 
     LogSquirlApp app( argc, argv );
-
-    MainWindow::installLanguage( config.language() );
     CliParameters parameters( app );
+
+    // A secondary instance hands its Log Files over to the primary instance
+    // and exits. It needs none of what follows -- no settings, translations,
+    // crash handler, Log Format Catalog or file watcher -- so it checks first
+    // (#302).
+    if ( !parameters.multi_instance && app.isSecondary() ) {
+        const auto logLevel = static_cast<logging::LogLevel>( parameters.log_level );
+        logging::enableLogging( parameters.enable_logging, logLevel );
+        logging::enableFileLogging( parameters.log_to_file, logLevel );
+
+        LOG_INFO << "Found another logsquirl, pid " << app.primaryPid();
+        return app.handOverToPrimaryInstance( parameters.filenames );
+    }
+
+    const auto& config = Configuration::getSynced();
+    MainWindow::installLanguage( config.language() );
 
     const auto logLevel
         = static_cast<logging::LogLevel>( std::max( parameters.log_level, config.loggingLevel() ) );
@@ -115,6 +129,7 @@ int main( int argc, char* argv[] )
     logging::enableFileLogging( parameters.log_to_file || config.enableLogging(), logLevel );
 
     app.initCrashHandler();
+    app.prepareForMainWindows();
 
     auto maxConcurrency
         = tbb::global_control::active_value( tbb::global_control::max_allowed_parallelism );
@@ -151,104 +166,97 @@ int main( int argc, char* argv[] )
         QThreadPool::globalInstance()->setMaxThreadCount( static_cast<int>( maxConcurrency ) );
     }
 
-    if ( !parameters.multi_instance && app.isSecondary() ) {
-        LOG_INFO << "Found another logsquirl, pid " << app.primaryPid();
-        app.sendFilesToPrimaryInstance( parameters.filenames );
+    Theme::apply( config.style() );
+    Theme::followSystemColorScheme();
+
+    // Show a splash screen while the application is initialising.
+    QSplashScreen* splash = nullptr;
+    if ( config.showSplashScreen() ) {
+        constexpr int kSplashWidth = 420;
+        constexpr int kSplashHeight = 260;
+        constexpr int kIconSize = 96;
+
+        QPixmap splashPixmap( kSplashWidth, kSplashHeight );
+        splashPixmap.fill( QColor( "#282828" ) );
+
+        QPainter painter( &splashPixmap );
+        painter.setRenderHint( QPainter::Antialiasing );
+        painter.setRenderHint( QPainter::SmoothPixmapTransform );
+
+        // Draw the app icon centred near the top
+        const QPixmap icon( ":/images/logsquirl-logo.png" );
+        const auto scaled
+            = icon.scaled( kIconSize, kIconSize, Qt::KeepAspectRatio, Qt::SmoothTransformation );
+        painter.drawPixmap( ( kSplashWidth - kIconSize ) / 2, 36, scaled );
+
+        // App name
+        QFont nameFont( "Segoe UI", 24, QFont::DemiBold );
+        painter.setFont( nameFont );
+        painter.setPen( Qt::white );
+        painter.drawText( QRect( 0, 140, kSplashWidth, 36 ), Qt::AlignHCenter,
+                          QStringLiteral( "LogSquirl" ) );
+
+        // Version
+        QFont versionFont( "Segoe UI", 11 );
+        painter.setFont( versionFont );
+        painter.setPen( QColor( "#808080" ) );
+        painter.drawText( QRect( 0, 174, kSplashWidth, 20 ), Qt::AlignHCenter,
+                          QStringLiteral( "v%1" ).arg( logsquirlVersion() ) );
+
+        // Accent bar at the bottom
+        painter.fillRect( 0, kSplashHeight - 4, kSplashWidth, 4, QColor( "#2a82da" ) );
+
+        painter.end();
+
+        splash = new QSplashScreen( splashPixmap );
+        splash->show();
+        app.processEvents();
+    }
+
+    auto updateSplash = [ splash ]( const QString& message ) {
+        if ( splash ) {
+            splash->showMessage( message, Qt::AlignHCenter | Qt::AlignBottom, QColor( "#808080" ) );
+            QCoreApplication::processEvents();
+        }
+    };
+
+    updateSplash( QObject::tr( "Loading settings..." ) );
+
+    auto startNewSession = true;
+    MainWindow* mw = nullptr;
+
+    updateSplash( QObject::tr( "Restoring session..." ) );
+
+    if ( parameters.load_session
+         || ( parameters.filenames.empty() && !parameters.new_session
+              && config.loadLastSession() ) ) {
+        mw = app.reloadSession();
+        startNewSession = false;
     }
     else {
-        Theme::apply( config.style() );
-        Theme::followSystemColorScheme();
-
-        // Show a splash screen while the application is initialising.
-        QSplashScreen* splash = nullptr;
-        if ( config.showSplashScreen() ) {
-            constexpr int kSplashWidth = 420;
-            constexpr int kSplashHeight = 260;
-            constexpr int kIconSize = 96;
-
-            QPixmap splashPixmap( kSplashWidth, kSplashHeight );
-            splashPixmap.fill( QColor( "#282828" ) );
-
-            QPainter painter( &splashPixmap );
-            painter.setRenderHint( QPainter::Antialiasing );
-            painter.setRenderHint( QPainter::SmoothPixmapTransform );
-
-            // Draw the app icon centred near the top
-            const QPixmap icon( ":/images/logsquirl-logo.png" );
-            const auto scaled = icon.scaled( kIconSize, kIconSize, Qt::KeepAspectRatio,
-                                             Qt::SmoothTransformation );
-            painter.drawPixmap( ( kSplashWidth - kIconSize ) / 2, 36, scaled );
-
-            // App name
-            QFont nameFont( "Segoe UI", 24, QFont::DemiBold );
-            painter.setFont( nameFont );
-            painter.setPen( Qt::white );
-            painter.drawText( QRect( 0, 140, kSplashWidth, 36 ), Qt::AlignHCenter,
-                              QStringLiteral( "LogSquirl" ) );
-
-            // Version
-            QFont versionFont( "Segoe UI", 11 );
-            painter.setFont( versionFont );
-            painter.setPen( QColor( "#808080" ) );
-            painter.drawText( QRect( 0, 174, kSplashWidth, 20 ), Qt::AlignHCenter,
-                              QStringLiteral( "v%1" ).arg( logsquirlVersion() ) );
-
-            // Accent bar at the bottom
-            painter.fillRect( 0, kSplashHeight - 4, kSplashWidth, 4, QColor( "#2a82da" ) );
-
-            painter.end();
-
-            splash = new QSplashScreen( splashPixmap );
-            splash->show();
-            app.processEvents();
-        }
-
-        auto updateSplash = [ splash ]( const QString& message ) {
-            if ( splash ) {
-                splash->showMessage( message, Qt::AlignHCenter | Qt::AlignBottom,
-                                     QColor( "#808080" ) );
-                QCoreApplication::processEvents();
-            }
-        };
-
-        updateSplash( QObject::tr( "Loading settings..." ) );
-
-        auto startNewSession = true;
-        MainWindow* mw = nullptr;
-
-        updateSplash( QObject::tr( "Restoring session..." ) );
-
-        if ( parameters.load_session
-             || ( parameters.filenames.empty() && !parameters.new_session
-                  && config.loadLastSession() ) ) {
-            mw = app.reloadSession();
-            startNewSession = false;
-        }
-        else {
-            mw = app.newWindow();
-            mw->reloadGeometry();
-            mw->show();
-        }
-
-        if ( splash ) {
-            splash->finish( mw );
-            delete splash;
-        }
-
-        if ( parameters.window_width > 0 && parameters.window_height > 0 ) {
-            mw->resize( parameters.window_width, parameters.window_height );
-        }
-
-        for ( const auto& filename : parameters.filenames ) {
-            mw->loadInitialFile( filename, parameters.follow_file );
-        }
-
-        if ( startNewSession ) {
-            app.clearInactiveSessions();
-        }
-
-        app.startBackgroundTasks();
+        mw = app.newWindow();
+        mw->reloadGeometry();
+        mw->show();
     }
+
+    if ( splash ) {
+        splash->finish( mw );
+        delete splash;
+    }
+
+    if ( parameters.window_width > 0 && parameters.window_height > 0 ) {
+        mw->resize( parameters.window_width, parameters.window_height );
+    }
+
+    for ( const auto& filename : parameters.filenames ) {
+        mw->loadInitialFile( filename, parameters.follow_file );
+    }
+
+    if ( startNewSession ) {
+        app.clearInactiveSessions();
+    }
+
+    app.startBackgroundTasks();
 
     return app.exec();
 }

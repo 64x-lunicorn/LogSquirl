@@ -45,14 +45,13 @@ protected:
     {
         SearchResultArray matches;
         matches.add( uint64_t{ 3 } );
-        result.addAll( 10_length, matches, 1_lcount, 5_lcount );
+        result.addAll( 10_length, matches, 0_lnum, 5_lcount );
         throw std::runtime_error( "the Log File could not be read" );
     }
 };
 
 struct FinishedSearch {
     SearchId searchId;
-    LinesCount nbMatches;
     bool interrupted;
     QString failure;
 };
@@ -72,11 +71,11 @@ SCENARIO( "A Search that fails reports the failure as how it finished", "[search
                                       0_lnum,      LineNumber( 5 ), policies.search };
 
     std::optional<FinishedSearch> finished;
-    QObject::connect( &operation, &SearchOperation::searchFinished,
-                      [ &finished ]( SearchId searchId, LinesCount nbMatches, LineNumber,
-                                     bool interrupted, const QString& failure ) {
-                          finished = FinishedSearch{ searchId, nbMatches, interrupted, failure };
-                      } );
+    QObject::connect(
+        &operation, &SearchOperation::searchFinished,
+        [ &finished ]( SearchId searchId, LineNumber, bool interrupted, const QString& failure ) {
+            finished = FinishedSearch{ searchId, interrupted, failure };
+        } );
 
     SearchData searchData;
 
@@ -94,9 +93,9 @@ SCENARIO( "A Search that fails reports the failure as how it finished", "[search
 
         THEN( "what it found before failing is not kept" )
         {
-            REQUIRE( finished->nbMatches == 0_lcount );
-            REQUIRE( searchData.getNbMatches() == 0_lcount );
-            REQUIRE( searchData.takeCurrentResults().newMatches.isEmpty() );
+            const auto results = searchData.takeCurrentResults();
+            REQUIRE( results.newMatches.isEmpty() );
+            REQUIRE( results.processedLines == 0_lcount );
         }
     }
 }

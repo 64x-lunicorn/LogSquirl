@@ -217,7 +217,14 @@ void OverviewWidget::paintEvent( QPaintEvent* /* paintEvent */ )
     // We must be hidden until we have an Overview
     assert( overview_ != nullptr );
 
-    overview_->updateView( static_cast<unsigned>( height() ) );
+    // A recompute put off while a Search runs is painted once it is due.
+    const auto recomputeDue = overview_->updateView( static_cast<unsigned>( height() ) );
+    if ( recomputeDue.has_value() ) {
+        recomputeTimer_.start( static_cast<int>( recomputeDue->count() ), this );
+    }
+    else {
+        recomputeTimer_.stop();
+    }
 
     {
         QPainter painter( this );
@@ -314,7 +321,11 @@ void OverviewWidget::removeHighlight()
 
 void OverviewWidget::timerEvent( QTimerEvent* event )
 {
-    if ( event->timerId() == highlightTimer_.timerId() ) {
+    if ( event->timerId() == recomputeTimer_.timerId() ) {
+        recomputeTimer_.stop();
+        update();
+    }
+    else if ( event->timerId() == highlightTimer_.timerId() ) {
         LOG_DEBUG << "OverviewWidget::timerEvent";
         if ( highlightedTTL_ > 0 ) {
             --highlightedTTL_;

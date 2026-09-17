@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <qregularexpression.h>
 #include <qtextcodec.h>
 #include <string_view>
@@ -48,20 +49,48 @@
 #include <vector>
 
 #include <QFileInfo>
+#include <QtEndian>
 
 #include <simdutf.h>
 
+#include "ansicolorsequences.h"
 #include "containers.h"
 #include "linetypes.h"
 #include "log.h"
 #include "logfiltereddata.h"
+#include "sparselineread.h"
 
 #include "logdata.h"
 
 namespace {
-// What a Decoding Policy that hides ANSI color sequences removes from every
-// Log Line: the color (SGR) and erase-in-line sequences.
-constexpr char AnsiColorSequencePattern[] = "\\x1B\\[([0-9]{1,4}((;|:)[0-9]{1,3})*)?[mK]";
+
+// What a Log Line reads as when it cannot be read.
+constexpr std::string_view LineTooLongWarning = "LOGSQUIRL WARNING: this line is too long";
+constexpr std::string_view FileReadFailedWarning = "LOGSQUIRL WARNING: file read failed";
+constexpr std::string_view NotEnoughMemoryWarning = "LOGSQUIRL WARNING: not enough memory";
+constexpr std::string_view LinesNotReadWarning
+    = "LOGSQUIRL WARNING: failed to read some lines before this one";
+
+QString asQString( std::string_view warning )
+{
+    return QString::fromLatin1( warning.data(), static_cast<qsizetype>( warning.size() ) );
+}
+
+// A Log Line as getLineString() returns it, from its decoded text.
+QString chopCarriageReturn( QString&& lineData )
+{
+    if ( lineData.endsWith( QChar::CarriageReturn ) ) {
+        lineData.chop( 1 );
+    }
+    return std::move( lineData );
+}
+
+// A Log Line as getExpandedLineString() returns it, from its decoded text.
+QString chopCarriageReturnAndUntabify( QString&& lineData )
+{
+    return untabify( chopCarriageReturn( std::move( lineData ) ) );
+}
+
 } // namespace
 
 LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
@@ -128,6 +157,7 @@ void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
 
     // Views paint what they read before until they are told to read again;
     // the lock is released first, as they read Log Lines straight away.
+    logLinesChanged();
     Q_EMIT decodingPolicyChanged();
 }
 
@@ -252,6 +282,17 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
             lastModifiedDate_ = fileInfo.lastModified();
     }
 
+    // Only the last Log Line indexed before data was added can have changed
+    // then; otherwise any of them can have.
+    if ( fileChangedOnDisk_ == MonitoredFileStatus::DataAdded ) {
+        logLinesChanged( nbLinesBeforeDataAdded_.get() > 0
+                             ? LineNumber( nbLinesBeforeDataAdded_.get() - 1 )
+                             : 0_lnum );
+    }
+    else {
+        logLinesChanged();
+    }
+
     fileChangedOnDisk_ = MonitoredFileStatus::Unchanged;
 
     LOG_DEBUG << "Sending indexingFinished.";
@@ -274,6 +315,7 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
             break;
         case MonitoredFileStatus::DataAdded:
             fileChangedOnDisk_ = MonitoredFileStatus::DataAdded;
+            nbLinesBeforeDataAdded_ = doGetNbLine();
             operationQueue_.enqueueOperation<PartialReindexOperation>();
             break;
         case MonitoredFileStatus::Unchanged:
@@ -342,6 +384,19 @@ void LogData::doSetDisplayEncoding( const char* encoding )
     if ( needReload ) {
         reload( useGuessedCodec ? nullptr : codec_.codec() );
     }
+    else {
+        // Indexed as it was, but the Log Lines decode differently.
+        logLinesChanged();
+    }
+}
+
+void LogData::logLinesChanged( LineNumber firstChanged ) const
+{
+    for ( const auto& filteredData : filteredData_ ) {
+        if ( filteredData ) {
+            filteredData->logLinesChanged( firstChanged );
+        }
+    }
 }
 
 QTextCodec* LogData::doGetDisplayEncoding() const
@@ -365,12 +420,7 @@ QString LogData::doGetExpandedLineString( LineNumber line ) const
 // indexingFinished).
 logsquirl::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount number ) const
 {
-    return getLinesFromFile( first_line, number, []( QString&& lineData ) {
-        if ( lineData.endsWith( QChar::CarriageReturn ) ) {
-            lineData.chop( 1 );
-        }
-        return std::move( lineData );
-    } );
+    return getLinesFromFile( first_line, number, chopCarriageReturn );
 }
 
 logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
@@ -417,28 +467,25 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
     rawLines.startLine = firstLine;
 
     try {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-        if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
-            LOG_WARNING << "Lines out of bound asked for";
-            return {}; /* exception? */
+        OffsetInFile::UnderlyingType firstByte = 0;
+        logsquirl::vector<OffsetInFile> endOfLines;
+        {
+            // Only the offsets are taken under the index lock: the file is
+            // read without it, so indexing can publish a block meanwhile.
+            IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+            if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
+                LOG_WARNING << "Lines out of bound asked for";
+                return {}; /* exception? */
+            }
+
+            rawLines.hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+
+            firstByte = ( firstLine == 0_lnum )
+                            ? 0
+                            : scopedAccessor.getEndOfLineOffset( firstLine - 1_lcount ).get();
+
+            endOfLines = scopedAccessor.getEndOfLineOffsets( firstLine, number );
         }
-
-        rawLines.endOfLines.reserve( number.get() );
-        rawLines.prefilterPattern
-            = decodingPolicy_.hideAnsiColorSequences
-                  ? QRegularExpression( AnsiColorSequencePattern,
-                                        QRegularExpression::CaseInsensitiveOption )
-                  : QRegularExpression{};
-
-        ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
-
-        const auto firstByte
-            = ( firstLine == 0_lnum )
-                  ? 0
-                  : scopedAccessor.getEndOfLineOffset( firstLine - 1_lcount ).get();
-
-        logsquirl::vector<OffsetInFile> endOfLines
-            = scopedAccessor.getEndOfLineOffsets( firstLine, number );
 
         // Guard against the (rare) case where the index has been concurrently truncated
         // between the firstByte lookup above and this call: back() on an empty vector is
@@ -451,6 +498,7 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
 
         const auto lastByte = endOfLines.back().get();
 
+        rawLines.endOfLines.reserve( endOfLines.size() );
         std::transform(
             endOfLines.begin(), endOfLines.end(), std::back_inserter( rawLines.endOfLines ),
             [ firstByte ]( const OffsetInFile& offset ) { return offset.get() - firstByte; } );
@@ -459,11 +507,20 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
         LOG_DEBUG << "will try to read:" << bytesToRead << " bytes";
         rawLines.buffer.resize( static_cast<std::size_t>( bytesToRead ) );
 
-        fileHolder.getFile()->seek( firstByte );
-        const auto bytesRead = fileHolder.getFile()->read( rawLines.buffer.data(), bytesToRead );
+        qint64 bytesRead = 0;
+        {
+            ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
+            fileHolder.getFile()->seek( firstByte );
+            bytesRead = fileHolder.getFile()->read( rawLines.buffer.data(), bytesToRead );
+        }
 
         if ( bytesRead != bytesToRead ) {
+            // The Log File is shorter than its Index says, as when it was cut
+            // short on disk and is not indexed again yet: only the bytes read
+            // are decoded, and the Log Lines past them read as a warning.
             LOG_DEBUG << "failed to read " << bytesToRead << " bytes, got " << bytesRead;
+            rawLines.buffer.resize(
+                static_cast<std::size_t>( std::max( bytesRead, qint64{ 0 } ) ) );
         }
 
         LOG_DEBUG << "done reading lines:" << rawLines.buffer.size();
@@ -500,16 +557,222 @@ logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, Line
 
     } catch ( const std::bad_alloc& e ) {
         LOG_ERROR << "not enough memory " << e.what();
-        processedLines.emplace_back( "LOGSQUIRL WARNING: not enough memory" );
+        processedLines.push_back( asQString( NotEnoughMemoryWarning ) );
     }
 
     processedLines.reserve( number.get() - processedLines.size() );
     while ( processedLines.size() < number.get() ) {
-        processedLines.emplace_back(
-            "LOGSQUIRL WARNING: failed to read some lines before this one" );
+        processedLines.push_back( asQString( LinesNotReadWarning ) );
     }
 
     return processedLines;
+}
+
+logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> lines ) const
+{
+    return getSparseLinesFromFile( lines, chopCarriageReturn );
+}
+
+logsquirl::vector<QString>
+LogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const
+{
+    return getSparseLinesFromFile( lines, chopCarriageReturnAndUntabify );
+}
+
+template <typename OnLine>
+void LogData::readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const
+{
+    // Everything the reads need from the Index and the Decoding Policy is
+    // copied under the index lock; the file is read without it, so indexing
+    // can publish a block meanwhile (#289). A read cut short by a Log File
+    // shorter than its Index reads as a warning below.
+    logsquirl::vector<SparseRead> reads;
+    bool hideAnsiColorSequences = false;
+    {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        reads = planSparseRead( lines, scopedAccessor.getNbLines(),
+                                [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
+                                    return scopedAccessor.getEndOfLineOffsets( first, count );
+                                } );
+        hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+    }
+
+    if ( reads.empty() ) {
+        return;
+    }
+
+    ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
+    const auto lineFeedWidth = codec_.encodingParameters().lineFeedWidth;
+
+    logsquirl::vector<char> buffer;
+    for ( const auto& read : reads ) {
+        buffer.resize( static_cast<std::size_t>( read.size ) );
+        fileHolder.getFile()->seek( read.firstByte.get() );
+        const auto bytesRead = fileHolder.getFile()->read( buffer.data(), read.size );
+        if ( bytesRead != read.size ) {
+            LOG_DEBUG << "failed to read " << read.size << " bytes, got " << bytesRead;
+        }
+
+        for ( const auto& line : read.lines ) {
+            const auto length = line.end - line.begin - lineFeedWidth;
+
+            SparseReadLine readLine{ .request = line.request,
+                                     .bytes = {},
+                                     .warning = {},
+                                     .hideAnsiColorSequences = hideAnsiColorSequences };
+            constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
+            if ( length >= maxlength ) {
+                readLine.warning = LineTooLongWarning;
+            }
+            else if ( line.begin + length > std::max( bytesRead, qint64{ 0 } ) ) {
+                readLine.warning = FileReadFailedWarning;
+            }
+            else {
+                readLine.bytes = std::string_view( buffer.data() + line.begin,
+                                                   static_cast<std::size_t>( length ) );
+            }
+            onLine( std::as_const( readLine ) );
+        }
+    }
+}
+
+logsquirl::vector<QString>
+LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
+                                 QString ( *processLine )( QString&& ) ) const
+{
+    logsquirl::vector<QString> text( lines.size() );
+    logsquirl::vector<bool> isRead( lines.size(), false );
+
+    try {
+        readSparseLines( lines, [ & ]( const SparseReadLine& line ) {
+            QString decodedLine;
+            if ( !line.warning.empty() ) {
+                decodedLine = asQString( line.warning );
+            }
+            else {
+                // Each Log Line is decoded on its own, as getLineString()
+                // does: a character cut short at the end of one must not
+                // reach the next, and a byte order mark starting any of them
+                // is dropped.
+                const auto textDecoder = codec_.makeDecoder();
+                decodedLine = textDecoder.decoder->toUnicode(
+                    line.bytes.data(), static_cast<int>( line.bytes.size() ) );
+                if ( line.hideAnsiColorSequences ) {
+                    removeAnsiColorSequences( decodedLine );
+                }
+            }
+
+            text[ line.request ] = processLine( std::move( decodedLine ) );
+            isRead[ line.request ] = true;
+        } );
+    } catch ( const std::bad_alloc& e ) {
+        LOG_ERROR << "not enough memory " << e.what();
+        for ( std::size_t request = 0; request < lines.size(); ++request ) {
+            if ( !isRead[ request ] ) {
+                text[ request ] = asQString( NotEnoughMemoryWarning );
+                isRead[ request ] = true;
+            }
+        }
+    }
+
+    // What a Log Line reads as when it is past the last one, or its read did
+    // not happen: the same as when it is read on its own.
+    for ( std::size_t request = 0; request < lines.size(); ++request ) {
+        if ( !isRead[ request ] ) {
+            text[ request ] = asQString( LinesNotReadWarning );
+        }
+    }
+
+    return text;
+}
+
+std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) const
+{
+    static constexpr int Utf8Mib = 106;
+
+    // The text of each Log Line, with its line feed, lands in pieces in the
+    // order the Log Lines are read; where each one lies is kept by request.
+    struct Piece {
+        std::size_t begin = 0;
+        std::size_t size = 0;
+        bool isRead = false;
+    };
+    std::string pieces;
+    logsquirl::vector<Piece> placed( lines.size() );
+
+    try {
+        const auto encodingParams = codec_.encodingParameters();
+        const bool isUtf8 = codec_.mibEnum() == Utf8Mib;
+
+        readSparseLines( lines, [ & ]( const SparseReadLine& line ) {
+            const auto begin = pieces.size();
+            const auto& text = line.bytes;
+
+            // A decoder drops a byte order mark that starts a Log Line, and
+            // replaces what is not UTF-8; neither is copied as it is.
+            const bool isCopiedAsRead
+                = line.warning.empty() && encodingParams.isUtf8Compatible
+                  && ( !line.hideAnsiColorSequences
+                       || text.find( '\x1B' ) == std::string_view::npos )
+                  && ( simdutf::validate_ascii( text.data(), text.size() )
+                       || ( isUtf8 && !text.starts_with( "\xEF\xBB\xBF" )
+                            && simdutf::validate_utf8( text.data(), text.size() ) ) );
+
+            if ( !line.warning.empty() ) {
+                pieces.append( line.warning );
+            }
+            else if ( isCopiedAsRead ) {
+                pieces.append( text.ends_with( '\r' ) ? text.substr( 0, text.size() - 1 ) : text );
+            }
+            else {
+                // Decoded on its own, as getLineString() does.
+                const auto textDecoder = codec_.makeDecoder();
+                auto decodedLine = textDecoder.decoder->toUnicode(
+                    text.data(), static_cast<int>( text.size() ) );
+                if ( line.hideAnsiColorSequences ) {
+                    removeAnsiColorSequences( decodedLine );
+                }
+                pieces += chopCarriageReturn( std::move( decodedLine ) ).toStdString();
+            }
+            pieces += '\n';
+
+            placed[ line.request ] = Piece{ begin, pieces.size() - begin, true };
+        } );
+    } catch ( const std::bad_alloc& e ) {
+        LOG_ERROR << "not enough memory " << e.what();
+        std::string text;
+        for ( std::size_t request = 0; request < lines.size(); ++request ) {
+            text.append( NotEnoughMemoryWarning );
+            text += '\n';
+        }
+        return text;
+    }
+
+    // Log Lines asked for once each and in ascending order were read in the
+    // order asked: the pieces are the text already.
+    std::size_t expectedBegin = 0;
+    const bool isInOrder
+        = std::all_of( placed.begin(), placed.end(), [ &expectedBegin ]( const Piece& piece ) {
+              const bool follows = piece.isRead && piece.begin == expectedBegin;
+              expectedBegin += piece.size;
+              return follows;
+          } );
+    if ( isInOrder ) {
+        return pieces;
+    }
+
+    std::string text;
+    text.reserve( pieces.size() );
+    for ( const auto& piece : placed ) {
+        if ( piece.isRead ) {
+            text.append( pieces, piece.begin, piece.size );
+        }
+        else {
+            text.append( LinesNotReadWarning );
+            text += '\n';
+        }
+    }
+    return text;
 }
 
 QTextCodec* LogData::getDetectedEncoding() const
@@ -519,12 +782,18 @@ QTextCodec* LogData::getDetectedEncoding() const
 
 void LogData::doAttachReader() const
 {
-    attached_file_->attachReader();
+    // Before a file is attached there is nothing to keep open, and nothing
+    // to read either.
+    if ( attached_file_ ) {
+        attached_file_->attachReader();
+    }
 }
 
 void LogData::doDetachReader() const
 {
-    attached_file_->detachReader();
+    if ( attached_file_ ) {
+        attached_file_->detachReader();
+    }
 }
 
 logsquirl::vector<QString> RawLines::decodeLines() const
@@ -547,12 +816,12 @@ logsquirl::vector<QString> RawLines::decodeLines() const
 
             constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
             if ( length >= maxlength ) {
-                decodedLines.emplace_back( "LOGSQUIRL WARNING: this line is too long" );
+                decodedLines.push_back( asQString( LineTooLongWarning ) );
                 break;
             }
 
             if ( lineStart + length > logsquirl::ssize( buffer ) ) {
-                decodedLines.emplace_back( "LOGSQUIRL WARNING: file read failed" );
+                decodedLines.push_back( asQString( FileReadFailedWarning ) );
                 LOG_WARNING << "not enough data in buffer";
                 break;
             }
@@ -560,8 +829,8 @@ logsquirl::vector<QString> RawLines::decodeLines() const
             auto decodedLine = textDecoder.decoder->toUnicode(
                 buffer.data() + lineStart, type_safe::narrow_cast<int>( length ) );
 
-            if ( !prefilterPattern.pattern().isEmpty() ) {
-                decodedLine.remove( prefilterPattern );
+            if ( hideAnsiColorSequences ) {
+                removeAnsiColorSequences( decodedLine );
             }
 
             decodedLines.push_back( std::move( decodedLine ) );
@@ -570,7 +839,7 @@ logsquirl::vector<QString> RawLines::decodeLines() const
         }
     } catch ( const std::bad_alloc& ) {
         LOG_ERROR << "not enough memory";
-        decodedLines.emplace_back( "LOGSQUIRL WARNING: not enough memory" );
+        decodedLines.push_back( asQString( NotEnoughMemoryWarning ) );
     }
 
     decodedLines.reserve( this->endOfLines.size() - decodedLines.size() );
@@ -582,6 +851,228 @@ logsquirl::vector<QString> RawLines::decodeLines() const
     return decodedLines;
 }
 
+namespace {
+
+// The Encodings a Search converts to UTF-8 straight from the bytes of each Log
+// Line, found from the known line ends, without decoding the block to a
+// QString first (#291). Any other Encoding is decoded as a whole.
+enum class DirectEncoding { None, Utf8, Latin1, Utf16LE, Utf16BE };
+
+DirectEncoding directEncodingOf( const EncodingParameters& encodingParams )
+{
+    if ( encodingParams.isUtf8Compatible ) {
+        return DirectEncoding::Utf8;
+    }
+    if ( encodingParams.isLatin1 ) {
+        return DirectEncoding::Latin1;
+    }
+    if ( encodingParams.isUtf16LE ) {
+        return DirectEncoding::Utf16LE;
+    }
+    if ( encodingParams.isUtf16BE ) {
+        return DirectEncoding::Utf16BE;
+    }
+    return DirectEncoding::None;
+}
+
+bool isUtf16( DirectEncoding encoding )
+{
+    return encoding == DirectEncoding::Utf16LE || encoding == DirectEncoding::Utf16BE;
+}
+
+const char16_t* asUtf16( std::string_view bytes )
+{
+    return reinterpret_cast<const char16_t*>( bytes.data() );
+}
+
+char16_t codeUnitAt( std::string_view bytes, std::size_t index, DirectEncoding encoding )
+{
+    const auto first = static_cast<unsigned char>( bytes[ index ] );
+    const auto second = static_cast<unsigned char>( bytes[ index + 1 ] );
+    return encoding == DirectEncoding::Utf16LE ? static_cast<char16_t>( first | ( second << 8 ) )
+                                               : static_cast<char16_t>( ( first << 8 ) | second );
+}
+
+std::string_view withoutLineFeed( std::string_view line, DirectEncoding encoding )
+{
+    if ( isUtf16( encoding ) ) {
+        if ( line.size() >= 2 && codeUnitAt( line, line.size() - 2, encoding ) == u'\n' ) {
+            line.remove_suffix( 2 );
+        }
+    }
+    else if ( !line.empty() && line.back() == '\n' ) {
+        line.remove_suffix( 1 );
+    }
+    return line;
+}
+
+bool containsEscape( std::string_view line, DirectEncoding encoding )
+{
+    if ( !isUtf16( encoding ) ) {
+        return line.find( '\x1B' ) != std::string_view::npos;
+    }
+    for ( std::size_t index = 0; index + 1 < line.size(); index += 2 ) {
+        if ( codeUnitAt( line, index, encoding ) == u'\x1B' ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isValid( std::string_view line, DirectEncoding encoding )
+{
+    switch ( encoding ) {
+    case DirectEncoding::Utf16LE:
+        return simdutf::validate_utf16le( asUtf16( line ), line.size() / 2 );
+    case DirectEncoding::Utf16BE:
+        return simdutf::validate_utf16be( asUtf16( line ), line.size() / 2 );
+    default:
+        return true;
+    }
+}
+
+QString decode( std::string_view line, DirectEncoding encoding )
+{
+    const auto size = static_cast<qsizetype>( line.size() );
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        return QString::fromLatin1( line.data(), size );
+    case DirectEncoding::Utf16LE:
+    case DirectEncoding::Utf16BE: {
+        QString text( size / 2, Qt::Uninitialized );
+        if ( encoding == DirectEncoding::Utf16LE ) {
+            qFromLittleEndian<char16_t>( line.data(), size / 2, text.data() );
+        }
+        else {
+            qFromBigEndian<char16_t>( line.data(), size / 2, text.data() );
+        }
+        return text;
+    }
+    default:
+        return QString::fromUtf8( line.data(), size );
+    }
+}
+
+std::size_t utf8SizeOf( std::string_view line, DirectEncoding encoding )
+{
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        return simdutf::utf8_length_from_latin1( line.data(), line.size() );
+    case DirectEncoding::Utf16LE:
+        return simdutf::utf8_length_from_utf16le( asUtf16( line ), line.size() / 2 );
+    case DirectEncoding::Utf16BE:
+        return simdutf::utf8_length_from_utf16be( asUtf16( line ), line.size() / 2 );
+    default:
+        return line.size();
+    }
+}
+
+// Converts a line valid in its encoding; returns the UTF-8 bytes written.
+std::size_t convertToUtf8( std::string_view line, DirectEncoding encoding, char* utf8 )
+{
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        return simdutf::convert_latin1_to_utf8( line.data(), line.size(), utf8 );
+    case DirectEncoding::Utf16LE:
+        return simdutf::convert_valid_utf16le_to_utf8( asUtf16( line ), line.size() / 2, utf8 );
+    case DirectEncoding::Utf16BE:
+        return simdutf::convert_valid_utf16be_to_utf8( asUtf16( line ), line.size() / 2, utf8 );
+    default:
+        std::copy( line.begin(), line.end(), utf8 );
+        return line.size();
+    }
+}
+
+// The UTF-8 of text, in a buffer exactly its size. Invalid UTF-16 is mapped as
+// QString::toUtf8() maps it.
+QByteArray toUtf8( const QString& text )
+{
+    const auto* const utf16 = reinterpret_cast<const char16_t*>( text.constData() );
+    const auto size = static_cast<std::size_t>( text.size() );
+    if ( !simdutf::validate_utf16( utf16, size ) ) {
+        return text.toUtf8();
+    }
+    QByteArray utf8( static_cast<qsizetype>( simdutf::utf8_length_from_utf16( utf16, size ) ),
+                     Qt::Uninitialized );
+    const auto written = simdutf::convert_valid_utf16_to_utf8( utf16, size, utf8.data() );
+    utf8.truncate( static_cast<qsizetype>( written ) );
+    return utf8;
+}
+
+// Converts a block of Log Lines in a Latin-1 or UTF-16 encoding to UTF-8 at
+// once into utf8, and splits it at each line feed into lines. Does nothing and
+// returns false unless the block is valid in its encoding and has lineCount
+// Log Lines. A byte order mark starting a UTF-16 block is dropped, as decoding
+// drops it.
+bool convertValidBlock( std::string_view block, DirectEncoding encoding, std::size_t lineCount,
+                        QByteArray& utf8, logsquirl::vector<std::string_view>& lines )
+{
+    if ( isUtf16( encoding ) && block.size() >= 2
+         && codeUnitAt( block, 0, encoding ) == u'\xFEFF' ) {
+        block.remove_prefix( 2 );
+    }
+    if ( block.empty() ) {
+        return false;
+    }
+
+    // Validated while converted, into room for the longest UTF-8 it can take:
+    // one pass over the block rather than three.
+    QByteArray converted( static_cast<qsizetype>( block.size() * 2 ), Qt::Uninitialized );
+    std::size_t written = 0;
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        written = simdutf::convert_latin1_to_utf8( block.data(), block.size(), converted.data() );
+        break;
+    case DirectEncoding::Utf16LE:
+        written = simdutf::convert_utf16le_to_utf8( asUtf16( block ), block.size() / 2,
+                                                    converted.data() );
+        break;
+    case DirectEncoding::Utf16BE:
+        written = simdutf::convert_utf16be_to_utf8( asUtf16( block ), block.size() / 2,
+                                                    converted.data() );
+        break;
+    default:
+        return false;
+    }
+    if ( written == 0 ) {
+        return false;
+    }
+    converted.truncate( static_cast<qsizetype>( written ) );
+
+    // A line feed is the only code unit whose UTF-8 has a line feed byte.
+    logsquirl::vector<std::string_view> split;
+    split.reserve( lineCount );
+    std::string_view rest( converted.constData(), static_cast<std::size_t>( converted.size() ) );
+    for ( auto lineFeed = rest.find( '\n' ); lineFeed != std::string_view::npos;
+          lineFeed = rest.find( '\n' ) ) {
+        split.push_back( rest.substr( 0, lineFeed ) );
+        rest.remove_prefix( lineFeed + 1 );
+    }
+    if ( !rest.empty() ) {
+        split.push_back( rest );
+    }
+    if ( split.size() != lineCount ) {
+        return false;
+    }
+
+    utf8 = std::move( converted );
+    lines = std::move( split );
+    return true;
+}
+
+// Where a Log Line of the block goes in its UTF-8 view.
+struct LineToConvert {
+    // The Log Line's bytes in the block, without its line feed.
+    std::string_view bytes;
+    // Its UTF-8, when it had to be decoded first: to hide its ANSI color
+    // sequences, or because it is not valid in its encoding.
+    std::optional<QByteArray> decoded;
+    std::size_t utf8Size{};
+    std::size_t utf8Offset{};
+};
+
+} // namespace
+
 logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
 {
     logsquirl::vector<std::string_view> lines;
@@ -589,58 +1080,126 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
         return lines;
     }
 
+    const auto encoding = directEncodingOf( textDecoder.encodingParams );
+    const auto codeUnitWidth = isUtf16( encoding ) ? 2 : 1;
+
+    // The known line ends split the block only when they lie in it, on code
+    // unit boundaries; a UTF-16 Log Line cut in the middle of a code unit is
+    // decoded as a whole block is.
+    auto lineEndsSplitTheBlock = encoding != DirectEncoding::None;
+    qint64 previousLineEnd = 0;
+    for ( const auto lineEnd : endOfLines ) {
+        if ( lineEnd < previousLineEnd || lineEnd > logsquirl::ssize( buffer )
+             || ( lineEnd - previousLineEnd ) % codeUnitWidth != 0 ) {
+            lineEndsSplitTheBlock = false;
+            break;
+        }
+        previousLineEnd = lineEnd;
+    }
+
     try {
         lines.reserve( endOfLines.size() );
 
-        std::string_view wholeString;
+        // Every ANSI color sequence starts with the escape character, and in
+        // each of these encodings an escape code unit has an escape byte.
+        const auto hidesAnsiColorSequences
+            = hideAnsiColorSequences
+              && std::find( buffer.begin(), buffer.end(), '\x1B' ) != buffer.end();
 
-        if ( prefilterPattern.pattern().isEmpty() && textDecoder.encodingParams.isUtf8Compatible ) {
-            wholeString = std::string_view( buffer.data(), buffer.size() );
+        // Log Lines are converted one by one only where that is faster than
+        // the block (#291): a UTF-8 block is searched where it was read; a
+        // block without ANSI color sequences to hide, valid in its encoding,
+        // is converted at once; a UTF-16 block whose sequences are hidden is
+        // decoded at once, which removes them in one pass.
+        const auto convertsLineByLine
+            = lineEndsSplitTheBlock && ( !isUtf16( encoding ) || !hidesAnsiColorSequences );
+        if ( convertsLineByLine && encoding != DirectEncoding::Utf8 && !hidesAnsiColorSequences
+             && convertValidBlock(
+                 std::string_view( buffer.data(), static_cast<std::size_t>( endOfLines.back() ) ),
+                 encoding, endOfLines.size(), utf8Data_, lines ) ) {
+            // Converted as a whole.
+        }
+        else if ( convertsLineByLine ) {
+            std::vector<LineToConvert> toConvert( endOfLines.size() );
+            std::size_t utf8Size = 0;
+            std::size_t lineStart = 0;
+            for ( std::size_t index = 0; index < endOfLines.size(); ++index ) {
+                const auto lineEnd = static_cast<std::size_t>( endOfLines[ index ] );
+                auto& line = toConvert[ index ];
+                line.bytes = withoutLineFeed(
+                    std::string_view( buffer.data() + lineStart, lineEnd - lineStart ), encoding );
+                lineStart = lineEnd;
+
+                // Decoding drops a byte order mark that starts the block.
+                if ( index == 0 && isUtf16( encoding ) && line.bytes.size() >= 2
+                     && codeUnitAt( line.bytes, 0, encoding ) == u'\xFEFF' ) {
+                    line.bytes.remove_prefix( 2 );
+                }
+
+                const auto hasAnsiColorSequences
+                    = hidesAnsiColorSequences && containsEscape( line.bytes, encoding );
+                if ( hasAnsiColorSequences || !isValid( line.bytes, encoding ) ) {
+                    auto text = decode( line.bytes, encoding );
+                    if ( hasAnsiColorSequences ) {
+                        removeAnsiColorSequences( text );
+                    }
+                    line.decoded = toUtf8( text );
+                    line.utf8Size = static_cast<std::size_t>( line.decoded->size() );
+                }
+                else {
+                    line.utf8Size = utf8SizeOf( line.bytes, encoding );
+                }
+
+                // A UTF-8 Log Line is searched as it was read, where it was read.
+                if ( line.decoded || encoding != DirectEncoding::Utf8 ) {
+                    line.utf8Offset = utf8Size;
+                    utf8Size += line.utf8Size;
+                }
+            }
+
+            utf8Data_ = QByteArray( static_cast<qsizetype>( utf8Size ), Qt::Uninitialized );
+            for ( auto& line : toConvert ) {
+                if ( line.decoded ) {
+                    std::copy( line.decoded->cbegin(), line.decoded->cend(),
+                               utf8Data_.data() + line.utf8Offset );
+                    lines.emplace_back( utf8Data_.constData() + line.utf8Offset, line.utf8Size );
+                }
+                else if ( encoding == DirectEncoding::Utf8 ) {
+                    lines.push_back( line.bytes );
+                }
+                else {
+                    const auto written
+                        = convertToUtf8( line.bytes, encoding, utf8Data_.data() + line.utf8Offset );
+                    lines.emplace_back( utf8Data_.constData() + line.utf8Offset, written );
+                }
+            }
         }
         else {
-
-            QString utf16Data;
-            if ( prefilterPattern.pattern().isEmpty() && textDecoder.encodingParams.isUtf16LE ) {
-                utf16Data = QString::fromRawData( reinterpret_cast<const QChar*>( buffer.data() ),
-                                                  logsquirl::isize( buffer ) / 2 );
+            auto utf16Data
+                = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
+            if ( hideAnsiColorSequences ) {
+                removeAnsiColorSequences( utf16Data );
             }
-            else {
-                utf16Data
-                    = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
+            utf8Data_ = toUtf8( utf16Data );
+
+            std::string_view wholeString( utf8Data_.constData(),
+                                          static_cast<std::size_t>( utf8Data_.size() ) );
+            auto nextLineFeed = wholeString.find( '\n' );
+            while ( nextLineFeed != std::string_view::npos ) {
+                lines.push_back( wholeString.substr( 0, nextLineFeed ) );
+                wholeString.remove_prefix( nextLineFeed + 1 );
+                nextLineFeed = wholeString.find( '\n' );
             }
 
-            if ( !prefilterPattern.pattern().isEmpty() ) {
-                utf16Data.remove( prefilterPattern );
+            if ( !wholeString.empty() ) {
+                lines.push_back( wholeString );
             }
-
-            utf8Data_.resize( buffer.size() * 4 );
-            const auto resultSize = simdutf::convert_utf16_to_utf8(
-                reinterpret_cast<const char16_t*>( utf16Data.utf16() ),
-                static_cast<size_t>( utf16Data.size() ), utf8Data_.data() );
-
-            wholeString = { utf8Data_.data(), resultSize };
-        }
-
-        auto nextLineFeed = wholeString.find( '\n' );
-        while ( nextLineFeed != std::string_view::npos ) {
-            lines.push_back( wholeString.substr( 0, nextLineFeed ) );
-            wholeString.remove_prefix( nextLineFeed + 1 );
-            nextLineFeed = wholeString.find( '\n' );
-        }
-
-        if ( !wholeString.empty() ) {
-            lines.push_back( wholeString );
         }
 
     } catch ( const std::exception& e ) {
         LOG_ERROR << "failed to transform lines to utf8 " << e.what();
-        const auto lastLineOffset = utf8Data_.size();
-        // utf8Data_.append( "LOGSQUIRL WARNING: not enough memory, try decrease search buffer" );
-        lines.reserve( this->endOfLines.size() - lines.size() );
-        while ( lines.size() < this->endOfLines.size() ) {
-            lines.emplace_back( utf8Data_.data() + lastLineOffset,
-                                utf8Data_.size() - lastLineOffset );
-        }
+        lines.clear();
+        lines.resize( this->endOfLines.size() );
     }
 
     return lines;

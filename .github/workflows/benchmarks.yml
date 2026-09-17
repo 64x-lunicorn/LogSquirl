@@ -1,0 +1,325 @@
+name: "Benchmarks"
+
+# Measures a branch against master in an optimized build (#276): builds both,
+# runs every Catch2 benchmark in tests/benchmarks and the e2e performance
+# suite (tests/e2e, `-m performance`) on both, and shows the difference per
+# benchmark in the job summary. The raw reports and the comparison as JSON are
+# kept as the `benchmark-results` artifact.
+#
+# Debug numbers say little about performance, and the CI Build workflow never
+# runs the benchmarks and deselects the performance suite, so pull requests
+# stay as fast as they are; this runs only when dispatched.
+#
+# Run it from the Actions tab or with
+#   gh workflow run benchmarks.yml --ref <branch> [-f base_ref=master]
+# The after side is the commit the run is dispatched from (`--ref`, "Use
+# workflow from"), so the branch must contain this workflow file. The before
+# side is where that commit forks from base_ref (`git merge-base`): the tip of
+# base_ref when the branch is up to date with it, otherwise the older commit
+# the branch starts from, so the comparison shows only the branch's changes.
+# GitHub only offers `workflow_dispatch` for a workflow file that exists on the
+# default branch: until this file is merged into master it cannot be
+# dispatched, not even for the branch that adds it.
+#
+# Both sides therefore come from the history of the dispatched commit, never
+# from an arbitrary ref (#276, CodeQL actions/cache-poisoning/poisonable-step):
+# a dispatch from master can write master's Actions caches, which every branch
+# and pull request restores, and the code a run builds and executes can reach
+# the cache token. Measuring a pull request from a fork means pushing it to a
+# branch here first.
+#
+# Both sides are built with this workflow's composite actions, but from
+# their own docker/ and .github/scripts: a before side older than the image
+# inputs hash (#215) and the sccache summary script (#219) does not build.
+#
+# There is no nightly schedule: a scheduled run only knows master, which would
+# measure master against itself.
+#
+# One Linux job (after a short one that resolves the before side) in the
+# Ubuntu 24.04 container of the CI Build noble job: those
+# runners are the cheapest, the container already holds Qt and the whole
+# toolchain, and the build uses that job's options, so it restores its sccache
+# and CPM caches and only recompiles what the branch changed. Both builds and
+# all measurements happen on the same runner, one after the other, because two
+# runners can differ in hardware more than the change being measured. Shared
+# runners are still noisy: rerun before trusting a change of a few percent.
+on:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Branch, tag or SHA to compare with: before is where the dispatched commit forks from it"
+        type: string
+        required: false
+        default: master
+      same_benchmark_sources:
+        description: "Build the before side's Catch2 benchmarks from the after side's tests/benchmarks, so both run the same benchmark code (a benchmark that does not compile on before is left out)"
+        type: boolean
+        default: true
+      benchmark_samples:
+        description: "Catch2 --benchmark-samples per benchmark"
+        type: number
+        default: 20
+      log_file_mb:
+        description: "Size in MiB of each Log File logsquirl_logdata_benchmark writes (LOGSQUIRL_BENCHMARK_LOG_FILE_MB)"
+        type: number
+        default: 256
+      e2e_runs:
+        description: "Measured runs per e2e performance benchmark (--bench-runs)"
+        type: number
+        default: 21
+
+concurrency:
+  group: benchmarks-${{ github.ref }}-${{ inputs.base_ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  sides:
+    name: Benchmarks / resolve the before side
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      before: ${{ steps.resolve.outputs.before }}
+    steps:
+      # All branches and tags, without file contents: enough to resolve
+      # base_ref and find the merge base.
+      - name: Check out the history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: .github/workflows/benchmarks.yml
+          sparse-checkout-cone-mode: false
+
+      # The merge base is an ancestor of the dispatched commit by definition,
+      # so the before side never brings in code from outside its history.
+      - name: Resolve the before side
+        id: resolve
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          set -euo pipefail
+          base=
+          for candidate in "refs/remotes/origin/$BASE_REF" "refs/tags/$BASE_REF" "$BASE_REF"; do
+            if base=$(git rev-parse --verify --quiet --end-of-options "$candidate^{commit}"); then
+              break
+            fi
+            base=
+          done
+          if [ -z "$base" ]; then
+            printf 'base_ref: %q\n' "$BASE_REF"
+            echo "::error::base_ref is not a branch, tag or commit of this repository"
+            exit 1
+          fi
+          if ! before=$(git merge-base "$base" "$GITHUB_SHA"); then
+            echo "::error::base_ref and the dispatched commit have no common history"
+            exit 1
+          fi
+          if [ "$before" = "$GITHUB_SHA" ]; then
+            echo "::warning::The dispatched commit is contained in base_ref: before and after are the same commit. Dispatch with --ref <branch>."
+          elif [ "$before" != "$base" ]; then
+            echo "::notice::The dispatched commit is not based on the tip of base_ref; before is the commit it forks from, ${before:0:12}"
+          fi
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+
+  benchmarks:
+    name: Benchmarks / before and after
+    # Single-entry matrix so the shared composite actions (which read
+    # matrix.config.*) work unchanged. artifacts_id is the noble job's, so
+    # docker-build restores that job's sccache cache: the same container and
+    # build options produce the same objects.
+    strategy:
+      matrix:
+        config:
+          - arch: x64
+            artifacts_id: noble
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts:
+
+    needs: sides
+    runs-on: ubuntu-24.04
+    # No run history yet: two builds of about 20 minutes each with a warm
+    # sccache (longer when a side's objects are not cached), and each side's
+    # benchmarks and e2e performance suite (#218).
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: read # pull the signed build container from GHCR
+    env:
+      # Everything this job adds to the workspace lives here. Not a hidden
+      # directory, which upload-artifact would leave out; untracked, so the
+      # second checkout (clean: false) keeps it.
+      RUN_DIR: benchmark-run
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      # Before first: its build_root is then built again for after, which
+      # recompiles only what differs.
+      - name: Check out the before side
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.sides.outputs.before }}
+
+      # The composite actions and scripts come from the commit this workflow
+      # runs from (the after side), not from the before side, which may
+      # predate them.
+      - name: Check out the workflow's actions and scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: benchmark-run/tools
+          sparse-checkout: .github
+
+      - name: Check out the after side's benchmarks
+        if: inputs.same_benchmark_sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          path: benchmark-run/after-benchmarks
+          sparse-checkout: tests/benchmarks
+
+      - name: Prepare the run directory
+        id: before_side
+        run: |
+          set -euo pipefail
+          for side in before after; do
+            mkdir -p "$RUN_DIR/$side/bin" "$RUN_DIR/results/$side/catch2" "$RUN_DIR/results/$side/e2e"
+          done
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same key as the noble job (#219). Only restored: a dependency the
+      # after side adds is downloaded, never saved from here.
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - uses: ./benchmark-run/tools/.github/actions/logsquirl-version
+      - uses: ./benchmark-run/tools/.github/actions/prepare-workspace-env
+
+      # ---------------------------------------------------------------------
+      # Before
+      # ---------------------------------------------------------------------
+      - uses: ./benchmark-run/tools/.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      # Each side runs in the container it was built in: the after side may
+      # change docker/ and with it the Qt its binaries need.
+      - name: Remember the before container
+        id: before_container
+        run: echo "image=$LOGSQUIRL_CONTAINER" >> "$GITHUB_OUTPUT"
+
+      # RelWithDebInfo with LTO, as the noble job builds and ships it. Like
+      # every master build, it saves the sccache cache when dispatched from
+      # master; the after side's save of the same key then only warns.
+      - uses: ./benchmark-run/tools/.github/actions/docker-build
+
+      # With same_benchmark_sources, the after side's tests/benchmarks
+      # replaces the before side's for this build only.
+      - name: Build and collect the before side's benchmarks
+        env:
+          SAME_SOURCES: ${{ inputs.same_benchmark_sources }}
+          CONTAINER: ${{ steps.before_container.outputs.image }}
+        run: |
+          set -euo pipefail
+          if [ "$SAME_SOURCES" = "true" ]; then
+            rm -rf tests/benchmarks
+            cp -R "$RUN_DIR/after-benchmarks/tests/benchmarks" tests/benchmarks
+          fi
+          "$RUN_DIR/tools/.github/scripts/build-benchmarks.sh" before
+
+      # ---------------------------------------------------------------------
+      # After
+      # ---------------------------------------------------------------------
+      # clean: false keeps build_root, the caches and the run directory; the
+      # forced checkout still replaces every tracked file, including the
+      # benchmark sources copied over above.
+      - name: Check out the after side
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+          clean: false
+
+      - name: Remember the after commit
+        id: after_side
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - uses: ./benchmark-run/tools/.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      - name: Remember the after container
+        id: after_container
+        run: echo "image=$LOGSQUIRL_CONTAINER" >> "$GITHUB_OUTPUT"
+
+      - uses: ./benchmark-run/tools/.github/actions/docker-build
+
+      - name: Build and collect the after side's benchmarks
+        env:
+          CONTAINER: ${{ steps.after_container.outputs.image }}
+        run: '"$RUN_DIR/tools/.github/scripts/build-benchmarks.sh" after'
+
+      # ---------------------------------------------------------------------
+      # Measure both, on this runner, one benchmark binary at a time
+      # ---------------------------------------------------------------------
+      # The performance suite's larger files are generated, not checked in;
+      # without them its `slow` benchmarks skip.
+      - name: Generate the e2e test data
+        run: python3 tests/e2e/generate_test_data.py
+
+      - name: Run the benchmarks on both sides
+        id: run
+        env:
+          BEFORE_CONTAINER: ${{ steps.before_container.outputs.image }}
+          AFTER_CONTAINER: ${{ steps.after_container.outputs.image }}
+          BENCHMARK_SAMPLES: ${{ inputs.benchmark_samples }}
+          LOG_FILE_MB: ${{ inputs.log_file_mb }}
+          E2E_RUNS: ${{ inputs.e2e_runs }}
+        run: '"$RUN_DIR/tools/.github/scripts/run-benchmarks.sh"'
+
+      - name: Compare before and after
+        if: always() && steps.run.outcome != 'skipped'
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+          AFTER_REF: ${{ github.ref_name }}
+          BEFORE_SHA: ${{ steps.before_side.outputs.sha }}
+          AFTER_SHA: ${{ steps.after_side.outputs.sha }}
+        run: |
+          set -euo pipefail
+          python3 "$RUN_DIR/tools/.github/scripts/benchmark-compare.py" \
+            --before "$RUN_DIR/results/before" --after "$RUN_DIR/results/after" \
+            --before-label "merge base with $BASE_REF (${BEFORE_SHA:0:12})" \
+            --after-label "$AFTER_REF (${AFTER_SHA:0:12})" \
+            --markdown "$RUN_DIR/results/comparison.md" \
+            --json "$RUN_DIR/results/comparison.json"
+          cat "$RUN_DIR/results/comparison.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always() && steps.run.outcome != 'skipped'
+        with:
+          name: benchmark-results
+          path: benchmark-run/results
+          if-no-files-found: error

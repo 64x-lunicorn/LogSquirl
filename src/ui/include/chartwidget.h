@@ -19,14 +19,23 @@
 
 #pragma once
 
+#include <optional>
+#include <vector>
+
 #include <QWidget>
 
+#include "chartplot.h"
 #include "chartseries.h"
 
 // Custom QPainter-based chart widget that renders line/scatter plots
 // of extracted log data.  Supports zoom (mouse wheel), pan (middle-drag),
 // click-to-navigate (left click selects the nearest point and emits
 // lineSelected), and tooltip display on hover.
+//
+// Only the visible range of each series is drawn, reduced to a few points per
+// pixel column (see chartplot.h). The plots are kept until the series or the
+// view change, so hovering does not plot again, and the hovered point is found
+// among them by binary search.
 //
 // X-axis = line number in the log file.
 // Y-axis = extracted numeric value from the capture group.
@@ -68,14 +77,17 @@ private:
     // Draw grid lines and axis labels.
     void drawAxes( QPainter& painter, const QRectF& area ) const;
 
-    // Draw a single series as connected line segments with point markers.
-    void drawSeries( QPainter& painter, const QRectF& area,
-                     const ChartSeriesDefinition& series ) const;
+    // The view in data space and the plot area it is drawn in.
+    ChartViewport viewport() const;
+
+    // The plot of every series in the current view, one per series (empty for
+    // a hidden one); plotted again only when the series or the view changed.
+    const std::vector<ChartPlot>& plots() const;
 
     // Draw a tooltip near the hovered point.
     void drawTooltip( QPainter& painter ) const;
 
-    // Find the nearest data point to a pixel position.
+    // Find the nearest plotted data point to a pixel position.
     // Returns {seriesIndex, pointIndex} or {-1, -1} if none close enough.
     std::pair<int, int> findNearestPoint( const QPointF& pixelPos, double maxDistPx = 12.0 ) const;
 
@@ -87,6 +99,12 @@ private:
 
     // All series to render.
     QVector<ChartSeriesDefinition> series_;
+    // The points of each series in x order.
+    std::vector<ChartSeriesXOrder> xOrders_;
+
+    // The plots of the series in plottedViewport_, if they are up to date.
+    mutable std::vector<ChartPlot> plots_;
+    mutable std::optional<ChartViewport> plottedViewport_;
 
     // Pan state.
     bool panning_ = false;
