@@ -21,31 +21,11 @@ on:
       - README.md
       - latest.json
       - .gitignore
-  # The release workflow passes exactly the signing secrets this workflow
-  # uses instead of all of its secrets (#204). All are optional: a fork or a
-  # pull request builds unsigned.
-  workflow_call:
-    secrets:
-      MACOS_P12_FILE:
-        required: false
-      MACOS_P12_PASSWORD:
-        required: false
-      APPLE_ID:
-        required: false
-      APPLE_TEAM_ID:
-        required: false
-      APPLE_PASSWORD:
-        required: false
-      WIN_CS_KEY_ID:
-        required: false
-      WIN_CS_SECRET:
-        required: false
-      WIN_CS_BUCKET:
-        required: false
-      WIN_SIGN_CERT_PFX:
-        required: false
-      WIN_SIGN_CERT_PASSWORD:
-        required: false
+  # No workflow_call: CI Release no longer rebuilds, it publishes the packages
+  # of this workflow's push run on master for the tagged commit (#221). So a
+  # push run on master is a release candidate: its packages are unsigned (the
+  # signing secrets live in the `release` environment, #203) and carry the
+  # version declared in CMakeLists.txt.
   workflow_dispatch:
 
 concurrency:
@@ -180,9 +160,9 @@ jobs:
       - name: Test the SBOM generator
         run: python -m pytest scripts/sbom -p no:cacheprovider
 
-      # The Renovate checksum updater (#211) and the action allowlist check
-      # (#201); they share only pytest with the SBOM tooling, which this job
-      # already installs.
+      # The Renovate checksum updater (#211), the action allowlist check
+      # (#201) and the release build lookup (#221); they share only pytest
+      # with the SBOM tooling, which this job already installs.
       - name: Test the CI scripts
         run: python -m pytest .github/scripts -p no:cacheprovider
 
@@ -434,8 +414,8 @@ jobs:
             cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=Release
 
     runs-on: ${{ matrix.config.runner }}
-    # Slowest successful run 25 min; notarization waits on Apple and can
-    # stretch a master build well past that (#218).
+    # Slowest successful run 25 min, when master builds still waited on
+    # notarization, which moved to CI Release (#203, #218).
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -470,13 +450,9 @@ jobs:
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
+      # Unsigned on every event and branch: the signing secrets live in the
+      # `release` environment, and CI Release signs these packages (#203).
       - uses: ./.github/actions/agent-package-mac
-        with:
-          p12-file-base64: ${{ secrets.MACOS_P12_FILE }}
-          p12-password: ${{ secrets.MACOS_P12_PASSWORD }}
-          notarization-username: ${{ secrets.APPLE_ID }}
-          notarization-team: ${{ secrets.APPLE_TEAM_ID }}
-          notarization-password: ${{ secrets.APPLE_PASSWORD }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -537,13 +513,9 @@ jobs:
 
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
+      # Unsigned, like the macOS packages: CI Build references no signing
+      # secret, so none can reach a job outside the `release` environment (#203).
       - uses: ./.github/actions/agent-package-win
-        with:
-          s3-key-id: ${{ secrets.WIN_CS_KEY_ID }}
-          s3-secret: ${{ secrets.WIN_CS_SECRET }}
-          s3-bucket: ${{ secrets.WIN_CS_BUCKET }}
-          sign-cert-pfx: ${{ secrets.WIN_SIGN_CERT_PFX }}
-          sign-cert-password: ${{ secrets.WIN_SIGN_CERT_PASSWORD }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

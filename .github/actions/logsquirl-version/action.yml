@@ -1,17 +1,13 @@
 name: "Prepare logsquirl version env var"
-description: "Derive LOGSQUIRL_VERSION (YY.MM.PATCH.BUILD) from the release tag or the project version"
+description: "Derive LOGSQUIRL_VERSION (YY.MM.PATCH.BUILD) from the project version in CMakeLists.txt and the run number"
 runs:
   using: "composite"
   steps:
-    # GITHUB_ENV gets one line: git ref names cannot contain a newline, so a
-    # tag cannot smuggle in another variable (#204).
+    # GITHUB_ENV gets one line of digits and dots: the sed pattern admits
+    # nothing else from CMakeLists.txt, and no ref name is read (#204).
     - name: Set logsquirl version
       shell: bash
       env:
-        # Consume the (potentially attacker-controlled) ref name via the
-        # environment instead of interpolating it directly into the script.
-        REF_TYPE: ${{ github.ref_type }}
-        REF_NAME: ${{ github.ref_name }}
         RUN_NUMBER: ${{ github.run_number }}
         WORKSPACE: ${{ github.workspace }}
       run: | # zizmor: ignore[github-env]
@@ -21,18 +17,14 @@ runs:
         # historical build numbers (see BUILD.md → "Version Numbering").
         build_number=$(( RUN_NUMBER + 717 ))
 
-        # Base version is YY.MM.PATCH. Prefer the release tag when the build was
-        # triggered by one, so that binaries carry the same version as the
-        # published GitHub release. Fall back to the version declared in
-        # CMakeLists.txt for untagged builds (branch pushes, pull requests).
-        if [ "${REF_TYPE}" = "tag" ] && [ "${REF_NAME#v}" != "${REF_NAME}" ]; then
-          base_version="${REF_NAME#v}"        # strip the leading "v"
-          base_version="${base_version%%-*}"  # strip any pre-release suffix (-beta.1, -rc.1, …)
-        else
-          base_version=$(sed -n \
-            's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([0-9][0-9.]*\).*/\1/p' \
-            "${WORKSPACE}/CMakeLists.txt" | head -n1)
-        fi
+        # Base version is YY.MM.PATCH, always the one declared in CMakeLists.txt,
+        # never the ref: a release publishes the packages of the master push run
+        # that built the tagged commit, and the tag is pushed after that run, so
+        # the commit itself must name the version. CI Release refuses a build
+        # whose base version is not the tag's (#221).
+        base_version=$(sed -n \
+          's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([0-9][0-9.]*\).*/\1/p' \
+          "${WORKSPACE}/CMakeLists.txt" | head -n1)
 
         if [ -z "${base_version}" ]; then
           echo "::error::Unable to determine base version for LOGSQUIRL_VERSION" >&2
