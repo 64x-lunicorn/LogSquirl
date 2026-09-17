@@ -386,7 +386,10 @@ The release workflow does not build. It:
    attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with
    cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
    the checksum file), then publishes the draft. A failure in between leaves a draft.
-7. Updates `latest.json` with the new version (beta or stable field)
+7. Commits the release to the update feed `latest.json` on the branch `feed/<tag>` and names the link to open
+   its pull request (job summary and a notice). The ruleset only lets a pull request with passing checks change
+   master, and workflows may not open pull requests here, so **the maintainer opens and merges it**; the app
+   announces the release once it is merged. The Changelog check needs no entry for a `feed/` branch.
 8. Dispatches **Deploy Website**, so the release's page goes live (see *Release pages on the website*)
 
 `latest.json` on master is the update feed LogSquirl reads at start-up
@@ -394,8 +397,8 @@ The release workflow does not build. It:
 
 | Field | Written by | Used for |
 |-------|------------|----------|
-| `stable`, `stable_url`, `stable_build` | CI Release, stable tag | The latest stable release: its name, release page and the `YY.MM.PATCH.BUILD` it was published from |
-| `beta`, `beta_url`, `beta_build` | CI Release, pre-release tag | The latest beta, offered to users with "check for beta versions" on and to users running a beta |
+| `stable`, `stable_url`, `stable_build` | CI Release (feed pull request), stable tag | The latest stable release: its name, release page and the `YY.MM.PATCH.BUILD` it was published from |
+| `beta`, `beta_url`, `beta_build` | CI Release (feed pull request), pre-release tag | The latest beta, offered to users with "check for beta versions" on and to users running a beta |
 | `releases` | CI Release | Every published release name; a running version that was only published as betas runs a beta |
 | `changelog` | Release preparation (by hand, oldest first) | One line per release, listed in the update notification for the releases a user skips, up to the offered one |
 | `ci`, `ci_url` | CI Release, stable tag (`ci` only) | Read only by LogSquirl 26.07.0 and older, which append an OS suffix to `ci_url`; it ends in `#`, so they land on the latest release page |

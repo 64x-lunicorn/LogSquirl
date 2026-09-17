@@ -31,9 +31,10 @@ jobs:
         env:
           AUTHOR: ${{ github.event.pull_request.user.login }}
           LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
           git show HEAD^1:CHANGELOG.md > "$RUNNER_TEMP/base-changelog.md"
           .github/scripts/release-prep.py changelog-entry \
             --base "$RUNNER_TEMP/base-changelog.md" --head CHANGELOG.md \
-            --author "$AUTHOR" --labels "$LABELS"
+            --author "$AUTHOR" --labels "$LABELS" --branch "$BRANCH"

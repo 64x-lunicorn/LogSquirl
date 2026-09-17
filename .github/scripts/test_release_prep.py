@@ -67,6 +67,16 @@ def test_dependency_bots_pass_without_an_entry(bot):
     assert rp.changelog_entry_problem(base=RELEASED, head=RELEASED, labels=[], author=bot) is None
 
 
+def test_the_update_feed_pull_request_of_a_release_passes_without_an_entry():
+    assert rp.changelog_entry_problem(base=RELEASED, head=RELEASED, labels=[], author="someone",
+                                      branch="feed/v26.10.0-beta1") is None
+
+
+def test_another_branch_still_needs_an_entry():
+    assert rp.changelog_entry_problem(base=RELEASED, head=RELEASED, labels=[], author="someone",
+                                      branch="feature/feed") is not None
+
+
 def test_a_release_preparation_that_turns_unreleased_into_the_release_passes():
     prepared = WITH_ENTRY.replace("# Unreleased", "# v26.10.0-beta2 (2026-10-01)")
     assert rp.changelog_entry_problem(base=WITH_ENTRY, head=prepared, labels=[], author="someone") is None

@@ -708,7 +708,13 @@ jobs:
           set -euo pipefail
           gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" -F draft=false --jq '.html_url'
 
-  # ── Job 7: Update latest.json ──────────────────────────────────────────
+  # ── Job 7: Propose the update feed change ─────────────────────────────
+  # latest.json on master is protected like any other file: the ruleset
+  # requires a pull request with passing checks, and workflows may not open
+  # pull requests here. So the job commits the recorded release to the branch
+  # feed/<tag> and names the link to open the pull request from it; the app
+  # announces the release once that pull request is merged. The Changelog
+  # check needs no entry for a feed/ branch.
   update-metadata:
     runs-on: ubuntu-24.04
     needs: [prepare, release]
@@ -718,14 +724,14 @@ jobs:
       contents: write
     steps:
       # The only checkout that keeps its credentials: the job pushes the
-      # updated latest.json with them, and it uploads no artifact that could
-      # leak them (#204).
+      # feed branch with them, and it uploads no artifact that could leak
+      # them (#204).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master
           persist-credentials: true # zizmor: ignore[artipacked]
 
-      - name: Update latest.json
+      - name: Push the update feed change to feed/<tag>
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           IS_PRERELEASE: ${{ needs.prepare.outputs.is_prerelease }}
@@ -733,27 +739,38 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${TAG#v}"
+          BRANCH="feed/${TAG}"
 
           # Records the release in the stable or beta fields, the build it was
           # published from and the release list, unless the feed announces a
           # newer build (a re-run of an older release); the result must be a
           # valid feed (#306, #310). BUILD.md documents the fields.
           .github/scripts/release-feed.py record --tag "$TAG" --build "$BUILD_VERSION"
+          if git diff --quiet -- latest.json; then
+            echo "::notice::latest.json on master already announces ${TAG} or a newer build; nothing to propose."
+            exit 0
+          fi
           if [ "$IS_PRERELEASE" = "true" ]; then
-            COMMIT_MSG="chore: update latest.json with beta ${VERSION} [skip ci]"
+            COMMIT_MSG="chore: announce beta ${VERSION} in latest.json"
           else
-            COMMIT_MSG="chore: update latest.json with ${VERSION} [skip ci]"
+            COMMIT_MSG="chore: announce ${VERSION} in latest.json"
           fi
 
+          # No [skip ci] in the message: GitHub would skip the pull request's
+          # required checks. A re-run replaces the branch it pushed before.
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add latest.json
-          if ! git diff --cached --quiet; then
-            git commit -m "$COMMIT_MSG"
-          fi
-          git push
+          git switch -C "$BRANCH"
+          git commit -m "$COMMIT_MSG" -- latest.json
+          git push --force origin "$BRANCH"
 
-   
+          url="https://github.com/${GITHUB_REPOSITORY}/compare/master...${BRANCH}?expand=1"
+          echo "::notice::Open the pull request that announces ${TAG} in the app: ${url}"
+          {
+            echo "### Announce ${TAG} in the app"
+            echo
+            echo "The update feed change is on \`${BRANCH}\`. [Open the pull request](${url}) and merge it once its checks pass."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # ── Job 8: Deploy the website ──────────────────────────────────────────
   # The deploy leaves out the page of a release that is not published, so a

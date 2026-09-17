@@ -5,7 +5,8 @@ complete (#312, #314).
   changelog-entry --base B --head H --author A --labels JSON
       The pull request adds to the `# Unreleased` section of the CHANGELOG
       (base B, head H), or starts a release section. The `no-changelog` label
-      and the dependency bots need no entry.
+      and the dependency bots need no entry, nor does a release's update feed
+      pull request from a feed/ branch (--branch).
   release-preparation --base-cmakelists B [--cmakelists C] [--changelog L]
                       [--feed F] [--news-dir D]
       When the project version in C differs from base B, the preparation
@@ -33,11 +34,17 @@ from releases import (feed_changelog_versions, is_release_of, release_heading, r
 UNRELEASED = "# Unreleased"
 NO_CHANGELOG_LABEL = "no-changelog"
 DEPENDENCY_BOTS = ("dependabot[bot]", "renovate[bot]")
+# CI Release pushes a release's update feed change to feed/<tag> for the
+# maintainer to open as a pull request; the release's entry is already in
+# the CHANGELOG.
+FEED_BRANCH_PREFIX = "feed/"
 
 
-def changelog_entry_problem(*, base: str, head: str, labels: list[str], author: str) -> str | None:
+def changelog_entry_problem(*, base: str, head: str, labels: list[str], author: str,
+                            branch: str = "") -> str | None:
     """Why a pull request lacks its CHANGELOG entry, or None when it has one or needs none."""
-    if NO_CHANGELOG_LABEL in labels or author in DEPENDENCY_BOTS:
+    if (NO_CHANGELOG_LABEL in labels or author in DEPENDENCY_BOTS
+            or branch.startswith(FEED_BRANCH_PREFIX)):
         return None
     base_sections = dict(sections(base))
     head_sections = sections(head)
@@ -109,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
     entry.add_argument("--head", type=Path, required=True)
     entry.add_argument("--author", required=True)
     entry.add_argument("--labels", default="[]", help="JSON list of the pull request's label names")
+    entry.add_argument("--branch", default="", help="the pull request's head branch")
     prep = sub.add_parser("release-preparation")
     prep.add_argument("--base-cmakelists", type=Path, required=True)
     prep.add_argument("--cmakelists", type=Path, default=Path("CMakeLists.txt"))
@@ -122,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
             problem = changelog_entry_problem(
                 base=args.base.read_text(encoding="utf-8") if args.base.exists() else "",
                 head=args.head.read_text(encoding="utf-8"),
-                labels=json.loads(args.labels), author=args.author)
+                labels=json.loads(args.labels), author=args.author, branch=args.branch)
             found = [problem] if problem else []
         else:
             found = release_preparation_problems(
