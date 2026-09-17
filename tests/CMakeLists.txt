@@ -67,6 +67,15 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/ui_settings_store_allowlist.cmake
 )
 
+# The compiler flags of an architecture follow the target, and the generic-CPU
+# option gives every architecture a portable baseline (#285).
+add_test(
+    NAME architecture_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/architecture_flags.cmake
+)
+
 
 
 
