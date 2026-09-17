@@ -39,6 +39,7 @@
 #ifndef LOGDATA_H
 #define LOGDATA_H
 
+#include <cstddef>
 #include <memory>
 
 #include <QDateTime>
@@ -159,8 +160,8 @@ public:
     // The text of a sparse set of Log Lines, one entry per Log Line asked
     // for and in the order asked: for each, what getLineString() returns.
     // Nearby Log Lines are merged into runs and each run is read at once,
-    // under one lock, with one text decoder and one ANSI color filter for the
-    // whole call. lines may come in any order and repeat; a Log Line past the
+    // under one lock, with one Decoding Policy for the whole call; each Log
+    // Line is decoded on its own. lines may come in any order and repeat; a Log Line past the
     // last one reads as it does on its own. Safe off the UI thread, like
     // getLinesRaw().
     logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
@@ -230,12 +231,32 @@ private:
     void doDetachReader() const override;
 
     void reOpenFile() const;
+    // Tells every LogFilteredData handed out that the Log Lines from
+    // firstChanged on may read differently now.
+    void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
     logsquirl::vector<QString>
     getSparseLinesFromFile( std::span<const LineNumber> lines,
                             QString ( *processLine )( QString&& ) ) const;
+
+    // A Log Line of a sparse read, as the Log File gave it.
+    struct SparseReadLine {
+        // Where it was asked for in the lines read.
+        std::size_t request = 0;
+        // Its bytes, without its line feed; empty when it could not be read.
+        std::string_view bytes;
+        // What it reads as when it could not be read; empty otherwise.
+        std::string_view warning;
+        bool hideAnsiColorSequences = false;
+    };
+    // Reads the Log Lines asked for that are indexed, nearby ones merged into
+    // runs, and calls onLine( const SparseReadLine& ) for each, in the order
+    // read. Log Lines past the last one are not called for. The Index is
+    // looked at under its lock, the Log File is read without it.
+    template <typename OnLine>
+    void readSparseLines( std::span<const LineNumber> lines, OnLine&& onLine ) const;
 
 private:
     mutable std::unique_ptr<FileHolder> attached_file_;
@@ -268,6 +289,8 @@ private:
     // Codec to decode text
     TextCodecHolder codec_;
     MonitoredFileStatus fileChangedOnDisk_;
+    // How many Log Lines were indexed before the data added on disk is.
+    LinesCount nbLinesBeforeDataAdded_;
 
     // Read by getLinesRaw() on the Search's threads, so it is only ever
     // touched under the indexing data's lock.

@@ -126,6 +126,11 @@ public:
     void toggleMark( LineNumber line );
     // Completely clear the marks list.
     void clearMarks();
+    // The Log Lines of the Log File from firstChanged on may read differently
+    // now: it was indexed again, cut short or appended to, or is decoded
+    // differently. The lengths remembered for the Marks among them are read
+    // again; a Mark past the last Log Line is as wide as nothing.
+    void logLinesChanged( LineNumber firstChanged = 0_lnum );
     // Get all marked lines
     QList<LineNumber> getMarks() const;
 

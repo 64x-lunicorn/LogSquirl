@@ -236,6 +236,17 @@ void LogFilteredData::clearMarks()
     markLengths_.clear();
 }
 
+void LogFilteredData::logLinesChanged( LineNumber firstChanged )
+{
+    const auto nbLines = sourceLogData_->getNbLine();
+    for ( const auto line : getMarks() ) {
+        if ( line >= firstChanged ) {
+            markLengths_.add( line,
+                              line < nbLines ? sourceLogData_->getLineLength( line ) : 0_length );
+        }
+    }
+}
+
 QList<LineNumber> LogFilteredData::getMarks() const
 {
     QList<LineNumber> markedLines;

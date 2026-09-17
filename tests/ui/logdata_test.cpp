@@ -476,10 +476,11 @@ SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
     constexpr int LineCount = 2000;
 
     // Log Lines of different lengths, some with tabs, a carriage return, an
-    // ANSI color sequence or characters outside ASCII, some empty, and a last
-    // one without a line feed.
+    // ANSI color sequence or characters outside ASCII, some empty, some cut
+    // short in the middle of a character or starting with a byte order mark,
+    // and a last one without a line feed.
     const auto logLine = []( int line ) -> QByteArray {
-        switch ( line % 7 ) {
+        switch ( line % 9 ) {
         case 0:
             return QStringLiteral( "%1\tcolumn\tafter tabs" ).arg( line ).toUtf8();
         case 1:
@@ -490,6 +491,11 @@ SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
             return QStringLiteral( "\x1B[31m%1 colored\x1B[0m" ).arg( line ).toUtf8();
         case 4:
             return QStringLiteral( "%1 grüße ☃" ).arg( line ).toUtf8();
+        case 7:
+            return QStringLiteral( "%1 cut short " ).arg( line ).toUtf8() + "\xE2\x82";
+        case 8:
+            return "\xEF\xBB\xBF"
+                   + QStringLiteral( "%1 after a byte order mark" ).arg( line ).toUtf8();
         default:
             return QStringLiteral( "%1 %2" ).arg( line ).arg( QString( line % 50, 'x' ) ).toUtf8();
         }
@@ -566,6 +572,21 @@ SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
                                                  LineNumber( LineCount ),
                                                  LineNumber( LineCount + 100 ) };
             REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "a Log Line after one cut short in the middle of a character, and one "
+              "starting with a byte order mark, read as each does on its own" )
+        {
+            // Bytes that are not UTF-8 make the Encoding guessed for the Log
+            // File another one; as UTF-8, 16 and 25 end in the middle of a
+            // character and 17 and 35 start with a byte order mark. All of
+            // them are read in one run.
+            logData.setDisplayEncoding( "UTF-8" );
+            const std::vector<LineNumber> lines{ 16_lnum, 17_lnum, 25_lnum, 35_lnum };
+            const auto text = readSparse( lines );
+            REQUIRE( text == linesOneByOne( logData, lines, expanded ) );
+            REQUIRE( text[ 1 ].startsWith( QStringLiteral( "17 after" ) ) );
+            REQUIRE( text[ 3 ].startsWith( QStringLiteral( "35 after" ) ) );
         }
 
         THEN( "Log Lines asked for out of order or twice come back in the order asked" )
