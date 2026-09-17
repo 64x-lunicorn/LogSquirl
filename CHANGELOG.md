@@ -1,3 +1,72 @@
+# Unreleased
+
+## Changes
+
+- **Themes differ in color only**: Light and High Contrast use Dark's sizes
+  and shapes (combo box arrow, menu item padding and icon offset, tab add
+  button); High Contrast keeps only its thicker borders and outlines. The tab
+  close button is neutral in every Theme and red only on hover, the toolbar
+  path field reads as a read-only field with a visible edge, and combo box
+  popups highlight their current item the same way in every Theme (#264).
+- **Dashboard**: The dashboard uses the application font instead of fixed
+  small sizes, shows Recent Files, Favorites and Plugins as cards in one
+  column, and emphasizes Open File as the primary action (#266).
+- **Less work per line**: Logging no longer flushes on every message (errors
+  still flush at once); encoding detection reads a 256 KB sample instead of
+  the whole 5 MB block; expanding tabs, painting ASCII text and line numbers,
+  and extracting Log Format fields do less work per line; Sentry's debug
+  output is only on in debug builds; and the build no longer uses
+  `-ffast-math` / `/fp:fast` (#304).
+- **CI**: Without a Sentry token the release's Sentry job skips its steps and
+  stays green; with one, a failing upload shows as a red job instead of being
+  hidden (#228). The install-check containers are digest-pinned and kept
+  current by Renovate, and a weekly GHCR Cleanup workflow deletes build image
+  versions no CI run uses (#230).
+
+## Bug fixes
+
+- **Lines longer than 4 GiB**: A Log File in which 128 consecutive Log Lines
+  span 4 GiB or more (one very long Log Line is enough) now shows the right
+  Log Lines; their positions in the Index used to be truncated to 32 bits,
+  so a Release build showed wrong Log Lines and a Debug build aborted. The
+  index cache format changes with it, so cached Indexes are built once
+  again (#321).
+- **Main font of every settings instance**: Every settings instance now uses
+  the fixed-pitch main font style, not only the first one created, so the
+  saved font no longer depends on which settings were read first (#229).
+- **Linux packages**: The DEB and RPM packages now declare the distribution's
+  Qt 6 packages, with the Qt version LogSquirl was built with as the minimum.
+  On a distribution with an older Qt the package manager refuses the install
+  instead of LogSquirl failing to start; use the AppImage there. The packages
+  no longer ship CRoaring's static library and headers (#226).
+
+## Security
+
+- **OpenSSL on Windows**: LogSquirl 26.07.0 for Windows (installer and
+  portable zip) bundled OpenSSL 3.6.2, which has 28 known vulnerabilities,
+  three of them critical: CVE-2026-63073 (CVSS 9.8), CVE-2026-34182 (9.1) and
+  CVE-2026-75803 (9.1). This release ships OpenSSL 3.5.8 LTS, which has no
+  known vulnerabilities; Windows users of 26.07.0 should update (#225, #199).
+- **Update offers**: The update check offers a release only when its link in
+  the update feed points to a LogSquirl release page on GitHub; any other
+  link is ignored and logged (#222).
+- **Crash report tool**: The crash report dialog's minidump tool is now
+  rust-minidump's `minidump-stackwalk`, downloaded at build time from a pinned
+  release, checked against its SHA-256 and listed in the release SBOM. It
+  replaces Breakpad executables of unknown origin that were committed to the
+  repository; the dialog now shows a readable crash report with the stack of
+  each thread (#318).
+- **SBOM of the AppImage**: The release SBOM lists the Ubuntu packages of the
+  system libraries the AppImage bundles, with `pkg:deb` purls, so the
+  vulnerability scan covers them (#227).
+- **Hash-pinned Python tools**: Every pip install in CI and the build images
+  uses hash-locked requirements with `--require-hashes`, and aqtinstall runs
+  from a throwaway directory, so no stale Python packages (setuptools,
+  msgpack) stay in the images. Renovate keeps the requirements and their
+  hashes current (#317).
+- **Website deploy**: The website deploy verifies the FTPS server certificate
+  (#230).
+
 # v26.10.0-beta1 (2026-09-17)
 
 ## Changes
