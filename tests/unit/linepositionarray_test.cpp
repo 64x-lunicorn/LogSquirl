@@ -301,3 +301,67 @@ SCENARIO( "LinePositionArray with UINT32_MAX offsets", "[linepositionarray]" )
         }
     }
 }
+
+SCENARIO( "A block's line positions appended at once span compressed blocks",
+          "[linepositionarray]" )
+{
+    // Indexing appends a block's line positions all at once, and the
+    // compressed storage packs them 128 at a time (#290).
+    GIVEN( "a LinePositionArray part way into a compressed block" )
+    {
+        LinePositionArray line_array;
+        std::vector<OffsetInFile> expected;
+        for ( int i = 1; i <= 100; ++i ) {
+            expected.push_back( OffsetInFile( i * 7 ) );
+            line_array.append( expected.back() );
+        }
+
+        WHEN( "the positions of many lines are appended at once" )
+        {
+            FastLinePositionArray other_array;
+            for ( int i = 1; i <= 700; ++i ) {
+                const auto position = OffsetInFile( 1000 + i * 13 );
+                expected.push_back( position );
+                other_array.append( position );
+            }
+            line_array.append_list( other_array );
+
+            THEN( "every position is kept, one by one and as a range" )
+            {
+                REQUIRE( line_array.size() == LinesCount( 800 ) );
+                for ( auto i = 0u; i < expected.size(); ++i ) {
+                    REQUIRE( line_array.at( i ) == expected[ i ] );
+                }
+                const auto range = line_array.range( LineNumber( 90 ), LinesCount( 600 ) );
+                REQUIRE( std::equal( range.begin(), range.end(), expected.begin() + 90,
+                                     expected.begin() + 690 ) );
+            }
+
+            AND_WHEN( "more lines are appended one by one after the last one popped" )
+            {
+                line_array.setFakeFinalLF();
+                line_array.append( OffsetInFile( 20000 ) );
+                expected.back() = OffsetInFile( 20000 );
+
+                THEN( "the popped line is replaced" )
+                {
+                    REQUIRE( line_array.size() == LinesCount( 800 ) );
+                    for ( auto i = 0u; i < expected.size(); ++i ) {
+                        REQUIRE( line_array.at( i ) == expected[ i ] );
+                    }
+                }
+            }
+        }
+
+        WHEN( "nothing is appended at once" )
+        {
+            line_array.append_list( FastLinePositionArray{} );
+
+            THEN( "the positions are unchanged" )
+            {
+                REQUIRE( line_array.size() == LinesCount( 100 ) );
+                REQUIRE( line_array.at( 99 ) == expected.back() );
+            }
+        }
+    }
+}

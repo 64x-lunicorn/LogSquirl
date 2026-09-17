@@ -89,11 +89,16 @@ EncodingParameters::EncodingParameters( const QTextCodec* codec )
 
 QTextCodec* EncodingDetector::detectEncoding( const logsquirl::vector<char>& block ) const
 {
+    return detectEncoding( block.data(), block.size() );
+}
+
+QTextCodec* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const
+{
     UniqueLock lock( mutex_ );
 
     UchardetHolder ud;
 
-    auto rc = ud.handle_data( block.data(), block.size() );
+    auto rc = ud.handle_data( bytes, size );
     if ( rc == 0 ) {
         ud.data_end();
     }
@@ -111,7 +116,7 @@ QTextCodec* EncodingDetector::detectEncoding( const logsquirl::vector<char>& blo
         }
     }
 
-    QByteArray blockArray = QByteArray::fromRawData( block.data(), logsquirl::isize( block ) );
+    QByteArray blockArray = QByteArray::fromRawData( bytes, static_cast<qsizetype>( size ) );
 
     auto encodingGuess = uchardetCodec ? QTextCodec::codecForUtfText( blockArray, uchardetCodec )
                                        : QTextCodec::codecForUtfText( blockArray );

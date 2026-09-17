@@ -41,6 +41,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexcache.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/headerandtaildigests.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/indexedhash.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/indexingblocks.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/readablesize.cpp
   src/filedigest.cpp
 )

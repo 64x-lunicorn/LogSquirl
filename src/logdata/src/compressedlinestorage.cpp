@@ -137,10 +137,36 @@ OffsetInFile CompressedLinePositionStorage::at( LineNumber index ) const
 
 void CompressedLinePositionStorage::append_list( const logsquirl::vector<OffsetInFile>& positions )
 {
-    // This is not very clever, but caching should make it
-    // reasonably fast.
-    for ( auto position : positions )
-        append( position );
+    if ( positions.empty() ) {
+        return;
+    }
+    // Lines must be stored in order
+    assert( ( positions.front() > lastPos_ ) || ( positions.front() == 0_offset ) );
+
+    // A whole block of lines is copied and packed at once, rather than
+    // appended line by line (#290).
+    auto next = positions.begin();
+    while ( next != positions.end() ) {
+        const auto count = std::min( SimdIndexBlockSize - currentLinesBlock_.size(),
+                                     static_cast<size_t>( positions.end() - next ) );
+        const auto blockEnd = next + static_cast<std::ptrdiff_t>( count );
+        const auto firstInBlock
+            = currentLinesBlock_.empty() ? next->get() : currentLinesBlock_.front().get();
+
+        currentLinesBlock_.insert( currentLinesBlock_.end(), next, blockEnd );
+        std::transform( next, blockEnd, std::back_inserter( currentLinesBlockShifted_ ),
+                        [ firstInBlock ]( OffsetInFile pos ) {
+                            return type_safe::narrow_cast<uint32_t>( pos.get() - firstInBlock );
+                        } );
+        next = blockEnd;
+
+        if ( currentLinesBlock_.size() == SimdIndexBlockSize ) {
+            compress_current_block();
+        }
+    }
+
+    lastPos_ = positions.back();
+    nbLines_ += LinesCount( positions.size() );
 }
 
 void CompressedLinePositionStorage::uncompress_last_block()
