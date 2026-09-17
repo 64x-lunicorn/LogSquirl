@@ -399,9 +399,9 @@ The release workflow does not build. It:
 |-------|------------|----------|
 | `stable`, `stable_url`, `stable_build` | CI Release (feed pull request), stable tag | The latest stable release: its name, release page and the `YY.MM.PATCH.BUILD` it was published from |
 | `beta`, `beta_url`, `beta_build` | CI Release (feed pull request), pre-release tag | The latest beta, offered to users with "check for beta versions" on and to users running a beta |
-| `releases` | CI Release | Every published release name; a running version that was only published as betas runs a beta |
+| `releases` | CI Release (feed pull request) | Every published release name; a running version that was only published as betas runs a beta |
 | `changelog` | Release preparation (by hand, oldest first) | One line per release, listed in the update notification for the releases a user skips, up to the offered one |
-| `ci`, `ci_url` | CI Release, stable tag (`ci` only) | Read only by LogSquirl 26.07.0 and older, which append an OS suffix to `ci_url`; it ends in `#`, so they land on the latest release page |
+| `ci`, `ci_url` | CI Release (feed pull request), stable tag (`ci` only) | Read only by LogSquirl 26.07.0 and older, which append an OS suffix to `ci_url`; it ends in `#`, so they land on the latest release page |
 | `stable_version`, `beta_version` | CI Release | Not read by the application |
 
 A release is offered when its build is newer than the running one; betas and
