@@ -200,7 +200,7 @@ const SearchAutoRefresh& OpenLogFile::searchAutoRefresh() const
     return autoRefresh_;
 }
 
-void OpenLogFile::setSearchRange( LineNumber startLine, LineNumber endLine )
+void OpenLogFile::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
     searchStartLine_ = startLine;
     searchEndLine_ = endLine;
@@ -269,7 +269,7 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         }
     }
 
-    // A finished load makes the Search range the whole Log File again.
+    // A finished load makes the Search Limits the whole Log File again.
     searchStartLine_ = 0_lnum;
     searchEndLine_ = nbLines;
 

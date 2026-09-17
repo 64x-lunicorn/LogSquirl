@@ -65,7 +65,7 @@ class OpenLogFile : public QObject {
 
 public:
     // What a finished load of the Log File brought, once this object has
-    // followed it: the Search refreshed, the Search range covering the whole
+    // followed it: the Search refreshed, the Search Limits covering the whole
     // Log File again, saved Marks applied and Format Recognition taken where
     // due.
     struct LoadFinished {
@@ -129,7 +129,7 @@ public:
     // Makes a Search kept earlier current again, stopping the current one.
     void makeSearchCurrent( std::shared_ptr<LogFilteredData> search );
 
-    // Requests the current Search for pattern over the Search range. It
+    // Requests the current Search for pattern over the Search Limits. It
     // supersedes the Search before it; an invalid pattern leaves no Search
     // active. Returns the Search's state right after the request.
     //
@@ -151,9 +151,10 @@ public:
     void setAutoRefresh( bool autoRefresh );
     const SearchAutoRefresh& searchAutoRefresh() const;
 
-    // The Log Lines a Search runs over, from startLine up to, not including,
-    // endLine. A finished load makes it the whole Log File again.
-    void setSearchRange( LineNumber startLine, LineNumber endLine );
+    // The Search Limits: the Log Lines a Search runs over, from startLine up
+    // to, not including, endLine. A finished load makes them the whole Log
+    // File again.
+    void setSearchLimits( LineNumber startLine, LineNumber endLine );
     LineNumber searchStartLine() const;
     LineNumber searchEndLine() const;
 
@@ -187,7 +188,7 @@ private:
     void handleChangeOnDisk( const QString& fileName );
     void handleFileChanged( MonitoredFileStatus status, const QString& failure );
     // Starts the Search again with the pattern last requested, over the
-    // Search range.
+    // Search Limits.
     void restartSearch();
     // Returns whether Format Recognition was taken.
     bool recognizeFormat();

@@ -157,7 +157,7 @@ public:
     // Instructs the widget to update it's content geometry,
     // used when the font is changed.
     void updateDisplaySize();
-    // Return the position of the top line of the view
+    // Return the position of the Log Line at the view's Scroll Position
     LineNumber getTopLine() const;
     // Where the view stands: the Log Line at the top and which of its Visual
     // Lines is shown first.

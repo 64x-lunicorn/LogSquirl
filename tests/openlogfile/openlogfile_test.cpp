@@ -344,7 +344,7 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
         REQUIRE( logFile.openLogFile.logFormat()->name() == "openlogfile_test" );
     }
 
-    THEN( "the Search range is the whole Log File" )
+    THEN( "the Search Limits are the whole Log File" )
     {
         REQUIRE( logFile.openLogFile.searchStartLine() == 0_lnum );
         REQUIRE( logFile.openLogFile.searchEndLine() == LineNumber( FirstLineCount ) );
@@ -395,7 +395,7 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
                 REQUIRE( logFile.openLogFile.logFormat() != nullptr );
             }
 
-            THEN( "the Search range is the whole Log File again" )
+            THEN( "the Search Limits are the whole Log File again" )
             {
                 REQUIRE( logFile.openLogFile.searchEndLine() == LineNumber( 2 * FirstLineCount ) );
             }

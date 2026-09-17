@@ -109,8 +109,8 @@ public:
     // saved Searches, whom to report a change to and, when one is given, the
     // view context to restore. Opening a file and restoring a Session both
     // come here.
-    ViewInterface* open( const QString& file_name, const ViewFactory& view_factory,
-                         const QString& view_context = {} );
+    ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory,
+                         const QString& viewContext = {} );
 
     // Close the file identified by the view passed
     // Throw an exception if it does not exist.
@@ -290,7 +290,7 @@ public:
 
     // Opens a Log File in this window, restoring the view context saved for
     // it in any window of the stored Session, the way restore() does.
-    ViewInterface* open( const QString& file_name, const ViewFactory& view_factory );
+    ViewInterface* open( const QString& fileName, const ViewFactory& viewFactory );
 
     void close( const ViewInterface* view )
     {
@@ -383,7 +383,7 @@ public:
     // (see ::open)
     // returns a vector of pairs (file_name, view) and the index of the
     // current file (or -1 if none).
-    OpenedFilesList restore( const ViewFactory& view_factory, int* current_file_index );
+    OpenedFilesList restore( const ViewFactory& viewFactory, int* currentFileIndex );
 
     // Get the geometry string from persistent storage for this session.
     void restoreGeometry( QByteArray* geometry ) const;

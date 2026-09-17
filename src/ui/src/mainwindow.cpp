@@ -414,25 +414,25 @@ void MainWindow::reloadSession()
     // The widgets are kept as they are built, in the order the Session opens
     // their Log Files, so that nothing has to be cast back from the views.
     std::vector<CrawlerWidget*> crawlers;
-    int current_file_index = -1;
+    int currentFileIndex = -1;
     const auto openedFiles = session_.restore(
         [ &crawlers ]( const ViewBuild& build ) {
             crawlers.push_back( new CrawlerWidget( build ) );
             return crawlers.back();
         },
-        &current_file_index );
+        &currentFileIndex );
 
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
-        auto* crawler_widget = crawlers[ i ];
-        mainTabWidget_.addCrawler( crawler_widget, openedFiles[ i ].first );
+        auto* crawlerWidget = crawlers[ i ];
+        mainTabWidget_.addCrawler( crawlerWidget, openedFiles[ i ].first );
 
         if ( followFileOnLoad ) {
-            signalCrawlerToFollowFile( crawler_widget );
+            signalCrawlerToFollowFile( crawlerWidget );
         }
     }
 
-    if ( current_file_index >= 0 ) {
-        mainTabWidget_.setCurrentIndex( current_file_index );
+    if ( currentFileIndex >= 0 ) {
+        mainTabWidget_.setCurrentIndex( currentFileIndex );
 
         if ( followFileOnLoad ) {
             followAction->setChecked( true );
@@ -2375,7 +2375,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
     LOG_DEBUG << "loadFile ( " << fileName.toStdString() << " )";
 
     // First check if the file is already open...
-    if ( const auto* existing_view = session_.getViewIfOpen( fileName ) ) {
+    if ( const auto* existingView = session_.getViewIfOpen( fileName ) ) {
         // Found among the tabs of every window, rather than cast back from
         // the views the Session knows.
         for ( auto* topLevel : QApplication::topLevelWidgets() ) {
@@ -2386,7 +2386,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             for ( int i = 0; i < crawlerWindow->mainTabWidget_.count(); ++i ) {
                 auto* crawler
                     = qobject_cast<CrawlerWidget*>( crawlerWindow->mainTabWidget_.widget( i ) );
-                if ( crawler && static_cast<const ViewInterface*>( crawler ) == existing_view ) {
+                if ( crawler && static_cast<const ViewInterface*>( crawler ) == existingView ) {
                     crawlerWindow->mainTabWidget_.setCurrentWidget( crawler );
                     crawlerWindow->activateWindow();
                     return true;
@@ -2421,25 +2421,25 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
         try {
             // The view context saved for this Log File, if any, is restored
             // as the Session restores it: while its views are built.
-            CrawlerWidget* crawler_widget = nullptr;
-            session_.open( fileName, [ &crawler_widget ]( const ViewBuild& build ) {
-                crawler_widget = new CrawlerWidget( build );
-                return crawler_widget;
+            CrawlerWidget* crawlerWidget = nullptr;
+            session_.open( fileName, [ &crawlerWidget ]( const ViewBuild& build ) {
+                crawlerWidget = new CrawlerWidget( build );
+                return crawlerWidget;
             } );
 
-            if ( !crawler_widget ) {
+            if ( !crawlerWidget ) {
                 LOG_ERROR << "Can't create crawler for " << fileName.toStdString();
                 return false;
             }
 
             // We won't show the widget until the file is fully loaded
-            crawler_widget->hide();
+            crawlerWidget->hide();
 
             // We disable the tab widget to avoid having someone switch
             // tab during loading. (maybe FIXME)
             // mainTabWidget_.setEnabled( false );
 
-            int index = mainTabWidget_.addCrawler( crawler_widget, fileName );
+            int index = mainTabWidget_.addCrawler( crawlerWidget, fileName );
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -2451,7 +2451,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             const auto& config = Configuration::get();
             if ( session_.watchPolicy().anyWatchEnabled()
                  && ( followFile || config.followFileOnLoad() ) ) {
-                signalCrawlerToFollowFile( crawler_widget );
+                signalCrawlerToFollowFile( crawlerWidget );
                 followAction->setChecked( true );
             }
         } catch ( ... ) {

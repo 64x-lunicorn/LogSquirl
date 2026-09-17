@@ -952,8 +952,9 @@ void AbstractLogView::scrollPositionMoved()
 {
     // Update the overview if we have one
     if ( overview_ != nullptr ) {
-        const auto topLine = scrolling_.position().lineNumber;
-        overview_->updateCurrentPosition( topLine, topLine + getNbVisibleLines() );
+        const auto scrollPosition = scrolling_.position();
+        overview_->updateCurrentPosition( scrollPosition.lineNumber,
+                                          scrollPosition.lineNumber + getNbVisibleLines() );
     }
 
     // Are we hovering over a new line?
@@ -1464,9 +1465,10 @@ void AbstractLogView::updateData()
     // Update the overview if we have one
     if ( overview_ != nullptr ) {
         // Calculate the index of the last line shown
-        const auto topLine = scrolling_.position().lineNumber;
-        const LineNumber lastLine = qMin( lastLineNumber, topLine + getNbVisibleLines() );
-        overview_->updateCurrentPosition( topLine, lastLine );
+        const auto scrollPosition = scrolling_.position();
+        const LineNumber lastLine
+            = qMin( lastLineNumber, scrollPosition.lineNumber + getNbVisibleLines() );
+        overview_->updateCurrentPosition( scrollPosition.lineNumber, lastLine );
     }
 
     forceRefresh();
@@ -1581,9 +1583,10 @@ void AbstractLogView::selectPortionAndDisplayLine( LineNumber logLine, LinesCoun
 void AbstractLogView::jumpToLine( LineNumber logLine )
 {
     // Put the selected line in the middle if possible
-    const auto newTopLine
-        = lines_->nearestPositionOf( logLine ) - LinesCount( getNbVisibleLines().get() / 2 );
-    applyScroll( scrolling_.scrollTo( ScrollPosition{ newTopLine, 0 } ) );
+    const auto newScrollPosition = ScrollPosition{
+        lines_->nearestPositionOf( logLine ) - LinesCount( getNbVisibleLines().get() / 2 ), 0
+    };
+    applyScroll( scrolling_.scrollTo( newScrollPosition ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )

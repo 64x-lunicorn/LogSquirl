@@ -420,11 +420,11 @@ const WatchPolicy& CrawlerWidget::watchPolicy() const
     return watchPolicy_;
 }
 
-void CrawlerWidget::restoreViewContext( const QString& view_context )
+void CrawlerWidget::restoreViewContext( const QString& viewContext )
 {
-    LOG_DEBUG << "CrawlerWidget::restoreViewContext: " << view_context.toLocal8Bit().data();
+    LOG_DEBUG << "CrawlerWidget::restoreViewContext: " << viewContext.toLocal8Bit().data();
 
-    const auto context = CrawlerWidgetContext{ view_context, viewSet_.quickFindPolicy() };
+    const auto context = CrawlerWidgetContext{ viewContext, viewSet_.quickFindPolicy() };
 
     setSizes( context.sizes() );
     matchCaseButton_->setChecked( !context.ignoreCase() );
@@ -923,7 +923,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // Set the encoding for the views
     updateEncoding();
 
-    // The Search range is the whole Log File again; every view shows it.
+    // The Search Limits are the whole Log File again; every view shows it.
     viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
 
     // Also change the data available icon
@@ -1145,7 +1145,7 @@ void CrawlerWidget::activityDetected()
 void CrawlerWidget::setSearchLimits( LineNumber startLine, LineNumber endLine )
 {
     // The Log Lines the next Search runs over.
-    openLogFile_->setSearchRange( startLine, endLine );
+    openLogFile_->setSearchLimits( startLine, endLine );
 
     // The Search Limits belong to the Log File: every view of it subdues the
     // same Log Lines, the Filtered Views of kept Searches included.
@@ -1963,7 +1963,7 @@ void CrawlerWidget::replaceCurrentSearch( const QString& searchText )
             searchText, matchCaseButton_->isChecked(), inverseButton_->isChecked(),
             booleanButton_->isChecked(), !useRegexpButton_->isChecked() );
 
-        // Start a new asynchronous search over the Search range -- the
+        // Start a new asynchronous search over the Search Limits -- the
         // Session validates the pattern itself; on failure it goes to
         // InvalidPattern synchronously (without touching the worker), so the
         // state is already conclusive.

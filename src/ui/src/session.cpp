@@ -72,8 +72,8 @@ ViewInterface* Session::getViewIfOpen( const QString& file_name ) const
         return nullptr;
 }
 
-ViewInterface* Session::open( const QString& file_name, const ViewFactory& view_factory,
-                              const QString& view_context )
+ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFactory,
+                              const QString& viewContext )
 {
     // The Open Log File: the log data, its Searches, and what they do as the
     // Log File changes on disk
@@ -83,22 +83,22 @@ ViewInterface* Session::open( const QString& file_name, const ViewFactory& view_
 
     // One value, one call: the views need nothing else before they can show
     // the Log File, and nothing arrives in an order they depend on.
-    ViewInterface* view = view_factory( ViewBuild{
+    ViewInterface* view = viewFactory( ViewBuild{
         .openLogFile = openLogFile,
         .quickFindPattern = quickFindPattern_,
         .policies = policies_,
         .savedSearches = savedSearches_,
-        .viewContext = view_context,
+        .viewContext = viewContext,
         // What the views change themselves -- a Highlighter Set ticked in
         // their menu, a zoom -- comes back here, to reach every open Log File.
         .changeReport = [ this ]( Changed change ) { applyChange( change ); },
     } );
 
     // Insert in the hash
-    openFiles_.insert( { view, { file_name, openLogFile, view } } );
+    openFiles_.insert( { view, { fileName, openLogFile, view } } );
 
     // Start loading the file
-    openLogFile->open( file_name );
+    openLogFile->open( fileName );
 
     return view;
 }
@@ -360,17 +360,17 @@ void WindowSession::save(
     session.save();
 }
 
-ViewInterface* WindowSession::open( const QString& file_name, const ViewFactory& view_factory )
+ViewInterface* WindowSession::open( const QString& fileName, const ViewFactory& viewFactory )
 {
     // The view context saved for this Log File in any window, if it was
     // open when the Session was last saved.
-    const auto savedViewContext = [ &file_name ]() {
+    const auto savedViewContext = [ &fileName ]() {
         const auto& session = SessionInfo::getSynced();
         for ( const auto& windowId : session.windows() ) {
             const auto openedFiles = session.openFiles( windowId );
             const auto saved = std::find_if(
                 openedFiles.begin(), openedFiles.end(),
-                [ &file_name ]( const auto& openFile ) { return openFile.fileName == file_name; } );
+                [ &fileName ]( const auto& openFile ) { return openFile.fileName == fileName; } );
             if ( saved != openedFiles.end() ) {
                 return saved->viewContext;
             }
@@ -378,12 +378,12 @@ ViewInterface* WindowSession::open( const QString& file_name, const ViewFactory&
         return QString{};
     }();
 
-    auto* view = appSession_->open( file_name, view_factory, savedViewContext );
-    openedFiles_.push_back( file_name );
+    auto* view = appSession_->open( fileName, viewFactory, savedViewContext );
+    openedFiles_.push_back( fileName );
     return view;
 }
 
-OpenedFilesList WindowSession::restore( const ViewFactory& view_factory, int* current_file_index )
+OpenedFilesList WindowSession::restore( const ViewFactory& viewFactory, int* currentFileIndex )
 {
     const auto& session = SessionInfo::getSynced();
 
@@ -394,12 +394,12 @@ OpenedFilesList WindowSession::restore( const ViewFactory& view_factory, int* cu
     for ( const auto& file : session_files ) {
         LOG_DEBUG << "Create view for " << file.fileName;
         // The same path as opening a Log File by hand.
-        ViewInterface* view = appSession_->open( file.fileName, view_factory, file.viewContext );
+        ViewInterface* view = appSession_->open( file.fileName, viewFactory, file.viewContext );
         result.emplace_back( file.fileName, view );
         openedFiles_.emplace_back( file.fileName );
     }
 
-    *current_file_index = logsquirl::isize( result ) - 1;
+    *currentFileIndex = logsquirl::isize( result ) - 1;
 
     return result;
 }
