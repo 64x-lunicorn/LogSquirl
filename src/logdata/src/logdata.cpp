@@ -56,8 +56,28 @@
 #include "linetypes.h"
 #include "log.h"
 #include "logfiltereddata.h"
+#include "sparselineread.h"
 
 #include "logdata.h"
+
+namespace {
+
+// A Log Line as getLineString() returns it, from its decoded text.
+QString chopCarriageReturn( QString&& lineData )
+{
+    if ( lineData.endsWith( QChar::CarriageReturn ) ) {
+        lineData.chop( 1 );
+    }
+    return std::move( lineData );
+}
+
+// A Log Line as getExpandedLineString() returns it, from its decoded text.
+QString chopCarriageReturnAndUntabify( QString&& lineData )
+{
+    return untabify( chopCarriageReturn( std::move( lineData ) ) );
+}
+
+} // namespace
 
 LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
                   const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy )
@@ -360,12 +380,7 @@ QString LogData::doGetExpandedLineString( LineNumber line ) const
 // indexingFinished).
 logsquirl::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount number ) const
 {
-    return getLinesFromFile( first_line, number, []( QString&& lineData ) {
-        if ( lineData.endsWith( QChar::CarriageReturn ) ) {
-            lineData.chop( 1 );
-        }
-        return std::move( lineData );
-    } );
+    return getLinesFromFile( first_line, number, chopCarriageReturn );
 }
 
 logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
@@ -501,6 +516,98 @@ logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, Line
     }
 
     return processedLines;
+}
+
+logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> lines ) const
+{
+    return getSparseLinesFromFile( lines, chopCarriageReturn );
+}
+
+logsquirl::vector<QString>
+LogData::getExpandedLinesSparse( std::span<const LineNumber> lines ) const
+{
+    return getSparseLinesFromFile( lines, chopCarriageReturnAndUntabify );
+}
+
+logsquirl::vector<QString>
+LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
+                                 QString ( *processLine )( QString&& ) ) const
+{
+    // What a Log Line reads as when it is past the last one, or its read did
+    // not happen: the same as when it is read on its own.
+    const QString notRead
+        = QStringLiteral( "LOGSQUIRL WARNING: failed to read some lines before this one" );
+
+    logsquirl::vector<QString> text( lines.size() );
+    logsquirl::vector<bool> isRead( lines.size(), false );
+
+    try {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+
+        // Everything the reads need from the Index and the Decoding Policy
+        // is copied first; #289 moves the reading below out of the lock.
+        const auto reads
+            = planSparseRead( lines, scopedAccessor.getNbLines(),
+                              [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
+                                  return scopedAccessor.getEndOfLineOffsets( first, count );
+                              } );
+        const bool hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+
+        if ( !reads.empty() ) {
+            ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
+            const auto textDecoder = codec_.makeDecoder();
+            const auto lineFeedWidth = textDecoder.encodingParams.lineFeedWidth;
+
+            logsquirl::vector<char> buffer;
+            for ( const auto& read : reads ) {
+                buffer.resize( static_cast<std::size_t>( read.size ) );
+                fileHolder.getFile()->seek( read.firstByte.get() );
+                const auto bytesRead = fileHolder.getFile()->read( buffer.data(), read.size );
+                if ( bytesRead != read.size ) {
+                    LOG_DEBUG << "failed to read " << read.size << " bytes, got " << bytesRead;
+                }
+
+                for ( const auto& line : read.lines ) {
+                    const auto length = line.end - line.begin - lineFeedWidth;
+
+                    constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
+                    QString decodedLine;
+                    if ( length >= maxlength ) {
+                        decodedLine = QStringLiteral( "LOGSQUIRL WARNING: this line is too long" );
+                    }
+                    else if ( line.begin + length > std::max( bytesRead, qint64{ 0 } ) ) {
+                        decodedLine = QStringLiteral( "LOGSQUIRL WARNING: file read failed" );
+                    }
+                    else {
+                        decodedLine = textDecoder.decoder->toUnicode(
+                            buffer.data() + line.begin, type_safe::narrow_cast<int>( length ) );
+                        if ( hideAnsiColorSequences ) {
+                            removeAnsiColorSequences( decodedLine );
+                        }
+                    }
+
+                    text[ line.request ] = processLine( std::move( decodedLine ) );
+                    isRead[ line.request ] = true;
+                }
+            }
+        }
+    } catch ( const std::bad_alloc& e ) {
+        LOG_ERROR << "not enough memory " << e.what();
+        for ( std::size_t request = 0; request < lines.size(); ++request ) {
+            if ( !isRead[ request ] ) {
+                text[ request ] = QStringLiteral( "LOGSQUIRL WARNING: not enough memory" );
+                isRead[ request ] = true;
+            }
+        }
+    }
+
+    for ( std::size_t request = 0; request < lines.size(); ++request ) {
+        if ( !isRead[ request ] ) {
+            text[ request ] = notRead;
+        }
+    }
+
+    return text;
 }
 
 QTextCodec* LogData::getDetectedEncoding() const
