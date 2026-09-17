@@ -19,6 +19,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <map>
 #include <vector>
 
@@ -498,6 +500,37 @@ SCENARIO( "Dark draws no frame line brighter than its border", "[theme]" )
                                        ColorToken::Dark, ColorToken::Shadow } ) {
                 INFO( Theme::tokenName( token ).toStdString() );
                 REQUIRE( dark.color( token ).lightness() <= border );
+            }
+        }
+    }
+}
+
+SCENARIO( "Every Theme's line numbers read against its Viewport margin", "[theme]" )
+{
+    const auto relativeLuminance = []( const QColor& color ) {
+        const auto linear = []( int channel ) {
+            const auto value = channel / 255.0;
+            return value <= 0.04045 ? value / 12.92 : std::pow( ( value + 0.055 ) / 1.055, 2.4 );
+        };
+        return 0.2126 * linear( color.red() ) + 0.7152 * linear( color.green() )
+               + 0.0722 * linear( color.blue() );
+    };
+    const auto contrast = [ & ]( const QColor& first, const QColor& second ) {
+        const auto lighter = std::max( relativeLuminance( first ), relativeLuminance( second ) );
+        const auto darker = std::min( relativeLuminance( first ), relativeLuminance( second ) );
+        return ( lighter + 0.05 ) / ( darker + 0.05 );
+    };
+
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its line-number text has at least WCAG AA contrast against its margin" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrast( theme.color( ColorToken::LineNumberText ),
+                                   theme.color( ColorToken::ViewportMargin ) )
+                         >= 4.5 );
             }
         }
     }

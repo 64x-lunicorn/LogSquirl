@@ -227,6 +227,11 @@ Theme Theme::light()
         { StatusInactive, "#6E7681" },
         { StatusInfo, "#388BFD" },
         { StatusText, "#FFFFFF" },
+        { ViewportMargin, "#E9ECEF" },
+        { ViewportMarginBorder, "#CED4DA" },
+        { LineNumberText, "#495057" },
+        { Bullet, "#FFFFFF" },
+        { BulletOutline, "#495057" },
     } );
 
     using enum StyleToken;
@@ -333,6 +338,11 @@ Theme Theme::dark()
         { StatusInactive, "#6E7681" },
         { StatusInfo, "#388BFD" },
         { StatusText, "#FFFFFF" },
+        { ViewportMargin, "#252526" },
+        { ViewportMarginBorder, "#333333" },
+        { LineNumberText, "#A0A0A0" },
+        { Bullet, "#1E1E1E" },
+        { BulletOutline, "#A0A0A0" },
     } );
 
     using enum StyleToken;
@@ -439,6 +449,11 @@ Theme Theme::highContrast()
         { StatusInactive, "#A6A6A6" },
         { StatusInfo, "#00FFFF" },
         { StatusText, "#000000" },
+        { ViewportMargin, "#000000" },
+        { ViewportMarginBorder, "#FFFFFF" },
+        { LineNumberText, "#FFFFFF" },
+        { Bullet, "#000000" },
+        { BulletOutline, "#FFFFFF" },
     } );
 
     using enum StyleToken;
