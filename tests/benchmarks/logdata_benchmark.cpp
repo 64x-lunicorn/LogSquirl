@@ -46,11 +46,15 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <variant>
 #include <vector>
 
@@ -292,6 +296,105 @@ TEST_CASE( "Reading a sparse set of Log Lines", "[logdata-benchmark][sparse-read
             }
             return characters;
         };
+    }
+}
+
+namespace {
+
+// How long reads took, reported as their median, p99 and max.
+class Latencies {
+public:
+    void add( std::chrono::nanoseconds latency )
+    {
+        latencies_.push_back( latency );
+    }
+
+    void report( const std::string& name )
+    {
+        std::sort( latencies_.begin(), latencies_.end() );
+        const auto at = [ this ]( double quantile ) {
+            const auto index = static_cast<std::size_t>(
+                quantile * static_cast<double>( latencies_.size() - 1 ) );
+            return std::chrono::duration<double, std::milli>( latencies_[ index ] ).count();
+        };
+        std::cout << std::fixed << std::setprecision( 3 ) << name << ": " << latencies_.size()
+                  << " reads";
+        if ( !latencies_.empty() ) {
+            std::cout << ", median " << at( 0.5 ) << " ms, p99 " << at( 0.99 ) << " ms, max "
+                      << at( 1.0 ) << " ms";
+        }
+        std::cout << std::endl;
+    }
+
+    std::size_t size() const
+    {
+        return latencies_.size();
+    }
+
+private:
+    std::vector<std::chrono::nanoseconds> latencies_;
+};
+
+} // namespace
+
+TEST_CASE( "Reading Log Lines while the Log File is indexed",
+           "[logdata-benchmark][read-while-indexing]" )
+{
+    // Not a Catch2 BENCHMARK: what scrolling while indexing feels like is the
+    // worst wait of a read, not the mean. A reader thread reads Log Lines
+    // among those indexed so far, as a view scrolling through them does,
+    // while the Log File is indexed, and the latency of every read is
+    // reported as median, p99 and max (#289).
+    using clock = std::chrono::steady_clock;
+
+    for ( const auto shape : Shapes ) {
+        generatedLogFiles->logFile( shape );
+    }
+
+    for ( const auto shape : Shapes ) {
+        const auto& file = generatedLogFiles->logFile( shape );
+
+        auto logData = newLogData();
+        Latencies lineCount;
+        Latencies lineRead;
+        Latencies screenRead;
+        std::atomic<bool> indexed{ false };
+        {
+            std::jthread reader( [ & ] {
+                std::uint64_t next = 1;
+                while ( !indexed ) {
+                    const auto countStart = clock::now();
+                    const auto lines = logData->getNbLine().get();
+                    lineCount.add( clock::now() - countStart );
+                    if ( lines > 0 ) {
+                        next = next * 6364136223846793005ULL + 1442695040888963407ULL;
+                        const auto line = LineNumber( ( next >> 17 ) % lines );
+
+                        const auto readStart = clock::now();
+                        static_cast<void>( logData->getLineString( line ) );
+                        lineRead.add( clock::now() - readStart );
+
+                        const auto screenLines
+                            = LinesCount( std::min<std::uint64_t>( 60, lines - line.get() ) );
+                        const auto screenStart = clock::now();
+                        static_cast<void>( logData->getExpandedLines( line, screenLines ) );
+                        screenRead.add( clock::now() - screenStart );
+                    }
+                    // About as often as a view repaints while it scrolls.
+                    std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+                }
+            } );
+
+            const auto status = indexLogFile( *logData, file.fileName );
+            indexed = true;
+            REQUIRE( status == LoadingStatus::Successful );
+        }
+        REQUIRE( logData->getNbLine().get() == file.lineCount );
+
+        lineCount.report( caseName( shape, "getNbLine while indexing" ) );
+        lineRead.report( caseName( shape, "getLineString while indexing" ) );
+        screenRead.report( caseName( shape, "getExpandedLines of 60 while indexing" ) );
+        CHECK( lineRead.size() > 0 );
     }
 }
 

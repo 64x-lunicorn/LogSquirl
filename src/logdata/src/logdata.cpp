@@ -427,24 +427,25 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
     rawLines.startLine = firstLine;
 
     try {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-        if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
-            LOG_WARNING << "Lines out of bound asked for";
-            return {}; /* exception? */
+        OffsetInFile::UnderlyingType firstByte = 0;
+        logsquirl::vector<OffsetInFile> endOfLines;
+        {
+            // Only the offsets are taken under the index lock: the file is
+            // read without it, so indexing can publish a block meanwhile.
+            IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+            if ( ( firstLine + number ).get() > scopedAccessor.getNbLines().get() ) {
+                LOG_WARNING << "Lines out of bound asked for";
+                return {}; /* exception? */
+            }
+
+            rawLines.hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+
+            firstByte = ( firstLine == 0_lnum )
+                            ? 0
+                            : scopedAccessor.getEndOfLineOffset( firstLine - 1_lcount ).get();
+
+            endOfLines = scopedAccessor.getEndOfLineOffsets( firstLine, number );
         }
-
-        rawLines.endOfLines.reserve( number.get() );
-        rawLines.hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
-
-        ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
-
-        const auto firstByte
-            = ( firstLine == 0_lnum )
-                  ? 0
-                  : scopedAccessor.getEndOfLineOffset( firstLine - 1_lcount ).get();
-
-        logsquirl::vector<OffsetInFile> endOfLines
-            = scopedAccessor.getEndOfLineOffsets( firstLine, number );
 
         // Guard against the (rare) case where the index has been concurrently truncated
         // between the firstByte lookup above and this call: back() on an empty vector is
@@ -457,6 +458,7 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
 
         const auto lastByte = endOfLines.back().get();
 
+        rawLines.endOfLines.reserve( endOfLines.size() );
         std::transform(
             endOfLines.begin(), endOfLines.end(), std::back_inserter( rawLines.endOfLines ),
             [ firstByte ]( const OffsetInFile& offset ) { return offset.get() - firstByte; } );
@@ -465,11 +467,20 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
         LOG_DEBUG << "will try to read:" << bytesToRead << " bytes";
         rawLines.buffer.resize( static_cast<std::size_t>( bytesToRead ) );
 
-        fileHolder.getFile()->seek( firstByte );
-        const auto bytesRead = fileHolder.getFile()->read( rawLines.buffer.data(), bytesToRead );
+        qint64 bytesRead = 0;
+        {
+            ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
+            fileHolder.getFile()->seek( firstByte );
+            bytesRead = fileHolder.getFile()->read( rawLines.buffer.data(), bytesToRead );
+        }
 
         if ( bytesRead != bytesToRead ) {
+            // The Log File is shorter than its Index says, as when it was cut
+            // short on disk and is not indexed again yet: only the bytes read
+            // are decoded, and the Log Lines past them read as a warning.
             LOG_DEBUG << "failed to read " << bytesToRead << " bytes, got " << bytesRead;
+            rawLines.buffer.resize(
+                static_cast<std::size_t>( std::max( bytesRead, qint64{ 0 } ) ) );
         }
 
         LOG_DEBUG << "done reading lines:" << rawLines.buffer.size();
@@ -542,16 +553,19 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
     logsquirl::vector<bool> isRead( lines.size(), false );
 
     try {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-
         // Everything the reads need from the Index and the Decoding Policy
-        // is copied first; #289 moves the reading below out of the lock.
-        const auto reads
-            = planSparseRead( lines, scopedAccessor.getNbLines(),
-                              [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
-                                  return scopedAccessor.getEndOfLineOffsets( first, count );
-                              } );
-        const bool hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+        // is copied under the index lock; the file is read without it, so
+        // indexing can publish a block meanwhile.
+        logsquirl::vector<SparseRead> reads;
+        bool hideAnsiColorSequences = false;
+        {
+            IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+            reads = planSparseRead( lines, scopedAccessor.getNbLines(),
+                                    [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
+                                        return scopedAccessor.getEndOfLineOffsets( first, count );
+                                    } );
+            hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+        }
 
         if ( !reads.empty() ) {
             ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
@@ -627,14 +641,20 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
     logsquirl::vector<Piece> placed( lines.size() );
 
     try {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
-
-        const auto reads
-            = planSparseRead( lines, scopedAccessor.getNbLines(),
-                              [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
-                                  return scopedAccessor.getEndOfLineOffsets( first, count );
-                              } );
-        const bool hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+        // Everything the reads need from the Index and the Decoding Policy
+        // is copied under the index lock; the file is read without it, so
+        // indexing can publish a block meanwhile. A read cut short by a Log
+        // File shorter than its Index reads as a warning below.
+        logsquirl::vector<SparseRead> reads;
+        bool hideAnsiColorSequences = false;
+        {
+            IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+            reads = planSparseRead( lines, scopedAccessor.getNbLines(),
+                                    [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
+                                        return scopedAccessor.getEndOfLineOffsets( first, count );
+                                    } );
+            hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+        }
 
         if ( !reads.empty() ) {
             ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
