@@ -663,17 +663,25 @@ SCENARIO( "The log view subdues exactly the Log Lines outside the Search Limits"
 
 namespace {
 
-// A FakeLogData that counts how often the Log Lines of a viewport are fetched.
+// A FakeLogData that counts how often Log Lines are fetched.
 class CountingLogData : public FakeLogData {
 public:
     using FakeLogData::FakeLogData;
 
+    // Every fetch of Log Lines.
     mutable int linesFetched = 0;
+    // The fetches of the Log Lines at the top of the Log File, where the
+    // views these tests count stand. Scrolling reads Log Lines of its own at
+    // the end of the Log File, to find its bottom.
+    mutable int topLinesFetched = 0;
 
 protected:
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount count ) const override
     {
         ++linesFetched;
+        if ( first == 0_lnum ) {
+            ++topLinesFetched;
+        }
         return FakeLogData::doGetLines( first, count );
     }
 };
@@ -740,6 +748,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
             showForPainting( view, logData, font, { .textWrap = textWrap } );
             const auto before = grabViewport( view );
             logData.linesFetched = 0;
+            logData.topLinesFetched = 0;
 
             WHEN( "a QuickFind pattern is typed character by character" )
             {
@@ -820,9 +829,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
                 view.updateData();
                 grabViewport( view );
 
-                THEN( "the Log Lines are read again, once" )
+                THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.topLinesFetched == 1 );
                 }
             }
 
@@ -831,9 +840,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
                 view.rereadLogLines();
                 grabViewport( view );
 
-                THEN( "the Log Lines are read again, once" )
+                THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.topLinesFetched == 1 );
                 }
             }
 
@@ -843,9 +852,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
                 view.updateData();
                 grabViewport( view );
 
-                THEN( "the Log Lines are read again, once" )
+                THEN( "the Log Lines in the Viewport are read again, once" )
                 {
-                    REQUIRE( logData.linesFetched == 1 );
+                    REQUIRE( logData.topLinesFetched == 1 );
                 }
             }
         }

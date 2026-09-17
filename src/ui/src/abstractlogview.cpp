@@ -429,6 +429,13 @@ QString AbstractLogView::ScrolledLines::lineText( LineNumber position ) const
     return view_.logData_->getLineString( position );
 }
 
+logsquirl::vector<QString> AbstractLogView::ScrolledLines::lineTexts( LineNumber first,
+                                                                      LinesCount count ) const
+{
+    // Read together, as the Viewport reads them.
+    return view_.logData_->getLines( first, count );
+}
+
 ScrollingViewport AbstractLogView::ScrolledLines::viewport() const
 {
     const auto* area = view_.viewport();

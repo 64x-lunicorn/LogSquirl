@@ -437,6 +437,7 @@ private:
         }
         LinesCount lineCount() const override;
         QString lineText( LineNumber position ) const override;
+        logsquirl::vector<QString> lineTexts( LineNumber first, LinesCount count ) const override;
         ScrollingViewport viewport() const override;
 
     private:

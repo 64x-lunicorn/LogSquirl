@@ -64,7 +64,18 @@ public:
     QString lineText( LineNumber position ) const override
     {
         ++linesRead;
+        ++readsOfLines;
         return lines_.at( static_cast<qsizetype>( position.get() ) );
+    }
+    logsquirl::vector<QString> lineTexts( LineNumber first, LinesCount count ) const override
+    {
+        ++readsOfLines;
+        logsquirl::vector<QString> texts;
+        for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
+            ++linesRead;
+            texts.push_back( lines_.at( static_cast<qsizetype>( position ) ) );
+        }
+        return texts;
     }
     ScrollingViewport viewport() const override
     {
@@ -77,6 +88,8 @@ public:
                                  .widthPx = OneColumnWidePx,
                                  .heightPx = Rows * CharHeightPx };
     mutable uint64_t linesRead = 0;
+    // How often lines were read: one at a time or several together.
+    mutable uint64_t readsOfLines = 0;
 };
 
 // A text view reduced to what scrolling needs of it: its lines, its Viewport
@@ -860,6 +873,36 @@ SCENARIO( "No scrolling step reads more than the Viewport and what it passes ove
             view.text.linesRead = 0;
             view.turnWheel( -Notch );
             REQUIRE( view.text.linesRead <= 3 );
+        }
+
+        THEN( "a page down reads the Log Lines it passes over together, not one by one" )
+        {
+            view.setScrollBarValue( 50000 );
+            view.text.linesRead = 0;
+            view.text.readsOfLines = 0;
+            view.page( true );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 50020_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
+            // Batches that double in size: 1, 2, 4, 8 and the 5 left.
+            REQUIRE( view.text.readsOfLines <= 5 );
+        }
+
+        THEN( "a page up reads the Log Lines it passes over together, not one by one" )
+        {
+            view.setScrollBarValue( 50000 );
+            view.text.linesRead = 0;
+            view.text.readsOfLines = 0;
+            view.page( false );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 49980_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
+            REQUIRE( view.text.readsOfLines <= 5 );
+        }
+
+        THEN( "the Log File changing reads the Log Lines at its end together" )
+        {
+            view.text.readsOfLines = 0;
+            view.setLines( view.text.lines_ );
+            REQUIRE( view.text.readsOfLines <= 5 );
         }
 
         THEN( "a resize reads no more Log Lines than the Viewport has rows" )

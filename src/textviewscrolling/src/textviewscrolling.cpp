@@ -26,7 +26,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <memory>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -52,6 +54,16 @@ WrappedString wrapLogLine( QString text, LineLength columns, bool textWrap )
     // What finds a Scroll Position's last Visual Line relies on it.
     assert( visualLines.wrappedLinesCount() > 0 );
     return visualLines;
+}
+
+logsquirl::vector<QString> ScrolledText::lineTexts( LineNumber first, LinesCount count ) const
+{
+    logsquirl::vector<QString> texts;
+    texts.reserve( count.get() );
+    for ( auto line = first; line < first + count; line = line + 1_lcount ) {
+        texts.push_back( lineText( line ) );
+    }
+    return texts;
 }
 
 TextViewScrolling::TextViewScrolling( const ScrolledText& text, bool textWrap )
@@ -111,10 +123,10 @@ const LogFileBottom& TextViewScrolling::logFileBottom() const
         // Not geometry(): its drawing offset depends on the bottom.
         const ViewportLayout layout{ layoutInput() };
         const auto columns = layout.visibleColumns();
-        logFileBottom_
-            = layout.logFileBottom( key.totalLines, [ this, columns ]( LineNumber line ) {
-                  return visualLineCount( line, columns );
-              } );
+        // Wrapped backwards from the end, no more lines than the rows.
+        logFileBottom_ = layout.logFileBottom(
+            key.totalLines, batchedVisualLineCounter( columns, /* downwards */ false,
+                                                      layout.viewportRows().get() ) );
     }
 
     return *logFileBottom_;
@@ -132,6 +144,54 @@ std::size_t TextViewScrolling::visualLineCount( LineNumber line, LineLength colu
     }
 
     return wrap( text_.lineText( line ), columns ).wrappedLinesCount();
+}
+
+VisualLineCounter TextViewScrolling::batchedVisualLineCounter( LineLength columns, bool downwards,
+                                                               std::uint64_t mostLines ) const
+{
+    if ( !textWrap_ ) {
+        return []( LineNumber ) { return size_t{ 1 }; };
+    }
+
+    // The counts of the last batch read, from its first line on.
+    struct Batch {
+        LineNumber first{ 0 };
+        std::vector<std::size_t> counts;
+        std::uint64_t nextSize = 1;
+        std::uint64_t linesLeft = 0;
+    };
+    auto batch = std::make_shared<Batch>();
+    batch->linesLeft = std::max<std::uint64_t>( mostLines, 1 );
+
+    return [ this, columns, downwards, batch ]( LineNumber line ) -> std::size_t {
+        const auto& cached = *batch;
+        if ( line >= cached.first && line.get() - cached.first.get() < cached.counts.size() ) {
+            return cached.counts[ line.get() - cached.first.get() ];
+        }
+
+        const auto lineCount = text_.lineCount().get();
+        if ( line.get() >= lineCount ) {
+            return 1;
+        }
+
+        const auto size
+            = std::max<std::uint64_t>( std::min( batch->nextSize, batch->linesLeft ), 1 );
+        batch->nextSize *= 2;
+        batch->linesLeft -= std::min( batch->linesLeft, size );
+
+        const auto first
+            = downwards ? line.get() : line.get() + 1 - std::min( line.get() + 1, size );
+        const auto end = downwards ? std::min( line.get() + size, lineCount ) : line.get() + 1;
+        const auto texts = text_.lineTexts( LineNumber( first ), LinesCount( end - first ) );
+
+        batch->first = LineNumber( first );
+        batch->counts.clear();
+        for ( const auto& text : texts ) {
+            batch->counts.push_back( wrap( text, columns ).wrappedLinesCount() );
+        }
+        const auto index = line.get() - first;
+        return index < batch->counts.size() ? batch->counts[ index ] : 1;
+    };
 }
 
 WrappedString TextViewScrolling::wrap( QString text, LineLength columns ) const
@@ -213,9 +273,12 @@ ScrollAnswer TextViewScrolling::scrollTo( ScrollPosition position )
 ScrollAnswer TextViewScrolling::scrollByVisualLines( std::int64_t visualLines )
 {
     const auto columns = ViewportLayout{ layoutInput() }.visibleColumns();
+    // Every line passed is at least one Visual Line, so a move asks about no
+    // more lines than it moves Visual Lines.
+    const auto mostLines = static_cast<std::uint64_t>( std::abs( visualLines ) );
     return scrollTo( moveScrollPosition(
         position_, visualLines, bottomScrollPosition(),
-        [ this, columns ]( LineNumber line ) { return visualLineCount( line, columns ); } ) );
+        batchedVisualLineCounter( columns, /* downwards */ visualLines > 0, mostLines ) ) );
 }
 
 ScrollAnswer TextViewScrolling::stepVisualLines( std::int64_t visualLines )
