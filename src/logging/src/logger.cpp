@@ -151,14 +151,18 @@ private:
     Logger() = default;
 
     // Writing is buffered: flushing every message (std::endl) cost a
-    // syscall per log line. Errors and fatal messages are still flushed
-    // at once so they survive a crash that follows them; everything else
-    // is flushed at least once a second and at shutdown (QFile and
-    // std::cout flush when they are destroyed).
+    // syscall per log line. A warning, error or fatal message is flushed at
+    // once, together with everything buffered before it, so it survives a
+    // crash that follows it. Info and debug messages are only flushed when
+    // a later message is logged at least a second after the last flush, and
+    // at a normal exit (QFile and std::cout flush when they are destroyed):
+    // without a background thread, the last of them before a quiet period
+    // stay buffered until the next message, and a crash can lose them.
     bool shouldFlush( QtMsgType type )
     {
         const auto now = std::chrono::steady_clock::now();
-        if ( type == QtFatalMsg || type == QtCriticalMsg || now - lastFlush_ >= FlushInterval ) {
+        if ( detail::logLevelOf( type ) <= static_cast<uint8_t>( LogLevel::Warning )
+             || now - lastFlush_ >= FlushInterval ) {
             lastFlush_ = now;
             return true;
         }
