@@ -391,7 +391,8 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
     // Uncompressed tail block
     quint32 tailCount = 0;
     in >> tailCount;
-    if ( in.status() != QDataStream::Ok || tailCount > 128 ) {
+    // A full tail is always packed into a block at once.
+    if ( in.status() != QDataStream::Ok || tailCount >= SimdIndexBlockSize ) {
         return false;
     }
     currentLinesBlock_.clear();
@@ -409,7 +410,8 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
     qint64 lines = 0;
     qint64 lastP = 0;
     in >> lines >> lastP;
-    if ( in.status() != QDataStream::Ok ) {
+    if ( in.status() != QDataStream::Ok
+         || static_cast<quint64>( lines ) != blocks_.size() * SimdIndexBlockSize + tailCount ) {
         return false;
     }
     nbLines_ = LinesCount( static_cast<LinesCount::UnderlyingType>( lines ) );

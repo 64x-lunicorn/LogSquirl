@@ -662,4 +662,29 @@ SCENARIO( "Packed line positions loaded from the Index cache must lie within the
             REQUIRE_FALSE( damaged.deserializeInto( loaded ) );
         }
     }
+
+    WHEN( "the line count claims more Log Lines than the blocks and the tail hold" )
+    {
+        auto damaged = fields;
+        damaged.lines += 1000;
+
+        THEN( "loading fails" )
+        {
+            CompressedLinePositionStorage loaded;
+            REQUIRE_FALSE( damaged.deserializeInto( loaded ) );
+        }
+    }
+
+    WHEN( "the tail holds a whole block" )
+    {
+        auto damaged = fields;
+        damaged.tail.resize( 128, damaged.tail.back() );
+        damaged.lines = 2 * 128 + 128;
+
+        THEN( "loading fails" )
+        {
+            CompressedLinePositionStorage loaded;
+            REQUIRE_FALSE( damaged.deserializeInto( loaded ) );
+        }
+    }
 }
