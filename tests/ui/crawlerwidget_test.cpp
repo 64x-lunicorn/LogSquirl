@@ -42,6 +42,7 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 
+#include "abstractlogview.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
@@ -51,6 +52,7 @@
 #include "logformatdefinition.h"
 #include "logtableview.h"
 #include "shortcuts.h"
+#include "textviewscrolling.h"
 
 static const qint64 SL_NB_LINES = 100LL;
 
@@ -81,6 +83,25 @@ bool generateDataFiles( QTemporaryFile& file )
 } // namespace
 
 struct CrawlerWidgetPrivate {};
+
+template <>
+struct TextViewScrolling::access_by<CrawlerWidgetPrivate> {
+    // Whether the Visual Lines of the bottom lines are kept from the last
+    // count, to be extended when lines are appended.
+    static bool bottomLinesKept( const TextViewScrolling& scrolling )
+    {
+        return scrolling.bottomLines_.has_value();
+    }
+};
+
+template <>
+struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
+    static bool bottomLinesKept( const AbstractLogView& view )
+    {
+        return TextViewScrolling::access_by<CrawlerWidgetPrivate>::bottomLinesKept(
+            view.scrolling_ );
+    }
+};
 
 template <>
 struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
@@ -377,6 +398,12 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return !crawler->stopButton_->isHidden();
     }
 
+    bool mainViewKeepsBottomLines() const
+    {
+        return AbstractLogView::access_by<CrawlerWidgetPrivate>::bottomLinesKept(
+            *crawler->logMainView_ );
+    }
+
     void clickSearchDefaultButtons()
     {
         QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
@@ -567,6 +594,52 @@ SCENARIO( "An auto-refreshed Search follows a Log File truncated on disk", "[ui]
             {
                 REQUIRE_FALSE( crawlerVisitor.isMarked( 50_lnum ) );
             }
+        }
+    }
+}
+
+SCENARIO( "A Log File growing under an unchanged Encoding keeps what scrolling counted",
+          "[ui][encoding]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "growing.log" );
+    QByteArray content;
+    for ( int i = 0; i < SL_NB_LINES; i++ ) {
+        content += QString( "LOGDATA is a part of logsquirl, this is line %1\n" )
+                       .arg( i, 6, 10, QChar( '0' ) )
+                       .toUtf8();
+    }
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        REQUIRE( file.write( content ) == content.size() );
+    }
+
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+    crawlerVisitor.showSized();
+
+    WHEN( "Log Lines are appended to the Log File" )
+    {
+        REQUIRE( fileWatch->grow( path, "one more Log Line\nand another\n" ) );
+        REQUIRE( waitUiState( [ & ]() {
+            return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES + 2
+                   && crawlerVisitor.isLoadingFinished();
+        } ) );
+        QCoreApplication::processEvents();
+
+        THEN( "the main view keeps the Visual Lines counted for its bottom, as nothing was "
+              "decoded differently" )
+        {
+            REQUIRE( crawlerVisitor.mainViewKeepsBottomLines() );
         }
     }
 }

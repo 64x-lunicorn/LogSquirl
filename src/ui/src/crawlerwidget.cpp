@@ -2102,12 +2102,19 @@ void CrawlerWidget::updateEncoding()
     QString encodingPrefix = encodingMib_ ? tr( "Displayed as %1" ) : tr( "Detected as %1" );
     encodingText_ = encodingPrefix.arg( textCodec->name().constData() );
 
+    // Asked after every load: a Log File that only grew keeps what its views
+    // read and counted.
+    if ( displayedEncodingMib_ == textCodec->mibEnum() ) {
+        return;
+    }
+    displayedEncodingMib_ = textCodec->mibEnum();
+
     openLogFile_->logData()->interruptLoading();
 
     openLogFile_->logData()->setDisplayEncoding( textCodec->name().constData() );
-    logMainView_->rereadLogLines();
     openLogFile_->filteredData()->setDisplayEncoding( textCodec->name().constData() );
-    filteredView_->rereadLogLines();
+    // The Filtered Views of kept Searches included.
+    viewSet_.rereadLogLines();
 }
 
 // Change the respective size of the two views

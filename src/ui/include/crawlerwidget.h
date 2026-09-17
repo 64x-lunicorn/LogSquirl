@@ -347,6 +347,9 @@ private:
     AbstractLogView* activeView() const;
     void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
     void changeDataStatus( DataStatus status );
+    // Determines the Encoding the Log File is displayed in. Only when it
+    // differs from the one displayed until now are the Log Lines decoded and
+    // read again.
     void updateEncoding();
     void changeTopViewSize( int32_t delta );
 
@@ -458,6 +461,8 @@ private:
 
     // Current encoding setting;
     std::optional<int> encodingMib_;
+    // The Encoding the Log File is displayed in, once one was set.
+    std::optional<int> displayedEncodingMib_;
     QString encodingText_;
 
     ColorLabelsManager colorLabelsManager_;

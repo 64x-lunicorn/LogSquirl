@@ -151,6 +151,10 @@ public:
     // How far the elastic hook is pulled before follow engages.
     static constexpr int HookThreshold = 300;
 
+    // Lets a test read what scrolling counted.
+    template <class T>
+    struct access_by;
+
     // text outlives this. textWrap is the state the view starts in.
     TextViewScrolling( const ScrolledText& text, bool textWrap );
 
