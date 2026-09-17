@@ -109,6 +109,7 @@ public:
     {
         visible_ = visible;
         dirty_ = visible;
+        paced_ = false;
     }
 
     // Update the current position in the file (to draw the view line)

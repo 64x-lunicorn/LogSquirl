@@ -48,6 +48,9 @@ void Overview::setFilteredData( const LogFilteredData* logFilteredData )
 
     logFilteredData_ = logFilteredData;
     dirty_ = true;
+    paced_ = false;
+    // Another LogFilteredData may sit where a former one was: count all again.
+    computed_.reset();
 }
 
 void Overview::updateData( LinesCount totalNbLine, UpdatePace pace )
