@@ -370,7 +370,8 @@ SCENARIO( "A stored dark palette overrides Dark Tokens", "[theme]" )
 
     GIVEN( "the palette stored by earlier versions" )
     {
-        // Every earlier version saved its full default dark palette.
+        // Every earlier version saved its full default dark palette, with
+        // Window still #121212 before the flatter look (#265).
         const std::map<QString, QString> storedDefaults{
             { "Window", "#121212" },
             { "WindowText", "#E0E0E0" },
@@ -588,6 +589,62 @@ SCENARIO( "The Command Palette's badge and shortcut Tokens are readable in every
                                         theme.color( ColorToken::Highlight ) )
                          >= 4.5 );
             }
+        }
+    }
+}
+
+SCENARIO( "A dialog's default button is readable and shows its focus in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its text reaches 4.5:1 on the button, resting and hovered, and 7:1 in High "
+              "Contrast" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                const auto minimum = name == Theme::HighContrastKey ? 7.0 : 4.5;
+                const auto text = theme.color( ColorToken::DefaultButtonText );
+                REQUIRE( contrastRatio( text, theme.color( ColorToken::DefaultButton ) )
+                         >= minimum );
+                REQUIRE( contrastRatio( text, theme.color( ColorToken::DefaultButtonHover ) )
+                         >= minimum );
+            }
+        }
+
+        THEN( "its border and its focus border reach 3:1 on the window" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                const auto window = theme.color( ColorToken::Window );
+                REQUIRE( contrastRatio( theme.color( ColorToken::DefaultButtonBorder ), window )
+                         >= 3.0 );
+                REQUIRE(
+                    contrastRatio( theme.color( ColorToken::DefaultButtonFocusBorder ), window )
+                    >= 3.0 );
+            }
+        }
+    }
+
+    GIVEN( "the High Contrast Theme" )
+    {
+        const auto theme = Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light );
+
+        THEN( "the default button is outlined, not filled" )
+        {
+            REQUIRE( theme.color( ColorToken::DefaultButton )
+                     == theme.color( ColorToken::Button ) );
+        }
+
+        THEN( "it shows focus like every push button: in Highlight, on an input border at rest" )
+        {
+            // In a dialog the focused push button becomes the default one
+            // (autoDefault), so a resting border in Highlight would hide focus.
+            REQUIRE( theme.color( ColorToken::DefaultButtonBorder )
+                     == theme.color( ColorToken::InputBorder ) );
+            REQUIRE( theme.color( ColorToken::DefaultButtonFocusBorder )
+                     == theme.color( ColorToken::Highlight ) );
         }
     }
 }
@@ -838,10 +895,15 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
         const auto outline = pixels( highContrast.value( StyleToken::OutlineWidth ) );
         const auto darkOutline = pixels( dark.value( StyleToken::OutlineWidth ) );
 
-        const std::vector<StyleToken> borderTokens{ StyleToken::BorderWidth,
-                                                    StyleToken::OutlineWidth,
-                                                    StyleToken::ProgressChunkBorderWidth,
-                                                    StyleToken::DisabledBorderStyle };
+        // High Contrast draws square corners (#265).
+        const std::vector<StyleToken> radiusTokens{ StyleToken::ControlRadius,
+                                                    StyleToken::PopupRadius,
+                                                    StyleToken::HandleRadius,
+                                                    StyleToken::MenuBarItemRadius };
+        const std::vector<StyleToken> borderTokens{
+            StyleToken::BorderWidth, StyleToken::OutlineWidth, StyleToken::BoxBorderWidth,
+            StyleToken::ProgressChunkBorderWidth, StyleToken::DisabledBorderStyle
+        };
         const std::vector<StyleToken> paddingsInBorder{ StyleToken::ButtonPadding,
                                                         StyleToken::ToolButtonPadding,
                                                         StyleToken::InputPadding };
@@ -850,6 +912,14 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
         {
             REQUIRE( border >= darkBorder );
             REQUIRE( outline >= darkOutline );
+        }
+
+        THEN( "its corners are square" )
+        {
+            for ( const auto token : radiusTokens ) {
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( pixels( highContrast.value( token ) ) == 0 );
+            }
         }
 
         THEN( "a padding inside a border shrinks by as much as the border grows" )
@@ -861,11 +931,13 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
             }
         }
 
-        THEN( "the tab pane overlaps the tabs by its border, and a scroll bar's outline adds "
-              "to its extent" )
+        THEN( "the tab pane overlaps the tabs by its box border, and a scroll bar's outline "
+              "adds to its extent" )
         {
-            REQUIRE( pixels( highContrast.value( StyleToken::TabPaneOffset ) ) == -border );
-            REQUIRE( pixels( dark.value( StyleToken::TabPaneOffset ) ) == -darkBorder );
+            REQUIRE( pixels( highContrast.value( StyleToken::TabPaneOffset ) )
+                     == -pixels( highContrast.value( StyleToken::BoxBorderWidth ) ) );
+            REQUIRE( pixels( dark.value( StyleToken::TabPaneOffset ) )
+                     == -pixels( dark.value( StyleToken::BoxBorderWidth ) ) );
             REQUIRE( pixels( highContrast.value( StyleToken::ScrollBarExtent ) ) - 2 * outline
                      == pixels( dark.value( StyleToken::ScrollBarExtent ) ) - 2 * darkOutline );
         }
@@ -876,6 +948,8 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
                 if ( image.match( dark.value( token ) ).hasMatch()
                      || std::find( borderTokens.begin(), borderTokens.end(), token )
                             != borderTokens.end()
+                     || std::find( radiusTokens.begin(), radiusTokens.end(), token )
+                            != radiusTokens.end()
                      || std::find( paddingsInBorder.begin(), paddingsInBorder.end(), token )
                             != paddingsInBorder.end()
                      || token == StyleToken::TabPaneOffset
