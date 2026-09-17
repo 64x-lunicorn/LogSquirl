@@ -9,9 +9,10 @@
 # Hyperscan's own CMake project cannot be added twice to one build (its target
 # names would collide), so each build is an external project over the same
 # sources: configured with this build's compiler, generator, build type and C
-# and C++ flags plus EXTRA_FLAGS, built as hs.dll and copied to the directory
-# the executables are built into as <DLL_NAME>.dll. Both builds export the
-# same functions (Hyperscan's hs.def). IMPORT_LIBRARY_VAR receives the import
+# and C++ flags plus EXTRA_FLAGS. The fork only configures as a static library,
+# so the static library is linked into <DLL_NAME>.dll with the exports of
+# Hyperscan's hs.def, in the directory the executables are built into. Both
+# builds export the same functions. IMPORT_LIBRARY_VAR receives the import
 # library of this build to link against.
 
 include(ExternalProject)
@@ -23,7 +24,8 @@ function(logsquirl_add_hyperscan_windows_runtime TARGET)
   list(JOIN ARG_EXTRA_FLAGS " " extra_flags)
   set(binary_dir "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}")
   set(dll "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${ARG_DLL_NAME}.dll")
-  set(import_library "${binary_dir}/lib/hs.lib")
+  set(static_library "${binary_dir}/lib/hs.lib")
+  set(import_library "${binary_dir}/${ARG_DLL_NAME}_import.lib")
 
   set(cache_args
       "-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
@@ -33,11 +35,10 @@ function(logsquirl_add_hyperscan_windows_runtime TARGET)
       "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} ${extra_flags}"
       "-DCMAKE_C_FLAGS_${config}:STRING=${CMAKE_C_FLAGS_${config}}"
       "-DCMAKE_CXX_FLAGS_${config}:STRING=${CMAKE_CXX_FLAGS_${config}}"
-      "-DCMAKE_SHARED_LINKER_FLAGS:STRING=${CMAKE_SHARED_LINKER_FLAGS}"
-      "-DCMAKE_SHARED_LINKER_FLAGS_${config}:STRING=${CMAKE_SHARED_LINKER_FLAGS_${config}}"
       "-DCMAKE_CXX_STANDARD:STRING=17"
       "-DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5"
-      "-DBUILD_SHARED_LIBS:BOOL=ON"
+      "-DBUILD_STATIC_LIBS:BOOL=ON"
+      "-DBUILD_SHARED_LIBS:BOOL=OFF"
       "-DBUILD_AVX512:BOOL=OFF"
       "-DBUILD_AVX512VBMI:BOOL=OFF"
       "-DFAT_RUNTIME:BOOL=OFF"
@@ -66,9 +67,13 @@ function(logsquirl_add_hyperscan_windows_runtime TARGET)
     UPDATE_COMMAND ""
     CMAKE_GENERATOR "${CMAKE_GENERATOR}"
     CMAKE_CACHE_ARGS ${cache_args}
-    BUILD_COMMAND "${CMAKE_COMMAND}" --build "${binary_dir}" --target hs_shared
-    INSTALL_COMMAND "${CMAKE_COMMAND}" -E copy "${binary_dir}/bin/hs.dll" "${dll}"
-    BUILD_BYPRODUCTS "${import_library}" "${binary_dir}/bin/hs.dll"
+    BUILD_COMMAND "${CMAKE_COMMAND}" --build "${binary_dir}" --target hs
+    COMMAND
+      "${CMAKE_LINKER}" /nologo /DLL /DEBUG /INCREMENTAL:NO /OPT:REF /OPT:ICF "/DEF:${ARG_SOURCE_DIR}/hs.def"
+      "/OUT:${binary_dir}/${ARG_DLL_NAME}.dll" "/IMPLIB:${import_library}" "${static_library}"
+    INSTALL_COMMAND "${CMAKE_COMMAND}" -E copy "${binary_dir}/${ARG_DLL_NAME}.dll" "${binary_dir}/${ARG_DLL_NAME}.pdb"
+                    "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}"
+    BUILD_BYPRODUCTS "${static_library}" "${import_library}" "${binary_dir}/${ARG_DLL_NAME}.dll"
     INSTALL_BYPRODUCTS "${dll}"
     # One build at a time in the console pool, with its output visible.
     USES_TERMINAL_CONFIGURE YES
