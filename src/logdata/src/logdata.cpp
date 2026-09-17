@@ -610,6 +610,137 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
     return text;
 }
 
+std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) const
+{
+    static constexpr int Utf8Mib = 106;
+    const std::string_view notRead = "LOGSQUIRL WARNING: failed to read some lines before this one";
+    const std::string_view notEnoughMemory = "LOGSQUIRL WARNING: not enough memory";
+
+    // The text of each Log Line, with its line feed, lands in pieces in the
+    // order the Log Lines are read; where each one lies is kept by request.
+    struct Piece {
+        std::size_t begin = 0;
+        std::size_t size = 0;
+        bool isRead = false;
+    };
+    std::string pieces;
+    logsquirl::vector<Piece> placed( lines.size() );
+
+    try {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+
+        const auto reads
+            = planSparseRead( lines, scopedAccessor.getNbLines(),
+                              [ &scopedAccessor ]( LineNumber first, LinesCount count ) {
+                                  return scopedAccessor.getEndOfLineOffsets( first, count );
+                              } );
+        const bool hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
+
+        if ( !reads.empty() ) {
+            ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
+            const auto encodingParams = codec_.encodingParameters();
+            const bool isUtf8 = codec_.mibEnum() == Utf8Mib;
+            const auto lineFeedWidth = encodingParams.lineFeedWidth;
+
+            // Decodes a Log Line on its own, as getLineString() does.
+            const auto appendDecoded
+                = [ this, hideAnsiColorSequences, &pieces ]( const char* bytes, qint64 length ) {
+                      const auto textDecoder = codec_.makeDecoder();
+                      auto decodedLine = textDecoder.decoder->toUnicode(
+                          bytes, type_safe::narrow_cast<int>( length ) );
+                      if ( hideAnsiColorSequences ) {
+                          removeAnsiColorSequences( decodedLine );
+                      }
+                      pieces += chopCarriageReturn( std::move( decodedLine ) ).toStdString();
+                  };
+
+            logsquirl::vector<char> buffer;
+            for ( const auto& read : reads ) {
+                buffer.resize( static_cast<std::size_t>( read.size ) );
+                fileHolder.getFile()->seek( read.firstByte.get() );
+                const auto bytesRead = fileHolder.getFile()->read( buffer.data(), read.size );
+                if ( bytesRead != read.size ) {
+                    LOG_DEBUG << "failed to read " << read.size << " bytes, got " << bytesRead;
+                }
+
+                for ( const auto& line : read.lines ) {
+                    const auto length = line.end - line.begin - lineFeedWidth;
+                    const auto begin = pieces.size();
+
+                    constexpr auto maxlength = std::numeric_limits<int>::max() / 2;
+                    if ( length >= maxlength ) {
+                        pieces += "LOGSQUIRL WARNING: this line is too long";
+                    }
+                    else if ( line.begin + length > std::max( bytesRead, qint64{ 0 } ) ) {
+                        pieces += "LOGSQUIRL WARNING: file read failed";
+                    }
+                    else {
+                        const char* bytes = buffer.data() + line.begin;
+                        const auto size = static_cast<std::size_t>( length );
+                        const std::string_view text{ bytes, size };
+
+                        // A decoder drops a byte order mark that starts a Log
+                        // Line, and replaces what is not UTF-8; neither is
+                        // copied as it is.
+                        const bool isCopiedAsRead
+                            = encodingParams.isUtf8Compatible
+                              && ( !hideAnsiColorSequences
+                                   || text.find( '\x1B' ) == std::string_view::npos )
+                              && ( simdutf::validate_ascii( bytes, size )
+                                   || ( isUtf8 && !text.starts_with( "\xEF\xBB\xBF" )
+                                        && simdutf::validate_utf8( bytes, size ) ) );
+
+                        if ( isCopiedAsRead ) {
+                            pieces.append( text.ends_with( '\r' ) ? text.substr( 0, size - 1 )
+                                                                  : text );
+                        }
+                        else {
+                            appendDecoded( bytes, length );
+                        }
+                    }
+                    pieces += '\n';
+
+                    placed[ line.request ] = Piece{ begin, pieces.size() - begin, true };
+                }
+            }
+        }
+    } catch ( const std::bad_alloc& e ) {
+        LOG_ERROR << "not enough memory " << e.what();
+        std::string text;
+        for ( std::size_t request = 0; request < lines.size(); ++request ) {
+            text.append( notEnoughMemory );
+            text += '\n';
+        }
+        return text;
+    }
+
+    // Log Lines asked for once each and in ascending order were read in the
+    // order asked: the pieces are the text already.
+    std::size_t expectedBegin = 0;
+    const bool isInOrder
+        = std::all_of( placed.begin(), placed.end(), [ &expectedBegin ]( const Piece& piece ) {
+              const bool follows = piece.isRead && piece.begin == expectedBegin;
+              expectedBegin += piece.size;
+              return follows;
+          } );
+    if ( isInOrder ) {
+        return pieces;
+    }
+
+    std::string text;
+    text.reserve( pieces.size() );
+    for ( const auto& piece : placed ) {
+        if ( piece.isRead ) {
+            text.append( pieces, piece.begin, piece.size );
+        }
+        else {
+            text.append( notRead );
+            text += '\n';
+        }
+    }
+    return text;
+}
+
 QTextCodec* LogData::getDetectedEncoding() const
 {
     return IndexingData::ConstAccessor{ indexing_data_.get() }.getEncodingGuess();

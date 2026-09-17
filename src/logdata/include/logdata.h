@@ -50,6 +50,7 @@
 #include <qregularexpression.h>
 #include <qtextcodec.h>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -166,6 +167,12 @@ public:
     // As getLinesSparse(), with tabs expanded: for each Log Line, what
     // getExpandedLineString() returns.
     logsquirl::vector<QString> getExpandedLinesSparse( std::span<const LineNumber> lines ) const;
+    // As getLinesSparse(), as UTF-8: for each Log Line asked for, in the order
+    // asked, what getLineString() returns converted to UTF-8, followed by a
+    // line feed -- byte for byte. A Log Line that is UTF-8 in a UTF-8 Log
+    // File, or ASCII in an ASCII compatible one, is copied as it was read and
+    // never decoded; any other is decoded on its own and converted back.
+    std::string getUtf8LinesSparse( std::span<const LineNumber> lines ) const;
 
     // What a Search on this Log File reads its Log Lines through. Lives as
     // long as this object.
