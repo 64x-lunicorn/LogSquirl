@@ -1,6 +1,7 @@
 # Add test cpp file
 add_executable(logsquirl_tests
     abstractlogview_test.cpp
+    ansicolorsequences_test.cpp
     chartseries_test.cpp
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp

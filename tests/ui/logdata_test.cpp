@@ -23,6 +23,8 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <thread>
+#include <vector>
 
 #include <QFileInfo>
 #include <QProcess>
@@ -379,6 +381,67 @@ SCENARIO( "A Log File that fails to index reports the failure as its loading sta
             {
                 REQUIRE( logData.getNbLine() == 0_lcount );
             }
+        }
+    }
+}
+
+SCENARIO( "A Log File read hiding ANSI color sequences", "[logdata][ansi]" )
+{
+    constexpr int LineCount = 300;
+
+    // Every third Log Line is colored; the others have no escape character.
+    const auto logLine = []( int line, bool colored ) {
+        return colored ? QStringLiteral( "\x1B[3%1mline\x1B[0m %2" ).arg( line % 8 ).arg( line )
+                       : QStringLiteral( "line %1" ).arg( line );
+    };
+
+    QTemporaryFile file{ "logdata_test_ansi_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < LineCount; ++line ) {
+        file.write( logLine( line, line % 3 == 0 ).toUtf8() + '\n' );
+    }
+    file.flush();
+
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = true;
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+
+    GIVEN( "Log Lines with and without ANSI color sequences" )
+    {
+        THEN( "a block of them reads without any sequence" )
+        {
+            const auto lines = logData.getLines( 0_lnum, LinesCount( LineCount ) );
+            REQUIRE( lines.size() == LineCount );
+            for ( int line = 0; line < LineCount; ++line ) {
+                REQUIRE( lines[ static_cast<std::size_t>( line ) ] == logLine( line, false ) );
+            }
+        }
+
+        THEN( "several readers, one Log Line at a time, all read them without any sequence" )
+        {
+            constexpr int ReaderCount = 4;
+            std::vector<int> correct( ReaderCount, 0 );
+            {
+                std::vector<std::jthread> readers;
+                for ( int reader = 0; reader < ReaderCount; ++reader ) {
+                    readers.emplace_back( [ &, reader ] {
+                        for ( int line = 0; line < LineCount; ++line ) {
+                            if ( logData.getLineString(
+                                     LineNumber( static_cast<uint64_t>( line ) ) )
+                                 == logLine( line, false ) ) {
+                                ++correct[ static_cast<std::size_t>( reader ) ];
+                            }
+                        }
+                    } );
+                }
+            }
+            REQUIRE( correct == std::vector<int>( ReaderCount, LineCount ) );
         }
     }
 }

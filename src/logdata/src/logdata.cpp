@@ -51,18 +51,13 @@
 
 #include <simdutf.h>
 
+#include "ansicolorsequences.h"
 #include "containers.h"
 #include "linetypes.h"
 #include "log.h"
 #include "logfiltereddata.h"
 
 #include "logdata.h"
-
-namespace {
-// What a Decoding Policy that hides ANSI color sequences removes from every
-// Log Line: the color (SGR) and erase-in-line sequences.
-constexpr char AnsiColorSequencePattern[] = "\\x1B\\[([0-9]{1,4}((;|:)[0-9]{1,3})*)?[mK]";
-} // namespace
 
 LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
                   const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy )
@@ -424,11 +419,7 @@ LogData::RawLines LogData::getLinesRaw( LineNumber firstLine, LinesCount number 
         }
 
         rawLines.endOfLines.reserve( number.get() );
-        rawLines.prefilterPattern
-            = decodingPolicy_.hideAnsiColorSequences
-                  ? QRegularExpression( AnsiColorSequencePattern,
-                                        QRegularExpression::CaseInsensitiveOption )
-                  : QRegularExpression{};
+        rawLines.hideAnsiColorSequences = decodingPolicy_.hideAnsiColorSequences;
 
         ScopedFileHolder<FileHolder> fileHolder( attached_file_.get() );
 
@@ -560,8 +551,8 @@ logsquirl::vector<QString> RawLines::decodeLines() const
             auto decodedLine = textDecoder.decoder->toUnicode(
                 buffer.data() + lineStart, type_safe::narrow_cast<int>( length ) );
 
-            if ( !prefilterPattern.pattern().isEmpty() ) {
-                decodedLine.remove( prefilterPattern );
+            if ( hideAnsiColorSequences ) {
+                removeAnsiColorSequences( decodedLine );
             }
 
             decodedLines.push_back( std::move( decodedLine ) );
@@ -594,13 +585,21 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
 
         std::string_view wholeString;
 
-        if ( prefilterPattern.pattern().isEmpty() && textDecoder.encodingParams.isUtf8Compatible ) {
+        // In a UTF-8 compatible encoding the escape byte only ever stands for
+        // the escape character, so a block without it has no ANSI color
+        // sequence to hide and is searched as it was read.
+        const auto hasAnsiColorSequencesToHide
+            = hideAnsiColorSequences
+              && ( !textDecoder.encodingParams.isUtf8Compatible
+                   || std::find( buffer.begin(), buffer.end(), '\x1B' ) != buffer.end() );
+
+        if ( !hasAnsiColorSequencesToHide && textDecoder.encodingParams.isUtf8Compatible ) {
             wholeString = std::string_view( buffer.data(), buffer.size() );
         }
         else {
 
             QString utf16Data;
-            if ( prefilterPattern.pattern().isEmpty() && textDecoder.encodingParams.isUtf16LE ) {
+            if ( !hideAnsiColorSequences && textDecoder.encodingParams.isUtf16LE ) {
                 utf16Data = QString::fromRawData( reinterpret_cast<const QChar*>( buffer.data() ),
                                                   logsquirl::isize( buffer ) / 2 );
             }
@@ -609,8 +608,8 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
                     = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
             }
 
-            if ( !prefilterPattern.pattern().isEmpty() ) {
-                utf16Data.remove( prefilterPattern );
+            if ( hideAnsiColorSequences ) {
+                removeAnsiColorSequences( utf16Data );
             }
 
             utf8Data_.resize( buffer.size() * 4 );
