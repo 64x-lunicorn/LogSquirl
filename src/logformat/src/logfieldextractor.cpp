@@ -27,9 +27,22 @@ LogFieldExtractor::LogFieldExtractor( const LogFormatDefinition& format )
     compiledPatterns_.reserve( patterns.size() );
     for ( const auto& patternStr : patterns ) {
         QRegularExpression re( patternStr );
-        if ( re.isValid() ) {
-            compiledPatterns_.append( std::move( re ) );
+        if ( !re.isValid() ) {
+            continue;
         }
+
+        CompiledPattern compiled;
+        const auto groupNames = re.namedCaptureGroups();
+        for ( int i = 1; i < groupNames.size(); ++i ) {
+            const auto& name = groupNames[ i ];
+            if ( name.isEmpty() ) {
+                continue;
+            }
+            const auto isShared = groupNames.count( name ) > 1;
+            compiled.namedGroups.append( { name, isShared ? -1 : i } );
+        }
+        compiled.regex = std::move( re );
+        compiledPatterns_.append( std::move( compiled ) );
     }
 }
 
@@ -125,18 +138,14 @@ ExtractedFields LogFieldExtractor::extractFields( const QString& line ) const
 {
     ExtractedFields result;
 
-    for ( const auto& re : compiledPatterns_ ) {
-        auto match = re.match( line );
+    for ( const auto& pattern : compiledPatterns_ ) {
+        auto match = pattern.regex.match( line );
         if ( match.hasMatch() ) {
             result.setValid( true );
 
-            // Extract all named capture groups
-            const auto groupNames = re.namedCaptureGroups();
-            for ( int i = 1; i < groupNames.size(); ++i ) {
-                const auto& name = groupNames[ i ];
-                if ( !name.isEmpty() ) {
-                    result.setValue( name, match.captured( name ) );
-                }
+            for ( const auto& [ name, index ] : pattern.namedGroups ) {
+                result.setValue( name,
+                                 index >= 0 ? match.captured( index ) : match.captured( name ) );
             }
             return result;
         }
