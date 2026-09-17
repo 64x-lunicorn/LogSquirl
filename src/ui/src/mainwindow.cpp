@@ -2651,7 +2651,7 @@ void MainWindow::updateFavoritesMenu()
     addToFavoritesAction->setIcon( iconLoader_.load( "icons8-star" ) );
     addToFavoritesAction->setData( true );
 
-    const auto& favorites = FavoriteFiles::getSynced().favorites();
+    const auto& favorites = FavoriteFiles::get().favorites();
     auto crawler = currentCrawlerWidget();
 
     addToFavoritesAction->setEnabled( crawler != nullptr );
