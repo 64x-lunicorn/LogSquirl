@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import re
 import struct
@@ -317,6 +318,160 @@ def test_syft_findings_are_merged_without_duplicates(packages):
     assert sb.validate_bom(json.dumps(bom)) == []
 
 
+# ── Debian packages of the AppImage's system libraries (#227) ───────────────
+
+GLIB = sb.DebPackage("libglib2.0-0", "2.72.4-0ubuntu2.4", "amd64", "glib2.0", "2.72.4-0ubuntu2.4")
+SSL = sb.DebPackage("libssl3", "3.0.2-0ubuntu1.18", "amd64", "openssl", "3.0.2-0ubuntu1.18")
+KRB = sb.DebPackage("libkrb5-3", "1.19.2-2ubuntu0.4", "amd64", "krb5", "1.19.2-2ubuntu0.4")
+
+
+@pytest.fixture
+def jammy(tmp_path):
+    """An AppDir after linuxdeploy, the build image's library directories and
+    its dpkg database: /lib is the usrmerge alias of /usr/lib, and dpkg knows
+    some files under one spelling and some under the other."""
+    appdir, root = tmp_path / "appdir", tmp_path / "root"
+    system = root / "usr/lib/x86_64-linux-gnu"
+    qt = root / "opt/qt/6.11.2/gcc_64/lib"
+    for d in (system, qt, root / "opt/qt/6.11.2/gcc_64/plugins/platforms"):
+        d.mkdir(parents=True)
+    (root / "lib").symlink_to("usr/lib")
+    for name in ("libglib-2.0.so.0.7200.4", "libssl.so.3", "libkrb5.so.3.3", "libgssapi_krb5.so.2.2"):
+        (system / name).write_bytes(b"\x7fELF")
+    (system / "libglib-2.0.so.0").symlink_to("libglib-2.0.so.0.7200.4")
+    (system / "libssl.so").symlink_to("libssl.so.3")  # libssl-dev's link, what `cp libssl*` copies
+    (system / "libkrb5.so.3").symlink_to("libkrb5.so.3.3")
+    (system / "libgssapi_krb5.so.2").symlink_to("libgssapi_krb5.so.2.2")
+    (qt / "libQt6Core.so.6").write_bytes(b"\x7fELF")
+    for rel in ("usr/lib/libglib-2.0.so.0", "usr/lib/libssl.so.3", "usr/lib/libssl.so", "usr/lib/libkrb5.so.3",
+                "usr/lib/libgssapi_krb5.so.2", "usr/lib/libQt6Core.so.6", "usr/plugins/platforms/libqxcb.so"):
+        (appdir / rel).parent.mkdir(parents=True, exist_ok=True)
+        (appdir / rel).write_bytes(b"\x7fELF")
+    (appdir / "usr/lib/libssl.so.3.link").symlink_to("libssl.so.3")
+    (appdir / "usr/share/doc").mkdir(parents=True)
+    (appdir / "usr/share/doc/README.so").write_text("not a library")
+
+    def at(path: str) -> str:
+        return str(root) + path
+
+    owners = {
+        at("/lib/x86_64-linux-gnu/libglib-2.0.so.0.7200.4"): "libglib2.0-0:amd64",
+        at("/usr/lib/x86_64-linux-gnu/libssl.so.3"): "libssl3:amd64",
+        at("/usr/lib/x86_64-linux-gnu/libssl.so"): "libssl-dev:amd64",
+        at("/lib/x86_64-linux-gnu/libkrb5.so.3.3"): "libkrb5-3:amd64",
+        at("/usr/lib/x86_64-linux-gnu/libgssapi_krb5.so.2.2"): "libgssapi-krb5-2:amd64",
+    }
+    packages = {"libglib2.0-0:amd64": GLIB, "libssl3:amd64": SSL, "libkrb5-3:amd64": KRB,
+                "libgssapi-krb5-2:amd64": sb.DebPackage("libgssapi-krb5-2", KRB.version, "amd64", "krb5", KRB.version)}
+    return {
+        "appdir": appdir, "root": root, "owners": owners,
+        "kw": dict(lib_dirs=[qt, root / "lib/x86_64-linux-gnu", root / "usr/lib/x86_64-linux-gnu"],
+                   system_prefixes=[at("/lib"), at("/usr/lib")], owner=owners.get, show=packages.__getitem__,
+                   distro="ubuntu-22.04"),
+    }
+
+
+def test_deb_manifest_names_the_package_of_every_bundled_system_library(jammy):
+    manifest = sb.appimage_deb_manifest(jammy["appdir"], **jammy["kw"])
+    assert manifest["distro"] == "ubuntu-22.04"
+    packages = {p["name"]: p for p in manifest["packages"]}
+    assert set(packages) == {"libglib2.0-0", "libssl3", "libkrb5-3", "libgssapi-krb5-2"}
+    # a -dev symlink copied as a file belongs to the runtime package it points to
+    assert packages["libssl3"]["files"] == ["usr/lib/libssl.so", "usr/lib/libssl.so.3"]
+    assert packages["libglib2.0-0"] == {"name": "libglib2.0-0", "version": "2.72.4-0ubuntu2.4", "arch": "amd64",
+                                        "source": "glib2.0", "source-version": "2.72.4-0ubuntu2.4",
+                                        "files": ["usr/lib/libglib-2.0.so.0"]}
+    # Qt comes from aqtinstall and its plugins are not in a library directory:
+    # no dpkg package, described by the Qt component instead
+    assert manifest["unpackaged"] == ["usr/lib/libQt6Core.so.6", "usr/plugins/platforms/libqxcb.so"]
+
+
+def test_deb_manifest_fails_on_a_system_library_dpkg_does_not_know(jammy):
+    del jammy["owners"][str(jammy["root"]) + "/lib/x86_64-linux-gnu/libkrb5.so.3.3"]
+    with pytest.raises(sb.SbomError, match=r"libkrb5\.so\.3 .* no dpkg package"):
+        sb.appimage_deb_manifest(jammy["appdir"], **jammy["kw"])
+
+
+def test_deb_manifest_fails_without_any_packaged_library(tmp_path):
+    (tmp_path / "usr/lib").mkdir(parents=True)
+    with pytest.raises(sb.SbomError, match="no bundled system library"):
+        sb.appimage_deb_manifest(tmp_path, lib_dirs=[], system_prefixes=["/usr/lib"], owner=lambda p: None,
+                                 show=lambda p: GLIB, distro="ubuntu-22.04")
+
+
+@pytest.mark.parametrize("output, expected", [
+    ("libssl3:amd64: /usr/lib/x86_64-linux-gnu/libssl.so.3\n", "libssl3:amd64"),
+    ("diversion by foo from: /usr/lib/x/libssl.so.3\ndiversion by foo to: /usr/lib/x/libssl.so.3.real\n"
+     "libssl3:amd64: /usr/lib/x/libssl.so.3\n", "libssl3:amd64"),
+    ("dpkg-query: no path found matching pattern /nope\n", None),
+])
+def test_parse_dpkg_search(output, expected):
+    path = "/nope" if expected is None else output.rstrip("\n").rsplit(": ", 1)[1]
+    assert sb.parse_dpkg_search(output, path) == expected
+
+
+def test_parse_dpkg_search_refuses_a_file_of_two_packages():
+    with pytest.raises(sb.SbomError, match="more than one package"):
+        sb.parse_dpkg_search("a:amd64, b:amd64: /usr/lib/x/libz.so.1\n", "/usr/lib/x/libz.so.1")
+
+
+def test_os_release_names_the_distro():
+    assert sb.os_release_distro('NAME="Ubuntu"\nVERSION_ID="22.04"\nID=ubuntu\n') == "ubuntu-22.04"
+    with pytest.raises(sb.SbomError, match="VERSION_ID"):
+        sb.os_release_distro("ID=ubuntu\n")
+
+
+@pytest.mark.parametrize("line, expected", [
+    ("libssl3\t3.0.2-0ubuntu1.18\tamd64\topenssl\n", SSL),
+    ("libglib2.0-0\t2.72.4-0ubuntu2.4\tamd64\tglib2.0\n", GLIB),
+    ("zlib1g\t1:1.2.11.dfsg-2ubuntu9.2\tamd64\tzlib (1.2.11.dfsg-2ubuntu9.2)\n",
+     sb.DebPackage("zlib1g", "1:1.2.11.dfsg-2ubuntu9.2", "amd64", "zlib", "1.2.11.dfsg-2ubuntu9.2")),
+    ("libfuse2\t2.9.9-5ubuntu3\tamd64\t\n", sb.DebPackage("libfuse2", "2.9.9-5ubuntu3", "amd64", "libfuse2", "2.9.9-5ubuntu3")),
+])
+def test_parse_dpkg_show(line, expected):
+    assert sb.parse_dpkg_show(line) == expected
+
+
+def manifest() -> dict:
+    zlib = sb.DebPackage("zlib1g", "1:1.2.11.dfsg-2ubuntu9.2", "amd64", "zlib", "1.2.11.dfsg-2ubuntu9.2")
+    return {"distro": "ubuntu-22.04", "unpackaged": ["usr/lib/libQt6Core.so.6"], "packages": [
+        {**dataclasses.asdict(p), "source-version": p.source_version, "files": files}
+        for p, files in ((SSL, ["usr/lib/libssl.so.3"]), (GLIB, ["usr/lib/libglib-2.0.so.0"]),
+                         (zlib, ["usr/lib/libz.so.1"]))]}
+
+
+def test_merged_deb_packages_carry_the_purls_grype_matches(packages):
+    bom = base_bom()
+    sb.merge_detections(bom, detections(packages))
+    sb.merge_deb_manifest(bom, manifest())
+    comps = by_ref(bom)
+    ssl = comps["deb:ubuntu-22.04/libssl3@3.0.2-0ubuntu1.18"]
+    assert ssl["purl"] == "pkg:deb/ubuntu/libssl3@3.0.2-0ubuntu1.18?arch=amd64&distro=ubuntu-22.04&upstream=openssl"
+    assert "cpe" not in ssl and ssl["type"] == "library" and ssl["name"] == "libssl3"
+    assert prop(ssl, "bundled-in") == "appimage" and prop(ssl, "platforms") == "linux"
+    assert prop(ssl, "bundled-files") == "usr/lib/libssl.so.3"
+    # the source version differs from the binary version only by the epoch
+    zlib = comps["deb:ubuntu-22.04/zlib1g@1:1.2.11.dfsg-2ubuntu9.2"]
+    assert zlib["purl"] == ("pkg:deb/ubuntu/zlib1g@1:1.2.11.dfsg-2ubuntu9.2"
+                            "?arch=amd64&distro=ubuntu-22.04&upstream=zlib%401.2.11.dfsg-2ubuntu9.2")
+    for comp in (ssl, zlib):
+        assert PackageURL.from_string(comp["purl"]).to_string() == comp["purl"]
+    assert "deb:ubuntu-22.04/libglib2.0-0@2.72.4-0ubuntu2.4" in bom["dependencies"][0]["dependsOn"]
+    assert sb.validate_bom(json.dumps(bom)) == []
+
+
+@pytest.mark.parametrize("change, message", [
+    (lambda m: m.update(packages=[]), "lists no packages"),
+    (lambda m: m.update(distro="jammy"), "distro"),
+    (lambda m: m["packages"][0].pop("version"), "lacks"),
+])
+def test_an_unusable_deb_manifest_fails(change, message):
+    m = manifest()
+    change(m)
+    with pytest.raises(sb.SbomError, match=message):
+        sb.merge_deb_manifest(base_bom(), m)
+
+
 # ── validation, AppImage, CLI ───────────────────────────────────────────────
 
 
@@ -356,9 +511,12 @@ def test_cli_generate_merge_validate(tmp_path, packages, capsys):
     assert sb.main(["generate", "--repo-root", str(REPO), "--version", "1.2.3.4", "--commit", COMMIT,
                     "--repository", "64x-lunicorn/LogSquirl", "--output", str(base)]) == 0
     scans = [a for kind, root in packages.items() for a in ("--scan", f"{kind}={root}")]
-    assert sb.main(["merge", "--base", str(base), *scans, "--syft", str(syft),
+    debs = tmp_path / "debs.json"
+    debs.write_text(json.dumps(manifest()))
+    assert sb.main(["merge", "--base", str(base), *scans, "--syft", str(syft), "--deb-manifest", f"appimage={debs}",
                     "--require-detected", "qt,openssl,icu", "--output", str(final)]) == 0
     assert sb.main(["validate", str(base), str(final)]) == 0
+    assert "deb:ubuntu-22.04/libssl3@3.0.2-0ubuntu1.18" in by_ref(json.loads(final.read_text()))
     assert json.loads(base.read_text())["serialNumber"] != json.loads(final.read_text())["serialNumber"]
 
     assert sb.main(["merge", "--base", str(base), "--scan", f"deb={tmp_path}", "--output", str(final)]) == 1

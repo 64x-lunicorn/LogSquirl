@@ -79,6 +79,9 @@ MAC_INFO_PLIST = "logsquirl.app/Contents/Info.plist"
 MAC_BINARY = "logsquirl.app/Contents/MacOS/logsquirl"
 VERSION_FILE = "logsquirl_version/logsquirl_version.txt"
 SBOM_FILE = "sbom-base/logsquirl-sbom-base.cdx.json"
+# The Debian packages of the system libraries the AppImage bundles, which the
+# release SBOM job adds (scripts/sbom/logsquirl_sbom.py appimage-debs, #227).
+APPIMAGE_DEBS = "packages-appimage/logsquirl_appimage_debs.json"
 
 _VERSION = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+")
 
@@ -221,6 +224,8 @@ def check_build(root: Path, *, tag: str, commit: str) -> str:
         if not (root / directory / expected).is_file():
             found = sorted(p.name for p in (root / directory).iterdir())
             raise ReleaseError(f"{directory} has no {expected} (found {', '.join(found)}).")
+    if not (root / APPIMAGE_DEBS).is_file():
+        raise ReleaseError(f"{APPIMAGE_DEBS} is missing; the release SBOM needs it.")
     _check_windows(root / WINDOWS_PORTABLE, version)
     _check_mac(root / MAC_APP, version, base)
     return version

@@ -280,8 +280,9 @@ jobs:
   # Completes the source SBOM that CI Build generated from the commit it built
   # (sbom-base: CPM packages and pinned platform components) with what the
   # built packages bundle: the Qt, OpenSSL and ICU versions found in the
-  # AppImage, the Windows portable zip and the macOS app, and whatever syft
-  # finds in them. The source part comes from the released build run, which
+  # AppImage, the Windows portable zip and the macOS app, the Ubuntu packages
+  # of the system libraries the AppImage bundles, and whatever syft finds in
+  # them. The source part comes from the released build run, which
   # built the tagged commit (#221).
   # Packages are only unpacked, never executed, and this job holds no write
   # permission (#212).
@@ -353,6 +354,8 @@ jobs:
 
       # --require-detected: a packaging change that stops bundling (or moves)
       # Qt, OpenSSL or ICU must be looked at, not silently leave them unversioned.
+      # --deb-manifest: the Ubuntu packages of the system libraries the AppImage
+      # bundles, recorded in its build image (#227).
       - name: Merge and validate the release SBOM
         run: |
           set -euo pipefail
@@ -360,6 +363,7 @@ jobs:
           sbom="sbom/logsquirl-${LOGSQUIRL_VERSION}-sbom.cdx.json"
           python scripts/sbom/logsquirl_sbom.py merge --base sbom-base/logsquirl-sbom-base.cdx.json \
             --scan "appimage=$scan/appimage" --scan "windows=$scan/windows" --scan "macos=$scan/macos" \
+            --deb-manifest appimage=packages-appimage/logsquirl_appimage_debs.json \
             --syft "$RUNNER_TEMP/syft.cdx.json" --require-detected qt,openssl,icu --output "$sbom"
           python scripts/sbom/logsquirl_sbom.py validate "$sbom"
 
@@ -476,6 +480,8 @@ jobs:
           for id in noble oracle fedora appimage; do
             rm -f "./packages-${id}/logsquirl_${id}"
           done
+          # The AppImage's Ubuntu packages are in the release SBOM (#227).
+          rm -f ./packages-appimage/logsquirl_appimage_debs.json
 
           # Remove extracted app/dSym bundles (keep tar.gz archives)
           rm -rf ./packages-mac-arm64/logsquirl.app ./packages-mac-arm64/logsquirl.dSym
@@ -591,6 +597,21 @@ jobs:
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
         run: .github/scripts/release-build.py release-notes --tag "$TAG" --out release_notes.md
+
+      # The deb and rpm packages install only with a new enough distribution
+      # Qt (#226); the version is the one the SBOM records for this build.
+      - name: Append the Linux package requirements
+        run: |
+          set -euo pipefail
+          qt=$(jq -r '[.components[] | select(.["bom-ref"] == "platform:qt") | .version] | if length == 1 then .[0] else error("expected one Qt component") end' ./packages-sbom/*.cdx.json)
+          cat >> release_notes.md <<NOTES
+
+          ## Linux packages
+
+          The \`.deb\` and \`.rpm\` packages use the distribution's Qt and declare Qt ${qt} as their
+          minimum version, so they install only where the distribution provides Qt ${qt} or newer.
+          On other distributions, use the AppImage, which brings its own Qt.
+          NOTES
 
       # The verification commands name this release's files, so they are added
       # here rather than in the CHANGELOG, which knows nothing about assets (#214).
