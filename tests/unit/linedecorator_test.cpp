@@ -1058,3 +1058,34 @@ SCENARIO( "A word-only Highlighter that varies its colors keeps them per matched
         }
     }
 }
+
+SCENARIO( "A Highlighter matches with the pattern it has now",
+          "[linedecorator][highlighter-reuse]" )
+{
+    GIVEN( "a word-only Highlighter for ERROR that has matched a line" )
+    {
+        Highlighter highlighter{ "ERROR", false, true, QColor{ Qt::white }, QColor{ Qt::red } };
+        logsquirl::vector<HighlightedMatch> matches;
+        REQUIRE( highlighter.matchLine( "an ERROR", matches ) );
+
+        WHEN( "a copy of it is changed to WARN, case insensitive and literal" )
+        {
+            auto changed = highlighter;
+            changed.setPattern( "W.RN" );
+            changed.setIgnoreCase( true );
+            changed.setUseRegex( false );
+
+            THEN( "the copy matches its new pattern and the original its old one" )
+            {
+                REQUIRE_FALSE( changed.matchLine( "an ERROR, a warn", matches ) );
+                REQUIRE( changed.matchLine( "an ERROR, a w.rn", matches ) );
+                REQUIRE( matches.size() == 1 );
+                REQUIRE( matches.front().startColumn().get() == 12 );
+
+                REQUIRE( highlighter.matchLine( "an ERROR, a w.rn", matches ) );
+                REQUIRE( matches.size() == 1 );
+                REQUIRE( matches.front().startColumn().get() == 3 );
+            }
+        }
+    }
+}

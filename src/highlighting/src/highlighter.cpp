@@ -128,6 +128,7 @@ QString Highlighter::pattern() const
 void Highlighter::setPattern( const QString& pattern )
 {
     regexp_.setPattern( pattern );
+    patternChanged();
 }
 
 bool Highlighter::ignoreCase() const
@@ -138,6 +139,7 @@ bool Highlighter::ignoreCase() const
 void Highlighter::setIgnoreCase( bool ignoreCase )
 {
     regexp_.setPatternOptions( getPatternOptions( ignoreCase ) );
+    patternChanged();
 }
 
 bool Highlighter::useRegex() const
@@ -148,6 +150,7 @@ bool Highlighter::useRegex() const
 void Highlighter::setUseRegex( bool useRegex )
 {
     useRegex_ = useRegex;
+    patternChanged();
 }
 
 bool Highlighter::highlightOnlyMatch() const
@@ -225,23 +228,31 @@ RegularExpressionPattern Highlighter::expressionPattern() const
     return result;
 }
 
-void Highlighter::compile() const
+void Highlighter::patternChanged()
 {
-    const auto pattern
-        = useRegex_ ? regexp_.pattern() : QRegularExpression::escape( regexp_.pattern() );
+    compiledRegexp_ = std::make_shared<CompiledRegexp>();
+}
 
-    optimizedRegexp_ = QRegularExpression( pattern, regexp_.patternOptions() );
+const QRegularExpression& Highlighter::compiledRegexp() const
+{
+    std::call_once( compiledRegexp_->compiled, [ this ] {
+        const auto pattern
+            = useRegex_ ? regexp_.pattern() : QRegularExpression::escape( regexp_.pattern() );
 
-    if ( !optimizedRegexp_->isValid() ) {
-        LOG_WARNING << "Invalid highlighter regex: " << optimizedRegexp_->errorString()
-                    << " at offset " << optimizedRegexp_->patternErrorOffset()
-                    << " for pattern: " << pattern;
-        // Fall back to escaped literal so globalMatch never crashes
-        optimizedRegexp_ = QRegularExpression( QRegularExpression::escape( regexp_.pattern() ),
-                                               regexp_.patternOptions() );
-    }
+        auto& regexp = compiledRegexp_->regexp;
+        regexp = QRegularExpression( pattern, regexp_.patternOptions() );
 
-    optimizedRegexp_->optimize();
+        if ( !regexp.isValid() ) {
+            LOG_WARNING << "Invalid highlighter regex: " << regexp.errorString() << " at offset "
+                        << regexp.patternErrorOffset() << " for pattern: " << pattern;
+            // Fall back to escaped literal so globalMatch never crashes
+            regexp = QRegularExpression( QRegularExpression::escape( regexp_.pattern() ),
+                                         regexp_.patternOptions() );
+        }
+
+        regexp.optimize();
+    } );
+    return compiledRegexp_->regexp;
 }
 
 bool Highlighter::matchLine( const QString& line,
@@ -249,15 +260,12 @@ bool Highlighter::matchLine( const QString& line,
 {
     matches.clear();
 
-    if ( !optimizedRegexp_ ) {
-        compile();
-    }
-
-    QRegularExpressionMatchIterator matchIterator = optimizedRegexp_->globalMatch( line );
+    const auto& regexp = compiledRegexp();
+    QRegularExpressionMatchIterator matchIterator = regexp.globalMatch( line );
 
     while ( matchIterator.hasNext() ) {
         QRegularExpressionMatch match = matchIterator.next();
-        if ( optimizedRegexp_->captureCount() > 0 ) {
+        if ( regexp.captureCount() > 0 ) {
             matches.reserve( static_cast<size_t>( match.lastCapturedIndex() ) );
             for ( int i = 1; i <= match.lastCapturedIndex(); ++i ) {
 
@@ -321,13 +329,6 @@ void HighlighterSet::compile() const
                     []( const Highlighter& hl ) { return hl.expressionPattern(); } );
 
     compiledExpression_ = std::make_shared<MultiRegularExpression>( patterns );
-
-    // The Highlighters too: copies of this set share them, so compiling each
-    // one lazily on its first match would race when copies match on several
-    // threads at once.
-    for ( const auto& highlighter : std::as_const( highlighterList_ ) ) {
-        highlighter.compile();
-    }
 }
 
 HighlighterMatchType HighlighterSet::matchLine( const QString& line,
@@ -427,6 +428,7 @@ void Highlighter::retrieveFromStorage( QSettings& settings )
         getPatternOptions( settings.value( "ignore_case", false ).toBool() ) );
     highlightOnlyMatch_ = settings.value( "match_only", false ).toBool();
     useRegex_ = settings.value( "use_regex", true ).toBool();
+    patternChanged();
     variateColors_ = settings.value( "variate_colors", false ).toBool();
     colorVariance_ = settings.value( "color_variance", 15 ).toInt();
     color_.foreColor = QColor( settings.value( "fore_colour" ).toString() );
