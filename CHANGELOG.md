@@ -330,6 +330,10 @@
   test run, one CTest test per Catch2 test case with JUnit reports, and job
   timeouts were added.
 
+- **Chocolatey package removed**: The Chocolatey package source is gone.
+  LogSquirl was never published on Chocolatey: no workflow built the package,
+  and its install script pointed to a download that no longer exists.
+
 ## Internal
 
 - **Plugin Catalog and Plugin Host**: The former plugin manager class is split
