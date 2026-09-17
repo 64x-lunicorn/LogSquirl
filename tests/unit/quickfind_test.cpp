@@ -32,8 +32,10 @@
 #include <QStringList>
 
 #include <atomic>
+#include <chrono>
 #include <optional>
 #include <span>
+#include <thread>
 
 #include <catch2/catch.hpp>
 
@@ -65,6 +67,9 @@ public:
     mutable std::atomic<int> blocksRead{ 0 };
     mutable std::atomic<int> readsWithoutReader{ 0 };
     mutable std::atomic<int> readers{ 0 };
+    // How long reading a block takes, so a QuickFind lasts long enough to
+    // report its progress.
+    std::chrono::milliseconds blockReadTime{ 0 };
 
 protected:
     QString doGetExpandedLineString( LineNumber line ) const override
@@ -79,6 +84,7 @@ protected:
     {
         ++blocksRead;
         noteRead();
+        std::this_thread::sleep_for( blockReadTime );
         logsquirl::vector<QString> text;
         for ( const auto line : lines ) {
             text.push_back( FakeLogData::doGetExpandedLineString( line ) );
@@ -325,4 +331,31 @@ SCENARIO( "QuickFind reads Log Lines in blocks, with a reader attached", "[quick
             REQUIRE( logFile.readers == 0 );
         }
     }
+}
+
+SCENARIO( "QuickFind reports the progress of a long search in intermediate percentages",
+          "[quickfind]" )
+{
+    constexpr int ManyLogLines = 20000;
+    CountingLogData logFile{ logLineTexts( ManyLogLines ) };
+    // Twenty blocks: a search without a match takes about two seconds, and
+    // QuickFind reports its progress after the first one.
+    logFile.blockReadTime = std::chrono::milliseconds( 100 );
+    QuickFindRun quickFind( [ & ]() { return QuickFindLines::everyLogLine( logFile ); } );
+
+    const auto forward = GENERATE( true, false );
+    const auto result = forward ? quickFind.forwardFrom( 0_lnum, QStringLiteral( "no such text" ) )
+                                : quickFind.backwardFrom( LineNumber( ManyLogLines - 1 ),
+                                                          QStringLiteral( "no such text" ) );
+    REQUIRE_FALSE( result.hasMatch );
+    QCoreApplication::processEvents();
+
+    int intermediate = 0;
+    for ( int percent = 1; percent < 100; ++percent ) {
+        if ( quickFind.notifications().contains( QFNotificationProgress( percent ).message() ) ) {
+            ++intermediate;
+        }
+    }
+    INFO( quickFind.notifications().join( '\n' ).toStdString() );
+    REQUIRE( intermediate >= 2 );
 }

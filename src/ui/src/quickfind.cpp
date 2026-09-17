@@ -73,9 +73,12 @@ void SearchingNotifier::sendNotification( LineNumber current_line, LinesCount nb
                                           bool backward )
 {
     LOG_DEBUG << "Emitting Searching....";
-    const auto progress = static_cast<int>(
-        backward ? ( ( nb_lines.get() - current_line.get() ) / nb_lines.get() * 100 )
-                 : ( current_line.get() / nb_lines.get() ) * 100 );
+    // The share of the Log Lines already searched: those before the current
+    // one forwards, those from it on backwards.
+    const auto total = std::max( nb_lines.get(), LinesCount::UnderlyingType{ 1 } );
+    const auto current = std::min( current_line.get(), total );
+    const auto searched = backward ? total - current : current;
+    const auto progress = static_cast<int>( searched * 100 / total );
 
     Q_EMIT notify( QFNotificationProgress( progress ) );
     startTime_ = QTime::currentTime().addMSecs( -800 );
