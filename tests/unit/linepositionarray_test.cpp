@@ -32,6 +32,10 @@
 
 #include <configuration.h>
 
+#include <QByteArray>
+#include <QDataStream>
+#include <QIODevice>
+
 SCENARIO( "A moved LinePositionArray keeps growing correctly", "[linepositionarray]" )
 {
     GIVEN( "an array holding several compressed blocks, moved into another" )
@@ -361,6 +365,148 @@ SCENARIO( "A block's line positions appended at once span compressed blocks",
             {
                 REQUIRE( line_array.size() == LinesCount( 100 ) );
                 REQUIRE( line_array.at( 99 ) == expected.back() );
+            }
+        }
+    }
+}
+
+namespace {
+
+// Past 4 GiB, and not a multiple of it, so a position truncated to 32 bits
+// is told from the right one.
+constexpr int64_t BeyondFourGiB = ( int64_t{ 1 } << 32 ) * 3 + 12345;
+
+// Positions of 600 Log Lines, several compressed blocks' worth, where a few
+// Log Lines are longer than 4 GiB: the first block spans more than 4 GiB from
+// its second line on, one block does from its last line, and one block holds
+// only lines of that length.
+std::vector<OffsetInFile> positionsSpanningFourGiB()
+{
+    std::vector<OffsetInFile> positions;
+    int64_t position = 0;
+    for ( int line = 0; line < 600; ++line ) {
+        const bool longLine = line == 1 || line == 255 || ( line >= 384 && line < 512 );
+        position += longLine ? BeyondFourGiB + line : 40 + line % 7;
+        positions.push_back( OffsetInFile( position ) );
+    }
+    return positions;
+}
+
+void requireSamePositions( const LinePositionArray& array,
+                           const std::vector<OffsetInFile>& expected )
+{
+    REQUIRE( array.size().get() == expected.size() );
+    for ( auto i = 0u; i < expected.size(); ++i ) {
+        REQUIRE( array.at( i ) == expected[ i ] );
+    }
+    const auto all = array.range( 0_lnum, LinesCount( expected.size() ) );
+    REQUIRE( std::equal( all.begin(), all.end(), expected.begin(), expected.end() ) );
+}
+
+} // namespace
+
+SCENARIO( "Line positions of a compressed block spanning 4 GiB or more are kept exactly",
+          "[linepositionarray]" )
+{
+    // A compressed block stored its positions as 32-bit offsets from its
+    // first one (#321).
+    const auto expected = positionsSpanningFourGiB();
+
+    GIVEN( "the positions appended one by one" )
+    {
+        LinePositionArray array;
+        for ( const auto position : expected ) {
+            array.append( position );
+        }
+
+        THEN( "every position reads back exactly, one by one and as ranges" )
+        {
+            requireSamePositions( array, expected );
+            const auto part = array.range( LineNumber( 250 ), LinesCount( 300 ) );
+            REQUIRE( std::equal( part.begin(), part.end(), expected.begin() + 250,
+                                 expected.begin() + 550 ) );
+        }
+
+        WHEN( "lines are dropped back into a block spanning 4 GiB and appended again" )
+        {
+            auto shortened = expected;
+            for ( int i = 0; i < 600 - 500; ++i ) {
+                array.pop_back();
+                shortened.pop_back();
+            }
+            for ( int line = 0; line < 200; ++line ) {
+                shortened.push_back( shortened.back()
+                                     + OffsetInFile( line % 3 == 0 ? BeyondFourGiB : 50 ) );
+                array.append( shortened.back() );
+            }
+
+            THEN( "every position, old and new, reads back exactly" )
+            {
+                requireSamePositions( array, shortened );
+            }
+        }
+    }
+
+    GIVEN( "the positions appended a block of Log Lines at a time" )
+    {
+        LinePositionArray array;
+        for ( auto first = 0u; first < expected.size(); first += 100 ) {
+            FastLinePositionArray block;
+            for ( auto line = first; line < first + 100; ++line ) {
+                block.append( expected[ line ] );
+            }
+            array.append_list( block );
+        }
+
+        THEN( "every position reads back exactly" )
+        {
+            requireSamePositions( array, expected );
+        }
+    }
+
+    GIVEN( "the positions serialized for the Index cache" )
+    {
+        CompressedLinePositionStorage storage;
+        // 600 lines leave a tail of 88 not yet compressed; three more long
+        // lines make that tail span 4 GiB too.
+        auto withLongTail = expected;
+        for ( int line = 0; line < 3; ++line ) {
+            withLongTail.push_back( withLongTail.back() + OffsetInFile( BeyondFourGiB ) );
+        }
+        for ( const auto position : withLongTail ) {
+            storage.append( position );
+        }
+
+        QByteArray bytes;
+        {
+            QDataStream out( &bytes, QIODevice::WriteOnly );
+            storage.serialize( out );
+            REQUIRE( out.status() == QDataStream::Ok );
+        }
+
+        WHEN( "they are deserialized" )
+        {
+            CompressedLinePositionStorage loaded;
+            QDataStream in( bytes );
+            REQUIRE( loaded.deserialize( in ) );
+            LinePositionArray array( std::move( loaded ) );
+
+            THEN( "every position reads back exactly" )
+            {
+                requireSamePositions( array, withLongTail );
+            }
+
+            AND_WHEN( "more lines are appended" )
+            {
+                for ( int line = 0; line < 100; ++line ) {
+                    withLongTail.push_back( withLongTail.back() + OffsetInFile( 30 ) );
+                    array.append( withLongTail.back() );
+                }
+
+                THEN( "every position, loaded and new, reads back exactly" )
+                {
+                    requireSamePositions( array, withLongTail );
+                }
             }
         }
     }

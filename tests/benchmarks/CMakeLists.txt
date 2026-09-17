@@ -128,3 +128,13 @@ add_executable(logsquirl_overview_selection_benchmark
 )
 
 target_link_libraries(logsquirl_overview_selection_benchmark logsquirl_ui Catch2 test_utils)
+
+# The line positions of an Index (#321): appending them line by line and a
+# block at a time, and reading them back one by one and as a range. Links
+# logsquirl_logdata only; uses only what LinePositionArray offered before
+# #321, so the same file measures both sides of an A/B comparison.
+add_executable(logsquirl_linepositionarray_benchmark
+    linepositionarray_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_linepositionarray_benchmark logsquirl_logdata Catch2)
