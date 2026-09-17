@@ -74,7 +74,8 @@ bool IndexingBlock::isDelimiter( std::int64_t offset ) const
 
 void parseBlock( IndexingBlock& block )
 {
-    block.endOfLines = FastLinePositionArray{};
+    // Reused from the block this one was read into before.
+    block.endOfLines.clear();
     block.firstLineFeed.reset();
     block.maxLength = 0;
     block.lastLineStart = 0;
