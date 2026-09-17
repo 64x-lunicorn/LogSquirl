@@ -254,6 +254,25 @@ MainWindow::MainWindow( WindowSession session )
 
     sidebarDock_->hide();
 
+    // The sidebar opens at the width the user left it at in this window, or
+    // at a moderate share of the window, leaving the Log File the rest (#261).
+    // Docked at its size hint it took almost half the window.
+    sidebarWidth_ = session_.sidebarWidth();
+    connect( sidebarDock_, &QDockWidget::visibilityChanged, this, [ this ]( bool visible ) {
+        if ( sidebarDock_->isFloating() ) {
+            return;
+        }
+        if ( visible && !sidebarWidthApplied_ ) {
+            sidebarWidthApplied_ = true;
+            const auto width = sidebarWidth_ > 0 ? sidebarWidth_
+                                                 : this->width() * SidebarDefaultWidthPercent / 100;
+            resizeDocks( { sidebarDock_ }, { width }, Qt::Horizontal );
+        }
+        else if ( !visible && sidebarWidthApplied_ ) {
+            sidebarWidth_ = sidebarDock_->width();
+        }
+    } );
+
     // Route filter panel selections to the active crawler widget and auto-search
     connect( &filtersPanel_, &FiltersPanel::filtersChanged, this,
              [ this ]( const QList<PredefinedFilter>& filters ) {
@@ -2862,7 +2881,10 @@ void MainWindow::writeSettings()
         }
         widget_list.emplace_back( view, 0UL, view->context() );
     }
-    session_.save( widget_list, saveGeometry() );
+    if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
+        sidebarWidth_ = sidebarDock_->width();
+    }
+    session_.save( widget_list, saveGeometry(), sidebarWidth_ );
 }
 
 // Read settings from permanent storage

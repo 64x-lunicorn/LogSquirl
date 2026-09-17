@@ -20,6 +20,7 @@
 #include <catch2/catch.hpp>
 
 #include <QHeaderView>
+#include <QImage>
 #include <QPointer>
 #include <QScrollBar>
 #include <QShortcut>
@@ -51,6 +52,7 @@
 #include "logformatdefinition.h"
 #include "logtableview.h"
 #include "shortcuts.h"
+#include "theme.h"
 
 static const qint64 SL_NB_LINES = 100LL;
 
@@ -383,6 +385,22 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
         QTest::mouseClick( crawler->booleanButton_, Qt::LeftButton );
         QCoreApplication::processEvents();
+    }
+
+    // What the user does by hand: asks for the Search pattern to be read as a
+    // regexp.
+    void enableRegexpSearch()
+    {
+        if ( !crawler->useRegexpButton_->isChecked() ) {
+            QTest::mouseClick( crawler->useRegexpButton_, Qt::LeftButton );
+            QCoreApplication::processEvents();
+        }
+    }
+
+    // The Search info line, as painted.
+    QImage searchInfoImage() const
+    {
+        return crawler->searchInfoLine_->grab().toImage().convertToFormat( QImage::Format_RGB32 );
     }
 };
 
@@ -2190,4 +2208,55 @@ SCENARIO( "A changed font or shortcut reaches every open Log File", "[ui][settin
             }
         }
     }
+}
+
+SCENARIO( "An invalid Search pattern is shown in the Theme's error colors", "[ui][theme]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    Theme::apply( Theme::LightKey );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } ) );
+    crawlerVisitor.showSized();
+
+    GIVEN( "a Search for a pattern that is no regexp" )
+    {
+        crawlerVisitor.enableRegexpSearch();
+        crawlerVisitor.setSearchPattern( "(unclosed" );
+        crawlerVisitor.runSearch();
+        QCoreApplication::processEvents();
+        REQUIRE( crawlerVisitor.searchInfoText().startsWith( "Error in expression" ) );
+
+        // The error background fills the line behind its text.
+        const auto background = []( const QImage& image ) {
+            return image.pixelColor( image.width() - 4, image.height() / 2 ).rgb();
+        };
+
+        THEN( "the Search info line shows the error in the Light Theme's error background" )
+        {
+            REQUIRE( background( crawlerVisitor.searchInfoImage() )
+                     == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
+        }
+
+        for ( const auto& name :
+              { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ) } ) {
+            WHEN( "the " << name.toStdString() << " Theme is applied" )
+            {
+                Theme::apply( name );
+                QCoreApplication::processEvents();
+
+                THEN( "the error is shown in that Theme's error background" )
+                {
+                    REQUIRE( background( crawlerVisitor.searchInfoImage() )
+                             == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
+                }
+            }
+        }
+    }
+
+    Theme::apply( Theme::defaultTheme() );
 }

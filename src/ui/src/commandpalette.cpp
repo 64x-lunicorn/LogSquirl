@@ -19,6 +19,8 @@
 
 #include "commandpalette.h"
 
+#include "theme.h"
+
 #include <algorithm>
 
 #include <QApplication>
@@ -32,7 +34,8 @@
 namespace {
 
 /// Custom delegate that renders the category badge, command name,
-/// and keyboard shortcut in a single row.
+/// and keyboard shortcut in a single row. Its colors are read from the
+/// active Theme on every paint, so a Theme switch shows on the next one.
 class CommandDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
@@ -48,6 +51,8 @@ public:
         const auto shortcut = index.data( Qt::UserRole + 2 ).toString();
 
         const auto rect = option.rect;
+        const auto& theme = Theme::active();
+        const bool selected = option.state.testFlag( QStyle::State_Selected );
 
         // Category badge
         if ( !category.isEmpty() ) {
@@ -69,17 +74,12 @@ public:
                 badge.moveLeft( rect.right() - badgeW - sfm.horizontalAdvance( shortcut ) - 24 );
             }
 
-            const auto palette = option.palette;
-            const auto badgeBg
-                = palette.color( QPalette::Active, QPalette::Highlight ).lighter( 160 );
-            const auto badgeFg = palette.color( QPalette::Active, QPalette::HighlightedText );
-
             painter->setRenderHint( QPainter::Antialiasing );
-            painter->setBrush( badgeBg );
+            painter->setBrush( theme.color( ColorToken::BadgeBackground ) );
             painter->setPen( Qt::NoPen );
             painter->drawRoundedRect( badge, 3, 3 );
 
-            painter->setPen( badgeFg );
+            painter->setPen( theme.color( ColorToken::BadgeText ) );
             painter->drawText( badge, Qt::AlignCenter, category );
         }
 
@@ -89,8 +89,9 @@ public:
             shortcutFont.setPointSizeF( shortcutFont.pointSizeF() * 0.9 );
             painter->setFont( shortcutFont );
 
-            const auto palette = option.palette;
-            painter->setPen( palette.color( QPalette::Active, QPalette::Text ).lighter( 140 ) );
+            // A selected row is drawn in Highlight, an unselected one in Base.
+            painter->setPen( theme.color( selected ? ColorToken::HighlightedSecondaryText
+                                                   : ColorToken::SecondaryText ) );
 
             QRect shortcutRect = rect;
             shortcutRect.setRight( rect.right() - 8 );

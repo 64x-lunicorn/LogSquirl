@@ -95,7 +95,9 @@ ScratchPad::ScratchPad( QWidget* parent )
     this->hide();
     auto textEdit = std::make_unique<QPlainTextEdit>();
     textEdit->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
-    textEdit->setMinimumSize( 300, 300 );
+    // No minimum width: a fixed one held the whole sidebar at almost half the
+    // window (#261).
+    textEdit->setMinimumHeight( 300 );
     textEdit->setUndoRedoEnabled( true );
 
     auto toolBar = std::make_unique<QToolBar>();

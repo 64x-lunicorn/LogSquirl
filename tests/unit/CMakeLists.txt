@@ -28,6 +28,7 @@ add_executable(logsquirl_tests
     logviewpainting_test.cpp
     mergecontroller_test.cpp
     optionsdialog_test.cpp
+    overviewwidget_test.cpp
     patternmatcher_test.cpp
     plugindialog_test.cpp
     pluginhost_test.cpp

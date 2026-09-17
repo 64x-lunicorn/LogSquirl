@@ -21,7 +21,11 @@ QPushButton {
     padding: @ButtonPadding@;
     color: @ButtonText@;
 }
-QPushButton:hover    { background-color: @ButtonHover@; border-color: @InputHoverBorder@; }
+QPushButton:hover    {
+    background-color: @ButtonHover@;
+    border-color: @InputHoverBorder@;
+    color: @HoverText@;
+}
 QPushButton:pressed  {
     background-color: @ButtonPressed@;
     border-color: @ButtonPressedBorder@;
@@ -31,6 +35,7 @@ QPushButton:focus    { border-color: @Highlight@; }
 QPushButton:disabled {
     background-color: @DisabledBackground@;
     border-color: @DisabledBorder@;
+    border-style: @DisabledBorderStyle@;
     color: @DisabledButtonText@;
 }
 
@@ -439,8 +444,8 @@ QMenu::separator {
     margin: 4px 8px;
 }
 QMenu::indicator {
-    width: 16px;
-    height: 16px;
+    width: @IndicatorSize@;
+    height: @IndicatorSize@;
     margin-left: 6px;
     border: 2px solid @IndicatorBorder@;
     border-radius: 3px;
@@ -454,6 +459,13 @@ QMenu::indicator:checked {
     background-color: @Highlight@;
     border-color: @Highlight@;
     image: @CheckIcon@;
+}
+QMenu::indicator:disabled {
+    border-color: @IndicatorDisabledBorder@;
+    background-color: @IndicatorDisabled@;
+}
+QMenu::indicator:checked:disabled {
+    image: @DisabledCheckIcon@;
 }
 
 QCheckBox::indicator,
@@ -479,7 +491,7 @@ QCheckBox::indicator:indeterminate,
 QTreeWidget::indicator:indeterminate {
     background-color: @IndicatorIndeterminate@;
     border-color: @Highlight@;
-    image: @CheckIcon@;
+    image: @IndeterminateIcon@;
 }
 QCheckBox::indicator:hover,
 QTreeWidget::indicator:hover {
@@ -491,10 +503,101 @@ QTreeWidget::indicator:disabled {
     background-color: @IndicatorDisabled@;
 }
 QCheckBox::indicator:checked:disabled,
-QCheckBox::indicator:indeterminate:disabled,
-QTreeWidget::indicator:checked:disabled,
-QTreeWidget::indicator:indeterminate:disabled {
+QTreeWidget::indicator:checked:disabled {
     image: @DisabledCheckIcon@;
+}
+QCheckBox::indicator:indeterminate:disabled,
+QTreeWidget::indicator:indeterminate:disabled {
+    image: @DisabledIndeterminateIcon@;
+}
+
+/* A radio button is a round check box indicator. Checked, its centre dot
+ * is drawn by a radial gradient, so it needs no icon and follows the
+ * Tokens: the dot keeps its size relative to the indicator. The radius is
+ * half the indicator's box, as Qt ignores a larger one. */
+QRadioButton::indicator {
+    width: @IndicatorSize@;
+    height: @IndicatorSize@;
+    border: 2px solid @IndicatorBorder@;
+    border-radius: @RadioIndicatorRadius@;
+    background-color: @Indicator@;
+    image: none;
+}
+QRadioButton::indicator:checked {
+    border-color: @Highlight@;
+    background-color: qradialgradient(cx: 0.5, cy: 0.5, radius: 0.5, fx: 0.5, fy: 0.5,
+        stop: 0 @HighlightedText@, stop: 0.45 @HighlightedText@,
+        stop: 0.55 @Highlight@, stop: 1 @Highlight@);
+}
+QRadioButton::indicator:hover {
+    border-color: @Highlight@;
+}
+QRadioButton::indicator:disabled {
+    border-color: @IndicatorDisabledBorder@;
+    background-color: @IndicatorDisabled@;
+}
+QRadioButton::indicator:checked:disabled {
+    background-color: qradialgradient(cx: 0.5, cy: 0.5, radius: 0.5, fx: 0.5, fy: 0.5,
+        stop: 0 @IndicatorDisabledBorder@, stop: 0.45 @IndicatorDisabledBorder@,
+        stop: 0.55 @IndicatorDisabled@, stop: 1 @IndicatorDisabled@);
+}
+
+
+/* ===========================================================
+ *  Sliders
+ *  A thin groove, the part up to the value in Highlight, and a
+ *  round handle drawn like an unchecked radio button.
+ * =========================================================== */
+QSlider::groove:horizontal {
+    height: 4px;
+    border-radius: 2px;
+    background-color: @SliderGroove@;
+}
+QSlider::groove:vertical {
+    width: 4px;
+    border-radius: 2px;
+    background-color: @SliderGroove@;
+}
+QSlider::sub-page:horizontal,
+QSlider::add-page:vertical {
+    border-radius: 2px;
+    background-color: @Highlight@;
+}
+QSlider::add-page:horizontal,
+QSlider::sub-page:vertical {
+    border-radius: 2px;
+    background-color: @SliderGroove@;
+}
+QSlider::handle {
+    border: 2px solid @IndicatorBorder@;
+    border-radius: 8px;
+    background-color: @Indicator@;
+}
+QSlider::handle:horizontal {
+    width: 12px;
+    margin: -6px 0;
+}
+QSlider::handle:vertical {
+    height: 12px;
+    margin: 0 -6px;
+}
+QSlider::handle:hover,
+QSlider::handle:pressed,
+QSlider:focus::handle {
+    border-color: @Highlight@;
+}
+QSlider::groove:disabled,
+QSlider::add-page:horizontal:disabled,
+QSlider::sub-page:vertical:disabled {
+    background-color: @DisabledBorder@;
+}
+QSlider::sub-page:horizontal:disabled,
+QSlider::add-page:vertical:disabled {
+    background-color: @DisabledText@;
+}
+QSlider::handle:disabled {
+    border-color: @IndicatorDisabledBorder@;
+    background-color: @IndicatorDisabled@;
 }
 
 
@@ -512,6 +615,15 @@ QGroupBox::title {
     left: 10px;
     padding: 0 4px;
     color: @WindowText@;
+}
+
+
+/* ===========================================================
+ *  Secondary text (hints, versions) — requires:
+ *  label->setProperty("secondaryText", true);
+ * =========================================================== */
+QLabel[secondaryText="true"] {
+    color: @SecondaryText@;
 }
 
 
@@ -606,7 +718,8 @@ QProgressBar {
     max-height: 16px;
 }
 QProgressBar::chunk {
-    background-color: @Highlight@;
+    background-color: @ProgressChunk@;
+    border: @ProgressChunkBorderWidth@ solid @Highlight@;
     border-radius: 2px;
 }
 

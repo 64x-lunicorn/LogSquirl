@@ -95,6 +95,12 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
     connect( mainSearchColorButton, &QPushButton::clicked, this, &OptionsDialog::changeMainColor );
     connect( quickFindColorButton, &QPushButton::clicked, this, &OptionsDialog::changeQfColor );
 
+    auto shortcutRecorder = new ShortcutRecordingDelegate( shortcutsTable );
+    shortcutsTable->setItemDelegateForColumn( 1, shortcutRecorder );
+    shortcutsTable->setItemDelegateForColumn( 2, shortcutRecorder );
+    connect( shortcutRecorder, &ShortcutRecordingDelegate::edited, this,
+             &OptionsDialog::checkShortcutsOnDuplicate );
+
     connect( restoreShortcutsDefaults, &QPushButton::clicked, this, [ this ]() {
         auto ret = QMessageBox::question(
             this, "Restore Default Shortcuts", "Do you want to restore default shortcuts?",
@@ -499,29 +505,35 @@ void OptionsDialog::checkShortcutsOnDuplicate() const
         return;
     }
 
-    const auto DEFAULT_BACKGROUND = shortcutsTable->item( 0, PRIMARY_COL )->background();
+    // A conflict is marked in the Theme's error colors; an item without its
+    // own brushes shows the table's.
+    const auto markConflict = []( QTableWidgetItem* item ) {
+        const Theme& theme = Theme::active();
+        item->setBackground( theme.color( ColorToken::ErrorBackground ) );
+        item->setForeground( theme.color( ColorToken::ErrorText ) );
+    };
 
     for ( auto shortcutRow = 0; shortcutRow < shortcutsTable->rowCount(); ++shortcutRow ) {
-        shortcutsTable->item( shortcutRow, PRIMARY_COL )->setBackground( DEFAULT_BACKGROUND );
-        shortcutsTable->item( shortcutRow, SECONDARY_COL )->setBackground( DEFAULT_BACKGROUND );
+        for ( const auto column : { PRIMARY_COL, SECONDARY_COL } ) {
+            shortcutsTable->item( shortcutRow, column )->setBackground( QBrush{} );
+            shortcutsTable->item( shortcutRow, column )->setForeground( QBrush{} );
+        }
     }
 
     std::unordered_map<std::string, std::pair<int, int>> uniqueShortcuts;
     bool hasDuplicateShortcuts = false;
     for ( auto shortcutRow = 0; shortcutRow < shortcutsTable->rowCount(); ++shortcutRow ) {
 
-        auto hasDuplicates = [ &uniqueShortcuts, shortcutRow, this ]( int ncol ) {
-            auto keySequence = static_cast<KeySequencePresenter*>(
-                                   shortcutsTable->cellWidget( shortcutRow, ncol ) )
-                                   ->keySequence();
+        auto hasDuplicates = [ &uniqueShortcuts, &markConflict, shortcutRow, this ]( int ncol ) {
+            auto keySequence
+                = shortcutsTable->item( shortcutRow, ncol )->data( Qt::UserRole ).toString();
 
             if ( !keySequence.isEmpty() ) {
                 if ( auto it = uniqueShortcuts.find( keySequence.toStdString() );
                      it != uniqueShortcuts.end() ) {
 
-                    shortcutsTable->item( it->second.first, it->second.second )
-                        ->setBackground( Qt::red );
-                    shortcutsTable->item( shortcutRow, ncol )->setBackground( Qt::red );
+                    markConflict( shortcutsTable->item( it->second.first, it->second.second ) );
+                    markConflict( shortcutsTable->item( shortcutRow, ncol ) );
 
                     return true;
                 }
@@ -638,11 +650,9 @@ void OptionsDialog::updateConfigFromDialog()
         QStringList actionKeys;
 
         auto primaryKeySequence
-            = static_cast<KeySequencePresenter*>( shortcutsTable->cellWidget( shortcutRow, 1 ) )
-                  ->keySequence();
+            = shortcutsTable->item( shortcutRow, 1 )->data( Qt::UserRole ).toString();
         auto secondaryKeySequence
-            = static_cast<KeySequencePresenter*>( shortcutsTable->cellWidget( shortcutRow, 2 ) )
-                  ->keySequence();
+            = shortcutsTable->item( shortcutRow, 2 )->data( Qt::UserRole ).toString();
         actionKeys << primaryKeySequence << secondaryKeySequence;
 
         auto action
@@ -690,59 +700,149 @@ void OptionsDialog::onButtonBoxClicked( QAbstractButton* button )
         reject();
 }
 
-KeySequencePresenter::KeySequencePresenter( const QString& keySequence )
+ShortcutRecordingDelegate::ShortcutRecordingDelegate( QAbstractItemView* view )
+    : QStyledItemDelegate( view )
+    , view_( view )
 {
-    keySequenceLabel_
-        = new QLabel( QKeySequence( keySequence ).toString( QKeySequence::NativeText ) );
+    // Recording starts only on a click or Enter; typing on a selected cell
+    // must not start it, and Tab leaves the table instead of walking its cells.
+    view_->setEditTriggers( QAbstractItemView::NoEditTriggers );
+    view_->setTabKeyNavigation( false );
+    view_->installEventFilter( this );
 
-    auto editButton = new QPushButton();
-    editButton->setText( "..." );
-    editButton->setFixedWidth( 50 );
-
-    auto layout = new QHBoxLayout();
-
-    connect( editButton, &QPushButton::clicked, this, &KeySequencePresenter::showEditor );
-    layout->addWidget( keySequenceLabel_ );
-    layout->addStretch();
-    layout->addWidget( editButton );
-    layout->setContentsMargins( 4, 4, 4, 4 );
-
-    this->setLayout( layout );
+    connect( view_, &QAbstractItemView::clicked, this, [ this ]( const QModelIndex& index ) {
+        if ( view_->itemDelegateForIndex( index ) == this
+             && index.flags().testFlag( Qt::ItemIsEditable ) ) {
+            view_->edit( index );
+        }
+    } );
 }
 
-QString KeySequencePresenter::keySequence() const
+QWidget* ShortcutRecordingDelegate::createEditor( QWidget* parent, const QStyleOptionViewItem&,
+                                                  const QModelIndex& ) const
 {
-    return keySequenceLabel_->text();
-}
+    auto* recorder = new QKeySequenceEdit( parent );
+    // One key combination ends the recording right away.
+    recorder->setMaximumSequenceLength( 1 );
+    recorder->setClearButtonEnabled( true );
 
-void KeySequencePresenter::showEditor()
-{
-    QDialog keyEditDialog;
+    auto* self = const_cast<ShortcutRecordingDelegate*>( this );
+    connect( recorder, &QKeySequenceEdit::editingFinished, self,
+             [ self, recorder ] { self->endRecording( recorder, Recording::Keep ); } );
 
-    auto label = new QLabel( "Press new key combination" );
-    auto editor = new QKeySequenceEdit( QKeySequence( keySequenceLabel_->text() ) );
-    auto clearButton = new QToolButton();
-    clearButton->setText( "Clear" );
-    auto dialogButtons = new QDialogButtonBox( QDialogButtonBox::Ok | QDialogButtonBox::Cancel );
-
-    auto layout = new QVBoxLayout();
-    layout->addWidget( label );
-    auto editorLayout = new QHBoxLayout();
-    editorLayout->addWidget( editor );
-    editorLayout->addWidget( clearButton );
-    layout->addLayout( editorLayout );
-    layout->addWidget( dialogButtons );
-    keyEditDialog.setLayout( layout );
-
-    connect( clearButton, &QToolButton::clicked, editor, &QKeySequenceEdit::clear );
-    connect( dialogButtons, &QDialogButtonBox::accepted, &keyEditDialog, &QDialog::accept );
-    connect( dialogButtons, &QDialogButtonBox::rejected, &keyEditDialog, &QDialog::reject );
-
-    if ( keyEditDialog.exec() == QDialog::Accepted ) {
-        keySequenceLabel_->setText( editor->keySequence().toString() );
-        Q_EMIT edited(); // NOTE: it's important to emit this signal only after changing
-                         // \keySequenceLabel_'s text
+    // The clear icon shown while recording clears the shortcut.
+    if ( auto* clearAction = recorder->findChild<QAction*>( "_q_qlineeditclearaction" ) ) {
+        connect( clearAction, &QAction::triggered, self,
+                 [ self, recorder ] { self->endRecording( recorder, Recording::Clear ); } );
     }
+
+    return recorder;
+}
+
+void ShortcutRecordingDelegate::setEditorData( QWidget* editor, const QModelIndex& index ) const
+{
+    static_cast<QKeySequenceEdit*>( editor )->setKeySequence(
+        QKeySequence( index.data( Qt::UserRole ).toString(), QKeySequence::PortableText ) );
+}
+
+void ShortcutRecordingDelegate::setModelData( QWidget* editor, QAbstractItemModel* model,
+                                              const QModelIndex& index ) const
+{
+    setShortcut( model, index, static_cast<QKeySequenceEdit*>( editor )->keySequence() );
+    Q_EMIT const_cast<ShortcutRecordingDelegate*>( this )->edited();
+}
+
+void ShortcutRecordingDelegate::setShortcut( QAbstractItemModel* model, const QModelIndex& index,
+                                             const QKeySequence& keySequence )
+{
+    model->setData( index, keySequence.toString( QKeySequence::PortableText ), Qt::UserRole );
+    model->setData( index, keySequence.toString( QKeySequence::NativeText ), Qt::DisplayRole );
+}
+
+bool ShortcutRecordingDelegate::eventFilter( QObject* watched, QEvent* event )
+{
+    if ( watched == view_ ) {
+        return event->type() == QEvent::KeyPress
+               && viewKeyPressed( static_cast<QKeyEvent*>( event ) );
+    }
+
+    auto* recorder = qobject_cast<QKeySequenceEdit*>( watched );
+    if ( recorder && event->type() == QEvent::KeyPress
+         && recorderKeyPressed( recorder, static_cast<QKeyEvent*>( event ) ) ) {
+        return true;
+    }
+
+    if ( recorder && event->type() == QEvent::FocusOut ) {
+        // Leaving the cell while recording cancels it: a finished recording
+        // has already been stored, an unfinished one is dropped.
+        if ( !recorder->isAncestorOf( QApplication::focusWidget() ) ) {
+            endRecording( recorder, Recording::Cancel );
+        }
+        return false;
+    }
+
+    return QStyledItemDelegate::eventFilter( watched, event );
+}
+
+bool ShortcutRecordingDelegate::viewKeyPressed( const QKeyEvent* keyEvent )
+{
+    const auto index = view_->currentIndex();
+    if ( !index.isValid() || view_->itemDelegateForIndex( index ) != this
+         || !index.flags().testFlag( Qt::ItemIsEditable )
+         || ( keyEvent->modifiers() & ~Qt::KeypadModifier ) != Qt::NoModifier ) {
+        return false;
+    }
+
+    switch ( keyEvent->key() ) {
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        view_->edit( index );
+        return true;
+    case Qt::Key_Backspace:
+    case Qt::Key_Delete:
+        setShortcut( view_->model(), index, {} );
+        Q_EMIT edited();
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool ShortcutRecordingDelegate::recorderKeyPressed( QWidget* recorder, const QKeyEvent* keyEvent )
+{
+    if ( keyEvent->matches( QKeySequence::Cancel ) || keyEvent->key() == Qt::Key_Tab
+         || keyEvent->key() == Qt::Key_Backtab ) {
+        endRecording( recorder, Recording::Cancel );
+        return true;
+    }
+
+    // A bare Backspace or Delete clears the shortcut instead of being recorded.
+    if ( ( keyEvent->key() == Qt::Key_Backspace || keyEvent->key() == Qt::Key_Delete )
+         && ( keyEvent->modifiers() & ~Qt::KeypadModifier ) == Qt::NoModifier ) {
+        endRecording( recorder, Recording::Clear );
+        return true;
+    }
+
+    // Every other key, Enter included, is recorded by the editor itself.
+    return false;
+}
+
+void ShortcutRecordingDelegate::endRecording( QWidget* recorder, Recording outcome )
+{
+    // Closing hides the recorder, and it then finishes and loses focus once
+    // more; only the first end counts.
+    recorder->disconnect( this );
+    recorder->removeEventFilter( this );
+
+    if ( outcome == Recording::Cancel ) {
+        Q_EMIT closeEditor( recorder, QAbstractItemDelegate::RevertModelCache );
+        return;
+    }
+    if ( outcome == Recording::Clear ) {
+        static_cast<QKeySequenceEdit*>( recorder )->clear();
+    }
+    Q_EMIT commitData( recorder );
+    Q_EMIT closeEditor( recorder, QAbstractItemDelegate::NoHint );
 }
 
 void OptionsDialog::buildShortcutsTable( bool useDefaultsOnly )
@@ -766,19 +866,17 @@ void OptionsDialog::buildShortcutsTable( bool useDefaultsOnly )
         keyItem->setData( Qt::UserRole, QString::fromStdString( action ) );
         shortcutsTable->setItem( currentRow, 0, keyItem );
 
-        auto primaryKeySequence = new KeySequencePresenter(
-            shortCut.keySequence.size() > 0 ? shortCut.keySequence[ 0 ] : "" );
-        shortcutsTable->setItem( currentRow, 1, new QTableWidgetItem );
-        shortcutsTable->setCellWidget( currentRow, 1, primaryKeySequence );
-        connect( primaryKeySequence, &KeySequencePresenter::edited, this,
-                 &OptionsDialog::checkShortcutsOnDuplicate );
-
-        auto secondaryKeySequence = new KeySequencePresenter(
-            shortCut.keySequence.size() > 1 ? shortCut.keySequence[ 1 ] : "" );
-        shortcutsTable->setItem( currentRow, 2, new QTableWidgetItem );
-        shortcutsTable->setCellWidget( currentRow, 2, secondaryKeySequence );
-        connect( secondaryKeySequence, &KeySequencePresenter::edited, this,
-                 &OptionsDialog::checkShortcutsOnDuplicate );
+        const auto shortcutItem = [ this, currentRow ]( int column, const QString& keySequence ) {
+            auto item = new QTableWidgetItem;
+            item->setToolTip( tr( "Click or press Enter to record a shortcut, Escape cancels.\n"
+                                  "Backspace or Delete clears the shortcut." ) );
+            shortcutsTable->setItem( currentRow, column, item );
+            ShortcutRecordingDelegate::setShortcut(
+                shortcutsTable->model(), shortcutsTable->model()->index( currentRow, column ),
+                QKeySequence( keySequence ) );
+        };
+        shortcutItem( 1, shortCut.keySequence.size() > 0 ? shortCut.keySequence[ 0 ] : "" );
+        shortcutItem( 2, shortCut.keySequence.size() > 1 ? shortCut.keySequence[ 1 ] : "" );
     }
 
     shortcutsTable->horizontalHeader()->setSectionResizeMode( QHeaderView::Stretch );

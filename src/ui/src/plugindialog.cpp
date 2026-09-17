@@ -72,7 +72,8 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     topRow->addWidget( nameLabel );
 
     versionLabel = new QLabel( this );
-    versionLabel->setStyleSheet( "color: palette(dark); font-size: 11px;" );
+    versionLabel->setProperty( "secondaryText", true );
+    versionLabel->setStyleSheet( "font-size: 11px;" );
     topRow->addWidget( versionLabel );
 
     statusBadge = new QLabel( this );
@@ -84,11 +85,13 @@ PluginDialog::PluginCard::PluginCard( const MergedPlugin& plugin, PluginDialog* 
     centerLayout->addLayout( topRow );
 
     authorLabel = new QLabel( this );
-    authorLabel->setStyleSheet( "color: palette(dark); font-size: 11px;" );
+    authorLabel->setProperty( "secondaryText", true );
+    authorLabel->setStyleSheet( "font-size: 11px;" );
     centerLayout->addWidget( authorLabel );
 
     licenseLabel = new QLabel( this );
-    licenseLabel->setStyleSheet( "color: palette(dark); font-size: 11px;" );
+    licenseLabel->setProperty( "secondaryText", true );
+    licenseLabel->setStyleSheet( "font-size: 11px;" );
     centerLayout->addWidget( licenseLabel );
 
     descriptionLabel = new QLabel( plugin.description, this );
@@ -253,7 +256,8 @@ PluginDialog::PluginDialog( PluginCatalog& catalog, PluginHost& host, QWidget* p
 
     // ── Status label ─────────────────────────────────────────────────
     statusLabel_ = new QLabel( tr( "Fetching plugin catalog..." ), this );
-    statusLabel_->setStyleSheet( "color: palette(dark); font-size: 11px;" );
+    statusLabel_->setProperty( "secondaryText", true );
+    statusLabel_->setStyleSheet( "font-size: 11px;" );
     mainLayout->addWidget( statusLabel_ );
 
     // ── Footer: auto-load + close ────────────────────────────────────
