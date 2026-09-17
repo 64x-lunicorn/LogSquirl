@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLinksValidator from 'starlight-links-validator';
 
 export default defineConfig({
   site: 'https://logsquirl.lunicorn-lab.de',
@@ -22,6 +23,9 @@ export default defineConfig({
         { icon: 'github', label: 'GitHub', href: 'https://github.com/64x-lunicorn/LogSquirl' },
       ],
       customCss: ['./src/styles/custom.css'],
+      // A link to a page or heading that does not exist fails the build, on
+      // pull requests as well as in the deploy (#311).
+      plugins: [starlightLinksValidator()],
       sidebar: [
         {
           label: 'About',

@@ -427,11 +427,18 @@ before anything is downloaded, because its signing job could not enter the
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `ci-build.yml` | push/PR to master | Build + test all platforms |
+| `ci-build.yml` | push/PR to master | Build + test all platforms; on a pull request also checks the update feed and builds the website with its link check |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
+
+
+Every pull request runs CI Build, so the required **CI passed** check always reports. Its *Changes* job
+skips the build, test and SBOM jobs for a pull request that changes only the files a push to master ignores
+(`website/**`, `latest.json`, `BUILD.md`, `README.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.gitignore`), and
+runs the *Website* job (`npm run build`, which fails on a broken internal link) only when the website changed.
+The *Format* job checks the update feed on every pull request (`.github/scripts/release-feed.py check`).
 
 ### Action pinning
 

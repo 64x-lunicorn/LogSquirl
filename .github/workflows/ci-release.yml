@@ -96,12 +96,17 @@ jobs:
           fi
           echo "commit=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
-      # The release notes are the tag's CHANGELOG section. Checked here, so a
-      # missing section stops the release before anything is signed (#307).
-      - name: Check the CHANGELOG has the tag's section
+      # The release notes are the tag's CHANGELOG section, and recording the
+      # release in the update feed needs the feed's changelog entry. Checked
+      # here, so a missing one stops the release before anything is signed
+      # (#307, #310).
+      - name: Check the CHANGELOG section and the feed entry of the tag
         env:
           TAG: ${{ steps.tag.outputs.tag }}
-        run: .github/scripts/release-build.py release-notes --tag "$TAG" --out "$RUNNER_TEMP/release_notes.md"
+        run: |
+          set -euo pipefail
+          .github/scripts/release-build.py release-notes --tag "$TAG" --out "$RUNNER_TEMP/release_notes.md"
+          .github/scripts/release-feed.py check-tag --tag "$TAG"
 
       # Only a successful CI Build that ran for a push to master and built the
       # tagged commit may be released: pull request builds come from
@@ -728,41 +733,17 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${TAG#v}"
-          URL="https://github.com/64x-lunicorn/LogSquirl/releases/tag/${TAG}"
 
-          # *_build is the YY.MM.PATCH.BUILD the release was published from:
-          # betas and the stable release of a version share YY.MM.PATCH, so the
-          # application compares builds to tell them apart, and it reads
-          # `releases` to tell a beta from a stable build (#306). A stable
-          # release also sets `ci`, the only field LogSquirl 26.07.0 and older
-          # read; they append an OS suffix to `ci_url`, which ends in `#` so the
-          # suffix is a fragment of the latest release page.
+          # Records the release in the stable or beta fields, the build it was
+          # published from and the release list, unless the feed announces a
+          # newer build (a re-run of an older release); the result must be a
+          # valid feed (#306, #310). BUILD.md documents the fields.
+          .github/scripts/release-feed.py record --tag "$TAG" --build "$BUILD_VERSION"
           if [ "$IS_PRERELEASE" = "true" ]; then
-            channel=beta
-          else
-            channel=stable
-          fi
-          # A re-run of an older release must not announce it over a newer one.
-          announced=$(jq -r --arg field "${channel}_build" '.[$field] // ""' latest.json)
-          if [ -n "$announced" ] && [ "$(printf '%s\n%s\n' "$announced" "$BUILD_VERSION" | sort -V | tail -n 1)" != "$BUILD_VERSION" ]; then
-            echo "::notice::latest.json announces ${channel} build $announced, newer than $BUILD_VERSION; left unchanged."
-            exit 0
-          fi
-
-          # jq and mv are separate commands: set -e ignores a failure inside an
-          # && list, and a failed jq used to end in a green job that committed
-          # nothing (#218).
-          jq --arg channel "$channel" --arg ver "$VERSION" --arg url "$URL" --arg build "$BUILD_VERSION" '
-            .[$channel] = $ver | .[$channel + "_url"] = $url
-            | .[$channel + "_version"] = $ver | .[$channel + "_build"] = $build
-            | .releases |= (if any(.[]; . == $ver) then . else . + [$ver] end)
-            | if $channel == "stable" then .ci = $ver else . end' latest.json > latest.json.tmp
-          if [ "$channel" = "beta" ]; then
             COMMIT_MSG="chore: update latest.json with beta ${VERSION} [skip ci]"
           else
             COMMIT_MSG="chore: update latest.json with ${VERSION} [skip ci]"
           fi
-          mv latest.json.tmp latest.json
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
