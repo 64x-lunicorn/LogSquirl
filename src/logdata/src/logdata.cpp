@@ -41,6 +41,7 @@
 #include <algorithm>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <qregularexpression.h>
 #include <qtextcodec.h>
 #include <string_view>
@@ -48,6 +49,7 @@
 #include <vector>
 
 #include <QFileInfo>
+#include <QtEndian>
 
 #include <simdutf.h>
 
@@ -686,6 +688,167 @@ logsquirl::vector<QString> RawLines::decodeLines() const
     return decodedLines;
 }
 
+namespace {
+
+// The Encodings a Search converts to UTF-8 straight from the bytes of each Log
+// Line, found from the known line ends, without decoding the block to a
+// QString first (#291). Any other Encoding is decoded as a whole.
+enum class DirectEncoding { None, Utf8, Latin1, Utf16LE, Utf16BE };
+
+DirectEncoding directEncodingOf( const EncodingParameters& encodingParams )
+{
+    if ( encodingParams.isUtf8Compatible ) {
+        return DirectEncoding::Utf8;
+    }
+    if ( encodingParams.isLatin1 ) {
+        return DirectEncoding::Latin1;
+    }
+    if ( encodingParams.isUtf16LE ) {
+        return DirectEncoding::Utf16LE;
+    }
+    if ( encodingParams.isUtf16BE ) {
+        return DirectEncoding::Utf16BE;
+    }
+    return DirectEncoding::None;
+}
+
+bool isUtf16( DirectEncoding encoding )
+{
+    return encoding == DirectEncoding::Utf16LE || encoding == DirectEncoding::Utf16BE;
+}
+
+const char16_t* asUtf16( std::string_view bytes )
+{
+    return reinterpret_cast<const char16_t*>( bytes.data() );
+}
+
+char16_t codeUnitAt( std::string_view bytes, std::size_t index, DirectEncoding encoding )
+{
+    const auto first = static_cast<unsigned char>( bytes[ index ] );
+    const auto second = static_cast<unsigned char>( bytes[ index + 1 ] );
+    return encoding == DirectEncoding::Utf16LE ? static_cast<char16_t>( first | ( second << 8 ) )
+                                               : static_cast<char16_t>( ( first << 8 ) | second );
+}
+
+std::string_view withoutLineFeed( std::string_view line, DirectEncoding encoding )
+{
+    if ( isUtf16( encoding ) ) {
+        if ( line.size() >= 2 && codeUnitAt( line, line.size() - 2, encoding ) == u'\n' ) {
+            line.remove_suffix( 2 );
+        }
+    }
+    else if ( !line.empty() && line.back() == '\n' ) {
+        line.remove_suffix( 1 );
+    }
+    return line;
+}
+
+bool containsEscape( std::string_view line, DirectEncoding encoding )
+{
+    if ( !isUtf16( encoding ) ) {
+        return line.find( '\x1B' ) != std::string_view::npos;
+    }
+    for ( std::size_t index = 0; index + 1 < line.size(); index += 2 ) {
+        if ( codeUnitAt( line, index, encoding ) == u'\x1B' ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isValid( std::string_view line, DirectEncoding encoding )
+{
+    switch ( encoding ) {
+    case DirectEncoding::Utf16LE:
+        return simdutf::validate_utf16le( asUtf16( line ), line.size() / 2 );
+    case DirectEncoding::Utf16BE:
+        return simdutf::validate_utf16be( asUtf16( line ), line.size() / 2 );
+    default:
+        return true;
+    }
+}
+
+QString decode( std::string_view line, DirectEncoding encoding )
+{
+    const auto size = static_cast<qsizetype>( line.size() );
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        return QString::fromLatin1( line.data(), size );
+    case DirectEncoding::Utf16LE:
+    case DirectEncoding::Utf16BE: {
+        QString text( size / 2, Qt::Uninitialized );
+        if ( encoding == DirectEncoding::Utf16LE ) {
+            qFromLittleEndian<char16_t>( line.data(), size / 2, text.data() );
+        }
+        else {
+            qFromBigEndian<char16_t>( line.data(), size / 2, text.data() );
+        }
+        return text;
+    }
+    default:
+        return QString::fromUtf8( line.data(), size );
+    }
+}
+
+std::size_t utf8SizeOf( std::string_view line, DirectEncoding encoding )
+{
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        return simdutf::utf8_length_from_latin1( line.data(), line.size() );
+    case DirectEncoding::Utf16LE:
+        return simdutf::utf8_length_from_utf16le( asUtf16( line ), line.size() / 2 );
+    case DirectEncoding::Utf16BE:
+        return simdutf::utf8_length_from_utf16be( asUtf16( line ), line.size() / 2 );
+    default:
+        return line.size();
+    }
+}
+
+// Converts a line valid in its encoding; returns the UTF-8 bytes written.
+std::size_t convertToUtf8( std::string_view line, DirectEncoding encoding, char* utf8 )
+{
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        return simdutf::convert_latin1_to_utf8( line.data(), line.size(), utf8 );
+    case DirectEncoding::Utf16LE:
+        return simdutf::convert_valid_utf16le_to_utf8( asUtf16( line ), line.size() / 2, utf8 );
+    case DirectEncoding::Utf16BE:
+        return simdutf::convert_valid_utf16be_to_utf8( asUtf16( line ), line.size() / 2, utf8 );
+    default:
+        std::copy( line.begin(), line.end(), utf8 );
+        return line.size();
+    }
+}
+
+// The UTF-8 of text, in a buffer exactly its size. Invalid UTF-16 is mapped as
+// QString::toUtf8() maps it.
+QByteArray toUtf8( const QString& text )
+{
+    const auto* const utf16 = reinterpret_cast<const char16_t*>( text.constData() );
+    const auto size = static_cast<std::size_t>( text.size() );
+    if ( !simdutf::validate_utf16( utf16, size ) ) {
+        return text.toUtf8();
+    }
+    QByteArray utf8( static_cast<qsizetype>( simdutf::utf8_length_from_utf16( utf16, size ) ),
+                     Qt::Uninitialized );
+    const auto written = simdutf::convert_valid_utf16_to_utf8( utf16, size, utf8.data() );
+    utf8.truncate( static_cast<qsizetype>( written ) );
+    return utf8;
+}
+
+// Where a Log Line of the block goes in its UTF-8 view.
+struct LineToConvert {
+    // The Log Line's bytes in the block, without its line feed.
+    std::string_view bytes;
+    // Its UTF-8, when it had to be decoded first: to hide its ANSI color
+    // sequences, or because it is not valid in its encoding.
+    std::optional<QByteArray> decoded;
+    std::size_t utf8Size{};
+    std::size_t utf8Offset{};
+};
+
+} // namespace
+
 logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
 {
     logsquirl::vector<std::string_view> lines;
@@ -693,66 +856,113 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
         return lines;
     }
 
+    const auto encoding = directEncodingOf( textDecoder.encodingParams );
+    const auto codeUnitWidth = isUtf16( encoding ) ? 2 : 1;
+
+    // The known line ends split the block only when they lie in it, on code
+    // unit boundaries; a UTF-16 Log Line cut in the middle of a code unit is
+    // decoded as a whole block is.
+    auto lineEndsSplitTheBlock = encoding != DirectEncoding::None;
+    qint64 previousLineEnd = 0;
+    for ( const auto lineEnd : endOfLines ) {
+        if ( lineEnd < previousLineEnd || lineEnd > logsquirl::ssize( buffer )
+             || ( lineEnd - previousLineEnd ) % codeUnitWidth != 0 ) {
+            lineEndsSplitTheBlock = false;
+            break;
+        }
+        previousLineEnd = lineEnd;
+    }
+
     try {
         lines.reserve( endOfLines.size() );
 
-        std::string_view wholeString;
+        if ( lineEndsSplitTheBlock ) {
+            // Every ANSI color sequence starts with the escape character, and
+            // in each of these encodings an escape code unit has an escape byte.
+            const auto hidesAnsiColorSequences
+                = hideAnsiColorSequences
+                  && std::find( buffer.begin(), buffer.end(), '\x1B' ) != buffer.end();
 
-        // In a UTF-8 compatible encoding the escape byte only ever stands for
-        // the escape character, so a block without it has no ANSI color
-        // sequence to hide and is searched as it was read.
-        const auto hasAnsiColorSequencesToHide
-            = hideAnsiColorSequences
-              && ( !textDecoder.encodingParams.isUtf8Compatible
-                   || std::find( buffer.begin(), buffer.end(), '\x1B' ) != buffer.end() );
+            std::vector<LineToConvert> toConvert( endOfLines.size() );
+            std::size_t utf8Size = 0;
+            std::size_t lineStart = 0;
+            for ( std::size_t index = 0; index < endOfLines.size(); ++index ) {
+                const auto lineEnd = static_cast<std::size_t>( endOfLines[ index ] );
+                auto& line = toConvert[ index ];
+                line.bytes = withoutLineFeed(
+                    std::string_view( buffer.data() + lineStart, lineEnd - lineStart ), encoding );
+                lineStart = lineEnd;
 
-        if ( !hasAnsiColorSequencesToHide && textDecoder.encodingParams.isUtf8Compatible ) {
-            wholeString = std::string_view( buffer.data(), buffer.size() );
+                // Decoding drops a byte order mark that starts the block.
+                if ( index == 0 && isUtf16( encoding ) && line.bytes.size() >= 2
+                     && codeUnitAt( line.bytes, 0, encoding ) == u'\xFEFF' ) {
+                    line.bytes.remove_prefix( 2 );
+                }
+
+                const auto hasAnsiColorSequences
+                    = hidesAnsiColorSequences && containsEscape( line.bytes, encoding );
+                if ( hasAnsiColorSequences || !isValid( line.bytes, encoding ) ) {
+                    auto text = decode( line.bytes, encoding );
+                    if ( hasAnsiColorSequences ) {
+                        removeAnsiColorSequences( text );
+                    }
+                    line.decoded = toUtf8( text );
+                    line.utf8Size = static_cast<std::size_t>( line.decoded->size() );
+                }
+                else {
+                    line.utf8Size = utf8SizeOf( line.bytes, encoding );
+                }
+
+                // A UTF-8 Log Line is searched as it was read, where it was read.
+                if ( line.decoded || encoding != DirectEncoding::Utf8 ) {
+                    line.utf8Offset = utf8Size;
+                    utf8Size += line.utf8Size;
+                }
+            }
+
+            utf8Data_ = QByteArray( static_cast<qsizetype>( utf8Size ), Qt::Uninitialized );
+            for ( auto& line : toConvert ) {
+                if ( line.decoded ) {
+                    std::copy( line.decoded->cbegin(), line.decoded->cend(),
+                               utf8Data_.data() + line.utf8Offset );
+                    lines.emplace_back( utf8Data_.constData() + line.utf8Offset, line.utf8Size );
+                }
+                else if ( encoding == DirectEncoding::Utf8 ) {
+                    lines.push_back( line.bytes );
+                }
+                else {
+                    const auto written
+                        = convertToUtf8( line.bytes, encoding, utf8Data_.data() + line.utf8Offset );
+                    lines.emplace_back( utf8Data_.constData() + line.utf8Offset, written );
+                }
+            }
         }
         else {
-
-            QString utf16Data;
-            if ( !hideAnsiColorSequences && textDecoder.encodingParams.isUtf16LE ) {
-                utf16Data = QString::fromRawData( reinterpret_cast<const QChar*>( buffer.data() ),
-                                                  logsquirl::isize( buffer ) / 2 );
-            }
-            else {
-                utf16Data
-                    = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
-            }
-
+            auto utf16Data
+                = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
             if ( hideAnsiColorSequences ) {
                 removeAnsiColorSequences( utf16Data );
             }
+            utf8Data_ = toUtf8( utf16Data );
 
-            utf8Data_.resize( buffer.size() * 4 );
-            const auto resultSize = simdutf::convert_utf16_to_utf8(
-                reinterpret_cast<const char16_t*>( utf16Data.utf16() ),
-                static_cast<size_t>( utf16Data.size() ), utf8Data_.data() );
+            std::string_view wholeString( utf8Data_.constData(),
+                                          static_cast<std::size_t>( utf8Data_.size() ) );
+            auto nextLineFeed = wholeString.find( '\n' );
+            while ( nextLineFeed != std::string_view::npos ) {
+                lines.push_back( wholeString.substr( 0, nextLineFeed ) );
+                wholeString.remove_prefix( nextLineFeed + 1 );
+                nextLineFeed = wholeString.find( '\n' );
+            }
 
-            wholeString = { utf8Data_.data(), resultSize };
-        }
-
-        auto nextLineFeed = wholeString.find( '\n' );
-        while ( nextLineFeed != std::string_view::npos ) {
-            lines.push_back( wholeString.substr( 0, nextLineFeed ) );
-            wholeString.remove_prefix( nextLineFeed + 1 );
-            nextLineFeed = wholeString.find( '\n' );
-        }
-
-        if ( !wholeString.empty() ) {
-            lines.push_back( wholeString );
+            if ( !wholeString.empty() ) {
+                lines.push_back( wholeString );
+            }
         }
 
     } catch ( const std::exception& e ) {
         LOG_ERROR << "failed to transform lines to utf8 " << e.what();
-        const auto lastLineOffset = utf8Data_.size();
-        // utf8Data_.append( "LOGSQUIRL WARNING: not enough memory, try decrease search buffer" );
-        lines.reserve( this->endOfLines.size() - lines.size() );
-        while ( lines.size() < this->endOfLines.size() ) {
-            lines.emplace_back( utf8Data_.data() + lastLineOffset,
-                                utf8Data_.size() - lastLineOffset );
-        }
+        lines.clear();
+        lines.resize( this->endOfLines.size() );
     }
 
     return lines;
