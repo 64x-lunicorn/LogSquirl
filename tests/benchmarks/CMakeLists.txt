@@ -109,3 +109,12 @@ add_executable(logsquirl_chart_follow_benchmark
 )
 
 target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
+
+# Painting and hovering a chart of millions of points (#299), fitted and zoomed
+# in to 1 %. Uses only what the chart widget offered before #299 (see
+# README.md).
+add_executable(logsquirl_chart_paint_benchmark
+    chart_paint_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_chart_paint_benchmark logsquirl_ui Catch2)
