@@ -214,7 +214,7 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
 - `[sparse-read]` — every hundredth Log Line from the start, 10,000 of them:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
-  Find reads today, each next to the same Log Lines in one sparse read
+  Find read before #287, each next to the same Log Lines in one sparse read
   (**getLinesSparse**, **getExpandedLinesSparse**, #286).
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
