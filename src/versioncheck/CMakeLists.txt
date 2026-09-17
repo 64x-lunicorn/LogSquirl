@@ -1,6 +1,8 @@
 add_library(
   logsquirl_versioncheck STATIC ${CMAKE_CURRENT_SOURCE_DIR}/include/versionchecker.h
                             ${CMAKE_CURRENT_SOURCE_DIR}/src/versionchecker.cpp
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include/updateoffer.h
+                            ${CMAKE_CURRENT_SOURCE_DIR}/src/updateoffer.cpp
 )
 
 set_target_properties(logsquirl_versioncheck PROPERTIES AUTOMOC ON)

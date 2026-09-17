@@ -1,6 +1,10 @@
 ---
 title: Version 22.06
 description: Hyperscan regex engine, reworked highlighters, configurable shortcuts, predefined filters.
+release:
+  version: 22.06
+  date: 2022-06
+  channel: legacy
 ---
 
 ## Version 22.06

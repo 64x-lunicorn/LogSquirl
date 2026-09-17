@@ -326,3 +326,68 @@ def test_the_command_line_turns_an_unexpected_response_into_an_annotation(monkey
     monkeypatch.setattr(rb, "_gh_api", lambda path: no_id)
     assert rb.main(["find-run", "--repository", REPO, "--commit", COMMIT, "--run-id", "5"]) == 1
     assert capsys.readouterr().out.startswith("::error::")
+
+
+# ── release notes ─────────────────────────────────────────────────────────
+
+CHANGELOG = """\
+# v26.10.0-beta1 (2026-09-17)
+
+## Changes
+
+- **System theme**: Follows the operating system.
+
+## Bug fixes
+
+- **Search stalls**: A Search always runs to completion.
+
+---
+
+# v26.07.0 (2026-07-13)
+
+## Bug fixes:
+ - **AppImage**: Runs on Ubuntu 22.04.
+
+---
+
+# 26.04.2 (2026-04-19):
+
+## Bug fixes:
+ - **Clear File**: Works again.
+"""
+
+
+def test_the_notes_of_a_beta_tag_are_its_changelog_section():
+    assert rb.release_notes(CHANGELOG, tag="v26.10.0-beta1") == """\
+## Changes
+
+- **System theme**: Follows the operating system.
+
+## Bug fixes
+
+- **Search stalls**: A Search always runs to completion.
+"""
+
+
+def test_a_section_ends_before_the_separator_of_the_next_release():
+    assert rb.release_notes(CHANGELOG, tag="v26.07.0") == "## Bug fixes:\n - **AppImage**: Runs on Ubuntu 22.04.\n"
+
+
+def test_the_last_section_and_the_older_heading_format_are_found():
+    assert rb.release_notes(CHANGELOG, tag="v26.04.2") == "## Bug fixes:\n - **Clear File**: Works again.\n"
+
+
+def test_a_stable_tag_does_not_take_the_section_of_its_beta():
+    with pytest.raises(rb.ReleaseError, match=r"no section for v26\.10\.0: add a heading '# v26\.10\.0 \(YYYY-MM-DD\)'"):
+        rb.release_notes(CHANGELOG, tag="v26.10.0")
+
+
+def test_the_command_line_writes_the_notes_and_fails_without_a_section(tmp_path, capsys):
+    changelog = tmp_path / "CHANGELOG.md"
+    changelog.write_text(CHANGELOG, encoding="utf-8")
+    notes = tmp_path / "release_notes.md"
+    args = ["release-notes", "--changelog", str(changelog), "--out", str(notes)]
+    assert rb.main([*args, "--tag", "v26.07.0"]) == 0
+    assert notes.read_text(encoding="utf-8") == "## Bug fixes:\n - **AppImage**: Runs on Ubuntu 22.04.\n"
+    assert rb.main([*args, "--tag", "v26.11.0"]) == 1
+    assert capsys.readouterr().out.startswith("::error::CHANGELOG.md has no section for v26.11.0")

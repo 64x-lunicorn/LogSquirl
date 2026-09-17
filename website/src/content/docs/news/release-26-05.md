@@ -1,6 +1,10 @@
 ---
 title: Version 26.05.0-beta1
 description: Title bar theming, welcome dashboard, zstd/lz4 decompression, index cache, command palette, translations, 33 bug fixes.
+release:
+  version: 26.05.0-beta1
+  date: 2026-04-29
+  channel: beta
 ---
 
 ## Version 26.05.0-beta1 (April 2026)

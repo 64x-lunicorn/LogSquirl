@@ -1,0 +1,43 @@
+---
+// Release cards generated from the release pages (#313), so the release
+// overview and the home page always show the releases that have a page.
+//   view="current"  the latest stable release and a newer beta
+//   view="home"     the same, plus a card for all releases
+//   view="previous" every other LogSquirl release, newest first
+//   view="legacy"   the klogg-era releases
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { currentReleases, readReleases } from '../releases.mjs';
+
+interface Props {
+  view: 'current' | 'home' | 'previous' | 'legacy';
+}
+
+const { view } = Astro.props;
+const releases = readReleases();
+const { stable, beta } = currentReleases(releases);
+const href = (release) => `/${release.slug}/`;
+
+let cards = [];
+if (view === 'current' || view === 'home') {
+  const home = view === 'home';
+  cards = [
+    beta && !home && { title: `${beta.label} — Beta`, description: beta.description, href: href(beta) },
+    stable && {
+      title: home ? stable.label : `${stable.label} — Latest Stable`,
+      description: home ? `Stable release — ${stable.description}` : stable.description,
+      href: href(stable),
+    },
+    beta && home && { title: beta.label, description: `Beta — ${beta.description}`, href: href(beta) },
+    home && { title: 'All Releases', description: 'View all release notes and download links.', href: '/news/' },
+  ].filter(Boolean);
+} else {
+  const current = new Set([stable, beta].filter(Boolean));
+  cards = releases
+    .filter((release) => (view === 'legacy') === (release.channel === 'legacy') && !current.has(release))
+    .map((release) => ({ title: release.label, description: release.description, href: href(release) }));
+}
+---
+
+<CardGrid>
+  {cards.map((card) => <LinkCard title={card.title} description={card.description} href={card.href} />)}
+</CardGrid>

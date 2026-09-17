@@ -41,34 +41,13 @@
 #include "log.h"
 
 #include "logsquirl_version.h"
+#include "updateoffer.h"
 
 namespace {
-
-#if defined( Q_OS_WIN )
-static constexpr QLatin1String OsSuffix = QLatin1String( "-win", 4 );
-#elif defined( Q_OS_MACOS )
-static constexpr QLatin1String OsSuffix = QLatin1String( "-osx", 4 );
-#else
-static constexpr QLatin1String OsSuffix = QLatin1String( "-linux", 6 );
-#endif
 
 static constexpr QLatin1String VERSION_URL = QLatin1String(
     "https://raw.githubusercontent.com/64x-lunicorn/LogSquirl/master/latest.json", 76 );
 static constexpr std::time_t CHECK_INTERVAL_S = 3600 * 24 * 7; /* 7 days */
-
-bool isVersionNewer( const QString& current_version, const QString& new_version )
-{
-    const auto parseVersion = []( const QString& version_string ) {
-        qsizetype tweak_index = 0;
-        auto version = QVersionNumber::fromString( QAnyStringView( version_string ), &tweak_index );
-        return std::make_pair( version, version_string.right( tweak_index + 1 ).toUInt() );
-    };
-
-    const auto old = parseVersion( current_version );
-    const auto next = parseVersion( new_version );
-
-    return next > old;
-}
 
 } // namespace
 
@@ -149,62 +128,17 @@ void VersionChecker::checkVersionData( QByteArray versionData )
 {
     LOG_DEBUG << "Version reply: " << QString::fromUtf8( versionData );
 
-    const auto latestJson = QJsonDocument::fromJson( versionData );
-    const auto latestVersionMap = latestJson.toVariant().toMap();
-
-    QString latestVersion;
-    QString url;
-    bool isBetaNotification = false;
-    const auto stableVersions = latestVersionMap.value( "releases" ).toList();
-
-    const auto currentVersion = logsquirlVersion();
-    const bool isStableUser = std::any_of( stableVersions.begin(), stableVersions.end(),
-                                           [ &currentVersion ]( const auto& version ) {
-                                               return version.toString() == currentVersion;
-                                           } );
-
-    if ( isStableUser ) {
-        latestVersion = latestVersionMap.value( "stable" ).toString();
-        url = latestVersionMap.value( "stable_url" ).toString();
-
-        // If no newer stable version, check for beta when user opted in
-        const auto& appConfig = Configuration::get();
-        if ( !isVersionNewer( currentVersion, latestVersion )
-             && appConfig.betaVersionCheckingEnabled() ) {
-            const auto betaVersion = latestVersionMap.value( "beta" ).toString();
-            const auto betaUrl = latestVersionMap.value( "beta_url" ).toString();
-            if ( !betaVersion.isEmpty() && isVersionNewer( currentVersion, betaVersion ) ) {
-                latestVersion = betaVersion;
-                url = betaUrl;
-                isBetaNotification = true;
-            }
-        }
-    }
-    else {
-        latestVersion = latestVersionMap.value( "ci" ).toString();
-        url = latestVersionMap.value( "ci_url" ).toString() + OsSuffix;
+    const QString currentVersion = logsquirlVersion();
+    const auto offer = logsquirl::versioncheck::findUpdateOffer(
+        versionData, currentVersion, Configuration::get().betaVersionCheckingEnabled() );
+    if ( !offer ) {
+        LOG_DEBUG << "Current version " << currentVersion << " is up to date";
+        return;
     }
 
-    const auto changeLog = latestVersionMap.value( "changelog" ).toList();
-
-    QStringList changes;
-    for ( const auto& entry : changeLog ) {
-        const auto entryData = entry.toMap();
-        const auto version = entryData.value( "version" ).toString();
-
-        if ( isVersionNewer( currentVersion, version ) ) {
-            changes
-                << QString( "%1: %2" ).arg( version, entryData.value( "description" ).toString() );
-        }
-    }
-
-    LOG_DEBUG << "Current version: " << currentVersion << ". Latest version is " << latestVersion
-              << ", url " << url << ( isBetaNotification ? " (beta)" : "" );
-    if ( isVersionNewer( currentVersion, latestVersion ) ) {
-        LOG_INFO << "Sending new version notification" << ( isBetaNotification ? " (beta)" : "" );
-
-        const auto displayVersion
-            = isBetaNotification ? QString( "%1 (Beta)" ).arg( latestVersion ) : latestVersion;
-        Q_EMIT newVersionFound( displayVersion, url, changes );
-    }
+    LOG_INFO << "Sending new version notification: " << currentVersion << " -> " << offer->version
+             << ", url " << offer->url << ( offer->isBeta ? " (beta)" : "" );
+    const auto displayVersion
+        = offer->isBeta ? QString( "%1 (Beta)" ).arg( offer->version ) : offer->version;
+    Q_EMIT newVersionFound( displayVersion, offer->url, offer->changes );
 }

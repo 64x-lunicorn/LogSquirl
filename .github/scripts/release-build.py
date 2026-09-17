@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Finds and checks the CI Build a release publishes (#197, #221).
+"""Finds and checks the CI Build a release publishes, and its notes (#197, #221, #307).
 
 A release does not build. It publishes the packages of the successful CI Build
 run for a push to master that built the tagged commit, signed in CI Release.
@@ -24,6 +24,9 @@ is, and whether the downloaded build is the one the tag names:
       version of a CI Build is project(VERSION) in CMakeLists.txt, so a tag
       must name the version its commit declares.
       Outputs: version
+  release-notes --tag T --out FILE [--changelog CHANGELOG.md]
+      Writes T's CHANGELOG section, without its heading, to FILE; a
+      CHANGELOG without a section for T rejects the release (#307).
 
 Outputs are appended to $GITHUB_OUTPUT as name=value lines, or printed when
 it is not set. A rejected release exits 1 with an ::error:: annotation.
@@ -42,6 +45,8 @@ import sys
 import tarfile
 import zipfile
 from pathlib import Path
+
+from releases import ReleaseError, parse_tag, release_notes
 
 WORKFLOW_PATH = ".github/workflows/ci-build.yml"
 RELEASE_BRANCH = "master"
@@ -75,22 +80,7 @@ MAC_BINARY = "logsquirl.app/Contents/MacOS/logsquirl"
 VERSION_FILE = "logsquirl_version/logsquirl_version.txt"
 SBOM_FILE = "sbom-base/logsquirl-sbom-base.cdx.json"
 
-# Accepts the historical formats: v26.04.2, v26.05.0-beta1, v26.03.1-beta.2
-_TAG = re.compile(r"v([0-9]+\.[0-9]+\.[0-9]+)(-(?:alpha|beta|rc)\.?[0-9]+)?")
 _VERSION = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+")
-
-
-class ReleaseError(Exception):
-    pass
-
-
-def parse_tag(tag: str) -> tuple[str, bool]:
-    """Returns (base version, is prerelease) of a release tag."""
-    m = _TAG.fullmatch(tag)
-    if not m:
-        raise ReleaseError(f"Tag {tag!r} is not a release tag "
-                           "(expected vX.Y.Z or vX.Y.Z-alphaN/betaN/rcN).")
-    return m.group(1), m.group(2) is not None
 
 
 def _describe(run: dict) -> str:
@@ -338,6 +328,10 @@ def main(argv: list[str] | None = None) -> int:
     build.add_argument("--tag", required=True)
     build.add_argument("--commit", required=True)
     build.add_argument("--root", type=Path, default=Path("."))
+    notes = sub.add_parser("release-notes")
+    notes.add_argument("--tag", required=True)
+    notes.add_argument("--changelog", type=Path, default=Path("CHANGELOG.md"))
+    notes.add_argument("--out", type=Path, required=True)
     args = parser.parse_args(argv)
 
     try:
@@ -346,6 +340,9 @@ def main(argv: list[str] | None = None) -> int:
             _output(tag=args.tag, base_version=base, is_prerelease=str(prerelease).lower())
         elif args.command == "find-run":
             _find_run(args.repository, args.commit, args.run_id)
+        elif args.command == "release-notes":
+            text = release_notes(args.changelog.read_text(encoding="utf-8"), tag=args.tag)
+            args.out.write_text(text, encoding="utf-8")
         else:
             _output(version=check_build(args.root, tag=args.tag, commit=args.commit))
     except (ReleaseError, OSError, ValueError, KeyError, TypeError, AttributeError,

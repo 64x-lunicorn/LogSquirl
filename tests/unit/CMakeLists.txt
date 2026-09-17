@@ -107,3 +107,14 @@ add_executable(logsquirl_plugin_catalog_tests
 target_link_libraries(logsquirl_plugin_catalog_tests logsquirl_plugin_catalog Catch2)
 
 logsquirl_add_catch_tests(logsquirl_plugin_catalog_tests TIMEOUT 60)
+
+# The update check decides its offer from the feed alone, without a network
+# or a GUI (#306).
+add_executable(logsquirl_versioncheck_tests
+    versioncheck_tests_main.cpp
+    updateoffer_test.cpp
+)
+
+target_link_libraries(logsquirl_versioncheck_tests logsquirl_versioncheck Catch2)
+
+logsquirl_add_catch_tests(logsquirl_versioncheck_tests TIMEOUT 60)

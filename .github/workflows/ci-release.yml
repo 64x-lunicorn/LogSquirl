@@ -96,6 +96,18 @@ jobs:
           fi
           echo "commit=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
 
+      # The release notes are the tag's CHANGELOG section, and recording the
+      # release in the update feed needs the feed's changelog entry. Checked
+      # here, so a missing one stops the release before anything is signed
+      # (#307, #310).
+      - name: Check the CHANGELOG section and the feed entry of the tag
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          .github/scripts/release-build.py release-notes --tag "$TAG" --out "$RUNNER_TEMP/release_notes.md"
+          .github/scripts/release-feed.py check-tag --tag "$TAG"
+
       # Only a successful CI Build that ran for a push to master and built the
       # tagged commit may be released: pull request builds come from
       # unreviewed branches, and a build of another commit is not what the tag
@@ -573,13 +585,15 @@ jobs:
           fi
           echo "sbom_file=${sbom_files[0]}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          python3 scripts/gen_changelog.py > release_notes.md 2>/dev/null || echo "See commit history for changes." > release_notes.md
+      # The notes are the tag's CHANGELOG section; without one the job fails
+      # here, before the draft exists (#307).
+      - name: Write release notes
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: .github/scripts/release-build.py release-notes --tag "$TAG" --out release_notes.md
 
       # The verification commands name this release's files, so they are added
-      # here rather than in gen_changelog.py, which knows nothing about assets (#214).
+      # here rather than in the CHANGELOG, which knows nothing about assets (#214).
       - name: Append verification instructions
         run: |
           set -euo pipefail
@@ -694,7 +708,13 @@ jobs:
           set -euo pipefail
           gh api --method PATCH "repos/$GH_REPO/releases/$RELEASE_ID" -F draft=false --jq '.html_url'
 
-  # ── Job 7: Update latest.json ──────────────────────────────────────────
+  # ── Job 7: Propose the update feed change ─────────────────────────────
+  # latest.json on master is protected like any other file: the ruleset
+  # requires a pull request with passing checks, and workflows may not open
+  # pull requests here. So the job commits the recorded release to the branch
+  # feed/<tag> and names the link to open the pull request from it; the app
+  # announces the release once that pull request is merged. The Changelog
+  # check needs no entry for a feed/ branch.
   update-metadata:
     runs-on: ubuntu-24.04
     needs: [prepare, release]
@@ -704,42 +724,68 @@ jobs:
       contents: write
     steps:
       # The only checkout that keeps its credentials: the job pushes the
-      # updated latest.json with them, and it uploads no artifact that could
-      # leak them (#204).
+      # feed branch with them, and it uploads no artifact that could leak
+      # them (#204).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: master
           persist-credentials: true # zizmor: ignore[artipacked]
 
-      - name: Update latest.json
+      - name: Push the update feed change to feed/<tag>
         env:
           TAG: ${{ needs.prepare.outputs.tag }}
           IS_PRERELEASE: ${{ needs.prepare.outputs.is_prerelease }}
+          BUILD_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           VERSION="${TAG#v}"
-          URL="https://github.com/64x-lunicorn/LogSquirl/releases/tag/${TAG}"
+          BRANCH="feed/${TAG}"
 
-          # jq and mv are separate commands: set -e ignores a failure inside an
-          # && list, and a failed jq used to end in a green job that committed
-          # nothing (#218).
-          if [ "$IS_PRERELEASE" = "true" ]; then
-            jq --arg ver "$VERSION" --arg url "$URL" \
-               '.beta = $ver | .beta_url = $url | .beta_version = $ver' latest.json > latest.json.tmp
-            COMMIT_MSG="chore: update latest.json with beta ${VERSION} [skip ci]"
-          else
-            jq --arg ver "$VERSION" --arg url "$URL" \
-               '.stable = $ver | .stable_url = $url | .stable_version = $ver' latest.json > latest.json.tmp
-            COMMIT_MSG="chore: update latest.json with ${VERSION} [skip ci]"
+          # Records the release in the stable or beta fields, the build it was
+          # published from and the release list, unless the feed announces a
+          # newer build (a re-run of an older release); the result must be a
+          # valid feed (#306, #310). BUILD.md documents the fields.
+          .github/scripts/release-feed.py record --tag "$TAG" --build "$BUILD_VERSION"
+          if git diff --quiet -- latest.json; then
+            echo "::notice::latest.json on master already announces ${TAG} or a newer build; nothing to propose."
+            exit 0
           fi
-          mv latest.json.tmp latest.json
+          if [ "$IS_PRERELEASE" = "true" ]; then
+            COMMIT_MSG="chore: announce beta ${VERSION} in latest.json"
+          else
+            COMMIT_MSG="chore: announce ${VERSION} in latest.json"
+          fi
 
+          # No [skip ci] in the message: GitHub would skip the pull request's
+          # required checks. A re-run replaces the branch it pushed before.
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add latest.json
-          if ! git diff --cached --quiet; then
-            git commit -m "$COMMIT_MSG"
-          fi
-          git push
+          git switch -C "$BRANCH"
+          git commit -m "$COMMIT_MSG" -- latest.json
+          git push --force origin "$BRANCH"
 
-   
+          url="https://github.com/${GITHUB_REPOSITORY}/compare/master...${BRANCH}?expand=1"
+          echo "::notice::Open the pull request that announces ${TAG} in the app: ${url}"
+          {
+            echo "### Announce ${TAG} in the app"
+            echo
+            echo "The update feed change is on \`${BRANCH}\`. [Open the pull request](${url}) and merge it once its checks pass."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Job 8: Deploy the website ──────────────────────────────────────────
+  # The deploy leaves out the page of a release that is not published, so a
+  # release's page goes live with this deploy, after the release is public
+  # (#315). A dispatch with GITHUB_TOKEN may start a workflow; Deploy Website
+  # runs from master in its own `website` environment.
+  deploy-website:
+    runs-on: ubuntu-24.04
+    needs: [release]
+    if: needs.release.result == 'success'
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch Deploy Website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy-website.yml --repo "$GITHUB_REPOSITORY" --ref master

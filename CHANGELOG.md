@@ -1,4 +1,4 @@
-# Unreleased
+# v26.10.0-beta1 (2026-09-17)
 
 ## Changes
 
@@ -22,6 +22,122 @@
   theme's tokens (`CloseButtonHover`, `StatusOk`, `StatusWarning`,
   `StatusInactive`, `StatusInfo`, `StatusText`), so High Contrast gets its own
   colors for them.
+
+- **Grown Log Files index only what was added**: With the index cache on,
+  reopening a Log File that has grown since its Index was cached indexes
+  only the appended part, starting from the last cached Log Line, as long as
+  the start and the cached end of the file are unchanged. Progress starts at
+  the cached share and never goes backwards; any other change to the file
+  still indexes it in full.
+- **Index Cache housekeeping**: The index cache now removes the entries it
+  lets go of least recently opened first, not least recently written. An
+  Index larger than the whole cache size limit is not written, so it no
+  longer pushes existing entries out, and the entry just written is never the
+  one removed. A Log File under the temporary directory is not cached also
+  when it is reached through a symbolic link (such as `/var` and
+  `/private/var` on macOS), and a Log File that is only locked for the moment
+  keeps its cached Index.
+- **One context menu for both Presentations**: The Text View and the Table
+  View offer the same context menu entries in the same order. The Table View
+  gains Find next, Find previous, Set search start, Set search end and Clear
+  search limits; only Set selection start and end stay with the Text View. In
+  the Table View, the search entries, Color Labels and the scratchpad act on
+  the selection (a double-clicked word, or the selected Rows as tab-separated
+  cells) instead of the text of the cell that was right-clicked. Mark, Copy,
+  Copy with line numbers, the scratchpad entries and Save selected to file
+  are disabled while nothing is selected.
+- **Reload recognizes the Log Format again**: Reloading a Log File runs
+  Format Recognition again, so an edited user-defined Log Format is picked up
+  by a reload.
+- **Recording shortcuts**: In the Options dialog's shortcuts table, a
+  shortcut is recorded by clicking its cell or pressing Enter on it; the
+  "..." button beside each cell is gone. Escape or Tab cancels the recording,
+  and Backspace, Delete or the clear icon clears the shortcut. A recording
+  holds one key combination: shortcuts made of several key combinations can
+  no longer be recorded, but existing ones are kept. Shortcuts are stored as
+  portable text such as `Ctrl+O`; shortcuts stored in the native form still
+  load.
+- **Search line and sidebar width**: The Search line keeps room for about 20
+  characters while the sidebar is open; when the Search row runs out of
+  width, the visibility box shrinks and the match count is shortened first
+  (the whole count is in its tool tip). The sidebar opens at about a quarter
+  of the window instead of almost half, and the width it is left at is saved
+  with the window in the Session and used the next time it opens.
+- **Line numbers and bullets follow the Theme**: The bullet zone and line
+  numbers of the Text View and the Filtered View take their colors from the
+  Theme (Tokens `ViewportMargin`, `ViewportMarginBorder`, `LineNumberText`,
+  `Bullet`, `BulletOutline`) instead of a fixed dark gray with white numbers.
+  In Light the margin is now light gray with dark line numbers; Match and
+  Mark bullets keep their own colors.
+- **Readable controls in every Theme**: Radio buttons and sliders are drawn
+  from the Theme's Tokens, so they no longer vanish in Dark and High
+  Contrast. Check boxes are 16px in every Theme (the Options dialog no longer
+  changes height with the Theme), show a muted check mark when disabled and
+  a dash when partly checked. The Command Palette's category badges and
+  shortcuts stay readable in every Theme, also on a selected row, and Matches
+  and Marks standing for few Log Lines stay visible in the overview on dark
+  backgrounds.
+- **High Contrast states**: A checked button in the Search row shows a dark
+  icon on its yellow background, a progress bar's filled part is black with
+  a yellow outline so its label stays readable, a hovered push button shows
+  its text in yellow, and a disabled push button has a dashed border.
+- **Theme colors for the remaining widgets**: The pull-to-follow bar, the
+  chart tooltip, a conflicting shortcut, an invalid or failed Search and the
+  overview's highlight frame are drawn in Theme colors (new Tokens
+  `PullToFollowStripe`, `ErrorBackground`, `ErrorText`), and the hints on the
+  welcome page and in the Plugins dialog use the secondary text color.
+
+- **Scrolling through wrapped Log Lines**: With text wrapping on, the mouse
+  wheel (also with Alt), the arrow keys, Page Up/Down and selection
+  autoscroll move by Visual Lines, so a Log Line taller than the Viewport can
+  be scrolled through to its end. Page Up/Down move by one Viewport height.
+  The scrollbar still counts Log Lines. When the view starts partway through
+  a Log Line, its upper rows show no bullet and no line number.
+- **Bottom of a wrapped view**: At the bottom of the scrollbar, with the
+  arrow keys, the wheel, Page Down and follow mode, the last Visual Line of
+  the Log File sits exactly on the last row, also when the last Log Line is
+  taller than the Viewport. A short Log File whose Log Lines wrap past the
+  Viewport can now be scrolled.
+- **Reading position kept on re-wrap**: Resizing the window, changing the
+  font or showing line numbers keeps the text that was on the top row at the
+  top, also partway through a wrapped Log Line. A view at the bottom stays at
+  the bottom.
+- **Jumps move the view only when needed**: Going to a line, to the next
+  Match or Mark, to a QuickFind result, or selecting a Log Line in the
+  Filtered View leaves the view where it is when the target is already fully
+  visible. Otherwise the target is put on the top row instead of in the
+  middle. A click on the overview strip still centres its Log Line.
+- **Mark and Match rows in the Table View**: The Table View colors the
+  background of a Row that is a Match, a Mark or both, in the colors of the
+  Text View's bullets. Whole-line Highlighters and Search Limits take
+  precedence, and Context Lines are dimmed.
+- **Table View colors like the Text View**: A whole-line Highlighter colors
+  the whole Row, Matches of the Search are highlighted in their cells, Rows
+  outside the Search Limits are subdued, and a partly selected Row keeps its
+  Highlighter colors outside the selection. A Context Line stays dimmed when
+  it is selected as a whole.
+- **QuickFind matches the Log Line as written**: QuickFind looks at the Log
+  Line's own characters instead of the text with tabs expanded, so a pattern
+  for a tab finds tabs, and a pattern for spaces no longer finds the spaces
+  a tab is drawn as.
+- **Saving lines to a file**: While the lines are saved, the progress dialog
+  keeps updating and Cancel stops the save at once. A cancelled or failed
+  save leaves the destination file untouched. A save from the Filtered View
+  writes the Log Lines shown when it started, even if a Search or Mark change
+  arrives during it.
+- **Copying**: Copying with nothing selected leaves the clipboard as it was,
+  and both Presentations copy a null character in a Log Line as a space.
+- **Filtered View navigation**: Jump to bottom in the Filtered View selects
+  the last Log Line it shows. With nothing shown, jump to top and Mark
+  navigation do nothing.
+- **Saved Marks applied once**: The Marks saved with the Session are applied
+  when the Log File is first loaded. Reloading the Log File clears the Marks
+  and no longer brings the saved ones back.
+- **Failed Search**: A Search that fails shows "Search failed" and offers to
+  report the problem; it used to stay running forever.
+- **Faster Searches**: A Search prepares its pattern once instead of twice,
+  and a Search with few Matches finishes about a third faster (measured on a
+  Log File of 2 million Log Lines).
 
 ## Bug fixes
 
@@ -60,7 +176,146 @@
   registered from a background thread just before it was disabled no longer
   shows up after it is gone.
 
+- **Crash with native file watching**: Closing and opening Log Files in the
+  same directory with native file watching could corrupt memory and crash
+  LogSquirl later, often during a Search. File watching now uses efsw 1.7.2,
+  which fixes this on Windows and Linux.
+- **Crash in QuickFind in the Filtered View**: QuickFind in the Filtered View
+  could crash while a Search was adding Matches or Marks changed. It could
+  also select a different Log Line than the one that matched when Marks
+  changed during the QuickFind; it now goes on to the next displayed match
+  instead.
+- **Crash when logging from several threads**: Log messages written from
+  several threads at once, as a running Search does, could corrupt memory and
+  crash LogSquirl.
+- **Search stalls**: A Search could stop making progress, most likely on a
+  machine with few processor cores, and wait until another Search replaced
+  it. It now always runs to completion.
+- **Saving drops lines**: Saving a Log File or a selection whose line count is
+  a multiple of 5,000 left out the last 5,000 Log Lines; a save of exactly
+  5,000 lines wrote an empty file.
+- **Cleared Marks in the Filtered View**: Clearing the Marks removes them from
+  the Filtered View; they used to stay displayed.
+- **Search results from another mode**: A Search could in rare cases show the
+  cached results of the same pattern run as an exclude, boolean or plain-text
+  Search.
+- **Stale Context Lines**: Repeating an earlier Search shows the Context Lines
+  of its own Matches instead of those of the Search before it, and clearing a
+  Search removes its Context Lines.
+- **Stopped Search**: A stopped Search no longer reports itself as complete,
+  and its partial results are not reused for the next identical Search.
+- **Search state after switching tabs**: Switching away from a tab while its
+  Search runs no longer puts that Search's buttons, progress or a stale status
+  line onto the newly shown tab.
+- **Search settings reach every Log File**: A changed Search setting, such as
+  the number of Context Lines, reaches every open Log File and the Filtered
+  Views of kept Searches, not only the current tab. Changing a Highlighter Set
+  no longer restarts file watching or rebuilds Context Lines.
+- **Options applied during a run**: Applying the Options while a Log File is
+  indexed or searched no longer changes that run partway through; the new
+  settings take effect on the next one.
+- **Fonts that are not fixed-pitch**: If the font chosen for Log Lines turns
+  out not to be fixed-pitch on this system, for example because it is not
+  installed and another one is substituted, the view uses a fixed-pitch font
+  that is actually installed instead of drawing misaligned text. The Options
+  still show the font that was chosen.
+- **Clicks before the first paint**: A click or hover in a text view before
+  it was first drawn is placed correctly; a click in the bullet zone could
+  toggle a Mark by accident or fail to toggle one.
+
+- **Search highlight colors are kept**: The main Search and QuickFind
+  background colors chosen in the Options were saved but never loaded, so
+  they fell back to their defaults on the next start.
+- **Settings reach every open Log File**: Changing a main Search or QuickFind
+  color re-colors every open Log File, and the View menu's line number and
+  overview toggles change every open Log File, not only the current tab. A
+  Log File being opened draws in the configured colors and font from its
+  first frame.
+- **Zoom keeps bold and antialiasing**: Zooming no longer drops a bold font
+  or forced antialiasing, and zooming from a font size that is not in the
+  offered list (such as one set in the settings file) steps to the nearest
+  offered size instead of an arbitrary one.
+- **Hiding ANSI color sequences**: Switching "Hide ANSI color sequences"
+  updates the Presentations and Filtered Views of every open Log File at
+  once, background tabs included, instead of only once something else
+  repainted them.
+- **Table View column widths**: Column widths saved for a Log Format survive
+  reopening the Log File; they used to be overwritten by automatic sizing
+  right after being restored.
+- **Save selected to file in the Table View**: Saves the Log Lines of the
+  selected Rows, independent of the Text View's selection.
+- **Searching from the Table View**: Text sent to the Search from the Table
+  View's context menu is no longer escaped twice.
+- **Views after a Theme switch**: An open Text View repaints in the new
+  Theme at once instead of keeping the previous Theme's colors until
+  something else repainted it.
+- **Theme details**: The spin box's up arrow points up in Light and High
+  Contrast, and Dark no longer draws bright lines under the toolbar and above
+  the tabs.
+- **Shortcut conflicts**: A conflict in the first row of the shortcuts table
+  no longer marks every shortcut cell once another shortcut is edited.
+
+- **Update notifications**: A LogSquirl installed from a release is offered
+  the newer stable release, and with "check for beta versions" also a newer
+  beta; a LogSquirl running a beta is offered the next beta or the stable
+  release. The option used to have no effect, and every notification linked
+  to a "continuous" build page that does not exist. The notification lists
+  the changes up to the offered release.
+
+## Security
+
+- **Qt 6.11.2**: All packages are built with Qt 6.11.2 instead of 6.10.3,
+  and the Windows, macOS and AppImage packages bundle it. It fixes
+  CVE-2026-9499 (Qt5Compat), CVE-2026-19248 (Qt XML), CVE-2026-76151 (Qt
+  Network) and CVE-2026-6210 (Qt SVG).
+  CVE-2026-15037 (Qt XML, QDom serialization, CVSS 2.9) is fixed only in Qt
+  6.12.0 and is accepted as a known risk until then: LogSquirl re-serializes
+  XML only to show it back to the user.
+- **OpenSSL 3.5.8 LTS on Windows**: The Windows packages ship the OpenSSL
+  DLLs from a pinned, SHA-256-verified OpenSSL 3.5.8 build, OpenSSL's
+  long-term support line. They used to come from whatever Chocolatey offered
+  when the build cache was filled; LogSquirl 26.07.0 shipped OpenSSL 3.6.2.
+- **Signed checksums and build provenance**: Every release asset is listed in
+  `logsquirl-<version>-sha256.txt`, which now covers all Windows, macOS and
+  Linux packages, debug symbols and dependency archives, and uses plain file
+  names so `sha256sum -c` works in a download folder. The checksum file is
+  signed keyless with Sigstore
+  (`logsquirl-<version>-sha256.txt.sigstore.json`), and every asset carries
+  a GitHub build provenance attestation. The release notes have a
+  "Verifying downloads" section with the `cosign verify-blob`, `sha256sum -c`
+  and `gh attestation verify` commands.
+- **SBOM**: Every release publishes a CycloneDX 1.6 SBOM,
+  `logsquirl-<version>-sbom.cdx.json`. It lists the pinned dependencies of
+  the released commit and the Qt, OpenSSL and ICU versions found inside the
+  AppImage, the Windows zip and the macOS app, and is attested as the SBOM of
+  every other asset.
+- **Vulnerability scan before release**: The release SBOM is scanned for known
+  vulnerabilities with grype, OSV and Qt's own list of security advisories.
+  A critical finding, or a Qt advisory that NVD has not scored yet, stops the
+  release until it is fixed or accepted with a reason and an expiry date.
+  Master's dependencies are also scanned daily.
+- **A release ships the tested build**: A release tag no longer rebuilds. The
+  release takes the packages that passed CI on master for the tagged commit
+  and checks that they belong to that commit and carry the tag's version.
+  Only then are the macOS app and DMG signed, notarized and stapled, in a
+  protected release environment; builds of pull requests and branches are
+  never signed.
+- **Pinned build inputs**: Every dependency fetched by CMake is pinned to a
+  full commit, and the build tools downloaded in CI (among them linuxdeploy
+  for the AppImage, NSIS, create-dmg, Boost and sentry-cli) are pinned to
+  exact versions and refused when their SHA-256 does not match. The Linux
+  build images are pinned by base image digest, scanned, and signed; CI
+  verifies their signature before building with them.
+- **Hardened CI**: Every GitHub Action is pinned to a commit, limited to an
+  allowlist and audited with zizmor and CodeQL on every change; workflows run
+  with a read-only token and the repository is rated weekly by OpenSSF
+  Scorecard. The website is deployed over FTPS.
+
 ## Removed
+
+- **Chocolatey package removed**: The Chocolatey package source is gone.
+  LogSquirl was never published on Chocolatey: no workflow built the package,
+  and its install script pointed to a download that no longer exists.
 
 - **Lua plugin support**: The optional Lua scripting layer
   (`LOGSQUIRL_USE_LUA`) has been removed together with its Lua and sol2
@@ -68,6 +323,38 @@
   points were never called. Plugins are native shared libraries using the C
   ABI; a manifest whose `library` ends in `.lua` is now loaded like any other
   library and fails with the normal load error.
+
+## Build and packaging
+
+- **Fedora 44**: The installation of the Fedora RPM is now tested on
+  Fedora 44, the release it is built on, instead of on Fedora 43.
+- **Qt 6.11 build requirements**: Building with Qt 6.11 needs the
+  qtdeclarative module installed as well, because Qt's `lrelease` links
+  Qt Qml when it generates the translations.
+- **Dependency updates**: Renovate keeps the CMake dependencies, Qt and the
+  pinned tool versions current and recomputes their SHA-256 checksums;
+  Dependabot covers the actions, build images, Python test packages and the
+  website, which now builds with Astro 7.
+- **Faster and stricter CI**: Builds on all platforms use sccache, the Windows,
+  macOS and end-to-end jobs run in parallel, and one "CI passed" check gates
+  merges. A clang-format check, an AddressSanitizer/UndefinedBehaviorSanitizer
+  test run, one CTest test per Catch2 test case with JUnit reports, and job
+  timeouts were added.
+
+- **Release notes from the changelog**: The notes of a GitHub release are
+  its section of this changelog, followed by how to verify the downloads. A
+  release without a changelog section is stopped before anything is signed;
+  26.07.0 was published with empty notes.
+
+- **Release checks before merge**: A pull request is checked before merge
+  for a valid update feed, a website that builds without broken links, a
+  CHANGELOG entry (or the `no-changelog` label) and, when it changes the
+  version, a complete release preparation. Every pull request now reports
+  the required CI check, also one that changes only the website or the feed.
+- **Website release pages**: The release overview, the home page and the
+  sidebar are generated from the release pages, and a release's page goes
+  live once its GitHub release is published. The 26.06 page names the
+  published release, 26.06.1.
 
 ## Internal
 
@@ -77,6 +364,62 @@
   enabled plugins from the catalog and serves their host callbacks. The plugin
   ABI is unchanged, so published plugins work as before.
 
+- **Settings Policies for the widget layer**: A Presentation Policy, a
+  QuickFind Policy and a Decoration Policy declare the settings the
+  Presentations, the Filtered Views and QuickFind read, and reach the views
+  of every open Log File. The Mark and Match colors and the Line Decorator's
+  setup are defined once for both Presentations. A build-time check fails
+  when a widget file outside a short, justified allowlist reads the settings
+  store directly.
+- **One declaration per setting**: Each stored setting is declared once with
+  its key and default, and that list drives defaults, loading and saving.
+  Setting keys are unchanged, so existing settings files need no migration.
+- **Table View and Log Format Catalog**: The Table View is its own widget
+  behind one Presentation interface shared with the Text View, and one
+  builder creates the context menu for both. The Log Format registry becomes
+  the Log Format Catalog, and Format Recognition owns its sample size and a
+  Recognition Policy.
+- **Index Cache owns its rules**: Validity, exclusion, size budget and
+  eviction are decided by the Index Cache instead of the indexing run.
+  Indexing reads its blocks through its own flow graph, so a pass completes
+  even when no worker thread is free.
+- **Libraries without Qt Widgets**: Decompression moves into its own
+  `logsquirl_compression` library, and the plugin layer shows plugin widgets
+  through a Plugin UI Port, so neither links Qt Widgets; build-time checks
+  keep it that way. TBB no longer appears in the log data library's public
+  headers.
+- **Theme screenshots**: A hidden UI test renders every Theme to comparison
+  screenshots of the main window, menus, dialogs and a widget gallery.
+
+- **Line Decorator**: Highlighters, Highlighter Sets and QuickFind matching
+  moved into their own library without Qt Widgets. One Line Decorator decides
+  the colors of every Log Line for both Presentations, and a benchmark covers
+  it.
+- **Search Session and Displayed Lines**: A Search Session owns the pattern,
+  the run in flight, its Matches, its progress and the results cache; each
+  run has an identity so a replaced run's results are dropped. Displayed
+  Lines own the Marks and Context Lines and are rebuilt only when these
+  change. A Search reads its blocks through a small interface that tests can
+  fill from memory, and failures are reported as results.
+- **Settings Policies**: Indexing, searching, file watching and file access
+  are handed Settings Policies instead of reading the settings store, which
+  their libraries no longer link. The regex engine is chosen by the caller.
+  The Session applies every settings, Highlighter Set and font change to all
+  Log Files and windows through one entry point.
+- **Text view scrolling**: Where each Log Line is drawn is one Viewport layout
+  value, built once and read by painting and hit testing alike. The Scroll
+  Position and every scrolling rule live in a library without Qt Widgets, and
+  the text view maps between the Filtered View and Log Lines in one place.
+- **Open Log File and View Set**: An Open Log File, in its own library,
+  decides what growing, truncation and reloading mean for Searches and
+  Marks, and hears of file changes through a File Watch Port with a fake for
+  tests; `logsquirl_grep` uses it too. A View Set hands fonts, Color Labels,
+  Search Limits and Policies to every view of a Log File.
+- **Tests**: The text view's painting is compared pixel for pixel against
+  golden images, the Table View's cell hit test is checked against what it
+  paints, the Index Cache is built with its directory, and the sanitizer job
+  gates merges.
+
 ## Documentation
 
 - **README refresh**: Add a branded introduction, prominent download links, a
@@ -84,6 +427,11 @@
   while preserving the project's origin statement and attribution. Replace the
   outdated screenshot with a fresh macOS capture using a fictional incident log,
   with the personal file path removed from the image.
+
+- **Domain glossary and decision records**: `CONTEXT.md` defines the terms the
+  code and issues use (Log File, Search, Filtered View, Mark, Highlighter,
+  Presentation, View Set and more), and `docs/adr/` records architecture
+  decisions, such as why scrolling counts Log Lines when text wraps.
 
 ---
 

@@ -1,0 +1,40 @@
+# Every pull request with a user-visible change adds its CHANGELOG entry
+# (#312): the CHANGELOG section of a release is that release's notes (#307).
+name: Changelog
+
+on:
+  pull_request:
+    branches: [master]
+    # Labelling a pull request `no-changelog` re-runs the check without a push.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: changelog-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # The pull request's merge commit and its first parent, the base branch.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Require a CHANGELOG entry or the no-changelog label
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git show HEAD^1:CHANGELOG.md > "$RUNNER_TEMP/base-changelog.md"
+          .github/scripts/release-prep.py changelog-entry \
+            --base "$RUNNER_TEMP/base-changelog.md" --head CHANGELOG.md \
+            --author "$AUTHOR" --labels "$LABELS" --branch "$BRANCH"
