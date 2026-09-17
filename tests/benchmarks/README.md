@@ -214,7 +214,7 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
 - `[sparse-read]` — every hundredth Log Line from the start, 10,000 of them:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
-  Find reads today, each next to the same Log Lines in one sparse read
+  Find read before #287, each next to the same Log Lines in one sparse read
   (**getLinesSparse**, **getExpandedLinesSparse**, #286).
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
@@ -429,6 +429,41 @@ above:
 ```cmake
 add_executable(logsquirl_displayedlines_benchmark displayedlines_benchmark.cpp)
 target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
+```
+
+# QuickFind benchmark
+
+`logsquirl_quickfind_benchmark` (#287) runs a QuickFind for text no Log Line
+holds, so it reads and matches every Log Line it searches, over the generated
+Log File of short Log Lines described above (about 1 GB, or
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB`). Each case runs forwards from the first Log
+Line and backwards from the last one:
+
+- **every Log Line**, as the main view searches;
+- **every tenth Log Line**, as a Filtered View searches the Matches of a
+  Search.
+
+`[file-kept-open]` runs them on a Log File kept open between reads.
+`[file-kept-closed]` runs them with "keep file closed" set; it is hidden, so a
+run of every benchmark leaves it out, because before #287 QuickFind reopened
+the Log File for every Log Line and a single run takes minutes.
+
+```bash
+cmake --build build-release --target logsquirl_quickfind_benchmark
+./build-release/output/logsquirl_quickfind_benchmark --benchmark-samples 10 > after.txt
+./build-release/output/logsquirl_quickfind_benchmark "[file-kept-closed]" --benchmark-samples 3
+
+# A quick check on a Log File of 8 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=8 ./build/output/logsquirl_quickfind_benchmark --benchmark-samples 2
+```
+
+`quickfind_benchmark.cpp` uses only what QuickFind and LogData offered before
+#287. For the before side, copy it and `generated_log_file.h` into a worktree
+of origin/master as above, with
+
+```cmake
+add_executable(logsquirl_quickfind_benchmark quickfind_benchmark.cpp)
+target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
 ```
 
 # Before and after in CI

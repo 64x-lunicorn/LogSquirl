@@ -524,7 +524,7 @@ logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> 
 }
 
 logsquirl::vector<QString>
-LogData::getExpandedLinesSparse( std::span<const LineNumber> lines ) const
+LogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const
 {
     return getSparseLinesFromFile( lines, chopCarriageReturnAndUntabify );
 }
@@ -617,12 +617,18 @@ QTextCodec* LogData::getDetectedEncoding() const
 
 void LogData::doAttachReader() const
 {
-    attached_file_->attachReader();
+    // Before a file is attached there is nothing to keep open, and nothing
+    // to read either.
+    if ( attached_file_ ) {
+        attached_file_->attachReader();
+    }
 }
 
 void LogData::doDetachReader() const
 {
-    attached_file_->detachReader();
+    if ( attached_file_ ) {
+        attached_file_->detachReader();
+    }
 }
 
 logsquirl::vector<QString> RawLines::decodeLines() const

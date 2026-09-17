@@ -21,7 +21,9 @@
 #define LOGSQUIRL_LOGSQUIRLAPP_H
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
+#include <cstdlib>
 #include <iterator>
 #include <numeric>
 #include <qapplication.h>
@@ -71,6 +73,22 @@ public:
     LogSquirlApp( int& argc, char* argv[] )
         : QApplication( argc, argv )
     {
+        if ( singleApplication_.isPrimaryInstance() ) {
+            QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
+                              &messageReceiver_, &MessageReceiver::receiveMessage,
+                              Qt::QueuedConnection );
+
+            QObject::connect( &messageReceiver_, &MessageReceiver::loadFile, this,
+                              &LogSquirlApp::loadFileNonInteractive );
+        }
+    }
+
+    // Everything a LogSquirl that shows main windows needs. main() calls it
+    // before any event is processed, so before a Log File handed over by a
+    // secondary instance can arrive. A secondary instance never calls it: it
+    // only hands its Log Files over (#302).
+    void prepareForMainWindows()
+    {
         QFontDatabase::addApplicationFont( ":/fonts/DejaVuSansMono.ttf" );
 
         QNetworkProxyFactory::setUseSystemConfiguration( true );
@@ -93,16 +111,23 @@ public:
         qRegisterMetaType<QFNotificationInterrupted>( "QFNotificationInterrupted" );
         qRegisterMetaType<QuickFindMatcher>( "QuickFindMatcher" );
 
+        // Settings are loaded by now: main() calls Configuration::getSynced()
+        // first, so this snapshot of the Policies is complete. A settings
+        // change is re-derived by the Session (#245).
+        settingsPolicies_ = deriveSettingsPolicies( Configuration::get() );
+
+        // The application's one Log Format Catalog, built once here, beside
+        // the Policies, and handed to the Session -- and through it to every
+        // window, view and options dialog. Nothing else builds one.
+        logFormatCatalog_
+            = std::make_shared<LogFormatCatalog>( LogFormatCatalog::defaultUserFormatsDirectory() );
+        logFormatCatalog_->rebuild();
+
+        fileWatcher_ = FileWatcher::sharedFileWatcher();
+
+        versionChecker_ = std::make_unique<VersionChecker>();
         if ( singleApplication_.isPrimaryInstance() ) {
-            QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
-                              &messageReceiver_, &MessageReceiver::receiveMessage,
-                              Qt::QueuedConnection );
-
-            QObject::connect( &messageReceiver_, &MessageReceiver::loadFile, this,
-                              &LogSquirlApp::loadFileNonInteractive );
-
-            // Version checker notification
-            connect( &versionChecker_, &VersionChecker::newVersionFound,
+            connect( versionChecker_.get(), &VersionChecker::newVersionFound,
                      [ this ]( const QString& new_version, const QString& url,
                                const QStringList& changes ) {
                          newVersionNotification( new_version, url, changes );
@@ -120,26 +145,55 @@ public:
         return singleApplication_.primaryPid();
     }
 
-    void sendFilesToPrimaryInstance( std::vector<QString> filenames )
+    // Hands the Log Files given on the command line over to the primary
+    // instance and returns the exit code for this secondary instance.
+    int handOverToPrimaryInstance( const std::vector<QString>& filenames )
+    {
+        if ( !filenames.empty() ) {
+            return sendFilesToPrimaryInstance( filenames ) ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
+
+#ifdef Q_OS_MAC
+        // Launched by the Finder or `open -n` with a Log File, macOS delivers
+        // it as a QFileOpenEvent, and only once the event loop runs. event()
+        // hands it over and quits; with no Log File to come, give up after a
+        // while.
+        constexpr auto FileOpenEventTimeout = std::chrono::milliseconds( 500 );
+        QTimer::singleShot( FileOpenEventTimeout, this, &QCoreApplication::quit );
+        return exec();
+#else
+        return EXIT_SUCCESS;
+#endif
+    }
+
+    // Returns once the message is written to the primary instance's local
+    // socket (named pipe on Windows) -- no fixed delay. The primary reads it
+    // from its event loop whenever that gets to it, so a busy primary does
+    // not lose it; only if it cannot even be connected to or written to
+    // within the timeout does this fail.
+    bool sendFilesToPrimaryInstance( const std::vector<QString>& filenames )
     {
 #ifdef Q_OS_WIN
         // TODO: fix pid passing
         ::AllowSetForegroundWindow( static_cast<DWORD>( primaryPid() ) );
 #endif
 
-        QTimer::singleShot( 100, [ files = std::move( filenames ), this ] {
-            QStringList filesToOpen;
-            std::copy( files.cbegin(), files.cend(), std::back_inserter( filesToOpen ) );
+        LOG_INFO << "Handing over " << filenames.size() << " file(s) to the primary instance";
 
-            QVariantMap data;
-            data.insert( "version", logsquirlVersion() );
-            data.insert( "files", QVariant{ filesToOpen } );
+        QStringList filesToOpen;
+        std::copy( filenames.cbegin(), filenames.cend(), std::back_inserter( filesToOpen ) );
 
-            auto cbor = QCborValue::fromVariant( data );
-            singleApplication_.sendMessageWithTimeout( cbor.toCbor(), 5000 );
+        QVariantMap data;
+        data.insert( "version", logsquirlVersion() );
+        data.insert( "files", QVariant{ filesToOpen } );
 
-            QTimer::singleShot( 100, this, &QApplication::quit );
-        } );
+        constexpr auto SendTimeoutMs = 5000;
+        const auto cbor = QCborValue::fromVariant( data );
+        const auto sent = singleApplication_.sendMessageWithTimeout( cbor.toCbor(), SendTimeoutMs );
+        if ( !sent ) {
+            LOG_ERROR << "Could not hand files over to the primary instance, pid " << primaryPid();
+        }
+        return sent;
     }
 
     void initCrashHandler()
@@ -226,7 +280,7 @@ public:
     void startBackgroundTasks()
     {
         LOG_DEBUG << "startBackgroundTasks";
-        versionChecker_.startCheck();
+        versionChecker_->startCheck();
     }
 
 #ifdef Q_OS_MAC
@@ -241,6 +295,9 @@ public:
             }
             else {
                 sendFilesToPrimaryInstance( { openEvent->file() } );
+                // Every QFileOpenEvent of one launch arrives before the event
+                // loop gets to this timer.
+                QTimer::singleShot( 0, this, &QCoreApplication::quit );
             }
         }
 
@@ -342,35 +399,23 @@ private:
 
     MessageReceiver messageReceiver_;
 
-    // The one file watcher, looked up here and nowhere else: the Session
-    // hands it the Watch Policy, and to every Log File it opens as their File
-    // Watch Port (#249, #245). File watching reads no setting of its own
-    // (#93).
-    const std::shared_ptr<FileWatcher> fileWatcher_ = FileWatcher::sharedFileWatcher();
+    // The one file watcher, looked up in prepareForMainWindows() and nowhere
+    // else: the Session hands it the Watch Policy, and to every Log File it
+    // opens as their File Watch Port (#249, #245). File watching reads no
+    // setting of its own (#93).
+    std::shared_ptr<FileWatcher> fileWatcher_;
 
     std::shared_ptr<Session> session_;
 
-    // The Policies the Session starts with, derived at construction: main()
-    // has already called Configuration::getSynced() by the time a
-    // LogSquirlApp exists (the high-DPI attributes have to be set before the
-    // QApplication is built), so the settings are loaded and this snapshot is
-    // complete. A settings change is re-derived by the Session (#245).
-    SettingsPolicies settingsPolicies_ = deriveSettingsPolicies( Configuration::get() );
-
-    // The application's one Log Format Catalog, built once here, beside
-    // the Policies, and handed to the Session -- and through it to every
-    // window, view and options dialog. Nothing else builds one.
-    std::shared_ptr<LogFormatCatalog> logFormatCatalog_ = [] {
-        auto catalog
-            = std::make_shared<LogFormatCatalog>( LogFormatCatalog::defaultUserFormatsDirectory() );
-        catalog->rebuild();
-        return catalog;
-    }();
+    // The Policies the Session starts with and the Log Format Catalog, both
+    // set up by prepareForMainWindows().
+    SettingsPolicies settingsPolicies_;
+    std::shared_ptr<LogFormatCatalog> logFormatCatalog_;
 
     std::list<std::pair<WindowSession, MainWindow*>> mainWindows_;
     std::stack<QPointer<MainWindow>> activeWindows_;
 
-    VersionChecker versionChecker_;
+    std::unique_ptr<VersionChecker> versionChecker_;
 };
 
 #endif // LOGSQUIRL_LOGSQUIRLAPP_H

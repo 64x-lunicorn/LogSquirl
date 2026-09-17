@@ -37,6 +37,7 @@ add_executable(logsquirl_tests
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
+    quickfind_test.cpp
     quickfindmux_test.cpp
     quickfindwidget_test.cpp
     regularexpression_test.cpp

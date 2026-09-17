@@ -81,3 +81,12 @@ add_executable(logsquirl_displayedlines_benchmark
 )
 
 target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
+
+# A QuickFind without a match over a Log File of about 1 GB generated at run
+# time (#287). Uses only what QuickFind and LogData offered before #287, so
+# the same file measures both sides of an A/B comparison (see README.md).
+add_executable(logsquirl_quickfind_benchmark
+    quickfind_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
