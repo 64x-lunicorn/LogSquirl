@@ -19,6 +19,9 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -574,6 +577,238 @@ SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
         THEN( "no Log Lines read as nothing" )
         {
             REQUIRE( readSparse( {} ).empty() );
+        }
+    }
+}
+
+namespace {
+
+// Log Lines of one length, each telling its own number, so that a Log Line
+// read at any time can be checked against what it must read as.
+constexpr int NumberedLineLength = 99;
+
+QString numberedLogLine( std::uint64_t line )
+{
+    return QStringLiteral( "%1 numbered Log Line" )
+        .arg( line, 10, 10, QLatin1Char( '0' ) )
+        .leftJustified( NumberedLineLength, QLatin1Char( '.' ) );
+}
+
+void writeNumberedLogLines( QFile& file, std::uint64_t lineCount )
+{
+    QByteArray chunk;
+    for ( std::uint64_t line = 0; line < lineCount; ++line ) {
+        chunk += numberedLogLine( line ).toLatin1();
+        chunk += '\n';
+        if ( chunk.size() > 1024 * 1024 ) {
+            REQUIRE( file.write( chunk ) == chunk.size() );
+            chunk.clear();
+        }
+    }
+    REQUIRE( file.write( chunk ) == chunk.size() );
+    REQUIRE( file.flush() );
+}
+
+bool isReadWarning( const QString& text )
+{
+    return text.startsWith( QStringLiteral( "LOGSQUIRL WARNING" ) );
+}
+
+} // namespace
+
+SCENARIO( "Log Lines read after their Log File shrank on disk, before it is indexed again",
+          "[logdata][concurrent-read]" )
+{
+    constexpr std::uint64_t LineCount = 500;
+    constexpr std::uint64_t LinesLeft = 200;
+
+    QTemporaryFile file{ "logdata_test_shrunk_XXXXXX" };
+    REQUIRE( file.open() );
+    writeNumberedLogLines( file, LineCount );
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+
+    GIVEN( "a Log File cut short after it was indexed" )
+    {
+        // Nobody tells the log data of the change: its Index still reaches
+        // past the end of the Log File.
+        REQUIRE( file.resize( static_cast<qint64>( LinesLeft * ( NumberedLineLength + 1 ) ) ) );
+
+        THEN( "the Log Lines still in it read as before" )
+        {
+            const auto lines = logData.getLines( 150_lnum, 50_lcount );
+            REQUIRE( lines.size() == 50 );
+            for ( std::uint64_t line = 150; line < LinesLeft; ++line ) {
+                REQUIRE( lines[ static_cast<std::size_t>( line - 150 ) ]
+                         == numberedLogLine( line ) );
+            }
+        }
+
+        THEN( "a block of Log Lines reaching past its end reads as warnings there" )
+        {
+            const auto lines = logData.getLines( 190_lnum, 100_lcount );
+            REQUIRE( lines.size() == 100 );
+            for ( std::uint64_t line = 190; line < 290; ++line ) {
+                const auto& text = lines[ static_cast<std::size_t>( line - 190 ) ];
+                CAPTURE( line, text.toStdString() );
+                REQUIRE( ( line < LinesLeft ? text == numberedLogLine( line )
+                                            : isReadWarning( text ) ) );
+            }
+        }
+
+        THEN( "a Log Line past its end reads as a warning" )
+        {
+            REQUIRE( isReadWarning( logData.getLineString( 400_lnum ) ) );
+            REQUIRE( isReadWarning( logData.getExpandedLineString( 499_lnum ) ) );
+        }
+
+        THEN( "a sparse set of Log Lines reads as warnings past its end" )
+        {
+            const std::vector<LineNumber> lines{ 10_lnum, 199_lnum, 200_lnum, 450_lnum };
+            const auto text = asStd( logData.getLinesSparse( lines ) );
+            REQUIRE( text.size() == 4 );
+            REQUIRE( text[ 0 ] == numberedLogLine( 10 ) );
+            REQUIRE( text[ 1 ] == numberedLogLine( 199 ) );
+            REQUIRE( isReadWarning( text[ 2 ] ) );
+            REQUIRE( isReadWarning( text[ 3 ] ) );
+        }
+
+        THEN( "a Search reads no more Log Lines past its end than there are bytes for" )
+        {
+            const auto rawLines = logData.getLinesRaw( 150_lnum, 300_lcount );
+            REQUIRE( rawLines.endOfLines.size() == 300 );
+            const auto lines = rawLines.buildUtf8View();
+            REQUIRE( lines.size() == LinesLeft - 150 );
+            REQUIRE( QString::fromUtf8( lines.back().data(),
+                                        static_cast<qsizetype>( lines.back().size() ) )
+                     == numberedLogLine( LinesLeft - 1 ) );
+        }
+    }
+}
+
+SCENARIO( "Log Lines read while their Log File is indexed", "[logdata][concurrent-read]" )
+{
+    // Several indexing blocks, so that the Index is published block by block
+    // while the readers read.
+    constexpr std::uint64_t LineCount = 160'000;
+
+    QTemporaryFile file{ "logdata_test_concurrent_XXXXXX" };
+    REQUIRE( file.open() );
+    writeNumberedLogLines( file, LineCount );
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+
+    // Reads what the Index has so far until told to stop, and counts the Log
+    // Lines that read as anything but what they must.
+    const auto readWhileIndexed = [ &logData ]( const std::atomic<bool>& stop,
+                                                std::atomic<int>& wrong, std::uint64_t seed ) {
+        auto next = seed;
+        while ( !stop ) {
+            const auto nbLines = logData.getNbLine().get();
+            static_cast<void>( logData.getMaxLength() );
+            if ( nbLines == 0 ) {
+                std::this_thread::yield();
+                continue;
+            }
+            next = next * 6364136223846793005ULL + 1442695040888963407ULL;
+            const auto line = ( next >> 17 ) % nbLines;
+
+            const auto text = logData.getLineString( LineNumber( line ) );
+            if ( text != numberedLogLine( line ) && !isReadWarning( text ) ) {
+                ++wrong;
+            }
+
+            const auto count = std::min<std::uint64_t>( 20, nbLines - line );
+            const auto block = logData.getLines( LineNumber( line ), LinesCount( count ) );
+            for ( std::uint64_t offset = 0; offset < block.size(); ++offset ) {
+                const auto& blockText = block[ static_cast<std::size_t>( offset ) ];
+                if ( blockText != numberedLogLine( line + offset )
+                     && !isReadWarning( blockText ) ) {
+                    ++wrong;
+                }
+            }
+
+            const std::vector<LineNumber> sparse{ LineNumber( line / 2 ), LineNumber( line ) };
+            const auto sparseText = asStd( logData.getLinesSparse( sparse ) );
+            for ( std::size_t request = 0; request < sparse.size(); ++request ) {
+                if ( sparseText[ request ] != numberedLogLine( sparse[ request ].get() )
+                     && !isReadWarning( sparseText[ request ] ) ) {
+                    ++wrong;
+                }
+            }
+        }
+    };
+
+    GIVEN( "readers reading the Log Lines indexed so far" )
+    {
+        std::atomic<bool> stop{ false };
+        std::atomic<int> wrong{ 0 };
+        std::vector<std::jthread> readers;
+        // Stops and joins the readers however the scenario ends.
+        struct ReadersStopper {
+            std::atomic<bool>& stop;
+            std::vector<std::jthread>& readers;
+            ~ReadersStopper()
+            {
+                stop = true;
+                readers.clear();
+            }
+        } readersStopper{ stop, readers };
+
+        WHEN( "the Log File is indexed" )
+        {
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            logData.attachFile( file.fileName() );
+            for ( std::uint64_t reader = 0; reader < 2; ++reader ) {
+                readers.emplace_back( readWhileIndexed, std::cref( stop ), std::ref( wrong ),
+                                      reader + 1 );
+            }
+            REQUIRE( loadEndSpy.safeWait( 60000 ) );
+            stop = true;
+            readers.clear();
+
+            THEN( "every Log Line read as it is in the Log File" )
+            {
+                REQUIRE( wrong == 0 );
+                REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+                REQUIRE( logData.getLineString( LineNumber( LineCount - 1 ) )
+                         == numberedLogLine( LineCount - 1 ) );
+            }
+        }
+
+        WHEN( "the Log File is cut short and indexed again" )
+        {
+            {
+                SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+                logData.attachFile( file.fileName() );
+                REQUIRE( loadEndSpy.safeWait( 60000 ) );
+            }
+
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            for ( std::uint64_t reader = 0; reader < 2; ++reader ) {
+                readers.emplace_back( readWhileIndexed, std::cref( stop ), std::ref( wrong ),
+                                      reader + 1 );
+            }
+            REQUIRE( file.resize(
+                static_cast<qint64>( ( LineCount / 3 ) * ( NumberedLineLength + 1 ) ) ) );
+            logData.reload();
+            REQUIRE( loadEndSpy.safeWait( 60000 ) );
+            stop = true;
+            readers.clear();
+
+            THEN( "every Log Line read as it is in the Log File, or as a warning" )
+            {
+                REQUIRE( wrong == 0 );
+                REQUIRE( logData.getNbLine() == LinesCount( LineCount / 3 ) );
+            }
         }
     }
 }
