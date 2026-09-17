@@ -49,6 +49,7 @@
 #include <QFileInfo>
 #include <QSemaphore>
 #include <tuple>
+#include <utility>
 
 #include <tbb/flow_graph.h>
 
@@ -125,25 +126,34 @@ QTextCodec* IndexingData::getForcedEncoding() const
     return encodingForced_;
 }
 
-void IndexingData::addAll( const logsquirl::vector<char>& block, LineLength length,
-                           const FastLinePositionArray& newLinePosition, QTextCodec* encoding )
-
+void IndexingData::addAll( qint64 blockSize, LineLength length,
+                           const FastLinePositionArray& newLinePosition, QTextCodec* encoding,
+                           std::optional<quint64> fullDigest )
 {
     maxLength_ = std::max( maxLength_, length );
     std::visit(
         [ &newLinePosition ]( auto& linePosition ) { linePosition.append_list( newLinePosition ); },
         linePosition_ );
 
-    if ( !block.empty() ) {
-        hash_.size += logsquirl::ssize( block );
-
-        if ( !useFastModificationDetection_ ) {
-            hashBuilder_.addData( block.data(), block.size() );
-            hash_.fullDigest = hashBuilder_.digest();
-        }
+    hash_.size += blockSize;
+    if ( fullDigest ) {
+        hash_.fullDigest = *fullDigest;
     }
 
     encodingGuess_ = encoding;
+}
+
+std::optional<FileDigest> IndexingData::takeFullDigestBuilder()
+{
+    if ( useFastModificationDetection_ ) {
+        return std::nullopt;
+    }
+    return std::exchange( hashBuilder_, FileDigest{} );
+}
+
+void IndexingData::returnFullDigestBuilder( FileDigest&& builder )
+{
+    hashBuilder_ = std::move( builder );
 }
 
 int IndexingData::getProgress() const
@@ -537,7 +547,6 @@ FastLinePositionArray IndexOperation::parseDataBlock( OffsetInFile::UnderlyingTy
 }
 
 void IndexOperation::guessEncoding( const logsquirl::vector<char>& block,
-                                    IndexingData::MutateAccessor& scopedAccessor,
                                     IndexingState& state ) const
 {
     if ( !state.encodingGuess ) {
@@ -546,6 +555,7 @@ void IndexOperation::guessEncoding( const logsquirl::vector<char>& block,
     }
 
     if ( !state.fileTextCodec ) {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
         state.fileTextCodec = scopedAccessor.getForcedEncoding();
 
         if ( !state.fileTextCodec ) {
@@ -605,28 +615,43 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
 
     LOG_DEBUG << "Indexing block " << blockBeginning << " start";
 
-    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-
-    guessEncoding( block, scopedAccessor, state );
+    // Detecting the encoding, parsing and hashing take no index lock: only
+    // publishing the parsed block below takes the exclusive one.
+    guessEncoding( block, state );
 
     if ( !block.empty() ) {
         const auto linePositions = parseDataBlock( blockBeginning, block, state );
-        // Measured as a qsizetype, 64 bits wide in every build shipped: no Log
-        // Line is too long to measure, so none is reported as such.
-        scopedAccessor.addAll( block, LineLength( state.max_length ), linePositions,
-                               state.encodingGuess );
+
+        std::optional<quint64> fullDigest;
+        if ( state.fullDigest ) {
+            fullDigest = state.fullDigest->addData( block.data(), block.size() ).digest();
+        }
 
         // Update the caller for progress indication
         const auto progress
             = ( state.file_size > 0 ) ? calculateProgress( state.pos, state.file_size ) : 100;
 
-        if ( progress != scopedAccessor.getProgress() ) {
-            scopedAccessor.setProgress( progress );
+        bool progressed = false;
+        {
+            IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+            // Measured as a qsizetype, 64 bits wide in every build shipped: no
+            // Log Line is too long to measure, so none is reported as such.
+            scopedAccessor.addAll( logsquirl::ssize( block ), LineLength( state.max_length ),
+                                   linePositions, state.encodingGuess, fullDigest );
+
+            if ( progress != scopedAccessor.getProgress() ) {
+                scopedAccessor.setProgress( progress );
+                progressed = true;
+            }
+        }
+
+        if ( progressed ) {
             LOG_DEBUG << "Indexing progress " << progress << ", indexed size " << state.pos;
             Q_EMIT indexingProgressed( progress );
         }
     }
     else {
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
         scopedAccessor.setEncodingGuess( state.encodingGuess );
     }
 
@@ -660,7 +685,10 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     state.file_size = file.size();
 
     {
-        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        // Exclusive, as the digest builder is taken out: this run builds the
+        // full digest on, outside the lock, and hands it back once done.
+        IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
+        state.fullDigest = scopedAccessor.takeFullDigestBuilder();
 
         state.fileTextCodec = scopedAccessor.getForcedEncoding();
         if ( !state.fileTextCodec ) {
@@ -727,9 +755,31 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     indexingGraph.wait_for_all();
     LOG_INFO << "Reading blocks done";
 
-    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
-
     LOG_DEBUG << "Indexed up to " << state.pos;
+
+    // The header and tail digests are read and computed before the index
+    // lock is taken to publish them.
+    const auto endFilePos = file.pos();
+    file.reset();
+    QByteArray hashBuffer( IndexingBlockSize, Qt::Uninitialized );
+    const auto headerHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
+    FileDigest fastHashDigest;
+    fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( headerHashSize ) );
+    const auto headerDigest = fastHashDigest.digest();
+
+    auto tailDigest = headerDigest;
+    qint64 tailHashOffset = 0;
+    auto tailHashSize = headerHashSize;
+    if ( endFilePos > hashBuffer.size() ) {
+        tailHashOffset = endFilePos - hashBuffer.size();
+        file.seek( tailHashOffset );
+        tailHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
+        fastHashDigest.reset();
+        fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( tailHashSize ) );
+        tailDigest = fastHashDigest.digest();
+    }
+
+    IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
     // Check if there is a non LF terminated line at the end of the file
     if ( !interruptRequest_ && state.file_size > state.pos ) {
@@ -739,28 +789,14 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
         line_position.append( OffsetInFile( state.file_size + 1 ) );
         line_position.setFakeFinalLF();
 
-        scopedAccessor.addAll( {}, 0_length, line_position, state.encodingGuess );
+        scopedAccessor.addAll( 0, 0_length, line_position, state.encodingGuess, std::nullopt );
     }
 
-    const auto endFilePos = file.pos();
-    file.reset();
-    QByteArray hashBuffer( IndexingBlockSize, Qt::Uninitialized );
-    const auto headerHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-    FileDigest fastHashDigest;
-    fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( headerHashSize ) );
+    scopedAccessor.setHeaderHash( headerDigest, headerHashSize );
+    scopedAccessor.setTailHash( tailDigest, tailHashOffset, tailHashSize );
 
-    scopedAccessor.setHeaderHash( fastHashDigest.digest(), headerHashSize );
-
-    if ( endFilePos <= hashBuffer.size() ) {
-        scopedAccessor.setTailHash( fastHashDigest.digest(), 0, headerHashSize );
-    }
-    else {
-        const auto tailHashOffset = endFilePos - hashBuffer.size();
-        file.seek( tailHashOffset );
-        const auto tailHashSize = file.read( hashBuffer.data(), hashBuffer.size() );
-        fastHashDigest.reset();
-        fastHashDigest.addData( hashBuffer.data(), static_cast<size_t>( tailHashSize ) );
-        scopedAccessor.setTailHash( fastHashDigest.digest(), tailHashOffset, tailHashSize );
+    if ( state.fullDigest ) {
+        scopedAccessor.returnFullDigestBuilder( std::move( *state.fullDigest ) );
     }
 
     const auto indexingEndTime = high_resolution_clock::now();
