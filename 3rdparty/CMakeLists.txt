@@ -575,7 +575,7 @@ cpmaddpackage(
   "MI_BUILD_SHARED OFF"
   "MI_BUILD_STATIC ON"
   "MI_BUILD_OBJECT OFF"
-  "MI_OVERRIDE OFF"
+  "MI_OVERRIDE ${LOGSQUIRL_MIMALLOC_OVERRIDE}"
 )
 if(mimalloc_ADDED)
   message("Adding alias for mimalloc")
@@ -590,6 +590,9 @@ endif()
 # Whatever links mimalloc initializes it at process start and reports its
 # memory telemetry with crash reports (#282).
 target_compile_definitions(logsquirl_mimalloc_wrapper INTERFACE LOGSQUIRL_USE_MIMALLOC)
+if(LOGSQUIRL_MIMALLOC_OVERRIDE)
+  target_compile_definitions(logsquirl_mimalloc_wrapper INTERFACE LOGSQUIRL_MIMALLOC_OVERRIDE)
+endif()
 
 set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
 
