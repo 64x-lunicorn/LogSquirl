@@ -1075,6 +1075,9 @@ void MainWindow::createToolBars()
     infoLine->setFrameStyle( QFrame::StyledPanel );
     infoLine->setFrameShadow( QFrame::Sunken );
     infoLine->setLineWidth( 0 );
+    // A read-only field: the window's background, not a button's, which read
+    // as disabled; its edge comes from the Theme's stylesheet (#264).
+    infoLine->setBackgroundRole( QPalette::Window );
     infoLine->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
 
     sizeField = new QLabel();

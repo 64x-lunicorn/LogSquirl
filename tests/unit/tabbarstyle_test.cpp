@@ -68,10 +68,16 @@ SCENARIO( "A closable tab bar takes its close button from the Theme", "[theme]" 
         {
             const auto styleSheet = closableTabBarStyleSheet( theme );
 
-            THEN( "it gets no inverse images and no hover background" )
+            THEN( "it gets the same neutral close button as the dark Themes, red only on hover" )
             {
                 REQUIRE_FALSE( styleSheet.contains( "_inverse" ) );
-                REQUIRE_FALSE( styleSheet.contains( "background-color" ) );
+                REQUIRE( styleSheet.contains( "QTabBar::close-button { image: "
+                                              "url(:/images/icons8-close-window-16.png); }" ) );
+                REQUIRE( styleSheet.contains( "icons8-close-window-hover-16.png" ) );
+                REQUIRE( styleSheet.contains(
+                    "QTabBar::close-button:hover { image: "
+                    "url(:/images/icons8-close-window-hover-16.png); background-color: "
+                    + theme.color( ColorToken::CloseButtonHover ).name( QColor::HexRgb ) ) );
             }
         }
     }

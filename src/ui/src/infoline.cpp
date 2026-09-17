@@ -127,9 +127,12 @@ bool InfoLine::event( QEvent* event )
 // Custom painter: draw the background then call QLabel's painter
 void InfoLine::paintEvent( QPaintEvent* paintEvent )
 {
-    // Fill the widget background
+    // Fill the widget background. A line with a border from the stylesheet
+    // (the tool bar's path field) has it drawn before this paint event:
+    // only the inside is filled, to keep the border.
     QPainter painter( this );
-    painter.fillRect( 0, 0, this->width(), this->height(), palette().brush( backgroundRole() ) );
+    painter.fillRect( testAttribute( Qt::WA_StyledBackground ) ? contentsRect() : rect(),
+                      palette().brush( backgroundRole() ) );
 
     if ( isElided() ) {
         drawFrame( &painter );

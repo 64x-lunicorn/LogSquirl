@@ -769,3 +769,134 @@ SCENARIO( "The pull-to-follow bar's stripes stand out in every Theme", "[theme]"
         }
     }
 }
+
+namespace {
+
+// The lengths of a size Token in pixels, e.g. "4px 12px" -> { 4, 12 }; "0"
+// is 0px.
+std::vector<int> pixelLengths( const QString& value )
+{
+    static const QRegularExpression length( "^(-?\\d+)(px)?$" );
+    std::vector<int> result;
+    for ( const auto& part : value.split( ' ', Qt::SkipEmptyParts ) ) {
+        const auto match = length.match( part );
+        REQUIRE( match.hasMatch() );
+        result.push_back( match.captured( 1 ).toInt() );
+    }
+    return result;
+}
+
+int pixels( const QString& value )
+{
+    const auto lengths = pixelLengths( value );
+    REQUIRE( lengths.size() == 1 );
+    return lengths.front();
+}
+
+// A padding Token within a border of width border: the lengths of each side
+// grown by the border, which is the room the widget takes around its content.
+std::vector<int> outerPadding( const QString& padding, int border )
+{
+    auto lengths = pixelLengths( padding );
+    for ( auto& length : lengths ) {
+        length += border;
+    }
+    return lengths;
+}
+
+} // namespace
+
+SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
+{
+    // Dark is the reference for sizes and shapes (#264). High Contrast may
+    // draw thicker borders and outlines; where a border grows, the padding
+    // inside it shrinks by as much, so the widget keeps Dark's geometry.
+    const auto dark = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light );
+    static const QRegularExpression image( "^(url\\(.+\\)|none)$" );
+
+    GIVEN( "the Light Theme" )
+    {
+        const auto light = Theme::fromName( Theme::LightKey, Qt::ColorScheme::Light );
+
+        THEN( "every size and shape Token has Dark's value" )
+        {
+            for ( const auto token : allStyleTokens() ) {
+                if ( image.match( dark.value( token ) ).hasMatch() ) {
+                    continue;
+                }
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( light.value( token ) == dark.value( token ) );
+            }
+        }
+    }
+
+    GIVEN( "the High Contrast Theme" )
+    {
+        const auto highContrast = Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light );
+        const auto border = pixels( highContrast.value( StyleToken::BorderWidth ) );
+        const auto darkBorder = pixels( dark.value( StyleToken::BorderWidth ) );
+        const auto outline = pixels( highContrast.value( StyleToken::OutlineWidth ) );
+        const auto darkOutline = pixels( dark.value( StyleToken::OutlineWidth ) );
+
+        const std::vector<StyleToken> borderTokens{ StyleToken::BorderWidth,
+                                                    StyleToken::OutlineWidth,
+                                                    StyleToken::ProgressChunkBorderWidth,
+                                                    StyleToken::DisabledBorderStyle };
+        const std::vector<StyleToken> paddingsInBorder{ StyleToken::ButtonPadding,
+                                                        StyleToken::ToolButtonPadding,
+                                                        StyleToken::InputPadding };
+
+        THEN( "its borders and outlines are at least as thick as Dark's" )
+        {
+            REQUIRE( border >= darkBorder );
+            REQUIRE( outline >= darkOutline );
+        }
+
+        THEN( "a padding inside a border shrinks by as much as the border grows" )
+        {
+            for ( const auto token : paddingsInBorder ) {
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( outerPadding( highContrast.value( token ), border )
+                         == outerPadding( dark.value( token ), darkBorder ) );
+            }
+        }
+
+        THEN( "the tab pane overlaps the tabs by its border, and a scroll bar's outline adds "
+              "to its extent" )
+        {
+            REQUIRE( pixels( highContrast.value( StyleToken::TabPaneOffset ) ) == -border );
+            REQUIRE( pixels( dark.value( StyleToken::TabPaneOffset ) ) == -darkBorder );
+            REQUIRE( pixels( highContrast.value( StyleToken::ScrollBarExtent ) ) - 2 * outline
+                     == pixels( dark.value( StyleToken::ScrollBarExtent ) ) - 2 * darkOutline );
+        }
+
+        THEN( "every other size and shape Token has Dark's value" )
+        {
+            for ( const auto token : allStyleTokens() ) {
+                if ( image.match( dark.value( token ) ).hasMatch()
+                     || std::find( borderTokens.begin(), borderTokens.end(), token )
+                            != borderTokens.end()
+                     || std::find( paddingsInBorder.begin(), paddingsInBorder.end(), token )
+                            != paddingsInBorder.end()
+                     || token == StyleToken::TabPaneOffset
+                     || token == StyleToken::ScrollBarExtent ) {
+                    continue;
+                }
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( highContrast.value( token ) == dark.value( token ) );
+            }
+        }
+    }
+
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "an unselected tab shows no underline, only the selected one does" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.color( ColorToken::TabUnderline ).alpha() == 0 );
+            }
+        }
+    }
+}
