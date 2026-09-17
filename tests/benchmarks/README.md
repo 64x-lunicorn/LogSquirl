@@ -178,3 +178,74 @@ cmake --build ../logsquirl-before/build-release --target logsquirl_textview_scro
 
 Then compare the `mean` column of `before.txt` and `after.txt` per benchmark,
 as described above.
+
+# Log data benchmarks
+
+`logsquirl_logdata_benchmark` measures indexing a Log File and reading its
+Log Lines (#275), where most of the work on making LogSquirl faster (#274)
+lands. It links `logsquirl_logdata` only and needs no GUI.
+
+It writes its own Log Files at run time into a temporary directory (under
+`TMPDIR`), which is removed when the run ends; nothing is checked in. There
+are two of them, each about 1 GB:
+
+- **short lines**: about 90 bytes per Log Line, no tabs.
+- **tabs and long lines**: tab-separated fields, Log Lines from about 60
+  bytes to about 2 KB, and every thousandth one about 20 KB long.
+
+Set `LOGSQUIRL_BENCHMARK_LOG_FILE_MB` to write smaller Log Files, for a quick
+run that only checks the benchmark still works. Each case checks that the
+Index holds as many Log Lines as were written.
+
+## Cases
+
+Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
+
+- `[indexing]` — **whole Log File**: attaching and indexing the Log File,
+  without the Index Cache. Building the `LogData` before and destroying it
+  after are not measured.
+- `[contiguous-read]` — 10,000 Log Lines in a row from the middle of the Log
+  File: **getLines, one call** versus **getLineString, line by line**.
+- `[sparse-read]` — every hundredth Log Line from the start, 10,000 of them:
+  **getLineString, line by line**, as the Filtered View and saving a Search
+  result read today, and **getExpandedLineString, line by line**, as Quick
+  Find reads today.
+
+A change that adds a new way of reading the same Log Lines adds a `BENCHMARK`
+next to the one it replaces, over the same `contiguousRange()` or
+`sparseLogLines()`, so that both appear in one run.
+
+## Running
+
+Indexing 1 GB takes seconds per sample, so use fewer samples than Catch2's
+default 100, and an optimized build:
+
+```bash
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-release --target logsquirl_logdata_benchmark
+./build-release/output/logsquirl_logdata_benchmark --benchmark-samples 10 > after.txt
+
+# Only one kind of case
+./build-release/output/logsquirl_logdata_benchmark "[sparse-read]" --benchmark-samples 20
+
+# A quick check on Log Files of 8 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=8 ./build/output/logsquirl_logdata_benchmark --benchmark-samples 2
+```
+
+The Log Files are freshly written when indexing starts, so the operating
+system has them in its file cache: the numbers measure indexing and reading,
+not the disk. A full run needs about 2 GB of free space in `TMPDIR`.
+
+To compare with a commit from before #275, copy `logdata_benchmark.cpp` and
+`generated_log_file.h` into a worktree of it and add the target, as described
+above for the text view benchmark:
+
+```bash
+git worktree add ../logsquirl-before origin/master
+cp tests/benchmarks/logdata_benchmark.cpp tests/benchmarks/generated_log_file.h \
+   ../logsquirl-before/tests/benchmarks/
+cat >> ../logsquirl-before/tests/benchmarks/CMakeLists.txt <<'CMAKE'
+add_executable(logsquirl_logdata_benchmark logdata_benchmark.cpp)
+target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2 test_utils)
+CMAKE
+```
