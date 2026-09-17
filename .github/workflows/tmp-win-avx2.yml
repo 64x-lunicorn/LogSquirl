@@ -1,0 +1,47 @@
+name: "TMP Windows AVX2 (#281, temporary)"
+on:
+  push:
+    branches: [wip/win-avx2]
+permissions:
+  contents: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+jobs:
+  Windows:
+    strategy:
+      matrix:
+        config:
+          - os: windows
+            runner: windows-2025
+            qt_version: 6.11.2
+            qt_modules: qt5compat
+            qt_arch: win64_msvc2022_64
+            arch: x64
+            ssl_arch: -x64
+            cmake_opts:
+            artifacts_id: windows-x64
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/windows-openssl
+      - name: Set openssl paths
+        shell: sh
+        run: |
+          echo "SSL_DIR=${{ github.workspace }}\openssl-3\${{ matrix.config.arch }}\bin" >> $GITHUB_ENV
+          echo "SSL_ARCH=${{ matrix.config.ssl_arch }}" >> $GITHUB_ENV
+      - uses: ./.github/actions/agent-setup
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: ${{ matrix.config.arch }}
+      - uses: ./.github/actions/agent-build
+      - name: Show Hyperscan DLLs
+        if: always()
+        shell: bash
+        run: ls -la build_root/output/*.dll || true
+      - uses: ./.github/actions/agent-run-tests
+      - uses: ./.github/actions/agent-package-win
