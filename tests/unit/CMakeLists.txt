@@ -4,6 +4,7 @@ add_executable(logsquirl_tests
     ansicolorsequences_test.cpp
     chartextraction_test.cpp
     chartplot_test.cpp
+    chartwidget_test.cpp
     chartseries_test.cpp
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp

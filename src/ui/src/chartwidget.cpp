@@ -25,7 +25,6 @@
 
 #include <QDateTime>
 #include <QPainter>
-#include <QPainterPath>
 #include <QToolTip>
 #include <QWheelEvent>
 
@@ -41,6 +40,13 @@ ChartWidget::ChartWidget( QWidget* parent )
 void ChartWidget::setSeriesList( const QVector<ChartSeriesDefinition>& series )
 {
     series_ = series;
+
+    xOrders_.clear();
+    xOrders_.reserve( static_cast<size_t>( series_.size() ) );
+    for ( const auto& s : series_ ) {
+        xOrders_.emplace_back( s.points );
+    }
+    plottedViewport_.reset();
 
     // Detect if any visible series uses timestamp X-axis.
     xAxisIsTimestamp_ = false;
@@ -119,9 +125,10 @@ void ChartWidget::paintEvent( QPaintEvent* /*event*/ )
     painter.save();
     painter.setClipRect( area );
 
-    for ( const auto& s : series_ ) {
-        if ( s.visible && !s.points.isEmpty() ) {
-            drawSeries( painter, area, s );
+    const auto& seriesPlots = plots();
+    for ( qsizetype i = 0; i < series_.size(); ++i ) {
+        if ( series_[ i ].visible ) {
+            drawChartPlot( painter, seriesPlots[ static_cast<size_t>( i ) ], series_[ i ].color );
         }
     }
 
@@ -142,10 +149,31 @@ QRectF ChartWidget::plotArea() const
 
 QPointF ChartWidget::dataToPixel( double lineNum, double value ) const
 {
-    const QRectF area = plotArea();
-    const double xRatio = ( lineNum - xMin_ ) / ( xMax_ - xMin_ );
-    const double yRatio = ( value - yMin_ ) / ( yMax_ - yMin_ );
-    return { area.left() + xRatio * area.width(), area.bottom() - yRatio * area.height() };
+    return viewport().toPixel( lineNum, value );
+}
+
+ChartViewport ChartWidget::viewport() const
+{
+    return { plotArea(), xMin_, xMax_, yMin_, yMax_ };
+}
+
+const std::vector<ChartPlot>& ChartWidget::plots() const
+{
+    const ChartViewport current = viewport();
+    if ( plottedViewport_ == current ) {
+        return plots_;
+    }
+
+    plots_.assign( static_cast<size_t>( series_.size() ), ChartPlot{} );
+    for ( qsizetype i = 0; i < series_.size(); ++i ) {
+        const auto& s = series_[ i ];
+        if ( s.visible ) {
+            plots_[ static_cast<size_t>( i ) ]
+                = plotChartSeries( s.points, xOrders_[ static_cast<size_t>( i ) ], current );
+        }
+    }
+    plottedViewport_ = current;
+    return plots_;
 }
 
 QPointF ChartWidget::pixelToData( const QPointF& pixel ) const
@@ -220,42 +248,6 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
     }
 }
 
-void ChartWidget::drawSeries( QPainter& painter, const QRectF& /*area*/,
-                              const ChartSeriesDefinition& series ) const
-{
-    if ( series.points.isEmpty() ) {
-        return;
-    }
-
-    QPen linePen( series.color, 1.5 );
-    painter.setPen( linePen );
-    painter.setBrush( Qt::NoBrush );
-
-    // Draw connected line segments.
-    QPainterPath path;
-    bool first = true;
-    for ( const auto& pt : series.points ) {
-        const QPointF px = dataToPixel( pt.xValue, pt.value );
-        if ( first ) {
-            path.moveTo( px );
-            first = false;
-        }
-        else {
-            path.lineTo( px );
-        }
-    }
-    painter.drawPath( path );
-
-    // Draw small dot markers.
-    painter.setBrush( series.color );
-    painter.setPen( Qt::NoPen );
-    constexpr double dotRadius = 3.0;
-    for ( const auto& pt : series.points ) {
-        const QPointF px = dataToPixel( pt.xValue, pt.value );
-        painter.drawEllipse( px, dotRadius, dotRadius );
-    }
-}
-
 void ChartWidget::drawTooltip( QPainter& painter ) const
 {
     if ( hoveredSeries_ < 0 || hoveredSeries_ >= series_.size() ) {
@@ -308,20 +300,39 @@ std::pair<int, int> ChartWidget::findNearestPoint( const QPointF& pixelPos, doub
     int bestPoint = -1;
     double bestDist = maxDistPx;
 
+    if ( plotArea().width() <= 0 || plotArea().height() <= 0 ) {
+        return { bestSeries, bestPoint };
+    }
+
+    // The line of a plot is in ascending pixel x: search it from the vertex
+    // nearest in x outwards, while a vertex can still be close enough.
+    const auto& seriesPlots = plots();
     for ( int si = 0; si < series_.size(); ++si ) {
-        const auto& s = series_[ si ];
-        if ( !s.visible ) {
+        if ( !series_[ si ].visible ) {
             continue;
         }
-        for ( int pi = 0; pi < s.points.size(); ++pi ) {
-            const auto& pt = s.points[ pi ];
-            const QPointF px = dataToPixel( pt.xValue, pt.value );
-            const double dist = QLineF( pixelPos, px ).length();
+        const auto& plot = seriesPlots[ static_cast<size_t>( si ) ];
+        const auto& line = plot.line;
+        const qsizetype nearest = nearestPointIndex(
+            line.size(), [ &line ]( qsizetype i ) { return line[ i ].x(); }, pixelPos.x() );
+        if ( nearest < 0 ) {
+            continue;
+        }
+
+        const auto consider = [ & ]( qsizetype vertex ) {
+            const double dist = QLineF( pixelPos, line[ vertex ] ).length();
             if ( dist < bestDist ) {
                 bestDist = dist;
                 bestSeries = si;
-                bestPoint = pi;
+                bestPoint = static_cast<int>( plot.pointIndexes[ static_cast<size_t>( vertex ) ] );
             }
+        };
+        for ( qsizetype v = nearest; v >= 0 && pixelPos.x() - line[ v ].x() < maxDistPx; --v ) {
+            consider( v );
+        }
+        for ( qsizetype v = nearest + 1;
+              v < line.size() && line[ v ].x() - pixelPos.x() < maxDistPx; ++v ) {
+            consider( v );
         }
     }
 
