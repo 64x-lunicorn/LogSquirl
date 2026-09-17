@@ -68,8 +68,9 @@ void markAsSecondaryText( QLabel* label )
 
 /// A card: a titled frame in the Theme's surface color, styled by the
 /// Theme's stylesheet (QFrame#dashboardCard). Its entries go into the
-/// returned layout, below the title.
-QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column )
+/// returned layout, below the title; the title label is added to titles.
+QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column,
+                      QList<QLabel*>& titles )
 {
     auto* card = new QFrame( parent );
     card->setObjectName( QStringLiteral( "dashboardCard" ) );
@@ -81,6 +82,7 @@ QVBoxLayout* addCard( const QString& title, QWidget* parent, QVBoxLayout* column
     auto* heading = new QLabel( title, card );
     heading->setObjectName( QStringLiteral( "dashboardCardTitle" ) );
     cardLayout->addWidget( heading );
+    titles.push_back( heading );
 
     auto* entries = new QVBoxLayout();
     entries->setSpacing( 0 );
@@ -204,14 +206,10 @@ void WelcomeDashboard::buildUi()
     column->addSpacing( 6 );
 
     // ---- Cards: Recent Files, Favorites, Plugins ----
-    recentFilesLayout_ = addCard( tr( "Recent Files" ), columnWidget, column );
-    favoritesLayout_ = addCard( tr( "Favorites" ), columnWidget, column );
-    pluginStatusLayout_ = addCard( tr( "Plugins" ), columnWidget, column );
+    recentFilesLayout_ = addCard( tr( "Recent Files" ), columnWidget, column, titleLabels_ );
+    favoritesLayout_ = addCard( tr( "Favorites" ), columnWidget, column, titleLabels_ );
+    pluginStatusLayout_ = addCard( tr( "Plugins" ), columnWidget, column, titleLabels_ );
     pluginStatusLayout_->setSpacing( 2 );
-    for ( auto* title :
-          columnWidget->findChildren<QLabel*>( QStringLiteral( "dashboardCardTitle" ) ) ) {
-        titleLabels_.push_back( title );
-    }
 
     column->addSpacing( 6 );
 
