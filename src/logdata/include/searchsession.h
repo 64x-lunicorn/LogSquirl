@@ -151,7 +151,8 @@ private:
     // builds one complete State value instead of hand-editing a handful
     // of fields (and risking missing one) under the lock.
     void applyState( State newState );
-    // Moves arrivedMatches_ into matches_.
+    // Moves arrivedMatches_ into matches_, and into newMatches_ unless the
+    // Matches were replaced since the last state change was reported.
     void publishArrivedMatches();
     // Publishes the Matches that arrived and reports the current state: the
     // one way stateChanged() is emitted. Progress goes through the throttler
