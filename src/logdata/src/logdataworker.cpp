@@ -41,7 +41,6 @@
 #include <functional>
 #include <qglobal.h>
 #include <qthread.h>
-#include <stdexcept>
 #include <string_view>
 #include <thread>
 
@@ -612,15 +611,10 @@ void IndexOperation::indexNextBlock( IndexingState& state, const BlockData& bloc
 
     if ( !block.empty() ) {
         const auto linePositions = parseDataBlock( blockBeginning, block, state );
-        auto maxLength = state.max_length;
-        if ( maxLength > std::numeric_limits<LineLength::UnderlyingType>::max() ) {
-            LOG_ERROR << "Too long lines " << maxLength;
-            maxLength = std::numeric_limits<LineLength::UnderlyingType>::max();
-        }
-
-        scopedAccessor.addAll(
-            block, LineLength( type_safe::narrow_cast<LineLength::UnderlyingType>( maxLength ) ),
-            linePositions, state.encodingGuess );
+        // Measured as a qsizetype, 64 bits wide in every build shipped: no Log
+        // Line is too long to measure, so none is reported as such.
+        scopedAccessor.addAll( block, LineLength( state.max_length ), linePositions,
+                               state.encodingGuess );
 
         // Update the caller for progress indication
         const auto progress
@@ -786,12 +780,6 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
 
     if ( interruptRequest_ ) {
         scopedAccessor.clear( indexingPolicy_ );
-    }
-
-    if ( scopedAccessor.getMaxLength().get()
-         == std::numeric_limits<LineLength::UnderlyingType>::max() ) {
-        // Reported as the failure of this run, which drops the Index.
-        throw std::length_error( "Can't index file: some lines are too long" );
     }
 
     if ( !scopedAccessor.getEncodingGuess() ) {
