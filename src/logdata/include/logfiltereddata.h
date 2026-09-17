@@ -144,6 +144,13 @@ public:
 
     void iterateOverLines( const std::function<void( LineNumber )>& callback ) const;
 
+    // How many of the Log Lines displayed in [first, end) are Matches and how
+    // many are not, whatever the visibility (see DisplayedLines::countIn()).
+    DisplayedLines::Count countDisplayedLines( LineNumber first, LineNumber end ) const;
+    // Changes whenever the displayed lines change other than by Matches added
+    // after all of them (see DisplayedLines::rewrites()).
+    uint64_t displayedLinesRewrites() const;
+
     // Replaces the Search Policy, for this object and its Search Session.
     // Called when a setting on the Search axis changed; the Log File this
     // was built from does the calling, so every LogFilteredData is reached,

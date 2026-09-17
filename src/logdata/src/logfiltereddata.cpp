@@ -167,6 +167,16 @@ void LogFilteredData::iterateOverLines( const std::function<void( LineNumber )>&
         static_cast<void*>( const_cast<CallbackFn*>( &callback ) ) );
 }
 
+DisplayedLines::Count LogFilteredData::countDisplayedLines( LineNumber first, LineNumber end ) const
+{
+    return displayedLines_.countIn( first, end );
+}
+
+uint64_t LogFilteredData::displayedLinesRewrites() const
+{
+    return displayedLines_.rewrites();
+}
+
 void LogFilteredData::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
     session_.setSearchPolicy( searchPolicy );

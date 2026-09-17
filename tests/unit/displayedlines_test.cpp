@@ -788,3 +788,121 @@ SCENARIO( "The Displayed Lines updated by their delta equal a full rebuild",
         }
     }
 }
+
+SCENARIO( "The Displayed Lines count the Matches and the other Log Lines in a range",
+          "[displayedlines]" )
+{
+    LogFile logFile;
+    logFile.matches = bitmapOf( { 10, 20, 30, 40 } );
+    auto displayed = displayedLinesOf( logFile, 1 );
+    displayed.searchCompleted();
+    displayed.addMark( 20_lnum );
+    displayed.addMark( 25_lnum );
+    displayed.addMark( 60_lnum );
+
+    const auto requireCount
+        = [ & ]( uint64_t first, uint64_t end, uint64_t matches, uint64_t others ) {
+              INFO( "[" << first << ", " << end << ")" );
+              const auto count = displayed.countIn( LineNumber( first ), LineNumber( end ) );
+              REQUIRE( count.matches == matches );
+              REQUIRE( count.others == others );
+          };
+
+    THEN( "with Matches and Marks shown, a marked Match counts as a Match" )
+    {
+        requireCount( 0, 100, 4, 2 );
+        requireCount( 10, 21, 2, 0 );
+        requireCount( 21, 60, 2, 1 );
+        requireCount( 60, 61, 0, 1 );
+        requireCount( 61, 100, 0, 0 );
+        requireCount( 30, 30, 0, 0 );
+    }
+
+    WHEN( "the Context Lines are shown too" )
+    {
+        displayed.setShown( Everything );
+
+        THEN( "they count with the Marks" )
+        {
+            // Context Lines 9, 11, 19, 21, 24, 26, 29, 31, 39, 41, 59, 61.
+            requireCount( 0, 100, 4, 14 );
+            requireCount( 9, 12, 1, 2 );
+        }
+    }
+
+    WHEN( "only the Marks are shown" )
+    {
+        displayed.setShown( LineType{ LineTypeFlags::Mark } );
+
+        THEN( "a marked Match still counts as a Match" )
+        {
+            requireCount( 0, 100, 1, 2 );
+            requireCount( 21, 100, 0, 2 );
+        }
+    }
+}
+
+SCENARIO( "The Displayed Lines tell whether they changed only past their last Log Line",
+          "[displayedlines]" )
+{
+    LogFile logFile;
+    logFile.matches = bitmapOf( { 10, 20 } );
+    auto displayed = displayedLinesOf( logFile, 0 );
+    displayed.searchCompleted();
+    displayed.addMark( 30_lnum );
+    auto rewrites = displayed.rewrites();
+
+    WHEN( "Matches arrive after every Match and Mark" )
+    {
+        const auto newMatches = bitmapOf( { 40, 50 } );
+        logFile.matches |= newMatches;
+        displayed.matchesArrived( newMatches );
+
+        THEN( "it is no rewrite, and neither is completing the Search after more of them" )
+        {
+            REQUIRE( displayed.rewrites() == rewrites );
+
+            const auto lastMatches = bitmapOf( { 60 } );
+            logFile.matches |= lastMatches;
+            displayed.searchCompleted( lastMatches );
+            REQUIRE( displayed.rewrites() == rewrites );
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 10, 20, 30, 40, 50, 60 } );
+        }
+    }
+
+    WHEN( "a Match arrives before a Mark" )
+    {
+        const auto newMatches = bitmapOf( { 25, 40 } );
+        logFile.matches |= newMatches;
+        displayed.matchesArrived( newMatches );
+
+        THEN( "it is a rewrite" )
+        {
+            REQUIRE( displayed.rewrites() != rewrites );
+        }
+    }
+
+    WHEN( "the Matches are replaced" )
+    {
+        logFile.matches = bitmapOf( { 50 } );
+        displayed.matchesArrived();
+
+        THEN( "it is a rewrite" )
+        {
+            REQUIRE( displayed.rewrites() != rewrites );
+        }
+    }
+
+    WHEN( "a Mark is added past the last Log Line" )
+    {
+        displayed.addMark( 90_lnum );
+
+        THEN( "it is a rewrite, as is any change of the Marks or of what is shown" )
+        {
+            REQUIRE( displayed.rewrites() != rewrites );
+            rewrites = displayed.rewrites();
+            displayed.setShown( Everything );
+            REQUIRE( displayed.rewrites() != rewrites );
+        }
+    }
+}

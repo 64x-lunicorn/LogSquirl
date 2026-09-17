@@ -152,6 +152,22 @@ public:
     // displayed changes.
     DisplayedLinesCursor cursorAt( LineNumber position ) const;
 
+    // How many of the Log Lines displayed in [first, end) are Matches, and how
+    // many are not (Marks and Context Lines). Costs as much as a few ranks of
+    // the bitmaps, not as the Log Lines counted -- unless the Matches are
+    // hidden, when the Marks displayed there are looked at one by one.
+    struct Count {
+        uint64_t matches = 0;
+        uint64_t others = 0;
+    };
+    Count countIn( LineNumber first, LineNumber end ) const;
+
+    // Changes whenever the displayed Log Lines, or what they are, change other
+    // than by Matches added after every Log Line that was displayed, Marked or
+    // a Context Line: while it stays the same, whoever counted the displayed
+    // lines up to the last one needs to count only past it.
+    uint64_t rewrites() const;
+
 private:
     // Rebuilds contextLines_ around the Matches and the Marks.
     void rebuildContextLines();
@@ -193,6 +209,13 @@ private:
     Source source_ = Source::Matches;
     // Which set lines() should return for what is shown now.
     Source pickSource() const;
+
+    // Counts the changes rewrites() tells.
+    uint64_t rewrites_ = 0;
+    // Whether newMatches, just added to the Matches, all come after every Log
+    // Line that was a Match, a Mark or a Context Line before; formerEnd is set
+    // past the last of those (0 when there was none).
+    bool comeAfterEverything( const SearchResultArray& newMatches, uint64_t& formerEnd ) const;
 
     // Whether contextLines_ surround every Match and Mark, except the Matches
     // in matchesWithoutContextLines_, within the first contextLinesEnd_ Log
