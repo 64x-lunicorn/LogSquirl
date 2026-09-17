@@ -11,20 +11,32 @@ name: "Benchmarks"
 # stay as fast as they are; this runs only when dispatched.
 #
 # Run it from the Actions tab or with
-#   gh workflow run benchmarks.yml -f ref=<branch, tag or SHA> [-f base_ref=master]
+#   gh workflow run benchmarks.yml --ref <branch> [-f base_ref=master]
+# The after side is the commit the run is dispatched from (`--ref`, "Use
+# workflow from"), so the branch must contain this workflow file. The before
+# side is where that commit forks from base_ref (`git merge-base`): the tip of
+# base_ref when the branch is up to date with it, otherwise the older commit
+# the branch starts from, so the comparison shows only the branch's changes.
 # GitHub only offers `workflow_dispatch` for a workflow file that exists on the
 # default branch: until this file is merged into master it cannot be
-# dispatched, not even for the branch that adds it. Once it is on master, the
-# run can use the workflow file of any branch that has it ("Use workflow from").
+# dispatched, not even for the branch that adds it.
+#
+# Both sides therefore come from the history of the dispatched commit, never
+# from an arbitrary ref (#276, CodeQL actions/cache-poisoning/poisonable-step):
+# a dispatch from master can write master's Actions caches, which every branch
+# and pull request restores, and the code a run builds and executes can reach
+# the cache token. Measuring a pull request from a fork means pushing it to a
+# branch here first.
 #
 # Both sides are built with this workflow's composite actions, but from
-# their own docker/ and .github/scripts: a base_ref older than the image
+# their own docker/ and .github/scripts: a before side older than the image
 # inputs hash (#215) and the sccache summary script (#219) does not build.
 #
 # There is no nightly schedule: a scheduled run only knows master, which would
 # measure master against itself.
 #
-# One Linux job in the Ubuntu 24.04 container of the CI Build noble job: those
+# One Linux job (after a short one that resolves the before side) in the
+# Ubuntu 24.04 container of the CI Build noble job: those
 # runners are the cheapest, the container already holds Qt and the whole
 # toolchain, and the build uses that job's options, so it restores its sccache
 # and CPM caches and only recompiles what the branch changed. Both builds and
@@ -34,13 +46,8 @@ name: "Benchmarks"
 on:
   workflow_dispatch:
     inputs:
-      ref:
-        description: "Branch, tag or SHA to measure (after); empty: the branch this runs from"
-        type: string
-        required: false
-        default: ''
       base_ref:
-        description: "Branch, tag or SHA to compare with (before)"
+        description: "Branch, tag or SHA to compare with: before is where the dispatched commit forks from it"
         type: string
         required: false
         default: master
@@ -62,7 +69,7 @@ on:
         default: 21
 
 concurrency:
-  group: benchmarks-${{ github.ref }}-${{ inputs.ref }}-${{ inputs.base_ref }}
+  group: benchmarks-${{ github.ref }}-${{ inputs.base_ref }}
   cancel-in-progress: false
 
 permissions: {}
@@ -71,6 +78,57 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  sides:
+    name: Benchmarks / resolve the before side
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      before: ${{ steps.resolve.outputs.before }}
+    steps:
+      # All branches and tags, without file contents: enough to resolve
+      # base_ref and find the merge base.
+      - name: Check out the history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+          sparse-checkout: .github/workflows/benchmarks.yml
+          sparse-checkout-cone-mode: false
+
+      # The merge base is an ancestor of the dispatched commit by definition,
+      # so the before side never brings in code from outside its history.
+      - name: Resolve the before side
+        id: resolve
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          set -euo pipefail
+          base=
+          for candidate in "refs/remotes/origin/$BASE_REF" "refs/tags/$BASE_REF" "$BASE_REF"; do
+            if base=$(git rev-parse --verify --quiet --end-of-options "$candidate^{commit}"); then
+              break
+            fi
+            base=
+          done
+          if [ -z "$base" ]; then
+            printf 'base_ref: %q\n' "$BASE_REF"
+            echo "::error::base_ref is not a branch, tag or commit of this repository"
+            exit 1
+          fi
+          if ! before=$(git merge-base "$base" "$GITHUB_SHA"); then
+            echo "::error::base_ref and the dispatched commit have no common history"
+            exit 1
+          fi
+          if [ "$before" = "$GITHUB_SHA" ]; then
+            echo "::warning::The dispatched commit is contained in base_ref: before and after are the same commit. Dispatch with --ref <branch>."
+          elif [ "$before" != "$base" ]; then
+            echo "::notice::The dispatched commit is not based on the tip of base_ref; before is the commit it forks from, ${before:0:12}"
+          fi
+          echo "before=$before" >> "$GITHUB_OUTPUT"
+
   benchmarks:
     name: Benchmarks / before and after
     # Single-entry matrix so the shared composite actions (which read
@@ -86,6 +144,7 @@ jobs:
             image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
             cmake_opts:
 
+    needs: sides
     runs-on: ubuntu-24.04
     # No run history yet: two builds of about 20 minutes each with a warm
     # sccache (longer when a side's objects are not cached), and each side's
@@ -107,10 +166,11 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ inputs.base_ref }}
+          ref: ${{ needs.sides.outputs.before }}
 
       # The composite actions and scripts come from the commit this workflow
-      # runs from, not from either side, which may predate them.
+      # runs from (the after side), not from the before side, which may
+      # predate them.
       - name: Check out the workflow's actions and scripts
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -123,7 +183,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ github.sha }}
           path: benchmark-run/after-benchmarks
           sparse-checkout: tests/benchmarks
 
@@ -199,7 +259,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ inputs.ref || github.sha }}
+          ref: ${{ github.sha }}
           clean: false
 
       - name: Remember the after commit
@@ -244,14 +304,14 @@ jobs:
         if: always() && steps.run.outcome != 'skipped'
         env:
           BASE_REF: ${{ inputs.base_ref }}
-          AFTER_REF: ${{ inputs.ref || github.ref_name }}
+          AFTER_REF: ${{ github.ref_name }}
           BEFORE_SHA: ${{ steps.before_side.outputs.sha }}
           AFTER_SHA: ${{ steps.after_side.outputs.sha }}
         run: |
           set -euo pipefail
           python3 "$RUN_DIR/tools/.github/scripts/benchmark-compare.py" \
             --before "$RUN_DIR/results/before" --after "$RUN_DIR/results/after" \
-            --before-label "$BASE_REF (${BEFORE_SHA:0:12})" \
+            --before-label "merge base with $BASE_REF (${BEFORE_SHA:0:12})" \
             --after-label "$AFTER_REF (${AFTER_SHA:0:12})" \
             --markdown "$RUN_DIR/results/comparison.md" \
             --json "$RUN_DIR/results/comparison.json"
