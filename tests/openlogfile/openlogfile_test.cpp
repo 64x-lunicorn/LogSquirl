@@ -602,6 +602,14 @@ SCENARIO( "The Marks saved with the Session are applied once, after the first lo
             REQUIRE( logFile.marks() == QList<LineNumber>{ 3_lnum, 7_lnum } );
         }
 
+        THEN( "until then, they are the Marks saving the Session again keeps" )
+        {
+            REQUIRE( logFile.openLogFile.marks() == QList<LineNumber>{ 3_lnum, 7_lnum } );
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+            logFile.openLogFile.filteredData()->deleteMark( 3_lnum );
+            REQUIRE( logFile.openLogFile.marks() == QList<LineNumber>{ 7_lnum } );
+        }
+
         WHEN( "a Mark is removed and Log Lines are added" )
         {
             REQUIRE( logFile.observer.waitLoads( 1 ) );

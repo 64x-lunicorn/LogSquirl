@@ -51,9 +51,10 @@ inline quint64 digestOf( const QByteArray& data )
     return digest.digest();
 }
 
-// The hash the indexer records for a Log File: a digest of its first block
-// and, for a file longer than one block, of its last block, and a digest of
-// all of it.
+// The hash the indexer records for a Log File: a digest of its first block;
+// a digest of its tail, which starts at the last but one multiple of half a
+// block before its end, or at offset 0 for a file shorter than one block; and
+// a digest of all of it.
 inline IndexedHash hashOfFile( const QString& path )
 {
     QFile file( path );
@@ -68,13 +69,14 @@ inline IndexedHash hashOfFile( const QString& path )
     hash.headerSize = header.size();
     hash.headerDigest = digestOf( header );
 
-    if ( content.size() <= DigestBlockSize ) {
+    if ( content.size() < DigestBlockSize ) {
         hash.tailOffset = 0;
         hash.tailSize = header.size();
         hash.tailDigest = hash.headerDigest;
     }
     else {
-        hash.tailOffset = content.size() - DigestBlockSize;
+        const auto halfBlock = DigestBlockSize / 2;
+        hash.tailOffset = ( content.size() / halfBlock - 1 ) * halfBlock;
         const auto tail = content.mid( hash.tailOffset );
         hash.tailSize = tail.size();
         hash.tailDigest = digestOf( tail );

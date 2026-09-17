@@ -471,8 +471,7 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
     auto context = std::make_shared<const CrawlerWidgetContext>(
         sizes(), ( !matchCaseButton_->isChecked() ), searchRefreshButton_->isChecked(),
         logMainView_->isFollowEnabled(), useRegexpButton_->isChecked(), inverseButton_->isChecked(),
-        booleanButton_->isChecked(), openLogFile_->filteredData()->getMarks(), chartJson,
-        chartPanel_->isVisible() );
+        booleanButton_->isChecked(), openLogFile_->marks(), chartJson, chartPanel_->isVisible() );
 
     return static_cast<std::shared_ptr<const ViewContextInterface>>( context );
 }
@@ -699,7 +698,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         filteredView_->selectAndDisplayLine( currentLineNumber_ );
         // The View Set already handed this view the Search Limits, which are
         // the Open Log File's; only the redraw handing them over did is left.
-        filteredView_->forceRefresh();
+        filteredView_->updateDecorations();
     }
 }
 
@@ -2097,9 +2096,9 @@ void CrawlerWidget::updateEncoding()
     openLogFile_->logData()->interruptLoading();
 
     openLogFile_->logData()->setDisplayEncoding( textCodec->name().constData() );
-    logMainView_->forceRefresh();
+    logMainView_->rereadLogLines();
     openLogFile_->filteredData()->setDisplayEncoding( textCodec->name().constData() );
-    filteredView_->forceRefresh();
+    filteredView_->rereadLogLines();
 }
 
 // Change the respective size of the two views

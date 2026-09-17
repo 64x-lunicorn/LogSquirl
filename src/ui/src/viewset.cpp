@@ -132,7 +132,7 @@ void ViewSet::applyHighlighterSetChange()
     for ( auto* presentation : presentations_ ) {
         presentation->updateDecorations();
     }
-    forEachFilteredView( []( FilteredView* view ) { view->forceRefresh(); } );
+    forEachFilteredView( []( FilteredView* view ) { view->updateDecorations(); } );
 }
 
 void ViewSet::registerShortcuts()
@@ -150,7 +150,7 @@ void ViewSet::rereadLogLines()
     for ( auto* presentation : presentations_ ) {
         presentation->rereadLogLines();
     }
-    forEachFilteredView( []( FilteredView* view ) { view->forceRefresh(); } );
+    forEachFilteredView( []( FilteredView* view ) { view->rereadLogLines(); } );
 }
 
 void ViewSet::seed( LogPresentation* presentation ) const

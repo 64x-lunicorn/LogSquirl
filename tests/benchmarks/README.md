@@ -148,6 +148,11 @@ so a Log Line wraps into one Visual Line or several).
   pages, the scrollbar dragged, `updateData()` after a Log Line was
   appended, and a resize with painting. It uses only what the text view
   offered before #246, so the same file measures the code before and after.
+  Its `[textview-refresh-benchmark]` cases (#295) repaint the view after a
+  change of Decoration only: QuickFind typed keystroke by keystroke, the
+  Search pattern and the Search Limits changed. "Log Lines read again"
+  repaints after `updateData()`, the cost each of them paid before a view
+  told a change of Decoration from a change of text.
 
 Both are Catch2 benchmarks; run them in an optimized build, as the Debug
 numbers say little about scrolling cost:
@@ -209,12 +214,17 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
 - `[sparse-read]` — every hundredth Log Line from the start, 10,000 of them:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
-  Find reads today, each next to the same Log Lines in one sparse read
+  Find read before #287, each next to the same Log Lines in one sparse read
   (**getLinesSparse**, **getExpandedLinesSparse**, #286), and the same Log
   Lines as UTF-8 (**getUtf8LinesSparse**, #288).
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
   position** versus **DisplayedLinesCursor, takeForward** (#286).
+- `[tailing]` — following the Log File as it grows (#277), once indexed, with
+  and without fast modification detection: **append, check and index the
+  appended Log Lines**, one change notification for an append of 20 Log
+  Lines, and **check with nothing appended**, a change notification for bytes
+  already indexed. Runs last, as it appends to the Log Files.
 
 A change that adds a new way of reading the same Log Lines adds a `BENCHMARK`
 next to the one it replaces, over the same `contiguousRange()` or
@@ -299,6 +309,21 @@ tab groups) into the settings store, then measures
 - **add and style the tabs only**: the 20 tabs alone, without opening the
   Log Files, where the settings reads are most of the cost.
 
+A second case restores a Session of several large Log Files (#300), written
+at run time into a temporary directory, the last one the current tab, and
+measures
+
+- **restore until the current tab has loaded**: the time until the user can
+  work in the current tab;
+- **restore until every tab has loaded**: the time until every Log File of
+  the Session has loaded.
+
+Before #300 every Log File starts loading at once and competes with the
+current tab's; after it the current tab's loads first and the others one
+after another. There are 4 Log Files of 32 MiB each by default; set
+`LOGSQUIRL_BENCHMARK_SESSION_LOG_FILES` and
+`LOGSQUIRL_BENCHMARK_SESSION_LOG_FILE_MB` for more or larger ones.
+
 The settings store is the portable one next to the binary, as for the tests,
 not the macOS preferences daemon the application uses; what was stored before
 is written back at the end. The file uses only what the Session and the tab
@@ -309,8 +334,8 @@ cmake --build build-release --target logsquirl_session_restore_benchmark
 ./build-release/output/logsquirl_session_restore_benchmark --benchmark-samples 50 > after.txt
 ```
 
-For the before side, copy `session_restore_benchmark.cpp` into a worktree of
-origin/master and add the target as in `CMakeLists.txt` here, as described for
+For the before side, copy `session_restore_benchmark.cpp` and
+`generated_log_file.h` into a worktree of origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
 
 # Regex matcher benchmark
@@ -344,6 +369,102 @@ commit as above, with
 ```cmake
 add_executable(logsquirl_regex_matcher_benchmark regex_matcher_benchmark.cpp)
 target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
+```
+
+# Table View paint benchmark
+
+`logsquirl_tableview_paint_benchmark` (#294) shows a Table View of 10,000 Log
+Lines with a Log Format of six fields on the offscreen platform, sized so that
+exactly 50 Rows are visible, with a Highlighter Set of three whole-line and
+three word-only Highlighters active, and measures
+
+- **paint: a viewport of 50 Rows and 6 columns**: the whole viewport repainted;
+- **hover: the mouse moves to the next Row and back, each painted**: two mouse
+  moves over the viewport, each followed by the repaint it asks for;
+- **hit test: a character in the middle and at the end of a 4000 character
+  cell**: `LogTableHighlightDelegate::charIndexAtX`, which resolves a click or
+  a drag inside a cell to a character.
+
+It uses only what the Table View and its delegate offered before #294, so it
+builds unchanged on origin/master:
+
+```bash
+cmake --build build-release --target logsquirl_tableview_paint_benchmark
+./build-release/output/logsquirl_tableview_paint_benchmark --benchmark-samples 50 > after.txt
+```
+
+For the before side, copy `tableview_paint_benchmark.cpp` into a worktree of
+origin/master and add the target as in `CMakeLists.txt` here, as described for
+the scrolling benchmarks above.
+
+# Displayed Lines benchmark
+
+`logsquirl_displayedlines_benchmark` (#292) measures the Displayed Lines of a
+Search with a million Matches over ten million Log Lines (one in ten), 3
+Context Lines, everything shown and 100 Marks, some on Matches and some two
+Log Lines after one. Links `logsquirl_logdata` only and needs no GUI:
+
+- **progress ticks: 100 batches of 10,000 Matches**: the Matches arriving
+  while the Search runs, without its completion. Before #292 each tick
+  rebuilt the whole union, so this grew quadratically with the Matches.
+- **completion after the progress ticks**: the last batch arrives with the
+  completion, which builds the Context Lines around every Match and Mark.
+- **continuation over 100,000 appended Log Lines**: after a completed Search,
+  the Log File grows and the Search continues over the appended Log Lines in
+  10 ticks and a completion.
+- **toggling a Mark on and off next to a Match**: after a completed Search.
+
+The file builds on commits from before #292: where the Displayed Lines take
+no new Matches, it calls `matchesArrived()` and `searchCompleted()` without
+them, as the Filtered View did then. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_displayedlines_benchmark
+./build-release/output/logsquirl_displayedlines_benchmark --benchmark-samples 20 > after.txt
+```
+
+For the before side, copy `displayedlines_benchmark.cpp` into a worktree of
+origin/master and add the target, as described for the scrolling benchmarks
+above:
+
+```cmake
+add_executable(logsquirl_displayedlines_benchmark displayedlines_benchmark.cpp)
+target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
+```
+
+# QuickFind benchmark
+
+`logsquirl_quickfind_benchmark` (#287) runs a QuickFind for text no Log Line
+holds, so it reads and matches every Log Line it searches, over the generated
+Log File of short Log Lines described above (about 1 GB, or
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB`). Each case runs forwards from the first Log
+Line and backwards from the last one:
+
+- **every Log Line**, as the main view searches;
+- **every tenth Log Line**, as a Filtered View searches the Matches of a
+  Search.
+
+`[file-kept-open]` runs them on a Log File kept open between reads.
+`[file-kept-closed]` runs them with "keep file closed" set; it is hidden, so a
+run of every benchmark leaves it out, because before #287 QuickFind reopened
+the Log File for every Log Line and a single run takes minutes.
+
+```bash
+cmake --build build-release --target logsquirl_quickfind_benchmark
+./build-release/output/logsquirl_quickfind_benchmark --benchmark-samples 10 > after.txt
+./build-release/output/logsquirl_quickfind_benchmark "[file-kept-closed]" --benchmark-samples 3
+
+# A quick check on a Log File of 8 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=8 ./build/output/logsquirl_quickfind_benchmark --benchmark-samples 2
+```
+
+`quickfind_benchmark.cpp` uses only what QuickFind and LogData offered before
+#287. For the before side, copy it and `generated_log_file.h` into a worktree
+of origin/master as above, with
+
+```cmake
+add_executable(logsquirl_quickfind_benchmark quickfind_benchmark.cpp)
+target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
 ```
 
 # Before and after in CI

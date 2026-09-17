@@ -422,6 +422,10 @@ void MainWindow::reloadSession()
         },
         &currentFileIndex );
 
+    // Only the current tab's Log File loads now, the others after it (#300).
+    // Adding a tab makes it current for a moment, which is not the user
+    // activating it.
+    restoringSession_ = true;
     for ( size_t i = 0; i < crawlers.size() && i < openedFiles.size(); ++i ) {
         auto* crawlerWidget = crawlers[ i ];
         mainTabWidget_.addCrawler( crawlerWidget, openedFiles[ i ].first );
@@ -430,9 +434,11 @@ void MainWindow::reloadSession()
             signalCrawlerToFollowFile( crawlerWidget );
         }
     }
+    restoringSession_ = false;
 
-    if ( currentFileIndex >= 0 ) {
-        mainTabWidget_.setCurrentIndex( currentFileIndex );
+    if ( currentFileIndex >= 0 && static_cast<size_t>( currentFileIndex ) < crawlers.size() ) {
+        // By widget: the Dashboard tab, if any, comes before the Log Files.
+        mainTabWidget_.setCurrentWidget( crawlers[ static_cast<size_t>( currentFileIndex ) ] );
 
         if ( followFileOnLoad ) {
             followAction->setChecked( true );
@@ -2095,6 +2101,12 @@ void MainWindow::currentTabChanged( int index )
         if ( !crawler_widget ) {
             return;
         }
+        // A restored Log File still waiting for its turn loads now that the
+        // user looks at its tab (#300).
+        if ( !restoringSession_ ) {
+            session_.startLoading( crawler_widget );
+        }
+
         signalMux_.setCurrentDocument( crawler_widget );
         quickFindMux_.registerSelector( crawler_widget );
 

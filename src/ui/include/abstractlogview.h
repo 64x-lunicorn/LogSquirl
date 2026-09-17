@@ -349,9 +349,15 @@ public Q_SLOTS:
     // Configure the setting of whether to show line number margin
     void setLineNumbersVisible( bool lineNumbersVisible );
 
-    // Force the next refresh to fully redraw the view by invalidating the cache.
-    // To be used if the data might have changed.
-    void forceRefresh();
+    // Repaint after how the Log Lines look changed, not their text: Marks,
+    // Matches, Highlighters, Color Labels. The Log Lines already read for the
+    // Viewport are painted again.
+    void updateDecorations();
+
+    // Read the Log Lines in the Viewport again and repaint: their text may
+    // have changed although the Log File's line count did not, as under
+    // another Encoding.
+    void rereadLogLines();
 
     // Set the overview visibility and update viewport margins accordingly.
     void setOverviewVisible( bool visible );
@@ -492,6 +498,23 @@ private:
     // Bumped whenever the Log File content behind the viewport may have
     // changed, so the cached content is rebuilt.
     uint64_t viewportGeneration_ = 0;
+
+    // What changed about the Log Lines in the Viewport, and so what a refresh
+    // redoes. A change of the Scroll Position, the first column or the
+    // Viewport's geometry is none of these: the Viewport notices those by
+    // itself (see ViewportContentKey).
+    enum class ViewportChange {
+        // How they are decorated: Marks, Matches, the Search pattern and its
+        // Search Limits, QuickFind, Highlighters, Color Labels, the selection.
+        // They are painted again from the text already read.
+        Decorations,
+        // Their text: the Log File was reloaded or grew, the Encoding changed,
+        // or each position shows another Log Line. They are read, expanded and
+        // wrapped again, then painted.
+        Text,
+    };
+    // The one place that decides what a change drops.
+    void refresh( ViewportChange change );
 
     // The Search Limits, in Log Lines, half-open as the Line Decorator takes them.
     LineNumber searchStart_;

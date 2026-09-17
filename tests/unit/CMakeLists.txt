@@ -11,6 +11,7 @@ add_executable(logsquirl_tests
     encodingdetector_test.cpp
     fontutils_test.cpp
     indexcache_test.cpp
+    headerandtaildigests_test.cpp
     indexedhash_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
@@ -36,6 +37,7 @@ add_executable(logsquirl_tests
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
+    quickfind_test.cpp
     quickfindmux_test.cpp
     quickfindwidget_test.cpp
     regularexpression_test.cpp

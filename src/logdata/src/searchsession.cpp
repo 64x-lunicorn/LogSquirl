@@ -169,8 +169,8 @@ void SearchSession::adoptCacheHit( const RegularExpressionPattern& pattern, Line
     // would, so its late results don't land on top of this cache hit.
     invalidateCurrentRun();
 
+    resetResults();
     matches_ = matches;
-    arrivedMatches_ = SearchResultArray();
     maxLength_ = maxLength;
     nbLinesProcessed_ = LinesCount( endLine.get() );
     currentSearchKey_ = makeCacheKey( pattern, startLine, endLine );
@@ -240,6 +240,11 @@ SearchSession::State SearchSession::state() const
 const SearchResultArray& SearchSession::matches() const
 {
     return matches_;
+}
+
+const SearchResultArray* SearchSession::newMatches() const
+{
+    return matchesReplaced_ ? nullptr : &newMatches_;
 }
 
 LineLength SearchSession::maxLength() const
@@ -315,6 +320,8 @@ void SearchSession::resetResults()
 {
     matches_ = SearchResultArray();
     arrivedMatches_ = SearchResultArray();
+    newMatches_ = SearchResultArray();
+    matchesReplaced_ = true;
     maxLength_ = 0_length;
     nbLinesProcessed_ = 0_lcount;
 }
@@ -430,7 +437,17 @@ void SearchSession::publishArrivedMatches()
         return;
     }
     matches_ |= arrivedMatches_;
-    arrivedMatches_ = SearchResultArray();
+    if ( matchesReplaced_ ) {
+        // All of matches_ tell what changed; no need to keep these apart.
+        arrivedMatches_ = SearchResultArray();
+    }
+    else if ( newMatches_.isEmpty() ) {
+        newMatches_ = std::exchange( arrivedMatches_, SearchResultArray() );
+    }
+    else {
+        newMatches_ |= arrivedMatches_;
+        arrivedMatches_ = SearchResultArray();
+    }
 }
 
 void SearchSession::notifyStateChanged()
@@ -438,4 +455,6 @@ void SearchSession::notifyStateChanged()
     publishArrivedMatches();
     stateChangePending_ = false;
     Q_EMIT stateChanged( state() );
+    newMatches_ = SearchResultArray();
+    matchesReplaced_ = false;
 }

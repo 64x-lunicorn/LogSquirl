@@ -27,14 +27,15 @@
 
 // The rule that decides whether an Index still fits its Log File, on its
 // own. The Index Cache and the change detection of an Open Log File both ask
-// it, so each case is checked with both kinds of digest coverage.
+// it, so each case is checked with every kind of digest coverage.
 
 SCENARIO( "One rule decides whether an Index still fits its Log File", "[indexedhash]" )
 {
     QTemporaryDir logDir;
     REQUIRE( logDir.isValid() );
 
-    const auto coverage = GENERATE( DigestCoverage::HeaderAndTail, DigestCoverage::Full );
+    const auto coverage = GENERATE( DigestCoverage::HeaderAndTail, DigestCoverage::Full,
+                                    DigestCoverage::FullUnlessGrown );
 
     GIVEN( "the hash recorded for a Log File shorter than one digest block" )
     {
@@ -183,8 +184,24 @@ SCENARIO( "One rule decides whether an Index still fits its Log File", "[indexed
             THEN( "only the full digest notices the change" )
             {
                 REQUIRE( fit
-                         == ( coverage == DigestCoverage::Full ? IndexFit::Changed
-                                                               : IndexFit::Unchanged ) );
+                         == ( coverage == DigestCoverage::HeaderAndTail ? IndexFit::Unchanged
+                                                                        : IndexFit::Changed ) );
+            }
+        }
+
+        WHEN( "a byte between the header and the tail is modified and the Log File grows" )
+        {
+            content[ DigestBlockSize + DigestBlockSize / 4 ] = 'y';
+            writeFile( logFile, content + QByteArray( 1000, 'z' ) );
+            const auto fit = indexFit( recorded, logFile, coverage );
+
+            THEN( "only a full digest taken of a grown Log File notices the change" )
+            {
+                // The risk following a growing Log File accepts: it is not
+                // read again end to end for every append.
+                REQUIRE(
+                    fit
+                    == ( coverage == DigestCoverage::Full ? IndexFit::Changed : IndexFit::Grown ) );
             }
         }
     }
