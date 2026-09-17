@@ -20,7 +20,7 @@ To build LogSquirl:
 
 - cmake 3.12 or later to generate build files
 - C++ compiler with C++23 support (at least gcc 13, clang 17, msvc 19.36)
-- Qt 6.5 or later (CI builds use Qt 6.10.3):
+- Qt 6.5 or later (CI builds use Qt 6.11.2):
   - QtCore
   - QtGui
   - QtWidgets
@@ -323,9 +323,20 @@ The release workflow:
    (`scripts/sbom/logsquirl_sbom.py`)
 4. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
    grype for the components with a CPE, OSV for the CPM packages by pinned commit
-   and tag. All findings go to code scanning (category `sbom-vulns`); a critical
-   one (CVSS v3/v4 base score ≥ 9.0 or rated critical) stops the release unless
-   `scripts/sbom/vuln-ignore.yml` on master accepts it with a reason and an expiry date. The file is read
+   and tag, and Qt's own list of advisories (https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products,
+   "Qt Framework" section) for the Qt version, with the severity NVD gives the CVE.
+   The scan fails as a tooling error when that page can no longer be read; an advisory whose affected versions
+   it cannot read is reported as unconfirmed and does not block. NVD requests are retried on rate limits and
+   timeouts; if NVD still cannot be reached for a matched Qt advisory, the release scan fails as a tooling error
+   (the daily scan only warns). All findings go to code scanning (category `sbom-vulns`); a critical one (CVSS
+   v3/v4 base score ≥ 9.0 or rated critical) stops the release unless `scripts/sbom/vuln-ignore.yml` on master
+   accepts it with a reason and an expiry date. So does a Qt advisory NVD has not scored yet (reported as
+   *unscored*): assess it and record the decision in the ignore file.
+   Without an NVD API key the scanner is limited to 5 NVD requests in 30 seconds. To raise it to 50, request a free
+   key at https://nvd.nist.gov/developers/request-an-api-key (it arrives by e-mail and is activated from the link
+   in it), then add it as the repository secret `NVD_API_KEY` (Settings → Secrets and variables → Actions, or
+   `gh secret set NVD_API_KEY`). The release and daily scans pass it to `.github/actions/sbom-vuln-scan`; without
+   the secret they run unkeyed. The file is read
    from master even for a tag release, so accepting a risk and re-running the failed job is enough.
    The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
 5. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
@@ -343,6 +354,7 @@ Manual releases are also supported via `workflow_dispatch` — provide a CI Buil
 | `ci-build.yml` | push/PR to master | Build + test all platforms |
 | `ci-release.yml` | tag push `v*` | Publish GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
+| `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 ### Action pinning
@@ -363,6 +375,65 @@ repository requires SHA pinning, and the Format job of CI Build runs the same ch
 .github/scripts/check-action-pins.sh
 ```
 
+### Dependency updates
+
+Two bots propose dependency updates as pull requests, each for what the other cannot read, so no dependency gets
+PRs from both:
+
+- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines,
+  the pip requirements of `scripts/sbom` and `tests/e2e`, and the website's npm packages.
+- **Renovate** (`renovate.json5`, only its custom regex managers are enabled): the CPM packages in
+  `3rdparty/CMakeLists.txt` and every tool version pinned in workflows, composite actions, the build images and the
+  packaging scripts: Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg, sentry-cli,
+  linuxdeploy, clang-format, aqtinstall and the Renovate config validator itself.
+
+Both wait until a release is seven days old and run weekly; Renovate lists everything it tracks on its
+**Dependency Dashboard** issue. Renovate's grouping:
+
+- one PR per dependency, with a major version in a PR of its own;
+- **Qt** in one PR across the CI matrices, CodeQL, the four Dockerfiles and this file (the SBOM job fails when they differ);
+- **build tools** (CMake, Ninja, Ragel, sccache) in one PR, since a bump in `docker/` rebuilds every build image;
+- **linuxdeploy** and its Qt plugin together;
+- a CPM package pinned to a release updates `VERSION`, the commit SHA and the `# <tag>` comment in one change;
+- a CPM package without releases (forks such as `variar/oneTBB`, `KDAB/KDToolBox`, `getsentry/sentry-native`) tracks
+  its default branch and only gets a PR once its checkbox on the Dependency Dashboard is ticked.
+
+A tool pin that is downloaded and verified is written as a block Renovate and the checksum script both read; to add
+one, follow the same form and add its download URL to `URLS` in `.github/scripts/update-checksums.py`. The block goes
+into a composite action (`.github/actions/*/action.yml`), a Dockerfile or a script, never into a workflow file: the
+Renovate Checksums workflow pushes with `GITHUB_TOKEN`, which may not change `.github/workflows/`, so
+`update-checksums.py --list` fails on a pair there. That is why OpenSSL (`.github/actions/windows-openssl`) and
+sentry-cli (`.github/actions/install-sentry-cli`) are installed by composite actions:
+
+```yaml
+# renovate: datasource=github-releases depName=anchore/grype
+GRYPE_VERSION: 0.118.0
+GRYPE_SHA256: 1d444c5e…
+```
+
+**Checksums.** Renovate's hosted app cannot download a release and hash it, so its PR changes the version and
+leaves the SHA-256 stale. The **Renovate Checksums** workflow runs on every PR from a `renovate/*` branch, recomputes
+the hash of each pair whose version differs from the PR's base branch and pushes a commit with the corrected hashes.
+A hash that no longer matches a version the PR did not change is never rewritten: the run fails naming the
+dependency and URL, since the release's bytes changed under the same version and need a look first. GitHub starts no workflows for a
+push made with `GITHUB_TOKEN`, so **close and reopen the PR** after that commit appears to run CI Build on it. The
+new hashes are what the URL served at that moment: where upstream publishes checksums (grype, CMake, Boost), compare
+before merging. Renovate stops rebasing a branch someone else has pushed to; tick *rebase* on the PR to get a fresh
+one (the workflow then fixes the hashes again). Locally:
+
+```bash
+.github/scripts/update-checksums.py --list                 # parse only: every pair has a URL rule (the Format job runs this)
+.github/scripts/update-checksums.py --check                # download and verify every hash
+.github/scripts/update-checksums.py --base origin/master   # rewrite the hashes of versions changed against master
+```
+
+The Format job also runs `renovate-config-validator` on `renovate.json5`.
+
+**Setting it up.** Install the [Renovate GitHub App](https://github.com/apps/renovate) for this repository only.
+Because `renovate.json5` already exists, Renovate skips its onboarding PR; on its first scheduled run it opens the
+Dependency Dashboard issue and the PRs for everything already outdated (for example Catch2, xxHash, mimalloc,
+simdutf, CMake). Merge them one at a time, closing and reopening each PR once the checksum commit is on it.
+
 ### Repository settings
 
 Some guarantees live in the repository settings rather than in a workflow file: `GITHUB_TOKEN` is read-only unless a
@@ -380,4 +451,8 @@ needed):
 unpinned actions, since requiring pins fails every such run.
 
 A new third-party action has to be added to the script's `ALLOWED_ACTIONS` and applied before the workflow using it
-can run. Because workflows cannot create `v*` tags, push the release tag before dispatching CI Release by hand.
+can run. The allowlist also applies to actions that other actions call internally (for example `aquasecurity/trivy-action`
+runs `aquasecurity/setup-trivy`), and `owner/repo@*` does not cover a subdirectory such as
+`jurplel/install-qt-action/action`. `.github/scripts/check-action-allowlist.py` follows every `uses:` into the
+referenced actions at their pinned commits and fails with the missing pattern; the Workflow Security workflow runs it on
+every pull request that touches `.github/`, and it runs locally with any `gh` login. Because workflows cannot create `v*` tags, push the release tag before dispatching CI Release by hand.

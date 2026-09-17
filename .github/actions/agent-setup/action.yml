@@ -53,6 +53,7 @@ runs:
       uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
       with:
         # Without it the action fetches whatever sccache release is latest (#199).
+        # renovate: datasource=github-releases depName=mozilla/sccache
         version: v0.18.0
 
     - name: Enable sccache GitHub Actions cache backend
@@ -81,11 +82,16 @@ runs:
         cache: true
         cache-key-prefix: ${{ matrix.config.os }}-${{ matrix.config.arch }}-${{ matrix.config.qt_version }}-QtCache
         modules: ${{ matrix.config.qt_modules }}
-        archives: qtbase qtimageformats qtsvg qttools qttranslations icu
-        # The action defaults to a floating ==3.3.*; pin the installer (#199).
+        # qtdeclarative: since Qt 6.11, lrelease (qttools) links libQt6Qml (#251).
+        archives: qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu
+        # The installer is pinned (#199), to a commit rather than a PyPI release:
+        # Qt 6.11 split the Windows repository into one folder per compiler, and
+        # aqtinstall 3.3.0 (the latest release) cannot find 6.11.x there. The
+        # fix (miurahr/aqtinstall#1000) is merged but unreleased (#251); go back
+        # to `aqtversion: ==<release>` once a release after 3.3.0 ships it.
         # py7zr repeats the action's own pin (a Bad7zFile workaround on
         # Windows) so both installer packages are visible here.
-        aqtversion: ==3.3.0
+        aqtsource: git+https://github.com/miurahr/aqtinstall.git@076e1659807d0b362a3ed684d54c2e9c775eb9c7
         py7zrversion: ==1.1.0
 
     # Boost comes from the Boost project's own archive host instead of

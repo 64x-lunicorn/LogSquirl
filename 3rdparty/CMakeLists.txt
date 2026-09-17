@@ -499,15 +499,17 @@ if(KDToolBox_ADDED)
   set_target_properties(kdtoolbox PROPERTIES AUTOMOC ON)
 endif()
 
+# efsw: at least 1.7.0: 1.4.1's Windows backend freed a removed directory watch
+# while its cancelled read could still complete into it, corrupting the heap
+# (#116); 1.7.0 frees it only once that read has completed. At least 1.7.2,
+# whose FileWatchListener signature filewatcher.cpp overrides. (Above the call,
+# not between GITHUB_REPOSITORY and VERSION, so Renovate's CPM pattern reads the
+# block and its version bump cannot rewrite the numbers here; #211.)
 cpmaddpackage(
   NAME
   efsw
   GITHUB_REPOSITORY
   SpartanJ/efsw
-  # At least 1.7.0: 1.4.1's Windows backend freed a removed directory watch
-  # while its cancelled read could still complete into it, corrupting the
-  # heap (#116); 1.7.0 frees it only once that read has completed. Pinned to
-  # 1.7.2, whose FileWatchListener signature filewatcher.cpp overrides.
   VERSION
   1.7.2
   GIT_TAG

@@ -8,6 +8,7 @@
 #   .github/scripts/repo-settings.sh check    # report drift, exit 1 on any
 #   .github/scripts/repo-settings.sh apply    # make the settings match
 #   .github/scripts/repo-settings.sh apply --defer-sha-pinning
+#   .github/scripts/repo-settings.sh list-allowed   # ALLOWED_ACTIONS, one per line
 #
 # --defer-sha-pinning leaves sha_pinning_required as it is (and check does not
 # report it). Use it while master still has workflows with unpinned actions:
@@ -16,6 +17,8 @@
 # Needs `gh` authenticated as a repository admin. Adding a third-party action
 # to a workflow means adding it to ALLOWED_ACTIONS here and re-running apply;
 # otherwise the job using it fails with "action is not allowed".
+# check-action-allowlist.py reads list-allowed and fails a pull request whose
+# workflows (or the actions they call internally) need a pattern missing here.
 set -euo pipefail
 
 REPO=${REPO:-64x-lunicorn/LogSquirl}
@@ -24,7 +27,7 @@ defer_sha_pinning=false
 if [ "${2:-}" = "--defer-sha-pinning" ]; then
   defer_sha_pinning=true
 elif [ -n "${2:-}" ]; then
-  echo "usage: $0 check|apply [--defer-sha-pinning]" >&2
+  echo "usage: $0 check|apply [--defer-sha-pinning] | list-allowed" >&2
   exit 2
 fi
 
@@ -134,8 +137,9 @@ apply() {
 }
 
 case "$mode" in
+  list-allowed) printf '%s\n' "${ALLOWED_ACTIONS[@]}"; exit 0 ;;
   check) check ;;
   apply) apply; check ;;
-  *) echo "usage: $0 check|apply [--defer-sha-pinning]" >&2; exit 2 ;;
+  *) echo "usage: $0 check|apply [--defer-sha-pinning] | list-allowed" >&2; exit 2 ;;
 esac
 exit $drift

@@ -18,12 +18,12 @@ RUN dnf update -y && \
 RUN fc-list | grep -qi "DejaVu Sans Mono" \
     || { echo "No fixed-pitch font in image; fontconfig would alias monospace to a proportional face" >&2; exit 1; }
 
-# Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
-ENV QT_VERSION=6.10.3
+# Qt via aqtinstall (same version as macOS/Windows CI; Renovate moves them together, #211)
+ENV QT_VERSION=6.11.2
 RUN pip3 install --break-system-packages aqtinstall && \
     aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
         --modules qt5compat \
-        --archives qtbase qtimageformats qtsvg qttools qttranslations icu \
+        --archives qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu \
         --outputdir /opt/qt && \
     pip3 uninstall --break-system-packages -y aqtinstall && \
     rm -rf /root/.cache/pip

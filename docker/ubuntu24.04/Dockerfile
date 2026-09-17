@@ -15,12 +15,12 @@ RUN apt-get update -y && \
                     libxcb-xinerama0-dev libxcb-image0-dev libxcb-util-dev -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Qt 6.10.3 via aqtinstall (same version as macOS/Windows CI)
-ENV QT_VERSION=6.10.3
+# Qt via aqtinstall (same version as macOS/Windows CI; Renovate moves them together, #211)
+ENV QT_VERSION=6.11.2
 RUN pip3 install --break-system-packages aqtinstall && \
     aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
         --modules qt5compat \
-        --archives qtbase qtimageformats qtsvg qttools qttranslations icu \
+        --archives qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu \
         --outputdir /opt/qt && \
     pip3 uninstall --break-system-packages -y aqtinstall && \
     rm -rf /root/.cache/pip
@@ -30,7 +30,9 @@ ENV PATH=${Qt6_DIR}/bin:/opt/bin:$PATH
 ENV LD_LIBRARY_PATH=${Qt6_DIR}/lib
 ENV CMAKE_PREFIX_PATH=${Qt6_DIR}
 
-# CMake 3.31.11 with integrity verification
+# CMake with integrity verification; the version lives only in the ENV line
+# below, so Renovate's bump leaves no stale number behind (#211).
+# renovate: datasource=github-releases depName=Kitware/CMake
 ENV CMAKE_VERSION=3.31.11
 ENV CMAKE_SHA256=e1ddad49d24a196d3b09c6a29f49408a418a3de096fb10fbd3626aeb22d9312b
 RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh && \

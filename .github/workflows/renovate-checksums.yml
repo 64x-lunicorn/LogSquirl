@@ -1,0 +1,78 @@
+name: "Renovate Checksums"
+
+# Renovate bumps a pinned tool's version (renovate.json5) but its hosted app
+# cannot download the new release and hash it, so the SHA-256 next to the
+# version goes stale and CI fails on the mismatch. This recomputes the hash of
+# every `# renovate:` pair whose version the Renovate branch changed against
+# the pull request's base and pushes the corrected hashes back to it (#211). A
+# hash that no longer matches an unchanged version fails the run instead: that
+# is a release whose bytes changed, which nobody should wave through.
+#
+# The push uses GITHUB_TOKEN, and GitHub starts no workflow runs for such a
+# push, so CI never runs on the fixed commit by itself: close and reopen the
+# pull request to run CI Build on it (BUILD.md, "Dependency updates"). The
+# hashes are trust-on-first-use of what the download URL serves when this
+# runs; the pull request diff shows each one for review.
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: renovate-checksums-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  refresh:
+    name: Refresh checksums
+    # Renovate's own branches in this repository only: a fork's pull request
+    # never gets a writable token, and other branches keep their hashes by hand.
+    if: startsWith(github.head_ref, 'renovate/') && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    # Seventeen downloads, the largest the CMake installer (~55 MB).
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the corrected hashes to the Renovate branch
+    steps:
+      # The branch head, not the merge commit, so the fix lands on top of
+      # Renovate's commit. Full history, so the base branch is there to compare
+      # versions against.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Recompute the checksums of changed versions
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/update-checksums.py --base "origin/$BASE_REF"
+
+      # A plain (non-force) push: if Renovate has pushed again in the meantime
+      # the push fails, and the run for that newer commit does the work.
+      - name: Push corrected checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.head_ref }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Every checksum matches its version; nothing to push."
+            exit 0
+          fi
+          git diff
+          gh auth setup-git
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "ci: refresh checksums for the Renovate version bump (#211)"
+          git push origin "HEAD:refs/heads/$HEAD_REF"
+          msg="Pushed corrected checksums. GitHub starts no CI for that push: close and reopen $PR_URL to run CI Build on it."
+          echo "::warning::$msg"
+          echo "$msg" >> "$GITHUB_STEP_SUMMARY"

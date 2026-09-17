@@ -1,0 +1,30 @@
+name: "Install sentry-cli"
+description: "A pinned sentry-cli release, verified against its SHA-256, on the PATH of the following steps (#200)"
+runs:
+  using: "composite"
+  steps:
+    # sentry-cli runs with SENTRY_AUTH_TOKEN in its environment, so it is a
+    # fixed release binary checked against a known SHA-256 instead of whatever
+    # an install script piped into bash returns (#200). Renovate bumps the
+    # version and .github/workflows/renovate-checksums.yml the hash; the pin is
+    # here, not in ci-release.yml, because that workflow's GITHUB_TOKEN may not
+    # change files under .github/workflows/ (#211).
+    #
+    # GITHUB_PATH gets one fixed directory under RUNNER_TEMP, nothing a caller
+    # or an event can influence, so zizmor's github-env finding does not apply.
+    - name: Install sentry-cli
+      shell: bash
+      env:
+        # renovate: datasource=github-releases depName=getsentry/sentry-cli
+        SENTRY_CLI_VERSION: "3.8.0"
+        SENTRY_CLI_SHA256: "13f8cb34ae01a6a272d7d7c22e277a105286615b4020de900ea95a8de47cdbb6"
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        bin_dir="$RUNNER_TEMP/sentry-cli-bin"
+        mkdir -p "$bin_dir"
+        curl -fsSL --retry 3 -o "$bin_dir/sentry-cli" \
+          "https://github.com/getsentry/sentry-cli/releases/download/${SENTRY_CLI_VERSION}/sentry-cli-Linux-x86_64"
+        echo "${SENTRY_CLI_SHA256}  $bin_dir/sentry-cli" | sha256sum -c -
+        chmod 0755 "$bin_dir/sentry-cli"
+        echo "$bin_dir" >> "$GITHUB_PATH"
+        "$bin_dir/sentry-cli" --version

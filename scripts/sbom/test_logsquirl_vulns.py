@@ -1,13 +1,16 @@
 """Tests of the SBOM vulnerability scan (#213). Run: python -m pytest scripts/sbom
 
-The OSV API is replaced by a fake transport; grype's output by a hand-written
-report in grype's JSON shape. CVSS scores in the assertions are the NVD
-published base scores of those vectors."""
+The OSV and NVD APIs are replaced by fake transports; grype's output by a
+hand-written report in grype's JSON shape; Qt's advisory page by a saved copy
+(#252). CVSS scores in the assertions are the NVD published base scores of
+those vectors."""
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -16,11 +19,16 @@ import logsquirl_vulns as vs
 
 REPO = Path(__file__).resolve().parents[2]
 TODAY = dt.date(2026, 9, 16)
+# Qt's advisory page as it was on TODAY (#252).
+QT_PAGE = Path(__file__).resolve().parent / "fixtures/qt-known-vulnerabilities.html"
 
 V31_CRITICAL = "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"  # 9.8
 V31_HIGH = "CVSS:3.1/AV:L/AC:L/PR:L/UI:R/S:U/C:H/I:H/A:H"  # 7.3
 V40_CRITICAL = "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N"  # 9.3
 V2_TEN = "AV:N/AC:L/Au:N/C:C/I:C/A:C"  # 10.0, CVSS v2
+V31_LOW = "CVSS:3.1/AV:L/AC:H/PR:N/UI:N/S:U/C:N/I:L/A:N"  # 2.9
+# NVD's record of CVE-2026-15037 (accepted in vuln-ignore.yml) scores 2.9.
+V40_LOW_15037 = "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N/E:P"
 
 
 def props(**kw) -> list[dict]:
@@ -302,6 +310,20 @@ def test_sarif_points_at_the_pin_and_carries_suppressions(tmp_path):
     assert critical["partialFingerprints"] != medium["partialFingerprints"]
 
 
+@pytest.mark.parametrize("component, ref, path, pin", [
+    ("qt", "platform:qt", ".github/workflows/ci-build.yml", "qt_version:"),
+    # OpenSSL's pin moved into a composite action, where the Renovate Checksums
+    # workflow may push its hash (#211).
+    ("openssl", "platform:openssl@3.5.8", ".github/actions/windows-openssl/action.yml", "OPENSSL_VERSION:"),
+    ("boost", "platform:boost", ".github/actions/agent-setup/action.yml", "BOOST_VERSION="),
+])
+def test_sarif_of_a_platform_component_points_at_its_pin_in_the_repository(component, ref, path, pin):
+    log = vs.to_sarif([finding(ref=ref, component=component)], REPO)
+    loc = log["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
+    assert loc["artifactLocation"]["uri"] == path
+    assert pin in (REPO / path).read_text().splitlines()[loc["region"]["startLine"] - 1]
+
+
 # ── CLI ─────────────────────────────────────────────────────────────────────
 
 
@@ -317,11 +339,15 @@ def scan_inputs(tmp_path):
     return tmp_path, sbom, grype, ignore
 
 
-def run_cli(tmp_path, sbom, grype, ignore, fail_on, http=None):
+def run_cli(tmp_path, sbom, grype, ignore, fail_on, http=None, qt_page_file=QT_PAGE, nvd=None):
+    # NVD scores every Qt advisory low unless a test says otherwise, so an
+    # unscored advisory does not block the tests about something else (#252).
     sarif = tmp_path / "out/vulns.sarif"
     code = vs.main(["scan", "--sbom", str(sbom), "--grype", str(grype), "--ignore", str(ignore),
-                    "--sarif", str(sarif), "--fail-on", fail_on, "--repo-root", str(REPO)],
-                   http=http or FakeOsv({}, {}), today=TODAY)
+                    "--sarif", str(sarif), "--fail-on", fail_on, "--repo-root", str(REPO),
+                    "--qt-advisories-html", str(qt_page_file)],
+                   http=http or FakeOsv({}, {}), nvd=nvd or FakeNvd(default=V31_LOW), today=TODAY,
+                   sleep=lambda s: None)
     return code, sarif
 
 
@@ -352,3 +378,461 @@ def test_cli_tooling_errors_fail_even_when_not_gating(scan_inputs, capsys):
     ignore.write_text("ignore:\n  - {id: CVE-2026-1000, component: qt}\n")
     assert run_cli(tmp_path, sbom, grype, ignore, "none")[0] == 2
     assert "::error::" in capsys.readouterr().err
+
+
+# ── Qt advisories (#252) ────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize("text, ranges", [
+    # "to" and "through" include the upper bound, "before" excludes it
+    ("From Qt 6.0.0 to 6.8.9, From 6.9.0 to 6.11.1", ["6.0.0 to 6.8.9", "6.9.0 to 6.11.1"]),
+    ("from Qt 2.2.0 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.11.1", ["2.2.0 to 6.8.8", "6.9.0 to 6.11.1"]),
+    ("From Qt 6.7.0 before 6.8.8, from 6.9.0 before 6.11.1.", ["6.7.0 before 6.8.8", "6.9.0 before 6.11.1"]),
+    ("From Qt 4.0.0 before Qt 6.12.0", ["4.0.0 before 6.12.0"]),
+    ("from 2.2.0 to 6.8.1", ["2.2.0 to 6.8.1"]),
+    ("All version of Qt up to and including 5.15.18, from 6.0.0 through 6.5.8, from 6.6.0 through 6.8.3 and 6.9.0.",
+     ["up to 5.15.18", "6.0.0 to 6.5.8", "6.6.0 to 6.8.3", "6.9.0"]),
+    ("All versions of Qt from versions 6.3.0 through 6.5.9, from 6.6.0 through 6.8.4, 6.9.0.",
+     ["6.3.0 to 6.5.9", "6.6.0 to 6.8.4", "6.9.0"]),
+    (": Up to 5.15.18, 6.0.0 to 6.5.8, and 6.6.0 to 6.7.3.", ["up to 5.15.18", "6.0.0 to 6.5.8", "6.6.0 to 6.7.3"]),
+    ("From Qt 5.0.0 to 6.5.9 and from 6.6.0 to 6.8.3 and from 6.9.0 to 6.9.1",
+     ["5.0.0 to 6.5.9", "6.6.0 to 6.8.3", "6.9.0 to 6.9.1"]),
+    ("Qt 6.9.0", ["6.9.0"]),
+    ("Qt from 6.8.0 through 6.8.3, from 6.9.0 through 6.9.1.", ["6.8.0 to 6.8.3", "6.9.0 to 6.9.1"]),
+    # the second sentence narrows nothing the first does not already say
+    ("From 6.8.0 up to 6.8.3. Versions before 6.6.0 are known to be unaffected.", ["6.8.0 to 6.8.3"]),
+    ("before 5.15.17", ["before 5.15.17"]),
+])
+def test_affected_version_texts_are_read_as_ranges(text, ranges):
+    assert [str(r) for r in vs.parse_affected_versions(text)] == ranges
+
+
+@pytest.mark.parametrize("text", [
+    "This issue affects only the Schannel functionality on Windows if it is turned on in Qt 5.15 and from Qt 6.2 "
+    "when it is the default.",
+    "",
+    "From Qt 6.8 to 6.9",  # two-part versions leave open which patch releases are meant
+    "From 6.0.0 to 6.8.9 on Windows",
+    "6.9.x",
+])
+def test_affected_version_texts_that_say_something_else_are_unreadable(text):
+    with pytest.raises(vs.UnreadableVersions):
+        vs.parse_affected_versions(text)
+
+
+@pytest.mark.parametrize("text, inside, outside", [
+    ("From Qt 6.0.0 to 6.8.9, From 6.9.0 to 6.11.1", ["6.0.0", "6.8.9", "6.10.3", "6.11.1"],
+     ["5.15.18", "6.8.10", "6.11.2", "6.12.0"]),
+    ("From Qt 6.7.0 before 6.8.8, from 6.9.0 before 6.11.1", ["6.7.0", "6.8.7", "6.10.3"],
+     ["6.6.9", "6.8.8", "6.8.9", "6.11.1"]),
+    ("Up to 5.15.18, 6.9.0", ["0.1.0", "5.15.18", "6.9.0"], ["5.15.19", "6.0.0", "6.9.1"]),
+])
+def test_a_version_is_affected_when_any_range_holds_it(text, inside, outside):
+    ranges = vs.parse_affected_versions(text)
+    assert [v for v in inside if vs.affects(ranges, v)] == inside
+    assert [v for v in outside if vs.affects(ranges, v)] == []
+
+
+def qt_page() -> str:
+    return QT_PAGE.read_text(encoding="utf-8")
+
+
+def test_only_the_qt_framework_section_of_the_page_is_read():
+    advisories = vs.parse_qt_advisories(qt_page())
+    ids = [a.id for a in advisories]
+    assert len(ids) == 35
+    assert ids[:3] == ["CVE-2026-76151", "CVE-2026-19248", "CVE-2026-13326"]
+    assert ids[-1] == "CVE-2023-32762"
+    assert "CVE-2026-12593" not in ids  # Axivion
+    network = advisories[0]
+    assert network == vs.QtAdvisory(
+        id="CVE-2026-76151",
+        title="Out-of-bounds read (buffer over-read) vulnerability in HTTP Cache-Control response header parsing "
+              "impacts Qt Framework (QtNetwork module)",
+        module="Qt Network", affected="From Qt 6.0.0 to 6.8.9, From 6.9.0 to 6.11.1",
+        fixed=("6.8.9", "6.11.2"))
+
+
+@pytest.mark.parametrize("cve, module", [
+    ("CVE-2026-19248", "Qt XML"), ("CVE-2026-13326", "Qt NFC"), ("CVE-2026-11573", "Qt XML"),
+    ("CVE-2026-6210", "Qt SVG"), ("CVE-2025-14576", "Qt Declarative"), ("CVE-2025-4211", "Qt Core"),
+    ("CVE-2024-36048", "Qt Network Authorization"), ("CVE-2026-9499", None),
+])
+def test_the_module_is_taken_from_the_title(cve, module):
+    assert next(a for a in vs.parse_qt_advisories(qt_page()) if a.id == cve).module == module
+
+
+def test_advisories_written_as_prose_keep_their_text_and_fixed_versions():
+    advisory = next(a for a in vs.parse_qt_advisories(qt_page()) if a.id == "CVE-2024-25580")
+    assert advisory.affected.startswith("An issue was discovered in gui/util/qktxhandler.cpp in Qt before 5.15.17")
+    assert advisory.fixed == ("5.15.18", "6.2.13", "6.5.6", "6.7.0")
+
+
+def test_every_advisory_on_the_saved_page_has_version_ranges():
+    # Prose the parser cannot read is transcribed in the scanner; this fails
+    # when the saved page gains an advisory neither covers.
+    unreadable = []
+    for advisory in vs.parse_qt_advisories(qt_page()):
+        try:
+            vs.qt_advisory_ranges(advisory)
+        except vs.UnreadableVersions:
+            unreadable.append(advisory.id)
+    assert unreadable == []
+
+
+def test_a_transcription_only_applies_while_the_page_says_what_was_transcribed():
+    schannel = next(a for a in vs.parse_qt_advisories(qt_page()) if a.id == "CVE-2025-6338")
+    assert vs.affects(vs.qt_advisory_ranges(schannel), "6.8.3")
+    assert not vs.affects(vs.qt_advisory_ranges(schannel), "6.10.3")
+    edited = dataclasses.replace(schannel, affected=schannel.affected.replace("Qt 6.2", "Qt 6.1"))
+    with pytest.raises(vs.UnreadableVersions):
+        vs.qt_advisory_ranges(edited)
+
+
+@pytest.mark.parametrize("edit, message", [
+    (lambda page: page.replace('id="Qt_Framework">Qt Framework<', 'id="Qt">Qt<'), "Qt Framework"),
+    (lambda page: re.sub(r'(id="Qt_Framework">Qt Framework</span></h2>).*?(</div></div>)', r"\1\2", page,
+                         flags=re.S), "no advisories"),
+    (lambda page: page.replace("<b>Affected versions:</b>", "<b>Affects:</b>"), "Affected versions"),
+    (lambda page: page.replace('id="CVE-2026-13326">CVE-2026-13326<', 'id="Qt_NFC">Qt NFC<'), "Qt NFC"),
+    (lambda page: "<html><body>Service unavailable</body></html>", "Qt Framework"),
+])
+def test_a_changed_page_format_is_a_tooling_error(edit, message):
+    with pytest.raises(vs.VulnScanError, match=message):
+        vs.parse_qt_advisories(edit(qt_page()))
+
+
+# The advisories #251 found on the page for Qt 6.10.3, with their fixes.
+QT_6_10_3_ADVISORIES = {"CVE-2026-9499", "CVE-2026-19248", "CVE-2026-76151", "CVE-2026-6210", "CVE-2026-15037",
+                        "CVE-2026-13326"}
+
+
+def nvd_record(cve: str, *metrics: tuple[str, str, str]) -> dict:
+    """An NVD API 2.0 response for one CVE; metrics are (key, vector, NVD's
+    severity label)."""
+    by_key: dict[str, list] = {}
+    for key_, vector, label in metrics:
+        by_key.setdefault(key_, []).append({"source": "nvd@nist.gov", "type": "Primary",
+                                            "cvssData": {"vectorString": vector, "baseSeverity": label}})
+    return {"totalResults": 1, "vulnerabilities": [{"cve": {"id": cve, "metrics": by_key}}]}
+
+
+class FakeNvd:
+    """NVD answering with the given records; any other CVE it knows but has not
+    scored ("Awaiting Analysis"), or scores with the default vector."""
+
+    def __init__(self, records: dict[str, dict] | None = None, fail: bool = False, default: str | None = None):
+        self.records = records or {}
+        self.fail = fail
+        self.default = default
+        self.asked: list[str] = []
+
+    def __call__(self, cve: str) -> dict:
+        self.asked.append(cve)
+        if self.fail:
+            raise OSError("HTTP 503")
+        if cve in self.records:
+            return self.records[cve]
+        if self.default:
+            return nvd_record(cve, ("cvssMetricV31", self.default, "LOW"))
+        return {"totalResults": 1, "vulnerabilities": [{"cve": {"id": cve, "vulnStatus": "Awaiting Analysis",
+                                                                "metrics": {}}}]}
+
+
+def qt_bom(*versions: str) -> dict:
+    doc = bom()
+    doc["components"] = [c for c in doc["components"] if c["name"] != "qt"] + [
+        {"bom-ref": f"platform:qt@{v}", "name": "qt", "version": v, "scope": "required",
+         "purl": f"pkg:generic/qt@{v}", "properties": props(source="platform")} for v in versions]
+    return doc
+
+
+def scan_qt(doc: dict, page: str | None = None, nvd: FakeNvd | None = None, nvd_required: bool = False):
+    return vs.scan_qt_advisories(doc, qt_page() if page is None else page, nvd or FakeNvd(), sleep=lambda s: None,
+                                 nvd_required=nvd_required)
+
+
+def test_qt_6_10_3_is_affected_by_the_advisories_of_the_page():
+    findings, warnings = scan_qt(qt_bom("6.10.3"))
+    assert {f.id for f in findings} == QT_6_10_3_ADVISORIES
+    assert warnings == []
+    xml = next(f for f in findings if f.id == "CVE-2026-19248")
+    assert (xml.ref, xml.component, xml.version, xml.sources) == ("platform:qt@6.10.3", "qt", "6.10.3",
+                                                                  {"qt-advisories"})
+    assert xml.affected == "2.2.0 to 6.8.8, 6.9.0 to 6.11.1"
+    assert xml.fixed == ("6.8.9", "6.11.2")
+    assert xml.summary == "Qt XML: Unbounded recursion vulnerability in the QDomNode destructor of Qt XML impacts Qt"
+
+
+@pytest.mark.parametrize("version, expected", [
+    ("6.11.2", {"CVE-2026-15037"}),  # fixed only in 6.12.0
+    ("6.12.0", set()),
+    ("6.9.0", {"CVE-2026-76151", "CVE-2026-19248", "CVE-2026-13326", "CVE-2026-15037", "CVE-2026-9499",
+               "CVE-2026-6210", "CVE-2025-14575", "CVE-2025-12385", "CVE-2025-10729", "CVE-2025-10728",
+               "CVE-2025-6338", "CVE-2025-5992", "CVE-2025-5991", "CVE-2025-5683", "CVE-2025-5455"}),
+])
+def test_only_advisories_whose_ranges_hold_the_version_are_reported(version, expected):
+    assert {f.id for f in scan_qt(qt_bom(version))[0]} == expected
+
+
+def test_a_bom_without_qt_asks_neither_the_page_nor_nvd():
+    doc = bom()
+    doc["components"] = [c for c in doc["components"] if c["name"] != "qt"]
+    nvd = FakeNvd()
+    assert scan_qt(doc, page="not even html", nvd=nvd) == ([], [])
+    assert nvd.asked == []
+
+
+def test_severity_comes_from_nvd_once_per_cve():
+    nvd = FakeNvd({"CVE-2026-19248": nvd_record("CVE-2026-19248", ("cvssMetricV31", V31_HIGH, "HIGH"),
+                                                ("cvssMetricV40", V40_CRITICAL, "CRITICAL"))})
+    findings, warnings = scan_qt(qt_bom("6.10.3", "6.10.2"), nvd=nvd)
+    xml = [f for f in findings if f.id == "CVE-2026-19248"]
+    assert [(f.version, f.severity, f.score) for f in xml] == [("6.10.3", "CRITICAL", 9.3),
+                                                               ("6.10.2", "CRITICAL", 9.3)]
+    assert next(f for f in findings if f.id == "CVE-2026-9499").severity == "UNSCORED"  # NVD has not scored it
+    assert sorted(nvd.asked) == sorted(set(nvd.asked))
+    assert warnings == []
+
+
+def test_nvd_being_unreachable_leaves_the_severity_unknown_when_not_gating():
+    findings, warnings = scan_qt(qt_bom("6.10.3"), nvd=FakeNvd(fail=True))
+    assert {f.id for f in findings} == QT_6_10_3_ADVISORIES
+    assert {f.severity for f in findings} == {"UNKNOWN"}
+    assert len(warnings) == 1 and "NVD" in warnings[0] and "HTTP 503" in warnings[0]
+
+
+def test_nvd_being_unreachable_when_gating_is_a_tooling_error():
+    # Without NVD's score a critical Qt CVE would pass the release as unknown.
+    with pytest.raises(vs.VulnScanError, match=r"NVD.*CVE-2026-.*HTTP 503"):
+        scan_qt(qt_bom("6.10.3"), nvd=FakeNvd(fail=True), nvd_required=True)
+
+
+def test_a_qt_advisory_nvd_has_not_scored_is_unscored():
+    findings, warnings = scan_qt(qt_bom("6.11.2"), nvd=FakeNvd(), nvd_required=True)
+    assert [(f.id, f.severity, f.score) for f in findings] == [("CVE-2026-15037", "UNSCORED", None)]
+    assert warnings == []
+
+
+def test_unscored_findings_block_when_gating_unless_ignored():
+    unscored = finding(ref="platform:qt", component="qt", id="CVE-2026-15037", severity="UNSCORED", score=None)
+    assert vs.blocking([unscored], "critical") == [unscored]
+    assert vs.blocking([unscored], "none") == []
+    assert vs.blocking([dataclasses.replace(unscored, suppressed="assessed: not reachable")], "critical") == []
+
+
+def test_a_score_from_another_source_replaces_unscored():
+    unscored = finding(ref="platform:qt", component="qt", id="CVE-2026-6210", severity="UNSCORED", score=None,
+                       sources=frozenset({"qt-advisories"}))
+    scored = finding(ref="platform:qt", component="qt", id="CVE-2026-6210", severity="LOW", score=2.9,
+                     sources=frozenset({"grype"}))
+    unknown = dataclasses.replace(scored, severity="UNKNOWN", score=None)
+    assert [f.severity for f in vs.merge_findings([unscored, scored])] == ["LOW"]
+    assert [f.severity for f in vs.merge_findings([unknown, unscored])] == ["UNSCORED"]
+
+
+class FakeResponse:
+    def __init__(self, body: bytes):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self) -> bytes:
+        return self.body
+
+
+def http_error(code: int, retry_after: str | None = None) -> vs.urllib.error.HTTPError:
+    import email.message
+    headers = email.message.Message()
+    if retry_after is not None:
+        headers["Retry-After"] = retry_after
+    return vs.urllib.error.HTTPError(vs.NVD_API, code, "error", headers, None)
+
+
+def fake_urlopen(monkeypatch, outcomes: list):
+    slept: list[float] = []
+    monkeypatch.setattr(vs.time, "sleep", slept.append)
+
+    def urlopen(request, timeout):
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return FakeResponse(outcome)
+
+    monkeypatch.setattr(vs.urllib.request, "urlopen", urlopen)
+    return slept
+
+
+def test_nvd_requests_are_retried_on_rate_limits_server_errors_and_timeouts(monkeypatch):
+    # NVD answers an exhausted rate limit with 403 or 429 (#252).
+    record = nvd_record("CVE-2026-15037", ("cvssMetricV40", V40_LOW_15037, "LOW"))
+    slept = fake_urlopen(monkeypatch, [http_error(403), http_error(429, retry_after="17"), http_error(503),
+                                       TimeoutError("read timed out"), json.dumps(record).encode()])
+    assert vs.urllib_nvd("CVE-2026-15037") == record
+    assert slept[1] == 17.0  # Retry-After is honoured
+    assert len(slept) == 4 and all(s > 0 for s in slept)
+
+
+@pytest.mark.parametrize("key, header", [("secret-key", "secret-key"), ("", None)])
+def test_the_nvd_api_key_is_sent_only_when_the_secret_is_set(monkeypatch, key, header):
+    # The workflows pass secrets.NVD_API_KEY, which is empty where the
+    # repository has no such secret (#252).
+    monkeypatch.setenv("NVD_API_KEY", key)
+    requests = []
+
+    def urlopen(request, timeout):
+        requests.append(request)
+        return FakeResponse(b"{}")
+
+    monkeypatch.setattr(vs.urllib.request, "urlopen", urlopen)
+    vs.urllib_nvd("CVE-2026-15037")
+    assert requests[0].get_header("Apikey") == header
+
+
+def test_nvd_requests_give_up_after_a_few_attempts(monkeypatch):
+    fake_urlopen(monkeypatch, [http_error(429)] * 10)
+    with pytest.raises(OSError, match="HTTP 429"):
+        vs.urllib_nvd("CVE-2026-15037")
+
+
+def test_an_nvd_request_that_is_refused_for_good_is_not_retried(monkeypatch):
+    slept = fake_urlopen(monkeypatch, [http_error(404)])
+    with pytest.raises(OSError, match="HTTP 404"):
+        vs.urllib_nvd("CVE-2026-15037")
+    assert slept == []
+
+
+def test_an_advisory_whose_versions_cannot_be_read_is_reported_unconfirmed():
+    page = qt_page().replace("From Qt 4.0.0 to 6.8.7, from 6.9.0 to 6.11.0.", "Qt 6 on Windows")
+    findings, warnings = scan_qt(qt_bom("6.12.0"), page=page)
+    assert [(f.id, f.severity, f.affected) for f in findings] == [("CVE-2026-9499", "UNKNOWN", "Qt 6 on Windows")]
+    assert "cannot read" in findings[0].unconfirmed
+    assert warnings == ["Qt advisory CVE-2026-9499: cannot read the affected versions 'Qt 6 on Windows' "
+                        f"({vs.QT_ADVISORIES_URL}); check whether qt 6.12.0 is affected and teach the scanner "
+                        "the wording"]
+    assert vs.blocking([dataclasses.replace(findings[0], severity="CRITICAL")], "critical") == []
+
+
+def test_a_qt_advisory_grype_also_found_is_one_finding():
+    grype = vs.grype_findings(qt_bom("6.10.3"), {"matches": [
+        grype_match("platform:qt@6.10.3", "qt", "6.10.3", "CVE-2026-6210", "High", [(V31_HIGH, 7.3)])]})
+    merged = vs.merge_findings(grype + scan_qt(qt_bom("6.10.3"))[0])
+    svg = [f for f in merged if f.id == "CVE-2026-6210"]
+    assert [(f.sources, f.severity, f.affected, f.fixed) for f in svg] == [
+        ({"grype", "qt-advisories"}, "HIGH", "6.7.0 before 6.8.8, 6.9.0 before 6.11.1", ("6.8.8", "6.11.1"))]
+
+
+def test_sarif_of_a_qt_advisory_names_the_affected_and_fixed_versions(tmp_path):
+    log = vs.to_sarif([
+        finding(id="CVE-2026-19248", ref="platform:qt", component="qt", version="6.10.3", severity="UNKNOWN",
+                score=None, sources=frozenset({"qt-advisories"}), affected="2.2.0 to 6.8.8, 6.9.0 to 6.11.1",
+                fixed=("6.8.9", "6.11.2")),
+        finding(id="CVE-2026-9499", ref="platform:qt", component="qt", version="6.10.3", severity="UNKNOWN",
+                score=None, sources=frozenset({"qt-advisories"}), affected="Qt 6 on Windows",
+                unconfirmed="Qt's advisory page gives affected versions the scanner cannot read"),
+    ], tmp_path)
+    xml, codec = log["runs"][0]["results"]
+    assert xml["level"] == "warning"
+    assert xml["message"]["text"] == ("qt 6.10.3 is affected by CVE-2026-19248, severity unknown, found by "
+                                      "qt-advisories. Affected: 2.2.0 to 6.8.8, 6.9.0 to 6.11.1; fixed in 6.8.9, "
+                                      "6.11.2.")
+    assert codec["level"] == "note"
+    assert codec["message"]["text"] == ("qt 6.10.3 may be affected by CVE-2026-9499, severity unknown, found by "
+                                        "qt-advisories. Affected: Qt 6 on Windows. Unconfirmed: Qt's advisory page "
+                                        "gives affected versions the scanner cannot read.")
+
+
+def test_cli_reports_the_qt_advisories_of_the_sboms_qt(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    grype.write_text(json.dumps({"matches": []}))
+    code, sarif = run_cli(tmp_path, sbom, grype, ignore, "critical")
+    assert code == 0
+    assert {r["ruleId"] for r in json.loads(sarif.read_text())["runs"][0]["results"]} == QT_6_10_3_ADVISORIES
+    assert "| LOW | qt 6.10.3 | CVE-2026-15037 | 2.9 | qt-advisories |" in capsys.readouterr().out
+
+
+def test_cli_blocks_on_an_unscored_qt_advisory_when_gating(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    grype.write_text(json.dumps({"matches": []}))
+    code, sarif = run_cli(tmp_path, sbom, grype, ignore, "critical", nvd=FakeNvd())
+    assert code == 1
+    out, err = capsys.readouterr()
+    assert "| UNSCORED | qt 6.10.3 | CVE-2026-15037 | - | qt-advisories |" in out
+    assert "::error::qt 6.10.3: CVE-2026-15037 has no CVSS score in NVD yet" in out
+    assert "assess it and record the decision in scripts/sbom/vuln-ignore.yml" in out
+    result = next(r for r in json.loads(sarif.read_text())["runs"][0]["results"] if r["ruleId"] == "CVE-2026-15037")
+    assert "severity unscored" in result["message"]["text"]
+
+
+def test_cli_passes_an_unscored_qt_advisory_the_ignore_file_accepts(scan_inputs):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    grype.write_text(json.dumps({"matches": []}))
+    ignore.write_text("ignore:\n" + "".join(
+        f"  - {{id: {cve}, component: qt, reason: assessed, expires: 2026-10-01}}\n" for cve in QT_6_10_3_ADVISORIES))
+    assert run_cli(tmp_path, sbom, grype, ignore, "critical", nvd=FakeNvd())[0] == 0
+
+
+def test_cli_only_warns_about_unscored_qt_advisories_when_not_gating(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    assert run_cli(tmp_path, sbom, grype, ignore, "none", nvd=FakeNvd())[0] == 0
+    assert "::warning::qt 6.10.3: CVE-2026-15037 has no CVSS score in NVD yet" in capsys.readouterr().out
+
+
+def test_cli_fails_as_a_tooling_error_when_nvd_is_unreachable_while_gating(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    assert run_cli(tmp_path, sbom, grype, ignore, "critical", nvd=FakeNvd(fail=True))[0] == 2
+    assert "::error::NVD" in capsys.readouterr().err
+
+
+def test_the_accepted_qt_6_11_2_advisory_passes_the_release_gate(tmp_path, capsys):
+    # CVE-2026-15037 is fixed only in Qt 6.12; NVD scores it 2.9 and the
+    # repository's ignore file accepts it (#251, #252).
+    sbom = tmp_path / "sbom.json"
+    sbom.write_text(json.dumps(qt_bom("6.11.2")))
+    grype = tmp_path / "grype.json"
+    grype.write_text(json.dumps({"matches": []}))
+    nvd = FakeNvd({"CVE-2026-15037": nvd_record("CVE-2026-15037", ("cvssMetricV40", V40_LOW_15037, "LOW"))})
+    code, _ = run_cli(tmp_path, sbom, grype, REPO / "scripts/sbom/vuln-ignore.yml", "critical", nvd=nvd)
+    assert code == 0
+    assert "| LOW | qt 6.11.2 | CVE-2026-15037 | 2.9 | qt-advisories | Fixed only in Qt 6.12.0" in capsys.readouterr().out
+
+
+def test_cli_fetches_the_qt_advisory_page_when_none_is_given(scan_inputs):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    fetched = []
+
+    def fetch(url):
+        fetched.append(url)
+        return qt_page()
+
+    code = vs.main(["scan", "--sbom", str(sbom), "--grype", str(grype), "--ignore", str(ignore),
+                    "--sarif", str(tmp_path / "out.sarif"), "--fail-on", "none"],
+                   http=FakeOsv({}, {}), nvd=FakeNvd(), fetch_page=fetch, today=TODAY, sleep=lambda s: None)
+    assert (code, fetched) == (0, [vs.QT_ADVISORIES_URL])
+
+
+def test_cli_fails_as_a_tooling_error_when_the_qt_page_cannot_be_read(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    changed = tmp_path / "page.html"
+    changed.write_text(qt_page().replace('id="Qt_Framework">Qt Framework<', 'id="Qt">Qt<'))
+    assert run_cli(tmp_path, sbom, grype, ignore, "none", qt_page_file=changed)[0] == 2
+    assert "::error::Qt advisory page: no 'Qt Framework' section" in capsys.readouterr().err
+
+    def unreachable(url):
+        raise OSError("HTTP 503")
+
+    code = vs.main(["scan", "--sbom", str(sbom), "--grype", str(grype), "--ignore", str(ignore),
+                    "--sarif", str(tmp_path / "out.sarif"), "--fail-on", "none"],
+                   http=FakeOsv({}, {}), nvd=FakeNvd(), fetch_page=unreachable, today=TODAY, sleep=lambda s: None)
+    assert code == 2
+    assert "Qt advisory page" in capsys.readouterr().err
+
+
+def test_cli_warns_when_nvd_cannot_rate_the_qt_advisories(scan_inputs, capsys):
+    tmp_path, sbom, grype, ignore = scan_inputs
+    assert run_cli(tmp_path, sbom, grype, ignore, "none", nvd=FakeNvd(fail=True))[0] == 0
+    assert "::warning::NVD severity unavailable" in capsys.readouterr().out

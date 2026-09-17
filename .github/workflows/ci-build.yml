@@ -85,8 +85,9 @@ jobs:
 
   # -----------------------------------------------------------------------
   # Format — clang-format dry-run over project-owned C++ sources. No Qt,
-  # no build; just checks the tree matches .clang-format (#120) and that
-  # every action is pinned to a commit SHA (#202).
+  # no build; just checks the tree matches .clang-format (#120), that
+  # every action is pinned to a commit SHA (#202) and that the Renovate
+  # config and its checksum pairs are sound (#211).
   # -----------------------------------------------------------------------
   Format:
     name: Format
@@ -109,7 +110,10 @@ jobs:
       # Pinned to major version 23: the project's .clang-format sets
       # `Standard: c++23`, an enum value only clang-format >= 23 recognizes.
       - name: Install clang-format
-        run: pip install clang-format==23.1.1
+        env:
+          # renovate: datasource=pypi depName=clang-format
+          CLANG_FORMAT_VERSION: 23.1.1
+        run: pip install "clang-format==$CLANG_FORMAT_VERSION"
 
       - name: Check formatting
         run: |
@@ -123,6 +127,28 @@ jobs:
             fi
           done < <(git ls-files -- '*.cpp' '*.h' '*.hpp' | grep -vE '^(3rdparty/|cpm_cache/|website/)')
           exit $exit_code
+
+      # Every `# renovate:` version with a SHA-256 below it needs a download
+      # URL rule in the script, or a Renovate bump would leave the hash stale
+      # with nothing to refresh it; a SHA-256 without the comment would never
+      # be bumped at all (#211). Parsing only, no network.
+      - name: Check Renovate checksum pairs
+        run: python .github/scripts/update-checksums.py --list
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+
+      # An invalid renovate.json5 makes the Renovate app stop and only say so
+      # on its Dependency Dashboard issue; fail the pull request instead (#211).
+      - name: Validate the Renovate config
+        env:
+          # renovate: datasource=npm depName=renovate
+          RENOVATE_VERSION: 44.94.1
+        # Without a file argument it finds renovate.json5 and checks it as a
+        # repository config, which is what the app reads; with one it would be
+        # checked as a self-hosted global config.
+        run: npx --yes --package "renovate@$RENOVATE_VERSION" renovate-config-validator --strict
 
   # -----------------------------------------------------------------------
   # SBOM — the source part of the release SBOM (#212): every CPM package and
@@ -153,6 +179,12 @@ jobs:
 
       - name: Test the SBOM generator
         run: python -m pytest scripts/sbom -p no:cacheprovider
+
+      # The Renovate checksum updater (#211) and the action allowlist check
+      # (#201); they share only pytest with the SBOM tooling, which this job
+      # already installs.
+      - name: Test the CI scripts
+        run: python -m pytest .github/scripts -p no:cacheprovider
 
       - uses: ./.github/actions/logsquirl-version
 
@@ -394,7 +426,7 @@ jobs:
         config:
           - os: macos
             runner: macos-26
-            qt_version: 6.10.3
+            qt_version: 6.11.2
             qt_arch: clang_64
             qt_modules: qt5compat
             arch: arm64
@@ -466,7 +498,7 @@ jobs:
         config:
           - os: windows
             runner: windows-2025
-            qt_version: 6.10.3
+            qt_version: 6.11.2
             qt_modules: qt5compat
             qt_arch: win64_msvc2022_64
             arch: x64
@@ -478,67 +510,14 @@ jobs:
     # Slowest successful run 38 min (cold sccache), median 22 min, before #217's
     # per-case test processes; #199's changed cache keys start it cold (#218).
     timeout-minutes: 90
-    env:
-      # One place per shipped dependency, so a bump is one edit (#199).
-      # renovate: datasource=github-tags depName=openssl/openssl extractVersion=^openssl-(?<version>.*)$
-      OPENSSL_VERSION: 3.5.8
-      OPENSSL_SHA256: a5377866b476c1661f329d3f25fc35912fa5ef01e614043b9b9a27baf8dd76a4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      # The OpenSSL DLLs are shipped with the Windows package, so their version
-      # is pinned above, verified against a SHA-256 and part of the cache key:
-      # bumping OPENSSL_VERSION invalidates the cache (#199). Chocolatey cannot
-      # pin it: its package points at slproweb.com, which deletes every
-      # superseded patch release, so an older --version 404s on a cold cache.
-      # FireDaemon keeps every release online at a stable URL and ships a plain
-      # zip whose DLLs need only the UCRT. The 3.5 line is OpenSSL's LTS.
-      - name: Cache openssl
-        id: cache-openssl
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ github.workspace }}\openssl-3
-          key: OpensslCache-${{ env.OPENSSL_VERSION }}-firedaemon-x64
-
-      - name: Install openssl
-        if: ${{ steps.cache-openssl.outputs.cache-hit != 'true' }}
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $zip = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION.zip"
-          Invoke-WebRequest -Uri "https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-$env:OPENSSL_VERSION.zip" -OutFile $zip -MaximumRetryCount 3 -RetryIntervalSec 5
-          $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
-          if ($actual -ne $env:OPENSSL_SHA256) {
-            Write-Host "::error::openssl-$env:OPENSSL_VERSION.zip SHA-256 mismatch: expected $env:OPENSSL_SHA256, got $actual"
-            exit 1
-          }
-          $src = Join-Path $env:RUNNER_TEMP "openssl-$env:OPENSSL_VERSION"
-          Expand-Archive -Path $zip -DestinationPath $src -Force
-          $dst = "${{ github.workspace }}\openssl-3\x64\bin"
-          New-Item -ItemType Directory -Force -Path $dst | Out-Null
-          Copy-Item "$src\x64\bin\libcrypto-3-x64.dll", "$src\x64\bin\libssl-3-x64.dll" $dst
-
-      # Runs on cache hits too, so every log states which OpenSSL gets shipped
-      # and a cache holding another version fails instead of shipping it (#199).
-      - name: Print shipped openssl version
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $dlls = @(Get-ChildItem "${{ github.workspace }}\openssl-3\x64\bin\lib*-3-x64.dll")
-          if ($dlls.Count -ne 2) {
-            Write-Host "::error::expected libcrypto and libssl, found: $($dlls.Name -join ', ')"
-            exit 1
-          }
-          foreach ($dll in $dlls) {
-            $version = $dll.VersionInfo.ProductVersion
-            Write-Host "$($dll.Name): OpenSSL $version"
-            if ($version -ne $env:OPENSSL_VERSION) {
-              Write-Host "::error::$($dll.Name) is OpenSSL $version, expected $env:OPENSSL_VERSION"
-              exit 1
-            }
-          }
+      # The OpenSSL the Windows package ships: pinned version and SHA-256,
+      # cached per version (#199).
+      - uses: ./.github/actions/windows-openssl
 
       - name: Set openssl paths
         shell: sh

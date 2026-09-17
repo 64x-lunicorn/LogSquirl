@@ -1,4 +1,9 @@
 version: 2
+# Renovate (renovate.json5, #211) covers what Dependabot cannot read: the CPM
+# packages in 3rdparty/CMakeLists.txt and the tool versions pinned in
+# workflows, composite actions, Dockerfile ENV lines and scripts. It runs only
+# its custom regex managers, so no dependency below is proposed by both.
+#
 # Every entry has a cooldown: a release is only proposed once it is a week
 # old, so a compromised or broken version is usually yanked before it reaches
 # a pull request. Security updates ignore the cooldown (#204).

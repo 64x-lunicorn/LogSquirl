@@ -1,5 +1,5 @@
 name: "Scan an SBOM for known vulnerabilities"
-description: "grype for the CPE-bearing components, OSV for the CPM packages; writes SARIF and gates on critical findings (#213)"
+description: "grype for the CPE-bearing components, OSV for the CPM packages, Qt's own advisories for Qt; writes SARIF and gates on critical findings (#213, #252)"
 inputs:
   sbom:
     description: "CycloneDX JSON SBOM from scripts/sbom/logsquirl_sbom.py, relative to the workspace"
@@ -10,6 +10,10 @@ inputs:
   fail-on:
     description: "'critical' fails the step on a critical finding that vuln-ignore.yml does not cover; 'none' only reports"
     required: true
+  nvd-api-key:
+    description: "Optional NVD API key (secrets.NVD_API_KEY); raises NVD's rate limit for the Qt advisory severities. Empty: unkeyed requests"
+    required: false
+    default: ""
 runs:
   using: "composite"
   steps:
@@ -48,12 +52,19 @@ runs:
         GRYPE_DB_CACHE_DIR="$RUNNER_TEMP/grype-db" "$RUNNER_TEMP/grype-bin/grype" "sbom:$SBOM" \
           --output json --file "$RUNNER_TEMP/grype.json"
 
-    - name: Query OSV, apply the ignore file and gate
+    # The scanner also reads Qt's advisory page and asks NVD for the severity
+    # of the Qt advisories it matches (#252); without an NVD API key that is
+    # one request every 6.5 seconds per matched CVE. With fail-on critical, NVD
+    # being unreachable fails the step and an unscored advisory blocks.
+    - name: Query OSV and Qt's advisories, apply the ignore file and gate
       shell: bash
       env:
         SBOM: ${{ inputs.sbom }}
         SARIF: ${{ inputs.sarif }}
         FAIL_ON: ${{ inputs.fail-on }}
+        # Empty when the secret is not set; the scanner then uses NVD's
+        # unkeyed rate limit (#252).
+        NVD_API_KEY: ${{ inputs.nvd-api-key }}
       run: |
         set -euo pipefail
         python scripts/sbom/logsquirl_vulns.py scan --sbom "$SBOM" --grype "$RUNNER_TEMP/grype.json" \

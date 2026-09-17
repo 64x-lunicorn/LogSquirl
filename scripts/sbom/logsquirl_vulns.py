@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Known vulnerabilities in the components of a LogSquirl SBOM (#213).
 
-Two sources, because neither covers the whole SBOM:
+Three sources, because none covers the whole SBOM:
 
 grype (run by the workflow, its JSON report passed in with ``--grype``)
     matches the components that carry a CPE against NVD and the other grype
@@ -18,14 +18,27 @@ OSV (queried here, https://api.osv.dev)
     commits OSV has not resolved. osv-scanner itself is not used: it only
     queries purls of package ecosystems, which the CPM packages do not have.
 
-Findings of both are merged per component, matched against the versioned
+Qt's advisories (read here, https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products)
+    cover Qt itself (#252): NVD, and so grype, lacks the recent Qt CVEs as
+    upstream Qt version ranges, and OSV has no Qt entries. The "Qt Framework"
+    section of the page is matched against the SBOM's Qt versions; NVD
+    (``NVD_API_KEY`` raises its rate limit) supplies the severity. A page the
+    scanner can no longer read is a tooling error; a single advisory whose
+    affected versions it cannot read is reported as unconfirmed. When gating,
+    NVD being unreachable for a matched advisory is a tooling error too, and an
+    advisory NVD has not scored yet is "unscored" and blocks until the ignore
+    file records a decision: either would otherwise let a critical Qt CVE pass
+    as unknown.
+
+Findings of all three are merged per component, matched against the versioned
 ignore file (id, component, reason, expiry), written as one SARIF run for code
 scanning and, with ``--fail-on critical``, fail the scan when a critical
 finding is not ignored.
 
 Exit codes: 0 no blocking finding, 1 blocking findings, 2 the scan itself
-failed (OSV unreachable, unreadable input, invalid ignore file), so a report
-never looks clean because a source was missing.
+failed (OSV or Qt's advisory page unreachable, NVD unreachable while gating, a
+changed page format, unreadable input, invalid ignore file), so a report never
+looks clean because a source was missing.
 """
 
 from __future__ import annotations
@@ -34,20 +47,26 @@ import argparse
 import dataclasses
 import datetime as _dt
 import hashlib
+import html.parser
 import json
 import os
 import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
 OSV_API = "https://api.osv.dev"
+QT_ADVISORIES_URL = "https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products"
+NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 PROP = "logsquirl:"
-# Ordered from worst to least severe.
-SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNKNOWN")
+# Ordered from worst to least severe. UNSCORED: NVD knows the CVE of a matched
+# Qt advisory but has no CVSS score for it yet (#252); any score another
+# source gives wins over it, and it wins over a source that says nothing.
+SEVERITIES = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "UNSCORED", "UNKNOWN")
 CRITICAL_SCORE = 9.0
 OSV_BATCH_SIZE = 1000  # querybatch limit
 
@@ -68,8 +87,14 @@ class Finding:
     severity: str  # one of SEVERITIES
     score: float | None  # highest CVSS v3/v4 base score
     summary: str
-    sources: frozenset[str]  # osv, grype
+    sources: frozenset[str]  # osv, grype, qt-advisories
     suppressed: str | None = None  # reason from the ignore file
+    # What the advisory says, where the source states it (Qt's advisories).
+    affected: str = ""
+    fixed: tuple[str, ...] = ()
+    # Why the finding may not apply: its source could not say whether the
+    # version is affected. Reported, but never blocks (#252).
+    unconfirmed: str | None = None
 
 
 # ── SBOM ────────────────────────────────────────────────────────────────────
@@ -159,24 +184,62 @@ def _first_sentence(text: str) -> str:
     return m.group(1) if m else text[:200]
 
 
-def urllib_http(method: str, url: str, body: dict | None) -> dict:
-    """OSV transport: JSON over HTTPS, retried with backoff on transient errors."""
-    data = json.dumps(body).encode() if body is not None else None
-    for attempt in range(4):
+MAX_RETRY_AFTER = 120.0
+
+
+def _retry_after(error: urllib.error.HTTPError) -> float | None:
+    """The delay a Retry-After header in seconds asks for, capped; None
+    without one (or in its HTTP-date form, which the APIs here do not send)."""
+    value = (error.headers or {}).get("Retry-After", "")
+    try:
+        return min(max(float(value), 0.0), MAX_RETRY_AFTER)
+    except ValueError:
+        return None
+
+
+def _fetch(method: str, url: str, data: bytes | None = None, headers: dict[str, str] | None = None,
+           attempts: int = 4, retry_statuses: Callable[[int], bool] = lambda code: code >= 500 or code == 429,
+           backoff: float = 5.0, honour_retry_after: bool = False) -> bytes:
+    """HTTPS request retried with exponential backoff on transient errors."""
+    for attempt in range(attempts):
         request = urllib.request.Request(url, data=data, method=method,
-                                         headers={"Content-Type": "application/json",
-                                                  "User-Agent": "logsquirl-vuln-scan (#213)"})
+                                         headers={"User-Agent": "logsquirl-vuln-scan (#213)"} | (headers or {}))
+        delay = 2 ** attempt * backoff
         try:
             with urllib.request.urlopen(request, timeout=60) as response:
-                return json.load(response)
+                return response.read()
         except urllib.error.HTTPError as e:
-            if e.code < 500 and e.code != 429 or attempt == 3:
+            if not retry_statuses(e.code) or attempt == attempts - 1:
                 raise OSError(f"{method} {url}: HTTP {e.code}") from e
+            if honour_retry_after and (wait := _retry_after(e)) is not None:
+                delay = wait
         except (urllib.error.URLError, TimeoutError):
-            if attempt == 3:
+            if attempt == attempts - 1:
                 raise
-        time.sleep(2 ** attempt * 5)
+        time.sleep(delay)
     raise AssertionError("unreachable")
+
+
+def urllib_http(method: str, url: str, body: dict | None) -> dict:
+    """OSV transport: JSON over HTTPS."""
+    data = json.dumps(body).encode() if body is not None else None
+    return json.loads(_fetch(method, url, data, {"Content-Type": "application/json"}))
+
+
+def urllib_page(url: str) -> str:
+    return _fetch("GET", url).decode("utf-8")
+
+
+def urllib_nvd(cve: str) -> dict:
+    """One CVE from the NVD API 2.0. NVD answers an exhausted rate limit with
+    403 or 429 and is often slow, and the release gate needs its score (#252),
+    so those are retried as long as a rolling rate-limit window lasts: 6.5, 13,
+    26 and 52 seconds, or what Retry-After asks for."""
+    key = os.environ.get("NVD_API_KEY")  # empty when the workflow secret is not set
+    return json.loads(_fetch("GET", f"{NVD_API}?cveId={urllib.parse.quote(cve)}",
+                             headers={"apiKey": key} if key else None, attempts=5,
+                             retry_statuses=lambda code: code >= 500 or code in (403, 429),
+                             backoff=NVD_INTERVAL, honour_retry_after=True))
 
 
 # ── severity ────────────────────────────────────────────────────────────────
@@ -248,6 +311,327 @@ def grype_findings(bom: dict, report: dict) -> list[Finding]:
     return merge_findings(findings)
 
 
+# ── Qt advisories ───────────────────────────────────────────────────────────
+
+
+class UnreadableVersions(ValueError):
+    """An affected-versions text that says more, or something else, than
+    version ranges; guessing at it could miss an affected version (#252)."""
+
+
+Version = tuple[int, ...]
+
+
+def _version(text: str) -> Version:
+    return tuple(int(part) for part in text.split("."))
+
+
+@dataclasses.dataclass(frozen=True)
+class VersionRange:
+    low: Version | None  # None: every earlier version
+    high: Version
+    high_included: bool
+
+    def __contains__(self, version: Version) -> bool:
+        if self.low is not None and version < self.low:
+            return False
+        return version <= self.high if self.high_included else version < self.high
+
+    def __str__(self) -> str:
+        high = ".".join(map(str, self.high))
+        if self.low == self.high and self.high_included:
+            return high
+        if self.low is None:
+            return f"{'up to' if self.high_included else 'before'} {high}"
+        return f"{'.'.join(map(str, self.low))} {'to' if self.high_included else 'before'} {high}"
+
+
+_V = r"(\d+\.\d+\.\d+)"
+_RANGE_FORMS = [
+    (re.compile(rf"(?:from )?{_V} (?:to|through) {_V}"), lambda a, b: VersionRange(_version(a), _version(b), True)),
+    (re.compile(rf"(?:from )?{_V} before {_V}"), lambda a, b: VersionRange(_version(a), _version(b), False)),
+    (re.compile(rf"through {_V}"), lambda b: VersionRange(None, _version(b), True)),
+    (re.compile(rf"before {_V}"), lambda b: VersionRange(None, _version(b), False)),
+    (re.compile(_V), lambda a: VersionRange(_version(a), _version(a), True)),
+]
+
+
+def parse_affected_versions(text: str) -> tuple[VersionRange, ...]:
+    """The version ranges of an "Affected versions:" text on Qt's advisory
+    page, which is written by hand: "From Qt 6.0.0 to 6.8.9, from 6.9.0 before
+    6.11.1", "All version of Qt up to and including 5.15.18, ... and 6.9.0",
+    "Qt 6.9.0". "to", "through" and "up to" include the version they name,
+    "before" excludes it. Anything else in the text makes it unreadable as a
+    whole: a partly read text could leave out the range LogSquirl's Qt is in."""
+    t = " ".join(text.lower().split())
+    # A statement about versions outside the ranges adds none.
+    t = re.sub(rf"\bversions? before {_V} (?:are|is) known to be unaffected\.?", "", t)
+    t = t.replace("up to and including", "through").replace("up to", "through")
+    t = re.sub(r"\b(?:all|versions?|of|qt)\b", " ", t)
+    t = " ".join(t.strip(" :.").split())
+    ranges = []
+    for clause in re.split(r",|\band\b", t):
+        clause = clause.strip()
+        if not clause:
+            continue
+        form = next(((m, make) for pattern, make in _RANGE_FORMS if (m := pattern.fullmatch(clause))), None)
+        if form is None:
+            raise UnreadableVersions(f"cannot read {clause!r} as a version range")
+        m, make = form
+        ranges.append(make(*m.groups()))
+    if not ranges:
+        raise UnreadableVersions("no version range given")
+    return tuple(ranges)
+
+
+def affects(ranges: Iterable[VersionRange], version: str) -> bool:
+    v = _version(version)
+    return any(v in r for r in ranges)
+
+
+@dataclasses.dataclass(frozen=True)
+class QtAdvisory:
+    id: str  # CVE id
+    title: str
+    module: str | None
+    # The "Affected versions:" text, or for the older advisories the page gives
+    # only as prose, that prose.
+    affected: str
+    fixed: tuple[str, ...]
+
+
+class _Blocks(html.parser.HTMLParser):
+    """The headings and paragraphs of a MediaWiki page as (tag, text, text of
+    the paragraph's first bold part)."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.blocks: list[tuple[str, str, str]] = []
+        self._tag: str | None = None
+        self._text: list[str] = []
+        self._bold: list[str] | None = None
+        self._bold_done = False
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        if tag in ("h1", "h2", "h3", "p"):
+            self._close()
+            self._tag, self._text, self._bold, self._bold_done = tag, [], None, False
+        elif tag == "b" and self._tag == "p" and not self._bold_done and self._bold is None:
+            self._bold = []
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "b" and self._bold is not None:
+            self._bold_done = True
+        elif tag == self._tag:
+            self._close()
+
+    def handle_data(self, data: str) -> None:
+        if self._tag:
+            self._text.append(data)
+            if self._bold is not None and not self._bold_done:
+                self._bold.append(data)
+
+    def _close(self) -> None:
+        if self._tag:
+            self.blocks.append((self._tag, " ".join("".join(self._text).split()),
+                                " ".join("".join(self._bold or []).split())))
+        self._tag = None
+
+
+_QT_MODULES = {"networkauth": "Qt Network Authorization", "network": "Qt Network", "xml": "Qt XML", "svg": "Qt SVG",
+               "nfc": "Qt NFC", "declarative": "Qt Declarative", "corelib": "Qt Core", "core": "Qt Core",
+               "gui": "Qt GUI", "bluetooth": "Qt Bluetooth", "5compat": "Qt5Compat",
+               "imageformats": "Qt Image Formats", "multimedia": "Qt Multimedia", "quick": "Qt Quick",
+               "webengine": "Qt WebEngine"}
+_MODULE_RE = re.compile(rf"\bQt ?({'|'.join(_QT_MODULES)})\b", re.I)
+_CVE_RE = re.compile(r"\bCVE-\d{4}-\d{4,}\b")
+_FIX_VERSIONS_RE = re.compile(r"\d+\.\d+(?:\.\d+)?")
+
+
+def parse_qt_advisories(page: str) -> list[QtAdvisory]:
+    """The advisories of the "Qt Framework" section of
+    https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products; the other
+    sections are Qt's other products (Axivion). A page this cannot read the
+    way it was written when this parser was (a missing section, a heading
+    without a CVE id, no "Affected versions:" anywhere) is a VulnScanError: an
+    empty result would look like a Qt without advisories (#252)."""
+    parser = _Blocks()
+    parser.feed(page)
+    parser.close()
+    blocks = parser.blocks
+    start = next((i for i, (tag, text, _) in enumerate(blocks) if tag == "h2" and text == "Qt Framework"), None)
+    if start is None:
+        raise VulnScanError(f"Qt advisory page: no 'Qt Framework' section; the page format changed, "
+                            f"update parse_qt_advisories ({QT_ADVISORIES_URL})")
+    section: list[list[tuple[str, str, str]]] = []
+    for tag, text, bold in blocks[start + 1:]:
+        if tag in ("h1", "h2"):
+            break
+        if tag == "h3":
+            section.append([(tag, text, bold)])
+        elif section:
+            section[-1].append((tag, text, bold))
+    if not section:
+        raise VulnScanError(f"Qt advisory page: no advisories in the 'Qt Framework' section ({QT_ADVISORIES_URL})")
+
+    advisories = []
+    for (_, heading, _), *paragraphs in section:
+        ids = _CVE_RE.findall(heading)
+        if len(ids) != 1:
+            raise VulnScanError(f"Qt advisory page: the entry {heading!r} is not headed by one CVE id; the page "
+                                f"format changed, update parse_qt_advisories ({QT_ADVISORIES_URL})")
+        fields = {bold.rstrip(":").lower(): text[len(bold):].strip() for _, text, bold in paragraphs
+                  if bold.endswith(":")}
+        untitled = [(text, bold) for _, text, bold in paragraphs if not bold.endswith(":")]
+        title = next((bold for text, bold in untitled if bold and text == bold), "")
+        prose = " ".join(text for text, bold in untitled if text != bold)
+        if "affected versions" in fields:
+            affected, fixed = fields["affected versions"], fields.get("fixed", "")
+        else:
+            affected = prose
+            fixed_in = re.search(r"\bFixed in (.*?)\.(?:\s|$)", prose)
+            fixed = fixed_in.group(1) if fixed_in else ""
+        module = _MODULE_RE.search(title)
+        advisories.append(QtAdvisory(id=ids[0], title=title,
+                                     module=_QT_MODULES[module.group(1).lower()] if module else None,
+                                     affected=affected, fixed=tuple(_FIX_VERSIONS_RE.findall(fixed))))
+    if not any("affected versions" in {b.rstrip(":").lower() for _, _, b in paragraphs}
+               for _, *paragraphs in section):
+        raise VulnScanError(f"Qt advisory page: no entry of the 'Qt Framework' section has 'Affected versions:'; "
+                            f"the page format changed, update parse_qt_advisories ({QT_ADVISORIES_URL})")
+    return advisories
+
+
+# Advisories whose affected versions the page states only in prose, read by a
+# person: the words quoted from the page and the ranges they mean. A
+# transcription applies only while the page still says those words, so an
+# edited advisory becomes unreadable (and reported) instead of silently keeping
+# old ranges (#252). "6.3.x through 6.5.x before 6.5.5" is 6.3.0 before 6.5.5.
+_TRANSCRIBED = {
+    # Fixed in 6.5.10, 6.8.4 and 6.9.2: every release from 6.2 up to those,
+    # including the unsupported 6.6 and 6.7 branches that got no fix.
+    "CVE-2025-6338": ("if it is turned on in Qt 5.15 and from Qt 6.2 when it is the default",
+                      "5.15.0 before 5.16.0, 6.2.0 before 6.5.10, 6.6.0 before 6.8.4, 6.9.0 before 6.9.2"),
+    "CVE-2024-39936": ("Qt before 5.15.18, 6.x before 6.2.13, 6.3.x through 6.5.x before 6.5.7, and 6.6.x through "
+                       "6.7.x before 6.7.3", "before 5.15.18, 6.0.0 before 6.2.13, 6.3.0 before 6.5.7, "
+                                            "6.6.0 before 6.7.3"),
+    "CVE-2024-36048": ("Qt before 5.15.17, 6.x before 6.2.13, 6.3.x through 6.5.x before 6.5.6, and 6.6.x through "
+                       "6.7.x before 6.7.1", "before 5.15.17, 6.0.0 before 6.2.13, 6.3.0 before 6.5.6, "
+                                            "6.6.0 before 6.7.1"),
+    "CVE-2024-33861": ("This affects Qt 6.5.0->6.5.5, 6.6.x and 6.7.0.", "6.5.0 to 6.5.5, 6.6.0 to 6.7.0"),
+    "CVE-2024-30161": ("In Qt 6.5.4, 6.5.5, and 6.6.2,", "6.5.4, 6.5.5, 6.6.2"),
+    "CVE-2024-25580": ("Qt before 5.15.17, 6.x before 6.2.12, 6.3.x through 6.5.x before 6.5.5, and 6.6.x before "
+                       "6.6.2", "before 5.15.17, 6.0.0 before 6.2.12, 6.3.0 before 6.5.5, 6.6.0 before 6.6.2"),
+    "CVE-2023-51714": ("Qt before 5.15.17, 6.x before 6.2.11, 6.3.x through 6.5.x before 6.5.4, and 6.6.x before "
+                       "6.6.2", "before 5.15.17, 6.0.0 before 6.2.11, 6.3.0 before 6.5.4, 6.6.0 before 6.6.2"),
+    "CVE-2023-38197": ("Qt before 5.15.15, 6.x before 6.2.10, and 6.3.x through 6.5.x before 6.5.3",
+                       "before 5.15.15, 6.0.0 before 6.2.10, 6.3.0 before 6.5.3"),
+    "CVE-2023-45872": ("Qt before 6.2.11 and 6.3.x through 6.6.x before 6.6.1", "before 6.2.11, 6.3.0 before 6.6.1"),
+    "CVE-2023-43114": ("Qt before 5.15.16, 6.x before 6.2.10, and 6.3.x through 6.5.x before 6.5.3",
+                       "before 5.15.16, 6.0.0 before 6.2.10, 6.3.0 before 6.5.3"),
+    "CVE-2023-32763": ("Qt before 5.15.15, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.1",
+                       "before 5.15.15, 6.0.0 before 6.2.9, 6.3.0 before 6.5.1"),
+    "CVE-2023-37369": ("Qt before 5.15.15, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.2",
+                       "before 5.15.15, 6.0.0 before 6.2.9, 6.3.0 before 6.5.2"),
+    "CVE-2023-34410": ("Qt before 5.15.15, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.2",
+                       "before 5.15.15, 6.0.0 before 6.2.9, 6.3.0 before 6.5.2"),
+    "CVE-2023-33285": ("Qt 5.x before 5.15.14, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.1",
+                       "5.0.0 before 5.15.14, 6.0.0 before 6.2.9, 6.3.0 before 6.5.1"),
+    "CVE-2023-32762": ("Qt before 5.15.14, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.1",
+                       "before 5.15.14, 6.0.0 before 6.2.9, 6.3.0 before 6.5.1"),
+}
+
+
+def qt_advisory_ranges(advisory: QtAdvisory) -> tuple[VersionRange, ...]:
+    try:
+        return parse_affected_versions(advisory.affected)
+    except UnreadableVersions:
+        quoted, ranges = _TRANSCRIBED.get(advisory.id, (None, ""))
+        if quoted is None or quoted not in advisory.affected:
+            raise
+        return parse_affected_versions(ranges)
+
+
+NvdFetch = Callable[[str], dict]
+# NVD allows 5 requests in 30 seconds without an API key, 50 with one.
+NVD_INTERVAL = 6.5
+NVD_INTERVAL_WITH_KEY = 0.7
+
+
+def nvd_severity(record: dict) -> tuple[str, float | None]:
+    """The worst CVSS v3/v4 rating NVD holds for a CVE, its own or the CNA's."""
+    vectors, labels = [], []
+    for vuln in record.get("vulnerabilities", []):
+        for key, metrics in vuln.get("cve", {}).get("metrics", {}).items():
+            if not key.startswith(("cvssMetricV3", "cvssMetricV4")):
+                continue
+            for metric in metrics:
+                data = metric.get("cvssData", {})
+                vectors += [data["vectorString"]] if data.get("vectorString") else []
+                labels += [data["baseSeverity"]] if isinstance(data.get("baseSeverity"), str) else []
+    return severity(vectors, labels)
+
+
+def scan_qt_advisories(bom: dict, page: str, nvd: NvdFetch, *, sleep: Callable[[float], None] = time.sleep,
+                       nvd_interval: float = NVD_INTERVAL,
+                       nvd_required: bool = False) -> tuple[list[Finding], list[str]]:
+    """Findings of Qt's own advisories for the SBOM's Qt components, and
+    warnings. grype matches Qt only by CPE against NVD, which lacks the recent
+    Qt advisories as upstream Qt ranges, and OSV has no Qt entries at all, so
+    Qt's list is the source that knows them (#252). The severity comes from NVD;
+    a CVE NVD has not scored yet is UNSCORED. NVD failing leaves the severity
+    unknown with a warning, or with nvd_required (a gating scan) is a
+    VulnScanError: an unknown severity could hide a critical CVE."""
+    qts = [c for c in shipped_components(bom) if c.get("name", "").lower() == "qt"]
+    if not qts:
+        return [], []
+    for comp in qts:
+        if not re.fullmatch(r"\d+\.\d+\.\d+", comp.get("version") or ""):
+            raise VulnScanError(f"Qt advisories: {comp['bom-ref']} has no X.Y.Z version to match "
+                                f"({comp.get('version')!r})")
+    findings: list[Finding] = []
+    warnings: list[str] = []
+    for advisory in parse_qt_advisories(page):
+        base = dict(id=advisory.id, aliases=frozenset(), severity="UNKNOWN", score=None,
+                    summary=f"{advisory.module}: {advisory.title}" if advisory.module else advisory.title,
+                    sources=frozenset({"qt-advisories"}), fixed=advisory.fixed)
+        try:
+            ranges = qt_advisory_ranges(advisory)
+        except UnreadableVersions:
+            versions = ", ".join(f"{c['name']} {c['version']}" for c in qts)
+            warnings.append(f"Qt advisory {advisory.id}: cannot read the affected versions {advisory.affected!r} "
+                            f"({QT_ADVISORIES_URL}); check whether {versions} is affected and teach the scanner "
+                            "the wording")
+            findings += [Finding(ref=c["bom-ref"], component=c["name"], version=c["version"],
+                                 affected=advisory.affected, **base,
+                                 unconfirmed="Qt's advisory page gives affected versions the scanner cannot read")
+                         for c in qts]
+            continue
+        affected = ", ".join(map(str, ranges))
+        findings += [Finding(ref=c["bom-ref"], component=c["name"], version=c["version"], affected=affected, **base)
+                     for c in qts if affects(ranges, c["version"])]
+
+    ratings: dict[str, tuple[str, float | None]] = {}
+    failed: list[str] = []
+    for cve in dict.fromkeys(f.id for f in findings if not f.unconfirmed):
+        if ratings or failed:
+            sleep(nvd_interval)
+        try:
+            sev, score = nvd_severity(nvd(cve))
+            ratings[cve] = ("UNSCORED" if sev == "UNKNOWN" else sev, score)
+        except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+            failed.append(f"{cve} ({e})")
+    if failed and nvd_required:
+        raise VulnScanError(f"NVD could not be reached for the matched Qt advisories {', '.join(failed)}; their "
+                            "severity decides whether the release may ship, so the scan cannot pass without it "
+                            "(re-run the job; an NVD_API_KEY raises NVD's rate limit)")
+    if failed:
+        warnings.append(f"NVD severity unavailable, reported as unknown: {', '.join(failed)}")
+    findings = [dataclasses.replace(f, severity=ratings[f.id][0], score=ratings[f.id][1]) if f.id in ratings else f
+                for f in findings]
+    return findings, warnings
+
+
 # ── merge ───────────────────────────────────────────────────────────────────
 
 
@@ -277,7 +661,11 @@ def merge_findings(findings: Iterable[Finding]) -> list[Finding]:
             f, id=primary, aliases=frozenset(names - {primary}), severity=sev,
             score=max(scores) if scores else None,
             summary=next((g.summary for g in group if g.summary), ""),
-            sources=frozenset().union(*(g.sources for g in group))))
+            sources=frozenset().union(*(g.sources for g in group)),
+            affected=next((g.affected for g in group if g.affected), ""),
+            fixed=next((g.fixed for g in group if g.fixed), ()),
+            # another source matching the version confirms it
+            unconfirmed=None if any(not g.unconfirmed for g in group) else f.unconfirmed))
     return merged
 
 
@@ -346,10 +734,25 @@ def apply_ignores(findings: list[Finding], entries: list[IgnoreEntry],
     return result, warnings
 
 
+# What blocks a gating scan: a critical finding, and one NVD has not scored yet,
+# which could be critical; a person assesses it and records the decision in the
+# ignore file (#252).
+BLOCKING_SEVERITIES = ("CRITICAL", "UNSCORED")
+
+
 def blocking(findings: Iterable[Finding], fail_on: str) -> list[Finding]:
     if fail_on == "none":
         return []
-    return [f for f in findings if f.severity == "CRITICAL" and not f.suppressed]
+    return [f for f in findings if f.severity in BLOCKING_SEVERITIES and not f.suppressed and not f.unconfirmed]
+
+
+def unscored(findings: Iterable[Finding]) -> list[Finding]:
+    return [f for f in findings if f.severity == "UNSCORED" and not f.suppressed and not f.unconfirmed]
+
+
+def _unscored_message(f: Finding) -> str:
+    return (f"{f.component} {f.version or ''}: {f.id} has no CVSS score in NVD yet ({_url(f.id)}); assess it and "
+            "record the decision in scripts/sbom/vuln-ignore.yml")
 
 
 # ── SARIF ───────────────────────────────────────────────────────────────────
@@ -360,7 +763,8 @@ def blocking(findings: Iterable[Finding], fail_on: str) -> list[Finding]:
 _PIN_LOCATIONS = {
     "qt": (".github/workflows/ci-build.yml", r"qt_version:"),
     "icu": (".github/workflows/ci-build.yml", r"qt_version:"),  # ICU comes with the Qt install
-    "openssl": (".github/workflows/ci-build.yml", r"OPENSSL_VERSION:"),
+    # The Windows package's OpenSSL; its pin is in a composite action (#211).
+    "openssl": (".github/actions/windows-openssl/action.yml", r"OPENSSL_VERSION:"),
     "boost": (".github/actions/agent-setup/action.yml", r"BOOST_VERSION="),
 }
 _FALLBACK_LOCATION = "scripts/sbom/logsquirl_sbom.py"
@@ -386,10 +790,13 @@ def _url(vuln_id: str) -> str:
     return f"https://osv.dev/vulnerability/{vuln_id}"
 
 
-_LEVEL = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "UNKNOWN": "warning"}
+# An unscored finding blocks a release until someone assesses it, so it is an
+# error; its security-severity stays in the middle, as nothing is known (#252).
+_LEVEL = {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note", "UNSCORED": "error",
+          "UNKNOWN": "warning"}
 # code scanning's security-severity for a finding without a CVSS score, taken
 # from the middle of its band so the alert lands at the matching severity.
-_BAND_SCORE = {"CRITICAL": "9.5", "HIGH": "8.0", "MEDIUM": "5.5", "LOW": "2.0", "UNKNOWN": "5.5"}
+_BAND_SCORE = {"CRITICAL": "9.5", "HIGH": "8.0", "MEDIUM": "5.5", "LOW": "2.0", "UNSCORED": "5.5", "UNKNOWN": "5.5"}
 
 
 def to_sarif(findings: list[Finding], repo_root: Path) -> dict:
@@ -412,13 +819,18 @@ def to_sarif(findings: list[Finding], repo_root: Path) -> dict:
                                                       key=float)
         path, line = _locate(repo_root, f)
         also = f" (also {', '.join(sorted(f.aliases))})" if f.aliases else ""
+        detail = f" Affected: {f.affected}" if f.affected else ""
+        detail += f"; fixed in {', '.join(f.fixed)}." if f.fixed else "." if detail else ""
+        detail += f" Unconfirmed: {f.unconfirmed}." if f.unconfirmed else ""
         result = {
             "ruleId": f.id,
-            "level": _LEVEL[f.severity],
-            "message": {"text": f"{f.component} {f.version or '(unversioned)'} is affected by {f.id}{also}, "
+            # an advisory that may not apply is a note, whatever its severity (#252)
+            "level": "note" if f.unconfirmed else _LEVEL[f.severity],
+            "message": {"text": f"{f.component} {f.version or '(unversioned)'} "
+                                f"{'may be' if f.unconfirmed else 'is'} affected by {f.id}{also}, "
                                 f"severity {f.severity.lower()}"
                                 f"{f' (CVSS {f.score:.1f})' if f.score is not None else ''}, "
-                                f"found by {' and '.join(sorted(f.sources))}."},
+                                f"found by {' and '.join(sorted(f.sources))}.{detail}"},
             "locations": [{"physicalLocation": {"artifactLocation": {"uri": path},
                                                 "region": {"startLine": line}}}],
             "partialFingerprints": {
@@ -447,12 +859,22 @@ def _table(findings: list[Finding]) -> list[str]:
             "|---|---|---|---|---|---|"]
     for f in sorted(findings, key=lambda f: (SEVERITIES.index(f.severity), f.component, f.id)):
         rows.append(f"| {f.severity} | {f.component} {f.version or ''} | {f.id} | "
-                    f"{f'{f.score:.1f}' if f.score is not None else '-'} | {', '.join(sorted(f.sources))} | "
+                    f"{f'{f.score:.1f}' if f.score is not None else '-'} | {', '.join(sorted(f.sources))}"
+                    f"{' (unconfirmed)' if f.unconfirmed else ''} | "
                     f"{f.suppressed or ''} |")
     return rows
 
 
-def main(argv: list[str] | None = None, *, http: Http = urllib_http, today: _dt.date | None = None) -> int:
+def _qt_page(saved: Path | None, fetch_page: Callable[[str], str]) -> str:
+    try:
+        return saved.read_text(encoding="utf-8") if saved else fetch_page(QT_ADVISORIES_URL)
+    except (OSError, ValueError) as e:
+        raise VulnScanError(f"Qt advisory page could not be read: {e}") from e
+
+
+def main(argv: list[str] | None = None, *, http: Http = urllib_http, nvd: NvdFetch = urllib_nvd,
+         fetch_page: Callable[[str], str] = urllib_page, sleep: Callable[[float], None] = time.sleep,
+         today: _dt.date | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     sub = parser.add_subparsers(dest="command", required=True)
     scan = sub.add_parser("scan", help="report and gate the known vulnerabilities of an SBOM")
@@ -462,6 +884,8 @@ def main(argv: list[str] | None = None, *, http: Http = urllib_http, today: _dt.
     scan.add_argument("--sarif", type=Path, required=True)
     scan.add_argument("--fail-on", choices=("critical", "none"), required=True)
     scan.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
+    scan.add_argument("--qt-advisories-html", type=Path,
+                      help=f"a saved copy of {QT_ADVISORIES_URL} to read instead of fetching it")
     args = parser.parse_args(argv)
     today = today or _dt.datetime.now(_dt.timezone.utc).date()
 
@@ -473,13 +897,19 @@ def main(argv: list[str] | None = None, *, http: Http = urllib_http, today: _dt.
         except (OSError, ValueError) as e:
             raise VulnScanError(f"cannot read the scan input: {e}") from e
         entries = parse_ignore_file(ignore_text)
-        findings = merge_findings(grype_findings(bom, report) + scan_osv(bom, http))
-        findings, warnings = apply_ignores(findings, entries, today)
+        qt_findings, warnings = scan_qt_advisories(
+            bom, _qt_page(args.qt_advisories_html, fetch_page), nvd, sleep=sleep,
+            nvd_interval=NVD_INTERVAL_WITH_KEY if os.environ.get("NVD_API_KEY") else NVD_INTERVAL,
+            nvd_required=args.fail_on != "none")
+        findings = merge_findings(grype_findings(bom, report) + scan_osv(bom, http) + qt_findings)
+        findings, ignore_warnings = apply_ignores(findings, entries, today)
     except VulnScanError as e:
         print(f"::error::{e}", file=sys.stderr)
         return 2
 
     for w in warnings:
+        print(f"::warning::{w}")
+    for w in ignore_warnings:
         print(f"::warning file={args.ignore}::{w}")
     args.sarif.parent.mkdir(parents=True, exist_ok=True)
     args.sarif.write_text(json.dumps(to_sarif(findings, args.repo_root), indent=2) + "\n", encoding="utf-8")
@@ -499,9 +929,15 @@ def main(argv: list[str] | None = None, *, http: Http = urllib_http, today: _dt.
 
     blocked = blocking(findings, args.fail_on)
     for f in blocked:
+        if f.severity == "UNSCORED":
+            print(f"::error::{_unscored_message(f)}; it blocks the release until then")
+            continue
         print(f"::error::{f.component} {f.version or ''}: critical {f.id} "
               f"{f'(CVSS {f.score:.1f}) ' if f.score is not None else ''}blocks the release; update the "
               "component or record an accepted risk in scripts/sbom/vuln-ignore.yml")
+    if not blocked:
+        for f in unscored(findings):
+            print(f"::warning::{_unscored_message(f)}")
     return 1 if blocked else 0
 
 

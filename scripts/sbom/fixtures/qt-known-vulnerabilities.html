@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<!-- https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products, revision 46435, fetched 2026-09-16; trimmed to the page content for the tests of #252 -->
+<html class="client-nojs" lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<title>List of known vulnerabilities in Qt products - Qt Wiki</title>
+</head>
+<body>
+<main id="content" class="mw-body">
+<h1 id="firstHeading" class="firstHeading mw-first-heading"><span class="mw-page-title-main">List of known vulnerabilities in Qt products</span></h1>
+					<div id="mw-content-text" class="mw-body-content"><div class="mw-content-ltr mw-parser-output" lang="en" dir="ltr"><p>See vulnerability disclosure process from <a rel="nofollow" class="external text" href="https://www.qt.io/terms-conditions/responsible-vulnerability-disclosure-process">here</a>
+</p>
+<meta property="mw:PageProp/toc" />
+<h1><span class="mw-headline" id="Security_advisories_in_Qt_products">Security advisories in Qt products</span></h1>
+<h2><span class="mw-headline" id="Axivion">Axivion</span></h2>
+<h3><span class="mw-headline" id="CVE-2026-12593">CVE-2026-12593</span></h3>
+<p><b>CWE-862 Missing Authorization vulnerability in the Dashboard OAuth/OIDC implementation</b>
+</p><p><b>Impact:</b> Authenticated Remote Privilege escalation. Any OIDC/OAuth authenticated user can become a Dashboard Administrator. By exploiting another weakness this can also lead to arbitrary code execution on the host-system running the Dashboard in the context of the OS-User used to run the Dashboard.
+</p><p><b>Affected versions:</b> From Axivion 7.8.5 to 7.8.12, from 7.9.0 to 7.9.12, from 7.10.0 to 7.10.10, from 7.11.0 to 7.11.6, from 7.12.0 to 7.12.1
+</p><p><b>Fixed:</b> Axivion 7.9.13 and 7.10.11, 7.11.7, 7.12.2 or later
+</p>
+<h3><span class="mw-headline" id="CVE-2026-12379">CVE-2026-12379</span></h3>
+<p><b>CWE-601 URL Redirection to Untrusted Site ('Open Redirect') vulnerability in the Dashboard OAuth/OIDC implementation</b>
+</p><p><b>Impact:</b> Redirection of unsuspecting users to an untrusted external site. The Dashboard's OAuth/OIDC login flow did not properly restrict the post-authentication redirect to the application's own origin, so a user who follows a crafted login link can be sent to an attacker-controlled site after authenticating against the genuine Dashboard. Because the link points at the legitimate Dashboard, this can be abused for phishing, e.g. credential or second-factor theft via a convincing look-alike page.
+</p><p><b>Affected versions:</b> From Axivion 7.8.0 to 7.8.12, from 7.9.0 to 7.9.12, from 7.10.0 to 7.10.10, from 7.11.0 to 7.11.6, from 7.12.0 to 7.12.1
+</p><p><b>Fixed:</b> Axivion 7.9.13 and 7.10.11, 7.11.7, 7.12.2 or later
+</p>
+<h2><span class="mw-headline" id="Qt_Framework">Qt Framework</span></h2>
+<h3><span class="mw-headline" id="CVE-2026-76151:">CVE-2026-76151:</span></h3>
+<p><b>Out-of-bounds read (buffer over-read) vulnerability in HTTP Cache-Control response header parsing impacts Qt Framework (QtNetwork module)</b>
+</p><p><b>Impact:</b> QNetworkAccessManager crashes on excessively large Cache-Control header values returned by an untrusted HTTP server, causing denial of service on 64-bit builds. 
+</p><p><b>Affected versions:</b> From Qt 6.0.0 to 6.8.9, From 6.9.0 to 6.11.1 
+</p><p><b>Fixed:</b> Qt 6.8.9 and Qt 6.11.2
+</p>
+<h3><span class="mw-headline" id="CVE-2026-19248:">CVE-2026-19248:</span></h3>
+<p><b>Unbounded recursion vulnerability in the QDomNode destructor of Qt XML impacts Qt</b>
+</p><p><b>Impact:</b> QDomDocument XML parsing is vulnerable to a remotely-triggerable denial-of-service crash when processing untrusted input. 
+</p><p><b>Affected versions:</b> from Qt 2.2.0 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.11.1 
+</p><p><b>Fixed:</b> Qt 6.8.9 and Qt 6.11.2
+</p>
+<h3><span class="mw-headline" id="CVE-2026-13326">CVE-2026-13326</span></h3>
+<p><b>Out-of-bounds read and integer underflow vulnerability in QNdefNfcTextRecord impacts Qt NFC module</b>
+</p><p><b>Impact:</b> An out-of-bounds read in Qt NFC's language code length parsing allows a physically proximate attacker to cause a denial of service or limited memory disclosure via a crafted NFC tag. 
+</p><p><b>Affected versions:</b> from Qt 5.2.0 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.10.3, from Qt 6.11.0 to Qt 6.11.1
+</p><p><b>Fixed:</b> Qt 6.8.9 and Qt 6.11.2
+</p>
+<h3><span class="mw-headline" id="CVE-2026-11573">CVE-2026-11573</span></h3>
+<p><b>Uncontrolled recursion in QDomDocument/QDomNode serialization causes stack exhaustion (QtXml)</b>
+</p><p><b>Impact:</b> Uncontrolled recursion in Qt's QDomDocument serialization (QtXml) lets deeply nested untrusted XML crash the app via stack exhaustion (DoS only). 
+</p><p><b>Affected versions:</b> from 2.2.0 to 6.8.1
+</p><p><b>Fixed:</b> Qt 6.8.2 and Qt 6.9.0
+</p>
+<h3><span class="mw-headline" id="CVE-2026-15037">CVE-2026-15037</span></h3>
+<p><b>XML injection vulnerability in QDom comment, CDATA and processing-instruction serialization</b>
+</p><p><b>Impact:</b> Improper output neutralization (XML injection) in QDom comment, CDATA, and processing-instruction serialization in Qt XML from 4.0.0 through 6.11 allows untrusted text serialized by an application into those nodes to inject arbitrary XML markup, because the node terminators are not escaped under the default InvalidDataPolicy (AcceptInvalidChars). 
+</p><p><b>Affected versions:</b> From Qt 4.0.0 before Qt 6.12.0
+</p><p><b>Fixed:</b> Qt 6.12.0
+</p>
+<h3><span class="mw-headline" id="CVE-2026-9499">CVE-2026-9499</span></h3>
+<p><b>Buffer read overflow in QTextCodec::codecForName()</b>
+</p><p><b>Impact:</b> Passing a non-NUL-terminated QByteArray (for example, one created with QByteArray::fromRawData()) to QTextCodec::codecForName() can cause the codec-name matching routine to read past the end of the buffer, resulting in an incorrect codec match or, in the worst case, an application crash (denial of service).
+</p><p><b>Affected versions:</b> From Qt 4.0.0 to 6.8.7, from 6.9.0 to 6.11.0.
+</p><p><b>Fixed:</b> Qt 6.8.8 and 6.11.1
+</p>
+<h3><span class="mw-headline" id="CVE-2026-6210">CVE-2026-6210</span></h3>
+<p><b>Type confusion and heap-buffer-overflow vulnerability in Qt SVG marker handling</b>
+</p><p><b>Impact:</b> A type confusion vulnerability in Qt SVG allows an attacker to cause an application crash via a crafted SVG image.
+</p><p><b>Affected versions:</b> From Qt 6.7.0 before 6.8.8, from 6.9.0 before 6.11.1.
+</p><p><b>Fixed:</b> Qt 6.8.8 and 6.11.1
+</p>
+<h3><span class="mw-headline" id="CVE-2025-14576">CVE-2025-14576</span></h3>
+<p><b>QML Code Injection in VectorImage Component in Qt declarative module</b>
+</p><p><b>Impact:</b> Insufficient validation of node IDs in Qt SVG module allows arbitrary QML/JavaScript code injection when loading malicious SVG files through the VectorImage component in Qt Quick. While QML execution is typically more restricted than native code execution, this could still lead to denial of service, information disclosure, or other impacts depending on the application's privilege level and data access.
+</p><p><b>Affected versions:</b> From Qt 6.8.0 to 6.8.6 and from 6.10.0 to 6.10.1
+</p><p><b>Fixed:</b> Qt 6.8.7 and 6.10.2
+</p>
+<h3><span class="mw-headline" id="CVE-2025-14575">CVE-2025-14575</span></h3>
+<p><b>Untrusted Search Path vulnerability in OpenSSL backend certificate loading mechanism</b>
+</p><p><b>Impact:</b> An Uncontrolled Search Path Element vulnerability in the OpenSSL TLS backend of Qt Network (qtbase) in Qt Qt Framework (Unix) allows a local attacker to load a rogue CA certificate as a trusted system authority via a crafted certificate file placed in the application's working directory.
+</p><p><b>Affected versions:</b> From Qt 5.0.0 to 6.5.9 and from 6.6.0 to 6.8.3 and from 6.9.0 to 6.9.1
+</p><p><b>Fixed:</b> Qt 6.5.10 and 6.8.4 and 6.9.2
+</p>
+<h3><span class="mw-headline" id="CVE-2025-12385">CVE-2025-12385</span></h3>
+<p><b>Improper validation of &lt;img&gt; tag size in Text component parser in Qt declarative module</b> 
+</p><p><b>Impact:</b> This issue affects users of the Text component in Qt Quick. Missing validation of the width and height in the &lt;img&gt; tag could cause an application to become unresponsive.
+</p><p><b>Affected versions:</b> From Qt 5.0.0 to 6.5.10 and from 6.6.0 to 6.8.5 and from 6.9.0 to 6.10.0
+</p><p><b>Fixed:</b>  Qt 6.5.11 and 6.8.6 and 6.10.1
+</p>
+<h3><span class="mw-headline" id="CVE-2025-10729">CVE-2025-10729</span></h3>
+<p><b>Use-After-Free vulnerability in Qt SVG</b> 
+</p><p><b>Impact:</b> When the module parses a &lt;pattern&gt; node which is not a child of a structural node, the node gets deleted after creation but might be accessed later leading to a use after free.
+</p><p><b>Affected versions:</b> From Qt 6.7.0 to 6.8.4 and from 6.9.0 to 6.9.2.
+</p><p><b>Fixed:</b> Qt 6.8.5 and 6.9.3.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-10728">CVE-2025-10728</span></h3>
+<p><b>Uncontrolled recursion vulnerability in Qt SVG</b>
+</p><p><b>Impact:</b> When the module renders a Svg file that contains a &lt;pattern&gt; element, it might end up rendering it recursively leading to stack overflow DoS.
+</p><p><b>Affected versions:</b> From Qt 6.7.0 to 6.8.4 and from 6.9.0 to 6.9.2.
+</p><p><b>Fixed:</b> Qt 6.8.5 and 6.9.3.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-6338">CVE-2025-6338</span></h3>
+<p><b>"Incomplete Cleanup" problem in Qt’s Schannel handling when it is used to provide a server handling incoming TLS connections.</b>
+</p><p><b>Impact:</b> For every connection made a 4KB file is created that is not cleaned up by the application or Qt. As a result this can cause a situation where all the available disk space is consumed. It is assumed that rebooting the computer also cleans up these files as Windows does its own cleanup, but this is not confirmed.
+</p><p><b>Affected versions:</b> This issue affects only the Schannel functionality on Windows if it is turned on in Qt 5.15 and from Qt 6.2 when it is the default.
+</p><p><b>Fixed:</b> Qt 6.5.10, 6.8.4 or 6.9.2.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-5992">CVE-2025-5992</span></h3>
+<p><b>Passing values outside of expected range to QColorTransferGenericFunction can cause a denial of service</b>
+</p><p><b>Impact:</b> When passing values outside of the expected range to QColorTransferGenericFunction it can cause a denial of service, for example, this can happen when passing a specifically crafted ICC profile to QColorSpace::fromICCProfile.
+</p><p><b>Affected versions:</b> Qt from 6.8.0 through 6.8.3, from 6.9.0 through 6.9.1.
+</p><p><b>Fixed:</b> Qt 6.8.4 and 6.9.2.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-5991">CVE-2025-5991</span></h3>
+<p><b>Use after free in QHttp2ProtocolHandler</b>
+</p><p><b>Impact:</b> This only affects HTTP/2 handling, HTTP handling is not affected by this at all. This happens due to a race condition between how QHttp2Stream uploads the body of a POST request and the simultaneous handling of HTTP error responses.
+</p><p><b>Affected versions:</b> Qt 6.9.0
+</p><p><b>Fixed:</b> Qt 6.9.1.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-5683">CVE-2025-5683</span></h3>
+<p><b>When loading a specifically crafted ICNS format image file then it will trigger a crash.</b>&#160;
+</p><p><b>Impact:</b> If QImage is passed a specifically crafted ICNS format image file, then it will trigger a crash. This can happen directly via one of the load functions, or via another class which is using QImage for rendering elsewhere, such as QTextDocument.
+</p><p><b>Affected versions:</b> All versions of Qt from versions 6.3.0 through 6.5.9, from 6.6.0 through 6.8.4, 6.9.0.
+</p><p><b>Fixed:</b> Qt 6.5.10, 6.8.5 and 6.9.1.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-5455">CVE-2025-5455</span></h3>
+<p><b>Remotely triggerable assertion in data: URL handling</b>
+</p><p><b>Impact:</b> An issue was found in the private API function qDecodeDataUrl() in QtCore, which is used in QTextDocument and QNetworkReply, and, potentially, in user code. If the function was called with malformed data, for example, an URL that contained a "charset" parameter that lacked a value (such as "data:charset,"), and Qt was built with assertions enabled, then it would hit an assertion, resulting in a denial of service.
+</p><p><b>Affected versions:</b> All version of Qt up to and including 5.15.18, from 6.0.0 through 6.5.8, from 6.6.0 through 6.8.3 and 6.9.0.
+</p><p><b>Fixed:</b> Qt 5.15.19, Qt 6.5.9, Qt 6.8.4, Qt 6.9.1.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-4211">CVE-2025-4211</span></h3>
+<p><b>Improper Link Resolution Before File Access in QFileSystemEngine in the Qt corelib module on Windows</b>
+</p><p><b>Impact:</b> The vulnerability allows attackers to influence the temporary file path resolution, which can lead to elevation of privilege. This can be particularly dangerous if exploited by unprivileged users to gain higher-level access or execute arbitrary code with elevated permissions.
+</p><p><b>Affected versions:</b> All version of Qt up to and including 5.15.18, from 6.0.0 through 6.5.8, from 6.6.0 through 6.8.1
+</p><p><b>Fixed:</b> Qt 5.15.19, Qt 6.5.9, Qt 6.8.2 and Qt 6.9.0
+</p>
+<h3><span class="mw-headline" id="CVE-2025-3512">CVE-2025-3512</span></h3>
+<p><b>A Heap-buffer-overflow issue in QTextMarkdownImporter</b>
+</p><p><b>Impact:</b> Passing an incorrectly formatted markdown file to QTextMarkdownImporter can trigger a heap-buffer-overflow.
+</p><p><b>Affected versions:</b> From 6.8.0 up to 6.8.3. Versions before 6.6.0 are known to be unaffected.
+</p><p><b>Fixed:</b> 6.8.4 and 6.9.0
+</p>
+<h3><span class="mw-headline" id="CVE-2025-30348">CVE-2025-30348</span></h3>
+<p><b>A Denial-of-Service type of security issue in Qt XML module</b>
+</p><p><b>Impact:</b> When QDom classes are used to write XML with long text segments, QDomNode::save() could hit a quadratic-complexity code path, potentially leading to a DoS if an attacker can control the rate and contents of XML serializations performed by the application, e.g. if the application packages attacker-supplied text in XML, including reading XML, changing it, and writing it back.
+</p><p><b>Affected versions:</b> <b>:</b> Up to 5.15.18, 6.0.0 to 6.5.8, and 6.6.0 to 6.7.3.
+</p><p><b>Fixed:</b> 5.15.19, 6.5.9, 6.8.0 and 6.9.0.
+</p>
+<h3><span class="mw-headline" id="CVE-2025-23050">CVE-2025-23050</span></h3>
+<p><b>Read past the end of the buffer and division by zero security issue in QLowEnergyController on Linux</b>
+</p><p><b>Impact:</b> QLowEnergyController on Linux has a BlueZ DBus and a Bluetooth Kernel API backend. When using the Bluetooth Kernel API backend of QLowEnergyController, QtBluetooth creates a Bluetooth L2CAP socket to establish a connection with an external Bluetooth Low Energy device. After that, the external device can send malformed Bluetooth ATT commands to trigger read past the end of the buffer and division by zero errors. The problem is relevant for both central and peripheral roles.
+</p><p>For central role use cases the Bluetooth Kernel API backend is only used if the system's BlueZ runtime version is lower than 5.42. For peripheral use cases, the Bluetooth Kernel API backend is used by default for all Qt versions before Qt 6.7. Deployments using Qt 6.7 or later trigger the backend if the Bluez version is below 5.56 or the explicit opt in via the env variable QT_BLUETOOTH_USE_KERNEL_PERIPHERAL was given. In the central role the user has to explicitly connect to the attacking external device before the malformed commands are processed. In the peripheral role, the advertising should be started with the QLowEnergyAdvertisingParameters::AdvInd mode to allow the external device to connect.
+</p><p><b>Affected versions:</b> From 5.4.0 to 5.15.18, 6.0.0 to 6.5.8, and 6.6.0 to 6.8.1.
+</p><p><b>Fixed:</b> 5.15.19, 6.5.9, 6.8.2 and 6.9.0.
+</p>
+<h3><span class="mw-headline" id="CVE-2024-39936">CVE-2024-39936</span></h3>
+<p><b>HTTP2 vulnerability with non-matching TLS certificates</b>
+</p><p>An issue was discovered in HTTP2 in Qt before 5.15.18, 6.x before 6.2.13, 6.3.x through 6.5.x before 6.5.7, and 6.6.x through 6.7.x before 6.7.3. Code to make security-relevant decisions about an established connection may execute too early, because the encrypted() signal has not yet been emitted and processed. Fixed in 5.15.19, 6.2.14, 6.5.8 and 6.7.4.
+</p>
+<h3><span class="mw-headline" id="CVE-2024-36048">CVE-2024-36048</span></h3>
+<p><b>Predictable nonces in QtNetworkAuth</b>
+</p><p>QAbstractOAuth in Qt Network Authorization in Qt before 5.15.17, 6.x before 6.2.13, 6.3.x through 6.5.x before 6.5.6, and 6.6.x through 6.7.x before 6.7.1 uses only the time to seed the PRNG, which may result in guessable values. Fixed in Qt 5.15.17, 6.2.14, 6.5.6, 6.7.1.
+</p>
+<h3><span class="mw-headline" id="CVE-2024-33861">CVE-2024-33861</span></h3>
+<p><b>QStringConverter has an invalid pointer being passed as a callback which can allow modification of the stack</b>
+</p><p>QStringConverter has an invalid pointer being passed as a callback which can allow modification of the stack. Qt itself is not vulnerable to remote attack however an application using QStringDecoder either directly or indirectly can be vulnerable. Qt does not automatically use any of those codecs, so this needs the application to implement something using QStringDecoder to be vulnerable. This affects Qt 6.5.0-&gt;6.5.5, 6.6.x and 6.7.0. Fixed in Qt 6.5.6 and 6.7.1.
+</p>
+<h3><span class="mw-headline" id="CVE-2024-30161">CVE-2024-30161</span></h3>
+<p><b>Use-After-Free in Qt for WebAssembly’s implementation of QNetworkReply</b>
+</p><p>In Qt 6.5.4, 6.5.5, and 6.6.2, QNetworkReply header data might be accessed via a dangling pointer in Qt for WebAssembly (wasm). Fixed in Qt 6.5.6 and 6.7.0.
+</p>
+<h3><span class="mw-headline" id="CVE-2024-25580">CVE-2024-25580</span></h3>
+<p><b>OOB read in QKtxHandler</b>
+</p><p>An issue was discovered in gui/util/qktxhandler.cpp in Qt before 5.15.17, 6.x before 6.2.12, 6.3.x through 6.5.x before 6.5.5, and 6.6.x before 6.6.2. A buffer overflow and application crash can occur via a crafted KTX image file. Fixed in Qt 5.15.18, 6.2.13, 6.5.6 and 6.7.0.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-51714">CVE-2023-51714</span></h3>
+<p><b>Ineffective integer overflow check in HPack implementation</b>
+</p><p>An issue was discovered in the HTTP2 implementation in Qt before 5.15.17, 6.x before 6.2.11, 6.3.x through 6.5.x before 6.5.4, and 6.6.x before 6.6.2. network/access/http2/hpacktable.cpp has an incorrect HPack integer overflow check. Fixed in Qt 5.15.18, 6.2.12, 6.5.5 and 6.7.0.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-38197">CVE-2023-38197</span></h3>
+<p><b>QXMLStreamReader can freeze or get out of memory on recursive entity expansion, with DTD tokens in XML body</b>
+</p><p>An issue was discovered in Qt before 5.15.15, 6.x before 6.2.10, and 6.3.x through 6.5.x before 6.5.3. There are infinite loops in recursive entity expansion. Fixed in Qt 5.15.16, 6.2.11, and 6.5.4.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-45872">CVE-2023-45872</span></h3>
+<p><b>QML Image bad source crashes application instead of error status (QSvgHandler::parse)</b>
+</p><p>An issue was discovered in Qt before 6.2.11 and 6.3.x through 6.6.x before 6.6.1. When a QML image refers to an image whose content is not known yet, there is an assumption that it is an SVG document, leading to a denial of service (application crash) if it is not actually an SVG document. Fixed in Qt 6.2.12 and 6.6.2.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-43114">CVE-2023-43114</span></h3>
+<p><b>Crash on corrupted font data</b>
+</p><p>An issue was discovered in Qt before 5.15.16, 6.x before 6.2.10, and 6.3.x through 6.5.x before 6.5.3 on Windows. When using the GDI font engine, if a corrupted font is loaded via QFontDatabase::addApplicationFont[FromData], then it can cause the application to crash because of missing length checks. Fixed in Qt 5.15.17, 6.2.11 and 6.5.4.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-32763">CVE-2023-32763</span></h3>
+<p><b>Integer overflow in qfixed_p.h when rendering SVG image on the minimal plugin</b>
+</p><p>An issue was discovered in Qt before 5.15.15, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.1. When a SVG file with an image inside it is rendered, a QTextLayout buffer overflow can be triggered. Fixed in Qt 5.15.16, 6.2.10, and 6.5.2.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-37369">CVE-2023-37369</span></h3>
+<p><b>Potential buffer overflow in QXmlStreamReader</b>
+</p><p>In Qt before 5.15.15, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.2, there can be an application crash in QXmlStreamReader via a crafted XML string that triggers a situation in which a prefix is greater than a length. Fixed in Qt 5.15.16, 6.2.10, and 6.5.3.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-34410">CVE-2023-34410</span></h3>
+<p><b>Possible vulnerability regarding SSL implementation in Qt</b>
+</p><p>An issue was discovered in Qt before 5.15.15, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.2. Certificate validation for TLS does not always consider whether the root of a chain is a configured CA certificate. Fixed in Qt 5.15.16, 6.2.10, and 6.5.3.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-33285">CVE-2023-33285</span></h3>
+<p><b>QDnsLookup buffer overflow UB on Unix</b>
+</p><p>An issue was discovered in Qt 5.x before 5.15.14, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.1. QDnsLookup has a buffer over-read via a crafted reply from a DNS server. Fixed in Qt 5.15.15, 6.2.10, and 6.5.2.
+</p>
+<h3><span class="mw-headline" id="CVE-2023-32762">CVE-2023-32762</span></h3>
+<p><b>Qt Network incorrectly parses the strict-transport-security (HSTS) header</b>
+</p><p>An issue was discovered in Qt before 5.15.14, 6.x before 6.2.9, and 6.3.x through 6.5.x before 6.5.1. Qt Network incorrectly parses the strict-transport-security (HSTS) header, allowing unencrypted connections to be established, even when explicitly prohibited by the server. This happens if the case used for this header does not exactly match. Fixed in Qt 5.15.15, 6.2.10, and 6.5.2.
+</p>
+</div></div>
+</main>
+</body>
+</html>
