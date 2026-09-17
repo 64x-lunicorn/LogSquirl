@@ -509,6 +509,47 @@ add_executable(logsquirl_chart_follow_benchmark chart_follow_benchmark.cpp)
 target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
 ```
 
+# Overview and selection benchmark
+
+`logsquirl_overview_selection_benchmark` (#297) measures two things the text
+view does with a lot of Log Lines.
+
+`[overview-benchmark]` searches a generated Log File of about 192 MiB (short
+lines, `generated_log_file.h`, about two million Log Lines) for every other Log
+Line, a million Matches, and draws the overview on 1000 pixel rows:
+
+- **recompute after the Search changed, 1000 rows**: `updateData()` and
+  `updateView()`, what every Search progress tick asked for. Before #297 this
+  walked every Match; afterwards each row counts its Matches.
+- **paint, nothing changed, 10 times**: the overview widget repainted. Before
+  #297 every paint copied both line vectors.
+- **10 Search ticks, each painted**: both together. While a Search runs the
+  crawler widget now also paces these recomputes (200 ms), which this case does
+  not use, so that it builds on both sides.
+
+`[selection-benchmark]` selects 100,000 of a million generated Log Lines held in
+memory (`generated_log_lines.h`) with a Shift+click and measures **Shift+Down
+20 times and Shift+Up 20 times** at its end. Before #297 every step built the
+whole selected text to report its length.
+
+```bash
+cmake --build build-release --target logsquirl_overview_selection_benchmark
+./build-release/output/logsquirl_overview_selection_benchmark --benchmark-samples 10 > after.txt
+
+# A quick check on a Log File of 16 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 ./build/output/logsquirl_overview_selection_benchmark --benchmark-samples 2
+```
+
+`overview_selection_benchmark.cpp` uses only what the overview, its widget and
+the text view offered before #297, so it builds unchanged on origin/master: copy
+it, `generated_log_file.h` and `generated_log_lines.h` into a worktree of that
+commit as described for the scrolling benchmarks above, with
+
+```cmake
+add_executable(logsquirl_overview_selection_benchmark overview_selection_benchmark.cpp)
+target_link_libraries(logsquirl_overview_selection_benchmark logsquirl_ui Catch2 test_utils)
+```
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a

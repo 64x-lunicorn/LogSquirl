@@ -109,3 +109,13 @@ add_executable(logsquirl_chart_follow_benchmark
 )
 
 target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
+
+# The overview with a million Matches and extending a long selection line by
+# line (#297). Uses only what the Overview and the text view offered before
+# #297, so the same file measures both sides of an A/B comparison (see
+# README.md).
+add_executable(logsquirl_overview_selection_benchmark
+    overview_selection_benchmark.cpp
+)
+
+target_link_libraries(logsquirl_overview_selection_benchmark logsquirl_ui Catch2 test_utils)
