@@ -148,6 +148,11 @@ so a Log Line wraps into one Visual Line or several).
   pages, the scrollbar dragged, `updateData()` after a Log Line was
   appended, and a resize with painting. It uses only what the text view
   offered before #246, so the same file measures the code before and after.
+  Its `[textview-refresh-benchmark]` cases (#295) repaint the view after a
+  change of Decoration only: QuickFind typed keystroke by keystroke, the
+  Search pattern and the Search Limits changed. "Log Lines read again"
+  repaints after `updateData()`, the cost each of them paid before a view
+  told a change of Decoration from a change of text.
 
 Both are Catch2 benchmarks; run them in an optimized build, as the Debug
 numbers say little about scrolling cost:
