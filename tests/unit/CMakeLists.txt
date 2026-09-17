@@ -1,6 +1,7 @@
 # Add test cpp file
 add_executable(logsquirl_tests
     abstractlogview_test.cpp
+    allocator_test.cpp
     applicationplugins_test.cpp
     ansicolorsequences_test.cpp
     chartextraction_test.cpp

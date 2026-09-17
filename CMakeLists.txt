@@ -26,6 +26,17 @@ option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
 option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
 option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
 option(LOGSQUIRL_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
+# Off: only LogSquirl's own containers, roaring and Vectorscan allocate through
+# mimalloc. On: mimalloc serves malloc and operator new for the whole process,
+# Qt included. Off until A/B measurements decide it per platform (#282).
+option(LOGSQUIRL_MIMALLOC_OVERRIDE "Let mimalloc serve malloc and new for the whole process (Linux only)" OFF)
+if(LOGSQUIRL_MIMALLOC_OVERRIDE AND NOT (UNIX AND NOT APPLE))
+  # Only an ELF executable's malloc interposes the shared libraries' calls. On
+  # macOS a statically linked mimalloc serves the executable but not Qt, and
+  # frees Qt's blocks it never allocated; on Windows it cannot redirect the
+  # CRT without the mimalloc DLL and mimalloc-redirect.dll.
+  message(FATAL_ERROR "LOGSQUIRL_MIMALLOC_OVERRIDE is only supported on Linux")
+endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)
   set(LOGSQUIRL_ARCH 32)
