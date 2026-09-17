@@ -226,12 +226,11 @@ DisplayedLinesReader FilteredViewLines::linesToSave() const
     return [ logFile = &filteredData_->sourceLogData(),
              lines = std::make_shared<const SearchResultArray>(
                  filteredData_->copyDisplayedLines() ) ]( LineNumber first, LinesCount count ) {
-        logsquirl::vector<QString> text;
-        text.reserve( count.get() );
-        for ( auto position = first.get(); position < first.get() + count.get(); ++position ) {
-            const auto logLine = lineAtPosition( *lines, LineNumber( position ) );
-            text.push_back( logLine.has_value() ? logFile->getLineString( *logLine ) : QString{} );
-        }
+        // The displayed Log Lines are walked from the first position on and
+        // read at once; the positions past the last one read as nothing.
+        const auto logLines = DisplayedLinesCursor( *lines, first ).takeForward( count );
+        auto text = logFile->getLinesSparse( logLines );
+        text.resize( count.get() );
         return text;
     };
 }

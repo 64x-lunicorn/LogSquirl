@@ -148,3 +148,48 @@ SCENARIO( "a save from the Filtered View writes the lines displayed when it star
         }
     }
 }
+
+SCENARIO( "a save from the Filtered View reads each displayed Log Line's text",
+          "[filteredview][linessaver]" )
+{
+    SaveLogFile logFile;
+    logFile.filteredData->addMark( 7_lnum );
+    logFile.filteredData->addMark( 25001_lnum );
+    QuickFindPattern quickFindPattern;
+    SavingFilteredView view( logFile.filteredData.get(), &quickFindPattern, false );
+    const auto nbDisplayed = logFile.filteredData->getNbLine();
+    REQUIRE( nbDisplayed.get() == 12504 );
+
+    const auto linesToSave = view.linesToSave();
+
+    // What each position read as when the save read them one by one.
+    const auto oneByOne = [ & ]( LineNumber first, LinesCount count ) {
+        std::vector<QString> text;
+        for ( auto position = first; position < first + count; ++position ) {
+            text.push_back( position < nbDisplayed
+                                ? logFile.logData.getLineString(
+                                      logFile.filteredData->getMatchingLineNumber( position ) )
+                                : QString{} );
+        }
+        return text;
+    };
+    const auto read = [ & ]( LineNumber first, LinesCount count ) {
+        const auto text = linesToSave( first, count );
+        return std::vector<QString>( text.begin(), text.end() );
+    };
+
+    THEN( "a block of positions reads as each position does on its own" )
+    {
+        REQUIRE( read( 0_lnum, 1000_lcount ) == oneByOne( 0_lnum, 1000_lcount ) );
+        REQUIRE( read( 12000_lnum, 504_lcount ) == oneByOne( 12000_lnum, 504_lcount ) );
+        REQUIRE( read( 3_lnum, 1_lcount ).front() == QStringLiteral( "this is line 000006" ) );
+    }
+
+    THEN( "positions past the last one read as nothing" )
+    {
+        const auto text = read( 12500_lnum, 10_lcount );
+        REQUIRE( text == oneByOne( 12500_lnum, 10_lcount ) );
+        REQUIRE( text[ 2 ] == QStringLiteral( "this is line 025001" ) );
+        REQUIRE( text[ 4 ].isEmpty() );
+    }
+}
