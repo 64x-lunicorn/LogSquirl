@@ -368,3 +368,38 @@ two local runs: put each side's `--reporter xml` output under
 `<dir>/catch2/<binary>.xml` and run it with `--before <dir> --after <dir>`.
 
 The workflow can only be dispatched once it is on master.
+
+# Filtered View read benchmark
+
+`logsquirl_filteredview_read_benchmark` (#288) measures the readers of a
+Search's Displayed Lines. It writes a Log File of short Log Lines (256 MiB, or
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB`) into a temporary directory, indexes it and
+runs a Search matching every eighth Log Line, without Context Lines, before
+the first case:
+
+- `[paint]` — **getLines, a screen at each of 200 Scroll Positions**: 60 rows
+  read from the Filtered View's log data at 200 positions spread over the
+  matches, as painting does.
+- `[save]` — **the first 100,000 displayed lines, as UTF-8**: a save through
+  the Filtered View's `linesToSave()` into memory.
+- `[marks]` — **remove the longest Mark and add it back**, among 10,000
+  Marks spread over the Log File.
+- `[grep]` — **logsquirl_grep, every eighth Log Line**: the command line
+  tool run on the same Log File with its output discarded. It is taken from
+  the directory of the benchmark binary and skipped when it is not there.
+
+The file uses only what these offered before #288, so it builds on
+origin/master with `generated_log_file.h` copied next to it:
+
+```bash
+cmake --build build-release --target logsquirl_filteredview_read_benchmark logsquirl_grep
+./build-release/output/logsquirl_filteredview_read_benchmark --benchmark-samples 10 > after.txt
+
+# A quick check on a Log File of 16 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 ./build/output/logsquirl_filteredview_read_benchmark --benchmark-samples 2
+```
+
+```cmake
+add_executable(logsquirl_filteredview_read_benchmark filteredview_read_benchmark.cpp)
+target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
+```
