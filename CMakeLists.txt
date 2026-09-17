@@ -131,16 +131,17 @@ if(MSVC)
 else()
   ucm_add_flags(CXX "-fno-sized-deallocation -fno-omit-frame-pointer")
 
-  if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64")
-    ucm_add_flags(C CXX "-march=native -mtune=generic")
-  else()
-    ucm_add_flags(C CXX "-mmmx -msse -msse2 -msse3 -mssse3 -msse4.1 -msse4.2 -mpopcnt")
-    if(LOGSQUIRL_GENERIC_CPU)
-      ucm_add_flags(C CXX "-march=x86-64 -mtune=generic")
-    else()
-      ucm_add_flags(C CXX "-march=native -mtune=generic")
-    endif()
-  endif()
+  # Chosen for the target architecture, not the host (#285).
+  include(ArchitectureFlags)
+  logsquirl_architecture_flags(
+    LOGSQUIRL_ARCHITECTURE_FLAGS
+    PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}"
+    SYSTEM_NAME "${CMAKE_SYSTEM_NAME}"
+    OSX_ARCHITECTURES ${CMAKE_OSX_ARCHITECTURES}
+    GENERIC_CPU "${LOGSQUIRL_GENERIC_CPU}"
+  )
+  message("Architecture flags for ${CMAKE_SYSTEM_NAME} ${CMAKE_SYSTEM_PROCESSOR}: ${LOGSQUIRL_ARCHITECTURE_FLAGS}")
+  ucm_add_flags(C CXX ${LOGSQUIRL_ARCHITECTURE_FLAGS})
 endif(MSVC)
 
 if(WIN32)
