@@ -21,22 +21,11 @@ on:
       - README.md
       - latest.json
       - .gitignore
-  # The release workflow passes exactly the secrets this workflow uses instead
-  # of all of its secrets (#204). All are optional. The macOS signing secrets
-  # are not among them: they live in the `release` environment, and CI Release
-  # signs the packages itself (#203).
-  workflow_call:
-    secrets:
-      WIN_CS_KEY_ID:
-        required: false
-      WIN_CS_SECRET:
-        required: false
-      WIN_CS_BUCKET:
-        required: false
-      WIN_SIGN_CERT_PFX:
-        required: false
-      WIN_SIGN_CERT_PASSWORD:
-        required: false
+  # No workflow_call: CI Release no longer rebuilds, it publishes the packages
+  # of this workflow's push run on master for the tagged commit (#221). So a
+  # push run on master is a release candidate: its packages are unsigned (the
+  # signing secrets live in the `release` environment, #203) and carry the
+  # version declared in CMakeLists.txt.
   workflow_dispatch:
 
 concurrency:
@@ -171,9 +160,9 @@ jobs:
       - name: Test the SBOM generator
         run: python -m pytest scripts/sbom -p no:cacheprovider
 
-      # The Renovate checksum updater (#211) and the action allowlist check
-      # (#201); they share only pytest with the SBOM tooling, which this job
-      # already installs.
+      # The Renovate checksum updater (#211), the action allowlist check
+      # (#201) and the release build lookup (#221); they share only pytest
+      # with the SBOM tooling, which this job already installs.
       - name: Test the CI scripts
         run: python -m pytest .github/scripts -p no:cacheprovider
 

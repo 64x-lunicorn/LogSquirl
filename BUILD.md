@@ -247,15 +247,17 @@ See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
 CI builds use the scheme `YY.MM.PATCH.BUILD`.
 
-- `YY.MM.PATCH` is taken from the release tag being built (e.g. tag `v26.06.1`
-  produces base version `26.06.1`; any pre-release suffix such as `-beta.1` is
-  stripped). For untagged builds (branch pushes, pull requests) it falls back to
-  the `project(... VERSION …)` value declared in `CMakeLists.txt`.
-- `BUILD = github.run_number + 717`.
+- `YY.MM.PATCH` is the `project(... VERSION …)` value declared in `CMakeLists.txt`, for every build
+  (pull requests, branch dispatches and pushes to master alike).
+- `BUILD = github.run_number + 717`, the CI Build run number.
 
-For example, tag `v26.06.1` on run number 50 produces version `26.06.1.767`.
-The base version is resolved by `.github/actions/logsquirl-version`, so the
-binaries always carry the same version as the published GitHub release.
+For example, `VERSION 26.06.1` on CI Build run number 50 produces version `26.06.1.767`.
+`.github/actions/logsquirl-version` resolves it.
+
+A release publishes the packages CI Build made for the tagged commit on master; the tag is pushed after that
+build, so the commit has to declare the release's version already. Before tagging `vX.Y.Z` (or a pre-release
+`vX.Y.Z-betaN`), set `VERSION X.Y.Z` in `CMakeLists.txt` on master and let CI Build pass. CI Release refuses a
+build whose base version is not the tag's, naming both.
 
 ### Docker Build Containers
 
@@ -308,13 +310,19 @@ running it on master without that publishes any hash tag still missing.
 
 ### Release Process
 
-Releases are triggered by pushing a git tag to master:
+Releases are triggered by pushing a git tag to a master commit whose CI Build push run succeeded and whose
+`CMakeLists.txt` declares the tag's version (see *Version Numbering*):
 
 - **Stable release**: push a semver tag like `v26.04.0`
 - **Beta release**: push a pre-release tag like `v26.04.0-beta.1`
 
-The release workflow:
-1. Calls `ci-build.yml` to build all platforms (the macOS packages unsigned, like every CI Build)
+The release workflow does not build. It:
+1. Finds the successful CI Build run for the push to master that built the tagged commit and fails with an error if
+   there is none (still running, failed, or never run because the commit was `[skip ci]` or only touched ignored
+   paths). It downloads that run's packages by artifact ID, checks each against its digest, and checks that the build
+   is the tag's: every artifact belongs to that run and commit, the SBOM records the commit, and the version file, the
+   SBOM and the Linux package names carry a version whose `YY.MM.PATCH` is the tag's
+   (`.github/scripts/release-build.py`)
 2. Signs the macOS app, notarizes and staples it, packs the DMG again from it and signs, notarizes and staples the DMG
    (`.github/actions/mac-sign-notarize`), in the `release` environment
 3. Uploads debug symbols to Sentry (non-blocking), in the `release` environment
@@ -347,8 +355,10 @@ The release workflow:
    the checksum file), then publishes the draft. A failure in between leaves a draft.
 7. Updates `latest.json` with the new version (beta or stable field)
 
-Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag, and dispatch it from
-that tag (*Use workflow from*, or `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`).
+Manual releases, e.g. to re-run a release, are also supported via `workflow_dispatch`: dispatch it from the tag
+(*Use workflow from*, or `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`) with that tag as input.
+The optional CI Build run ID must name the successful push run on master for the tagged commit; without it, that run
+is found as for a tag push.
 
 #### Secrets and environments
 
@@ -369,7 +379,7 @@ signing job could not enter the `release` environment.
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
 | `ci-build.yml` | push/PR to master | Build + test all platforms |
-| `ci-release.yml` | tag push `v*` | Publish GitHub Release |
+| `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
