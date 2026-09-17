@@ -265,6 +265,25 @@ window, and it moves to another window when that one closes. Every contribution 
 one plugin, and all of them are taken away again when that plugin is unloaded.
 _Avoid_: plugin UI bridge, widget signals, UI host
 
+### Updates
+
+**Update Feed**:
+`latest.json` on master: the latest stable and beta release, the build each was published
+from, every release name and its notes. The release workflow proposes a change to it through
+a pull request; the application downloads it to decide whether to announce a newer release.
+_Avoid_: version file, update manifest, metadata
+
+**Release Page**:
+The GitHub page of one LogSquirl release, below
+`https://github.com/64x-lunicorn/LogSquirl/releases/`. It is where a user downloads a
+release, its attestations and its signed checksum file.
+_Avoid_: download link, release URL
+
+**Update Offer**:
+The newer release the update check announces to the user, with the notes of the releases
+they skip. A release is only offered when the Update Feed points at its Release Page.
+_Avoid_: update notification, new version
+
 ### Session and settings
 
 **Settings Policy**:

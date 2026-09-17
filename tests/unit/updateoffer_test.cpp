@@ -21,6 +21,10 @@
 
 #include "updateoffer.h"
 
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+
 using logsquirl::versioncheck::findUpdateOffer;
 
 namespace {
@@ -262,6 +266,113 @@ SCENARIO( "Only the stable and beta entries of the feed are offered",
             CHECK_FALSE(
                 findUpdateOffer( "<html>rate limited</html>", "26.07.0.741", true ).has_value() );
             CHECK_FALSE( findUpdateOffer( "{}", "26.07.0.741", true ).has_value() );
+        }
+    }
+}
+
+SCENARIO( "Only a release page of LogSquirl is offered", "[versioncheck][updateoffer]" )
+{
+    // A feed whose newer stable release points at url (#222). Built as JSON
+    // values, so every url arrives as written.
+    const auto withStableUrl = []( const QString& url ) {
+        return QJsonDocument( QJsonObject{ { "stable", "26.10.0" },
+                                           { "stable_url", url },
+                                           { "stable_build", "26.10.0.790" },
+                                           { "releases", QJsonArray{ "26.07.0", "26.10.0" } },
+                                           { "changelog", QJsonArray{} } } )
+            .toJson();
+    };
+
+    GIVEN( "A feed whose newer stable release is a LogSquirl release page" )
+    {
+        const auto valid = withStableUrl( ReleasesUrl + "v26.10.0" );
+
+        THEN( "It is offered" )
+        {
+            const auto offer = findUpdateOffer( valid, "26.07.0.741", false );
+            REQUIRE( offer.has_value() );
+            CHECK( offer->url == ReleasesUrl + "v26.10.0" );
+        }
+    }
+
+    GIVEN( "A feed whose newer stable release points elsewhere" )
+    {
+        const auto url
+            = GENERATE( as<QString>{},
+                        // a foreign domain
+                        "https://evil.example.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        // not https
+                        "http://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        // another repository
+                        "https://github.com/someone-else/LogSquirl/releases/tag/v26.10.0",
+                        "https://github.com/64x-lunicorn/LogSquirl-fork/releases/tag/v26.10.0",
+                        // the repository, but not its releases
+                        "https://github.com/64x-lunicorn/LogSquirl/archive/v26.10.0.zip",
+                        "https://github.com/64x-lunicorn/LogSquirl/releases",
+                        // prefix tricks
+                        "https://github.com/64x-lunicorn/LogSquirl/releases.evil.com/v26.10.0",
+                        "https://github.com.evil.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        "https://github.com@evil.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        "https://evil.com#https://github.com/64x-lunicorn/LogSquirl/releases/",
+                        " https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        // case variants
+                        "HTTPS://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        "https://GitHub.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        "https://github.com/64x-lunicorn/logsquirl/releases/tag/v26.10.0",
+                        // a port
+                        "https://github.com:8443/64x-lunicorn/LogSquirl/releases/tag/v26.10.0",
+                        // leaving the releases by path traversal
+                        "https://github.com/64x-lunicorn/LogSquirl/releases/../../../evil/repo",
+                        "https://github.com/64x-lunicorn/LogSquirl/releases/./../archive",
+                        "https://github.com/64x-lunicorn/LogSquirl/releases/%2e%2e/%2E%2E/evil",
+                        "https://github.com/64x-lunicorn/LogSquirl/releases/..%2F..%2Fevil",
+                        "https://github.com/64x-lunicorn/LogSquirl/releases/..\\..\\evil",
+                        // not a URL
+                        "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v 26.10.0",
+                        "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v1\"><a "
+                        "href=\"https://evil.com\">",
+                        "" );
+
+        WHEN( "LogSquirl 26.07.0 checks for updates" )
+        {
+            const auto feedJson = withStableUrl( url );
+
+            THEN( "Nothing is offered" )
+            {
+                INFO( url.toStdString() );
+                CHECK_FALSE( findUpdateOffer( feedJson, "26.07.0.741", true ).has_value() );
+            }
+        }
+    }
+
+    GIVEN( "A feed whose stable release points elsewhere and whose beta is a release page" )
+    {
+        const auto mixed
+            = QStringLiteral(
+                  R"({"stable":"26.10.0","stable_url":"https://evil.example.com/","stable_build":"26.10.0.790",)"
+                  R"("beta":"26.11.0-beta1","beta_url":"%1v26.11.0-beta1","beta_build":"26.11.0.800",)"
+                  R"("releases":["26.07.0","26.10.0","26.11.0-beta1"],"changelog":[]})" )
+                  .arg( ReleasesUrl )
+                  .toUtf8();
+
+        WHEN( "LogSquirl 26.07.0 checks with beta checking on" )
+        {
+            const auto offer = findUpdateOffer( mixed, "26.07.0.741", true );
+
+            THEN( "Only the beta is offered" )
+            {
+                REQUIRE( offer.has_value() );
+                CHECK( offer->version == "26.11.0-beta1" );
+                CHECK( offer->url == ReleasesUrl + "v26.11.0-beta1" );
+            }
+        }
+
+        WHEN( "It checks without beta checking" )
+        {
+            THEN( "Nothing is offered" )
+            {
+                CHECK_FALSE( findUpdateOffer( mixed, "26.07.0.741", false ).has_value() );
+            }
         }
     }
 }
