@@ -21,6 +21,7 @@
 #define OVERVIEWWIDGET_H
 
 #include <QBasicTimer>
+#include <QColor>
 #include <QWidget>
 
 #include "linetypes.h"
@@ -38,6 +39,18 @@ public:
     {
         overview_ = overview;
     }
+
+    // The contrast every Match and Mark line reaches against the overview
+    // background, as long as the Match or Mark color reaches it by itself.
+    static constexpr double MinimumLineContrast = 3.0;
+
+    // The color a Match or Mark line of the given weight (0 to
+    // Overview::WeightedLine::WEIGHT_STEPS - 1) is drawn in over background.
+    // A heavier line stands for more Log Lines: the lightest is statusColor
+    // mixed into background just as far as MinimumLineContrast needs, the
+    // heaviest is statusColor itself. A statusColor that does not reach
+    // MinimumLineContrast by itself is drawn unmixed at every weight.
+    static QColor lineColor( const QColor& statusColor, const QColor& background, int weight );
 
 public Q_SLOTS:
     // Sent when a match at the line passed must be highlighted in
