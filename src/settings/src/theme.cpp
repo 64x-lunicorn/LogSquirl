@@ -236,6 +236,7 @@ Theme Theme::light()
         { LineNumberText, "#495057" },
         { Bullet, "#FFFFFF" },
         { BulletOutline, "#495057" },
+        { ProgressChunk, "#0056B3" },
     } );
 
     using enum StyleToken;
@@ -261,6 +262,8 @@ Theme Theme::light()
         { CheckIcon, "url(:/icons/check-light.svg)" },
         { DisabledCheckIcon, "url(:/icons/check-light.svg)" },
         { CloseIcon, "url(:/icons/close-light.svg)" },
+        { DisabledBorderStyle, "solid" },
+        { ProgressChunkBorderWidth, "0px" },
     } );
     return theme;
 }
@@ -351,6 +354,8 @@ Theme Theme::dark()
         { LineNumberText, "#A0A0A0" },
         { Bullet, "#1E1E1E" },
         { BulletOutline, "#A0A0A0" },
+        // Highlight; follows an overridden Highlight (see fromName).
+        { ProgressChunk, "#4D90FE" },
     } );
 
     using enum StyleToken;
@@ -376,6 +381,8 @@ Theme Theme::dark()
         { CheckIcon, "url(:/icons/check-dark.svg)" },
         { DisabledCheckIcon, "none" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
+        { DisabledBorderStyle, "solid" },
+        { ProgressChunkBorderWidth, "0px" },
     } );
     return theme;
 }
@@ -431,7 +438,7 @@ Theme Theme::highContrast()
         { HoverBorder, "#FFFF00" },
         { InputHoverBorder, "#FFFF00" },
         { HeaderHover, "#000000" },
-        { ButtonHover, "#000000" },
+        { ButtonHover, "#1F1F1F" },
         { ToolButtonHover, "#1F1F1F" },
         { ButtonPressed, "#FFFF00" },
         { ButtonPressedBorder, "#FFFF00" },
@@ -465,6 +472,9 @@ Theme Theme::highContrast()
         { LineNumberText, "#FFFFFF" },
         { Bullet, "#000000" },
         { BulletOutline, "#FFFFFF" },
+        // No single text color reaches 4.5:1 on both black and yellow, so the
+        // filled part is black too, outlined in Highlight.
+        { ProgressChunk, "#000000" },
     } );
 
     using enum StyleToken;
@@ -490,6 +500,9 @@ Theme Theme::highContrast()
         { CheckIcon, "url(:/icons/check-hc.svg)" },
         { DisabledCheckIcon, "url(:/icons/check-hc.svg)" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
+        // A disabled button differs from an enabled one by more than a gray.
+        { DisabledBorderStyle, "dashed" },
+        { ProgressChunkBorderWidth, "2px" },
     } );
     return theme;
 }
@@ -561,6 +574,9 @@ void Theme::applyOverrides( const std::map<QString, QString>& overrides )
         placeholder.setAlpha( 128 );
         colors_[ indexOf( ColorToken::PlaceholderText ) ] = placeholder;
     }
+    if ( !overrides.contains( QStringLiteral( "ProgressChunk" ) ) ) {
+        colors_[ indexOf( ColorToken::ProgressChunk ) ] = color( ColorToken::Highlight );
+    }
 }
 
 QString Theme::name() const
@@ -576,6 +592,11 @@ bool Theme::isDark() const
 bool Theme::usesInverseIcons() const
 {
     return isDark_;
+}
+
+bool Theme::usesInverseIconsWhenChecked() const
+{
+    return color( ColorToken::Checked ).lightness() < 128;
 }
 
 QColor Theme::color( ColorToken token ) const

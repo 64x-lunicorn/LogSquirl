@@ -475,9 +475,11 @@ SCENARIO( "Every size Token is a stylesheet length with a unit", "[theme]" )
 {
     GIVEN( "each built-in Theme" )
     {
-        // An image Token names an icon or none; every other style Token is a
-        // size: one to four lengths, each with a unit unless it is 0.
+        // An image Token names an icon or none, a border style Token a border
+        // style; every other style Token is a size: one to four lengths, each
+        // with a unit unless it is 0.
         static const QRegularExpression image( "^(url\\(.+\\)|none)$" );
+        static const QRegularExpression borderStyle( "^(solid|dashed|dotted)$" );
         static const QRegularExpression length( "^(-?\\d+(\\.\\d+)?(px|pt|em|ex)|-?0)$" );
 
         THEN( "every length of every size Token carries a unit" )
@@ -486,7 +488,8 @@ SCENARIO( "Every size Token is a stylesheet length with a unit", "[theme]" )
                 const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
                 for ( const auto token : allStyleTokens() ) {
                     const auto value = theme.value( token );
-                    if ( image.match( value ).hasMatch() ) {
+                    if ( image.match( value ).hasMatch()
+                         || borderStyle.match( value ).hasMatch() ) {
                         continue;
                     }
                     INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString()
@@ -540,6 +543,110 @@ SCENARIO( "The Command Palette's badge and shortcut Tokens are readable in every
                 REQUIRE( contrastRatio( theme.color( ColorToken::HighlightedSecondaryText ),
                                         theme.color( ColorToken::Highlight ) )
                          >= 4.5 );
+            }
+        }
+    }
+}
+
+SCENARIO( "A checked button's icon contrasts with the Checked color in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "the icon variant for the checked state is light on a dark Checked color and dark "
+              "on a light one, reaching 3:1" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                // The inverse variants are drawn in white, the others in black.
+                const QColor icon( theme.usesInverseIconsWhenChecked() ? Qt::white : Qt::black );
+                REQUIRE( contrastRatio( icon, theme.color( ColorToken::Checked ) ) >= 3.0 );
+            }
+        }
+
+        THEN( "Light and Dark show the same variant checked as unchecked" )
+        {
+            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ) } ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.usesInverseIconsWhenChecked() == theme.usesInverseIcons() );
+            }
+        }
+    }
+}
+
+SCENARIO( "High Contrast's progress bar text is readable over the filled and the empty part",
+          "[theme]" )
+{
+    GIVEN( "the High Contrast Theme" )
+    {
+        const auto theme = Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light );
+
+        THEN( "the text reaches 4.5:1 on the chunk and on the bar" )
+        {
+            const auto text = theme.color( ColorToken::Text );
+            REQUIRE( contrastRatio( text, theme.color( ColorToken::ProgressChunk ) ) >= 4.5 );
+            REQUIRE( contrastRatio( text, theme.color( ColorToken::Panel ) ) >= 4.5 );
+        }
+
+        THEN( "the chunk is outlined in a color that reaches 3:1 on the bar" )
+        {
+            REQUIRE( theme.value( StyleToken::ProgressChunkBorderWidth )
+                     != QStringLiteral( "0px" ) );
+            REQUIRE( contrastRatio( theme.color( ColorToken::Highlight ),
+                                    theme.color( ColorToken::Panel ) )
+                     >= 3.0 );
+        }
+    }
+
+    GIVEN( "a stored Dark override of Highlight" )
+    {
+        THEN( "Dark's progress chunk follows it" )
+        {
+            const auto dark = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light,
+                                               { { "Highlight", "#FF8800" } } );
+            REQUIRE( dark.color( ColorToken::ProgressChunk ) == QColor( "#FF8800" ) );
+        }
+    }
+}
+
+SCENARIO( "High Contrast shows hovered and disabled push buttons differently", "[theme]" )
+{
+    GIVEN( "the High Contrast Theme" )
+    {
+        const auto theme = Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light );
+
+        THEN( "a hovered push button changes its background, border and text" )
+        {
+            REQUIRE( theme.color( ColorToken::ButtonHover ) != theme.color( ColorToken::Button ) );
+            REQUIRE( theme.color( ColorToken::InputHoverBorder )
+                     != theme.color( ColorToken::InputBorder ) );
+            REQUIRE( theme.color( ColorToken::HoverText )
+                     != theme.color( ColorToken::ButtonText ) );
+        }
+
+        THEN( "a disabled push button has a gray, dashed border and gray text" )
+        {
+            REQUIRE( theme.value( StyleToken::DisabledBorderStyle ) == QStringLiteral( "dashed" ) );
+            REQUIRE( theme.color( ColorToken::DisabledBorder ).saturation() == 0 );
+            REQUIRE( theme.color( ColorToken::DisabledBorder ).lightness()
+                     < theme.color( ColorToken::InputBorder ).lightness() );
+            REQUIRE( theme.color( ColorToken::DisabledButtonText ).lightness()
+                     < theme.color( ColorToken::ButtonText ).lightness() );
+        }
+    }
+
+    GIVEN( "Light and Dark" )
+    {
+        THEN( "their hover text is their button text, and disabled borders stay solid" )
+        {
+            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ) } ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.color( ColorToken::HoverText )
+                         == theme.color( ColorToken::ButtonText ) );
+                REQUIRE( theme.value( StyleToken::DisabledBorderStyle )
+                         == QStringLiteral( "solid" ) );
             }
         }
     }

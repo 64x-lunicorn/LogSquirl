@@ -24,11 +24,17 @@ class IconLoader {
 public:
     QIcon load( QString name );
 
+    // An icon for a checkable button: its On state, which a checked button
+    // shows, is in the variant Theme::usesInverseIconsWhenChecked() asks for
+    // (#257). Only for buttons: a tab bar, menu or item view also shows the On
+    // state of a selected tab, checked action or open item, on another
+    // background.
+    QIcon loadCheckable( QString name );
+
 private:
-    bool shouldInvert() const;
     bool shouldAutoInvert( QString ) const;
 
-    QPixmap loadPixmap( QString, int ) const;
+    QPixmap loadPixmap( QString, int, bool invert ) const;
 
     QPixmap invertPixmap( QPixmap ) const;
 
