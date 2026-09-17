@@ -269,6 +269,9 @@ private:
 
     WindowSession session_;
     QString loadingFileName;
+    // While the Session's tabs are added: each becomes current in turn, and
+    // none of them is to start loading for that (#300).
+    bool restoringSession_ = false;
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;
