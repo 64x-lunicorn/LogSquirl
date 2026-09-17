@@ -27,6 +27,7 @@
 #include "searchsession.h"
 #include "settingspolicies.h"
 
+#include <QList>
 #include <QMetaObject>
 #include <QMetaType>
 #include <QObject>
@@ -105,6 +106,12 @@ public:
     // Marks saved with the Session for this Log File, applied once, when the
     // first load has finished. Hand them over before that.
     void restoreMarks( const logsquirl::vector<LineNumber>& marks );
+
+    // The Marks of the Log File, as saving the Session keeps them: until the
+    // first load has finished, the Marks saved with the Session, so that a
+    // Log File that has not loaded yet -- a restored tab waiting for its turn
+    // (#300) -- does not lose them.
+    QList<LineNumber> marks() const;
 
     // Loads the Log File again from its start: the Search is dropped with its
     // cached results, the Marks are cleared and the Log Format is recognized
