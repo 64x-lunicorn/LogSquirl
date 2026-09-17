@@ -1,3 +1,46 @@
+# Unreleased
+
+## Changes
+
+- **Faster indexing**: Log File blocks are parsed on several cores with one
+  scan for line feeds and tabs, and reading Log Lines no longer waits for the
+  indexer. The longest-line width of lines with tabs is now the real tab-stop
+  width, so the horizontal scroll range fits them exactly.
+- **Following a Log File reads only what was added**: a growing Log File is
+  checked from its start and end instead of being read in full on every
+  change.
+- **Faster reads**: Quick Find, the Filtered View, saving displayed lines and
+  the grep command line tool read Log Lines in batches; hiding ANSI color
+  sequences, patterns Vectorscan rejects and Log Files in UTF-16 or Latin-1
+  no longer decode or compile per Log Line.
+- **Smoother views**: scrolling redraws only the Visual Lines it uncovers,
+  Quick Find typing, Highlighter changes and Search progress repaint without
+  reading the Log Lines again, a running Search updates the displayed lines
+  and the overview by what changed, and the Table View decides a row's colors
+  once per row.
+- **Charts with millions of points**: a chart follows a growing Log File by
+  extracting only the new Log Lines, draws only the visible range and finds
+  the point under the mouse by binary search.
+- **Faster startup**: a restored Session loads the current tab first,
+  settings are read once, plugins load once after the first window shows,
+  and a second instance hands its Log Files over at once.
+- **Release builds**: Windows and Linux releases are built with full
+  optimization, link-time optimization covers every LogSquirl library, and
+  mimalloc is updated to 2.5.2.
+- **Benchmarks against master**: a manually started CI workflow builds a
+  branch and master optimized and reports their benchmarks side by side.
+
+## Fixes
+
+- A `.zst` Log File made of several frames opens completely, and a truncated
+  one reports an error.
+- The match count stays exact while a Search follows a growing Log File.
+- Apple Silicon and Linux arm64 builds target a portable CPU.
+- Converter plugins handle the file extensions they declare, and plugin menu
+  entries show in every window.
+- A restored tab that had not loaded yet keeps its Marks when the Session is
+  saved.
+
 # v26.10.0-beta1 (2026-09-17)
 
 ## Changes
