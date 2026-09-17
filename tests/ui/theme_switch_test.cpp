@@ -208,7 +208,9 @@ struct MainWindowFixture {
                                 std::shared_ptr<LogFormatCatalog> catalog
                                 = std::make_shared<LogFormatCatalog>() )
         : session( std::make_shared<Session>( policies, std::move( catalog ) ) )
-        , mainWindow( std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 } ) )
+        , mainWindow( std::make_unique<MainWindow>(
+              WindowSession{ session, "Main", 0 },
+              std::make_shared<logsquirl::plugins::ApplicationPlugins>() ) )
     {
         mainWindow->show();
         QTest::qWait( 100 );

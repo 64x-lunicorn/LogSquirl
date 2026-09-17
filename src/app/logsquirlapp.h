@@ -48,6 +48,7 @@
 #include <windows.h>
 #endif
 
+#include "applicationplugins.h"
 #include "configuration.h"
 #include "crashhandler.h"
 #include "filewatcher.h"
@@ -124,6 +125,11 @@ public:
         logFormatCatalog_->rebuild();
 
         fileWatcher_ = FileWatcher::sharedFileWatcher();
+
+        // Loaded once, after the first window shows, and shared by every
+        // window (#303).
+        plugins_ = std::make_shared<logsquirl::plugins::ApplicationPlugins>(
+            &LogSquirlApp::loadConfiguredPlugins );
 
         versionChecker_ = std::make_unique<VersionChecker>();
         if ( singleApplication_.isPrimaryInstance() ) {
@@ -308,7 +314,7 @@ public:
 private:
     MainWindow* newWindow( WindowSession&& session )
     {
-        mainWindows_.emplace_back( session, new MainWindow( session ) );
+        mainWindows_.emplace_back( session, new MainWindow( session, plugins_ ) );
 
         auto& window = mainWindows_.back().second;
 
@@ -323,6 +329,26 @@ private:
         connect( window, &MainWindow::exitRequested, [ this ] { exitApplication(); } );
 
         return window;
+    }
+
+    // Discovers the installed plugins and loads the enabled ones. The plugin
+    // layer reads no settings: it is handed them, and a first run's default,
+    // every discovered plugin enabled, is kept here.
+    static void loadConfiguredPlugins( logsquirl::plugins::PluginCatalog& catalog,
+                                       logsquirl::plugins::PluginHost& host )
+    {
+        catalog.discoverPlugins();
+
+        auto& config = Configuration::get();
+        const auto autoLoaded = host.autoLoadPlugins(
+            { .autoLoad = config.pluginsAutoLoad(), .enabled = config.enabledPlugins() } );
+        if ( autoLoaded.enabledOnFirstRun ) {
+            config.setEnabledPlugins( *autoLoaded.enabledOnFirstRun );
+            config.save();
+        }
+        for ( const auto& error : autoLoaded.errors ) {
+            LOG_WARNING << "Plugin auto-load error: " << error;
+        }
     }
 
     void onWindowActivated( MainWindow& window )
@@ -411,6 +437,10 @@ private:
     // set up by prepareForMainWindows().
     SettingsPolicies settingsPolicies_;
     std::shared_ptr<LogFormatCatalog> logFormatCatalog_;
+
+    // The one Plugin Catalog and Plugin Host, set up by
+    // prepareForMainWindows() and handed to every window (#303).
+    std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
 
     std::list<std::pair<WindowSession, MainWindow*>> mainWindows_;
     std::stack<QPointer<MainWindow>> activeWindows_;
