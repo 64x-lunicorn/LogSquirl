@@ -656,3 +656,24 @@ LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 ./build/output/logsquirl_filteredview_read_be
 add_executable(logsquirl_filteredview_read_benchmark filteredview_read_benchmark.cpp)
 target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
 ```
+
+# Line position benchmark
+
+`logsquirl_linepositionarray_benchmark` (#321) measures the compressed line
+positions of an Index of two million Log Lines between 60 and 250 bytes long,
+so no compressed block spans 4 GiB. Links `logsquirl_logdata` only and needs
+no GUI:
+
+- **append, line by line**: as following a growing Log File appends them.
+- **append_list, a block of Log Lines at a time**: as indexing appends them,
+  10,000 at a time.
+- **at, random Log Lines**: 100,000 lookups, each unpacking one block.
+- **range, the whole Index**: every position at once.
+
+The file uses only what `LinePositionArray` offered before #321, so it builds
+unchanged on such a commit:
+
+```bash
+cmake --build build-release --target logsquirl_linepositionarray_benchmark
+./build-release/output/logsquirl_linepositionarray_benchmark --benchmark-samples 20 > after.txt
+```
