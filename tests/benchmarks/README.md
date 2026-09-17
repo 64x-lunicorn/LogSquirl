@@ -350,6 +350,41 @@ add_executable(logsquirl_regex_matcher_benchmark regex_matcher_benchmark.cpp)
 target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
 ```
 
+# QuickFind benchmark
+
+`logsquirl_quickfind_benchmark` (#287) runs a QuickFind for text no Log Line
+holds, so it reads and matches every Log Line it searches, over the generated
+Log File of short Log Lines described above (about 1 GB, or
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB`). Each case runs forwards from the first Log
+Line and backwards from the last one:
+
+- **every Log Line**, as the main view searches;
+- **every tenth Log Line**, as a Filtered View searches the Matches of a
+  Search.
+
+`[file-kept-open]` runs them on a Log File kept open between reads.
+`[file-kept-closed]` runs them with "keep file closed" set; it is hidden, so a
+run of every benchmark leaves it out, because before #287 QuickFind reopened
+the Log File for every Log Line and a single run takes minutes.
+
+```bash
+cmake --build build-release --target logsquirl_quickfind_benchmark
+./build-release/output/logsquirl_quickfind_benchmark --benchmark-samples 10 > after.txt
+./build-release/output/logsquirl_quickfind_benchmark "[file-kept-closed]" --benchmark-samples 3
+
+# A quick check on a Log File of 8 MiB
+LOGSQUIRL_BENCHMARK_LOG_FILE_MB=8 ./build/output/logsquirl_quickfind_benchmark --benchmark-samples 2
+```
+
+`quickfind_benchmark.cpp` uses only what QuickFind and LogData offered before
+#287. For the before side, copy it and `generated_log_file.h` into a worktree
+of origin/master as above, with
+
+```cmake
+add_executable(logsquirl_quickfind_benchmark quickfind_benchmark.cpp)
+target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
+```
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a

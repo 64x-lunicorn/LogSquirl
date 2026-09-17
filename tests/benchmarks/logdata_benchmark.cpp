@@ -261,7 +261,7 @@ TEST_CASE( "Reading a sparse set of Log Lines", "[logdata-benchmark][sparse-read
             return characters;
         };
 
-        // As Quick Find reads today.
+        // As Quick Find read before #287.
         BENCHMARK( caseName( shape, "getExpandedLineString, line by line" ) )
         {
             qsizetype characters = 0;
