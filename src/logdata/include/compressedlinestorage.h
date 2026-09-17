@@ -92,15 +92,35 @@ private:
     void uncompress_last_block();
     struct BlockMetadata {
         OffsetInFile firstLineOffset{};
-        size_t packetStorageOffset{};
+        // Where the block's positions start in packedLinesStorage_, and, in
+        // the top bit, how they are held. They are offsets from the block's
+        // first position: packed 32-bit ones, or, for a block spanning 4 GiB
+        // or more, unpacked 64-bit ones (#321).
+        uint64_t storageOffsetAndWideFlag{};
+
+        static constexpr uint64_t WideFlag = uint64_t{ 1 } << 63;
+
+        size_t packetStorageOffset() const
+        {
+            return static_cast<size_t>( storageOffsetAndWideFlag & ~WideFlag );
+        }
+        bool hasWideOffsets() const
+        {
+            return ( storageOffsetAndWideFlag & WideFlag ) != 0;
+        }
     };
+
+    // Position at index in a block.
+    OffsetInFile position_in_block( const BlockMetadata& block, size_t indexInBlock ) const;
+    // Positions from index first up to index last (exclusive) in a block.
+    void unpack_block( const BlockMetadata& block, size_t first, size_t last,
+                       OffsetInFile* out ) const;
 
     logsquirl::vector<BlockMetadata> blocks_;
     logsquirl::vector<uint8_t> packedLinesStorage_;
     size_t packedLinesStorageUsedSize_ = 0;
 
     logsquirl::vector<OffsetInFile> currentLinesBlock_;
-    logsquirl::vector<uint32_t> currentLinesBlockShifted_;
 
     // Total number of lines in storage
     LinesCount nbLines_;

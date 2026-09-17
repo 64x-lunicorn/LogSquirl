@@ -20,6 +20,7 @@
 #include <catch2/catch.hpp>
 
 #include <limits>
+#include <vector>
 
 #include <QDateTime>
 #include <QDir>
@@ -518,5 +519,69 @@ SCENARIO( "An Index cache given no directory stores nothing", "[indexcache]" )
         REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
         REQUIRE( cache.totalCacheSize() == 0 );
         REQUIRE( cache.clearAll() == 0 );
+    }
+}
+
+SCENARIO( "The Index cache keeps line positions of a block spanning 4 GiB or more exactly",
+          "[indexcache]" )
+{
+    // Such a block's positions were truncated to 32-bit offsets (#321).
+    QTemporaryDir cacheDir;
+    QTemporaryDir logDir;
+    REQUIRE( cacheDir.isValid() );
+    REQUIRE( logDir.isValid() );
+    const IndexCache cache{ cacheDir.path(), QString{}, NoBudgetLimit };
+
+    const auto logFile = logDir.filePath( "huge-lines.log" );
+    writeFile( logFile, "stands in for a Log File with lines longer than 4 GiB\n" );
+
+    // 300 Log Lines, two of them longer than 4 GiB, in the first compressed
+    // block and in the tail not yet compressed.
+    constexpr qint64 BeyondFourGiB = ( qint64{ 1 } << 32 ) * 5 + 777;
+    LinePositionArray positions;
+    std::vector<OffsetInFile> expected;
+    qint64 offset = 0;
+    for ( int line = 0; line < 300; ++line ) {
+        offset += ( line == 70 || line == 280 ) ? BeyondFourGiB : 80 + line % 11;
+        expected.push_back( OffsetInFile( offset ) );
+        positions.append( expected.back() );
+    }
+
+    GIVEN( "their Index stored" )
+    {
+        REQUIRE( store( cache, logFile, positions ) );
+
+        WHEN( "it is loaded" )
+        {
+            const auto loaded = cache.tryLoad( logFile );
+
+            THEN( "every line position is loaded back exactly" )
+            {
+                REQUIRE( loaded.has_value() );
+                REQUIRE( loaded->linePosition.size().get() == expected.size() );
+                for ( auto i = 0u; i < expected.size(); ++i ) {
+                    REQUIRE( loaded->linePosition.at( i ) == expected[ i ] );
+                }
+            }
+        }
+
+        WHEN( "the entry is of the format before #321, which truncated such positions" )
+        {
+            const auto names = cacheFiles( cacheDir.path() );
+            REQUIRE( names.size() == 1 );
+            QFile entry( QDir( cacheDir.path() ).filePath( names.first() ) );
+            REQUIRE( entry.open( QIODevice::ReadWrite ) );
+            // The format version follows the 4 magic bytes, big-endian.
+            REQUIRE( entry.seek( 4 ) );
+            const char formatBefore321[] = { 0, 0, 0, 1 };
+            REQUIRE( entry.write( formatBefore321, 4 ) == 4 );
+            entry.close();
+
+            THEN( "nothing is loaded and the outdated entry is gone" )
+            {
+                REQUIRE_FALSE( cache.tryLoad( logFile ).has_value() );
+                REQUIRE( cacheFiles( cacheDir.path() ).isEmpty() );
+            }
+        }
     }
 }

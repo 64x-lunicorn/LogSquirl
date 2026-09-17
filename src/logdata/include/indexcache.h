@@ -112,7 +112,8 @@ private:
     /// Magic bytes at the start of every cache file.
     static constexpr quint32 kMagic = 0x4C534149; // "LSAI"
     /// Format version — increment when the on-disk layout changes.
-    static constexpr quint32 kVersion = 1;
+    /// 2: a compressed block spanning 4 GiB or more keeps 64-bit offsets (#321).
+    static constexpr quint32 kVersion = 2;
 
     QString directory_;
     QString excludedDirectory_;
