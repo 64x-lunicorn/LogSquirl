@@ -43,6 +43,21 @@ static constexpr size_t SimdIndexBlockSize = 128;
 static constexpr size_t WideOffsetBytes = sizeof( uint64_t );
 static constexpr size_t WideBlockBytes = SimdIndexBlockSize * WideOffsetBytes;
 
+// A packed block starts with one control byte per four offsets; each 2-bit
+// code in it gives the length of one offset, 1 to 4 bytes.
+static constexpr size_t PackedControlBytes = ( SimdIndexBlockSize + 3 ) / 4;
+
+static size_t packedBlockBytes( const uint8_t* block )
+{
+    size_t bytes = PackedControlBytes;
+    for ( size_t i = 0; i < PackedControlBytes; ++i ) {
+        for ( unsigned shift = 0; shift < 8; shift += 2 ) {
+            bytes += ( ( block[ i ] >> shift ) & 3u ) + 1u;
+        }
+    }
+    return bytes;
+}
+
 void CompressedLinePositionStorage::move_from( CompressedLinePositionStorage&& orig ) noexcept
 {
     blocks_ = std::move( orig.blocks_ );
@@ -344,16 +359,8 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
     if ( in.status() != QDataStream::Ok || packedSize > 2'000'000'000ULL ) {
         return false;
     }
-    // A block's offsets must lie within the packed bytes.
-    const bool blocksInPackedBytes = std::all_of(
-        blocks_.begin(), blocks_.end(), [ packedSize ]( const BlockMetadata& block ) {
-            return block.packetStorageOffset() + ( block.hasWideOffsets() ? WideBlockBytes : 1u )
-                   <= packedSize;
-        } );
-    if ( !blocksInPackedBytes ) {
-        return false;
-    }
-    packedLinesStorage_.resize( static_cast<size_t>( packedSize ) );
+    // streamvbyte's decoder reads up to STREAMVBYTE_PADDING bytes past a block.
+    packedLinesStorage_.resize( static_cast<size_t>( packedSize ) + STREAMVBYTE_PADDING );
     packedLinesStorageUsedSize_ = static_cast<size_t>( packedSize );
     if ( packedSize > 0 ) {
         if ( in.readRawData( reinterpret_cast<char*>( packedLinesStorage_.data() ),
@@ -361,6 +368,24 @@ bool CompressedLinePositionStorage::deserialize( QDataStream& in )
              != static_cast<int>( packedSize ) ) {
             return false;
         }
+    }
+    // Every byte of a block must lie within the packed bytes.
+    const bool blocksInPackedBytes = std::all_of(
+        blocks_.begin(), blocks_.end(), [ this, packedSize ]( const BlockMetadata& block ) {
+            const uint64_t offset = block.packetStorageOffset();
+            if ( offset > packedSize ) {
+                return false;
+            }
+            const uint64_t available = packedSize - offset;
+            if ( block.hasWideOffsets() ) {
+                return WideBlockBytes <= available;
+            }
+            return PackedControlBytes <= available
+                   && packedBlockBytes( &packedLinesStorage_[ static_cast<size_t>( offset ) ] )
+                          <= available;
+        } );
+    if ( !blocksInPackedBytes ) {
+        return false;
     }
 
     // Uncompressed tail block
