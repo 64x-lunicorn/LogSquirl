@@ -6,7 +6,8 @@ Three sources, because none covers the whole SBOM:
 grype (run by the workflow, its JSON report passed in with ``--grype``)
     matches the components that carry a CPE against NVD and the other grype
     databases: Qt, Boost and the Qt, OpenSSL and ICU builds detected in the
-    packages. grype cannot match a ``pkg:github`` or ``pkg:generic`` purl, so
+    packages; and, by their ``pkg:deb`` purls, the Ubuntu packages whose
+    libraries the AppImage bundles (#227). grype cannot match a ``pkg:github`` or ``pkg:generic`` purl, so
     it finds nothing for the CPM packages.
 
 OSV (queried here, https://api.osv.dev)
@@ -773,6 +774,9 @@ _FALLBACK_LOCATION = "scripts/sbom/logsquirl_sbom.py"
 def _locate(repo_root: Path, finding: Finding) -> tuple[str, int]:
     if finding.ref.startswith("cpm:"):
         path, pattern = "3rdparty/CMakeLists.txt", rf"\bNAME\s+{re.escape(finding.component)}\b"
+    elif finding.ref.startswith("deb:"):
+        # A system library the AppImage bundles from its build image (#227).
+        path, pattern = "docker/ubuntu22.04/Dockerfile", r"^FROM "
     else:
         path, pattern = _PIN_LOCATIONS.get(finding.component.lower(), (_FALLBACK_LOCATION, r"^"))
     try:

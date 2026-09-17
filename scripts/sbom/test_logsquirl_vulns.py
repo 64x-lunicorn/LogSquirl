@@ -836,3 +836,10 @@ def test_cli_warns_when_nvd_cannot_rate_the_qt_advisories(scan_inputs, capsys):
     tmp_path, sbom, grype, ignore = scan_inputs
     assert run_cli(tmp_path, sbom, grype, ignore, "none", nvd=FakeNvd(fail=True))[0] == 0
     assert "::warning::NVD severity unavailable" in capsys.readouterr().out
+
+
+def test_sarif_of_a_bundled_ubuntu_package_points_at_the_appimage_build_image():
+    log = vs.to_sarif([finding(ref="deb:ubuntu-22.04/libssl3@3.0.2-0ubuntu1.18", component="libssl3")], REPO)
+    loc = log["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
+    assert loc["artifactLocation"]["uri"] == "docker/ubuntu22.04/Dockerfile"
+    assert (REPO / "docker/ubuntu22.04/Dockerfile").read_text().splitlines()[loc["region"]["startLine"] - 1].startswith("FROM ")

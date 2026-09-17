@@ -391,7 +391,13 @@ The release workflow does not build. It:
    the CPM packages and pinned platform components that CI Build's SBOM job read
    from the built commit, plus the Qt, OpenSSL and ICU versions found in the
    AppImage, Windows zip and macOS app and what syft finds in them
-   (`scripts/sbom/logsquirl_sbom.py`)
+   (`scripts/sbom/logsquirl_sbom.py`). The Ubuntu 22.04 system libraries the
+   AppImage bundles carry no version syft can read: `generate_appimage.sh` asks
+   the build image's dpkg database for the package and version of each one
+   (`logsquirl_sbom.py appimage-debs`, written to `logsquirl_appimage_debs.json`
+   in the AppImage artifact), and the SBOM lists those packages with
+   `pkg:deb/ubuntu/...` purls, which grype matches against the Ubuntu security
+   tracker. The file itself is not a release asset
 5. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
    grype for the components with a CPE, OSV for the CPM packages by pinned commit
    and tag, and Qt's own list of advisories (https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products,

@@ -172,6 +172,7 @@ def write_build(root: Path, *, version=VERSION, commit=COMMIT, sbom_version=None
                             ("packages-mac-arm64", "logsquirl-mac-arm64.dmg")]:
         (root / directory).mkdir()
         (root / directory / name).write_bytes(b"x")
+    (root / "packages-appimage/logsquirl_appimage_debs.json").write_text('{"distro": "ubuntu-22.04"}')
     write_portable(root, exe=b"MZ...\0" + version.encode() + b"\0...")
     write_mac_app(root, bundle_version=version.rsplit(".", 1)[0],
                   binary=b"\xcf\xfa\xed\xfe\0" + version.encode() + b"\0")
@@ -235,6 +236,13 @@ def test_a_linux_package_without_the_version_in_its_name_stops_the_release(tmp_p
     (tmp_path / f"packages-fedora/logsquirl-{VERSION}-fedora.rpm").rename(
         tmp_path / "packages-fedora/logsquirl-26.08.0.1-fedora.rpm")
     with pytest.raises(rb.ReleaseError, match="packages-fedora"):
+        rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+def test_an_appimage_without_the_deb_manifest_for_the_sbom_stops_the_release(tmp_path):
+    write_build(tmp_path)
+    (tmp_path / "packages-appimage/logsquirl_appimage_debs.json").unlink()
+    with pytest.raises(rb.ReleaseError, match="logsquirl_appimage_debs.json"):
         rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
 
 

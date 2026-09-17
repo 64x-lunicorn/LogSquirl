@@ -26,6 +26,10 @@ knows it:
       them in, one component per detected version;
     * adds what syft found in the packages that is not already described.
 
+``appimage-debs`` (CI Build, in the AppImage build image after linuxdeploy)
+    records the Debian package and version of every system library linuxdeploy
+    bundled (#227); ``merge --deb-manifest`` adds them with ``pkg:deb`` purls.
+
 ``validate`` checks a BOM against the CycloneDX 1.6 JSON schema (strict, via
 cyclonedx-python-lib) plus the invariants the schema cannot express.
 
@@ -729,6 +733,149 @@ def merge_syft(bom: dict, syft: dict) -> None:
     _set_dependencies(bom)
 
 
+# ── Debian packages of the AppImage's system libraries (#227) ───────────────
+# linuxdeploy copies about 40 system libraries of the Ubuntu 22.04 build image
+# into the AppImage (glib, krb5, libgcrypt, ...). Their files carry no version
+# syft can read, so `appimage-debs` runs in the build image right after
+# linuxdeploy and asks dpkg which package and version each one came from; the
+# manifest travels with the AppImage artifact, and `merge` adds the packages
+# with the pkg:deb purls grype matches against the Ubuntu security tracker.
+
+_LIBRARY = re.compile(r"^lib[^/]*\.so(\.\d+)*$")
+# Where the build image's linker finds system libraries, and the prefixes
+# under which a library must belong to a dpkg package.
+SYSTEM_LIB_DIRS = ("/lib/x86_64-linux-gnu", "/usr/lib/x86_64-linux-gnu", "/lib", "/usr/lib")
+SYSTEM_PREFIXES = ("/usr/lib", "/lib")
+
+
+@dataclasses.dataclass(frozen=True)
+class DebPackage:
+    name: str
+    version: str
+    arch: str
+    source: str
+    source_version: str
+
+
+def parse_dpkg_search(output: str, path: str) -> str | None:
+    """The ``package:arch`` owning path in ``dpkg-query -S`` output, or None."""
+    owners = None
+    for line in output.splitlines():
+        if line.startswith("diversion by "):
+            continue
+        head, sep, tail = line.rpartition(": ")
+        if sep and tail == path:
+            owners = [o.strip() for o in head.split(",")]
+    if owners and len(owners) > 1:
+        raise SbomError(f"{path} belongs to more than one package: {', '.join(owners)}")
+    return owners[0] if owners else None
+
+
+def parse_dpkg_show(line: str) -> DebPackage:
+    """A line of ``dpkg-query -W -f '${Package}\t${Version}\t${Architecture}\t${Source}\n'``.
+    Source is empty when it equals the package, and carries the source
+    version in parentheses when that differs from the binary version."""
+    fields = line.rstrip("\n").split("\t")
+    if len(fields) != 4 or not all(fields[:3]):
+        raise SbomError(f"unexpected dpkg-query output: {line!r}")
+    name, version, arch, source = fields
+    m = re.fullmatch(r"\s*([^\s(]*)\s*(?:\((.+)\))?\s*", source)
+    if not m:
+        raise SbomError(f"unexpected Source field {source!r} of {name}")
+    return DebPackage(name, version, arch, m.group(1) or name, m.group(2) or version)
+
+
+def _usrmerge_aliases(path: str, prefixes: list[str]) -> list[str]:
+    # Ubuntu 22.04 is usrmerged (/lib is /usr/lib), but dpkg records each file
+    # under the name its package ships, /lib/... or /usr/lib/...
+    for prefix in prefixes:
+        if path.startswith(prefix + "/"):
+            return [path] + [other + path[len(prefix):] for other in prefixes if other != prefix]
+    return [path]
+
+
+def dpkg_owner(path: str) -> str | None:
+    import subprocess
+    result = subprocess.run(["dpkg-query", "-S", path], capture_output=True, text=True, check=False)
+    return parse_dpkg_search(result.stdout, path) if result.returncode == 0 else None
+
+
+def dpkg_show(package: str) -> DebPackage:
+    import subprocess
+    fmt = "${Package}\\t${Version}\\t${Architecture}\\t${Source}\\n"
+    result = subprocess.run(["dpkg-query", "-W", "-f", fmt, package], capture_output=True, text=True, check=True)
+    return parse_dpkg_show(result.stdout)
+
+
+def appimage_deb_manifest(appdir: Path, *, lib_dirs: list[Path], system_prefixes: list[str],
+                          owner=dpkg_owner, show=dpkg_show, distro: str) -> dict:
+    """Package and version of every library in appdir that linuxdeploy took
+    from a directory under system_prefixes. A library is looked up by name in
+    lib_dirs, in the order the dynamic linker searched them while linuxdeploy
+    ran (LD_LIBRARY_PATH first). One that resolves elsewhere (Qt from
+    aqtinstall, Qt's plugins) is listed as unpackaged; one under a system
+    prefix that dpkg does not know fails."""
+    packages: dict[str, dict] = {}
+    unpackaged: list[str] = []
+    for path in sorted(appdir.rglob("*")):
+        if path.is_symlink() or not path.is_file() or not _LIBRARY.match(path.name):
+            continue
+        rel = str(path.relative_to(appdir))
+        found = next((d / path.name for d in lib_dirs if (d / path.name).exists()), None)
+        if found is None or not any(str(found).startswith(p + "/") for p in system_prefixes):
+            unpackaged.append(rel)
+            continue
+        # A -dev package's link (libssl.so) belongs to the runtime package of
+        # the file it points to, so the resolved file is asked first.
+        candidates = [alias for c in dict.fromkeys([os.path.realpath(found), str(found)])
+                      for alias in _usrmerge_aliases(c, system_prefixes)]
+        pkg = next(filter(None, (owner(c) for c in candidates)), None)
+        if pkg is None:
+            raise SbomError(f"{rel} ({found}) is a system library, but no dpkg package owns it")
+        entry = packages.get(pkg)
+        if entry is None:
+            deb = show(pkg)
+            entry = packages[pkg] = {"name": deb.name, "version": deb.version, "arch": deb.arch,
+                                     "source": deb.source, "source-version": deb.source_version, "files": []}
+        entry["files"].append(rel)
+    if not packages:
+        raise SbomError(f"no bundled system library found in {appdir}")
+    return {"distro": distro, "packages": sorted(packages.values(), key=lambda p: p["name"]),
+            "unpackaged": unpackaged}
+
+
+def os_release_distro(text: str) -> str:
+    fields = dict(re.findall(r'^(\w+)="?([^"\n]*)"?$', text, re.M))
+    if not fields.get("ID") or not fields.get("VERSION_ID"):
+        raise SbomError("os-release lacks ID or VERSION_ID")
+    return f"{fields['ID']}-{fields['VERSION_ID']}"
+
+
+def merge_deb_manifest(bom: dict, manifest: dict, package: str = "appimage") -> None:
+    distro = manifest.get("distro", "")
+    m = re.fullmatch(r"([a-z]+)-[\d.]+", distro)
+    if not m:
+        raise SbomError(f"deb manifest of {package}: unexpected distro {distro!r}")
+    if not manifest.get("packages"):
+        raise SbomError(f"deb manifest of {package} lists no packages")
+    for p in manifest["packages"]:
+        if not all(p.get(k) for k in ("name", "version", "arch", "source", "source-version", "files")):
+            raise SbomError(f"deb manifest of {package}: {p.get('name')!r} lacks name, version, arch, source or files")
+        qualifiers = {"arch": p["arch"], "distro": distro}
+        if p["source"] != p["name"] or p["source-version"] != p["version"]:
+            qualifiers["upstream"] = p["source"] + ("" if p["source-version"] == p["version"]
+                                                    else "@" + p["source-version"])
+        bom["components"].append(_component(
+            ref=f"deb:{distro}/{p['name']}@{p['version']}", name=p["name"], version=p["version"],
+            purl_=purl("deb", p["name"], p["version"], namespace=m.group(1), qualifiers=qualifiers),
+            props={"source": "dpkg", "platforms": "linux", "bundled-in": package,
+                   "bundled-files": ",".join(p["files"]), "source-package": f"{p['source']} {p['source-version']}",
+                   "version-source": f"dpkg database of the {distro} image {package} is built in"}))
+    for rel in manifest.get("unpackaged", []):
+        print(f"{package}: {rel} has no dpkg package")
+    _set_dependencies(bom)
+
+
 # ── validation ──────────────────────────────────────────────────────────────
 
 
@@ -806,8 +953,19 @@ def main(argv: list[str] | None = None) -> int:
     merge.add_argument("--scan", action="append", default=[], metavar="KIND=DIR",
                        help=f"unpacked package to scan; KIND is one of {', '.join(sorted(PACKAGE_KINDS))}")
     merge.add_argument("--syft", type=Path, action="append", default=[], help="syft CycloneDX JSON output")
+    merge.add_argument("--deb-manifest", action="append", default=[], metavar="KIND=FILE",
+                       help="output of appimage-debs for the package KIND")
     merge.add_argument("--require-detected", default="", help="comma-separated keys that must be found")
     merge.add_argument("--output", type=Path, required=True)
+
+    debs = sub.add_parser("appimage-debs", help="dpkg package of every system library in an AppDir "
+                                              "(run in the AppImage build image)")
+    debs.add_argument("--appdir", type=Path, required=True)
+    debs.add_argument("--lib-dir", type=Path, action="append", default=[],
+                      help="library directory in linker search order; default: LD_LIBRARY_PATH, then "
+                           + ", ".join(SYSTEM_LIB_DIRS))
+    debs.add_argument("--os-release", type=Path, default=Path("/etc/os-release"))
+    debs.add_argument("--output", type=Path, required=True)
 
     val = sub.add_parser("validate", help="CycloneDX 1.6 schema and invariant check")
     val.add_argument("files", type=Path, nargs="+")
@@ -836,12 +994,27 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"{d.package}: {d.key} {d.version} ({d.path})")
                 detections += found
             merge_detections(bom, detections, {k for k in args.require_detected.split(",") if k})
+            for spec in args.deb_manifest:
+                kind, sep, file = spec.partition("=")
+                if not sep or kind not in PACKAGE_KINDS or not Path(file).is_file():
+                    raise SbomError(f"--deb-manifest {spec!r}: expected KIND=FILE with an existing file")
+                merge_deb_manifest(bom, json.loads(Path(file).read_text(encoding="utf-8")), kind)
             for syft_file in args.syft:
                 merge_syft(bom, json.loads(syft_file.read_text(encoding="utf-8")))
             bom["serialNumber"] = uuid.uuid4().urn
             bom["metadata"]["timestamp"] = _now()
             _write(bom, args.output)
             print(f"{args.output}: {len(bom['components'])} components")
+        elif args.command == "appimage-debs":
+            lib_dirs = args.lib_dir or [Path(d) for d in os.environ.get("LD_LIBRARY_PATH", "").split(":") if d] \
+                + [Path(d) for d in SYSTEM_LIB_DIRS]
+            manifest = appimage_deb_manifest(args.appdir, lib_dirs=lib_dirs, system_prefixes=list(SYSTEM_PREFIXES),
+                                             distro=os_release_distro(args.os_release.read_text()))
+            _write(manifest, args.output)
+            for p in manifest["packages"]:
+                print(f"{p['name']} {p['version']}: {', '.join(p['files'])}")
+            for rel in manifest["unpackaged"]:
+                print(f"no dpkg package: {rel}")
         elif args.command == "validate":
             failed = False
             for f in args.files:
