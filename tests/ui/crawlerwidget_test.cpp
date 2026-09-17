@@ -2084,6 +2084,11 @@ SCENARIO( "A changed font or shortcut reaches every open Log File", "[ui][settin
 
         WHEN( "the user zooms in the current Log File" )
         {
+            // A key listed twice for a view -- the platform's standard
+            // bindings can repeat one the defaults list, as on Linux --
+            // released a shortcut, deleted only later: it is gone before the
+            // shortcuts are counted.
+            QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
             const auto shortcutsBefore = shortcutsOf( *background.crawler );
             current.zoom( true );
             // Shortcuts registered anew delete the old ones later.

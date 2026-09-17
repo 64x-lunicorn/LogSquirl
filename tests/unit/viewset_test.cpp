@@ -33,10 +33,12 @@
 #include <QCoreApplication>
 #include <QFont>
 #include <QFontDatabase>
+#include <QKeySequence>
 #include <QPoint>
 #include <QPointer>
 #include <QShortcut>
 #include <QString>
+#include <QStringList>
 
 #include <algorithm>
 #include <memory>
@@ -226,13 +228,32 @@ struct LogFile {
 };
 
 // The shortcuts a view answers to now.
+//
+// A shortcut released is only deleted later, and is counted until then: a key
+// listed twice for the view -- the platform's standard bindings can repeat a
+// key the defaults list explicitly, as they do on Linux -- releases the
+// shortcut registered for it first. So the shortcuts released are deleted
+// before they are counted.
 std::vector<QPointer<QShortcut>> shortcutsOf( const QObject& view )
 {
+    QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+
     std::vector<QPointer<QShortcut>> shortcuts;
     for ( auto* shortcut : view.findChildren<QShortcut*>() ) {
         shortcuts.emplace_back( shortcut );
     }
     return shortcuts;
+}
+
+// The key sequences of the shortcuts a view answers to now, sorted.
+QStringList shortcutKeysOf( const QObject& view )
+{
+    QStringList keys;
+    for ( const auto& shortcut : shortcutsOf( view ) ) {
+        keys.append( shortcut->key().toString() );
+    }
+    keys.sort();
+    return keys;
 }
 
 // Whether a Filtered View shows the font, as it would draw in it.
@@ -415,6 +436,7 @@ SCENARIO( "What the View Set is handed reaches every view in it", "[viewset]" )
         {
             viewSet.registerShortcuts();
             const auto keptShortcuts = shortcutsOf( *kept.view );
+            const auto keptShortcutKeys = shortcutKeysOf( *kept.view );
             const auto currentShortcuts = shortcutsOf( *current.view );
 
             THEN( "both Presentations register theirs" )
@@ -432,14 +454,19 @@ SCENARIO( "What the View Set is handed reaches every view in it", "[viewset]" )
             AND_WHEN( "they are registered anew once more" )
             {
                 viewSet.registerShortcuts();
-                QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+                const auto keptShortcutKeysAgain = shortcutKeysOf( *kept.view );
 
-                THEN( "the kept Search's Filtered View let the ones before go" )
+                THEN( "the kept Search's Filtered View let the ones before go, and answers to "
+                      "the same keys" )
                 {
                     REQUIRE(
                         std::none_of( keptShortcuts.cbegin(), keptShortcuts.cend(),
                                       []( const auto& shortcut ) { return !shortcut.isNull(); } ) );
-                    REQUIRE( shortcutsOf( *kept.view ).size() == keptShortcuts.size() );
+                    REQUIRE( keptShortcutKeysAgain == keptShortcutKeys );
+                    // One shortcut for each key: none registered twice is left.
+                    REQUIRE( std::adjacent_find( keptShortcutKeysAgain.cbegin(),
+                                                 keptShortcutKeysAgain.cend() )
+                             == keptShortcutKeysAgain.cend() );
                 }
             }
         }
