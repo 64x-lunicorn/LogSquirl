@@ -59,9 +59,13 @@ By default LogSquirl is built without support for reporting crash dumps. This ca
 LogSquirl uses Vectorscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
 LogSquirl can be built with only Qt regular expressions backend by passing `-DLOGSQUIRL_USE_VECTORSCAN=OFF` to cmake.
 
+Releases are `RelWithDebInfo` builds. LogSquirl optimizes that build type as fully as `Release`
+(`-O3` with GCC and Clang, `/Ob2` and a non-incremental `/OPT:REF /OPT:ICF` link with MSVC) and keeps its
+debug information for crash reports. Link time optimization is on for every LogSquirl target, not for the
+third-party libraries; turn it off with `-DLOGSQUIRL_USE_LTO=OFF`, which makes linking a lot faster during development.
+
 LogSquirl can use custom memory allocator. By default it uses TBB memory allocator for Windows, mimalloc on Linux and default system allocator on MacOS.
-Memory allocator override can be turned off by passing `-DLOGSQUIRL_OVERRIDE_MALLOC`. If you want to use TBB allocator on Linux then pass
-`-DLOGSQUIRL_USE_MIMALLOC=OFF`.
+If you want to use TBB allocator on Linux then pass `-DLOGSQUIRL_USE_MIMALLOC=OFF`.
 
 ### Plugin SDK
 

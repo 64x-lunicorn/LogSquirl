@@ -23,7 +23,3 @@ target_link_libraries(
          Qt6::Core
          logsquirl_logdata
 )
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_logformat PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
