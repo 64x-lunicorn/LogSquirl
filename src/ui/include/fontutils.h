@@ -22,6 +22,8 @@
 #define LOGSQUIRL_FONTUTILS
 
 #include "log.h"
+#include <algorithm>
+#include <iterator>
 #include <numeric>
 
 #include <QFont>
@@ -147,6 +149,20 @@ public:
 
         std::sort( sizes.begin(), sizes.end() );
         return sizes;
+    }
+
+    // The size a zoom steps to from currentSize: the nearest of the ascending
+    // sizes above it, or below it, whether or not currentSize is one of them.
+    // Where there is none in that direction the size stays as it is.
+    static int zoomedFontSize( const QList<int>& sizes, int currentSize, bool increase )
+    {
+        if ( increase ) {
+            const auto larger = std::upper_bound( sizes.cbegin(), sizes.cend(), currentSize );
+            return larger != sizes.cend() ? *larger : currentSize;
+        }
+
+        const auto notSmaller = std::lower_bound( sizes.cbegin(), sizes.cend(), currentSize );
+        return notSmaller != sizes.cbegin() ? *std::prev( notSmaller ) : currentSize;
     }
 };
 

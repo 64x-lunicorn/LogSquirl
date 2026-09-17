@@ -45,6 +45,7 @@
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "filteredview.h"
+#include "fontutils.h"
 #include "highlighterset.h"
 #include "infoline.h"
 #include "logformatdefinition.h"
@@ -1666,6 +1667,70 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
                     drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 0 ), zoomedSize ) );
                 REQUIRE(
                     drawsInAssembledFont( crawlerVisitor.filteredViewInTab( 1 ), zoomedSize ) );
+            }
+        }
+    }
+}
+
+// A zoom steps from the configured size to the next size offered for the
+// family, whether or not the configured size is one of them. It looked the
+// size up in the offered ones and stepped past the end of the list when it was
+// not there, reading whatever lay behind it: on Windows' offscreen platform,
+// which had no fonts to resolve the configured one, a zoom in from 14pt made
+// the font 12pt (#220).
+SCENARIO( "A zoom steps to the next offered font size from any configured size", "[ui][settings]" )
+{
+    QTemporaryFile file{ "crawler_zoom_XXXXXX" };
+
+    const auto family = Configuration{}.mainFont().family();
+    const auto offeredSizes = FontUtils::availableFontSizes( family );
+
+    // Two neighbouring offered sizes with a size between them that is not
+    // offered itself. Where every size up to the largest is offered, the size
+    // is one above the largest, and a zoom in keeps it.
+    auto below = offeredSizes.last();
+    auto above = offeredSizes.last() + 1;
+    for ( auto i = 1; i < offeredSizes.size(); ++i ) {
+        if ( offeredSizes[ i ] - offeredSizes[ i - 1 ] > 1 ) {
+            below = offeredSizes[ i - 1 ];
+            above = offeredSizes[ i ];
+            break;
+        }
+    }
+    const auto between = below + 1;
+
+    const ConfiguredFont configured{ QFont{ family, between }, true, true };
+
+    auto policies = testSettingsPolicies();
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    GIVEN( "a Log File opened with a font size that is not offered" )
+    {
+        REQUIRE( generateDataFiles( file ) );
+
+        CrawlerWidgetVisitor crawlerVisitor;
+        crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+            session.open( file.fileName(),
+                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+
+        WHEN( "the user zooms in" )
+        {
+            crawlerVisitor.zoom( true );
+
+            THEN( "the font takes the next offered size above it, if there is one" )
+            {
+                REQUIRE( Configuration::get().mainFont().pointSize() == above );
+            }
+        }
+
+        WHEN( "the user zooms out" )
+        {
+            crawlerVisitor.zoom( false );
+
+            THEN( "the font takes the next offered size below it" )
+            {
+                REQUIRE( Configuration::get().mainFont().pointSize() == below );
             }
         }
     }
