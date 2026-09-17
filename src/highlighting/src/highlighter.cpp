@@ -321,6 +321,13 @@ void HighlighterSet::compile() const
                     []( const Highlighter& hl ) { return hl.expressionPattern(); } );
 
     compiledExpression_ = std::make_shared<MultiRegularExpression>( patterns );
+
+    // The Highlighters too: copies of this set share them, so compiling each
+    // one lazily on its first match would race when copies match on several
+    // threads at once.
+    for ( const auto& highlighter : std::as_const( highlighterList_ ) ) {
+        highlighter.compile();
+    }
 }
 
 HighlighterMatchType HighlighterSet::matchLine( const QString& line,
