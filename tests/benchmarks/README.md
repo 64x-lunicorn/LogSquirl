@@ -216,6 +216,13 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
   result read today, and **getExpandedLineString, line by line**, as Quick
   Find reads today, each next to the same Log Lines in one sparse read
   (**getLinesSparse**, **getExpandedLinesSparse**, #286).
+- `[read-while-indexing]` — not a Catch2 `BENCHMARK`: while the Log File is
+  indexed, a reader thread asks for the line count, one Log Line
+  (**getLineString**) and 60 Log Lines with tabs expanded
+  (**getExpandedLines**) about once a millisecond, as a view scrolling
+  through it does, and prints the **median, p99 and max latency** of each
+  (#289). Scrolling stalls when the max is as long as indexing a block.
+  Compare the max of two runs, not their mean.
 - `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
   middle of 10 million displayed Log Lines, **lineAtPosition, position by
   position** versus **DisplayedLinesCursor, takeForward** (#286).
