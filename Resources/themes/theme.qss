@@ -84,6 +84,11 @@ QDoubleSpinBox {
     padding: @InputPadding@;
     color: @Text@;
 }
+/* The popup is a list, not a menu, in every Theme: the ::item rules below
+ * style its items, and the current item is highlighted. */
+QComboBox {
+    combobox-popup: 0;
+}
 QLineEdit:focus,
 QComboBox:focus,
 QSpinBox:focus,
@@ -130,6 +135,11 @@ QComboBox QAbstractItemView::item {
     padding: 4px 8px;
     min-height: 22px;
     border: none;
+}
+/* The current item: highlighted, without a focus rectangle, in every Theme. */
+QComboBox QAbstractItemView::item:selected {
+    background-color: @Highlight@;
+    color: @HighlightedText@;
 }
 QComboBox QAbstractItemView::item:hover {
     background-color: @Hover@;
@@ -469,7 +479,8 @@ QMenu::indicator:checked:disabled {
 }
 
 QCheckBox::indicator,
-QTreeWidget::indicator {
+QTreeWidget::indicator,
+QComboBox QAbstractItemView::indicator {
     width: @IndicatorSize@;
     height: @IndicatorSize@;
     border: 2px solid @IndicatorBorder@;
@@ -478,36 +489,43 @@ QTreeWidget::indicator {
     image: none;
 }
 QCheckBox::indicator:unchecked,
-QTreeWidget::indicator:unchecked {
+QTreeWidget::indicator:unchecked,
+QComboBox QAbstractItemView::indicator:unchecked {
     image: none;
 }
 QCheckBox::indicator:checked,
-QTreeWidget::indicator:checked {
+QTreeWidget::indicator:checked,
+QComboBox QAbstractItemView::indicator:checked {
     background-color: @Highlight@;
     border-color: @Highlight@;
     image: @CheckIcon@;
 }
 QCheckBox::indicator:indeterminate,
-QTreeWidget::indicator:indeterminate {
+QTreeWidget::indicator:indeterminate,
+QComboBox QAbstractItemView::indicator:indeterminate {
     background-color: @IndicatorIndeterminate@;
     border-color: @Highlight@;
     image: @IndeterminateIcon@;
 }
 QCheckBox::indicator:hover,
-QTreeWidget::indicator:hover {
+QTreeWidget::indicator:hover,
+QComboBox QAbstractItemView::indicator:hover {
     border-color: @Highlight@;
 }
 QCheckBox::indicator:disabled,
-QTreeWidget::indicator:disabled {
+QTreeWidget::indicator:disabled,
+QComboBox QAbstractItemView::indicator:disabled {
     border-color: @IndicatorDisabledBorder@;
     background-color: @IndicatorDisabled@;
 }
 QCheckBox::indicator:checked:disabled,
-QTreeWidget::indicator:checked:disabled {
+QTreeWidget::indicator:checked:disabled,
+QComboBox QAbstractItemView::indicator:checked:disabled {
     image: @DisabledCheckIcon@;
 }
 QCheckBox::indicator:indeterminate:disabled,
-QTreeWidget::indicator:indeterminate:disabled {
+QTreeWidget::indicator:indeterminate:disabled,
+QComboBox QAbstractItemView::indicator:indeterminate:disabled {
     image: @DisabledIndeterminateIcon@;
 }
 
@@ -646,6 +664,17 @@ QToolBar::separator {
     width: @BorderWidth@;
     background-color: @Border@;
     margin: 4px 2px;
+}
+
+
+/*
+ *  The tool bar's path field is read-only: it keeps the window's background
+ *  (see MainWindow::createToolBars) and shows the edge of an input.
+ */
+PathLine {
+    border: @BorderWidth@ solid @InputBorder@;
+    border-radius: 3px;
+    qproperty-indent: 4;
 }
 
 
