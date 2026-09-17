@@ -444,8 +444,8 @@ QMenu::separator {
     margin: 4px 8px;
 }
 QMenu::indicator {
-    width: 16px;
-    height: 16px;
+    width: @IndicatorSize@;
+    height: @IndicatorSize@;
     margin-left: 6px;
     border: 2px solid @IndicatorBorder@;
     border-radius: 3px;
@@ -459,6 +459,13 @@ QMenu::indicator:checked {
     background-color: @Highlight@;
     border-color: @Highlight@;
     image: @CheckIcon@;
+}
+QMenu::indicator:disabled {
+    border-color: @IndicatorDisabledBorder@;
+    background-color: @IndicatorDisabled@;
+}
+QMenu::indicator:checked:disabled {
+    image: @DisabledCheckIcon@;
 }
 
 QCheckBox::indicator,
@@ -484,7 +491,7 @@ QCheckBox::indicator:indeterminate,
 QTreeWidget::indicator:indeterminate {
     background-color: @IndicatorIndeterminate@;
     border-color: @Highlight@;
-    image: @CheckIcon@;
+    image: @IndeterminateIcon@;
 }
 QCheckBox::indicator:hover,
 QTreeWidget::indicator:hover {
@@ -496,10 +503,12 @@ QTreeWidget::indicator:disabled {
     background-color: @IndicatorDisabled@;
 }
 QCheckBox::indicator:checked:disabled,
-QCheckBox::indicator:indeterminate:disabled,
-QTreeWidget::indicator:checked:disabled,
-QTreeWidget::indicator:indeterminate:disabled {
+QTreeWidget::indicator:checked:disabled {
     image: @DisabledCheckIcon@;
+}
+QCheckBox::indicator:indeterminate:disabled,
+QTreeWidget::indicator:indeterminate:disabled {
+    image: @DisabledIndeterminateIcon@;
 }
 
 /* A radio button is a round check box indicator. Checked, its centre dot

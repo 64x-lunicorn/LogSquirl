@@ -471,6 +471,45 @@ SCENARIO( "A Theme's arrow icons point in their own direction", "[theme]" )
     }
 }
 
+SCENARIO( "Check boxes show every state distinctly and at one size in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its check box indicator is 16px" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                INFO( name.toStdString() );
+                REQUIRE( Theme::fromName( name, Qt::ColorScheme::Light )
+                             .value( StyleToken::IndicatorSize )
+                         == "16px" );
+            }
+        }
+
+        THEN( "a disabled check box shows a check mark and a dash of its own" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE(
+                    theme.value( StyleToken::DisabledCheckIcon ).contains( "check-disabled" ) );
+                REQUIRE( theme.value( StyleToken::DisabledIndeterminateIcon )
+                             .contains( "dash-disabled" ) );
+            }
+        }
+
+        THEN( "an indeterminate check box shows a dash, not the check mark" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.value( StyleToken::IndeterminateIcon ).contains( "dash" ) );
+                REQUIRE( theme.value( StyleToken::IndeterminateIcon )
+                         != theme.value( StyleToken::CheckIcon ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "Every size Token is a stylesheet length with a unit", "[theme]" )
 {
     GIVEN( "each built-in Theme" )

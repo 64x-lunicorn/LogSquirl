@@ -257,16 +257,18 @@ Theme Theme::light()
         { MenuBarItemRadius, "2px" },
         { MenuItemPadding, "5px 24px" },
         { MenuIconOffset, "0px" },
-        { IndicatorSize, "12px" },
+        { IndicatorSize, "16px" },
         { ArrowDownIcon, "url(:/icons/arrow-down-light.svg)" },
         { ArrowUpIcon, "url(:/icons/arrow-up-light.svg)" },
         { CheckIcon, "url(:/icons/check-light.svg)" },
-        { DisabledCheckIcon, "url(:/icons/check-light.svg)" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-light.svg)" },
         { CloseIcon, "url(:/icons/close-light.svg)" },
         { DisabledBorderStyle, "solid" },
         { ProgressChunkBorderWidth, "0px" },
         // Half the indicator and its 2px border: a circle.
-        { RadioIndicatorRadius, "8px" },
+        { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-light.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-light.svg)" },
     } );
     return theme;
 }
@@ -383,11 +385,13 @@ Theme Theme::dark()
         { ArrowDownIcon, "url(:/icons/arrow-down-dark.svg)" },
         { ArrowUpIcon, "url(:/icons/arrow-up-dark.svg)" },
         { CheckIcon, "url(:/icons/check-dark.svg)" },
-        { DisabledCheckIcon, "none" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-dark.svg)" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
         { DisabledBorderStyle, "solid" },
         { ProgressChunkBorderWidth, "0px" },
         { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-dark.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-dark.svg)" },
     } );
     return theme;
 }
@@ -500,16 +504,18 @@ Theme Theme::highContrast()
         { MenuBarItemRadius, "0px" },
         { MenuItemPadding, "5px 24px" },
         { MenuIconOffset, "0px" },
-        { IndicatorSize, "12px" },
+        { IndicatorSize, "16px" },
         { ArrowDownIcon, "url(:/icons/arrow-down-hc.svg)" },
         { ArrowUpIcon, "url(:/icons/arrow-up-hc.svg)" },
         { CheckIcon, "url(:/icons/check-hc.svg)" },
-        { DisabledCheckIcon, "url(:/icons/check-hc.svg)" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-hc.svg)" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
         // A disabled button differs from an enabled one by more than a gray.
         { DisabledBorderStyle, "dashed" },
         { ProgressChunkBorderWidth, "2px" },
-        { RadioIndicatorRadius, "8px" },
+        { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-hc.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-hc.svg)" },
     } );
     return theme;
 }

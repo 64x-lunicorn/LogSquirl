@@ -140,7 +140,9 @@ class QObject;
     X( CloseIcon )                                                                                 \
     X( DisabledBorderStyle )                                                                       \
     X( ProgressChunkBorderWidth )                                                                  \
-    X( RadioIndicatorRadius )
+    X( RadioIndicatorRadius )                                                                      \
+    X( IndeterminateIcon )                                                                         \
+    X( DisabledIndeterminateIcon )
 
 #define LOGSQUIRL_TOKEN_ENUMERATOR( name ) name,
 #define LOGSQUIRL_TOKEN_COUNT( name ) +1

@@ -22,6 +22,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/overviewwidget_theme_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/viewportmargins_theme_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/radiobutton_slider_theme_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/checkbox_theme_test.cpp
 )
 
 if(NOT APPLE)
