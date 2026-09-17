@@ -36,17 +36,32 @@ void loadListEditIcons( QAbstractButton* add, QAbstractButton* remove, QAbstract
 
 QIcon IconLoader::load( QString name )
 {
+    const bool invert = Theme::active().usesInverseIcons();
     QIcon icon;
     for ( int sz : IconSizes ) {
-        QPixmap pmap( loadPixmap( name, sz ) );
+        QPixmap pmap( loadPixmap( name, sz, invert ) );
         if ( !pmap.isNull() )
             icon.addPixmap( pmap );
     }
     return icon;
 }
-bool IconLoader::shouldInvert() const
+
+QIcon IconLoader::loadCheckable( QString name )
 {
-    return Theme::active().usesInverseIcons();
+    const auto& theme = Theme::active();
+    const bool invert = theme.usesInverseIcons();
+    const bool invertWhenChecked = theme.usesInverseIconsWhenChecked();
+
+    QIcon icon = load( name );
+    if ( invertWhenChecked == invert ) {
+        return icon;
+    }
+    for ( int sz : IconSizes ) {
+        QPixmap pmap( loadPixmap( name, sz, invertWhenChecked ) );
+        if ( !pmap.isNull() )
+            icon.addPixmap( pmap, QIcon::Normal, QIcon::On );
+    }
+    return icon;
 }
 
 bool IconLoader::shouldAutoInvert( QString /*name*/ ) const
@@ -54,9 +69,8 @@ bool IconLoader::shouldAutoInvert( QString /*name*/ ) const
     return true;
 }
 
-QPixmap IconLoader::loadPixmap( QString name, int size ) const
+QPixmap IconLoader::loadPixmap( QString name, int size, bool invert ) const
 {
-    bool invert = shouldInvert();
     QString nonScalableName;
     QPixmap pmap;
     // attempt to load a pixmap with the right size and inversion

@@ -1,5 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import starlightLinksValidator from 'starlight-links-validator';
+import { readReleases } from './src/releases.mjs';
 
 export default defineConfig({
   site: 'https://logsquirl.lunicorn-lab.de',
@@ -22,6 +24,9 @@ export default defineConfig({
         { icon: 'github', label: 'GitHub', href: 'https://github.com/64x-lunicorn/LogSquirl' },
       ],
       customCss: ['./src/styles/custom.css'],
+      // A link to a page or heading that does not exist fails the build, on
+      // pull requests as well as in the deploy (#311).
+      plugins: [starlightLinksValidator()],
       sidebar: [
         {
           label: 'About',
@@ -35,11 +40,8 @@ export default defineConfig({
           label: 'Releases',
           items: [
             { label: 'Overview', slug: 'news' },
-            { label: 'v26.05.0-beta1', slug: 'news/release-26-05' },
-            { label: 'v26.04.1', slug: 'news/release-26-04' },
-            { label: 'v26.03 (Beta)', slug: 'news/release-26-03' },
-            { label: 'v22.06', slug: 'news/release-22-06' },
-            { label: 'v20.12', slug: 'news/release-20-12' },
+            // One entry per release page, newest first (#313).
+            ...readReleases().map((release) => ({ label: release.label, slug: release.slug })),
           ],
         },
         {

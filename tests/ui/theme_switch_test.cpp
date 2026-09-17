@@ -17,11 +17,13 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "commandpalette.h"
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filteredview.h"
 #include "filterspanel.h"
 #include "highlightersdialog.h"
+#include "iconloader.h"
 #include "infoline.h"
 #include "logformatcatalog.h"
 #include "logtableview.h"
@@ -38,6 +40,7 @@
 #include "test_policies.h"
 #include "test_utils.h"
 #include "theme.h"
+#include "welcomedashboard.h"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -46,11 +49,14 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDockWidget>
+#include <QFile>
 #include <QGuiApplication>
 #include <QImage>
 #include <QLabel>
 #include <QMessageBox>
+#include <QProgressBar>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QStyleHints>
 #include <QTabBar>
@@ -62,6 +68,9 @@
 #include <QToolButton>
 
 #include <catch2/catch.hpp>
+
+#include <algorithm>
+#include <cmath>
 
 // Changing the Theme while the application runs (#173).
 //
@@ -231,6 +240,36 @@ struct MainWindowFixture {
     TabbedCrawlerWidget* tabArea = nullptr;
     int baseTabCount = 0;
 };
+
+// The WCAG 2 contrast ratio of two opaque colors, from 1:1 to 21:1.
+double contrastRatio( const QColor& a, const QColor& b )
+{
+    const auto luminance = []( const QColor& color ) {
+        const auto linear = []( float value ) {
+            const double channel = static_cast<double>( value );
+            return channel <= 0.04045 ? channel / 12.92
+                                      : std::pow( ( channel + 0.055 ) / 1.055, 2.4 );
+        };
+        return 0.2126 * linear( color.redF() ) + 0.7152 * linear( color.greenF() )
+               + 0.0722 * linear( color.blueF() );
+    };
+    const auto first = luminance( a );
+    const auto second = luminance( b );
+    return ( std::max( first, second ) + 0.05 ) / ( std::min( first, second ) + 0.05 );
+}
+
+// The highest contrast any pixel of area reaches against background: that of
+// the core of the text drawn there, whose edges are blended into background.
+double textContrast( const QImage& image, const QRect& area, const QColor& background )
+{
+    double best = 1.0;
+    for ( int y = area.top(); y <= area.bottom(); ++y ) {
+        for ( int x = area.left(); x <= area.right(); ++x ) {
+            best = std::max( best, contrastRatio( image.pixelColor( x, y ), background ) );
+        }
+    }
+    return best;
+}
 
 } // namespace
 
@@ -654,4 +693,259 @@ SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart",
     config.setLanguage( storedLanguage );
     config.save();
     Theme::apply( Theme::defaultTheme() );
+}
+
+SCENARIO( "Every icon Token names an icon that exists", "[ui][theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "every url() of its style Tokens is an icon resource" )
+        {
+            static const QRegularExpression url( "^url\\((.+)\\)$" );
+            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ),
+                                       QString( Theme::HighContrastKey ) } ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                for ( std::size_t i = 0; i < StyleTokenCount; ++i ) {
+                    const auto token = static_cast<StyleToken>( i );
+                    const auto match = url.match( theme.value( token ) );
+                    if ( !match.hasMatch() ) {
+                        continue;
+                    }
+                    INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString() );
+                    REQUIRE( QFile::exists( match.captured( 1 ) ) );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard's hints are drawn in the Theme's secondary text color", "[ui][theme]" )
+{
+    GIVEN( "a Dashboard shown under the Light Theme" )
+    {
+        Theme::apply( Theme::LightKey );
+        WelcomeDashboard dashboard;
+        dashboard.show();
+        QTest::qWait( 20 );
+
+        const auto hints = [ & ] {
+            QList<QLabel*> result;
+            for ( auto* label : dashboard.findChildren<QLabel*>() ) {
+                if ( label->property( "secondaryText" ).toBool() ) {
+                    result.append( label );
+                }
+            }
+            return result;
+        };
+        REQUIRE_FALSE( hints().isEmpty() );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+
+            THEN( "every hint shows Dark's secondary text color, not a frame role" )
+            {
+                for ( auto* label : hints() ) {
+                    INFO( label->text().toStdString() );
+                    REQUIRE( label->palette().color( QPalette::WindowText )
+                             == Theme::active().color( ColorToken::SecondaryText ) );
+                }
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+SCENARIO( "The Command Palette's badges and shortcuts are readable in every Theme", "[ui][theme]" )
+{
+    GIVEN( "an open Command Palette with a selected and an unselected command" )
+    {
+        Theme::apply( Theme::LightKey );
+        CommandPalette palette;
+        palette.setCommands( {
+            { QStringLiteral( "Open File" ),
+              QStringLiteral( "File" ),
+              QStringLiteral( "Ctrl+O" ),
+              {} },
+            { QStringLiteral( "Find" ), QStringLiteral( "Edit" ), QStringLiteral( "Ctrl+F" ), {} },
+        } );
+        palette.show();
+        QTest::qWait( 20 );
+        auto* list = palette.findChild<QListWidget*>();
+        REQUIRE( list != nullptr );
+        REQUIRE( list->count() == 2 );
+        REQUIRE( list->currentRow() == 0 );
+
+        WHEN( "each Theme is applied in turn" )
+        {
+            THEN( "every badge has the Theme's badge color, and badge and shortcut text reach "
+                  "4.5:1 in the selected and the unselected row" )
+            {
+                for ( const auto& name :
+                      { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
+                        QString( Theme::LightKey ) } ) {
+                    Theme::apply( name );
+                    QCoreApplication::processEvents();
+                    const auto image = list->viewport()->grab().toImage();
+                    const auto& theme = Theme::active();
+
+                    for ( int row = 0; row < list->count(); ++row ) {
+                        const auto* item = list->item( row );
+                        const auto rect = list->visualItemRect( item );
+                        const auto category = item->data( Qt::UserRole + 1 ).toString();
+                        const auto shortcut = item->data( Qt::UserRole + 2 ).toString();
+                        const auto rowBackground
+                            = image.pixelColor( rect.right() - 1, rect.top() + 1 );
+                        INFO( name.toStdString()
+                              << ( row == 0 ? " selected" : " unselected" ) << " row" );
+
+                        // Where the delegate puts them: the shortcut right-aligned
+                        // 8px from the edge, the badge 24px left of it.
+                        const auto shortcutWidth
+                            = QFontMetrics( list->font() ).horizontalAdvance( shortcut );
+                        const QRect shortcutArea( rect.right() - 8 - shortcutWidth, rect.top(),
+                                                  shortcutWidth, rect.height() );
+                        auto badgeFont = list->font();
+                        badgeFont.setPointSizeF( badgeFont.pointSizeF() * 0.85 );
+                        const QFontMetrics badgeMetrics( badgeFont );
+                        const int badgeWidth = badgeMetrics.boundingRect( category ).width() + 8;
+                        const int badgeHeight = badgeMetrics.height() + 2;
+                        const QRect badge( rect.right() - badgeWidth - shortcutWidth - 24,
+                                           rect.top() + ( rect.height() - badgeHeight ) / 2,
+                                           badgeWidth, badgeHeight );
+                        const auto badgeBackground
+                            = image.pixelColor( badge.right() - 1, badge.center().y() );
+
+                        CHECK( badgeBackground.rgb()
+                               == theme.color( ColorToken::BadgeBackground ).rgb() );
+                        CHECK(
+                            textContrast( image, badge.adjusted( 2, 2, -2, -2 ), badgeBackground )
+                            >= 4.5 );
+                        CHECK( textContrast( image, shortcutArea, rowBackground ) >= 4.5 );
+                    }
+                }
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
+}
+
+SCENARIO( "High Contrast shows checked, hovered, disabled and progress states legibly",
+          "[ui][theme]" )
+{
+    GIVEN( "the High Contrast Theme" )
+    {
+        Theme::apply( Theme::HighContrastKey );
+        const auto& theme = Theme::active();
+
+        WHEN( "a tool button with an icon is checked" )
+        {
+            QToolButton button;
+            button.setCheckable( true );
+            button.setIcon( IconLoader{}.loadCheckable( "regex" ) );
+            button.setChecked( true );
+            button.show();
+            QTest::qWait( 20 );
+            const auto image = button.grab().toImage();
+
+            THEN( "it is yellow and its icon reaches 3:1 against it" )
+            {
+                const auto background = theme.color( ColorToken::Checked );
+                REQUIRE( image.pixelColor( image.width() / 2, 3 ).rgb() == background.rgb() );
+                QRect iconArea( QPoint( 0, 0 ), button.iconSize() );
+                iconArea.moveCenter( image.rect().center() );
+                REQUIRE( textContrast( image, iconArea, background ) >= 3.0 );
+            }
+        }
+
+        WHEN( "an icon is loaded for anything but a checkable button" )
+        {
+            const auto icon = IconLoader{}.load( "regex" );
+
+            THEN( "it has no checked variant of its own: a selected tab or checked menu item "
+                  "stays on a black background" )
+            {
+                REQUIRE( icon.availableSizes( QIcon::Normal, QIcon::On ).isEmpty() );
+            }
+        }
+
+        WHEN( "a push button is hovered" )
+        {
+            QPushButton button( QStringLiteral( "Button" ) );
+            button.setFocusPolicy( Qt::NoFocus );
+            button.show();
+            QTest::qWait( 20 );
+            const auto normal = button.grab().toImage();
+            QTest::mouseMove( &button, button.rect().center() );
+            QTest::qWait( 20 );
+            const auto hovered = button.grab().toImage();
+
+            THEN( "its background and border change" )
+            {
+                const QPoint inside( 4, button.height() / 2 );
+                REQUIRE( hovered.pixelColor( inside ).rgb()
+                         == theme.color( ColorToken::ButtonHover ).rgb() );
+                REQUIRE( normal.pixelColor( inside ).rgb() != hovered.pixelColor( inside ).rgb() );
+                const QPoint border( button.width() / 2, 0 );
+                REQUIRE( hovered.pixelColor( border ).rgb()
+                         == theme.color( ColorToken::InputHoverBorder ).rgb() );
+            }
+        }
+
+        WHEN( "a push button is disabled" )
+        {
+            QPushButton button( QStringLiteral( "Button" ) );
+            button.setEnabled( false );
+            button.show();
+            QTest::qWait( 20 );
+            const auto image = button.grab().toImage();
+
+            THEN( "its border is drawn in the disabled border color, never the enabled one" )
+            {
+                const auto disabledBorder = theme.color( ColorToken::DisabledBorder ).rgb();
+                bool found = false;
+                for ( int x = 4; x < image.width() - 4; ++x ) {
+                    const auto pixel = image.pixelColor( x, 0 ).rgb();
+                    REQUIRE( pixel != theme.color( ColorToken::InputBorder ).rgb() );
+                    found = found || pixel == disabledBorder;
+                }
+                REQUIRE( found );
+            }
+        }
+
+        WHEN( "a progress bar is half filled" )
+        {
+            QProgressBar bar;
+            bar.setRange( 0, 100 );
+            bar.setValue( 50 );
+            bar.setTextVisible( true );
+            bar.resize( 200, 16 );
+            bar.show();
+            QTest::qWait( 20 );
+            const auto image = bar.grab().toImage();
+
+            THEN( "its text reaches 4.5:1 over the filled and over the empty part" )
+            {
+                // The text on either side of the chunk's end, kept clear of
+                // the bar's border and the chunk's outline, whose own contrast
+                // would pass for the text's.
+                const int clear = 5;
+                const auto textWidth = QFontMetrics( bar.font() ).horizontalAdvance( bar.text() );
+                const auto middle = image.width() / 2;
+                const QRect filledText( middle - textWidth / 2, clear, textWidth / 2 - clear,
+                                        image.height() - 2 * clear );
+                const QRect emptyText( middle + clear, clear, textWidth / 2 - clear,
+                                       image.height() - 2 * clear );
+                const auto filled = image.pixelColor( 6, image.height() / 2 );
+                const auto empty = image.pixelColor( image.width() - 6, image.height() / 2 );
+                REQUIRE( textContrast( image, filledText, filled ) >= 4.5 );
+                REQUIRE( textContrast( image, emptyText, empty ) >= 4.5 );
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
 }

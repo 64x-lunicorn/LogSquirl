@@ -6,6 +6,8 @@ on:
     branches: [master]
     paths:
       - 'website/**'
+  # Also dispatched by CI Release once a release is published, so its page
+  # goes live (#315).
   workflow_dispatch:
 
 # Only one deploy at a time, and never cancel one mid-upload: two
@@ -25,6 +27,10 @@ jobs:
   deploy:
     # Pinned so a runner image bump cannot silently change the deploy (#206).
     runs-on: ubuntu-24.04
+    # The FTP credentials are secrets of the `website` environment, whose
+    # deployment policy admits only master (#203): a dispatch from any other
+    # branch fails before a step runs instead of deploying that branch.
+    environment: website
     # A stuck FTP connection would otherwise hold the concurrency group for
     # the default 6 hours (#206).
     timeout-minutes: 20
@@ -43,6 +49,18 @@ jobs:
 
       - name: Install dependencies
         run: cd website && npm ci
+
+      # A release page goes live with its GitHub release: the page of a
+      # release not published yet is left out of this build (#315). A failed
+      # listing fails the deploy instead of leaving out every release.
+      - name: Leave out the pages of unpublished releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate \
+            --jq '.[] | select(.draft | not) | .tag_name' > "$RUNNER_TEMP/published-releases.txt"
+          cd website && node scripts/leave-out-unpublished.mjs "$RUNNER_TEMP/published-releases.txt"
 
       - name: Build
         run: cd website && npm run build

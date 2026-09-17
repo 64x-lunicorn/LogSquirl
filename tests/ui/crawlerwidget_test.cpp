@@ -20,6 +20,7 @@
 #include <catch2/catch.hpp>
 
 #include <QHeaderView>
+#include <QImage>
 #include <QPointer>
 #include <QScrollBar>
 #include <QShortcut>
@@ -49,12 +50,15 @@
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
 #include "filteredview.h"
+#include "fontutils.h"
 #include "highlighterset.h"
 #include "infoline.h"
 #include "logformatdefinition.h"
 #include "logtableview.h"
 #include "shortcuts.h"
 #include "textviewscrolling.h"
+
+#include "theme.h"
 
 static const qint64 SL_NB_LINES = 100LL;
 
@@ -427,6 +431,22 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         QTest::mouseClick( crawler->searchRefreshButton_, Qt::LeftButton );
         QTest::mouseClick( crawler->booleanButton_, Qt::LeftButton );
         QCoreApplication::processEvents();
+    }
+
+    // What the user does by hand: asks for the Search pattern to be read as a
+    // regexp.
+    void enableRegexpSearch()
+    {
+        if ( !crawler->useRegexpButton_->isChecked() ) {
+            QTest::mouseClick( crawler->useRegexpButton_, Qt::LeftButton );
+            QCoreApplication::processEvents();
+        }
+    }
+
+    // The Search info line, as painted.
+    QImage searchInfoImage() const
+    {
+        return crawler->searchInfoLine_->grab().toImage().convertToFormat( QImage::Format_RGB32 );
     }
 };
 
@@ -1810,6 +1830,70 @@ SCENARIO( "Every view of a Log File draws in the configured font from its first 
     }
 }
 
+// A zoom steps from the configured size to the next size offered for the
+// family, whether or not the configured size is one of them. It looked the
+// size up in the offered ones and stepped past the end of the list when it was
+// not there, reading whatever lay behind it: on Windows' offscreen platform,
+// which had no fonts to resolve the configured one, a zoom in from 14pt made
+// the font 12pt (#220).
+SCENARIO( "A zoom steps to the next offered font size from any configured size", "[ui][settings]" )
+{
+    QTemporaryFile file{ "crawler_zoom_XXXXXX" };
+
+    const auto family = Configuration{}.mainFont().family();
+    const auto offeredSizes = FontUtils::availableFontSizes( family );
+
+    // Two neighbouring offered sizes with a size between them that is not
+    // offered itself. Where every size up to the largest is offered, the size
+    // is one above the largest, and a zoom in keeps it.
+    auto below = offeredSizes.last();
+    auto above = offeredSizes.last() + 1;
+    for ( auto i = 1; i < offeredSizes.size(); ++i ) {
+        if ( offeredSizes[ i ] - offeredSizes[ i - 1 ] > 1 ) {
+            below = offeredSizes[ i - 1 ];
+            above = offeredSizes[ i ];
+            break;
+        }
+    }
+    const auto between = below + 1;
+
+    const ConfiguredFont configured{ QFont{ family, between }, true, true };
+
+    auto policies = testSettingsPolicies();
+    Session session{ policies, std::make_shared<LogFormatCatalog>() };
+
+    GIVEN( "a Log File opened with a font size that is not offered" )
+    {
+        REQUIRE( generateDataFiles( file ) );
+
+        CrawlerWidgetVisitor crawlerVisitor;
+        crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+            session.open( file.fileName(),
+                          []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+        waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+
+        WHEN( "the user zooms in" )
+        {
+            crawlerVisitor.zoom( true );
+
+            THEN( "the font takes the next offered size above it, if there is one" )
+            {
+                REQUIRE( Configuration::get().mainFont().pointSize() == above );
+            }
+        }
+
+        WHEN( "the user zooms out" )
+        {
+            crawlerVisitor.zoom( false );
+
+            THEN( "the font takes the next offered size below it" )
+            {
+                REQUIRE( Configuration::get().mainFont().pointSize() == below );
+            }
+        }
+    }
+}
+
 namespace {
 
 // A palette in which a Log Line outside the Search Limits is drawn in a color
@@ -2401,4 +2485,54 @@ SCENARIO( "A restored tab whose Log File loads after the current one shows what 
             }
         }
     }
+
+SCENARIO( "An invalid Search pattern is shown in the Theme's error colors", "[ui][theme]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    Theme::apply( Theme::LightKey );
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } ) );
+    crawlerVisitor.showSized();
+
+    GIVEN( "a Search for a pattern that is no regexp" )
+    {
+        crawlerVisitor.enableRegexpSearch();
+        crawlerVisitor.setSearchPattern( "(unclosed" );
+        crawlerVisitor.runSearch();
+        QCoreApplication::processEvents();
+        REQUIRE( crawlerVisitor.searchInfoText().startsWith( "Error in expression" ) );
+
+        // The error background fills the line behind its text.
+        const auto background = []( const QImage& image ) {
+            return image.pixelColor( image.width() - 4, image.height() / 2 ).rgb();
+        };
+
+        THEN( "the Search info line shows the error in the Light Theme's error background" )
+        {
+            REQUIRE( background( crawlerVisitor.searchInfoImage() )
+                     == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
+        }
+
+        for ( const auto& name :
+              { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ) } ) {
+            WHEN( "the " << name.toStdString() << " Theme is applied" )
+            {
+                Theme::apply( name );
+                QCoreApplication::processEvents();
+
+                THEN( "the error is shown in that Theme's error background" )
+                {
+                    REQUIRE( background( crawlerVisitor.searchInfoImage() )
+                             == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
+                }
+            }
+        }
+    }
+
+    Theme::apply( Theme::defaultTheme() );
 }

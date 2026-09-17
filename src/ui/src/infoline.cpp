@@ -44,8 +44,11 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QContextMenuEvent>
+#include <QHelpEvent>
 #include <QMenu>
 #include <QPainter>
+#include <QStyle>
+#include <QToolTip>
 
 #include "clipboard.h"
 
@@ -86,15 +89,59 @@ void InfoLine::hideGauge()
     gaugeShown_ = false;
 }
 
+void InfoLine::setElidesText( bool elides )
+{
+    elidesText_ = elides;
+    updateGeometry();
+    update();
+}
+
+QSize InfoLine::minimumSizeHint() const
+{
+    auto hint = QLabel::minimumSizeHint();
+    if ( elidesText_ ) {
+        // Room for the start of the text and the ellipsis.
+        const auto margins = contentsMargins();
+        hint.setWidth(
+            std::min( hint.width(), fontMetrics().averageCharWidth() * 4
+                                        + fontMetrics().horizontalAdvance( QChar( 0x2026 ) )
+                                        + margins.left() + margins.right() ) );
+    }
+    return hint;
+}
+
+bool InfoLine::isElided() const
+{
+    return elidesText_ && fontMetrics().horizontalAdvance( text() ) > contentsRect().width();
+}
+
+bool InfoLine::event( QEvent* event )
+{
+    if ( event->type() == QEvent::ToolTip && toolTip().isEmpty() && isElided() ) {
+        QToolTip::showText( static_cast<QHelpEvent*>( event )->globalPos(), text(), this );
+        return true;
+    }
+    return QLabel::event( event );
+}
+
 // Custom painter: draw the background then call QLabel's painter
 void InfoLine::paintEvent( QPaintEvent* paintEvent )
 {
     // Fill the widget background
-    {
-        QPainter painter( this );
-        painter.fillRect( 0, 0, this->width(), this->height(),
-                          palette().brush( backgroundRole() ) );
+    QPainter painter( this );
+    painter.fillRect( 0, 0, this->width(), this->height(), palette().brush( backgroundRole() ) );
+
+    if ( isElided() ) {
+        drawFrame( &painter );
+        const auto textRect = contentsRect();
+        const auto elided = fontMetrics().elidedText( text(), Qt::ElideRight, textRect.width() );
+        style()->drawItemText(
+            &painter, textRect,
+            static_cast<int>( QStyle::visualAlignment( layoutDirection(), alignment() ) ),
+            palette(), isEnabled(), elided, foregroundRole() );
+        return;
     }
+    painter.end();
 
     // Call the parent's painter
     QLabel::paintEvent( paintEvent );

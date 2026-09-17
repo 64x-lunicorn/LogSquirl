@@ -34,7 +34,9 @@
 //   that font, or does not honour its metrics, the test fails and says so:
 //   without its font it would verify nothing.
 // - The palette, the frame, the scroll bars and the viewport size are set
-//   explicitly, so no platform style leaks in.
+//   explicitly, so no platform style leaks in. The margins -- the bullet zone
+//   and the line numbers -- are drawn in the Tokens of the active Theme, which
+//   is Light for the duration of the test.
 // - The settings painting reads -- main search highlighting and its colors,
 //   the QuickFind color, the active Highlighter Sets -- are set for the
 //   duration of the test and restored afterwards. Whether scrolling may pull
@@ -76,6 +78,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "test_policies.h"
+#include "theme.h"
 
 namespace {
 
@@ -215,23 +218,33 @@ private:
 };
 
 // The Highlighter Sets a developer has configured, kept out of the images for
-// as long as this object lives and restored when it goes. They are the user's
-// own coloring, read from the collection as the view paints, and no Settings
-// Policy carries them -- which is why they are pinned here and the settings
-// that color Log Lines are not: those reach the view as its Decoration
-// Policy (see showForPainting()).
+// as long as this object lives and restored when it goes; the Theme the
+// margins are drawn in is Light for as long. The Highlighter Sets are the
+// user's own coloring, read from the collection as the view paints, and no
+// Settings Policy carries them -- which is why they are pinned here and the
+// settings that color Log Lines are not: those reach the view as its
+// Decoration Policy (see showForPainting()).
 class PinnedPaintingSettings {
 public:
     PinnedPaintingSettings()
         : activeHighlighterSets_( HighlighterSetCollection::get().activeSetIds() )
+        , activeTheme_( Theme::active().name() )
     {
         HighlighterSetCollection::get().deactivateAll();
+        // Applied only when another test left a different Theme active:
+        // applying one also installs the application stylesheet.
+        if ( activeTheme_ != Theme::LightKey ) {
+            Theme::apply( Theme::LightKey );
+        }
     }
 
     ~PinnedPaintingSettings()
     {
         for ( const auto& setId : activeHighlighterSets_ ) {
             HighlighterSetCollection::get().activateSet( setId );
+        }
+        if ( activeTheme_ != Theme::LightKey ) {
+            Theme::apply( activeTheme_ );
         }
     }
 
@@ -240,6 +253,7 @@ public:
 
 private:
     QStringList activeHighlighterSets_;
+    QString activeTheme_;
 };
 
 QPalette fixedPalette()

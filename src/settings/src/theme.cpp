@@ -227,6 +227,20 @@ Theme Theme::light()
         { StatusInactive, "#6E7681" },
         { StatusInfo, "#388BFD" },
         { StatusText, "#FFFFFF" },
+        // Shortcuts in a selected row; SecondaryText is on Base.
+        { HighlightedSecondaryText, "#FFFFFF" },
+        { BadgeBackground, "#DEE2E6" },
+        { BadgeText, "#212529" },
+        { ViewportMargin, "#E9ECEF" },
+        { ViewportMarginBorder, "#CED4DA" },
+        { LineNumberText, "#495057" },
+        { Bullet, "#FFFFFF" },
+        { BulletOutline, "#495057" },
+        { ProgressChunk, "#0056B3" },
+        { SliderGroove, "#ADB5BD" },
+        { ErrorBackground, "#F8D7DA" },
+        { ErrorText, "#58151C" },
+        { PullToFollowStripe, "#868E96" },
     } );
 
     using enum StyleToken;
@@ -238,7 +252,7 @@ Theme Theme::light()
         { InputPadding, "3px 6px" },
         { ComboArrowSize, "10px" },
         { TabPaneOffset, "-1px" },
-        { TabAddButtonPadding, "4 0px" },
+        { TabAddButtonPadding, "4px 0px" },
         { TabAddButtonMargin, "1px 1px" },
         { TabAddButtonMinWidth, "15px" },
         { ScrollBarExtent, "12px" },
@@ -246,12 +260,18 @@ Theme Theme::light()
         { MenuBarItemRadius, "2px" },
         { MenuItemPadding, "5px 24px" },
         { MenuIconOffset, "0px" },
-        { IndicatorSize, "12px" },
+        { IndicatorSize, "16px" },
         { ArrowDownIcon, "url(:/icons/arrow-down-light.svg)" },
-        { ArrowUpIcon, "url(:/icons/arrow-down-light.svg)" },
+        { ArrowUpIcon, "url(:/icons/arrow-up-light.svg)" },
         { CheckIcon, "url(:/icons/check-light.svg)" },
-        { DisabledCheckIcon, "url(:/icons/check-light.svg)" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-light.svg)" },
         { CloseIcon, "url(:/icons/close-light.svg)" },
+        { DisabledBorderStyle, "solid" },
+        { ProgressChunkBorderWidth, "0px" },
+        // Half the indicator and its 2px border: a circle.
+        { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-light.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-light.svg)" },
     } );
     return theme;
 }
@@ -284,11 +304,13 @@ Theme Theme::dark()
         { DisabledLight, "#252526" },
         // Text at half opacity; follows an overridden Text (see fromName).
         { PlaceholderText, "#80E0E0E0" },
-        { Light, "#FFFFFF" },
-        { Midlight, "#CACACA" },
-        { Mid, "#B8B8B8" },
-        { Dark, "#A0A0A0" },
-        { Shadow, "#767676" },
+        // Fusion draws frames and tab-bar base lines in these: none is
+        // brighter than Border. Mid is Border itself, for palette(mid) borders.
+        { Light, "#333333" },
+        { Midlight, "#2D2D30" },
+        { Mid, "#333333" },
+        { Dark, "#1A1A1A" },
+        { Shadow, "#000000" },
 
         { Chrome, "#171717" },
         { Pane, "#1E1E1E" },
@@ -331,6 +353,21 @@ Theme Theme::dark()
         { StatusInactive, "#6E7681" },
         { StatusInfo, "#388BFD" },
         { StatusText, "#FFFFFF" },
+        // White on Highlight stays below 4.5:1, so dark text.
+        { HighlightedSecondaryText, "#121212" },
+        { BadgeBackground, "#3A3A3E" },
+        { BadgeText, "#E0E0E0" },
+        { ViewportMargin, "#252526" },
+        { ViewportMarginBorder, "#333333" },
+        { LineNumberText, "#A0A0A0" },
+        { Bullet, "#1E1E1E" },
+        { BulletOutline, "#A0A0A0" },
+        // Highlight; follows an overridden Highlight (see fromName).
+        { ProgressChunk, "#4D90FE" },
+        { SliderGroove, "#555555" },
+        { ErrorBackground, "#5A1D1D" },
+        { ErrorText, "#FFDADA" },
+        { PullToFollowStripe, "#777777" },
     } );
 
     using enum StyleToken;
@@ -354,8 +391,13 @@ Theme Theme::dark()
         { ArrowDownIcon, "url(:/icons/arrow-down-dark.svg)" },
         { ArrowUpIcon, "url(:/icons/arrow-up-dark.svg)" },
         { CheckIcon, "url(:/icons/check-dark.svg)" },
-        { DisabledCheckIcon, "none" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-dark.svg)" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
+        { DisabledBorderStyle, "solid" },
+        { ProgressChunkBorderWidth, "0px" },
+        { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-dark.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-dark.svg)" },
     } );
     return theme;
 }
@@ -411,7 +453,7 @@ Theme Theme::highContrast()
         { HoverBorder, "#FFFF00" },
         { InputHoverBorder, "#FFFF00" },
         { HeaderHover, "#000000" },
-        { ButtonHover, "#000000" },
+        { ButtonHover, "#1F1F1F" },
         { ToolButtonHover, "#1F1F1F" },
         { ButtonPressed, "#FFFF00" },
         { ButtonPressedBorder, "#FFFF00" },
@@ -437,6 +479,23 @@ Theme Theme::highContrast()
         { StatusInactive, "#A6A6A6" },
         { StatusInfo, "#00FFFF" },
         { StatusText, "#000000" },
+        { HighlightedSecondaryText, "#000000" },
+        { BadgeBackground, "#FFFFFF" },
+        { BadgeText, "#000000" },
+        { ViewportMargin, "#000000" },
+        { ViewportMarginBorder, "#FFFFFF" },
+        { LineNumberText, "#FFFFFF" },
+        { Bullet, "#000000" },
+        { BulletOutline, "#FFFFFF" },
+        // No single text color reaches 4.5:1 on both black and yellow, so the
+        // filled part is black too, outlined in Highlight.
+        { ProgressChunk, "#000000" },
+        { SliderGroove, "#FFFFFF" },
+        // Red for errors, as for destructive actions; darker than pure red,
+        // on which white text stays below 4.5:1.
+        { ErrorBackground, "#C00000" },
+        { ErrorText, "#FFFFFF" },
+        { PullToFollowStripe, "#FFFF00" },
     } );
 
     using enum StyleToken;
@@ -456,12 +515,18 @@ Theme Theme::highContrast()
         { MenuBarItemRadius, "0px" },
         { MenuItemPadding, "5px 24px" },
         { MenuIconOffset, "0px" },
-        { IndicatorSize, "12px" },
+        { IndicatorSize, "16px" },
         { ArrowDownIcon, "url(:/icons/arrow-down-hc.svg)" },
-        { ArrowUpIcon, "url(:/icons/arrow-down-hc.svg)" },
+        { ArrowUpIcon, "url(:/icons/arrow-up-hc.svg)" },
         { CheckIcon, "url(:/icons/check-hc.svg)" },
-        { DisabledCheckIcon, "url(:/icons/check-hc.svg)" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-hc.svg)" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
+        // A disabled button differs from an enabled one by more than a gray.
+        { DisabledBorderStyle, "dashed" },
+        { ProgressChunkBorderWidth, "2px" },
+        { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-hc.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-hc.svg)" },
     } );
     return theme;
 }
@@ -533,6 +598,9 @@ void Theme::applyOverrides( const std::map<QString, QString>& overrides )
         placeholder.setAlpha( 128 );
         colors_[ indexOf( ColorToken::PlaceholderText ) ] = placeholder;
     }
+    if ( !overrides.contains( QStringLiteral( "ProgressChunk" ) ) ) {
+        colors_[ indexOf( ColorToken::ProgressChunk ) ] = color( ColorToken::Highlight );
+    }
 }
 
 QString Theme::name() const
@@ -548,6 +616,11 @@ bool Theme::isDark() const
 bool Theme::usesInverseIcons() const
 {
     return isDark_;
+}
+
+bool Theme::usesInverseIconsWhenChecked() const
+{
+    return color( ColorToken::Checked ).lightness() < 128;
 }
 
 QColor Theme::color( ColorToken token ) const

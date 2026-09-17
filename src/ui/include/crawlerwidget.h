@@ -393,8 +393,12 @@ private:
     template <class Presentation>
     void connectPresentation( Presentation* presentation );
 
-    // Palette for error notification (yellow background)
-    static const QPalette ErrorPalette;
+    // The Search info line's palette for an error: the default palette in the
+    // Theme's error colors.
+    QPalette searchInfoErrorPalette() const;
+
+    // Shows message on the Search info line in the error colors.
+    void showSearchInfoError( const QString& message );
 
     IconLoader iconLoader_;
 
@@ -440,6 +444,9 @@ private:
 
     // Default palette to be remembered
     QPalette searchInfoLineDefaultPalette_;
+    // Whether the Search info line shows an error, in the error palette; a
+    // Theme switch sets that palette again.
+    bool searchInfoLineShowsError_ = false;
 
     // Reference to the QuickFind Pattern (not owned)
 

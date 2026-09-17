@@ -19,6 +19,8 @@
 
 #include <catch2/catch.hpp>
 
+#include <algorithm>
+#include <cmath>
 #include <map>
 #include <vector>
 
@@ -106,6 +108,23 @@ std::vector<RoleToken> paletteRoleTokens()
         }
     }
     return result;
+}
+
+// The WCAG 2 contrast ratio of two opaque colors, from 1:1 to 21:1.
+double contrastRatio( const QColor& a, const QColor& b )
+{
+    const auto luminance = []( const QColor& color ) {
+        const auto linear = []( float value ) {
+            const double channel = static_cast<double>( value );
+            return channel <= 0.04045 ? channel / 12.92
+                                      : std::pow( ( channel + 0.055 ) / 1.055, 2.4 );
+        };
+        return 0.2126 * linear( color.redF() ) + 0.7152 * linear( color.greenF() )
+               + 0.0722 * linear( color.blueF() );
+    };
+    const auto first = luminance( a );
+    const auto second = luminance( b );
+    return ( std::max( first, second ) + 0.05 ) / ( std::min( first, second ) + 0.05 );
 }
 
 } // namespace
@@ -429,6 +448,323 @@ SCENARIO( "A user stylesheet applies on top of the Theme's stylesheet", "[theme]
             {
                 const auto light = Theme::fromName( Theme::LightKey, Qt::ColorScheme::Light );
                 REQUIRE( light.styleSheetWithUserFile( userThemes.path() ) == light.styleSheet() );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Theme's arrow icons point in their own direction", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its up-arrow and down-arrow Tokens name different icons" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.value( StyleToken::ArrowUpIcon )
+                         != theme.value( StyleToken::ArrowDownIcon ) );
+                REQUIRE( theme.value( StyleToken::ArrowUpIcon ).contains( "arrow-up" ) );
+                REQUIRE( theme.value( StyleToken::ArrowDownIcon ).contains( "arrow-down" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Check boxes show every state distinctly and at one size in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its check box indicator is 16px" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                INFO( name.toStdString() );
+                REQUIRE( Theme::fromName( name, Qt::ColorScheme::Light )
+                             .value( StyleToken::IndicatorSize )
+                         == "16px" );
+            }
+        }
+
+        THEN( "a disabled check box shows a check mark and a dash of its own" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE(
+                    theme.value( StyleToken::DisabledCheckIcon ).contains( "check-disabled" ) );
+                REQUIRE( theme.value( StyleToken::DisabledIndeterminateIcon )
+                             .contains( "dash-disabled" ) );
+            }
+        }
+
+        THEN( "an indeterminate check box shows a dash, not the check mark" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.value( StyleToken::IndeterminateIcon ).contains( "dash" ) );
+                REQUIRE( theme.value( StyleToken::IndeterminateIcon )
+                         != theme.value( StyleToken::CheckIcon ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Every size Token is a stylesheet length with a unit", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        // An image Token names an icon or none, the border style Token a border
+        // style; every other style Token is a size: one to four lengths, each
+        // with a unit unless it is 0.
+        static const QRegularExpression image( "^(url\\(.+\\)|none)$" );
+        static const QRegularExpression borderStyle( "^(solid|dashed|dotted)$" );
+        static const QRegularExpression length( "^(-?\\d+(\\.\\d+)?(px|pt|em|ex)|-?0)$" );
+
+        THEN( "every length of every size Token carries a unit" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                for ( const auto token : allStyleTokens() ) {
+                    const auto value = theme.value( token );
+                    if ( token == StyleToken::DisabledBorderStyle ) {
+                        INFO( name.toStdString()
+                              << " DisabledBorderStyle = " << value.toStdString() );
+                        REQUIRE( borderStyle.match( value ).hasMatch() );
+                        continue;
+                    }
+                    if ( image.match( value ).hasMatch() ) {
+                        continue;
+                    }
+                    INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString()
+                                             << " = " << value.toStdString() );
+                    const auto lengths = value.split( ' ', Qt::SkipEmptyParts );
+                    REQUIRE( lengths.size() >= 1 );
+                    REQUIRE( lengths.size() <= 4 );
+                    for ( const auto& part : lengths ) {
+                        INFO( part.toStdString() );
+                        REQUIRE( length.match( part ).hasMatch() );
+                    }
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "Dark draws no frame line brighter than its border", "[theme]" )
+{
+    GIVEN( "the Dark Theme" )
+    {
+        const auto dark = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light );
+
+        THEN( "none of the palette roles Fusion draws frames with is lighter than Border" )
+        {
+            const auto border = dark.color( ColorToken::Border ).lightness();
+            for ( const auto token : { ColorToken::Light, ColorToken::Midlight, ColorToken::Mid,
+                                       ColorToken::Dark, ColorToken::Shadow } ) {
+                INFO( Theme::tokenName( token ).toStdString() );
+                REQUIRE( dark.color( token ).lightness() <= border );
+            }
+        }
+    }
+}
+
+SCENARIO( "The Command Palette's badge and shortcut Tokens are readable in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "badge text on the badge and shortcut text on a row, selected or not, reach 4.5:1" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::BadgeText ),
+                                        theme.color( ColorToken::BadgeBackground ) )
+                         >= 4.5 );
+                REQUIRE( contrastRatio( theme.color( ColorToken::SecondaryText ),
+                                        theme.color( ColorToken::Base ) )
+                         >= 4.5 );
+                REQUIRE( contrastRatio( theme.color( ColorToken::HighlightedSecondaryText ),
+                                        theme.color( ColorToken::Highlight ) )
+                         >= 4.5 );
+            }
+        }
+    }
+}
+
+SCENARIO( "A checked button's icon contrasts with the Checked color in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "the icon variant for the checked state is light on a dark Checked color and dark "
+              "on a light one, reaching 3:1" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                // The inverse variants are drawn in white, the others in black.
+                const QColor icon( theme.usesInverseIconsWhenChecked() ? Qt::white : Qt::black );
+                REQUIRE( contrastRatio( icon, theme.color( ColorToken::Checked ) ) >= 3.0 );
+            }
+        }
+
+        THEN( "Light and Dark show the same variant checked as unchecked" )
+        {
+            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ) } ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.usesInverseIconsWhenChecked() == theme.usesInverseIcons() );
+            }
+        }
+    }
+}
+
+SCENARIO( "High Contrast's progress bar text is readable over the filled and the empty part",
+          "[theme]" )
+{
+    GIVEN( "the High Contrast Theme" )
+    {
+        const auto theme = Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light );
+
+        THEN( "the text reaches 4.5:1 on the chunk and on the bar" )
+        {
+            const auto text = theme.color( ColorToken::Text );
+            REQUIRE( contrastRatio( text, theme.color( ColorToken::ProgressChunk ) ) >= 4.5 );
+            REQUIRE( contrastRatio( text, theme.color( ColorToken::Panel ) ) >= 4.5 );
+        }
+
+        THEN( "the chunk is outlined in a color that reaches 3:1 on the bar" )
+        {
+            REQUIRE( theme.value( StyleToken::ProgressChunkBorderWidth )
+                     != QStringLiteral( "0px" ) );
+            REQUIRE( contrastRatio( theme.color( ColorToken::Highlight ),
+                                    theme.color( ColorToken::Panel ) )
+                     >= 3.0 );
+        }
+    }
+
+    GIVEN( "a stored Dark override of Highlight" )
+    {
+        THEN( "Dark's progress chunk follows it" )
+        {
+            const auto dark = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light,
+                                               { { "Highlight", "#FF8800" } } );
+            REQUIRE( dark.color( ColorToken::ProgressChunk ) == QColor( "#FF8800" ) );
+        }
+    }
+}
+
+SCENARIO( "High Contrast shows hovered and disabled push buttons differently", "[theme]" )
+{
+    GIVEN( "the High Contrast Theme" )
+    {
+        const auto theme = Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light );
+
+        THEN( "a hovered push button changes its background, border and text" )
+        {
+            REQUIRE( theme.color( ColorToken::ButtonHover ) != theme.color( ColorToken::Button ) );
+            REQUIRE( theme.color( ColorToken::InputHoverBorder )
+                     != theme.color( ColorToken::InputBorder ) );
+            REQUIRE( theme.color( ColorToken::HoverText )
+                     != theme.color( ColorToken::ButtonText ) );
+        }
+
+        THEN( "a disabled push button has a gray, dashed border and gray text" )
+        {
+            REQUIRE( theme.value( StyleToken::DisabledBorderStyle ) == QStringLiteral( "dashed" ) );
+            REQUIRE( theme.color( ColorToken::DisabledBorder ).saturation() == 0 );
+            REQUIRE( theme.color( ColorToken::DisabledBorder ).lightness()
+                     < theme.color( ColorToken::InputBorder ).lightness() );
+            REQUIRE( theme.color( ColorToken::DisabledButtonText ).lightness()
+                     < theme.color( ColorToken::ButtonText ).lightness() );
+        }
+    }
+
+    GIVEN( "Light and Dark" )
+    {
+        THEN( "their hover text is their button text, and disabled borders stay solid" )
+        {
+            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ) } ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( theme.color( ColorToken::HoverText )
+                         == theme.color( ColorToken::ButtonText ) );
+                REQUIRE( theme.value( StyleToken::DisabledBorderStyle )
+                         == QStringLiteral( "solid" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "Every Theme's line numbers read against its Viewport margin", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its line-number text has at least WCAG AA contrast against its margin" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::LineNumberText ),
+                                        theme.color( ColorToken::ViewportMargin ) )
+                         >= 4.5 );
+            }
+        }
+    }
+}
+
+SCENARIO( "A radio button indicator is round in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        // Qt ignores a border radius larger than half the indicator's box, so
+        // the radius is exactly half of it: the indicator and its 2px border.
+        static const QRegularExpression pixels( "^(\\d+)px$" );
+
+        THEN( "the radio indicator radius is half the indicator size plus its border" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                const auto size = pixels.match( theme.value( StyleToken::IndicatorSize ) );
+                const auto radius = pixels.match( theme.value( StyleToken::RadioIndicatorRadius ) );
+                REQUIRE( size.hasMatch() );
+                REQUIRE( radius.hasMatch() );
+                REQUIRE( radius.captured( 1 ).toInt() == size.captured( 1 ).toInt() / 2 + 2 );
+            }
+        }
+    }
+}
+
+SCENARIO( "An error marker's text is readable in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "its error text has at least WCAG AA contrast against the error background" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::ErrorText ),
+                                        theme.color( ColorToken::ErrorBackground ) )
+                         >= 4.5 );
+            }
+        }
+    }
+}
+
+SCENARIO( "The pull-to-follow bar's stripes stand out in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "the stripes have at least 3:1 contrast against the window color they are drawn on" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                REQUIRE( contrastRatio( theme.color( ColorToken::PullToFollowStripe ),
+                                        theme.color( ColorToken::Window ) )
+                         >= 3.0 );
             }
         }
     }

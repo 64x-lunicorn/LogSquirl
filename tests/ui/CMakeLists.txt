@@ -21,6 +21,15 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/filterspanel_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_switch_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/applicationplugins_window_test.cpp
+
+    ${CMAKE_CURRENT_SOURCE_DIR}/theme_screenshots_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/sidebar_layout_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/overviewwidget_theme_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/viewportmargins_theme_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/radiobutton_slider_theme_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/checkbox_theme_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/shortcuts_table_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/theme_chrome_colors_test.cpp
 )
 
 if(NOT APPLE)
@@ -50,6 +59,9 @@ set_target_properties(logsquirl_test_slow_converter PROPERTIES CXX_VISIBILITY_PR
 add_dependencies(logsquirl_itests logsquirl_test_slow_converter)
 target_compile_definitions(logsquirl_itests PRIVATE
     LOGSQUIRL_TEST_SLOW_CONVERTER_PATH="$<TARGET_FILE:logsquirl_test_slow_converter>")
+
+# theme_screenshots_test copies the demo log from test_data/ (#253).
+target_compile_definitions(logsquirl_itests PRIVATE LOGSQUIRL_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 add_backward(logsquirl_itests)
 

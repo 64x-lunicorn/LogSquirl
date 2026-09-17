@@ -1,6 +1,6 @@
 {
   "ci": "26.07.0",
-  "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/continuous",
+  "ci_url": "https://github.com/64x-lunicorn/LogSquirl/releases/latest#",
   "stable": "26.07.0",
   "stable_url": "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.07.0",
   "beta": "26.07.0",
@@ -16,6 +16,11 @@
     "20.12.0.813",
     "22.06.0.1289",
     "26.03.0",
+    "26.03.1-beta.1",
+    "26.03.1-beta.2",
+    "26.03.2",
+    "26.04.1-beta1",
+    "26.04.1-beta2",
     "26.04.1",
     "26.04.2",
     "26.05.0-beta1",
@@ -66,8 +71,14 @@
     {
       "version": "26.07.0",
       "description": "Windows dark mode icon fixes, AppImage runs on Ubuntu 22.04, correct release version numbering"
+    },
+    {
+      "version": "26.10.0-beta1",
+      "description": "Crash and Search stall fixes, scrolling through wrapped lines, Table View on par with Text View, System theme, live theme switching, Qt 6.11.2, signed checksums and SBOM"
     }
   ],
   "stable_version": "26.07.0",
-  "beta_version": "26.07.0"
+  "beta_version": "26.07.0",
+  "stable_build": "26.07.0.741",
+  "beta_build": "26.07.0.741"
 }

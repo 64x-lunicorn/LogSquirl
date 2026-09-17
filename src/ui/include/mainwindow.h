@@ -388,6 +388,13 @@ private:
     QTabWidget* sidebarTabs_{ nullptr };
     static constexpr int SidebarFiltersPanelTab = 0;
     static constexpr int SidebarScratchPadTab = 1;
+    // The share of the window the sidebar opens at while no width was saved.
+    static constexpr int SidebarDefaultWidthPercent = 27;
+    // The width the sidebar opens at, or was last left at while docked; 0
+    // while none was saved.
+    int sidebarWidth_ = 0;
+    // Whether the sidebar was docked open since the window was built.
+    bool sidebarWidthApplied_ = false;
 
     QTemporaryDir tempDir_;
 

@@ -98,12 +98,6 @@ xcopy %QTDIR%\plugins\tls\qopensslbackend.dll %LOGSQUIRL_WORKSPACE%\release\tls\
 xcopy %QTDIR%\plugins\tls\qschannelbackend.dll %LOGSQUIRL_WORKSPACE%\release\tls\ /y || exit /b 1
 
 echo "Copying packaging files..."
-md %LOGSQUIRL_WORKSPACE%\chocolatey || exit /b 1
-xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\chocolatey\logsquirl.nuspec chocolatey\ /y || exit /b 1
-
-md %LOGSQUIRL_WORKSPACE%\chocolatey\tools || exit /b 1
-xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\chocolatey\tools\chocolateyInstall.ps1 chocolatey\tools\ /y || exit /b 1
-
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\logsquirl.nsi  /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\FileAssociation.nsh  /y || exit /b 1
 

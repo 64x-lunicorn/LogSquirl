@@ -1,6 +1,10 @@
 ---
 title: Version 20.12
 description: Reworked highlighters, dark theme support, crash reporting via Sentry, signed macOS DMG.
+release:
+  version: 20.12
+  date: 2020-12
+  channel: legacy
 ---
 
 ## Version 20.12

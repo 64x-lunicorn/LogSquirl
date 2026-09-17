@@ -54,11 +54,23 @@ public:
     // Hide the gauge and make the widget like a normal QLabel
     void hideGauge();
 
+    // Lets the line be narrower than its text: the text is then elided, and
+    // shown whole in the tool tip. Off by default, the line keeps the width of
+    // its text.
+    void setElidesText( bool elides );
+
+    QSize minimumSizeHint() const override;
+
 protected:
+    bool event( QEvent* event ) override;
     void paintEvent( QPaintEvent* paintEvent ) override;
     void contextMenuEvent( QContextMenuEvent* event ) override;
 
 private:
+    // Whether the text does not fit and is drawn elided.
+    bool isElided() const;
+
+    bool elidesText_ = false;
     // Whether displayGauge() set the background since the last hideGauge().
     bool gaugeShown_ = false;
 };

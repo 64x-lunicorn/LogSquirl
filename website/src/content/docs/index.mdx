@@ -8,6 +8,7 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
 import { Image } from 'astro:assets';
+import ReleaseCards from '../../components/ReleaseCards.astro';
 import mainwindow from '@assets/screenshots/mainwindow.png';
 import dark from '@assets/screenshots/dark.png';
 import scratchpad from '@assets/screenshots/scratchpad.png';
@@ -15,10 +16,7 @@ import highlighters from '@assets/screenshots/highlighters.png';
 
 ## Latest Release
 
-<CardGrid>
-  <LinkCard title="v26.06.0" description="Stable release — Auto log format detection, chart templates, table view, Filters Panel improvements, security hardening, and more." href="/news/release-26-06/" />
-  <LinkCard title="All Releases" description="View all release notes and download links." href="/news/" />
-</CardGrid>
+<ReleaseCards view="home" />
 
 [![GitHub Release](https://img.shields.io/github/v/release/64x-lunicorn/LogSquirl?label=GitHub%20Release&style=for-the-badge)](https://github.com/64x-lunicorn/LogSquirl/releases/latest)
 

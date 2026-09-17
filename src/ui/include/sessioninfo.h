@@ -81,6 +81,8 @@ public:
 
         QString id;
         QByteArray geometry;
+        // The width the user left the sidebar at, 0 while none was saved.
+        int sidebarWidth = 0;
         std::vector<OpenFile> openFiles;
     };
 
@@ -127,6 +129,20 @@ public:
         auto window = findWindow( windowId );
         if ( window ) {
             window->geometry = geometry;
+        }
+    }
+
+    int sidebarWidth( const QString& windowId ) const
+    {
+        auto window = findWindow( windowId );
+        return window ? window->sidebarWidth : 0;
+    }
+
+    void setSidebarWidth( const QString& windowId, int width )
+    {
+        auto window = findWindow( windowId );
+        if ( window ) {
+            window->sidebarWidth = width;
         }
     }
 

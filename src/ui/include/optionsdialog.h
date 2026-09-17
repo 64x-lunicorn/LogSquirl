@@ -45,6 +45,7 @@
 #include <QKeySequenceEdit>
 #include <QLabel>
 #include <QPushButton>
+#include <QStyledItemDelegate>
 
 #include "configuration.h"
 
@@ -52,21 +53,38 @@
 
 class LogFormatCatalog;
 
-class KeySequencePresenter : public QWidget {
+// Records a shortcut in place in a shortcut cell of the shortcuts table: a
+// click or Enter on the cell starts recording, Escape or Tab cancels it, and
+// Backspace or Delete clears the shortcut, on the cell or while recording.
+// A cell keeps its shortcut as portable text under Qt::UserRole.
+class ShortcutRecordingDelegate : public QStyledItemDelegate {
     Q_OBJECT
 public:
-    explicit KeySequencePresenter( const QString& keySequence );
+    explicit ShortcutRecordingDelegate( QAbstractItemView* view );
 
-    QString keySequence() const;
+    QWidget* createEditor( QWidget* parent, const QStyleOptionViewItem& option,
+                           const QModelIndex& index ) const override;
+    void setEditorData( QWidget* editor, const QModelIndex& index ) const override;
+    void setModelData( QWidget* editor, QAbstractItemModel* model,
+                       const QModelIndex& index ) const override;
+
+    static void setShortcut( QAbstractItemModel* model, const QModelIndex& index,
+                             const QKeySequence& keySequence );
 
 Q_SIGNALS:
     void edited();
 
-private Q_SLOTS:
-    void showEditor();
+protected:
+    bool eventFilter( QObject* watched, QEvent* event ) override;
 
 private:
-    QLabel* keySequenceLabel_;
+    bool viewKeyPressed( const QKeyEvent* keyEvent );
+    bool recorderKeyPressed( QWidget* recorder, const QKeyEvent* keyEvent );
+
+    enum class Recording { Keep, Clear, Cancel };
+    void endRecording( QWidget* recorder, Recording outcome );
+
+    QAbstractItemView* view_;
 };
 
 // Implements the main option dialog box

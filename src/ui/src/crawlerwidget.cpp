@@ -69,6 +69,8 @@
 #include <QShortcut>
 #include <QStandardItemModel>
 #include <QStringListModel>
+#include <QStyle>
+#include <QStyleOptionComboBox>
 #include <QTimer>
 #include <qglobal.h>
 #include <qobject.h>
@@ -93,9 +95,6 @@
 #include "shortcuts.h"
 #include "theme.h"
 
-// Palette for error signaling (yellow background)
-const QPalette CrawlerWidget::ErrorPalette( Qt::darkYellow );
-
 namespace {
 
 // The desktop application's answer to a failure the engine reports for a
@@ -107,6 +106,31 @@ void offerIssueReport( const QString& failure )
         IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, failure );
     } );
 }
+
+// The Search line keeps room for this many characters, whatever else is in
+// its row (#261).
+constexpr int SearchLineMinimumCharacters = 20;
+
+// A combo box that gives way when its row runs out of width: it keeps the
+// width of its longest item while there is room, and shrinks down to a few
+// characters of its font before the Search line has to (#261).
+class YieldingComboBox : public QComboBox {
+public:
+    QSize minimumSizeHint() const override
+    {
+        constexpr int MinimumCharacters = 5;
+
+        QStyleOptionComboBox option;
+        initStyleOption( &option );
+        const auto contents
+            = QSize( fontMetrics().horizontalAdvance( QLatin1Char( 'X' ) ) * MinimumCharacters,
+                     fontMetrics().height() );
+        const auto minimum
+            = style()->sizeFromContents( QStyle::CT_ComboBox, &option, contents, this );
+        return { std::min( minimum.width(), QComboBox::minimumSizeHint().width() ),
+                 QComboBox::minimumSizeHint().height() };
+    }
+};
 
 } // namespace
 
@@ -632,8 +656,7 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
             printSearchInfoMessage( nbMatches );
         }
         else if ( isFailed ) {
-            searchInfoLine_->setPalette( ErrorPalette );
-            searchInfoLine_->setText( tr( "Search failed" ) );
+            showSearchInfoError( tr( "Search failed" ) );
             offerIssueReport( state.errorString );
         }
         searchInfoLine_->hideGauge();
@@ -1226,7 +1249,7 @@ void CrawlerWidget::setup()
     visibilityView->setMovement( QListView::Static );
     // visibilityView->setMinimumWidth( 170 ); // Only needed with custom style-sheet
 
-    visibilityBox_ = new QComboBox();
+    visibilityBox_ = new YieldingComboBox();
     visibilityBox_->setModel( visibilityModel_ );
     visibilityBox_->setView( visibilityView );
 
@@ -1259,7 +1282,10 @@ void CrawlerWidget::setup()
     searchInfoLine_->setFrameStyle( QFrame::StyledPanel );
     searchInfoLine_->setFrameShadow( QFrame::Sunken );
     searchInfoLine_->setLineWidth( 1 );
-    searchInfoLine_->setSizePolicy( QSizePolicy::Minimum, QSizePolicy::Minimum );
+    // The match count gives way to the Search line when the row runs out of
+    // width: it elides rather than keep the width of its whole text (#261).
+    searchInfoLine_->setSizePolicy( QSizePolicy::Preferred, QSizePolicy::Minimum );
+    searchInfoLine_->setElidesText( true );
     auto searchInfoLineSizePolicy = searchInfoLine_->sizePolicy();
     searchInfoLineSizePolicy.setRetainSizeWhenHidden( false );
     searchInfoLine_->setSizePolicy( searchInfoLineSizePolicy );
@@ -1309,6 +1335,9 @@ void CrawlerWidget::setup()
     searchLineEdit_->addItems( savedSearches_->recentSearches() );
     searchLineEdit_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Minimum );
     searchLineEdit_->setSizeAdjustPolicy( QComboBox::AdjustToMinimumContentsLengthWithIcon );
+    // Whatever else is in the row, the Search line keeps room for about 20
+    // characters of the font it shows (#261).
+    searchLineEdit_->setMinimumContentsLength( SearchLineMinimumCharacters );
     searchLineEdit_->lineEdit()->setMaxLength( std::numeric_limits<int>::max() / 1024 );
     searchLineEdit_->setContentsMargins( 2, 2, 2, 2 );
     searchLineEdit_->setAccessibleName( tr( "Search pattern" ) );
@@ -1378,7 +1407,6 @@ void CrawlerWidget::setup()
     tableViewToggle_->setToolTip( tr( "Toggle table/text view" ) );
     tableViewToggle_->setAccessibleName( tr( "Toggle table view" ) );
     tableViewToggle_->setCheckable( true );
-    tableViewToggle_->setIcon( iconLoader_.load( "icons8-table" ) );
     tableViewToggle_->setToolButtonStyle( Qt::ToolButtonIconOnly );
     tableViewToggle_->setContentsMargins( 2, 2, 2, 2 );
     tableViewToggle_->setVisible( false );
@@ -1440,6 +1468,9 @@ void CrawlerWidget::setup()
     Theme::whenApplied( this, [ this ] {
         loadIcons();
         searchInfoLineDefaultPalette_ = palette();
+        if ( searchInfoLineShowsError_ ) {
+            searchInfoLine_->setPalette( searchInfoErrorPalette() );
+        }
     } );
 
     // Connect the signals
@@ -1730,20 +1761,22 @@ void CrawlerWidget::changeFontSize( bool increase )
 {
     auto& fontConfig = Configuration::get();
 
-    auto fontInfo = QFontInfo( fontConfig.mainFont() );
+    const auto font = fontConfig.mainFont();
+    const auto fontInfo = QFontInfo( font );
     const auto availableSizes = FontUtils::availableFontSizes( fontInfo.family() );
 
-    auto currentSize
-        = std::find( availableSizes.cbegin(), availableSizes.cend(), fontInfo.pointSize() );
-    if ( increase && currentSize != std::prev( availableSizes.cend() ) ) {
-        currentSize = std::next( currentSize );
-    }
-    else if ( !increase && currentSize != availableSizes.begin() ) {
-        currentSize = std::prev( currentSize );
+    // The zoom steps from the configured size, which need not be one of the
+    // offered sizes; what Qt resolved it to only stands in when it has none.
+    // The resolved size can be anything -- -1 where no font could be resolved
+    // at all, as on Windows' offscreen platform without fonts (#220).
+    const auto currentSize = font.pointSize() > 0 ? font.pointSize() : fontInfo.pointSize();
+    if ( currentSize <= 0 ) {
+        return;
     }
 
-    if ( currentSize != availableSizes.cend() ) {
-        fontConfig.setMainFont( QFont{ fontInfo.family(), *currentSize } );
+    const auto zoomedSize = FontUtils::zoomedFontSize( availableSizes, currentSize, increase );
+    if ( zoomedSize != currentSize ) {
+        fontConfig.setMainFont( QFont{ fontInfo.family(), zoomedSize } );
         // The zoomed font is assembled like any other, bold and antialiasing
         // included, and reaches every view of every open Log File. Nothing
         // but the font was written, so nothing else is applied again.
@@ -1940,15 +1973,16 @@ void CrawlerWidget::registerShortcuts()
 
 void CrawlerWidget::loadIcons()
 {
-    searchRefreshButton_->setIcon( iconLoader_.load( "icons8-search-refresh" ) );
-    useRegexpButton_->setIcon( iconLoader_.load( "regex" ) );
-    inverseButton_->setIcon( iconLoader_.load( "icons8-not-equal" ) );
-    booleanButton_->setIcon( iconLoader_.load( "icons8-venn-diagram" ) );
+    searchRefreshButton_->setIcon( iconLoader_.loadCheckable( "icons8-search-refresh" ) );
+    useRegexpButton_->setIcon( iconLoader_.loadCheckable( "regex" ) );
+    inverseButton_->setIcon( iconLoader_.loadCheckable( "icons8-not-equal" ) );
+    booleanButton_->setIcon( iconLoader_.loadCheckable( "icons8-venn-diagram" ) );
     clearButton_->setIcon( iconLoader_.load( "icons8-delete" ) );
     searchButton_->setIcon( iconLoader_.load( "icons8-search" ) );
-    keepSearchResultsButton_->setIcon( iconLoader_.load( "icons8-lock" ) );
-    matchCaseButton_->setIcon( iconLoader_.load( "icons8-font-size" ) );
+    keepSearchResultsButton_->setIcon( iconLoader_.loadCheckable( "icons8-lock" ) );
+    matchCaseButton_->setIcon( iconLoader_.loadCheckable( "icons8-font-size" ) );
     stopButton_->setIcon( iconLoader_.load( "icons8-close-window" ) );
+    tableViewToggle_->setIcon( iconLoader_.loadCheckable( "icons8-table" ) );
 }
 
 // Create a new search using the text passed, replace the currently
@@ -2008,6 +2042,7 @@ void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
         clearButton_->hide();
         searchButton_->hide();
         searchInfoLine_->hide();
+        searchInfoLineShowsError_ = false;
         logMainView_->setSearchPattern( state.pattern );
         filteredView_->setSearchPattern( state.pattern );
         logTableView_->setSearchPattern( state.pattern );
@@ -2022,8 +2057,7 @@ void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
         QString errorMessage = tr( "Error in expression" );
         errorMessage += ": ";
         errorMessage += state.errorString;
-        searchInfoLine_->setPalette( ErrorPalette );
-        searchInfoLine_->setText( errorMessage );
+        showSearchInfoError( errorMessage );
         searchInfoLine_->show();
 
         logMainView_->setSearchPattern( {} );
@@ -2071,8 +2105,25 @@ void CrawlerWidget::printSearchInfoMessage( LinesCount nbMatches )
     }
 
     searchInfoLine_->setPalette( searchInfoLineDefaultPalette_ );
+    searchInfoLineShowsError_ = false;
     searchInfoLine_->setText( text );
     searchInfoLine_->setVisible( !text.isEmpty() );
+}
+
+QPalette CrawlerWidget::searchInfoErrorPalette() const
+{
+    const Theme& theme = Theme::active();
+    auto palette = searchInfoLineDefaultPalette_;
+    palette.setColor( QPalette::Window, theme.color( ColorToken::ErrorBackground ) );
+    palette.setColor( QPalette::WindowText, theme.color( ColorToken::ErrorText ) );
+    return palette;
+}
+
+void CrawlerWidget::showSearchInfoError( const QString& message )
+{
+    searchInfoLine_->setPalette( searchInfoErrorPalette() );
+    searchInfoLineShowsError_ = true;
+    searchInfoLine_->setText( message );
 }
 
 // Change the data status and, if needed, advise upstream.

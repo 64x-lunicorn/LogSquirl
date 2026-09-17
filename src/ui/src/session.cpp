@@ -412,7 +412,7 @@ std::vector<WindowSession> Session::windowSessions()
 void WindowSession::save(
     const std::vector<std::tuple<const ViewInterface*, uint64_t,
                                  std::shared_ptr<const ViewContextInterface>>>& view_list,
-    const QByteArray& geometry )
+    const QByteArray& geometry, int sidebarWidth )
 {
     LOG_DEBUG << "Session::save";
 
@@ -437,6 +437,7 @@ void WindowSession::save(
     auto& session = SessionInfo::getSynced();
     session.setOpenFiles( windowId_, session_files );
     session.setGeometry( windowId_, geometry );
+    session.setSidebarWidth( windowId_, sidebarWidth );
     session.save();
 }
 
@@ -533,6 +534,11 @@ void WindowSession::restoreGeometry( QByteArray* geometry ) const
 {
     const auto& session = SessionInfo::get();
     *geometry = session.geometry( windowId_ );
+}
+
+int WindowSession::sidebarWidth() const
+{
+    return SessionInfo::getSynced().sidebarWidth( windowId_ );
 }
 
 bool WindowSession::close()

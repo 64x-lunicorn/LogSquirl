@@ -92,6 +92,22 @@ For something that is bigger than a ten line fix:
     * **Run the test suites before creating a pull request** (see below)
     * Create a pull request
 
+## Changelog entry
+
+A pull request with a change users, packagers or plugin authors notice adds an entry to
+`CHANGELOG.md`, under a `# Unreleased` heading at the top (add the heading if it is not
+there), in the section that fits (`## Changes`, `## Bug fixes`, `## Security`, `## Removed`,
+`## Build and packaging`, `## Internal`, `## Documentation`):
+
+```markdown
+- **Short title**: What users now see, in present tense.
+```
+
+A pull request that needs no entry (CI, tests, refactoring without a visible change, typos)
+gets the `no-changelog` label. The **Changelog** check fails until one of the two is done;
+Dependabot and Renovate pull requests need neither. The CHANGELOG section of a release
+becomes that release's notes on GitHub.
+
 ## Testing checklist
 
 Every pull request **must** pass all tests before being merged. Run these locally:
