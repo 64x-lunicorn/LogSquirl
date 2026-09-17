@@ -5,8 +5,12 @@ carries the tag's version. No network, no gh."""
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
+import plistlib
 import sys
+import tarfile
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -168,6 +172,30 @@ def write_build(root: Path, *, version=VERSION, commit=COMMIT, sbom_version=None
                             ("packages-mac-arm64", "logsquirl-mac-arm64.dmg")]:
         (root / directory).mkdir()
         (root / directory / name).write_bytes(b"x")
+    write_portable(root, exe=b"MZ...\0" + version.encode() + b"\0...")
+    write_mac_app(root, bundle_version=version.rsplit(".", 1)[0],
+                  binary=b"\xcf\xfa\xed\xfe\0" + version.encode() + b"\0")
+
+
+def write_portable(root: Path, *, exe: bytes | None):
+    with zipfile.ZipFile(root / "packages-windows-x64/logsquirl-win-x64-portable.zip", "w") as z:
+        z.writestr("platforms/qwindows.dll", b"MZ")
+        if exe is not None:
+            z.writestr("logsquirl_portable.exe", exe)
+
+
+def write_mac_app(root: Path, *, bundle_version: str | None, binary: bytes | None):
+    def add(tar, name, data):
+        info = tarfile.TarInfo(name)
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+
+    with tarfile.open(root / "packages-mac-arm64/logsquirl-arm64.app.tar.gz", "w:gz") as tar:
+        if bundle_version is not None:
+            add(tar, "logsquirl.app/Contents/Info.plist", plistlib.dumps(
+                {"CFBundleVersion": bundle_version, "CFBundleShortVersionString": "26.08"}))
+        if binary is not None:
+            add(tar, "logsquirl.app/Contents/MacOS/logsquirl", binary)
 
 
 def test_a_build_of_the_tagged_commit_with_the_tag_version_passes(tmp_path):
@@ -212,6 +240,89 @@ def test_a_linux_package_without_the_version_in_its_name_stops_the_release(tmp_p
 
 def test_an_empty_package_directory_stops_the_release(tmp_path):
     write_build(tmp_path)
-    (tmp_path / "packages-mac-arm64/logsquirl-mac-arm64.dmg").unlink()
+    for f in (tmp_path / "packages-mac-arm64").iterdir():
+        f.unlink()
     with pytest.raises(rb.ReleaseError, match="packages-mac-arm64"):
         rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+# The Windows and macOS package names carry no version; the binaries in them do.
+
+@pytest.mark.parametrize("exe", [None, b"MZ 26.08.0.1 ", b"MZ 26.08.0.10661 ", b"MZ 126.08.0.1066 "])
+def test_a_windows_executable_without_the_exact_version_stops_the_release(tmp_path, exe):
+    write_build(tmp_path)
+    write_portable(tmp_path, exe=exe)
+    with pytest.raises(rb.ReleaseError, match="logsquirl-win-x64-portable.zip"):
+        rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+def test_a_missing_portable_zip_stops_the_release(tmp_path):
+    write_build(tmp_path)
+    (tmp_path / "packages-windows-x64/logsquirl-win-x64-portable.zip").unlink()
+    with pytest.raises(rb.ReleaseError, match="logsquirl-win-x64-portable.zip"):
+        rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+@pytest.mark.parametrize("bundle_version, binary", [
+    ("26.07.0", b"26.08.0.1066"),
+    (None, b"26.08.0.1066"),
+    ("26.08.0", b"26.08.0.1065"),
+    ("26.08.0", None),
+])
+def test_a_mac_app_without_the_version_stops_the_release(tmp_path, bundle_version, binary):
+    write_build(tmp_path)
+    write_mac_app(tmp_path, bundle_version=bundle_version, binary=binary)
+    with pytest.raises(rb.ReleaseError, match="logsquirl-arm64.app.tar.gz"):
+        rb.check_build(tmp_path, tag="v26.08.0", commit=COMMIT)
+
+
+# ── robustness ─────────────────────────────────────────────────────────────
+
+def test_every_page_of_a_listing_is_read():
+    pages = {1: {"total_count": 3, "artifacts": [{"id": 1}, {"id": 2}]},
+             2: {"total_count": 3, "artifacts": [{"id": 3}]}}
+    calls = []
+
+    def fetch(path):
+        calls.append(path)
+        return pages.get(int(path.rsplit("page=", 1)[1]), {"total_count": 3, "artifacts": []})
+
+    items = rb.paginate(fetch, "repos/x/actions/runs/1/artifacts", "artifacts", per_page=2)
+    assert [a["id"] for a in items] == [1, 2, 3]
+    assert calls == ["repos/x/actions/runs/1/artifacts?per_page=2&page=1",
+                     "repos/x/actions/runs/1/artifacts?per_page=2&page=2"]
+
+
+def test_a_listing_path_with_a_query_gets_its_page_appended():
+    seen = []
+    rb.paginate(lambda p: seen.append(p) or {"total_count": 0, "runs": []}, "runs?event=push", "runs")
+    assert seen == ["runs?event=push&per_page=100&page=1"]
+
+
+def test_a_listing_that_ends_early_stops_instead_of_looping():
+    seen = []
+    items = rb.paginate(lambda p: seen.append(p) or {"total_count": 50, "runs": []}, "runs", "runs")
+    assert items == [] and len(seen) == 1
+
+
+def test_an_artifact_without_an_id_is_an_error_not_a_crash():
+    arts = all_artifacts()
+    del arts[-1]["id"]
+    with pytest.raises(rb.ReleaseError, match="unexpected"):
+        rb.select_artifacts(arts, run_id=35187407744, commit=COMMIT)
+
+
+def test_a_run_without_an_id_is_an_error_not_a_crash():
+    bad = run()
+    del bad["id"]
+    with pytest.raises(rb.ReleaseError, match="unexpected"):
+        rb.select_run([bad], commit=COMMIT, repository=REPO)
+
+
+def test_the_command_line_turns_an_unexpected_response_into_an_annotation(monkeypatch, capsys):
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
+    no_id = run()
+    del no_id["id"]
+    monkeypatch.setattr(rb, "_gh_api", lambda path: no_id)
+    assert rb.main(["find-run", "--repository", REPO, "--commit", COMMIT, "--run-id", "5"]) == 1
+    assert capsys.readouterr().out.startswith("::error::")

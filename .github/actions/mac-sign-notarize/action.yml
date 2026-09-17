@@ -163,7 +163,8 @@ runs:
 
     # The DMG of CI Build holds the unsigned app, so it is packed again from
     # the stapled one.
-    - uses: ./.github/actions/mac-create-dmg
+    - name: Mac create DMG from the stapled app
+      uses: ./.github/actions/mac-create-dmg
       with:
         app: ${{ steps.unpack.outputs.work }}/logsquirl.app
         dmg: ${{ inputs.packages-dir }}/logsquirl-mac-${{ inputs.arch }}.dmg
