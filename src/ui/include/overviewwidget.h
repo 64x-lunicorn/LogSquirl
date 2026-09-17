@@ -70,6 +70,8 @@ private:
     int highlightedTTL_ = 0;
 
     QBasicTimer highlightTimer_;
+    // Paints again when the Overview put off a recompute while a Search runs.
+    QBasicTimer recomputeTimer_;
 
     void handleMousePress( int position );
 };

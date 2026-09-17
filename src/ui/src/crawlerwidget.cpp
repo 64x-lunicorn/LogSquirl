@@ -667,8 +667,10 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         // Recompute the content of the filtered window.
         filteredView_->updateData();
 
-        // Update the match overview
-        overview_.updateData( openLogFile_->logData()->getNbLine() );
+        // Update the match overview: while the Search runs, at a bounded rate.
+        overview_.updateData( openLogFile_->logData()->getNbLine(),
+                              isDone ? Overview::UpdatePace::Now
+                                     : Overview::UpdatePace::WhileSearching );
 
         // New data found icon: fires for a continuation (autorefresh
         // extending the range) and equally for a fresh search whose

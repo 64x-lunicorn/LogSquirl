@@ -28,8 +28,12 @@
 
 #include "overview.h"
 
-Overview::Overview()
-    : matchLines_()
+#include <algorithm>
+
+Overview::Overview( std::chrono::milliseconds recomputeInterval, Clock clock )
+    : recomputeInterval_( recomputeInterval )
+    , clock_( std::move( clock ) )
+    , matchLines_()
     , markLines_()
 {
     logFilteredData_ = nullptr;
@@ -46,22 +50,34 @@ void Overview::setFilteredData( const LogFilteredData* logFilteredData )
     dirty_ = true;
 }
 
-void Overview::updateData( LinesCount totalNbLine )
+void Overview::updateData( LinesCount totalNbLine, UpdatePace pace )
 {
     LOG_INFO << "OverviewWidget::updateData " << totalNbLine;
 
     linesInFile_ = totalNbLine;
+    // A change due now stays due now when a Search tick follows it.
+    paced_ = pace == UpdatePace::WhileSearching && ( !dirty_ || paced_ );
     dirty_ = true;
 }
 
-void Overview::updateView( unsigned height )
+std::optional<std::chrono::milliseconds> Overview::updateView( unsigned height )
 {
     // We don't touch the cache if the height hasn't changed
-    if ( ( height != height_ ) || ( dirty_ == true ) ) {
-        height_ = height;
-
-        recalculatesLines();
+    if ( height == height_ && !dirty_ ) {
+        return std::nullopt;
     }
+
+    if ( height == height_ && paced_ && lastRecompute_.has_value() ) {
+        const auto sinceRecompute = clock_() - *lastRecompute_;
+        if ( sinceRecompute < recomputeInterval_ ) {
+            return std::chrono::ceil<std::chrono::milliseconds>( recomputeInterval_
+                                                                 - sinceRecompute );
+        }
+    }
+
+    height_ = height;
+    recalculatesLines();
+    return std::nullopt;
 }
 
 const logsquirl::vector<Overview::WeightedLine>* Overview::getMatchLines() const
@@ -107,44 +123,81 @@ int Overview::yFromFileLine( LineNumber fileLine ) const
     return position;
 }
 
+LineNumber Overview::firstLineOfRow( uint64_t row ) const
+{
+    // Row y draws the Log Lines L with L * height / lines == y, as
+    // yFromFileLine() places them: from ceil( y * lines / height ).
+    const auto lines = linesInFile_.get();
+    return LineNumber( ( row * lines + height_ - 1 ) / height_ );
+}
+
 // Update the internal cache
 void Overview::recalculatesLines()
 {
     LOG_INFO << "OverviewWidget::recalculatesLines";
 
-    if ( logFilteredData_ != nullptr ) {
+    dirty_ = false;
+    paced_ = false;
+    lastRecompute_ = clock_();
+
+    if ( logFilteredData_ == nullptr ) {
+        LOG_INFO << "Overview::recalculatesLines: logFilteredData_ == NULL";
+        computed_.reset();
+        return;
+    }
+
+    const Computed computing{ logFilteredData_, linesInFile_, height_,
+                              logFilteredData_->displayedLinesRewrites() };
+
+    uint64_t firstRow = 0;
+    const bool onlyAppended
+        = computed_.has_value() && computed_->filteredData == computing.filteredData
+          && computed_->linesInFile == computing.linesInFile
+          && computed_->height == computing.height && computed_->rewrites == computing.rewrites;
+    if ( onlyAppended ) {
+        // Nothing changed up to the last line drawn: its row is counted again
+        // with the rows after it.
+        const auto lastPosition = []( const logsquirl::vector<WeightedLine>& lines ) {
+            return lines.empty() ? 0 : lines.back().position();
+        };
+        const auto lastRow = std::max( lastPosition( matchLines_ ), lastPosition( markLines_ ) );
+        firstRow = static_cast<uint64_t>( lastRow );
+        const auto fromLastRow
+            = [ lastRow ]( const WeightedLine& line ) { return line.position() >= lastRow; };
+        std::erase_if( matchLines_, fromLastRow );
+        std::erase_if( markLines_, fromLastRow );
+    }
+    else {
         matchLines_.clear();
         markLines_.clear();
-
-        if ( linesInFile_.get() > 0 ) {
-            logFilteredData_->iterateOverLines( [ this ]( LineNumber line ) {
-                const auto lineType = logFilteredData_->lineTypeByLine( line );
-                const auto position = yFromFileLine( line );
-                if ( lineType.testFlag( LogFilteredData::LineTypeFlags::Match ) ) {
-                    if ( ( !matchLines_.empty() ) && matchLines_.back().position() == position ) {
-                        // If the line is already there, we increase its weight
-                        matchLines_.back().load();
-                    }
-                    else {
-                        // If not we just add it
-                        matchLines_.emplace_back( position );
-                    }
-                }
-                else {
-                    if ( ( !markLines_.empty() ) && markLines_.back().position() == position ) {
-                        // If the line is already there, we increase its weight
-                        markLines_.back().load();
-                    }
-                    else {
-                        // If not we just add it
-                        markLines_.emplace_back( position );
-                    }
-                }
-            } );
-        }
     }
-    else
-        LOG_INFO << "Overview::recalculatesLines: logFilteredData_ == NULL";
+    computed_ = computing;
 
-    dirty_ = false;
+    if ( linesInFile_.get() == 0 || height_ == 0 ) {
+        return;
+    }
+
+    const auto addLine
+        = []( logsquirl::vector<WeightedLine>& lines, int position, uint64_t count ) {
+              if ( count == 0 ) {
+                  return;
+              }
+              // (allow multiple matches to look 'darker' than a single one.)
+              auto& line = lines.emplace_back( position );
+              for ( uint64_t more = 1; more < count && more < WeightedLine::WEIGHT_STEPS; ++more ) {
+                  line.load();
+              }
+          };
+
+    auto rowStart = firstLineOfRow( firstRow );
+    for ( uint64_t row = firstRow; row < height_; ++row ) {
+        const auto rowEnd = firstLineOfRow( row + 1 );
+        if ( rowEnd > rowStart ) {
+            const auto count = logFilteredData_->countDisplayedLines( rowStart, rowEnd );
+            const auto position = static_cast<int>( row );
+            addLine( matchLines_, position, count.matches );
+            addLine( markLines_, position, count.others );
+        }
+        rowStart = rowEnd;
+    }
 }
