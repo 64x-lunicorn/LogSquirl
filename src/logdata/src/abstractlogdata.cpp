@@ -70,6 +70,23 @@ logsquirl::vector<QString> AbstractLogData::getExpandedLines( LineNumber first_l
     return doGetExpandedLines( first_line, number );
 }
 
+logsquirl::vector<QString>
+AbstractLogData::getExpandedLinesSparse( std::span<const LineNumber> lines ) const
+{
+    return doGetExpandedLinesSparse( lines );
+}
+
+logsquirl::vector<QString>
+AbstractLogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const
+{
+    logsquirl::vector<QString> text;
+    text.reserve( lines.size() );
+    for ( const auto line : lines ) {
+        text.push_back( doGetExpandedLineString( line ) );
+    }
+    return text;
+}
+
 LineNumber AbstractLogData::getLineNumber( LineNumber index ) const
 {
     LineNumber ln = doGetLineNumber( index );

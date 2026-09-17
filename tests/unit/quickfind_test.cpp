@@ -23,6 +23,7 @@
 // and the next begins (a thousand Log Lines each).
 
 #include "fake_log_data.h"
+#include "qfnotifications.h"
 #include "quickfind.h"
 #include "quickfindpattern.h"
 #include "selection.h"
@@ -30,7 +31,9 @@
 
 #include <QStringList>
 
+#include <atomic>
 #include <optional>
+#include <span>
 
 #include <catch2/catch.hpp>
 
@@ -43,14 +46,64 @@ QString logLineText( int line )
     return QStringLiteral( "this is line %1" ).arg( line, 6, 10, QLatin1Char( '0' ) );
 }
 
-QStringList logLineTexts()
+QStringList logLineTexts( int nbLogLines = NbLogLines )
 {
     QStringList texts;
-    for ( int line = 0; line < NbLogLines; ++line ) {
+    for ( int line = 0; line < nbLogLines; ++line ) {
         texts.append( logLineText( line ) );
     }
     return texts;
 }
+
+// A Log File in memory that counts how QuickFind reads it: Log Line by Log
+// Line or in blocks, and whether a reader stays attached while it does.
+class CountingLogData : public FakeLogData {
+public:
+    using FakeLogData::FakeLogData;
+
+    mutable std::atomic<int> linesReadOneByOne{ 0 };
+    mutable std::atomic<int> blocksRead{ 0 };
+    mutable std::atomic<int> readsWithoutReader{ 0 };
+    mutable std::atomic<int> readers{ 0 };
+
+protected:
+    QString doGetExpandedLineString( LineNumber line ) const override
+    {
+        ++linesReadOneByOne;
+        noteRead();
+        return FakeLogData::doGetExpandedLineString( line );
+    }
+
+    logsquirl::vector<QString>
+    doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const override
+    {
+        ++blocksRead;
+        noteRead();
+        logsquirl::vector<QString> text;
+        for ( const auto line : lines ) {
+            text.push_back( FakeLogData::doGetExpandedLineString( line ) );
+        }
+        return text;
+    }
+
+    void doAttachReader() const override
+    {
+        ++readers;
+    }
+
+    void doDetachReader() const override
+    {
+        --readers;
+    }
+
+private:
+    void noteRead() const
+    {
+        if ( readers <= 0 ) {
+            ++readsWithoutReader;
+        }
+    }
+};
 
 // What a QuickFind reported when it was done.
 struct QuickFindResult {
@@ -68,6 +121,16 @@ public:
                           [ this ]( bool hasMatch, Portion match ) {
                               result_ = QuickFindResult{ hasMatch, match };
                           } );
+        QObject::connect( &quickFind_, &QuickFind::notify, &quickFind_,
+                          [ this ]( const QFNotification& notification ) {
+                              notifications_.append( notification.message() );
+                          } );
+    }
+
+    // The messages of every notification QuickFind sent.
+    const QStringList& notifications() const
+    {
+        return notifications_;
     }
 
     // Searches forward for pattern from the Log Line selected.
@@ -104,6 +167,7 @@ private:
 
     QuickFind quickFind_;
     std::optional<QuickFindResult> result_;
+    QStringList notifications_;
 };
 
 QString pattern( int line )
@@ -228,5 +292,37 @@ SCENARIO( "QuickFind over some Log Lines finds only those, in any block", "[quic
     {
         REQUIRE_FALSE( quickFind.forwardFrom( 0_lnum, pattern( 3001 ) ).hasMatch );
         REQUIRE_FALSE( quickFind.backwardFrom( 3499_lnum, pattern( 1001 ) ).hasMatch );
+    }
+}
+
+SCENARIO( "QuickFind reads Log Lines in blocks, with a reader attached", "[quickfind]" )
+{
+    const CountingLogData logFile{ logLineTexts() };
+    QuickFindRun quickFind( [ & ]() { return QuickFindLines::everyLogLine( logFile ); } );
+
+    const auto noHit = GENERATE( true, false );
+    const auto forward = GENERATE( true, false );
+    const auto searchFor
+        = noHit ? QStringLiteral( "no such text" ) : pattern( forward ? 3400 : 100 );
+
+    WHEN( "it searches " << ( forward ? "forwards" : "backwards" ) << " across " << NbLogLines
+                         << " Log Lines, " << ( noHit ? "without a match" : "to a match" ) )
+    {
+        const auto result = forward ? quickFind.forwardFrom( 0_lnum, searchFor )
+                                    : quickFind.backwardFrom( 3499_lnum, searchFor );
+        REQUIRE( result.hasMatch == !noHit );
+
+        THEN( "it reads no Log Line on its own, and a thousand at a time" )
+        {
+            REQUIRE( logFile.linesReadOneByOne == 0 );
+            REQUIRE( logFile.blocksRead >= 1 );
+            REQUIRE( logFile.blocksRead <= 4 );
+        }
+
+        THEN( "a reader is attached for every read, and detached once it is done" )
+        {
+            REQUIRE( logFile.readsWithoutReader == 0 );
+            REQUIRE( logFile.readers == 0 );
+        }
     }
 }

@@ -42,6 +42,8 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <span>
 
 #include <QFuture>
 #include <QFutureWatcher>
@@ -50,6 +52,7 @@
 #include <QTime>
 
 #include "atomicflag.h"
+#include "displayedlines.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
 #include "qfnotifications.h"
@@ -106,6 +109,49 @@ private:
 // docs/adr/0002-quickfind-searches-a-copy-of-the-displayed-lines.md.
 class QuickFindLines {
 public:
+    // Walks the Log Lines to search a block at a time, from a position.
+    // Valid while the QuickFindLines it came from lives.
+    class Cursor {
+    public:
+        // The Log Line the cursor stands on and those after it, at most count
+        // of them in ascending order; the cursor is left on the one after them.
+        logsquirl::vector<LineNumber> takeForward( LinesCount count );
+        // The Log Line the cursor stands on and those before it, at most count
+        // of them in ascending order; the cursor is left on the one before
+        // them.
+        logsquirl::vector<LineNumber> takeBackward( LinesCount count );
+        // Steps to the previous Log Line. From past the last one it steps onto
+        // the last one; before the first one it stands on none.
+        void previous();
+
+    private:
+        friend class QuickFindLines;
+        Cursor( LinesCount count, LineNumber position );
+        Cursor( const SearchResultArray& lines, LineNumber position );
+
+        // Set when some Log Lines are searched.
+        std::optional<DisplayedLinesCursor> lines_;
+        // When every Log Line is searched: -1 before the first one, count_
+        // past the last one.
+        std::int64_t count_ = 0;
+        std::int64_t position_ = 0;
+    };
+
+    // Keeps a reader attached to the Log File while it lives, so the file
+    // stays open between the reads of one QuickFind even when it is kept
+    // closed otherwise.
+    class AttachedReader {
+    public:
+        explicit AttachedReader( const AbstractLogData& logFile );
+        ~AttachedReader();
+
+        AttachedReader( const AttachedReader& ) = delete;
+        AttachedReader& operator=( const AttachedReader& ) = delete;
+
+    private:
+        const AbstractLogData& logFile_;
+    };
+
     // Every Log Line of logFile, as many as it has now.
     static QuickFindLines everyLogLine( const AbstractLogData& logFile );
     // The Log Lines in lines, whose text is read from logFile. Reading
@@ -119,8 +165,13 @@ public:
     LineNumber positionOf( LineNumber logLine ) const;
     // The Log Line at a position, below count().
     LineNumber logLineAt( LineNumber position ) const;
-    // The text of a Log Line, with tabs expanded.
-    QString expandedLineString( LineNumber logLine ) const;
+    // A cursor on the Log Line at position, or on none when position is at or
+    // past count().
+    Cursor cursorAt( LineNumber position ) const;
+    // The text of Log Lines, with tabs expanded, in one sparse read.
+    logsquirl::vector<QString> expandedLinesText( std::span<const LineNumber> logLines ) const;
+    // Attaches a reader to the Log File until the result goes away.
+    AttachedReader attachReader() const;
 
 private:
     QuickFindLines( const AbstractLogData& logFile, LinesCount count,

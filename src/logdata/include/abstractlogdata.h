@@ -44,6 +44,8 @@
 #include <QStringList>
 #include <QTextCodec>
 
+#include <span>
+
 #include "linetypes.h"
 
 // Base class representing a set of data.
@@ -60,6 +62,11 @@ public:
     logsquirl::vector<QString> getLines( LineNumber first_line, LinesCount number ) const;
     // Returns a set of lines with tabs expanded
     logsquirl::vector<QString> getExpandedLines( LineNumber first_line, LinesCount number ) const;
+    // The text of a sparse set of Log Lines with tabs expanded, one entry per
+    // Log Line asked for and in the order asked: for each, what
+    // getExpandedLineString() returns. lines may come in any order and
+    // repeat. A Log File on disk reads nearby Log Lines together.
+    logsquirl::vector<QString> getExpandedLinesSparse( std::span<const LineNumber> lines ) const;
     // Returns the line numer
     LineNumber getLineNumber( LineNumber index ) const;
     // Returns the total number of lines
@@ -103,6 +110,11 @@ protected:
     // Internal function called to get a set of expanded lines
     virtual logsquirl::vector<QString> doGetExpandedLines( LineNumber first_line,
                                                            LinesCount number ) const = 0;
+
+    // Internal function called to get a sparse set of expanded lines. By
+    // default each is read on its own.
+    virtual logsquirl::vector<QString>
+    doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const;
 
     // Internal function called to get the index of given line
     virtual LineNumber doGetLineNumber( LineNumber index ) const = 0;

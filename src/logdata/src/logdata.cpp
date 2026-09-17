@@ -524,7 +524,7 @@ logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> 
 }
 
 logsquirl::vector<QString>
-LogData::getExpandedLinesSparse( std::span<const LineNumber> lines ) const
+LogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const
 {
     return getSparseLinesFromFile( lines, chopCarriageReturnAndUntabify );
 }

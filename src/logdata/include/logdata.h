@@ -163,9 +163,8 @@ public:
     // last one reads as it does on its own. Safe off the UI thread, like
     // getLinesRaw().
     logsquirl::vector<QString> getLinesSparse( std::span<const LineNumber> lines ) const;
-    // As getLinesSparse(), with tabs expanded: for each Log Line, what
-    // getExpandedLineString() returns.
-    logsquirl::vector<QString> getExpandedLinesSparse( std::span<const LineNumber> lines ) const;
+    // getExpandedLinesSparse(), from AbstractLogData, reads Log Lines the
+    // same way, with tabs expanded.
 
     // What a Search on this Log File reads its Log Lines through. Lives as
     // long as this object.
@@ -211,6 +210,8 @@ private:
     logsquirl::vector<QString> doGetLines( LineNumber first, LinesCount number ) const override;
     logsquirl::vector<QString> doGetExpandedLines( LineNumber first,
                                                    LinesCount number ) const override;
+    logsquirl::vector<QString>
+    doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const override;
     LineNumber doGetLineNumber( LineNumber index ) const override;
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
