@@ -20,7 +20,8 @@
 // Micro-benchmarks for reading Log Lines from a Log File (#278): one Log Line
 // at a time, as Quick Find, the Filtered View and saving do, a block of them,
 // and a block's UTF-8 view, as a Search reads it -- hiding ANSI color
-// sequences and showing them. One Log Line in ten is colored.
+// sequences and showing them. One Log Line in ten is colored. The Log File is
+// UTF-8, or UTF-16LE or Latin-1, whose block a Search converts to UTF-8 (#291).
 //
 // Uses only what LogData offered before #278, so the same file measures both
 // sides of an A/B comparison. See tests/benchmarks/README.md.
@@ -31,6 +32,7 @@
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QTemporaryFile>
+#include <QTextCodec>
 #include <QTimer>
 
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
@@ -53,15 +55,23 @@ QByteArray logLine( int line )
     return text.arg( line % 1000, 3, 10, QLatin1Char( '0' ) ).arg( line % 8 ).toUtf8() + '\n';
 }
 
-// A Log File of LogLineCount Log Lines, loaded into log data that reads it
-// under the given Decoding Policy.
+// A Log File of LogLineCount Log Lines in the given Encoding, loaded into log
+// data that reads it under the given Decoding Policy.
 class LoadedLogFile {
 public:
-    explicit LoadedLogFile( bool hideAnsiColorSequences )
+    explicit LoadedLogFile( bool hideAnsiColorSequences, const char* encoding = "UTF-8" )
     {
+        auto* const codec = QTextCodec::codecForName( encoding );
+        REQUIRE( codec != nullptr );
+        // A UTF-16 Log File starts with its byte order mark, so it is detected.
+        QTextCodec::ConverterState state( codec->mibEnum() == 1014 ? QTextCodec::DefaultConversion
+                                                                   : QTextCodec::IgnoreHeader );
+
         REQUIRE( file_.open() );
         for ( int line = 0; line < LogLineCount; ++line ) {
-            file_.write( logLine( line ) );
+            const auto text = QString::fromUtf8( logLine( line ) );
+            file_.write(
+                codec->fromUnicode( text.constData(), static_cast<int>( text.size() ), &state ) );
         }
         file_.flush();
 
@@ -76,6 +86,12 @@ public:
         logData_->attachFile( file_.fileName() );
         loop.exec();
         REQUIRE( logData_->getNbLine() == LinesCount( LogLineCount ) );
+
+        // A single-byte Encoding is not told from its bytes: the Log File is
+        // read in it as a user who picks it reads it.
+        logData_->setDisplayEncoding( encoding );
+        REQUIRE( logData_->getDisplayEncoding()->mibEnum() == codec->mibEnum() );
+        REQUIRE( logData_->getLineString( 1_lnum ) == QString::fromUtf8( logLine( 1 ) ).trimmed() );
     }
 
     const LogData& logData() const
@@ -128,6 +144,20 @@ TEST_CASE( "Reading Log Lines", "[logdata-read-benchmark]" )
     {
         const LoadedLogFile logFile{ false };
         benchmarkReads( logFile, "showing ANSI color sequences" );
+    }
+
+    for ( const auto* const encoding : { "UTF-16LE", "ISO-8859-1" } ) {
+        SECTION( std::string( encoding ) + ", hiding ANSI color sequences" )
+        {
+            const LoadedLogFile logFile{ true, encoding };
+            benchmarkReads( logFile, std::string( encoding ) + ", hiding ANSI color sequences" );
+        }
+
+        SECTION( std::string( encoding ) + ", showing ANSI color sequences" )
+        {
+            const LoadedLogFile logFile{ false, encoding };
+            benchmarkReads( logFile, std::string( encoding ) + ", showing ANSI color sequences" );
+        }
     }
 }
 
