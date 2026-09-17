@@ -24,6 +24,7 @@
 #include "openlogfile.h"
 #include "savedsearches.h"
 #include "session.h"
+#include "sessioninfo.h"
 
 #include <QTemporaryFile>
 
@@ -289,4 +290,60 @@ SCENARIO( "A zoom hands every open Log File the font alone", "[ui][session]" )
     }
 
     session.removeWindow( &window );
+}
+
+SCENARIO( "Restoring a Session reads the settings store once, at startup, not per Log File",
+          "[ui][session]" )
+{
+    // What the Session read at startup stands in the in-memory Session info
+    // only, never saved: were a Log File restored or opened from a fresh read
+    // of the settings store, it would not find its view context there (#301).
+    // The settings store holds a saved Session, as after any earlier run.
+    SessionInfo::getSynced().save();
+
+    TwoLogFiles files;
+    const auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    const auto windowId = QStringLiteral( "session_test_window_301" );
+
+    auto& readAtStartup = SessionInfo::get();
+    readAtStartup.add( windowId );
+    readAtStartup.setOpenFiles(
+        windowId, { { files.first.fileName(), 0, QStringLiteral( "first context" ) },
+                    { files.second.fileName(), 0, QStringLiteral( "second context" ) } } );
+
+    WindowSession window{ appSession, windowId, 0 };
+    OpenedViews views;
+
+    WHEN( "the window's Log Files are restored" )
+    {
+        int currentFileIndex = -1;
+        const auto restored
+            = window.restore( RecordingViews::factory( views.built ), &currentFileIndex );
+
+        THEN( "each is built with the view context read at startup" )
+        {
+            REQUIRE( restored.size() == 2 );
+            REQUIRE( views.built.size() == 2 );
+            REQUIRE( views.built[ 0 ]->build().viewContext == "first context" );
+            REQUIRE( views.built[ 1 ]->build().viewContext == "second context" );
+            REQUIRE( currentFileIndex == 1 );
+        }
+    }
+
+    WHEN( "the Log Files are opened one by one in the window" )
+    {
+        window.open( files.first.fileName(), RecordingViews::factory( views.built ) );
+        window.open( files.second.fileName(), RecordingViews::factory( views.built ) );
+
+        THEN( "each is built with the view context read at startup" )
+        {
+            REQUIRE( views.built.size() == 2 );
+            REQUIRE( views.built[ 0 ]->build().viewContext == "first context" );
+            REQUIRE( views.built[ 1 ]->build().viewContext == "second context" );
+        }
+    }
+
+    // Leave the in-memory Session info as the settings store has it.
+    SessionInfo::getSynced();
 }

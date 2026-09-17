@@ -280,3 +280,30 @@ add_executable(logsquirl_logdata_read_benchmark logdata_read_benchmark.cpp)
 target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
 target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
 ```
+
+# Session restore benchmark
+
+`logsquirl_session_restore_benchmark` restores a Session of 20 tabs as the
+application does at startup (#301): it writes 20 small Log Files and a stored
+Session of one window with those 20 files (view contexts, custom tab names,
+tab groups) into the settings store, then measures
+
+- **build, restore windows and Log Files, add tabs**: the Session is built,
+  its window list, geometry and Log Files are restored and every Log File
+  gets its tab, named and styled from the tab names and tab groups;
+- **add and style the tabs only**: the 20 tabs alone, without opening the
+  Log Files, where the settings reads are most of the cost.
+
+The settings store is the portable one next to the binary, as for the tests,
+not the macOS preferences daemon the application uses; what was stored before
+is written back at the end. The file uses only what the Session and the tab
+area offered before #301, so it builds unchanged on origin/master:
+
+```bash
+cmake --build build-release --target logsquirl_session_restore_benchmark
+./build-release/output/logsquirl_session_restore_benchmark --benchmark-samples 50 > after.txt
+```
+
+For the before side, copy `session_restore_benchmark.cpp` into a worktree of
+origin/master and add the target as in `CMakeLists.txt` here, as described for
+the scrolling benchmarks above.
