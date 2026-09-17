@@ -19,11 +19,11 @@
 
 #pragma once
 
-#include <optional>
-
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
+
+#include <optional>
 
 namespace logsquirl::versioncheck {
 

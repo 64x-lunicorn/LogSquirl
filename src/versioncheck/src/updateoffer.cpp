@@ -103,6 +103,8 @@ std::optional<UpdateOffer> findUpdateOffer( const QByteArray& feed, const QStrin
         return std::nullopt;
     }
 
+    // The feed lists releases oldest first; the notes end with the offered one,
+    // so a later release that is not offered is not listed.
     UpdateOffer offer{ chosen->name, chosen->url, chosen->isBeta, {} };
     for ( const auto& value : root.value( "changelog" ).toArray() ) {
         const auto entry = value.toObject();
@@ -110,6 +112,9 @@ std::optional<UpdateOffer> findUpdateOffer( const QByteArray& feed, const QStrin
         if ( baseOf( version ) > running || version == chosen->name ) {
             offer.changes << QStringLiteral( "%1: %2" )
                                  .arg( version, entry.value( "description" ).toString() );
+        }
+        if ( version == chosen->name ) {
+            break;
         }
     }
     return offer;

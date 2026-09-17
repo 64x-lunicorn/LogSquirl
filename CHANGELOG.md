@@ -259,8 +259,8 @@
   the newer stable release, and with "check for beta versions" also a newer
   beta; a LogSquirl running a beta is offered the next beta or the stable
   release. The option used to have no effect, and every notification linked
-  to a "continuous" build page that does not exist. A build of a version that
-  is not released yet is offered nothing.
+  to a "continuous" build page that does not exist. The notification lists
+  the changes up to the offered release.
 
 ## Security
 
@@ -313,6 +313,10 @@
 
 ## Removed
 
+- **Chocolatey package removed**: The Chocolatey package source is gone.
+  LogSquirl was never published on Chocolatey: no workflow built the package,
+  and its install script pointed to a download that no longer exists.
+
 - **Lua plugin support**: The optional Lua scripting layer
   (`LOGSQUIRL_USE_LUA`) has been removed together with its Lua and sol2
   dependencies. It was off by default and its data-source and converter entry
@@ -341,10 +345,6 @@
   its section of this changelog, followed by how to verify the downloads. A
   release without a changelog section is stopped before anything is signed;
   26.07.0 was published with empty notes.
-
-- **Chocolatey package removed**: The Chocolatey package source is gone.
-  LogSquirl was never published on Chocolatey: no workflow built the package,
-  and its install script pointed to a download that no longer exists.
 
 ## Internal
 

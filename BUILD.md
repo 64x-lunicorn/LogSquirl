@@ -278,8 +278,8 @@ version already. Before tagging `vX.Y.Z` (or a pre-release `vX.Y.Z-betaN`), set
 refuses a build whose base version is not the tag's, naming both.
 
 The same commit must also carry the release's section in `CHANGELOG.md`, headed
-`# vX.Y.Z (YYYY-MM-DD)` (or `# vX.Y.Z-betaN (YYYY-MM-DD)`): that section is the
-release's notes. CI Release fails before anything is signed when it is missing.
+with the tag itself and the date, e.g. `# v26.10.0-beta1 (2026-09-17)`: that
+section is the release's notes. CI Release fails before anything is signed when it is missing.
 
 ### Docker Build Containers
 
@@ -337,7 +337,7 @@ push run succeeded, whose `CMakeLists.txt` declares the tag's version and whose
 `CHANGELOG.md` has the tag's section (see *Version Numbering*):
 
 - **Stable release**: push a semver tag like `v26.04.0`
-- **Beta release**: push a pre-release tag like `v26.04.0-beta.1`
+- **Beta release**: push a pre-release tag like `v26.04.0-beta1`
 
 The release workflow does not build. It:
 1. Finds the successful CI Build run for the push to master that built the
@@ -390,14 +390,15 @@ The release workflow does not build. It:
 |-------|------------|----------|
 | `stable`, `stable_url`, `stable_build` | CI Release, stable tag | The latest stable release: its name, release page and the `YY.MM.PATCH.BUILD` it was published from |
 | `beta`, `beta_url`, `beta_build` | CI Release, pre-release tag | The latest beta, offered to users with "check for beta versions" on and to users running a beta |
-| `releases` | Release preparation (by hand) | Every published release name; a running version that was only published as betas runs a beta |
-| `changelog` | Release preparation (by hand) | One line per release, listed in the update notification for the releases a user skips |
+| `releases` | CI Release | Every published release name; a running version that was only published as betas runs a beta |
+| `changelog` | Release preparation (by hand, oldest first) | One line per release, listed in the update notification for the releases a user skips, up to the offered one |
 | `ci`, `ci_url` | CI Release, stable tag (`ci` only) | Read only by LogSquirl 26.07.0 and older, which append an OS suffix to `ci_url`; it ends in `#`, so they land on the latest release page |
 | `stable_version`, `beta_version` | CI Release | Not read by the application |
 
 A release is offered when its build is newer than the running one; betas and
 the stable release of a version share `YY.MM.PATCH` and differ only in the
-build. Without a `*_build` field only a newer `YY.MM.PATCH` is offered.
+build. Without a `*_build` field only a newer `YY.MM.PATCH` is offered. A
+re-run of an older release leaves a feed that announces a newer build unchanged.
 
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or
