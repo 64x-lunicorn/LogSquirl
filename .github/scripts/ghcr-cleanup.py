@@ -204,14 +204,20 @@ def main(argv: list[str] | None = None) -> int:
             continue
         for v in result.keep:
             print(f"keep   {v['name']} {' '.join(tags_of(v))}")
+        failed = 0
         for v, reason in result.delete:
             verb = "would delete" if args.dry_run else "delete"
             print(f"{verb} {v['name']}: {reason}")
             if not args.dry_run:
-                gh_api("--method", "DELETE", f"/users/{args.owner}/packages/container/{package}/versions/{v['id']}")
+                try:
+                    gh_api("--method", "DELETE", f"/users/{args.owner}/packages/container/{package}/versions/{v['id']}")
+                except (OSError, subprocess.CalledProcessError) as e:
+                    print(f"::error::{package}: deleting {v['name']} failed: {e}")
+                    failed += 1
+                    status = 1
         print("::endgroup::")
         action = "would delete" if args.dry_run else "deleted"
-        print(f"{package}: kept {len(result.keep)}, {action} {len(result.delete)} of {len(versions)} versions")
+        print(f"{package}: kept {len(result.keep)}, {action} {len(result.delete) - failed} of {len(versions)} versions")
     return status
 
 

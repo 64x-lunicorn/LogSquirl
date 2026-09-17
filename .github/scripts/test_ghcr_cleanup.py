@@ -4,6 +4,7 @@ are deleted. No network, no gh."""
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -138,3 +139,29 @@ def test_image_arguments_are_parsed():
     assert gc.parse_image("logsquirl-ubuntu-noble=docker/ubuntu24.04") == ("logsquirl-ubuntu-noble", "docker/ubuntu24.04")
     with pytest.raises(ValueError):
         gc.parse_image("logsquirl-ubuntu-noble")
+
+
+def test_a_failed_delete_is_reported_and_the_rest_still_deleted(monkeypatch, capsys):
+    versions = [version(1, ["latest", CURRENT], 1), version(2, [OLD_HASH], 90), version(3, [COMMIT_TAG], 90)]
+    deleted = []
+
+    def gh_api(*args):
+        if args[0] == "--paginate":
+            return json.dumps([versions])
+        if args[-1].endswith("/versions/2"):
+            raise gc.subprocess.CalledProcessError(1, ["gh", "api"])
+        deleted.append(args[-1])
+        return ""
+
+    monkeypatch.setattr(gc, "gh_api", gh_api)
+    monkeypatch.setattr(gc, "inputs_hash", lambda directory: CURRENT)
+    monkeypatch.setattr(gc, "registry_children", lambda owner, package, token: lambda d: [])
+    monkeypatch.setattr(gc, "datetime", type("FixedNow", (datetime,), {"now": staticmethod(lambda tz=None: NOW)}))
+
+    status = gc.main(["--owner", "me", "--image", "logsquirl-x=docker/x"])
+
+    assert status == 1
+    assert deleted == ["/users/me/packages/container/logsquirl-x/versions/3"]
+    out = capsys.readouterr().out
+    assert "::error::logsquirl-x: deleting" in out
+    assert "deleted 1 of 3 versions" in out
