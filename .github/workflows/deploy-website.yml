@@ -25,6 +25,10 @@ jobs:
   deploy:
     # Pinned so a runner image bump cannot silently change the deploy (#206).
     runs-on: ubuntu-24.04
+    # The FTP credentials are secrets of the `website` environment, whose
+    # deployment policy admits only master (#203): a dispatch from any other
+    # branch fails before a step runs instead of deploying that branch.
+    environment: website
     # A stuck FTP connection would otherwise hold the concurrency group for
     # the default 6 hours (#206).
     timeout-minutes: 20

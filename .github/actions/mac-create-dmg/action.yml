@@ -1,0 +1,74 @@
+name: "Create the macOS DMG"
+description: "Pack an app bundle into the LogSquirl DMG (Applications link, background, icon layout)"
+inputs:
+  app:
+    description: "Path of the logsquirl.app bundle to pack"
+    required: true
+  dmg:
+    description: "Path of the DMG to create; an existing file is replaced"
+    required: true
+
+# Shared by CI Build, which packs the unsigned app, and CI Release, which packs
+# the signed and stapled app again (#203). The DMG layout lives only here.
+runs:
+  using: "composite"
+  steps:
+    - name: Install create-dmg
+      shell: bash
+      env:
+        # Pinned release tarball verified against a SHA-256 instead of an
+        # unpinned brew install (#199). The script runs from its unpacked tree.
+        # renovate: datasource=github-tags depName=create-dmg/create-dmg
+        CREATE_DMG_VERSION: 1.3.0
+        CREATE_DMG_SHA256: c50d2bc97c3d6292642bac55f530d247eaf4bf65ee605f26b4caf339383e381c
+      # GITHUB_PATH gets a directory under RUNNER_TEMP named after the pinned
+      # version, never untrusted input (#204).
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        tarball="$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION.tar.gz"
+        curl --fail --silent --show-error --location --retry 5 --retry-all-errors \
+          --output "$tarball" \
+          "https://github.com/create-dmg/create-dmg/archive/refs/tags/v$CREATE_DMG_VERSION.tar.gz"
+        actual=$(shasum -a 256 "$tarball")
+        actual=${actual%% *}
+        if [ "$actual" != "$CREATE_DMG_SHA256" ]; then
+          echo "::error::create-dmg $CREATE_DMG_VERSION SHA-256 mismatch: expected $CREATE_DMG_SHA256, got $actual"
+          exit 1
+        fi
+        tar -xzf "$tarball" -C "$RUNNER_TEMP"
+        echo "$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/create-dmg-$CREATE_DMG_VERSION/create-dmg" --version
+
+    # We build the DMG manually instead of using CPack DragNDrop because
+    # CPack does not create an Applications symlink and the resulting DMG
+    # window appears empty with the bundled DS_Store.
+    - name: Mac pack dmg
+      shell: bash
+      env:
+        WORKSPACE: ${{ github.workspace }}
+        APP: ${{ inputs.app }}
+        DMG: ${{ inputs.dmg }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$(dirname "$DMG")"
+        # create-dmg refuses to overwrite an existing image.
+        rm -f "$DMG"
+
+        # create-dmg handles: Applications symlink, background image,
+        # icon positions, volume icon, window size.
+        create-dmg \
+          --volname "LogSquirl" \
+          --volicon "$WORKSPACE/Resources/logsquirl.icns" \
+          --background "$WORKSPACE/packaging/osx/dmg_background.tif" \
+          --window-pos 400 100 \
+          --window-size 500 365 \
+          --icon-size 128 \
+          --icon "logsquirl.app" 133 200 \
+          --icon "Applications" 378 200 \
+          --hide-extension "logsquirl.app" \
+          --no-internet-enable \
+          --app-drop-link 378 200 \
+          "$DMG" \
+          "$APP"
+
+        echo "DMG created: $(ls -lh "$DMG")"

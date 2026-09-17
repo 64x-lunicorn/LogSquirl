@@ -314,14 +314,16 @@ Releases are triggered by pushing a git tag to master:
 - **Beta release**: push a pre-release tag like `v26.04.0-beta.1`
 
 The release workflow:
-1. Calls `ci-build.yml` to build all platforms
-2. Uploads debug symbols to Sentry (non-blocking)
-3. Builds the release SBOM `logsquirl-<version>-sbom.cdx.json` (CycloneDX 1.6):
+1. Calls `ci-build.yml` to build all platforms (the macOS packages unsigned, like every CI Build)
+2. Signs the macOS app, notarizes and staples it, packs the DMG again from it and signs, notarizes and staples the DMG
+   (`.github/actions/mac-sign-notarize`), in the `release` environment
+3. Uploads debug symbols to Sentry (non-blocking), in the `release` environment
+4. Builds the release SBOM `logsquirl-<version>-sbom.cdx.json` (CycloneDX 1.6):
    the CPM packages and pinned platform components that CI Build's SBOM job read
    from the built commit, plus the Qt, OpenSSL and ICU versions found in the
    AppImage, Windows zip and macOS app and what syft finds in them
    (`scripts/sbom/logsquirl_sbom.py`)
-4. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
+5. Scans the SBOM for known vulnerabilities (`scripts/sbom/logsquirl_vulns.py`):
    grype for the components with a CPE, OSV for the CPM packages by pinned commit
    and tag, and Qt's own list of advisories (https://wiki.qt.io/List_of_known_vulnerabilities_in_Qt_products,
    "Qt Framework" section) for the Qt version, with the severity NVD gives the CVE.
@@ -339,13 +341,28 @@ The release workflow:
    the secret they run unkeyed. The file is read
    from master even for a tag release, so accepting a risk and re-running the failed job is enough.
    The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
-5. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
+6. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file,
    attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with
    cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
    the checksum file), then publishes the draft. A failure in between leaves a draft.
-6. Updates `latest.json` with the new version (beta or stable field)
+7. Updates `latest.json` with the new version (beta or stable field)
 
-Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag.
+Manual releases are also supported via `workflow_dispatch` — provide a CI Build run ID and tag, and dispatch it from
+that tag (*Use workflow from*, or `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`).
+
+#### Secrets and environments
+
+The signing and upload secrets are not repository secrets but secrets of GitHub Environments, so only the jobs bound
+to an environment can read them, and only for the refs its deployment policy admits:
+
+| Environment | Deployment policy | Secrets | Jobs |
+|-------------|-------------------|---------|------|
+| `release` | tags `v*` | `MACOS_P12_FILE`, `MACOS_P12_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `SENTRY_TOKEN` | CI Release `sign-mac`, `sentry` |
+| `website` | branch `master` | `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` | Deploy Website `deploy` |
+
+CI Build never signs: a pull request, a push to master and a `workflow_dispatch` on any branch all produce the same
+unsigned macOS packages. A manual CI Release dispatched from a branch fails before anything is downloaded, because its
+signing job could not enter the `release` environment.
 
 ### Workflows
 

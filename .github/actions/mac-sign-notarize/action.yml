@@ -1,0 +1,198 @@
+name: "Sign and notarize the macOS packages"
+description: "Code-sign, notarize and staple the app of an unsigned CI Build package, then rebuild, sign, notarize and staple its DMG"
+inputs:
+  packages-dir:
+    description: "Directory holding logsquirl-<arch>.app.tar.gz and logsquirl-mac-<arch>.dmg; both are replaced by signed files"
+    required: true
+  arch:
+    description: "Architecture in the package names, e.g. arm64"
+    required: true
+  p12-file-base64:
+    description: "Base64-encoded Developer ID Application certificate and key"
+    required: true
+  p12-password:
+    description: "Password of the p12 file"
+    required: true
+  notarization-username:
+    description: "Apple ID used by notarytool"
+    required: true
+  notarization-team:
+    description: "Apple team ID"
+    required: true
+  notarization-password:
+    description: "App-specific password of the Apple ID"
+    required: true
+
+# Runs only in CI Release, in a job bound to the `release` environment that
+# holds the signing secrets (#203). CI Build packages unsigned
+# (.github/actions/agent-package-mac); this action turns exactly those files
+# into the release files, so the release ships the build that passed CI (#221).
+# Unlike CI Build, a missing secret or identity is an error: a release is never
+# published with an unsigned macOS package.
+runs:
+  using: "composite"
+  steps:
+    - name: Require the signing secrets
+      shell: bash
+      env:
+        P12_FILE: ${{ inputs.p12-file-base64 }}
+        P12_PASSWORD: ${{ inputs.p12-password }}
+        NOTARY_APPLE_ID: ${{ inputs.notarization-username }}
+        NOTARY_TEAM_ID: ${{ inputs.notarization-team }}
+        NOTARY_PASSWORD: ${{ inputs.notarization-password }}
+      run: |
+        set -euo pipefail
+        missing=()
+        [ -n "$P12_FILE" ] || missing+=(MACOS_P12_FILE)
+        [ -n "$P12_PASSWORD" ] || missing+=(MACOS_P12_PASSWORD)
+        [ -n "$NOTARY_APPLE_ID" ] || missing+=(APPLE_ID)
+        [ -n "$NOTARY_TEAM_ID" ] || missing+=(APPLE_TEAM_ID)
+        [ -n "$NOTARY_PASSWORD" ] || missing+=(APPLE_PASSWORD)
+        if [ "${#missing[@]}" -ne 0 ]; then
+          echo "::error::The release environment lacks the signing secrets ${missing[*]}; the macOS package cannot be signed."
+          exit 1
+        fi
+
+    - name: Import the signing certificate
+      uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
+      with:
+        p12-file-base64: ${{ inputs.p12-file-base64 }}
+        p12-password: ${{ inputs.p12-password }}
+
+    - name: Resolve the signing identity
+      id: identity
+      shell: bash
+      run: |
+        set -euo pipefail
+        identity=$(security find-identity -v -p codesigning \
+          | grep "Developer ID Application" | head -1 \
+          | sed 's/.*"\(.*\)".*/\1/' || true)
+        if [ -z "$identity" ]; then
+          echo "::error::The imported certificate holds no Developer ID Application identity."
+          security find-identity -v -p codesigning || true
+          exit 1
+        fi
+        echo "Using codesign identity: $identity"
+        echo "codesign=$identity" >> "$GITHUB_OUTPUT"
+
+    - name: Unpack the unsigned app
+      id: unpack
+      shell: bash
+      env:
+        PACKAGES_DIR: ${{ inputs.packages-dir }}
+        ARCH: ${{ inputs.arch }}
+      run: |
+        set -euo pipefail
+        work="$RUNNER_TEMP/mac-sign"
+        rm -rf "$work"
+        mkdir -p "$work"
+        # tar, not zip: the framework symlinks survive (see agent-package-mac).
+        tar -xzf "$PACKAGES_DIR/logsquirl-$ARCH.app.tar.gz" -C "$work"
+        test -d "$work/logsquirl.app"
+        echo "work=$work" >> "$GITHUB_OUTPUT"
+
+    # ── Code-sign every component individually (inside-out) ──────────────
+    #
+    # Apple requires signing nested code before the outer bundle.
+    # Using --deep is unreliable — we sign frameworks, dylibs, helpers,
+    # and the main binary one by one, with hardened-runtime entitlements.
+    # Signing does not change the Mach-O UUIDs, so the dSYM of the CI Build
+    # still matches for Sentry.
+    - name: Mac codesign binaries
+      shell: bash
+      env:
+        SIGN: ${{ steps.identity.outputs.codesign }}
+        ENT: ${{ github.workspace }}/packaging/osx/entitlements.plist
+        APP: ${{ steps.unpack.outputs.work }}/logsquirl.app
+      run: |
+        set -euo pipefail
+        sign() {
+          codesign --force --options runtime --timestamp \
+            --entitlements "$ENT" --sign "$SIGN" "$1"
+        }
+
+        echo "::group::Signing individual components"
+        # Every framework bundle (sign Versions/A, the canonical path)
+        while IFS= read -r fw; do
+          echo "  Signing framework: $fw"; sign "$fw/Versions/A"
+        done < <(find "$APP/Contents/Frameworks" -maxdepth 1 -name '*.framework' 2>/dev/null)
+        # Loose dylibs inside Frameworks/
+        while IFS= read -r lib; do
+          echo "  Signing dylib: $lib"; sign "$lib"
+        done < <(find "$APP/Contents/Frameworks" -maxdepth 1 -name '*.dylib' 2>/dev/null)
+        # Qt plug-ins
+        while IFS= read -r plug; do
+          echo "  Signing plug-in: $plug"; sign "$plug"
+        done < <(find "$APP/Contents/PlugIns" -name '*.dylib' 2>/dev/null)
+        # Helper executables (crashpad handler, minidump_dump, etc.)
+        while IFS= read -r helper; do
+          echo "  Signing helper: $helper"; sign "$helper"
+        done < <(find "$APP/Contents/MacOS" -type f -perm +111 ! -name 'logsquirl' 2>/dev/null)
+        echo "  Signing main binary"; sign "$APP/Contents/MacOS/logsquirl"
+        echo "  Signing app bundle"; sign "$APP"
+        echo "::endgroup::"
+
+        echo "=== Verify signature ==="
+        codesign --verify --deep --strict --verbose=2 "$APP"
+
+    # Stapling the notarization ticket directly onto the .app ensures
+    # Gatekeeper accepts it even when extracted from the DMG or downloaded
+    # as the app archive. Without this, only the DMG carries the ticket.
+    # Inputs reach the script through the environment, never interpolated
+    # into it (#204).
+    - name: Mac notarize and staple app
+      shell: bash
+      env:
+        NOTARY_APPLE_ID: ${{ inputs.notarization-username }}
+        NOTARY_TEAM_ID: ${{ inputs.notarization-team }}
+        NOTARY_PASSWORD: ${{ inputs.notarization-password }}
+        WORK: ${{ steps.unpack.outputs.work }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        # notarytool accepts ZIP — a temporary zip of the signed app
+        ditto -c -k --keepParent "$WORK/logsquirl.app" "$WORK/logsquirl-notarize.zip"
+        "$ACTION_PATH/notarize.sh" "$WORK/logsquirl-notarize.zip" app
+        rm -f "$WORK/logsquirl-notarize.zip"
+
+        xcrun stapler staple "$WORK/logsquirl.app"
+        xcrun stapler validate "$WORK/logsquirl.app"
+        echo "=== Final app verification ==="
+        codesign --verify --deep --strict --verbose=2 "$WORK/logsquirl.app"
+        spctl --assess --type execute --verbose "$WORK/logsquirl.app"
+
+    # The DMG of CI Build holds the unsigned app, so it is packed again from
+    # the stapled one.
+    - uses: ./.github/actions/mac-create-dmg
+      with:
+        app: ${{ steps.unpack.outputs.work }}/logsquirl.app
+        dmg: ${{ inputs.packages-dir }}/logsquirl-mac-${{ inputs.arch }}.dmg
+
+    - name: Mac sign, notarize and staple DMG
+      shell: bash
+      env:
+        SIGN: ${{ steps.identity.outputs.codesign }}
+        NOTARY_APPLE_ID: ${{ inputs.notarization-username }}
+        NOTARY_TEAM_ID: ${{ inputs.notarization-team }}
+        NOTARY_PASSWORD: ${{ inputs.notarization-password }}
+        DMG: ${{ inputs.packages-dir }}/logsquirl-mac-${{ inputs.arch }}.dmg
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+        codesign --force --timestamp --sign "$SIGN" "$DMG"
+        "$ACTION_PATH/notarize.sh" "$DMG" dmg
+        xcrun stapler staple "$DMG"
+        echo "=== Stapler validation ==="
+        xcrun stapler validate "$DMG"
+
+    - name: Mac archive the signed app
+      shell: bash
+      env:
+        PACKAGES_DIR: ${{ inputs.packages-dir }}
+        ARCH: ${{ inputs.arch }}
+        WORK: ${{ steps.unpack.outputs.work }}
+      run: |
+        set -euo pipefail
+        tar -czf "$PACKAGES_DIR/logsquirl-$ARCH.app.tar.gz" -C "$WORK" logsquirl.app
+        rm -rf "$WORK"
+        ls -l "$PACKAGES_DIR"
