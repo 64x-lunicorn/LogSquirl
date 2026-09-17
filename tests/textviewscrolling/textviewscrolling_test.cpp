@@ -921,7 +921,8 @@ SCENARIO( "No scrolling step reads more than the Viewport and what it passes ove
             view.page( true );
             REQUIRE( view.scrolling.position() == ScrollPosition{ 50020_lnum, 0 } );
             REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
-            // Batches that double in size: 1, 2, 4, 8 and the 5 left.
+            // Reads that double in size: 1, 1 (two lines are read one by one),
+            // 4, 8 and the 6 left.
             REQUIRE( view.text.readsOfLines <= 5 );
         }
 
@@ -949,6 +950,39 @@ SCENARIO( "No scrolling step reads more than the Viewport and what it passes ove
             view.text.linesRead = 0;
             view.changeViewport( WideWidthPx );
             REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
+        }
+    }
+
+    GIVEN( "a wrapped view of 100,000 Log Lines of two Visual Lines each" )
+    {
+        QStringList lines;
+        for ( int line = 0; line < 100000; ++line ) {
+            lines << QStringLiteral( "bb" );
+        }
+        View view{ lines };
+        view.setScrollBarValue( 50000 );
+        view.text.linesRead = 0;
+
+        THEN( "a page down reads no Log Line past the ones it passes over" )
+        {
+            view.page( true );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 50010_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows / 2 ) );
+        }
+
+        THEN( "a page up reads no Log Line past the ones it passes over" )
+        {
+            view.page( false );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 49990_lnum, 0 } );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows / 2 ) );
+        }
+
+        THEN( "a notch of the wheel reads its Log Lines one at a time" )
+        {
+            view.text.readsOfLines = 0;
+            view.turnWheel( -Notch );
+            REQUIRE( view.text.linesRead <= 2 );
+            REQUIRE( view.text.readsOfLines == view.text.linesRead );
         }
     }
 
