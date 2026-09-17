@@ -1,0 +1,61 @@
+name: "GHCR Cleanup"
+
+# Deletes the build image versions on GHCR no CI run uses any more (#230): the
+# images of earlier inputs hashes and commit SHA tags, their signatures and
+# the manifests below them. `latest`, the images of the default branch's
+# docker/ directories and inputs hashes pushed within 30 days stay. See
+# .github/scripts/ghcr-cleanup.py for the rules.
+on:
+  schedule:
+    - cron: '41 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only list what would be deleted"
+        type: boolean
+        default: true
+
+concurrency:
+  group: ghcr-cleanup
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  prune:
+    name: Prune old build images
+    runs-on: ubuntu-24.04
+    # No run history yet; four packages of a few dozen versions each (#218).
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      # The default branch, whatever ref a dispatch names: the images to keep
+      # are the ones CI Build on master pulls.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: |
+            .github/scripts
+            docker
+
+      # The packages and directories of the Docker Images workflow's matrix.
+      - name: Delete old image versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          python3 .github/scripts/ghcr-cleanup.py --owner "$OWNER" \
+            --image logsquirl-oracle10=docker/oracle10 \
+            --image logsquirl-ubuntu-noble=docker/ubuntu24.04 \
+            --image logsquirl-ubuntu-jammy=docker/ubuntu22.04 \
+            --image logsquirl-fedora44=docker/fedora44 \
+            "${args[@]}"

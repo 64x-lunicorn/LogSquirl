@@ -210,7 +210,7 @@ Formatting follows the `.clang-format` file at the repository root. CI runs a
 matching version before pushing:
 
 ```bash
-pip install clang-format==23.1.1
+pip install --require-hashes -r .github/requirements/clang-format.txt
 clang-format -i <file>
 ```
 
@@ -321,6 +321,12 @@ and never overwrites an existing hash tag. CI Build computes the same hash from 
 `<image>:<hash>`; when that tag does not exist (a PR that changes `docker/`, or a merge the workflow has not
 published yet) it builds the image locally under the same ref. So an open PR's toolchain changes only when
 its own `docker/` files do.
+
+The **GHCR Cleanup** workflow (`ghcr-cleanup.yml`, weekly) deletes the image versions no run uses any more: images
+of an earlier hash that are older than 30 days, the old commit SHA tags, and the signatures and manifests that
+belong to them. It keeps `:latest`, the hashes of master's `docker/` directories and anything younger than two days.
+A deleted image a PR still asks for is built locally, as for any new hash. Dispatch it with *dry run* (the default)
+to see what it would delete.
 
 Before pushing, the Docker Images workflow scans each image with Trivy (CRITICAL and HIGH, fixed upstream only) and
 uploads the result to code scanning under `trivy-image-<name>`; findings are reported there but do not fail the
@@ -499,6 +505,7 @@ before anything is downloaded, because its signing job could not enter the
 | `deploy-website.yml` | push to master changing `website/**`, dispatch (also by CI Release) | Build the website without the pages of unpublished releases and upload it |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
+| `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
@@ -533,12 +540,21 @@ repository requires SHA pinning, and the Format job of CI Build runs the same ch
 Two bots propose dependency updates as pull requests, each for what the other cannot read, so no dependency gets
 PRs from both:
 
-- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines,
-  the pip requirements of `scripts/sbom` and `tests/e2e`, and the website's npm packages.
-- **Renovate** (`renovate.json5`, only its custom regex managers are enabled): the CPM packages in
-  `3rdparty/CMakeLists.txt` and every tool version pinned in workflows, composite actions, the build images, the
-  packaging scripts and `cmake/*.cmake`: Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg,
-  sentry-cli, linuxdeploy, minidump-stackwalk, clang-format, aqtinstall and the Renovate config validator itself.
+- **Dependabot** (`.github/dependabot.yml`): the GitHub Actions `uses:` pins, the digest-pinned Docker `FROM` lines
+  and the website's npm packages.
+- **Renovate** (`renovate.json5`, only its custom regex managers and pip-compile are enabled): the CPM packages in
+  `3rdparty/CMakeLists.txt`, every tool version pinned in workflows, composite actions, the build images, the
+  packaging scripts and `cmake/*.cmake` (Qt, OpenSSL, Boost, Ninja, CMake, Ragel, sccache, grype, NSIS, create-dmg,
+  sentry-cli, linuxdeploy, minidump-stackwalk, the aqtinstall commit of `install-qt-action` and the Renovate config
+  validator itself), the digests of CI Build's install-check images (`check_container`), and the hash-locked pip
+  requirements.
+
+**pip requirements.** Every `pip install` in CI and the build images reads a requirements file with exact versions and
+hashes and passes `--require-hashes`: `docker/shared/aqtinstall-requirements.txt` (aqtinstall, installed into a
+throwaway directory that is deleted once Qt is in the image), `.github/requirements/clang-format.txt`,
+`.github/requirements/e2e.txt` and `scripts/sbom/requirements.txt`. Each is generated from the `.in` file next to it by
+the `uv pip compile --generate-hashes --universal` command in its header; after editing a `.in` file, rerun that
+command. Renovate bumps the pins and reruns the command, and re-locks the dependencies below them once a month.
 
 Both wait until a release is seven days old and run weekly; Renovate lists everything it tracks on its
 **Dependency Dashboard** issue. Renovate's grouping:

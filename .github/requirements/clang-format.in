@@ -1,0 +1,5 @@
+# clang-format for CI Build's Format job. Major version 23: the project's
+# .clang-format sets `Standard: c++23`, which only clang-format >= 23 knows.
+# CI installs the hash-locked clang-format.txt (#317); after a change here,
+# regenerate it with the command at the top of that file.
+clang-format==23.1.1

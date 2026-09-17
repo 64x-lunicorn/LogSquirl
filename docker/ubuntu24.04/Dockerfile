@@ -15,15 +15,20 @@ RUN apt-get update -y && \
                     libxcb-xinerama0-dev libxcb-image0-dev libxcb-util-dev -y && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Qt via aqtinstall (same version as macOS/Windows CI; Renovate moves them together, #211)
+# Qt via aqtinstall (same version as macOS/Windows CI; Renovate moves them together, #211).
+# aqtinstall and its dependencies come from the hash-locked requirements file,
+# wheels only, and go to a throwaway directory instead of the system
+# site-packages: nothing of them stays in the image (#317). --target also
+# bypasses the PEP 668 externally-managed check without overriding it.
 ENV QT_VERSION=6.11.2
-RUN pip3 install --break-system-packages aqtinstall && \
-    aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
+COPY shared/aqtinstall-requirements.txt /tmp/
+RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
+        --target /tmp/aqtinstall -r /tmp/aqtinstall-requirements.txt && \
+    PYTHONPATH=/tmp/aqtinstall python3 -m aqt install-qt linux desktop ${QT_VERSION} linux_gcc_64 \
         --modules qt5compat \
         --archives qtbase qtdeclarative qtimageformats qtsvg qttools qttranslations icu \
         --outputdir /opt/qt && \
-    pip3 uninstall --break-system-packages -y aqtinstall && \
-    rm -rf /root/.cache/pip
+    rm -rf /tmp/aqtinstall /tmp/aqtinstall-requirements.txt
 
 ENV Qt6_DIR=/opt/qt/${QT_VERSION}/gcc_64
 ENV PATH=${Qt6_DIR}/bin:/opt/bin:$PATH
