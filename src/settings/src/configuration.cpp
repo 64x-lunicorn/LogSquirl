@@ -38,7 +38,6 @@
 
 #include <algorithm>
 #include <map>
-#include <mutex>
 #include <type_traits>
 
 #include <QFontInfo>
@@ -51,8 +50,6 @@
 #include "theme.h"
 
 namespace {
-std::once_flag fontInitFlag;
-
 #ifdef Q_OS_WIN
 constexpr bool PollingEnabledByDefault = true;
 #else
@@ -410,6 +407,15 @@ int withinIndexCacheSizeLimits( int sizeMb )
     return std::clamp( sizeMb, 0, 8'000'000 ); // ~8 TB, a generous upper bound
 }
 
+// The main font is resolved as a fixed-pitch outline font, whichever family
+// it names. Every main font a Configuration holds is resolved: its default, the
+// one read from storage and the one set on it (#229).
+QFont resolvedMainFont( QFont font )
+{
+    font.setStyleHint( QFont::Courier, QFont::PreferOutline );
+    return font;
+}
+
 QString availableStyle( QString style )
 {
     const auto styles = Theme::availableThemes();
@@ -431,7 +437,8 @@ template <typename Self, typename Visit>
 void Configuration::forEachSetting( Self& config, Visit&& visit )
 {
     // Stored as mainFont.family and mainFont.size.
-    visit( "mainFont", config.mainFont_, QFont{ "DejaVu Sans Mono", 10 } );
+    visit( "mainFont", config.mainFont_, resolvedMainFont( QFont{ "DejaVu Sans Mono", 10 } ),
+           resolvedMainFont );
     visit( "mainFont.antialiasing", config.forceFontAntialiasing_, false );
     visit( "mainFont.bold", config.useBoldFont_, false );
     visit( "view.language", config.language_, "en" );
@@ -531,13 +538,6 @@ QString Configuration::indexCacheDirectory() const
 // Accessor functions
 QFont Configuration::mainFont() const
 {
-    std::call_once( fontInitFlag, [ this ]() {
-        mainFont_.setStyleHint( QFont::Courier, QFont::PreferOutline );
-
-        QFontInfo fi( mainFont_ );
-        LOG_INFO << "Main font is " << fi.family().toStdString() << ": " << fi.pointSize();
-    } );
-
     return mainFont_;
 }
 
@@ -545,7 +545,7 @@ void Configuration::setMainFont( QFont newFont )
 {
     LOG_DEBUG << "Configuration::setMainFont";
 
-    mainFont_ = newFont;
+    mainFont_ = resolvedMainFont( std::move( newFont ) );
 }
 
 void Configuration::retrieveFromStorage( QSettings& settings )
@@ -553,6 +553,9 @@ void Configuration::retrieveFromStorage( QSettings& settings )
     LOG_DEBUG << "Configuration::retrieveFromStorage";
 
     forEachSetting( *this, ReadSetting{ settings } );
+
+    const QFontInfo mainFontInfo( mainFont_ );
+    LOG_INFO << "Main font is " << mainFontInfo.family() << ": " << mainFontInfo.pointSize();
 }
 
 void Configuration::saveToStorage( QSettings& settings ) const

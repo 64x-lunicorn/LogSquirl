@@ -691,7 +691,7 @@ private:
     static void forEachSetting( Self& config, Visit&& visit );
 
     // Stored settings; their keys and defaults are declared in forEachSetting.
-    mutable QFont mainFont_;
+    QFont mainFont_;
     SearchRegexpType mainRegexpType_{};
     SearchRegexpType quickfindRegexpType_{};
     bool quickfindIncremental_{};
