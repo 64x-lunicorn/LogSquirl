@@ -44,6 +44,7 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <qchar.h>
 #include <string_view>
 #include <utility>
@@ -53,6 +54,7 @@
 #include <QBasicTimer>
 #include <QColor>
 #include <QEvent>
+#include <QFont>
 #include <QFontMetrics>
 
 #ifdef GLOGG_PERF_MEASURE_FPS
@@ -75,6 +77,7 @@
 #include "wrappedstring.h"
 
 class QMenu;
+class QPainter;
 class QShortcut;
 
 // Utility class representing a buffer for number entered on the keyboard
@@ -615,6 +618,18 @@ private:
     TextAreaCache textAreaCache_ = { {}, true, {}, 0_lnum, 0_lcol, {} };
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
     QFontMetrics pixmapFontMetrics_;
+
+    // FontUtils::uniformAsciiAdvance() for the font and resolution the text
+    // area was last painted with. Measuring it takes about a hundred glyph
+    // advances and the shaping of a long text, too much for every paint.
+    struct UniformAsciiAdvanceCache {
+        QFont font;
+        int logicalDpiX = 0;
+        int logicalDpiY = 0;
+        std::optional<qreal> advance;
+    };
+    std::optional<UniformAsciiAdvanceCache> uniformAsciiAdvanceCache_;
+    std::optional<qreal> uniformAsciiAdvance( const QPainter& painter );
 
     // The viewport layout, without the Visual Lines: enough to answer margins,
     // visible counts and scroll ranges, and cheap because it touches no

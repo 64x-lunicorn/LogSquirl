@@ -2242,6 +2242,23 @@ bool AbstractLogView::scrollTextArea( ScrollPosition scrollPosition )
     return true;
 }
 
+std::optional<qreal> AbstractLogView::uniformAsciiAdvance( const QPainter& painter )
+{
+    // The painter's metrics follow its font and its device's resolution.
+    const auto* device = painter.device();
+    const auto& font = painter.font();
+    auto& cache = uniformAsciiAdvanceCache_;
+    if ( !cache.has_value() || cache->font != font || cache->logicalDpiX != device->logicalDpiX()
+         || cache->logicalDpiY != device->logicalDpiY() ) {
+        cache = UniformAsciiAdvanceCache{ .font = font,
+                                          .logicalDpiX = device->logicalDpiX(),
+                                          .logicalDpiY = device->logicalDpiY(),
+                                          .advance = FontUtils::uniformAsciiAdvance(
+                                              painter.fontMetrics() ) };
+    }
+    return cache->advance;
+}
+
 void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
                                     std::optional<int> endRow )
 {
@@ -2255,7 +2272,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
 
     const int fontHeight = charHeight_;
     const int fontAscent = painter->fontMetrics().ascent();
-    const auto uniformAsciiAdvance = FontUtils::uniformAsciiAdvance( painter->fontMetrics() );
+    const auto asciiAdvance = uniformAsciiAdvance( *painter );
     const LineLength nbVisibleCols = getNbVisibleCols();
     const bool textWrap = scrolling_.textWrap();
     const auto firstColumn = scrolling_.firstColumn();
@@ -2447,8 +2464,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
                                  span.backColor() );
         }
         lineDrawer.draw( painter.get(), xPos, yPos, viewport()->width(), wrappedLineView,
-                         firstVisualLine, visualLineCount, ContentMarginWidth,
-                         uniformAsciiAdvance );
+                         firstVisualLine, visualLineCount, ContentMarginWidth, asciiAdvance );
 
         if ( key.selectedAsSingleLine || key.selectionStart >= 0_lcol ) {
             auto selectionPen = QPen( palette.color( QPalette::Highlight ) );
