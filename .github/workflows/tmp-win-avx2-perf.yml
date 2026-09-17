@@ -1,0 +1,104 @@
+name: "TMP Windows AVX2 perf (#281, temporary)"
+on:
+  push:
+    branches: [wip/win-avx2]
+permissions:
+  contents: read
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  BEFORE_REF: 04313972f80e5541e379bbc960c0718f9db2753d
+jobs:
+  Perf:
+    strategy:
+      matrix:
+        config:
+          - os: windows
+            runner: windows-2025
+            qt_version: 6.11.2
+            qt_modules: qt5compat
+            qt_arch: win64_msvc2022_64
+            arch: x64
+            cmake_opts: -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_BUILD_TESTS=OFF
+            artifacts_id: windows-x64
+    runs-on: ${{ matrix.config.runner }}
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ env.BEFORE_REF }}
+      - uses: ./.github/actions/agent-setup
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+      - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: ${{ matrix.config.arch }}
+      - name: Build before
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build_before $LOGSQUIRL_CMAKE_OPTS -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCPM_SOURCE_CACHE="$GITHUB_WORKSPACE/cpm_cache"
+          cmake --build build_before -t logsquirl_grep
+          mkdir -p "$RUNNER_TEMP/bin/before"
+          cp build_before/output/*.exe build_before/output/*.dll "$RUNNER_TEMP/bin/before/" 2>/dev/null || cp build_before/output/*.exe "$RUNNER_TEMP/bin/before/"
+          find build_before -name 'tbb12.dll' -exec cp {} "$RUNNER_TEMP/bin/before/" \;
+          ls -la "$RUNNER_TEMP/bin/before"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          clean: false
+      - name: Build after
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build_after $LOGSQUIRL_CMAKE_OPTS -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DCMAKE_POLICY_DEFAULT_CMP0141=NEW -DCPM_SOURCE_CACHE="$GITHUB_WORKSPACE/cpm_cache"
+          cmake --build build_after -t logsquirl_grep
+          mkdir -p "$RUNNER_TEMP/bin/after"
+          cp build_after/output/*.exe build_after/output/*.dll "$RUNNER_TEMP/bin/after/"
+          find build_after -name 'tbb12.dll' -exec cp {} "$RUNNER_TEMP/bin/after/" \;
+          ls -la "$RUNNER_TEMP/bin/after"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Run the grep e2e performance suite on both sides
+        shell: bash
+        run: |
+          set -uo pipefail
+          python tests/e2e/generate_test_data.py
+          (cd tests/e2e && pip install -e . > /dev/null)
+          mkdir -p "$RUNNER_TEMP/results"
+          printf 'ERROR one\nINFO two\nERROR three\n' > "$RUNNER_TEMP/sanity.log"
+          for side in before after; do
+            echo "== sanity $side"; "$RUNNER_TEMP/bin/$side/logsquirl_grep.exe" -e ERROR "$RUNNER_TEMP/sanity.log"; echo "exit $?"
+            LOGSQUIRL_HYPERSCAN_DISABLE_AVX2=1 "$RUNNER_TEMP/bin/$side/logsquirl_grep.exe" -e ERROR "$RUNNER_TEMP/sanity.log"; echo "exit $?"
+          done
+          run() {
+            label=$1; side=$2; shift 2
+            (cd tests/e2e && env "$@" pytest -q -m performance -k TestGrepPerformance --binary-dir "$RUNNER_TEMP/bin/$side" --bench-report json -p no:cacheprovider > "$RUNNER_TEMP/results/$label.txt" 2>&1)
+            cp tests/e2e/benchmark_report.json "$RUNNER_TEMP/results/$label.json"
+            tail -5 "$RUNNER_TEMP/results/$label.txt"
+          }
+          for round in 1 2; do
+            run before-$round before X=1
+            run after-avx2-$round after X=1
+            run after-sse-$round after LOGSQUIRL_HYPERSCAN_DISABLE_AVX2=1
+          done
+          python - "$RUNNER_TEMP/results" <<'PY'
+          import json, sys, pathlib
+          d = pathlib.Path(sys.argv[1])
+          rows = {}
+          labels = sorted(p.stem for p in d.glob('*.json'))
+          for p in d.glob('*.json'):
+              data = json.load(open(p))
+              for name, r in data.get('benchmarks', {}).items():
+                  rows.setdefault(name, {})[p.stem] = r.get('median_seconds')
+          print('| benchmark | ' + ' | '.join(labels) + ' |')
+          print('|---|' + '---|' * len(labels))
+          for name in sorted(rows):
+              print(f'| {name} | ' + ' | '.join(f"{rows[name].get(l, float('nan'))*1000:.1f} ms" if rows[name].get(l) is not None else '-' for l in labels) + ' |')
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: perf-results
+          path: ${{ runner.temp }}/results
