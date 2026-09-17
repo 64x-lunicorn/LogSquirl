@@ -11,7 +11,9 @@ knows it:
       CI matrix and the Linux build images, which must agree), Boost (the
       version agent-setup downloads for macOS/Windows; Linux builds use the
       build image's distribution headers), OpenSSL and ICU (not pinned in the
-      repository, so they carry no version yet).
+      repository, so they carry no version yet);
+    * the minidump-stackwalk release the build downloads and ships as
+      ``logsquirl_minidump_dump`` (version from ``cmake/MinidumpStackwalk.cmake``).
 
     The CMake file is parsed rather than read back from a configure run: a
     configure evaluates one platform's branch and needs the full toolchain,
@@ -412,6 +414,7 @@ class PlatformPins:
     qt_archives: tuple[str, ...]
     boost_version: str
     linux_images: tuple[str, ...]  # build image directories whose Boost headers the Linux builds use
+    minidump_stackwalk_version: str
 
 
 def _one_value(found: dict[str, set[str]], what: str) -> str:
@@ -455,7 +458,18 @@ def read_platform_pins(repo_root: Path) -> PlatformPins:
         qt_archives=tuple(sorted(archives)),
         boost_version=_one_value({str(setup.relative_to(repo_root)): boost} if boost else {}, "Boost"),
         linux_images=tuple(linux_images),
+        minidump_stackwalk_version=_one_value(_minidump_stackwalk_versions(repo_root), "minidump-stackwalk"),
     )
+
+
+MINIDUMP_STACKWALK_PIN = "cmake/MinidumpStackwalk.cmake"
+
+
+def _minidump_stackwalk_versions(repo_root: Path) -> dict[str, set[str]]:
+    pin = repo_root / MINIDUMP_STACKWALK_PIN
+    text = pin.read_text() if pin.is_file() else ""
+    versions = set(re.findall(r'^set\(MINIDUMP_STACKWALK_VERSION "([\w.-]+)"\)\s*$', text, re.M))
+    return {MINIDUMP_STACKWALK_PIN: versions} if versions else {}
 
 
 def _cpe(vendor: str, product: str, version: str) -> str:
@@ -497,6 +511,14 @@ def platform_components(pins: PlatformPins) -> list[dict]:
             props={"source": "platform", "platforms": "linux",
                    "linkage": "header-only, compiled into vectorscan",
                    "version-source": "distribution Boost headers of the build images " + ",".join(pins.linux_images)}),
+        # A prebuilt rust-minidump release, SHA-256 checked at configure time (#318).
+        _component(
+            ref="download:minidump-stackwalk", name="minidump-stackwalk", version=pins.minidump_stackwalk_version,
+            purl_=purl("cargo", "minidump-stackwalk", pins.minidump_stackwalk_version), type_="application",
+            external=[{"type": "vcs", "url": "https://github.com/rust-minidump/rust-minidump"}],
+            props={"source": "download", "platforms": ",".join(ALL_PLATFORMS),
+                   "shipped-as": "logsquirl_minidump_dump",
+                   "version-source": "MINIDUMP_STACKWALK_VERSION in " + MINIDUMP_STACKWALK_PIN}),
     ]
 
 

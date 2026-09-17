@@ -94,6 +94,19 @@ def test_platform_components_take_versions_from_the_repository():
     assert names == {"qt", "openssl", "boost", "icu"}
 
 
+def test_the_minidump_tool_is_listed_with_the_version_the_build_downloads():
+    # The crash handler's minidump-stackwalk ships in every package (#318).
+    pin = re.search(r'set\(MINIDUMP_STACKWALK_VERSION "([\d.]+)"\)', (REPO / "cmake/MinidumpStackwalk.cmake").read_text())
+    tool = by_ref(base_bom())["download:minidump-stackwalk"]
+    assert tool["version"] == pin.group(1)
+    assert tool["scope"] == "required"
+    assert tool["purl"] == f"pkg:cargo/minidump-stackwalk@{pin.group(1)}"
+    assert PackageURL.from_string(tool["purl"]).to_string() == tool["purl"]
+    assert prop(tool, "platforms") == "linux,macos,windows"
+    assert prop(tool, "shipped-as") == "logsquirl_minidump_dump"
+    assert "download:minidump-stackwalk" in base_bom()["dependencies"][0]["dependsOn"]
+
+
 def test_base_bom_is_valid_cyclonedx():
     bom = base_bom()
     assert sb.validate_bom(json.dumps(bom)) == []
