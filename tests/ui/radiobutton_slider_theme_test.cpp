@@ -152,6 +152,9 @@ SCENARIO( "Radio buttons and sliders are styled from Tokens in every Theme",
         }
         window.show();
         QTest::qWait( 20 );
+        // Hover rings in Highlight too: keep the pointer, which an earlier test
+        // may have left anywhere, in the layout's margin, off every widget.
+        QTest::mouseMove( &window, QPoint( 1, 1 ) );
 
         for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ),
                                    QString( Theme::HighContrastKey ) } ) {
