@@ -32,3 +32,13 @@ add_executable(logsquirl_logdata_benchmark
 )
 
 target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2 test_utils)
+
+# Reading Log Lines from a Log File, hiding ANSI color sequences and showing
+# them (#278). Links logsquirl_logdata only; uses only what LogData offered
+# before #278, so the same file measures both sides of an A/B comparison.
+add_executable(logsquirl_logdata_read_benchmark
+    logdata_read_benchmark.cpp
+)
+
+target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
+target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)

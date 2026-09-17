@@ -18,6 +18,7 @@
  */
 
 #include <memory>
+#include <vector>
 
 #include <QFileInfo>
 #include <QMimeDatabase>
@@ -241,6 +242,9 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
 
     bool success = true;
     try {
+        // One output buffer for the whole Log File instead of a new one per chunk.
+        std::vector<char> data( 4 * 1024 * 1024 );
+
         while ( !input->atEnd() ) {
             if ( interrupt ) {
                 success = false;
@@ -248,8 +252,15 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
                 break;
             }
 
-            QByteArray data = input->read( 4 * 1024 * 1024 );
-            if ( data.isEmpty() ) {
+            const auto readBytes = input->read( data.data(), static_cast<qint64>( data.size() ) );
+            if ( readBytes < 0 ) {
+                // A corrupt or truncated archive, or an I/O error.
+                LOG_ERROR << "Error decompressing " << archiveFilePath << ": "
+                          << input->errorString();
+                success = false;
+                break;
+            }
+            if ( readBytes == 0 ) {
                 // No progress while not at end — device is in a bad state.
                 // Break to avoid an infinite loop.
                 if ( !input->atEnd() ) {
@@ -262,16 +273,16 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
 
             // Detect short writes (e.g. disk full, quota exceeded) — these
             // would otherwise produce a silently truncated output file.
-            const auto writtenBytes = outputFile->write( data );
+            const auto writtenBytes = outputFile->write( data.data(), readBytes );
             if ( writtenBytes < 0 ) {
                 LOG_ERROR << "Error decompressing " << archiveFilePath << ": "
                           << outputFile->errorString();
                 success = false;
                 break;
             }
-            if ( writtenBytes != data.size() ) {
+            if ( writtenBytes != readBytes ) {
                 LOG_ERROR << "Short write while decompressing " << archiveFilePath << ": wrote "
-                          << writtenBytes << " of " << data.size() << " bytes ("
+                          << writtenBytes << " of " << readBytes << " bytes ("
                           << outputFile->errorString() << ")";
                 success = false;
                 break;
@@ -279,6 +290,7 @@ bool doDecompress( std::shared_ptr<QIODevice> input, const QString& archiveFileP
         }
     } catch ( const std::exception& e ) {
         LOG_ERROR << "Exception during decompress: " << e.what();
+        success = false;
     }
 
     input->close();

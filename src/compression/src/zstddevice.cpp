@@ -59,7 +59,9 @@ bool ZstdDevice::open( OpenMode mode )
     inPos_ = 0;
     inSize_ = 0;
     fileExhausted_ = false;
+    frameInProgress_ = false;
     finished_ = false;
+    failed_ = false;
 
     return QIODevice::open( mode );
 }
@@ -87,8 +89,9 @@ bool ZstdDevice::atEnd() const
         return true;
     }
     // Even after the ZSTD stream is fully decoded, QIODevice may still hold
-    // decompressed data in its internal read buffer.
-    return finished_ && QIODevice::atEnd();
+    // decompressed data in its internal read buffer. A failed stream is not at
+    // its end: the next read reports the failure.
+    return finished_ && !failed_ && QIODevice::atEnd();
 }
 
 qint64 ZstdDevice::bytesAvailable() const
@@ -104,6 +107,9 @@ qint64 ZstdDevice::bytesAvailable() const
 
 qint64 ZstdDevice::readData( char* data, qint64 maxSize )
 {
+    if ( failed_ ) {
+        return -1;
+    }
     if ( !dctx_ || maxSize <= 0 || finished_ ) {
         return 0;
     }
@@ -111,29 +117,23 @@ qint64 ZstdDevice::readData( char* data, qint64 maxSize )
     ZSTD_outBuffer output{ data, static_cast<std::size_t>( maxSize ), 0 };
 
     while ( output.pos < output.size ) {
-        // Refill input buffer if exhausted and file still has data
-        if ( inPos_ >= inSize_ ) {
-            if ( fileExhausted_ ) {
-                // Provide genuinely empty input for ZSTD to flush internals
-                inPos_ = 0;
-                inSize_ = 0;
+        if ( inPos_ >= inSize_ && !fileExhausted_ ) {
+            const auto bytesRead
+                = file_.read( inBuf_.data(), static_cast<qint64>( inBuf_.size() ) );
+            if ( bytesRead < 0 ) {
+                return fail( file_.errorString(), output.pos );
             }
-            else {
-                const auto bytesRead
-                    = file_.read( inBuf_.data(), static_cast<qint64>( inBuf_.size() ) );
-                if ( bytesRead < 0 ) {
-                    return -1; // I/O error
-                }
-                if ( bytesRead == 0 ) {
-                    fileExhausted_ = true;
-                    inPos_ = 0;
-                    inSize_ = 0;
-                }
-                else {
-                    inPos_ = 0;
-                    inSize_ = static_cast<std::size_t>( bytesRead );
-                }
-            }
+            inPos_ = 0;
+            inSize_ = static_cast<std::size_t>( bytesRead );
+            fileExhausted_ = bytesRead == 0;
+        }
+
+        const auto inputExhausted = fileExhausted_ && inPos_ >= inSize_;
+        if ( inputExhausted && !frameInProgress_ ) {
+            // The last frame is decoded and flushed; any frame before it was
+            // followed by another one, so the whole file has been read.
+            finished_ = true;
+            break;
         }
 
         ZSTD_inBuffer input{ inBuf_.data(), inSize_, inPos_ };
@@ -142,26 +142,31 @@ qint64 ZstdDevice::readData( char* data, qint64 maxSize )
         inPos_ = input.pos;
 
         if ( ZSTD_isError( rc ) ) {
-            ZSTD_freeDCtx( dctx_ );
-            dctx_ = nullptr;
-            finished_ = true;
-            return output.pos > 0 ? static_cast<qint64>( output.pos ) : -1;
+            return fail( QString::fromLatin1( ZSTD_getErrorName( rc ) ), output.pos );
         }
 
-        if ( rc == 0 ) {
-            // Frame fully decoded
-            finished_ = true;
-            break;
-        }
+        // rc == 0 ends a frame. The context then starts the next frame on its
+        // own, so decoding simply goes on while input is left.
+        frameInProgress_ = rc != 0;
 
-        // If file is exhausted and ZSTD made no progress, stream is done
-        if ( fileExhausted_ && output.pos == prevOutPos ) {
-            finished_ = true;
-            break;
+        if ( inputExhausted && frameInProgress_ && output.pos == prevOutPos ) {
+            return fail( QStringLiteral( "truncated zstd frame" ), output.pos );
         }
     }
 
     return static_cast<qint64>( output.pos );
+}
+
+qint64 ZstdDevice::fail( const QString& reason, std::size_t decompressedBytes )
+{
+    ZSTD_freeDCtx( dctx_ );
+    dctx_ = nullptr;
+    finished_ = true;
+    failed_ = true;
+    setErrorString( QStringLiteral( "Cannot decompress %1: %2" ).arg( filePath_, reason ) );
+
+    // Hand out what was decoded before the error; the next read reports it.
+    return decompressedBytes > 0 ? static_cast<qint64>( decompressedBytes ) : -1;
 }
 
 qint64 ZstdDevice::writeData( const char* /*data*/, qint64 /*maxSize*/ )

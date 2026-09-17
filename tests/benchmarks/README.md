@@ -249,3 +249,34 @@ add_executable(logsquirl_logdata_benchmark logdata_benchmark.cpp)
 target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2 test_utils)
 CMAKE
 ```
+
+# Reading Log Lines benchmark
+
+`logsquirl_logdata_read_benchmark` (#278) loads a Log File of 20,000 Log
+Lines, one in ten colored with ANSI color sequences, and measures reading
+them the three ways the application does:
+
+- **one Log Line at a time**: 2,000 single-line reads, as Quick Find, the
+  Filtered View and saving do.
+- **a block of Log Lines**: all 20,000 decoded in one read.
+- **a block's UTF-8 view for a Search**: the raw block and the UTF-8 view a
+  Search matches against.
+
+Each is measured hiding ANSI color sequences and showing them; the showing
+cases are the reference the hiding ones should come close to. Links
+`logsquirl_logdata` only. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_logdata_read_benchmark
+./build-release/output/logsquirl_logdata_read_benchmark --benchmark-samples 50 > after.txt
+```
+
+`logdata_read_benchmark.cpp` uses only what log data offered before #278, so
+it builds unchanged on such a commit: copy it into a worktree of that commit
+as above, with
+
+```cmake
+add_executable(logsquirl_logdata_read_benchmark logdata_read_benchmark.cpp)
+target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
+target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
+```

@@ -23,7 +23,6 @@
 #include "encodingdetector.h"
 #include "linetypes.h"
 
-#include <QRegularExpression>
 #include <QString>
 #include <QTextCodec>
 #include <QtGlobal>
@@ -41,7 +40,9 @@ struct RawLines {
 
     TextDecoder textDecoder;
 
-    QRegularExpression prefilterPattern;
+    // Whether decoding removes ANSI color sequences, as the Decoding Policy
+    // the block was read under says.
+    bool hideAnsiColorSequences{};
 
 public:
     logsquirl::vector<QString> decodeLines() const;
