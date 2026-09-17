@@ -2485,6 +2485,7 @@ SCENARIO( "A restored tab whose Log File loads after the current one shows what 
             }
         }
     }
+}
 
 SCENARIO( "An invalid Search pattern is shown in the Theme's error colors", "[ui][theme]" )
 {
