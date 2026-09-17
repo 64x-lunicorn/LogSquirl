@@ -1115,6 +1115,94 @@ SCENARIO( "the Filtered View shows the right lines with Context Lines after each
     REQUIRE( wrongNotifications == 0 );
 }
 
+SCENARIO( "A continued Search shows the same lines as the Search run from scratch",
+          "[logdata][search][context]" )
+{
+    const auto policies = contextLinesPolicies();
+    LogDataLoader logDataLoader{ policies, ContextLinesFileLines };
+    const RegularExpressionPattern pattern( EveryTenthLine );
+    const auto half = LineNumber( ContextLinesFileLines / 2 );
+    const auto whole = LineNumber( ContextLinesFileLines );
+
+    const auto waitForCompletion = []( SafeQSignalSpy& spy ) {
+        REQUIRE( waitUiState( [ & ]() {
+            return spy.count() > 0
+                   && lastSearchState( spy ).phase == SearchSession::Phase::Complete;
+        } ) );
+        QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
+    };
+
+    // Marks on a Match, next to one and near where the first run stopped.
+    const auto addMarks = []( LogFilteredData& filtered ) {
+        for ( const auto line : { 5_lnum, 20_lnum, 998_lnum, 1003_lnum } ) {
+            filtered.addMark( line );
+        }
+        filtered.setVisibility( AllVisible );
+    };
+
+    auto continued = logDataLoader.log_data.getNewFilteredData();
+    addMarks( *continued );
+    int wrongNotifications = 0;
+    QObject::connect( continued.get(), &LogFilteredData::searchStateChanged, continued.get(),
+                      [ & ]( const SearchSession::State& ) {
+                          if ( displayedLines( *continued )
+                               != expectedDisplayedLines( *continued ) ) {
+                              ++wrongNotifications;
+                          }
+                      } );
+    {
+        SafeQSignalSpy spy{ continued.get(), &LogFilteredData::searchStateChanged };
+        continued->request( pattern, 0_lnum, half );
+        waitForCompletion( spy );
+    }
+    {
+        SafeQSignalSpy spy{ continued.get(), &LogFilteredData::searchStateChanged };
+        continued->request( pattern, 0_lnum, whole );
+        REQUIRE( continued->searchState().isContinuation );
+        waitForCompletion( spy );
+    }
+    REQUIRE( wrongNotifications == 0 );
+
+    auto fromScratch = logDataLoader.log_data.getNewFilteredData();
+    addMarks( *fromScratch );
+    {
+        SafeQSignalSpy spy{ fromScratch.get(), &LogFilteredData::searchStateChanged };
+        fromScratch->request( pattern, 0_lnum, whole );
+        REQUIRE_FALSE( fromScratch->searchState().isContinuation );
+        waitForCompletion( spy );
+    }
+
+    const auto lineTypes = []( const LogFilteredData& filtered ) {
+        std::vector<LineType::Int> types;
+        for ( LineNumber::UnderlyingType line = 0; line < ContextLinesFileLines; ++line ) {
+            types.push_back(
+                static_cast<LineType::Int>( filtered.lineTypeByLine( LineNumber( line ) ) ) );
+        }
+        return types;
+    };
+
+    REQUIRE( toFlags( continued->lineTypeByLine( 1005_lnum ) ) == LineTypeFlags::Context );
+    REQUIRE( displayedLines( *continued ) == displayedLines( *fromScratch ) );
+    REQUIRE( lineTypes( *continued ) == lineTypes( *fromScratch ) );
+
+    WHEN( "a Mark is toggled off and on again" )
+    {
+        continued->toggleMark( 1003_lnum );
+        fromScratch->toggleMark( 1003_lnum );
+        REQUIRE( toFlags( continued->lineTypeByLine( 1005_lnum ) ) == LineTypeFlags::Plain );
+        REQUIRE( displayedLines( *continued ) == displayedLines( *fromScratch ) );
+        REQUIRE( lineTypes( *continued ) == lineTypes( *fromScratch ) );
+
+        continued->toggleMark( 1003_lnum );
+        fromScratch->toggleMark( 1003_lnum );
+        THEN( "both still show the same lines" )
+        {
+            REQUIRE( displayedLines( *continued ) == displayedLines( *fromScratch ) );
+            REQUIRE( lineTypes( *continued ) == lineTypes( *fromScratch ) );
+        }
+    }
+}
+
 SCENARIO( "iterating over the Filtered View's lines while making lookups from the callback",
           "[logdata][search][context]" )
 {
