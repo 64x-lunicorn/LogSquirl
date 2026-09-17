@@ -514,7 +514,7 @@ SCENARIO( "Every size Token is a stylesheet length with a unit", "[theme]" )
 {
     GIVEN( "each built-in Theme" )
     {
-        // An image Token names an icon or none, a border style Token a border
+        // An image Token names an icon or none, the border style Token a border
         // style; every other style Token is a size: one to four lengths, each
         // with a unit unless it is 0.
         static const QRegularExpression image( "^(url\\(.+\\)|none)$" );
@@ -527,8 +527,13 @@ SCENARIO( "Every size Token is a stylesheet length with a unit", "[theme]" )
                 const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
                 for ( const auto token : allStyleTokens() ) {
                     const auto value = theme.value( token );
-                    if ( image.match( value ).hasMatch()
-                         || borderStyle.match( value ).hasMatch() ) {
+                    if ( token == StyleToken::DisabledBorderStyle ) {
+                        INFO( name.toStdString()
+                              << " DisabledBorderStyle = " << value.toStdString() );
+                        REQUIRE( borderStyle.match( value ).hasMatch() );
+                        continue;
+                    }
+                    if ( image.match( value ).hasMatch() ) {
                         continue;
                     }
                     INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString()

@@ -773,7 +773,8 @@ bool ShortcutRecordingDelegate::eventFilter( QObject* watched, QEvent* event )
     }
 
     if ( recorder && event->type() == QEvent::FocusOut ) {
-        // Leaving the cell while recording keeps its shortcut.
+        // Leaving the cell while recording cancels it: a finished recording
+        // has already been stored, an unfinished one is dropped.
         if ( !recorder->isAncestorOf( QApplication::focusWidget() ) ) {
             endRecording( recorder, Recording::Cancel );
         }
