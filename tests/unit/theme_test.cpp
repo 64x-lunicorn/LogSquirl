@@ -544,3 +544,26 @@ SCENARIO( "The Command Palette's badge and shortcut Tokens are readable in every
         }
     }
 }
+
+SCENARIO( "A radio button indicator is round in every Theme", "[theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        // Qt ignores a border radius larger than half the indicator's box, so
+        // the radius is exactly half of it: the indicator and its 2px border.
+        static const QRegularExpression pixels( "^(\\d+)px$" );
+
+        THEN( "the radio indicator radius is half the indicator size plus its border" )
+        {
+            for ( const auto& name : builtInThemes() ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                INFO( name.toStdString() );
+                const auto size = pixels.match( theme.value( StyleToken::IndicatorSize ) );
+                const auto radius = pixels.match( theme.value( StyleToken::RadioIndicatorRadius ) );
+                REQUIRE( size.hasMatch() );
+                REQUIRE( radius.hasMatch() );
+                REQUIRE( radius.captured( 1 ).toInt() == size.captured( 1 ).toInt() / 2 + 2 );
+            }
+        }
+    }
+}

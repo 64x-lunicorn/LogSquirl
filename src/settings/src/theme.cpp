@@ -231,6 +231,7 @@ Theme Theme::light()
         { HighlightedSecondaryText, "#FFFFFF" },
         { BadgeBackground, "#DEE2E6" },
         { BadgeText, "#212529" },
+        { SliderGroove, "#ADB5BD" },
     } );
 
     using enum StyleToken;
@@ -256,6 +257,8 @@ Theme Theme::light()
         { CheckIcon, "url(:/icons/check-light.svg)" },
         { DisabledCheckIcon, "url(:/icons/check-light.svg)" },
         { CloseIcon, "url(:/icons/close-light.svg)" },
+        // Half the indicator and its 2px border: a circle.
+        { RadioIndicatorRadius, "8px" },
     } );
     return theme;
 }
@@ -341,6 +344,7 @@ Theme Theme::dark()
         { HighlightedSecondaryText, "#121212" },
         { BadgeBackground, "#3A3A3E" },
         { BadgeText, "#E0E0E0" },
+        { SliderGroove, "#555555" },
     } );
 
     using enum StyleToken;
@@ -366,6 +370,7 @@ Theme Theme::dark()
         { CheckIcon, "url(:/icons/check-dark.svg)" },
         { DisabledCheckIcon, "none" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
+        { RadioIndicatorRadius, "10px" },
     } );
     return theme;
 }
@@ -450,6 +455,7 @@ Theme Theme::highContrast()
         { HighlightedSecondaryText, "#000000" },
         { BadgeBackground, "#FFFFFF" },
         { BadgeText, "#000000" },
+        { SliderGroove, "#FFFFFF" },
     } );
 
     using enum StyleToken;
@@ -475,6 +481,7 @@ Theme Theme::highContrast()
         { CheckIcon, "url(:/icons/check-hc.svg)" },
         { DisabledCheckIcon, "url(:/icons/check-hc.svg)" },
         { CloseIcon, "url(:/icons/close-dark.svg)" },
+        { RadioIndicatorRadius, "8px" },
     } );
     return theme;
 }
