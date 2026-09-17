@@ -24,7 +24,3 @@ if(LOGSQUIRL_USE_VECTORSCAN)
   target_link_libraries(logsquirl_regex PUBLIC logsquirl_vectorscan)
   target_compile_definitions(logsquirl_regex PUBLIC LOGSQUIRL_HAS_HS)
 endif()
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_regex PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()

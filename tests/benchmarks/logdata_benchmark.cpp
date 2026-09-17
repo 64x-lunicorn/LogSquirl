@@ -31,13 +31,17 @@
 #include "generated_log_file.h"
 #include "test_policies.h"
 
+#include "atomicflag.h"
+#include "displayedlines.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
+#include "logdataworker.h"
 
 #include <QCoreApplication>
 #include <QDir>
 #include <QEventLoop>
+#include <QFile>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -46,6 +50,8 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <string>
+#include <variant>
 #include <vector>
 
 #define CATCH_CONFIG_ENABLE_BENCHMARKING
@@ -97,7 +103,7 @@ LoadingStatus indexLogFile( LogData& logData, const QString& fileName )
 // that is removed at exit, and each one indexed once for the read cases.
 class GeneratedLogFiles {
 public:
-    const GeneratedLogFile& logFile( LogFileShape shape )
+    GeneratedLogFile& logFile( LogFileShape shape )
     {
         auto generated = files_.find( shape );
         if ( generated == files_.end() ) {
@@ -250,6 +256,16 @@ TEST_CASE( "Reading a sparse set of Log Lines", "[logdata-benchmark][sparse-read
             return characters;
         };
 
+        // The same Log Lines in one sparse read (#286).
+        BENCHMARK( caseName( shape, "getLinesSparse" ) )
+        {
+            qsizetype characters = 0;
+            for ( const auto& text : logData.getLinesSparse( lines ) ) {
+                characters += text.size();
+            }
+            return characters;
+        };
+
         // As Quick Find reads today.
         BENCHMARK( caseName( shape, "getExpandedLineString, line by line" ) )
         {
@@ -259,6 +275,126 @@ TEST_CASE( "Reading a sparse set of Log Lines", "[logdata-benchmark][sparse-read
             }
             return characters;
         };
+
+        // The same Log Lines in one sparse read, tabs expanded (#286).
+        BENCHMARK( caseName( shape, "getExpandedLinesSparse" ) )
+        {
+            qsizetype characters = 0;
+            for ( const auto& text : logData.getExpandedLinesSparse( lines ) ) {
+                characters += text.size();
+            }
+            return characters;
+        };
+    }
+}
+
+TEST_CASE( "Walking the Displayed Lines from a position", "[logdata-benchmark][displayed-lines]" )
+{
+    // Every third Log Line of 30 million displayed, as a Search with many
+    // Matches leaves them, walked for ReadLineCount positions from the middle.
+    SearchResultArray lines;
+    for ( std::uint64_t line = 0; line < 30'000'000; line += 3 ) {
+        lines.add( line );
+    }
+    const auto first = LineNumber( lines.cardinality() / 2 );
+
+    // As the Filtered View, saving and Quick Find look positions up today.
+    BENCHMARK( "lineAtPosition, position by position" )
+    {
+        std::uint64_t sum = 0;
+        for ( std::uint64_t position = 0; position < ReadLineCount; ++position ) {
+            sum += lineAtPosition( lines, first + LinesCount( position ) ).value_or( 0_lnum ).get();
+        }
+        return sum;
+    };
+
+    // One select(), then stepping from Log Line to Log Line (#286).
+    BENCHMARK( "DisplayedLinesCursor, takeForward" )
+    {
+        std::uint64_t sum = 0;
+        DisplayedLinesCursor cursor( lines, first );
+        for ( const auto line : cursor.takeForward( LinesCount( ReadLineCount ) ) ) {
+            sum += line.get();
+        }
+        return sum;
+    };
+}
+
+namespace {
+
+// Appends `count` more generated Log Lines to the Log File.
+void appendLogLines( LogFileShape shape, GeneratedLogFile& file, std::uint64_t count )
+{
+    std::string lines;
+    for ( std::uint64_t line = 0; line < count; ++line ) {
+        appendGeneratedLogLine( shape, file.lineCount++, lines );
+    }
+    QFile out{ file.fileName };
+    REQUIRE( out.open( QIODevice::WriteOnly | QIODevice::Append ) );
+    REQUIRE( out.write( lines.data(), static_cast<qint64>( lines.size() ) )
+             == static_cast<qint64>( lines.size() ) );
+}
+
+} // namespace
+
+// Following a Log File as it grows (#277): what one change on disk costs once
+// the Log File is indexed, run the way the log data runs it on a change
+// notification. Appends to the generated Log Files, so it runs last.
+TEST_CASE( "Following a growing Log File", "[logdata-benchmark][tailing]" )
+{
+    // How many Log Lines each append adds: a few KB.
+    constexpr std::uint64_t AppendedLines = 20;
+
+    for ( const auto shape : Shapes ) {
+        generatedLogFiles->logFile( shape );
+    }
+
+    for ( const auto fastModificationDetection : { false, true } ) {
+        for ( const auto shape : Shapes ) {
+            auto& file = generatedLogFiles->logFile( shape );
+
+            auto policy = testSettingsPolicies().indexing;
+            policy.useIndexCache = false;
+            policy.fastModificationDetection = fastModificationDetection;
+
+            // Indexed once, not measured.
+            auto data = std::make_shared<IndexingData>();
+            AtomicFlag interruptRequest;
+            {
+                FullIndexOperation indexing{ file.fileName, data, interruptRequest, policy };
+                REQUIRE( std::get<bool>( indexing.run() ) );
+            }
+
+            const auto name = [ & ]( const char* how ) {
+                return caseName( shape, how )
+                       + ( fastModificationDetection ? ", fast modification detection" : "" );
+            };
+
+            // A change notification for an append: the check, then indexing
+            // the appended Log Lines. Writing them is measured too, and is
+            // the same on both sides of a comparison.
+            BENCHMARK( name( "append, check and index the appended Log Lines" ) )
+            {
+                appendLogLines( shape, file, AppendedLines );
+                CheckFileChangesOperation check{ file.fileName, data, interruptRequest, policy };
+                const auto status = std::get<MonitoredFileStatus>( check.run() );
+                PartialIndexOperation indexing{ file.fileName, data, interruptRequest, policy };
+                indexing.run();
+                return status == MonitoredFileStatus::DataAdded;
+            };
+
+            // A change notification for bytes already indexed, as a writer
+            // appending in quick succession causes.
+            BENCHMARK( name( "check with nothing appended" ) )
+            {
+                CheckFileChangesOperation check{ file.fileName, data, interruptRequest, policy };
+                return std::get<MonitoredFileStatus>( check.run() )
+                       == MonitoredFileStatus::Unchanged;
+            };
+
+            IndexingData::ConstAccessor accessor{ data.get() };
+            REQUIRE( accessor.getNbLines().get() == file.lineCount );
+        }
     }
 }
 

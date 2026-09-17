@@ -33,6 +33,7 @@
 #include "highlighterset.h"
 #include "persistentinfo.h"
 #include "quickfindpattern.h"
+#include "regularexpressionpattern.h"
 #include "test_policies.h"
 
 #include <QApplication>
@@ -219,6 +220,67 @@ TEST_CASE( "text view scroll benchmarks", "[textview-scroll-benchmark]" )
         view.viewport()->repaint();
         view.resize( 800, 600 );
         view.viewport()->repaint();
+        return view.getTopLine();
+    };
+}
+
+// Repainting a shown view after how its Log Lines look changed, not their text
+// (#295): QuickFind typing, a new Search pattern, other Search Limits. Each
+// case repaints the Viewport once per change. "Log Lines read again" is the
+// same repaint after updateData(), for comparison: the cost every one of
+// these paid before the view told a change of Decoration from one of text.
+TEST_CASE( "text view refresh benchmarks", "[textview-refresh-benchmark]" )
+{
+    GeneratedLogData logData;
+    QuickFindPattern quickFindPattern;
+    BenchmarkedView view( &logData, &quickFindPattern );
+    view.setFrameShape( QFrame::NoFrame );
+    view.resize( 800, 600 );
+    view.show();
+    QCoreApplication::processEvents();
+    view.setPresentationPolicy( testSettingsPolicies().presentation );
+    view.updateData();
+    view.verticalScrollBar()->setValue( view.verticalScrollBar()->maximum() / 2 );
+    view.viewport()->repaint();
+
+    BENCHMARK( "QuickFind: 7 keystrokes typed, each painted" )
+    {
+        const QString typed = QStringLiteral( "payload" );
+        for ( qsizetype length = 1; length <= typed.size(); ++length ) {
+            quickFindPattern.changeSearchPattern( typed.left( length ),
+                                                  /* useExtendedRegexp */ false );
+            view.viewport()->repaint();
+        }
+        return view.getTopLine();
+    };
+
+    BENCHMARK( "Search pattern: changed 7 times, each painted" )
+    {
+        for ( int change = 0; change < 7; ++change ) {
+            view.setSearchPattern( RegularExpressionPattern{
+                change % 2 == 0 ? QStringLiteral( "worker-3" ) : QStringLiteral( "value" ) } );
+            view.viewport()->repaint();
+        }
+        return view.getTopLine();
+    };
+
+    BENCHMARK( "Search Limits: changed 7 times, each painted" )
+    {
+        const auto top = view.getTopLine();
+        for ( int change = 0; change < 7; ++change ) {
+            view.setSearchLimits( top + LinesCount( static_cast<uint64_t>( change ) ),
+                                  top + 20_lcount );
+            view.viewport()->repaint();
+        }
+        return view.getTopLine();
+    };
+
+    BENCHMARK( "Log Lines read again: updateData() 7 times, each painted" )
+    {
+        for ( int change = 0; change < 7; ++change ) {
+            view.updateData();
+            view.viewport()->repaint();
+        }
         return view.getTopLine();
     };
 }

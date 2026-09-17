@@ -148,6 +148,11 @@ so a Log Line wraps into one Visual Line or several).
   pages, the scrollbar dragged, `updateData()` after a Log Line was
   appended, and a resize with painting. It uses only what the text view
   offered before #246, so the same file measures the code before and after.
+  Its `[textview-refresh-benchmark]` cases (#295) repaint the view after a
+  change of Decoration only: QuickFind typed keystroke by keystroke, the
+  Search pattern and the Search Limits changed. "Log Lines read again"
+  repaints after `updateData()`, the cost each of them paid before a view
+  told a change of Decoration from a change of text.
 
 Both are Catch2 benchmarks; run them in an optimized build, as the Debug
 numbers say little about scrolling cost:
@@ -209,7 +214,16 @@ Every case runs on both Log Files, tagged `[logdata-benchmark]` and one of:
 - `[sparse-read]` — every hundredth Log Line from the start, 10,000 of them:
   **getLineString, line by line**, as the Filtered View and saving a Search
   result read today, and **getExpandedLineString, line by line**, as Quick
-  Find reads today.
+  Find reads today, each next to the same Log Lines in one sparse read
+  (**getLinesSparse**, **getExpandedLinesSparse**, #286).
+- `[displayed-lines]` — not on a Log File: 10,000 positions walked from the
+  middle of 10 million displayed Log Lines, **lineAtPosition, position by
+  position** versus **DisplayedLinesCursor, takeForward** (#286).
+- `[tailing]` — following the Log File as it grows (#277), once indexed, with
+  and without fast modification detection: **append, check and index the
+  appended Log Lines**, one change notification for an append of 20 Log
+  Lines, and **check with nothing appended**, a change notification for bytes
+  already indexed. Runs last, as it appends to the Log Files.
 
 A change that adds a new way of reading the same Log Lines adds a `BENCHMARK`
 next to the one it replaces, over the same `contiguousRange()` or
@@ -307,6 +321,39 @@ cmake --build build-release --target logsquirl_session_restore_benchmark
 For the before side, copy `session_restore_benchmark.cpp` into a worktree of
 origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
+
+# Regex matcher benchmark
+
+`logsquirl_regex_matcher_benchmark` (#279) matches a block of 20,000 Log
+Lines, one in ten DEBUG, the way a Search does: one matcher for the block.
+Each case runs on both regex engines:
+
+- **lookahead**: `^(?!.*DEBUG)`, which Vectorscan rejects, so a Search runs
+  it through Vectorscan as a prefilter and confirms each candidate Log Line
+  with QRegularExpression.
+- **boolean expression of four sub-patterns**: regexes Vectorscan compiles.
+- **boolean expression with a lookahead**: three sub-patterns, one of them a
+  lookahead, so all of them go through the prefilter.
+
+**three Highlighters, one with a lookahead** creates a matcher for each of
+2,000 Log Lines, as a Highlighter Set on origin/master does when it colors a
+Log Line.
+
+Links `logsquirl_regex` only. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_regex_matcher_benchmark
+./build-release/output/logsquirl_regex_matcher_benchmark --benchmark-samples 50 > after.txt
+```
+
+`regex_matcher_benchmark.cpp` uses only what the regex module offered before
+#279, so it builds unchanged on such a commit: copy it into a worktree of that
+commit as above, with
+
+```cmake
+add_executable(logsquirl_regex_matcher_benchmark regex_matcher_benchmark.cpp)
+target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
+```
 
 # Displayed Lines benchmark
 

@@ -31,7 +31,3 @@ target_link_libraries(
          logsquirl_logging
          Qt6::Core
 )
-
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl_textviewscrolling PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()

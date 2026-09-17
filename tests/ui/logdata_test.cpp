@@ -445,3 +445,230 @@ SCENARIO( "A Log File read hiding ANSI color sequences", "[logdata][ansi]" )
         }
     }
 }
+
+namespace {
+
+// What reading each Log Line on its own returns, plain or with tabs expanded.
+std::vector<QString> linesOneByOne( const LogData& logData, const std::vector<LineNumber>& lines,
+                                    bool expanded )
+{
+    std::vector<QString> text;
+    for ( const auto line : lines ) {
+        text.push_back( expanded ? logData.getExpandedLineString( line )
+                                 : logData.getLineString( line ) );
+    }
+    return text;
+}
+
+std::vector<QString> asStd( const logsquirl::vector<QString>& lines )
+{
+    return { lines.begin(), lines.end() };
+}
+
+} // namespace
+
+SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
+          "[logdata][sparse-read]" )
+{
+    constexpr int LineCount = 2000;
+
+    // Log Lines of different lengths, some with tabs, a carriage return, an
+    // ANSI color sequence or characters outside ASCII, some empty, and a last
+    // one without a line feed.
+    const auto logLine = []( int line ) -> QByteArray {
+        switch ( line % 7 ) {
+        case 0:
+            return QStringLiteral( "%1\tcolumn\tafter tabs" ).arg( line ).toUtf8();
+        case 1:
+            return QStringLiteral( "%1 ends with a carriage return\r" ).arg( line ).toUtf8();
+        case 2:
+            return {};
+        case 3:
+            return QStringLiteral( "\x1B[31m%1 colored\x1B[0m" ).arg( line ).toUtf8();
+        case 4:
+            return QStringLiteral( "%1 grüße ☃" ).arg( line ).toUtf8();
+        default:
+            return QStringLiteral( "%1 %2" ).arg( line ).arg( QString( line % 50, 'x' ) ).toUtf8();
+        }
+    };
+
+    QTemporaryFile file{ "logdata_test_sparse_XXXXXX" };
+    REQUIRE( file.open() );
+    for ( int line = 0; line < LineCount; ++line ) {
+        file.write( logLine( line ) );
+        if ( line + 1 < LineCount ) {
+            file.write( "\n" );
+        }
+    }
+    file.flush();
+
+    const auto hideAnsiColorSequences = GENERATE( false, true );
+    auto policies = testSettingsPolicies();
+    policies.decoding.hideAnsiColorSequences = hideAnsiColorSequences;
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == LinesCount( LineCount ) );
+
+    const auto expanded = GENERATE( false, true );
+    const auto readSparse = [ &logData, expanded ]( const std::vector<LineNumber>& lines ) {
+        return asStd( expanded ? logData.getExpandedLinesSparse( lines )
+                               : logData.getLinesSparse( lines ) );
+    };
+
+    CAPTURE( hideAnsiColorSequences, expanded );
+
+    GIVEN( "a Log File of Log Lines of every kind" )
+    {
+        THEN( "contiguous Log Lines read as each does on its own" )
+        {
+            std::vector<LineNumber> lines;
+            for ( uint64_t line = 100; line < 150; ++line ) {
+                lines.emplace_back( line );
+            }
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "sparse Log Lines, near and far apart, read as each does on its own" )
+        {
+            std::vector<LineNumber> lines{ 1_lnum,    2_lnum,    5_lnum,   40_lnum,
+                                           41_lnum,   700_lnum,  703_lnum, 1500_lnum,
+                                           1501_lnum, 1502_lnum, 1777_lnum };
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "every tenth Log Line reads as each does on its own" )
+        {
+            std::vector<LineNumber> lines;
+            for ( uint64_t line = 3; line < LineCount; line += 10 ) {
+                lines.emplace_back( line );
+            }
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "the first and the last Log Line read as each does on its own" )
+        {
+            const std::vector<LineNumber> lines{ 0_lnum, LineNumber( LineCount - 1 ) };
+            const auto text = readSparse( lines );
+            REQUIRE( text == linesOneByOne( logData, lines, expanded ) );
+            REQUIRE( text.back().startsWith( QString::number( LineCount - 1 ) ) );
+        }
+
+        THEN( "Log Lines past the last one read as each does on its own" )
+        {
+            const std::vector<LineNumber> lines{ LineNumber( LineCount - 2 ),
+                                                 LineNumber( LineCount ),
+                                                 LineNumber( LineCount + 100 ) };
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "Log Lines asked for out of order or twice come back in the order asked" )
+        {
+            const std::vector<LineNumber> lines{ 900_lnum, 3_lnum, 900_lnum, 4_lnum };
+            REQUIRE( readSparse( lines ) == linesOneByOne( logData, lines, expanded ) );
+        }
+
+        THEN( "no Log Lines read as nothing" )
+        {
+            REQUIRE( readSparse( {} ).empty() );
+        }
+    }
+}
+
+namespace {
+
+// Lines of about 1 KiB each, numbered from first.
+QByteArray numberedLines( int first, int count )
+{
+    QByteArray content;
+    const QByteArray padding( 1000, 'x' );
+    for ( int i = first; i < first + count; ++i ) {
+        content += "line " + QByteArray::number( i ) + " " + padding + "\n";
+    }
+    return content;
+}
+
+void writeBytes( const QString& path, const QByteArray& content, QIODevice::OpenMode mode )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::WriteOnly | mode ) );
+    REQUIRE( file.write( content ) == content.size() );
+}
+
+} // namespace
+
+SCENARIO( "A followed Log File that changed where it is not checked is read again on a reload",
+          "[logdata][follow]" )
+{
+    QTemporaryDir logDir;
+    REQUIRE( logDir.isValid() );
+    const auto path = logDir.filePath( "followed.log" );
+
+    // About 11 MiB: more than the header and tail digests cover.
+    const auto content = numberedLines( 0, 11000 );
+    writeBytes( path, content, QIODevice::Truncate );
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+
+    SafeQSignalSpy changedSpy( &logData, SIGNAL( fileChanged( MonitoredFileStatus, QString ) ) );
+    SafeQSignalSpy endSpy( &logData, SIGNAL( loadingFinished( LoadingStatus, QString ) ) );
+    logData.attachFile( path );
+    REQUIRE( endSpy.safeWait( 60000 ) );
+    REQUIRE( logData.getNbLine() == 11000_lcount );
+    endSpy.clear();
+
+    GIVEN( "a line between the header and the tail split in two in place, and lines appended" )
+    {
+        // Same size: a newline takes the place of one padding byte.
+        auto changed = content;
+        const auto splitAt = changed.indexOf( "line 6000 " ) + 20;
+        changed[ splitAt ] = '\n';
+        writeBytes( path, changed + numberedLines( 11000, 10 ), QIODevice::Truncate );
+
+        logData.fileChangedOnDisk( path );
+        REQUIRE( endSpy.safeWait( 60000 ) );
+        endSpy.clear();
+
+        THEN( "following it takes the change for an append" )
+        {
+            REQUIRE( changedSpy.count() == 1 );
+            REQUIRE( changedSpy.at( 0 ).at( 0 ).value<MonitoredFileStatus>()
+                     == MonitoredFileStatus::DataAdded );
+            REQUIRE( logData.getNbLine() == 11010_lcount );
+        }
+
+        WHEN( "it is reloaded" )
+        {
+            logData.reload();
+            REQUIRE( endSpy.safeWait( 60000 ) );
+
+            THEN( "all of it is indexed again, the split line too" )
+            {
+                REQUIRE( logData.getNbLine() == 11011_lcount );
+                REQUIRE( logData.getLineString( 6000_lnum ) == "line 6000 " + QString( 10, 'x' ) );
+                REQUIRE( logData.getLineString( 11010_lnum ).startsWith( "line 11009 " ) );
+            }
+        }
+    }
+
+    GIVEN( "it replaced by a larger Log File with another header" )
+    {
+        writeBytes( path, "another header\n" + numberedLines( 0, 11100 ), QIODevice::Truncate );
+
+        logData.fileChangedOnDisk( path );
+        REQUIRE( endSpy.safeWait( 60000 ) );
+
+        THEN( "following it tells it was truncated and indexes it again" )
+        {
+            REQUIRE( changedSpy.count() == 1 );
+            REQUIRE( changedSpy.at( 0 ).at( 0 ).value<MonitoredFileStatus>()
+                     == MonitoredFileStatus::Truncated );
+            REQUIRE( logData.getNbLine() == 11101_lcount );
+            REQUIRE( logData.getLineString( 0_lnum ) == "another header" );
+        }
+    }
+}

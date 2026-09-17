@@ -23,14 +23,25 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # organize targets into folders for IDE
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-option(ENABLE_IPO "Enable Interprocedural Optimization, aka Link Time Optimization (LTO)" OFF)
-
-if(ENABLE_IPO)
-  include(CheckIPOSupported)
-  check_ipo_supported(RESULT result OUTPUT output)
-  if(result)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-  else()
-    message(SEND_ERROR "IPO is not supported: ${output}")
-  endif()
-endif()
+# RelWithDebInfo, the build type of the releases for Windows and Linux,
+# optimizes as fully as Release and keeps its debug information (#280). The
+# flags apply to every target, the third-party libraries linked into the
+# binaries included. Link time optimization is set in the top-level
+# CMakeLists.txt (LOGSQUIRL_USE_LTO).
+include(FullOptimization)
+foreach(lang C CXX)
+  logsquirl_full_optimization_flags(
+    CMAKE_${lang}_FLAGS_RELWITHDEBINFO
+    KIND COMPILE
+    MSVC "${MSVC}"
+    FLAGS "${CMAKE_${lang}_FLAGS_RELWITHDEBINFO}"
+  )
+endforeach()
+foreach(kind EXE SHARED MODULE)
+  logsquirl_full_optimization_flags(
+    CMAKE_${kind}_LINKER_FLAGS_RELWITHDEBINFO
+    KIND LINK
+    MSVC "${MSVC}"
+    FLAGS "${CMAKE_${kind}_LINKER_FLAGS_RELWITHDEBINFO}"
+  )
+endforeach()

@@ -11,6 +11,7 @@ add_executable(logsquirl_tests
     encodingdetector_test.cpp
     fontutils_test.cpp
     indexcache_test.cpp
+    headerandtaildigests_test.cpp
     indexedhash_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
@@ -43,6 +44,7 @@ add_executable(logsquirl_tests
     searchfailure_test.cpp
     searchsession_test.cpp
     settingspolicies_test.cpp
+    sparselineread_test.cpp
     tabbarstyle_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp

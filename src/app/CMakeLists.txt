@@ -81,12 +81,6 @@ set_target_properties(logsquirl_portable PROPERTIES AUTOMOC ON)
 set_target_properties(logsquirl_grep PROPERTIES AUTORCC ON)
 set_target_properties(logsquirl_grep PROPERTIES AUTOMOC ON)
 
-if(LOGSQUIRL_USE_LTO)
-  set_property(TARGET logsquirl PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  set_property(TARGET logsquirl_portable PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-  set_property(TARGET logsquirl_grep PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-endif()
-
 # The application looks the file watcher up and hands it to the Session; the
 # engine is handed its port and does not link it (#249).
 target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
