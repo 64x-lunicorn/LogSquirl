@@ -34,6 +34,9 @@ namespace {
 // plotted: a dot there reaches into the plot area.
 constexpr double PlottedMarginPx = ChartDotRadius + 2.0;
 
+// How many segments of a reduced plot's line are stroked at a time.
+constexpr qsizetype ReducedLineChunk = 8;
+
 // The first position in x order, in [0, size], whose x value is not below x
 // (or, with orEqual, above x).
 qsizetype firstPositionAfter( const QVector<ChartPoint>& points, const ChartSeriesXOrder& xOrder,
@@ -112,6 +115,7 @@ ChartPlot plotChartSeries( const QVector<ChartPoint>& points, const ChartSeriesX
         return plot;
     }
 
+    plot.reduced = true;
     // Each pixel column: its first, lowest, highest and last point, in x order.
     qsizetype position = first;
     while ( position < last ) {
@@ -164,12 +168,23 @@ void drawChartPlot( QPainter& painter, const ChartPlot& plot, const QColor& colo
 
     painter.setPen( QPen( color, 1.5 ) );
     painter.setBrush( Qt::NoBrush );
-    QPainterPath path;
-    path.moveTo( plot.line.constFirst() );
-    for ( qsizetype i = 1; i < plot.line.size(); ++i ) {
-        path.lineTo( plot.line[ i ] );
-    }
-    painter.drawPath( path );
+    // Stroking one path fills its whole outline at once, which takes much
+    // longer than stroking its segments a few at a time where the line
+    // zig-zags up and down pixel columns. A reduced plot is stroked in pieces;
+    // any other plot as one path, as the chart always drew it.
+    const qsizetype last = plot.line.size() - 1;
+    const qsizetype chunk = plot.reduced ? ReducedLineChunk : std::max<qsizetype>( last, 1 );
+    qsizetype start = 0;
+    do {
+        const qsizetype end = std::min( start + chunk, last );
+        QPainterPath path;
+        path.moveTo( plot.line[ start ] );
+        for ( qsizetype i = start + 1; i <= end; ++i ) {
+            path.lineTo( plot.line[ i ] );
+        }
+        painter.drawPath( path );
+        start = end;
+    } while ( start < last );
 
     painter.setBrush( color );
     painter.setPen( Qt::NoPen );

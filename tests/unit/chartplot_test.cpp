@@ -228,6 +228,7 @@ TEST_CASE( "A series with more points than pixel columns is reduced per pixel co
 
     SECTION( "at most four points per pixel column" )
     {
+        CHECK( plot.reduced );
         CHECK( plot.line.size() <= 4 * ( 330 + 2 * 5 + 2 ) );
         CHECK( plot.dots.size() <= plot.line.size() );
     }

@@ -79,6 +79,8 @@ struct ChartPlot {
     std::vector<qsizetype> pointIndexes;
     // Where a dot is drawn.
     QPolygonF dots;
+    // Whether pixel columns were reduced to a few points each.
+    bool reduced = false;
 };
 
 // The radius of the dot drawn on a point.
