@@ -416,6 +416,43 @@ add_executable(logsquirl_displayedlines_benchmark displayedlines_benchmark.cpp)
 target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
 ```
 
+# Chart follow benchmark
+
+`logsquirl_chart_follow_benchmark` (#298) charts a generated Log File of about
+128 MiB (short lines, `generated_log_file.h`) with three series -- a number on
+every Log Line, a count of ERROR Log Lines and a timestamp X-axis bucketed per
+second -- then appends Log Lines to it, has the log data load them as a change
+on disk does, and calls `ChartPanel::extractData()` after each load, as the
+crawler widget does with a visible chart. The first extraction is not measured.
+
+- **append 20 Log Lines, chart updated**: one append, measured until the chart
+  holds a point for every Log Line. Before #298 every update extracted the
+  whole Log File again, so this grew with its size; afterwards it does not.
+- **10 appends of 20 Log Lines in quick succession, chart updated**: a busy
+  Log File, the chart asked to update after each load without waiting for it.
+  Before #298 each request cancelled the running extraction, waited for it on
+  the GUI thread and started over from the first Log Line.
+
+The panel is not shown, so painting the chart is not measured. Where the panel
+has an update delay (#298), the benchmark sets it to zero. Set
+`LOGSQUIRL_BENCHMARK_LOG_FILE_MB` for another size; a full run needs its size
+free in `TMPDIR`. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_chart_follow_benchmark
+./build-release/output/logsquirl_chart_follow_benchmark --benchmark-samples 10 > after.txt
+```
+
+`chart_follow_benchmark.cpp` uses only what the chart panel offered before #298
+(the update delay only under `__has_include( "chartextraction.h" )`), so it
+builds unchanged on origin/master: copy it and `generated_log_file.h` into a
+worktree of that commit as described for the scrolling benchmarks above, with
+
+```cmake
+add_executable(logsquirl_chart_follow_benchmark chart_follow_benchmark.cpp)
+target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
+```
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a
