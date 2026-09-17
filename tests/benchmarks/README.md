@@ -516,6 +516,47 @@ add_executable(logsquirl_chart_follow_benchmark chart_follow_benchmark.cpp)
 target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
 ```
 
+# Chart paint benchmark
+
+`logsquirl_chart_paint_benchmark` (#299) paints a chart widget of 800 x 400 px
+with one series of a point per Log Line (x the line number, values between 0
+and 1000) into an image on the offscreen platform, for 10,000, 1 million and 5
+million points:
+
+- **paint, all**: fitted to all points, painted again without a change.
+- **pan 2 px, paint, all**: the view dragged by 2 px with the right mouse
+  button, so nothing plotted before can be reused, and painted.
+- **pan 2 px, paint, 1 % of**: the same after zooming in with the mouse wheel
+  to about 1 % of the x range.
+- **hover, paint, 1 % of**: the mouse moving between two positions 3 px apart,
+  each followed by a paint.
+- **hover, 1 % of**: the same mouse moves without painting: the hover lookup.
+
+Before #299 the chart stroked one path through every point on every paint and
+searched every point on every mouse move, so every case grew with the number
+of points; a paint of 10,000 points took seconds. Afterwards the hover cases
+do not grow with the points outside the view, and a paint draws at most a few
+points per pixel column.
+
+The file uses only what the chart widget offered before #299, so it builds
+unchanged on origin/master. There, where `chartplot.h` does not exist, it
+measures only 10,000 points: a paint of a million points would take minutes.
+`LOGSQUIRL_BENCHMARK_CHART_POINTS` sets one other number of points on either
+side. Run it in an optimized build:
+
+```bash
+cmake --build build-release --target logsquirl_chart_paint_benchmark
+./build-release/output/logsquirl_chart_paint_benchmark --benchmark-samples 20 > after.txt
+```
+
+For the before side, copy `chart_paint_benchmark.cpp` into a worktree of
+origin/master as described for the scrolling benchmarks above, with
+
+```cmake
+add_executable(logsquirl_chart_paint_benchmark chart_paint_benchmark.cpp)
+target_link_libraries(logsquirl_chart_paint_benchmark logsquirl_ui Catch2)
+```
+
 # Before and after in CI
 
 The **Benchmarks** workflow (`.github/workflows/benchmarks.yml`, #276) builds a
