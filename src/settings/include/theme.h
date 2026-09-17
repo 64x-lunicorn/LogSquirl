@@ -134,7 +134,9 @@ class QObject;
     X( ArrowUpIcon )                                                                               \
     X( CheckIcon )                                                                                 \
     X( DisabledCheckIcon )                                                                         \
-    X( CloseIcon )
+    X( CloseIcon )                                                                                 \
+    X( IndeterminateIcon )                                                                         \
+    X( DisabledIndeterminateIcon )
 
 #define LOGSQUIRL_TOKEN_ENUMERATOR( name ) name,
 #define LOGSQUIRL_TOKEN_COUNT( name ) +1
