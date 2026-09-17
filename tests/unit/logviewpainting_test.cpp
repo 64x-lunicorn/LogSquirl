@@ -1245,3 +1245,50 @@ SCENARIO( "A scrolled log view repaints what changed about the Log Lines it kept
         }
     }
 }
+
+// Told that Log Lines were only appended, scrolling keeps the Visual Lines it
+// counted for the bottom of the Log File, but for the last Log Line, which may
+// have grown (#296).
+SCENARIO( "A log view at its bottom paints Log Lines appended as a new view does",
+          "[logviewpainting][scrollrepaint]" )
+{
+    const PinnedPaintingSettings settings;
+    const auto font = paintingtestfont::requirePaintingTestFont();
+
+    for ( const bool textWrap : { false, true } ) {
+        GIVEN( "a view at the bottom of its Log File, text wrapping "
+               << ( textWrap ? "on" : "off" ) )
+        {
+            FakeLogData logData{ paintedTexts() };
+            const QuickFindPattern quickFindPattern;
+            PaintingLogView view( &logData, &quickFindPattern, textWrap );
+            showForPainting( view, logData, font, { .textWrap = textWrap } );
+            view.followSet( true );
+            grabViewport( view );
+
+            WHEN( "its last Log Line grows, Log Lines are appended and it is told only that" )
+            {
+                auto grown = paintedTexts();
+                grown.last() += QStringLiteral( " and grows longer, long enough for another row" );
+                grown << QStringLiteral( "10:00:32 INFO  appended" )
+                      << QStringLiteral( "10:00:33 ERROR appended, and long enough to be wrapped "
+                                         "onto a second Visual Line" );
+                logData.setLines( grown );
+                view.updateData( LinesChange::Appended );
+                // As a finished load hands every view the whole Log File.
+                view.setSearchLimits( 0_lnum, LineNumber( logData.getNbLine().get() ) );
+                const auto painted = grabViewport( view );
+
+                THEN( "it paints the new bottom of the Log File as a view that read it all does" )
+                {
+                    const FakeLogData grownLogData{ grown };
+                    PaintingLogView fresh( &grownLogData, &quickFindPattern, textWrap );
+                    showForPainting( fresh, grownLogData, font, { .textWrap = textWrap } );
+                    fresh.followSet( true );
+                    REQUIRE( fresh.scrollPosition() == view.scrollPosition() );
+                    requireSameImage( grabViewport( fresh ), painted, "Log Lines appended" );
+                }
+            }
+        }
+    }
+}

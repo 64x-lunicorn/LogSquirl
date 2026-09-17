@@ -152,8 +152,10 @@ public:
 
     void updateFont( const QFont& font );
 
-    // Refresh the widget when the data set has changed.
-    void updateData();
+    // Refresh the widget when the data set has changed, as change says: told
+    // that Log Lines were only appended, scrolling keeps what it counted for
+    // the Log Lines there were.
+    void updateData( LinesChange change = LinesChange::Any );
     // Instructs the widget to update it's content geometry,
     // used when the font is changed.
     void updateDisplaySize();

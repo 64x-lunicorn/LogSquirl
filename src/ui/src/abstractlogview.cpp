@@ -1452,14 +1452,14 @@ void AbstractLogView::setSelectionEnd()
 // Public functions
 //
 
-void AbstractLogView::updateData()
+void AbstractLogView::updateData( LinesChange change )
 {
     LOG_DEBUG << "AbstractLogView::updateData";
 
     const auto lastLineNumber = LineNumber( logData_->getNbLine().get() );
 
     // Past the Log Lines there are now, the view goes back to the top.
-    if ( scrolling_.dataChanged() ) {
+    if ( scrolling_.dataChanged( change ) ) {
         verticalScrollBar()->setValue( 0 );
         horizontalScrollBar()->setValue( 0 );
     }
@@ -1486,7 +1486,8 @@ void AbstractLogView::updateData()
         overview_->updateCurrentPosition( scrollPosition.lineNumber, lastLine );
     }
 
-    rereadLogLines();
+    // Not rereadLogLines(): scrolling was told already what changed.
+    refresh( ViewportChange::Text );
 }
 
 void AbstractLogView::updateFont( const QFont& font )
@@ -1622,6 +1623,8 @@ void AbstractLogView::updateDecorations()
 
 void AbstractLogView::rereadLogLines()
 {
+    // Nothing scrolling counted for the Log Lines holds any longer.
+    scrolling_.linesReread();
     refresh( ViewportChange::Text );
 }
 

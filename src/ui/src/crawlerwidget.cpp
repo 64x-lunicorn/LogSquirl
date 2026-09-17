@@ -911,7 +911,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
     // FIXME, handle topLine
     // logMainView_->updateData( logData_, topLine );
-    logMainView_->updateData();
+    logMainView_->updateData( load.onlyAppended ? LinesChange::Appended : LinesChange::Any );
 
     // The Open Log File has refreshed the Search already; one it started
     // again over the truncated Log File is shown like any new Search.

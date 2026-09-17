@@ -337,6 +337,7 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
         const auto& load = logFile.observer.loads.front();
         REQUIRE( load.status == LoadingStatus::Successful );
         REQUIRE( load.fromStart );
+        REQUIRE_FALSE( load.onlyAppended );
         REQUIRE( load.formatRecognized );
         REQUIRE_FALSE( load.searchRestarted );
         REQUIRE( logFile.openLogFile.formatRecognitionCount() == 1 );
@@ -384,6 +385,7 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
             THEN( "the load is not from the start, and the Marks are kept" )
             {
                 REQUIRE_FALSE( logFile.observer.loads.back().fromStart );
+                REQUIRE( logFile.observer.loads.back().onlyAppended );
                 REQUIRE( logFile.marks() == QList<LineNumber>{ 1_lnum } );
                 REQUIRE( logFile.observer.truncations == 0 );
             }
@@ -502,6 +504,7 @@ SCENARIO( "An Open Log File follows a Log File that is truncated", "[openlogfile
 
                 THEN( "Format Recognition was taken again" )
                 {
+                    REQUIRE_FALSE( logFile.observer.loads.back().onlyAppended );
                     REQUIRE( logFile.observer.loads.back().formatRecognized );
                     REQUIRE( logFile.openLogFile.formatRecognitionCount() == 2 );
                     REQUIRE( logFile.openLogFile.logFormat() != nullptr );
@@ -568,6 +571,7 @@ SCENARIO( "An Open Log File reloaded by hand starts over", "[openlogfile]" )
                 {
                     const auto& load = logFile.observer.loads.back();
                     REQUIRE( load.fromStart );
+                    REQUIRE_FALSE( load.onlyAppended );
                     REQUIRE( load.formatRecognized );
                     REQUIRE_FALSE( load.searchRestarted );
                     REQUIRE( logFile.openLogFile.formatRecognitionCount() == 2 );

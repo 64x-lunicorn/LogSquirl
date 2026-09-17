@@ -180,11 +180,12 @@ public:
         REQUIRE( scrolling.position() == position );
     }
 
-    void setLines( QStringList lines )
+    // The Log File changed to lines; change says how.
+    void setLines( QStringList lines, LinesChange change = LinesChange::Any )
     {
         text.lines_ = std::move( lines );
         text.viewport_.largestDisplayLineNumber = text.lineCount().get();
-        if ( scrolling.dataChanged() ) {
+        if ( scrolling.dataChanged( change ) ) {
             setScrollBarValue( 0 );
         }
         updateScrollBars();
@@ -590,6 +591,33 @@ SCENARIO( "A text view at the bottom as its Log File changes", "[textviewscrolli
             view.setLines( grown );
             view.requireLogFileEndsOnLastRow();
         }
+
+        THEN( "follow keeps its new last Visual Line on the last row when told Log Lines were "
+              "only appended" )
+        {
+            view.apply( view.scrolling.followSet( true ) );
+            view.setLines( grown, LinesChange::Appended );
+            view.requireLogFileEndsOnLastRow();
+        }
+    }
+
+    GIVEN( "Log Lines appended, and the view told so" )
+    {
+        View view{ fewerVisualLinesThanRows() };
+        view.apply( view.scrolling.followSet( true ) );
+
+        THEN( "follow keeps the new last Visual Line on the last row, append after append" )
+        {
+            auto grown = fewerVisualLinesThanRows();
+            for ( int append = 0; append < 30; ++append ) {
+                grown << ( append % 5 == 0 ? tallLine() : QStringLiteral( "c" ) );
+                view.setLines( grown, LinesChange::Appended );
+                if ( view.scrolling.bottomScrollPosition() != ScrollPosition{} ) {
+                    view.requireLogFileEndsOnLastRow();
+                }
+                REQUIRE( view.scrollBarValue == view.scrollBarMaximum );
+            }
+        }
     }
 
     GIVEN( "a view standing past the Log Lines there are after a change" )
@@ -873,6 +901,16 @@ SCENARIO( "No scrolling step reads more than the Viewport and what it passes ove
             view.text.linesRead = 0;
             view.turnWheel( -Notch );
             REQUIRE( view.text.linesRead <= 3 );
+        }
+
+        THEN( "a Log Line appended, the view told so, reads only it and the Log Line before it" )
+        {
+            view.setLines( view.text.lines_ );
+            auto grown = view.text.lines_;
+            grown << QStringLiteral( "c" );
+            view.text.linesRead = 0;
+            view.setLines( grown, LinesChange::Appended );
+            REQUIRE( view.text.linesRead <= 2 );
         }
 
         THEN( "a page down reads the Log Lines it passes over together, not one by one" )

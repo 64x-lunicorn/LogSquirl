@@ -123,10 +123,43 @@ const LogFileBottom& TextViewScrolling::logFileBottom() const
         // Not geometry(): its drawing offset depends on the bottom.
         const ViewportLayout layout{ layoutInput() };
         const auto columns = layout.visibleColumns();
-        // Wrapped backwards from the end, no more lines than the rows.
+        // Wrapped backwards from the end, no more lines than the rows. After
+        // lines were only appended, the lines counted before but the last of
+        // them are not read again.
+        const auto read = batchedVisualLineCounter( columns, /* downwards */ false,
+                                                    layout.viewportRows().get() );
+        std::optional<BottomLines> before;
+        if ( linesOnlyAppended_ && bottomLines_.has_value() && bottomLines_->columns == columns
+             && textWrap_ && bottomLines_->end() <= LineNumber( key.totalLines.get() ) ) {
+            before = std::move( bottomLines_ );
+        }
+
+        // The lines appended and the last one before them, read together.
+        const auto readAppended
+            = before.has_value()
+                  ? batchedVisualLineCounter( columns, /* downwards */ false,
+                                              key.totalLines.get() - before->end().get() + 1 )
+                  : read;
+
+        BottomLines counted{ columns, LineNumber( key.totalLines.get() ), {} };
         logFileBottom_ = layout.logFileBottom(
-            key.totalLines, batchedVisualLineCounter( columns, /* downwards */ false,
-                                                      layout.viewportRows().get() ) );
+            key.totalLines, [ &read, &readAppended, &before, &counted ]( LineNumber line ) {
+                auto count = size_t{ 0 };
+                if ( !before.has_value() || line < before->first ) {
+                    count = read( line );
+                }
+                else if ( line + 1_lcount < before->end() ) {
+                    count = before->visualLineCounts[ line.get() - before->first.get() ];
+                }
+                else {
+                    count = readAppended( line );
+                }
+                // Walked backwards, one line after the other.
+                counted.first = line;
+                counted.visualLineCounts.insert( counted.visualLineCounts.begin(), count );
+                return count;
+            } );
+        bottomLines_ = std::move( counted );
     }
 
     return *logFileBottom_;
@@ -505,6 +538,8 @@ ScrollBarRanges TextViewScrolling::updateScrollBarRanges( LineLength maxLineLeng
     // No more lines than the Viewport has rows are read.
     logFileBottom_.reset();
     const auto bottom = logFileBottom();
+    // What was appended is counted now; a later change is not known to be one.
+    linesOnlyAppended_ = false;
     const ViewportLayout layout{ layoutInput() };
 
     ScrollBarRanges ranges;
@@ -549,8 +584,21 @@ double TextViewScrolling::scrollBarMultiplicator() const
 // Changes
 //
 
-bool TextViewScrolling::dataChanged()
+void TextViewScrolling::linesReread()
 {
+    bottomLines_.reset();
+    linesOnlyAppended_ = false;
+}
+
+bool TextViewScrolling::dataChanged( LinesChange change )
+{
+    if ( change == LinesChange::Appended ) {
+        linesOnlyAppended_ = true;
+    }
+    else {
+        linesReread();
+    }
+
     bool backToTop = false;
     if ( position_.lineNumber >= LineNumber( text_.lineCount().get() ) ) {
         position_ = ScrollPosition{};

@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 // How a text view scrolls: its Scroll Position, follow with its elastic hook,
 // the bottom of the Log File, keeping the reading position across a re-wrap
@@ -86,6 +87,15 @@ protected:
 // holds the follow toggle; that one hands the new state back through
 // TextViewScrolling::followSet().
 enum class FollowChange { None, Leave, Engage };
+
+// How the lines a text view shows changed.
+enum class LinesChange {
+    // In any way: lines may have been changed, inserted or removed anywhere.
+    Any,
+    // Lines were only added at the end. The lines there were before are as
+    // they were, but for the last of them, which may have grown longer.
+    Appended,
+};
 
 // What the view does after a step.
 struct ScrollAnswer {
@@ -274,10 +284,17 @@ public:
 
     // --- changes -------------------------------------------------------
 
-    // The lines the view shows changed. Returns whether the Scroll Position
-    // was past them and went back to the top: the view then moves both
-    // scrollbars to 0. Before the view updates its scrollbars.
-    bool dataChanged();
+    // The lines the view shows changed, as change says. Returns whether the
+    // Scroll Position was past them and went back to the top: the view then
+    // moves both scrollbars to 0. Before the view updates its scrollbars.
+    //
+    // Told that lines were only appended, the bottom of the Log File is found
+    // from the lines added and the Visual Lines counted for the old bottom,
+    // rather than by wrapping the end of the Log File again.
+    bool dataChanged( LinesChange change = LinesChange::Any );
+    // The text of the lines may have changed although their number did not,
+    // as under another Encoding: nothing counted for them is kept.
+    void linesReread();
     // The Viewport changed size, font or line numbers, which re-wraps it: the
     // Scroll Position keeps its line, and its Visual Line becomes the one
     // holding the character that was first on the top row. Returns whether the
@@ -359,4 +376,21 @@ private:
 
     mutable std::optional<LogFileBottom> logFileBottom_;
     mutable LogFileBottomKey logFileBottomKey_;
+
+    // The Visual Lines of the lines from the bottom Scroll Position's line to
+    // the end, as last counted, at the columns they were counted at.
+    struct BottomLines {
+        LineLength columns{ 0 };
+        LineNumber first{ 0 };
+        std::vector<std::size_t> visualLineCounts;
+
+        LineNumber end() const
+        {
+            return first + LinesCount( visualLineCounts.size() );
+        }
+    };
+    mutable std::optional<BottomLines> bottomLines_;
+    // Lines were only appended since bottomLines_ was counted, and the
+    // scrollbars were not updated since.
+    bool linesOnlyAppended_ = false;
 };
