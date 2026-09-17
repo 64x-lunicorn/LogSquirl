@@ -42,7 +42,8 @@
 // appends Log Lines between runs.
 //
 // Beyond serving Log Lines, a test can make it fail every block read from
-// then on (failReading), hold the Search's next block read until released
+// then on (failReading), or every one from the n-th read on
+// (failReadingFromBlock), hold the Search's next block read until released
 // (holdReading / waitUntilReadingHeld / releaseReading), and see which blocks
 // were read (readBlocks) and whether every run's reader was detached again
 // (attachedReaders).
@@ -72,6 +73,14 @@ public:
     void failReading( std::string message )
     {
         std::lock_guard lock( mutex_ );
+        failure_ = std::move( message );
+    }
+
+    // The reads before, counted from 0 across every run, still succeed.
+    void failReadingFromBlock( std::size_t blockIndex, std::string message )
+    {
+        std::lock_guard lock( mutex_ );
+        failFromBlock_ = blockIndex;
         failure_ = std::move( message );
     }
 
@@ -127,7 +136,7 @@ public:
 
         readBlocks_.push_back( { first, number } );
 
-        if ( !failure_.empty() ) {
+        if ( !failure_.empty() && readBlocks_.size() > failFromBlock_ ) {
             throw std::runtime_error( failure_ );
         }
 
@@ -166,6 +175,7 @@ private:
 
     std::vector<std::string> lines_;
     std::string failure_;
+    std::size_t failFromBlock_ = 0;
     bool held_ = false;
     mutable bool readerHeld_ = false;
     mutable std::vector<Block> readBlocks_;

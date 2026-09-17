@@ -41,7 +41,10 @@
 #include <cmath>
 #include <cstddef>
 #include <exception>
+#include <memory>
+#include <mutex>
 #include <qsemaphore.h>
+#include <unordered_map>
 #include <utility>
 
 #include <robin_hood.h>
@@ -94,6 +97,47 @@ struct SearchBlockData {
     RawLines lines;
 
     PartialSearchResults searchResults;
+};
+
+// The blocks a Search has read and not yet combined. They are owned here, not
+// by the pointers passed through the search graph: a failure -- a block that
+// cannot be read, say -- cancels the graph, and the blocks it holds then never
+// reach the node that combines them. Whatever is left when the Search ends is
+// released with this. One lock per block, none per Log Line.
+class ReadBlocks {
+public:
+    ReadBlocks() = default;
+    ReadBlocks( const ReadBlocks& ) = delete;
+    ReadBlocks( ReadBlocks&& ) = delete;
+    ReadBlocks& operator=( const ReadBlocks& ) = delete;
+    ReadBlocks& operator=( ReadBlocks&& ) = delete;
+    ~ReadBlocks() = default;
+
+    SearchBlockData* add( std::unique_ptr<SearchBlockData> block )
+    {
+        auto* added = block.get();
+        std::lock_guard lock( mutex_ );
+        blocks_.emplace( added, std::move( block ) );
+        return added;
+    }
+
+    // The block was combined: its Log Lines are let go of at once.
+    void release( SearchBlockData* block )
+    {
+        std::unique_ptr<SearchBlockData> released;
+        {
+            std::lock_guard lock( mutex_ );
+            const auto found = blocks_.find( block );
+            if ( found != blocks_.end() ) {
+                released = std::move( found->second );
+                blocks_.erase( found );
+            }
+        }
+    }
+
+private:
+    std::mutex mutex_;
+    std::unordered_map<SearchBlockData*, std::unique_ptr<SearchBlockData>> blocks_;
 };
 
 PartialSearchResults filterLines( const PatternMatcher& matcher, const RawLines& rawLines,
@@ -347,6 +391,9 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
     LOG_INFO << "Using " << matchingThreadsCount << " matching threads";
 
+    // Declared before the graph, so that it outlives the graph and every node.
+    ReadBlocks readBlocks;
+
     // The graph pulls its blocks from an input_node while this thread waits in
     // wait_for_all(), which makes this thread one of those running the graph.
     // Pushing blocks in from here instead, sleeping whenever the limiter was
@@ -431,9 +478,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
             searchGraph, 1, [ & ]( const BlockDataType& blockData ) {
                 if ( isSuperseded() ) {
                     LOG_INFO << "Match processor interrupted";
-                    // The processor owns the block once it reaches this node; release the
-                    // heap-allocated SearchBlockData even on the interrupt path to avoid leaks.
-                    delete blockData;
+                    // Released on the interrupt path too, not only when the Search ends.
+                    readBlocks.release( blockData );
                     return tbb::flow::continue_msg{};
                 }
 
@@ -462,7 +508,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
                               << ", " << matchResults.processedLines << " lines read.";
                 }
 
-                delete blockData;
+                readBlocks.release( blockData );
 
                 const auto matchProcessorEndTime = high_resolution_clock::now();
                 matchCombiningDuration += duration_cast<microseconds>( matchProcessorEndTime
@@ -507,9 +553,8 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
             const auto linesInChunk
                 = LinesCount( qMin( nbLinesInChunk.get(), ( endLine - chunkStart ).get() ) );
-            BlockDataType blockData
-                = new SearchBlockData{ chunkStart,
-                                       blockSource_.getLinesRaw( chunkStart, linesInChunk ) };
+            BlockDataType blockData = readBlocks.add( std::make_unique<SearchBlockData>(
+                chunkStart, blockSource_.getLinesRaw( chunkStart, linesInChunk ) ) );
 
             bytesRead += blockData->lines.buffer.size();
             chunkStart = chunkStart + nbLinesInChunk;

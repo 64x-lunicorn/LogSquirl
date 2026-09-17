@@ -371,4 +371,33 @@ SCENARIO( "A Search whose block cannot be read fails", "[searchsession]" )
             }
         }
     }
+
+    GIVEN( "a block source that fails to read once blocks were handed to the Search" )
+    {
+        // One matcher, so that the blocks read ahead wait in the Search while
+        // the read after them fails; none of them may be leaked (the ASan
+        // build detects leaks).
+        auto search = policies.search;
+        search.useParallelSearch = false;
+        search.readBufferSizeLines = 1000;
+        InMemoryBlockSource largeSource( numberedLines( 20000 ) );
+        SearchSession failingSession( largeSource, search );
+        largeSource.failReadingFromBlock( 4, "the Log File could not be read any further" );
+
+        WHEN( "a pattern is requested" )
+        {
+            failingSession.request( RegularExpressionPattern( "fizz" ) );
+            REQUIRE( waitUntilSettled( failingSession ) );
+
+            THEN( "the Session is Failed after reading the blocks before, and keeps no results" )
+            {
+                const auto state = failingSession.state();
+                REQUIRE( state.phase == Phase::Failed );
+                REQUIRE( state.errorString.contains( "could not be read any further" ) );
+                REQUIRE( largeSource.readBlocks().size() >= 5 );
+                REQUIRE( failingSession.matches().cardinality() == 0 );
+                REQUIRE( largeSource.attachedReaders() == 0 );
+            }
+        }
+    }
 }
