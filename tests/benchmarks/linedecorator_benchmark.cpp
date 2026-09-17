@@ -126,6 +126,63 @@ TEST_CASE( "decoration path benchmarks", "[decoration-benchmark]" )
         } );
     };
 
+    // Issue #293: word-only Highlighters with capture groups, as a user
+    // picking fields out of a line writes them. Every captured match is
+    // colored; color variation is off, so the captured text is never needed.
+    BENCHMARK_ADVANCED( "word-only highlighters with capture groups" )(
+        Catch::Benchmark::Chronometer meter )
+    {
+        auto set = setWithHighlighters( 20 );
+        for ( const auto* pattern : { "user=(\\w+)", "id=(\\d+)", "(\\d+)ms" } ) {
+            set.addHighlighter(
+                Highlighter{ pattern, false, true, QColor{ Qt::black }, QColor{ Qt::yellow } } );
+        }
+        const LineDecorator decorator{ contextWith( std::move( set ) ) };
+        const QString text = repeatedWord( "user=alice id=4711 took 12ms,", 40 );
+        const LogLine line{ 0_lnum, text };
+        // Every field of every repetition is a captured match.
+        REQUIRE( decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain )
+                     .highlighterSpans()
+                     .size()
+                 == 3 * 40 );
+
+        meter.measure( [ & ] {
+            const auto verdict
+                = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
+            return decorator.decorate( line.text(), verdict );
+        } );
+    };
+
+    // Issue #293: one repaint of the Text View -- a screen of different Log
+    // Lines through one Line Decorator, as AbstractLogView::drawTextArea
+    // decorates them. What is set up once per line rather than once per
+    // screen shows here.
+    BENCHMARK_ADVANCED( "a screen of different lines" )( Catch::Benchmark::Chronometer meter )
+    {
+        const LineDecorator decorator{ contextWith( setWithHighlighters( 20 ) ) };
+        logsquirl::vector<LogLine> screen;
+        for ( int i = 0; i < 60; ++i ) {
+            screen.emplace_back(
+                LineNumber{ static_cast<LineNumber::UnderlyingType>( i ) },
+                QStringLiteral( "2026-09-09 12:00:%1 %2 worker-%3 handled request %4 in %5ms" )
+                    .arg( i % 60, 2, 10, QChar{ '0' } )
+                    .arg( i % 10 == 0 ? "ERROR" : "INFO" )
+                    .arg( i % 7 )
+                    .arg( 1000 + i * 37 )
+                    .arg( i * 3 ) );
+        }
+
+        meter.measure( [ & ] {
+            std::size_t spans = 0;
+            for ( const auto& line : screen ) {
+                const auto verdict
+                    = decorator.verdictFor( line, AbstractLogData::LineTypeFlags::Plain );
+                spans += decorator.decorate( line.text(), verdict ).spans().size();
+            }
+            return spans;
+        } );
+    };
+
     BENCHMARK_ADVANCED( "many matches on one line" )( Catch::Benchmark::Chronometer meter )
     {
         Highlighter mainSearch{ "wor", false, true, QColor{ Qt::black }, QColor{ Qt::yellow } };
