@@ -111,8 +111,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      # Depth 2: a pull request's merge commit and its base, for the release
+      # preparation check (#314).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
 
       # A tag can be moved to other code, a commit SHA cannot (#202).
@@ -148,6 +151,16 @@ jobs:
       # a pull request cannot break it (#310).
       - name: Check the update feed
         run: .github/scripts/release-feed.py check
+
+      # A pull request that changes the project version prepares a release:
+      # the top CHANGELOG section, the feed's changelog entry and a website
+      # release page must name it, or tagging after the merge fails (#314).
+      - name: Check a release preparation is complete
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git show HEAD^1:CMakeLists.txt > "$RUNNER_TEMP/base-CMakeLists.txt"
+          .github/scripts/release-prep.py release-preparation --base-cmakelists "$RUNNER_TEMP/base-CMakeLists.txt"
 
       # Every `# renovate:` version with a SHA-256 below it needs a download
       # URL rule in the script, or a Renovate bump would leave the hash stale

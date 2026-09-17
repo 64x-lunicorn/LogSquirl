@@ -332,6 +332,11 @@ running it on master without that publishes any hash tag still missing.
 
 ### Release Process
 
+A release is prepared in one pull request that sets the version in `CMakeLists.txt`, turns `# Unreleased` in
+`CHANGELOG.md` into the release's section, adds the release's `changelog` entry to `latest.json` and its page on
+the website (*Release pages on the website*). CI Build's Format job checks a pull request that changes the version
+for all of these (`.github/scripts/release-prep.py release-preparation`) and names every missing piece.
+
 Releases are triggered by pushing a git tag to a master commit whose CI Build
 push run succeeded, whose `CMakeLists.txt` declares the tag's version and whose
 `CHANGELOG.md` has the tag's section (see *Version Numbering*):
