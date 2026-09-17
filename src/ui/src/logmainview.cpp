@@ -67,8 +67,6 @@ void LogMainView::useNewFiltering( LogFilteredData* filteredData )
 
     if ( getOverview() != nullptr )
         getOverview()->setFilteredData( filteredData_ );
-
-    forceRefresh();
 }
 
 QString LogMainView::selectedText() const
@@ -94,13 +92,12 @@ void LogMainView::showLogLinePortion( LineNumber line, LinesCount nLines, LineCo
 
 void LogMainView::updateDecorations()
 {
-    forceRefresh();
+    AbstractLogView::updateDecorations();
 }
 
 void LogMainView::rereadLogLines()
 {
-    // Invalidates the Viewport's content, which is what holds the text.
-    forceRefresh();
+    AbstractLogView::rereadLogLines();
 }
 
 void LogMainView::updateFont( const QFont& font )
