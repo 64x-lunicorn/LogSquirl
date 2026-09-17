@@ -382,6 +382,7 @@ The release workflow does not build. It:
    cosign (the `.sigstore.json` bundle is uploaded as an asset but is not listed in
    the checksum file), then publishes the draft. A failure in between leaves a draft.
 7. Updates `latest.json` with the new version (beta or stable field)
+8. Dispatches **Deploy Website**, so the release's page goes live (see *Release pages on the website*)
 
 `latest.json` on master is the update feed LogSquirl reads at start-up
 (`src/versioncheck`). Its fields:
@@ -399,6 +400,24 @@ A release is offered when its build is newer than the running one; betas and
 the stable release of a version share `YY.MM.PATCH` and differ only in the
 build. Without a `*_build` field only a newer `YY.MM.PATCH` is offered. A
 re-run of an older release leaves a feed that announces a newer build unchanged.
+
+#### Release pages on the website
+
+A release's page is `website/src/content/docs/news/release-YY-MM.md`, and its frontmatter is the only place
+the website writes the release's version:
+
+```yaml
+release:
+  version: 26.10.0-beta1   # the tag without its "v"
+  date: 2026-09-17
+  channel: beta            # stable, beta or legacy
+```
+
+The sidebar, the release overview and the home page's latest release cards are generated from these pages
+(`website/src/releases.mjs`); a missing or malformed field fails the website build. The page is merged with
+the release preparation, but **Deploy Website** leaves out every page whose release has no published GitHub
+release yet, so it goes live when CI Release dispatches the deploy after publishing. `npm run dev` and the
+pull request build show every page.
 
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or

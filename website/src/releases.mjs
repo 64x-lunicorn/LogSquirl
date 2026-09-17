@@ -80,3 +80,16 @@ export function currentReleases(releases) {
   const beta = releases.find((release) => release.channel === 'beta') ?? null;
   return { stable, beta: beta && (!stable || beta.date > stable.date) ? beta : null };
 }
+
+// The release pages the deployed website leaves out (#315): a LogSquirl
+// release whose tag has no published GitHub release yet. Its preparation is
+// merged before CI Build has run and the tag is pushed, and the page would
+// otherwise link to a release that does not exist. Legacy (klogg) releases
+// were published elsewhere and always stay.
+export function unpublishedReleases(releases, publishedTags) {
+  if (publishedTags.length === 0) {
+    throw new Error('no published releases given: refusing to leave out every release page');
+  }
+  const published = new Set(publishedTags);
+  return releases.filter((release) => release.channel !== 'legacy' && !published.has(`v${release.version}`));
+}
