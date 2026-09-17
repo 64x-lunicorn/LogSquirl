@@ -356,8 +356,7 @@ void ChartExtraction::setLogData( std::shared_ptr<const AbstractLogData> logData
 {
     cancelRunning();
     logData_ = std::move( logData );
-    points_.clear();
-    linesExtracted_ = 0_lcount;
+    clearPoints();
     extractFromStart_ = true;
 }
 
@@ -373,12 +372,17 @@ void ChartExtraction::setSeries( const QVector<ChartSeriesDefinition>& series )
     for ( auto& s : series_ ) {
         s.points.clear();
     }
+    clearPoints();
+    extractFromStart_ = true;
+}
+
+void ChartExtraction::clearPoints()
+{
     points_.clear();
     for ( const auto& s : series_ ) {
         points_.emplace_back( s.isBucketed() ? s.bucketSizeMs : 0 );
     }
     linesExtracted_ = 0_lcount;
-    extractFromStart_ = true;
 }
 
 void ChartExtraction::restart()
@@ -492,10 +496,7 @@ void ChartExtraction::onFinished( const std::shared_ptr<Job>& job )
     const auto result = job->future.result();
     if ( result ) {
         if ( job->fromStart ) {
-            for ( qsizetype i = 0; i < series_.size(); ++i ) {
-                points_[ static_cast<size_t>( i ) ] = ChartSeriesPoints(
-                    series_[ i ].isBucketed() ? series_[ i ].bucketSizeMs : 0 );
-            }
+            clearPoints();
         }
         for ( qsizetype i = 0; i < series_.size() && i < result->size(); ++i ) {
             points_[ static_cast<size_t>( i ) ].merge( job->first, ( *result )[ i ] );

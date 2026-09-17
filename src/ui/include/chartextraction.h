@@ -137,6 +137,8 @@ private:
 
     void startExtraction();
     void cancelRunning();
+    // Drops every point, keeping one empty set of points per series.
+    void clearPoints();
     void onFinished( const std::shared_ptr<Job>& job );
 
     std::shared_ptr<const AbstractLogData> logData_;

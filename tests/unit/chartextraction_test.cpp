@@ -461,3 +461,24 @@ SCENARIO( "Cancelling a chart extraction does not wait for it", "[chartextractio
         }
     }
 }
+
+SCENARIO( "A chart's series may be set before its Log File", "[chartextraction]" )
+{
+    GIVEN( "Series set before the log data" )
+    {
+        ChartExtraction extraction;
+        extraction.setUpdateDelay( 0ms );
+        extraction.setSeries( { numericSeries() } );
+        extraction.setLogData(
+            std::make_shared<GrowingLogData>( QStringList{ logLine( 0, "INFO", 10 ) } ) );
+
+        THEN( "The series has no points until extracted, then those of the Log File" )
+        {
+            REQUIRE( extraction.points( 0 ).isEmpty() );
+            extraction.update();
+            REQUIRE( waitForExtraction( extraction ) );
+            REQUIRE( extraction.points( 0 ).size() == 1 );
+            REQUIRE( extraction.points( 0 ).first().value == 10.0 );
+        }
+    }
+}
