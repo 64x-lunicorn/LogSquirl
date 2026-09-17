@@ -24,6 +24,7 @@
 #include "synchronization.h"
 
 #include <QByteArray>
+#include <cstddef>
 #include <memory>
 
 class QTextCodec;
@@ -74,6 +75,7 @@ public:
     EncodingDetector& operator=( const EncodingDetector&& ) = delete;
 
     QTextCodec* detectEncoding( const logsquirl::vector<char>& block ) const;
+    QTextCodec* detectEncoding( const char* bytes, std::size_t size ) const;
 
 private:
     EncodingDetector() = default;
