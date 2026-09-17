@@ -139,6 +139,8 @@ struct ViewportLayoutInput {
     // Vertical offset (pixels) at which the first Visual Line is drawn. Negative when
     // the view is pulled up (last line aligned, or pull to follow).
     int drawingTopOffsetPx = 0;
+
+    bool operator==( const ViewportLayoutInput& ) const = default;
 };
 
 // The bottom of a Log File in the Viewport: where the view stands when the last

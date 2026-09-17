@@ -22,6 +22,9 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontInfo>
+#include <QFontMetrics>
+#include <QFontMetricsF>
+#include <QStringList>
 #include <optional>
 
 #include "fontutils.h"
@@ -195,5 +198,74 @@ TEST_CASE( "FontUtils::zoomedFontSize steps to the next offered size", "[fontuti
     {
         REQUIRE( FontUtils::zoomedFontSize( {}, 10, true ) == 10 );
         REQUIRE( FontUtils::zoomedFontSize( {}, 10, false ) == 10 );
+    }
+}
+
+TEST_CASE( "FontUtils::uniformAsciiAdvance is the one advance of a fixed-pitch font",
+           "[fontutils]" )
+{
+    const auto family = findStableFixedPitchFamily();
+    if ( !family.has_value() ) {
+        SUCCEED( "No stable fixed-pitch font installed on this system to test with" );
+        return;
+    }
+
+    for ( const auto pointSize : { 9, 10, 11, 13 } ) {
+        const QFontMetrics fm( QFont( *family, pointSize ) );
+        const auto advance = FontUtils::uniformAsciiAdvance( fm );
+        INFO( family->toStdString() << " " << pointSize << "pt" );
+        REQUIRE( advance.has_value() );
+
+        REQUIRE( *advance == QFontMetricsF( fm ).horizontalAdvance( QChar( 'x' ) ) );
+        const QString line
+            = QStringLiteral( "2026-09-17 12:00:00.123 INFO [main] a.b.C - x={y}; z" );
+        REQUIRE( FontUtils::textWidth( fm, advance, line ) == fm.horizontalAdvance( line ) );
+    }
+}
+
+TEST_CASE( "FontUtils::uniformAsciiAdvance is nothing for a proportional font", "[fontutils]" )
+{
+    const auto family = findFamily( false );
+    if ( !family.has_value() ) {
+        SUCCEED( "No proportional font installed on this system to test with" );
+        return;
+    }
+    const QFont font( *family, 10 );
+    const QFontMetrics fm( font );
+    if ( fm.horizontalAdvance( QStringLiteral( "i" ) )
+         == fm.horizontalAdvance( QStringLiteral( "W" ) ) ) {
+        SUCCEED( "The proportional family resolved to a font with even advances" );
+        return;
+    }
+
+    REQUIRE_FALSE( FontUtils::uniformAsciiAdvance( fm ).has_value() );
+}
+
+TEST_CASE( "FontUtils::textWidth measures what the font measures", "[fontutils]" )
+{
+    QStringList families;
+    if ( const auto fixed = findStableFixedPitchFamily() ) {
+        families << *fixed;
+    }
+    if ( const auto proportional = findFamily( false ) ) {
+        families << *proportional;
+    }
+
+    const QStringList texts = {
+        QString{},
+        QStringLiteral( "plain ASCII log text 0123456789 !\"#$%&'()*+,-./:;<=>?@[]^_`{|}~" ),
+        QString::fromUtf8( "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E wide" ),
+        QString::fromUtf8( "caf\x65\xCC\x81 combining" ),
+        QString::fromUtf8( "emoji \xF0\x9F\x98\x80 here" ),
+        QStringLiteral( "control \x1b[0m" ),
+    };
+
+    for ( const auto& family : families ) {
+        const QFontMetrics fm( QFont( family, 10 ) );
+        const auto advance = FontUtils::uniformAsciiAdvance( fm );
+        for ( const auto& text : texts ) {
+            INFO( family.toStdString() << ": " << text.toStdString() );
+            REQUIRE( FontUtils::textWidth( fm, advance, text ) == fm.horizontalAdvance( text ) );
+        }
     }
 }

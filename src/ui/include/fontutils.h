@@ -29,11 +29,68 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontInfo>
+#include <QFontMetrics>
+#include <QFontMetricsF>
+#include <QString>
+#include <QStringView>
+#include <cmath>
+#include <optional>
 #include <qfontdatabase.h>
 #include <vector>
 
 class FontUtils {
 public:
+    // The advance every printable ASCII character has in this font, when they
+    // all have the same one, as in a fixed-pitch font; nothing otherwise. It
+    // can be fractional: Qt adds advances up in 1/64 pixels and rounds the
+    // sum to whole pixels only for the whole text.
+    static std::optional<qreal> uniformAsciiAdvance( const QFontMetrics& fm )
+    {
+        const QFontMetricsF fmF( fm );
+        const auto advance = fmF.horizontalAdvance( QChar( 'm' ) );
+        if ( advance <= 0 ) {
+            return std::nullopt;
+        }
+
+        QString printable;
+        printable.reserve( LastPrintableAscii - FirstPrintableAscii + 1 );
+        for ( char16_t c = FirstPrintableAscii; c <= LastPrintableAscii; ++c ) {
+            if ( fmF.horizontalAdvance( QChar( c ) ) != advance ) {
+                return std::nullopt;
+            }
+            printable.append( QChar( c ) );
+        }
+
+        // Counting must give what the font measures, rounding included, for
+        // short and long text alike.
+        const auto longText = printable.repeated( 11 );
+        for ( const auto& text :
+              { QStringView( printable ).first( 1 ), QStringView( printable ).first( 7 ),
+                QStringView( printable ), QStringView( longText ) } ) {
+            if ( countedWidth( advance, text.size() )
+                 != fm.horizontalAdvance( QString::fromRawData( text.data(), text.size() ) ) ) {
+                return std::nullopt;
+            }
+        }
+        return advance;
+    }
+
+    // The width the font gives the text. With the font's uniform ASCII
+    // advance, text of printable ASCII only is measured by counting, which
+    // is much cheaper than shaping it; anything else -- wide or combining
+    // characters, control characters -- is measured by the font.
+    static int textWidth( const QFontMetrics& fm, std::optional<qreal> asciiAdvance,
+                          QStringView text )
+    {
+        if ( text.isEmpty() ) {
+            return 0;
+        }
+        if ( asciiAdvance.has_value() && isPrintableAscii( text ) ) {
+            return countedWidth( *asciiAdvance, text.size() );
+        }
+        return fm.horizontalAdvance( QString::fromRawData( text.data(), text.size() ) );
+    }
+
     // Whether a family name still names a fixed-pitch font *after* Qt has
     // resolved it. A name can claim fixed-pitch in QFontDatabase, or be a
     // generic alias, and resolve to something proportional once requested --
@@ -163,6 +220,24 @@ public:
 
         const auto notSmaller = std::lower_bound( sizes.cbegin(), sizes.cend(), currentSize );
         return notSmaller != sizes.cbegin() ? *std::prev( notSmaller ) : currentSize;
+    }
+
+private:
+    static constexpr char16_t FirstPrintableAscii = u' ';
+    static constexpr char16_t LastPrintableAscii = u'~';
+
+    // The whole pixels count characters of the advance come to, rounded
+    // half up like the font's own measure.
+    static int countedWidth( qreal advance, qsizetype count )
+    {
+        return static_cast<int>( std::floor( advance * static_cast<qreal>( count ) + 0.5 ) );
+    }
+
+    static bool isPrintableAscii( QStringView text )
+    {
+        return std::all_of( text.begin(), text.end(), []( QChar c ) {
+            return c.unicode() >= FirstPrintableAscii && c.unicode() <= LastPrintableAscii;
+        } );
     }
 };
 

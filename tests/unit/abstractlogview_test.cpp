@@ -196,6 +196,22 @@ SCENARIO( "A text view says where a Log Line sits in its Viewport", "[abstractlo
             layout.filePositionAtPoint( 0, TopRowY );
             REQUIRE( view.scrollPosition() == before );
         }
+
+        THEN( "asked again once the view has moved, its Viewport layout shows the move" )
+        {
+            const auto onTopRowBefore = view.viewportLayout().visualLineAtPoint( TopRowY );
+            REQUIRE( onTopRowBefore.has_value() );
+            REQUIRE( view.viewportLayout().visualLines()[ *onTopRowBefore ].wrappedLineIndex
+                     == 150 );
+
+            moveTo( view, ScrollPosition{ TallLine, 160 } );
+
+            const auto& layout = view.viewportLayout();
+            REQUIRE( layout.input().scrollPosition == ScrollPosition{ TallLine, 160 } );
+            const auto onTopRow = layout.visualLineAtPoint( TopRowY );
+            REQUIRE( onTopRow.has_value() );
+            REQUIRE( layout.visualLines()[ *onTopRow ].wrappedLineIndex == 160 );
+        }
     }
 }
 

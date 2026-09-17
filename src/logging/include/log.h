@@ -24,7 +24,9 @@
 #include <QMessageLogContext>
 #include <QString>
 
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -42,7 +44,38 @@
 #define LOG_ERROR LOG_IF_( QtCriticalMsg ) qCritical().nospace()
 
 namespace logging {
-bool needLogging( QtMsgType type );
+namespace detail {
+// Written by the Logger when logging is (re)configured, read on every
+// LOG_* statement. Kept here so needLogging() inlines into the macro
+// instead of costing a call into the logging library per statement.
+inline std::atomic_bool isAnyLogEnabled = false;
+inline std::atomic<uint8_t> maxLogLevel = 0;
+
+// Numeric values match logging::LogLevel (logger.h).
+constexpr uint8_t logLevelOf( QtMsgType type ) noexcept
+{
+    switch ( type ) {
+    case QtFatalMsg:
+        return 1;
+    case QtCriticalMsg:
+        return 2;
+    case QtWarningMsg:
+        return 3;
+    case QtInfoMsg:
+        return 4;
+    case QtDebugMsg:
+        return 5;
+    default:
+        return 4;
+    }
+}
+} // namespace detail
+
+inline bool needLogging( QtMsgType type ) noexcept
+{
+    return detail::isAnyLogEnabled.load( std::memory_order_relaxed )
+           && detail::logLevelOf( type ) <= detail::maxLogLevel.load( std::memory_order_relaxed );
+}
 } // namespace logging
 
 template <typename T>

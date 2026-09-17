@@ -209,10 +209,12 @@ public:
     // Built from the Log File and never from a paint, it answers before the
     // first paint has happened.
     //
-    // Returns the layout by value. It is a pure value that reads its inputs and
-    // returns answers, so a caller holding one cannot move the view; it is a
-    // snapshot, so ask again once the view has moved or its Log File changed.
-    ViewportLayout viewportLayout() const;
+    // The layout is a pure value that reads its inputs and returns answers, so
+    // a caller holding one cannot move the view. The reference is to the
+    // view's own copy, rebuilt only when the view has moved or its Log File
+    // changed: it stays valid until the next call, so ask again rather than
+    // hold it, or copy it to keep a snapshot.
+    const ViewportLayout& viewportLayout() const;
 
     // Which Log Line each position of this view shows. Replacing it repaints
     // the view; the selection, being Log Lines, stays where it is.
@@ -545,6 +547,11 @@ private:
 
     mutable std::optional<ViewportContent> viewportContent_;
     mutable ViewportContentKey viewportContentKey_;
+    // Counts the builds of viewportContent_, so viewportLayout_ knows when
+    // the Visual Lines it holds are stale.
+    mutable uint64_t viewportContentBuilds_ = 0;
+    mutable std::optional<ViewportLayout> viewportLayout_;
+    mutable uint64_t viewportLayoutContentBuild_ = 0;
     // Bumped whenever the Log File content behind the viewport may have
     // changed, so the cached content is rebuilt.
     uint64_t viewportGeneration_ = 0;

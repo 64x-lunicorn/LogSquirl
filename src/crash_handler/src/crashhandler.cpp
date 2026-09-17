@@ -233,7 +233,11 @@ CrashHandler::CrashHandler()
     sentry_options_t* sentryOptions = sentry_options_new();
 
     sentry_options_set_logger( sentryOptions, logSentry, nullptr );
+#ifndef NDEBUG
+    // Sentry's own debug output only in debug builds: in a release it adds
+    // log work at startup and on every report for no one to read.
     sentry_options_set_debug( sentryOptions, 1 );
+#endif
 
 #ifdef Q_OS_WIN
     const auto handlerPath

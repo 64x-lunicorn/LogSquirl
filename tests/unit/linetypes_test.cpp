@@ -438,6 +438,47 @@ SCENARIO( "untabify expands tabs to spaces correctly", "[linetypes][untabify]" )
     }
 }
 
+SCENARIO( "untabify writes every column of the expanded line", "[linetypes][untabify]" )
+{
+    GIVEN( "A line with tabs and null characters" )
+    {
+        QString input = "a\tb";
+        input.append( QChar::Null );
+        input.append( "\tc" );
+
+        THEN( "Tabs expand and nulls become spaces" )
+        {
+            auto result = untabify( std::move( input ) );
+            REQUIRE( result == "a       b       c" );
+        }
+    }
+
+    GIVEN( "Text and tabs after an initialPosition offset" )
+    {
+        THEN( "Every character lands on its column" )
+        {
+            // 'a' at 5, 'b' at 6, tab at 7 -> 1 space, 'c' at 8, tab at 9 -> 7 spaces
+            auto result = untabify( QString( "ab\tc\t" ), LineColumn( 5 ) );
+            REQUIRE( result == "ab c       " );
+        }
+    }
+
+    GIVEN( "A line cut at MaxExpandedLineLength in the middle of a tab" )
+    {
+        QString input( MaxExpandedLineLength - 3, QChar( 'x' ) );
+        input.append( "\tyz" );
+
+        THEN( "The line ends with the spaces that still fit" )
+        {
+            // Starting at column 4 the tab sits at a column 1 past a tab stop:
+            // it wants 7 spaces, only 3 fit.
+            auto result = untabify( std::move( input ), LineColumn( 4 ) );
+            REQUIRE( result.size() == MaxExpandedLineLength );
+            REQUIRE( result.right( 4 ) == "x   " );
+        }
+    }
+}
+
 SCENARIO( "untabify handles very long lines with many tabs efficiently", "[linetypes][untabify]" )
 {
     GIVEN( "A line with 10000 tabs" )
