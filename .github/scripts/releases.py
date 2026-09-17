@@ -35,15 +35,27 @@ def release_notes(changelog: str, *, tag: str) -> str:
     """
     parse_tag(tag)
     heading = re.compile(rf"# v?{re.escape(tag[1:])}(?=[\s:(]|$).*")
-    lines = changelog.splitlines()
-    start = next((i for i, line in enumerate(lines) if heading.fullmatch(line)), None)
-    if start is None:
-        raise ReleaseError(f"CHANGELOG.md has no section for {tag}: add a heading "
-                           f"'# {tag} (YYYY-MM-DD)' before tagging.")
-    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("# ")), len(lines))
-    section = lines[start + 1:end]
-    while section and section[-1].strip() in ("", "---"):
-        section.pop()
-    while section and not section[0].strip():
-        section.pop(0)
-    return "\n".join(section) + "\n"
+    for line, body in sections(changelog):
+        if heading.fullmatch(line):
+            return body + "\n"
+    raise ReleaseError(f"CHANGELOG.md has no section for {tag}: add a heading "
+                       f"'# {tag} (YYYY-MM-DD)' before tagging.")
+
+
+def sections(changelog: str) -> list[tuple[str, str]]:
+    """The level-one sections of a CHANGELOG as (heading line, body), in order;
+    a body keeps its lines without the `---` separator before the next heading."""
+    found: list[tuple[str, list[str]]] = []
+    for line in changelog.splitlines():
+        if line.startswith("# "):
+            found.append((line, []))
+        elif found:
+            found[-1][1].append(line)
+    result = []
+    for heading, body in found:
+        while body and body[-1].strip() in ("", "---"):
+            body.pop()
+        while body and not body[0].strip():
+            body.pop(0)
+        result.append((heading, "\n".join(body)))
+    return result
