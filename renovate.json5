@@ -36,7 +36,7 @@
     {
       // `# renovate: datasource=... depName=...` directly above a version
       // line (YAML `NAME: v`, shell `NAME=v` / `NAME="v"`, Dockerfile
-      // `ENV NAME=v`). The SHA-256 lines below it are refreshed by
+      // `ENV NAME=v`, CMake `set(NAME v)`). The SHA-256 lines below it are refreshed by
       // .github/scripts/update-checksums.py, which reads the same files.
       customType: "regex",
       description: "Pinned tool versions under a # renovate: comment",
@@ -46,9 +46,12 @@
         "/^docker/[^/]+/Dockerfile$/",
         "/^docker/shared/[^/]+\\.sh$/",
         "/^packaging/.+\\.sh$/",
+        "/^cmake/[^/]+\\.cmake$/",
       ],
       matchStrings: [
         "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*(?:ENV\\s+)?[A-Za-z_][A-Za-z0-9_]*\\s*(?::\\s*|=)[\"']?(?<currentValue>[^\"'\\s]+)[\"']?",
+        // CMake `set(NAME v)` / `set(NAME "v")` (cmake/MinidumpStackwalk.cmake, #318).
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+versioning=(?<versioning>\\S+))?(?:\\s+extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*set\\(\\s*[A-Za-z_][A-Za-z0-9_]*\\s+\"?(?<currentValue>[^\"\\s)]+)\"?\\s*\\)",
       ],
     },
     {

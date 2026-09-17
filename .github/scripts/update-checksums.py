@@ -6,7 +6,8 @@ cannot download the new artifact and hash it. Every such pin in this
 repository is written as a block the script can read:
 
     # renovate: datasource=... depName=<dep> [...]
-    <NAME>_VERSION: <version>          (YAML, NAME=..., NAME="...", ENV NAME=...)
+    <NAME>_VERSION: <version>          (YAML, NAME=..., NAME="...", ENV NAME=...,
+                                        CMake set(NAME ...) / set(NAME "..."))
     <NAME>_SHA256[_<SUFFIX>]: <hash>   (one or more lines, directly below)
 
 URLS below maps each depName and hash variable to the download URL the file
@@ -47,9 +48,11 @@ SCAN_GLOBS = (
     "docker/*/Dockerfile",
     "docker/shared/*.sh",
     "packaging/**/*.sh",
+    "cmake/*.cmake",
 )
 
 _GH = "https://github.com"
+_MINIDUMP = _GH + "/rust-minidump/rust-minidump/releases/download/v{version}/minidump-stackwalk-"
 _NINJA = _GH + "/ninja-build/ninja/releases/download/v{version}"
 # depName -> hash variable -> download URL, mirroring the URL the file itself
 # downloads. {version} is the pinned version as written; {version_underscore}
@@ -79,6 +82,12 @@ URLS: dict[str, dict[str, str]] = {
     "getsentry/sentry-cli": {
         "SENTRY_CLI_SHA256": _GH + "/getsentry/sentry-cli/releases/download/{version}/sentry-cli-Linux-x86_64",
     },
+    "rust-minidump/rust-minidump": {
+        "MINIDUMP_STACKWALK_SHA256_MACOS_ARM64": _MINIDUMP + "aarch64-apple-darwin.tar.xz",
+        "MINIDUMP_STACKWALK_SHA256_MACOS_X64": _MINIDUMP + "x86_64-apple-darwin.tar.xz",
+        "MINIDUMP_STACKWALK_SHA256_LINUX_X64": _MINIDUMP + "x86_64-unknown-linux-musl.tar.xz",
+        "MINIDUMP_STACKWALK_SHA256_WINDOWS_X64": _MINIDUMP + "x86_64-pc-windows-msvc.zip",
+    },
     "linuxdeploy/linuxdeploy": {
         "LINUXDEPLOY_SHA256": _GH + "/linuxdeploy/linuxdeploy/releases/download/{version}/linuxdeploy-x86_64.AppImage",
     },
@@ -101,6 +110,9 @@ URLS: dict[str, dict[str, str]] = {
 _COMMENT = re.compile(r"^\s*#\s*renovate:\s*(?P<fields>.*?)\s*$")
 _ASSIGNMENT = re.compile(
     r"""^\s*(?:ENV\s+)?(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*|=)(?P<q>["']?)(?P<value>[^"'\s]+)(?P=q)\s*$""")
+_CMAKE_SET = re.compile(
+    r"""^\s*set\(\s*(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s+(?P<q>"?)(?P<value>[^"\s)]+)(?P=q)\s*\)\s*$""",
+    re.IGNORECASE)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -124,8 +136,12 @@ class UnknownPair(Exception):
     pass
 
 
+def _assignment(line: str) -> re.Match[str] | None:
+    return _ASSIGNMENT.match(line) or _CMAKE_SET.match(line)
+
+
 def _hash_assignment(line: str) -> re.Match[str] | None:
-    m = _ASSIGNMENT.match(line)
+    m = _assignment(line)
     return m if m and "SHA256" in m["name"] and _SHA256.match(m["value"]) else None
 
 
@@ -138,7 +154,7 @@ def parse_pairs(text: str, path: str) -> list[Pair]:
         if not comment or i + 1 >= len(lines):
             continue
         fields = dict(f.split("=", 1) for f in comment["fields"].split() if "=" in f)
-        version = _ASSIGNMENT.match(lines[i + 1])
+        version = _assignment(lines[i + 1])
         if not version or "depName" not in fields:
             continue
         hashes = []
