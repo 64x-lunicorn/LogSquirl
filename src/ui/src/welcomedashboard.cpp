@@ -54,9 +54,15 @@ const QString kLinkButtonStyle
 const QString kSectionHeadingStyle
     = QStringLiteral( "QLabel { font-weight: bold; font-size: 13px; padding-top: 12px; }" );
 
-/// Stylesheet for shortcut hint text (uses palette for theme awareness).
-const QString kHintStyle
-    = QStringLiteral( "QLabel { color: palette(dark); font-size: 11px; padding: 2px 0px; }" );
+/// Stylesheet for shortcut hint text. Hints are secondary text: their color
+/// comes from the Theme's stylesheet (see markAsSecondaryText).
+const QString kHintStyle = QStringLiteral( "QLabel { font-size: 11px; padding: 2px 0px; }" );
+
+/// Gives label the Theme's secondary text color.
+void markAsSecondaryText( QLabel* label )
+{
+    label->setProperty( "secondaryText", true );
+}
 
 /// Create a clickable QPushButton styled as a link.
 /// Clicking emits the dashboard's openFileRequested signal.
@@ -138,7 +144,8 @@ void WelcomeDashboard::buildUi()
     // ---- Version ----
     auto* versionLabel = new QLabel( QStringLiteral( "v%1" ).arg( logsquirlVersion() ), content );
     versionLabel->setAlignment( Qt::AlignCenter );
-    versionLabel->setStyleSheet( QStringLiteral( "color: palette(dark); font-size: 12px;" ) );
+    markAsSecondaryText( versionLabel );
+    versionLabel->setStyleSheet( QStringLiteral( "font-size: 12px;" ) );
     rootLayout->addWidget( versionLabel );
 
     rootLayout->addSpacing( 10 );
@@ -214,14 +221,16 @@ void WelcomeDashboard::buildUi()
     auto* shortcutsLabel = new QLabel(
         QStringLiteral( "Ctrl+O Open File  |  Ctrl+W Close Tab  |  Ctrl+F Find  |  F5 Reload" ),
         content );
+    markAsSecondaryText( shortcutsLabel );
     shortcutsLabel->setStyleSheet( kHintStyle );
     shortcutsLabel->setAlignment( Qt::AlignCenter );
     rootLayout->addWidget( shortcutsLabel );
 
     // ---- Drop hint ----
     auto* dropHint = new QLabel( tr( "Drop log files here to open them" ), content );
-    dropHint->setStyleSheet( QStringLiteral(
-        "color: palette(dark); font-size: 11px; font-style: italic; padding-top: 8px;" ) );
+    markAsSecondaryText( dropHint );
+    dropHint->setStyleSheet(
+        QStringLiteral( "font-size: 11px; font-style: italic; padding-top: 8px;" ) );
     dropHint->setAlignment( Qt::AlignCenter );
     rootLayout->addWidget( dropHint );
 
@@ -251,6 +260,7 @@ void WelcomeDashboard::refreshRecentFiles()
 
     if ( files.isEmpty() ) {
         auto* empty = new QLabel( tr( "No recent files" ), this );
+        markAsSecondaryText( empty );
         empty->setStyleSheet( kHintStyle );
         recentFilesLayout_->addWidget( empty );
         return;
@@ -277,6 +287,7 @@ void WelcomeDashboard::refreshFavorites()
 
     if ( files.empty() ) {
         auto* empty = new QLabel( tr( "No favorites" ), this );
+        markAsSecondaryText( empty );
         empty->setStyleSheet( kHintStyle );
         favoritesLayout_->addWidget( empty );
         return;
@@ -299,6 +310,7 @@ void WelcomeDashboard::refreshPluginStatus()
 
     if ( !pluginCatalog_ || !pluginHost_ ) {
         auto* none = new QLabel( tr( "No plugins available" ), this );
+        markAsSecondaryText( none );
         none->setStyleSheet( kHintStyle );
         none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );
@@ -310,6 +322,7 @@ void WelcomeDashboard::refreshPluginStatus()
 
     if ( discovered.empty() ) {
         auto* none = new QLabel( tr( "No plugins installed" ), this );
+        markAsSecondaryText( none );
         none->setStyleSheet( kHintStyle );
         none->setAlignment( Qt::AlignCenter );
         pluginStatusLayout_->addWidget( none );

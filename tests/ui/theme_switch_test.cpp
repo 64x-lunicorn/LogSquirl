@@ -38,6 +38,7 @@
 #include "test_policies.h"
 #include "test_utils.h"
 #include "theme.h"
+#include "welcomedashboard.h"
 
 #include <QAbstractItemView>
 #include <QApplication>
@@ -46,11 +47,13 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QDockWidget>
+#include <QFile>
 #include <QGuiApplication>
 #include <QImage>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QStyleHints>
 #include <QTabBar>
@@ -652,4 +655,67 @@ SCENARIO( "Choosing a Theme in the Options Dialog applies it without a restart",
     config.setLanguage( storedLanguage );
     config.save();
     Theme::apply( Theme::defaultTheme() );
+}
+
+SCENARIO( "Every icon Token names an icon that exists", "[ui][theme]" )
+{
+    GIVEN( "each built-in Theme" )
+    {
+        THEN( "every url() of its style Tokens is an icon resource" )
+        {
+            static const QRegularExpression url( "^url\\((.+)\\)$" );
+            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ),
+                                       QString( Theme::HighContrastKey ) } ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                for ( std::size_t i = 0; i < StyleTokenCount; ++i ) {
+                    const auto token = static_cast<StyleToken>( i );
+                    const auto match = url.match( theme.value( token ) );
+                    if ( !match.hasMatch() ) {
+                        continue;
+                    }
+                    INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString() );
+                    REQUIRE( QFile::exists( match.captured( 1 ) ) );
+                }
+            }
+        }
+    }
+}
+
+SCENARIO( "The Dashboard's hints are drawn in the Theme's secondary text color", "[ui][theme]" )
+{
+    GIVEN( "a Dashboard shown under the Light Theme" )
+    {
+        Theme::apply( Theme::LightKey );
+        WelcomeDashboard dashboard;
+        dashboard.show();
+        QTest::qWait( 20 );
+
+        const auto hints = [ & ] {
+            QList<QLabel*> result;
+            for ( auto* label : dashboard.findChildren<QLabel*>() ) {
+                if ( label->property( "secondaryText" ).toBool() ) {
+                    result.append( label );
+                }
+            }
+            return result;
+        };
+        REQUIRE_FALSE( hints().isEmpty() );
+
+        WHEN( "the Dark Theme is applied" )
+        {
+            Theme::apply( Theme::DarkKey );
+            QCoreApplication::processEvents();
+
+            THEN( "every hint shows Dark's secondary text color, not a frame role" )
+            {
+                for ( auto* label : hints() ) {
+                    INFO( label->text().toStdString() );
+                    REQUIRE( label->palette().color( QPalette::WindowText )
+                             == Theme::active().color( ColorToken::SecondaryText ) );
+                }
+            }
+        }
+
+        Theme::apply( Theme::defaultTheme() );
+    }
 }

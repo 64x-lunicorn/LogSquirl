@@ -516,6 +516,15 @@ QGroupBox::title {
 
 
 /* ===========================================================
+ *  Secondary text (hints, versions) — requires:
+ *  label->setProperty("secondaryText", true);
+ * =========================================================== */
+QLabel[secondaryText="true"] {
+    color: @SecondaryText@;
+}
+
+
+/* ===========================================================
  *  Toolbar
  * =========================================================== */
 QToolBar {
