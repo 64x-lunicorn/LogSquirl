@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <utility>
 
 #include <QFileDialog>
 #include <QHeaderView>
@@ -499,9 +500,10 @@ void LogTableView::mouseMoveEvent( QMouseEvent* event )
         // Hover highlight
         const int newHoverRow = index.isValid() ? index.row() : -1;
         if ( newHoverRow != hoverRow_ ) {
-            hoverRow_ = newHoverRow;
+            const int oldHoverRow = std::exchange( hoverRow_, newHoverRow );
             delegate_->setHoverRow( hoverRow_ );
-            viewport()->update();
+            updateRow( oldHoverRow );
+            updateRow( hoverRow_ );
         }
 
         // Drag to extend the in-cell selection, within the same cell only
@@ -550,9 +552,9 @@ bool LogTableView::viewportEvent( QEvent* event )
         updateOverview();
     }
     else if ( event->type() == QEvent::Leave && handlesMouse() && hoverRow_ >= 0 ) {
-        hoverRow_ = -1;
+        const int oldHoverRow = std::exchange( hoverRow_, -1 );
         delegate_->clearHoverRow();
-        viewport()->update();
+        updateRow( oldHoverRow );
     }
 
     return QTableView::viewportEvent( event );
@@ -596,6 +598,16 @@ void LogTableView::paintEvent( QPaintEvent* event )
 {
     const auto paintPass = delegate_->paintPass();
     QTableView::paintEvent( event );
+}
+
+void LogTableView::updateRow( int row )
+{
+    // A Row scrolled out of sight lies outside the viewport, and nothing of
+    // it is repainted.
+    if ( row >= 0 ) {
+        viewport()->update(
+            QRect( 0, rowViewportPosition( row ), viewport()->width(), rowHeight( row ) ) );
+    }
 }
 
 int LogTableView::charAtX( const QModelIndex& index, int pixelX ) const

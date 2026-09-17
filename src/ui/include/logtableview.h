@@ -186,6 +186,9 @@ private:
     void autoSizeColumns();
     void stretchLastColumn();
 
+    // Repaint the whole width of a Row, if it is shown.
+    void updateRow( int row );
+
     // Pixel X in a cell to the character position there.
     int charAtX( const QModelIndex& index, int pixelX ) const;
     void selectWordAt( const QModelIndex& index, int charPos );
