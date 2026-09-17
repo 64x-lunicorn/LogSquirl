@@ -231,6 +231,9 @@ private:
     void doDetachReader() const override;
 
     void reOpenFile() const;
+    // Tells every LogFilteredData handed out that the Log Lines from
+    // firstChanged on may read differently now.
+    void logLinesChanged( LineNumber firstChanged = 0_lnum ) const;
 
     logsquirl::vector<QString> getLinesFromFile( LineNumber first, LinesCount number,
                                                  QString ( *processLine )( QString&& ) ) const;
@@ -286,6 +289,8 @@ private:
     // Codec to decode text
     TextCodecHolder codec_;
     MonitoredFileStatus fileChangedOnDisk_;
+    // How many Log Lines were indexed before the data added on disk is.
+    LinesCount nbLinesBeforeDataAdded_;
 
     // Read by getLinesRaw() on the Search's threads, so it is only ever
     // touched under the indexing data's lock.

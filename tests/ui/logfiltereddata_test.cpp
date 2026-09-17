@@ -1396,5 +1396,47 @@ SCENARIO( "The Filtered View is as wide as its longest Mark as Marks come and go
                 REQUIRE( filtered_data->getMaxLength() == 0_length );
             }
         }
+
+        // Log Line n of the Log File written instead is 100 - n characters long.
+        const auto rewriteLogFile = [ &file ] {
+            QFile rewritten( file.fileName() );
+            REQUIRE( rewritten.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+            for ( int line = 0; line < 100; ++line ) {
+                rewritten.write( QByteArray( 100 - line, 'y' ) + "\n" );
+            }
+        };
+
+        WHEN( "the Log File is written again with other lengths and reloaded" )
+        {
+            rewriteLogFile();
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            logData.reload();
+            REQUIRE( loadEndSpy.safeWait( 10000 ) );
+
+            THEN( "it is as wide as the longest Mark reads now" )
+            {
+                REQUIRE( filtered_data->getMaxLength() == LineLength( 91 ) );
+            }
+        }
+
+        WHEN( "the Log File is cut short under Log Lines 29 and 49 and indexed again" )
+        {
+            {
+                QFile truncated( file.fileName() );
+                REQUIRE( truncated.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+                for ( int line = 0; line < 25; ++line ) {
+                    truncated.write( QByteArray( 30 - line, 'z' ) + "\n" );
+                }
+            }
+            SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+            logData.fileChangedOnDisk( file.fileName() );
+            REQUIRE( loadEndSpy.safeWait( 10000 ) );
+            REQUIRE( logData.getNbLine() == 25_lcount );
+
+            THEN( "the Marks past its end are no wider than nothing" )
+            {
+                REQUIRE( filtered_data->getMaxLength() == LineLength( 21 ) );
+            }
+        }
     }
 }

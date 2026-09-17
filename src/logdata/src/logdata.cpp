@@ -157,6 +157,7 @@ void LogData::setDecodingPolicy( const DecodingPolicy& decodingPolicy )
 
     // Views paint what they read before until they are told to read again;
     // the lock is released first, as they read Log Lines straight away.
+    logLinesChanged();
     Q_EMIT decodingPolicyChanged();
 }
 
@@ -281,6 +282,17 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
             lastModifiedDate_ = fileInfo.lastModified();
     }
 
+    // Only the last Log Line indexed before data was added can have changed
+    // then; otherwise any of them can have.
+    if ( fileChangedOnDisk_ == MonitoredFileStatus::DataAdded ) {
+        logLinesChanged( nbLinesBeforeDataAdded_.get() > 0
+                             ? LineNumber( nbLinesBeforeDataAdded_.get() - 1 )
+                             : 0_lnum );
+    }
+    else {
+        logLinesChanged();
+    }
+
     fileChangedOnDisk_ = MonitoredFileStatus::Unchanged;
 
     LOG_DEBUG << "Sending indexingFinished.";
@@ -303,6 +315,7 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
             break;
         case MonitoredFileStatus::DataAdded:
             fileChangedOnDisk_ = MonitoredFileStatus::DataAdded;
+            nbLinesBeforeDataAdded_ = doGetNbLine();
             operationQueue_.enqueueOperation<PartialReindexOperation>();
             break;
         case MonitoredFileStatus::Unchanged:
@@ -370,6 +383,19 @@ void LogData::doSetDisplayEncoding( const char* encoding )
 
     if ( needReload ) {
         reload( useGuessedCodec ? nullptr : codec_.codec() );
+    }
+    else {
+        // Indexed as it was, but the Log Lines decode differently.
+        logLinesChanged();
+    }
+}
+
+void LogData::logLinesChanged( LineNumber firstChanged ) const
+{
+    for ( const auto& filteredData : filteredData_ ) {
+        if ( filteredData ) {
+            filteredData->logLinesChanged( firstChanged );
+        }
     }
 }
 
