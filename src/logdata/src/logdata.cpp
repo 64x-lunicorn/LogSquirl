@@ -997,6 +997,67 @@ QByteArray toUtf8( const QString& text )
     return utf8;
 }
 
+// Converts a block of Log Lines in a Latin-1 or UTF-16 encoding to UTF-8 at
+// once into utf8, and splits it at each line feed into lines. Does nothing and
+// returns false unless the block is valid in its encoding and has lineCount
+// Log Lines. A byte order mark starting a UTF-16 block is dropped, as decoding
+// drops it.
+bool convertValidBlock( std::string_view block, DirectEncoding encoding, std::size_t lineCount,
+                        QByteArray& utf8, logsquirl::vector<std::string_view>& lines )
+{
+    if ( isUtf16( encoding ) && block.size() >= 2
+         && codeUnitAt( block, 0, encoding ) == u'\xFEFF' ) {
+        block.remove_prefix( 2 );
+    }
+    if ( block.empty() ) {
+        return false;
+    }
+
+    // Validated while converted, into room for the longest UTF-8 it can take:
+    // one pass over the block rather than three.
+    QByteArray converted( static_cast<qsizetype>( block.size() * 2 ), Qt::Uninitialized );
+    std::size_t written = 0;
+    switch ( encoding ) {
+    case DirectEncoding::Latin1:
+        written = simdutf::convert_latin1_to_utf8( block.data(), block.size(), converted.data() );
+        break;
+    case DirectEncoding::Utf16LE:
+        written = simdutf::convert_utf16le_to_utf8( asUtf16( block ), block.size() / 2,
+                                                    converted.data() );
+        break;
+    case DirectEncoding::Utf16BE:
+        written = simdutf::convert_utf16be_to_utf8( asUtf16( block ), block.size() / 2,
+                                                    converted.data() );
+        break;
+    default:
+        return false;
+    }
+    if ( written == 0 ) {
+        return false;
+    }
+    converted.truncate( static_cast<qsizetype>( written ) );
+
+    // A line feed is the only code unit whose UTF-8 has a line feed byte.
+    logsquirl::vector<std::string_view> split;
+    split.reserve( lineCount );
+    std::string_view rest( converted.constData(), static_cast<std::size_t>( converted.size() ) );
+    for ( auto lineFeed = rest.find( '\n' ); lineFeed != std::string_view::npos;
+          lineFeed = rest.find( '\n' ) ) {
+        split.push_back( rest.substr( 0, lineFeed ) );
+        rest.remove_prefix( lineFeed + 1 );
+    }
+    if ( !rest.empty() ) {
+        split.push_back( rest );
+    }
+    if ( split.size() != lineCount ) {
+        return false;
+    }
+
+    utf8 = std::move( converted );
+    lines = std::move( split );
+    return true;
+}
+
 // Where a Log Line of the block goes in its UTF-8 view.
 struct LineToConvert {
     // The Log Line's bytes in the block, without its line feed.
@@ -1037,13 +1098,26 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
     try {
         lines.reserve( endOfLines.size() );
 
-        if ( lineEndsSplitTheBlock ) {
-            // Every ANSI color sequence starts with the escape character, and
-            // in each of these encodings an escape code unit has an escape byte.
-            const auto hidesAnsiColorSequences
-                = hideAnsiColorSequences
-                  && std::find( buffer.begin(), buffer.end(), '\x1B' ) != buffer.end();
+        // Every ANSI color sequence starts with the escape character, and in
+        // each of these encodings an escape code unit has an escape byte.
+        const auto hidesAnsiColorSequences
+            = hideAnsiColorSequences
+              && std::find( buffer.begin(), buffer.end(), '\x1B' ) != buffer.end();
 
+        // Log Lines are converted one by one only where that is faster than
+        // the block (#291): a UTF-8 block is searched where it was read; a
+        // block without ANSI color sequences to hide, valid in its encoding,
+        // is converted at once; a UTF-16 block whose sequences are hidden is
+        // decoded at once, which removes them in one pass.
+        const auto convertsLineByLine
+            = lineEndsSplitTheBlock && ( !isUtf16( encoding ) || !hidesAnsiColorSequences );
+        if ( convertsLineByLine && encoding != DirectEncoding::Utf8 && !hidesAnsiColorSequences
+             && convertValidBlock(
+                 std::string_view( buffer.data(), static_cast<std::size_t>( endOfLines.back() ) ),
+                 encoding, endOfLines.size(), utf8Data_, lines ) ) {
+            // Converted as a whole.
+        }
+        else if ( convertsLineByLine ) {
             std::vector<LineToConvert> toConvert( endOfLines.size() );
             std::size_t utf8Size = 0;
             std::size_t lineStart = 0;
