@@ -29,6 +29,10 @@
 struct ZSTD_DCtx_s;
 
 /// Read-only sequential QIODevice that decompresses a .zst file via libzstd.
+///
+/// A .zst file may hold several frames one after another (pzstd output,
+/// concatenated files); the device decompresses all of them. A truncated or
+/// corrupt file makes read() fail with -1 instead of ending the stream early.
 class ZstdDevice : public QIODevice {
 public:
     explicit ZstdDevice( const QString& filePath, QObject* parent = nullptr );
@@ -58,7 +62,12 @@ private:
     std::size_t inSize_ = 0;
 
     bool fileExhausted_ = false;
+    // A frame has been started but not yet fully decoded and flushed.
+    bool frameInProgress_ = false;
     bool finished_ = false;
+    bool failed_ = false;
+
+    qint64 fail( const QString& reason, std::size_t decompressedBytes );
 };
 
 #endif // LOGSQUIRL_ZSTDDEVICE_H
