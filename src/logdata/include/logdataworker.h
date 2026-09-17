@@ -46,6 +46,7 @@
 #include <qthreadpool.h>
 #include <variant>
 
+#include <QDateTime>
 #include <QFile>
 #include <QObject>
 #include <QTextCodec>
@@ -200,6 +201,18 @@ public:
         data_->headerAndTailDigests_.add( offset, data, size );
     }
 
+    // The modification time the Log File had when its bytes were last
+    // indexed, or checked in full; invalid when that is not known.
+    QDateTime getIndexedModificationTime() const
+    {
+        return data_->indexedModificationTime_;
+    }
+
+    void setIndexedModificationTime( const QDateTime& modificationTime )
+    {
+        data_->indexedModificationTime_ = modificationTime;
+    }
+
     int getProgress() const
     {
         return data_->getProgress();
@@ -313,6 +326,7 @@ private:
     FileDigest hashBuilder_;
     IndexedHash hash_;
     HeaderAndTailDigests headerAndTailDigests_;
+    QDateTime indexedModificationTime_;
 
     QTextCodec* encodingGuess_{};
     QTextCodec* encodingForced_{};

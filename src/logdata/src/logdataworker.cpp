@@ -168,6 +168,7 @@ void IndexingData::clear( const IndexingPolicy& policy )
     hash_ = {};
     hashBuilder_.reset();
     headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     if ( policy.useCompressedIndex ) {
         linePosition_ = LinePositionArrayType( LinePositionArray{} );
     }
@@ -194,6 +195,7 @@ void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength m
     // The cache checked the header and tail only, and took no digests to go
     // on from.
     headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     encodingGuess_ = encoding;
     encodingForced_ = nullptr;
     progress_ = 100;
@@ -212,6 +214,7 @@ void IndexingData::resumeFromCache( ResumedIndex&& resumed )
     hash_ = {};
     hash_.size = resumed.offset.get();
     headerAndTailDigests_.reset();
+    indexedModificationTime_ = {};
     hashBuilder_ = std::move( resumed.digestBeforeOffset );
     if ( !useFastModificationDetection_ ) {
         hash_.fullDigest = hashBuilder_.digest();
@@ -808,6 +811,12 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     const auto endFilePos = file.pos();
     recordHeaderAndTail( file, endFilePos, scopedAccessor );
 
+    // Only while nothing was appended since the last read: a check of a Log
+    // File of the indexed size that still has this modification time need
+    // not read all of it again.
+    const QFileInfo indexedFile( fileName_ );
+    scopedAccessor.setIndexedModificationTime(
+        indexedFile.size() == endFilePos ? indexedFile.lastModified() : QDateTime{} );
 
     const auto indexingEndTime = high_resolution_clock::now();
     const auto duration = duration_cast<microseconds>( indexingEndTime - indexingStartTime );
@@ -1102,13 +1111,36 @@ OperationResult CheckFileChangesOperation::reportFailure( const QString& failure
 
 MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()
 {
-    const auto indexedHash = IndexingData::ConstAccessor{ indexing_data_.get() }.getHash();
-    const auto coverage = indexingPolicy_.fastModificationDetection ? DigestCoverage::HeaderAndTail
-                                                                    : DigestCoverage::Full;
+    IndexedHash indexedHash;
+    QDateTime indexedModificationTime;
+    {
+        IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
+        indexedHash = scopedAccessor.getHash();
+        indexedModificationTime = scopedAccessor.getIndexedModificationTime();
+    }
+
+    // Taken before the Log File is read, so a change made while it is read
+    // is not taken for checked.
+    const auto modificationTime = QFileInfo( fileName_ ).lastModified();
+
+    // Without fast modification detection, a Log File that grew is still
+    // told from its header and tail, and one that did not is read end to end
+    // only when it was modified since it was last indexed or checked:
+    // following a Log File that grows by small appends does not read all of
+    // it for every change (#277).
+    auto coverage = DigestCoverage::FullUnlessGrown;
+    if ( indexingPolicy_.fastModificationDetection
+         || ( indexedModificationTime.isValid() && modificationTime == indexedModificationTime ) ) {
+        coverage = DigestCoverage::HeaderAndTail;
+    }
 
     switch ( indexFit( indexedHash, fileName_, coverage ) ) {
     case IndexFit::Unchanged:
         LOG_INFO << "No change in file";
+        if ( coverage == DigestCoverage::FullUnlessGrown ) {
+            IndexingData::MutateAccessor{ indexing_data_.get() }.setIndexedModificationTime(
+                modificationTime );
+        }
         return MonitoredFileStatus::Unchanged;
     case IndexFit::Grown:
         LOG_INFO << "New data on disk";
