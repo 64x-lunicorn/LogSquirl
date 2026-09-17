@@ -1530,12 +1530,19 @@ void CrawlerWidget::setup()
     connect( chartPanel_, &ChartPanel::lineSelected, this,
              [ this ]( LineNumber line ) { presentation_->showLogLine( line ); } );
 
-    // Refresh chart data when the file finishes loading.
-    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this, [ this ]( const auto& ) {
-        if ( chartPanel_->isVisible() ) {
-            chartPanel_->extractData();
-        }
-    } );
+    // Refresh chart data when the file finishes loading: only the appended
+    // Log Lines, unless the Log File was truncated or loaded from its start.
+    connect( openLogFile_.get(), &OpenLogFile::truncated, chartPanel_,
+             &ChartPanel::logFileTruncated );
+    connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
+             [ this ]( const OpenLogFile::LoadFinished& load ) {
+                 if ( load.fromStart ) {
+                     chartPanel_->logFileTruncated();
+                 }
+                 if ( chartPanel_->isVisible() ) {
+                     chartPanel_->extractData();
+                 }
+             } );
 
     // The views just built start with everything they show, color and
     // search under, before any of them is painted. No view reads these

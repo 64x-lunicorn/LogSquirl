@@ -19,17 +19,18 @@
 
 #pragma once
 
-#include <atomic>
+#include <chrono>
 #include <memory>
 
-#include <QFutureWatcher>
 #include <QMenu>
 #include <QProgressBar>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "chartextraction.h"
 #include "chartseries.h"
 #include "chartwidget.h"
 
@@ -58,8 +59,19 @@ public:
     // format-aware quick-add templates.  Pass nullptr to clear.
     void setLogFormat( const LogFormatDefinition* format );
 
-    // Re-scan the log file for all series and refresh the chart.
+    // Brings the chart up to date with the Log File: only the Log Lines
+    // appended since the last extraction are extracted, unless the series
+    // changed or the Log File was truncated. Appended Log Lines are picked up
+    // after the update delay.
     void extractData();
+
+    // The Log File was truncated or loaded again from its start: the next
+    // extraction starts from the first Log Line. A running one is cancelled
+    // without waiting for it.
+    void logFileTruncated();
+
+    // How long extractData() waits before extracting appended Log Lines.
+    void setUpdateDelay( std::chrono::milliseconds delay );
 
     // Return a copy of the current series definitions (for persistence).
     QVector<ChartSeriesDefinition> seriesDefinitions() const;
@@ -96,12 +108,11 @@ private:
     void rebuildTemplatesMenu();
     void addTemplateSeries( const QVector<ChartSeriesDefinition>& defs );
 
-    // Run the heavy regex extraction in a background thread.
-    // Populates each series' points vector and performs bucketing.
-    // Cancels any previously running extraction first.
-    void startAsyncExtraction();
-    void onExtractionFinished();
-    void cancelExtraction();
+    // The series changed: extract them from the first Log Line.
+    void seriesChanged();
+    void onExtractionStarted();
+    void onExtracted();
+    void showProgress();
 
     ChartWidget* chartWidget_;
     QToolBar* toolBar_;
@@ -128,8 +139,7 @@ private:
     std::shared_ptr<LogData> logData_;
     const LogFormatDefinition* format_ = nullptr;
 
-    // Async extraction state
-    QFutureWatcher<QVector<ChartSeriesDefinition>> extractionWatcher_;
-    std::shared_ptr<std::atomic<bool>> cancelFlag_;
-    QMetaObject::Connection progressConnection_;
+    // Extracts the points on a worker thread, following the Log File.
+    ChartExtraction extraction_;
+    QTimer progressTimer_;
 };
