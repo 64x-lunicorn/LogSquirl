@@ -1050,12 +1050,16 @@ SCENARIO( "columns are as wide as the font paints them", "[textviewscrolling][vi
                                              .length = LineLength{ LongLineColumns },
                                              .lineLength = LineLength{ LongLineColumns } } };
         const ViewportLayout layout{ input, std::move( visualLines ) };
-        const auto lastColumn = layout.visibleColumns().get() - 1;
+        // One type for every column below: a braced list of mixed integer
+        // types deduces nothing, and which of them int64_t is differs between
+        // the platforms (macOS builds it, GCC on Linux does not).
+        using Column = decltype( layout.visibleColumns().get() );
+        const Column lastColumn = layout.visibleColumns().get() - 1;
 
         THEN( "a click lands on the character under it, at either edge" )
         {
-            for ( const int64_t column :
-                  { int64_t{ 0 }, int64_t{ 1 }, int64_t{ 100 }, int64_t{ 200 }, lastColumn } ) {
+            for ( const Column column :
+                  { Column{ 0 }, Column{ 1 }, Column{ 100 }, Column{ 200 }, lastColumn } ) {
                 const auto centreOfColumnPx
                     = layout.textOriginX()
                       + static_cast<int>( PaintedAdvancePx * static_cast<double>( column )
@@ -1067,7 +1071,7 @@ SCENARIO( "columns are as wide as the font paints them", "[textviewscrolling][vi
 
         THEN( "a character's cell sits where the character is painted" )
         {
-            for ( const int64_t column : { int64_t{ 0 }, int64_t{ 100 }, lastColumn } ) {
+            for ( const Column column : { Column{ 0 }, Column{ 100 }, lastColumn } ) {
                 const auto rect = layout.rectForColumn(
                     0_lnum, LineColumn{ static_cast<LineColumn::UnderlyingType>( column ) } );
                 REQUIRE( rect.x
