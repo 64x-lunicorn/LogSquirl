@@ -2,12 +2,11 @@
 name: Deploy Website
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - 'website/**'
-  # Also dispatched by CI Release once a release is published, so its page
-  # goes live (#315).
+  # The only trigger: CI Release dispatches this once a release is published,
+  # so the site and that release's page go live with it (#315). A website
+  # change merged to master deliberately does not deploy on its own; it waits
+  # for the next release (#350). That such a change builds and its links hold
+  # is checked per pull request by CI Build's Website job (#311).
   workflow_dispatch:
 
 # Only one deploy at a time, and never cancel one mid-upload: two
