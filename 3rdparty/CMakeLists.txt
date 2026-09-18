@@ -561,6 +561,15 @@ endif()
 set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_TBB})
 
 set(CPM_USE_LOCAL_PACKAGES OFF)
+# Windows has no build-time equivalent of Linux's ELF symbol interposition
+# (see CMakeLists.txt for why, and for why macOS's own dynamic-library
+# equivalent is refused instead of wired here), so its override is a shared
+# mimalloc built alongside the static one, plus mimalloc-redirect.dll (#282).
+if(LOGSQUIRL_MIMALLOC_OVERRIDE AND WIN32)
+  set(_LOGSQUIRL_MIMALLOC_BUILD_SHARED ON)
+else()
+  set(_LOGSQUIRL_MIMALLOC_BUILD_SHARED OFF)
+endif()
 cpmaddpackage(
   NAME
   mimalloc
@@ -575,7 +584,7 @@ cpmaddpackage(
   OPTIONS
   "MI_BUILD_TESTS OFF"
   "MI_SECURE OFF"
-  "MI_BUILD_SHARED OFF"
+  "MI_BUILD_SHARED ${_LOGSQUIRL_MIMALLOC_BUILD_SHARED}"
   "MI_BUILD_STATIC ON"
   "MI_BUILD_OBJECT OFF"
   "MI_OVERRIDE ${LOGSQUIRL_MIMALLOC_OVERRIDE}"
@@ -595,6 +604,22 @@ endif()
 target_compile_definitions(logsquirl_mimalloc_wrapper INTERFACE LOGSQUIRL_USE_MIMALLOC)
 if(LOGSQUIRL_MIMALLOC_OVERRIDE)
   target_compile_definitions(logsquirl_mimalloc_wrapper INTERFACE LOGSQUIRL_MIMALLOC_OVERRIDE)
+endif()
+
+if(_LOGSQUIRL_MIMALLOC_BUILD_SHARED AND mimalloc_ADDED)
+  # `mimalloc` (the shared library) is otherwise EXCLUDE_FROM_ALL, like the
+  # rest of this fetched dependency, and nothing links against it — only
+  # mimalloc-static above does. Force it into the default build so
+  # `cmake --build .` produces it for the Windows process-wide override
+  # measurement (mimalloc-redirect.dll; see CMakeLists.txt). Its build output
+  # lands in the project's shared output directory ($<TARGET_FILE:mimalloc>,
+  # same as every other shared library this project builds) rather than being
+  # explicitly copied — nothing in the shipped application links against it,
+  # so only the override measurement itself needs to find it there.
+  set_target_properties(mimalloc PROPERTIES EXCLUDE_FROM_ALL FALSE)
+  if(WIN32 AND TARGET mimalloc-redirect)
+    set_target_properties(mimalloc-redirect PROPERTIES EXCLUDE_FROM_ALL FALSE)
+  endif()
 endif()
 
 set(CPM_USE_LOCAL_PACKAGES ${_TMP_CPM_USE_LOCAL_PACKAGES})
