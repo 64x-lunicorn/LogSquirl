@@ -187,6 +187,7 @@ public:
     static constexpr QLatin1String DarkKey = QLatin1String( "Dark" );
     static constexpr QLatin1String HighContrastKey = QLatin1String( "High Contrast" );
     static constexpr QLatin1String SmyckKey = QLatin1String( "Smyck" );
+    static constexpr QLatin1String SmyckLightKey = QLatin1String( "Smyck Light" );
     static constexpr QLatin1String SystemKey = QLatin1String( "System" );
 
     // Every value the `style` setting can take, sorted by name.
@@ -202,7 +203,7 @@ public:
     static Theme fromName( const QString& name, Qt::ColorScheme systemScheme,
                            const std::map<QString, QString>& darkOverrides = {} );
 
-    // Light, Dark, High Contrast or Smyck -- never System.
+    // Light, Dark, High Contrast, Smyck or Smyck Light -- never System.
     QString name() const;
 
     // Whether the Theme has dark backgrounds and light text.
@@ -292,6 +293,7 @@ private:
     static Theme dark();
     static Theme highContrast();
     static Theme smyck();
+    static Theme smyckLight();
 
     void setColors( std::initializer_list<std::pair<ColorToken, const char*>> colors );
     void setValues( std::initializer_list<std::pair<StyleToken, const char*>> values );

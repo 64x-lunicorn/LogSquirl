@@ -142,7 +142,8 @@ SCENARIO( "The Dashboard shows its lists as cards in one column", "[ui][theme]" 
 SCENARIO( "The Dashboard's cards take the surface color of every Theme", "[ui][theme]" )
 {
     for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ),
-                               QString( Theme::HighContrastKey ), QString( Theme::SmyckKey ) } ) {
+                               QString( Theme::HighContrastKey ), QString( Theme::SmyckKey ),
+                               QString( Theme::SmyckLightKey ) } ) {
         GIVEN( "a Dashboard shown under " + name.toStdString() )
         {
             Theme::apply( name );

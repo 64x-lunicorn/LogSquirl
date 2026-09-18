@@ -245,6 +245,17 @@ SCENARIO( "The Color Labels follow the Theme", "[ui][theme][decoration]" )
                     requireColorLabelsOf( Theme::LightKey );
                 }
             }
+
+            AND_WHEN( "the Smyck Light Theme is applied" )
+            {
+                Theme::apply( Theme::SmyckLightKey );
+
+                THEN( "the Color Labels stay Smyck's: both Smyck Themes carry them" )
+                {
+                    requireColorLabelsOf( Theme::SmyckLightKey );
+                    requireColorLabelsOf( Theme::SmyckKey );
+                }
+            }
         }
     }
 
@@ -299,12 +310,17 @@ SCENARIO( "A Color Label the user colored is not touched by a Theme", "[ui][them
 
 SCENARIO( "Smyck's Color Labels are legible", "[ui][theme][decoration]" )
 {
-    const auto labels = colorLabelsOf( Theme::SmyckKey );
-    for ( std::size_t slot = 0; slot < ColorLabelCount; ++slot ) {
-        INFO( "Color label " << slot + 1 );
-        REQUIRE( labels[ slot ].foreColor.isValid() );
-        REQUIRE( labels[ slot ].backColor.isValid() );
-        REQUIRE( contrastRatio( labels[ slot ].foreColor, labels[ slot ].backColor ) >= 4.5 );
+    // Both Smyck Themes carry them, and a Color Label is painted on its own
+    // background in either.
+    for ( const auto& themeName : { Theme::SmyckKey, Theme::SmyckLightKey } ) {
+        INFO( QString( themeName ).toStdString() );
+        const auto labels = colorLabelsOf( themeName );
+        for ( std::size_t slot = 0; slot < ColorLabelCount; ++slot ) {
+            INFO( "Color label " << slot + 1 );
+            REQUIRE( labels[ slot ].foreColor.isValid() );
+            REQUIRE( labels[ slot ].backColor.isValid() );
+            REQUIRE( contrastRatio( labels[ slot ].foreColor, labels[ slot ].backColor ) >= 4.5 );
+        }
     }
 }
 
