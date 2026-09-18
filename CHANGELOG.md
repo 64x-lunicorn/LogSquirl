@@ -47,6 +47,18 @@
   append. It fits the view again when a series is added, edited or removed, a
   preset is loaded, or you press Fit; a chart you never zoomed keeps following
   the data as before (#329).
+- **Encoding in the grep command line tool**: `logsquirl_grep` reads its Log
+  File in the Encoding the application detects for it, or in the one the
+  settings force, instead of always reading it as ISO-8859-1. A UTF-8 Log Line
+  with non-ASCII text prints as it is in the Log File rather than
+  double-encoded, a UTF-16 or Latin-1 Log File prints as UTF-8 text, and a
+  pattern with non-ASCII text finds its matches (#326).
+- **Warnings of the grep command line tool**: `logsquirl_grep` writes its log
+  messages to stderr instead of stdout, so a warning such as "Non LF
+  terminated file" no longer lands between the matches. Its stdout carries
+  only the Log Lines the Search matched and can be piped into another tool;
+  the warnings are still shown, and `-d`/`--debug` writes its messages to
+  stderr too (#327).
 
 ## Security
 

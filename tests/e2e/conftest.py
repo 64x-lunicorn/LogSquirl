@@ -179,6 +179,15 @@ def run_grep(binary: Path, pattern: str, filepath: Path, timeout: int = 30) -> s
     )
 
 
+def run_grep_bytes(binary: Path, pattern: str, filepath: Path, timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run logsquirl_grep and return the completed process with undecoded output."""
+    return subprocess.run(
+        [str(binary), "-e", pattern, str(filepath)],
+        capture_output=True,
+        timeout=timeout,
+    )
+
+
 def run_gui(binary: Path, args: list[str], timeout: int = 10) -> subprocess.CompletedProcess:
     """Run logsquirl GUI with given args (adds -platform offscreen on non-macOS)."""
     cmd = [str(binary)] + args
@@ -194,7 +203,11 @@ def run_gui(binary: Path, args: list[str], timeout: int = 10) -> subprocess.Comp
 
 
 def grep_output_lines(result: subprocess.CompletedProcess) -> list[str]:
-    """Extract matched lines from grep output, filtering internal log messages."""
+    """Extract matched lines from grep stdout.
+
+    The tool writes its own log messages to stderr (#327), so stdout carries
+    only the matches; the filter stays as a safety net against stray output.
+    """
     lines = result.stdout.strip().splitlines() if result.stdout.strip() else []
     # Filter out internal logging lines (contain "[IndexOperation::doIndex" or similar)
     return [l for l in lines if "[IndexOperation::" not in l]

@@ -28,7 +28,14 @@ namespace logging {
 
 enum class LogLevel { None, Fatal, Error, Warning, Info, Debug };
 
-void enableLogging( bool enableLogging = true, LogLevel logLevel = LogLevel::Info );
+// The stream console logging writes to. A command line tool writes its result
+// to stdout, so its log messages belong on stderr: stdout then carries only
+// the result and can be piped into another tool (#327). The desktop
+// application has no such result and keeps stdout.
+enum class ConsoleStream { StdOut, StdErr };
+
+void enableLogging( bool enableLogging = true, LogLevel logLevel = LogLevel::Info,
+                    ConsoleStream consoleStream = ConsoleStream::StdOut );
 void enableFileLogging( bool enableLogging = true, LogLevel logLevel = LogLevel::Info );
 } // namespace logging
 
