@@ -20,6 +20,9 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <utility>
+
+#include <QTextCodec>
 
 #include <mimalloc.h>
 
@@ -44,6 +47,28 @@ namespace {
 void printFailure( const QString& failure )
 {
     std::cerr << "logsquirl_grep: " << failure.toStdString() << std::endl;
+}
+
+// The Encoding the tool reads its Log File in, settled the way the desktop
+// application settles it once a load has finished (#326): the Encoding the
+// settings force, and otherwise the one detected while the Log File was
+// indexed. Without either, the locale's, which is where the application
+// lands too.
+//
+// It is settled before the Search runs, so the Search matches the Log Lines
+// as a user reads them and the matches print as they are in the Log File.
+void useDetectedEncoding( OpenLogFile& openLogFile, const FileAccessPolicy& fileAccess )
+{
+    QTextCodec* codec = fileAccess.defaultEncodingMib >= 0
+                            ? QTextCodec::codecForMib( fileAccess.defaultEncodingMib )
+                            : openLogFile.logData()->getDetectedEncoding();
+    if ( !codec ) {
+        codec = QTextCodec::codecForLocale();
+    }
+
+    LOG_INFO << "Reading the Log File as " << codec->name().constData();
+    openLogFile.logData()->setDisplayEncoding( codec->name().constData() );
+    openLogFile.filteredData()->setDisplayEncoding( codec->name().constData() );
 }
 
 void printMatches( const LogFilteredData& search, LinesCount nbMatches )
@@ -124,14 +149,28 @@ int main( int argc, char* argv[] )
         }
     };
 
+    // The Search is requested once the Log File has loaded, and not before:
+    // only then is its Encoding known.
+    bool searchRequested = false;
+
     QObject::connect( &openLogFile, &OpenLogFile::loadingFinished,
                       [ & ]( const OpenLogFile::LoadFinished& load ) {
-                          if ( !finished && load.status != LoadingStatus::Successful ) {
+                          if ( finished ) {
+                              return;
+                          }
+                          if ( load.status != LoadingStatus::Successful ) {
                               printFailure( load.failure.isEmpty()
                                                 ? QString( "loading the Log File did not finish" )
                                                 : load.failure );
                               finish( EXIT_FAILURE );
+                              return;
                           }
+                          if ( std::exchange( searchRequested, true ) ) {
+                              return;
+                          }
+                          useDetectedEncoding( openLogFile, policies.fileAccess );
+                          openLogFile.requestSearch(
+                              RegularExpressionPattern( parameters.pattern ) );
                       } );
 
     QObject::connect( &openLogFile, &OpenLogFile::searchUpdated,
@@ -154,10 +193,7 @@ int main( int argc, char* argv[] )
                           }
                       } );
 
-    // The Search is requested with the Log File opened: the Open Log File
-    // runs it once the Log File has loaded.
     openLogFile.open( parameters.filenames.front() );
-    openLogFile.requestSearch( RegularExpressionPattern( parameters.pattern ) );
 
     return app.exec();
 }

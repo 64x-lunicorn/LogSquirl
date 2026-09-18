@@ -94,6 +94,49 @@ if(NOT (_stdout STREQUAL "first fizz\n\tcolumn\tfizz\nfizz at the end\n"))
   fail("a Search prints its Log Lines without their carriage returns")
 endif()
 
+# A Log File is read in the Encoding it is detected as, and its matching Log
+# Lines are printed as they are in the file, byte for byte (#326).
+set(_utf8_file "${WORK_DIR}/grep-utf8.log")
+set(_utf8_expected "hit: Grüße aus München\nhit: Öl bei 42 °C, Größe 5 µm\n")
+file(WRITE "${_utf8_file}" "hit: Grüße aus München\nmiss: nothing to see\nhit: Öl bei 42 °C, Größe 5 µm\n")
+run_grep("${_utf8_file}" -e "^hit")
+if(NOT _result STREQUAL "0")
+  fail("a Search in a UTF-8 Log File exits with 0")
+endif()
+if(NOT _stdout STREQUAL _utf8_expected)
+  fail("a Search prints the UTF-8 Log Lines it matched byte for byte")
+endif()
+
+# The Search matches the Log Lines in that Encoding too, so a pattern with
+# non-ASCII text finds them.
+run_grep("${_utf8_file}" -e "München")
+if(NOT _result STREQUAL "0")
+  fail("a Search for non-ASCII text exits with 0")
+endif()
+if(NOT (_stdout STREQUAL "hit: Grüße aus München\n"))
+  fail("a Search for non-ASCII text prints the Log Line it matched")
+endif()
+
+# A Latin-1 Log File prints as UTF-8 text. Its bytes are built one by one, so
+# this script's own Encoding does not decide what is written: ä ö ü ß, which
+# every Latin Encoding the detection may land on decodes the same way.
+string(ASCII 228 _l1_ae)
+string(ASCII 246 _l1_oe)
+string(ASCII 252 _l1_ue)
+string(ASCII 223 _l1_sz)
+set(_latin1_file "${WORK_DIR}/grep-latin1.log")
+file(WRITE "${_latin1_file}"
+     "hit: Gr${_l1_oe}${_l1_sz}e und M${_l1_ue}nchen, ${_l1_ae}rger mit T${_l1_ue}ren\n"
+     "miss: nothing to see\n"
+     "hit: sch${_l1_oe}ne gr${_l1_ue}${_l1_sz}e, ${_l1_ae}u${_l1_sz}ere W${_l1_ae}rme\n")
+run_grep("${_latin1_file}" -e "^hit")
+if(NOT _result STREQUAL "0")
+  fail("a Search in a Latin-1 Log File exits with 0")
+endif()
+if(NOT (_stdout STREQUAL "hit: Größe und München, ärger mit Türen\nhit: schöne grüße, äußere Wärme\n"))
+  fail("a Search prints the Log Lines of a Latin-1 Log File as UTF-8 text")
+endif()
+
 # No match is no failure.
 run_grep("${_log_file}" -e "no such text")
 if(NOT _result STREQUAL "0")

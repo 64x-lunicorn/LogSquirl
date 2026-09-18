@@ -179,6 +179,15 @@ def run_grep(binary: Path, pattern: str, filepath: Path, timeout: int = 30) -> s
     )
 
 
+def run_grep_bytes(binary: Path, pattern: str, filepath: Path, timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run logsquirl_grep and return the completed process with undecoded output."""
+    return subprocess.run(
+        [str(binary), "-e", pattern, str(filepath)],
+        capture_output=True,
+        timeout=timeout,
+    )
+
+
 def run_gui(binary: Path, args: list[str], timeout: int = 10) -> subprocess.CompletedProcess:
     """Run logsquirl GUI with given args (adds -platform offscreen on non-macOS)."""
     cmd = [str(binary)] + args
