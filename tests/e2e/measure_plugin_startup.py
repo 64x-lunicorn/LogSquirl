@@ -37,9 +37,7 @@ import json
 import platform
 import shutil
 import statistics
-import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
@@ -75,15 +73,9 @@ def measure_once(binary: Path, library: Path, delay_ms: int) -> tuple[float, flo
         env.env["LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS"] = str(delay_ms)
         try:
             start = time.perf_counter()
-            env.primary = subprocess.Popen(
-                [str(env.binary), "-n", "-d", "2"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                env=env.env,
-                text=True,
-                errors="replace",
-            )
-            threading.Thread(target=env._read_primary, daemon=True).start()
+            # ready=None: this measures the startup itself, so it must not
+            # wait for a line first.
+            env.start_primary(ready=None)
             # Whichever comes first, both lines are queued in the order logged.
             stamps: dict[str, float] = {}
             deadline = start + 60
