@@ -105,8 +105,9 @@ double highestContrast( const QImage& image, const QRect& area, const QColor& ba
     return highest;
 }
 
-const auto BuiltInThemes = { QString( Theme::LightKey ), QString( Theme::DarkKey ),
-                             QString( Theme::HighContrastKey ), QString( Theme::SmyckKey ) };
+const auto BuiltInThemes
+    = { QString( Theme::LightKey ), QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
+        QString( Theme::SmyckKey ), QString( Theme::SmyckLightKey ) };
 
 class PullLogView : public AbstractLogView {
 public:
@@ -213,7 +214,7 @@ SCENARIO( "The pull-to-follow bar follows a Theme switch", "[ui][theme][viewport
         REQUIRE( colorCounts( pulled.grab(), pulled.bar() ).contains( lightStripe ) );
 
         for ( const auto& name : { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
-                                   QString( Theme::SmyckKey ) } ) {
+                                   QString( Theme::SmyckKey ), QString( Theme::SmyckLightKey ) } ) {
             WHEN( "the " << name.toStdString() << " Theme is applied" )
             {
                 Theme::apply( name );

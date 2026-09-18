@@ -35,7 +35,8 @@
 namespace {
 
 const std::initializer_list<QLatin1String> BuiltInThemes{ Theme::LightKey, Theme::DarkKey,
-                                                          Theme::HighContrastKey, Theme::SmyckKey };
+                                                          Theme::HighContrastKey, Theme::SmyckKey,
+                                                          Theme::SmyckLightKey };
 
 } // namespace
 

@@ -492,6 +492,8 @@ open window:
   for selection and focus.
 - **Smyck**, a dark theme in the colors of the
   [SMYCK terminal color scheme](https://color.smyck.org/).
+- **Smyck Light**, the same scheme on light surfaces, with the same color
+  labels as Smyck.
 - **System**, which becomes Light or Dark from the operating system's color
   scheme and follows it while *logsquirl* runs.
 
@@ -500,9 +502,9 @@ follow it too: a color label you have not picked a color for yourself takes the
 colors of the theme you choose, and keeps them when you choose another.
 
 A theme can be extended with a stylesheet of your own: put a `.qss` file named
-after the theme (`fusion-light.qss`, `dark.qss`, `high-contrast.qss` or
-`smyck.qss`) into the `themes` directory of the configuration directory, and it
-is appended to the theme's stylesheet.
+after the theme (`fusion-light.qss`, `dark.qss`, `high-contrast.qss`,
+`smyck.qss` or `smyck-light.qss`) into the `themes` directory of the
+configuration directory, and it is appended to the theme's stylesheet.
 
 #### High DPI
 
