@@ -233,7 +233,7 @@ run one after another: the Qt test executables share one portable settings file.
 
 ### Theme screenshots
 
-A hidden UI test renders every Theme (Light, Dark, High Contrast) to PNG files: the main window
+A hidden UI test renders every Theme (Light, Dark, High Contrast, Smyck) to PNG files: the main window
 with a Log File and a Search, the sidebar, every menu, the Command Palette, the dialogs and a
 gallery of every standard widget in every state. It is not part of `ctest` or CI; run it by its
 tag, offscreen (no display or screen-recording permission needed), into a directory of your choice:

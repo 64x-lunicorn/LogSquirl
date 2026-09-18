@@ -47,6 +47,7 @@
 #include "quickfind.h"
 #include "quickfindpattern.h"
 #include "regularexpression.h"
+#include "theme.h"
 
 namespace {
 
@@ -99,6 +100,13 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // first frame and again whenever they change: this view derives no Policy
     // of its own.
     setItemDelegate( delegate_ );
+
+    // The Color Labels follow the Theme, and the delegate was handed their
+    // colors with the words, so they are handed over again here (ADR-0006).
+    Theme::whenApplied( this, [ this ] {
+        delegate_->setColorLabelWords( colorLabels_ );
+        viewport()->update();
+    } );
 
     quickFindPattern_ = std::make_shared<QuickFindPattern>();
     quickFind_ = std::make_unique<QuickFind>(

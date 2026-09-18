@@ -147,6 +147,45 @@ std::function<Qt::ColorScheme()>& systemColorSchemeSource()
     return source;
 }
 
+// The Color Labels of Light, Dark and High Contrast: the colors LogSquirl
+// has given them since they existed. Label 9 has no text color of its own, so
+// a labelled word keeps the color of its Log Line.
+const std::array<ColorLabelColors, ColorLabelCount>& classicColorLabels()
+{
+    static const std::array<ColorLabelColors, ColorLabelCount> labels{ {
+        { QColor( "#001e80" ), QColor( "#a1b7ff" ) },
+        { QColor( "#80005D" ), QColor( "#ffa1c6" ) },
+        { QColor( "#0f8000" ), QColor( "#acffa1" ) },
+        { QColor( "#806000" ), QColor( "#ffe8a1" ) },
+        { QColor( "#420080" ), QColor( "#d2a1ff" ) },
+        { QColor( "#007f80" ), QColor( "#a1feff" ) },
+        { QColor( "#004e80" ), QColor( "#a1dbff" ) },
+        { QColor( "#120080" ), QColor( "#a29ccf" ) },
+        { QColor(), QColor( Qt::gray ) },
+    } };
+    return labels;
+}
+
+// The Color Labels of Smyck: the light ANSI colors of the scheme, in the hue
+// order of the classic labels, on the scheme's own background. Label 9 is its
+// light black, which needs light text; every other label reaches 4.5:1 with
+// the background color as its text.
+const std::array<ColorLabelColors, ColorLabelCount>& smyckColorLabels()
+{
+    static const std::array<ColorLabelColors, ColorLabelCount> labels{ {
+        { QColor( "#1B1B1B" ), QColor( "#9CD9F0" ) },
+        { QColor( "#1B1B1B" ), QColor( "#FBB1F9" ) },
+        { QColor( "#1B1B1B" ), QColor( "#CDEE69" ) },
+        { QColor( "#1B1B1B" ), QColor( "#FFE377" ) },
+        { QColor( "#1B1B1B" ), QColor( "#C8A0D1" ) },
+        { QColor( "#1B1B1B" ), QColor( "#77DFD8" ) },
+        { QColor( "#1B1B1B" ), QColor( "#4E90A7" ) },
+        { QColor( "#1B1B1B" ), QColor( "#E09690" ) },
+        { QColor( "#F7F7F7" ), QColor( "#5D5D5D" ) },
+    } };
+    return labels;
+}
+
 // Every earlier version saved its full default dark palette. A stored color
 // that was the default before a Dark Token changed is that old default, not
 // a choice, so it does not override the new one.
@@ -169,6 +208,7 @@ Theme Theme::light()
     theme.name_ = LightKey;
     theme.isDark_ = false;
     theme.userStyleSheetFileName_ = QStringLiteral( "fusion-light.qss" );
+    theme.colorLabels_ = classicColorLabels();
 
     using enum ColorToken;
     theme.setColors( {
@@ -303,6 +343,7 @@ Theme Theme::dark()
     theme.name_ = DarkKey;
     theme.isDark_ = true;
     theme.userStyleSheetFileName_ = QStringLiteral( "dark.qss" );
+    theme.colorLabels_ = classicColorLabels();
 
     using enum ColorToken;
     theme.setColors( {
@@ -441,6 +482,7 @@ Theme Theme::highContrast()
     theme.name_ = HighContrastKey;
     theme.isDark_ = true;
     theme.userStyleSheetFileName_ = QStringLiteral( "high-contrast.qss" );
+    theme.colorLabels_ = classicColorLabels();
 
     using enum ColorToken;
     theme.setColors( {
@@ -575,11 +617,160 @@ Theme Theme::highContrast()
     return theme;
 }
 
+Theme Theme::smyck()
+{
+    // The SMYCK terminal color scheme (https://color.smyck.org/, MIT,
+    // (c) 2012 John-Paul Bader): its background, its light white as the text
+    // color, its selection color as the accent, and its ANSI colors for
+    // status, errors and links. The grays between the background and the text
+    // are the five steps Dark uses, in SMYCK's own black to white ramp. Every
+    // token that carries text reaches 4.5:1 on the surface it sits on.
+    Theme theme;
+    theme.name_ = SmyckKey;
+    theme.isDark_ = true;
+    theme.userStyleSheetFileName_ = QStringLiteral( "smyck.qss" );
+    theme.colorLabels_ = smyckColorLabels();
+
+    using enum ColorToken;
+    theme.setColors( {
+        { Window, "#1B1B1B" },
+        { WindowText, "#F7F7F7" },
+        { Base, "#1B1B1B" },
+        { AlternateBase, "#242424" },
+        { ToolTipBase, "#2E2E2E" },
+        { ToolTipText, "#F7F7F7" },
+        { Text, "#F7F7F7" },
+        { Button, "#2E2E2E" },
+        { ButtonText, "#F7F7F7" },
+        { Link, "#9CD9F0" },
+        // The scheme's selection color; light white on it reaches 5.1:1.
+        { Highlight, "#207483" },
+        { HighlightedText, "#F7F7F7" },
+        { ActiveButton, "#242424" },
+        { DisabledButtonText, "#5D5D5D" },
+        { DisabledWindowText, "#5D5D5D" },
+        { DisabledText, "#5D5D5D" },
+        { DisabledLight, "#242424" },
+        // Text at half opacity; unlike Dark's, no override follows it.
+        { PlaceholderText, "#80F7F7F7" },
+        // Fusion draws frames and tab-bar base lines in these: none is
+        // brighter than Border. Mid is Border itself, for palette(mid) borders.
+        { Light, "#3A3A3A" },
+        { Midlight, "#2E2E2E" },
+        { Mid, "#3A3A3A" },
+        { Dark, "#1B1B1B" },
+        { Shadow, "#000000" },
+
+        { Chrome, "#242424" },
+        { Pane, "#1B1B1B" },
+        { Panel, "#2E2E2E" },
+        { Menu, "#242424" },
+        { Border, "#3A3A3A" },
+        { InputBorder, "#5D5D5D" },
+        { PopupBorder, "#3A3A3A" },
+        { ToolTipBorder, "#5D5D5D" },
+        { DisabledBorder, "#2E2E2E" },
+        { DisabledBackground, "#1B1B1B" },
+        { Hover, "#3A3A3A" },
+        { HoverText, "#F7F7F7" },
+        { HoverBorder, "#3A3A3A" },
+        { InputHoverBorder, "#5D5D5D" },
+        { HeaderHover, "#3A3A3A" },
+        { ButtonHover, "#3A3A3A" },
+        { ToolButtonHover, "#3A3A3A" },
+        { ButtonPressed, "#1B1B1B" },
+        { ButtonPressedBorder, "#5D5D5D" },
+        { PressedText, "#F7F7F7" },
+        // The accent, dark enough to keep light text on it legible.
+        { Checked, "#14404A" },
+        { CheckedBorder, "#218693" },
+        { TabAddButtonHover, "#3A3A3A" },
+        { TabAddButtonPressed, "#1B1B1B" },
+        { TabAddButtonPressedBorder, "#5D5D5D" },
+        { TabUnderline, "transparent" },
+        // The scheme's red.
+        { CloseButtonHover, "#C75646" },
+        { SecondaryText, "#B0B0B0" },
+        { ScrollBarTrack, "#1B1B1B" },
+        { Handle, "#5D5D5D" },
+        { HandleHover, "#7A7A7A" },
+        { Indicator, "#2E2E2E" },
+        { IndicatorBorder, "#7A7A7A" },
+        { IndicatorIndeterminate, "#14404A" },
+        { IndicatorDisabled, "#242424" },
+        { IndicatorDisabledBorder, "#5D5D5D" },
+        { StatusOk, "#8EB33B" },
+        { StatusWarning, "#D0B03C" },
+        // The scheme's dark white, not its light black: a status color is the
+        // background of a badge, and StatusText has to read on it.
+        { StatusInactive, "#B0B0B0" },
+        { StatusInfo, "#4E90A7" },
+        // The status colors are backgrounds here, and the background color is
+        // the text color that reaches 4.5:1 on all of them.
+        { StatusText, "#1B1B1B" },
+        { HighlightedSecondaryText, "#F7F7F7" },
+        { BadgeBackground, "#3A3A3A" },
+        { BadgeText, "#F7F7F7" },
+        { ViewportMargin, "#242424" },
+        { ViewportMarginBorder, "#3A3A3A" },
+        { LineNumberText, "#B0B0B0" },
+        { Bullet, "#1B1B1B" },
+        { BulletOutline, "#B0B0B0" },
+        { ProgressChunk, "#207483" },
+        { SliderGroove, "#5D5D5D" },
+        // The scheme's red, dark enough for its light red as text (5.9:1).
+        { ErrorBackground, "#4A1F1A" },
+        { ErrorText, "#E09690" },
+        { PullToFollowStripe, "#7A7A7A" },
+        { DefaultButton, "#207483" },
+        { DefaultButtonText, "#F7F7F7" },
+        { DefaultButtonBorder, "#207483" },
+        // Darker rather than lighter on hover: light text stays above 4.5:1.
+        { DefaultButtonHover, "#1A5E6B" },
+        { DefaultButtonFocusBorder, "#F7F7F7" },
+    } );
+
+    using enum StyleToken;
+    theme.setValues( {
+        // Sizes and shapes are Dark's: Themes differ in color only (#264).
+        { BorderWidth, "1px" },
+        { OutlineWidth, "0px" },
+        { ButtonPadding, "4px 12px" },
+        { ToolButtonPadding, "3px" },
+        { InputPadding, "3px 6px" },
+        { ComboArrowSize, "12px" },
+        { TabPaneOffset, "0px" },
+        { TabAddButtonPadding, "0 6px" },
+        { TabAddButtonMargin, "2px 4px" },
+        { TabAddButtonMinWidth, "20px" },
+        { ScrollBarExtent, "8px" },
+        { HandleRadius, "3px" },
+        { MenuBarItemRadius, "4px" },
+        { MenuItemPadding, "5px 24px 5px 28px" },
+        { MenuIconOffset, "6px" },
+        { IndicatorSize, "16px" },
+        { ArrowDownIcon, "url(:/icons/arrow-down-dark.svg)" },
+        { ArrowUpIcon, "url(:/icons/arrow-up-dark.svg)" },
+        { CheckIcon, "url(:/icons/check-dark.svg)" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-dark.svg)" },
+        { CloseIcon, "url(:/icons/close-dark.svg)" },
+        { DisabledBorderStyle, "solid" },
+        { ProgressChunkBorderWidth, "0px" },
+        { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-dark.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-dark.svg)" },
+        { ControlRadius, "4px" },
+        { PopupRadius, "6px" },
+        { BoxBorderWidth, "0px" },
+    } );
+    return theme;
+}
+
 // ---------------------------------------------------------------------------
 
 QStringList Theme::availableThemes()
 {
-    QStringList themes{ LightKey, DarkKey, HighContrastKey, SystemKey };
+    QStringList themes{ LightKey, DarkKey, HighContrastKey, SmyckKey, SystemKey };
     std::sort( themes.begin(), themes.end(), []( const auto& lhs, const auto& rhs ) {
         return lhs.compare( rhs, Qt::CaseInsensitive ) < 0;
     } );
@@ -606,6 +797,9 @@ Theme Theme::fromName( const QString& name, Qt::ColorScheme systemScheme,
     }
     if ( resolved == HighContrastKey ) {
         return highContrast();
+    }
+    if ( resolved == SmyckKey ) {
+        return smyck();
     }
     return light();
 }
@@ -678,6 +872,40 @@ QColor Theme::color( ColorToken token ) const
 QString Theme::value( StyleToken token ) const
 {
     return values_[ indexOf( token ) ];
+}
+
+const std::array<ColorLabelColors, ColorLabelCount>& Theme::colorLabels() const
+{
+    return colorLabels_;
+}
+
+bool Theme::sameColorLabelColor( const QColor& lhs, const QColor& rhs )
+{
+    return lhs == rhs;
+}
+
+bool Theme::isBuiltInColorLabel( std::size_t slot, const QColor& foreColor,
+                                 const QColor& backColor )
+{
+    if ( slot >= ColorLabelCount ) {
+        return false;
+    }
+    // Before an invalid color was kept as one (#353), the settings store wrote
+    // it as opaque black and read it back as that, so a Color Label saved by
+    // an earlier version holds the Theme's color, not a color the user chose.
+    const auto isTheThemes = []( const QColor& themeColor, const QColor& stored ) {
+        return sameColorLabelColor( themeColor, stored )
+               || ( !themeColor.isValid() && stored == QColor( Qt::black ) );
+    };
+
+    for ( const auto* labels : { &classicColorLabels(), &smyckColorLabels() } ) {
+        const auto& label = ( *labels )[ slot ];
+        if ( isTheThemes( label.foreColor, foreColor )
+             && isTheThemes( label.backColor, backColor ) ) {
+            return true;
+        }
+    }
+    return false;
 }
 
 QString Theme::tokenName( ColorToken token )

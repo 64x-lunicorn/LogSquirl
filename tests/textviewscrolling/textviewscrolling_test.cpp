@@ -998,3 +998,87 @@ SCENARIO( "No scrolling step reads more than the Viewport and what it passes ove
         }
     }
 }
+
+// A column is as wide as the font paints it (#352). Qt adds advances up in
+// 1/64 pixels; a layout that counts columns in whole pixels loses a fraction
+// of a pixel per column, and over a Viewport's width that becomes characters
+// the view never shows and clicks that land beside the character.
+SCENARIO( "columns are as wide as the font paints them", "[textviewscrolling][viewportlayout]" )
+{
+    // What Qt measures for Menlo at 16pt: 9.625 px per character, which
+    // QFontMetrics::horizontalAdvance() reports as 10.
+    constexpr double PaintedAdvancePx = 9.625;
+    constexpr int RoundedAdvancePx = 10;
+    constexpr int FontHeightPx = 16;
+    // The text area of the Viewport the bug was measured in.
+    constexpr int TextAreaPx = 2275;
+    constexpr int64_t LongLineColumns = 100000;
+
+    const auto marginsOnly = ViewportLayout{ ViewportLayoutInput{} };
+
+    ViewportLayoutInput input;
+    input.charWidthPx = PaintedAdvancePx;
+    input.charHeightPx = FontHeightPx;
+    input.viewportWidthPx = marginsOnly.leftMarginPx() + TextAreaPx;
+    input.viewportHeightPx = 10 * FontHeightPx;
+    input.textWrap = false;
+
+    GIVEN( "a Viewport measured in a font whose advance is fractional" )
+    {
+        const ViewportLayout layout{ input };
+        const auto columns = static_cast<double>( layout.visibleColumns().get() );
+
+        THEN( "it shows every column that fits, and none that does not" )
+        {
+            REQUIRE( columns * PaintedAdvancePx <= TextAreaPx );
+            REQUIRE( ( columns + 1 ) * PaintedAdvancePx > TextAreaPx );
+        }
+
+        THEN( "it shows the columns a whole-pixel width would leave blank" )
+        {
+            // 236 columns rather than 227: the eight characters that used to
+            // stay empty at the right edge of the Viewport.
+            REQUIRE( columns > TextAreaPx / RoundedAdvancePx );
+        }
+    }
+
+    GIVEN( "a Log Line longer than the Viewport is wide" )
+    {
+        VisualLines visualLines{ VisualLine{ .lineNumber = 0_lnum,
+                                             .wrappedLineIndex = 0,
+                                             .firstColumn = 0_lcol,
+                                             .length = LineLength{ LongLineColumns },
+                                             .lineLength = LineLength{ LongLineColumns } } };
+        const ViewportLayout layout{ input, std::move( visualLines ) };
+        // One type for every column below: a braced list of mixed integer
+        // types deduces nothing, and which of them int64_t is differs between
+        // the platforms (macOS builds it, GCC on Linux does not).
+        using Column = decltype( layout.visibleColumns().get() );
+        const Column lastColumn = layout.visibleColumns().get() - 1;
+
+        THEN( "a click lands on the character under it, at either edge" )
+        {
+            for ( const Column column :
+                  { Column{ 0 }, Column{ 1 }, Column{ 100 }, Column{ 200 }, lastColumn } ) {
+                const auto centreOfColumnPx
+                    = layout.textOriginX()
+                      + static_cast<int>( PaintedAdvancePx * static_cast<double>( column )
+                                          + PaintedAdvancePx / 2 );
+                const auto position = layout.filePositionAtPoint( centreOfColumnPx, 0 );
+                REQUIRE( position.column().get() == column );
+            }
+        }
+
+        THEN( "a character's cell sits where the character is painted" )
+        {
+            for ( const Column column : { Column{ 0 }, Column{ 100 }, lastColumn } ) {
+                const auto rect = layout.rectForColumn(
+                    0_lnum, LineColumn{ static_cast<LineColumn::UnderlyingType>( column ) } );
+                REQUIRE( rect.x
+                         == layout.textOriginX() + columnsWidthPx( PaintedAdvancePx, column ) );
+                // A cell covers a whole character, never a sliver of one.
+                REQUIRE( rect.width >= static_cast<int>( PaintedAdvancePx ) );
+            }
+        }
+    }
+}

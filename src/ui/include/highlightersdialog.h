@@ -40,8 +40,11 @@
 #define FILTERSDIALOG_H
 
 #include <memory>
+#include <vector>
 
 #include <QDialog>
+
+class QPushButton;
 
 #include "highlighterset.h"
 #include "highlightersetedit.h"
@@ -80,6 +83,12 @@ private:
     void setCurrentRow( int row );
     void loadIcons();
 
+    // Lets the Color Labels of the copy this dialog edits follow the Theme,
+    // as those of the application do (ADR-0006): a Color Label the user has
+    // not colored here shows the color of the Theme applied now, and OK
+    // writes that rather than the color of the Theme before the switch.
+    void showColorLabelsOfTheme();
+
 private:
     HighlighterSetEdit* highlighterSetEdit_;
 
@@ -89,6 +98,10 @@ private:
 
     // Index of the row currently selected or -1 if none.
     int selectedRow_;
+
+    // The color buttons of the Color Labels, in slot order.
+    std::vector<QPushButton*> colorLabelForeButtons_;
+    std::vector<QPushButton*> colorLabelBackButtons_;
 };
 
 #endif

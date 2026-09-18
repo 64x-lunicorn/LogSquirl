@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **Smyck theme**: A fourth theme, after the SMYCK terminal color scheme
+  (https://color.smyck.org/): a dark theme in its background, its grays and its
+  ANSI colors, with the same sizes and shapes as Dark. Choosing it also colors
+  the nine color labels in SMYCK's colors, and choosing another theme colors
+  them back; a color label you picked a color for yourself is left alone
+  (#353).
 - **Themes differ in color only**: Light and High Contrast use Dark's sizes
   and shapes (combo box arrow, menu item padding and icon offset, tab add
   button); High Contrast keeps only its thicker borders and outlines. The tab
@@ -29,6 +35,12 @@
 
 ## Bug fixes
 
+- **The Viewport shows every column that fits**: A Log Line now runs to the
+  right edge of the Viewport instead of stopping a few characters short of it,
+  and a click lands on the character under the pointer however far right it
+  sits. Columns are measured with the advance the text is painted with, which
+  Qt counts in fractions of a pixel; measuring them in whole pixels lost a
+  fraction per column and whole characters across a Viewport (#352).
 - **Multi-frame .lz4 files**: A `.lz4` Log File made of several frames
   (block-streamed output, concatenated files) opens completely instead of
   stopping after the first frame, and a truncated or corrupt one reports an

@@ -159,8 +159,8 @@ SCENARIO( "The overview shows Matches and Marks in every Theme", "[ui][theme][ov
 {
     OverviewOfMarkedLogFile fixture;
 
-    const auto themeName
-        = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey );
+    const auto themeName = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey,
+                                     Theme::HighContrastKey, Theme::SmyckKey );
     INFO( themeName.toStdString() );
     Theme::apply( themeName );
     QCoreApplication::processEvents();
@@ -209,8 +209,8 @@ SCENARIO( "A highlighted line is flashed in the Theme's highlight color", "[ui][
 {
     OverviewOfMarkedLogFile fixture;
 
-    const auto themeName
-        = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey );
+    const auto themeName = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey,
+                                     Theme::HighContrastKey, Theme::SmyckKey );
     INFO( themeName.toStdString() );
     Theme::apply( themeName );
     QCoreApplication::processEvents();
@@ -240,7 +240,8 @@ SCENARIO( "A Theme switch repaints the overview", "[ui][theme][overview]" )
     PaintCounter paints;
     fixture.widget.installEventFilter( &paints );
 
-    for ( const auto themeName : { Theme::DarkKey, Theme::HighContrastKey, Theme::LightKey } ) {
+    for ( const auto themeName :
+          { Theme::DarkKey, Theme::HighContrastKey, Theme::SmyckKey, Theme::LightKey } ) {
         INFO( QString( themeName ).toStdString() );
         const auto paintsBefore = paints.count;
         Theme::apply( themeName );

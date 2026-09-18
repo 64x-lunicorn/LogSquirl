@@ -702,8 +702,9 @@ SCENARIO( "Every icon Token names an icon that exists", "[ui][theme]" )
         THEN( "every url() of its style Tokens is an icon resource" )
         {
             static const QRegularExpression url( "^url\\((.+)\\)$" );
-            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ),
-                                       QString( Theme::HighContrastKey ) } ) {
+            for ( const auto& name :
+                  { QString( Theme::LightKey ), QString( Theme::DarkKey ),
+                    QString( Theme::HighContrastKey ), QString( Theme::SmyckKey ) } ) {
                 const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
                 for ( std::size_t i = 0; i < StyleTokenCount; ++i ) {
                     const auto token = static_cast<StyleToken>( i );
@@ -785,7 +786,7 @@ SCENARIO( "The Command Palette's badges and shortcuts are readable in every Them
             {
                 for ( const auto& name :
                       { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
-                        QString( Theme::LightKey ) } ) {
+                        QString( Theme::SmyckKey ), QString( Theme::LightKey ) } ) {
                     Theme::apply( name );
                     QCoreApplication::processEvents();
                     const auto image = list->viewport()->grab().toImage();

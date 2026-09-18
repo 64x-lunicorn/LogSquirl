@@ -39,6 +39,7 @@
 // This file implements class HighlighterSetCollection
 
 #include <algorithm>
+#include <array>
 #include <iterator>
 
 #include <QApplication>
@@ -46,6 +47,7 @@
 
 #include "containers.h"
 #include "log.h"
+#include "theme.h"
 
 #include "highlighterset.h"
 
@@ -126,6 +128,64 @@ bool HighlighterSetCollection::hasSetByName( const QString& setName ) const
                         [ setName ]( const auto& s ) { return s.name() == setName; } );
 }
 
+void HighlighterSetCollection::followTheme( QObject* context )
+{
+    Theme::whenApplied( context, [] {
+        // Every Theme switch runs this, most of them between Themes that give
+        // the Color Labels the same colors. The held copy decides whether
+        // there is anything to do at all, so only a switch that really
+        // recolors a Color Label syncs the settings store (#301) and writes to
+        // it -- and it reads the store again first, so the write does not drop
+        // what another instance saved in the meantime.
+        if ( !HighlighterSetCollection::get().colorLabelsOfTheme().has_value() ) {
+            return;
+        }
+
+        auto& collection = HighlighterSetCollection::getSynced();
+        if ( collection.applyThemeColorLabels() ) {
+            collection.save();
+        }
+    } );
+}
+
+std::optional<QList<QuickHighlighter>> HighlighterSetCollection::colorLabelsOfTheme() const
+{
+    const auto& themeLabels = Theme::active().colorLabels();
+
+    auto labels = quickHighlighters_;
+    auto changed = false;
+    const auto slots = std::min( static_cast<std::size_t>( labels.size() ), themeLabels.size() );
+    for ( std::size_t slot = 0; slot < slots; ++slot ) {
+        auto& color = labels[ static_cast<int>( slot ) ].color;
+        if ( !Theme::isBuiltInColorLabel( slot, color.foreColor, color.backColor ) ) {
+            continue;
+        }
+
+        const auto& themeLabel = themeLabels[ slot ];
+        if ( Theme::sameColorLabelColor( color.foreColor, themeLabel.foreColor )
+             && Theme::sameColorLabelColor( color.backColor, themeLabel.backColor ) ) {
+            continue;
+        }
+
+        color.foreColor = themeLabel.foreColor;
+        color.backColor = themeLabel.backColor;
+        changed = true;
+    }
+
+    return changed ? std::optional{ labels } : std::nullopt;
+}
+
+bool HighlighterSetCollection::applyThemeColorLabels()
+{
+    auto labels = colorLabelsOfTheme();
+    if ( !labels ) {
+        return false;
+    }
+
+    quickHighlighters_ = std::move( *labels );
+    return true;
+}
+
 QList<QuickHighlighter> HighlighterSetCollection::quickHighlighters() const
 {
     return quickHighlighters_;
@@ -159,10 +219,14 @@ void HighlighterSetCollection::saveToStorage( QSettings& settings ) const
     for ( int i = 0; i < quickHighlighters_.size(); ++i ) {
         settings.setArrayIndex( i );
         settings.setValue( "name", quickHighlighters_[ i ].name );
-        settings.setValue( "fore_colour",
-                           quickHighlighters_[ i ].color.foreColor.name( QColor::HexArgb ) );
-        settings.setValue( "back_colour",
-                           quickHighlighters_[ i ].color.backColor.name( QColor::HexArgb ) );
+        // An invalid color means the Log Line's own color. Written as a name
+        // it would come back as opaque black; an empty string comes back
+        // invalid.
+        const auto storedColor = []( const QColor& color ) {
+            return color.isValid() ? color.name( QColor::HexArgb ) : QString{};
+        };
+        settings.setValue( "fore_colour", storedColor( quickHighlighters_[ i ].color.foreColor ) );
+        settings.setValue( "back_colour", storedColor( quickHighlighters_[ i ].color.backColor ) );
         settings.setValue( "cycle", quickHighlighters_[ i ].useInCycle );
     }
     settings.endArray();
@@ -221,32 +285,24 @@ void HighlighterSetCollection::retrieveFromStorage( QSettings& settings )
         settings.endGroup();
     }
 
+    // A Color Label the settings do not have yet gets the colors of the Theme
+    // applied now, as one that still has a built-in Theme's colors does on
+    // every switch (ADR-0006).
+    const std::array<QString, ColorLabelCount> defaultNames{
+        QApplication::tr( "Color label 1" ), QApplication::tr( "Color label 2" ),
+        QApplication::tr( "Color label 3" ), QApplication::tr( "Color label 4" ),
+        QApplication::tr( "Color label 5" ), QApplication::tr( "Color label 6" ),
+        QApplication::tr( "Color label 7" ), QApplication::tr( "Color label 8" ),
+        QApplication::tr( "Color label 9" ),
+    };
+
+    const auto& themeLabels = Theme::active().colorLabels();
     QList<QuickHighlighter> defaultLabels;
-    defaultLabels.append( { QApplication::tr( "Color label 1" ),
-                            { QColor{ "#001e80" }, QColor{ "#a1b7ff" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 2" ),
-                            { QColor{ "#80005D" }, QColor{ "#ffa1c6" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 3" ),
-                            { QColor{ "#0f8000" }, QColor{ "#acffa1" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 4" ),
-                            { QColor{ "#806000" }, QColor{ "#ffe8a1" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 5" ),
-                            { QColor{ "#420080" }, QColor{ "#d2a1ff" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 6" ),
-                            { QColor{ "#007f80" }, QColor{ "#a1feff" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 7" ),
-                            { QColor{ "#004e80" }, QColor{ "#a1dbff" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 8" ),
-                            { QColor{ "#120080" }, QColor{ "#a29ccf" } },
-                            true } );
-    defaultLabels.append( { QApplication::tr( "Color label 9" ), { QColor{}, Qt::gray }, true } );
+    for ( std::size_t slot = 0; slot < ColorLabelCount; ++slot ) {
+        defaultLabels.append( { defaultNames[ slot ],
+                                { themeLabels[ slot ].foreColor, themeLabels[ slot ].backColor },
+                                true } );
+    }
 
     if ( quickHighlighters_.size() < defaultLabels.size() ) {
         LOG_WARNING << "Got " << quickHighlighters_.size() << " quick highlighters";

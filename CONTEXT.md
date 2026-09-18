@@ -158,7 +158,9 @@ _Avoid_: theme, profile, palette
 
 **Color Label**:
 A color the user assigns to a specific word on the fly, without editing a Highlighter Set.
-Shorter-lived and more ad hoc than a Highlighter.
+Shorter-lived and more ad hoc than a Highlighter. There are nine of them, and their colors
+follow the Theme: a Color Label whose colors are a built-in Theme's takes the colors of the
+Theme applied, one the user colored keeps them (ADR-0006).
 _Avoid_: quick highlighter, tag
 
 **Decoration**:
@@ -185,16 +187,18 @@ _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not thi
 ### Appearance
 
 **Theme**:
-The look of the application around the Log Lines: Light, Dark or High Contrast, or System,
-which becomes Light or Dark from the operating system's color scheme and follows it while the
-application runs. Choosing a Theme takes effect at once, in every open window. A Theme is
-exactly one set of Tokens; the application's palette and stylesheet are both derived from
-it. A Theme does not color Log Lines — that is the Highlighter Set's job.
+The look of the application around the Log Lines: Light, Dark, High Contrast or Smyck, or
+System, which becomes Light or Dark from the operating system's color scheme and follows it
+while the application runs. Choosing a Theme takes effect at once, in every open window. A
+Theme is exactly one set of Tokens, and it carries the colors of the Color Labels; the
+application's palette and stylesheet are both derived from it. Beyond the Color Labels a Theme
+does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
 
 **Token**:
 One named value of a Theme — a color such as the border or hover color, or a size or icon
-used by the stylesheet. Every Theme sets every Token. A user can override Dark Tokens by
+used by the stylesheet. Every Theme sets every Token; the colors of the Color Labels are not
+Tokens, because they color Log Lines rather than the application around them. A user can override Dark Tokens by
 name in the settings, and add a stylesheet of their own on top.
 _Avoid_: variable, constant, design value
 

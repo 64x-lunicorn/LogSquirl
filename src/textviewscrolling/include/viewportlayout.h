@@ -120,9 +120,13 @@ struct ViewportRect {
     }
 };
 
-// Everything the layout needs, as plain integers.
+// Everything the layout needs, as plain numbers.
 struct ViewportLayoutInput {
-    int charWidthPx = 1;
+    // The advance a column is painted with, kept fractional. Qt adds advances
+    // up in 1/64 pixels, so a column is 9.625 px wide as readily as 10;
+    // rounding it to whole pixels here loses a fraction of a pixel per column,
+    // which adds up to whole characters over a Viewport's width (#352).
+    double charWidthPx = 1;
     int charHeightPx = 1;
     int viewportWidthPx = 0;
     int viewportHeightPx = 0;
@@ -300,7 +304,7 @@ public:
 private:
     // Never zero: a degenerate font metric must not divide by zero, and a
     // one-pixel cell keeps every answer finite and in range.
-    int charWidth() const;
+    double charWidth() const;
     int charHeight() const;
 
     ViewportLayoutInput input_;
@@ -309,5 +313,10 @@ private:
 
 // Number of decimal digits of x (x == 0 counts as one digit).
 int countLineNumberDigits( uint64_t x );
+
+// The whole pixels a run of columns comes to, rounded the way the font rounds
+// the advance of a text that long -- the same arithmetic as
+// FontUtils::countedWidth(), so a column's pixels are where it is painted.
+int columnsWidthPx( double charWidthPx, int64_t columns );
 
 #endif
