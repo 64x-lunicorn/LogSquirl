@@ -207,7 +207,7 @@ void ChartPanel::showProgress()
     progressBar_->setValue( std::min( extraction_.progress(), 99 ) );
 }
 
-void ChartPanel::onExtracted()
+void ChartPanel::onExtracted( bool fromStart )
 {
     progressTimer_.stop();
     progressBar_->setVisible( false );
@@ -216,7 +216,11 @@ void ChartPanel::onExtracted()
         series_[ i ].points = extraction_.points( i );
     }
 
-    chartWidget_->setSeriesList( series_ );
+    // Only an extraction from the first Log Line may have other series or
+    // other points for the Log Lines extracted before; an incremental one only
+    // appends, so it leaves a view the user zoomed or panned to alone.
+    chartWidget_->setSeriesList( series_, fromStart ? ChartWidget::Change::Series
+                                                    : ChartWidget::Change::AppendedPoints );
 }
 
 QVector<ChartSeriesDefinition> ChartPanel::seriesDefinitions() const

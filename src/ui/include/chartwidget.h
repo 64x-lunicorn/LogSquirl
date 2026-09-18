@@ -37,19 +37,39 @@
 // view change, so hovering does not plot again, and the hovered point is found
 // among them by binary search.
 //
+// While the Log File grows, the view is fitted to the data again on every
+// update, so that the chart follows the Log File -- until the user zooms or
+// pans. That view is then kept until the series change or the user asks for
+// the view to be fitted.
+//
 // X-axis = line number in the log file.
 // Y-axis = extracted numeric value from the capture group.
 class ChartWidget : public QWidget {
     Q_OBJECT
 
 public:
+    // What changed about the series handed to setSeriesList().
+    enum class Change {
+        // The series themselves: one was added, edited or removed, or a preset
+        // was loaded. The view is fitted to the data again and follows it
+        // again, whatever the user zoomed or panned to before.
+        Series,
+        // Only their points, extracted from the Log Lines appended to a
+        // growing Log File. A view the user zoomed or panned to is kept; a
+        // view the user never touched keeps following the data.
+        AppendedPoints,
+    };
+
     explicit ChartWidget( QWidget* parent = nullptr );
 
     // Set the full list of series definitions (with pre-populated points).
-    void setSeriesList( const QVector<ChartSeriesDefinition>& series );
+    void setSeriesList( const QVector<ChartSeriesDefinition>& series, Change change );
 
-    // Reset zoom/pan to fit all data.
+    // Reset zoom/pan to fit all data, and follow the data again.
     void fitView();
+
+    // The view in data space and the plot area it is drawn in.
+    ChartViewport viewport() const;
 
 Q_SIGNALS:
     // Emitted when the user clicks near a data point; the main view
@@ -77,9 +97,6 @@ private:
     // Draw grid lines and axis labels.
     void drawAxes( QPainter& painter, const QRectF& area ) const;
 
-    // The view in data space and the plot area it is drawn in.
-    ChartViewport viewport() const;
-
     // The plot of every series in the current view, one per series (empty for
     // a hidden one); plotted again only when the series or the view changed.
     const std::vector<ChartPlot>& plots() const;
@@ -90,6 +107,12 @@ private:
     // Find the nearest plotted data point to a pixel position.
     // Returns {seriesIndex, pointIndex} or {-1, -1} if none close enough.
     std::pair<int, int> findNearestPoint( const QPointF& pixelPos, double maxDistPx = 12.0 ) const;
+
+    // Whether the view is still the automatic one, fitted to the data, rather
+    // than one the user zoomed or panned to. An automatic view is fitted again
+    // on every update, so that it follows a growing Log File; the user's view
+    // is kept until the series change or the user asks for it to be fitted.
+    bool viewIsAutomatic_ = true;
 
     // Current view bounds in data space.
     double xMin_ = 0.0;

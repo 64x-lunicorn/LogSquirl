@@ -111,7 +111,7 @@ private:
     // The series changed: extract them from the first Log Line.
     void seriesChanged();
     void onExtractionStarted();
-    void onExtracted();
+    void onExtracted( bool fromStart );
     void showProgress();
 
     ChartWidget* chartWidget_;

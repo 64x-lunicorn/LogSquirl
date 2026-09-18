@@ -129,8 +129,11 @@ public:
 Q_SIGNALS:
     // An extraction started on a worker thread.
     void started();
-    // An extraction finished and its points are merged in.
-    void extracted();
+    // An extraction finished and its points are merged in. fromStart tells
+    // whether it extracted from the first Log Line -- the series changed, the
+    // Log File was truncated, or these are the first points -- rather than
+    // only the Log Lines appended since the last extraction.
+    void extracted( bool fromStart );
 
 private:
     struct Job;

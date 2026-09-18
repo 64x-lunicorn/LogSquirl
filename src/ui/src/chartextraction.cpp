@@ -502,7 +502,7 @@ void ChartExtraction::onFinished( const std::shared_ptr<Job>& job )
             points_[ static_cast<size_t>( i ) ].merge( job->first, ( *result )[ i ] );
         }
         linesExtracted_ = LinesCount( job->first.get() + job->count.get() );
-        Q_EMIT extracted();
+        Q_EMIT extracted( job->fromStart );
     }
 
     if ( updateRequested_ ) {
