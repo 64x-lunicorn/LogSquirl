@@ -65,6 +65,7 @@ Session::~Session()
     for ( auto& [ view, openFile ] : openFiles_ ) {
         Q_UNUSED( view );
         QObject::disconnect( openFile.firstLoadFinished );
+        QObject::disconnect( openFile.loadRequested );
     }
 }
 
@@ -105,8 +106,17 @@ ViewInterface* Session::open( const QString& fileName, const ViewFactory& viewFa
 
     // Insert in the hash
     auto& openFile
-        = openFiles_.insert( { view, { fileName, openLogFile, view, FirstLoad::Queued, {} } } )
+        = openFiles_.insert( { view, { fileName, openLogFile, view, FirstLoad::Queued, {}, {} } } )
               .first->second;
+
+    // A Log File reloaded before it was ever loaded asks to be loaded, and
+    // this is the one place that opens one: the request goes to the same
+    // entry point an activated tab uses (#332). Bound to the Open Log File,
+    // which the views may keep beyond this Session, so it is disconnected
+    // with the entry it belongs to.
+    openFile.loadRequested
+        = QObject::connect( openLogFile.get(), &OpenLogFile::loadRequested, openLogFile.get(),
+                            [ this, view ] { startLoading( view ); } );
 
     if ( loading == Loading::Now ) {
         startFirstLoad( openFile );
@@ -129,6 +139,12 @@ void Session::startLoading( const ViewInterface* view )
     queuedLoads_.erase( std::remove( queuedLoads_.begin(), queuedLoads_.end(), view ),
                         queuedLoads_.end() );
     startFirstLoad( it->second );
+}
+
+bool Session::isLoadQueued( const ViewInterface* view ) const
+{
+    const auto it = openFiles_.find( view );
+    return it != openFiles_.end() && it->second.firstLoad == FirstLoad::Queued;
 }
 
 void Session::startFirstLoad( OpenFile& file )
@@ -182,6 +198,7 @@ void Session::close( const ViewInterface* view )
     const auto it = openFiles_.find( view );
     if ( it != openFiles_.end() ) {
         QObject::disconnect( it->second.firstLoadFinished );
+        QObject::disconnect( it->second.loadRequested );
         queuedLoads_.erase( std::remove( queuedLoads_.begin(), queuedLoads_.end(), view ),
                             queuedLoads_.end() );
         openFiles_.erase( it );

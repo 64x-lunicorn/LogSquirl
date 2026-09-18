@@ -120,6 +120,10 @@ public:
     // Loads the Log File again from its start: the Search is dropped with its
     // cached results, the Marks are cleared and the Log Format is recognized
     // again once it has loaded.
+    //
+    // Before open(), when no Log File is attached yet, there is nothing to
+    // load again and nothing is dropped: it asks for the first load instead,
+    // with loadRequested() (#332).
     void reload();
 
     // Stops the Search in flight and the load in progress, if any.
@@ -179,6 +183,12 @@ public:
     int formatRecognitionCount() const;
 
 Q_SIGNALS:
+    // The first load of this Log File is wanted now, before open() was
+    // called: reload() was asked of a Log File that has none attached yet.
+    // Whoever opens the Log Files -- the Session, which holds the queue their
+    // first loads wait in (#300) -- starts it; nobody else opens one, so this
+    // adds no second way into a load.
+    void loadRequested();
     // Loading has progressed, in percent.
     void loadingProgressed( int percent );
     // A load finished, whether successful or not, and was followed.
