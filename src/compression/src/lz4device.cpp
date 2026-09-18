@@ -47,6 +47,10 @@ bool Lz4Device::open( OpenMode mode )
         return false;
     }
 
+    if ( dctx_ ) {
+        LZ4F_freeDecompressionContext( dctx_ );
+        dctx_ = nullptr;
+    }
     const auto err = LZ4F_createDecompressionContext( &dctx_, LZ4F_VERSION );
     if ( LZ4F_isError( err ) ) {
         dctx_ = nullptr;
@@ -56,7 +60,10 @@ bool Lz4Device::open( OpenMode mode )
 
     inPos_ = 0;
     inSize_ = 0;
+    fileExhausted_ = false;
+    frameInProgress_ = false;
     finished_ = false;
+    failed_ = false;
 
     return QIODevice::open( mode );
 }
@@ -68,6 +75,7 @@ void Lz4Device::close()
         dctx_ = nullptr;
     }
     file_.close();
+    fileExhausted_ = true;
     finished_ = true;
     QIODevice::close();
 }
@@ -82,11 +90,17 @@ bool Lz4Device::atEnd() const
     if ( !isOpen() ) {
         return true;
     }
-    return finished_ && QIODevice::atEnd();
+    // Even after the LZ4 stream is fully decoded, QIODevice may still hold
+    // decompressed data in its internal read buffer. A failed stream is not at
+    // its end: the next read reports the failure.
+    return finished_ && !failed_ && QIODevice::atEnd();
 }
 
 qint64 Lz4Device::bytesAvailable() const
 {
+    // QIODevice::read(qint64) for sequential devices limits the read to
+    // bytesAvailable(). Return the base-class value plus a large hint so
+    // callers can request full-sized reads until the stream is done.
     if ( finished_ ) {
         return QIODevice::bytesAvailable();
     }
@@ -95,6 +109,9 @@ qint64 Lz4Device::bytesAvailable() const
 
 qint64 Lz4Device::readData( char* data, qint64 maxSize )
 {
+    if ( failed_ ) {
+        return -1;
+    }
     if ( !dctx_ || maxSize <= 0 || finished_ ) {
         return 0;
     }
@@ -102,23 +119,28 @@ qint64 Lz4Device::readData( char* data, qint64 maxSize )
     std::size_t totalOut = 0;
 
     while ( totalOut < static_cast<std::size_t>( maxSize ) ) {
-        // Refill input buffer if exhausted
-        if ( inPos_ >= inSize_ ) {
+        if ( inPos_ >= inSize_ && !fileExhausted_ ) {
             const auto bytesRead
                 = file_.read( inBuf_.data(), static_cast<qint64>( inBuf_.size() ) );
             if ( bytesRead < 0 ) {
-                return -1; // I/O error
-            }
-            if ( bytesRead == 0 ) {
-                finished_ = true;
-                break;
+                return fail( file_.errorString(), totalOut );
             }
             inPos_ = 0;
             inSize_ = static_cast<std::size_t>( bytesRead );
+            fileExhausted_ = bytesRead == 0;
+        }
+
+        const auto inputExhausted = fileExhausted_ && inPos_ >= inSize_;
+        if ( inputExhausted && !frameInProgress_ ) {
+            // The last frame is decoded and flushed; any frame before it was
+            // followed by another one, so the whole file has been read.
+            finished_ = true;
+            break;
         }
 
         auto srcSize = inSize_ - inPos_;
         auto dstSize = static_cast<std::size_t>( maxSize ) - totalOut;
+        const auto prevTotalOut = totalOut;
 
         const auto hint = LZ4F_decompress( dctx_, data + totalOut, &dstSize, inBuf_.data() + inPos_,
                                            &srcSize, nullptr );
@@ -127,20 +149,31 @@ qint64 Lz4Device::readData( char* data, qint64 maxSize )
         totalOut += dstSize;
 
         if ( LZ4F_isError( hint ) ) {
-            LZ4F_freeDecompressionContext( dctx_ );
-            dctx_ = nullptr;
-            finished_ = true;
-            return totalOut > 0 ? static_cast<qint64>( totalOut ) : -1;
+            return fail( QString::fromLatin1( LZ4F_getErrorName( hint ) ), totalOut );
         }
 
-        if ( hint == 0 ) {
-            // Frame complete
-            finished_ = true;
-            break;
+        // hint == 0 ends a frame. liblz4 resets the context itself, so decoding
+        // simply goes on with the next frame while input is left.
+        frameInProgress_ = hint != 0;
+
+        if ( inputExhausted && frameInProgress_ && totalOut == prevTotalOut ) {
+            return fail( QStringLiteral( "truncated lz4 frame" ), totalOut );
         }
     }
 
     return static_cast<qint64>( totalOut );
+}
+
+qint64 Lz4Device::fail( const QString& reason, std::size_t decompressedBytes )
+{
+    LZ4F_freeDecompressionContext( dctx_ );
+    dctx_ = nullptr;
+    finished_ = true;
+    failed_ = true;
+    setErrorString( QStringLiteral( "Cannot decompress %1: %2" ).arg( filePath_, reason ) );
+
+    // Hand out what was decoded before the error; the next read reports it.
+    return decompressedBytes > 0 ? static_cast<qint64>( decompressedBytes ) : -1;
 }
 
 qint64 Lz4Device::writeData( const char* /*data*/, qint64 /*maxSize*/ )
