@@ -29,6 +29,10 @@
 
 ## Bug fixes
 
+- **Multi-frame .lz4 files**: A `.lz4` Log File made of several frames
+  (block-streamed output, concatenated files) opens completely instead of
+  stopping after the first frame, and a truncated or corrupt one reports an
+  error instead of loading partially (#325).
 - **Log Lines beyond 4 GiB within one block**: A Log File in which 128
   consecutive Log Lines span 4 GiB or more (one very long Log Line is enough)
   shows the right Log Lines; their positions in the Index are no longer
