@@ -29,6 +29,11 @@
 
 ## Bug fixes
 
+- **Log Lines are drawn in the font you chose**: At startup the main view drew
+  its Log Lines in the system UI font, in rows laid out for another font, so
+  each row painted over the descenders of the row above it. The view now draws
+  in the font it was given, whatever a Theme's stylesheet does to the widget's
+  own font (#354).
 - **Multi-frame .lz4 files**: A `.lz4` Log File made of several frames
   (block-streamed output, concatenated files) opens completely instead of
   stopping after the first frame, and a truncated or corrupt one reports an

@@ -617,6 +617,14 @@ private:
     };
     TextAreaCache textAreaCache_ = { {}, true, {}, 0_lnum, 0_lcol, {} };
     PullToFollowCache pullToFollowCache_ = { {}, 0_length };
+    // The font Log Lines are measured and painted in. Held here rather than
+    // read back from the widget: Qt's stylesheet style replaces a widget's
+    // font when it polishes it, and a Theme applies a stylesheet to the whole
+    // application, so the widget's font is not the view's to rely on (#354).
+    // pixmapFontMetrics_, charWidth_ and charHeight_ all come from this font,
+    // and so does the painter of the text area -- one font, measured and
+    // painted with.
+    QFont logFont_;
     QFontMetrics pixmapFontMetrics_;
 
     // FontUtils::uniformAsciiAdvance() for the font and resolution the text
