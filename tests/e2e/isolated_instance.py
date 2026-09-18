@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import os
 import platform
-import pty
 import queue
 import shutil
 import subprocess
@@ -156,6 +155,11 @@ class IsolatedLogSquirl:
         here. A terminal makes the C library line-buffer, so every line
         arrives as it is logged.
         """
+        # Imported here, not at the top: pty is POSIX only, and conftest
+        # imports this module on Windows too, where supported() is false
+        # and no instance is ever started.
+        import pty
+
         reader, writer = pty.openpty()
         try:
             self.primary = subprocess.Popen(
