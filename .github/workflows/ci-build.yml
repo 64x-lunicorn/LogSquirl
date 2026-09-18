@@ -240,7 +240,8 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
-  # Stage 1 — Linux (cheapest runners, gates Windows & Mac)
+  # Linux — the package matrix. Runs alongside Windows and Mac: every
+  # platform starts as soon as Changes has classified the run (#121, #349).
   # -----------------------------------------------------------------------
   Linux:
     name: Linux / ${{ matrix.config.artifacts_id }}
@@ -452,12 +453,17 @@ jobs:
           artifact-name: ${{ matrix.config.artifacts_id }}
 
   # -----------------------------------------------------------------------
-  # Stage 2 — macOS (runs alongside Windows, both gated only on Linux; #121)
+  # macOS — runs alongside Linux and Windows (#121, #349). Linux gated this
+  # job to keep a compile error off the dearer runners; the repository is
+  # public, so those runners are free and carry no cost multiplier, and the
+  # gate only cost the wall clock of a whole Linux matrix. The build gate is
+  # this job's own: it used to be inherited from a skipped Linux, and without
+  # it a website-only pull request would now build here (#310, #311).
   # -----------------------------------------------------------------------
   Mac:
     name: Mac
-    needs: [Linux]
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    needs: [Changes]
+    if: "needs.Changes.outputs.build == 'true'"
     strategy:
       fail-fast: false
       matrix:
@@ -519,13 +525,13 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
-  # Stage 2 — Windows (2× cost, runs alongside Mac, both gated only on
-  # Linux; #121)
+  # Windows — runs alongside Linux and Mac (#121, #349), and carries its own
+  # build gate for the same reason macOS does.
   # -----------------------------------------------------------------------
   Windows:
     name: Windows
-    needs: [Linux]
-    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    needs: [Changes]
+    if: "needs.Changes.outputs.build == 'true'"
     strategy:
       fail-fast: false
       matrix:

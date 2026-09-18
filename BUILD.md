@@ -473,6 +473,17 @@ the release preparation, but **Deploy Website** leaves out every page whose rele
 release yet, so it goes live when CI Release dispatches the deploy after publishing. `npm run dev` and the
 pull request build show every page.
 
+**The website goes live with a release, not with a merge.** Deploy Website has no push trigger: a website
+change merged to master waits for the next release, which is when CI Release dispatches the deploy and the
+whole site, including that release's page, goes up at once. Until then the change is only visible in
+`npm run dev` and in the pull request build, whose link check is what keeps a broken website out of master.
+
+Dispatching the workflow by hand stays the way to deploy without cutting a release, from the Actions tab or
+with `gh workflow run deploy-website.yml --ref master`. Two cases need it: a website fix that cannot wait for
+the next release (a wrong download link, legal text), and a release whose deploy did not run or failed, which
+leaves the site on the previous release until someone dispatches it. Nothing retries that on its own, and the
+dispatch must be on `master`, because the `website` environment admits no other branch.
+
 Manual releases, e.g. to re-run a release, are also supported via
 `workflow_dispatch`: dispatch it from the tag (*Use workflow from*, or
 `gh workflow run ci-release.yml --ref v26.04.0 -f tag=v26.04.0`) with that tag
@@ -502,7 +513,7 @@ before anything is downloaded, because its signing job could not enter the
 |----------|---------|---------|
 | `ci-build.yml` | push/PR to master | Build + test all platforms, check the update feed; on a pull request also check a release preparation and build the website with its link check |
 | `changelog.yml` | PR to master (also on label changes) | Require a CHANGELOG entry under `# Unreleased`, or the `no-changelog` label |
-| `deploy-website.yml` | push to master changing `website/**`, dispatch (also by CI Release) | Build the website without the pages of unpublished releases and upload it |
+| `deploy-website.yml` | dispatch only: by CI Release after a release is published, or by hand from the Actions tab | Build the website without the pages of unpublished releases and upload it |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
