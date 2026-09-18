@@ -29,6 +29,12 @@
 
 ## Bug fixes
 
+- **The Viewport shows every column that fits**: A Log Line now runs to the
+  right edge of the Viewport instead of stopping a few characters short of it,
+  and a click lands on the character under the pointer however far right it
+  sits. Columns are measured with the advance the text is painted with, which
+  Qt counts in fractions of a pixel; measuring them in whole pixels lost a
+  fraction per column and whole characters across a Viewport (#352).
 - **Multi-frame .lz4 files**: A `.lz4` Log File made of several frames
   (block-streamed output, concatenated files) opens completely instead of
   stopping after the first frame, and a truncated or corrupt one reports an
