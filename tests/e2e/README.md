@@ -157,7 +157,9 @@ tests/e2e/
 
 1. Create a test function in the appropriate file (or add a new `test_*.py` file).
 2. Use fixtures from `conftest.py`: `logsquirl_grep_binary`, `logsquirl_binary`, `test_data_dir`.
-3. For grep tests, use `run_grep()` and `grep_output_lines()` to filter internal log messages.
+3. For grep tests, use `run_grep()`; its `stdout` carries only the matched log lines, its
+   `stderr` the tool's own log messages (#327). `grep_output_lines()` splits stdout into
+   lines and stays as a safety net against stray log output.
 4. For GUI tests, use `run_gui()` for short-lived commands or `subprocess.Popen` for startup tests.
 5. For performance tests, use `measure_execution()` and `assert_performance()`, add a slot in
    `baseline.json`, and mark the test with `@pytest.mark.performance`.

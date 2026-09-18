@@ -203,7 +203,11 @@ def run_gui(binary: Path, args: list[str], timeout: int = 10) -> subprocess.Comp
 
 
 def grep_output_lines(result: subprocess.CompletedProcess) -> list[str]:
-    """Extract matched lines from grep output, filtering internal log messages."""
+    """Extract matched lines from grep stdout.
+
+    The tool writes its own log messages to stderr (#327), so stdout carries
+    only the matches; the filter stays as a safety net against stray output.
+    """
     lines = result.stdout.strip().splitlines() if result.stdout.strip() else []
     # Filter out internal logging lines (contain "[IndexOperation::doIndex" or similar)
     return [l for l in lines if "[IndexOperation::" not in l]
