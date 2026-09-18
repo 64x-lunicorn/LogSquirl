@@ -129,6 +129,8 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
 
         HighlighterEdit::updateIcon( foreButton, quickHighlighters[ i ].color.foreColor );
         HighlighterEdit::updateIcon( backButton, quickHighlighters[ i ].color.backColor );
+        colorLabelForeButtons_.push_back( foreButton );
+        colorLabelBackButtons_.push_back( backButton );
         cycleCheckbox->setChecked( quickHighlighters[ i ].useInCycle );
 
         connect( nameEdit, &QLineEdit::textChanged, nameEdit,
@@ -176,7 +178,28 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
     }
 
     loadIcons();
-    Theme::whenApplied( this, [ this ] { loadIcons(); } );
+    Theme::whenApplied( this, [ this ] {
+        loadIcons();
+        showColorLabelsOfTheme();
+    } );
+}
+
+void HighlightersDialog::showColorLabelsOfTheme()
+{
+    const auto labels = highlighterSetCollection_.colorLabelsOfTheme();
+    if ( !labels ) {
+        return;
+    }
+
+    highlighterSetCollection_.setQuickHighlighters( *labels );
+
+    const auto slots = std::min( { colorLabelForeButtons_.size(), colorLabelBackButtons_.size(),
+                                   static_cast<std::size_t>( labels->size() ) } );
+    for ( std::size_t slot = 0; slot < slots; ++slot ) {
+        const auto& color = ( *labels )[ static_cast<int>( slot ) ].color;
+        HighlighterEdit::updateIcon( colorLabelForeButtons_[ slot ], color.foreColor );
+        HighlighterEdit::updateIcon( colorLabelBackButtons_[ slot ], color.backColor );
+    }
 }
 
 void HighlightersDialog::loadIcons()

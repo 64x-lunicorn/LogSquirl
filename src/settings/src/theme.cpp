@@ -701,10 +701,12 @@ Theme Theme::smyck()
         { IndicatorDisabledBorder, "#5D5D5D" },
         { StatusOk, "#8EB33B" },
         { StatusWarning, "#D0B03C" },
-        { StatusInactive, "#5D5D5D" },
+        // The scheme's dark white, not its light black: a status color is the
+        // background of a badge, and StatusText has to read on it.
+        { StatusInactive, "#B0B0B0" },
         { StatusInfo, "#4E90A7" },
-        // The status colors are backgrounds here: the background color is the
-        // only text color that reaches 4.5:1 on all of them.
+        // The status colors are backgrounds here, and the background color is
+        // the text color that reaches 4.5:1 on all of them.
         { StatusText, "#1B1B1B" },
         { HighlightedSecondaryText, "#F7F7F7" },
         { BadgeBackground, "#3A3A3A" },
@@ -879,11 +881,7 @@ const std::array<ColorLabelColors, ColorLabelCount>& Theme::colorLabels() const
 
 bool Theme::sameColorLabelColor( const QColor& lhs, const QColor& rhs )
 {
-    // Compared the way the settings store keeps a Color Label color: an
-    // invalid color is written and read back as opaque black, so a Theme that
-    // gives a label no text color of its own and a label read back from the
-    // store are the same color here.
-    return lhs.name( QColor::HexArgb ) == rhs.name( QColor::HexArgb );
+    return lhs == rhs;
 }
 
 bool Theme::isBuiltInColorLabel( std::size_t slot, const QColor& foreColor,
@@ -892,10 +890,18 @@ bool Theme::isBuiltInColorLabel( std::size_t slot, const QColor& foreColor,
     if ( slot >= ColorLabelCount ) {
         return false;
     }
+    // Before an invalid color was kept as one (#353), the settings store wrote
+    // it as opaque black and read it back as that, so a Color Label saved by
+    // an earlier version holds the Theme's color, not a color the user chose.
+    const auto isTheThemes = []( const QColor& themeColor, const QColor& stored ) {
+        return sameColorLabelColor( themeColor, stored )
+               || ( !themeColor.isValid() && stored == QColor( Qt::black ) );
+    };
+
     for ( const auto* labels : { &classicColorLabels(), &smyckColorLabels() } ) {
         const auto& label = ( *labels )[ slot ];
-        if ( sameColorLabelColor( label.foreColor, foreColor )
-             && sameColorLabelColor( label.backColor, backColor ) ) {
+        if ( isTheThemes( label.foreColor, foreColor )
+             && isTheThemes( label.backColor, backColor ) ) {
             return true;
         }
     }

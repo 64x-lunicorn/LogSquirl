@@ -131,8 +131,16 @@ bool HighlighterSetCollection::hasSetByName( const QString& setName ) const
 void HighlighterSetCollection::followTheme( QObject* context )
 {
     Theme::whenApplied( context, [] {
-        // Another instance may have colored a Color Label in the meantime, so
-        // this reads the settings store before it writes to it.
+        // Every Theme switch runs this, most of them between Themes that give
+        // the Color Labels the same colors. The held copy decides whether
+        // there is anything to do at all, so only a switch that really
+        // recolors a Color Label syncs the settings store (#301) and writes to
+        // it -- and it reads the store again first, so the write does not drop
+        // what another instance saved in the meantime.
+        if ( !HighlighterSetCollection::get().colorLabelsOfTheme().has_value() ) {
+            return;
+        }
+
         auto& collection = HighlighterSetCollection::getSynced();
         if ( collection.applyThemeColorLabels() ) {
             collection.save();
@@ -140,15 +148,15 @@ void HighlighterSetCollection::followTheme( QObject* context )
     } );
 }
 
-bool HighlighterSetCollection::applyThemeColorLabels()
+std::optional<QList<QuickHighlighter>> HighlighterSetCollection::colorLabelsOfTheme() const
 {
     const auto& themeLabels = Theme::active().colorLabels();
 
+    auto labels = quickHighlighters_;
     auto changed = false;
-    const auto slots
-        = std::min( static_cast<std::size_t>( quickHighlighters_.size() ), themeLabels.size() );
+    const auto slots = std::min( static_cast<std::size_t>( labels.size() ), themeLabels.size() );
     for ( std::size_t slot = 0; slot < slots; ++slot ) {
-        auto& color = quickHighlighters_[ static_cast<int>( slot ) ].color;
+        auto& color = labels[ static_cast<int>( slot ) ].color;
         if ( !Theme::isBuiltInColorLabel( slot, color.foreColor, color.backColor ) ) {
             continue;
         }
@@ -163,7 +171,19 @@ bool HighlighterSetCollection::applyThemeColorLabels()
         color.backColor = themeLabel.backColor;
         changed = true;
     }
-    return changed;
+
+    return changed ? std::optional{ labels } : std::nullopt;
+}
+
+bool HighlighterSetCollection::applyThemeColorLabels()
+{
+    auto labels = colorLabelsOfTheme();
+    if ( !labels ) {
+        return false;
+    }
+
+    quickHighlighters_ = std::move( *labels );
+    return true;
 }
 
 QList<QuickHighlighter> HighlighterSetCollection::quickHighlighters() const
@@ -199,10 +219,14 @@ void HighlighterSetCollection::saveToStorage( QSettings& settings ) const
     for ( int i = 0; i < quickHighlighters_.size(); ++i ) {
         settings.setArrayIndex( i );
         settings.setValue( "name", quickHighlighters_[ i ].name );
-        settings.setValue( "fore_colour",
-                           quickHighlighters_[ i ].color.foreColor.name( QColor::HexArgb ) );
-        settings.setValue( "back_colour",
-                           quickHighlighters_[ i ].color.backColor.name( QColor::HexArgb ) );
+        // An invalid color means the Log Line's own color. Written as a name
+        // it would come back as opaque black; an empty string comes back
+        // invalid.
+        const auto storedColor = []( const QColor& color ) {
+            return color.isValid() ? color.name( QColor::HexArgb ) : QString{};
+        };
+        settings.setValue( "fore_colour", storedColor( quickHighlighters_[ i ].color.foreColor ) );
+        settings.setValue( "back_colour", storedColor( quickHighlighters_[ i ].color.backColor ) );
         settings.setValue( "cycle", quickHighlighters_[ i ].useInCycle );
     }
     settings.endArray();

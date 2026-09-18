@@ -235,10 +235,9 @@ public:
     static bool isBuiltInColorLabel( std::size_t slot, const QColor& foreColor,
                                      const QColor& backColor );
 
-    // Whether two Color Label colors are the same as the settings store keeps
-    // them: a Theme that gives a Color Label no text color of its own leaves
-    // an invalid color, which the store writes and reads back as opaque
-    // black.
+    // Whether two Color Label colors are the same. An invalid color is one of
+    // them: it is what a Theme gives a Color Label that leaves the Log Line's
+    // own text color in place.
     static bool sameColorLabelColor( const QColor& lhs, const QColor& rhs );
 
     // The QPalette derived from the palette-role Tokens, for every color group.

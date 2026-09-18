@@ -47,6 +47,7 @@
 #include "highlighter.h"
 #include "persistable.h"
 
+#include <optional>
 #include <vector>
 
 class QObject;
@@ -87,6 +88,11 @@ public:
     // startup and before any view, so the labels are in place before the
     // views repaint.
     static void followTheme( QObject* context );
+
+    // The Color Labels the Theme applied now would give this collection, and
+    // nothing if it would leave every one of them as it is. The Highlighters
+    // Dialog asks it of the copy it edits, so that copy follows the Theme too.
+    std::optional<QList<QuickHighlighter>> colorLabelsOfTheme() const;
 
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
