@@ -8,6 +8,11 @@
   the nine color labels in SMYCK's colors, and choosing another theme colors
   them back; a color label you picked a color for yourself is left alone
   (#353).
+- **Smyck Light theme**: The same scheme on light surfaces, for a bright room:
+  SMYCK's light white as the window color, its background as the text color,
+  its selection color as the accent and its ANSI colors for status, errors and
+  links. It carries the same color labels as Smyck, so switching between the
+  two leaves them alone (#353).
 - **Themes differ in color only**: Light and High Contrast use Dark's sizes
   and shapes (combo box arrow, menu item padding and icon offset, tab add
   button); High Contrast keeps only its thicker borders and outlines. The tab

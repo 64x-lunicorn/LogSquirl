@@ -166,10 +166,11 @@ const std::array<ColorLabelColors, ColorLabelCount>& classicColorLabels()
     return labels;
 }
 
-// The Color Labels of Smyck: the light ANSI colors of the scheme, in the hue
-// order of the classic labels, on the scheme's own background. Label 9 is its
-// light black, which needs light text; every other label reaches 4.5:1 with
-// the background color as its text.
+// The Color Labels of both Smyck Themes: the light ANSI colors of the scheme,
+// in the hue order of the classic labels, on the scheme's own background.
+// Label 9 is its light black, which needs light text; every other label
+// reaches 4.5:1 with the background color as its text. Smyck and Smyck Light
+// share them, so switching between the two leaves the Color Labels alone.
 const std::array<ColorLabelColors, ColorLabelCount>& smyckColorLabels()
 {
     static const std::array<ColorLabelColors, ColorLabelCount> labels{ {
@@ -766,11 +767,176 @@ Theme Theme::smyck()
     return theme;
 }
 
+Theme Theme::smyckLight()
+{
+    // The SMYCK terminal color scheme (https://color.smyck.org/, MIT,
+    // (c) 2012 John-Paul Bader) on light surfaces: the scheme is dark only, so
+    // this is Light's structure in SMYCK's own colors. Its light white is the
+    // Window, its background the text color, its light black the secondary
+    // text, and the grays between them are the steps Light uses, mirrored
+    // through SMYCK's own black-to-white ramp. The accent and the status
+    // colors are the scheme's, as in Smyck, and the Color Labels are Smyck's
+    // too, so switching between the two keeps them. Every Token that carries
+    // enabled text reaches 4.5:1 on the surface it sits on; disabled and
+    // placeholder text is exempt, as in every other Theme.
+    Theme theme;
+    theme.name_ = SmyckLightKey;
+    theme.isDark_ = false;
+    theme.userStyleSheetFileName_ = QStringLiteral( "smyck-light.qss" );
+    theme.colorLabels_ = smyckColorLabels();
+
+    using enum ColorToken;
+    theme.setColors( {
+        // The scheme's white is the Window; the Log Lines sit on white.
+        { Window, "#F7F7F7" },
+        { WindowText, "#1B1B1B" },
+        { Base, "#FFFFFF" },
+        { AlternateBase, "#F7F7F7" },
+        // An inverted tool tip, as in Light: here the scheme's own surfaces.
+        { ToolTipBase, "#242424" },
+        { ToolTipText, "#F7F7F7" },
+        // The scheme's background as the text color: 16.1:1 on the Window.
+        { Text, "#1B1B1B" },
+        { Button, "#E4E4E4" },
+        { ButtonText, "#1B1B1B" },
+        // The scheme's selection color, 5.0:1 on the Window.
+        { Link, "#207483" },
+        { Highlight, "#207483" },
+        { HighlightedText, "#F7F7F7" },
+        { ActiveButton, "#D8D8D8" },
+        { DisabledButtonText, "#989898" },
+        { DisabledWindowText, "#989898" },
+        { DisabledText, "#989898" },
+        { DisabledLight, "#FFFFFF" },
+        { PlaceholderText, "#989898" },
+        // Fusion draws frames and tab-bar base lines in these. As in Light,
+        // Light is the Base and Midlight a surface, while Mid, Dark and
+        // Shadow are all darker than Border.
+        { Light, "#FFFFFF" },
+        { Midlight, "#E4E4E4" },
+        { Mid, "#B0B0B0" },
+        { Dark, "#7A7A7A" },
+        { Shadow, "#989898" },
+
+        { Chrome, "#F7F7F7" },
+        { Pane, "#F7F7F7" },
+        { Panel, "#E4E4E4" },
+        { Menu, "#EFEFEF" },
+        { Border, "#D8D8D8" },
+        { InputBorder, "#C4C4C4" },
+        { PopupBorder, "#C4C4C4" },
+        { ToolTipBorder, "#5D5D5D" },
+        { DisabledBorder, "#E4E4E4" },
+        { DisabledBackground, "#EFEFEF" },
+        { Hover, "#D8D8D8" },
+        { HoverText, "#1B1B1B" },
+        { HoverBorder, "#D8D8D8" },
+        { InputHoverBorder, "#C4C4C4" },
+        { HeaderHover, "#D8D8D8" },
+        { ButtonHover, "#CECECE" },
+        { ToolButtonHover, "#CECECE" },
+        { ButtonPressed, "#BDBDBD" },
+        { ButtonPressedBorder, "#B0B0B0" },
+        { PressedText, "#1B1B1B" },
+        // The accent, light enough to keep dark text and a dark icon on it.
+        { Checked, "#CFE5EA" },
+        { CheckedBorder, "#218693" },
+        { TabAddButtonHover, "#D8D8D8" },
+        { TabAddButtonPressed, "#BDBDBD" },
+        { TabAddButtonPressedBorder, "#B0B0B0" },
+        { TabUnderline, "transparent" },
+        // The scheme's red.
+        { CloseButtonHover, "#C75646" },
+        // The scheme's light black, 6.6:1 on the Base.
+        { SecondaryText, "#5D5D5D" },
+        { ScrollBarTrack, "#EFEFEF" },
+        { Handle, "#B0B0B0" },
+        { HandleHover, "#7A7A7A" },
+        { Indicator, "#FFFFFF" },
+        // A radio button's ring and a slider's handle are drawn in this, and
+        // both have to reach 3:1 on the Window: 4.0:1 here.
+        { IndicatorBorder, "#7A7A7A" },
+        { IndicatorIndeterminate, "#CFE5EA" },
+        { IndicatorDisabled, "#EFEFEF" },
+        { IndicatorDisabledBorder, "#C4C4C4" },
+        { StatusOk, "#8EB33B" },
+        { StatusWarning, "#D0B03C" },
+        // A gray dark enough for StatusText, and still a step below the
+        // borders around it.
+        { StatusInactive, "#989898" },
+        // The scheme's blue, not its cyan: StatusText reaches 4.8:1 on it,
+        // and only 4.0:1 on the cyan.
+        { StatusInfo, "#4E90A7" },
+        // The status colors are backgrounds here, and the scheme's background
+        // is the text color that reaches 4.5:1 on all of them.
+        { StatusText, "#1B1B1B" },
+        { HighlightedSecondaryText, "#F7F7F7" },
+        { BadgeBackground, "#D8D8D8" },
+        { BadgeText, "#1B1B1B" },
+        { ViewportMargin, "#E4E4E4" },
+        { ViewportMarginBorder, "#C4C4C4" },
+        { LineNumberText, "#5D5D5D" },
+        { Bullet, "#FFFFFF" },
+        { BulletOutline, "#5D5D5D" },
+        { ProgressChunk, "#207483" },
+        { SliderGroove, "#B0B0B0" },
+        // The scheme's red over the Window, pale enough for a dark red as
+        // text (8.2:1).
+        { ErrorBackground, "#F4DDD9" },
+        { ErrorText, "#6B2A20" },
+        // A step darker than the handles: the stripes reach 4.0:1 on the
+        // Window they are drawn on.
+        { PullToFollowStripe, "#7A7A7A" },
+        { DefaultButton, "#207483" },
+        { DefaultButtonText, "#F7F7F7" },
+        { DefaultButtonBorder, "#207483" },
+        // Darker on hover: light text stays above 4.5:1.
+        { DefaultButtonHover, "#1A5E6B" },
+        { DefaultButtonFocusBorder, "#1B1B1B" },
+    } );
+
+    using enum StyleToken;
+    theme.setValues( {
+        // Sizes and shapes are Dark's: Themes differ in color only (#264).
+        { BorderWidth, "1px" },
+        { OutlineWidth, "0px" },
+        { ButtonPadding, "4px 12px" },
+        { ToolButtonPadding, "3px" },
+        { InputPadding, "3px 6px" },
+        { ComboArrowSize, "12px" },
+        { TabPaneOffset, "0px" },
+        { TabAddButtonPadding, "0 6px" },
+        { TabAddButtonMargin, "2px 4px" },
+        { TabAddButtonMinWidth, "20px" },
+        { ScrollBarExtent, "8px" },
+        { HandleRadius, "3px" },
+        { MenuBarItemRadius, "4px" },
+        { MenuItemPadding, "5px 24px 5px 28px" },
+        { MenuIconOffset, "6px" },
+        { IndicatorSize, "16px" },
+        // The icons of a light Theme: dark glyphs.
+        { ArrowDownIcon, "url(:/icons/arrow-down-light.svg)" },
+        { ArrowUpIcon, "url(:/icons/arrow-up-light.svg)" },
+        { CheckIcon, "url(:/icons/check-light.svg)" },
+        { DisabledCheckIcon, "url(:/icons/check-disabled-light.svg)" },
+        { CloseIcon, "url(:/icons/close-light.svg)" },
+        { DisabledBorderStyle, "solid" },
+        { ProgressChunkBorderWidth, "0px" },
+        { RadioIndicatorRadius, "10px" },
+        { IndeterminateIcon, "url(:/icons/dash-light.svg)" },
+        { DisabledIndeterminateIcon, "url(:/icons/dash-disabled-light.svg)" },
+        { ControlRadius, "4px" },
+        { PopupRadius, "6px" },
+        { BoxBorderWidth, "0px" },
+    } );
+    return theme;
+}
+
 // ---------------------------------------------------------------------------
 
 QStringList Theme::availableThemes()
 {
-    QStringList themes{ LightKey, DarkKey, HighContrastKey, SmyckKey, SystemKey };
+    QStringList themes{ LightKey, DarkKey, HighContrastKey, SmyckKey, SmyckLightKey, SystemKey };
     std::sort( themes.begin(), themes.end(), []( const auto& lhs, const auto& rhs ) {
         return lhs.compare( rhs, Qt::CaseInsensitive ) < 0;
     } );
@@ -800,6 +966,9 @@ Theme Theme::fromName( const QString& name, Qt::ColorScheme systemScheme,
     }
     if ( resolved == SmyckKey ) {
         return smyck();
+    }
+    if ( resolved == SmyckLightKey ) {
+        return smyckLight();
     }
     return light();
 }

@@ -36,7 +36,8 @@ namespace {
 const std::vector<QString>& builtInThemes()
 {
     static const std::vector<QString> themes{ Theme::LightKey, Theme::DarkKey,
-                                              Theme::HighContrastKey, Theme::SmyckKey };
+                                              Theme::HighContrastKey, Theme::SmyckKey,
+                                              Theme::SmyckLightKey };
     return themes;
 }
 
@@ -235,7 +236,7 @@ SCENARIO( "A Theme is chosen by its stored name", "[theme]" )
         {
             REQUIRE( Theme::availableThemes()
                      == QStringList{ Theme::DarkKey, Theme::HighContrastKey, Theme::LightKey,
-                                     Theme::SmyckKey, Theme::SystemKey } );
+                                     Theme::SmyckKey, Theme::SmyckLightKey, Theme::SystemKey } );
             REQUIRE( Theme::defaultTheme() == Theme::LightKey );
         }
 
@@ -250,6 +251,8 @@ SCENARIO( "A Theme is chosen by its stored name", "[theme]" )
                 REQUIRE(
                     Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light ).isDark() );
                 REQUIRE( Theme::fromName( Theme::SmyckKey, Qt::ColorScheme::Light ).isDark() );
+                REQUIRE_FALSE(
+                    Theme::fromName( Theme::SmyckLightKey, Qt::ColorScheme::Dark ).isDark() );
             }
         }
 
@@ -293,6 +296,8 @@ SCENARIO( "A dark Theme shows the inverse icons", "[theme]" )
                              .usesInverseIcons() );
                 REQUIRE(
                     Theme::fromName( Theme::SmyckKey, Qt::ColorScheme::Light ).usesInverseIcons() );
+                REQUIRE_FALSE( Theme::fromName( Theme::SmyckLightKey, Qt::ColorScheme::Dark )
+                                   .usesInverseIcons() );
             }
         }
 
@@ -874,18 +879,20 @@ SCENARIO( "Themes differ in color only, not in sizes or shapes", "[theme]" )
     const auto dark = Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light );
     static const QRegularExpression image( "^(url\\(.+\\)|none)$" );
 
-    GIVEN( "the Light Theme" )
+    GIVEN( "every Theme but High Contrast" )
     {
-        const auto light = Theme::fromName( Theme::LightKey, Qt::ColorScheme::Light );
-
         THEN( "every size and shape Token has Dark's value" )
         {
-            for ( const auto token : allStyleTokens() ) {
-                if ( image.match( dark.value( token ) ).hasMatch() ) {
-                    continue;
+            for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::SmyckKey ),
+                                       QString( Theme::SmyckLightKey ) } ) {
+                const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
+                for ( const auto token : allStyleTokens() ) {
+                    if ( image.match( dark.value( token ) ).hasMatch() ) {
+                        continue;
+                    }
+                    INFO( name.toStdString() << " " << Theme::tokenName( token ).toStdString() );
+                    REQUIRE( theme.value( token ) == dark.value( token ) );
                 }
-                INFO( Theme::tokenName( token ).toStdString() );
-                REQUIRE( light.value( token ) == dark.value( token ) );
             }
         }
     }

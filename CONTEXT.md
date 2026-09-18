@@ -187,12 +187,12 @@ _Avoid_: renderer, painter, highlighter (a Highlighter is a user's rule, not thi
 ### Appearance
 
 **Theme**:
-The look of the application around the Log Lines: Light, Dark, High Contrast or Smyck, or
-System, which becomes Light or Dark from the operating system's color scheme and follows it
-while the application runs. Choosing a Theme takes effect at once, in every open window. A
-Theme is exactly one set of Tokens, and it carries the colors of the Color Labels; the
-application's palette and stylesheet are both derived from it. Beyond the Color Labels a Theme
-does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
+The look of the application around the Log Lines: Light, Dark, High Contrast, Smyck or Smyck
+Light, or System, which becomes Light or Dark from the operating system's color scheme and
+follows it while the application runs. Choosing a Theme takes effect at once, in every open
+window. A Theme is exactly one set of Tokens, and it carries the colors of the Color Labels;
+the application's palette and stylesheet are both derived from it. Beyond the Color Labels a
+Theme does not color Log Lines — Highlighters and Highlighter Sets are the user's alone.
 _Avoid_: style, skin, palette (a palette is derived from a Theme)
 
 **Token**:
