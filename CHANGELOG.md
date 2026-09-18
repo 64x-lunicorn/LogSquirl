@@ -38,6 +38,11 @@
 - **Main font**: Every Configuration uses the fixed-pitch main font style, not
   only the first one created, so the saved font does not depend on which
   settings were read first (#229).
+- **A chart keeps its zoom**: A chart that follows a growing Log File keeps the
+  view you zoomed or panned to instead of fitting the whole data again on every
+  append. It fits the view again when a series is added, edited or removed, a
+  preset is loaded, or you press Fit; a chart you never zoomed keeps following
+  the data as before (#329).
 
 ## Security
 

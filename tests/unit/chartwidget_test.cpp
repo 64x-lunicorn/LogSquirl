@@ -20,6 +20,11 @@
 // Selecting a point of a chart with the mouse (#299): the chart finds the point
 // under the mouse among what it plotted, by binary search, on series of a
 // million points, in x order or not, and after zooming in.
+//
+// Keeping the view while following a growing Log File (#329): appended points
+// leave a view the user zoomed or panned to alone, while a view the user never
+// touched keeps following the data; changing the series, and asking for the
+// view to be fitted, make the view follow the data again.
 
 #include <catch2/catch.hpp>
 
@@ -112,7 +117,7 @@ TEST_CASE( "Clicking a point of a chart of a million points selects its Log Line
     const auto series = spikeSeries( inXOrder );
     ChartWidget chart;
     chart.resize( WidgetWidth, WidgetHeight );
-    chart.setSeriesList( { series } );
+    chart.setSeriesList( { series }, ChartWidget::Change::Series );
 
     const QPointF spike = fittedPixel( series.points[ SpikeLine ] );
 
@@ -137,4 +142,91 @@ TEST_CASE( "Clicking a point of a chart of a million points selects its Log Line
         CHECK( clickedLine( chart, spike ) == LineNumber{ SpikeLine } );
         CHECK( clickedLine( chart, spike + QPointF( 0.0, 40.0 ) ) == std::nullopt );
     }
+}
+
+namespace {
+
+// A series of `lines` points, one per Log Line, with the line number as both
+// the x value and the value: what a chart of a growing Log File has after that
+// many Log Lines.
+ChartSeriesDefinition rampSeries( int lines )
+{
+    ChartSeriesDefinition series;
+    series.name = "Ramp";
+    series.color = QColor( "#2196F3" );
+    series.points.reserve( lines );
+    for ( int i = 0; i < lines; ++i ) {
+        const auto line = static_cast<uint64_t>( i );
+        series.points.append( ChartPoint{
+            LineNumber{ line }, static_cast<double>( i ), static_cast<double>( i ), {} } );
+    }
+    return series;
+}
+
+// The view a chart fitted to rampSeries( lines ) shows: the data range with
+// 5 % padding around it, on both axes.
+ChartViewport fittedView( int lines )
+{
+    const double pad = std::max( ( lines - 1 ) * 0.05, 1.0 );
+    return { QRectF(), -pad, lines - 1 + pad, -pad, lines - 1 + pad };
+}
+
+void checkViewIs( const ChartWidget& chart, const ChartViewport& expected )
+{
+    const auto view = chart.viewport();
+    CHECK( view.xMin == Approx( expected.xMin ) );
+    CHECK( view.xMax == Approx( expected.xMax ) );
+    CHECK( view.yMin == Approx( expected.yMin ) );
+    CHECK( view.yMax == Approx( expected.yMax ) );
+}
+
+} // namespace
+
+TEST_CASE( "A chart keeps the view the user zoomed while Log Lines are appended", "[chartwidget]" )
+{
+    ChartWidget chart;
+    chart.resize( WidgetWidth, WidgetHeight );
+    chart.setSeriesList( { rampSeries( 1000 ) }, ChartWidget::Change::Series );
+
+    zoomIn( chart, QPointF( WidgetWidth / 2.0, WidgetHeight / 2.0 ), 5 );
+    const ChartViewport zoomed = chart.viewport();
+    REQUIRE( zoomed.xMax - zoomed.xMin < fittedView( 1000 ).xMax - fittedView( 1000 ).xMin );
+
+    chart.setSeriesList( { rampSeries( 2000 ) }, ChartWidget::Change::AppendedPoints );
+
+    checkViewIs( chart, zoomed );
+
+    SECTION( "until the user asks for the view to be fitted, after which it follows again" )
+    {
+        chart.fitView();
+        checkViewIs( chart, fittedView( 2000 ) );
+
+        chart.setSeriesList( { rampSeries( 3000 ) }, ChartWidget::Change::AppendedPoints );
+        checkViewIs( chart, fittedView( 3000 ) );
+    }
+}
+
+TEST_CASE( "Changing the series of a chart fits its view again", "[chartwidget]" )
+{
+    ChartWidget chart;
+    chart.resize( WidgetWidth, WidgetHeight );
+    chart.setSeriesList( { rampSeries( 1000 ) }, ChartWidget::Change::Series );
+
+    zoomIn( chart, QPointF( WidgetWidth / 2.0, WidgetHeight / 2.0 ), 5 );
+
+    chart.setSeriesList( { rampSeries( 2000 ) }, ChartWidget::Change::Series );
+
+    checkViewIs( chart, fittedView( 2000 ) );
+}
+
+TEST_CASE( "A chart the user never zoomed follows the appended Log Lines", "[chartwidget]" )
+{
+    ChartWidget chart;
+    chart.resize( WidgetWidth, WidgetHeight );
+    chart.setSeriesList( { rampSeries( 1000 ) }, ChartWidget::Change::Series );
+    checkViewIs( chart, fittedView( 1000 ) );
+
+    chart.setSeriesList( { rampSeries( 2000 ) }, ChartWidget::Change::AppendedPoints );
+
+    checkViewIs( chart, fittedView( 2000 ) );
 }
