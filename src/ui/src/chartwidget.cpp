@@ -39,7 +39,7 @@ ChartWidget::ChartWidget( QWidget* parent )
     setFocusPolicy( Qt::ClickFocus );
 }
 
-void ChartWidget::setSeriesList( const QVector<ChartSeriesDefinition>& series )
+void ChartWidget::setSeriesList( const QVector<ChartSeriesDefinition>& series, Change change )
 {
     series_ = series;
 
@@ -59,7 +59,23 @@ void ChartWidget::setSeriesList( const QVector<ChartSeriesDefinition>& series )
         }
     }
 
-    fitView();
+    if ( change == Change::Series ) {
+        // These are other series: a view of the data of the ones before means
+        // nothing for them, so the view follows the data again.
+        viewIsAutomatic_ = true;
+    }
+
+    if ( viewIsAutomatic_ ) {
+        fitView();
+        return;
+    }
+
+    // The user zoomed or panned to this view: only the points changed, so it
+    // is kept, and the appended ones are drawn in it as they come into it.
+    // What was hovered may have been merged into another point.
+    hoveredSeries_ = -1;
+    hoveredPoint_ = -1;
+    update();
 }
 
 void ChartWidget::fitView()
@@ -101,6 +117,7 @@ void ChartWidget::fitView()
         yMax_ = maxY + yPad;
     }
 
+    viewIsAutomatic_ = true;
     hoveredSeries_ = -1;
     hoveredPoint_ = -1;
     update();
@@ -348,6 +365,9 @@ void ChartWidget::wheelEvent( QWheelEvent* event )
 {
     const double factor = ( event->angleDelta().y() > 0 ) ? 0.8 : 1.25;
 
+    // The user has taken the view over: it is kept while the Log File grows.
+    viewIsAutomatic_ = false;
+
     // Zoom around the cursor position in data space.
     const QPointF dataPos = pixelToData( event->position() );
 
@@ -385,6 +405,11 @@ void ChartWidget::mouseMoveEvent( QMouseEvent* event )
 {
     if ( panning_ ) {
         const QPointF delta = event->position() - panStart_;
+        if ( !delta.isNull() ) {
+            // The user has taken the view over: it is kept while the Log File
+            // grows. A press without a drag leaves the view alone.
+            viewIsAutomatic_ = false;
+        }
         const QRectF area = plotArea();
         const double dxData = -delta.x() / area.width() * ( panXMax_ - panXMin_ );
         const double dyData = delta.y() / area.height() * ( panYMax_ - panYMin_ );

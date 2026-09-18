@@ -113,6 +113,14 @@ public:
     // all the Matches; the Context Lines stay as they are until the Search
     // completes.
     void matchesArrived( const SearchResultArray& newMatches );
+    // The Matches lost removedMatches, each of which was a Match before: a
+    // Search continued over a grown Log File searched the previously last Log
+    // Line again and it no longer matches. They stop being displayed as
+    // Matches, and the Context Lines follow at once -- unlike those of the
+    // Matches arriving, which wait for the Search to complete, a Match that
+    // is gone must not keep Context Lines nothing reaches any more. Costs as
+    // much as their neighbourhoods, not as all the Matches.
+    void matchesRemoved( const SearchResultArray& removedMatches );
     // The Search completed (from a real run or from the cache): the Context
     // Lines are rebuilt around its Matches.
     void searchCompleted();
@@ -182,6 +190,12 @@ private:
                                           uint64_t nbLogLines ) const;
     // Adds or removes one Mark's Context Lines and updates what is displayed.
     void markToggled( uint64_t line, bool added );
+    // Drops the Context Lines of a Log Line that is displayed no longer,
+    // because its Mark was removed or it stopped being a Match: those within
+    // its reach are kept only where another Match or Mark, from up to twice
+    // as far, reaches them, and the Log Line itself becomes one of them when
+    // it is reached. Returns the Log Lines whose type may have changed.
+    SearchResultArray dropContextLinesOf( uint64_t line, uint64_t reach );
 
     // Tells rewrites() that the displayed Log Lines, or what they are,
     // changed other than by Matches added after everything displayed.

@@ -72,7 +72,7 @@
 
 #include "logdataworker.h"
 
-constexpr int IndexingBlockSize = IndexOperation::DefaultBlockSize;
+constexpr int IndexingBlockSize = IndexingBlockPlan::DefaultBlockSize;
 
 IndexingData::IndexingData()
     : headerAndTailDigests_( IndexingBlockSize )
@@ -656,12 +656,12 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     // pass over the Log File is in flight cannot be observed by it (#94).
     // The read buffer is in MiB: it bounds the blocks read and not yet
     // stitched, and so the block buffers allocated (#290).
-    const auto blocksInFlight
-        = indexing_blocks::blocksInReadBuffer( indexingPolicy_.readBufferSizeMb, blockSize_ );
+    const auto blocksInFlight = indexing_blocks::blocksInReadBuffer(
+        indexingPolicy_.readBufferSizeMb, blockPlan_.blockSize );
 
     LOG_INFO << "Prefetch buffer "
-             << readableSize( static_cast<uint64_t>( blocksInFlight * blockSize_ ) ) << ", "
-             << blocksInFlight << " blocks";
+             << readableSize( static_cast<uint64_t>( blocksInFlight * blockPlan_.blockSize ) )
+             << ", " << blocksInFlight << " blocks";
 
     using namespace std::chrono;
     using clock = high_resolution_clock;
@@ -670,7 +670,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     const auto indexingStartTime = clock::now();
 
     // Declared before the graph, so that the blocks outlive every node.
-    indexing_blocks::IndexingBlockPool blockPool( blockSize_ );
+    indexing_blocks::IndexingBlockPool blockPool( blockPlan_.blockSize );
     indexing_blocks::BlockReading reading{ .end = state.pos };
     std::atomic<bool> readingDone{ false };
 
@@ -753,7 +753,13 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     indexingGraph.wait_for_all();
     LOG_INFO << "Reading blocks done";
 
-    blockBuffersAllocated_ = blockPool.allocated();
+    // What the run actually read the Log File in, for the log and for
+    // whoever planned the blocks and watches the run (#290).
+    const auto blockBuffersAllocated = blockPool.allocated();
+    LOG_INFO << "Block buffers allocated " << blockBuffersAllocated;
+    if ( blockPlan_.blockBuffersAllocated ) {
+        blockPlan_.blockBuffersAllocated( blockBuffersAllocated );
+    }
 
     LOG_DEBUG << "Indexed up to " << state.pos;
 

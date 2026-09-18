@@ -76,7 +76,7 @@ public:
         : image_( ChartWidth, ChartHeight, QImage::Format_ARGB32_Premultiplied )
     {
         widget_.resize( ChartWidth, ChartHeight );
-        widget_.setSeriesList( { durationSeries( count ) } );
+        widget_.setSeriesList( { durationSeries( count ) }, ChartWidget::Change::Series );
     }
 
     // The middle of the plot area.

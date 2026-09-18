@@ -19,7 +19,10 @@
 
 #include <catch2/catch.hpp>
 
+#include <atomic>
 #include <chrono>
+#include <cstdint>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -27,6 +30,8 @@
 #include <QTest>
 
 #include "in_memory_block_source.h"
+#include "logfiltereddataworker.h"
+#include "regularexpression.h"
 #include "searchsession.h"
 #include "test_policies.h"
 
@@ -36,7 +41,9 @@ using Phase = SearchSession::Phase;
 // event loop): the pattern-validity check and the continuation-vs-fresh
 // decision are both made synchronously, before anything touches the
 // worker thread, so they are observable right after the call returns.
-// The later ones run real Searches over Log Lines held in memory.
+// The later ones run real Searches over Log Lines held in memory, and one of
+// them runs the worker's Search operations itself, to place a Search in a
+// moment of the worker's own that a request cannot be timed to hit.
 
 namespace {
 
@@ -55,6 +62,19 @@ SearchResultArray fizzLines( int count )
     SearchResultArray lines;
     for ( auto number = 0; number < count; number += 3 ) {
         lines.add( static_cast<uint64_t>( number ) );
+    }
+    return lines;
+}
+
+// The Log Lines numberedLines() leaves without "fizz", in [0, count): the
+// Matches of an exclude Search for "fizz".
+SearchResultArray nonFizzLines( int count )
+{
+    SearchResultArray lines;
+    for ( auto number = 0; number < count; ++number ) {
+        if ( number % 3 != 0 ) {
+            lines.add( static_cast<uint64_t>( number ) );
+        }
     }
     return lines;
 }
@@ -315,6 +335,65 @@ SCENARIO( "A new request supersedes the Search in flight", "[searchsession]" )
     }
 }
 
+// The Search Data the runs share is the one thing a superseded run can leave
+// behind for the run after it. Which run is the active one is all that tells a
+// run it has been superseded, so this scenario sets that directly and runs the
+// operations itself: through the Session, the moment between a run being
+// started and its first step belongs to the worker thread, and no test can
+// place a request in it without racing it.
+SCENARIO( "A Search superseded before it runs leaves no Matches behind", "[searchsession]" )
+{
+    const auto policies = testSettingsPolicies();
+    // No Log Line matches both patterns.
+    InMemoryBlockSource blockSource(
+        QStringList{ "alpha 0", "beta 1", "alpha 2", "beta 3", "alpha 4" } );
+
+    const auto alpha = std::make_shared<const RegularExpression>(
+        RegularExpressionPattern( "alpha" ), policies.search.regexpEngine );
+    const auto beta = std::make_shared<const RegularExpression>( RegularExpressionPattern( "beta" ),
+                                                                 policies.search.regexpEngine );
+
+    SearchData searchData;
+    std::atomic<uint64_t> activeSearchId{ 1 };
+
+    GIVEN( "a Search whose Matches were never taken, because it was superseded" )
+    {
+        FullSearchOperation previous{ blockSource, SearchId( 1 ),   activeSearchId, alpha,
+                                      0_lnum,      LineNumber( 5 ), policies.search };
+        previous.run( searchData );
+        REQUIRE( searchData.getLastProcessedLine() == LineNumber( 5 ) );
+
+        WHEN( "a Search for another pattern is superseded before it runs, and the Search that "
+              "runs next continues over appended Log Lines" )
+        {
+            // The continuation below is the active run by the time the Search
+            // for the new pattern would start.
+            activeSearchId.store( 3 );
+            FullSearchOperation superseded{ blockSource, SearchId( 2 ),   activeSearchId, beta,
+                                            0_lnum,      LineNumber( 5 ), policies.search };
+            superseded.run( searchData );
+
+            blockSource.appendLines( QStringList{ "beta 5", "alpha 6" } );
+            UpdateSearchOperation continued{ blockSource, SearchId( 3 ),  activeSearchId,
+                                             beta,        0_lnum,         LineNumber( 7 ),
+                                             0_lnum,      policies.search };
+            continued.run( searchData );
+
+            THEN( "only the Matches of the pattern that ran are left, over every Log Line" )
+            {
+                SearchResultArray betaLines;
+                betaLines.add( uint64_t{ 1 } );
+                betaLines.add( uint64_t{ 3 } );
+                betaLines.add( uint64_t{ 5 } );
+
+                const auto results = searchData.takeCurrentResults();
+                REQUIRE( results.newMatches == betaLines );
+                REQUIRE( results.processedLines == 7_lcount );
+            }
+        }
+    }
+}
+
 SCENARIO( "A Search repeated over the same range is served from the cache", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
@@ -447,6 +526,94 @@ SCENARIO( "The match count stays exact while a Search continues over a growing L
         {
             QTest::qWait( 250 );
             REQUIRE_FALSE( countDiffered );
+        }
+    }
+}
+
+SCENARIO( "A continued Search drops the Match of a last Log Line that stopped matching",
+          "[searchsession]" )
+{
+    const auto policies = testSettingsPolicies();
+    // Excluding "fizz": every Log Line without it is a Match, and
+    // numberedLines() writes "fizz" into every third one.
+    const RegularExpressionPattern exclude( "fizz", true, true, false, false );
+
+    GIVEN( "a completed Search whose incomplete last Log Line matches" )
+    {
+        // Log Line 9 is still being written: it is a "fizz" Log Line (9 is a
+        // multiple of 3), but the "fizz" has not arrived yet, so for now it
+        // matches an exclude Search for it.
+        auto lines = numberedLines( 9 );
+        lines.append( "line 9 " );
+        InMemoryBlockSource blockSource( lines );
+        SearchSession session( blockSource, policies.search );
+
+        session.request( exclude, 0_lnum, 10_lnum );
+        REQUIRE( waitUntilSettled( session ) );
+
+        auto matchesBefore = nonFizzLines( 10 );
+        matchesBefore.add( uint64_t{ 9 } );
+        REQUIRE( session.state().phase == Phase::Complete );
+        REQUIRE( session.matches() == matchesBefore );
+        REQUIRE( session.state().matchCount == 7_lcount );
+
+        // What the Session reported as having left the Matches, and whether a
+        // reported count ever differed from the Matches reported with it.
+        SearchResultArray reportedRemovals;
+        bool countDiffered = false;
+        QObject::connect( &session, &SearchSession::stateChanged, &session,
+                          [ & ]( const SearchSession::State& state ) {
+                              reportedRemovals |= session.removedMatches();
+                              if ( state.matchCount.get() != session.matches().cardinality() ) {
+                                  countDiffered = true;
+                              }
+                          } );
+
+        WHEN( "the last Log Line is completed so that it stops matching, and more follow" )
+        {
+            blockSource.growLastLine( "fizz" );
+            blockSource.appendLines( numberedLines( 3, 10 ) );
+            session.request( exclude, 0_lnum, 13_lnum );
+            REQUIRE( session.state().isContinuation );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "its Match is gone and the count follows" )
+            {
+                const auto state = session.state();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( session.matches() == nonFizzLines( 13 ) );
+                REQUIRE( state.matchCount == LinesCount( nonFizzLines( 13 ).cardinality() ) );
+
+                SearchResultArray staleMatch;
+                staleMatch.add( uint64_t{ 9 } );
+                REQUIRE( reportedRemovals == staleMatch );
+
+                QTest::qWait( 250 );
+                REQUIRE_FALSE( countDiffered );
+            }
+        }
+
+        WHEN( "the last Log Line is completed and still matches, and more follow" )
+        {
+            blockSource.growLastLine( "and more of it" );
+            blockSource.appendLines( numberedLines( 3, 10 ) );
+            session.request( exclude, 0_lnum, 13_lnum );
+            REQUIRE( session.state().isContinuation );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "it keeps its Match and nothing is reported as removed" )
+            {
+                auto matchesAfter = nonFizzLines( 13 );
+                matchesAfter.add( uint64_t{ 9 } );
+                const auto state = session.state();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( session.matches() == matchesAfter );
+                REQUIRE( state.matchCount == LinesCount( matchesAfter.cardinality() ) );
+                REQUIRE( reportedRemovals.isEmpty() );
+
+                QTest::qWait( 250 );
+                REQUIRE_FALSE( countDiffered );
+            }
         }
     }
 }

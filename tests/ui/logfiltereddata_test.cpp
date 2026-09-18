@@ -1203,6 +1203,81 @@ SCENARIO( "A continued Search shows the same lines as the Search run from scratc
     }
 }
 
+SCENARIO( "A continued Search drops a last Log Line that stopped matching",
+          "[logdata][search][context]" )
+{
+    // Excluding "fizz": the Log Lines without it are the Matches. The last
+    // Log Line is still being written and has no "fizz" yet, so it matches
+    // for now; once the rest of it arrives, it does not.
+    QTemporaryFile file{ "filtered_test_stale_match_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( "drop fizz\nkeep\ndrop fizz\ndrop fizz\ndrop fizz\npartial" );
+    file.flush();
+
+    auto policies = testSettingsPolicies();
+    policies.search.contextLinesCount = 1;
+    policies.search.useParallelSearch = false;
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    REQUIRE( logData.getNbLine() == 6_lcount );
+
+    auto filtered = logData.getNewFilteredData();
+    filtered->setVisibility( AllVisible );
+    const RegularExpressionPattern exclude( "fizz", true, true, false, false );
+
+    const auto waitForCompletion = []( SafeQSignalSpy& spy ) {
+        REQUIRE( waitUiState( [ & ]() {
+            return spy.count() > 0
+                   && lastSearchState( spy ).phase == SearchSession::Phase::Complete;
+        } ) );
+        QCoreApplication::processEvents( QEventLoop::AllEvents, 50 );
+    };
+
+    GIVEN( "a completed Search that matched the incomplete last Log Line" )
+    {
+        {
+            SafeQSignalSpy spy{ filtered.get(), &LogFilteredData::searchStateChanged };
+            filtered->request( exclude, 0_lnum, 6_lnum );
+            waitForCompletion( spy );
+        }
+
+        REQUIRE( filtered->getNbMatches() == 2_lcount );
+        REQUIRE( toFlags( filtered->lineTypeByLine( 5_lnum ) ) == LineTypeFlags::Match );
+        REQUIRE( displayedLines( *filtered ) == LineNumbers{ 0, 1, 2, 4, 5 } );
+
+        WHEN( "the Log File grows so that this Log Line no longer matches" )
+        {
+            REQUIRE( file.write( " fizz\ndrop fizz\nkeep\ndrop fizz\n" ) > 0 );
+            file.flush();
+            {
+                SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+                logData.fileChangedOnDisk( file.fileName() );
+                REQUIRE( loadEndSpy.safeWait( 10000 ) );
+            }
+            REQUIRE( logData.getNbLine() == 9_lcount );
+
+            {
+                SafeQSignalSpy spy{ filtered.get(), &LogFilteredData::searchStateChanged };
+                filtered->request( exclude, 0_lnum, 9_lnum );
+                REQUIRE( filtered->searchState().isContinuation );
+                waitForCompletion( spy );
+            }
+
+            THEN( "neither the count nor the Displayed Lines include it any more" )
+            {
+                REQUIRE( filtered->getNbMatches() == 2_lcount );
+                REQUIRE( toFlags( filtered->lineTypeByLine( 5_lnum ) ) == LineTypeFlags::Plain );
+                REQUIRE( displayedLines( *filtered ) == LineNumbers{ 0, 1, 2, 6, 7, 8 } );
+                REQUIRE( displayedLines( *filtered ) == expectedDisplayedLines( *filtered ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "iterating over the Filtered View's lines while making lookups from the callback",
           "[logdata][search][context]" )
 {

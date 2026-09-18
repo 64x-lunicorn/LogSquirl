@@ -220,6 +220,10 @@ protected:
     const SearchPolicy searchPolicy_;
 };
 
+// A Search over its whole range, which replaces whatever the Search Data
+// holds -- and replaces it even when this run is superseded before it runs, so
+// that the run after it, which may continue from the data rather than replace
+// it too, never continues on another pattern's Matches.
 class FullSearchOperation : public SearchOperation {
     Q_OBJECT
 public:

@@ -29,6 +29,22 @@
 
 ## Bug fixes
 
+- **Multi-frame .lz4 files**: A `.lz4` Log File made of several frames
+  (block-streamed output, concatenated files) opens completely instead of
+  stopping after the first frame, and a truncated or corrupt one reports an
+  error instead of loading partially (#325).
+- **A last Log Line that stopped matching**: When a Log File grows, its last
+  Log Line may have been incomplete when it was searched. If it matched then
+  and does not any more once it is complete — with an exclude pattern, say —
+  the Search drops its Match when it searches that Log Line again, and the
+  match count and the Filtered View follow instead of keeping a line that no
+  longer matches (#330).
+- **A Search superseded before it started**: A new Search that was superseded
+  before it got to run — several patterns typed in quick succession, say — left
+  the results of the Search before it in place. A Search continued right after
+  it, as one following a growing Log File is, then went on from those results
+  and showed the previous pattern's Matches beside its own; it now starts from
+  nothing and shows only the Matches of the pattern it runs (#331).
 - **Log Lines beyond 4 GiB within one block**: A Log File in which 128
   consecutive Log Lines span 4 GiB or more (one very long Log Line is enough)
   shows the right Log Lines; their positions in the Index are no longer
@@ -38,6 +54,23 @@
 - **Main font**: Every Configuration uses the fixed-pitch main font style, not
   only the first one created, so the saved font does not depend on which
   settings were read first (#229).
+- **A chart keeps its zoom**: A chart that follows a growing Log File keeps the
+  view you zoomed or panned to instead of fitting the whole data again on every
+  append. It fits the view again when a series is added, edited or removed, a
+  preset is loaded, or you press Fit; a chart you never zoomed keeps following
+  the data as before (#329).
+- **Encoding in the grep command line tool**: `logsquirl_grep` reads its Log
+  File in the Encoding the application detects for it, or in the one the
+  settings force, instead of always reading it as ISO-8859-1. A UTF-8 Log Line
+  with non-ASCII text prints as it is in the Log File rather than
+  double-encoded, a UTF-16 or Latin-1 Log File prints as UTF-8 text, and a
+  pattern with non-ASCII text finds its matches (#326).
+- **Warnings of the grep command line tool**: `logsquirl_grep` writes its log
+  messages to stderr instead of stdout, so a warning such as "Non LF
+  terminated file" no longer lands between the matches. Its stdout carries
+  only the Log Lines the Search matched and can be piped into another tool;
+  the warnings are still shown, and `-d`/`--debug` writes its messages to
+  stderr too (#327).
 
 ## Security
 
@@ -68,6 +101,14 @@
   The packages no longer ship CRoaring's static library and headers (#226).
 - **No fast math**: The build no longer uses `-ffast-math` / `/fp:fast`, so
   chart aggregation follows IEEE floating point rules (#304).
+- **Packaging recipes pass options that exist**: The Arch recipe builds
+  `RelWithDebInfo` instead of the misspelled `RelWithDebugInfo`, which CMake
+  took as a build type of its own and so built without optimization and
+  without debug information; the Gentoo ebuild passes
+  `-DLOGSQUIRL_MIMALLOC_OVERRIDE=OFF` instead of the long-removed
+  `-DLOGSQUIRL_USE_MIMALLOC=OFF`. A test compares every `-D` option under
+  `packaging/` with the options the project declares, and every build type
+  with the ones CMake knows (#333).
 - **Hash-pinned Python tools**: Every pip install in CI and the build images
   uses hash-locked requirements with `--require-hashes`, and aqtinstall runs
   from a throwaway directory, so no stale Python packages (setuptools,

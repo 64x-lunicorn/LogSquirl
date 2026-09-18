@@ -240,7 +240,7 @@ SCENARIO( "The chart tooltip is drawn in the tooltip Tokens of every Theme", "[u
             series.name = "Requests";
             series.color = QColor( "#2196F3" );
             series.points.append( ChartPoint{ LineNumber( 4 ), 100.0, 50.0, {} } );
-            chart.setSeriesList( { series } );
+            chart.setSeriesList( { series }, ChartWidget::Change::Series );
             chart.resize( 400, 300 );
             chart.show();
             QCoreApplication::processEvents();

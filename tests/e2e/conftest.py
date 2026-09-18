@@ -19,6 +19,9 @@ from statistics import mean, median, stdev
 
 import pytest
 
+from isolated_instance import IsolatedLogSquirl
+from isolated_instance import supported as isolated_instances_supported
+
 # ---------------------------------------------------------------------------
 # CLI options
 # ---------------------------------------------------------------------------
@@ -113,6 +116,39 @@ def logsquirl_binary(binary_dir) -> Path:
     return binary
 
 
+def _isolated_logsquirl(binary: Path):
+    if not isolated_instances_supported():
+        pytest.skip(
+            "starting LogSquirl needs an isolated instance, which needs "
+            "macOS or Linux (#328)"
+        )
+    with IsolatedLogSquirl(binary) as env:
+        yield env
+
+
+@pytest.fixture
+def isolated_gui(logsquirl_binary):
+    """A LogSquirl with its own settings, Session, cache, Log Formats and plugins.
+
+    Every test that starts the application uses this (#328): run on a
+    developer machine the suite must not read or change the developer's own
+    LogSquirl data. Each test gets a fresh environment, so one test's Session
+    or settings never reach the next.
+    """
+    yield from _isolated_logsquirl(logsquirl_binary)
+
+
+@pytest.fixture(scope="module")
+def isolated_gui_module(logsquirl_binary):
+    """One isolated LogSquirl for a whole module.
+
+    For the performance benchmarks, which start the application dozens of
+    times: a fresh environment per run would measure the copy of the app
+    bundle, not the application.
+    """
+    yield from _isolated_logsquirl(logsquirl_binary)
+
+
 @pytest.fixture(scope="session")
 def test_data_dir(repo_root) -> Path:
     p = repo_root / "test_data"
@@ -179,22 +215,21 @@ def run_grep(binary: Path, pattern: str, filepath: Path, timeout: int = 30) -> s
     )
 
 
-def run_gui(binary: Path, args: list[str], timeout: int = 10) -> subprocess.CompletedProcess:
-    """Run logsquirl GUI with given args (adds -platform offscreen on non-macOS)."""
-    cmd = [str(binary)] + args
-    system = platform.system()
-    if system != "Darwin":
-        cmd.extend(["-platform", "offscreen"])
+def run_grep_bytes(binary: Path, pattern: str, filepath: Path, timeout: int = 30) -> subprocess.CompletedProcess:
+    """Run logsquirl_grep and return the completed process with undecoded output."""
     return subprocess.run(
-        cmd,
+        [str(binary), "-e", pattern, str(filepath)],
         capture_output=True,
-        text=True,
         timeout=timeout,
     )
 
 
 def grep_output_lines(result: subprocess.CompletedProcess) -> list[str]:
-    """Extract matched lines from grep output, filtering internal log messages."""
+    """Extract matched lines from grep stdout.
+
+    The tool writes its own log messages to stderr (#327), so stdout carries
+    only the matches; the filter stays as a safety net against stray output.
+    """
     lines = result.stdout.strip().splitlines() if result.stdout.strip() else []
     # Filter out internal logging lines (contain "[IndexOperation::doIndex" or similar)
     return [l for l in lines if "[IndexOperation::" not in l]

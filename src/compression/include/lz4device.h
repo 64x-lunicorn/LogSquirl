@@ -29,6 +29,11 @@
 struct LZ4F_dctx_s;
 
 /// Read-only sequential QIODevice that decompresses a .lz4 file via liblz4 frame API.
+///
+/// A .lz4 file may hold several frames one after another (block-streamed
+/// output, concatenated files); the device decompresses all of them. A
+/// truncated or corrupt file makes read() fail with -1 instead of ending the
+/// stream early.
 class Lz4Device : public QIODevice {
 public:
     explicit Lz4Device( const QString& filePath, QObject* parent = nullptr );
@@ -57,7 +62,13 @@ private:
     std::size_t inPos_ = 0;
     std::size_t inSize_ = 0;
 
+    bool fileExhausted_ = false;
+    // A frame has been started but not yet fully decoded and flushed.
+    bool frameInProgress_ = false;
     bool finished_ = false;
+    bool failed_ = false;
+
+    qint64 fail( const QString& reason, std::size_t decompressedBytes );
 };
 
 #endif // LOGSQUIRL_LZ4DEVICE_H

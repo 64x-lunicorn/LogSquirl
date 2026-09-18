@@ -150,15 +150,50 @@ tests/e2e/
 ├── test_grep_edge_cases.py  # Edge cases and error handling (10 tests)
 ├── test_gui_smoke.py        # GUI smoke tests (6 tests)
 ├── test_heavy_tabs.py       # Heavy tabs crash test
+├── test_user_data_untouched.py # The suite leaves the user's own LogSquirl alone
+├── isolated_instance.py     # Starts LogSquirl with its own settings, Session, cache and plugins
 └── test_performance.py      # Performance regression tests (14 benchmarks)
 ```
+
+## Starting the application
+
+No test starts the application directly (#328). Run on a developer machine the
+suite would otherwise overwrite that developer's own settings and Session --
+one smoke test starts with `-n`, which clears inactive window sessions -- and
+read and write their real plugin directory.
+
+Every test that starts LogSquirl takes the `isolated_gui` fixture instead (or
+`isolated_gui_module`, one environment for a whole module, for the
+benchmarks). It hands out an `IsolatedLogSquirl` from `isolated_instance.py`,
+which gives the instance a temporary directory of its own for settings, the
+Session, the cache, Log Formats, plugins, plugin configuration and the
+single-instance lock, and runs it offscreen. Its methods:
+
+| Method | For |
+|--------|-----|
+| `run(*args)` | an instance that exits by itself (`--version`, `--help`) |
+| `start_and_terminate(*args, settle=)` | start, let it settle, SIGTERM, report how it ended |
+| `start_primary(*args)` | a primary instance, waited for until its event loop runs |
+| `launch(*args)` | a bare `Popen`, for secondary instances |
+
+`test_user_data_untouched.py` is the guard: it records the user's own
+LogSquirl locations, runs an isolated instance and checks that not one byte
+there changed.
+
+Windows is not covered: its named pipes are not scoped by a directory, so a
+test instance could hand its Log Files over to the user's LogSquirl. The
+fixture skips there, and so do the tests that start the application.
 
 ## Adding New Tests
 
 1. Create a test function in the appropriate file (or add a new `test_*.py` file).
 2. Use fixtures from `conftest.py`: `logsquirl_grep_binary`, `logsquirl_binary`, `test_data_dir`.
-3. For grep tests, use `run_grep()` and `grep_output_lines()` to filter internal log messages.
-4. For GUI tests, use `run_gui()` for short-lived commands or `subprocess.Popen` for startup tests.
+3. For grep tests, use `run_grep()`; its `stdout` carries only the matched log lines, its
+   `stderr` the tool's own log messages (#327). `grep_output_lines()` splits stdout into
+   lines and stays as a safety net against stray log output.
+4. For GUI tests, take the `isolated_gui` fixture and use its `run()` for short-lived
+   commands or `start_and_terminate()` for startup tests. Never start the binary
+   directly: see "Starting the application" above.
 5. For performance tests, use `measure_execution()` and `assert_performance()`, add a slot in
    `baseline.json`, and mark the test with `@pytest.mark.performance`.
 6. For large-file benchmarks, also add `@pytest.mark.slow` and use `_generated_file()` helper.

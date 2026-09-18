@@ -204,6 +204,13 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
         // The run continued keeps what it found, including what it has not
         // reported yet.
         publishArrivedMatches();
+        // The worker searches the last Log Line searched before again,
+        // because it may have been incomplete then; its Match, if it has one,
+        // stands only as long as it matches again (collectStaleMatch()).
+        const auto searched = nbLinesProcessed_.get();
+        recheckedLine_ = searched > startLine.get()
+                             ? OptionalLineNumber( LineNumber( searched - 1 ) )
+                             : OptionalLineNumber{};
     }
 
     // A continuation's eventual completion must not be cached under a key
@@ -245,6 +252,11 @@ const SearchResultArray& SearchSession::matches() const
 const SearchResultArray* SearchSession::newMatches() const
 {
     return matchesReplaced_ ? nullptr : &newMatches_;
+}
+
+const SearchResultArray& SearchSession::removedMatches() const
+{
+    return removedMatches_;
 }
 
 LineLength SearchSession::maxLength() const
@@ -320,14 +332,47 @@ void SearchSession::resetResults()
 {
     matches_ = SearchResultArray();
     arrivedMatches_ = SearchResultArray();
+    staleMatches_ = SearchResultArray();
     newMatches_ = SearchResultArray();
+    removedMatches_ = SearchResultArray();
+    recheckedLine_.reset();
     matchesReplaced_ = true;
     maxLength_ = 0_length;
     nbLinesProcessed_ = 0_lcount;
 }
 
+void SearchSession::collectStaleMatch( const SearchResults& results )
+{
+    if ( !recheckedLine_.has_value() ) {
+        return;
+    }
+    // The Log Line searched again is the first one of this run, so the first
+    // batch that reaches past it carries its verdict -- and every batch
+    // before it leaves the Matches as they were.
+    if ( results.processedLines.get() <= recheckedLine_->get() ) {
+        return;
+    }
+
+    const auto line = recheckedLine_->get();
+    recheckedLine_.reset();
+
+    if ( results.newMatches.contains( line ) ) {
+        // It matches as it did, and is one Match either way: the Matches are
+        // a set of Log Lines.
+        return;
+    }
+    // It was incomplete when it matched and does not match now that it is
+    // whole (an exclude pattern, say): it is a Match no longer.
+    if ( matches_.contains( line ) ) {
+        staleMatches_.add( line );
+    }
+    arrivedMatches_.remove( line );
+}
+
 void SearchSession::applyIncomingResults( SearchResults results )
 {
+    collectStaleMatch( results );
+
     // Only as many set operations as the batch has containers, not as many
     // as the Matches found so far.
     results.newMatches -= matches_;
@@ -335,7 +380,8 @@ void SearchSession::applyIncomingResults( SearchResults results )
     maxLength_ = results.maxLength;
     nbLinesProcessed_ = results.processedLines;
 
-    const auto matchCount = LinesCount( matches_.cardinality() + arrivedMatches_.cardinality() );
+    const auto matchCount = LinesCount( matches_.cardinality() + arrivedMatches_.cardinality()
+                                        - staleMatches_.cardinality() );
     ScopedLock lock( stateMutex_ );
     state_.matchCount = matchCount;
 }
@@ -433,6 +479,16 @@ void SearchSession::emitThrottledStateChanged()
 
 void SearchSession::publishArrivedMatches()
 {
+    if ( !staleMatches_.isEmpty() ) {
+        matches_ -= staleMatches_;
+        if ( !matchesReplaced_ ) {
+            // Otherwise all of matches_ tell what changed, so what left them
+            // needs no reporting of its own.
+            removedMatches_ |= staleMatches_;
+        }
+        staleMatches_ = SearchResultArray();
+    }
+
     if ( arrivedMatches_.isEmpty() ) {
         return;
     }
@@ -456,5 +512,6 @@ void SearchSession::notifyStateChanged()
     stateChangePending_ = false;
     Q_EMIT stateChanged( state() );
     newMatches_ = SearchResultArray();
+    removedMatches_ = SearchResultArray();
     matchesReplaced_ = false;
 }

@@ -103,7 +103,7 @@ public:
         writeToConsole( messageToPrint, shouldFlush( type ) );
     }
 
-    void enableLogging( bool isEnabled, uint8_t logLevel )
+    void enableLogging( bool isEnabled, uint8_t logLevel, ConsoleStream consoleStream )
     {
         ScopedLock lock( mutex_ );
 
@@ -111,6 +111,7 @@ public:
 
         isConsoleLogEnabled_ = isEnabled;
         logLevel_ = logLevel;
+        consoleStream_ = consoleStream;
 
         setMessageHandler();
     }
@@ -158,6 +159,7 @@ private:
     // at a normal exit (QFile and std::cout flush when they are destroyed):
     // without a background thread, the last of them before a quiet period
     // stay buffered until the next message, and a crash can lose them.
+    // std::cerr writes every message out at once whatever this answers.
     bool shouldFlush( QtMsgType type )
     {
         const auto now = std::chrono::steady_clock::now();
@@ -169,11 +171,14 @@ private:
         return false;
     }
 
-    static void writeToConsole( const QByteArray& message, bool flush )
+    // Called with the lock held, so the stream cannot change underneath a
+    // message that is half written.
+    void writeToConsole( const QByteArray& message, bool flush )
     {
-        std::cout.write( message.constData(), message.size() );
+        auto& stream = consoleStream_ == ConsoleStream::StdErr ? std::cerr : std::cout;
+        stream.write( message.constData(), message.size() );
         if ( flush ) {
-            std::cout.flush();
+            stream.flush();
         }
     }
 
@@ -205,13 +210,14 @@ private:
     std::atomic_bool isFileLogEnabled_ = false;
 
     std::atomic_int logLevel_ = 0;
+    ConsoleStream consoleStream_ = ConsoleStream::StdOut;
 
     std::unique_ptr<QFile> logFile_;
 };
 
-void enableLogging( bool isEnabled, LogLevel logLevel )
+void enableLogging( bool isEnabled, LogLevel logLevel, ConsoleStream consoleStream )
 {
-    Logger::instance().enableLogging( isEnabled, static_cast<uint8_t>( logLevel ) );
+    Logger::instance().enableLogging( isEnabled, static_cast<uint8_t>( logLevel ), consoleStream );
 }
 
 void enableFileLogging( bool isEnabled, LogLevel logLevel )

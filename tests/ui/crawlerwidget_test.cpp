@@ -2484,6 +2484,26 @@ SCENARIO( "A restored tab whose Log File loads after the current one shows what 
                 REQUIRE( tab.matchCaseChecked() );
             }
         }
+
+        WHEN( "it is reloaded before its Log File has been attached" )
+        {
+            // The user interface does not reach this today -- activating a
+            // tab starts its load first -- but reloading such a tab loads it
+            // instead of reaching for log data that is not there (#332).
+            CrawlerWidgetVisitor tab;
+            tab.crawler = std::move( restored.tabs.front() );
+            tab.crawler->reload();
+            REQUIRE( waitUiState( [ & ] {
+                return tab.isLoadingFinished() && tab.getLogNbLines().get() == SL_NB_LINES;
+            } ) );
+
+            THEN( "its Log File loads with what was saved for it, dropping nothing" )
+            {
+                REQUIRE( tab.isMarked( 3_lnum ) );
+                REQUIRE( tab.isMarked( 7_lnum ) );
+                REQUIRE( tab.matchCaseChecked() );
+            }
+        }
     }
 }
 

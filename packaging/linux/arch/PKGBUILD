@@ -19,7 +19,7 @@ build() {
     cmake \
         -B "${pkgname}-${pkgver}/build" \
         -S "${pkgname}-${pkgver}" \
-        -DCMAKE_BUILD_TYPE='RelWithDebugInfo' \
+        -DCMAKE_BUILD_TYPE='RelWithDebInfo' \
         -DCMAKE_INSTALL_PREFIX='/usr' \
         -DCPM_USE_LOCAL_PACKAGES=ON \
         -DCPM_SOURCE_CACHE=${srcdir}/cpm_cache \

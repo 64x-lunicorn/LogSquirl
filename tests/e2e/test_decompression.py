@@ -2,19 +2,16 @@
 E2E tests for compressed-file decompression support.
 
 Tests verify that LogSquirl can open and decompress files in
-gz, bz2, xz, zst, and lz4 formats.  GUI smoke tests launch
-the app briefly with '-platform offscreen' (skipped on macOS).
+gz, bz2, xz, zst, and lz4 formats.  The GUI smoke test launches
+the app briefly through the isolated_gui fixture, so it cannot touch
+the developer's own settings, Session, cache or plugins (#328).
 """
 
-import platform
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
-
-from conftest import run_gui
 
 
 # ---------------------------------------------------------------------------
@@ -56,15 +53,9 @@ _COMPRESSED_FORMATS = [
 class TestDecompressionSmoke:
     """Smoke tests: verify the GUI binary accepts compressed files without crashing."""
 
-    @pytest.fixture(autouse=True)
-    def _skip_on_mac(self):
-        """GUI smoke tests need -platform offscreen, which is unavailable on macOS."""
-        if platform.system() == "Darwin":
-            pytest.skip("offscreen platform not available on macOS")
-
     @pytest.mark.parametrize("fmt", _COMPRESSED_FORMATS)
     def test_gui_opens_compressed_file(
-        self, fmt, logsquirl_binary, test_data_dir, tmp_path
+        self, fmt, isolated_gui, test_data_dir, tmp_path
     ):
         """Verify that logsquirl accepts a compressed file argument and exits cleanly."""
         source = test_data_dir / "random_block_1Mb.txt"
@@ -76,11 +67,10 @@ class TestDecompressionSmoke:
         assert compressed.stat().st_size > 0, f"Compressed file is empty for {fmt}"
 
         # Launch app with the compressed file — it should start decompressing
-        # and not crash.  We use a very short timeout because we only care
-        # about the startup path.
-        result = run_gui(logsquirl_binary, [str(compressed)], timeout=5)
+        # and not crash.  It is terminated after a short settle time because
+        # we only care about the startup path.
+        result = isolated_gui.start_and_terminate(str(compressed), settle=2.0)
 
-        # The app will time out (we killed it), that's fine.
         # What matters is that it did NOT segfault.
         assert result.returncode != -11, f"logsquirl segfaulted on {fmt}"
         assert result.returncode != -6, f"logsquirl aborted on {fmt}"

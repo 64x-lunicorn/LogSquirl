@@ -51,6 +51,34 @@ class TestGrepNoTrailingNewline:
         )
         assert result.returncode == 0
 
+    def test_grep_no_lf_warning_is_on_stderr(self, logsquirl_grep_binary, tmp_path):
+        """The warning about a missing trailing newline goes to stderr (#327).
+
+        stdout must carry the matching log lines and nothing else, so the
+        output can be piped into another tool.
+        """
+        log_file = tmp_path / "no_lf.log"
+        log_file.write_text("first fizz\nno match here\nlast fizz")
+
+        result = run_grep(logsquirl_grep_binary, "fizz", log_file)
+
+        assert result.returncode == 0
+        assert result.stdout == "first fizz\nlast fizz\n"
+        assert "Non LF terminated file" in result.stderr
+
+    def test_grep_no_lf_stdout_has_no_log_message(
+        self, logsquirl_grep_binary, test_data_dir
+    ):
+        """A search without a match prints nothing at all on stdout (#327)."""
+        result = run_grep(
+            logsquirl_grep_binary,
+            "no such text anywhere",
+            test_data_dir / "random_block_1Mb_no_lf.txt",
+        )
+        assert result.returncode == 0
+        assert result.stdout == ""
+        assert "Non LF terminated file" in result.stderr
+
 
 class TestGrepLargeFiles:
     """Test with larger files."""
