@@ -1,7 +1,8 @@
 # Runs the command line tool on a temporary Log File, as a user would, and
 # checks what it prints and the code it exits with (#247): the Log Lines the
-# Search matched on stdout, in order; a failure the engine reports described
-# on stderr, with a non-zero exit code.
+# Search matched on stdout, in order, and nothing else; a failure the engine
+# reports and every log message it writes described on stderr, a failure with
+# a non-zero exit code (#327).
 #
 # Usage: cmake -DGREP=<path to logsquirl_grep> -DWORK_DIR=<scratch directory>
 #              -P logsquirl_grep_cli.cmake
@@ -135,6 +136,26 @@ if(NOT _result STREQUAL "0")
 endif()
 if(NOT (_stdout STREQUAL "hit: Größe und München, ärger mit Türen\nhit: schöne grüße, äußere Wärme\n"))
   fail("a Search prints the Log Lines of a Latin-1 Log File as UTF-8 text")
+endif()
+
+# A Log File without a trailing line feed is warned about, and the warning is
+# a diagnostic: it goes to stderr, so stdout carries the matching Log Lines
+# and nothing else and can be piped into another tool (#327).
+set(_no_lf_file "${WORK_DIR}/grep-no-lf.log")
+file(WRITE "${_no_lf_file}" "first fizz\nno match here\nlast fizz")
+run_grep("${_no_lf_file}" -e fizz)
+if(NOT _result STREQUAL "0")
+  fail("a Search in a Log File without a trailing line feed exits with 0")
+endif()
+if(NOT (_stdout STREQUAL "first fizz\nlast fizz\n"))
+  fail("a Search in a Log File without a trailing line feed prints only its matches")
+endif()
+if(NOT (_stderr MATCHES "Non LF terminated file"))
+  fail("the warning about a missing trailing line feed is on stderr")
+endif()
+# A log message carries the function it was logged from, as "@<line>]".
+if(_stdout MATCHES "@[0-9]+\\]")
+  fail("no log message is printed on stdout")
 endif()
 
 # No match is no failure.

@@ -111,7 +111,13 @@ int main( int argc, char* argv[] )
     QCoreApplication app( argc, argv );
     CliParameters parameters( app, true );
 
-    logging::enableLogging( true, static_cast<logging::LogLevel>( parameters.log_level ) );
+    // Every log message goes to stderr, the way printFailure() reports a
+    // failure: stdout carries only the Log Lines the Search matched, so the
+    // output can be piped into another tool without warnings such as "Non LF
+    // terminated file" mixed into the matches (#327). The -d/--debug flag
+    // still raises the level, and its messages land on stderr too.
+    logging::enableLogging( true, static_cast<logging::LogLevel>( parameters.log_level ),
+                            logging::ConsoleStream::StdErr );
 
     if ( parameters.filenames.empty() ) {
         printFailure( "no Log File given" );
