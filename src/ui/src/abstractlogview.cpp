@@ -417,8 +417,12 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     // a Theme switch both are painted again. The Log Lines themselves are
     // unchanged, so nothing is expanded or wrapped again.
     Theme::whenApplied( this, [ this ] {
-        textAreaCache_.invalid_ = true;
+        // The Color Labels follow the Theme, and their colors were read when
+        // the words were set, so they are read again here and every line is
+        // decorated again with them (ADR-0006).
+        decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
         pullToFollowCache_.nb_columns_ = 0_length;
+        updateDecorations();
         viewport()->update();
     } );
 

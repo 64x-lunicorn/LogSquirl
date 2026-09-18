@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **Smyck theme**: A fourth theme, after the SMYCK terminal color scheme
+  (https://color.smyck.org/): a dark theme in its background, its grays and its
+  ANSI colors, with the same sizes and shapes as Dark. Choosing it also colors
+  the nine color labels in SMYCK's colors, and choosing another theme colors
+  them back; a color label you picked a color for yourself is left alone
+  (#353).
+
 - **Themes differ in color only**: Light and High Contrast use Dark's sizes
   and shapes (combo box arrow, menu item padding and icon offset, tab add
   button); High Contrast keeps only its thicker borders and outlines. The tab

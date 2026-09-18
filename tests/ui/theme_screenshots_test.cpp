@@ -18,6 +18,7 @@
  */
 
 #include "crawlerwidget.h"
+#include "highlighterset.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "pathline.h"
@@ -73,8 +74,8 @@
 
 namespace {
 
-const std::vector<QString> RenderedThemes{ Theme::LightKey, Theme::DarkKey,
-                                           Theme::HighContrastKey };
+const std::vector<QString> RenderedThemes{ Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
+                                           Theme::SmyckKey };
 
 // The Log File shown is a copy of the demo log in a neutral directory, the
 // same on every machine: the tool bar shows the full path of the Log File, and
@@ -690,6 +691,14 @@ SCENARIO( "Every Theme is rendered to comparison screenshots", "[.screenshots]" 
                                    QFileDevice::FileModificationTime ) );
     }
 
+    // The Color Labels follow the Theme in the application, so they do here
+    // too, and the images show the colors a user sees (ADR-0006). Their own
+    // colors are put back afterwards: the test executables share one settings
+    // file.
+    const auto storedColorLabels = HighlighterSetCollection::get().quickHighlighters();
+    QObject colorLabelsContext;
+    HighlighterSetCollection::followTheme( &colorLabelsContext );
+
     Screenshots screenshots( directory );
     for ( const auto& theme : RenderedThemes ) {
         INFO( theme.toStdString() );
@@ -702,5 +711,10 @@ SCENARIO( "Every Theme is rendered to comparison screenshots", "[.screenshots]" 
     }
 
     Theme::apply( Theme::defaultTheme() );
+
+    auto& highlighterSets = HighlighterSetCollection::get();
+    highlighterSets.setQuickHighlighters( storedColorLabels );
+    highlighterSets.save();
+
     QDir( NeutralLogDirectory ).removeRecursively();
 }

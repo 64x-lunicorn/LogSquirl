@@ -2539,8 +2539,8 @@ SCENARIO( "An invalid Search pattern is shown in the Theme's error colors", "[ui
                      == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
         }
 
-        for ( const auto& name :
-              { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ) } ) {
+        for ( const auto& name : { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
+                                   QString( Theme::SmyckKey ) } ) {
             WHEN( "the " << name.toStdString() << " Theme is applied" )
             {
                 Theme::apply( name );

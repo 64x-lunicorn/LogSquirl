@@ -146,7 +146,8 @@ std::optional<Indicator> treeItemIndicator( Qt::CheckState state )
 
 const QStringList& builtInThemes()
 {
-    static const QStringList themes{ Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey };
+    static const QStringList themes{ Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
+                                     Theme::SmyckKey };
     return themes;
 }
 

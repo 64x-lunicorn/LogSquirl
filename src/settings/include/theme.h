@@ -167,6 +167,17 @@ inline constexpr std::size_t StyleTokenCount = 0 LOGSQUIRL_STYLE_TOKENS( LOGSQUI
 #undef LOGSQUIRL_TOKEN_ENUMERATOR
 #undef LOGSQUIRL_TOKEN_COUNT
 
+// The number of Color Label slots a Theme colors.
+inline constexpr std::size_t ColorLabelCount = 9;
+
+// The colors a Theme gives one Color Label: the text and the background it
+// paints a labelled word in. An invalid text color leaves the Log Line's own
+// color in place.
+struct ColorLabelColors {
+    QColor foreColor;
+    QColor backColor;
+};
+
 // The look of the application: one set of Tokens, from which both the
 // QPalette and the application stylesheet are derived.
 class Theme {
@@ -175,6 +186,7 @@ public:
     static constexpr QLatin1String LightKey = QLatin1String( "Light" );
     static constexpr QLatin1String DarkKey = QLatin1String( "Dark" );
     static constexpr QLatin1String HighContrastKey = QLatin1String( "High Contrast" );
+    static constexpr QLatin1String SmyckKey = QLatin1String( "Smyck" );
     static constexpr QLatin1String SystemKey = QLatin1String( "System" );
 
     // Every value the `style` setting can take, sorted by name.
@@ -190,7 +202,7 @@ public:
     static Theme fromName( const QString& name, Qt::ColorScheme systemScheme,
                            const std::map<QString, QString>& darkOverrides = {} );
 
-    // Light, Dark or High Contrast -- never System.
+    // Light, Dark, High Contrast or Smyck -- never System.
     QString name() const;
 
     // Whether the Theme has dark backgrounds and light text.
@@ -211,6 +223,23 @@ public:
     // The stylesheet value (a size, padding or icon image) this Theme gives
     // token.
     QString value( StyleToken token ) const;
+
+    // The colors this Theme gives the Color Labels, in slot order. Unlike a
+    // Token, these color Log Lines: a Color Label follows the Theme unless
+    // the user chose its colors (ADR-0006).
+    const std::array<ColorLabelColors, ColorLabelCount>& colorLabels() const;
+
+    // Whether these are the colors a built-in Theme gives the Color Label of
+    // slot, and the Color Label may therefore follow the Theme. Colors the
+    // user chose are those of no Theme, and are kept.
+    static bool isBuiltInColorLabel( std::size_t slot, const QColor& foreColor,
+                                     const QColor& backColor );
+
+    // Whether two Color Label colors are the same as the settings store keeps
+    // them: a Theme that gives a Color Label no text color of its own leaves
+    // an invalid color, which the store writes and reads back as opaque
+    // black.
+    static bool sameColorLabelColor( const QColor& lhs, const QColor& rhs );
 
     // The QPalette derived from the palette-role Tokens, for every color group.
     QPalette palette() const;
@@ -263,6 +292,7 @@ private:
     static Theme light();
     static Theme dark();
     static Theme highContrast();
+    static Theme smyck();
 
     void setColors( std::initializer_list<std::pair<ColorToken, const char*>> colors );
     void setValues( std::initializer_list<std::pair<StyleToken, const char*>> values );
@@ -273,6 +303,7 @@ private:
     QString userStyleSheetFileName_;
     std::array<QColor, ColorTokenCount> colors_;
     std::array<QString, StyleTokenCount> values_;
+    std::array<ColorLabelColors, ColorLabelCount> colorLabels_;
 };
 
 #endif

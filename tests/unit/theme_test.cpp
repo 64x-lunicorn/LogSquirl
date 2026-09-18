@@ -36,7 +36,7 @@ namespace {
 const std::vector<QString>& builtInThemes()
 {
     static const std::vector<QString> themes{ Theme::LightKey, Theme::DarkKey,
-                                              Theme::HighContrastKey };
+                                              Theme::HighContrastKey, Theme::SmyckKey };
     return themes;
 }
 
@@ -235,7 +235,7 @@ SCENARIO( "A Theme is chosen by its stored name", "[theme]" )
         {
             REQUIRE( Theme::availableThemes()
                      == QStringList{ Theme::DarkKey, Theme::HighContrastKey, Theme::LightKey,
-                                     Theme::SystemKey } );
+                                     Theme::SmyckKey, Theme::SystemKey } );
             REQUIRE( Theme::defaultTheme() == Theme::LightKey );
         }
 
@@ -249,6 +249,7 @@ SCENARIO( "A Theme is chosen by its stored name", "[theme]" )
                 REQUIRE( Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light ).isDark() );
                 REQUIRE(
                     Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light ).isDark() );
+                REQUIRE( Theme::fromName( Theme::SmyckKey, Qt::ColorScheme::Light ).isDark() );
             }
         }
 
@@ -290,6 +291,8 @@ SCENARIO( "A dark Theme shows the inverse icons", "[theme]" )
                     Theme::fromName( Theme::DarkKey, Qt::ColorScheme::Light ).usesInverseIcons() );
                 REQUIRE( Theme::fromName( Theme::HighContrastKey, Qt::ColorScheme::Light )
                              .usesInverseIcons() );
+                REQUIRE(
+                    Theme::fromName( Theme::SmyckKey, Qt::ColorScheme::Light ).usesInverseIcons() );
             }
         }
 
