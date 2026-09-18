@@ -29,6 +29,12 @@
 
 ## Bug fixes
 
+- **A last Log Line that stopped matching**: When a Log File grows, its last
+  Log Line may have been incomplete when it was searched. If it matched then
+  and does not any more once it is complete — with an exclude pattern, say —
+  the Search drops its Match when it searches that Log Line again, and the
+  match count and the Filtered View follow instead of keeping a line that no
+  longer matches (#330).
 - **Log Lines beyond 4 GiB within one block**: A Log File in which 128
   consecutive Log Lines span 4 GiB or more (one very long Log Line is enough)
   shows the right Log Lines; their positions in the Index are no longer

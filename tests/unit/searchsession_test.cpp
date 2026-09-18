@@ -59,6 +59,19 @@ SearchResultArray fizzLines( int count )
     return lines;
 }
 
+// The Log Lines numberedLines() leaves without "fizz", in [0, count): the
+// Matches of an exclude Search for "fizz".
+SearchResultArray nonFizzLines( int count )
+{
+    SearchResultArray lines;
+    for ( auto number = 0; number < count; ++number ) {
+        if ( number % 3 != 0 ) {
+            lines.add( static_cast<uint64_t>( number ) );
+        }
+    }
+    return lines;
+}
+
 bool waitUntilSettled( const SearchSession& session )
 {
     return QTest::qWaitFor( [ &session ] { return session.state().phase != Phase::Running; },
@@ -447,6 +460,94 @@ SCENARIO( "The match count stays exact while a Search continues over a growing L
         {
             QTest::qWait( 250 );
             REQUIRE_FALSE( countDiffered );
+        }
+    }
+}
+
+SCENARIO( "A continued Search drops the Match of a last Log Line that stopped matching",
+          "[searchsession]" )
+{
+    const auto policies = testSettingsPolicies();
+    // Excluding "fizz": every Log Line without it is a Match, and
+    // numberedLines() writes "fizz" into every third one.
+    const RegularExpressionPattern exclude( "fizz", true, true, false, false );
+
+    GIVEN( "a completed Search whose incomplete last Log Line matches" )
+    {
+        // Log Line 9 is still being written: it is a "fizz" Log Line (9 is a
+        // multiple of 3), but the "fizz" has not arrived yet, so for now it
+        // matches an exclude Search for it.
+        auto lines = numberedLines( 9 );
+        lines.append( "line 9 " );
+        InMemoryBlockSource blockSource( lines );
+        SearchSession session( blockSource, policies.search );
+
+        session.request( exclude, 0_lnum, 10_lnum );
+        REQUIRE( waitUntilSettled( session ) );
+
+        auto matchesBefore = nonFizzLines( 10 );
+        matchesBefore.add( uint64_t{ 9 } );
+        REQUIRE( session.state().phase == Phase::Complete );
+        REQUIRE( session.matches() == matchesBefore );
+        REQUIRE( session.state().matchCount == 7_lcount );
+
+        // What the Session reported as having left the Matches, and whether a
+        // reported count ever differed from the Matches reported with it.
+        SearchResultArray reportedRemovals;
+        bool countDiffered = false;
+        QObject::connect( &session, &SearchSession::stateChanged, &session,
+                          [ & ]( const SearchSession::State& state ) {
+                              reportedRemovals |= session.removedMatches();
+                              if ( state.matchCount.get() != session.matches().cardinality() ) {
+                                  countDiffered = true;
+                              }
+                          } );
+
+        WHEN( "the last Log Line is completed so that it stops matching, and more follow" )
+        {
+            blockSource.growLastLine( "fizz" );
+            blockSource.appendLines( numberedLines( 3, 10 ) );
+            session.request( exclude, 0_lnum, 13_lnum );
+            REQUIRE( session.state().isContinuation );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "its Match is gone and the count follows" )
+            {
+                const auto state = session.state();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( session.matches() == nonFizzLines( 13 ) );
+                REQUIRE( state.matchCount == LinesCount( nonFizzLines( 13 ).cardinality() ) );
+
+                SearchResultArray staleMatch;
+                staleMatch.add( uint64_t{ 9 } );
+                REQUIRE( reportedRemovals == staleMatch );
+
+                QTest::qWait( 250 );
+                REQUIRE_FALSE( countDiffered );
+            }
+        }
+
+        WHEN( "the last Log Line is completed and still matches, and more follow" )
+        {
+            blockSource.growLastLine( "and more of it" );
+            blockSource.appendLines( numberedLines( 3, 10 ) );
+            session.request( exclude, 0_lnum, 13_lnum );
+            REQUIRE( session.state().isContinuation );
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "it keeps its Match and nothing is reported as removed" )
+            {
+                auto matchesAfter = nonFizzLines( 13 );
+                matchesAfter.add( uint64_t{ 9 } );
+                const auto state = session.state();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( session.matches() == matchesAfter );
+                REQUIRE( state.matchCount == LinesCount( matchesAfter.cardinality() ) );
+                REQUIRE( reportedRemovals.isEmpty() );
+
+                QTest::qWait( 250 );
+                REQUIRE_FALSE( countDiffered );
+            }
         }
     }
 }

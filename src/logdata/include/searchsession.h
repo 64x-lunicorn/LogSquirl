@@ -120,6 +120,13 @@ public:
     // the previous stateChanged() (a new run, a cache hit, a reset): then only
     // all of them tell what changed.
     const SearchResultArray* newMatches() const;
+    // While stateChanged() is emitted: the Matches that left matches() with
+    // it, each of which was a Match before. A Search continued over a grown
+    // Log File searches its previously last Log Line again, because it may
+    // have been incomplete; when it no longer matches, its Match is dropped
+    // and reported here. Empty whenever newMatches() is nullptr: then all of
+    // the Matches tell what changed anyway.
+    const SearchResultArray& removedMatches() const;
     LineLength maxLength() const;
     LinesCount processedLines() const;
 
@@ -147,12 +154,18 @@ private:
     // handleSearchProgressed and handleSearchFinished, which otherwise
     // duplicate this exactly.
     void applyIncomingResults( SearchResults results );
+    // Reads the verdict on recheckedLine_ out of a worker result batch, before
+    // the Matches already found are subtracted from it: once the batch reaches
+    // past that Log Line, it has been searched again, and a Match it no longer
+    // has becomes a stale one (staleMatches_).
+    void collectStaleMatch( const SearchResults& results );
     // Replaces state_ under stateMutex_ in one step, so each call site
     // builds one complete State value instead of hand-editing a handful
     // of fields (and risking missing one) under the lock.
     void applyState( State newState );
-    // Moves arrivedMatches_ into matches_, and into newMatches_ unless the
-    // Matches were replaced since the last state change was reported.
+    // Moves arrivedMatches_ into matches_ and staleMatches_ out of it, and
+    // into newMatches_/removedMatches_ unless the Matches were replaced since
+    // the last state change was reported.
     void publishArrivedMatches();
     // Publishes the Matches that arrived and reports the current state: the
     // one way stateChanged() is emitted. Progress goes through the throttler
@@ -194,9 +207,22 @@ private:
     // counted from the Matches, never incremented beside them, and a Log Line
     // searched again is not counted twice.
     SearchResultArray arrivedMatches_;
+    // Matches the worker searched again and did not find again; they leave
+    // matches_ when the next state change is reported, so matches_ never
+    // changes behind a reader's back. All of them are in matches_ and none in
+    // arrivedMatches_, so the match count is the size of matches_ and
+    // arrivedMatches_ together less these.
+    SearchResultArray staleMatches_;
     // The Matches that joined matches_ since the last state change was
     // reported, kept only while it is (newMatches()).
     SearchResultArray newMatches_;
+    // The Matches that left matches_ since the last state change was
+    // reported, kept only while it is (removedMatches()).
+    SearchResultArray removedMatches_;
+    // The Log Line a continuation searches again because it may have been
+    // incomplete when it was searched before: the last one searched then.
+    // Nothing while no continuation is waiting for its verdict.
+    OptionalLineNumber recheckedLine_;
     // matches_ were replaced rather than grown since the last state change
     // was reported.
     bool matchesReplaced_ = true;

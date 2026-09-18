@@ -77,6 +77,39 @@ void DisplayedLines::matchesArrived( const SearchResultArray& newMatches )
     refreshLinesAt( newMatches );
 }
 
+void DisplayedLines::matchesRemoved( const SearchResultArray& removedMatches )
+{
+    if ( removedMatches.isEmpty() ) {
+        return;
+    }
+
+    rewritten();
+    // They are not Matches any more, so they are not waiting for Context
+    // Lines of their own either.
+    matchesWithoutContextLines_ -= removedMatches;
+    // As a rebuild would, the Context Lines come up to date around every
+    // Match and Mark first.
+    auto changed = updateContextLines();
+    if ( !changed ) {
+        refreshLines();
+        return;
+    }
+    *changed |= removedMatches;
+
+    const auto reach = static_cast<uint64_t>( std::max( contextLinesCount_, 0 ) );
+    if ( reach > 0 ) {
+        for ( const auto line : removedMatches ) {
+            // A Log Line that is Marked stays displayed, with its Context
+            // Lines.
+            if ( !marks_.contains( line ) ) {
+                *changed |= dropContextLinesOf( line, reach );
+            }
+        }
+    }
+
+    refreshLinesAt( *changed );
+}
+
 void DisplayedLines::searchCompleted()
 {
     rewritten();
@@ -449,28 +482,33 @@ void DisplayedLines::markToggled( uint64_t line, bool added )
             *changed |= addedContextLines;
         }
         else if ( !matches_.contains( line ) ) {
-            // The Log Lines the Mark reached are Context Lines now only if
-            // another Match or Mark reaches them, from up to twice as far.
-            const auto first = line > reach ? line - reach : uint64_t{ 0 };
-            const auto end = std::min( line + reach + 1, contextLinesEnd_ );
-
-            SearchResultArray reached;
-            reached.addRange( first, end );
-
-            SearchResultArray neighbourhood;
-            neighbourhood.addRange( line > 2 * reach ? line - 2 * reach : uint64_t{ 0 },
-                                    line + 2 * reach + 1 );
-            auto neighbours = neighbourhood & matches_;
-            neighbours |= neighbourhood & marks_;
-
-            contextLines_.removeRange( first, end );
-            contextLines_ |= contextLinesAround( neighbours, contextLinesEnd_ ) & reached;
-            *changed |= reached;
+            *changed |= dropContextLinesOf( line, reach );
         }
         // A removed Mark that is a Match keeps its Context Lines.
     }
 
     refreshLinesAt( *changed );
+}
+
+SearchResultArray DisplayedLines::dropContextLinesOf( uint64_t line, uint64_t reach )
+{
+    // The Log Lines it reached are Context Lines now only if another Match or
+    // Mark reaches them, from up to twice as far.
+    const auto first = line > reach ? line - reach : uint64_t{ 0 };
+    const auto end = std::min( line + reach + 1, contextLinesEnd_ );
+
+    SearchResultArray reached;
+    reached.addRange( first, end );
+
+    SearchResultArray neighbourhood;
+    neighbourhood.addRange( line > 2 * reach ? line - 2 * reach : uint64_t{ 0 },
+                            line + 2 * reach + 1 );
+    auto neighbours = neighbourhood & matches_;
+    neighbours |= neighbourhood & marks_;
+
+    contextLines_.removeRange( first, end );
+    contextLines_ |= contextLinesAround( neighbours, contextLinesEnd_ ) & reached;
+    return reached;
 }
 
 DisplayedLines::Source DisplayedLines::pickSource() const
