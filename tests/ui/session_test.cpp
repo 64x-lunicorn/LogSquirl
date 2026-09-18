@@ -471,11 +471,22 @@ SCENARIO( "Restoring a Session loads the current tab's Log File before the other
         REQUIRE( order.waitFor( 1 ) );
         REQUIRE( order.finished == std::vector<int>{ 2 } );
         window.startLoading( restored[ 1 ].second );
-        REQUIRE( order.waitFor( 3 ) );
 
         THEN( "its Log File loads at once, without waiting for the tabs before it" )
         {
-            REQUIRE( order.finished == std::vector<int>{ 2, 1, 0 } );
+            // Out of the queue there and then, rather than left waiting for the
+            // tab ahead of it. Not which of the two reports first: the moment
+            // the current tab finished, the queue started tab 0, so the two
+            // load side by side, and their order is a race between 16 MiB and
+            // 1 KiB that a loaded machine can decide either way.
+            REQUIRE( !appSession->isLoadQueued( restored[ 1 ].second ) );
+            REQUIRE( order.waitForTab( 1 ) );
+
+            // And every tab still gets there.
+            REQUIRE( order.waitFor( 3 ) );
+            auto loaded = order.finished;
+            std::sort( loaded.begin(), loaded.end() );
+            REQUIRE( loaded == std::vector<int>{ 0, 1, 2 } );
         }
     }
 

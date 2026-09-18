@@ -391,7 +391,8 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     , quickFind_(
           new QuickFind( [ this ]() { return lines_->quickFindLines(); },
                          [ this ]( LineNumber logLine ) { return lines_->shows( logLine ); } ) )
-    , pixmapFontMetrics_( pixmapFontMetrics( parent ? parent->font() : QFont() ) )
+    , logFont_( parent ? parent->font() : QFont() )
+    , pixmapFontMetrics_( pixmapFontMetrics( logFont_ ) )
 {
     setViewport( nullptr );
 
@@ -1548,9 +1549,11 @@ void AbstractLogView::updateData( LinesChange change )
 
 void AbstractLogView::updateFont( const QFont& font )
 {
-    const QFont validatedFont = FontUtils::validatedFixedPitchFont( font );
-    setFont( validatedFont );
-    pixmapFontMetrics_ = pixmapFontMetrics( validatedFont );
+    logFont_ = FontUtils::validatedFixedPitchFont( font );
+    // Still set on the widget, for its children and anything that reads it;
+    // the text area no longer depends on it surviving a repolish.
+    setFont( logFont_ );
+    pixmapFontMetrics_ = pixmapFontMetrics( logFont_ );
     updateDisplaySize();
     update();
 }
@@ -2280,7 +2283,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
     // LOG_DEBUG << "viewport size: " << viewport()->size().width();
     // LOG_DEBUG << "pixmap size: " << textPixmap.width();
     // Repaint the viewport
-    auto painter = pixmapPainter( paintDevice, this->font() );
+    auto painter = pixmapPainter( paintDevice, logFont_ );
     // LOG_DEBUG << "font: " << viewport()->font().family().toStdString();
     // LOG_DEBUG << "font painter: " << painter->font().family().toStdString();
 

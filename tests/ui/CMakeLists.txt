@@ -3,6 +3,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/filewatcher_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/indexing_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/indexingblocks_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/logview_font_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/logdata_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/logfiltereddata_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewscrolling_test.cpp

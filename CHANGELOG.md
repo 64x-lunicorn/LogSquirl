@@ -35,6 +35,11 @@
 
 ## Bug fixes
 
+- **Log Lines are drawn in the font you chose**: At startup the main view drew
+  its Log Lines in the system UI font, in rows laid out for another font, so
+  each row painted over the descenders of the row above it. The view now draws
+  in the font it was given, whatever a Theme's stylesheet does to the widget's
+  own font (#354).
 - **The Viewport shows every column that fits**: A Log Line now runs to the
   right edge of the Viewport instead of stopping a few characters short of it,
   and a click lands on the character under the pointer however far right it
