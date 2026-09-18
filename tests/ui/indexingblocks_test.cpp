@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <memory>
 #include <random>
+#include <utility>
 #include <vector>
 
 #include <QByteArray>
@@ -43,7 +44,7 @@
 
 namespace {
 
-constexpr qint64 DefaultIndexingBlockSize = 5 * 1024 * 1024;
+constexpr qint64 DefaultIndexingBlockSize = IndexingBlockPlan::DefaultBlockSize;
 
 // What one indexing run left behind.
 struct IndexingRun {
@@ -121,20 +122,27 @@ IndexingRun indexInBlocks( const QString& path, QTextCodec* encoding, qint64 blo
     auto policy = testSettingsPolicies().indexing;
     policy.readBufferSizeMb = readBufferSizeMb;
 
+    IndexingRun run;
+
+    // The block size and the one thing these tests watch -- how many block
+    // buffers the run allocated -- are planned here, where the run is asked
+    // for, and nowhere in the indexing itself (#335).
+    IndexingBlockPlan blockPlan{ .blockSize = blockSize,
+                                 .blockBuffersAllocated
+                                 = [ &run ]( qint64 buffers ) { run.blockBuffers = buffers; } };
+
     auto data = std::make_shared<IndexingData>();
     AtomicFlag interruptRequest;
-    FullIndexOperation operation{ path, data, interruptRequest, policy, encoding };
-    operation.setBlockSize( blockSize );
+    FullIndexOperation operation{ path,   data,     interruptRequest,
+                                  policy, encoding, std::move( blockPlan ) };
     REQUIRE( std::get<bool>( operation.run() ) );
 
-    IndexingRun run;
     IndexingData::ConstAccessor accessor{ data.get() };
     for ( auto line = 0u; line < accessor.getNbLines().get(); ++line ) {
         run.endOfLines.push_back( accessor.getEndOfLineOffset( LineNumber( line ) ).get() );
     }
     run.maxLength = accessor.getMaxLength().get();
     run.hash = accessor.getHash();
-    run.blockBuffers = operation.blockBuffersAllocated();
     return run;
 }
 

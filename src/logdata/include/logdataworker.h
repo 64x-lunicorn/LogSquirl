@@ -45,8 +45,10 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <qthreadpool.h>
+#include <utility>
 #include <variant>
 
 #include <QDateTime>
@@ -368,6 +370,27 @@ using OperationResult = std::variant<bool, MonitoredFileStatus>;
 
 struct CachedIndex;
 
+// How an indexing run cuts its Log File into blocks, and who watches it do
+// so. Handed to the operation when it is built, and not a Settings Policy:
+// none of it comes from the settings store, and the shipped values are the
+// defaults below. Every run the application starts takes the plan as it is.
+struct IndexingBlockPlan {
+    // The size of the blocks a Log File is read and parsed in.
+    static constexpr qint64 DefaultBlockSize = 5 * 1024 * 1024;
+
+    // Only tests plan another block size than the default, tiny ones, so
+    // that many Log Lines cross from one block into the next (#290).
+    qint64 blockSize = DefaultBlockSize;
+
+    // Called once, when the pass over the Log File is done, with how many
+    // block buffers it allocated: they are reused from one block to the
+    // next, and no more are allocated than the read buffer holds. The seam
+    // belongs to whoever watches a run -- the tests of the read buffer do
+    // -- and is empty in the plans the application makes, which watch
+    // nothing.
+    std::function<void( qint64 )> blockBuffersAllocated;
+};
+
 class IndexOperation : public QObject {
     Q_OBJECT
 public:
@@ -375,13 +398,16 @@ public:
     // everything this run reads about indexing is fixed for its duration,
     // so the options dialog writing a setting from the UI thread while the
     // pass over the Log File is in flight cannot be observed by it. A
-    // changed setting takes effect on the next run.
+    // changed setting takes effect on the next run. The block plan is fixed
+    // the same way, and defaulted: the application never plans another one.
     IndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
-                    AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy )
+                    AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy,
+                    IndexingBlockPlan blockPlan = {} )
         : fileName_( fileName )
         , indexing_data_( indexingData )
         , interruptRequest_( interruptRequest )
         , indexingPolicy_( indexingPolicy )
+        , blockPlan_( std::move( blockPlan ) )
     {
     }
 
@@ -396,25 +422,6 @@ public:
     qint64 bytesIndexed() const
     {
         return bytesIndexed_.load();
-    }
-
-    // The size of the blocks a Log File is read and parsed in.
-    static constexpr qint64 DefaultBlockSize = 5 * 1024 * 1024;
-
-    // Sets the size of the blocks the Log File is read and parsed in. Only
-    // tests pick another than the default, tiny ones, so that many Log Lines
-    // cross from one block into the next.
-    void setBlockSize( qint64 blockSize )
-    {
-        blockSize_ = blockSize;
-    }
-
-    // How many block buffers the last indexing pass of this operation
-    // allocated: they are reused from one block to the next, and no more are
-    // allocated than the read buffer holds.
-    qint64 blockBuffersAllocated() const
-    {
-        return blockBuffersAllocated_.load();
     }
 
 Q_SIGNALS:
@@ -473,8 +480,7 @@ private:
     void indexNextBlock( IndexingState& state, const indexing_blocks::IndexingBlock& block );
 
     std::atomic<qint64> bytesIndexed_{ 0 };
-    std::atomic<qint64> blockBuffersAllocated_{ 0 };
-    qint64 blockSize_ = DefaultBlockSize;
+    const IndexingBlockPlan blockPlan_;
 };
 
 class FullIndexOperation : public IndexOperation {
@@ -482,8 +488,9 @@ class FullIndexOperation : public IndexOperation {
 public:
     FullIndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
                         AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy,
-                        QTextCodec* forcedEncoding = nullptr )
-        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy )
+                        QTextCodec* forcedEncoding = nullptr, IndexingBlockPlan blockPlan = {} )
+        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy,
+                          std::move( blockPlan ) )
         , forcedEncoding_( forcedEncoding )
     {
     }
