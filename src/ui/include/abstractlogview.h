@@ -525,7 +525,7 @@ private:
         LinesCount totalLines{ 0 };
         int viewportWidth = -1;
         int viewportHeight = -1;
-        int charWidth = -1;
+        double charWidth = -1;
         int charHeight = -1;
         bool textWrap = false;
         bool lineNumbersVisible = false;
@@ -586,7 +586,9 @@ private:
     OptionalLineNumber selectionStart_;
 
     // Text handling
-    int charWidth_ = 1;
+    // The advance a column is painted with, fractional: see
+    // ViewportLayoutInput::charWidthPx.
+    double charWidth_ = 1;
     int charHeight_ = 10;
 
     std::map<QString, QShortcut*> shortcuts_;

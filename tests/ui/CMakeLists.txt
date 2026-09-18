@@ -31,6 +31,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/checkbox_theme_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/shortcuts_table_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_chrome_colors_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/theme_color_labels_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_geometry_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/welcomedashboard_layout_test.cpp
 )

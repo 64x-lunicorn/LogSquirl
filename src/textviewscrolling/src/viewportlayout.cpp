@@ -20,6 +20,7 @@
 #include "viewportlayout.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <utility>
@@ -32,6 +33,13 @@ int countLineNumberDigits( uint64_t x )
         ++digits;
     }
     return digits;
+}
+
+int columnsWidthPx( double charWidthPx, int64_t columns )
+{
+    // Rounded half up, as FontUtils::countedWidth() rounds the advance of a
+    // text that many characters long: measuring and painting then agree.
+    return static_cast<int>( std::floor( charWidthPx * static_cast<double>( columns ) + 0.5 ) );
 }
 
 namespace {
@@ -60,9 +68,9 @@ ViewportLayout::ViewportLayout( ViewportLayoutInput input, VisualLines visualLin
 {
 }
 
-int ViewportLayout::charWidth() const
+double ViewportLayout::charWidth() const
 {
-    return std::max( input_.charWidthPx, 1 );
+    return std::max( input_.charWidthPx, 1.0 );
 }
 
 int ViewportLayout::charHeight() const
@@ -80,7 +88,7 @@ int ViewportLayout::lineNumberAreaWidthPx() const
     if ( !input_.lineNumbersVisible ) {
         return 0;
     }
-    return 2 * LineNumberPadding + charWidth() * lineNumberDigits();
+    return 2 * LineNumberPadding + columnsWidthPx( charWidth(), lineNumberDigits() );
 }
 
 int ViewportLayout::lineNumberAreaStartX() const
@@ -121,8 +129,10 @@ LineLength ViewportLayout::visibleColumns() const
     // once. Floor division: only columns that fully fit are counted.
     // At least one column, so a viewport narrower than the left margin still
     // yields a usable value.
-    const int columns = ( input_.viewportWidthPx - leftMarginPx() ) / charWidth();
-    return LineLength{ std::max( columns, 1 ) };
+    // Truncating: a column is shown only where all of it fits.
+    const auto columns
+        = static_cast<int64_t>( ( input_.viewportWidthPx - leftMarginPx() ) / charWidth() );
+    return LineLength{ static_cast<LineLength::UnderlyingType>( std::max<int64_t>( columns, 1 ) ) };
 }
 
 std::optional<size_t> ViewportLayout::visualLineAtPoint( int yPos ) const
@@ -171,7 +181,8 @@ FilePosition ViewportLayout::filePositionAtPoint( int xPos, int yPos ) const
     // The first column whose right edge is at or past xPos, then step back one
     // to land on the column the pixel is actually inside.
     const auto firstColumnPastX = std::clamp<int64_t>(
-        ceilDiv( xPos - leftMarginPx(), charWidth() ), 0, visibleTextLength );
+        static_cast<int64_t>( std::ceil( ( xPos - leftMarginPx() ) / charWidth() ) ), 0,
+        visibleTextLength );
 
     auto column
         = LineColumn{ static_cast<LineColumn::UnderlyingType>( firstColumnPastX ) } - 1_length;
@@ -223,9 +234,13 @@ ViewportRect ViewportLayout::rectForColumn( LineNumber line, LineColumn column )
             = input_.textWrap ? ( column - LineLength{ visualLineFirst.get() } ).get()
                               : ( column - LineLength{ input_.firstColumn.get() } ).get();
 
-        return ViewportRect{ textOriginX() + static_cast<int>( columnInVisualLine ) * charWidth(),
+        // Both edges of the cell are rounded as the painted text rounds them,
+        // so the cell covers the character and no neighbouring pixel (#352).
+        const int cellStartPx = columnsWidthPx( charWidth(), columnInVisualLine );
+        const int cellEndPx = columnsWidthPx( charWidth(), columnInVisualLine + 1 );
+        return ViewportRect{ textOriginX() + cellStartPx,
                              input_.drawingTopOffsetPx + static_cast<int>( index ) * charHeight(),
-                             charWidth(), charHeight() };
+                             cellEndPx - cellStartPx, charHeight() };
     }
 
     return ViewportRect{};

@@ -112,9 +112,19 @@ constexpr int BulletAreaWidth = ViewportLayout::BulletAreaWidth;
 constexpr int ContentMarginWidth = ViewportLayout::ContentMarginWidth;
 constexpr int LineNumberPadding = ViewportLayout::LineNumberPadding;
 
-int textWidth( const QFontMetrics& fm, const QString& text )
+// The advance a column is painted with. Kept fractional: the text is painted
+// by counting characters at FontUtils::uniformAsciiAdvance(), so a column width
+// rounded to whole pixels would put the layout's columns where no character is
+// drawn -- a fraction of a pixel per column, whole characters across a
+// Viewport (#352).
+double columnAdvance( const QFontMetrics& fm )
 {
-    return fm.horizontalAdvance( text );
+    if ( const auto uniformAdvance = FontUtils::uniformAsciiAdvance( fm ) ) {
+        return std::max( static_cast<double>( *uniformAdvance ), 1.0 );
+    }
+    // No uniform advance: the font is not fixed-pitch after all, and counting
+    // whole pixels is as close as this gets.
+    return std::max( static_cast<double>( fm.horizontalAdvance( QStringLiteral( "m" ) ) ), 1.0 );
 }
 
 // Writes the number right-aligned in at least width characters, as
@@ -398,7 +408,7 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     // updateScrollBars() computes sensible values even before the first
     // resizeEvent() (which calls updateDisplaySize()).
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
-    charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
+    charWidth_ = columnAdvance( pixmapFontMetrics_ );
 
     // Hovering
     setMouseTracking( true );
@@ -408,8 +418,12 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     // a Theme switch both are painted again. The Log Lines themselves are
     // unchanged, so nothing is expanded or wrapped again.
     Theme::whenApplied( this, [ this ] {
-        textAreaCache_.invalid_ = true;
+        // The Color Labels follow the Theme, and their colors were read when
+        // the words were set, so they are read again here and every line is
+        // decorated again with them (ADR-0006).
+        decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
         pullToFollowCache_.nb_columns_ = 0_length;
+        updateDecorations();
         viewport()->update();
     } );
 
@@ -1548,7 +1562,7 @@ void AbstractLogView::updateDisplaySize()
 {
     // Font is assumed to be mono-space (is restricted by options dialog)
     charHeight_ = std::max( pixmapFontMetrics_.height(), 1 );
-    charWidth_ = std::max( textWidth( pixmapFontMetrics_, QString( "m" ) ), 1 );
+    charWidth_ = columnAdvance( pixmapFontMetrics_ );
 
     // A new width re-wraps the Log Line at the top, keeping the character
     // that was first on the top row there. Whether the view was at the bottom

@@ -50,7 +50,9 @@
 
 // The Viewport of a text view, as the view measures it now.
 struct ScrollingViewport {
-    int charWidthPx = 1;
+    // Fractional: the advance the text is painted with (see
+    // ViewportLayoutInput::charWidthPx).
+    double charWidthPx = 1;
     int charHeightPx = 1;
     int widthPx = 0;
     int heightPx = 0;
@@ -317,7 +319,7 @@ private:
         LinesCount totalLines{ 0 };
         int viewportWidth = -1;
         int viewportHeight = -1;
-        int charWidth = -1;
+        double charWidth = -1;
         int charHeight = -1;
         bool textWrap = false;
         bool lineNumbersVisible = false;

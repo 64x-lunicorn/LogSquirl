@@ -47,7 +47,10 @@
 #include "highlighter.h"
 #include "persistable.h"
 
+#include <optional>
 #include <vector>
+
+class QObject;
 
 struct QuickHighlighter {
     QString name;
@@ -78,6 +81,19 @@ public:
     QList<QuickHighlighter> quickHighlighters() const;
     void setQuickHighlighters( const QList<QuickHighlighter>& quickHighlighters );
 
+    // Lets the Color Labels follow the Theme for as long as context lives:
+    // after every Theme::apply(), every Color Label whose colors are a
+    // built-in Theme's takes the colors of the Theme just applied, and a
+    // Color Label the user colored is kept (ADR-0006). Registered once, at
+    // startup and before any view, so the labels are in place before the
+    // views repaint.
+    static void followTheme( QObject* context );
+
+    // The Color Labels the Theme applied now would give this collection, and
+    // nothing if it would leave every one of them as it is. The Highlighters
+    // Dialog asks it of the copy it edits, so that copy follows the Theme too.
+    std::optional<QList<QuickHighlighter>> colorLabelsOfTheme() const;
+
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;
     void retrieveFromStorage( QSettings& settings );
@@ -86,6 +102,10 @@ private:
     static constexpr int HighlighterSetCollection_VERSION = 2;
 
     void updateCombinedSet();
+
+    // Gives every Color Label that still has a built-in Theme's colors those
+    // of the Theme applied now. Whether any Color Label changed.
+    bool applyThemeColorLabels();
 
 private:
     QList<HighlighterSet> highlighters_;

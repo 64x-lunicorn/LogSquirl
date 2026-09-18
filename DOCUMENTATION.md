@@ -484,15 +484,25 @@ to zoom in/out.
 
 #### Style
 
-Qt usually comes with several options for drawing application widgets.
-By default, *logsquirl* uses a style that matches current operating systems.
-Other styles can be chosen from the dropdown menu.
+The theme *logsquirl* is drawn in. Choosing one applies it at once, in every
+open window:
 
-*logsquirl* will try to respect current display manager theme and to
-use white icons for dark themes. 
+- **Light** and **Dark**, the two everyday themes.
+- **High Contrast**, for maximum contrast: pure colors, thick borders, yellow
+  for selection and focus.
+- **Smyck**, a dark theme in the colors of the
+  [SMYCK terminal color scheme](https://color.smyck.org/).
+- **System**, which becomes Light or Dark from the operating system's color
+  scheme and follows it while *logsquirl* runs.
 
-Another option is to select Dark or Windows Dark style. In this case *logsquirl*
-will use a custom dark mode stylesheet. 
+Icons follow the theme, dark or light. The colors of the nine color labels
+follow it too: a color label you have not picked a color for yourself takes the
+colors of the theme you choose, and keeps them when you choose another.
+
+A theme can be extended with a stylesheet of your own: put a `.qss` file named
+after the theme (`fusion-light.qss`, `dark.qss`, `high-contrast.qss` or
+`smyck.qss`) into the `themes` directory of the configuration directory, and it
+is appended to the theme's stylesheet.
 
 #### High DPI
 

@@ -57,6 +57,7 @@
 #include "tbb/global_control.h"
 
 #include "configuration.h"
+#include "highlighterset.h"
 #include "logger.h"
 #include "mainwindow.h"
 #include "theme.h"
@@ -165,6 +166,11 @@ int main( int argc, char* argv[] )
         concurrencyControl.emplace( tbb::global_control::max_allowed_parallelism, maxConcurrency );
         QThreadPool::globalInstance()->setMaxThreadCount( static_cast<int>( maxConcurrency ) );
     }
+
+    // Before the first apply() and before any window: the Color Labels of a
+    // Theme are in place before the views that paint with them refresh, since
+    // refreshes run in the order they were registered (ADR-0006).
+    HighlighterSetCollection::followTheme( qApp );
 
     Theme::apply( config.style() );
     Theme::followSystemColorScheme();
