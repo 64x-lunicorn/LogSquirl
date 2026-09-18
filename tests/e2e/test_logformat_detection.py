@@ -7,12 +7,9 @@ Verifies that:
 - format detection does not interfere with existing search behavior
 """
 
-import subprocess
-import time
-
 import pytest
 
-from conftest import grep_output_lines, run_grep, run_gui
+from conftest import grep_output_lines, run_grep
 
 
 class TestGrepOnStructuredLogs:
@@ -79,37 +76,15 @@ class TestGrepOnPlainText:
 class TestGuiLogFormatDetection:
     """GUI smoke tests for log format detection."""
 
-    def test_gui_opens_syslog_no_crash(self, logsquirl_binary, test_data_dir):
+    def test_gui_opens_syslog_no_crash(self, isolated_gui, test_data_dir):
         """Opening a syslog file should not crash the GUI."""
         test_file = test_data_dir / "syslog_sample.txt"
-        try:
-            proc = subprocess.Popen(
-                [str(logsquirl_binary), "-n", str(test_file)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            time.sleep(3)
-            proc.terminate()
-            proc.wait(timeout=5)
-            # Should not have segfaulted (-11) or aborted (-6)
-            assert proc.returncode not in (-11, -6, 139, 134)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
+        result = isolated_gui.start_and_terminate("-n", str(test_file), settle=3.0)
+        # Should not have segfaulted (-11) or aborted (-6)
+        assert result.returncode not in (-11, -6, 139, 134)
 
-    def test_gui_opens_plain_text_no_crash(self, logsquirl_binary, test_data_dir):
+    def test_gui_opens_plain_text_no_crash(self, isolated_gui, test_data_dir):
         """Opening a plain text file (no format) should not crash the GUI."""
         test_file = test_data_dir / "plain_text_sample.txt"
-        try:
-            proc = subprocess.Popen(
-                [str(logsquirl_binary), "-n", str(test_file)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            time.sleep(3)
-            proc.terminate()
-            proc.wait(timeout=5)
-            assert proc.returncode not in (-11, -6, 139, 134)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
+        result = isolated_gui.start_and_terminate("-n", str(test_file), settle=3.0)
+        assert result.returncode not in (-11, -6, 139, 134)

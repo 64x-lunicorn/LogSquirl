@@ -16,8 +16,6 @@ Methodology:
   - Auto-generated benchmark report (Markdown or JSON)
 """
 
-import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -31,7 +29,6 @@ from conftest import (
     load_baseline,
     measure_execution,
     run_grep,
-    run_gui,
     save_baseline,
 )
 
@@ -302,12 +299,12 @@ class TestGuiPerformance:
     """Performance benchmarks for the LogSquirl GUI."""
 
     def test_perf_gui_startup(
-        self, logsquirl_binary, baseline, collected_results, bench_config, request,
+        self, isolated_gui_module, baseline, collected_results, bench_config, request,
     ):
         """Benchmark: GUI startup time (--version flag, measures process init)."""
 
         def startup():
-            run_gui(logsquirl_binary, ["--version"])
+            isolated_gui_module.run("--version")
 
         result = measure_execution(startup, warmup=bench_config["warmup"], runs=bench_config["runs"])
         collected_results["gui_startup_version"] = result
@@ -316,21 +313,14 @@ class TestGuiPerformance:
             assert_performance("gui_startup_version", result, baseline)
 
     def test_perf_gui_load_1mb(
-        self, logsquirl_binary, test_data_dir, baseline, collected_results,
+        self, isolated_gui_module, test_data_dir, baseline, collected_results,
         bench_config, request,
     ):
         """Benchmark: GUI loading a 1MB file (process start + file load + exit)."""
         filepath = test_data_dir / "random_block_1Mb.txt"
 
         def load_file():
-            proc = subprocess.Popen(
-                [str(logsquirl_binary), "-n", str(filepath)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            time.sleep(2)
-            proc.terminate()
-            proc.wait(timeout=5)
+            isolated_gui_module.start_and_terminate("-n", str(filepath), settle=2.0)
 
         # GUI load tests use fewer runs due to the sleep overhead
         gui_runs = min(bench_config["runs"], 7)

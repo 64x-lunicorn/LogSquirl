@@ -249,7 +249,18 @@ add_subdirectory(src)
 add_subdirectory(website)
 
 enable_testing()
-add_test(NAME logsquirl_smoke COMMAND logsquirl -platform offscreen -v)
+
+# The application starts and prints its version. It runs with its own home,
+# temporary directory and QStandardPaths locations, so ctest on a developer
+# machine cannot read or change that developer's own settings, Session, cache,
+# Log Formats or plugins (#328).
+add_test(
+    NAME logsquirl_smoke
+    COMMAND ${CMAKE_COMMAND}
+            -DLOGSQUIRL=$<TARGET_FILE:logsquirl>
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/logsquirl_smoke
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/logsquirl_smoke.cmake
+)
 
 if(${LOGSQUIRL_BUILD_TESTS})
   add_subdirectory(tests)

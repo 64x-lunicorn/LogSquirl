@@ -11,15 +11,12 @@ by the build itself and do not appear here.
 
 from __future__ import annotations
 
-import os
-import platform
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
 
-from conftest import grep_output_lines, run_grep, run_gui
+from conftest import grep_output_lines, run_grep
 
 
 # ---------------------------------------------------------------------------
@@ -129,34 +126,21 @@ class TestGuiCleanShutdown:
     """The GUI must start and shut down without crashing."""
 
     @pytest.mark.slow
-    def test_gui_starts_and_exits_cleanly(self, logsquirl_binary, test_data_dir):
+    def test_gui_starts_and_exits_cleanly(self, isolated_gui, test_data_dir):
         """
         Launch the GUI, give it ~2s to settle, then terminate. A regression in the
         AbstractLogView destructor (Bug #3) would manifest as a non-zero exit code
         or a crash signal. SIGTERM (rc -15 / 143) is expected and accepted.
         """
-        cmd = [str(logsquirl_binary), str(test_data_dir / "utf8_tab_test.txt")]
-        env = os.environ.copy()
-        if platform.system() != "Darwin":
-            cmd.extend(["-platform", "offscreen"])
-        proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        try:
-            time.sleep(2.0)
-            proc.terminate()
-            try:
-                stdout, stderr = proc.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                stdout, stderr = proc.communicate(timeout=5)
-        finally:
-            if proc.poll() is None:
-                proc.kill()
+        result = isolated_gui.start_and_terminate(
+            str(test_data_dir / "utf8_tab_test.txt"), settle=2.0
+        )
 
         # Accept clean exit (0) or termination by signal we sent (SIGTERM).
         # Anything else (SIGSEGV=139, SIGABRT=134) indicates a regression.
-        assert proc.returncode in (0, -15, 143, -2, 130), (
-            f"GUI did not shut down cleanly: rc={proc.returncode} "
-            f"stderr={stderr.decode(errors='replace')[-500:]!r}"
+        assert result.returncode in (0, -15, 143, -2, 130), (
+            f"GUI did not shut down cleanly: rc={result.returncode} "
+            f"output={result.stdout[-500:]!r}"
         )
 
 
@@ -255,15 +239,10 @@ class TestDashboardCloseBehavior:
     """The pinned dashboard tab is unclosable, but Ctrl+W on it must still
     close the window when nothing else is open."""
 
-    @pytest.fixture(autouse=True)
-    def _skip_on_mac(self):
-        if platform.system() == "Darwin":
-            pytest.skip("offscreen platform not available on macOS")
-
-    def test_gui_starts_with_dashboard_only(self, logsquirl_binary):
+    def test_gui_starts_with_dashboard_only(self, isolated_gui):
         # Plain startup (no file argument) — the dashboard is the only tab.
-        # Verify the binary launches and does not segfault before our timeout.
-        result = run_gui(logsquirl_binary, [], timeout=4)
+        # Verify the binary launches and does not segfault before we stop it.
+        result = isolated_gui.start_and_terminate(settle=2.0)
         assert result.returncode != -11, "logsquirl segfaulted on dashboard-only startup"
         assert result.returncode != -6, "logsquirl aborted on dashboard-only startup"
 
@@ -280,14 +259,9 @@ class TestCommandPaletteSafety:
     """Smoke check: starting the GUI exposes the command palette wiring.
     A regression in the QPointer capture would crash on shutdown."""
 
-    @pytest.fixture(autouse=True)
-    def _skip_on_mac(self):
-        if platform.system() == "Darwin":
-            pytest.skip("offscreen platform not available on macOS")
-
-    def test_gui_clean_shutdown_with_palette_wired(self, logsquirl_binary, tmp_path):
+    def test_gui_clean_shutdown_with_palette_wired(self, isolated_gui, tmp_path):
         log = _make_synthetic_log(tmp_path, lines=200)
-        result = run_gui(logsquirl_binary, [str(log)], timeout=4)
+        result = isolated_gui.start_and_terminate(str(log), settle=2.0)
         # Crash exit codes (-11 SIGSEGV, -6 SIGABRT) must not occur.
         assert result.returncode != -11
         assert result.returncode != -6

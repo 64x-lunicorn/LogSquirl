@@ -10,13 +10,11 @@ The test file test_data/heavy_tabs_crash.log is a representative
 smaller version with 50,000 tabs on a single line.
 """
 
-import subprocess
-import time
 from pathlib import Path
 
 import pytest
 
-from conftest import grep_output_lines, measure_execution, run_grep, run_gui
+from conftest import grep_output_lines, measure_execution, run_grep
 
 
 class TestGrepHeavyTabs:
@@ -72,27 +70,18 @@ class TestGrepHeavyTabsPerformance:
 class TestGuiHeavyTabs:
     """Verify the GUI does not hang or crash when opening heavy-tab files."""
 
-    def test_gui_open_heavy_tabs_no_crash(self, logsquirl_binary, test_data_dir):
+    def test_gui_open_heavy_tabs_no_crash(self, isolated_gui, test_data_dir):
         """Opening the heavy tabs file in the GUI must not crash or hang."""
         test_file = test_data_dir / "heavy_tabs_crash.log"
         try:
-            proc = subprocess.Popen(
-                [str(logsquirl_binary), "-n", str(test_file)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            # Give it time to index and try to render — old code would hang here
-            time.sleep(5)
-            proc.terminate()
-            proc.wait(timeout=5)
-            # Should not have segfaulted (-11) or aborted (-6)
-            assert proc.returncode not in (-11, -6, 139, 134), (
-                f"GUI crashed with exit code {proc.returncode} on heavy tabs file"
-            )
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait()
+            # Five seconds to index and try to render — old code would hang here
+            result = isolated_gui.start_and_terminate("-n", str(test_file), settle=5.0)
+        except TimeoutError:
             pytest.fail("GUI hung when opening heavy_tabs_crash.log (did not respond to SIGTERM)")
+        # Should not have segfaulted (-11) or aborted (-6)
+        assert result.returncode not in (-11, -6, 139, 134), (
+            f"GUI crashed with exit code {result.returncode} on heavy tabs file"
+        )
 
 
 class TestGrepSyntheticHeavyTabs:
