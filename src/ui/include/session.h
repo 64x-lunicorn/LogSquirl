@@ -127,7 +127,19 @@ public:
     // Starts loading the Log File of these views now if it is still queued,
     // ahead of the Log Files queued before it: its tab was activated. Does
     // nothing for a Log File that is loading or has loaded.
+    //
+    // A Log File asked to reload before it was ever loaded comes here too,
+    // through OpenLogFile::loadRequested(): reloading a tab that has not
+    // loaded yet loads it, and it takes its turn no differently than an
+    // activated tab -- no Log File still queued behind it starts with it
+    // (#332).
     void startLoading( const ViewInterface* view );
+
+    // Whether the Log File of these views is still waiting in the queue for
+    // its first load, as a restored tab that is not the current one does
+    // until its turn comes or its tab is activated (#300). False for a Log
+    // File that is loading, has loaded, or is not open here.
+    bool isLoadQueued( const ViewInterface* view ) const;
 
     // Close the file identified by the view passed
     // Throw an exception if it does not exist.
@@ -257,6 +269,9 @@ private:
         FirstLoad firstLoad = FirstLoad::Queued;
         // Hears of the end of the first load; disconnected once it did.
         QMetaObject::Connection firstLoadFinished;
+        // Hears a Log File with none attached yet ask to be loaded, because
+        // it was reloaded (#332); held for as long as this entry is.
+        QMetaObject::Connection loadRequested;
     };
 
     // Starts the first load of an open Log File.

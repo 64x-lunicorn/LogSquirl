@@ -95,6 +95,17 @@ QList<LineNumber> OpenLogFile::marks() const
 
 void OpenLogFile::reload()
 {
+    if ( fileName_.isEmpty() ) {
+        // No Log File is attached yet: this is a restored tab still waiting
+        // for its turn (#300). There is nothing to load again, and nothing
+        // here may be dropped -- the Marks saved with the Session are still
+        // to be applied -- so reloading it means loading it, which whoever
+        // holds the load queue does (#332). Its first load brings everything
+        // a reload would: the Log Format is recognized, the saved Search runs.
+        Q_EMIT loadRequested();
+        return;
+    }
+
     autoRefresh_.resetState();
     searchRequested_ = false;
     searchWaitsForLoad_ = false;

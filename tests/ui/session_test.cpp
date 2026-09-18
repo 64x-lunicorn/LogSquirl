@@ -21,6 +21,7 @@
 #include "test_policies.h"
 
 #include "containers.h"
+#include "logdata.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
 #include "savedsearches.h"
@@ -424,6 +425,15 @@ struct LoadOrder {
     {
         return QTest::qWaitFor( [ this, count ] { return finished.size() >= count; }, 120000 );
     }
+
+    bool waitForTab( int tab )
+    {
+        return QTest::qWaitFor(
+            [ this, tab ] {
+                return std::find( finished.begin(), finished.end(), tab ) != finished.end();
+            },
+            120000 );
+    }
 };
 
 } // namespace
@@ -466,6 +476,37 @@ SCENARIO( "Restoring a Session loads the current tab's Log File before the other
         THEN( "its Log File loads at once, without waiting for the tabs before it" )
         {
             REQUIRE( order.finished == std::vector<int>{ 2, 1, 0 } );
+        }
+    }
+
+    WHEN( "a tab whose Log File has not been attached yet is reloaded" )
+    {
+        // Every tab but the current one waits in the queue, with no Log File
+        // attached to reload.
+        REQUIRE( appSession->isLoadQueued( restored[ 0 ].second ) );
+        REQUIRE( appSession->isLoadQueued( restored[ 1 ].second ) );
+        REQUIRE( !appSession->isLoadQueued( restored[ 2 ].second ) );
+
+        // Reloading it means loading it, and the Session starts that load the
+        // one way it starts any: out of the queue (#332).
+        views.built[ 1 ]->build().openLogFile->reload();
+
+        THEN( "its Log File loads, and no tab queued behind it starts with it" )
+        {
+            // Read before the event loop runs again, so this is the queue as
+            // the reload left it: the reloaded tab took its turn, the tab
+            // queued ahead of it did not.
+            REQUIRE( !appSession->isLoadQueued( restored[ 1 ].second ) );
+            REQUIRE( appSession->isLoadQueued( restored[ 0 ].second ) );
+
+            REQUIRE( order.waitForTab( 1 ) );
+            REQUIRE( views.built[ 1 ]->build().openLogFile->logData()->getNbLine().get() > 0 );
+
+            // And the queue is not left broken behind it: every tab loads.
+            REQUIRE( order.waitFor( 3 ) );
+            auto loaded = order.finished;
+            std::sort( loaded.begin(), loaded.end() );
+            REQUIRE( loaded == std::vector<int>{ 0, 1, 2 } );
         }
     }
 
