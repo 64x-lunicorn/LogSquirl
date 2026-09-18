@@ -117,6 +117,16 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/lto_covers_project_targets.cmake
 )
 
+# A packaging recipe passes only build options the project declares, and only
+# build types CMake knows: CMake takes an unknown -D or build type without a
+# word, so nothing but a check tells the packager (#333).
+add_test(
+    NAME packaging_build_options
+    COMMAND ${CMAKE_COMMAND}
+            -DPROJECT_DIR=${CMAKE_SOURCE_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/packaging_build_options.cmake
+)
+
 
 
 

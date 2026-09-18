@@ -68,6 +68,14 @@
   The packages no longer ship CRoaring's static library and headers (#226).
 - **No fast math**: The build no longer uses `-ffast-math` / `/fp:fast`, so
   chart aggregation follows IEEE floating point rules (#304).
+- **Packaging recipes pass options that exist**: The Arch recipe builds
+  `RelWithDebInfo` instead of the misspelled `RelWithDebugInfo`, which CMake
+  took as a build type of its own and so built without optimization and
+  without debug information; the Gentoo ebuild passes
+  `-DLOGSQUIRL_MIMALLOC_OVERRIDE=OFF` instead of the long-removed
+  `-DLOGSQUIRL_USE_MIMALLOC=OFF`. A test compares every `-D` option under
+  `packaging/` with the options the project declares, and every build type
+  with the ones CMake knows (#333).
 - **Hash-pinned Python tools**: Every pip install in CI and the build images
   uses hash-locked requirements with `--require-hashes`, and aqtinstall runs
   from a throwaway directory, so no stale Python packages (setuptools,
