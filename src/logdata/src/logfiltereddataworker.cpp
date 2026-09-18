@@ -624,19 +624,26 @@ void SearchOperation::run( SearchData& searchData )
 // Called in the worker thread's context
 void FullSearchOperation::doRun( SearchData& searchData )
 {
+    // A fresh run replaces whatever the Search Data holds, and it does so even
+    // when it is superseded before it runs: the run after it either replaces
+    // the data too or continues from it, and a continuation must not continue
+    // on another pattern's Matches, nor on how far that pattern was searched
+    // (#331). The pool runs one operation at a time, so no run of its own is
+    // relying on the data while this happens: the one that supersedes us has
+    // not started yet.
+    searchData.clear();
+
     if ( isSuperseded() ) {
         // Superseded before we even started (e.g. several patterns were typed in
-        // quick succession); skip the work entirely rather than clobbering data
-        // the now-active run may already be relying on. Still report finished --
-        // whoever started us paired it with one attachReader() that only our
-        // searchFinished balances with a detachReader().
+        // quick succession); skip the work itself, the Log Lines are the active
+        // run's to search. Still report finished -- whoever started us paired it
+        // with one attachReader() that only our searchFinished balances with a
+        // detachReader().
         LOG_INFO << "Search superseded before it started, skipping";
         Q_EMIT searchFinished( searchId_, startLine_, true, {} );
         return;
     }
 
-    // Clear the shared data
-    searchData.clear();
     doSearch( searchData, 0_lnum );
 }
 

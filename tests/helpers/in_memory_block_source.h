@@ -69,6 +69,15 @@ public:
         }
     }
 
+    // The last Log Line was incomplete -- it was still being written when it
+    // was last read -- and the rest of it has arrived now.
+    void growLastLine( const QString& suffix )
+    {
+        std::lock_guard lock( mutex_ );
+        const auto utf8 = suffix.toUtf8();
+        lines_.back().append( utf8.constData(), static_cast<std::size_t>( utf8.size() ) );
+    }
+
     void failReading( std::string message )
     {
         std::lock_guard lock( mutex_ );

@@ -282,6 +282,12 @@ void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
     // read them in place and only need to know how far: by the new Matches
     // alone when they grew, entirely when they were replaced.
     const auto* newMatches = session_.newMatches();
+    // A Log Line that stopped matching -- the previously last one of a grown
+    // Log File, searched again once it was complete -- leaves them before the
+    // Matches that arrived with it join them.
+    if ( !session_.removedMatches().isEmpty() ) {
+        displayedLines_.matchesRemoved( session_.removedMatches() );
+    }
     switch ( state.phase ) {
     case Phase::Idle:
     case Phase::InvalidPattern:

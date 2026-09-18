@@ -487,6 +487,72 @@ SCENARIO( "The Displayed Lines follow new Matches arriving", "[displayedlines]" 
     }
 }
 
+SCENARIO( "The Displayed Lines drop a Match that stopped matching", "[displayedlines]" )
+{
+    // Log Line 30 was the incomplete last Log Line of the Log File; it
+    // matched then and does not any more.
+    LogFile logFile;
+    logFile.nbLines = 40;
+    logFile.matches = bitmapOf( { 10, 30 } );
+    auto displayed = displayedLinesOf( logFile, 1 );
+    displayed.setShown( Everything );
+    displayed.searchCompleted();
+    REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 29, 30, 31 } );
+
+    WHEN( "the Match is removed" )
+    {
+        const auto rewritesBefore = displayed.rewrites();
+        logFile.matches.remove( uint64_t{ 30 } );
+        displayed.matchesRemoved( bitmapOf( { 30 } ) );
+
+        THEN( "neither it nor its Context Lines are displayed any more" )
+        {
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11 } );
+            REQUIRE( displayed.lineType( 30_lnum ) == LineType{ LineTypeFlags::Plain } );
+            REQUIRE( displayed.lineType( 29_lnum ) == LineType{ LineTypeFlags::Plain } );
+            REQUIRE( displayed.rewrites() != rewritesBefore );
+        }
+    }
+
+    WHEN( "the Match is removed while a Mark sits next to it" )
+    {
+        displayed.addMark( 31_lnum );
+        logFile.matches.remove( uint64_t{ 30 } );
+        displayed.matchesRemoved( bitmapOf( { 30 } ) );
+
+        THEN( "it stays displayed as the Mark's Context Line" )
+        {
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 30, 31, 32 } );
+            REQUIRE( displayed.lineType( 30_lnum ) == LineType{ LineTypeFlags::Context } );
+        }
+    }
+
+    WHEN( "a Match that is Marked too is removed" )
+    {
+        displayed.addMark( 30_lnum );
+        logFile.matches.remove( uint64_t{ 30 } );
+        displayed.matchesRemoved( bitmapOf( { 30 } ) );
+
+        THEN( "it stays displayed as a Mark, with its Context Lines" )
+        {
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 29, 30, 31 } );
+            REQUIRE( displayed.lineType( 30_lnum ) == LineType{ LineTypeFlags::Mark } );
+        }
+    }
+
+    WHEN( "nothing is removed" )
+    {
+        const auto rewritesBefore = displayed.rewrites();
+        displayed.matchesRemoved( SearchResultArray{} );
+
+        THEN( "nothing changes" )
+        {
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 29, 30, 31 } );
+            REQUIRE( displayed.rewrites() == rewritesBefore );
+        }
+    }
+}
+
 namespace {
 
 // What the Displayed Lines should be once their Context Lines are up to date,
@@ -565,6 +631,17 @@ struct IncrementalAndRebuilt {
         logFile.matches |= newMatches;
         incremental.matchesArrived( newMatches );
         rebuilt.matchesArrived();
+    }
+
+    // Log Lines that were Matches are none any more: the previously last Log
+    // Line of the Log File, searched again once it was complete. The twin to
+    // compare against builds its Context Lines afresh around the Matches that
+    // are left.
+    void matchesRemoved( const SearchResultArray& removedMatches )
+    {
+        logFile.matches -= removedMatches;
+        incremental.matchesRemoved( removedMatches );
+        rebuilt.searchCompleted();
     }
 
     // Another Search replaced the Matches: neither is told by how much.
@@ -729,6 +806,50 @@ SCENARIO( "The Displayed Lines updated by their delta equal a full rebuild",
             THEN( "the appended Matches and those before them have their Context Lines" )
             {
                 displayed.requireUpToDate();
+            }
+        }
+
+        AND_WHEN( "the previously last Log Line stopped matching as the Log File grew" )
+        {
+            // It matched while it was incomplete, and its Match goes when the
+            // continuation searches it again.
+            displayed.matchesArrived( bitmapOf( { 999 } ) - logFile.matches );
+            displayed.searchCompleted( SearchResultArray{} );
+            displayed.requireUpToDate();
+
+            logFile.nbLines = 1200;
+            displayed.toggleMark( 1003 );
+            displayed.matchesRemoved( bitmapOf( { 999 } ) );
+
+            THEN( "the Displayed Lines equal a full rebuild without it" )
+            {
+                displayed.requireUpToDate();
+            }
+
+            AND_WHEN( "the continuation reports the Matches it found after it" )
+            {
+                auto appended = matchBatches( random, 1000, logFile.nbLines, 5, 3 );
+                for ( size_t tick = 0; tick + 1 < appended.size(); ++tick ) {
+                    displayed.matchesArrived( appended[ tick ] );
+                    displayed.requireSame();
+                }
+                displayed.searchCompleted( appended.back() );
+                displayed.requireUpToDate();
+
+                THEN( "a Match removed among them equals a full rebuild too" )
+                {
+                    // The last Match of the Log File, whichever it is now.
+                    REQUIRE_FALSE( logFile.matches.isEmpty() );
+                    const auto lastMatch = logFile.matches.maximum();
+                    displayed.matchesRemoved( bitmapOf( { lastMatch } ) );
+                    displayed.requireUpToDate();
+
+                    // And one in the middle, next to a Mark.
+                    displayed.toggleMark( 501 );
+                    displayed.requireUpToDate();
+                    displayed.matchesRemoved( logFile.matches & bitmapOf( { 500, 502, 503 } ) );
+                    displayed.requireUpToDate();
+                }
             }
         }
 

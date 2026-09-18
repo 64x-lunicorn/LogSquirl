@@ -33,6 +33,18 @@
   (block-streamed output, concatenated files) opens completely instead of
   stopping after the first frame, and a truncated or corrupt one reports an
   error instead of loading partially (#325).
+- **A last Log Line that stopped matching**: When a Log File grows, its last
+  Log Line may have been incomplete when it was searched. If it matched then
+  and does not any more once it is complete — with an exclude pattern, say —
+  the Search drops its Match when it searches that Log Line again, and the
+  match count and the Filtered View follow instead of keeping a line that no
+  longer matches (#330).
+- **A Search superseded before it started**: A new Search that was superseded
+  before it got to run — several patterns typed in quick succession, say — left
+  the results of the Search before it in place. A Search continued right after
+  it, as one following a growing Log File is, then went on from those results
+  and showed the previous pattern's Matches beside its own; it now starts from
+  nothing and shows only the Matches of the pattern it runs (#331).
 - **Log Lines beyond 4 GiB within one block**: A Log File in which 128
   consecutive Log Lines span 4 GiB or more (one very long Log Line is enough)
   shows the right Log Lines; their positions in the Index are no longer
