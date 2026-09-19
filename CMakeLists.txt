@@ -29,13 +29,43 @@ option(LOGSQUIRL_OSX_DEPLOYMENT_TARGET "Override target MacOS version" "")
 # Off: only LogSquirl's own containers, roaring and Vectorscan allocate through
 # mimalloc. On: mimalloc serves malloc and operator new for the whole process,
 # Qt included. Off until A/B measurements decide it per platform (#282).
-option(LOGSQUIRL_MIMALLOC_OVERRIDE "Let mimalloc serve malloc and new for the whole process (Linux only)" OFF)
-if(LOGSQUIRL_MIMALLOC_OVERRIDE AND NOT (UNIX AND NOT APPLE))
-  # Only an ELF executable's malloc interposes the shared libraries' calls. On
-  # macOS a statically linked mimalloc serves the executable but not Qt, and
-  # frees Qt's blocks it never allocated; on Windows it cannot redirect the
-  # CRT without the mimalloc DLL and mimalloc-redirect.dll.
-  message(FATAL_ERROR "LOGSQUIRL_MIMALLOC_OVERRIDE is only supported on Linux")
+#
+# The mechanism differs per platform, because only an ELF executable's malloc
+# interposes its shared libraries' calls the same way:
+# - Linux: a statically linked mimalloc (MI_OVERRIDE) interposes libc's malloc
+#   for the whole process, Qt included, with no further wiring. Measure with
+#   `benchmarks.yml` (see BUILD.md); a decision is pending.
+# - macOS: measured for #282, twice, both broken:
+#   1. Static interposition (MI_OVERRIDE with MI_OSX_ZONE/MI_OSX_INTERPOSE,
+#      mimalloc's normal macOS mechanism) does not reach Qt: a statically
+#      linked, overridden mimalloc served logsquirl_tests' own std::malloc
+#      calls but not QByteArray's, which stayed on the system allocator
+#      (`logsquirl_tests "[allocator]"` fails that check). Confirmed again
+#      here the same way.
+#   2. mimalloc's other documented macOS override, a dynamic library preloaded
+#      ahead of the system allocator
+#      (https://github.com/microsoft/mimalloc#environment-options,
+#      `DYLD_INSERT_LIBRARIES=<path>/libmimalloc.dylib`), was built and tried
+#      here against logsquirl_tests and logsquirl_logdata_read_benchmark: both
+#      crash on startup with `objc[...]: realized class ... has corrupt data
+#      pointer` — the Objective-C runtime's own metadata, allocated before
+#      mimalloc's zone took over, gets freed or resized through it afterwards.
+#      A non-AppKit binary (`logsquirl_grep`) did not show this crash.
+#   Decision: off on macOS, and configuring with it on fails here rather than
+#   producing a build that starts up broken — a GUI build always loads AppKit.
+# - Windows: mimalloc's documented override links `mimalloc.lib` (the shared
+#   import library, built when MI_BUILD_SHARED and MI_OVERRIDE are both on)
+#   and ships `mimalloc-redirect.dll` next to the executable, which patches
+#   ucrtbase's allocator at load time
+#   (https://github.com/microsoft/mimalloc#override-on-windows). Wired below
+#   but not built or measured here (no Windows machine in this environment) —
+#   verify in CI before turning it on there.
+option(LOGSQUIRL_MIMALLOC_OVERRIDE "Let mimalloc serve malloc and new for the whole process" OFF)
+if(LOGSQUIRL_MIMALLOC_OVERRIDE AND APPLE)
+  message(
+    FATAL_ERROR
+    "LOGSQUIRL_MIMALLOC_OVERRIDE crashes on macOS (see the comment above) and is not supported there"
+  )
 endif()
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 4)

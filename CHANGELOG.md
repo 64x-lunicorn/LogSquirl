@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **mimalloc, process-wide**: A `LOGSQUIRL_MIMALLOC_OVERRIDE` option lets
+  mimalloc serve `malloc`/`operator new` for the whole process, Qt included,
+  where its override mechanism actually works. Wired for Linux and Windows;
+  refused on macOS, where both of mimalloc's documented override mechanisms
+  were measured and found broken (one never reaches Qt's allocations, the
+  other crashes AppKit at startup) (#282).
 - **Smyck theme**: A fourth theme, after the SMYCK terminal color scheme
   (https://color.smyck.org/): a dark theme in its background, its grays and its
   ANSI colors, with the same sizes and shapes as Dark. Choosing it also colors
