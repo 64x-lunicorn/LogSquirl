@@ -61,9 +61,7 @@ QColor overviewBackground( const QString& themeName )
 
 SCENARIO( "Match and Mark lines stand out in the overview of every Theme", "[overview][theme]" )
 {
-    const auto themeName
-        = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
-                    Theme::SmyckKey, Theme::SmyckLightKey );
+    const auto themeName = GENERATE( from_range( Theme::builtInThemes() ) );
     const auto statusColor = GENERATE( LineStatusColors::match(), LineStatusColors::mark() );
     const auto background = overviewBackground( themeName );
     INFO( themeName.toStdString() << " " << statusColor.name().toStdString() );
@@ -93,9 +91,7 @@ SCENARIO( "Match and Mark lines stand out in the overview of every Theme", "[ove
 
 SCENARIO( "Match and Mark lines in the overview stay distinguishable", "[overview][theme]" )
 {
-    const auto themeName
-        = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
-                    Theme::SmyckKey, Theme::SmyckLightKey );
+    const auto themeName = GENERATE( from_range( Theme::builtInThemes() ) );
     const auto background = overviewBackground( themeName );
     const auto weight = GENERATE( range( 0, LastWeight + 1 ) );
     INFO( themeName.toStdString() << " weight " << weight );

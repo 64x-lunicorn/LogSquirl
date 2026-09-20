@@ -34,16 +34,18 @@
 
 namespace {
 
-const std::initializer_list<QLatin1String> BuiltInThemes{ Theme::LightKey, Theme::DarkKey,
-                                                          Theme::HighContrastKey, Theme::SmyckKey,
-                                                          Theme::SmyckLightKey };
+const QStringList& builtInThemes()
+{
+    static const QStringList themes = Theme::builtInThemes();
+    return themes;
+}
 
 } // namespace
 
 SCENARIO( "The tool bar's path field reads as a read-only field in every Theme", "[ui][theme]" )
 {
-    for ( const auto& name : BuiltInThemes ) {
-        GIVEN( "a path field in a tool bar under " + std::string( name.data() ) )
+    for ( const auto& name : builtInThemes() ) {
+        GIVEN( "a path field in a tool bar under " + name.toStdString() )
         {
             Theme::apply( name );
             QMainWindow window;
@@ -82,8 +84,8 @@ SCENARIO( "The tool bar's path field reads as a read-only field in every Theme",
 
 SCENARIO( "A combo box popup highlights its current item in every Theme", "[ui][theme]" )
 {
-    for ( const auto& name : BuiltInThemes ) {
-        GIVEN( "an open combo box popup under " + std::string( name.data() ) )
+    for ( const auto& name : builtInThemes() ) {
+        GIVEN( "an open combo box popup under " + name.toStdString() )
         {
             Theme::apply( name );
             QWidget window;

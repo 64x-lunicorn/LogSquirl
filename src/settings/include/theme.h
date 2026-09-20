@@ -190,7 +190,14 @@ public:
     static constexpr QLatin1String SmyckLightKey = QLatin1String( "Smyck Light" );
     static constexpr QLatin1String SystemKey = QLatin1String( "System" );
 
-    // Every value the `style` setting can take, sorted by name.
+    // Every Theme that is a set of Tokens of its own, sorted by name: every
+    // value the `style` setting can take except System, which is not a Theme
+    // but a choice between two. Whatever holds for every Theme is checked
+    // against this list.
+    static QStringList builtInThemes();
+
+    // Every value the `style` setting can take, sorted by name:
+    // builtInThemes() and System.
     static QStringList availableThemes();
 
     // The `style` setting used when none or an unknown one is stored.

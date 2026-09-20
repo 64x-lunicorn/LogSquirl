@@ -30,6 +30,7 @@
 #include "test_policies.h"
 #include "test_utils.h"
 #include "theme.h"
+#include "theme_lists.h"
 
 #include <QImage>
 #include <QTemporaryFile>
@@ -159,9 +160,7 @@ SCENARIO( "The overview shows Matches and Marks in every Theme", "[ui][theme][ov
 {
     OverviewOfMarkedLogFile fixture;
 
-    const auto themeName
-        = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
-                    Theme::SmyckKey, Theme::SmyckLightKey );
+    const auto themeName = GENERATE( from_range( Theme::builtInThemes() ) );
     INFO( themeName.toStdString() );
     Theme::apply( themeName );
     QCoreApplication::processEvents();
@@ -210,9 +209,7 @@ SCENARIO( "A highlighted line is flashed in the Theme's highlight color", "[ui][
 {
     OverviewOfMarkedLogFile fixture;
 
-    const auto themeName
-        = GENERATE( as<QString>{}, Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
-                    Theme::SmyckKey, Theme::SmyckLightKey );
+    const auto themeName = GENERATE( from_range( Theme::builtInThemes() ) );
     INFO( themeName.toStdString() );
     Theme::apply( themeName );
     QCoreApplication::processEvents();
@@ -242,8 +239,7 @@ SCENARIO( "A Theme switch repaints the overview", "[ui][theme][overview]" )
     PaintCounter paints;
     fixture.widget.installEventFilter( &paints );
 
-    for ( const auto themeName : { Theme::DarkKey, Theme::HighContrastKey, Theme::SmyckKey,
-                                   Theme::SmyckLightKey, Theme::LightKey } ) {
+    for ( const auto& themeName : themeRoundTripFrom( Theme::LightKey ) ) {
         INFO( QString( themeName ).toStdString() );
         const auto paintsBefore = paints.count;
         Theme::apply( themeName );

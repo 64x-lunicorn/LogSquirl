@@ -59,6 +59,7 @@
 #include "textviewscrolling.h"
 
 #include "theme.h"
+#include "theme_lists.h"
 
 static const qint64 SL_NB_LINES = 100LL;
 
@@ -2539,8 +2540,7 @@ SCENARIO( "An invalid Search pattern is shown in the Theme's error colors", "[ui
                      == Theme::active().color( ColorToken::ErrorBackground ).rgb() );
         }
 
-        for ( const auto& name : { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
-                                   QString( Theme::SmyckKey ), QString( Theme::SmyckLightKey ) } ) {
+        for ( const auto& name : themeSwitchesFrom( Theme::LightKey ) ) {
             WHEN( "the " << name.toStdString() << " Theme is applied" )
             {
                 Theme::apply( name );
