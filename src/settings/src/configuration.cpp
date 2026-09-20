@@ -40,7 +40,9 @@
 #include <map>
 #include <type_traits>
 
+#include <QCoreApplication>
 #include <QFontInfo>
+#include <QGuiApplication>
 #include <QStandardPaths>
 #include <QVariant>
 
@@ -548,14 +550,29 @@ void Configuration::setMainFont( QFont newFont )
     mainFont_ = resolvedMainFont( std::move( newFont ) );
 }
 
+QString Configuration::mainFontInWords( const QFont& font )
+{
+    // QFontInfo answers which font the request resolves to, but it resolves
+    // through the font database, and a QCoreApplication has none: asking for
+    // one there aborts the process. Without a font database there is no
+    // resolution to report, so the font asked for is all there is to say.
+    if ( qobject_cast<QGuiApplication*>( QCoreApplication::instance() ) == nullptr ) {
+        return QStringLiteral( "%1: %2, as requested (no font database)" )
+            .arg( font.family() )
+            .arg( font.pointSize() );
+    }
+
+    const QFontInfo resolved( font );
+    return QStringLiteral( "%1: %2" ).arg( resolved.family() ).arg( resolved.pointSize() );
+}
+
 void Configuration::retrieveFromStorage( QSettings& settings )
 {
     LOG_DEBUG << "Configuration::retrieveFromStorage";
 
     forEachSetting( *this, ReadSetting{ settings } );
 
-    const QFontInfo mainFontInfo( mainFont_ );
-    LOG_INFO << "Main font is " << mainFontInfo.family() << ": " << mainFontInfo.pointSize();
+    LOG_INFO << "Main font is " << mainFontInWords( mainFont_ );
 }
 
 void Configuration::saveToStorage( QSettings& settings ) const
