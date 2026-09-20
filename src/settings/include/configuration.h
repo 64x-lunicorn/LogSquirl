@@ -66,6 +66,13 @@ public:
     QFont mainFont() const;
     void setMainFont( QFont newFont );
 
+    // The main font as one line of text, for the log: the font the request
+    // resolves to, which is what the desktop application draws with. Only an
+    // application with a font database can answer that; a command line tool
+    // has none and must not reach for one, so there it names the font asked
+    // for instead (#345).
+    static QString mainFontInWords( const QFont& font );
+
     QString language() const
     {
         return language_;

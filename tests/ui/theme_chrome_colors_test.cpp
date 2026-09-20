@@ -50,6 +50,7 @@
 #include "test_policies.h"
 #include "textviewscrolling.h"
 #include "theme.h"
+#include "theme_lists.h"
 #include "viewportlayout.h"
 
 namespace {
@@ -105,9 +106,7 @@ double highestContrast( const QImage& image, const QRect& area, const QColor& ba
     return highest;
 }
 
-const auto BuiltInThemes
-    = { QString( Theme::LightKey ), QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
-        QString( Theme::SmyckKey ), QString( Theme::SmyckLightKey ) };
+const QStringList BuiltInThemes = Theme::builtInThemes();
 
 class PullLogView : public AbstractLogView {
 public:
@@ -213,8 +212,7 @@ SCENARIO( "The pull-to-follow bar follows a Theme switch", "[ui][theme][viewport
             = Theme::active().color( ColorToken::PullToFollowStripe ).rgb() & RGB_MASK;
         REQUIRE( colorCounts( pulled.grab(), pulled.bar() ).contains( lightStripe ) );
 
-        for ( const auto& name : { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
-                                   QString( Theme::SmyckKey ), QString( Theme::SmyckLightKey ) } ) {
+        for ( const auto& name : themeSwitchesFrom( Theme::LightKey ) ) {
             WHEN( "the " << name.toStdString() << " Theme is applied" )
             {
                 Theme::apply( name );

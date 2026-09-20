@@ -46,6 +46,11 @@
 
 ## Bug fixes
 
+- **`logsquirl_grep -d` prints its debug output**: Asking the command line
+  tool for debug output aborted it instead. Reading the settings looked up the
+  main font in the font database, which only the desktop application has, and
+  the log line that does so is written only once `-d` raises the log level --
+  so the flag had apparently never worked (#345).
 - **Log Lines are drawn in the font you chose**: At startup the main view drew
   its Log Lines in the system UI font, in rows laid out for another font, so
   each row painted over the descenders of the row above it. The view now draws

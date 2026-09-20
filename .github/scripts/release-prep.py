@@ -55,6 +55,14 @@ def changelog_entry_problem(*, base: str, head: str, labels: list[str], author: 
     if (head_sections and release_heading(head_sections[0][0])
             and head_sections[0][0] not in base_sections):
         return None
+    # Between a release preparation and the release the top section is that
+    # release, and there is no Unreleased section to add to: this pull request
+    # starts a new one above it (#338).
+    top = head_sections[0][0] if head_sections else ""
+    if release_heading(top):
+        return (f"CHANGELOG.md: the top section is the prepared release '{top}', so this change "
+                f"goes under a new '{UNRELEASED}' section above it, "
+                f"or add the '{NO_CHANGELOG_LABEL}' label if it needs none.")
     return (f"CHANGELOG.md: add an entry under '{UNRELEASED}' for this change, "
             f"or add the '{NO_CHANGELOG_LABEL}' label if it needs none.")
 

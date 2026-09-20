@@ -108,6 +108,14 @@ gets the `no-changelog` label. The **Changelog** check fails until one of the tw
 Dependabot and Renovate pull requests need neither. The CHANGELOG section of a release
 becomes that release's notes on GitHub.
 
+Between a release preparation and the release itself the top section is no longer
+`# Unreleased` but the prepared release, for example `# v26.10.0-beta1 (2026-09-17)`. An
+entry then goes under a **new `# Unreleased` heading above** that release section — never
+into the release section, which is the notes of a release that is being published. The
+release-preparation check does not object: it only runs on a pull request that changes the
+project version, which an ordinary one does not, so the `no-changelog` label is not needed
+for this (#338).
+
 ## Testing checklist
 
 Every pull request **must** pass all tests before being merged. Run these locally:

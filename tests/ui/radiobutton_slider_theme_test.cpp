@@ -156,9 +156,7 @@ SCENARIO( "Radio buttons and sliders are styled from Tokens in every Theme",
         // may have left anywhere, in the layout's margin, off every widget.
         QTest::mouseMove( &window, QPoint( 1, 1 ) );
 
-        for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ),
-                                   QString( Theme::HighContrastKey ), QString( Theme::SmyckKey ),
-                                   QString( Theme::SmyckLightKey ) } ) {
+        for ( const auto& name : Theme::builtInThemes() ) {
             WHEN( "the " + name.toStdString() + " Theme is applied" )
             {
                 Theme::apply( name );

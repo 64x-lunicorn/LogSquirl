@@ -30,6 +30,9 @@ SCENARIO( "A closable tab bar takes its close button from the Theme", "[theme]" 
         {
             THEN( "it gets inverse close images and its hover color" )
             {
+                // A list of its own, not Theme::builtInThemes(): these are
+                // the Themes that show the inverse icons, i.e. the dark ones.
+                // A light Theme here would fail, and rightly (#358).
                 for ( const auto& name :
                       { Theme::DarkKey, Theme::HighContrastKey, Theme::SmyckKey } ) {
                     const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
@@ -90,8 +93,7 @@ SCENARIO( "A closable tab bar takes its close button from the Theme", "[theme]" 
             THEN( "the close button shows on the selected tab, and on another tab only under "
                   "the mouse" )
             {
-                for ( const auto& name : { Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
-                                           Theme::SmyckKey, Theme::SmyckLightKey } ) {
+                for ( const auto& name : Theme::builtInThemes() ) {
                     const auto styleSheet = closableTabBarStyleSheet(
                         Theme::fromName( name, Qt::ColorScheme::Light ) );
                     INFO( name.data() );
@@ -109,8 +111,7 @@ SCENARIO( "A closable tab bar takes its close button from the Theme", "[theme]" 
         {
             THEN( "the stylesheet names no color of its own" )
             {
-                for ( const auto& name : { Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
-                                           Theme::SmyckKey, Theme::SmyckLightKey } ) {
+                for ( const auto& name : Theme::builtInThemes() ) {
                     const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
                     auto styleSheet = closableTabBarStyleSheet( theme );
                     styleSheet.remove(

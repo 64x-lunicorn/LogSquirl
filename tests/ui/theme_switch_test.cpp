@@ -40,6 +40,7 @@
 #include "test_policies.h"
 #include "test_utils.h"
 #include "theme.h"
+#include "theme_lists.h"
 #include "welcomedashboard.h"
 
 #include <QAbstractItemView>
@@ -342,7 +343,8 @@ SCENARIO( "The Filters Panel survives the palette and stylesheet changing while 
     QTest::qWait( 20 );
 
     // The order the archived theme switching used, which crashed in the
-    // Filters Panel (#173).
+    // Filters Panel (#173): a reproduction, not an enumeration, so it stays a
+    // list of its own rather than Theme::builtInThemes() (#358).
     for ( const QString name :
           { Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey, Theme::LightKey } ) {
         const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
@@ -702,10 +704,7 @@ SCENARIO( "Every icon Token names an icon that exists", "[ui][theme]" )
         THEN( "every url() of its style Tokens is an icon resource" )
         {
             static const QRegularExpression url( "^url\\((.+)\\)$" );
-            for ( const auto& name :
-                  { QString( Theme::LightKey ), QString( Theme::DarkKey ),
-                    QString( Theme::HighContrastKey ), QString( Theme::SmyckKey ),
-                    QString( Theme::SmyckLightKey ) } ) {
+            for ( const auto& name : Theme::builtInThemes() ) {
                 const auto theme = Theme::fromName( name, Qt::ColorScheme::Light );
                 for ( std::size_t i = 0; i < StyleTokenCount; ++i ) {
                     const auto token = static_cast<StyleToken>( i );
@@ -785,10 +784,7 @@ SCENARIO( "The Command Palette's badges and shortcuts are readable in every Them
             THEN( "every badge has the Theme's badge color, and badge and shortcut text reach "
                   "4.5:1 in the selected and the unselected row" )
             {
-                for ( const auto& name :
-                      { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
-                        QString( Theme::SmyckKey ), QString( Theme::SmyckLightKey ),
-                        QString( Theme::LightKey ) } ) {
+                for ( const auto& name : themeRoundTripFrom( Theme::LightKey ) ) {
                     Theme::apply( name );
                     QCoreApplication::processEvents();
                     const auto image = list->viewport()->grab().toImage();

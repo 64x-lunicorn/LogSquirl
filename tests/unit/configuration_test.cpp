@@ -23,6 +23,8 @@
 #include "configurationfixture.h"
 
 #include <QDir>
+#include <QFont>
+#include <QFontInfo>
 #include <QSettings>
 #include <QTemporaryDir>
 
@@ -710,6 +712,28 @@ SCENARIO( "Every Configuration resolves its main font", "[configuration]" )
                 CHECK( isResolved( loaded.mainFont() ) );
                 CHECK( loaded.mainFont().pointSize() == 13 );
             }
+        }
+    }
+}
+
+SCENARIO( "The main font is logged as the font it resolves to", "[configuration]" )
+{
+    // The unit tests run as a QApplication, so this is the desktop
+    // application's path: there is a font database, and what is logged is the
+    // font the request resolves to, not the family asked for (#345). The
+    // command line tool's path, with no font database, is covered by the grep
+    // CLI test, which would abort the process here.
+    GIVEN( "a main font whose family is not installed" )
+    {
+        const QFont asked( "No Such Family At All", 11 );
+        REQUIRE( QFontInfo( asked ).family() != asked.family() );
+
+        THEN( "it is named as the family it resolves to, with its size" )
+        {
+            const auto words = Configuration::mainFontInWords( asked );
+            CHECK( words.contains( QFontInfo( asked ).family() ) );
+            CHECK( words.contains( QString::number( QFontInfo( asked ).pointSize() ) ) );
+            CHECK_FALSE( words.contains( asked.family() ) );
         }
     }
 }

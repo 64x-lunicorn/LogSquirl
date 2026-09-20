@@ -87,10 +87,29 @@ def test_a_new_top_heading_that_is_not_a_release_is_not_an_entry():
     assert rp.changelog_entry_problem(base=RELEASED, head=stray, labels=[], author="someone") is not None
 
 
+# ── between a release preparation and the release (#338) ─────────────────
+#
+# The top section is then the prepared release and there is no Unreleased
+# section. A pull request starts a new one above it; the two checks have to
+# agree that this is right, so each is covered for that state.
+
+def test_a_pull_request_after_a_release_preparation_starts_a_new_unreleased_section():
+    assert rp.changelog_entry_problem(base=RELEASED, head=WITH_ENTRY, labels=[],
+                                      author="someone") is None
+
+
+def test_a_pull_request_after_a_release_preparation_is_told_to_start_one():
+    problem = rp.changelog_entry_problem(base=RELEASED, head=RELEASED, labels=[], author="someone")
+    assert problem == ("CHANGELOG.md: the top section is the prepared release "
+                       "'# v26.10.0-beta1 (2026-09-17)', so this change goes under a new "
+                       "'# Unreleased' section above it, or add the 'no-changelog' label "
+                       "if it needs none.")
+
+
 def test_the_command_line_reads_both_changelogs(tmp_path, capsys):
     base, head = tmp_path / "base.md", tmp_path / "head.md"
-    base.write_text(RELEASED, encoding="utf-8")
-    head.write_text(RELEASED, encoding="utf-8")
+    base.write_text(WITH_ENTRY, encoding="utf-8")
+    head.write_text(WITH_ENTRY, encoding="utf-8")
     args = ["changelog-entry", "--base", str(base), "--head", str(head), "--author", "someone"]
     assert rp.main([*args, "--labels", '["ui"]']) == 1
     assert capsys.readouterr().out.startswith("::error::CHANGELOG.md: add an entry")
@@ -125,6 +144,15 @@ def test_a_complete_beta_preparation_passes(tmp_path):
 
 
 def test_a_pull_request_that_keeps_the_version_is_not_a_release_preparation(tmp_path):
+    assert rp.release_preparation_problems(
+        base_cmake=cmake("26.10.0"), head_cmake=cmake("26.10.0"), changelog=WITH_ENTRY, feed={},
+        news_dir=news(tmp_path)) == []
+
+
+def test_a_new_unreleased_section_above_a_release_is_no_release_preparation(tmp_path):
+    # The other half of the pair above (#338): the same CHANGELOG, seen by the
+    # release-preparation check. It says nothing, because the pull request does
+    # not change the project version -- so no `no-changelog` label is needed.
     assert rp.release_preparation_problems(
         base_cmake=cmake("26.10.0"), head_cmake=cmake("26.10.0"), changelog=WITH_ENTRY, feed={},
         news_dir=news(tmp_path)) == []
