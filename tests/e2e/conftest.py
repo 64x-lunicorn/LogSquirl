@@ -34,6 +34,15 @@ def pytest_addoption(parser):
         help="Path to directory containing logsquirl binaries (default: auto-detect from build/output)",
     )
     parser.addoption(
+        "--require-binaries",
+        action="store_true",
+        default=False,
+        help=(
+            "Fail instead of skip when a LogSquirl binary is missing. CI passes this: "
+            "a suite that skips everything must not report success (#366)"
+        ),
+    )
+    parser.addoption(
         "--update-baseline",
         action="store_true",
         default=False,
@@ -81,6 +90,19 @@ def repo_root() -> Path:
     return _find_repo_root()
 
 
+def _missing_binary(request, what: str):
+    """Skip, or fail when the run was told the binaries must be there.
+
+    A developer without a build should not be stopped by the whole suite
+    failing. CI is the other way round: it built the binaries a moment ago, so
+    a missing one is a broken job, not a reason to report success on a suite
+    that ran nothing (#366).
+    """
+    if request.config.getoption("--require-binaries"):
+        pytest.fail(what, pytrace=False)
+    pytest.skip(what)
+
+
 @pytest.fixture(scope="session")
 def binary_dir(request, repo_root) -> Path:
     override = request.config.getoption("--binary-dir")
@@ -89,21 +111,21 @@ def binary_dir(request, repo_root) -> Path:
     else:
         p = repo_root / "build" / "output"
     if not p.is_dir():
-        pytest.skip(f"Binary directory not found: {p}")
+        _missing_binary(request, f"Binary directory not found: {p}")
     return p
 
 
 @pytest.fixture(scope="session")
-def logsquirl_grep_binary(binary_dir) -> Path:
+def logsquirl_grep_binary(request, binary_dir) -> Path:
     suffix = ".exe" if platform.system() == "Windows" else ""
     binary = binary_dir / f"logsquirl_grep{suffix}"
     if not binary.exists():
-        pytest.skip(f"logsquirl_grep not found at {binary}")
+        _missing_binary(request, f"logsquirl_grep not found at {binary}")
     return binary
 
 
 @pytest.fixture(scope="session")
-def logsquirl_binary(binary_dir) -> Path:
+def logsquirl_binary(request, binary_dir) -> Path:
     system = platform.system()
     if system == "Darwin":
         binary = binary_dir / "logsquirl.app" / "Contents" / "MacOS" / "logsquirl"
@@ -112,7 +134,7 @@ def logsquirl_binary(binary_dir) -> Path:
     else:
         binary = binary_dir / "logsquirl"
     if not binary.exists():
-        pytest.skip(f"logsquirl not found at {binary}")
+        _missing_binary(request, f"logsquirl not found at {binary}")
     return binary
 
 

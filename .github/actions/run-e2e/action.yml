@@ -1,0 +1,46 @@
+name: "Run E2E tests"
+description: "Run the E2E suite (without performance benchmarks) against the binaries this job just built"
+# The suite runs here, in the build job, rather than in a job of its own
+# downloading an artifact (#366). It needs the real `logsquirl` and
+# `logsquirl_grep`, and `logsquirl_grep` is in no package: only `logsquirl` is
+# installed (src/app/CMakeLists.txt), so a packages artifact can never serve
+# the suite. Both binaries link Qt, so wherever they run, Qt has to be -- and
+# that is here, where the job built them.
+inputs:
+  install_tools:
+    description: "Shell command installing the compression tools the E2E suite exercises on this runner"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Install compression tools
+      shell: bash
+      env:
+        INSTALL_TOOLS: ${{ inputs.install_tools }}
+      run: bash -euo pipefail -c "$INSTALL_TOOLS"
+
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      with:
+        python-version: '3.12'
+
+    # The hash-locked requirements only (#317): the logsquirl-e2e-tests
+    # project itself installs no module, pytest finds the suite's modules
+    # through conftest.py's directory.
+    - name: Install E2E dependencies
+      shell: bash
+      run: |
+        pip install --require-hashes --only-binary :all: -r .github/requirements/e2e.txt
+
+    # --require-binaries turns a missing binary from a skip into a failure: the
+    # job built them a moment ago, so a skip here means the job is broken, not
+    # that there is nothing to test. Without it the suite reported success
+    # while skipping 78 of 98 tests (#366).
+    # LOGSQUIRL_BUILD_ROOT is in the environment (prepare-workspace-env), so
+    # the script reads it directly rather than through the `env` context.
+    - name: Run E2E tests (skip performance)
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd tests/e2e
+        pytest -v -m "not performance" --require-binaries \
+          --binary-dir="$GITHUB_WORKSPACE/$LOGSQUIRL_BUILD_ROOT/output"

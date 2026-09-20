@@ -1,0 +1,39 @@
+name: "Run E2E tests in container"
+description: "Run the E2E suite (without performance benchmarks) inside the image that built the binaries"
+# The Linux binaries are built against the image's Qt at /opt/qt and cannot run
+# on the runner host, so the suite runs where they were built (#366). The same
+# bind mount and image as docker-run-tests.
+#
+# Tools, dependencies and the run are one `docker run`: each one starts a fresh
+# container, so anything installed in a separate step would be gone by the next.
+#
+# Dependencies go to a throwaway directory with `pip install --target`, the
+# pattern the images already use for aqtinstall: nothing is added to the
+# image's site-packages, and --target also passes the PEP 668
+# externally-managed check without overriding it (#317).
+#
+# --require-binaries turns a missing binary from a skip into a failure: the job
+# built them a moment ago, so a skip here means the job is broken, not that
+# there is nothing to test. Without it the suite reported success while
+# skipping 78 of 98 tests (#366).
+runs:
+  using: "composite"
+  steps:
+    - name: Run E2E tests (skip performance)
+      shell: sh
+      run: |
+        set -eu
+        docker run --rm -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
+          set -eu
+          if command -v apt-get >/dev/null; then
+            apt-get update -qq && apt-get install -y -qq zstd lz4 bzip2 xz-utils
+          else
+            dnf install -y -q zstd lz4 bzip2 xz
+          fi
+          cd /usr/local
+          pip3 install --no-cache-dir --require-hashes --only-binary :all: \
+            --target /tmp/e2e -r .github/requirements/e2e.txt
+          cd tests/e2e
+          PYTHONPATH=/tmp/e2e python3 -m pytest -v -m "not performance" --require-binaries \
+            --binary-dir=/usr/local/build_root/output
+        '
