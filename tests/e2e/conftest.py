@@ -201,6 +201,35 @@ def compressed_test_files(test_data_dir, tmp_path_factory) -> dict[str, Path]:
     return result
 
 
+@pytest.fixture(scope="session")
+def heavy_tabs_log(tmp_path_factory) -> Path:
+    """
+    A crash report with a line of 50,000 tabs, written here rather than read
+    from test_data (#346).
+
+    The file used to live in test_data/heavy_tabs_crash.log, which `.gitignore`
+    excludes as `*.log`: it could not be committed, so a fresh clone did not
+    have it and three tests in test_heavy_tabs.py failed on a missing file.
+    It is synthetic anyway -- a smaller stand-in for an ASAN dump with ~37
+    million tabs on one line -- so the shape belongs in code, where it is
+    readable, than in 50 kB of opaque bytes.
+
+    Byte for byte the file the tests were written against.
+    """
+    path = tmp_path_factory.mktemp("heavy_tabs") / "heavy_tabs_crash.log"
+    path.write_text(
+        "=" * 65 + "\n"
+        "1765781539 AvpCore::StopKlif info.si_signo:11, info.si_errno:0, "
+        "info.si_code:2, info.si_pid:0, info.si_uid:0\n"
+        "1765781539 Previous terminationInProgress: 0\n"
+        "Frame\tImage" + "\t" * 13 + "Address\n"
+        "0" + "\t" * 50001 + "libclang_rt.asan_osx_dynamic.dylib\n"
+        "End of crash report\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Subprocess helpers
 # ---------------------------------------------------------------------------
