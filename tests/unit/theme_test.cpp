@@ -33,11 +33,9 @@
 
 namespace {
 
-const std::vector<QString>& builtInThemes()
+const QStringList& builtInThemes()
 {
-    static const std::vector<QString> themes{ Theme::LightKey, Theme::DarkKey,
-                                              Theme::HighContrastKey, Theme::SmyckKey,
-                                              Theme::SmyckLightKey };
+    static const QStringList themes = Theme::builtInThemes();
     return themes;
 }
 
@@ -238,6 +236,24 @@ SCENARIO( "A Theme is chosen by its stored name", "[theme]" )
                      == QStringList{ Theme::DarkKey, Theme::HighContrastKey, Theme::LightKey,
                                      Theme::SmyckKey, Theme::SmyckLightKey, Theme::SystemKey } );
             REQUIRE( Theme::defaultTheme() == Theme::LightKey );
+        }
+
+        THEN( "the Themes to choose from are the built-in ones and System" )
+        {
+            // The one list every test that says "every Theme" reads (#358),
+            // so a Theme added to it cannot be forgotten in the other.
+            auto expected = Theme::builtInThemes();
+            expected.append( Theme::SystemKey );
+            REQUIRE( Theme::availableThemes() == expected );
+            REQUIRE_FALSE( Theme::builtInThemes().contains( Theme::SystemKey ) );
+        }
+
+        THEN( "every built-in Theme is a Theme of its own, not System" )
+        {
+            for ( const auto& name : Theme::builtInThemes() ) {
+                INFO( name.toStdString() );
+                REQUIRE( Theme::fromName( name, Qt::ColorScheme::Light ).name() == name );
+            }
         }
 
         WHEN( "a Theme other than System is chosen" )

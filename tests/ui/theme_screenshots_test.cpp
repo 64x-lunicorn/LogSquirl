@@ -74,8 +74,7 @@
 
 namespace {
 
-const std::vector<QString> RenderedThemes{ Theme::LightKey, Theme::DarkKey, Theme::HighContrastKey,
-                                           Theme::SmyckKey, Theme::SmyckLightKey };
+const QStringList RenderedThemes = Theme::builtInThemes();
 
 // The Log File shown is a copy of the demo log in a neutral directory, the
 // same on every machine: the tool bar shows the full path of the Log File, and

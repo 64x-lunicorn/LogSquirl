@@ -934,12 +934,29 @@ Theme Theme::smyckLight()
 
 // ---------------------------------------------------------------------------
 
-QStringList Theme::availableThemes()
+namespace {
+
+void sortByName( QStringList& themes )
 {
-    QStringList themes{ LightKey, DarkKey, HighContrastKey, SmyckKey, SmyckLightKey, SystemKey };
     std::sort( themes.begin(), themes.end(), []( const auto& lhs, const auto& rhs ) {
         return lhs.compare( rhs, Qt::CaseInsensitive ) < 0;
     } );
+}
+
+} // namespace
+
+QStringList Theme::builtInThemes()
+{
+    QStringList themes{ LightKey, DarkKey, HighContrastKey, SmyckKey, SmyckLightKey };
+    sortByName( themes );
+    return themes;
+}
+
+QStringList Theme::availableThemes()
+{
+    auto themes = builtInThemes();
+    themes.append( SystemKey );
+    sortByName( themes );
     return themes;
 }
 

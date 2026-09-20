@@ -40,6 +40,7 @@
 #include "quickfindpattern.h"
 #include "test_policies.h"
 #include "theme.h"
+#include "theme_lists.h"
 #include "viewportlayout.h"
 
 namespace {
@@ -205,9 +206,7 @@ void requireMarginsInTokens( const QImage& image, const Margins& margins, const 
 
 SCENARIO( "The Viewport's margins are drawn in the Tokens of every Theme", "[ui][theme][viewport]" )
 {
-    for ( const auto& name : { QString( Theme::LightKey ), QString( Theme::DarkKey ),
-                               QString( Theme::HighContrastKey ), QString( Theme::SmyckKey ),
-                               QString( Theme::SmyckLightKey ) } ) {
+    for ( const auto& name : Theme::builtInThemes() ) {
         GIVEN( "a view with line numbers shown under the " << name.toStdString() << " Theme" )
         {
             Theme::apply( name );
@@ -261,8 +260,7 @@ SCENARIO( "The Viewport's margins follow a Theme switch", "[ui][theme][viewport]
                 .rgb()
             == Theme::active().color( ColorToken::ViewportMargin ).rgb() );
 
-        for ( const auto& name : { QString( Theme::DarkKey ), QString( Theme::HighContrastKey ),
-                                   QString( Theme::SmyckKey ), QString( Theme::SmyckLightKey ) } ) {
+        for ( const auto& name : themeSwitchesFrom( Theme::LightKey ) ) {
             WHEN( "the " << name.toStdString() << " Theme is applied" )
             {
                 Theme::apply( name );
