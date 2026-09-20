@@ -158,6 +158,24 @@ if(_stdout MATCHES "@[0-9]+\\]")
   fail("no log message is printed on stdout")
 endif()
 
+# Debug output is a diagnostic like any other: asking for it writes log
+# messages on stderr and changes neither the matches on stdout nor the exit
+# code (#345). The tool has no font database, so what the settings log about
+# the Main Font must not reach for one.
+run_grep("${_log_file}" -e fizz -d 4)
+if(NOT _result STREQUAL "0")
+  fail("a Search asked for debug output exits with 0")
+endif()
+if(NOT _stdout STREQUAL _expected)
+  fail("a Search asked for debug output prints the same matching Log Lines")
+endif()
+if(NOT (_stderr MATCHES "@[0-9]+\\]"))
+  fail("a Search asked for debug output writes its log messages on stderr")
+endif()
+if(NOT (_stderr MATCHES "Main font is [^\n]+"))
+  fail("a Search asked for debug output logs the Main Font without a font database")
+endif()
+
 # No match is no failure.
 run_grep("${_log_file}" -e "no such text")
 if(NOT _result STREQUAL "0")
