@@ -6,8 +6,9 @@ thousands or tens of thousands of tab characters without hanging
 or crashing — the scenario from tmp/stderr.log (ASAN crash dump
 with ~37 million tabs on one line).
 
-The test file test_data/heavy_tabs_crash.log is a representative
-smaller version with 50,000 tabs on a single line.
+The heavy_tabs_log fixture writes a representative smaller version
+with 50,000 tabs on a single line; it used to be read from
+test_data/heavy_tabs_crash.log, which no fresh clone had (#346).
 """
 
 from pathlib import Path
@@ -20,29 +21,29 @@ from conftest import grep_output_lines, measure_execution, run_grep
 class TestGrepHeavyTabs:
     """Verify logsquirl_grep handles files with massive tab counts."""
 
-    def test_grep_heavy_tabs_completes(self, logsquirl_grep_binary, test_data_dir):
+    def test_grep_heavy_tabs_completes(self, logsquirl_grep_binary, heavy_tabs_log):
         """Grep on a file with 50k tabs must complete within the timeout (no hang)."""
-        filepath = test_data_dir / "heavy_tabs_crash.log"
+        filepath = heavy_tabs_log
         result = run_grep(logsquirl_grep_binary, "asan", filepath, timeout=10)
         assert result.returncode == 0
 
-    def test_grep_heavy_tabs_finds_match(self, logsquirl_grep_binary, test_data_dir):
+    def test_grep_heavy_tabs_finds_match(self, logsquirl_grep_binary, heavy_tabs_log):
         """Grep must find the line containing 'asan' even though it has 50k tabs."""
-        filepath = test_data_dir / "heavy_tabs_crash.log"
+        filepath = heavy_tabs_log
         result = run_grep(logsquirl_grep_binary, "asan", filepath, timeout=10)
         lines = grep_output_lines(result)
         assert any("asan" in l for l in lines), f"Expected 'asan' in output, got: {lines}"
 
-    def test_grep_heavy_tabs_matches_normal_lines(self, logsquirl_grep_binary, test_data_dir):
+    def test_grep_heavy_tabs_matches_normal_lines(self, logsquirl_grep_binary, heavy_tabs_log):
         """Grep for a pattern on normal (non-tabbed) lines still works."""
-        filepath = test_data_dir / "heavy_tabs_crash.log"
+        filepath = heavy_tabs_log
         result = run_grep(logsquirl_grep_binary, "AvpCore", filepath, timeout=10)
         lines = grep_output_lines(result)
         assert any("AvpCore" in l for l in lines)
 
-    def test_grep_heavy_tabs_dot_pattern(self, logsquirl_grep_binary, test_data_dir):
+    def test_grep_heavy_tabs_dot_pattern(self, logsquirl_grep_binary, heavy_tabs_log):
         """'.' pattern (match all) must not hang on the heavy tabs file."""
-        filepath = test_data_dir / "heavy_tabs_crash.log"
+        filepath = heavy_tabs_log
         result = run_grep(logsquirl_grep_binary, ".", filepath, timeout=10)
         assert result.returncode == 0
         lines = grep_output_lines(result)
@@ -53,9 +54,9 @@ class TestGrepHeavyTabs:
 class TestGrepHeavyTabsPerformance:
     """Verify grep on heavy-tab files completes quickly (no quadratic blowup)."""
 
-    def test_grep_heavy_tabs_under_2_seconds(self, logsquirl_grep_binary, test_data_dir):
+    def test_grep_heavy_tabs_under_2_seconds(self, logsquirl_grep_binary, heavy_tabs_log):
         """Grep for '.' on heavy_tabs_crash.log must complete in under 2 seconds."""
-        filepath = test_data_dir / "heavy_tabs_crash.log"
+        filepath = heavy_tabs_log
 
         def search():
             run_grep(logsquirl_grep_binary, ".", filepath, timeout=5)
@@ -70,9 +71,9 @@ class TestGrepHeavyTabsPerformance:
 class TestGuiHeavyTabs:
     """Verify the GUI does not hang or crash when opening heavy-tab files."""
 
-    def test_gui_open_heavy_tabs_no_crash(self, isolated_gui, test_data_dir):
+    def test_gui_open_heavy_tabs_no_crash(self, isolated_gui, heavy_tabs_log):
         """Opening the heavy tabs file in the GUI must not crash or hang."""
-        test_file = test_data_dir / "heavy_tabs_crash.log"
+        test_file = heavy_tabs_log
         try:
             # Five seconds to index and try to render — old code would hang here
             result = isolated_gui.start_and_terminate("-n", str(test_file), settle=5.0)
