@@ -133,8 +133,13 @@ IndexingRun indexInBlocks( const QString& path, QTextCodec* encoding, qint64 blo
 
     auto data = std::make_shared<IndexingData>();
     AtomicFlag interruptRequest;
-    FullIndexOperation operation{ path,   data,     interruptRequest,
-                                  policy, encoding, std::move( blockPlan ) };
+    FullIndexOperation operation{ path,
+                                  data,
+                                  interruptRequest,
+                                  policy,
+                                  FullIndexRequest::Automatic,
+                                  encoding,
+                                  std::move( blockPlan ) };
     REQUIRE( std::get<bool>( operation.run() ) );
 
     IndexingData::ConstAccessor accessor{ data.get() };

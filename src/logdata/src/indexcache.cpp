@@ -89,7 +89,8 @@ bool IndexCache::isExcluded( const QString& filePath ) const
     return resolvedPath( filePath ).startsWith( excludedPrefix, PathCaseSensitivity );
 }
 
-std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
+std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
+                                                DigestCoverage coverage ) const
 {
     if ( directory_.isEmpty() || isExcluded( filePath ) ) {
         return std::nullopt;
@@ -126,8 +127,10 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath ) const
         // found out without deserializing the Index it holds.
         // An Index fits a Log File that has grown since as well: it is
         // complete for the size it was built at. Every recorded hash has
-        // header and tail digests, but only some a full digest.
-        switch ( indexFit( hash, filePath, DigestCoverage::HeaderAndTail ) ) {
+        // header and tail digests, but only some a full digest: an entry
+        // written under fast modification detection has none, and is taken
+        // for stale by a caller asking for one (#337).
+        switch ( indexFit( hash, filePath, coverage ) ) {
         case IndexFit::Unchanged:
         case IndexFit::Grown:
             break;

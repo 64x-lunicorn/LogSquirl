@@ -4,6 +4,17 @@
 # reports and every log message it writes described on stderr, a failure with
 # a non-zero exit code (#327).
 #
+# The tool is run as a copy of itself inside WORK_DIR, with a settings file
+# this script writes next to that copy (#364). The tool is always portable:
+# it reads the `logsquirl.conf` beside its own executable, and honours a
+# default Encoding pinned there over the one it detected, which is what a
+# user who pins an Encoding means (#326). Run from the build directory it was
+# built in, it would read whatever settings the application or another test
+# binary left in `<build>/output/logsquirl.conf` -- and the Encoding cases
+# below would then pass or fail on state no test wrote. The copy is the lever
+# the application already offers: portable settings live next to the
+# executable, which is how the E2E suite isolates an instance too (#328).
+#
 # Usage: cmake -DGREP=<path to logsquirl_grep> -DWORK_DIR=<scratch directory>
 #              -P logsquirl_grep_cli.cmake
 
@@ -19,13 +30,36 @@ endif()
 file(REMOVE_RECURSE "${WORK_DIR}")
 file(MAKE_DIRECTORY "${WORK_DIR}")
 
+# The tool and the settings it reads, both inside WORK_DIR and both thrown
+# away with it (#364). The settings name only what the checks below rely on:
+# no default Encoding, so every Log File is read in the Encoding it is
+# detected as. Everything else the tool asks for is the stored default,
+# because nothing else is written here.
+set(_tool_dir "${WORK_DIR}/tool")
+file(MAKE_DIRECTORY "${_tool_dir}")
+file(COPY "${GREP}" DESTINATION "${_tool_dir}")
+get_filename_component(_tool_name "${GREP}" NAME)
+set(_tool "${_tool_dir}/${_tool_name}")
+
+# Windows looks for a library in the directory of the executable first, so the
+# copy needs the ones that sit beside the original: without them it dies with
+# 0xc0000135, DLL not found, before it has read anything (#364). Elsewhere the
+# tool finds its libraries by the paths built into it, and this matches
+# nothing.
+get_filename_component(_tool_source_dir "${GREP}" DIRECTORY)
+file(GLOB _tool_libraries "${_tool_source_dir}/*.dll")
+if(_tool_libraries)
+  file(COPY ${_tool_libraries} DESTINATION "${_tool_dir}")
+endif()
+file(WRITE "${_tool_dir}/logsquirl.conf" "[General]\ndefaultView.encodingMib=-1\n")
+
 set(_failures "")
 
 # Runs the tool with the given arguments; sets _stdout, _stderr and _result.
 # Line endings are normalized, so the checks hold on every platform.
 function(run_grep)
   execute_process(
-    COMMAND "${GREP}" ${ARGN}
+    COMMAND "${_tool}" ${ARGN}
     WORKING_DIRECTORY "${WORK_DIR}"
     OUTPUT_VARIABLE _out
     ERROR_VARIABLE _err

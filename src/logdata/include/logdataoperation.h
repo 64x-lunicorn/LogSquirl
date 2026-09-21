@@ -91,11 +91,15 @@ private:
     int defaultEncodingMib_;
 };
 
-// Reindexing the current file
+// Reindexing the current file. What asked for it is carried through to the
+// indexing run, which checks a cached Index the more closely the more the
+// user asked for the Log File to be read again (#337).
 class FullReindexOperation : public LogDataOperation {
 public:
-    explicit FullReindexOperation( QTextCodec* forcedEncoding = nullptr )
-        : forcedEncoding_( forcedEncoding )
+    explicit FullReindexOperation( FullIndexRequest request = FullIndexRequest::Automatic,
+                                   QTextCodec* forcedEncoding = nullptr )
+        : request_( request )
+        , forcedEncoding_( forcedEncoding )
     {
     }
 
@@ -103,6 +107,7 @@ protected:
     void doStart( LogDataWorker& workerThread ) const override;
 
 private:
+    FullIndexRequest request_;
     QTextCodec* forcedEncoding_;
 };
 

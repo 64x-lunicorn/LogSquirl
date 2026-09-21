@@ -483,14 +483,30 @@ private:
     const IndexingBlockPlan blockPlan_;
 };
 
+// What asked for a Log File to be indexed in full, which decides how closely
+// an Index the Index Cache hands out is checked against it (#337).
+enum class FullIndexRequest {
+    // A Log File is opened, or one being followed changed in the bytes it was
+    // indexed from. A cached Index is checked by its header and tail, which
+    // costs the same however large the Log File is.
+    Automatic,
+    // The user asked for the Log File to be read again. A cached Index is
+    // then checked by the digest of every byte it was built from, so that a
+    // Log File rewritten in place with the same size is noticed even where
+    // its modification time is coarse or written late (#337).
+    ExplicitReload,
+};
+
 class FullIndexOperation : public IndexOperation {
     Q_OBJECT
 public:
     FullIndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
                         AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy,
+                        FullIndexRequest request = FullIndexRequest::Automatic,
                         QTextCodec* forcedEncoding = nullptr, IndexingBlockPlan blockPlan = {} )
         : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy,
                           std::move( blockPlan ) )
+        , request_( request )
         , forcedEncoding_( forcedEncoding )
     {
     }
@@ -505,6 +521,10 @@ private:
     // Index a full re-index builds.
     bool resumeFrom( CachedIndex& cached, qint64 fileSize );
 
+    // How closely a cached Index is checked against the Log File.
+    DigestCoverage cachedIndexCoverage() const;
+
+    FullIndexRequest request_;
     QTextCodec* forcedEncoding_;
 };
 
@@ -562,8 +582,10 @@ public:
     // will work, it will just appear as an empty file.
     void attachFile( const QString& fileName );
     // Instructs the thread to start a new full indexing of the file, sending
-    // signals as it progresses.
-    void indexAll( QTextCodec* forcedEncoding = nullptr );
+    // signals as it progresses. What asked for it decides how closely a
+    // cached Index is checked against the Log File (#337).
+    void indexAll( QTextCodec* forcedEncoding = nullptr,
+                   FullIndexRequest request = FullIndexRequest::Automatic );
     // Instructs the thread to start a partial indexing (starting at
     // the end of the file as indexed).
     void indexAdditionalLines();
