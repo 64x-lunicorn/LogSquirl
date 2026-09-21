@@ -129,7 +129,7 @@ LogSquirl is built with **C++23** and **Qt6**, using **CMake** and
 [CPM](https://github.com/cpm-cmake/CPM.cmake) for dependency management.
 
 You will need a C++23 compiler (GCC 13+, Clang 17+, or MSVC 19.36+), Qt 6.5+,
-and CMake 3.12+, along with the platform-specific dependencies.
+and CMake 3.16+, along with the platform-specific dependencies.
 
 **[Follow the build guide](BUILD.md)** for setup, build options, and testing instructions.
 

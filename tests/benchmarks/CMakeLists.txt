@@ -117,7 +117,8 @@ add_executable(logsquirl_chart_paint_benchmark
     chart_paint_benchmark.cpp
 )
 
-target_link_libraries(logsquirl_chart_paint_benchmark logsquirl_ui Catch2)
+# test_utils: its main() relaunches itself beside its own settings file (#370).
+target_link_libraries(logsquirl_chart_paint_benchmark logsquirl_ui Catch2 test_utils)
 
 # The overview with a million Matches and extending a long selection line by
 # line (#297). Uses only what the Overview and the text view offered before

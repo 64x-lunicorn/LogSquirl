@@ -18,7 +18,7 @@ git clone https://github.com/64x-lunicorn/LogSquirl
 
 To build LogSquirl:
 
-- cmake 3.12 or later to generate build files
+- cmake 3.16 or later to generate build files
 - C++ compiler with C++23 support (at least gcc 13, clang 17, msvc 19.36)
 - Qt 6.5 or later (CI builds use Qt 6.11.2):
   - QtCore

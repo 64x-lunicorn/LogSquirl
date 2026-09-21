@@ -33,6 +33,8 @@
 
 #include <logger.h>
 
+#include "isolated_settings.h"
+
 const bool PersistentInfo::ForcePortable = true;
 
 class TestRunner : public QObject {
@@ -71,6 +73,13 @@ private:
 
 int main( int argc, char* argv[] )
 {
+    // The test cases run beside a settings file of this process's own, so
+    // that no test binary reads or writes the one in the build directory and
+    // no case inherits what an earlier one left behind (#370).
+    if ( const auto launcherExitCode = isolated_settings::relaunchWithOwnSettings( argc, argv ) ) {
+        return *launcherExitCode;
+    }
+
     QApplication a( argc, argv );
 
     logging::enableLogging();

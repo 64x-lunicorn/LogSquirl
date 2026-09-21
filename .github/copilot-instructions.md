@@ -4,7 +4,7 @@
 
 LogSquirl is a cross-platform log viewer built with C++23 and Qt6.
 It is a GPL-3.0-or-later licensed fork of [klogg](https://github.com/variar/klogg), which itself
-is a fork of [glogg](https://github.com/nickbnf/glogg). The build system is CMake (minimum 3.12).
+is a fork of [glogg](https://github.com/nickbnf/glogg). The build system is CMake (minimum 3.16).
 Dependencies are managed via [CPM](https://github.com/cpm-cmake/CPM.cmake).
 
 - **Repository**: <https://github.com/64x-lunicorn/LogSquirl>

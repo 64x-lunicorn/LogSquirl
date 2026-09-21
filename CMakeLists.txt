@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 3.12)
+# 3.16, not less: from that minimum on, policy CMP0096 defaults to NEW and
+# project() keeps a version component's leading zero, so a build without a
+# version from the environment calls itself 26.07.0, the way this file spells
+# it, instead of 26.7.0 (#372).
+cmake_minimum_required(VERSION 3.16)
 
 # Allow old third-party deps (debug_assert, ucm, …) that call
 # cmake_minimum_required(VERSION <3.5) to configure under CMake 4.x.

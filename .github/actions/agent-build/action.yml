@@ -46,7 +46,7 @@ runs:
             # executable's PDB, so the pdb zip in prepare_release.cmd is
             # unaffected. CMAKE_MSVC_DEBUG_INFORMATION_FORMAT only takes
             # effect under policy CMP0141 NEW, which this project's
-            # cmake_minimum_required(3.12) does not enable on its own.
+            # cmake_minimum_required(3.16) does not enable on its own.
             LAUNCHER_OPTS="$LAUNCHER_OPTS -DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=Embedded -DCMAKE_POLICY_DEFAULT_CMP0141=NEW"
           fi
         fi

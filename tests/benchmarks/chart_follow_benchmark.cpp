@@ -48,6 +48,8 @@
 #define CATCH_CONFIG_RUNNER
 #include <catch2/catch.hpp>
 
+#include "isolated_settings.h"
+
 const bool PersistentInfo::ForcePortable = true;
 
 using namespace logdatabenchmark;
@@ -205,6 +207,13 @@ TEST_CASE( "A chart following a growing Log File", "[chart-follow-benchmark]" )
 
 int main( int argc, char* argv[] )
 {
+    // The test cases run beside a settings file of this process's own, so
+    // that no test binary reads or writes the one in the build directory and
+    // no case inherits what an earlier one left behind (#370).
+    if ( const auto launcherExitCode = isolated_settings::relaunchWithOwnSettings( argc, argv ) ) {
+        return *launcherExitCode;
+    }
+
     // Offscreen unless a platform was asked for.
     if ( qEnvironmentVariableIsEmpty( "QT_QPA_PLATFORM" ) ) {
         qputenv( "QT_QPA_PLATFORM", "offscreen" );

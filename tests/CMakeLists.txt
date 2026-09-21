@@ -133,6 +133,35 @@ add_test(
 
 
 
+# The version the binaries report is the one the project declares, leading zero
+# and all, whether the build was handed a version or left to CMakeLists.txt
+# (#372).
+add_test(
+    NAME version_as_declared
+    COMMAND ${CMAKE_COMMAND}
+            -DGREP=$<TARGET_FILE:logsquirl_grep>
+            -DPROJECT_DIR=${CMAKE_SOURCE_DIR}
+            "-DVERSION_OVERRIDE=${BUILD_VERSION}"
+            "-DVERSION_BUILD_NUMBER=${BUILD_NUMBER}"
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/version_as_declared
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/version_as_declared.cmake
+)
+
+# A test binary reads and writes its settings in a throwaway location of its
+# own: the Options Dialog case saves everything it changed, and nothing of it
+# may reach the settings file beside the built binaries, which the application,
+# the command line tool and every other test binary read (#370). The binary is
+# run here as a developer runs it, not through the isolation ctest gives a test
+# case, so this is the check that a run by hand keeps to itself too.
+add_test(
+    NAME test_binary_own_settings
+    COMMAND ${CMAKE_COMMAND}
+            -DTEST_BINARY=$<TARGET_FILE:logsquirl_tests>
+            "-DTEST_SPEC=[optionsdialog]"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/test_binary_own_settings.cmake
+)
+set_tests_properties(test_binary_own_settings PROPERTIES TIMEOUT 300)
+
 # The command line tool, run as a user runs it on a temporary Log File: what it
 # prints and the code it exits with (#247).
 add_test(
