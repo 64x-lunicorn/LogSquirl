@@ -8,7 +8,7 @@ with ANSI color escape sequences.
 
 import pytest
 
-from conftest import grep_output_lines, run_grep, run_grep_bytes
+from conftest import grep_output_lines, grep_stdout_bytes, run_grep, run_grep_bytes
 
 # Three Log Lines with non-ASCII text, two of which a search for "^hit"
 # matches.  Written in the encoding each test needs.
@@ -112,21 +112,21 @@ class TestGrepDetectedEncoding:
         log_file = write_log(tmp_path, "utf8.log", "utf-8")
         result = run_grep_bytes(logsquirl_grep_binary, "^hit", log_file)
         assert result.returncode == 0
-        assert result.stdout == NON_ASCII_MATCHES.encode("utf-8")
+        assert grep_stdout_bytes(result) == NON_ASCII_MATCHES.encode("utf-8")
 
     def test_utf8_non_ascii_pattern_matches(self, logsquirl_grep_binary, tmp_path):
         """A pattern with non-ASCII text matches the log lines it appears in."""
         log_file = write_log(tmp_path, "utf8.log", "utf-8")
         result = run_grep_bytes(logsquirl_grep_binary, "München", log_file)
         assert result.returncode == 0
-        assert result.stdout == f"{NON_ASCII_LINES[0]}\n".encode("utf-8")
+        assert grep_stdout_bytes(result) == f"{NON_ASCII_LINES[0]}\n".encode("utf-8")
 
     def test_utf16le_prints_as_utf8(self, logsquirl_grep_binary, tmp_path):
         """A UTF-16LE file with a byte order mark prints as UTF-8 text."""
         log_file = write_log(tmp_path, "utf16le.log", "utf-16")
         result = run_grep_bytes(logsquirl_grep_binary, "^hit", log_file)
         assert result.returncode == 0
-        assert result.stdout == NON_ASCII_MATCHES.encode("utf-8")
+        assert grep_stdout_bytes(result) == NON_ASCII_MATCHES.encode("utf-8")
 
     def test_utf16be_prints_as_utf8(self, logsquirl_grep_binary, tmp_path):
         """A UTF-16BE file with a byte order mark prints as UTF-8 text."""
@@ -134,7 +134,7 @@ class TestGrepDetectedEncoding:
         log_file.write_bytes(b"\xfe\xff" + NON_ASCII_TEXT.encode("utf-16-be"))
         result = run_grep_bytes(logsquirl_grep_binary, "^hit", log_file)
         assert result.returncode == 0
-        assert result.stdout == NON_ASCII_MATCHES.encode("utf-8")
+        assert grep_stdout_bytes(result) == NON_ASCII_MATCHES.encode("utf-8")
 
     def test_latin1_prints_as_utf8(self, logsquirl_grep_binary, tmp_path):
         """A Latin-1 file prints as UTF-8 text."""
@@ -152,7 +152,7 @@ class TestGrepDetectedEncoding:
 
         result = run_grep_bytes(logsquirl_grep_binary, "^hit", log_file)
         assert result.returncode == 0
-        assert result.stdout == expected.encode("utf-8")
+        assert grep_stdout_bytes(result) == expected.encode("utf-8")
 
 
 class TestGrepAnsiColors:

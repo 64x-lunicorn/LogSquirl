@@ -353,6 +353,12 @@ jobs:
           key: ${{ steps.cpm_cache.outputs.cache-primary-key }}
 
       - uses: ./.github/actions/docker-run-tests
+
+      # One Linux configuration runs the E2E suite; the others build the same
+      # sources for their distribution's packages (#366).
+      - uses: ./.github/actions/docker-run-e2e
+        if: ${{ matrix.config.artifacts_id == 'noble' }}
+
       - uses: ./.github/actions/docker-package
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -514,6 +520,9 @@ jobs:
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
+      - uses: ./.github/actions/run-e2e
+        with:
+          install_tools: brew install zstd lz4
       # Unsigned on every event and branch: the signing secrets live in the
       # `release` environment, and CI Release signs these packages (#203).
       - uses: ./.github/actions/agent-package-mac
@@ -577,6 +586,10 @@ jobs:
 
       - uses: ./.github/actions/agent-build
       - uses: ./.github/actions/agent-run-tests
+      - uses: ./.github/actions/run-e2e
+        with:
+          # lz4 has no Chocolatey package; the suite skips that format.
+          install_tools: choco install zstandard --no-progress -y
       # Unsigned, like the macOS packages: CI Build references no signing
       # secret, so none can reach a job outside the `release` environment (#203).
       - uses: ./.github/actions/agent-package-win
@@ -586,60 +599,6 @@ jobs:
           name: packages-${{ matrix.config.artifacts_id }}
           path: '${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/*'
           if-no-files-found: error
-
-  # ---------------------------------------------------------------------------
-  # E2E tests — one job per platform, each gated only on the build job whose
-  # artifact it downloads, so e.g. Linux E2E starts as soon as the Noble
-  # package exists without waiting on Mac or Windows (#121). The shared steps
-  # live in e2e-run-tests; each job supplies its artifact and tool install.
-  # ---------------------------------------------------------------------------
-  e2e-linux:
-    name: E2E / linux
-    needs: [Linux]
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/e2e-run-tests
-        with:
-          artifact_name: packages-noble
-          install_tools: |
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq zstd lz4
-
-  e2e-mac:
-    name: E2E / mac
-    needs: [Mac]
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    runs-on: macos-15
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/e2e-run-tests
-        with:
-          artifact_name: packages-mac-arm64
-          install_tools: brew install zstd lz4
-
-  e2e-windows:
-    name: E2E / windows
-    needs: [Windows]
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    runs-on: windows-2025
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/e2e-run-tests
-        with:
-          artifact_name: packages-windows-x64
-          # lz4 has no Chocolatey package; tests skip gracefully
-          install_tools: choco install zstandard --no-progress -y
 
   # -----------------------------------------------------------------------
   # Website — the build the deploy runs, including its link check, for a pull
@@ -692,7 +651,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Windows, Mac, e2e-linux, e2e-mac, e2e-windows, Website]
+      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Windows, Mac, Website]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
