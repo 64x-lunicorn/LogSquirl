@@ -275,6 +275,18 @@ def run_grep_bytes(binary: Path, pattern: str, filepath: Path, timeout: int = 30
     )
 
 
+def grep_stdout_bytes(result: subprocess.CompletedProcess) -> bytes:
+    r"""stdout with its line endings normalised to \n.
+
+    The tool writes \n, but on Windows it writes to a text-mode stdout and the
+    C runtime turns that into \r\n, so the raw bytes differ from the Log
+    File's by the line ending alone. A test comparing bytes is after the
+    Encoding, not the line ending; tests/logsquirl_grep_cli.cmake normalises
+    the same way. Found once the E2E suite actually ran in CI (#366).
+    """
+    return result.stdout.replace(b"\r\n", b"\n")
+
+
 def grep_output_lines(result: subprocess.CompletedProcess) -> list[str]:
     """Extract matched lines from grep stdout.
 
