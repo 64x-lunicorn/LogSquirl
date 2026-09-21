@@ -84,8 +84,14 @@ foreach(_logsquirl_catch_name IN LISTS _logsquirl_catch_lines)
     set(_logsquirl_catch_test "${_logsquirl_catch_target}: ${_logsquirl_catch_name}")
     # --warn NoTests: a spec that matches no test case fails instead of passing
     # with zero assertions.
+    #
+    # The case runs through CatchTestDiscoveryRunTest.cmake, which puts it
+    # beside a settings file of its own: the test binaries share the directory
+    # they are built into, and with it the settings file beside them (#370).
     add_test("${_logsquirl_catch_test}"
-        "${_logsquirl_catch_executable}" "${_logsquirl_catch_spec}" --warn NoTests ${_logsquirl_catch_extra_args})
+        "${_logsquirl_catch_cmake}" "-DTEST_BINARY=${_logsquirl_catch_executable}"
+        -P "${_logsquirl_catch_run_script}"
+        -- "${_logsquirl_catch_spec}" --warn NoTests ${_logsquirl_catch_extra_args})
     set_tests_properties("${_logsquirl_catch_test}" PROPERTIES
         TIMEOUT "${_logsquirl_catch_timeout}"
         WORKING_DIRECTORY "${_logsquirl_catch_working_dir}")

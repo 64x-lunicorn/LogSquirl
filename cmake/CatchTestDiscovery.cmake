@@ -18,6 +18,9 @@
 # that fails registers a failing test.
 
 set(_LOGSQUIRL_CATCH_ADD_TESTS_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/CatchTestDiscoveryAddTests.cmake")
+# Each registered test case runs through this, beside a settings file of its own
+# (#370).
+set(_LOGSQUIRL_CATCH_RUN_TEST_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/CatchTestDiscoveryRunTest.cmake")
 
 function(logsquirl_add_catch_tests TARGET)
     cmake_parse_arguments(PARSE_ARGV 1 arg "" "TIMEOUT" "EXTRA_ARGS")
@@ -37,6 +40,7 @@ set(_logsquirl_catch_extra_args [==[${arg_EXTRA_ARGS}]==])
 set(_logsquirl_catch_timeout [==[${arg_TIMEOUT}]==])
 set(_logsquirl_catch_working_dir [==[${CMAKE_CURRENT_BINARY_DIR}]==])
 set(_logsquirl_catch_cmake [==[${CMAKE_COMMAND}]==])
+set(_logsquirl_catch_run_script [==[${_LOGSQUIRL_CATCH_RUN_TEST_SCRIPT}]==])
 include([==[${_LOGSQUIRL_CATCH_ADD_TESTS_SCRIPT}]==])
 ")
 
