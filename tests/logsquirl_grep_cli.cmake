@@ -40,6 +40,17 @@ file(MAKE_DIRECTORY "${_tool_dir}")
 file(COPY "${GREP}" DESTINATION "${_tool_dir}")
 get_filename_component(_tool_name "${GREP}" NAME)
 set(_tool "${_tool_dir}/${_tool_name}")
+
+# Windows looks for a library in the directory of the executable first, so the
+# copy needs the ones that sit beside the original: without them it dies with
+# 0xc0000135, DLL not found, before it has read anything (#364). Elsewhere the
+# tool finds its libraries by the paths built into it, and this matches
+# nothing.
+get_filename_component(_tool_source_dir "${GREP}" DIRECTORY)
+file(GLOB _tool_libraries "${_tool_source_dir}/*.dll")
+if(_tool_libraries)
+  file(COPY ${_tool_libraries} DESTINATION "${_tool_dir}")
+endif()
 file(WRITE "${_tool_dir}/logsquirl.conf" "[General]\ndefaultView.encodingMib=-1\n")
 
 set(_failures "")
