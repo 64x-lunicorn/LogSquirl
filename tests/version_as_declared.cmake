@@ -142,6 +142,10 @@ set(_tool_dir "${WORK_DIR}/tool")
 file(MAKE_DIRECTORY "${_tool_dir}")
 file(COPY "${GREP}" DESTINATION "${_tool_dir}")
 get_filename_component(_tool_name "${GREP}" NAME)
+# What the tool calls itself is Qt's applicationName(), the executable's name
+# without its suffix: on Windows it reports `logsquirl_grep`, while the file is
+# `logsquirl_grep.exe` (#372).
+get_filename_component(_reported_name "${GREP}" NAME_WE)
 get_filename_component(_tool_source_dir "${GREP}" DIRECTORY)
 file(GLOB _tool_libraries "${_tool_source_dir}/*.dll")
 if(_tool_libraries)
@@ -162,8 +166,8 @@ if(NOT _result STREQUAL "0")
                       "  stdout: ${_stdout}\n  stderr: ${_stderr}"
   )
 endif()
-if(NOT _stdout MATCHES "${_tool_name} ([^ \n]+)")
-  message(FATAL_ERROR "${_tool_name} --version reported no version\n  stdout: ${_stdout}")
+if(NOT _stdout MATCHES "${_reported_name} ([^ \n]+)")
+  message(FATAL_ERROR "${_reported_name} --version reported no version\n  stdout: ${_stdout}")
 endif()
 set(_reported "${CMAKE_MATCH_1}")
 
@@ -171,7 +175,7 @@ set(_reported "${CMAKE_MATCH_1}")
 # appends beyond it -- the tweak of a local build -- is another matter (#372).
 string(REPLACE "." "\\." _expected_pattern "${_expected}")
 if(NOT _reported MATCHES "^${_expected_pattern}(\\.[0-9]+)?$")
-  fail("${_tool_name} reports ${_reported}, not ${_expected}, ${_expected_source}")
+  fail("${_reported_name} reports ${_reported}, not ${_expected}, ${_expected_source}")
 endif()
 
 file(REMOVE_RECURSE "${WORK_DIR}")
