@@ -158,6 +158,23 @@ def test_a_new_unreleased_section_above_a_release_is_no_release_preparation(tmp_
         news_dir=news(tmp_path)) == []
 
 
+def test_a_pull_request_that_lowers_the_version_takes_a_preparation_back(tmp_path):
+    # The version goes back because the release it named was never published.
+    # There is no release to find named anywhere, and the CHANGELOG section
+    # that named it is gone on purpose, so the check says nothing (#338).
+    assert rp.release_preparation_problems(
+        base_cmake=cmake("26.10.0"), head_cmake=cmake("26.07.0"), changelog=WITH_ENTRY, feed={},
+        news_dir=news(tmp_path)) == []
+
+
+def test_a_preparation_is_still_checked_when_the_version_rises(tmp_path):
+    # The guard above must not excuse a real preparation: 26.10.0 over 26.07.0
+    # is one, and an Unreleased section at the top is incomplete.
+    assert rp.release_preparation_problems(
+        base_cmake=cmake("26.07.0"), head_cmake=cmake("26.10.0"), changelog=WITH_ENTRY, feed={},
+        news_dir=news(tmp_path)) != []
+
+
 def test_every_missing_piece_is_named_with_the_expected_release(tmp_path):
     assert rp.release_preparation_problems(
         base_cmake=cmake("26.10.0"), head_cmake=cmake("26.11.0"), changelog=WITH_ENTRY, feed=FEED,

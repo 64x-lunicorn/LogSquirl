@@ -89,12 +89,27 @@ def _expected(version: str, release: str | None) -> _Expected:
     return _Expected(version, " or a pre-release of it", is_release_of(version))
 
 
+def _version_order(version: str) -> tuple[int, ...]:
+    """A project version as numbers, so 26.7.0 sorts below 26.10.0."""
+    return tuple(int(part) for part in version.split("."))
+
+
 def release_preparation_problems(*, base_cmake: str, head_cmake: str, changelog: str, feed,
                                  news_dir: Path) -> list[str]:
-    """What a release preparation lacks; empty when complete or when the
-    pull request does not change the project version."""
+    """What a release preparation lacks; empty when complete, when the pull
+    request does not change the project version, or when it lowers it."""
     version = _project_version(head_cmake)
-    if version is None or version == _project_version(base_cmake):
+    base_version = _project_version(base_cmake)
+    if version is None or version == base_version:
+        return []
+    # A preparation raises the version. A pull request that lowers it takes a
+    # preparation back -- the release it named was never published -- so there
+    # is no release to find named anywhere, and the CHANGELOG section that
+    # named it is gone on purpose. Without this, the two halves of the check
+    # contradict each other: the version has to go back for the repository's
+    # own consistency test to pass, and going back is what this check would
+    # read as an incomplete preparation (#338).
+    if base_version is not None and _version_order(version) < _version_order(base_version):
         return []
     found = []
     all_sections = sections(changelog)
