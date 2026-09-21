@@ -10,8 +10,6 @@ offscreen (#328). Nothing here can read or change the developer's own
 LogSquirl data.
 """
 
-import pytest
-
 _CRASH_CODES = (-11, -6, 139, 134)
 
 
@@ -24,16 +22,6 @@ class TestGuiVersion:
         assert result.returncode == 0
         assert "logsquirl" in result.stdout.lower()
 
-    # The version the binary reports is empty in the Linux CI build: the
-    # target that writes generated/version.h is in ALL, while CI builds
-    # --target ci_build, so nothing orders it before the sources that include
-    # the header. Mac happens to win that race and Linux does not, which is
-    # why this is not strict. Tracked as its own ticket; surfaced only once
-    # the E2E suite actually ran in CI (#366).
-    @pytest.mark.xfail(
-        reason="the compiled-in version can be empty: generate_version is not ordered before the build",
-        strict=False,
-    )
     def test_gui_version_contains_version_number(self, isolated_gui):
         """Version output should contain a version-like string (digits and dots)."""
         result = isolated_gui.run("--version")

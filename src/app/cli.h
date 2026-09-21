@@ -54,7 +54,16 @@ struct CliParameters {
         QCommandLineParser parser;
         parser.setApplicationDescription( "LogSquirl log viewer" );
         const auto helpOption = parser.addHelpOption();
-        const auto versionOption = parser.addVersionOption();
+        // Not QCommandLineParser::addVersionOption(): that one is handled
+        // inside process(), which prints applicationVersion() and exits before
+        // the branch below can run. applicationVersion() is never set, so it
+        // printed the application's name and nothing else -- except on macOS,
+        // where Qt falls back to the bundle's Info.plist and hid it for the
+        // desktop application alone (#368).
+        const QCommandLineOption versionOption( QStringList() << "v"
+                                                              << "version",
+                                                "Displays version information." );
+        parser.addOption( versionOption );
 
         const QCommandLineOption multiInstanceOption(
             QStringList() << "m"
@@ -160,7 +169,9 @@ struct CliParameters {
 
     static void print_version()
     {
-        std::cout << "logsquirl " << logsquirlVersion().data() << "\n";
+        // The name this binary was started as: logsquirl, or logsquirl_grep.
+        std::cout << QCoreApplication::applicationName().toStdString() << " "
+                  << logsquirlVersion().data() << "\n";
         std::cout << "Built " << logsquirlBuildDate().data() << " from " << logsquirlCommit().data()
                   << "(" << logsquirlGitVersion().data() << ")\n";
 
