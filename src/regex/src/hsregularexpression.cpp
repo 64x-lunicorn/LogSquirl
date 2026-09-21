@@ -263,11 +263,14 @@ HsRegularExpression::HsRegularExpression(
             database_.get() );
     }
 
+    // A prefilter confirms every candidate with QRegularExpression, so in that
+    // mode the Qt patterns decide the outcome just as much as they do when
+    // Vectorscan took nothing at all. Both cases therefore report a Qt pattern
+    // that does not compile; leaving the prefilter case out let a pattern
+    // Vectorscan approximated pass as valid and then match nothing (#336).
     if ( !isHsValid() || isPrefilter_ ) {
         regexps_ = compileRegularExpressions( patterns_ );
-    }
 
-    if ( !isHsValid() ) {
         for ( const auto& regex : regexps_ ) {
             if ( !regex.isValid() ) {
                 isValid_ = false;

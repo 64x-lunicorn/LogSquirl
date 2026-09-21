@@ -237,6 +237,16 @@ MultiRegularExpression::MultiRegularExpression(
     }
 }
 
+bool MultiRegularExpression::isValid() const
+{
+    return isValid_;
+}
+
+QString MultiRegularExpression::errorString() const
+{
+    return errorString_;
+}
+
 std::unique_ptr<MultiPatternMatcher> MultiRegularExpression::createMatcher() const
 {
     return std::make_unique<MultiPatternMatcher>( *this );

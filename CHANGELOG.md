@@ -51,6 +51,14 @@
   one place it worked, and by accident: Qt fell back to the application
   bundle's property list. Both binaries now report the version, the build date
   and the commit they were built from (#368).
+- **Backreferences in a pattern**: A pattern that refers back to one of its own
+  groups, such as `(ERROR) \1`, now finds the Log Lines that repeat the
+  captured text. A Search with one was refused as invalid, complaining about a
+  group that is plainly there, and a Color Label with one quietly colored
+  nothing: every pattern was compiled without capturing groups, which leaves a
+  backreference with nothing to refer to. Only a pattern that uses a
+  backreference now captures, so every other pattern keeps the faster
+  capture-free path (#336).
 - **`logsquirl_grep -d` prints its debug output**: Asking the command line
   tool for debug output aborted it instead. Reading the settings looked up the
   main font in the font database, which only the desktop application has, and

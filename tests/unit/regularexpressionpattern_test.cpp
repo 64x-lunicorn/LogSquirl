@@ -158,3 +158,72 @@ SCENARIO( "A cache keyed on RegularExpressionPattern does not conflate two modes
         }
     }
 }
+
+SCENARIO( "Only a pattern that refers back to a group gives up the capture-free fast path",
+          "[regex][pattern][backref]" )
+{
+    GIVEN( "patterns that refer back to a group" )
+    {
+        THEN( "each of them is recognised" )
+        {
+            REQUIRE( usesBackreference( "(ERROR) \\1" ) );
+            REQUIRE( usesBackreference( "(a)(b)\\2" ) );
+            REQUIRE( usesBackreference( "(?<level>ERROR) \\k<level>" ) );
+            REQUIRE( usesBackreference( "(?<level>ERROR) \\k'level'" ) );
+            REQUIRE( usesBackreference( "(?P<level>ERROR) (?P=level)" ) );
+            REQUIRE( usesBackreference( "(ERROR) \\g{1}" ) );
+            REQUIRE( usesBackreference( "(ERROR) \\g-1" ) );
+        }
+    }
+
+    GIVEN( "patterns in which a digit only looks like a backreference" )
+    {
+        THEN( "none of them is taken for one" )
+        {
+            REQUIRE_FALSE( usesBackreference( "ERROR" ) );
+            REQUIRE_FALSE( usesBackreference( "path\\\\1" ) );
+            REQUIRE_FALSE( usesBackreference( "\\d+ \\w+ \\s" ) );
+            REQUIRE_FALSE( usesBackreference( "\\x41\\0" ) );
+            REQUIRE_FALSE( usesBackreference( "[\\1-\\7]" ) );
+            REQUIRE_FALSE( usesBackreference( "\\Q(a) \\1\\E" ) );
+        }
+    }
+
+    GIVEN( "a pattern with a backreference" )
+    {
+        const RegularExpressionPattern pattern( "(ERROR) \\1" );
+
+        THEN( "it is compiled with capturing groups, so it is valid" )
+        {
+            const auto regexp = static_cast<QRegularExpression>( pattern );
+            REQUIRE( regexp.isValid() );
+            REQUIRE_FALSE(
+                regexp.patternOptions().testFlag( QRegularExpression::DontCaptureOption ) );
+        }
+    }
+
+    GIVEN( "a pattern without a backreference" )
+    {
+        const RegularExpressionPattern pattern( "(ERROR|WARN) happened" );
+
+        THEN( "it keeps the capture-free fast path" )
+        {
+            const auto regexp = static_cast<QRegularExpression>( pattern );
+            REQUIRE( regexp.isValid() );
+            REQUIRE( regexp.patternOptions().testFlag( QRegularExpression::DontCaptureOption ) );
+        }
+    }
+
+    GIVEN( "a plain-text pattern that spells out a backslash and a digit" )
+    {
+        const RegularExpressionPattern pattern( "(a) \\1", true, false, false, true );
+
+        THEN( "the escaped form decides, so it keeps the capture-free fast path" )
+        {
+            const auto regexp = static_cast<QRegularExpression>( pattern );
+            REQUIRE( regexp.isValid() );
+            REQUIRE( regexp.patternOptions().testFlag( QRegularExpression::DontCaptureOption ) );
+            REQUIRE( regexp.match( "(a) \\1" ).hasMatch() );
+        }
+    }
+}

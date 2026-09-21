@@ -472,3 +472,142 @@ SCENARIO( "Highlighter patterns Vectorscan rejects", "[regex][prefilter]" )
         }
     }
 }
+
+// Vectorscan takes no backreference, in prefilter mode no more than in its
+// normal one, so with that engine chosen the expression falls back to
+// QRegularExpression whole. Both engines are still exercised here: the
+// acceptance is that the Search matches whichever engine the user picked, and
+// the log of a run shows Vectorscan refusing the pattern twice before the
+// fallback takes it (#336).
+SCENARIO( "A Search pattern with a backreference matches on both engines", "[regex][backref]" )
+{
+    GIVEN( "a numbered backreference on each engine" )
+    {
+        for ( auto engine : { RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression } ) {
+            RegularExpression expression( makeRegex( "(ERROR) \\1" ), engine );
+            REQUIRE( expression.isValid() );
+
+            auto matcher = expression.createMatcher();
+
+            THEN( "a Log Line that repeats the captured text matches" )
+            {
+                REQUIRE( matcher->hasMatch( "2026-01-01 ERROR ERROR twice" ) );
+            }
+
+            THEN( "a Log Line that does not repeat it does not match" )
+            {
+                REQUIRE_FALSE( matcher->hasMatch( "2026-01-01 ERROR WARNING once" ) );
+                REQUIRE_FALSE( matcher->hasMatch( "2026-01-01 all quiet" ) );
+            }
+        }
+    }
+
+    GIVEN( "a named backreference on each engine" )
+    {
+        for ( auto engine : { RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression } ) {
+            RegularExpression expression( makeRegex( "(?<level>ERROR|WARN) \\k<level>" ), engine );
+            REQUIRE( expression.isValid() );
+
+            auto matcher = expression.createMatcher();
+
+            THEN( "the Log Line matches only where the same name comes back" )
+            {
+                REQUIRE( matcher->hasMatch( "WARN WARN here" ) );
+                REQUIRE_FALSE( matcher->hasMatch( "WARN ERROR here" ) );
+            }
+        }
+    }
+
+    GIVEN( "a case-insensitive backreference on each engine" )
+    {
+        for ( auto engine : { RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression } ) {
+            RegularExpression expression( makeRegex( "(error) \\1", false ), engine );
+            REQUIRE( expression.isValid() );
+
+            auto matcher = expression.createMatcher();
+
+            THEN( "case is ignored in the group and in what refers back to it" )
+            {
+                REQUIRE( matcher->hasMatch( "ERROR Error again" ) );
+                REQUIRE_FALSE( matcher->hasMatch( "ERROR warning" ) );
+            }
+        }
+    }
+
+    GIVEN( "an escaped backslash before a digit, which is no backreference" )
+    {
+        for ( auto engine : { RegexpEngine::Vectorscan, RegexpEngine::QRegularExpression } ) {
+            RegularExpression expression( makeRegex( "path\\\\1" ), engine );
+            REQUIRE( expression.isValid() );
+
+            auto matcher = expression.createMatcher();
+
+            THEN( "it matches the literal text it spells out" )
+            {
+                REQUIRE( matcher->hasMatch( "path\\1 taken" ) );
+                REQUIRE_FALSE( matcher->hasMatch( "path1 taken" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Highlighter pattern with a backreference matches", "[regex][backref][prefilter]" )
+{
+    GIVEN( "several patterns, one of them a backreference" )
+    {
+        MultiRegularExpression expression( { makeRegex( "(ERROR) \\1" ), makeRegex( "ERROR" ),
+                                             makeRegex( "(?<word>\\w+) \\k<word>" ) } );
+        REQUIRE( expression.isValid() );
+
+        auto matcher = expression.createMatcher();
+
+        THEN( "each pattern reports its own match" )
+        {
+            const auto repeated = matcher->match( "ERROR ERROR" );
+            REQUIRE( repeated.size() == 3 );
+            REQUIRE( repeated[ 0 ].second );
+            REQUIRE( repeated[ 1 ].second );
+            REQUIRE( repeated[ 2 ].second );
+
+            const auto single = matcher->match( "ERROR once" );
+            REQUIRE_FALSE( single[ 0 ].second );
+            REQUIRE( single[ 1 ].second );
+            REQUIRE_FALSE( single[ 2 ].second );
+        }
+    }
+}
+
+SCENARIO( "A MultiRegularExpression says whether its patterns compiled", "[regex][highlight]" )
+{
+    GIVEN( "patterns that all compile" )
+    {
+        MultiRegularExpression expression( { makeRegex( "ERROR" ), makeRegex( "WARN" ) } );
+
+        THEN( "it is valid" )
+        {
+            REQUIRE( expression.isValid() );
+        }
+    }
+
+    GIVEN( "a pattern no engine can compile" )
+    {
+        MultiRegularExpression expression( { makeRegex( "ERROR" ), makeRegex( "(unclosed" ) } );
+
+        THEN( "it is invalid and says why" )
+        {
+            REQUIRE_FALSE( expression.isValid() );
+            REQUIRE_FALSE( expression.errorString().isEmpty() );
+        }
+    }
+
+    GIVEN( "a backreference to a group that does not exist" )
+    {
+        MultiRegularExpression expression( { makeRegex( "(?<level>ERROR) \\k<other>" ) } );
+
+        THEN( "it is invalid instead of quietly matching nothing" )
+        {
+            REQUIRE_FALSE( expression.isValid() );
+            REQUIRE_FALSE( expression.errorString().isEmpty() );
+        }
+    }
+}
