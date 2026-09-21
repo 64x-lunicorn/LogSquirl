@@ -176,6 +176,21 @@ if(NOT (_stderr MATCHES "Main font is [^\n]+"))
   fail("a Search asked for debug output logs the Main Font without a font database")
 endif()
 
+# The tool reports its version and exits cleanly. It has no application
+# bundle, which is where this used to break: Qt's own version option prints
+# applicationVersion(), which nothing sets, and only macOS hid that for the
+# desktop application by falling back to the bundle's Info.plist (#368).
+run_grep(--version)
+if(NOT _result STREQUAL "0")
+  fail("--version exits with 0")
+endif()
+if(NOT (_stdout MATCHES "logsquirl_grep [0-9]+\\.[0-9]+"))
+  fail("--version names the tool and the version it was built as")
+endif()
+if(NOT (_stdout MATCHES "Built [0-9]"))
+  fail("--version reports the build date and the commit")
+endif()
+
 # No match is no failure.
 run_grep("${_log_file}" -e "no such text")
 if(NOT _result STREQUAL "0")

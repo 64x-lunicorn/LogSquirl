@@ -46,6 +46,11 @@
 
 ## Bug fixes
 
+- **`--version` says which version it is**: Asking either binary for its
+  version printed only its own name. The desktop application on macOS was the
+  one place it worked, and by accident: Qt fell back to the application
+  bundle's property list. Both binaries now report the version, the build date
+  and the commit they were built from (#368).
 - **`logsquirl_grep -d` prints its debug output**: Asking the command line
   tool for debug output aborted it instead. Reading the settings looked up the
   main font in the font database, which only the desktop application has, and
