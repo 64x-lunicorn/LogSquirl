@@ -133,6 +133,20 @@ add_test(
 
 
 
+# The version the binaries report is the one the project declares, leading zero
+# and all, whether the build was handed a version or left to CMakeLists.txt
+# (#372).
+add_test(
+    NAME version_as_declared
+    COMMAND ${CMAKE_COMMAND}
+            -DGREP=$<TARGET_FILE:logsquirl_grep>
+            -DPROJECT_DIR=${CMAKE_SOURCE_DIR}
+            "-DVERSION_OVERRIDE=${BUILD_VERSION}"
+            "-DVERSION_BUILD_NUMBER=${BUILD_NUMBER}"
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/version_as_declared
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/version_as_declared.cmake
+)
+
 # The command line tool, run as a user runs it on a temporary Log File: what it
 # prints and the code it exits with (#247).
 add_test(

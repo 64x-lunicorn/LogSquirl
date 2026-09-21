@@ -211,6 +211,14 @@
 
 ## Bug fixes
 
+- **A local build knows its own version**: A build made without a version in
+  the environment -- every build a developer makes -- called itself 26.7.0
+  while the release it was cut from is 26.07.0: CMake dropped the leading zero
+  of a version component below `cmake_minimum_required(VERSION 3.16)`, where
+  policy CMP0096 keeps it. The project now asks for 3.16, so `--version`, the
+  Windows resource and the handshake between two instances all spell the
+  version the way `CMakeLists.txt` does. Releases, which are handed their
+  version, were never affected (#372).
 - **`--version` says which version it is**: Asking either binary for its
   version printed only its own name. The desktop application on macOS was the
   one place it worked, and by accident: Qt fell back to the application
