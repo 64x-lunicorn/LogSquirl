@@ -214,7 +214,10 @@ void LogData::reload( QTextCodec* forcedEncoding )
     // Re-open the file, useful in case the file has been moved
     attached_file_->reOpenFile();
 
-    operationQueue_.enqueueOperation<FullReindexOperation>( forcedEncoding );
+    // The user asked for the Log File to be read again, so a cached Index is
+    // taken only while every byte it was built from is still the same (#337).
+    operationQueue_.enqueueOperation<FullReindexOperation>( FullIndexRequest::ExplicitReload,
+                                                            forcedEncoding );
 }
 
 void LogData::fileChangedOnDisk( const QString& filename )

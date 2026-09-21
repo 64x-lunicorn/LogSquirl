@@ -59,6 +59,13 @@
   backreference with nothing to refer to. Only a pattern that uses a
   backreference now captures, so every other pattern keeps the faster
   capture-free path (#336).
+- **Reloading a Log File reads it again**: A Log File rewritten in place with
+  the same size was still shown as it was indexed when its modification time
+  had not changed -- on a file system with coarse timestamps, or one that
+  writes the time late. Reloading it now compares every byte the Index was
+  built from, and reads the Log File again where they differ. Opening and
+  following a Log File are unchanged, and so is what following a growing one
+  costs (#337).
 - **`logsquirl_grep -d` prints its debug output**: Asking the command line
   tool for debug output aborted it instead. Reading the settings looked up the
   main font in the font database, which only the desktop application has, and

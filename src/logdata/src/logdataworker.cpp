@@ -298,7 +298,7 @@ void LogDataWorker::attachFile( const QString& fileName )
     fileName_ = fileName;
 }
 
-void LogDataWorker::indexAll( QTextCodec* forcedEncoding )
+void LogDataWorker::indexAll( QTextCodec* forcedEncoding, FullIndexRequest request )
 {
     ScopedLock locker( operationsMutex_ );
     operationsPool_.waitForDone();
@@ -308,16 +308,16 @@ void LogDataWorker::indexAll( QTextCodec* forcedEncoding )
              << ( forcedEncoding != nullptr ? forcedEncoding->name().toStdString()
                                             : std::string{ "none" } );
     QSemaphore operationStarted;
-    operationsPool_.start(
-        createRunnable( [ this, &operationStarted, forcedEncoding, fileName = fileName_,
-                          indexingPolicy = indexingPolicy_ ] {
-            LOG_INFO << "FullIndex thread started";
-            operationStarted.release();
-            ScopedLock operationLock( operationsMutex_ );
-            auto operationRequested = std::make_unique<FullIndexOperation>(
-                fileName, indexing_data_, interruptRequest_, indexingPolicy, forcedEncoding );
-            return connectSignalsAndRun( operationRequested.get() );
-        } ) );
+    operationsPool_.start( createRunnable( [ this, &operationStarted, forcedEncoding, request,
+                                             fileName = fileName_,
+                                             indexingPolicy = indexingPolicy_ ] {
+        LOG_INFO << "FullIndex thread started";
+        operationStarted.release();
+        ScopedLock operationLock( operationsMutex_ );
+        auto operationRequested = std::make_unique<FullIndexOperation>(
+            fileName, indexing_data_, interruptRequest_, indexingPolicy, request, forcedEncoding );
+        return connectSignalsAndRun( operationRequested.get() );
+    } ) );
     operationStarted.acquire();
 }
 
@@ -971,6 +971,32 @@ OperationResult IndexOperation::reportFailure( const QString& failure )
     return false;
 }
 
+DigestCoverage FullIndexOperation::cachedIndexCoverage() const
+{
+    // Following a Log File asks for no more than the header and tail, so what
+    // a growing Log File costs per change is what it was.
+    if ( request_ != FullIndexRequest::ExplicitReload ) {
+        return DigestCoverage::HeaderAndTail;
+    }
+
+    // Fast modification detection is the user saying they would rather not
+    // pay for reading a Log File again to find out that it did not change.
+    // No full digest is recorded then, so there is none to check against.
+    if ( indexingPolicy_.fastModificationDetection ) {
+        return DigestCoverage::HeaderAndTail;
+    }
+
+    // Reloading is the user asking for the Log File to be read again, so the
+    // bytes the cached Index was built from are read once more and checked
+    // against their full digest. That is the only way a rewrite in place with
+    // the same size is noticed where the file system's modification time is
+    // coarse or written late (#337). A Log File that grew is left to the
+    // header and tail: going on from the cached Index reads its indexed bytes
+    // again anyway, so checking them first would read them twice, and a
+    // change in a Log File that also grew is the risk #277 documented.
+    return DigestCoverage::FullUnlessGrown;
+}
+
 // Called in the worker thread's context
 OperationResult FullIndexOperation::doRun()
 {
@@ -984,7 +1010,7 @@ OperationResult FullIndexOperation::doRun()
     // The cache hands out an Index only while the bytes it was built from
     // are unchanged, complete for the size it was built at. Whether that
     // is all of the Log File, or it has grown since, is decided here.
-    auto cached = indexCache.tryLoad( fileName_ );
+    auto cached = indexCache.tryLoad( fileName_, cachedIndexCoverage() );
     const auto fileSize = cached ? QFileInfo( fileName_ ).size() : qint64{ 0 };
 
     if ( cached && cached->hash.size == fileSize ) {

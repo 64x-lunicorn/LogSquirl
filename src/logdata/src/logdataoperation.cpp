@@ -53,7 +53,7 @@ void AttachOperation::doStart( LogDataWorker& workerThread ) const
 void FullReindexOperation::doStart( LogDataWorker& workerThread ) const
 {
     LOG_INFO << "Reindexing (full)";
-    workerThread.indexAll( forcedEncoding_ );
+    workerThread.indexAll( forcedEncoding_, request_ );
 }
 
 void PartialReindexOperation::doStart( LogDataWorker& workerThread ) const

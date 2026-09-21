@@ -59,19 +59,20 @@ enum class IndexFit {
 enum class DigestCoverage {
     /// The header and tail digests: cheap however large the Log File, but a
     /// change in the middle of a Log File longer than two indexing blocks
-    /// goes unnoticed. Every recorded hash has them, so this is what the
-    /// Index Cache checks.
+    /// goes unnoticed. Every recorded hash has them, so this is what opening
+    /// or following a Log File asks the Index Cache for.
     HeaderAndTail,
     /// The full digest: every byte the Index was built from is read again.
     /// Only a hash recorded without fast modification detection has one.
     Full,
     /// The header and tail digests when the Log File has grown, the full
     /// digest otherwise. What following a Log File indexed without fast
-    /// modification detection asks: an append is told from the header and
-    /// tail alone, so a Log File growing by small appends is not read end to
-    /// end on every change. A Log File that grew while bytes between its
-    /// header and tail changed passes as Grown, the risk fast modification
-    /// detection takes on every check.
+    /// modification detection asks, and what an explicit reload asks the
+    /// Index Cache for (#337): an append is told from the header and tail
+    /// alone, so a Log File growing by small appends is not read end to end
+    /// on every change. A Log File that grew while bytes between its header
+    /// and tail changed passes as Grown, the risk fast modification detection
+    /// takes on every check.
     FullUnlessGrown,
 };
 

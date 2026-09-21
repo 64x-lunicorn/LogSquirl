@@ -174,11 +174,12 @@ struct IndexingRun {
     std::vector<int> progress;
 };
 
-IndexingRun runFullIndex( const QString& fileName, const IndexingPolicy& policy )
+IndexingRun runFullIndex( const QString& fileName, const IndexingPolicy& policy,
+                          FullIndexRequest request = FullIndexRequest::Automatic )
 {
     auto data = std::make_shared<IndexingData>();
     AtomicFlag interruptRequest;
-    FullIndexOperation operation{ fileName, data, interruptRequest, policy };
+    FullIndexOperation operation{ fileName, data, interruptRequest, policy, request };
 
     IndexingRun run;
     // Emitted from the indexing graph's serial parser or from the running
@@ -219,6 +220,16 @@ void overwriteByte( const QString& path, qint64 offset, char byte )
     REQUIRE( file.open( QIODevice::ReadWrite ) );
     REQUIRE( file.seek( offset ) );
     REQUIRE( file.write( &byte, 1 ) == 1 );
+}
+
+// Writes the bytes over those at offset, leaving the rest of the Log File --
+// its size included -- as it was.
+void overwriteBytes( const QString& path, qint64 offset, const QByteArray& bytes )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::ReadWrite ) );
+    REQUIRE( file.seek( offset ) );
+    REQUIRE( file.write( bytes ) == bytes.size() );
 }
 
 QByteArray linesOf( int first, int count, int paddingBytes = 0 )
@@ -803,6 +814,142 @@ SCENARIO( "Following a growing Log File reads only what was appended", "[indexin
             THEN( "the check tells it was truncated" )
             {
                 REQUIRE( index.checkForChanges() == MonitoredFileStatus::Truncated );
+            }
+        }
+    }
+}
+
+namespace {
+
+// Bytes with far more Log Lines in them than the ones they replace: as many
+// bytes, with a newline every hundred of them.
+QByteArray shortLinesOverSameBytes( qint64 size )
+{
+    QByteArray bytes( static_cast<qsizetype>( size ), 'r' );
+    for ( qint64 offset = 99; offset < size; offset += 100 ) {
+        bytes[ static_cast<qsizetype>( offset ) ] = '\n';
+    }
+    bytes[ static_cast<qsizetype>( size - 1 ) ] = '\n';
+    return bytes;
+}
+
+// The first Log Line of the run whose end lies past the offset.
+size_t lineEndingAfter( const IndexingRun& run, qint64 offset )
+{
+    const auto line
+        = std::upper_bound( run.endOfLines.begin(), run.endOfLines.end(), offset,
+                            []( qint64 value, OffsetInFile end ) { return value < end.get(); } );
+    return static_cast<size_t>( line - run.endOfLines.begin() );
+}
+
+} // namespace
+
+SCENARIO( "An explicit reload notices a Log File rewritten in place with the same size",
+          "[indexing][reload]" )
+{
+    QTemporaryDir cacheDir;
+    QTemporaryDir logDir;
+    REQUIRE( cacheDir.isValid() );
+    REQUIRE( logDir.isValid() );
+
+    auto policies = testSettingsPolicies();
+    policies.indexing.useIndexCache = true;
+    policies.indexing.indexCacheDirectory = cacheDir.path();
+    const auto policy = policies.indexing;
+
+    auto noCache = policy;
+    noCache.useIndexCache = false;
+
+    const auto logFile = logDir.filePath( "rewritten.log" );
+
+    GIVEN( "a cached Index of a Log File with bytes between its header and its tail" )
+    {
+        // Over two 5 MiB blocks, so the Index Cache's header and tail digests
+        // leave bytes in the middle they say nothing about.
+        writeContent( logFile, linesOf( 0, 11000, 1024 ) );
+        const auto cached = runFullIndex( logFile, policy );
+        REQUIRE( cached.lines.get() == 11000 );
+        REQUIRE( cached.hash.tailOffset > cached.hash.headerSize );
+
+        // The first Log Line that begins past the header, and a thousand
+        // after it: bytes no recorded digest covers.
+        const auto firstRewritten = lineEndingAfter( cached, cached.hash.headerSize ) + 1;
+        const auto rewrittenStart = cached.endOfLines[ firstRewritten - 1 ].get();
+        const auto rewrittenEnd = cached.endOfLines[ firstRewritten + 999 ].get();
+        REQUIRE( rewrittenStart > cached.hash.headerSize );
+        REQUIRE( rewrittenEnd < cached.hash.tailOffset );
+
+        WHEN( "it is followed as it grows" )
+        {
+            FollowedIndex index( logFile, policy );
+            const auto appended = linesOf( 11000, 300, 1000 );
+            appendContent( logFile, appended );
+
+            THEN( "only what was appended is read" )
+            {
+                REQUIRE( index.checkForChanges() == MonitoredFileStatus::DataAdded );
+                REQUIRE( index.indexAppendedLines() == appended.size() );
+            }
+        }
+
+        WHEN( "those bytes are rewritten in place, its size and modification time kept" )
+        {
+            const auto indexedSize = QFileInfo( logFile ).size();
+            const auto indexedTime = QFileInfo( logFile ).lastModified();
+
+            overwriteBytes( logFile, rewrittenStart,
+                            shortLinesOverSameBytes( rewrittenEnd - rewrittenStart ) );
+            // Setting the modification time back is the whole point: it is
+            // what a file system with coarse timestamps, or one that writes
+            // the time late, leaves the application with (#337).
+            setModificationTime( logFile, indexedTime );
+            REQUIRE( QFileInfo( logFile ).size() == indexedSize );
+            REQUIRE( QFileInfo( logFile ).lastModified() == indexedTime );
+
+            const auto rewritten = runFullIndex( logFile, noCache );
+            REQUIRE( rewritten.lines > cached.lines );
+
+            THEN( "an explicit reload reads the whole Log File again" )
+            {
+                const auto reloaded
+                    = runFullIndex( logFile, policy, FullIndexRequest::ExplicitReload );
+                REQUIRE( reloaded.bytesIndexed == reloaded.hash.size );
+                REQUIRE( reloaded.lines == rewritten.lines );
+            }
+
+            THEN( "opening it again reads no more than its header and tail" )
+            {
+                // The Index Cache's cheap check is what opening and following
+                // a Log File still cost: the rewrite goes unnoticed there.
+                const auto reopened = runFullIndex( logFile, policy );
+                REQUIRE( reopened.bytesIndexed == 0 );
+                REQUIRE( reopened.lines == cached.lines );
+            }
+
+            THEN( "with fast modification detection a reload keeps the cheap check" )
+            {
+                // That setting is the user asking not to pay for reading a
+                // Log File again, and no full digest is recorded under it.
+                auto fast = policy;
+                fast.fastModificationDetection = true;
+                const auto reloaded
+                    = runFullIndex( logFile, fast, FullIndexRequest::ExplicitReload );
+                REQUIRE( reloaded.bytesIndexed == 0 );
+            }
+
+            THEN( "an explicit reload shows the new Log Lines" )
+            {
+                LogData logData{ policy, policies.search, policies.fileAccess, policies.decoding };
+                attachAndWaitForIndexing( logData, logFile );
+                REQUIRE( logData.getNbLine() == cached.lines );
+
+                SafeQSignalSpy reloadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+                logData.reload();
+                REQUIRE( reloadEndSpy.safeWait( 20000 ) );
+
+                REQUIRE( logData.getNbLine() == rewritten.lines );
+                REQUIRE( logData.getLineString( LineNumber( firstRewritten ) )
+                         == QString( 99, QChar( 'r' ) ) );
             }
         }
     }
