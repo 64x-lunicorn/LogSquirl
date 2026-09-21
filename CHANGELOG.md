@@ -44,143 +44,6 @@
   do less work per line; Sentry's debug output is on only in debug builds
   (#304).
 
-## Bug fixes
-
-- **`--version` says which version it is**: Asking either binary for its
-  version printed only its own name. The desktop application on macOS was the
-  one place it worked, and by accident: Qt fell back to the application
-  bundle's property list. Both binaries now report the version, the build date
-  and the commit they were built from (#368).
-- **Backreferences in a pattern**: A pattern that refers back to one of its own
-  groups, such as `(ERROR) \1`, now finds the Log Lines that repeat the
-  captured text. A Search with one was refused as invalid, complaining about a
-  group that is plainly there, and a Color Label with one quietly colored
-  nothing: every pattern was compiled without capturing groups, which leaves a
-  backreference with nothing to refer to. Only a pattern that uses a
-  backreference now captures, so every other pattern keeps the faster
-  capture-free path (#336).
-- **Reloading a Log File reads it again**: A Log File rewritten in place with
-  the same size was still shown as it was indexed when its modification time
-  had not changed -- on a file system with coarse timestamps, or one that
-  writes the time late. Reloading it now compares every byte the Index was
-  built from, and reads the Log File again where they differ. Opening and
-  following a Log File are unchanged, and so is what following a growing one
-  costs (#337).
-- **`logsquirl_grep -d` prints its debug output**: Asking the command line
-  tool for debug output aborted it instead. Reading the settings looked up the
-  main font in the font database, which only the desktop application has, and
-  the log line that does so is written only once `-d` raises the log level --
-  so the flag had apparently never worked (#345).
-- **Log Lines are drawn in the font you chose**: At startup the main view drew
-  its Log Lines in the system UI font, in rows laid out for another font, so
-  each row painted over the descenders of the row above it. The view now draws
-  in the font it was given, whatever a Theme's stylesheet does to the widget's
-  own font (#354).
-- **The Viewport shows every column that fits**: A Log Line now runs to the
-  right edge of the Viewport instead of stopping a few characters short of it,
-  and a click lands on the character under the pointer however far right it
-  sits. Columns are measured with the advance the text is painted with, which
-  Qt counts in fractions of a pixel; measuring them in whole pixels lost a
-  fraction per column and whole characters across a Viewport (#352).
-- **Multi-frame .lz4 files**: A `.lz4` Log File made of several frames
-  (block-streamed output, concatenated files) opens completely instead of
-  stopping after the first frame, and a truncated or corrupt one reports an
-  error instead of loading partially (#325).
-- **A last Log Line that stopped matching**: When a Log File grows, its last
-  Log Line may have been incomplete when it was searched. If it matched then
-  and does not any more once it is complete — with an exclude pattern, say —
-  the Search drops its Match when it searches that Log Line again, and the
-  match count and the Filtered View follow instead of keeping a line that no
-  longer matches (#330).
-- **A Search superseded before it started**: A new Search that was superseded
-  before it got to run — several patterns typed in quick succession, say — left
-  the results of the Search before it in place. A Search continued right after
-  it, as one following a growing Log File is, then went on from those results
-  and showed the previous pattern's Matches beside its own; it now starts from
-  nothing and shows only the Matches of the pattern it runs (#331).
-- **Log Lines beyond 4 GiB within one block**: A Log File in which 128
-  consecutive Log Lines span 4 GiB or more (one very long Log Line is enough)
-  shows the right Log Lines; their positions in the Index are no longer
-  truncated to 32 bits, which showed wrong Log Lines in a Release build and
-  aborted a Debug build. The Index Cache format changes with it, so each Log
-  File is indexed once more after the update (#321).
-- **Main font**: Every Configuration uses the fixed-pitch main font style, not
-  only the first one created, so the saved font does not depend on which
-  settings were read first (#229).
-- **A chart keeps its zoom**: A chart that follows a growing Log File keeps the
-  view you zoomed or panned to instead of fitting the whole data again on every
-  append. It fits the view again when a series is added, edited or removed, a
-  preset is loaded, or you press Fit; a chart you never zoomed keeps following
-  the data as before (#329).
-- **Encoding in the grep command line tool**: `logsquirl_grep` reads its Log
-  File in the Encoding the application detects for it, or in the one the
-  settings force, instead of always reading it as ISO-8859-1. A UTF-8 Log Line
-  with non-ASCII text prints as it is in the Log File rather than
-  double-encoded, a UTF-16 or Latin-1 Log File prints as UTF-8 text, and a
-  pattern with non-ASCII text finds its matches (#326).
-- **Warnings of the grep command line tool**: `logsquirl_grep` writes its log
-  messages to stderr instead of stdout, so a warning such as "Non LF
-  terminated file" no longer lands between the matches. Its stdout carries
-  only the Log Lines the Search matched and can be piped into another tool;
-  the warnings are still shown, and `-d`/`--debug` writes its messages to
-  stderr too (#327).
-
-## Security
-
-- **OpenSSL on Windows**: The Windows installer and portable zip ship OpenSSL
-  3.5.8 LTS, which has no known vulnerabilities. LogSquirl 26.07.0 for Windows
-  bundles OpenSSL 3.6.2, with 28 known vulnerabilities, three of them
-  critical: CVE-2026-63073 (CVSS 9.8), CVE-2026-34182 (9.1) and
-  CVE-2026-75803 (9.1); Windows users of 26.07.0 should update (#225, #199).
-- **Update offers**: The update check offers a release only when its link in
-  the update feed points to a LogSquirl release page on GitHub; any other
-  link is ignored and logged (#222).
-- **Crash report tool**: The crash report dialog's minidump tool is
-  rust-minidump's `minidump-stackwalk`, downloaded at build time from a pinned
-  release, checked against its SHA-256 and listed in the release SBOM. It
-  replaces Breakpad executables of unknown origin that were committed to the
-  repository; the dialog shows a readable crash report with the stack of each
-  thread (#318).
-- **SBOM of the AppImage**: The release SBOM lists the Ubuntu packages of the
-  system libraries the AppImage bundles, with `pkg:deb` purls, so the
-  vulnerability scan covers them (#227).
-
-## Build and packaging
-
-- **Linux packages declare Qt**: The DEB and RPM packages depend on the
-  distribution's Qt 6 packages, with the Qt version LogSquirl is built with as
-  the minimum. On a distribution with an older Qt the package manager refuses
-  the install instead of LogSquirl failing to start; use the AppImage there.
-  The packages no longer ship CRoaring's static library and headers (#226).
-- **No fast math**: The build no longer uses `-ffast-math` / `/fp:fast`, so
-  chart aggregation follows IEEE floating point rules (#304).
-- **Packaging recipes pass options that exist**: The Arch recipe builds
-  `RelWithDebInfo` instead of the misspelled `RelWithDebugInfo`, which CMake
-  took as a build type of its own and so built without optimization and
-  without debug information; the Gentoo ebuild passes
-  `-DLOGSQUIRL_MIMALLOC_OVERRIDE=OFF` instead of the long-removed
-  `-DLOGSQUIRL_USE_MIMALLOC=OFF`. A test compares every `-D` option under
-  `packaging/` with the options the project declares, and every build type
-  with the ones CMake knows (#333).
-- **Hash-pinned Python tools**: Every pip install in CI and the build images
-  uses hash-locked requirements with `--require-hashes`, and aqtinstall runs
-  from a throwaway directory, so no stale Python packages (setuptools,
-  msgpack) stay in the images. Renovate keeps the requirements and their
-  hashes current (#317).
-
-## Internal
-
-- **Sentry release job**: Without a Sentry token the release's Sentry job
-  skips its steps and stays green; with one, a failing upload shows as a red
-  job (#228).
-- **CI hardening**: The install-check containers are digest-pinned and kept
-  current by Renovate, a weekly GHCR Cleanup workflow deletes build image
-  versions no CI run uses, and the website deploy verifies the FTPS server
-  certificate (#230).
-
-# v26.10.0-beta1 (2026-09-17)
-
-## Changes
 
 - **Themes are token sets**: Light, Dark and High Contrast are each defined
   by one set of named tokens, from which both the Qt palette and the
@@ -348,6 +211,86 @@
 
 ## Bug fixes
 
+- **`--version` says which version it is**: Asking either binary for its
+  version printed only its own name. The desktop application on macOS was the
+  one place it worked, and by accident: Qt fell back to the application
+  bundle's property list. Both binaries now report the version, the build date
+  and the commit they were built from (#368).
+- **Backreferences in a pattern**: A pattern that refers back to one of its own
+  groups, such as `(ERROR) \1`, now finds the Log Lines that repeat the
+  captured text. A Search with one was refused as invalid, complaining about a
+  group that is plainly there, and a Color Label with one quietly colored
+  nothing: every pattern was compiled without capturing groups, which leaves a
+  backreference with nothing to refer to. Only a pattern that uses a
+  backreference now captures, so every other pattern keeps the faster
+  capture-free path (#336).
+- **Reloading a Log File reads it again**: A Log File rewritten in place with
+  the same size was still shown as it was indexed when its modification time
+  had not changed -- on a file system with coarse timestamps, or one that
+  writes the time late. Reloading it now compares every byte the Index was
+  built from, and reads the Log File again where they differ. Opening and
+  following a Log File are unchanged, and so is what following a growing one
+  costs (#337).
+- **`logsquirl_grep -d` prints its debug output**: Asking the command line
+  tool for debug output aborted it instead. Reading the settings looked up the
+  main font in the font database, which only the desktop application has, and
+  the log line that does so is written only once `-d` raises the log level --
+  so the flag had apparently never worked (#345).
+- **Log Lines are drawn in the font you chose**: At startup the main view drew
+  its Log Lines in the system UI font, in rows laid out for another font, so
+  each row painted over the descenders of the row above it. The view now draws
+  in the font it was given, whatever a Theme's stylesheet does to the widget's
+  own font (#354).
+- **The Viewport shows every column that fits**: A Log Line now runs to the
+  right edge of the Viewport instead of stopping a few characters short of it,
+  and a click lands on the character under the pointer however far right it
+  sits. Columns are measured with the advance the text is painted with, which
+  Qt counts in fractions of a pixel; measuring them in whole pixels lost a
+  fraction per column and whole characters across a Viewport (#352).
+- **Multi-frame .lz4 files**: A `.lz4` Log File made of several frames
+  (block-streamed output, concatenated files) opens completely instead of
+  stopping after the first frame, and a truncated or corrupt one reports an
+  error instead of loading partially (#325).
+- **A last Log Line that stopped matching**: When a Log File grows, its last
+  Log Line may have been incomplete when it was searched. If it matched then
+  and does not any more once it is complete — with an exclude pattern, say —
+  the Search drops its Match when it searches that Log Line again, and the
+  match count and the Filtered View follow instead of keeping a line that no
+  longer matches (#330).
+- **A Search superseded before it started**: A new Search that was superseded
+  before it got to run — several patterns typed in quick succession, say — left
+  the results of the Search before it in place. A Search continued right after
+  it, as one following a growing Log File is, then went on from those results
+  and showed the previous pattern's Matches beside its own; it now starts from
+  nothing and shows only the Matches of the pattern it runs (#331).
+- **Log Lines beyond 4 GiB within one block**: A Log File in which 128
+  consecutive Log Lines span 4 GiB or more (one very long Log Line is enough)
+  shows the right Log Lines; their positions in the Index are no longer
+  truncated to 32 bits, which showed wrong Log Lines in a Release build and
+  aborted a Debug build. The Index Cache format changes with it, so each Log
+  File is indexed once more after the update (#321).
+- **Main font**: Every Configuration uses the fixed-pitch main font style, not
+  only the first one created, so the saved font does not depend on which
+  settings were read first (#229).
+- **A chart keeps its zoom**: A chart that follows a growing Log File keeps the
+  view you zoomed or panned to instead of fitting the whole data again on every
+  append. It fits the view again when a series is added, edited or removed, a
+  preset is loaded, or you press Fit; a chart you never zoomed keeps following
+  the data as before (#329).
+- **Encoding in the grep command line tool**: `logsquirl_grep` reads its Log
+  File in the Encoding the application detects for it, or in the one the
+  settings force, instead of always reading it as ISO-8859-1. A UTF-8 Log Line
+  with non-ASCII text prints as it is in the Log File rather than
+  double-encoded, a UTF-16 or Latin-1 Log File prints as UTF-8 text, and a
+  pattern with non-ASCII text finds its matches (#326).
+- **Warnings of the grep command line tool**: `logsquirl_grep` writes its log
+  messages to stderr instead of stdout, so a warning such as "Non LF
+  terminated file" no longer lands between the matches. Its stdout carries
+  only the Log Lines the Search matched and can be piped into another tool;
+  the warnings are still shown, and `-d`/`--debug` writes its messages to
+  stderr too (#327).
+
+
 - **Multi-frame .zst files**: A `.zst` Log File made of several frames opens completely, and a truncated
   one reports an error.
 - **Match count**: The match count stays exact while a Search follows a growing Log File.
@@ -479,6 +422,25 @@
 
 ## Security
 
+- **OpenSSL on Windows**: The Windows installer and portable zip ship OpenSSL
+  3.5.8 LTS, which has no known vulnerabilities. LogSquirl 26.07.0 for Windows
+  bundles OpenSSL 3.6.2, with 28 known vulnerabilities, three of them
+  critical: CVE-2026-63073 (CVSS 9.8), CVE-2026-34182 (9.1) and
+  CVE-2026-75803 (9.1); Windows users of 26.07.0 should update (#225, #199).
+- **Update offers**: The update check offers a release only when its link in
+  the update feed points to a LogSquirl release page on GitHub; any other
+  link is ignored and logged (#222).
+- **Crash report tool**: The crash report dialog's minidump tool is
+  rust-minidump's `minidump-stackwalk`, downloaded at build time from a pinned
+  release, checked against its SHA-256 and listed in the release SBOM. It
+  replaces Breakpad executables of unknown origin that were committed to the
+  repository; the dialog shows a readable crash report with the stack of each
+  thread (#318).
+- **SBOM of the AppImage**: The release SBOM lists the Ubuntu packages of the
+  system libraries the AppImage bundles, with `pkg:deb` purls, so the
+  vulnerability scan covers them (#227).
+
+
 - **Qt 6.11.2**: All packages are built with Qt 6.11.2 instead of 6.10.3,
   and the Windows, macOS and AppImage packages bundle it. It fixes
   CVE-2026-9499 (Qt5Compat), CVE-2026-19248 (Qt XML), CVE-2026-76151 (Qt
@@ -541,6 +503,28 @@
 
 ## Build and packaging
 
+- **Linux packages declare Qt**: The DEB and RPM packages depend on the
+  distribution's Qt 6 packages, with the Qt version LogSquirl is built with as
+  the minimum. On a distribution with an older Qt the package manager refuses
+  the install instead of LogSquirl failing to start; use the AppImage there.
+  The packages no longer ship CRoaring's static library and headers (#226).
+- **No fast math**: The build no longer uses `-ffast-math` / `/fp:fast`, so
+  chart aggregation follows IEEE floating point rules (#304).
+- **Packaging recipes pass options that exist**: The Arch recipe builds
+  `RelWithDebInfo` instead of the misspelled `RelWithDebugInfo`, which CMake
+  took as a build type of its own and so built without optimization and
+  without debug information; the Gentoo ebuild passes
+  `-DLOGSQUIRL_MIMALLOC_OVERRIDE=OFF` instead of the long-removed
+  `-DLOGSQUIRL_USE_MIMALLOC=OFF`. A test compares every `-D` option under
+  `packaging/` with the options the project declares, and every build type
+  with the ones CMake knows (#333).
+- **Hash-pinned Python tools**: Every pip install in CI and the build images
+  uses hash-locked requirements with `--require-hashes`, and aqtinstall runs
+  from a throwaway directory, so no stale Python packages (setuptools,
+  msgpack) stay in the images. Renovate keeps the requirements and their
+  hashes current (#317).
+
+
 - **Fedora 44**: The installation of the Fedora RPM is now tested on
   Fedora 44, the release it is built on, instead of on Fedora 43.
 - **Qt 6.11 build requirements**: Building with Qt 6.11 needs the
@@ -572,6 +556,15 @@
   published release, 26.06.1.
 
 ## Internal
+
+- **Sentry release job**: Without a Sentry token the release's Sentry job
+  skips its steps and stays green; with one, a failing upload shows as a red
+  job (#228).
+- **CI hardening**: The install-check containers are digest-pinned and kept
+  current by Renovate, a weekly GHCR Cleanup workflow deletes build image
+  versions no CI run uses, and the website deploy verifies the FTPS server
+  certificate (#230).
+
 
 - **Plugin Catalog and Plugin Host**: The former plugin manager class is split
   in two. `PluginCatalog` finds the installed plugins from their manifests
