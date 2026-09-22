@@ -496,6 +496,20 @@ Manual releases, e.g. to re-run a release, are also supported via
 as input. The optional CI Build run ID must name the successful push run on
 master for the tagged commit; without it, that run is found as for a tag push.
 
+#### Homebrew tap
+
+macOS users on Apple Silicon (macOS 15 or later; there is no Intel build) can install LogSquirl with
+`brew install --cask 64x-lunicorn/tap/logsquirl`. The cask is
+`Casks/logsquirl.rb` in [`64x-lunicorn/homebrew-tap`](https://github.com/64x-lunicorn/homebrew-tap), a repository
+of its own because only a repository named `homebrew-*` can be tapped by that short name. The official
+`homebrew/cask` does not accept LogSquirl yet (its notability threshold); once it does, the cask moves there.
+
+The app does not update itself, so the cask declares no `auto_updates` and `brew upgrade` is how cask users get a
+new release. That makes a stale cask a stale install: after every stable release (never a beta), set `version` and
+`sha256` in the cask to the release and its `logsquirl-mac-arm64.dmg`. Take the hash of the published asset
+(`shasum -a 256` of the download): the checksum file lists no macOS package, because it is written before the DMG
+is signed. Check the change with `brew audit --cask --strict --online` before pushing it to the tap.
+
 #### Secrets and environments
 
 The signing and upload secrets are not repository secrets but secrets of GitHub
@@ -504,7 +518,7 @@ for the refs its deployment policy admits:
 
 | Environment | Deployment policy | Secrets | Jobs |
 |-------------|-------------------|---------|------|
-| `release` | tags `v*` | `MACOS_P12_FILE`, `MACOS_P12_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `SENTRY_TOKEN` | CI Release `sign-mac`, `sentry` |
+| `release` | tags `v*` | `MACOS_P12_FILE`, `MACOS_P12_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `SENTRY_TOKEN`, `HOMEBREW_TAP_DEPLOY_KEY` | CI Release `sign-mac`, `sentry`; the tap's deploy key (write access to `homebrew-tap` only) has no job yet |
 | `website` | branch `master` | `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` | Deploy Website `deploy` |
 
 CI Build never signs and references no signing secret: a pull request, a push

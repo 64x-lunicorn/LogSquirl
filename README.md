@@ -55,7 +55,16 @@ and choose the package for your platform.
 
 | Windows | macOS | Linux |
 | :--- | :--- | :--- |
-| NSIS installer | `.pkg` installer | AppImage, DEB, or RPM |
+| NSIS installer | DMG (Apple Silicon) | AppImage, DEB, or RPM |
+
+On a Mac, you can also install it with [Homebrew](https://brew.sh/) and keep it up to date with
+`brew upgrade`:
+
+```sh
+brew install --cask 64x-lunicorn/tap/logsquirl
+```
+
+The macOS build needs Apple Silicon and macOS 15 or later; there is no build for Intel Macs.
 
 See the release notes for package details and platform requirements. The DEB and
 RPM packages use your distribution's Qt and install only when it is at least the Qt

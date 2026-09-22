@@ -2,6 +2,11 @@
 
 ## Changes
 
+- **Homebrew**: On a Mac, `brew install --cask 64x-lunicorn/tap/logsquirl`
+  installs LogSquirl from its own Homebrew tap, and `brew upgrade` updates
+  it. The cask installs the same signed and notarized DMG as the release
+  page, for Apple Silicon and macOS 15 or later; `brew uninstall --zap`
+  also removes settings, caches, formats and plugins (#377).
 - **Windows Search uses AVX2 where the CPU has it**: The release build ships
   Hyperscan twice, as `hs.dll` for SSE4.2 and `hs_avx2.dll` built with
   `/arch:AVX2`, and loads the one the CPU supports at the first Search;
