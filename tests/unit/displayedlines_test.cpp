@@ -80,6 +80,49 @@ DisplayedLines displayedLinesOf( LogFile& logFile, int contextLinesCount )
                            contextLinesCount };
 }
 
+// The matches deltas a Search Session hands over. Each holds on to the
+// bitmaps it is given, so it is applied within the expression that makes it.
+using Outcome = MatchesDelta::Outcome;
+const SearchResultArray NoMatches;
+
+// While a Search runs or when it stopped: the Matches were replaced.
+MatchesDelta arrived()
+{
+    return MatchesDelta{ Outcome::Arrived, nullptr, NoMatches };
+}
+// While a Search runs or when it stopped: the Matches grew by added.
+MatchesDelta arrived( const SearchResultArray& added )
+{
+    return MatchesDelta{ Outcome::Arrived, &added, NoMatches };
+}
+// While a Search continued over a grown Log File runs: the Matches grew by
+// added and lost removed.
+MatchesDelta arrived( const SearchResultArray& added, const SearchResultArray& removed )
+{
+    return MatchesDelta{ Outcome::Arrived, &added, removed };
+}
+// The Matches lost removed, and nothing arrived with it.
+MatchesDelta removed( const SearchResultArray& removed )
+{
+    return arrived( NoMatches, removed );
+}
+// The Search completed with Matches that replaced the previous ones: a fresh
+// run reporting all of them, or a cache hit.
+MatchesDelta completed()
+{
+    return MatchesDelta{ Outcome::Completed, nullptr, NoMatches };
+}
+// The Search completed after the Matches grew by added.
+MatchesDelta completed( const SearchResultArray& added )
+{
+    return MatchesDelta{ Outcome::Completed, &added, NoMatches };
+}
+// The Search was cleared, its pattern was invalid or it failed.
+MatchesDelta discarded()
+{
+    return MatchesDelta{ Outcome::Discarded, nullptr, NoMatches };
+}
+
 } // namespace
 
 SCENARIO( "The Displayed Lines combine Matches and Marks", "[displayedlines]" )
@@ -87,7 +130,7 @@ SCENARIO( "The Displayed Lines combine Matches and Marks", "[displayedlines]" )
     LogFile logFile;
     logFile.matches = bitmapOf( { 10, 20, 30 } );
     auto displayed = displayedLinesOf( logFile, 0 );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
     displayed.addMark( 15_lnum, 0_length );
     displayed.addMark( 20_lnum, 0_length );
 
@@ -132,7 +175,7 @@ SCENARIO( "The Displayed Lines map positions to Log Lines and back", "[displayed
     LogFile logFile;
     logFile.matches = bitmapOf( { 3, 7, 50 } );
     auto displayed = displayedLinesOf( logFile, 1 );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
     displayed.addMark( 90_lnum, 0_length );
     displayed.setShown( Everything );
 
@@ -195,7 +238,7 @@ SCENARIO( "The Displayed Lines are walked from a position", "[displayedlines]" )
     LogFile logFile;
     logFile.matches = bitmapOf( { 3, 7, 50 } );
     auto displayed = displayedLinesOf( logFile, 1 );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
     displayed.addMark( 90_lnum, 0_length );
     displayed.setShown( Everything );
 
@@ -325,7 +368,7 @@ SCENARIO( "The Displayed Lines compute Context Lines around Matches and Marks", 
     logFile.matches = bitmapOf( { 1, 20 } );
     auto displayed = displayedLinesOf( logFile, 2 );
     displayed.setShown( Everything );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
 
     THEN( "Context Lines surround each Match, within the Log File" )
     {
@@ -381,7 +424,7 @@ SCENARIO( "The Displayed Lines compute Context Lines around Matches and Marks", 
     WHEN( "the Search is discarded" )
     {
         logFile.matches = SearchResultArray{};
-        displayed.searchDiscarded();
+        displayed.apply( discarded() );
 
         THEN( "neither Matches nor their Context Lines are displayed" )
         {
@@ -396,7 +439,7 @@ SCENARIO( "The Displayed Lines keep their Marks", "[displayedlines]" )
     LogFile logFile;
     logFile.matches = bitmapOf( { 10 } );
     auto displayed = displayedLinesOf( logFile, 0 );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
 
     WHEN( "Marks are added" )
     {
@@ -454,7 +497,7 @@ SCENARIO( "The Displayed Lines keep the length of every Mark with the Mark",
     LogFile logFile;
     logFile.matches = bitmapOf( { 10 } );
     auto displayed = displayedLinesOf( logFile, 0 );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
 
     THEN( "without Marks the widest line is the longest Match" )
     {
@@ -602,20 +645,20 @@ SCENARIO( "The Displayed Lines follow new Matches arriving", "[displayedlines]" 
     auto displayed = displayedLinesOf( logFile, 1 );
     displayed.setShown( Everything );
     displayed.addMark( 50_lnum, 0_length );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
     REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 49, 50, 51 } );
 
     WHEN( "a Search in progress finds more Matches" )
     {
         logFile.matches.add( uint64_t{ 30 } );
-        displayed.matchesArrived();
+        displayed.apply( arrived() );
 
         THEN( "they are displayed at once, their Context Lines once the Search completes" )
         {
             REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 30, 49, 50, 51 } );
             REQUIRE( displayed.positionOf( 30_lnum ) == 3_lnum );
 
-            displayed.searchCompleted();
+            displayed.apply( completed() );
             REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 29, 30, 31, 49, 50, 51 } );
         }
     }
@@ -624,7 +667,7 @@ SCENARIO( "The Displayed Lines follow new Matches arriving", "[displayedlines]" 
     {
         displayed.setShown( LineTypeFlags::Match );
         logFile.matches.add( uint64_t{ 70 } );
-        displayed.matchesArrived();
+        displayed.apply( arrived() );
 
         THEN( "they are displayed" )
         {
@@ -643,14 +686,14 @@ SCENARIO( "The Displayed Lines drop a Match that stopped matching", "[displayedl
     logFile.matches = bitmapOf( { 10, 30 } );
     auto displayed = displayedLinesOf( logFile, 1 );
     displayed.setShown( Everything );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
     REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 29, 30, 31 } );
 
     WHEN( "the Match is removed" )
     {
         const auto rewritesBefore = displayed.rewrites();
         logFile.matches.remove( uint64_t{ 30 } );
-        displayed.matchesRemoved( bitmapOf( { 30 } ) );
+        displayed.apply( removed( bitmapOf( { 30 } ) ) );
 
         THEN( "neither it nor its Context Lines are displayed any more" )
         {
@@ -665,7 +708,7 @@ SCENARIO( "The Displayed Lines drop a Match that stopped matching", "[displayedl
     {
         displayed.addMark( 31_lnum, 0_length );
         logFile.matches.remove( uint64_t{ 30 } );
-        displayed.matchesRemoved( bitmapOf( { 30 } ) );
+        displayed.apply( removed( bitmapOf( { 30 } ) ) );
 
         THEN( "it stays displayed as the Mark's Context Line" )
         {
@@ -678,7 +721,7 @@ SCENARIO( "The Displayed Lines drop a Match that stopped matching", "[displayedl
     {
         displayed.addMark( 30_lnum, 0_length );
         logFile.matches.remove( uint64_t{ 30 } );
-        displayed.matchesRemoved( bitmapOf( { 30 } ) );
+        displayed.apply( removed( bitmapOf( { 30 } ) ) );
 
         THEN( "it stays displayed as a Mark, with its Context Lines" )
         {
@@ -690,7 +733,7 @@ SCENARIO( "The Displayed Lines drop a Match that stopped matching", "[displayedl
     WHEN( "nothing is removed" )
     {
         const auto rewritesBefore = displayed.rewrites();
-        displayed.matchesRemoved( SearchResultArray{} );
+        displayed.apply( removed( SearchResultArray{} ) );
 
         THEN( "nothing changes" )
         {
@@ -776,8 +819,8 @@ struct IncrementalAndRebuilt {
     void matchesArrived( const SearchResultArray& newMatches )
     {
         logFile.matches |= newMatches;
-        incremental.matchesArrived( newMatches );
-        rebuilt.matchesArrived();
+        incremental.apply( arrived( newMatches ) );
+        rebuilt.apply( arrived() );
     }
 
     // Log Lines that were Matches are none any more: the previously last Log
@@ -787,30 +830,30 @@ struct IncrementalAndRebuilt {
     void matchesRemoved( const SearchResultArray& removedMatches )
     {
         logFile.matches -= removedMatches;
-        incremental.matchesRemoved( removedMatches );
-        rebuilt.searchCompleted();
+        incremental.apply( removed( removedMatches ) );
+        rebuilt.apply( completed() );
     }
 
     // Another Search replaced the Matches: neither is told by how much.
     void matchesReplaced( SearchResultArray matches )
     {
         logFile.matches = std::move( matches );
-        incremental.matchesArrived();
-        rebuilt.matchesArrived();
+        incremental.apply( arrived() );
+        rebuilt.apply( arrived() );
     }
 
     void searchDiscarded()
     {
         logFile.matches = SearchResultArray{};
-        incremental.searchDiscarded();
-        rebuilt.searchDiscarded();
+        incremental.apply( discarded() );
+        rebuilt.apply( discarded() );
     }
 
     void searchCompleted( const SearchResultArray& newMatches )
     {
         logFile.matches |= newMatches;
-        incremental.searchCompleted( newMatches );
-        rebuilt.searchCompleted();
+        incremental.apply( completed( newMatches ) );
+        rebuilt.apply( completed() );
     }
 
     void toggleMark( uint64_t line )
@@ -1063,7 +1106,7 @@ SCENARIO( "The Displayed Lines count the Matches and the other Log Lines in a ra
     LogFile logFile;
     logFile.matches = bitmapOf( { 10, 20, 30, 40 } );
     auto displayed = displayedLinesOf( logFile, 1 );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
     displayed.addMark( 20_lnum, 0_length );
     displayed.addMark( 25_lnum, 0_length );
     displayed.addMark( 60_lnum, 0_length );
@@ -1116,7 +1159,7 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
     LogFile logFile;
     logFile.matches = bitmapOf( { 10, 20 } );
     auto displayed = displayedLinesOf( logFile, 0 );
-    displayed.searchCompleted();
+    displayed.apply( completed() );
     displayed.addMark( 30_lnum, 0_length );
     auto rewrites = displayed.rewrites();
 
@@ -1124,7 +1167,7 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
     {
         const auto newMatches = bitmapOf( { 40, 50 } );
         logFile.matches |= newMatches;
-        displayed.matchesArrived( newMatches );
+        displayed.apply( arrived( newMatches ) );
 
         THEN( "it is no rewrite, and neither is completing the Search after more of them" )
         {
@@ -1132,7 +1175,7 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
 
             const auto lastMatches = bitmapOf( { 60 } );
             logFile.matches |= lastMatches;
-            displayed.searchCompleted( lastMatches );
+            displayed.apply( completed( lastMatches ) );
             REQUIRE( displayed.rewrites() == rewrites );
             REQUIRE( linesOf( displayed.lines() ) == Lines{ 10, 20, 30, 40, 50, 60 } );
         }
@@ -1142,7 +1185,7 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
     {
         const auto newMatches = bitmapOf( { 25, 40 } );
         logFile.matches |= newMatches;
-        displayed.matchesArrived( newMatches );
+        displayed.apply( arrived( newMatches ) );
 
         THEN( "it is a rewrite" )
         {
@@ -1153,7 +1196,7 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
     WHEN( "the Matches are replaced" )
     {
         logFile.matches = bitmapOf( { 50 } );
-        displayed.matchesArrived();
+        displayed.apply( arrived() );
 
         THEN( "it is a rewrite" )
         {
@@ -1171,6 +1214,113 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
             rewrites = displayed.rewrites();
             displayed.setShown( Everything );
             REQUIRE( displayed.rewrites() != rewrites );
+        }
+    }
+}
+
+SCENARIO( "The Displayed Lines apply the matches deltas of a Search", "[displayedlines]" )
+{
+    // The deltas in the order a Search Session hands them over, applied
+    // without a Session, an event loop or a worker.
+    LogFile logFile;
+    auto displayed = displayedLinesOf( logFile, 1 );
+    displayed.setShown( Everything );
+    displayed.addMark( 50_lnum, 0_length );
+    // An earlier Search completed without a Match: the Mark has its Context
+    // Lines.
+    displayed.apply( completed() );
+    REQUIRE( linesOf( displayed.lines() ) == Lines{ 49, 50, 51 } );
+
+    WHEN( "a Search starts and its first Matches arrive" )
+    {
+        // A fresh run replaces the Matches before it finds any.
+        displayed.apply( arrived() );
+        const auto first = bitmapOf( { 10, 30 } );
+        logFile.matches |= first;
+        displayed.apply( arrived( first ) );
+
+        THEN( "they are displayed as Matches, without Context Lines yet" )
+        {
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 10, 30, 49, 50, 51 } );
+            REQUIRE( displayed.lineType( 10_lnum ) == LineType{ LineTypeFlags::Match } );
+            REQUIRE( displayed.lineType( 11_lnum ) == LineType{ LineTypeFlags::Plain } );
+            REQUIRE( displayed.lineType( 49_lnum ) == LineType{ LineTypeFlags::Context } );
+        }
+
+        AND_WHEN( "more arrive together with the removal of one of them" )
+        {
+            const auto added = bitmapOf( { 70 } );
+            const auto gone = bitmapOf( { 30 } );
+            logFile.matches |= added;
+            logFile.matches -= gone;
+            displayed.apply( arrived( added, gone ) );
+
+            THEN( "the removed one is gone, and the Context Lines follow at once" )
+            {
+                // A Match that is gone must not keep Context Lines nothing
+                // reaches any more, so they come up to date around every Match
+                // there is, the ones that arrived with the removal included.
+                REQUIRE( linesOf( displayed.lines() )
+                         == Lines{ 9, 10, 11, 49, 50, 51, 69, 70, 71 } );
+                REQUIRE( displayed.lineType( 30_lnum ) == LineType{ LineTypeFlags::Plain } );
+                REQUIRE( displayed.lineType( 70_lnum ) == LineType{ LineTypeFlags::Match } );
+            }
+
+            AND_WHEN( "the Search completes with its last Matches" )
+            {
+                const auto last = bitmapOf( { 90 } );
+                logFile.matches |= last;
+                displayed.apply( completed( last ) );
+
+                THEN( "every Match has its Context Lines" )
+                {
+                    REQUIRE( linesOf( displayed.lines() )
+                             == Lines{ 9, 10, 11, 49, 50, 51, 69, 70, 71, 89, 90, 91 } );
+                    REQUIRE( displayed.lineType( 11_lnum ) == LineType{ LineTypeFlags::Context } );
+                    REQUIRE( displayed.lineType( 90_lnum ) == LineType{ LineTypeFlags::Match } );
+                    REQUIRE( displayed.lineType( 29_lnum ) == LineType{ LineTypeFlags::Plain } );
+                }
+            }
+        }
+
+        AND_WHEN( "the Search completes with a removal and nothing new" )
+        {
+            const auto gone = bitmapOf( { 10 } );
+            logFile.matches -= gone;
+            displayed.apply( MatchesDelta{ Outcome::Completed, &NoMatches, gone } );
+
+            THEN( "the Matches left have their Context Lines, the removed one none" )
+            {
+                REQUIRE( linesOf( displayed.lines() ) == Lines{ 29, 30, 31, 49, 50, 51 } );
+                REQUIRE( displayed.lineType( 10_lnum ) == LineType{ LineTypeFlags::Plain } );
+            }
+        }
+    }
+
+    WHEN( "a Search completes from the cache" )
+    {
+        logFile.matches = bitmapOf( { 20, 60 } );
+        displayed.apply( completed() );
+
+        THEN( "its Matches are displayed with their Context Lines" )
+        {
+            REQUIRE( linesOf( displayed.lines() ) == Lines{ 19, 20, 21, 49, 50, 51, 59, 60, 61 } );
+            REQUIRE( displayed.lineType( 60_lnum ) == LineType{ LineTypeFlags::Match } );
+            REQUIRE( displayed.lineType( 61_lnum ) == LineType{ LineTypeFlags::Context } );
+        }
+
+        AND_WHEN( "the Search is discarded" )
+        {
+            logFile.matches = SearchResultArray{};
+            displayed.apply( discarded() );
+
+            THEN( "only the Mark is displayed, without Context Lines" )
+            {
+                REQUIRE( linesOf( displayed.lines() ) == Lines{ 50 } );
+                REQUIRE( displayed.lineType( 20_lnum ) == LineType{ LineTypeFlags::Plain } );
+                REQUIRE( displayed.lineType( 49_lnum ) == LineType{ LineTypeFlags::Plain } );
+                REQUIRE( displayed.lineType( 50_lnum ) == LineType{ LineTypeFlags::Mark } );
+            }
         }
     }
 }

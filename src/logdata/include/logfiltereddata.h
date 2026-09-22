@@ -175,11 +175,9 @@ public:
 Q_SIGNALS:
     // Sent whenever the Search Session's state changes: on progress, on
     // completion (from a real run or from cache), when stopped, when
-    // going idle, or when the pattern fails to compile.
+    // going idle, or when the pattern fails to compile. The Displayed Lines
+    // have followed the Matches by then.
     void searchStateChanged( SearchSession::State state );
-
-private Q_SLOTS:
-    void handleSessionStateChanged( SearchSession::State state );
 
 private:
     // Implementation of virtual functions

@@ -591,6 +591,16 @@
 
 ## Internal
 
+- **The Search Session hands the Displayed Lines a matches delta**: With
+  every state change the Search Session calls one callback, synchronously and
+  right before it reports the change, with what changed in its Matches: the
+  outcome (discarded, arrived or completed), the Matches added (none when they
+  were replaced) and those removed, pointing into its own bitmaps for the
+  length of that call. The Displayed Lines apply it in one call. The two
+  getters that were valid only while the state change was being reported, and
+  the switch over the Search's phase in the log filtered data, are gone; no
+  bitmap is copied and the callback runs on the thread the state change
+  always did (#400).
 - **The Displayed Lines keep the length of every Mark**: A Mark is added with
   the length of its Log Line, and when Log Lines change from some line on the
   Displayed Lines read the lengths of the Marks from there again through a

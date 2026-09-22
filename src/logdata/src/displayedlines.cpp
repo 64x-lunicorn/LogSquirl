@@ -56,6 +56,38 @@ void DisplayedLines::setContextLinesCount( int contextLinesCount )
     refreshLines();
 }
 
+void DisplayedLines::apply( const MatchesDelta& delta )
+{
+    // A Log Line that stopped matching -- the previously last one of a grown
+    // Log File, searched again once it was complete -- leaves the Matches
+    // before those that arrived with it join them.
+    matchesRemoved( delta.removed );
+
+    switch ( delta.outcome ) {
+    case MatchesDelta::Outcome::Discarded:
+        searchDiscarded();
+        break;
+    case MatchesDelta::Outcome::Arrived:
+        if ( delta.added != nullptr ) {
+            matchesArrived( *delta.added );
+        }
+        else {
+            matchesArrived();
+        }
+        break;
+    case MatchesDelta::Outcome::Completed:
+        // From a real run or from the cache alike, so Context Lines never
+        // belong to whatever ran previously.
+        if ( delta.added != nullptr ) {
+            searchCompleted( *delta.added );
+        }
+        else {
+            searchCompleted();
+        }
+        break;
+    }
+}
+
 void DisplayedLines::matchesArrived()
 {
     // Whatever the Context Lines were built around may be gone.

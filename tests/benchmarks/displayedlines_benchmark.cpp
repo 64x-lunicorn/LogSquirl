@@ -24,7 +24,9 @@
 //
 // Builds on origin/master too: where the Displayed Lines cannot take the new
 // Matches (before #292), each step tells them only that the Matches changed,
-// which is what the Filtered View did then. See tests/benchmarks/README.md.
+// which is what the Filtered View did then; where they take no matches delta
+// (before #400), they are told by one call per phase. See
+// tests/benchmarks/README.md.
 
 #include "displayedlines.h"
 
@@ -48,6 +50,21 @@ constexpr uint64_t MarkCount = 100;
 constexpr uint64_t AppendedLineCount = 100'000;
 constexpr uint64_t ContinuationTicks = 10;
 
+#if __has_include( "matchesdelta.h" )
+// Since #400 the Displayed Lines take what changed in the Matches as one
+// matches delta.
+const SearchResultArray NoMatches;
+
+void matchesArrived( DisplayedLines& displayed, const SearchResultArray& newMatches )
+{
+    displayed.apply( MatchesDelta{ MatchesDelta::Outcome::Arrived, &newMatches, NoMatches } );
+}
+
+void searchCompleted( DisplayedLines& displayed, const SearchResultArray& newMatches )
+{
+    displayed.apply( MatchesDelta{ MatchesDelta::Outcome::Completed, &newMatches, NoMatches } );
+}
+#else
 template <typename Displayed>
 concept TakesNewMatches = requires( Displayed& displayed, const SearchResultArray& newMatches ) {
     displayed.matchesArrived( newMatches );
@@ -75,6 +92,7 @@ void searchCompleted( Displayed& displayed, const SearchResultArray& newMatches 
         displayed.searchCompleted();
     }
 }
+#endif
 
 // The Matches among [first, end), split in consecutive batches the way a
 // Search reports them.
