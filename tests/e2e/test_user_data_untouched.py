@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import platform
 from pathlib import Path
 
 import pytest
@@ -91,12 +90,6 @@ def test_user_locations_exist_to_be_protected():
     assert present
 
 
-@pytest.mark.xfail(
-    platform.system() == "Windows",
-    reason="the primary is never seen to log the file it was started with as "
-    "loaded on Windows, so this test's own assertions never run -- #388",
-    strict=False,
-)
 def test_isolated_instance_leaves_user_data_untouched(isolated_gui, test_data_dir):
     """An isolated instance changes nothing of the user's and keeps its own data.
 
