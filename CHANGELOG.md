@@ -226,6 +226,13 @@
 
 ## Bug fixes
 
+- **Adding a word to a plain Search keeps both words searchable**: With
+  neither regular expression nor logical combination on, adding a word to a
+  non-empty Search, or combining several Predefined Filters, switches the
+  logical combination on and gives `"alpha" or "beta"` instead of
+  `alphabeta`, which matched neither word's Log Lines. Adding a word to an
+  empty Search, or using a single Predefined Filter, stays plain; the
+  regexp and logical combination modes are unchanged (#408).
 - **Excluding a word from an empty Search gives not("word")**: Excluding a
   word from an empty Search line in plain text or regexp mode gives
   `not("word")` instead of `"" and not("word")`, and switches the logical

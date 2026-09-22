@@ -966,8 +966,9 @@ void CrawlerWidget::replaceSearch( const QString& searchString )
 
 void CrawlerWidget::showEditedPattern( bool runNow )
 {
-    // Excluding a word switches the logical combination on: its button is
-    // set, as the user would, before the pattern is shown.
+    // Excluding a word, and adding one to a plain Search, switch the logical
+    // combination on: its button is set, as the user would, before the
+    // pattern is shown.
     showSearchFlags();
     searchLineEdit_->setEditText( searchLine_.pattern() );
     // Set the focus to lineEdit so that the user can press 'Return' immediately

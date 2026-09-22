@@ -2922,6 +2922,58 @@ SCENARIO( "A word with quotes added to a Search keeps its pattern valid", "[ui][
     }
 }
 
+// A fixed string has no alternatives: adding a word to a plain Search or
+// combining Predefined Filters switches the logical combination on (#408).
+SCENARIO( "Adding a word to a plain Search keeps both words searchable", "[ui][search]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateQuotedWordFile( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 20;
+    } ) );
+    crawlerVisitor.showSized();
+    crawlerVisitor.disableRegexpSearch();
+    REQUIRE_FALSE( crawlerVisitor.booleanCombiningChecked() );
+
+    const auto searchMatches = [ & ] {
+        crawlerVisitor.runSearch();
+        QCoreApplication::processEvents();
+        UNSCOPED_INFO( "pattern: " << crawlerVisitor.searchText().toStdString() << ", search info: "
+                                   << crawlerVisitor.searchInfoText().toStdString() );
+        return crawlerVisitor.getLogFilteredNbLines().get();
+    };
+
+    WHEN( "a word is added to a plain Search for beta" )
+    {
+        crawlerVisitor.setSearchPattern( "beta" );
+        Q_EMIT crawlerVisitor.textView()->addToSearch( "alpha say hi" );
+
+        THEN( "the logical combination is on and the Search matches the Log Lines of either" )
+        {
+            REQUIRE( crawlerVisitor.booleanCombiningChecked() );
+            REQUIRE( searchMatches() == 15 );
+        }
+    }
+
+    WHEN( "Predefined Filters for both are combined" )
+    {
+        crawlerVisitor.crawler->setSearchPatternFromPredefinedFilters(
+            { { "beta", "beta", false }, { "alpha", "alpha say hi", false } } );
+
+        THEN( "the logical combination is on and the Search matches the Log Lines of either" )
+        {
+            REQUIRE( crawlerVisitor.booleanCombiningChecked() );
+            REQUIRE( searchMatches() == 15 );
+        }
+    }
+}
+
 // The Search Line holds the pattern the Search runs with; the line starts
 // with the latest Search of the history in it (#399).
 SCENARIO( "A Search started without typing runs the pattern the Search line shows", "[ui][search]" )

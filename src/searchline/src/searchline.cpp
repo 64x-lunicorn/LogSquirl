@@ -129,22 +129,41 @@ QString& SearchLine::combine( QString& pattern, const QString& subPattern ) cons
     return pattern.append( subPattern );
 }
 
+bool SearchLine::isPlain() const
+{
+    return !flags_.useRegexp && !flags_.booleanCombination;
+}
+
+void SearchLine::switchToLogicalCombination()
+{
+    if ( flags_.booleanCombination ) {
+        return;
+    }
+
+    // The pattern so far becomes its first sub-pattern, an empty one none
+    // (#407).
+    if ( !pattern_.isEmpty() ) {
+        pattern_ = quoteSubPattern( pattern_ );
+    }
+    flags_.booleanCombination = true;
+}
+
 bool SearchLine::add( const QString& word )
 {
+    // A fixed string has no alternatives: they are written in a logical
+    // combination (#408).
+    if ( isPlain() && !pattern_.isEmpty() ) {
+        switchToLogicalCombination();
+    }
+
     combine( pattern_, escaped( word ) );
     return autoRun_;
 }
 
 bool SearchLine::exclude( const QString& word )
 {
-    // The exclusion is written in a logical combination: a pattern that is
-    // not one yet becomes its first sub-pattern, an empty one none (#407).
-    if ( !flags_.booleanCombination ) {
-        if ( !pattern_.isEmpty() ) {
-            pattern_ = quoteSubPattern( pattern_ );
-        }
-        flags_.booleanCombination = true;
-    }
+    // The exclusion is written in a logical combination.
+    switchToLogicalCombination();
 
     if ( !pattern_.isEmpty() ) {
         pattern_.append( " and " );
@@ -161,6 +180,11 @@ bool SearchLine::replace( const QString& word )
 
 bool SearchLine::useFilters( const QList<PredefinedFilter>& filters )
 {
+    // Several filters are alternatives, which a fixed string has not (#408).
+    if ( isPlain() && filters.size() > 1 ) {
+        flags_.booleanCombination = true;
+    }
+
     QString pattern;
     for ( const auto& filter : filters ) {
         combine( pattern, escaped( filter.pattern, filter.useRegex ) );
