@@ -142,7 +142,7 @@ def _isolated_logsquirl(binary: Path):
     if not isolated_instances_supported():
         pytest.skip(
             "starting LogSquirl needs an isolated instance, which needs "
-            "macOS or Linux (#328)"
+            "macOS, Linux or Windows (#328, #348)"
         )
     with IsolatedLogSquirl(binary) as env:
         yield env

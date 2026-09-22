@@ -25,7 +25,7 @@ from isolated_instance import supported, user_data_locations
 
 pytestmark = [
     pytest.mark.slow,
-    pytest.mark.skipif(not supported(), reason="isolated instances need macOS or Linux"),
+    pytest.mark.skipif(not supported(), reason="isolated instances need macOS, Linux or Windows"),
 ]
 
 # Files above this are recorded by size and modification time only: hashing a

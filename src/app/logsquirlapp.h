@@ -34,7 +34,9 @@
 
 #include <QCborValue>
 
+#include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QMessageBox>
 #include <QNetworkProxyFactory>
@@ -70,9 +72,33 @@ class LogSquirlApp : public QApplication {
 
     Q_OBJECT
 
+    // The name KDSingleApplication builds its lock file and local socket (a
+    // named pipe on Windows) from. Unchanged from KDSingleApplication's own
+    // default (the executable's file name) unless LOGSQUIRL_INSTANCE_ID is
+    // set, in which case it is folded in.
+    //
+    // On macOS and Linux the lock file and socket already live under
+    // QDir::tempPath(), which an isolated E2E instance redirects (#328), so
+    // two instances never collide there regardless of this name. On Windows
+    // a named pipe is not scoped by a directory at all (#320): without a
+    // per-instance name here, an isolated test instance could hand its files
+    // to, or be activated by, a real running LogSquirl on the same machine.
+    // tests/e2e/isolated_instance.py sets the variable for its instances; a
+    // real run never sets it, so it keeps today's fixed name.
+    static QString singleApplicationName()
+    {
+        const auto executableName = QFileInfo( QCoreApplication::applicationFilePath() ).fileName();
+        const auto instanceId = qEnvironmentVariable( "LOGSQUIRL_INSTANCE_ID" );
+        if ( instanceId.isEmpty() ) {
+            return executableName;
+        }
+        return QStringLiteral( "%1-%2" ).arg( executableName, instanceId );
+    }
+
 public:
     LogSquirlApp( int& argc, char* argv[] )
         : QApplication( argc, argv )
+        , singleApplication_( singleApplicationName() )
     {
         if ( singleApplication_.isPrimaryInstance() ) {
             QObject::connect( &singleApplication_, &KDSingleApplication::messageReceived,
