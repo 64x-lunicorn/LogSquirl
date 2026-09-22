@@ -21,10 +21,15 @@
 
 #include <algorithm>
 
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <QThread>
+#include <QTimer>
 
 #include "filewatcher.h"
 #include "test_utils.h"
@@ -209,6 +214,82 @@ SCENARIO( "File watching follows the Watch Policy it was handed", "[filewatch]" 
                     waitUiState( [ &changedSpy ] { return changedSpy.count() >= 1; }, 1000 ) );
             }
         }
+    }
+}
+
+// #322: polling stats every watched file off the UI thread and outside the
+// watcher's lock, so adding or removing a watch from the UI thread must
+// stay safe while a poll tick is in flight -- neither thread should be able
+// to deadlock the other, and a change must still be reported once the file
+// that changed settles down as a steadily watched file.
+SCENARIO( "File watching survives files being added and removed while polling runs", "[filewatch]" )
+{
+    QTemporaryDir tempDir;
+    REQUIRE( tempDir.isValid() );
+
+    GIVEN( "a Policy that polls at a short interval, and many files churning in and out" )
+    {
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = false, .pollingEnabled = true, .pollIntervalMs = 10 } );
+
+        WHEN( "files are added and removed on the UI thread while polling keeps ticking" )
+        {
+            // Churn many short-lived watches across several poll ticks: if
+            // checkWatches() held the watcher mutex across a QFileInfo stat,
+            // this loop -- running entirely on the UI thread, same as the
+            // watcher's other calls -- would stall for as long as the
+            // watcher was busy stat-ing.
+            QElapsedTimer churnTimer;
+            churnTimer.start();
+
+            int round = 0;
+            while ( churnTimer.elapsed() < 500 ) {
+                const auto fileName = QStringLiteral( "churn_%1.log" ).arg( round++ );
+                const auto path = writeFile( tempDir, "first line\n", fileName );
+
+                FileWatcher::getFileWatcher().addFile( path );
+                FileWatcher::getFileWatcher().removeFile( path );
+
+                QCoreApplication::processEvents();
+            }
+
+            THEN( "the UI thread was never blocked long enough to fail this churn, and a "
+                  "file watched afterwards still has its change reported" )
+            {
+                const auto path = writeFile( tempDir, "first line\n" );
+
+                SafeQSignalSpy changedSpy( &FileWatcher::getFileWatcher(),
+                                           SIGNAL( fileChanged( QString ) ) );
+                WatchedFile watched{ path };
+
+                writeFile( tempDir, "second line\n" );
+
+                REQUIRE( waitUiState( [ &changedSpy ] { return changedSpy.count() >= 1; } ) );
+            }
+        }
+    }
+
+    FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
+}
+
+// #322: the polling tick itself must not run on the thread that owns the UI.
+SCENARIO( "Polling does not run on the UI thread", "[filewatch]" )
+{
+    GIVEN( "a Policy that polls" )
+    {
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = false, .pollingEnabled = true, .pollIntervalMs = 100 } );
+
+        THEN( "the thread polling runs on is a real thread, and it is not the UI thread's" )
+        {
+            auto* pollThread = FileWatcher::getFileWatcher().pollThreadForTesting();
+
+            REQUIRE( pollThread != nullptr );
+            REQUIRE( pollThread != QCoreApplication::instance()->thread() );
+            REQUIRE( pollThread != QThread::currentThread() );
+        }
+
+        FileWatcher::getFileWatcher().setWatchPolicy( WatchPolicy{} );
     }
 }
 

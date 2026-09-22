@@ -211,6 +211,12 @@
 
 ## Bug fixes
 
+- **File watch polling stops stalling the UI**: The poll tick now runs on a
+  thread of its own and stats each watched file with no lock held, instead of
+  holding the file watcher's lock across every `QFileInfo` stat on the thread
+  that owns the UI. With many open Log Files, or files on a slow or network
+  drive, adding or removing a watch as a Log File is opened or closed no
+  longer waits behind the poll (#322).
 - **A local build knows its own version**: A build made without a version in
   the environment -- every build a developer makes -- called itself 26.7.0
   while the release it was cut from is 26.07.0: CMake dropped the leading zero

@@ -194,38 +194,92 @@ public:
         }
     }
 
+    // Callable from any thread, including a dedicated polling thread (#322):
+    // the watch list is copied out under the lock, every file is stat'd with
+    // no lock held at all, and the lock is taken again only to write back
+    // each file's new size and modification time and to collect the paths
+    // that changed. A file added or removed from the UI thread while a poll
+    // is in flight is safe either way: the write-back looks the file back up
+    // by name and skips it if it is no longer watched.
     void checkWatches()
     {
-        const auto collectChangedFiles = [ this ]() {
-            ScopedRecursiveLock lock( mutex_ );
-
-            std::vector<QString> changedFiles;
-
-            for ( auto& dir : watchedPaths_ ) {
-                for ( auto& file : dir.files ) {
-                    const auto path
-                        = QDir::cleanPath( QString::fromStdString( dir.name ) + QDir::separator()
-                                           + QString::fromStdString( file.name ) );
-
-                    const auto fileInfo = QFileInfo{ path };
-
-                    auto watchedFile = WatchedFile{ fileInfo.fileName().toStdString(),
-                                                    fileInfo.lastModified().toMSecsSinceEpoch(),
-                                                    fileInfo.size() };
-
-                    if ( file != watchedFile ) {
-                        changedFiles.push_back( path );
-                        LOG_INFO << "will notify for " << path;
-                    }
-
-                    file = std::move( watchedFile );
-                }
-            }
-
-            return changedFiles;
+        struct WatchedEntry {
+            std::string directory;
+            WatchedFile file;
         };
 
-        for ( const auto& changedFile : collectChangedFiles() ) {
+        std::vector<WatchedEntry> snapshot;
+        {
+            ScopedRecursiveLock lock( mutex_ );
+
+            for ( const auto& dir : watchedPaths_ ) {
+                for ( const auto& file : dir.files ) {
+                    snapshot.push_back( { dir.name, file } );
+                }
+            }
+        }
+
+        struct StatResult {
+            std::string directory;
+            std::string previousName;
+            WatchedFile updated;
+            bool changed;
+        };
+
+        std::vector<StatResult> results;
+        results.reserve( snapshot.size() );
+
+        for ( const auto& entry : snapshot ) {
+            const auto path
+                = QDir::cleanPath( QString::fromStdString( entry.directory ) + QDir::separator()
+                                   + QString::fromStdString( entry.file.name ) );
+
+            const auto fileInfo = QFileInfo{ path };
+
+            auto updated
+                = WatchedFile{ fileInfo.fileName().toStdString(),
+                               fileInfo.lastModified().toMSecsSinceEpoch(), fileInfo.size() };
+
+            const auto changed = entry.file != updated;
+
+            results.push_back(
+                { entry.directory, entry.file.name, std::move( updated ), changed } );
+        }
+
+        std::vector<QString> changedFiles;
+        {
+            ScopedRecursiveLock lock( mutex_ );
+
+            for ( auto& result : results ) {
+                auto watchedDirectory = std::find_if(
+                    watchedPaths_.begin(), watchedPaths_.end(),
+                    [ &result ]( const auto& wd ) { return wd.name == result.directory; } );
+
+                if ( watchedDirectory == watchedPaths_.end() ) {
+                    continue;
+                }
+
+                auto file = std::find( watchedDirectory->files.begin(),
+                                       watchedDirectory->files.end(), result.previousName );
+
+                if ( file == watchedDirectory->files.end() ) {
+                    continue;
+                }
+
+                if ( result.changed ) {
+                    const auto path = QDir::cleanPath(
+                        QString::fromStdString( result.directory ) + QDir::separator()
+                        + QString::fromStdString( result.previousName ) );
+
+                    changedFiles.push_back( path );
+                    LOG_INFO << "will notify for " << path.toStdString();
+                }
+
+                *file = std::move( result.updated );
+            }
+        }
+
+        for ( const auto& changedFile : changedFiles ) {
             dispatchToMainThread( [ watcher = parent_, changedFile ]() {
                 watcher->fileChangedOnDisk( changedFile );
             } );
@@ -324,21 +378,70 @@ void EfswFileWatcherDeleter::operator()( EfswFileWatcher* watcher ) const
     delete watcher;
 }
 
-FileWatcher::FileWatcher()
-    : checkTimer_{ new QTimer( this ) }
-    , throttler_{ new KDToolBox::KDSignalThrottler( this ) }
-    , efswWatcher_{ new EfswFileWatcher( this ) }
-{
-    connect( checkTimer_, &QTimer::timeout, this, &FileWatcher::checkWatches );
+// Runs the poll timer on its own thread (#322), so a tick's QFileInfo stats
+// never stall the UI's event loop. Lives on pollThread_ for its whole life:
+// created before the thread starts and moved to it, so its QTimer is also
+// created on that thread and every call into it -- setPolling() included --
+// is queued to run there.
+class FileWatcherPollWorker final : public QObject {
+    Q_OBJECT
+public:
+    explicit FileWatcherPollWorker( EfswFileWatcher* watcher )
+        : watcher_{ watcher }
+    {
+    }
 
+public Q_SLOTS:
+    void setPolling( bool enabled, int intervalMs )
+    {
+        if ( !timer_ ) {
+            timer_ = new QTimer( this );
+            connect( timer_, &QTimer::timeout, this, &FileWatcherPollWorker::poll );
+        }
+
+        if ( enabled ) {
+            timer_->start( intervalMs );
+        }
+        else {
+            timer_->stop();
+        }
+    }
+
+private Q_SLOTS:
+    void poll()
+    {
+        watcher_->checkWatches();
+    }
+
+private:
+    EfswFileWatcher* watcher_;
+    QTimer* timer_ = nullptr;
+};
+
+FileWatcher::FileWatcher()
+    : throttler_{ new KDToolBox::KDSignalThrottler( this ) }
+    , efswWatcher_{ new EfswFileWatcher( this ) }
+    , pollThread_{ new QThread }
+    , pollWorker_{ new FileWatcherPollWorker( efswWatcher_.get() ) }
+{
     throttler_->setTimeout( 250 );
     connect( this, &FileWatcher::notifyFileChangedOnDisk, throttler_,
              &KDToolBox::KDGenericSignalThrottler::throttle );
     connect( throttler_, &KDToolBox::KDGenericSignalThrottler::triggered, this,
              &FileWatcher::sendChangesNotifications );
+
+    pollThread_->setObjectName( QStringLiteral( "FileWatcherPoll" ) );
+    pollWorker_->moveToThread( pollThread_ );
+    connect( pollThread_, &QThread::finished, pollWorker_, &QObject::deleteLater );
+    pollThread_->start();
 }
 
-FileWatcher::~FileWatcher() = default;
+FileWatcher::~FileWatcher()
+{
+    pollThread_->quit();
+    pollThread_->wait();
+    delete pollThread_;
+}
 
 FileWatcher& FileWatcher::getFileWatcher()
 {
@@ -392,17 +495,22 @@ void FileWatcher::applyWatchPolicy()
 {
     if ( watchPolicy_.pollingEnabled ) {
         LOG_INFO << "Polling files enabled";
-        checkTimer_->start( watchPolicy_.pollIntervalMs );
     }
     else {
         LOG_INFO << "Polling files disabled";
-        checkTimer_->stop();
     }
+
+    const auto pollingEnabled = watchPolicy_.pollingEnabled;
+    const auto pollIntervalMs = watchPolicy_.pollIntervalMs;
+
+    QMetaObject::invokeMethod(
+        pollWorker_,
+        [ this, pollingEnabled, pollIntervalMs ]() {
+            pollWorker_->setPolling( pollingEnabled, pollIntervalMs );
+        },
+        Qt::QueuedConnection );
 
     efswWatcher_->enableWatch( watchPolicy_.nativeWatchEnabled );
 }
 
-void FileWatcher::checkWatches()
-{
-    efswWatcher_->checkWatches();
-}
+#include "filewatcher.moc"
