@@ -662,6 +662,24 @@ SCENARIO( "The Search Line shows a Search in progress", "[searchline]" )
             REQUIRE( display.visible );
             REQUIRE( display.buttons == SearchLine::Buttons::Stop );
         }
+
+        // The Search it replaces is cleared first, which the Search Session
+        // tells as idle: nothing takes the gauge back but the error itself.
+        AND_WHEN( "a pattern in error is requested over it" )
+        {
+            line.progressed( session( Phase::Idle ), AutoRefresh::NoSearch );
+            auto state = session( Phase::InvalidPattern );
+            state.errorString = "missing )";
+            line.requested( state );
+
+            THEN( "the error shows without the gauge, in the error colors" )
+            {
+                const auto display = line.display();
+                REQUIRE( display.text == "Error in expression: missing )" );
+                REQUIRE( display.isError );
+                REQUIRE_FALSE( display.gauge );
+            }
+        }
     }
 
     WHEN( "the Search has only started" )

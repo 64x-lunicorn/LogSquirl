@@ -137,6 +137,7 @@ private:
 
     // Shows text, not as an error.
     void showText( const QString& text );
+    // Shows text as an error, without the gauge.
     void showError( const QString& text );
     // The gauge goes and the Search and Clear buttons come back.
     void showDone();

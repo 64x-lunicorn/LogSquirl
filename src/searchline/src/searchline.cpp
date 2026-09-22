@@ -328,6 +328,9 @@ void SearchLine::showError( const QString& text )
 {
     display_.text = text;
     display_.isError = true;
+    // The gauge is drawn in a palette of its own, which would hide the error
+    // colors: an error typed over a running Search takes it down (#399).
+    display_.gauge.reset();
 }
 
 void SearchLine::showDone()
