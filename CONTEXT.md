@@ -55,6 +55,8 @@ _Avoid_: file watcher singleton, watch service
 
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
+The Open Log File settles it after every load and whenever one is chosen: the one chosen, else
+the one detected, else the locale's. An Encoding the settings force is chosen from the start.
 
 ### Displaying
 
