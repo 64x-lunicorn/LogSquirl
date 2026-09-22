@@ -757,7 +757,9 @@ jobs:
   update-metadata:
     runs-on: ubuntu-24.04
     needs: [prepare, release]
-    if: needs.release.result == 'success'
+    # always(), or a failed sentry job skips this one although the release is
+    # out (#228, #384).
+    if: always() && needs.release.result == 'success'
     timeout-minutes: 5
     permissions:
       contents: write
@@ -819,7 +821,9 @@ jobs:
   deploy-website:
     runs-on: ubuntu-24.04
     needs: [release]
-    if: needs.release.result == 'success'
+    # always(), or a failed sentry job skips this one although the release is
+    # out (#228, #384).
+    if: always() && needs.release.result == 'success'
     timeout-minutes: 5
     permissions:
       actions: write
@@ -844,7 +848,7 @@ jobs:
     needs: [prepare, release]
     # always(): without it the implicit success() also requires every job
     # release waited for, so a failed sentry job (which does not hold the
-    # release back, #228) would leave the cask behind.
+    # release back, #228) would leave the cask behind (#384).
     if: >-
       always() && needs.release.result == 'success'
       && needs.prepare.outputs.is_prerelease != 'true'
