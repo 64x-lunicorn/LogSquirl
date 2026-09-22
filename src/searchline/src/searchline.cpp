@@ -31,13 +31,40 @@
 namespace {
 
 // A sub-pattern of a logical combination: enclosed in quotes, a quote inside
-// it written \" -- what the logical expression parser reads back as a quote
-// (#398).
-QString quoteSubPattern( QString pattern )
+// it written \" (#398) and a run of backslashes right before a quote or at
+// its end written doubled (#405) -- what the logical expression parser reads
+// back as the sub-pattern. A backslash anywhere else is written as it is.
+QString quoteSubPattern( const QString& pattern )
 {
-    return pattern.replace( QLatin1Char( '"' ), QLatin1String( R"(\")" ) )
-        .prepend( QLatin1Char( '"' ) )
-        .append( QLatin1Char( '"' ) );
+    QString quoted;
+    quoted.reserve( pattern.size() + 2 );
+    quoted.append( QLatin1Char( '"' ) );
+
+    qsizetype index = 0;
+    while ( index < pattern.size() ) {
+        if ( pattern[ index ] == QLatin1Char( '"' ) ) {
+            quoted.append( QLatin1String( R"(\")" ) );
+            ++index;
+        }
+        else if ( pattern[ index ] == QLatin1Char( '\\' ) ) {
+            auto runEnd = index;
+            while ( runEnd < pattern.size() && pattern[ runEnd ] == QLatin1Char( '\\' ) ) {
+                ++runEnd;
+            }
+            auto run = runEnd - index;
+            if ( runEnd == pattern.size() || pattern[ runEnd ] == QLatin1Char( '"' ) ) {
+                run *= 2;
+            }
+            quoted.append( QString( run, QLatin1Char( '\\' ) ) );
+            index = runEnd;
+        }
+        else {
+            quoted.append( pattern[ index ] );
+            ++index;
+        }
+    }
+
+    return quoted.append( QLatin1Char( '"' ) );
 }
 
 } // namespace

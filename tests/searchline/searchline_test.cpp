@@ -337,6 +337,91 @@ SCENARIO( "A word with quotes keeps the Search Line's pattern valid", "[searchli
     }
 }
 
+// A backslash right before a quote of a sub-pattern is written \\, so that a
+// word ending in a backslash does not escape its closing quote (#405).
+SCENARIO( "A word with backslashes keeps the Search Line's pattern valid", "[searchline][search]" )
+{
+    struct Row {
+        QString word;
+        std::string lineWith;
+        std::string lineWithout;
+    };
+
+    const auto row = GENERATE( values<Row>( {
+        { R"(C:\temp\)", R"(open C:\temp\ now)", R"(open C:\temp now)" },
+        { R"(a\\)", R"(x a\\ y)", R"(x a\ y)" },
+        { R"(a\"b)", R"(x a\"b y)", R"(x a"b y)" },
+        { R"(a\\"b)", R"(x a\\"b y)", R"(x a\"b y)" },
+    } ) );
+
+    for ( const auto reading : { Reading::Boolean, Reading::BooleanRegexp } ) {
+        GIVEN( "the word " << row.word.toStdString() << " and a Search " << describe( reading ) )
+        {
+            WHEN( "the word is added to a Search for nothing" )
+            {
+                auto line = lineWith( reading, R"("nothing")" );
+                line.add( row.word );
+
+                THEN( "the Search matches the Log Lines with the word" )
+                {
+                    REQUIRE( matches( line, row.lineWith ) );
+                    REQUIRE_FALSE( matches( line, row.lineWithout ) );
+                }
+            }
+
+            WHEN( "the word is excluded from a Search for a space" )
+            {
+                auto line = lineWith( reading, R"(" ")" );
+                line.exclude( row.word );
+
+                THEN( "the Search matches the Log Lines without the word" )
+                {
+                    REQUIRE( matches( line, row.lineWithout ) );
+                    REQUIRE_FALSE( matches( line, row.lineWith ) );
+                }
+            }
+
+            WHEN( "the Search is replaced with the word" )
+            {
+                auto line = lineWith( reading, R"("nothing")" );
+                line.replace( row.word );
+
+                THEN( "the Search matches the Log Lines with the word" )
+                {
+                    REQUIRE( matches( line, row.lineWith ) );
+                    REQUIRE_FALSE( matches( line, row.lineWithout ) );
+                }
+            }
+
+            WHEN( "Predefined Filters for the word and for beta are combined" )
+            {
+                auto line = lineWith( reading, {} );
+                line.useFilters( { { "word", row.word, false }, { "beta", "beta", false } } );
+
+                THEN( "the Search matches either" )
+                {
+                    REQUIRE( matches( line, row.lineWith ) );
+                    REQUIRE( matches( line, "beta" ) );
+                    REQUIRE_FALSE( matches( line, row.lineWithout ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a regexp Predefined Filter ending in an escaped backslash, in a logical combination "
+           "of regexps" )
+    {
+        auto line = lineWith( Reading::BooleanRegexp, {} );
+        line.useFilters( { { "dir", R"(dir\\)", true }, { "beta", "beta", false } } );
+
+        THEN( "the Search matches the Log Lines with dir and a backslash" )
+        {
+            REQUIRE( matches( line, R"(open dir\ now)" ) );
+            REQUIRE_FALSE( matches( line, "open dir now" ) );
+        }
+    }
+}
+
 SCENARIO( "An edited pattern runs the Search at once only when auto-run is on", "[searchline]" )
 {
     for ( const auto autoRun : { false, true } ) {

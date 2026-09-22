@@ -226,6 +226,16 @@
 
 ## Bug fixes
 
+- **A word ending in a backslash keeps a logical Search valid**: In the
+  logical combination mode a run of backslashes right before a quote of a
+  sub-pattern is now written and read doubled: adding a word such as
+  `C:\temp\` to the Search, excluding it or replacing the Search with it
+  writes `"C:\temp\\"`, and a regexp Predefined Filter ending in `\\`
+  combines the same way, so the Search matches instead of failing with
+  "Pattern has unmatched quotes". A
+  backslash anywhere else is read as written, so `"\d+"` still matches digits;
+  only a hand-written pattern with two or more backslashes right before a
+  quote is read differently (#405).
 - **A word with quotes keeps a logical Search valid**: Adding a word that
   contains a `"` to the Search, excluding it, replacing the Search with it or
   combining Predefined Filters with it in the logical combination mode writes
