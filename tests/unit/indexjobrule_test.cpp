@@ -82,23 +82,22 @@ std::string encodingName( QTextCodec* encoding )
 // What a job is, in the words of the rule, with the Encoding it forces.
 std::string describe( const IndexJob& job )
 {
-    return std::visit(
-        makeOverloadVisitor(
-            []( std::monostate ) -> std::string { return "nothing"; },
-            []( const AttachJob& attach ) {
-                return "Attach " + attach.fileName.toStdString() + " default "
-                       + std::to_string( attach.defaultEncodingMib )
-                       + encodingName( attach.forcedEncoding );
-            },
-            []( const FullReindexJob& full ) {
-                return std::string{ full.request == FullIndexRequest::ExplicitReload
-                                        ? "Full (explicit reload)"
-                                        : "Full (automatic)" }
-                       + encodingName( full.forcedEncoding );
-            },
-            []( const CheckForChangesJob& ) -> std::string { return "Check"; },
-            []( const PartialReindexJob& ) -> std::string { return "Partial"; } ),
-        job );
+    return std::visit( makeOverloadVisitor(
+                           []( std::monostate ) -> std::string { return "nothing"; },
+                           []( const AttachJob& attach ) {
+                               return "Attach " + attach.fileName.toStdString() + " default "
+                                      + std::to_string( attach.defaultEncodingMib )
+                                      + encodingName( attach.forcedEncoding );
+                           },
+                           []( const FullReindexJob& full ) {
+                               return std::string{ full.request == FullIndexRequest::ExplicitReload
+                                                       ? "Full (explicit reload)"
+                                                       : "Full (automatic)" }
+                                      + encodingName( full.forcedEncoding );
+                           },
+                           []( const CheckForChangesJob& ) -> std::string { return "Check"; },
+                           []( const PartialReindexJob& ) -> std::string { return "Partial"; } ),
+                       job );
 }
 
 struct Row {
@@ -135,8 +134,7 @@ SCENARIO( "Of two index jobs the stronger one waits", "[logdata][jobrule]" )
           AttachJob{ "attached.log", DefaultEncodingMib, latin1() } },
         { explicitReload( latin1() ), attach(),
           AttachJob{ "attached.log", DefaultEncodingMib, latin1() } },
-        { AttachJob{ "attached.log", DefaultEncodingMib, latin1() },
-          explicitReload( utf16() ),
+        { AttachJob{ "attached.log", DefaultEncodingMib, latin1() }, explicitReload( utf16() ),
           AttachJob{ "attached.log", DefaultEncodingMib, utf16() } },
 
         // An explicit reload beats an automatic Full; of two reloads the
