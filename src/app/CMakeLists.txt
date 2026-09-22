@@ -150,6 +150,19 @@ endif()
 if(LOGSQUIRL_USE_SENTRY)
   if(NOT WIN32)
     if(APPLE)
+      # With LTO on, ld64 merges every translation unit's debug info into one
+      # temporary object during the link and deletes it once the binary is
+      # written; dsymutil can no longer find where the line tables live, and
+      # the dSYM it produces resolves a frame to a function but not a file or
+      # line (#340). -object_path_lto tells ld64 to keep that object instead,
+      # one per executable so parallel links do not collide.
+      if(LOGSQUIRL_USE_LTO)
+        target_link_options(logsquirl PRIVATE "LINKER:-object_path_lto,$<TARGET_FILE:logsquirl>-lto.o")
+        target_link_options(logsquirl_portable PRIVATE
+                             "LINKER:-object_path_lto,$<TARGET_FILE:logsquirl_portable>-lto.o"
+        )
+      endif()
+
       find_program(DSYMUTIL dsymutil)
       add_custom_command(
         TARGET logsquirl

@@ -511,6 +511,11 @@
 
 ## Build and packaging
 
+- **macOS releases carry line info**: The macOS release build now uses
+  RelWithDebInfo, same as Windows and Linux since #280, so its dSYM resolves
+  a symbolicated crash to a file and line instead of just a function; the
+  build stays at full optimization, with the intermediate link-time
+  optimization object kept for `dsymutil` to read (#340).
 - **Linux packages declare Qt**: The DEB and RPM packages depend on the
   distribution's Qt 6 packages, with the Qt version LogSquirl is built with as
   the minimum. On a distribution with an older Qt the package manager refuses
