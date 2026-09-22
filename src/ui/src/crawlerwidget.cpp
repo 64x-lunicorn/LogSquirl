@@ -1587,8 +1587,10 @@ void CrawlerWidget::showFilterFrequency()
         patterns.removeDuplicates();
     }
     else if ( flags.useRegexp ) {
-        // Regex mode: split on top-level '|' (basic heuristic).
-        patterns = searchText.split( '|', Qt::SkipEmptyParts );
+        // Each top-level alternative gets a series of its own; a | inside a
+        // group, a character class or escaped is part of its alternative, so
+        // every series stays a valid regexp (#411).
+        patterns = regexpAlternatives( searchText );
     }
     else {
         patterns.append( QRegularExpression::escape( searchText ) );
@@ -1603,7 +1605,8 @@ void CrawlerWidget::showFilterFrequency()
         toggleChartPanel();
     }
 
-    chartPanel_->addFilterFrequencySeries( patterns );
+    // The chart counts with the Search's Match case (#411).
+    chartPanel_->addFilterFrequencySeries( patterns, flags.matchCase );
 }
 
 void CrawlerWidget::changeFontSize( bool increase )

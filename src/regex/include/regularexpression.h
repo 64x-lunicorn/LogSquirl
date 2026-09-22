@@ -75,6 +75,11 @@ private:
 // the pattern is no valid logical combination.
 QStringList logicalSubPatterns( const QString& combination );
 
+// The top-level alternatives of a regexp, in the order written: split at each
+// | outside groups and character classes, not escaped by a backslash and not
+// quoted in \Q...\E. Empty alternatives are left out.
+QStringList regexpAlternatives( const QString& regexp );
+
 class PatternMatcher {
 public:
     explicit PatternMatcher( const RegularExpression& expression );

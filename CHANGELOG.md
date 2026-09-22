@@ -226,6 +226,14 @@
 
 ## Bug fixes
 
+- **Filter frequency follows the Search's Match case and regexp groups**:
+  With Match case off, Show Filter Frequency counts a word in any case, so a
+  Search for `error` charts the `Error` and `ERROR` lines too; the series
+  keeps this across a restart. A regexp Search is split only at a top-level
+  `|`: `(a|b)c` is charted as one series instead of nothing, a `|` inside a
+  character class, escaped or inside `\Q...\E` stays part of its
+  alternative, and `x|y` is still charted as two series.
+  Other chart series match case as before (#411).
 - **Filter frequency counts what a logical Search matches**: Show Filter
   Frequency reads the sub-patterns of a logical Search the way the Search
   does, with the same parser: an escaped quote `\"` and the backslashes

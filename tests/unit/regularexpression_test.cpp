@@ -656,3 +656,54 @@ SCENARIO( "The sub-patterns of a logical combination are read as the Search read
         }
     }
 }
+
+// Filter frequency charts each alternative of a regexp Search on its own; only
+// the top-level alternatives are split off, so that each stays a valid regexp
+// (#411).
+SCENARIO( "The alternatives of a regexp are split only at the top level", "[regex]" )
+{
+    GIVEN( "alternatives at the top level" )
+    {
+        THEN( "each is an alternative of its own, empty ones left out" )
+        {
+            REQUIRE( regexpAlternatives( "x|y" ) == QStringList{ "x", "y" } );
+            REQUIRE( regexpAlternatives( "x||y|" ) == QStringList{ "x", "y" } );
+            REQUIRE( regexpAlternatives( "x.y" ) == QStringList{ "x.y" } );
+        }
+    }
+
+    GIVEN( "a | inside a group" )
+    {
+        THEN( "the group is not split" )
+        {
+            REQUIRE( regexpAlternatives( "(a|b)c" ) == QStringList{ "(a|b)c" } );
+            REQUIRE( regexpAlternatives( "(?:a|(b|c))d|e" ) == QStringList{ "(?:a|(b|c))d", "e" } );
+        }
+    }
+
+    GIVEN( "a | inside a character class" )
+    {
+        THEN( "the class is not split" )
+        {
+            REQUIRE( regexpAlternatives( "[|]x|y" ) == QStringList{ "[|]x", "y" } );
+            REQUIRE( regexpAlternatives( "[]|(]x|y" ) == QStringList{ "[]|(]x", "y" } );
+            REQUIRE( regexpAlternatives( "[^]|]x|y" ) == QStringList{ "[^]|]x", "y" } );
+            REQUIRE( regexpAlternatives( R"([\]|]x|y)" ) == QStringList{ R"([\]|]x)", "y" } );
+            REQUIRE( regexpAlternatives( "[[:alpha:]|]x|y" )
+                     == QStringList{ "[[:alpha:]|]x", "y" } );
+        }
+    }
+
+    GIVEN( "an escaped |, parenthesis or bracket, or a quoted part" )
+    {
+        THEN( "it is read as the character it stands for" )
+        {
+            REQUIRE( regexpAlternatives( R"(a\|b)" ) == QStringList{ R"(a\|b)" } );
+            REQUIRE( regexpAlternatives( R"(\(a|b\))" ) == QStringList{ R"(\(a)", R"(b\))" } );
+            REQUIRE( regexpAlternatives( R"(\[a|b)" ) == QStringList{ R"(\[a)", "b" } );
+            REQUIRE( regexpAlternatives( R"(a\\|b)" ) == QStringList{ R"(a\\)", "b" } );
+            REQUIRE( regexpAlternatives( R"(\Q(a|b\E|c)" ) == QStringList{ R"(\Q(a|b\E)", "c" } );
+            REQUIRE( regexpAlternatives( R"(\Q(a|b)" ) == QStringList{ R"(\Q(a|b)" } );
+        }
+    }
+}

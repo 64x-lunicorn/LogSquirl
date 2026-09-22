@@ -47,6 +47,9 @@ struct ChartSeriesDefinition {
     QString pattern;
     int captureGroup = 1;
     bool visible = true;
+    // Whether the regex matches case; a Filter frequency series takes the
+    // Search's Match case, every other series matches case.
+    bool matchCase = true;
 
     // X-axis extraction (optional; empty xPattern = use line number).
     QString xPattern;
@@ -67,7 +70,9 @@ struct ChartSeriesDefinition {
     // Compile the regex pattern. Returns true on success.
     bool compilePattern()
     {
-        compiledRegex = QRegularExpression( pattern );
+        compiledRegex
+            = QRegularExpression( pattern, matchCase ? QRegularExpression::NoPatternOption
+                                                     : QRegularExpression::CaseInsensitiveOption );
         if ( !xPattern.isEmpty() ) {
             compiledXRegex = QRegularExpression( xPattern );
         }
@@ -102,6 +107,9 @@ struct ChartSeriesDefinition {
         obj[ "pattern" ] = pattern;
         obj[ "captureGroup" ] = captureGroup;
         obj[ "visible" ] = visible;
+        if ( !matchCase ) {
+            obj[ "matchCase" ] = false;
+        }
         if ( !xPattern.isEmpty() ) {
             obj[ "xPattern" ] = xPattern;
             obj[ "xCaptureGroup" ] = xCaptureGroup;
@@ -125,6 +133,7 @@ struct ChartSeriesDefinition {
         def.pattern = obj[ "pattern" ].toString();
         def.captureGroup = obj[ "captureGroup" ].toInt( 1 );
         def.visible = obj[ "visible" ].toBool( true );
+        def.matchCase = obj[ "matchCase" ].toBool( true );
         def.xPattern = obj[ "xPattern" ].toString();
         def.xCaptureGroup = obj[ "xCaptureGroup" ].toInt( 1 );
         def.xTimestampFormat = obj[ "xTimestampFormat" ].toString();
