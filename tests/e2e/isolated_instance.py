@@ -336,8 +336,15 @@ class IsolatedLogSquirl:
 
     @staticmethod
     def opened_line(log_file: Path) -> str:
-        """What the primary logs once it has opened a Log File."""
-        return f'Success loading file "{log_file}"'
+        """What the primary logs once it has opened a Log File.
+
+        The path in that line comes from QFileInfo::absoluteFilePath(),
+        which Qt always renders with forward slashes -- on every platform,
+        not just where the native separator already is one. log_file.as_posix()
+        matches that; str(log_file) would build an unmatchable line on
+        Windows (#388).
+        """
+        return f'Success loading file "{log_file.as_posix()}"'
 
     def close(self) -> None:
         if self.primary and self.primary.poll() is None:

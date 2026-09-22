@@ -93,8 +93,9 @@ def test_user_locations_exist_to_be_protected():
 
 @pytest.mark.xfail(
     platform.system() == "Windows",
-    reason="the primary is never seen to log the file it was started with as "
-    "loaded on Windows, so this test's own assertions never run -- #388",
+    reason="the raw Windows build output has no plugins/ directory next to "
+    "the executable (unlike macOS's .app bundle), so PluginCatalog never "
+    "logs a directory to scan and this test's second half never runs -- #403",
     strict=False,
 )
 def test_isolated_instance_leaves_user_data_untouched(isolated_gui, test_data_dir):
