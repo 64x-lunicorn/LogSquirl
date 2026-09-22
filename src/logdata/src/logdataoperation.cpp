@@ -42,34 +42,63 @@
 #include "overload_visitor.h"
 #include "synchronization.h"
 
-void AttachOperation::doStart( LogDataWorker& workerThread ) const
+namespace {
+
+// How strong an index job is under the job rule; nothing is the weakest.
+int strength( const IndexJob& job )
 {
-    LOG_INFO << "Attaching " << filename_ << ", encoding " << defaultEncodingMib_;
-    workerThread.attachFile( filename_ );
-    workerThread.indexAll( defaultEncodingMib_ >= 0 ? QTextCodec::codecForMib( defaultEncodingMib_ )
-                                                    : nullptr );
+    return std::visit(
+        makeOverloadVisitor( []( std::monostate ) { return 0; },
+                             []( const PartialReindexJob& ) { return 1; },
+                             []( const CheckForChangesJob& ) { return 2; },
+                             []( const FullReindexJob& full ) {
+                                 return full.request == FullIndexRequest::ExplicitReload ? 4 : 3;
+                             },
+                             []( const AttachJob& ) { return 5; } ),
+        job );
 }
 
-void FullReindexOperation::doStart( LogDataWorker& workerThread ) const
+// The index job's name under the job rule, for the log.
+const char* nameOf( const IndexJob& job )
 {
-    LOG_INFO << "Reindexing (full)";
-    workerThread.indexAll( forcedEncoding_, request_ );
+    return std::visit( makeOverloadVisitor( []( std::monostate ) { return "none"; },
+                                            []( const PartialReindexJob& ) { return "Partial"; },
+                                            []( const CheckForChangesJob& ) { return "Check"; },
+                                            []( const FullReindexJob& full ) {
+                                                return full.request
+                                                               == FullIndexRequest::ExplicitReload
+                                                           ? "Full (explicit reload)"
+                                                           : "Full (automatic)";
+                                            },
+                                            []( const AttachJob& ) { return "Attach"; } ),
+                       job );
 }
 
-void PartialReindexOperation::doStart( LogDataWorker& workerThread ) const
+// The Encoding a Full forces, if the job is one that forces one.
+QTextCodec* forcedEncodingOfFull( const IndexJob& job )
 {
-    LOG_INFO << "Reindexing (partial)";
-    workerThread.indexAdditionalLines();
+    const auto* full = std::get_if<FullReindexJob>( &job );
+    return full ? full->forcedEncoding : nullptr;
 }
 
-void CheckDataChangesOperation::doStart( LogDataWorker& workerThread ) const
+} // namespace
+
+IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving )
 {
-    LOG_INFO << "Checking file changes";
-    workerThread.checkFileChanges();
+    auto& winner = strength( arriving ) >= strength( waiting ) ? arriving : waiting;
+    const auto& loser = &winner == &arriving ? waiting : arriving;
+
+    if ( const auto* attach = std::get_if<AttachJob>( &winner ) ) {
+        if ( auto* forcedEncoding = forcedEncodingOfFull( loser ) ) {
+            return AttachJob{ attach->fileName, attach->defaultEncodingMib, forcedEncoding };
+        }
+    }
+
+    return std::move( winner );
 }
 
-OperationQueue::OperationQueue( std::function<void()> beforeOperationStart )
-    : beforeOperationStart_( std::move( beforeOperationStart ) )
+OperationQueue::OperationQueue( std::function<void()> beforeJobStart )
+    : beforeJobStart_( std::move( beforeJobStart ) )
 {
 }
 
@@ -112,44 +141,50 @@ void OperationQueue::shutdown()
     LOG_INFO << "Operation queue shutdown";
 }
 
-void OperationQueue::tryStartPendingOperation()
+void OperationQueue::tryStartWaitingJob()
 {
-    executingOperation_ = std::exchange( pendingOperation_, {} );
+    runningJob_ = std::exchange( waitingJob_, {} );
     if ( !worker_ ) {
-        LOG_WARNING << "No worker for operation";
-        executingOperation_ = {};
+        LOG_WARNING << "No worker for index job";
+        runningJob_ = {};
         return;
     }
 
-    std::visit( makeOverloadVisitor(
-                    [ this ]( const LogDataOperation& logDataOperation ) {
-                        beforeOperationStart_();
-                        logDataOperation.start( worker_.get() );
-                        LOG_INFO << "Started operation " << executingOperation_.index();
-                    },
-                    []( std::monostate ) { LOG_INFO << "no operation to start"; } ),
-                executingOperation_ );
+    if ( std::holds_alternative<std::monostate>( runningJob_ ) ) {
+        LOG_INFO << "No index job to start";
+        return;
+    }
+
+    beforeJobStart_();
+    worker_->run( runningJob_ );
+    LOG_INFO << "Started index job " << nameOf( runningJob_ );
 }
 
-void OperationQueue::enqueueOperation( OperationVariant&& operation )
+void OperationQueue::enqueueJob( IndexJob&& job )
 {
     ScopedLock guard( mutex_ );
 
-    LOG_INFO << "Enqueue operation " << operation.index() << ", now executing "
-             << executingOperation_.index();
+    LOG_INFO << "Enqueue index job " << nameOf( job ) << ", now running " << nameOf( runningJob_ )
+             << ", waiting " << nameOf( waitingJob_ );
 
-    pendingOperation_ = std::move( operation );
+    waitingJob_ = waitingIndexJob( std::move( waitingJob_ ), std::move( job ) );
 
-    if ( executingOperation_.index() == 0 ) {
-        tryStartPendingOperation();
+    if ( std::holds_alternative<std::monostate>( runningJob_ ) ) {
+        tryStartWaitingJob();
     }
 }
 
-void OperationQueue::finishOperationAndStartNext()
+void OperationQueue::finishJobAndStartNext()
 {
     ScopedLock guard( mutex_ );
-    LOG_INFO << "Finished operation " << executingOperation_.index() << ", next operation "
-             << pendingOperation_.index();
+    LOG_INFO << "Finished index job " << nameOf( runningJob_ ) << ", next index job "
+             << nameOf( waitingJob_ );
 
-    tryStartPendingOperation();
+    tryStartWaitingJob();
+}
+
+bool OperationQueue::isPartialReindexRunning() const
+{
+    ScopedLock guard( mutex_ );
+    return std::holds_alternative<PartialReindexJob>( runningJob_ );
 }

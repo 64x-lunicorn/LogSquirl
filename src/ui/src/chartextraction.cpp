@@ -56,10 +56,15 @@ std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData
     // run entirely.
     // ---------------------------------------------------------------
 
-    // Group series indices by unique Y-pattern string.
+    // Group series indices by unique Y-regex: the pattern string, and
+    // whether it matches case.
     struct RegexGroup {
         QRegularExpression regex;
         QVector<int> indices;
+    };
+
+    const auto yKey = []( const ChartSeriesDefinition& s ) {
+        return s.matchCase ? s.pattern : QStringLiteral( "(?i)" ) + s.pattern;
     };
 
     QHash<QString, RegexGroup> yGroups;
@@ -68,7 +73,7 @@ std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData
         if ( !s.compiledRegex.isValid() ) {
             continue;
         }
-        auto& g = yGroups[ s.pattern ];
+        auto& g = yGroups[ yKey( s ) ];
         if ( g.indices.isEmpty() ) {
             g.regex = s.compiledRegex;
         }
@@ -145,7 +150,7 @@ std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData
             for ( int si = 0; si < series.size(); ++si ) {
                 const auto& s = series[ si ];
 
-                auto yIt = yCache.constFind( s.pattern );
+                auto yIt = yCache.constFind( yKey( s ) );
                 if ( yIt == yCache.cend() ) {
                     continue;
                 }

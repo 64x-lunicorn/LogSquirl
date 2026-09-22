@@ -19,13 +19,13 @@ add_executable(logsquirl_tests
     indexcache_test.cpp
     headerandtaildigests_test.cpp
     indexedhash_test.cpp
+    indexjobrule_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
     linemapping_test.cpp
     linessaver_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
-    marklengths_test.cpp
     formatrecognition_test.cpp
     logfieldextractor_test.cpp
     logformatcatalog_test.cpp

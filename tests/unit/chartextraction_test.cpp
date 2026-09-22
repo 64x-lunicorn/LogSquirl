@@ -482,3 +482,26 @@ SCENARIO( "A chart's series may be set before its Log File", "[chartextraction]"
         }
     }
 }
+
+// Two series for the same word, one matching case and one not, each count
+// their own Log Lines (#411).
+SCENARIO( "Series for the same pattern differing in case count apart", "[chartextraction]" )
+{
+    GrowingLogData logData{ { "an error", "an Error", "an ERROR", "all good" } };
+
+    auto matchingCase = countSeries();
+    matchingCase.pattern = "error";
+    matchingCase.compilePattern();
+    auto ignoringCase = matchingCase;
+    ignoringCase.matchCase = false;
+    ignoringCase.compilePattern();
+
+    std::atomic<bool> cancel{ false };
+    std::atomic<uint64_t> linesDone{ 0 };
+    const auto points = extractChartPoints( logData, { matchingCase, ignoringCase },
+                                            LineNumber( 0 ), LinesCount( 4 ), cancel, linesDone );
+
+    REQUIRE( points.has_value() );
+    REQUIRE( points->at( 0 ).size() == 1 );
+    REQUIRE( points->at( 1 ).size() == 3 );
+}

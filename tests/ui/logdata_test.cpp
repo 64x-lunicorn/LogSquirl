@@ -29,6 +29,7 @@
 #include <thread>
 #include <vector>
 
+#include <QDateTime>
 #include <QFileInfo>
 #include <QProcess>
 #include <QSignalSpy>
@@ -622,7 +623,63 @@ void writeBytes( const QString& path, const QByteArray& content, QIODevice::Open
     REQUIRE( file.write( content ) == content.size() );
 }
 
+void setModificationTime( const QString& path, const QDateTime& time )
+{
+    QFile file( path );
+    REQUIRE( file.open( QIODevice::ReadWrite ) );
+    REQUIRE( file.setFileTime( time, QFileDevice::FileModificationTime ) );
+}
+
 } // namespace
+
+SCENARIO( "A reload waiting behind a running index job is not lost to a change on disk",
+          "[logdata][reload]" )
+{
+    QTemporaryDir logDir;
+    REQUIRE( logDir.isValid() );
+    const auto path = logDir.filePath( "reloaded.log" );
+
+    // About 20 MiB: Log Line 8000 lies between the header and the tail
+    // digests, where following the Log File does not look.
+    const auto content = numberedLines( 0, 20000 );
+    writeBytes( path, content, QIODevice::Truncate );
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+
+    SafeQSignalSpy endSpy( &logData, SIGNAL( loadingFinished( LoadingStatus, QString ) ) );
+    logData.attachFile( path );
+    REQUIRE( endSpy.safeWait( 60000 ) );
+    REQUIRE( logData.getNbLine() == 20000_lcount );
+    endSpy.clear();
+
+    GIVEN( "a Log Line split in two in place, its size and modification time kept" )
+    {
+        const auto indexedTime = QFileInfo( path ).lastModified();
+        auto changed = content;
+        changed[ changed.indexOf( "line 8000 " ) + 20 ] = '\n';
+        writeBytes( path, changed, QIODevice::Truncate );
+        setModificationTime( path, indexedTime );
+
+        WHEN( "a reload is asked for while a change on disk is checked, and another change "
+              "is heard before the check ends" )
+        {
+            // Nothing returns to the event loop in between, so the check
+            // is still running -- its end is queued to this thread -- when
+            // the reload and the second change arrive.
+            logData.fileChangedOnDisk( path );
+            logData.reload();
+            logData.fileChangedOnDisk( path );
+
+            THEN( "the reload runs and reads the split Log Line" )
+            {
+                REQUIRE( endSpy.safeWait( 20000 ) );
+                REQUIRE( logData.getNbLine() == 20001_lcount );
+                REQUIRE( logData.getLineString( 8000_lnum ) == "line 8000 " + QString( 10, 'x' ) );
+            }
+        }
+    }
+}
 
 SCENARIO( "A followed Log File that changed where it is not checked is read again on a reload",
           "[logdata][follow]" )

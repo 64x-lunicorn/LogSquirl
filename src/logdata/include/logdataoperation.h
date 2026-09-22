@@ -39,93 +39,35 @@
 #ifndef LOGDATAOPERATION_H
 #define LOGDATAOPERATION_H
 
-#include <variant>
+#include <functional>
+#include <memory>
 
 #include "logdataworker.h"
 
 #include "synchronization.h"
 
-// This class models an indexing operation.
-// It exists to permit LogData to delay the operation if another
-// one is ongoing (operations are asynchronous)
-class LogDataOperation {
-public:
-    LogDataOperation() = default;
-    explicit LogDataOperation( const QString& fileName )
-        : filename_( fileName )
-    {
-    }
-
-    // Permit each child to have its destructor
-    virtual ~LogDataOperation() = default;
-
-    void start( LogDataWorker* workerThread ) const
-    {
-        doStart( *workerThread );
-    }
-    const QString& getFilename() const
-    {
-        return filename_;
-    }
-
-protected:
-    virtual void doStart( LogDataWorker& workerThread ) const = 0;
-    QString filename_;
-};
-
-// Attaching a new file (change name + full index)
-class AttachOperation : public LogDataOperation {
-public:
-    // The default Encoding comes from the File Access Policy the LogData
-    // was built with; negative means "detect it rather than force one".
-    AttachOperation( const QString& fileName, int defaultEncodingMib )
-        : LogDataOperation( fileName )
-        , defaultEncodingMib_( defaultEncodingMib )
-    {
-    }
-
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-
-private:
-    int defaultEncodingMib_;
-};
-
-// Reindexing the current file. What asked for it is carried through to the
-// indexing run, which checks a cached Index the more closely the more the
-// user asked for the Log File to be read again (#337).
-class FullReindexOperation : public LogDataOperation {
-public:
-    explicit FullReindexOperation( FullIndexRequest request = FullIndexRequest::Automatic,
-                                   QTextCodec* forcedEncoding = nullptr )
-        : request_( request )
-        , forcedEncoding_( forcedEncoding )
-    {
-    }
-
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-
-private:
-    FullIndexRequest request_;
-    QTextCodec* forcedEncoding_;
-};
-
-// Indexing part of the current file (from fileSize)
-class PartialReindexOperation : public LogDataOperation {
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-};
-
-// Attaching a new file (change name + full index)
-class CheckDataChangesOperation : public LogDataOperation {
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-};
+// The job rule: of the index job waiting to run and one that arrives while
+// another runs, the one that waits from now on. Only one waits, and the
+// stronger covers the weaker, strongest first:
+//
+//     Attach > Full (explicit reload) > Full (automatic) > Check > Partial
+//
+// - An Attach indexes everything anyway. A reload with a forced Encoding
+//   that meets it hands that Encoding to the Attach.
+// - A Full reads everything, so it covers a Check and a Partial; an
+//   explicit reload checks a cached Index more closely than an automatic
+//   Full does (#337), so it is the one kept.
+// - A Check covers a Partial: a waiting Partial must not swallow a Check
+//   that could find a truncation, and a Check that finds only growth queues
+//   the Partial again.
+//
+// Between two jobs of the same strength the one that arrives wins: it is the
+// latest request, a later reload's Encoding among them.
+IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving );
 
 class OperationQueue {
 public:
-    explicit OperationQueue( std::function<void()> beforeOperationStart );
+    explicit OperationQueue( std::function<void()> beforeJobStart );
 
     void setWorker( std::unique_ptr<LogDataWorker>&& worker );
 
@@ -135,28 +77,28 @@ public:
     void interrupt();
     void shutdown();
 
-    template <typename Op, typename... Args>
-    void enqueueOperation( Args&&... args )
-    {
-        enqueueOperation( Op{ std::forward<Args>( args )... } );
-    }
+    // Hands the index job to the worker, or, while another one runs, has it
+    // meet the one waiting under the job rule.
+    void enqueueJob( IndexJob&& job );
 
-    void finishOperationAndStartNext();
+    // The running index job is done: the one waiting, if any, starts.
+    void finishJobAndStartNext();
+
+    // Whether the index job running is a Partial, which leaves the Log
+    // Lines indexed before it as they were.
+    bool isPartialReindexRunning() const;
 
 private:
-    using OperationVariant = std::variant<std::monostate, AttachOperation, FullReindexOperation,
-                                          PartialReindexOperation, CheckDataChangesOperation>;
+    void tryStartWaitingJob();
 
-    void enqueueOperation( OperationVariant&& operation );
-    void tryStartPendingOperation();
-
-    std::function<void()> beforeOperationStart_;
+    std::function<void()> beforeJobStart_;
 
 private:
     mutable Mutex mutex_;
 
-    OperationVariant executingOperation_;
-    OperationVariant pendingOperation_;
+    IndexJob runningJob_;
+    // Decided by waitingIndexJob() whenever another one arrives.
+    IndexJob waitingJob_;
 
     std::unique_ptr<LogDataWorker> worker_;
 };

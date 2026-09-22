@@ -226,6 +226,63 @@
 
 ## Bug fixes
 
+- **A reload is not lost to a change on disk**: A reload asked for while the
+  Log File was still being indexed or checked waited in a slot the next change
+  on disk overwrote with a check, and when that check found nothing changed in
+  what the Index covers, the reload never ran -- a rewrite in place went
+  unseen, and an Encoding chosen meanwhile was dropped. The log data now
+  decides which of two index jobs waits by one rule, strongest first: Attach,
+  explicit reload, automatic full reindex, check, partial reindex; an Attach
+  takes the Encoding a reload forces. The "truncated" state the log data kept
+  so a truncation would not be lost the same way is gone (#395).
+- **Filter frequency follows the Search's Match case and regexp groups**:
+  With Match case off, Show Filter Frequency counts a word in any case, so a
+  Search for `error` charts the `Error` and `ERROR` lines too; the series
+  keeps this across a restart. A regexp Search is split only at a top-level
+  `|`: `(a|b)c` is charted as one series instead of nothing, a `|` inside a
+  character class, escaped or inside `\Q...\E` stays part of its
+  alternative, and `x|y` is still charted as two series.
+  Other chart series match case as before (#411).
+- **Filter frequency counts what a logical Search matches**: Show Filter
+  Frequency reads the sub-patterns of a logical Search the way the Search
+  does, with the same parser: an escaped quote `\"` and the backslashes
+  before a quote are unescaped, `"a or b"` stays one sub-pattern, and
+  sub-patterns joined with `and` or `not(...)` are charted too, each on its
+  own, the excluded one included. With regular expressions off the
+  sub-patterns are counted as fixed strings, not as regexps. Plain and
+  non-logical regexp Searches are charted as before (#410).
+- **Adding a word to a plain Search keeps both words searchable**: With
+  neither regular expression nor logical combination on, adding a word to a
+  non-empty Search, or combining several Predefined Filters, switches the
+  logical combination on and gives `"alpha" or "beta"` instead of
+  `alphabeta`, which matched neither word's Log Lines. Adding a word to an
+  empty Search, or using a single Predefined Filter, stays plain; the
+  regexp and logical combination modes are unchanged (#408).
+- **Excluding a word from an empty Search gives not("word")**: Excluding a
+  word from an empty Search Line in plain text or regexp mode gives
+  `not("word")` instead of `"" and not("word")`, and switches the logical
+  combination on as before (#407).
+- **Stopping a Search says how many Matches it found**: After Stop, the
+  Search Line says how many Matches the Filtered View holds, "1 match found"
+  or "7 matches found", instead of always "0 match found". The same after a
+  reload, a Log File truncated on disk or switching auto-refresh (#406).
+- **A word ending in a backslash keeps a logical Search valid**: In the
+  logical combination mode a run of backslashes right before a quote of a
+  sub-pattern is now written and read doubled: adding a word such as
+  `C:\temp\` to the Search, excluding it or replacing the Search with it
+  writes `"C:\temp\\"`, and a regexp Predefined Filter ending in `\\`
+  combines the same way, so the Search matches instead of failing with
+  "Pattern has unmatched quotes". A
+  backslash anywhere else is read as written, so `"\d+"` still matches digits;
+  only a hand-written pattern with two or more backslashes right before a
+  quote is read differently (#405).
+- **A word with quotes keeps a logical Search valid**: Adding a word that
+  contains a `"` to the Search, excluding it, replacing the Search with it or
+  combining Predefined Filters with it in the logical combination mode writes
+  the inner quote as `\"`, so the Search runs and matches the word with its
+  quotes instead of failing with an error in the expression. Excluding a word
+  from a Search that is not a logical combination and contains a quote gives a
+  valid one too (#398).
 - **File watch polling stops stalling the UI**: The poll tick now runs on a
   thread of its own and stats each watched file with no lock held, instead of
   holding the file watcher's lock across every `QFileInfo` stat on the thread
@@ -591,6 +648,58 @@
 
 ## Internal
 
+- **The Search Session hands the Displayed Lines a matches delta**: With
+  every state change the Search Session calls one callback, synchronously and
+  right before it reports the change, with what changed in its Matches: the
+  outcome (discarded, arrived or completed), the Matches added (none when they
+  were replaced) and those removed, pointing into its own bitmaps for the
+  length of that call. The Displayed Lines apply it in one call. The two
+  getters that were valid only while the state change was being reported, and
+  the switch over the Search's phase in the log filtered data, are gone; no
+  bitmap is copied and the callback runs on the thread the state change
+  always did (#400).
+- **The Displayed Lines keep the length of every Mark**: A Mark is added with
+  the length of its Log Line, and when Log Lines change from some line on the
+  Displayed Lines read the lengths of the Marks from there again through a
+  length function they are handed. The separate Mark length structure the log
+  filtered data kept in step by hand in every Mark operation is gone; the
+  Filtered View is as wide as before (#401).
+- **The FileWatcher runs clean under TSan**: The Watch Policy's polling
+  half reaches the poll thread through a queued signal wired once, before
+  that thread starts, instead of a lambda queued per change. TSan reported
+  the lambda, built on the UI thread and run on the poll thread, because it
+  cannot see Qt's event queue hand it over; nothing it carried was ever
+  written again, so it was no race, and the FileWatcher itests now run
+  clean under TSan without a suppression. Behaviour is unchanged (#409).
+- **Index jobs as values**: The log data hands its worker one index job as a
+  value -- Attach, Full, Partial or Check, the `IndexJob` variant the job
+  rule already decides over -- and the worker runs it with `run()`. The four
+  job classes that only called the worker method of the same name are gone,
+  and the worker's finished notifications reach the log data without slots
+  that only sent them again. Behaviour is unchanged (#397).
+- **The Load Rule**: What a load, a change on disk and a reload mean for an
+  Open Log File -- only Log Lines added, the Marks cleared, the Log Format
+  recognized again, the Marks saved with the Session applied, a Search
+  waiting for the first load run -- is decided by one Qt-free class,
+  `LoadRule`, which holds every flag the Open Log File kept for it and asks
+  the Search's auto-refresh whether a Search continues or starts again. The
+  Open Log File carries out its decisions; behaviour is unchanged, and two
+  oddities are kept as commented table rows: a check that finds the Log File
+  unchanged reports it grew, and a load with no Log Lines leaves Format
+  Recognition to the next one. Table tests cover the sequences without a Log
+  File, a thread or an event loop (#396).
+- **The Search Line is a model without widgets**: How adding a word to the
+  Search, excluding one, replacing the Search or combining Predefined Filters
+  edits the pattern, that excluding switches the logical combination on, and
+  what the line says about the Search that runs (progress with its plural and
+  gauge, the Matches found, a truncated Log File, an error in the expression,
+  the Search / Stop / Clear buttons) moved out of the Crawler Widget into
+  `SearchLine`, in a library of its own that the
+  `searchline_no_qt_widgets` check keeps free of Qt Widgets. The Crawler
+  Widget hands it every event and mirrors its flags, pattern and display;
+  the search history, the Theme's palettes and refreshing the views stay in
+  the widget. Its texts keep the `CrawlerWidget` translation context, so the
+  translations still match. Table tests cover it without a widget (#399).
 - **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
   `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
   (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on

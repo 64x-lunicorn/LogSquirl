@@ -56,6 +56,38 @@ void DisplayedLines::setContextLinesCount( int contextLinesCount )
     refreshLines();
 }
 
+void DisplayedLines::apply( const MatchesDelta& delta )
+{
+    // A Log Line that stopped matching -- the previously last one of a grown
+    // Log File, searched again once it was complete -- leaves the Matches
+    // before those that arrived with it join them.
+    matchesRemoved( delta.removed );
+
+    switch ( delta.outcome ) {
+    case MatchesDelta::Outcome::Discarded:
+        searchDiscarded();
+        break;
+    case MatchesDelta::Outcome::Arrived:
+        if ( delta.added != nullptr ) {
+            matchesArrived( *delta.added );
+        }
+        else {
+            matchesArrived();
+        }
+        break;
+    case MatchesDelta::Outcome::Completed:
+        // From a real run or from the cache alike, so Context Lines never
+        // belong to whatever ran previously.
+        if ( delta.added != nullptr ) {
+            searchCompleted( *delta.added );
+        }
+        else {
+            searchCompleted();
+        }
+        break;
+    }
+}
+
 void DisplayedLines::matchesArrived()
 {
     // Whatever the Context Lines were built around may be gone.
@@ -159,10 +191,11 @@ void DisplayedLines::searchDiscarded()
     refreshLines();
 }
 
-bool DisplayedLines::addMark( LineNumber line )
+bool DisplayedLines::addMark( LineNumber line, LineLength length )
 {
     const bool added = marks_.addChecked( line.get() );
     if ( added ) {
+        setMarkLength( line, length );
         markToggled( line.get(), true );
     }
     return added;
@@ -172,6 +205,7 @@ bool DisplayedLines::removeMark( LineNumber line )
 {
     const bool removed = marks_.removeChecked( line.get() );
     if ( removed ) {
+        forgetMarkLength( line );
         markToggled( line.get(), false );
     }
     return removed;
@@ -180,6 +214,8 @@ bool DisplayedLines::removeMark( LineNumber line )
 void DisplayedLines::clearMarks()
 {
     marks_ = SearchResultArray();
+    markLengths_.clear();
+    marksByLength_.clear();
     rewritten();
     rebuildContextLines();
     refreshLines();
@@ -188,6 +224,45 @@ void DisplayedLines::clearMarks()
 const SearchResultArray& DisplayedLines::marks() const
 {
     return marks_;
+}
+
+void DisplayedLines::logLinesChanged( LineNumber firstChanged,
+                                      const std::function<LineLength( LineNumber )>& lengthOf )
+{
+    auto mark = marks_.begin();
+    mark.move_equalorlarger( firstChanged.get() );
+    for ( ; mark != marks_.end(); ++mark ) {
+        const LineNumber line{ *mark };
+        setMarkLength( line, lengthOf( line ) );
+    }
+}
+
+LineLength DisplayedLines::maxLength( LineLength longestMatch ) const
+{
+    const auto longestMark
+        = marksByLength_.empty() ? 0_length : LineLength( marksByLength_.rbegin()->first );
+    return std::max( longestMatch, longestMark );
+}
+
+void DisplayedLines::setMarkLength( LineNumber line, LineLength length )
+{
+    forgetMarkLength( line );
+    markLengths_.emplace( line.get(), length.get() );
+    ++marksByLength_[ length.get() ];
+}
+
+void DisplayedLines::forgetMarkLength( LineNumber line )
+{
+    const auto remembered = markLengths_.find( line.get() );
+    if ( remembered == markLengths_.end() ) {
+        return;
+    }
+
+    const auto count = marksByLength_.find( remembered->second );
+    if ( --count->second == 0 ) {
+        marksByLength_.erase( count );
+    }
+    markLengths_.erase( remembered );
 }
 
 OptionalLineNumber DisplayedLines::markAfter( LineNumber line ) const

@@ -71,6 +71,7 @@
 #include "openlogfile.h"
 #include "overview.h"
 #include "predefinedfilters.h"
+#include "searchline.h"
 #include "signalmux.h"
 #include "viewinterface.h"
 #include "viewset.h"
@@ -331,7 +332,8 @@ private:
     void restoreViewContext( const QString& viewContext );
 
     void setShortcuts();
-    void replaceCurrentSearch( const QString& searchText );
+    // Replaces the current Search with the one the Search Line asks for.
+    void replaceCurrentSearch();
     // Shows a Search just requested, or its invalid pattern.
     void showSearchRequested( const SearchSession::State& state );
     // Makes the Filtered View ready for a new Search's results.
@@ -341,7 +343,13 @@ private:
     // wrote themselves, so that it reaches every open Log File.
     void reportChange( Changed change );
     AbstractLogView* activeView() const;
-    void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
+    // The Search Line says what is known of the Search, which does not run:
+    // the Matches the Filtered View holds (#406).
+    void printSearchInfoMessage();
+    // Mirrors what the Search Line shows: its text, gauge and buttons.
+    void showSearchLine();
+    // Mirrors the Search Line's flags in its buttons.
+    void showSearchFlags();
     void changeDataStatus( DataStatus status );
     // Describes the Encoding the Open Log File settled on.
     void updateEncodingText();
@@ -353,9 +361,9 @@ private:
     void restartChartExtraction();
     void changeTopViewSize( int32_t delta );
 
-    QString escapeSearchPattern( const QString& searchPattern, bool isRegex = false ) const;
-    QString& combinePatterns( QString& currentPattern, const QString& newPattern ) const;
-    void setSearchPattern( const QString& searchPattern );
+    // Shows the pattern the Search Line was edited to, and runs the Search
+    // at once if runNow.
+    void showEditedPattern( bool runNow );
 
     void resetStateOnSearchPatternChanges();
 
@@ -407,9 +415,6 @@ private:
     // Theme's error colors.
     QPalette searchInfoErrorPalette() const;
 
-    // Shows message on the Search info line in the error colors.
-    void showSearchInfoError( const QString& message );
-
     IconLoader iconLoader_;
 
     SavedSearches* savedSearches_ = nullptr;
@@ -454,9 +459,10 @@ private:
 
     // Default palette to be remembered
     QPalette searchInfoLineDefaultPalette_;
-    // Whether the Search info line shows an error, in the error palette; a
-    // Theme switch sets that palette again.
-    bool searchInfoLineShowsError_ = false;
+
+    // The Search's pattern, the buttons that say how it is read and what the
+    // line says about it: the widgets above only mirror it (#399).
+    SearchLine searchLine_;
 
     // Reference to the QuickFind Pattern (not owned)
 

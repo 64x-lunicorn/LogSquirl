@@ -238,7 +238,7 @@ void ChartPanel::setSeriesDefinitions( const QVector<ChartSeriesDefinition>& def
     extraction_.setSeries( series_ );
 }
 
-void ChartPanel::addFilterFrequencySeries( const QStringList& patterns )
+void ChartPanel::addFilterFrequencySeries( const QStringList& patterns, bool matchCase )
 {
     // Predefined palette for auto-assigned colors.
     static const QColor palette[] = {
@@ -259,6 +259,7 @@ void ChartPanel::addFilterFrequencySeries( const QStringList& patterns )
         def.color = palette[ colorIdx % paletteSize ];
         def.pattern = pat;
         def.captureGroup = 0; // count mode: Y = 1 per match
+        def.matchCase = matchCase;
         def.compilePattern();
         if ( def.compiledRegex.isValid() ) {
             series_.append( def );
@@ -309,8 +310,11 @@ void ChartPanel::editSeries()
     dlg.setSeries( series_[ idx ] );
     if ( dlg.exec() == QDialog::Accepted ) {
         auto updated = dlg.series();
-        // Preserve the original ID.
+        // Preserve the original ID, and the Match case the dialog does not
+        // show.
         updated.id = series_[ idx ].id;
+        updated.matchCase = series_[ idx ].matchCase;
+        updated.compilePattern();
         series_[ idx ] = updated;
         rebuildSeriesCombo();
         seriesChanged();

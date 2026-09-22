@@ -691,3 +691,68 @@ SCENARIO( "ChartSeriesDefinition captureGroup exceeds last captured index", "[ch
         }
     }
 }
+
+// A Filter frequency series counts the Log Lines as the Search matches them:
+// with Match case off it ignores case. Every other series matches case (#411).
+SCENARIO( "A chart series matches case unless told otherwise", "[chartseries]" )
+{
+    GIVEN( "a series for a word" )
+    {
+        ChartSeriesDefinition def;
+        def.pattern = "error";
+        def.captureGroup = 0;
+
+        WHEN( "it is left as it is" )
+        {
+            REQUIRE( def.compilePattern() );
+
+            THEN( "it matches the word only as written" )
+            {
+                REQUIRE( def.matchCase );
+                REQUIRE( def.compiledRegex.match( "an error" ).hasMatch() );
+                REQUIRE_FALSE( def.compiledRegex.match( "an Error" ).hasMatch() );
+            }
+        }
+
+        WHEN( "it is told to ignore case" )
+        {
+            def.matchCase = false;
+            REQUIRE( def.compilePattern() );
+
+            THEN( "it matches the word in any case" )
+            {
+                REQUIRE( def.compiledRegex.match( "an Error" ).hasMatch() );
+                REQUIRE( def.compiledRegex.match( "an ERROR" ).hasMatch() );
+            }
+
+            THEN( "it still ignores case after being saved and restored" )
+            {
+                const auto restored = ChartSeriesDefinition::fromJson( def.toJson() );
+                REQUIRE_FALSE( restored.matchCase );
+                REQUIRE( restored.compiledRegex.match( "an ERROR" ).hasMatch() );
+            }
+        }
+    }
+
+    GIVEN( "a series saved before series could ignore case" )
+    {
+        QJsonObject obj;
+        obj[ "pattern" ] = "error";
+
+        THEN( "it matches case" )
+        {
+            REQUIRE( ChartSeriesDefinition::fromJson( obj ).matchCase );
+        }
+    }
+
+    GIVEN( "a series that matches case" )
+    {
+        ChartSeriesDefinition def;
+        def.pattern = "error";
+
+        THEN( "it is saved as before" )
+        {
+            REQUIRE_FALSE( def.toJson().contains( "matchCase" ) );
+        }
+    }
+}

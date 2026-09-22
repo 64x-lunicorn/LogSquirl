@@ -249,6 +249,136 @@ SCENARIO( "A Search Session changes its Matches only when it reports a state cha
     }
 }
 
+SCENARIO( "A Search Session hands over what changed in its Matches before each state change",
+          "[searchsession]" )
+{
+    auto policies = testSettingsPolicies();
+    // Many small blocks, so that Matches arrive before the Search completes.
+    policies.search.readBufferSizeLines = 3;
+    InMemoryBlockSource blockSource( numberedLines( 300 ) );
+    SearchSession session( blockSource, policies.search );
+
+    // One entry per matches delta: its outcome, whether the Matches were
+    // replaced, and how many state changes had been reported before it.
+    struct Delta {
+        MatchesDelta::Outcome outcome;
+        bool replaced;
+        size_t stateChangesBefore;
+    };
+    std::vector<Delta> deltas;
+    // The Matches followed by the deltas alone, as the Displayed Lines do.
+    SearchResultArray followed;
+    std::vector<Phase> phases;
+    // Whether a state change was ever reported without a delta right before it.
+    bool reportedWithoutDelta = false;
+    session.setMatchesChangedCallback( [ & ]( const MatchesDelta& delta ) {
+        deltas.push_back( { delta.outcome, delta.added == nullptr, phases.size() } );
+        if ( delta.added == nullptr ) {
+            followed = session.matches();
+        }
+        else {
+            followed -= delta.removed;
+            followed |= *delta.added;
+        }
+    } );
+    QObject::connect( &session, &SearchSession::stateChanged, &session,
+                      [ & ]( const SearchSession::State& state ) {
+                          if ( deltas.size() != phases.size() + 1 ) {
+                              reportedWithoutDelta = true;
+                          }
+                          phases.push_back( state.phase );
+                      } );
+
+    const auto outcomeOf = []( Phase phase ) {
+        switch ( phase ) {
+        case Phase::Complete:
+            return MatchesDelta::Outcome::Completed;
+        case Phase::Running:
+        case Phase::Interrupted:
+            return MatchesDelta::Outcome::Arrived;
+        default:
+            return MatchesDelta::Outcome::Discarded;
+        }
+    };
+    const auto requireOneDeltaPerStateChange = [ & ] {
+        REQUIRE_FALSE( reportedWithoutDelta );
+        REQUIRE( deltas.size() == phases.size() );
+        for ( size_t change = 0; change < phases.size(); ++change ) {
+            REQUIRE( deltas[ change ].stateChangesBefore == change );
+            REQUIRE( deltas[ change ].outcome == outcomeOf( phases[ change ] ) );
+        }
+    };
+
+    WHEN( "a pattern is requested and runs to completion" )
+    {
+        const RegularExpressionPattern pattern( "fizz" );
+        session.request( pattern );
+        REQUIRE( waitUntilSettled( session ) );
+        QTest::qWait( 250 );
+
+        THEN( "the run replaces the Matches, the deltas add up to them and it completes once" )
+        {
+            requireOneDeltaPerStateChange();
+            REQUIRE( deltas.size() >= 2 );
+            REQUIRE( deltas.front().outcome == MatchesDelta::Outcome::Arrived );
+            REQUIRE( deltas.front().replaced );
+            REQUIRE( deltas.back().outcome == MatchesDelta::Outcome::Completed );
+            for ( size_t change = 1; change < deltas.size(); ++change ) {
+                REQUIRE_FALSE( deltas[ change ].replaced );
+            }
+            REQUIRE( followed == fizzLines( 300 ) );
+        }
+
+        AND_WHEN( "another pattern runs and the first one is requested again" )
+        {
+            session.request( RegularExpressionPattern( "line 1" ) );
+            REQUIRE( waitUntilSettled( session ) );
+            QTest::qWait( 250 );
+            deltas.clear();
+            phases.clear();
+            session.request( pattern );
+
+            THEN( "the cache hit completes at once, with Matches replaced" )
+            {
+                requireOneDeltaPerStateChange();
+                REQUIRE( deltas.size() == 1 );
+                REQUIRE( session.state().fromCache );
+                REQUIRE( deltas.front().outcome == MatchesDelta::Outcome::Completed );
+                REQUIRE( deltas.front().replaced );
+                REQUIRE( followed == fizzLines( 300 ) );
+            }
+        }
+
+        AND_WHEN( "the Session goes idle" )
+        {
+            deltas.clear();
+            phases.clear();
+            session.request();
+
+            THEN( "the Search is discarded" )
+            {
+                requireOneDeltaPerStateChange();
+                REQUIRE( deltas.size() == 1 );
+                REQUIRE( deltas.front().outcome == MatchesDelta::Outcome::Discarded );
+                REQUIRE( followed.isEmpty() );
+            }
+        }
+    }
+
+    WHEN( "an invalid pattern is requested" )
+    {
+        session.request( RegularExpressionPattern( "[unterminated" ), 0_lnum, 100_lnum );
+
+        THEN( "the Search is discarded, without an event loop" )
+        {
+            requireOneDeltaPerStateChange();
+            REQUIRE( deltas.size() == 1 );
+            REQUIRE( deltas.front().outcome == MatchesDelta::Outcome::Discarded );
+            REQUIRE( deltas.front().replaced );
+        }
+    }
+}
+
 SCENARIO( "A Search continues after Log Lines were added", "[searchsession]" )
 {
     const auto policies = testSettingsPolicies();
@@ -561,9 +691,10 @@ SCENARIO( "A continued Search drops the Match of a last Log Line that stopped ma
         // reported count ever differed from the Matches reported with it.
         SearchResultArray reportedRemovals;
         bool countDiffered = false;
+        session.setMatchesChangedCallback(
+            [ & ]( const MatchesDelta& delta ) { reportedRemovals |= delta.removed; } );
         QObject::connect( &session, &SearchSession::stateChanged, &session,
                           [ & ]( const SearchSession::State& state ) {
-                              reportedRemovals |= session.removedMatches();
                               if ( state.matchCount.get() != session.matches().cardinality() ) {
                                   countDiffered = true;
                               }

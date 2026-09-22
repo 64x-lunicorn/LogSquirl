@@ -44,6 +44,10 @@ The desktop application and the command line tool follow a Log File the same way
 both use it.
 _Avoid_: document, loaded file, file session
 
+**Load Rule**:
+What a load, a change on disk and a reload mean for an Open Log File, decided in one place and without reading the Log File: whether the load that finishes brings only lines that were added, whether the Marks are cleared and the Log Format is recognized again, whether the Marks saved with the Session are applied, and whether a Search waiting for the first load runs now. Whether a Search continues or starts again after a truncation it asks the Search's auto-refresh, which keeps deciding that. The Open Log File carries out what it decides.
+_Avoid_: follow rule (follow is the view following the end of the Log File), change tracker
+
 **File Watch Port**:
 Everything an Open Log File needs from file watching: to have its Log File watched from its
 first load until it is closed, and to hear that a watched file changed on disk. It does not
@@ -113,6 +117,10 @@ The lower pane, showing only the Log Lines a Search selected. Its selection, Mar
 Search Limits are Log Lines like the main view's; only its Scroll Position counts places
 among the Log Lines it shows.
 _Avoid_: results pane, filter window
+
+**Search Line**:
+The line above the Filtered View where a Search is typed: its pattern, the buttons that say how the pattern is read (case, regular expression, inverse, logical combination, auto-refresh), and what it says about the Search that runs — progress, the Matches found, an error in the pattern, a truncated Log File. Adding a word to the Search, excluding one or combining Predefined Filters edits its pattern. The search history offered while typing is not part of it.
+_Avoid_: search bar, search box
 
 **QuickFind**:
 Interactive incremental search within the currently displayed lines. Distinct from Search:

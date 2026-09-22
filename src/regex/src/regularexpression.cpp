@@ -33,6 +33,61 @@
 #include "regularexpression.h"
 
 namespace {
+
+// A sub-pattern of a logical combination is enclosed in quotes. A quote
+// inside it is written \", and a run of backslashes right before a quote --
+// an inner one or the closing one -- is written doubled, so that a
+// sub-pattern ending in a backslash does not escape its closing quote. A
+// backslash anywhere else is read as written: "\d+" stays a regexp class
+// (#405). quoteSubPattern() writes a sub-pattern this way.
+
+// The number of backslashes right before index.
+qsizetype backslashesBefore( const QString& pattern, qsizetype index )
+{
+    qsizetype count = 0;
+    while ( index - count > 0 && pattern[ index - count - 1 ] == QChar( '\\' ) ) {
+        ++count;
+    }
+    return count;
+}
+
+// A quote after an odd run of backslashes is part of the sub-pattern.
+bool isEscapedQuote( const QString& pattern, qsizetype quote )
+{
+    return backslashesBefore( pattern, quote ) % 2 == 1;
+}
+
+// The sub-pattern written between its quotes, as it is meant: each run of
+// backslashes right before a quote or at its end read two for one.
+QString unescapeSubPattern( const QString& written )
+{
+    QString subPattern;
+    subPattern.reserve( written.size() );
+
+    qsizetype index = 0;
+    while ( index < written.size() ) {
+        if ( written[ index ] != QChar( '\\' ) ) {
+            subPattern.append( written[ index ] );
+            ++index;
+            continue;
+        }
+
+        auto runEnd = index;
+        while ( runEnd < written.size() && written[ runEnd ] == QChar( '\\' ) ) {
+            ++runEnd;
+        }
+        auto run = runEnd - index;
+        if ( runEnd == written.size() || written[ runEnd ] == QChar( '"' ) ) {
+            // An odd run escapes the quote after it, which follows as is.
+            run /= 2;
+        }
+        subPattern.append( QString( run, QChar( '\\' ) ) );
+        index = runEnd;
+    }
+
+    return subPattern;
+}
+
 logsquirl::vector<RegularExpressionPattern>
 parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainText )
 {
@@ -54,7 +109,7 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
         }
 
         currentIndex = leftQuote + 1;
-        if ( leftQuote > 0 && pattern[ leftQuote - 1 ] == QChar( '\\' ) ) {
+        if ( isEscapedQuote( pattern, leftQuote ) ) {
             leftQuote = -1;
             continue;
         }
@@ -67,7 +122,7 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
             }
 
             currentIndex = rightQuote + 1;
-            if ( rightQuote > 0 && pattern[ rightQuote - 1 ] == QChar( '\\' ) ) {
+            if ( isEscapedQuote( pattern, rightQuote ) ) {
                 rightQuote = -1;
                 continue;
             }
@@ -80,8 +135,8 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
         }
 
         const auto subPatternLength = rightQuote - leftQuote - 1;
-        auto subPattern = pattern.mid( leftQuote + 1, subPatternLength );
-        subPattern.replace( "\\\"", "\"" );
+        const auto subPattern
+            = unescapeSubPattern( pattern.mid( leftQuote + 1, subPatternLength ) );
 
         subPatterns.emplace_back( subPattern, isCaseSensitive, false, false, isPlainText );
 
@@ -108,6 +163,112 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 }
 
 } // namespace
+
+QStringList logicalSubPatterns( const QString& combination )
+{
+    auto expression = combination;
+    QStringList subPatterns;
+    try {
+        for ( const auto& subPattern : parseBooleanExpressions( expression, true, false ) ) {
+            subPatterns.append( subPattern.pattern );
+        }
+    } catch ( const std::exception& ) {
+        return {};
+    }
+    return subPatterns;
+}
+
+QString quoteSubPattern( const QString& subPattern )
+{
+    QString quoted;
+    quoted.reserve( subPattern.size() + 2 );
+    quoted.append( QChar( '"' ) );
+
+    qsizetype index = 0;
+    while ( index < subPattern.size() ) {
+        if ( subPattern[ index ] == QChar( '"' ) ) {
+            quoted.append( QChar( '\\' ) ).append( QChar( '"' ) );
+            ++index;
+        }
+        else if ( subPattern[ index ] == QChar( '\\' ) ) {
+            auto runEnd = index;
+            while ( runEnd < subPattern.size() && subPattern[ runEnd ] == QChar( '\\' ) ) {
+                ++runEnd;
+            }
+            auto run = runEnd - index;
+            if ( runEnd == subPattern.size() || subPattern[ runEnd ] == QChar( '"' ) ) {
+                run *= 2;
+            }
+            quoted.append( QString( run, QChar( '\\' ) ) );
+            index = runEnd;
+        }
+        else {
+            quoted.append( subPattern[ index ] );
+            ++index;
+        }
+    }
+
+    return quoted.append( QChar( '"' ) );
+}
+
+QStringList regexpAlternatives( const QString& regexp )
+{
+    QStringList alternatives;
+    const auto addAlternative = [ & ]( qsizetype from, qsizetype to ) {
+        if ( to > from ) {
+            alternatives.append( regexp.mid( from, to - from ) );
+        }
+    };
+
+    qsizetype alternativeStart = 0;
+    qsizetype groupDepth = 0;
+    // Where the character class opened, its [ and a ^ after it passed; a ]
+    // right there is a character of the class, not its end.
+    qsizetype classStart = -1;
+    for ( qsizetype i = 0; i < regexp.size(); ++i ) {
+        const auto c = regexp[ i ];
+        if ( c == '\\' ) {
+            if ( i + 1 < regexp.size() && regexp[ i + 1 ] == 'Q' ) {
+                // \Q...\E quotes everything up to \E, or to the end.
+                const auto quoteEnd = regexp.indexOf( QLatin1String( "\\E" ), i + 2 );
+                i = quoteEnd < 0 ? regexp.size() : quoteEnd + 1;
+            }
+            else {
+                ++i;
+            }
+        }
+        else if ( classStart >= 0 ) {
+            if ( c == '[' && i + 1 < regexp.size() && regexp[ i + 1 ] == ':' ) {
+                // A POSIX class such as [:alpha:] inside the character class.
+                const auto posixEnd = regexp.indexOf( QLatin1String( ":]" ), i + 2 );
+                if ( posixEnd >= 0 ) {
+                    i = posixEnd + 1;
+                }
+            }
+            else if ( c == ']' && i > classStart ) {
+                classStart = -1;
+            }
+        }
+        else if ( c == '[' ) {
+            classStart = i + 1;
+            if ( classStart < regexp.size() && regexp[ classStart ] == '^' ) {
+                ++classStart;
+            }
+        }
+        else if ( c == '(' ) {
+            ++groupDepth;
+        }
+        else if ( c == ')' ) {
+            groupDepth = std::max<qsizetype>( groupDepth - 1, 0 );
+        }
+        else if ( c == '|' && groupDepth == 0 ) {
+            addAlternative( alternativeStart, i );
+            alternativeStart = i + 1;
+        }
+    }
+    addAlternative( alternativeStart, regexp.size() );
+    return alternatives;
+}
 
 RegularExpression::RegularExpression( const RegularExpressionPattern& pattern, RegexpEngine engine )
     : isInverse_( pattern.isExclude )

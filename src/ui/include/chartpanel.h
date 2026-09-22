@@ -81,8 +81,9 @@ public:
 
     // Create count-mode chart series from the given filter patterns.
     // Used by the "Show Filter Frequency" feature to visualise how
-    // often each search filter matches across the log file.
-    void addFilterFrequencySeries( const QStringList& patterns );
+    // often each search filter matches across the log file. The series
+    // match case as the Search does: matchCase is its Match case.
+    void addFilterFrequencySeries( const QStringList& patterns, bool matchCase );
 
 Q_SIGNALS:
     // Propagated from the chart widget when the user clicks a data point.
