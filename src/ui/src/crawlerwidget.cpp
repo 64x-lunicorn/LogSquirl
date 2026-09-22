@@ -75,6 +75,7 @@
 #include <qglobal.h>
 #include <qobject.h>
 #include <string>
+#include <type_traits>
 
 #include "regularexpression.h"
 
@@ -739,13 +740,13 @@ void CrawlerWidget::jumpToMatchingLine( LineNumber logLine, LinesCount nLines, L
     syncingSelection_ = false;
 }
 
-void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
-                                             LineColumn startCol, LineLength nSymbols )
+void CrawlerWidget::updateLineNumberHandler( const LogPresentation& reporter, LineNumber line,
+                                             LinesCount nLines, LineColumn startCol,
+                                             LineLength nSymbols )
 {
     // A Presentation not shown follows the one shown, and reports nothing
     // of its own.
-    const auto* reporter = dynamic_cast<const LogPresentation*>( sender() );
-    if ( reporter != nullptr && reporter != presentation_ ) {
+    if ( &reporter != presentation_ ) {
         return;
     }
 
@@ -761,8 +762,8 @@ void CrawlerWidget::updateLineNumberHandler( LineNumber line, LinesCount nLines,
 
     // A Row selected in the Table View selects its Log Line, or the Match
     // before it, in the Filtered View too.
-    if ( reporter != nullptr && reporter == logTableView_ && !syncingSelection_
-         && openLogFile_->filteredData() && openLogFile_->filteredData()->getNbLine().get() > 0 ) {
+    if ( &reporter == logTableView_ && !syncingSelection_ && openLogFile_->filteredData()
+         && openLogFile_->filteredData()->getNbLine().get() > 0 ) {
         syncingSelection_ = true;
         filteredView_->selectAndDisplayLine( line );
         syncingSelection_ = false;
@@ -1596,53 +1597,71 @@ void CrawlerWidget::setup()
     }
 }
 
+template <class View>
+void CrawlerWidget::connectSharedSignals( View* view )
+{
+    // The text selected in the view that asked: a Presentation and a
+    // Filtered View hand it out under different names.
+    const auto selectedText = [ view ]() {
+        if constexpr ( std::is_base_of_v<LogPresentation, View> ) {
+            return view->selectedText();
+        }
+        else {
+            return view->getSelectedText();
+        }
+    };
+
+    // Every view hands out Log Lines, the Filtered View as the main view.
+    connect( view, &View::markLines, this, &CrawlerWidget::markLinesFromMain );
+
+    // A Highlighter Set ticked in a view's menu reaches every open Log File.
+    connect( view, &View::highlightersChange, this,
+             [ this ]() { reportChange( Changed::HighlighterSets ); } );
+
+    connect( view, QOverload<const QString&>::of( &View::addToSearch ), this,
+             &CrawlerWidget::addToSearch );
+
+    connect( view, QOverload<const QString&>::of( &View::excludeFromSearch ), this,
+             &CrawlerWidget::excludeFromSearch );
+
+    connect( view, QOverload<const QString&>::of( &View::replaceSearch ), this,
+             &CrawlerWidget::replaceSearch );
+
+    // Detect activity in the views
+    connect( view, &View::activity, this, &CrawlerWidget::activityDetected );
+
+    connect( view, &View::changeSearchLimits, this, &CrawlerWidget::setSearchLimits );
+
+    connect( view, &View::clearSearchLimits, this, &CrawlerWidget::clearSearchLimits );
+
+    connect( view, &View::saveDefaultSplitterSizes, this, &CrawlerWidget::saveSplitterSizes );
+
+    connect( view, &View::addColorLabel, this, &CrawlerWidget::addColorLabelToSelection );
+
+    connect( view, &View::clearColorLabels, this, &CrawlerWidget::clearColorLabels );
+
+    connect( view, &View::sendSelectionToScratchpad, this,
+             [ this, selectedText ]() { Q_EMIT sendToScratchpad( selectedText() ); } );
+
+    connect( view, &View::replaceScratchpadWithSelection, this,
+             [ this, selectedText ]() { Q_EMIT replaceDataInScratchpad( selectedText() ); } );
+}
+
 template <class Presentation>
 void CrawlerWidget::connectPresentation( Presentation* presentation )
 {
     connect( presentation, &Presentation::newSelection, presentation,
              [ presentation ]() { presentation->update(); } );
 
+    // Each Presentation reports as itself, so the one shown is told from
+    // the one not shown without asking who sent the signal.
     connect( presentation, &Presentation::newSelection, this,
-             &CrawlerWidget::updateLineNumberHandler );
+             [ this, presentation ]( LineNumber line, LinesCount nLines, LineColumn startCol,
+                                     LineLength nSymbols ) {
+                 updateLineNumberHandler( *presentation, line, nLines, startCol, nSymbols );
+             } );
 
-    connect( presentation, &Presentation::markLines, this, &CrawlerWidget::markLinesFromMain );
-
-    // A Highlighter Set ticked in a view's menu reaches every open Log File.
-    connect( presentation, &Presentation::highlightersChange, this,
-             [ this ]() { reportChange( Changed::HighlighterSets ); } );
-
-    connect( presentation, QOverload<const QString&>::of( &Presentation::addToSearch ), this,
-             &CrawlerWidget::addToSearch );
-
-    connect( presentation, QOverload<const QString&>::of( &Presentation::excludeFromSearch ), this,
-             &CrawlerWidget::excludeFromSearch );
-
-    connect( presentation, QOverload<const QString&>::of( &Presentation::replaceSearch ), this,
-             &CrawlerWidget::replaceSearch );
-
-    // Detect activity in the views
-    connect( presentation, &Presentation::activity, this, &CrawlerWidget::activityDetected );
-
-    connect( presentation, &Presentation::changeSearchLimits, this,
-             &CrawlerWidget::setSearchLimits );
-
-    connect( presentation, &Presentation::clearSearchLimits, this,
-             &CrawlerWidget::clearSearchLimits );
-
-    connect( presentation, &Presentation::saveDefaultSplitterSizes, this,
-             &CrawlerWidget::saveSplitterSizes );
-
-    connect( presentation, &Presentation::clearColorLabels, this,
-             &CrawlerWidget::clearColorLabels );
-
-    connect( presentation, &Presentation::addColorLabel, this,
-             &CrawlerWidget::addColorLabelToSelection );
-
-    connect( presentation, &Presentation::sendSelectionToScratchpad, this,
-             [ this ]() { Q_EMIT sendToScratchpad( presentation_->selectedText() ); } );
-
-    connect( presentation, &Presentation::replaceScratchpadWithSelection, this,
-             [ this ]() { Q_EMIT replaceDataInScratchpad( presentation_->selectedText() ); } );
+    connectSharedSignals( presentation );
 }
 
 void CrawlerWidget::changeFilteredView( int tabIndex )
@@ -1790,20 +1809,7 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( view, &FilteredView::newSelection, this, &CrawlerWidget::jumpToMatchingLine );
 
-    // The Filtered View hands out Log Lines, as the main view does.
-    connect( view, &FilteredView::markLines, this, &CrawlerWidget::markLinesFromMain );
-
-    connect( view, &FilteredView::highlightersChange, this,
-             [ this ]() { reportChange( Changed::HighlighterSets ); } );
-
-    connect( view, QOverload<const QString&>::of( &FilteredView::addToSearch ), this,
-             &CrawlerWidget::addToSearch );
-
-    connect( view, QOverload<const QString&>::of( &FilteredView::excludeFromSearch ), this,
-             &CrawlerWidget::excludeFromSearch );
-
-    connect( view, QOverload<const QString&>::of( &FilteredView::replaceSearch ), this,
-             &CrawlerWidget::replaceSearch );
+    connectSharedSignals( view );
 
     connect( view, &FilteredView::mouseHoveredOverLine, this,
              &CrawlerWidget::mouseHoveredOverMatch );
@@ -1820,30 +1826,10 @@ void CrawlerWidget::connectAllFilteredViewSlots( FilteredView* view )
 
     connect( this, &CrawlerWidget::textWrapSet, view, &FilteredView::textWrapSet );
 
-    connect( view, &FilteredView::activity, this, &CrawlerWidget::activityDetected );
-
-    connect( view, &FilteredView::changeSearchLimits, this, &CrawlerWidget::setSearchLimits );
-
-    connect( view, &FilteredView::saveDefaultSplitterSizes, this,
-             &CrawlerWidget::saveSplitterSizes );
-
     connect( view, &FilteredView::changeFontSize, this, &CrawlerWidget::changeFontSize );
-
-    connect( view, &FilteredView::clearSearchLimits, this, &CrawlerWidget::clearSearchLimits );
-
-    connect( view, &AbstractLogView::addColorLabel, this,
-             &CrawlerWidget::addColorLabelToSelection );
-
-    connect( view, &AbstractLogView::sendSelectionToScratchpad, this,
-             [ view, this ]() { Q_EMIT sendToScratchpad( view->getSelectedText() ); } );
-
-    connect( view, &AbstractLogView::replaceScratchpadWithSelection, this,
-             [ view, this ]() { Q_EMIT replaceDataInScratchpad( view->getSelectedText() ); } );
 
     connect( view, &FilteredView::exitView, logMainView_,
              QOverload<>::of( &LogMainView::setFocus ) );
-
-    connect( view, &AbstractLogView::clearColorLabels, this, &CrawlerWidget::clearColorLabels );
 
     // The exit-view shortcut is the Text View's; the Table View has none.
     connect( logMainView_, &LogMainView::exitView, view,
