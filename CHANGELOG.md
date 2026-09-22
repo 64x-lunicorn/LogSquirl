@@ -235,6 +235,23 @@
   explicit reload, automatic full reindex, check, partial reindex; an Attach
   takes the Encoding a reload forces. The "truncated" state the log data kept
   so a truncation would not be lost the same way is gone (#395).
+- **A word ending in a backslash keeps a logical Search valid**: In the
+  logical combination mode a run of backslashes right before a quote of a
+  sub-pattern is now written and read doubled: adding a word such as
+  `C:\temp\` to the Search, excluding it or replacing the Search with it
+  writes `"C:\temp\\"`, and a regexp Predefined Filter ending in `\\`
+  combines the same way, so the Search matches instead of failing with
+  "Pattern has unmatched quotes". A
+  backslash anywhere else is read as written, so `"\d+"` still matches digits;
+  only a hand-written pattern with two or more backslashes right before a
+  quote is read differently (#405).
+- **A word with quotes keeps a logical Search valid**: Adding a word that
+  contains a `"` to the Search, excluding it, replacing the Search with it or
+  combining Predefined Filters with it in the logical combination mode writes
+  the inner quote as `\"`, so the Search runs and matches the word with its
+  quotes instead of failing with an error in the expression. Excluding a word
+  from a Search that is not a logical combination and contains a quote gives a
+  valid one too (#398).
 - **File watch polling stops stalling the UI**: The poll tick now runs on a
   thread of its own and stats each watched file with no lock held, instead of
   holding the file watcher's lock across every `QFileInfo` stat on the thread
@@ -633,6 +650,18 @@
   unchanged reports it grew, and a load with no Log Lines leaves Format
   Recognition to the next one. Table tests cover the sequences without a Log
   File, a thread or an event loop (#396).
+- **The Search Line is a model without widgets**: How adding a word to the
+  Search, excluding one, replacing the Search or combining Predefined Filters
+  edits the pattern, that excluding switches the logical combination on, and
+  what the line says about the Search that runs (progress with its plural and
+  gauge, the Matches found, a truncated Log File, an error in the expression,
+  the Search / Stop / Clear buttons) moved out of the Crawler Widget into
+  `SearchLine`, in a library of its own that the
+  `searchline_no_qt_widgets` check keeps free of Qt Widgets. The Crawler
+  Widget hands it every event and mirrors its flags, pattern and display;
+  the search history, the Theme's palettes and refreshing the views stay in
+  the widget. Its texts keep the `CrawlerWidget` translation context, so the
+  translations still match. Table tests cover it without a widget (#399).
 - **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
   `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
   (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on

@@ -118,6 +118,10 @@ Search Limits are Log Lines like the main view's; only its Scroll Position count
 among the Log Lines it shows.
 _Avoid_: results pane, filter window
 
+**Search Line**:
+The line above the Filtered View where a Search is typed: its pattern, the buttons that say how the pattern is read (case, regular expression, inverse, logical combination, auto-refresh), and what it says about the Search that runs — progress, the Matches found, an error in the pattern, a truncated Log File. Adding a word to the Search, excluding one or combining Predefined Filters edits its pattern. The search history offered while typing is not part of it.
+_Avoid_: search bar, search box
+
 **QuickFind**:
 Interactive incremental search within the currently displayed lines. Distinct from Search:
 it navigates, it does not filter.

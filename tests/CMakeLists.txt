@@ -6,11 +6,12 @@ add_subdirectory(helpers)
 add_subdirectory(unit)
 add_subdirectory(openlogfile)
 add_subdirectory(textviewscrolling)
+add_subdirectory(searchline)
 add_subdirectory(ui)
 add_subdirectory(benchmarks)
 
 add_dependencies(logsquirl_itests file_write_helper)
-add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_versioncheck_tests)
+add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_versioncheck_tests)
 
 # TBB is a private dependency of the log data library: no public header of
 # it may include a TBB header (#168).
@@ -55,6 +56,18 @@ add_test(
             "-DWIDGETS_INCLUDE_DIRS=$<JOIN:$<TARGET_PROPERTY:Qt6::Widgets,INTERFACE_INCLUDE_DIRECTORIES>,|>"
             "-DLINK_LIBRARIES=$<JOIN:$<TARGET_PROPERTY:logsquirl_textviewscrolling,LINK_LIBRARIES>,|>"
             -P ${CMAKE_CURRENT_SOURCE_DIR}/textviewscrolling_no_qt_widgets.cmake
+)
+
+# The Search Line builds without Qt Widgets: no file of it may include a Qt
+# Widgets header, and the library may link neither Qt Widgets, the settings
+# store nor the UI library (#399).
+add_test(
+    NAME searchline_no_qt_widgets
+    COMMAND ${CMAKE_COMMAND}
+            -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src/searchline
+            "-DWIDGETS_INCLUDE_DIRS=$<JOIN:$<TARGET_PROPERTY:Qt6::Widgets,INTERFACE_INCLUDE_DIRECTORIES>,|>"
+            "-DLINK_LIBRARIES=$<JOIN:$<TARGET_PROPERTY:logsquirl_searchline,LINK_LIBRARIES>,|>"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/searchline_no_qt_widgets.cmake
 )
 
 # The UI half of the Settings Policy seam: the widget layer legitimately links

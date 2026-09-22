@@ -44,12 +44,7 @@
 #include <QString>
 
 #include "persistable.h"
-
-struct PredefinedFilter {
-    QString name;
-    QString pattern;
-    bool useRegex;
-};
+#include "predefinedfilter.h"
 
 // Represents a named group of predefined filters, analogous to HighlighterSet.
 // Each set has a unique UUID-based identifier and a display name.

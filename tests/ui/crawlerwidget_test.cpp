@@ -469,6 +469,16 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         }
     }
 
+    // What the user does by hand: asks for the Search pattern to be read as a
+    // fixed string.
+    void disableRegexpSearch()
+    {
+        if ( crawler->useRegexpButton_->isChecked() ) {
+            QTest::mouseClick( crawler->useRegexpButton_, Qt::LeftButton );
+            QCoreApplication::processEvents();
+        }
+    }
+
     // The Search info line, as painted.
     QImage searchInfoImage() const
     {
@@ -2772,4 +2782,180 @@ SCENARIO( "An invalid Search pattern is shown in the Theme's error colors", "[ui
     }
 
     Theme::apply( Theme::defaultTheme() );
+}
+
+namespace {
+
+// Log Lines holding a word with quotes in it: 5 read alpha say "hi", 5 read
+// beta say "hi", and 10 read alpha say hi, without the quotes.
+bool generateQuotedWordFile( QTemporaryFile& file )
+{
+    if ( !file.open() ) {
+        return false;
+    }
+    const auto writeLines = [ & ]( const char* line, int count ) {
+        for ( int i = 0; i < count; ++i ) {
+            file.write( line );
+            file.write( "\n" );
+        }
+    };
+    writeLines( R"(alpha say "hi")", 5 );
+    writeLines( R"(beta say "hi")", 5 );
+    writeLines( "alpha say hi", 10 );
+    file.flush();
+    return true;
+}
+
+} // namespace
+
+// In the boolean combination mode every sub-pattern is enclosed in quotes and
+// a quote inside it is written \" (#398).
+SCENARIO( "A word with quotes added to a Search keeps its pattern valid", "[ui][search]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateQuotedWordFile( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 20;
+    } ) );
+    crawlerVisitor.showSized();
+
+    const QString quotedWord = R"(say "hi")";
+    auto* view = crawlerVisitor.textView();
+
+    // Runs the Search on the Search line and tells whether it ran without an
+    // error in its pattern.
+    const auto searchRuns = [ & ] {
+        crawlerVisitor.runSearch();
+        QCoreApplication::processEvents();
+        UNSCOPED_INFO( "pattern: " << crawlerVisitor.searchText().toStdString() << ", search info: "
+                                   << crawlerVisitor.searchInfoText().toStdString() );
+        return !crawlerVisitor.searchInfoText().startsWith( "Error" );
+    };
+
+    // Read as a regexp, the word is escaped and its quotes with it; read as a
+    // fixed string, it is not.
+    for ( const auto useRegexp : { false, true } ) {
+        if ( useRegexp ) {
+            crawlerVisitor.enableRegexpSearch();
+        }
+        else {
+            crawlerVisitor.disableRegexpSearch();
+        }
+        const std::string reading = useRegexp ? " read as a regexp" : " read as a fixed string";
+
+        GIVEN( "a Search in the boolean combination mode," << reading )
+        {
+            crawlerVisitor.enableBooleanCombinationMode();
+
+            WHEN( "the word is added to a Search for nothing" )
+            {
+                crawlerVisitor.setSearchPattern( R"("nothing")" );
+                Q_EMIT view->addToSearch( quotedWord );
+
+                THEN( "the Search runs and matches the Log Lines with the word and its quotes" )
+                {
+                    REQUIRE( searchRuns() );
+                    REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 10 );
+                }
+            }
+
+            WHEN( "the word is excluded from a Search for alpha" )
+            {
+                crawlerVisitor.setSearchPattern( R"("alpha")" );
+                Q_EMIT view->excludeFromSearch( quotedWord );
+
+                THEN( "the Search runs and matches the alpha Log Lines without the quotes" )
+                {
+                    REQUIRE( searchRuns() );
+                    REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 10 );
+                }
+            }
+
+            WHEN( "the Search is replaced with the word" )
+            {
+                crawlerVisitor.setSearchPattern( R"("alpha")" );
+                Q_EMIT view->replaceSearch( quotedWord );
+
+                THEN( "the Search runs and matches the Log Lines with the word and its quotes" )
+                {
+                    REQUIRE( searchRuns() );
+                    REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 10 );
+                }
+            }
+
+            WHEN( "Predefined Filters for the word and for beta are combined" )
+            {
+                crawlerVisitor.crawler->setSearchPatternFromPredefinedFilters(
+                    { { "word", quotedWord, false }, { "beta", "beta", false } } );
+
+                THEN( "the Search runs and matches the Log Lines with either" )
+                {
+                    REQUIRE( searchRuns() );
+                    REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 10 );
+                }
+            }
+        }
+
+        GIVEN( "a Search for the word, not in the boolean combination mode," << reading )
+        {
+            crawlerVisitor.setSearchPattern( quotedWord );
+
+            WHEN( "beta is excluded from it" )
+            {
+                Q_EMIT view->excludeFromSearch( "beta" );
+
+                THEN( "the Search runs in the boolean combination mode and matches the alpha Log "
+                      "Lines with the word and its quotes" )
+                {
+                    REQUIRE( crawlerVisitor.booleanCombiningChecked() );
+                    REQUIRE( searchRuns() );
+                    REQUIRE( crawlerVisitor.getLogFilteredNbLines().get() == 5 );
+                }
+            }
+        }
+    }
+}
+
+// The Search Line holds the pattern the Search runs with; the line starts
+// with the latest Search of the history in it (#399).
+SCENARIO( "A Search started without typing runs the pattern the Search line shows", "[ui][search]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    session.savedSearches().addRecent( "10" );
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.isLoadingFinished()
+               && crawlerVisitor.getLogNbLines().get() == SL_NB_LINES;
+    } ) );
+
+    GIVEN( "a Search history whose latest Search is 10" )
+    {
+        REQUIRE( crawlerVisitor.searchText() == "10" );
+
+        WHEN( "the Search is started" )
+        {
+            crawlerVisitor.runSearch();
+
+            THEN( "it runs for 10" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
+            }
+        }
+    }
+
+    session.savedSearches().clear();
 }
