@@ -259,11 +259,11 @@
   empty Search, or using a single Predefined Filter, stays plain; the
   regexp and logical combination modes are unchanged (#408).
 - **Excluding a word from an empty Search gives not("word")**: Excluding a
-  word from an empty Search line in plain text or regexp mode gives
+  word from an empty Search Line in plain text or regexp mode gives
   `not("word")` instead of `"" and not("word")`, and switches the logical
   combination on as before (#407).
 - **Stopping a Search says how many Matches it found**: After Stop, the
-  Search line says how many Matches the Filtered View holds, "1 match found"
+  Search Line says how many Matches the Filtered View holds, "1 match found"
   or "7 matches found", instead of always "0 match found". The same after a
   reload, a Log File truncated on disk or switching auto-refresh (#406).
 - **A word ending in a backslash keeps a logical Search valid**: In the
