@@ -161,7 +161,13 @@ class IsolatedLogSquirl:
             (config_dir / "logsquirl.ini").write_text(_SETTINGS)
 
             self.binary = binary
-            self.app_data_dir = appdata / "logsquirl"
+            # Test mode puts "/qttest" between the known folder and the
+            # application name of AppDataLocation (Qt's
+            # qstandardpaths_win.cpp), so the instance looks for plugins
+            # under Roaming/qttest/logsquirl, not Roaming/logsquirl (#403).
+            # The settings above stay where they are: QSettings resolves its
+            # ini path itself and does not know test mode.
+            self.app_data_dir = appdata / "qttest" / "logsquirl"
         elif system == "Darwin":
             bundle = self._find_bundle(binary)
             clone = self.root / bundle.name
