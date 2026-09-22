@@ -27,6 +27,29 @@
 #include "regularexpression.h"
 #include "searchblocksource.h"
 
+namespace {
+
+// How a run in this phase stands for whoever follows its Matches.
+MatchesDelta::Outcome outcomeOf( SearchSession::Phase phase )
+{
+    using Phase = SearchSession::Phase;
+    switch ( phase ) {
+    case Phase::Idle:
+    case Phase::InvalidPattern:
+    case Phase::Failed:
+        // Nothing was run (or the run was abandoned or failed): nothing to keep.
+        return MatchesDelta::Outcome::Discarded;
+    case Phase::Complete:
+        return MatchesDelta::Outcome::Completed;
+    case Phase::Running:
+    case Phase::Interrupted:
+        break;
+    }
+    return MatchesDelta::Outcome::Arrived;
+}
+
+} // namespace
+
 SearchSession::SearchSession( const SearchBlockSource& blockSource,
                               const SearchPolicy& searchPolicy )
     : blockSource_( blockSource )
@@ -253,14 +276,9 @@ const SearchResultArray& SearchSession::matches() const
     return matches_;
 }
 
-const SearchResultArray* SearchSession::newMatches() const
+void SearchSession::setMatchesChangedCallback( MatchesChanged matchesChanged )
 {
-    return matchesReplaced_ ? nullptr : &newMatches_;
-}
-
-const SearchResultArray& SearchSession::removedMatches() const
-{
-    return removedMatches_;
+    matchesChanged_ = std::move( matchesChanged );
 }
 
 LineLength SearchSession::maxLength() const
@@ -514,7 +532,13 @@ void SearchSession::notifyStateChanged()
 {
     publishArrivedMatches();
     stateChangePending_ = false;
-    Q_EMIT stateChanged( state() );
+    const auto current = state();
+    if ( matchesChanged_ ) {
+        matchesChanged_( MatchesDelta{ outcomeOf( current.phase ),
+                                       matchesReplaced_ ? nullptr : &newMatches_,
+                                       removedMatches_ } );
+    }
+    Q_EMIT stateChanged( current );
     newMatches_ = SearchResultArray();
     removedMatches_ = SearchResultArray();
     matchesReplaced_ = false;

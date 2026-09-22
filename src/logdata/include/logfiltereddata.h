@@ -54,7 +54,6 @@
 #include "hsregularexpression.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
-#include "marklengths.h"
 #include "searchsession.h"
 #include "synchronization.h"
 
@@ -176,11 +175,9 @@ public:
 Q_SIGNALS:
     // Sent whenever the Search Session's state changes: on progress, on
     // completion (from a real run or from cache), when stopped, when
-    // going idle, or when the pattern fails to compile.
+    // going idle, or when the pattern fails to compile. The Displayed Lines
+    // have followed the Matches by then.
     void searchStateChanged( SearchSession::State state );
-
-private Q_SLOTS:
-    void handleSessionStateChanged( SearchSession::State state );
 
 private:
     // Implementation of virtual functions
@@ -208,14 +205,11 @@ private:
 
     const LogData* sourceLogData_;
 
-    // The length of every marked Log Line, remembered when it was marked, so
-    // the longest Mark is known without reading the marked Log Lines again.
-    MarkLengths markLengths_;
-
     // Owns the pattern, the run in flight, its Matches and its progress.
     SearchSession session_;
-    // Owns the Marks and the Context Lines, and reads session_'s Matches in
-    // place: declared after session_, so it never outlives them.
+    // Owns the Marks with their lengths and the Context Lines, and reads
+    // session_'s Matches in place: declared after session_, so it never
+    // outlives them.
     DisplayedLines displayedLines_;
 
 private:

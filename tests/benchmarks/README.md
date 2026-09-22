@@ -428,7 +428,8 @@ Log Lines after one. Links `logsquirl_logdata` only and needs no GUI:
 
 The file builds on commits from before #292: where the Displayed Lines take
 no new Matches, it calls `matchesArrived()` and `searchCompleted()` without
-them, as the Filtered View did then. Run it in an optimized build:
+them, as the Filtered View did then. Since #400 it hands them a matches delta
+through `apply()`; before that, the same two calls with the new Matches. Run it in an optimized build:
 
 ```bash
 cmake --build build-release --target logsquirl_displayedlines_benchmark

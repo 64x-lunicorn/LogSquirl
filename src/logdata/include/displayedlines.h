@@ -23,10 +23,14 @@
 #include "containers.h"
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
+#include "matchesdelta.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
+#include <unordered_map>
 
 // Walks displayed Log Lines forwards and backwards from a position. It finds
 // the Log Line at that position with one select() and then steps from Log
@@ -80,10 +84,9 @@ private:
 // Search Session's, read in place through a reference and never copied.
 //
 // A plain object for the UI thread: it neither locks nor signals. Whoever
-// changes the Matches it reads tells it so (matchesArrived(),
-// searchCompleted(), searchDiscarded()) before anything reads it again, and
-// a reader on another thread takes a copy of lines() on the UI thread first
-// (ADR 0002).
+// changes the Matches it reads tells it how (apply()) before anything reads
+// it again, and a reader on another thread takes a copy of lines() on the UI
+// thread first (ADR 0002).
 class DisplayedLines {
 public:
     using LineType = AbstractLogData::LineType;
@@ -104,37 +107,20 @@ public:
     // Rebuilds them if -- and only if -- the count changed.
     void setContextLinesCount( int contextLinesCount );
 
-    // The Matches were replaced, or changed in a way not told, while a Search
-    // runs or when it stopped. The Context Lines stay as they are until the
-    // Search completes.
-    void matchesArrived();
-    // The Matches grew by newMatches, none of which was a Match before, while
-    // a Search runs or when it stopped. Costs as much as newMatches, not as
-    // all the Matches; the Context Lines stay as they are until the Search
-    // completes.
-    void matchesArrived( const SearchResultArray& newMatches );
-    // The Matches lost removedMatches, each of which was a Match before: a
-    // Search continued over a grown Log File searched the previously last Log
-    // Line again and it no longer matches. They stop being displayed as
-    // Matches, and the Context Lines follow at once -- unlike those of the
-    // Matches arriving, which wait for the Search to complete, a Match that
-    // is gone must not keep Context Lines nothing reaches any more. Costs as
-    // much as their neighbourhoods, not as all the Matches.
-    void matchesRemoved( const SearchResultArray& removedMatches );
-    // The Search completed (from a real run or from the cache): the Context
-    // Lines are rebuilt around its Matches.
-    void searchCompleted();
-    // The Search completed after the Matches grew by newMatches since they
-    // were last told: the Context Lines are brought up to date around every
-    // Log Line that became a Match since they were last built.
-    void searchCompleted( const SearchResultArray& newMatches );
-    // The Search was cleared, its pattern was invalid or it failed: there
-    // are no Matches, and the Context Lines are dropped with them.
-    void searchDiscarded();
+    // The Matches changed as delta tells, and the Displayed Lines follow:
+    // the Matches that left them stop being displayed, with Context Lines
+    // nothing reaches any more, and those that joined them are displayed at
+    // once. Their Context Lines are brought up to date when the Search
+    // completes, and dropped with the Matches when it is discarded. Costs as
+    // much as the Matches that changed, not as all of them -- unless they
+    // were replaced.
+    void apply( const MatchesDelta& delta );
 
-    // Adds a Mark; false if the Log Line was already marked.
-    bool addMark( LineNumber line );
-    // Removes a Mark; false if the Log Line was not marked.
+    // Adds a Mark on a Log Line of the given length; false if the Log Line
+    // was already marked, when the length it was marked with stays.
+    bool addMark( LineNumber line, LineLength length );
+    // Removes a Mark, and its length with it; false if the Log Line was not
+    // marked.
     bool removeMark( LineNumber line );
     void clearMarks();
     const SearchResultArray& marks() const;
@@ -142,6 +128,16 @@ public:
     OptionalLineNumber markAfter( LineNumber line ) const;
     // The last Mark strictly before line.
     OptionalLineNumber markBefore( LineNumber line ) const;
+
+    // The Log Lines of the Log File from firstChanged on may read differently
+    // now: the length of every Mark among them is read again through
+    // lengthOf, which knows the Log File (these lines do not).
+    void logLinesChanged( LineNumber firstChanged,
+                          const std::function<LineLength( LineNumber )>& lengthOf );
+    // How wide the Filtered View may have to scroll: the longer of the longest
+    // Mark and longestMatch, the longest Match, whether or not either is
+    // displayed.
+    LineLength maxLength( LineLength longestMatch ) const;
 
     // Whether a Log Line is a Match, a Mark or both, or else a Context Line,
     // whether or not it is displayed.
@@ -177,6 +173,35 @@ public:
     uint64_t rewrites() const;
 
 private:
+    // What apply() does for each part of a delta.
+    // The Matches were replaced, or changed in a way not told, while a Search
+    // runs or when it stopped. The Context Lines stay as they are until the
+    // Search completes.
+    void matchesArrived();
+    // The Matches grew by newMatches, none of which was a Match before, while
+    // a Search runs or when it stopped. Costs as much as newMatches, not as
+    // all the Matches; the Context Lines stay as they are until the Search
+    // completes.
+    void matchesArrived( const SearchResultArray& newMatches );
+    // The Matches lost removedMatches, each of which was a Match before: a
+    // Search continued over a grown Log File searched the previously last Log
+    // Line again and it no longer matches. They stop being displayed as
+    // Matches, and the Context Lines follow at once -- unlike those of the
+    // Matches arriving, which wait for the Search to complete, a Match that
+    // is gone must not keep Context Lines nothing reaches any more. Costs as
+    // much as their neighbourhoods, not as all the Matches.
+    void matchesRemoved( const SearchResultArray& removedMatches );
+    // The Search completed (from a real run or from the cache): the Context
+    // Lines are rebuilt around its Matches.
+    void searchCompleted();
+    // The Search completed after the Matches grew by newMatches since they
+    // were last told: the Context Lines are brought up to date around every
+    // Log Line that became a Match since they were last built.
+    void searchCompleted( const SearchResultArray& newMatches );
+    // The Search was cleared, its pattern was invalid or it failed: there
+    // are no Matches, and the Context Lines are dropped with them.
+    void searchDiscarded();
+
     // Rebuilds contextLines_ around the Matches and the Marks.
     void rebuildContextLines();
     // Brings contextLines_ up to date around every Match and Mark, rebuilding
@@ -218,6 +243,15 @@ private:
     LineType shown_ = LineType{ LineTypeFlags::Match } | LineTypeFlags::Mark;
 
     SearchResultArray marks_;
+    // The length of every Mark, given when it was added or read again since,
+    // so the longest Mark is known again when one is removed without reading
+    // any Log Line.
+    std::unordered_map<LineNumber::UnderlyingType, LineLength::UnderlyingType> markLengths_;
+    // How many Marks have each length.
+    std::map<LineLength::UnderlyingType, std::size_t> marksByLength_;
+    // Remembers the length of a Mark, replacing the one remembered before.
+    void setMarkLength( uint64_t line, LineLength length );
+    void forgetMarkLength( uint64_t line );
     // Log Lines displayed only because they neighbour a Match or a Mark;
     // never a Match or a Mark itself.
     SearchResultArray contextLines_;

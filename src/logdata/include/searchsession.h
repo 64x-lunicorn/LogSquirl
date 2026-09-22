@@ -20,6 +20,7 @@
 #ifndef LOGSQUIRL_SEARCH_SESSION_H
 #define LOGSQUIRL_SEARCH_SESSION_H
 
+#include <functional>
 #include <tuple>
 #include <unordered_map>
 
@@ -30,6 +31,7 @@
 
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
+#include "matchesdelta.h"
 #include "regularexpressionpattern.h"
 #include "settingspolicies.h"
 #include "synchronization.h"
@@ -45,7 +47,8 @@ class SearchBlockSource;
 //
 // The Matches are all it keeps of what the Filtered View shows: the Marks
 // and the Context Lines belong to the Displayed Lines, which read the
-// Matches in place (matches()) whenever this reports a state change.
+// Matches in place (matches()) and are handed what changed in them (a
+// matches delta) with every state change.
 class SearchSession : public QObject {
     Q_OBJECT
 
@@ -114,19 +117,16 @@ public:
     // a stateChanged() -- so a reader there can hold on to the reference
     // instead of copying, and catch up whenever it is told of a change.
     const SearchResultArray& matches() const;
-    // While stateChanged() is emitted: the Matches that joined matches() with
-    // it, none of which was a Match before -- so whoever follows the Matches
-    // can update by them alone. nullptr when the Matches were replaced since
-    // the previous stateChanged() (a new run, a cache hit, a reset): then only
-    // all of them tell what changed.
-    const SearchResultArray* newMatches() const;
-    // While stateChanged() is emitted: the Matches that left matches() with
-    // it, each of which was a Match before. A Search continued over a grown
-    // Log File searches its previously last Log Line again, because it may
-    // have been incomplete; when it no longer matches, its Match is dropped
-    // and reported here. Empty whenever newMatches() is nullptr: then all of
-    // the Matches tell what changed anyway.
-    const SearchResultArray& removedMatches() const;
+
+    // Called with what changed in the Matches whenever they may have, with
+    // every state change: synchronously, on the thread this object lives on,
+    // right before stateChanged() is emitted. The delta points into this
+    // object's bitmaps and is valid only during the call. A plain callback,
+    // not a signal, so it can never be connected queued; one is set, by
+    // whoever follows the Matches (the log filtered data). An empty one is
+    // not called.
+    using MatchesChanged = std::function<void( const MatchesDelta& )>;
+    void setMatchesChangedCallback( MatchesChanged matchesChanged );
     LineLength maxLength() const;
     LinesCount processedLines() const;
 
@@ -167,8 +167,9 @@ private:
     // into newMatches_/removedMatches_ unless the Matches were replaced since
     // the last state change was reported.
     void publishArrivedMatches();
-    // Publishes the Matches that arrived and reports the current state: the
-    // one way stateChanged() is emitted. Progress goes through the throttler
+    // Publishes the Matches that arrived, hands what changed in them to
+    // matchesChanged_ and reports the current state: the one way
+    // stateChanged() is emitted. Progress goes through the throttler
     // first; a run starting, stopping, completing or failing is reported at
     // once.
     void notifyStateChanged();
@@ -214,10 +215,10 @@ private:
     // arrivedMatches_ together less these.
     SearchResultArray staleMatches_;
     // The Matches that joined matches_ since the last state change was
-    // reported, kept only while it is (newMatches()).
+    // reported, kept only until it is (MatchesDelta::added).
     SearchResultArray newMatches_;
     // The Matches that left matches_ since the last state change was
-    // reported, kept only while it is (removedMatches()).
+    // reported, kept only until it is (MatchesDelta::removed).
     SearchResultArray removedMatches_;
     // The Log Line a continuation searches again because it may have been
     // incomplete when it was searched before: the last one searched then.
@@ -228,6 +229,7 @@ private:
     bool matchesReplaced_ = true;
     // A progress tick is waiting in the throttler to be reported.
     bool stateChangePending_ = false;
+    MatchesChanged matchesChanged_;
     LineLength maxLength_{ 0 };
     LinesCount nbLinesProcessed_{ 0 };
 

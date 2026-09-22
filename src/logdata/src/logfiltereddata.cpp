@@ -60,6 +60,9 @@ LogFilteredData::~LogFilteredData()
     // Disconnect all signals before members (in particular session_) are
     // destroyed, on top of session_'s own teardown safety.
     disconnect();
+    // And the Displayed Lines, destroyed before session_, are told nothing
+    // more.
+    session_.setMatchesChangedCallback( {} );
 }
 
 // Usual constructor: just copy the data, the search is started by request()
@@ -71,8 +74,20 @@ LogFilteredData::LogFilteredData( const LogData* logData, const SearchPolicy& se
           session_.matches(), [ logData ] { return logData->getNbLine(); },
           searchPolicy.contextLinesCount )
 {
-    connect( &session_, &SearchSession::stateChanged, this,
-             &LogFilteredData::handleSessionStateChanged );
+    // The Displayed Lines follow the Matches in the Search Session's own call,
+    // before it reports the state change that goes with it.
+    session_.setMatchesChangedCallback( [ this ]( const MatchesDelta& delta ) {
+        displayedLines_.apply( delta );
+        if ( delta.outcome == MatchesDelta::Outcome::Completed ) {
+            LOG_INFO << "Matches size "
+                     << readableSize( session_.matches().getSizeInBytes( false ) )
+                     << ", marks size "
+                     << readableSize( displayedLines_.marks().getSizeInBytes( false ) )
+                     << ", displayed lines size "
+                     << readableSize( displayedLines_.lines().getSizeInBytes( false ) );
+        }
+    } );
+    connect( &session_, &SearchSession::stateChanged, this, &LogFilteredData::searchStateChanged );
 }
 
 void LogFilteredData::request( const RegularExpressionPattern& regExp )
@@ -188,12 +203,8 @@ void LogFilteredData::setSearchPolicy( const SearchPolicy& searchPolicy )
 void LogFilteredData::toggleMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
-        if ( displayedLines_.addMark( line ) ) {
-            markLengths_.add( line, sourceLogData_->getLineLength( line ) );
-        }
-        else {
-            displayedLines_.removeMark( line );
-            markLengths_.remove( line );
+        if ( !displayedLines_.removeMark( line ) ) {
+            displayedLines_.addMark( line, sourceLogData_->getLineLength( line ) );
         }
     }
     else {
@@ -204,9 +215,8 @@ void LogFilteredData::toggleMark( LineNumber line )
 void LogFilteredData::addMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
-        displayedLines_.addMark( line );
-        if ( !markLengths_.contains( line ) ) {
-            markLengths_.add( line, sourceLogData_->getLineLength( line ) );
+        if ( !displayedLines_.marks().contains( line.get() ) ) {
+            displayedLines_.addMark( line, sourceLogData_->getLineLength( line ) );
         }
     }
     else {
@@ -227,24 +237,19 @@ OptionalLineNumber LogFilteredData::getMarkBefore( LineNumber line ) const
 void LogFilteredData::deleteMark( LineNumber line )
 {
     displayedLines_.removeMark( line );
-    markLengths_.remove( line );
 }
 
 void LogFilteredData::clearMarks()
 {
     displayedLines_.clearMarks();
-    markLengths_.clear();
 }
 
 void LogFilteredData::logLinesChanged( LineNumber firstChanged )
 {
     const auto nbLines = sourceLogData_->getNbLine();
-    for ( const auto line : getMarks() ) {
-        if ( line >= firstChanged ) {
-            markLengths_.add( line,
-                              line < nbLines ? sourceLogData_->getLineLength( line ) : 0_length );
-        }
-    }
+    displayedLines_.logLinesChanged( firstChanged, [ this, nbLines ]( LineNumber line ) {
+        return line < nbLines ? sourceLogData_->getLineLength( line ) : 0_length;
+    } );
 }
 
 QList<LineNumber> LogFilteredData::getMarks() const
@@ -269,59 +274,6 @@ void LogFilteredData::setVisibility( Visibility visi )
 LogFilteredData::Visibility LogFilteredData::visibility() const
 {
     return Visibility::fromInt( displayedLines_.shown().toInt() );
-}
-
-//
-// Q_SLOTS:
-//
-void LogFilteredData::handleSessionStateChanged( SearchSession::State state )
-{
-    using Phase = SearchSession::Phase;
-
-    // The Search Session's Matches have changed by now; the Displayed Lines
-    // read them in place and only need to know how far: by the new Matches
-    // alone when they grew, entirely when they were replaced.
-    const auto* newMatches = session_.newMatches();
-    // A Log Line that stopped matching -- the previously last one of a grown
-    // Log File, searched again once it was complete -- leaves them before the
-    // Matches that arrived with it join them.
-    if ( !session_.removedMatches().isEmpty() ) {
-        displayedLines_.matchesRemoved( session_.removedMatches() );
-    }
-    switch ( state.phase ) {
-    case Phase::Idle:
-    case Phase::InvalidPattern:
-    case Phase::Failed:
-        // Nothing was run (or the run was abandoned or failed): nothing to keep.
-        displayedLines_.searchDiscarded();
-        break;
-    case Phase::Complete:
-        // From a real run or from the cache alike, so Context Lines never
-        // belong to whatever ran previously.
-        if ( newMatches != nullptr ) {
-            displayedLines_.searchCompleted( *newMatches );
-        }
-        else {
-            displayedLines_.searchCompleted();
-        }
-        LOG_INFO << "Matches size " << readableSize( session_.matches().getSizeInBytes( false ) )
-                 << ", marks size "
-                 << readableSize( displayedLines_.marks().getSizeInBytes( false ) )
-                 << ", displayed lines size "
-                 << readableSize( displayedLines_.lines().getSizeInBytes( false ) );
-        break;
-    case Phase::Running:
-    case Phase::Interrupted:
-        if ( newMatches != nullptr ) {
-            displayedLines_.matchesArrived( *newMatches );
-        }
-        else {
-            displayedLines_.matchesArrived();
-        }
-        break;
-    }
-
-    Q_EMIT searchStateChanged( state );
 }
 
 LineNumber LogFilteredData::findLogDataLine( LineNumber index ) const
@@ -403,7 +355,7 @@ LinesCount LogFilteredData::doGetNbLine() const
 // Implementation of the virtual function.
 LineLength LogFilteredData::doGetMaxLength() const
 {
-    return qMax( session_.maxLength(), markLengths_.longest() );
+    return displayedLines_.maxLength( session_.maxLength() );
 }
 
 // Implementation of the virtual function.
