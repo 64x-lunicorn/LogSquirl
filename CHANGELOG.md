@@ -226,6 +226,10 @@
 
 ## Bug fixes
 
+- **Excluding a word from an empty Search gives not("word")**: Excluding a
+  word from an empty Search line in plain text or regexp mode gives
+  `not("word")` instead of `"" and not("word")`, and switches the logical
+  combination on as before (#407).
 - **Stopping a Search says how many Matches it found**: After Stop, the
   Search line says how many Matches the Filtered View holds, "1 match found"
   or "7 matches found", instead of always "0 match found". The same after a

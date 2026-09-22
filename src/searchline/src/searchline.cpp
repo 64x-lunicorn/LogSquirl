@@ -138,9 +138,11 @@ bool SearchLine::add( const QString& word )
 bool SearchLine::exclude( const QString& word )
 {
     // The exclusion is written in a logical combination: a pattern that is
-    // not one yet becomes its first sub-pattern.
+    // not one yet becomes its first sub-pattern, an empty one none (#407).
     if ( !flags_.booleanCombination ) {
-        pattern_ = quoteSubPattern( pattern_ );
+        if ( !pattern_.isEmpty() ) {
+            pattern_ = quoteSubPattern( pattern_ );
+        }
         flags_.booleanCombination = true;
     }
 

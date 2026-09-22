@@ -249,6 +249,47 @@ SCENARIO( "A word edits the Search Line's pattern as the buttons read it", "[sea
     }
 }
 
+// An empty pattern is no sub-pattern of the logical combination the exclusion
+// is written in (#407).
+SCENARIO( "A word excluded from an empty Search Line is all the pattern says",
+          "[searchline][search]" )
+{
+    struct Row {
+        Reading reading;
+        QString excluded;
+    };
+
+    const auto row = GENERATE( values<Row>( {
+        { Reading::Plain, R"(not("a.b"))" },
+        { Reading::Regexp, R"(not("a\.b"))" },
+        { Reading::Boolean, R"(not("a.b"))" },
+        { Reading::BooleanRegexp, R"(not("a\.b"))" },
+    } ) );
+
+    GIVEN( "an empty Search Line " << describe( row.reading ) )
+    {
+        auto line = lineWith( row.reading, {} );
+
+        WHEN( "the word a.b is excluded from it" )
+        {
+            line.exclude( "a.b" );
+
+            THEN( "the pattern excludes the word and nothing else, as a logical combination" )
+            {
+                REQUIRE( line.pattern() == row.excluded );
+                REQUIRE( line.flags().booleanCombination );
+            }
+
+            THEN( "the Search matches every Log Line without the word" )
+            {
+                REQUIRE( matches( line, "alpha" ) );
+                REQUIRE( matches( line, "a b" ) );
+                REQUIRE_FALSE( matches( line, "x a.b y" ) );
+            }
+        }
+    }
+}
+
 // In the logical combination mode every sub-pattern is enclosed in quotes and
 // a quote inside it is written \" (#398).
 SCENARIO( "A word with quotes keeps the Search Line's pattern valid", "[searchline][search]" )
