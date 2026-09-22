@@ -57,7 +57,6 @@
 #include <QCompleter>
 #include <QInputDialog>
 #include <QJsonArray>
-#include <QJsonDocument>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -94,6 +93,7 @@
 #include "savedsearches.h"
 #include "shortcuts.h"
 #include "theme.h"
+#include "viewstatecodec.h"
 
 namespace {
 
@@ -133,101 +133,6 @@ public:
 };
 
 } // namespace
-
-// Implementation of the view context for the CrawlerWidget
-class CrawlerWidgetContext : public ViewContextInterface {
-public:
-    // Construct from the stored string representation. A context stored
-    // before the Search line's regexp type was part of one falls back to what
-    // the QuickFind Policy says, which is why one is taken here.
-    CrawlerWidgetContext( const QString& string, const QuickFindPolicy& quickFindPolicy );
-    // Construct from the value passsed
-    CrawlerWidgetContext( QList<int> sizes, bool ignoreCase, bool autoRefresh, bool followFile,
-                          bool useRegexp, bool inverseRegexp, bool useBooleanCombination,
-                          QList<LineNumber> markedLines, QJsonArray chartSeriesJson = {},
-                          bool chartVisible = false )
-        : sizes_( sizes )
-        , ignoreCase_( ignoreCase )
-        , autoRefresh_( autoRefresh )
-        , followFile_( followFile )
-        , useRegexp_( useRegexp )
-        , inverseRegexp_( inverseRegexp )
-        , useBooleanCombination_( useBooleanCombination )
-        , chartSeriesJson_( chartSeriesJson )
-        , chartVisible_( chartVisible )
-    {
-        std::transform( markedLines.cbegin(), markedLines.cend(), std::back_inserter( marks_ ),
-                        []( const auto& m ) { return m.get(); } );
-    }
-
-    // Implementation of the ViewContextInterface function
-    QString toString() const override;
-
-    // Access the Qt sizes array for the QSplitter
-    QList<int> sizes() const
-    {
-        return sizes_;
-    }
-
-    bool ignoreCase() const
-    {
-        return ignoreCase_;
-    }
-    bool autoRefresh() const
-    {
-        return autoRefresh_;
-    }
-    bool followFile() const
-    {
-        return followFile_;
-    }
-    bool useRegexp() const
-    {
-        return useRegexp_;
-    }
-    bool inverseRegexp() const
-    {
-        return inverseRegexp_;
-    }
-    bool useBooleanCombination() const
-    {
-        return useBooleanCombination_;
-    }
-
-    QList<LineNumber::UnderlyingType> marks() const
-    {
-        return marks_;
-    }
-
-    QJsonArray chartSeriesJson() const
-    {
-        return chartSeriesJson_;
-    }
-    bool chartVisible() const
-    {
-        return chartVisible_;
-    }
-
-private:
-    // useRegexpByPolicy: what the QuickFind Policy says the Search line reads
-    // its pattern as, used when the stored context does not say.
-    void loadFromString( const QString& string, bool useRegexpByPolicy );
-    void loadFromJson( const QString& json, bool useRegexpByPolicy );
-
-private:
-    QList<int> sizes_;
-
-    bool ignoreCase_;
-    bool autoRefresh_;
-    bool followFile_;
-    bool useRegexp_;
-    bool inverseRegexp_;
-    bool useBooleanCombination_;
-
-    QList<LineNumber::UnderlyingType> marks_;
-    QJsonArray chartSeriesJson_;
-    bool chartVisible_ = false;
-};
 
 // Constructor only does trivial construction. The real work is done once
 // the data is attached.
@@ -448,30 +353,30 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
 {
     LOG_DEBUG << "CrawlerWidget::restoreViewContext: " << viewContext.toLocal8Bit().data();
 
-    const auto context = CrawlerWidgetContext{ viewContext, viewSet_.quickFindPolicy() };
+    const auto context = decodeViewState( viewContext, viewSet_.quickFindPolicy() );
 
-    setSizes( context.sizes() );
-    matchCaseButton_->setChecked( !context.ignoreCase() );
-    useRegexpButton_->setChecked( context.useRegexp() );
-    inverseButton_->setChecked( context.inverseRegexp() );
-    booleanButton_->setChecked( context.useBooleanCombination() );
+    setSizes( context.sizes );
+    matchCaseButton_->setChecked( !context.ignoreCase );
+    useRegexpButton_->setChecked( context.useRegexp );
+    inverseButton_->setChecked( context.inverseRegexp );
+    booleanButton_->setChecked( context.useBooleanCombination );
 
-    searchRefreshButton_->setChecked( context.autoRefresh() );
+    searchRefreshButton_->setChecked( context.autoRefresh );
     // Manually call the handler as it is not called when changing the state programmatically
-    searchRefreshChangedHandler( context.autoRefresh() );
+    searchRefreshChangedHandler( context.autoRefresh );
 
-    logMainView_->followSet( context.followFile() && watchPolicy_.anyWatchEnabled() );
+    logMainView_->followSet( context.followFile && watchPolicy_.anyWatchEnabled() );
 
     // Saving and restoring Marks with the Session is the user interface's;
     // when they are applied is the Open Log File's.
-    const auto savedMarks = context.marks();
+    const auto& savedMarks = context.marks;
     logsquirl::vector<LineNumber> savedMarkedLines;
     std::transform( savedMarks.cbegin(), savedMarks.cend(), std::back_inserter( savedMarkedLines ),
                     []( const auto& l ) { return LineNumber( l ); } );
     openLogFile_->restoreMarks( savedMarkedLines );
 
     // Restore chart series and visibility
-    const auto chartJson = context.chartSeriesJson();
+    const auto& chartJson = context.chartSeries;
     if ( !chartJson.isEmpty() ) {
         QList<ChartSeriesDefinition> defs;
         for ( const auto& val : chartJson ) {
@@ -479,25 +384,30 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
         }
         chartPanel_->setSeriesDefinitions( defs );
     }
-    if ( context.chartVisible() ) {
+    if ( context.chartVisible ) {
         chartPanel_->show();
     }
 }
 
 std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() const
 {
-    // Serialize current chart series definitions to JSON
-    QJsonArray chartJson;
+    ViewState state;
+    state.sizes = sizes();
+    state.ignoreCase = !matchCaseButton_->isChecked();
+    state.autoRefresh = searchRefreshButton_->isChecked();
+    state.followFile = logMainView_->isFollowEnabled();
+    state.useRegexp = useRegexpButton_->isChecked();
+    state.inverseRegexp = inverseButton_->isChecked();
+    state.useBooleanCombination = booleanButton_->isChecked();
+    const auto marks = openLogFile_->marks();
+    std::transform( marks.cbegin(), marks.cend(), std::back_inserter( state.marks ),
+                    []( const auto& m ) { return m.get(); } );
     for ( const auto& def : chartPanel_->seriesDefinitions() ) {
-        chartJson.append( def.toJson() );
+        state.chartSeries.append( def.toJson() );
     }
+    state.chartVisible = chartPanel_->isVisible();
 
-    auto context = std::make_shared<const CrawlerWidgetContext>(
-        sizes(), ( !matchCaseButton_->isChecked() ), searchRefreshButton_->isChecked(),
-        logMainView_->isFollowEnabled(), useRegexpButton_->isChecked(), inverseButton_->isChecked(),
-        booleanButton_->isChecked(), openLogFile_->marks(), chartJson, chartPanel_->isVisible() );
-
-    return static_cast<std::shared_ptr<const ViewContextInterface>>( context );
+    return std::make_shared<const ViewStateContext>( std::move( state ) );
 }
 
 //
@@ -2212,146 +2122,6 @@ void CrawlerWidget::updateColorLabels(
     // The Color Labels belong to the Log File: every view of it colors them,
     // the Filtered Views of kept Searches included.
     viewSet_.setColorLabels( labels );
-}
-
-/*
- * CrawlerWidgetContext
- */
-CrawlerWidgetContext::CrawlerWidgetContext( const QString& string,
-                                            const QuickFindPolicy& quickFindPolicy )
-{
-    const auto useRegexpByPolicy
-        = quickFindPolicy.mainRegexpType == SearchRegexpType::ExtendedRegexp;
-
-    if ( string.startsWith( '{' ) ) {
-        loadFromJson( string, useRegexpByPolicy );
-    }
-    else {
-        loadFromString( string, useRegexpByPolicy );
-    }
-}
-
-void CrawlerWidgetContext::loadFromString( const QString& string, bool useRegexpByPolicy )
-{
-    QRegularExpression regex( "S(\\d+):(\\d+)" );
-    QRegularExpressionMatch match = regex.match( string );
-    if ( match.hasMatch() ) {
-        sizes_ = { match.captured( 1 ).toInt(), match.captured( 2 ).toInt() };
-        LOG_DEBUG << "sizes_: " << sizes_[ 0 ] << " " << sizes_[ 1 ];
-    }
-    else {
-        LOG_WARNING << "Unrecognised view size: " << string.toLocal8Bit().data();
-
-        // Default values;
-        sizes_ = { 400, 100 };
-    }
-
-    QRegularExpression case_refresh_regex( "IC(\\d+):AR(\\d+)" );
-    match = case_refresh_regex.match( string );
-    if ( match.hasMatch() ) {
-        ignoreCase_ = ( match.captured( 1 ).toInt() == 1 );
-        autoRefresh_ = ( match.captured( 2 ).toInt() == 1 );
-
-        LOG_DEBUG << "ignore_case_: " << ignoreCase_ << " auto_refresh_: " << autoRefresh_;
-    }
-    else {
-        LOG_WARNING << "Unrecognised case/refresh: " << string.toLocal8Bit().data();
-        ignoreCase_ = false;
-        autoRefresh_ = false;
-    }
-
-    QRegularExpression follow_regex( "AR(\\d+):FF(\\d+)" );
-    match = follow_regex.match( string );
-    if ( match.hasMatch() ) {
-        followFile_ = ( match.captured( 2 ).toInt() == 1 );
-
-        LOG_DEBUG << "follow_file_: " << followFile_;
-    }
-    else {
-        LOG_WARNING << "Unrecognised follow file " << string.toLocal8Bit().data();
-        followFile_ = false;
-    }
-
-    useRegexp_ = useRegexpByPolicy;
-}
-
-void CrawlerWidgetContext::loadFromJson( const QString& json, bool useRegexpByPolicy )
-{
-    const auto properties = QJsonDocument::fromJson( json.toLatin1() ).toVariant().toMap();
-
-    if ( properties.contains( "S" ) ) {
-        const auto sizes = properties.value( "S" ).toList();
-        for ( const auto& s : sizes ) {
-            sizes_.append( s.toInt() );
-        }
-    }
-
-    ignoreCase_ = properties.value( "IC" ).toBool();
-    autoRefresh_ = properties.value( "AR" ).toBool();
-    followFile_ = properties.value( "FF" ).toBool();
-    if ( properties.contains( "RE" ) ) {
-        useRegexp_ = properties.value( "RE" ).toBool();
-    }
-    else {
-        useRegexp_ = useRegexpByPolicy;
-    }
-
-    if ( properties.contains( "IR" ) ) {
-        inverseRegexp_ = properties.value( "IR" ).toBool();
-    }
-    else {
-        inverseRegexp_ = false;
-    }
-
-    if ( properties.contains( "BC" ) ) {
-        useBooleanCombination_ = properties.value( "BC" ).toBool();
-    }
-    else {
-        useBooleanCombination_ = false;
-    }
-
-    if ( properties.contains( "M" ) ) {
-        const auto marks = properties.value( "M" ).toList();
-        for ( const auto& m : marks ) {
-            marks_.append( m.toUInt() );
-        }
-    }
-
-    if ( properties.contains( "CS" ) ) {
-        chartSeriesJson_
-            = QJsonDocument::fromJson( properties.value( "CS" ).toString().toUtf8() ).array();
-    }
-    chartVisible_ = properties.value( "CV" ).toBool();
-}
-
-QString CrawlerWidgetContext::toString() const
-{
-    const auto toVariantList = []( const auto& list ) -> QVariantList {
-        QVariantList variantList;
-        for ( const auto& item : list ) {
-            variantList.append( static_cast<qulonglong>( item ) );
-        }
-        return variantList;
-    };
-
-    QVariantMap properies;
-
-    properies[ "S" ] = toVariantList( sizes_ );
-    properies[ "IC" ] = ignoreCase_;
-    properies[ "AR" ] = autoRefresh_;
-    properies[ "FF" ] = followFile_;
-    properies[ "RE" ] = useRegexp_;
-    properies[ "IR" ] = inverseRegexp_;
-    properies[ "BC" ] = useBooleanCombination_;
-    properies[ "M" ] = toVariantList( marks_ );
-
-    if ( !chartSeriesJson_.isEmpty() ) {
-        properies[ "CS" ] = QString::fromUtf8(
-            QJsonDocument( chartSeriesJson_ ).toJson( QJsonDocument::Compact ) );
-    }
-    properies[ "CV" ] = chartVisible_;
-
-    return QJsonDocument::fromVariant( properies ).toJson( QJsonDocument::Compact );
 }
 
 // Toggle between text view and table view

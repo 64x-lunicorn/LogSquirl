@@ -41,6 +41,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedcrawlerwidget.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tableviewselection.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewinterface.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/viewstatecodec.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/scratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabbedscratchpad.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/chipmunkimporter.h
@@ -93,6 +94,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logtableview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/presentationmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindow.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindowtext.cpp
