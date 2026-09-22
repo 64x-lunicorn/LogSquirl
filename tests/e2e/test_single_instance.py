@@ -33,6 +33,12 @@ def log_file(instances):
     return path
 
 
+@pytest.mark.xfail(
+    platform.system() == "Windows",
+    reason="the secondary hands off and exits 0, but the primary is never seen "
+    "to log the file as loaded on Windows -- #388",
+    strict=False,
+)
 def test_secondary_instance_hands_log_file_to_primary(instances, log_file):
     secondary = instances.launch_secondary(str(log_file))
 

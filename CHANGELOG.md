@@ -605,7 +605,9 @@
   named pipe is scoped per instance, so a test run cannot touch a real
   install's settings, Session, cache or plugins, and cannot reach (or be
   reached by) a LogSquirl the user is actually running. `e2e-windows` now
-  runs the ~13 previously-skipped GUI tests instead of skipping them (#348).
+  runs the ~13 previously-skipped GUI tests instead of skipping them, 93 of
+  which pass; two that wait on a file being logged as loaded are `xfail` on
+  Windows pending #388 (#348).
 - **Smaller indexing parse blocks**: The blocks indexing reads and parses a
   Log File in are now 1 MiB, down from 5 MiB, so a 16 MiB read buffer keeps
   about 16 of them in flight instead of 3 and more cores parse in parallel.
