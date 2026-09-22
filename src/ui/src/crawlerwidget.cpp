@@ -465,7 +465,8 @@ void CrawlerWidget::stopSearch()
     // An interrupted run no longer reports completion (it is not one): the
     // Search Line puts the buttons and the gauge back now, rather than
     // waiting on a signal that won't come.
-    searchLine_.stopped( openLogFile_->searchAutoRefresh().state() );
+    searchLine_.stopped( openLogFile_->searchAutoRefresh().state(),
+                         openLogFile_->filteredData()->getNbMatches() );
     showSearchLine();
 }
 
@@ -883,7 +884,7 @@ void CrawlerWidget::resetStateOnSearchPatternChanges()
     // We suspend auto-refresh
 
     openLogFile_->changeSearchExpression();
-    printSearchInfoMessage( openLogFile_->filteredData()->getNbMatches() );
+    printSearchInfoMessage();
 }
 
 void CrawlerWidget::searchRefreshChangedHandler( bool isRefreshing )
@@ -893,7 +894,7 @@ void CrawlerWidget::searchRefreshChangedHandler( bool isRefreshing )
     searchLine_.setFlags( flags );
 
     openLogFile_->setAutoRefresh( isRefreshing );
-    printSearchInfoMessage( openLogFile_->filteredData()->getNbMatches() );
+    printSearchInfoMessage();
 }
 
 void CrawlerWidget::matchCaseChangedHandler( bool shouldMatchCase )
@@ -965,8 +966,9 @@ void CrawlerWidget::replaceSearch( const QString& searchString )
 
 void CrawlerWidget::showEditedPattern( bool runNow )
 {
-    // Excluding a word switches the logical combination on: its button is
-    // set, as the user would, before the pattern is shown.
+    // Excluding a word, and adding one to a plain Search, switch the logical
+    // combination on: its button is set, as the user would, before the
+    // pattern is shown.
     showSearchFlags();
     searchLineEdit_->setEditText( searchLine_.pattern() );
     // Set the focus to lineEdit so that the user can press 'Return' immediately
@@ -1570,26 +1572,25 @@ void CrawlerWidget::showFilterFrequency()
         return;
     }
 
-    // Split the search text into individual patterns.
+    // Split the search text into individual patterns: the chart takes one
+    // regexp per series.
     const auto flags = searchLine_.flags();
     QStringList patterns;
     if ( flags.booleanCombination ) {
-        // Boolean mode uses "or" as separator between quoted terms.
-        // Split on " or " and strip quotes.
-        const auto parts = searchText.split( " or ", Qt::SkipEmptyParts );
-        for ( auto part : parts ) {
-            part = part.trimmed();
-            if ( part.startsWith( '"' ) && part.endsWith( '"' ) ) {
-                part = part.mid( 1, part.size() - 2 );
-            }
-            if ( !part.isEmpty() ) {
-                patterns.append( part );
-            }
+        // Every sub-pattern of a logical Search, as the Search reads it, gets
+        // a series of its own -- a negated one too: how often the excluded
+        // word occurs is as telling as how often the others do (#410).
+        for ( const auto& subPattern : logicalSubPatterns( searchText ) ) {
+            patterns.append( flags.useRegexp ? subPattern
+                                             : QRegularExpression::escape( subPattern ) );
         }
+        patterns.removeDuplicates();
     }
     else if ( flags.useRegexp ) {
-        // Regex mode: split on top-level '|' (basic heuristic).
-        patterns = searchText.split( '|', Qt::SkipEmptyParts );
+        // Each top-level alternative gets a series of its own; a | inside a
+        // group, a character class or escaped is part of its alternative, so
+        // every series stays a valid regexp (#411).
+        patterns = regexpAlternatives( searchText );
     }
     else {
         patterns.append( QRegularExpression::escape( searchText ) );
@@ -1604,7 +1605,8 @@ void CrawlerWidget::showFilterFrequency()
         toggleChartPanel();
     }
 
-    chartPanel_->addFilterFrequencySeries( patterns );
+    // The chart counts with the Search's Match case (#411).
+    chartPanel_->addFilterFrequencySeries( patterns, flags.matchCase );
 }
 
 void CrawlerWidget::changeFontSize( bool increase )
@@ -1878,9 +1880,10 @@ void CrawlerWidget::updateSearchCombo()
     searchLineCompleter_->setModel( new QStringListModel( searchHistory, searchLineCompleter_ ) );
 }
 
-void CrawlerWidget::printSearchInfoMessage( LinesCount nbMatches )
+void CrawlerWidget::printSearchInfoMessage()
 {
-    searchLine_.settled( openLogFile_->searchAutoRefresh().state(), nbMatches );
+    searchLine_.settled( openLogFile_->searchAutoRefresh().state(),
+                         openLogFile_->filteredData()->getNbMatches() );
     showSearchLine();
 }
 

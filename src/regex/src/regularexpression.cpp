@@ -164,6 +164,79 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 
 } // namespace
 
+QStringList logicalSubPatterns( const QString& combination )
+{
+    auto expression = combination;
+    QStringList subPatterns;
+    try {
+        for ( const auto& subPattern : parseBooleanExpressions( expression, true, false ) ) {
+            subPatterns.append( subPattern.pattern );
+        }
+    } catch ( const std::exception& ) {
+        return {};
+    }
+    return subPatterns;
+}
+
+QStringList regexpAlternatives( const QString& regexp )
+{
+    QStringList alternatives;
+    const auto addAlternative = [ & ]( qsizetype from, qsizetype to ) {
+        if ( to > from ) {
+            alternatives.append( regexp.mid( from, to - from ) );
+        }
+    };
+
+    qsizetype alternativeStart = 0;
+    qsizetype groupDepth = 0;
+    // Where the character class opened, its [ and a ^ after it passed; a ]
+    // right there is a character of the class, not its end.
+    qsizetype classStart = -1;
+    for ( qsizetype i = 0; i < regexp.size(); ++i ) {
+        const auto c = regexp[ i ];
+        if ( c == '\\' ) {
+            if ( i + 1 < regexp.size() && regexp[ i + 1 ] == 'Q' ) {
+                // \Q...\E quotes everything up to \E, or to the end.
+                const auto quoteEnd = regexp.indexOf( QLatin1String( "\\E" ), i + 2 );
+                i = quoteEnd < 0 ? regexp.size() : quoteEnd + 1;
+            }
+            else {
+                ++i;
+            }
+        }
+        else if ( classStart >= 0 ) {
+            if ( c == '[' && i + 1 < regexp.size() && regexp[ i + 1 ] == ':' ) {
+                // A POSIX class such as [:alpha:] inside the character class.
+                const auto posixEnd = regexp.indexOf( QLatin1String( ":]" ), i + 2 );
+                if ( posixEnd >= 0 ) {
+                    i = posixEnd + 1;
+                }
+            }
+            else if ( c == ']' && i > classStart ) {
+                classStart = -1;
+            }
+        }
+        else if ( c == '[' ) {
+            classStart = i + 1;
+            if ( classStart < regexp.size() && regexp[ classStart ] == '^' ) {
+                ++classStart;
+            }
+        }
+        else if ( c == '(' ) {
+            ++groupDepth;
+        }
+        else if ( c == ')' ) {
+            groupDepth = std::max<qsizetype>( groupDepth - 1, 0 );
+        }
+        else if ( c == '|' && groupDepth == 0 ) {
+            addAlternative( alternativeStart, i );
+            alternativeStart = i + 1;
+        }
+    }
+    addAlternative( alternativeStart, regexp.size() );
+    return alternatives;
+}
+
 RegularExpression::RegularExpression( const RegularExpressionPattern& pattern, RegexpEngine engine )
     : isInverse_( pattern.isExclude )
     , isBooleanCombination_( pattern.isBoolean )

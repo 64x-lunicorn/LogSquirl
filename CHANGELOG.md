@@ -235,6 +235,37 @@
   explicit reload, automatic full reindex, check, partial reindex; an Attach
   takes the Encoding a reload forces. The "truncated" state the log data kept
   so a truncation would not be lost the same way is gone (#395).
+- **Filter frequency follows the Search's Match case and regexp groups**:
+  With Match case off, Show Filter Frequency counts a word in any case, so a
+  Search for `error` charts the `Error` and `ERROR` lines too; the series
+  keeps this across a restart. A regexp Search is split only at a top-level
+  `|`: `(a|b)c` is charted as one series instead of nothing, a `|` inside a
+  character class, escaped or inside `\Q...\E` stays part of its
+  alternative, and `x|y` is still charted as two series.
+  Other chart series match case as before (#411).
+- **Filter frequency counts what a logical Search matches**: Show Filter
+  Frequency reads the sub-patterns of a logical Search the way the Search
+  does, with the same parser: an escaped quote `\"` and the backslashes
+  before a quote are unescaped, `"a or b"` stays one sub-pattern, and
+  sub-patterns joined with `and` or `not(...)` are charted too, each on its
+  own, the excluded one included. With regular expressions off the
+  sub-patterns are counted as fixed strings, not as regexps. Plain and
+  non-logical regexp Searches are charted as before (#410).
+- **Adding a word to a plain Search keeps both words searchable**: With
+  neither regular expression nor logical combination on, adding a word to a
+  non-empty Search, or combining several Predefined Filters, switches the
+  logical combination on and gives `"alpha" or "beta"` instead of
+  `alphabeta`, which matched neither word's Log Lines. Adding a word to an
+  empty Search, or using a single Predefined Filter, stays plain; the
+  regexp and logical combination modes are unchanged (#408).
+- **Excluding a word from an empty Search gives not("word")**: Excluding a
+  word from an empty Search line in plain text or regexp mode gives
+  `not("word")` instead of `"" and not("word")`, and switches the logical
+  combination on as before (#407).
+- **Stopping a Search says how many Matches it found**: After Stop, the
+  Search line says how many Matches the Filtered View holds, "1 match found"
+  or "7 matches found", instead of always "0 match found". The same after a
+  reload, a Log File truncated on disk or switching auto-refresh (#406).
 - **A word ending in a backslash keeps a logical Search valid**: In the
   logical combination mode a run of backslashes right before a quote of a
   sub-pattern is now written and read doubled: adding a word such as

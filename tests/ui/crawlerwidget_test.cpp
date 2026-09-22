@@ -169,6 +169,14 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         }
     }
 
+    void disableCaseSensitiveSearch()
+    {
+        if ( crawler->matchCaseButton_->isChecked() ) {
+            QTest::mouseClick( crawler->matchCaseButton_, Qt::LeftButton );
+            QTest::qWait( 100 );
+        }
+    }
+
     void enableInverseMatch()
     {
         if ( !crawler->inverseButton_->isChecked() ) {
@@ -441,7 +449,25 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     void showChartCounting( const QString& pattern )
     {
         crawler->chartPanel_->show();
-        crawler->chartPanel_->addFilterFrequencySeries( { pattern } );
+        crawler->chartPanel_->addFilterFrequencySeries( { pattern }, true );
+    }
+
+    // What the user does by hand: asks for the frequency of the Search's
+    // patterns.
+    void showFilterFrequency()
+    {
+        crawler->showFilterFrequency();
+        QCoreApplication::processEvents();
+    }
+
+    // The points the chart shows for each of its series, in their order.
+    QList<qsizetype> chartPointsPerSeries() const
+    {
+        QList<qsizetype> points;
+        for ( const auto& series : crawler->chartPanel_->seriesDefinitions() ) {
+            points.append( series.points.size() );
+        }
+        return points;
     }
 
     // The points the chart shows for its first series.
@@ -2922,6 +2948,58 @@ SCENARIO( "A word with quotes added to a Search keeps its pattern valid", "[ui][
     }
 }
 
+// A fixed string has no alternatives: adding a word to a plain Search or
+// combining Predefined Filters switches the logical combination on (#408).
+SCENARIO( "Adding a word to a plain Search keeps both words searchable", "[ui][search]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateQuotedWordFile( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 20;
+    } ) );
+    crawlerVisitor.showSized();
+    crawlerVisitor.disableRegexpSearch();
+    REQUIRE_FALSE( crawlerVisitor.booleanCombiningChecked() );
+
+    const auto searchMatches = [ & ] {
+        crawlerVisitor.runSearch();
+        QCoreApplication::processEvents();
+        UNSCOPED_INFO( "pattern: " << crawlerVisitor.searchText().toStdString() << ", search info: "
+                                   << crawlerVisitor.searchInfoText().toStdString() );
+        return crawlerVisitor.getLogFilteredNbLines().get();
+    };
+
+    WHEN( "a word is added to a plain Search for beta" )
+    {
+        crawlerVisitor.setSearchPattern( "beta" );
+        Q_EMIT crawlerVisitor.textView()->addToSearch( "alpha say hi" );
+
+        THEN( "the logical combination is on and the Search matches the Log Lines of either" )
+        {
+            REQUIRE( crawlerVisitor.booleanCombiningChecked() );
+            REQUIRE( searchMatches() == 15 );
+        }
+    }
+
+    WHEN( "Predefined Filters for both are combined" )
+    {
+        crawlerVisitor.crawler->setSearchPatternFromPredefinedFilters(
+            { { "beta", "beta", false }, { "alpha", "alpha say hi", false } } );
+
+        THEN( "the logical combination is on and the Search matches the Log Lines of either" )
+        {
+            REQUIRE( crawlerVisitor.booleanCombiningChecked() );
+            REQUIRE( searchMatches() == 15 );
+        }
+    }
+}
+
 // The Search Line holds the pattern the Search runs with; the line starts
 // with the latest Search of the history in it (#399).
 SCENARIO( "A Search started without typing runs the pattern the Search line shows", "[ui][search]" )
@@ -2958,4 +3036,253 @@ SCENARIO( "A Search started without typing runs the pattern the Search line show
     }
 
     session.savedSearches().clear();
+}
+
+namespace {
+bool generateFilterFrequencyFile( QTemporaryFile& file )
+{
+    if ( !file.open() ) {
+        return false;
+    }
+    const auto writeLines = [ & ]( const char* line, int count ) {
+        for ( int i = 0; i < count; ++i ) {
+            file.write( line );
+            file.write( "\n" );
+        }
+    };
+    writeLines( R"(alpha say "hi")", 3 );
+    writeLines( "beta a or b", 4 );
+    writeLines( "gamma x.y", 2 );
+    writeLines( "delta xzy", 1 );
+    writeLines( "epsilon say hi", 2 );
+    file.flush();
+    return true;
+}
+} // namespace
+
+// Filter frequency charts each sub-pattern of a logical Search on its own,
+// read as the Search reads it (#410).
+SCENARIO( "Filter frequency counts the patterns the Search matches", "[ui][search][chart]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateFilterFrequencyFile( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 12;
+    } ) );
+    crawlerVisitor.showSized();
+
+    // Shows the filter frequency and waits for the chart to count as expected.
+    const auto chartCounts = [ & ]( const QList<qsizetype>& expected ) {
+        crawlerVisitor.showFilterFrequency();
+        waitUiState( [ & ]() { return crawlerVisitor.chartPointsPerSeries() == expected; }, 10000 );
+        UNSCOPED_INFO( "pattern: " << crawlerVisitor.searchText().toStdString() );
+        return crawlerVisitor.chartPointsPerSeries();
+    };
+
+    GIVEN( "a logical Search for a quoted word, a phrase with or and a dotted word" )
+    {
+        crawlerVisitor.enableBooleanCombinationMode();
+        crawlerVisitor.setSearchPattern( R"("say \"hi\"" or "a or b" or "x.y")" );
+
+        WHEN( "its patterns are fixed strings" )
+        {
+            crawlerVisitor.disableRegexpSearch();
+
+            THEN( "the chart counts the Log Lines with each, as written" )
+            {
+                REQUIRE( chartCounts( { 3, 4, 2 } ) == QList<qsizetype>{ 3, 4, 2 } );
+            }
+        }
+
+        WHEN( "its patterns are regexps" )
+        {
+            crawlerVisitor.enableRegexpSearch();
+
+            THEN( "the chart counts the Log Lines each matches" )
+            {
+                REQUIRE( chartCounts( { 3, 4, 3 } ) == QList<qsizetype>{ 3, 4, 3 } );
+            }
+        }
+    }
+
+    GIVEN( "a logical Search excluding a word" )
+    {
+        crawlerVisitor.enableBooleanCombinationMode();
+        crawlerVisitor.disableRegexpSearch();
+        crawlerVisitor.setSearchPattern( R"("say" and not("hi"))" );
+
+        WHEN( "its filter frequency is shown" )
+        {
+            THEN( "the chart counts the Log Lines with each word, the excluded one too" )
+            {
+                REQUIRE( chartCounts( { 5, 5 } ) == QList<qsizetype>{ 5, 5 } );
+            }
+        }
+    }
+
+    GIVEN( "a Search for a dotted word, not logical" )
+    {
+        crawlerVisitor.setSearchPattern( "x.y" );
+
+        WHEN( "it is a fixed string" )
+        {
+            crawlerVisitor.disableRegexpSearch();
+
+            THEN( "the chart counts the Log Lines with it, as written" )
+            {
+                REQUIRE( chartCounts( { 2 } ) == QList<qsizetype>{ 2 } );
+            }
+        }
+
+        WHEN( "it is a regexp" )
+        {
+            crawlerVisitor.enableRegexpSearch();
+
+            THEN( "the chart counts the Log Lines it matches" )
+            {
+                REQUIRE( chartCounts( { 3 } ) == QList<qsizetype>{ 3 } );
+            }
+        }
+    }
+
+    GIVEN( "a regexp Search with alternatives, not logical" )
+    {
+        crawlerVisitor.enableRegexpSearch();
+        crawlerVisitor.setSearchPattern( "x.y|beta" );
+
+        WHEN( "its filter frequency is shown" )
+        {
+            THEN( "the chart counts the Log Lines each alternative matches" )
+            {
+                REQUIRE( chartCounts( { 3, 4 } ) == QList<qsizetype>{ 3, 4 } );
+            }
+        }
+    }
+}
+
+namespace {
+bool generateCaseAndGroupsFile( QTemporaryFile& file )
+{
+    if ( !file.open() ) {
+        return false;
+    }
+    const auto writeLines = [ & ]( const char* line, int count ) {
+        for ( int i = 0; i < count; ++i ) {
+            file.write( line );
+            file.write( "\n" );
+        }
+    };
+    writeLines( "alpha error", 2 );
+    writeLines( "beta Error", 1 );
+    writeLines( "gamma ERROR", 1 );
+    writeLines( "ac", 2 );
+    writeLines( "bc", 3 );
+    writeLines( "xoo", 1 );
+    writeLines( "yoo", 2 );
+    file.flush();
+    return true;
+}
+} // namespace
+
+// Filter frequency charts with the Search's Match case, and splits a regexp
+// Search only into its top-level alternatives (#411).
+SCENARIO( "Filter frequency follows the Search's Match case and regexp groups",
+          "[ui][search][chart]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateCaseAndGroupsFile( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.isLoadingFinished() && crawlerVisitor.getLogNbLines().get() == 12;
+    } ) );
+    crawlerVisitor.showSized();
+
+    // Shows the filter frequency and waits for the chart to count as expected.
+    const auto chartCounts = [ & ]( const QList<qsizetype>& expected ) {
+        crawlerVisitor.showFilterFrequency();
+        waitUiState( [ & ]() { return crawlerVisitor.chartPointsPerSeries() == expected; }, 10000 );
+        UNSCOPED_INFO( "pattern: " << crawlerVisitor.searchText().toStdString() );
+        return crawlerVisitor.chartPointsPerSeries();
+    };
+
+    GIVEN( "a Search for a word in lower case" )
+    {
+        crawlerVisitor.disableRegexpSearch();
+        crawlerVisitor.setSearchPattern( "error" );
+
+        WHEN( "Match case is off" )
+        {
+            crawlerVisitor.disableCaseSensitiveSearch();
+
+            THEN( "the chart counts the Log Lines with the word in any case" )
+            {
+                REQUIRE( chartCounts( { 4 } ) == QList<qsizetype>{ 4 } );
+            }
+        }
+
+        WHEN( "Match case is on" )
+        {
+            crawlerVisitor.enableCaseSensitiveSearch();
+
+            THEN( "the chart counts the Log Lines with the word as written" )
+            {
+                REQUIRE( chartCounts( { 2 } ) == QList<qsizetype>{ 2 } );
+            }
+        }
+    }
+
+    GIVEN( "a logical Search for a word in lower case, Match case off" )
+    {
+        crawlerVisitor.enableBooleanCombinationMode();
+        crawlerVisitor.disableRegexpSearch();
+        crawlerVisitor.disableCaseSensitiveSearch();
+        crawlerVisitor.setSearchPattern( R"("error" or "xoo")" );
+
+        WHEN( "its filter frequency is shown" )
+        {
+            THEN( "the chart counts the Log Lines with each word in any case" )
+            {
+                REQUIRE( chartCounts( { 4, 1 } ) == QList<qsizetype>{ 4, 1 } );
+            }
+        }
+    }
+
+    GIVEN( "a regexp Search with alternatives inside a group" )
+    {
+        crawlerVisitor.enableRegexpSearch();
+        crawlerVisitor.setSearchPattern( "(a|b)c" );
+
+        WHEN( "its filter frequency is shown" )
+        {
+            THEN( "the chart counts the Log Lines the whole regexp matches, as one series" )
+            {
+                REQUIRE( chartCounts( { 5 } ) == QList<qsizetype>{ 5 } );
+            }
+        }
+    }
+
+    GIVEN( "a regexp Search with top-level alternatives" )
+    {
+        crawlerVisitor.enableRegexpSearch();
+        crawlerVisitor.setSearchPattern( "x|y" );
+
+        WHEN( "its filter frequency is shown" )
+        {
+            THEN( "the chart counts the Log Lines each alternative matches" )
+            {
+                REQUIRE( chartCounts( { 1, 2 } ) == QList<qsizetype>{ 1, 2 } );
+            }
+        }
+    }
 }

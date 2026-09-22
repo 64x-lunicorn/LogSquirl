@@ -89,14 +89,17 @@ public:
     // Edit the pattern with a word the user chose; each is escaped as the
     // buttons say. True when the Search is to run now (auto-run).
     //
-    // Adds the word as an alternative to the pattern.
+    // Adds the word as an alternative to the pattern. A pattern read as a
+    // fixed string has none, so a non-empty one switches the logical
+    // combination on.
     bool add( const QString& word );
     // Keeps the pattern but not the word: switches the logical combination
     // on, which the exclusion is written in.
     bool exclude( const QString& word );
     // The word becomes the pattern.
     bool replace( const QString& word );
-    // The Predefined Filters, as alternatives, become the pattern.
+    // The Predefined Filters, as alternatives, become the pattern; several of
+    // them switch a pattern read as a fixed string to a logical combination.
     bool useFilters( const QList<PredefinedFilter>& filters );
 
     // The Search the pattern and the buttons ask for.
@@ -107,8 +110,9 @@ public:
     // The Search tells how far it came, or that it is done one way or
     // another.
     void progressed( const SearchSession::State& state, SearchAutoRefresh::State autoRefresh );
-    // The user stopped the Search.
-    void stopped( SearchAutoRefresh::State autoRefresh );
+    // The user stopped the Search; the Filtered View holds the Matches it
+    // found until then.
+    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
     // The Search was replaced by none: the pattern is empty.
     void cleared();
     // Nothing runs; the line says what is known of the Search: its Matches,
@@ -124,6 +128,12 @@ private:
     QString escaped( const QString& word, bool isRegexp = false ) const;
     // Appends the sub-pattern to pattern as an alternative.
     QString& combine( QString& pattern, const QString& subPattern ) const;
+    // The pattern is read as a fixed string, neither a regexp nor a logical
+    // combination.
+    bool isPlain() const;
+    // Switches the logical combination on, the pattern so far its first
+    // sub-pattern.
+    void switchToLogicalCombination();
 
     // Shows text, not as an error.
     void showText( const QString& text );

@@ -343,8 +343,9 @@ private:
     // wrote themselves, so that it reaches every open Log File.
     void reportChange( Changed change );
     AbstractLogView* activeView() const;
-    // The Search Line says what is known of the Search, which does not run.
-    void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
+    // The Search Line says what is known of the Search, which does not run:
+    // the Matches the Filtered View holds (#406).
+    void printSearchInfoMessage();
     // Mirrors what the Search Line shows: its text, gauge and buttons.
     void showSearchLine();
     // Mirrors the Search Line's flags in its buttons.

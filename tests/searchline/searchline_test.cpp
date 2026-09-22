@@ -172,12 +172,16 @@ SCENARIO( "A word edits the Search Line's pattern as the buttons read it", "[sea
         QString excluded;
         QString replaced;
         QString filtersCombined;
+        // Adding and combining switch the logical combination on: a fixed
+        // string has no alternatives of its own (#408).
+        bool alternativesSwitchToLogical = false;
     };
 
     // The word a.b, whose dot a regexp escapes; the Predefined Filters a.b,
     // a fixed string, and x|y, a regexp.
     const auto row = GENERATE( values<Row>( {
-        { Reading::Plain, "alpha", "alphaa.b", R"("alpha" and not("a.b"))", "a.b", "a.bx|y" },
+        { Reading::Plain, "alpha", R"("alpha" or "a.b")", R"("alpha" and not("a.b"))", "a.b",
+          R"("a.b" or "x|y")", true },
         { Reading::Regexp, "alpha", R"(alpha|a\.b)", R"("alpha" and not("a\.b"))", R"(a\.b)",
           R"(a\.b|x|y)" },
         { Reading::Boolean, R"("alpha")", R"("alpha" or "a.b")", R"("alpha" and not("a.b"))",
@@ -198,7 +202,9 @@ SCENARIO( "A word edits the Search Line's pattern as the buttons read it", "[sea
             THEN( "it is an alternative of the pattern" )
             {
                 REQUIRE( line.pattern() == row.added );
-                REQUIRE( line.flags() == flagsBefore );
+                auto expected = flagsBefore;
+                expected.booleanCombination |= row.alternativesSwitchToLogical;
+                REQUIRE( line.flags() == expected );
             }
         }
 
@@ -233,7 +239,9 @@ SCENARIO( "A word edits the Search Line's pattern as the buttons read it", "[sea
             THEN( "they are the pattern, as alternatives" )
             {
                 REQUIRE( line.pattern() == row.filtersCombined );
-                REQUIRE( line.flags() == flagsBefore );
+                auto expected = flagsBefore;
+                expected.booleanCombination |= row.alternativesSwitchToLogical;
+                REQUIRE( line.flags() == expected );
             }
         }
 
@@ -244,6 +252,126 @@ SCENARIO( "A word edits the Search Line's pattern as the buttons read it", "[sea
             THEN( "the pattern is empty" )
             {
                 REQUIRE( line.pattern().isEmpty() );
+            }
+        }
+    }
+}
+
+// A fixed string has no alternatives: adding a word to a plain Search or
+// combining several Predefined Filters switches the logical combination on;
+// a single word or filter on an empty line stays plain (#408).
+SCENARIO( "Alternatives of a plain Search are a logical combination", "[searchline][search]" )
+{
+    GIVEN( "a Search for alpha read as a fixed string" )
+    {
+        auto line = lineWith( Reading::Plain, "alpha" );
+
+        WHEN( "beta is added to it" )
+        {
+            line.add( "beta" );
+
+            THEN( "the Search is a logical combination that matches the Log Lines of either word" )
+            {
+                REQUIRE( line.pattern() == R"("alpha" or "beta")" );
+                REQUIRE( line.flags().booleanCombination );
+                REQUIRE( matches( line, "x alpha y" ) );
+                REQUIRE( matches( line, "x beta y" ) );
+                REQUIRE_FALSE( matches( line, "x gamma y" ) );
+            }
+        }
+    }
+
+    GIVEN( "a Search for a word with a quote, ending in a backslash, read as a fixed string" )
+    {
+        auto line = lineWith( Reading::Plain, R"(say "hi"\)" );
+        line.add( "beta" );
+
+        THEN( "the Search still matches the word" )
+        {
+            REQUIRE( matches( line, R"(x say "hi"\ y)" ) );
+            REQUIRE( matches( line, "x beta y" ) );
+            REQUIRE_FALSE( matches( line, "x say hi y" ) );
+        }
+    }
+
+    GIVEN( "an empty Search Line read as a fixed string" )
+    {
+        auto line = lineWith( Reading::Plain, {} );
+
+        WHEN( "beta is added to it" )
+        {
+            line.add( "beta" );
+
+            THEN( "beta is the plain pattern" )
+            {
+                REQUIRE( line.pattern() == "beta" );
+                REQUIRE_FALSE( line.flags().booleanCombination );
+            }
+        }
+
+        WHEN( "a single Predefined Filter is combined" )
+        {
+            line.useFilters( { { "beta", "beta", false } } );
+
+            THEN( "it is the plain pattern" )
+            {
+                REQUIRE( line.pattern() == "beta" );
+                REQUIRE_FALSE( line.flags().booleanCombination );
+            }
+        }
+
+        WHEN( "Predefined Filters for alpha and beta are combined" )
+        {
+            line.useFilters( { { "alpha", "alpha", false }, { "beta", "beta", false } } );
+
+            THEN( "the Search is a logical combination that matches the Log Lines of either" )
+            {
+                REQUIRE( line.pattern() == R"("alpha" or "beta")" );
+                REQUIRE( line.flags().booleanCombination );
+                REQUIRE( matches( line, "x alpha y" ) );
+                REQUIRE( matches( line, "x beta y" ) );
+                REQUIRE_FALSE( matches( line, "x gamma y" ) );
+            }
+        }
+    }
+}
+
+// An empty pattern is no sub-pattern of the logical combination the exclusion
+// is written in (#407).
+SCENARIO( "A word excluded from an empty Search Line is all the pattern says",
+          "[searchline][search]" )
+{
+    struct Row {
+        Reading reading;
+        QString excluded;
+    };
+
+    const auto row = GENERATE( values<Row>( {
+        { Reading::Plain, R"(not("a.b"))" },
+        { Reading::Regexp, R"(not("a\.b"))" },
+        { Reading::Boolean, R"(not("a.b"))" },
+        { Reading::BooleanRegexp, R"(not("a\.b"))" },
+    } ) );
+
+    GIVEN( "an empty Search Line " << describe( row.reading ) )
+    {
+        auto line = lineWith( row.reading, {} );
+
+        WHEN( "the word a.b is excluded from it" )
+        {
+            line.exclude( "a.b" );
+
+            THEN( "the pattern excludes the word and nothing else, as a logical combination" )
+            {
+                REQUIRE( line.pattern() == row.excluded );
+                REQUIRE( line.flags().booleanCombination );
+            }
+
+            THEN( "the Search matches every Log Line without the word" )
+            {
+                REQUIRE( matches( line, "alpha" ) );
+                REQUIRE( matches( line, "a b" ) );
+                REQUIRE_FALSE( matches( line, "x a.b y" ) );
             }
         }
     }
@@ -445,10 +573,10 @@ SCENARIO( "An edited pattern runs the Search at once only when auto-run is on", 
                 const auto flagsBefore = line.flags();
                 line.setQuickFindPolicy( policy );
 
-                THEN( "an edited pattern follows it, and the buttons stay as they were" )
+                THEN( "the buttons stay as they were, and an edited pattern follows it" )
                 {
-                    REQUIRE( line.add( "beta" ) == !autoRun );
                     REQUIRE( line.flags() == flagsBefore );
+                    REQUIRE( line.add( "beta" ) == !autoRun );
                 }
             }
         }
@@ -650,7 +778,7 @@ SCENARIO( "The Search Line shows a stopped Search", "[searchline]" )
 
     WHEN( "the user stops the Search" )
     {
-        line.stopped( AutoRefresh::Static );
+        line.stopped( AutoRefresh::Static, 1_lcount );
 
         THEN( "the gauge goes and the Search button is back" )
         {
@@ -661,9 +789,33 @@ SCENARIO( "The Search Line shows a stopped Search", "[searchline]" )
         }
     }
 
+    // The Filtered View holds the Matches the Search found until it was
+    // stopped (#406).
+    struct Row {
+        LinesCount matches;
+        QString text;
+    };
+    const auto row = GENERATE( values<Row>( {
+        { 0_lcount, "0 match found" },
+        { 1_lcount, "1 match found" },
+        { 7_lcount, "7 matches found" },
+    } ) );
+
+    WHEN( "the user stops the Search with " << row.matches.get()
+                                            << " Matches in the Filtered View" )
+    {
+        line.stopped( AutoRefresh::Static, row.matches );
+
+        THEN( "the text says " << row.text.toStdString() )
+        {
+            REQUIRE( line.display().text == row.text );
+            REQUIRE( line.display().visible );
+        }
+    }
+
     WHEN( "the user stops the Search over a truncated Log File" )
     {
-        line.stopped( AutoRefresh::FileTruncated );
+        line.stopped( AutoRefresh::FileTruncated, 1_lcount );
 
         THEN( "the text says so" )
         {

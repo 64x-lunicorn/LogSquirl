@@ -26,6 +26,7 @@
 #include <unordered_map>
 
 #include <QString>
+#include <QStringList>
 
 #include "containers.h"
 #include "regexpengine.h"
@@ -68,6 +69,16 @@ private:
 
     friend class PatternMatcher;
 };
+
+// The sub-patterns of a logical combination, in the order written, read the
+// way the Search reads them: unescaped, the negated ones included. Empty when
+// the pattern is no valid logical combination.
+QStringList logicalSubPatterns( const QString& combination );
+
+// The top-level alternatives of a regexp, in the order written: split at each
+// | outside groups and character classes, not escaped by a backslash and not
+// quoted in \Q...\E. Empty alternatives are left out.
+QStringList regexpAlternatives( const QString& regexp );
 
 class PatternMatcher {
 public:
