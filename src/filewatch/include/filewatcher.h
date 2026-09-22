@@ -47,7 +47,8 @@
 #include "settingspolicies.h"
 
 class EfswFileWatcher;
-class QTimer;
+class FileWatcherPollWorker;
+class QThread;
 
 namespace KDToolBox {
 class KDGenericSignalThrottler;
@@ -102,6 +103,14 @@ public:
     // first file is added. The Session does so when it is built.
     void setWatchPolicy( const WatchPolicy& policy ) override;
 
+    // The thread polling runs on (#322), to let a test show directly that
+    // it is never the one that owns the UI. Not for anything but that: the
+    // engine has no reason to know which thread does the polling.
+    QThread* pollThreadForTesting() const
+    {
+        return pollThread_;
+    }
+
 public Q_SLOTS:
     void fileChangedOnDisk( const QString& );
 
@@ -111,7 +120,6 @@ Q_SIGNALS:
     void notifyFileChangedOnDisk();
 
 private Q_SLOTS:
-    void checkWatches();
     void sendChangesNotifications();
 
 private:
@@ -119,16 +127,22 @@ private:
     FileWatcher();
     ~FileWatcher() override; // for complete EfswFileWatcher
 
-    // Applies the currently held Policy to the watcher and the poll timer.
+    // Applies the currently held Policy to the watcher and the poll worker.
     void applyWatchPolicy();
 
     WatchPolicy watchPolicy_{};
 
-    QTimer* checkTimer_;
     KDToolBox::KDGenericSignalThrottler* throttler_;
     std::vector<QString> changes_;
 
     std::unique_ptr<EfswFileWatcher, EfswFileWatcherDeleter> efswWatcher_;
+
+    // Polling runs on this thread, never on the one that owns the UI (#322):
+    // a tick stats every watched file with QFileInfo, which can stall on a
+    // slow or network drive, and the watcher mutex must not be held across
+    // that stat.
+    QThread* pollThread_;
+    FileWatcherPollWorker* pollWorker_;
 };
 
 #endif
