@@ -22,8 +22,6 @@
 #include <iostream>
 #include <utility>
 
-#include <QTextCodec>
-
 #include <mimalloc.h>
 
 #include "configuration.h"
@@ -47,28 +45,6 @@ namespace {
 void printFailure( const QString& failure )
 {
     std::cerr << "logsquirl_grep: " << failure.toStdString() << std::endl;
-}
-
-// The Encoding the tool reads its Log File in, settled the way the desktop
-// application settles it once a load has finished (#326): the Encoding the
-// settings force, and otherwise the one detected while the Log File was
-// indexed. Without either, the locale's, which is where the application
-// lands too.
-//
-// It is settled before the Search runs, so the Search matches the Log Lines
-// as a user reads them and the matches print as they are in the Log File.
-void useDetectedEncoding( OpenLogFile& openLogFile, const FileAccessPolicy& fileAccess )
-{
-    QTextCodec* codec = fileAccess.defaultEncodingMib >= 0
-                            ? QTextCodec::codecForMib( fileAccess.defaultEncodingMib )
-                            : openLogFile.logData()->getDetectedEncoding();
-    if ( !codec ) {
-        codec = QTextCodec::codecForLocale();
-    }
-
-    LOG_INFO << "Reading the Log File as " << codec->name().constData();
-    openLogFile.logData()->setDisplayEncoding( codec->name().constData() );
-    openLogFile.filteredData()->setDisplayEncoding( codec->name().constData() );
 }
 
 void printMatches( const LogFilteredData& search, LinesCount nbMatches )
@@ -156,7 +132,11 @@ int main( int argc, char* argv[] )
     };
 
     // The Search is requested once the Log File has loaded, and not before:
-    // only then is its Encoding known.
+    // only then is its Encoding known. The Open Log File settles it before it
+    // tells the load, the way it does for the desktop application (#326,
+    // #393): the Encoding the settings force, else the one detected, else the
+    // locale's. So the Search matches the Log Lines as a user reads them, and
+    // the matches print as they are in the Log File.
     bool searchRequested = false;
 
     QObject::connect( &openLogFile, &OpenLogFile::loadingFinished,
@@ -174,7 +154,6 @@ int main( int argc, char* argv[] )
                           if ( std::exchange( searchRequested, true ) ) {
                               return;
                           }
-                          useDetectedEncoding( openLogFile, policies.fileAccess );
                           openLogFile.requestSearch(
                               RegularExpressionPattern( parameters.pattern ) );
                       } );

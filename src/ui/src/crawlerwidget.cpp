@@ -244,9 +244,6 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     viewSet_.setPresentationPolicy( build.policies.presentation );
     viewSet_.setQuickFindPolicy( build.policies.quickFind );
     applyWatchPolicy( build.policies.watch );
-    // The Encoding a Log File is read with by default is settled when it is
-    // opened.
-    fileAccessPolicy_ = build.policies.fileAccess;
 
     setup();
 
@@ -284,7 +281,7 @@ void CrawlerWidget::selectAll()
 
 std::optional<int> CrawlerWidget::encodingMib() const
 {
-    return encodingMib_;
+    return openLogFile_->chosenEncoding();
 }
 
 bool CrawlerWidget::isFollowEnabled() const
@@ -345,8 +342,8 @@ void CrawlerWidget::reload()
 
 void CrawlerWidget::setEncoding( std::optional<int> mib )
 {
-    encodingMib_ = std::move( mib );
-    updateEncoding();
+    openLogFile_->setEncoding( mib );
+    updateEncodingText();
 
     update();
 }
@@ -945,8 +942,8 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
         showSearchRequested( openLogFile_->filteredData()->searchState() );
     }
 
-    // Set the encoding for the views
-    updateEncoding();
+    // The Open Log File has settled the Encoding.
+    updateEncodingText();
 
     // The Search Limits are the whole Log File again; every view shows it.
     viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
@@ -1536,6 +1533,8 @@ void CrawlerWidget::setup()
     // a tab that is not current is reached too.
     connect( openLogFile_->logData().get(), &LogData::decodingPolicyChanged, this,
              &CrawlerWidget::applyDecodingPolicyChange );
+    connect( openLogFile_.get(), &OpenLogFile::encodingChanged, this,
+             &CrawlerWidget::applyEncodingChange );
 
     // Search auto-refresh
     connect( searchRefreshButton_, &QPushButton::toggled, this,
@@ -1589,11 +1588,6 @@ void CrawlerWidget::setup()
 
     // Once every view is in the View Set, which registers theirs too.
     registerShortcuts();
-
-    const auto defaultEncodingMib = fileAccessPolicy_.defaultEncodingMib;
-    if ( defaultEncodingMib >= 0 ) {
-        encodingMib_ = defaultEncodingMib;
-    }
 }
 
 template <class Presentation>
@@ -2137,35 +2131,18 @@ void CrawlerWidget::changeDataStatus( DataStatus status )
     }
 }
 
-// Determine the right encoding and set the views.
-void CrawlerWidget::updateEncoding()
+void CrawlerWidget::updateEncodingText()
 {
-    const QTextCodec* textCodec = [ this ]() {
-        QTextCodec* codec = nullptr;
-        if ( !encodingMib_ ) {
-            codec = openLogFile_->logData()->getDetectedEncoding();
-        }
-        else {
-            codec = QTextCodec::codecForMib( *encodingMib_ );
-        }
-        return codec ? codec : QTextCodec::codecForLocale();
-    }();
+    const auto encodingPrefix
+        = openLogFile_->chosenEncoding() ? tr( "Displayed as %1" ) : tr( "Detected as %1" );
+    encodingText_ = encodingPrefix.arg( openLogFile_->encoding()->name().constData() );
+}
 
-    QString encodingPrefix = encodingMib_ ? tr( "Displayed as %1" ) : tr( "Detected as %1" );
-    encodingText_ = encodingPrefix.arg( textCodec->name().constData() );
-
-    // Asked after every load: a Log File that only grew keeps what its views
-    // read and counted, and its chart what it extracted.
-    if ( displayedEncodingMib_ == textCodec->mibEnum() ) {
-        return;
-    }
-    displayedEncodingMib_ = textCodec->mibEnum();
-
-    openLogFile_->logData()->interruptLoading();
-
-    openLogFile_->logData()->setDisplayEncoding( textCodec->name().constData() );
-    openLogFile_->filteredData()->setDisplayEncoding( textCodec->name().constData() );
-    // The Filtered Views of kept Searches included.
+void CrawlerWidget::applyEncodingChange()
+{
+    // The Filtered Views of kept Searches included. Only when the Encoding
+    // is another one: a Log File that only grew keeps what its views read and
+    // counted, and its chart what it extracted.
     viewSet_.rereadLogLines();
     restartChartExtraction();
 }

@@ -34,8 +34,10 @@
 #include <QString>
 
 #include <memory>
+#include <optional>
 
 class FileWatchPort;
+class QTextCodec;
 class LogData;
 class LogFilteredData;
 class LogFormatCatalog;
@@ -60,6 +62,9 @@ class LogFormatCatalog;
 // its Log File is watched from the first load that succeeds until this object
 // is destroyed, and the log data checks the file whenever a change is heard
 // of. It looks no watcher up by itself (#249).
+//
+// It decides the Encoding its Log File is read in: the one chosen, else the
+// one detected, else the locale's (#393).
 class OpenLogFile : public QObject {
     Q_OBJECT
 
@@ -182,6 +187,20 @@ public:
     // How many times Format Recognition was taken.
     int formatRecognitionCount() const;
 
+    // Chooses the Encoding the Log File is read in, by its MIB; none reads it
+    // in the one detected. The one the File Access Policy forces is chosen
+    // from the start.
+    //
+    // The Encoding is settled here and again after every load: the one
+    // chosen, else the one detected, else the locale's. The log data and
+    // every Search, the kept ones included, read in it; when it is another
+    // one than before, a load in progress is stopped and encodingChanged()
+    // tells it.
+    void setEncoding( std::optional<int> mib );
+    std::optional<int> chosenEncoding() const;
+    // The Encoding the Log File is read in, as settled now.
+    QTextCodec* encoding() const;
+
 Q_SIGNALS:
     // The first load of this Log File is wanted now, before open() was
     // called: reload() was asked of a Log File that has none attached yet.
@@ -202,6 +221,10 @@ Q_SIGNALS:
     void truncated( const QString& failure );
     // The current Search's state changed: progress, completion, a failure.
     void searchUpdated( SearchSession::State state );
+    // The Log File is read in another Encoding now: every Log Line, in the
+    // Searches kept too, may read differently. Told after loadingFinished()
+    // when a load settled it.
+    void encodingChanged();
 
 private:
     void handleLoadingFinished( LoadingStatus status, const QString& failure );
@@ -213,6 +236,9 @@ private:
     // Returns whether Format Recognition was taken.
     bool recognizeFormat();
     void followCurrentSearch();
+    // Has the log data read in the Encoding the rule settles on. Returns
+    // whether that is another one than before.
+    bool settleEncoding();
 
     // Held for as long as the Log File may be watched: the destructor stops
     // watching it through this port before anything else goes.
@@ -255,6 +281,10 @@ private:
     bool formatRecognitionPending_ = true;
     int formatRecognitionCount_ = 0;
     std::shared_ptr<const LogFormatDefinition> logFormat_;
+
+    std::optional<int> chosenEncoding_;
+    // The Encoding the log data was last told to read in, once it was.
+    std::optional<int> settledEncoding_;
 };
 
 Q_DECLARE_METATYPE( OpenLogFile::LoadFinished )

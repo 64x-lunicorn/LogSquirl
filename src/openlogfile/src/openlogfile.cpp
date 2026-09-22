@@ -26,6 +26,8 @@
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 
+#include <QTextCodec>
+
 #include <utility>
 
 OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
@@ -42,6 +44,10 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     , recognitionPolicy_( recognitionPolicy )
     , logFormatCatalog_( std::move( logFormatCatalog ) )
 {
+    if ( fileAccessPolicy.defaultEncodingMib >= 0 ) {
+        chosenEncoding_ = fileAccessPolicy.defaultEncodingMib;
+    }
+
     qRegisterMetaType<OpenLogFile::LoadFinished>( "OpenLogFile::LoadFinished" );
 
     connect( logData_.get(), &LogData::loadingProgressed, this, &OpenLogFile::loadingProgressed );
@@ -256,6 +262,48 @@ int OpenLogFile::formatRecognitionCount() const
     return formatRecognitionCount_;
 }
 
+void OpenLogFile::setEncoding( std::optional<int> mib )
+{
+    chosenEncoding_ = mib;
+    if ( settleEncoding() ) {
+        Q_EMIT encodingChanged();
+    }
+}
+
+std::optional<int> OpenLogFile::chosenEncoding() const
+{
+    return chosenEncoding_;
+}
+
+QTextCodec* OpenLogFile::encoding() const
+{
+    QTextCodec* codec = chosenEncoding_ ? QTextCodec::codecForMib( *chosenEncoding_ )
+                                        : logData_->getDetectedEncoding();
+    return codec ? codec : QTextCodec::codecForLocale();
+}
+
+bool OpenLogFile::settleEncoding()
+{
+    const auto* codec = encoding();
+
+    // Settled after every load: a Log File that only grew keeps what was
+    // read in it.
+    if ( settledEncoding_ == codec->mibEnum() ) {
+        return false;
+    }
+    settledEncoding_ = codec->mibEnum();
+
+    LOG_INFO << "Reading the Log File as " << codec->name().constData();
+
+    // The log data loads the Log File again when the new Encoding splits it
+    // into Log Lines differently; a load in progress in the old one is of
+    // no use. Otherwise the Log Lines only decode differently, which it tells
+    // every Search.
+    logData_->interruptLoading();
+    logData_->setDisplayEncoding( codec->name().constData() );
+    return true;
+}
+
 void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& failure )
 {
     // Watched once a load has succeeded, and asked again after every one,
@@ -275,6 +323,11 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     truncatedSinceLoad_ = false;
 
     const auto nbLines = LineNumber( logData_->getNbLine().get() );
+
+    // Settled before any Search runs below, so it matches the Log Lines as
+    // they read, and before the users hear of the load. The Encoding detected
+    // is known only now.
+    const auto encodingSettledAnew = settleEncoding();
 
     // The Search follows the Log Lines loaded: it continues over the ones
     // added, or starts again over a Log File truncated under it.
@@ -325,6 +378,10 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     }
 
     Q_EMIT loadingFinished( load );
+
+    if ( encodingSettledAnew ) {
+        Q_EMIT encodingChanged();
+    }
 }
 
 void OpenLogFile::handleChangeOnDisk( const QString& fileName )
