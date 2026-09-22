@@ -39,7 +39,7 @@ namespace {
 // an inner one or the closing one -- is written doubled, so that a
 // sub-pattern ending in a backslash does not escape its closing quote. A
 // backslash anywhere else is read as written: "\d+" stays a regexp class
-// (#405).
+// (#405). quoteSubPattern() writes a sub-pattern this way.
 
 // The number of backslashes right before index.
 qsizetype backslashesBefore( const QString& pattern, qsizetype index )
@@ -176,6 +176,39 @@ QStringList logicalSubPatterns( const QString& combination )
         return {};
     }
     return subPatterns;
+}
+
+QString quoteSubPattern( const QString& subPattern )
+{
+    QString quoted;
+    quoted.reserve( subPattern.size() + 2 );
+    quoted.append( QChar( '"' ) );
+
+    qsizetype index = 0;
+    while ( index < subPattern.size() ) {
+        if ( subPattern[ index ] == QChar( '"' ) ) {
+            quoted.append( QChar( '\\' ) ).append( QChar( '"' ) );
+            ++index;
+        }
+        else if ( subPattern[ index ] == QChar( '\\' ) ) {
+            auto runEnd = index;
+            while ( runEnd < subPattern.size() && subPattern[ runEnd ] == QChar( '\\' ) ) {
+                ++runEnd;
+            }
+            auto run = runEnd - index;
+            if ( runEnd == subPattern.size() || subPattern[ runEnd ] == QChar( '"' ) ) {
+                run *= 2;
+            }
+            quoted.append( QString( run, QChar( '\\' ) ) );
+            index = runEnd;
+        }
+        else {
+            quoted.append( subPattern[ index ] );
+            ++index;
+        }
+    }
+
+    return quoted.append( QChar( '"' ) );
 }
 
 QStringList regexpAlternatives( const QString& regexp )

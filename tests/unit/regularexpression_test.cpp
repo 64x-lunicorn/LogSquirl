@@ -657,6 +657,40 @@ SCENARIO( "The sub-patterns of a logical combination are read as the Search read
     }
 }
 
+// The Search Line writes a sub-pattern the way the logical expression parser
+// reads it back (#398, #405).
+SCENARIO( "A quoted sub-pattern is read back as it was", "[regex]" )
+{
+    const auto word
+        = GENERATE( as<QString>{}, "error", R"(say "hi")", R"(")", R"("")", R"(C:\temp\)", R"(\)",
+                    R"(\\\)", R"(a\"b)", R"(a\\"b)", R"(\\\"x\\)", R"(\d+)", "a or b" );
+
+    WHEN( "the sub-pattern " << word.toStdString() << " is quoted" )
+    {
+        const auto quoted = quoteSubPattern( word );
+
+        THEN( "a logical combination of it reads it back, alone and among others" )
+        {
+            INFO( "quoted: " << quoted.toStdString() );
+            REQUIRE( logicalSubPatterns( quoted ) == QStringList{ word } );
+            REQUIRE( logicalSubPatterns( quoted + " or not(" + quoteSubPattern( word ) + ")" )
+                     == QStringList{ word, word } );
+        }
+    }
+
+    GIVEN( "quotes and backslashes" )
+    {
+        THEN( "a quote is written \\\", a run of backslashes before a quote or at the end "
+              "doubled, any other as it is" )
+        {
+            REQUIRE( quoteSubPattern( R"(say "hi")" ) == R"("say \"hi\"")" );
+            REQUIRE( quoteSubPattern( R"(C:\temp\)" ) == R"("C:\temp\\")" );
+            REQUIRE( quoteSubPattern( R"(a\"b)" ) == R"("a\\\"b")" );
+            REQUIRE( quoteSubPattern( R"(\d+)" ) == R"("\d+")" );
+        }
+    }
+}
+
 // Filter frequency charts each alternative of a regexp Search on its own; only
 // the top-level alternatives are split off, so that each stays a valid regexp
 // (#411).
