@@ -582,6 +582,14 @@
 
 ## Internal
 
+- **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
+  `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
+  (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on
+  `LogFilteredDataWorker::search()`'s `shared_ptr<const RegularExpression>`
+  judged safe rather than just suppressed); `ctest` picks it up automatically
+  and BUILD.md documents it for a standalone TSan run. See
+  `docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md`
+  (#347).
 - **Smaller indexing parse blocks**: The blocks indexing reads and parses a
   Log File in are now 1 MiB, down from 5 MiB, so a 16 MiB read buffer keeps
   about 16 of them in flight instead of 3 and more cores parse in parallel.

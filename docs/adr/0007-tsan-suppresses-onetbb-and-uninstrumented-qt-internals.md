@@ -1,0 +1,37 @@
+# TSan suppresses oneTBB's flow graph and one uninstrumented-Qt finding
+
+#331 needed "the TSan build of the search tests passes", which could not be satisfied as it stood: measured against `-DENABLE_SANITIZER_THREAD=ON` (`cmake/Sanitizers.cmake`), RelWithDebInfo, LTO off, the base commit (0845ff22) already failed 9 of 23 ctest cases, and #331's own change added a 24th failure that reports no new race — only the same 9 pre-existing findings plus one more report of them. Every one of those findings is in code TSan cannot instrument:
+
+- **oneTBB's flow graph** (used by indexing and by the search pipeline): `graph_task`, `input_node_task_bypass`, `forward_task_bypass`, and vptr races on TBB-allocated tasks. TBB's flow graph is deliberately not a clean virtual hierarchy (see the UBSan `-fno-sanitize=vptr` comment in `cmake/Sanitizers.cmake` for the placement-construction/`static_cast` pattern this comes from) and its internal small-object pool and spin-locks are not fully visible to TSan's happens-before model in the CPM-vendored build LogSquirl links. oneTBB ships its own `cmake/suppressions/tsan.suppressions` upstream for the same subsystem, which this suppression list mirrors in shape.
+- **`QThreadPoolThread::run()`** in uninstrumented QtCore, reported as a race on the `shared_ptr<const RegularExpression>` that `LogFilteredDataWorker::search()` captures into the runnable it queues.
+
+With a local suppression file (`race:tbb::detail::`, `race:tbb::flow`) the issue's own measurement reported failures dropping to 3-5, before and after #331's change alike.
+
+Re-measured in this session, on a from-scratch `-DENABLE_SANITIZER_THREAD=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_LTO=OFF` build with `cmake/tsan.supp` applied via `TSAN_OPTIONS`: every scenario in the two clusters that actually exercise `LogFilteredDataWorker`'s search path — the 14 `SearchSession` scenarios (`tests/unit/searchsession_test.cpp`, ctest #308-321) and the 63-scenario `logsquirl_itests` cluster covering search, deadlock-on-destruction and TBB-worker-exhaustion behaviour (ctest #445-507) — **passed clean, 77/77**, with no remaining findings. This is a from-scratch measurement made for this ADR, not a re-quote of the issue's own numbers; it does not reproduce the issue's exact "23" denominator (that count's originating test selection was not written down and could not be reconstructed exactly), but it directly answers the acceptance criterion by running every test that plausibly counts as "the search tests" and finding none of them fail under the suppressions.
+
+## The `shared_ptr<const RegularExpression>` finding, examined on its own merits
+
+This one is not suppressed reflexively. Reading `LogFilteredDataWorker::search()` and `updateSearch()` (`src/logdata/src/logfiltereddataworker.cpp`):
+
+1. `compiledExpression` arrives by value (a copy already), and the lambda queued with `operationsPool_.start(createRunnable(...))` captures it **by value again** (`[ ..., compiledExpression, ... ]`, not by reference).
+2. That copy is moved once more into `SearchOperation::compiledExpression_`, which is `const` and never reassigned — the pool thread only ever *reads* through it (`matcher.hasMatch(line)` and friends) once the search runs. Nothing mutates the pointee or the pointer after the runnable is queued.
+3. The calling thread's own copy (the `search()`/`updateSearch()` parameter) goes out of scope when the function returns, on whichever thread called it — concurrently, in general, with the pool thread later destroying its own copy when the runnable finishes.
+
+So the actual concurrent operation is: two `std::shared_ptr` copies of the same control block being destroyed (decrementing the refcount) on two different threads with no explicit lock between them. That is exactly the case `std::shared_ptr` is specified to make safe on its own: the control block's refcount operations are atomic (or use an equivalent synchronized path) regardless of whether the surrounding code takes a mutex. It does not depend on `QThreadPool`'s internal handoff being visible to TSan — it would be safe even if the two threads had no other synchronization at all.
+
+TSan flags it anyway because `QThreadPoolThread::run()` lives in Qt's own binary, built without `-fsanitize=thread`. Qt's queue hand-off (a mutex/condvar internally) is a real happens-before edge, but an instrumented and an uninstrumented thread meeting inside an uninstrumented library leaves TSan unable to see that edge, so it falls back to reporting the two instrumented touches of the shared control block (the constructor call in `search()`/`updateSearch()` and the destructor call once the runnable completes) as unsynchronized.
+
+**Conclusion: this is a TSan blind spot on uninstrumented Qt internals, not a real race.** The suppression for `QThreadPoolThread::run` / `QThreadPool::start` in `cmake/tsan.supp` reflects that judgment, not an unexamined "make it quiet" suppression. If `LogFilteredDataWorker::search()` is ever changed to capture the expression by reference, or to mutate the pointee, this reasoning would need to be redone.
+
+## Decision
+
+- `cmake/tsan.supp` lists both classes of finding, each with the reasoning above inline as a comment.
+- `cmake/CatchTestDiscoveryRunTest.cmake` sets `TSAN_OPTIONS=suppressions=<repo>/cmake/tsan.supp` on every ctest run unconditionally; the variable is ignored by binaries not built with `-fsanitize=thread`, so this has no effect outside a TSan build.
+- BUILD.md documents the same suppression file for anyone running a TSan binary directly, outside ctest.
+- Adding a TSan CI job and fixing any *new* race this work might surface beyond what was measured for #331 are both out of scope for this decision (tracked, if needed, as separate issues).
+
+## Consequences
+
+- The search tests themselves — the acceptance criterion this ADR exists to satisfy — pass clean under these suppressions (77/77, see above); no remaining search-test finding needs to be written down, because there isn't one.
+- Outside the search tests, the issue's own measurement (9/23 failing on the base commit, dropping to 3-5 with a local suppression file) implies other test areas — most plausibly indexing, which also drives oneTBB's flow graph — still hit findings these two suppression classes don't fully cover. That measurement's exact test selection was not written down and could not be reconstructed in this session, so those specific remaining findings are **not enumerated here**: this ADR's suppressions target what was identified (oneTBB's flow graph broadly, and the one named Qt/`shared_ptr` finding), not a re-run of that exact original count. Anyone hardening the TSan build further than the search tests should expect to find and triage additional oneTBB-adjacent findings outside search, starting from a fresh TSan run rather than assuming a clean baseline everywhere.
+- The suppression file is shape-matched, not exhaustive: a new oneTBB symbol outside `tbb::detail::` / `tbb::flow::` or a Qt internal outside `QThreadPool*` will still be reported and needs its own line and its own reasoning, not a blanket widening of an existing pattern.
