@@ -22,7 +22,7 @@ import re
 import sys
 from pathlib import Path
 
-from releases import ReleaseError, parse_tag, report
+from releases import ReleaseError, parse_tag, report, version_key
 
 DMG = "logsquirl-mac-arm64.dmg"
 # A `sha256sum` line: the hash, then " *" (binary mode) or "  " and the name.
@@ -55,13 +55,6 @@ def _only(pattern: re.Pattern, cask: str, what: str) -> re.Match:
     return matches[0]
 
 
-def _version_key(version: str) -> tuple[int, ...]:
-    try:
-        return tuple(int(part) for part in version.split("."))
-    except ValueError as err:
-        raise ReleaseError(f"The cask's version {version!r} is not X.Y.Z.") from err
-
-
 def update(cask: str, *, tag: str, sha256: str) -> str:
     """cask set to stable release tag and its DMG hash; unchanged when it
     already has that release and hash, or a newer release."""
@@ -70,7 +63,7 @@ def update(cask: str, *, tag: str, sha256: str) -> str:
         raise ReleaseError(f"{tag} is a pre-release: the cask only follows stable releases.")
     current = _only(_VERSION_LINE, cask, "version")
     _only(_SHA256_LINE, cask, "sha256")
-    if _version_key(current.group(2)) > _version_key(version):
+    if version_key(current.group(2)) > version_key(version):
         return cask
     cask = _VERSION_LINE.sub(lambda m: m.group(1) + version + m.group(3), cask)
     return _SHA256_LINE.sub(lambda m: m.group(1) + sha256 + m.group(3), cask)

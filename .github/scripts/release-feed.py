@@ -26,7 +26,7 @@ import re
 import sys
 from pathlib import Path
 
-from releases import ReleaseError, feed_changelog_versions, parse_tag, report
+from releases import ReleaseError, feed_changelog_versions, parse_tag, report, version_key
 
 RELEASE_PAGE = "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v"
 _BUILD = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)\.([0-9]+)")
@@ -34,10 +34,6 @@ _BUILD = re.compile(r"([0-9]+\.[0-9]+\.[0-9]+)\.([0-9]+)")
 
 def _base(release_name: str) -> str:
     return release_name.split("-", 1)[0]
-
-
-def _build_key(build: str) -> tuple[int, ...]:
-    return tuple(int(part) for part in build.split("."))
 
 
 def _is_text(value) -> bool:
@@ -105,7 +101,7 @@ def record(feed: dict, *, tag: str, build: str) -> dict:
     channel = "beta" if prerelease else "stable"
     announced = feed.get(f"{channel}_build")
     if (_is_text(announced) and _BUILD.fullmatch(announced) and _BUILD.fullmatch(build)
-            and _build_key(announced) > _build_key(build)):
+            and version_key(announced) > version_key(build)):
         return feed
 
     feed[channel] = name
