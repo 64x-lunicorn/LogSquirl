@@ -177,8 +177,7 @@ void LogData::attachFile( const QString& fileName )
     attached_file_.reset( new FileHolder( fileAccessPolicy_.keepFileClosed ) );
     attached_file_->open( indexingFileName_ );
 
-    operationQueue_.enqueueOperation<AttachOperation>( fileName,
-                                                       fileAccessPolicy_.defaultEncodingMib );
+    operationQueue_.enqueueOperation( AttachJob{ fileName, fileAccessPolicy_.defaultEncodingMib } );
 }
 
 void LogData::interruptLoading()
@@ -219,8 +218,8 @@ void LogData::reload( QTextCodec* forcedEncoding )
 
     // The user asked for the Log File to be read again, so a cached Index is
     // taken only while every byte it was built from is still the same (#337).
-    operationQueue_.enqueueOperation<FullReindexOperation>( FullIndexRequest::ExplicitReload,
-                                                            forcedEncoding );
+    operationQueue_.enqueueOperation(
+        FullReindexJob{ FullIndexRequest::ExplicitReload, forcedEncoding } );
 }
 
 void LogData::fileChangedOnDisk( const QString& filename )
@@ -269,7 +268,7 @@ void LogData::fileChangedOnDisk( const QString& filename )
         attached_file_->reOpenFile();
     }
 
-    operationQueue_.enqueueOperation<CheckDataChangesOperation>();
+    operationQueue_.enqueueOperation( CheckForChangesJob{} );
 }
 
 void LogData::indexingFinished( LoadingStatus status, const QString& failure )
@@ -316,11 +315,11 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
     // waits behind a Check that could still find a truncation.
     switch ( status ) {
     case MonitoredFileStatus::Truncated:
-        operationQueue_.enqueueOperation<FullReindexOperation>();
+        operationQueue_.enqueueOperation( FullReindexJob{} );
         break;
     case MonitoredFileStatus::DataAdded:
         nbLinesBeforeDataAdded_ = doGetNbLine();
-        operationQueue_.enqueueOperation<PartialReindexOperation>();
+        operationQueue_.enqueueOperation( PartialReindexJob{} );
         break;
     case MonitoredFileStatus::Unchanged:
         break;

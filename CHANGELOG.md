@@ -600,6 +600,12 @@
 
 ## Internal
 
+- **Index jobs as values**: The log data hands its worker one index job as a
+  value -- Attach, Full, Partial or Check, the `IndexJob` variant the job
+  rule already decides over -- and the worker runs it with `run()`. The four
+  job classes that only called the worker method of the same name are gone,
+  and the worker's finished notifications reach the log data without slots
+  that only sent them again. Behaviour is unchanged (#397).
 - **The Load Rule**: What a load, a change on disk and a reload mean for an
   Open Log File -- only Log Lines added, the Marks cleared, the Log Format
   recognized again, the Marks saved with the Session applied, a Search

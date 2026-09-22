@@ -502,6 +502,39 @@ enum class FullIndexRequest {
     ExplicitReload,
 };
 
+// The index jobs the log data hands its worker, as values. Which one waits
+// while another runs is the job rule's (waitingIndexJob(), logdataoperation.h).
+
+// Attaching a Log File: its name is taken and it is indexed in full.
+struct AttachJob {
+    QString fileName;
+    // From the File Access Policy the log data was built with; negative
+    // means "detect it rather than force one".
+    int defaultEncodingMib = -1;
+    // Handed over by a reload that arrived while the Attach was waiting, and
+    // indexed under instead of the default Encoding.
+    QTextCodec* forcedEncoding = nullptr;
+};
+
+// Indexing the Log File again in full. What asked for it is carried through
+// to the run, which checks a cached Index the more closely the more the user
+// asked for the Log File to be read again (#337).
+struct FullReindexJob {
+    FullIndexRequest request = FullIndexRequest::Automatic;
+    QTextCodec* forcedEncoding = nullptr;
+};
+
+// Indexing the Log Lines added since the end of the Log File as indexed.
+struct PartialReindexJob {};
+
+// Checking the Log File for changes on disk: growth, truncation or
+// replacement.
+struct CheckForChangesJob {};
+
+// An index job, or nothing.
+using IndexJob = std::variant<std::monostate, AttachJob, FullReindexJob, PartialReindexJob,
+                              CheckForChangesJob>;
+
 class FullIndexOperation : public IndexOperation {
     Q_OBJECT
 public:
@@ -583,19 +616,10 @@ public:
     LogDataWorker( LogDataWorker&& ) = delete;
     LogDataWorker& operator=( LogDataWorker&& ) = delete;
 
-    // Attaches to a file on disk. Attaching to a non existant file
-    // will work, it will just appear as an empty file.
-    void attachFile( const QString& fileName );
-    // Instructs the thread to start a new full indexing of the file, sending
-    // signals as it progresses. What asked for it decides how closely a
-    // cached Index is checked against the Log File (#337).
-    void indexAll( QTextCodec* forcedEncoding = nullptr,
-                   FullIndexRequest request = FullIndexRequest::Automatic );
-    // Instructs the thread to start a partial indexing (starting at
-    // the end of the file as indexed).
-    void indexAdditionalLines();
-
-    void checkFileChanges();
+    // Starts running the index job on the worker's thread, once the one
+    // before it is done, and returns. Its progress and its end are sent as
+    // the signals below. Nothing runs for no job.
+    void run( const IndexJob& job );
 
     // Replaces the Indexing Policy used by the runs requested from now on.
     // A run already in flight keeps the Policy it was started with.
@@ -608,19 +632,25 @@ Q_SIGNALS:
     // Sent during the indexing process to signal progress
     // percent being the percentage of completion.
     void indexingProgressed( int percent );
-    // Sent when indexing is finished, signals the client
-    // to copy the new data back. failure describes a Failed status.
+    // Sent when an Attach, a Full or a Partial is finished, signals the
+    // client to copy the new data back. failure describes a Failed status.
     void indexingFinished( LoadingStatus status, const QString& failure );
 
-    // Sent when check file is finished, signals the client
-    // to copy the new data back. failure is not empty when the check failed.
+    // Sent when a Check is finished, signals the client to copy the new data
+    // back. failure is not empty when the check failed.
     void checkFileChangesFinished( MonitoredFileStatus status, const QString& failure );
 
-private Q_SLOTS:
-    void onIndexingFinished( LoadingStatus status, const QString& failure );
-    void onCheckFileFinished( MonitoredFileStatus result, const QString& failure );
-
 private:
+    // Attaches to a file on disk. Attaching to a non existant file
+    // will work, it will just appear as an empty file.
+    void attachFile( const QString& fileName );
+    // Starts a new full indexing of the file. What asked for it decides how
+    // closely a cached Index is checked against the Log File (#337).
+    void indexAll( QTextCodec* forcedEncoding, FullIndexRequest request );
+    // Starts a partial indexing, at the end of the file as indexed.
+    void indexAdditionalLines();
+    void checkFileChanges();
+
     OperationResult connectSignalsAndRun( IndexOperation* operationRequested );
 
     // Mutex to wait for operations

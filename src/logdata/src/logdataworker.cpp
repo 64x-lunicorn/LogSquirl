@@ -66,6 +66,7 @@
 #include "log.h"
 #include "logdata.h"
 #include "memory_info.h"
+#include "overload_visitor.h"
 #include "progress.h"
 #include "readablesize.h"
 #include "runnable_lambda.h"
@@ -296,6 +297,39 @@ void LogDataWorker::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
     indexingPolicy_ = indexingPolicy;
 }
 
+void LogDataWorker::run( const IndexJob& job )
+{
+    std::visit( makeOverloadVisitor(
+                    [ this ]( const AttachJob& attach ) {
+                        LOG_INFO << "Attaching " << attach.fileName << ", encoding "
+                                 << attach.defaultEncodingMib;
+                        attachFile( attach.fileName );
+                        if ( attach.forcedEncoding ) {
+                            indexAll( attach.forcedEncoding, FullIndexRequest::Automatic );
+                        }
+                        else {
+                            indexAll( attach.defaultEncodingMib >= 0
+                                          ? QTextCodec::codecForMib( attach.defaultEncodingMib )
+                                          : nullptr,
+                                      FullIndexRequest::Automatic );
+                        }
+                    },
+                    [ this ]( const FullReindexJob& full ) {
+                        LOG_INFO << "Reindexing (full)";
+                        indexAll( full.forcedEncoding, full.request );
+                    },
+                    [ this ]( const PartialReindexJob& ) {
+                        LOG_INFO << "Reindexing (partial)";
+                        indexAdditionalLines();
+                    },
+                    [ this ]( const CheckForChangesJob& ) {
+                        LOG_INFO << "Checking file changes";
+                        checkFileChanges();
+                    },
+                    []( std::monostate ) { LOG_WARNING << "No index job to run"; } ),
+                job );
+}
+
 void LogDataWorker::attachFile( const QString& fileName )
 {
     ScopedLock locker( operationsMutex_ );
@@ -375,10 +409,10 @@ OperationResult LogDataWorker::connectSignalsAndRun( IndexOperation* operationRe
              &LogDataWorker::indexingProgressed );
 
     connect( operationRequested, &IndexOperation::indexingFinished, this,
-             &LogDataWorker::onIndexingFinished );
+             &LogDataWorker::indexingFinished );
 
     connect( operationRequested, &IndexOperation::fileCheckFinished, this,
-             &LogDataWorker::onCheckFileFinished );
+             &LogDataWorker::checkFileChangesFinished );
 
     auto result = operationRequested->run();
 
@@ -391,18 +425,6 @@ void LogDataWorker::interrupt()
 {
     LOG_INFO << "Load interrupt requested";
     interruptRequest_.set();
-}
-
-void LogDataWorker::onIndexingFinished( LoadingStatus status, const QString& failure )
-{
-    LOG_INFO << "indexing finished in worker thread, status " << static_cast<int>( status );
-    Q_EMIT indexingFinished( status, failure );
-}
-
-void LogDataWorker::onCheckFileFinished( const MonitoredFileStatus result, const QString& failure )
-{
-    LOG_INFO << "checking file finished in worker thread";
-    Q_EMIT checkFileChangesFinished( result, failure );
 }
 
 //

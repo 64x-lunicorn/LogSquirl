@@ -51,27 +51,27 @@ IndexJob nothing()
 
 IndexJob attach()
 {
-    return AttachOperation{ "attached.log", DefaultEncodingMib };
+    return AttachJob{ "attached.log", DefaultEncodingMib };
 }
 
 IndexJob explicitReload( QTextCodec* forcedEncoding = nullptr )
 {
-    return FullReindexOperation{ FullIndexRequest::ExplicitReload, forcedEncoding };
+    return FullReindexJob{ FullIndexRequest::ExplicitReload, forcedEncoding };
 }
 
 IndexJob automaticFull()
 {
-    return FullReindexOperation{ FullIndexRequest::Automatic };
+    return FullReindexJob{ FullIndexRequest::Automatic };
 }
 
 IndexJob check()
 {
-    return CheckDataChangesOperation{};
+    return CheckForChangesJob{};
 }
 
 IndexJob partial()
 {
-    return PartialReindexOperation{};
+    return PartialReindexJob{};
 }
 
 std::string encodingName( QTextCodec* encoding )
@@ -85,19 +85,19 @@ std::string describe( const IndexJob& job )
     return std::visit(
         makeOverloadVisitor(
             []( std::monostate ) -> std::string { return "nothing"; },
-            []( const AttachOperation& attach ) {
-                return "Attach " + attach.getFilename().toStdString() + " default "
-                       + std::to_string( attach.defaultEncodingMib() )
-                       + encodingName( attach.forcedEncoding() );
+            []( const AttachJob& attach ) {
+                return "Attach " + attach.fileName.toStdString() + " default "
+                       + std::to_string( attach.defaultEncodingMib )
+                       + encodingName( attach.forcedEncoding );
             },
-            []( const FullReindexOperation& full ) {
-                return std::string{ full.request() == FullIndexRequest::ExplicitReload
+            []( const FullReindexJob& full ) {
+                return std::string{ full.request == FullIndexRequest::ExplicitReload
                                         ? "Full (explicit reload)"
                                         : "Full (automatic)" }
-                       + encodingName( full.forcedEncoding() );
+                       + encodingName( full.forcedEncoding );
             },
-            []( const CheckDataChangesOperation& ) -> std::string { return "Check"; },
-            []( const PartialReindexOperation& ) -> std::string { return "Partial"; } ),
+            []( const CheckForChangesJob& ) -> std::string { return "Check"; },
+            []( const PartialReindexJob& ) -> std::string { return "Partial"; } ),
         job );
 }
 
@@ -132,12 +132,12 @@ SCENARIO( "Of two index jobs the stronger one waits", "[logdata][jobrule]" )
 
         // ... and takes the Encoding a reload forces, whichever came first.
         { attach(), explicitReload( latin1() ),
-          AttachOperation{ "attached.log", DefaultEncodingMib, latin1() } },
+          AttachJob{ "attached.log", DefaultEncodingMib, latin1() } },
         { explicitReload( latin1() ), attach(),
-          AttachOperation{ "attached.log", DefaultEncodingMib, latin1() } },
-        { AttachOperation{ "attached.log", DefaultEncodingMib, latin1() },
+          AttachJob{ "attached.log", DefaultEncodingMib, latin1() } },
+        { AttachJob{ "attached.log", DefaultEncodingMib, latin1() },
           explicitReload( utf16() ),
-          AttachOperation{ "attached.log", DefaultEncodingMib, utf16() } },
+          AttachJob{ "attached.log", DefaultEncodingMib, utf16() } },
 
         // An explicit reload beats an automatic Full; of two reloads the
         // later one, and its Encoding, waits.

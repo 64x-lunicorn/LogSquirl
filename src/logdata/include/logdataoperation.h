@@ -39,116 +39,12 @@
 #ifndef LOGDATAOPERATION_H
 #define LOGDATAOPERATION_H
 
-#include <variant>
+#include <functional>
+#include <memory>
 
 #include "logdataworker.h"
 
 #include "synchronization.h"
-
-// This class models an indexing operation.
-// It exists to permit LogData to delay the operation if another
-// one is ongoing (operations are asynchronous)
-class LogDataOperation {
-public:
-    LogDataOperation() = default;
-    explicit LogDataOperation( const QString& fileName )
-        : filename_( fileName )
-    {
-    }
-
-    // Permit each child to have its destructor
-    virtual ~LogDataOperation() = default;
-
-    void start( LogDataWorker* workerThread ) const
-    {
-        doStart( *workerThread );
-    }
-    const QString& getFilename() const
-    {
-        return filename_;
-    }
-
-protected:
-    virtual void doStart( LogDataWorker& workerThread ) const = 0;
-    QString filename_;
-};
-
-// Attaching a new file (change name + full index)
-class AttachOperation : public LogDataOperation {
-public:
-    // The default Encoding comes from the File Access Policy the LogData
-    // was built with; negative means "detect it rather than force one". A
-    // forced Encoding, handed over by a reload that arrived while the
-    // Attach was waiting, is indexed under instead.
-    AttachOperation( const QString& fileName, int defaultEncodingMib,
-                     QTextCodec* forcedEncoding = nullptr )
-        : LogDataOperation( fileName )
-        , defaultEncodingMib_( defaultEncodingMib )
-        , forcedEncoding_( forcedEncoding )
-    {
-    }
-
-    int defaultEncodingMib() const
-    {
-        return defaultEncodingMib_;
-    }
-    QTextCodec* forcedEncoding() const
-    {
-        return forcedEncoding_;
-    }
-
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-
-private:
-    int defaultEncodingMib_;
-    QTextCodec* forcedEncoding_;
-};
-
-// Reindexing the current file. What asked for it is carried through to the
-// indexing run, which checks a cached Index the more closely the more the
-// user asked for the Log File to be read again (#337).
-class FullReindexOperation : public LogDataOperation {
-public:
-    explicit FullReindexOperation( FullIndexRequest request = FullIndexRequest::Automatic,
-                                   QTextCodec* forcedEncoding = nullptr )
-        : request_( request )
-        , forcedEncoding_( forcedEncoding )
-    {
-    }
-
-    FullIndexRequest request() const
-    {
-        return request_;
-    }
-    QTextCodec* forcedEncoding() const
-    {
-        return forcedEncoding_;
-    }
-
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-
-private:
-    FullIndexRequest request_;
-    QTextCodec* forcedEncoding_;
-};
-
-// Indexing part of the current file (from fileSize)
-class PartialReindexOperation : public LogDataOperation {
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-};
-
-// Checking the file for changes on disk: growth, truncation or replacement
-class CheckDataChangesOperation : public LogDataOperation {
-protected:
-    void doStart( LogDataWorker& workerThread ) const override;
-};
-
-// An index job waiting to run, or nothing.
-using IndexJob = std::variant<std::monostate, AttachOperation, FullReindexOperation,
-                              PartialReindexOperation, CheckDataChangesOperation>;
 
 // The job rule: of the index job waiting to run and one that arrives while
 // another runs, the one that waits from now on. Only one waits, and the
@@ -181,11 +77,9 @@ public:
     void interrupt();
     void shutdown();
 
-    template <typename Op, typename... Args>
-    void enqueueOperation( Args&&... args )
-    {
-        enqueueOperation( Op{ std::forward<Args>( args )... } );
-    }
+    // Hands the index job to the worker, or, while another one runs, has it
+    // meet the one waiting under the job rule.
+    void enqueueOperation( IndexJob&& operation );
 
     void finishOperationAndStartNext();
 
@@ -194,7 +88,6 @@ public:
     bool isPartialReindexRunning() const;
 
 private:
-    void enqueueOperation( IndexJob&& operation );
     void tryStartPendingOperation();
 
     std::function<void()> beforeOperationStart_;
