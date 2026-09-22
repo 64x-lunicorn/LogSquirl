@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **Windows Search uses AVX2 where the CPU has it**: The release build ships
+  Hyperscan twice, as `hs.dll` for SSE4.2 and `hs_avx2.dll` built with
+  `/arch:AVX2`, and loads the one the CPU supports at the first Search;
+  MSVC has no equivalent of Vectorscan's Linux fat runtime, so this is a
+  run-time choice between two DLLs instead. A CPU without AVX2 still gets the
+  SSE4.2 build it always had (#281).
 - **mimalloc, process-wide**: A `LOGSQUIRL_MIMALLOC_OVERRIDE` option lets
   mimalloc serve `malloc`/`operator new` for the whole process, Qt included,
   where its override mechanism actually works. Wired for Linux and Windows;

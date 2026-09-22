@@ -97,11 +97,20 @@ if(LOGSQUIRL_USE_VECTORSCAN)
     # -----------------------------------------------------------------
     #  Windows — use variar/hyperscan (Intel Hyperscan fork, MSVC-ready)
     # -----------------------------------------------------------------
-    # Enable AVX2 in Hyperscan for local builds; CI generic builds disable it.
-    if(LOGSQUIRL_GENERIC_CPU)
-      set(_HS_BUILD_AVX2 OFF)
+    # A local build is compiled for its own CPU (/arch:AVX2 unless
+    # LOGSQUIRL_GENERIC_CPU) and links Hyperscan statically. A generic x64
+    # build, the release, must run on CPUs without AVX2 but use AVX2 where
+    # the CPU has it. Hyperscan's fat runtime cannot do that here: it relies
+    # on ELF ifunc and objcopy symbol renaming, which MSVC and PE do not have,
+    # and two static copies would define the same symbols. So the release
+    # ships Hyperscan twice as DLLs with the same exports, hs.dll for SSE4.2
+    # and hs_avx2.dll built with /arch:AVX2; LogSquirl delay-loads hs.dll,
+    # and the delay-load hook loads the build chosen for the CPU at the first
+    # call into Hyperscan (src/regex/include/hyperscanruntime.h, #281).
+    if(LOGSQUIRL_GENERIC_CPU AND LOGSQUIRL_TARGET_PROCESSOR MATCHES "^(AMD64|amd64|x64|x86_64)$")
+      set(_HS_RUNTIME_DISPATCH ON)
     else()
-      set(_HS_BUILD_AVX2 ON)
+      set(_HS_RUNTIME_DISPATCH OFF)
     endif()
 
     cpmaddpackage(
@@ -113,22 +122,42 @@ if(LOGSQUIRL_USE_VECTORSCAN)
       0931a40e0cf1d7f92189bc546c3491ed5c113f8b
       EXCLUDE_FROM_ALL
       YES
+      DOWNLOAD_ONLY
+      ${_HS_RUNTIME_DISPATCH}
       OPTIONS
       "BUILD_STATIC_LIBS ON"
       "BUILD_SHARED_LIBS OFF"
-      "BUILD_AVX2 ${_HS_BUILD_AVX2}"
       "BUILD_AVX512 OFF"
       "BUILD_AVX512VBMI OFF"
       "FAT_RUNTIME OFF"
     )
 
-    message("Adding alias for hyperscan (Windows)")
     add_library(logsquirl_vectorscan INTERFACE)
-    target_link_libraries(logsquirl_vectorscan INTERFACE hs)
-    target_include_directories(logsquirl_vectorscan INTERFACE
-      ${hyperscan_SOURCE_DIR}/src
-      ${hyperscan_BINARY_DIR}
-    )
+    target_include_directories(logsquirl_vectorscan INTERFACE ${hyperscan_SOURCE_DIR}/src)
+
+    if(_HS_RUNTIME_DISPATCH)
+      message("Adding hyperscan runtimes for SSE4.2 and AVX2 (Windows)")
+      include(HyperscanWindowsRuntimes)
+      logsquirl_add_hyperscan_windows_runtime(
+        logsquirl_hyperscan_sse42
+        SOURCE_DIR "${hyperscan_SOURCE_DIR}"
+        DLL_NAME hs
+        IMPORT_LIBRARY_VAR _HS_IMPORT_LIBRARY
+      )
+      logsquirl_add_hyperscan_windows_runtime(
+        logsquirl_hyperscan_avx2
+        SOURCE_DIR "${hyperscan_SOURCE_DIR}"
+        DLL_NAME hs_avx2
+        EXTRA_FLAGS /arch:AVX2
+      )
+      target_link_libraries(logsquirl_vectorscan INTERFACE "${_HS_IMPORT_LIBRARY}" delayimp)
+      target_link_options(logsquirl_vectorscan INTERFACE /DELAYLOAD:hs.dll)
+      target_compile_definitions(logsquirl_vectorscan INTERFACE LOGSQUIRL_HYPERSCAN_RUNTIME_DISPATCH)
+    else()
+      message("Adding alias for hyperscan (Windows)")
+      target_link_libraries(logsquirl_vectorscan INTERFACE hs)
+      target_include_directories(logsquirl_vectorscan INTERFACE ${hyperscan_BINARY_DIR})
+    endif()
   else()
     # -----------------------------------------------------------------
     #  Linux / macOS — use VectorCamp/vectorscan (develop branch)

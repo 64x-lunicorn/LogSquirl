@@ -3,3 +3,5 @@
 .\release\logsquirl_portable.exe
 .\release\logsquirl_portable.pdb
 
+.\release\hs.pdb
+.\release\hs_avx2.pdb
