@@ -19,6 +19,7 @@ add_executable(logsquirl_tests
     indexcache_test.cpp
     headerandtaildigests_test.cpp
     indexedhash_test.cpp
+    indexjobrule_test.cpp
     jwtdecoder_test.cpp
     linedecorator_test.cpp
     linemapping_test.cpp

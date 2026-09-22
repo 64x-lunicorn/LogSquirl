@@ -288,8 +288,8 @@ private:
 
     // Codec to decode text
     TextCodecHolder codec_;
-    MonitoredFileStatus fileChangedOnDisk_;
-    // How many Log Lines were indexed before the data added on disk is.
+    // How many Log Lines were indexed before the data added on disk is,
+    // taken when a Check finds only growth.
     LinesCount nbLinesBeforeDataAdded_;
 
     // Read by getLinesRaw() on the Search's threads, so it is only ever

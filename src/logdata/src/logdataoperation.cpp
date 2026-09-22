@@ -46,8 +46,13 @@ void AttachOperation::doStart( LogDataWorker& workerThread ) const
 {
     LOG_INFO << "Attaching " << filename_ << ", encoding " << defaultEncodingMib_;
     workerThread.attachFile( filename_ );
-    workerThread.indexAll( defaultEncodingMib_ >= 0 ? QTextCodec::codecForMib( defaultEncodingMib_ )
-                                                    : nullptr );
+    if ( forcedEncoding_ ) {
+        workerThread.indexAll( forcedEncoding_ );
+    }
+    else {
+        workerThread.indexAll(
+            defaultEncodingMib_ >= 0 ? QTextCodec::codecForMib( defaultEncodingMib_ ) : nullptr );
+    }
 }
 
 void FullReindexOperation::doStart( LogDataWorker& workerThread ) const
@@ -66,6 +71,46 @@ void CheckDataChangesOperation::doStart( LogDataWorker& workerThread ) const
 {
     LOG_INFO << "Checking file changes";
     workerThread.checkFileChanges();
+}
+
+namespace {
+
+// How strong an index job is under the job rule; nothing is the weakest.
+int strength( const IndexJob& job )
+{
+    return std::visit(
+        makeOverloadVisitor( []( std::monostate ) { return 0; },
+                             []( const PartialReindexOperation& ) { return 1; },
+                             []( const CheckDataChangesOperation& ) { return 2; },
+                             []( const FullReindexOperation& full ) {
+                                 return full.request() == FullIndexRequest::ExplicitReload ? 4 : 3;
+                             },
+                             []( const AttachOperation& ) { return 5; } ),
+        job );
+}
+
+// The Encoding a Full forces, if the job is one that forces one.
+QTextCodec* forcedEncodingOfFull( const IndexJob& job )
+{
+    const auto* full = std::get_if<FullReindexOperation>( &job );
+    return full ? full->forcedEncoding() : nullptr;
+}
+
+} // namespace
+
+IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving )
+{
+    auto& winner = strength( arriving ) >= strength( waiting ) ? arriving : waiting;
+    const auto& loser = &winner == &arriving ? waiting : arriving;
+
+    if ( const auto* attach = std::get_if<AttachOperation>( &winner ) ) {
+        if ( auto* forcedEncoding = forcedEncodingOfFull( loser ) ) {
+            return AttachOperation{ attach->getFilename(), attach->defaultEncodingMib(),
+                                    forcedEncoding };
+        }
+    }
+
+    return std::move( winner );
 }
 
 OperationQueue::OperationQueue( std::function<void()> beforeOperationStart )
@@ -131,14 +176,14 @@ void OperationQueue::tryStartPendingOperation()
                 executingOperation_ );
 }
 
-void OperationQueue::enqueueOperation( OperationVariant&& operation )
+void OperationQueue::enqueueOperation( IndexJob&& operation )
 {
     ScopedLock guard( mutex_ );
 
     LOG_INFO << "Enqueue operation " << operation.index() << ", now executing "
-             << executingOperation_.index();
+             << executingOperation_.index() << ", waiting " << pendingOperation_.index();
 
-    pendingOperation_ = std::move( operation );
+    pendingOperation_ = waitingIndexJob( std::move( pendingOperation_ ), std::move( operation ) );
 
     if ( executingOperation_.index() == 0 ) {
         tryStartPendingOperation();
@@ -152,4 +197,9 @@ void OperationQueue::finishOperationAndStartNext()
              << pendingOperation_.index();
 
     tryStartPendingOperation();
+}
+bool OperationQueue::isPartialReindexRunning() const
+{
+    ScopedLock guard( mutex_ );
+    return std::holds_alternative<PartialReindexOperation>( executingOperation_ );
 }

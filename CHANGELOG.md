@@ -226,6 +226,15 @@
 
 ## Bug fixes
 
+- **A reload is not lost to a change on disk**: A reload asked for while the
+  Log File was still being indexed or checked waited in a slot the next change
+  on disk overwrote with a check, and when that check found nothing changed in
+  what the Index covers, the reload never ran -- a rewrite in place went
+  unseen, and an Encoding chosen meanwhile was dropped. The log data now
+  decides which of two index jobs waits by one rule, strongest first: Attach,
+  explicit reload, automatic full reindex, check, partial reindex; an Attach
+  takes the Encoding a reload forces. The "truncated" state the log data kept
+  so a truncation would not be lost the same way is gone (#395).
 - **File watch polling stops stalling the UI**: The poll tick now runs on a
   thread of its own and stats each watched file with no lock held, instead of
   holding the file watcher's lock across every `QFileInfo` stat on the thread
