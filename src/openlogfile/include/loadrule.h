@@ -117,7 +117,7 @@ public:
     const logsquirl::vector<LineNumber>& savedMarks() const;
 
 private:
-    // Whether a Search was requested since the last clearSearch or reload,
+    // Whether a Search was requested since the last searchCleared or reload,
     // valid or not.
     bool searchRequested_ = false;
     // A Search was requested before the first load finished, and runs once it
