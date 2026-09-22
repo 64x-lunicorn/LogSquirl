@@ -30,6 +30,7 @@
 #include <QFile>
 #include <QHash>
 #include <QList>
+#include <QMetaType>
 #include <QTemporaryDir>
 #include <QTextCodec>
 
@@ -1096,6 +1097,50 @@ SCENARIO( "Choosing another Encoding while a Search is shown reads its Log Lines
         {
             REQUIRE( kept->getLineString( 0_lnum ) == firstLineAsLatin1() );
             REQUIRE( encoding.changes == 1 );
+        }
+    }
+}
+
+SCENARIO( "An Open Log File is heard by a host that registers no meta types",
+          "[openlogfile][metatypes]" )
+{
+    // This runner registers none of the types the Open Log File and its log
+    // data carry through their queued signals: the library does (#394).
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "unregistered.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+
+    THEN( "the types those signals carry are known to the meta type system by name" )
+    {
+        for ( const auto* name :
+              { "LoadingStatus", "MonitoredFileStatus", "LinesCount", "LineNumber", "LineLength",
+                "SearchId", "SearchSession::State", "OpenLogFile::LoadFinished" } ) {
+            INFO( name );
+            REQUIRE( QMetaType::fromName( name ).isValid() );
+        }
+    }
+
+    WHEN( "the Log File has loaded and a Search runs over it" )
+    {
+        REQUIRE( logFile.observer.waitLoads( 1 ) );
+        REQUIRE( logFile.observer.loads.front().status == LoadingStatus::Successful );
+
+        logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+
+        THEN( "the Search's progress is heard until it is complete" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return !logFile.observer.searchStates.empty()
+                           && logFile.observer.searchStates.back().phase == Phase::Complete;
+                },
+                30000 ) );
+            const auto& complete = logFile.observer.searchStates.back();
+            REQUIRE( complete.progress == 100 );
+            REQUIRE( complete.matchCount == fizzCount( FirstLineCount ) );
         }
     }
 }

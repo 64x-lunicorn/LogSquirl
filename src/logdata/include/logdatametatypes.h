@@ -17,19 +17,11 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Runner for the Open Log File's tests. It uses QCoreApplication on purpose:
-// the Open Log File follows a Log File without any widget (#244). It
-// registers no meta types either: the library registers the types its queued
-// signals carry, so a host only opens a Log File (#394).
+#pragma once
 
-#include <QCoreApplication>
-
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
-
-int main( int argc, char* argv[] )
-{
-    QCoreApplication app( argc, argv );
-
-    return Catch::Session().run( argc, argv );
-}
+// Registers, by name, the types the log data carries through its queued
+// signals: loading status, line numbers and counts, the worker's search id
+// and the Search's state. The log data calls it itself whenever it is built,
+// once per process, so a host only opens a Log File and registers none of
+// them (#394).
+void registerLogDataMetaTypes();

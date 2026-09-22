@@ -57,7 +57,6 @@
 #include "log.h"
 #include "logformatcatalog.h"
 #include "logsquirl_version.h"
-#include "searchsession.h"
 #include "session.h"
 #include "settingspolicies.h"
 #include "uuid.h"
@@ -120,14 +119,10 @@ public:
 
         QNetworkProxyFactory::setUseSystemConfiguration( true );
 
-        qRegisterMetaType<LoadingStatus>( "LoadingStatus" );
-        qRegisterMetaType<LinesCount>( "LinesCount" );
-        qRegisterMetaType<LineNumber>( "LineNumber" );
+        // The types the log data and the Open Log File signal with are
+        // registered by them (#394); these are the application's own.
         qRegisterMetaType<std::vector<LineNumber>>( "std::vector<LineNumber>" );
         qRegisterMetaType<logsquirl::vector<LineNumber>>( "logsquirl::vector<LineNumber>" );
-        qRegisterMetaType<LineLength>( "LineLength" );
-        qRegisterMetaType<SearchId>( "SearchId" );
-        qRegisterMetaType<SearchSession::State>( "SearchSession::State" );
         qRegisterMetaType<Portion>( "Portion" );
         qRegisterMetaType<Selection>( "Selection" );
         qRegisterMetaType<QFNotification>( "QFNotification" );

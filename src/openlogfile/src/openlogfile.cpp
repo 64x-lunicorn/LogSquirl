@@ -28,6 +28,7 @@
 
 #include <QTextCodec>
 
+#include <mutex>
 #include <utility>
 
 OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
@@ -48,7 +49,12 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
         chosenEncoding_ = fileAccessPolicy.defaultEncodingMib;
     }
 
-    qRegisterMetaType<OpenLogFile::LoadFinished>( "OpenLogFile::LoadFinished" );
+    // The log data registers the types it signals with itself; this is the
+    // one type only the Open Log File sends (#394).
+    static std::once_flag registered;
+    std::call_once( registered, [] {
+        qRegisterMetaType<OpenLogFile::LoadFinished>( "OpenLogFile::LoadFinished" );
+    } );
 
     connect( logData_.get(), &LogData::loadingProgressed, this, &OpenLogFile::loadingProgressed );
     connect( logData_.get(), &LogData::loadingFinished, this, &OpenLogFile::handleLoadingFinished );

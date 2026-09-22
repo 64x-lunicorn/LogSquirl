@@ -8,6 +8,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linepositionarray.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loadingstatus.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdata.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logdatametatypes.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataoperation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h
@@ -29,6 +30,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayedlines.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdetector.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdata.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logdatametatypes.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataoperation.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataworker.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfiltereddata.cpp
