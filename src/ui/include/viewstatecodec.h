@@ -17,17 +17,16 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef LOGSQUIRL_VIEWSTATECODEC_H
-#define LOGSQUIRL_VIEWSTATECODEC_H
+#pragma once
 
-#include <utility>
+#include "linetypes.h"
+#include "viewinterface.h"
 
 #include <QJsonArray>
 #include <QList>
 #include <QString>
 
-#include "linetypes.h"
-#include "viewinterface.h"
+#include <utility>
 
 struct QuickFindPolicy;
 
@@ -82,5 +81,3 @@ public:
 private:
     ViewState state_;
 };
-
-#endif // LOGSQUIRL_VIEWSTATECODEC_H

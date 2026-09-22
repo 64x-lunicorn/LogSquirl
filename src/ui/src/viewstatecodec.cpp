@@ -19,13 +19,13 @@
 
 #include "viewstatecodec.h"
 
+#include "log.h"
+#include "settingspolicies.h"
+
 #include <QJsonDocument>
 #include <QRegularExpression>
 #include <QVariantList>
 #include <QVariantMap>
-
-#include "log.h"
-#include "settingspolicies.h"
 
 namespace {
 
@@ -49,8 +49,8 @@ ViewState decodeLegacy( const QString& string, bool useRegexpByPolicy )
         state.sizes = { 400, 100 };
     }
 
-    QRegularExpression case_refresh_regex( "IC(\\d+):AR(\\d+)" );
-    match = case_refresh_regex.match( string );
+    QRegularExpression caseRefreshRegex( "IC(\\d+):AR(\\d+)" );
+    match = caseRefreshRegex.match( string );
     if ( match.hasMatch() ) {
         state.ignoreCase = ( match.captured( 1 ).toInt() == 1 );
         state.autoRefresh = ( match.captured( 2 ).toInt() == 1 );
@@ -61,8 +61,8 @@ ViewState decodeLegacy( const QString& string, bool useRegexpByPolicy )
         LOG_WARNING << "Unrecognised case/refresh: " << string.toLocal8Bit().data();
     }
 
-    QRegularExpression follow_regex( "AR(\\d+):FF(\\d+)" );
-    match = follow_regex.match( string );
+    QRegularExpression followRegex( "AR(\\d+):FF(\\d+)" );
+    match = followRegex.match( string );
     if ( match.hasMatch() ) {
         state.followFile = ( match.captured( 2 ).toInt() == 1 );
 
