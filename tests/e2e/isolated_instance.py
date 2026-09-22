@@ -28,14 +28,18 @@ Windows (#348) gets the same three guarantees through different levers:
 - its own settings and Session: no bundle to clone, so the environment
   redirection below is enough on its own -- ``PersistentInfo`` picks up
   ``QSettings::IniFormat`` under ``APPDATA`` (see persistentinfo.cpp).
-- its own QStandardPaths locations: Qt reads ``APPDATA`` and ``LOCALAPPDATA``
-  directly for AppDataLocation/AppConfigLocation/CacheLocation on Windows
-  (unlike macOS, no known-folder lookup that would ignore the override), so
-  pointing both into the temporary directory moves them the same way
-  ``CFFIXED_USER_HOME`` does on macOS. ``LOGSQUIRL_TEST_MODE`` additionally
-  asks the application to enable Qt's test mode, which is documented to
-  append ``/qttest`` to those same locations -- a second layer nobody has
-  verified from an actual Windows machine (see main.cpp).
+- its own QStandardPaths locations: Qt resolves AppDataLocation,
+  AppConfigLocation and CacheLocation through ``SHGetKnownFolderPath``, which
+  reads the known folders from the registry, not from ``APPDATA`` and
+  ``LOCALAPPDATA``. Their default values are ``%USERPROFILE%``-relative, so
+  ``USERPROFILE``, ``APPDATA`` and ``LOCALAPPDATA`` all point at the same
+  layout in the temporary directory -- whether the shell expands the
+  registry value with the process's ``USERPROFILE`` is what
+  test_user_data_untouched.py checks on e2e-windows (#403).
+  ``LOGSQUIRL_TEST_MODE`` additionally asks the application to enable Qt's
+  test mode, which puts ``/qttest`` between the known folder and the
+  application name (see main.cpp), so the instance's AppDataLocation is
+  ``Roaming/qttest/logsquirl``, never the user's ``Roaming/logsquirl``.
 - its own single-instance lock: the lock file moves because ``TEMP``/``TMP``
   (not ``TMPDIR``, which Windows ignores) point into the temporary directory,
   and the named pipe itself is scoped by ``LOGSQUIRL_INSTANCE_ID``, which
@@ -146,10 +150,10 @@ class IsolatedLogSquirl:
             localappdata.mkdir(parents=True)
             self.env["APPDATA"] = str(appdata)
             self.env["LOCALAPPDATA"] = str(localappdata)
-            # See the module docstring: unlike macOS this is a confident
-            # redirection (Qt reads these two variables directly on
-            # Windows), backed up by the documented-but-unverified test-mode
-            # lead below.
+            # See the module docstring: QSettings and QStandardPaths take
+            # their folders from the registry, whose defaults are relative to
+            # USERPROFILE; these two keep the environment consistent with
+            # that, and test mode below moves AppDataLocation into qttest.
             self.env["LOGSQUIRL_TEST_MODE"] = "1"
             # Scopes the single-instance named pipe to this instance
             # (logsquirlapp.h); a real run never sets this, so its pipe name
