@@ -112,11 +112,11 @@ int main( int argc, char* argv[] )
 #ifdef Q_OS_WIN
     // Windows E2E isolation (#348): an isolated test instance sets
     // LOGSQUIRL_TEST_MODE alongside a redirected APPDATA/LOCALAPPDATA
-    // (tests/e2e/isolated_instance.py). The environment redirection is what
-    // actually moves QStandardPaths::AppDataLocation/AppConfigLocation/
-    // CacheLocation, since Qt reads those two variables directly on Windows;
-    // test mode is a documented-but-unverified-on-real-hardware second layer
-    // on top of it, appending "/qttest" to whatever it resolves. A real run
+    // (tests/e2e/isolated_instance.py). Test mode puts "/qttest" between the
+    // known folder and the application name of QStandardPaths::
+    // AppDataLocation/AppConfigLocation/CacheLocation, so an instance never
+    // resolves the user's own locations; the fixture creates its plugin
+    // directory under Roaming/qttest/logsquirl accordingly (#403). A real run
     // never sets the variable, so this is a no-op there. Must run before
     // anything reads a QStandardPaths location, so before LogSquirlApp is
     // even constructed.

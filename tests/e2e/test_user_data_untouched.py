@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import platform
 from pathlib import Path
 
 import pytest
@@ -91,13 +90,15 @@ def test_user_locations_exist_to_be_protected():
     assert present
 
 
-@pytest.mark.xfail(
-    platform.system() == "Windows",
-    reason="the raw Windows build output has no plugins/ directory next to "
-    "the executable (unlike macOS's .app bundle), so PluginCatalog never "
-    "logs a directory to scan and this test's second half never runs -- #403",
-    strict=False,
-)
+def _logged_directories(log_lines: list[str], marker: str) -> list[str]:
+    """The directories the instance logged after marker, one spelling each."""
+    return [
+        _real_path(line.split(marker, 1)[1].strip().strip('"'))
+        for line in log_lines
+        if marker in line
+    ]
+
+
 def test_isolated_instance_leaves_user_data_untouched(isolated_gui, test_data_dir):
     """An isolated instance changes nothing of the user's and keeps its own data.
 
@@ -135,12 +136,21 @@ def test_isolated_instance_leaves_user_data_untouched(isolated_gui, test_data_di
     # The other half: the instance did keep its data somewhere, and that
     # somewhere is its temporary directory. Without this the check above
     # would also pass for an instance that never started.
-    scanned = [
-        _real_path(line.split("Scanning for plugins in:", 1)[1].strip().strip('"'))
-        for line in isolated_gui.log_lines
-        if "Scanning for plugins in:" in line
-    ]
-    assert scanned, "the instance logged no plugin directory at all"
+    scanned = _logged_directories(isolated_gui.log_lines, "Scanning for plugins in:")
+    # The candidates that did not exist are logged at debug level, which the
+    # instance runs at; they say where the instance looked when the directory
+    # below is not among the scanned ones.
+    candidates = scanned + _logged_directories(
+        isolated_gui.log_lines, "Plugin directory does not exist:"
+    )
+    # The fixture creates this directory so that it is scanned: if it is not,
+    # the fixture's idea of the instance's AppDataLocation is wrong for this
+    # platform (#403) -- not a directory that happens to be missing.
+    own_plugins = _real_path(str(isolated_gui.app_data_dir / "plugins"))
+    assert own_plugins in scanned, (
+        f"the instance did not scan its own plugin directory {own_plugins}; "
+        f"it considered: {candidates}"
+    )
     root = _real_path(str(isolated_gui.root))
     outside = [directory for directory in scanned if not directory.startswith(root)]
     assert not outside, f"plugins were looked for outside {root}: {outside}"
