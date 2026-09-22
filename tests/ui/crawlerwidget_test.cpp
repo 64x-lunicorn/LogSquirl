@@ -1897,23 +1897,20 @@ SCENARIO( "A zoom steps to the next offered font size from any configured size",
 
 namespace {
 
-// A palette in which a Log Line outside the Search Limits is drawn in a color
-// of its own: the one of the platform may draw it as any other.
-QPalette subduingPalette()
-{
-    QPalette palette;
-    palette.setColor( QPalette::Base, Qt::white );
-    palette.setColor( QPalette::Text, Qt::black );
-    palette.setColor( QPalette::Disabled, QPalette::Text, QColor{ 0x6b, 0x5a, 0x49 } );
-    return palette;
-}
-
 // How many pixels of the view are painted in the color a Log Line outside the
 // Search Limits is subdued in. The separator beside the bullets is drawn in
 // it too, so only a change of the count within one view says something.
+//
+// The color is read off the view rather than set on it (#373). A Line
+// Decorator subdues with QPalette::Disabled's text color
+// (linedecorator.cpp:46), and a Theme applies a stylesheet to the whole
+// application, which decides that color over any palette a test hands the
+// widget. This scenario used to set its own palette and look for the color it
+// had chosen: that worked only while no Theme had been applied, so it passed
+// alone and failed after any scenario that applies one.
 int subduedPixels( QWidget* view )
 {
-    const auto subdued = subduingPalette().color( QPalette::Disabled, QPalette::Text ).rgb();
+    const auto subdued = view->palette().color( QPalette::Disabled, QPalette::Text ).rgb();
     const auto image = view->grab().toImage();
     auto count = 0;
     for ( auto y = 0; y < image.height(); ++y ) {
@@ -1961,10 +1958,12 @@ SCENARIO( "Color Labels and Search Limits reach every Filtered View of the Log F
     HighlighterSetCollection::get().deactivateAll();
     setColorLabelColors( firstLabelColor, secondLabelColor );
 
+    // A Theme of its own, so the colors the views paint with are this
+    // scenario's and not whichever Theme ran before it (#373).
+    Theme::apply( Theme::defaultTheme() );
+
     CrawlerWidgetVisitor crawlerVisitor;
     openCrawler( session, file, crawlerVisitor );
-    // Handed down to every view of the Log File, the ones built later included.
-    crawlerVisitor.crawler->setPalette( subduingPalette() );
 
     GIVEN( "a kept Search in a tab not current, both Searches showing Log Line 3" )
     {
