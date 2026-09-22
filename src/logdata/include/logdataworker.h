@@ -375,8 +375,13 @@ struct CachedIndex;
 // none of it comes from the settings store, and the shipped values are the
 // defaults below. Every run the application starts takes the plan as it is.
 struct IndexingBlockPlan {
-    // The size of the blocks a Log File is read and parsed in.
-    static constexpr qint64 DefaultBlockSize = 5 * 1024 * 1024;
+    // The size of the blocks a Log File is read and parsed in. Smaller
+    // blocks put more of them in flight at once for the same read buffer,
+    // so more cores parse in parallel (#339); it is unrelated to the
+    // encoding-detection sample, the header and tail digests and the Index
+    // Cache resume check, which stay at logdataworker.cpp's DigestBlockSize
+    // regardless of this value.
+    static constexpr qint64 DefaultBlockSize = 1 * 1024 * 1024;
 
     // Only tests plan another block size than the default, tiny ones, so
     // that many Log Lines cross from one block into the next (#290).
