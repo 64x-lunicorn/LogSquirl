@@ -11,6 +11,7 @@ by the build itself and do not appear here.
 
 from __future__ import annotations
 
+import platform
 import subprocess
 from pathlib import Path
 
@@ -138,7 +139,13 @@ class TestGuiCleanShutdown:
 
         # Accept clean exit (0) or termination by signal we sent (SIGTERM).
         # Anything else (SIGSEGV=139, SIGABRT=134) indicates a regression.
-        assert result.returncode in (0, -15, 143, -2, 130), (
+        # Windows has no signals: Popen.terminate() there calls
+        # TerminateProcess, which exits the process with code 1 rather than
+        # a negative signal number (#348).
+        accepted = (0, -15, 143, -2, 130, 1) if platform.system() == "Windows" else (
+            0, -15, 143, -2, 130
+        )
+        assert result.returncode in accepted, (
             f"GUI did not shut down cleanly: rc={result.returncode} "
             f"output={result.stdout[-500:]!r}"
         )

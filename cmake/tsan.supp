@@ -1,0 +1,44 @@
+# ThreadSanitizer suppression list for LogSquirl (#347).
+#
+# Every entry here is a documented false positive or a finding in code TSan
+# cannot instrument, not a race in LogSquirl's own logic. See
+# docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md for
+# how these were investigated and why each is believed safe to suppress.
+#
+# Applied automatically to every ctest run (cmake/CatchTestDiscoveryRunTest.cmake)
+# and documented for standalone binary runs in BUILD.md.
+#
+# Syntax: https://github.com/google/sanitizers/wiki/ThreadSanitizerSuppressions
+
+# oneTBB's flow graph (used by the indexing and search pipelines) builds its
+# task objects (graph_task and friends) with placement-new over a shared
+# small-object pool and downcasts them with static_cast instead of a
+# TSan-visible synchronized handoff; its internal spin-locks and atomics that
+# actually make this safe are themselves not fully visible to TSan's
+# happens-before model in the CPM-vendored build LogSquirl links. This mirrors
+# oneTBB's own cmake/suppressions/tsan.suppressions upstream, which suppresses
+# the same subsystem for the same reason.
+race:tbb::detail::r1::
+race:tbb::detail::d1::graph_task
+race:tbb::detail::d1::input_node_task_bypass
+race:tbb::detail::d1::forward_task_bypass
+race:tbb::flow::
+
+# QThreadPoolThread::run() (QtCore, uninstrumented in this build) hands a
+# queued runnable from the thread that called QThreadPool::start() to the pool
+# thread that executes it, through Qt's own internal mutex/condvar. That
+# handoff is a real happens-before edge, but TSan cannot see synchronization
+# inside a library that was not built with -fsanitize=thread, so it reports the
+# shared_ptr<const RegularExpression> that LogFilteredDataWorker::search()
+# captures by value into the queued lambda as a race between the calling
+# thread's copy going out of scope and the pool thread's copy being
+# constructed/destroyed. Investigated on its own merits (not suppressed
+# reflexively): the shared_ptr is copied by value at enqueue time, only ever
+# read (never mutated) on the pool thread, and std::shared_ptr's control-block
+# refcounting is atomic regardless of who holds the mutex, so concurrent
+# copy/destroy of the same shared_ptr from different threads is safe by the
+# C++ standard whether or not Qt's mutex is visible to TSan. Conclusion: TSan
+# blind spot on uninstrumented Qt internals, not a real race. See the ADR for
+# the full reasoning.
+race:QThreadPoolThread::run
+race:QThreadPool::start

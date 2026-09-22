@@ -160,8 +160,18 @@ private:
     // without a background thread, the last of them before a quiet period
     // stay buffered until the next message, and a crash can lose them.
     // std::cerr writes every message out at once whatever this answers.
+    //
+    // LOGSQUIRL_TEST_MODE (set only by the isolated Windows e2e harness,
+    // tests/e2e/isolated_instance.py, #348) disables the throttle: an
+    // isolated instance's "ready" line otherwise has nothing after it to
+    // trigger the next flush, so it can sit in this buffer until exit --
+    // wait_for_primary_line() then times out waiting for a line that was
+    // logged but never pushed out. A real run never sets the variable.
     bool shouldFlush( QtMsgType type )
     {
+        if ( qEnvironmentVariableIsSet( "LOGSQUIRL_TEST_MODE" ) ) {
+            return true;
+        }
         const auto now = std::chrono::steady_clock::now();
         if ( detail::logLevelOf( type ) <= static_cast<uint8_t>( LogLevel::Warning )
              || now - lastFlush_ >= FlushInterval ) {

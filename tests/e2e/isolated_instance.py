@@ -23,9 +23,30 @@ An instance started here gets:
   ``QDir::tempPath()``, so ``TMPDIR`` points into the temporary directory.
   A running LogSquirl of the user is neither found nor disturbed.
 
-Windows is not supported: its named pipes are not scoped by a directory, so
-a test instance could hand files over to the user's LogSquirl. Tests that
-start the application skip there (see the ``isolated_gui`` fixture).
+Windows (#348) gets the same three guarantees through different levers:
+
+- its own settings and Session: no bundle to clone, so the environment
+  redirection below is enough on its own -- ``PersistentInfo`` picks up
+  ``QSettings::IniFormat`` under ``APPDATA`` (see persistentinfo.cpp).
+- its own QStandardPaths locations: Qt reads ``APPDATA`` and ``LOCALAPPDATA``
+  directly for AppDataLocation/AppConfigLocation/CacheLocation on Windows
+  (unlike macOS, no known-folder lookup that would ignore the override), so
+  pointing both into the temporary directory moves them the same way
+  ``CFFIXED_USER_HOME`` does on macOS. ``LOGSQUIRL_TEST_MODE`` additionally
+  asks the application to enable Qt's test mode, which is documented to
+  append ``/qttest`` to those same locations -- a second layer nobody has
+  verified from an actual Windows machine (see main.cpp).
+- its own single-instance lock: the lock file moves because ``TEMP``/``TMP``
+  (not ``TMPDIR``, which Windows ignores) point into the temporary directory,
+  and the named pipe itself is scoped by ``LOGSQUIRL_INSTANCE_ID``, which
+  logsquirlapp.h folds into the pipe name -- Windows named pipes are not
+  scoped by a directory the way a Unix local socket in ``TMPDIR`` is (#320),
+  so without this a test instance could still hand its files to, or be
+  activated by, a real running LogSquirl.
+
+Everything Windows-specific above is implemented per a documented Qt/Win32
+lead, not verified against real Windows hardware -- e2e-windows CI is the
+first place it actually runs.
 
 Instances run with ``QT_QPA_PLATFORM=offscreen``.
 """
@@ -52,7 +73,7 @@ view.showSplashScreen=false
 
 
 def supported() -> bool:
-    return platform.system() in ("Darwin", "Linux")
+    return platform.system() in ("Darwin", "Linux", "Windows")
 
 
 def user_data_locations() -> list[Path]:
@@ -61,8 +82,22 @@ def user_data_locations() -> list[Path]:
     Nothing an isolated instance does may show up here -- that is what
     test_user_data_untouched.py checks.
     """
+    system = platform.system()
+    if system == "Windows":
+        # PersistentInfo's settings (an ini file, org "logsquirl", app
+        # "logsquirl"/"logsquirl_session") and QStandardPaths' plugins, Log
+        # Formats, cache and crash dumps all land under one of these two
+        # (persistentinfo.cpp, main.cpp's other QStandardPaths::* call sites).
+        locations = []
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            locations.append(Path(appdata) / "logsquirl")
+        localappdata = os.environ.get("LOCALAPPDATA")
+        if localappdata:
+            locations.append(Path(localappdata) / "logsquirl")
+        return locations
     home = Path(os.path.expanduser("~"))
-    if platform.system() == "Darwin":
+    if system == "Darwin":
         library = home / "Library"
         return [
             library / "Preferences" / "com.logsquirl.logsquirl.plist",
@@ -83,7 +118,7 @@ class IsolatedLogSquirl:
 
     def __init__(self, binary: Path):
         if not supported():
-            raise RuntimeError("isolated LogSquirl instances need macOS or Linux")
+            raise RuntimeError("isolated LogSquirl instances need macOS, Linux or Windows")
 
         # Short path: the local socket's path must stay below 104 characters.
         self.root = Path(tempfile.mkdtemp(prefix="lsq"))
@@ -97,7 +132,37 @@ class IsolatedLogSquirl:
         self.env["QT_QPA_PLATFORM"] = "offscreen"
         self.env["HOME"] = str(self.home)
 
-        if platform.system() == "Darwin":
+        system = platform.system()
+        if system == "Windows":
+            # QDir::tempPath() (the single-instance lock file) reads
+            # TEMP/TMP on Windows, not TMPDIR.
+            self.env["TEMP"] = str(tmp)
+            self.env["TMP"] = str(tmp)
+            self.env["USERPROFILE"] = str(self.home)
+
+            appdata = self.home / "AppData" / "Roaming"
+            localappdata = self.home / "AppData" / "Local"
+            appdata.mkdir(parents=True)
+            localappdata.mkdir(parents=True)
+            self.env["APPDATA"] = str(appdata)
+            self.env["LOCALAPPDATA"] = str(localappdata)
+            # See the module docstring: unlike macOS this is a confident
+            # redirection (Qt reads these two variables directly on
+            # Windows), backed up by the documented-but-unverified test-mode
+            # lead below.
+            self.env["LOGSQUIRL_TEST_MODE"] = "1"
+            # Scopes the single-instance named pipe to this instance
+            # (logsquirlapp.h); a real run never sets this, so its pipe name
+            # is unaffected.
+            self.env["LOGSQUIRL_INSTANCE_ID"] = self.root.name
+
+            config_dir = appdata / "logsquirl"
+            config_dir.mkdir(parents=True)
+            (config_dir / "logsquirl.ini").write_text(_SETTINGS)
+
+            self.binary = binary
+            self.app_data_dir = appdata / "logsquirl"
+        elif system == "Darwin":
             bundle = self._find_bundle(binary)
             clone = self.root / bundle.name
             # -c clones on APFS (instant); plain copy elsewhere.
@@ -147,30 +212,43 @@ class IsolatedLogSquirl:
         before app.exec(). Pass ready=None to return the moment the process
         exists, for a measurement that times the startup itself.
 
-        Its output goes through a pseudo terminal rather than a pipe. The
-        application flushes an info or debug message only at a following
-        warning, at exit, or when a message arrives a second after the last
-        flush, so on a pipe the last lines of a startup sit in the buffer for
-        as long as the instance stays idle -- including the line waited for
-        here. A terminal makes the C library line-buffer, so every line
-        arrives as it is logged.
-        """
-        # Imported here, not at the top: pty is POSIX only, and conftest
-        # imports this module on Windows too, where supported() is false
-        # and no instance is ever started.
-        import pty
+        Its output goes through a pseudo terminal rather than a pipe on macOS
+        and Linux. The application flushes an info or debug message only at a
+        following warning, at exit, or when a message arrives a second after
+        the last flush, so on a pipe the last lines of a startup sit in the
+        buffer for as long as the instance stays idle -- including the line
+        waited for here. A terminal makes the C library line-buffer, so every
+        line arrives as it is logged.
 
-        reader, writer = pty.openpty()
-        try:
+        Windows has no pseudo terminal, so it reads a plain pipe instead: a
+        wait_for_primary_line() there can lag up to the second described
+        above rather than seeing a line the moment it is logged.
+        """
+        if platform.system() == "Windows":
             self.primary = subprocess.Popen(
                 [str(self.binary), "-n", "-d", "2", *args],
-                stdout=writer,
-                stderr=writer,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 env=self.env,
+                text=True,
+                errors="replace",
             )
-        finally:
-            os.close(writer)
-        self._primary_output = os.fdopen(reader, "r", errors="replace")
+            self._primary_output = self.primary.stdout
+        else:
+            # Imported here, not at the top: pty is POSIX only.
+            import pty
+
+            reader, writer = pty.openpty()
+            try:
+                self.primary = subprocess.Popen(
+                    [str(self.binary), "-n", "-d", "2", *args],
+                    stdout=writer,
+                    stderr=writer,
+                    env=self.env,
+                )
+            finally:
+                os.close(writer)
+            self._primary_output = os.fdopen(reader, "r", errors="replace")
         threading.Thread(target=self._read_primary, daemon=True).start()
         if ready is not None:
             self.wait_for_primary_line(ready, timeout)

@@ -45,6 +45,8 @@
 #ifdef Q_OS_WIN
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+
+#include <QStandardPaths>
 #endif // _WIN32
 
 #include <mimalloc.h>
@@ -106,6 +108,22 @@ int main( int argc, char* argv[] )
 #endif
 
     setApplicationAttributes();
+
+#ifdef Q_OS_WIN
+    // Windows E2E isolation (#348): an isolated test instance sets
+    // LOGSQUIRL_TEST_MODE alongside a redirected APPDATA/LOCALAPPDATA
+    // (tests/e2e/isolated_instance.py). The environment redirection is what
+    // actually moves QStandardPaths::AppDataLocation/AppConfigLocation/
+    // CacheLocation, since Qt reads those two variables directly on Windows;
+    // test mode is a documented-but-unverified-on-real-hardware second layer
+    // on top of it, appending "/qttest" to whatever it resolves. A real run
+    // never sets the variable, so this is a no-op there. Must run before
+    // anything reads a QStandardPaths location, so before LogSquirlApp is
+    // even constructed.
+    if ( qEnvironmentVariableIsSet( "LOGSQUIRL_TEST_MODE" ) ) {
+        QStandardPaths::setTestModeEnabled( true );
+    }
+#endif
 
     LogSquirlApp app( argc, argv );
     CliParameters parameters( app );

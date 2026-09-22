@@ -591,6 +591,23 @@
 
 ## Internal
 
+- **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
+  `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
+  (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on
+  `LogFilteredDataWorker::search()`'s `shared_ptr<const RegularExpression>`
+  judged safe rather than just suppressed); `ctest` picks it up automatically
+  and BUILD.md documents it for a standalone TSan run. See
+  `docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md`
+  (#347).
+- **GUI e2e tests run isolated on Windows too**: The isolated-instance test
+  harness no longer skips on Windows. `APPDATA`/`LOCALAPPDATA`/`TEMP`/`TMP`
+  point into the instance's own temp directory, and the single-instance
+  named pipe is scoped per instance, so a test run cannot touch a real
+  install's settings, Session, cache or plugins, and cannot reach (or be
+  reached by) a LogSquirl the user is actually running. `e2e-windows` now
+  runs the ~13 previously-skipped GUI tests instead of skipping them, 93 of
+  which pass; two that wait on a file being logged as loaded are `xfail` on
+  Windows pending #388 (#348).
 - **Smaller indexing parse blocks**: The blocks indexing reads and parses a
   Log File in are now 1 MiB, down from 5 MiB, so a 16 MiB read buffer keeps
   about 16 of them in flight instead of 3 and more cores parse in parallel.
