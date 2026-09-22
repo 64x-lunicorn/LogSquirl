@@ -159,10 +159,11 @@ void DisplayedLines::searchDiscarded()
     refreshLines();
 }
 
-bool DisplayedLines::addMark( LineNumber line )
+bool DisplayedLines::addMark( LineNumber line, LineLength length )
 {
     const bool added = marks_.addChecked( line.get() );
     if ( added ) {
+        setMarkLength( line.get(), length );
         markToggled( line.get(), true );
     }
     return added;
@@ -172,6 +173,7 @@ bool DisplayedLines::removeMark( LineNumber line )
 {
     const bool removed = marks_.removeChecked( line.get() );
     if ( removed ) {
+        forgetMarkLength( line.get() );
         markToggled( line.get(), false );
     }
     return removed;
@@ -180,6 +182,8 @@ bool DisplayedLines::removeMark( LineNumber line )
 void DisplayedLines::clearMarks()
 {
     marks_ = SearchResultArray();
+    markLengths_.clear();
+    marksByLength_.clear();
     rewritten();
     rebuildContextLines();
     refreshLines();
@@ -188,6 +192,44 @@ void DisplayedLines::clearMarks()
 const SearchResultArray& DisplayedLines::marks() const
 {
     return marks_;
+}
+
+void DisplayedLines::logLinesChanged( LineNumber firstChanged,
+                                      const std::function<LineLength( LineNumber )>& lengthOf )
+{
+    auto mark = marks_.begin();
+    mark.move_equalorlarger( firstChanged.get() );
+    for ( ; mark != marks_.end(); ++mark ) {
+        setMarkLength( *mark, lengthOf( LineNumber( *mark ) ) );
+    }
+}
+
+LineLength DisplayedLines::maxLength( LineLength longestMatch ) const
+{
+    const auto longestMark
+        = marksByLength_.empty() ? 0_length : LineLength( marksByLength_.rbegin()->first );
+    return std::max( longestMatch, longestMark );
+}
+
+void DisplayedLines::setMarkLength( uint64_t line, LineLength length )
+{
+    forgetMarkLength( line );
+    markLengths_.emplace( line, length.get() );
+    ++marksByLength_[ length.get() ];
+}
+
+void DisplayedLines::forgetMarkLength( uint64_t line )
+{
+    const auto remembered = markLengths_.find( line );
+    if ( remembered == markLengths_.end() ) {
+        return;
+    }
+
+    const auto count = marksByLength_.find( remembered->second );
+    if ( --count->second == 0 ) {
+        marksByLength_.erase( count );
+    }
+    markLengths_.erase( remembered );
 }
 
 OptionalLineNumber DisplayedLines::markAfter( LineNumber line ) const

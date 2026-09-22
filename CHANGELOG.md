@@ -591,6 +591,12 @@
 
 ## Internal
 
+- **The Displayed Lines keep the length of every Mark**: A Mark is added with
+  the length of its Log Line, and when Log Lines change from some line on the
+  Displayed Lines read the lengths of the Marks from there again through a
+  length function they are handed. The separate Mark length structure the log
+  filtered data kept in step by hand in every Mark operation is gone; the
+  Filtered View is as wide as before (#401).
 - **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
   `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
   (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on

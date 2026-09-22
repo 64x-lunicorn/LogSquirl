@@ -25,7 +25,6 @@ add_executable(logsquirl_tests
     linessaver_test.cpp
     linepositionarray_test.cpp
     linetypes_test.cpp
-    marklengths_test.cpp
     formatrecognition_test.cpp
     logfieldextractor_test.cpp
     logformatcatalog_test.cpp

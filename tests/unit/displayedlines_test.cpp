@@ -88,8 +88,8 @@ SCENARIO( "The Displayed Lines combine Matches and Marks", "[displayedlines]" )
     logFile.matches = bitmapOf( { 10, 20, 30 } );
     auto displayed = displayedLinesOf( logFile, 0 );
     displayed.searchCompleted();
-    displayed.addMark( 15_lnum );
-    displayed.addMark( 20_lnum );
+    displayed.addMark( 15_lnum, 0_length );
+    displayed.addMark( 20_lnum, 0_length );
 
     THEN( "Matches and Marks are shown by default, each Log Line once" )
     {
@@ -133,7 +133,7 @@ SCENARIO( "The Displayed Lines map positions to Log Lines and back", "[displayed
     logFile.matches = bitmapOf( { 3, 7, 50 } );
     auto displayed = displayedLinesOf( logFile, 1 );
     displayed.searchCompleted();
-    displayed.addMark( 90_lnum );
+    displayed.addMark( 90_lnum, 0_length );
     displayed.setShown( Everything );
 
     const Lines expected{ 2, 3, 4, 6, 7, 8, 49, 50, 51, 89, 90, 91 };
@@ -196,7 +196,7 @@ SCENARIO( "The Displayed Lines are walked from a position", "[displayedlines]" )
     logFile.matches = bitmapOf( { 3, 7, 50 } );
     auto displayed = displayedLinesOf( logFile, 1 );
     displayed.searchCompleted();
-    displayed.addMark( 90_lnum );
+    displayed.addMark( 90_lnum, 0_length );
     displayed.setShown( Everything );
 
     // Position:          0  1  2  3  4  5  6   7   8   9   10  11
@@ -336,7 +336,7 @@ SCENARIO( "The Displayed Lines compute Context Lines around Matches and Marks", 
 
     WHEN( "a Mark is added near the end of the Log File" )
     {
-        displayed.addMark( 39_lnum );
+        displayed.addMark( 39_lnum, 0_length );
 
         THEN( "Context Lines surround it too, not past the last Log Line" )
         {
@@ -400,12 +400,12 @@ SCENARIO( "The Displayed Lines keep their Marks", "[displayedlines]" )
 
     WHEN( "Marks are added" )
     {
-        REQUIRE( displayed.addMark( 5_lnum ) );
-        REQUIRE( displayed.addMark( 30_lnum ) );
+        REQUIRE( displayed.addMark( 5_lnum, 0_length ) );
+        REQUIRE( displayed.addMark( 30_lnum, 0_length ) );
 
         THEN( "adding one twice reports it was already there" )
         {
-            REQUIRE_FALSE( displayed.addMark( 5_lnum ) );
+            REQUIRE_FALSE( displayed.addMark( 5_lnum, 0_length ) );
             REQUIRE( linesOf( displayed.marks() ) == Lines{ 5, 30 } );
         }
 
@@ -448,13 +448,160 @@ SCENARIO( "The Displayed Lines keep their Marks", "[displayedlines]" )
     }
 }
 
+SCENARIO( "The Displayed Lines keep the length of every Mark with the Mark",
+          "[displayedlines][marks]" )
+{
+    LogFile logFile;
+    logFile.matches = bitmapOf( { 10 } );
+    auto displayed = displayedLinesOf( logFile, 0 );
+    displayed.searchCompleted();
+
+    THEN( "without Marks the widest line is the longest Match" )
+    {
+        REQUIRE( displayed.maxLength( 0_length ) == 0_length );
+        REQUIRE( displayed.maxLength( LineLength( 30 ) ) == LineLength( 30 ) );
+    }
+
+    GIVEN( "Marks of lengths 10, 40, 25 and a second one of 40" )
+    {
+        REQUIRE( displayed.addMark( 3_lnum, LineLength( 10 ) ) );
+        REQUIRE( displayed.addMark( 7_lnum, LineLength( 40 ) ) );
+        REQUIRE( displayed.addMark( 9_lnum, LineLength( 25 ) ) );
+        REQUIRE( displayed.addMark( 12_lnum, LineLength( 40 ) ) );
+
+        THEN( "with Marks only the widest line is the longest Mark" )
+        {
+            REQUIRE( displayed.maxLength( 0_length ) == LineLength( 40 ) );
+        }
+
+        THEN( "with Marks and Matches the widest line is the longer of the longest Mark and "
+              "the longest Match" )
+        {
+            REQUIRE( displayed.maxLength( LineLength( 35 ) ) == LineLength( 40 ) );
+            REQUIRE( displayed.maxLength( LineLength( 55 ) ) == LineLength( 55 ) );
+        }
+
+        WHEN( "a Mark is toggled off and on again" )
+        {
+            REQUIRE( displayed.removeMark( 7_lnum ) );
+            REQUIRE( displayed.removeMark( 12_lnum ) );
+
+            THEN( "the longest Mark left is the widest line while it is off" )
+            {
+                REQUIRE( displayed.maxLength( 0_length ) == LineLength( 25 ) );
+            }
+
+            AND_WHEN( "it is marked again" )
+            {
+                REQUIRE( displayed.addMark( 7_lnum, LineLength( 40 ) ) );
+
+                THEN( "its length counts again" )
+                {
+                    REQUIRE( displayed.maxLength( 0_length ) == LineLength( 40 ) );
+                }
+            }
+        }
+
+        WHEN( "one of the two longest is unmarked" )
+        {
+            REQUIRE( displayed.removeMark( 7_lnum ) );
+
+            THEN( "the other one is still the longest" )
+            {
+                REQUIRE( displayed.maxLength( 0_length ) == LineLength( 40 ) );
+            }
+        }
+
+        WHEN( "a Log Line already marked is marked again with another length" )
+        {
+            REQUIRE_FALSE( displayed.addMark( 12_lnum, LineLength( 90 ) ) );
+
+            THEN( "the length it was marked with stays" )
+            {
+                REQUIRE( displayed.maxLength( 0_length ) == LineLength( 40 ) );
+                REQUIRE( displayed.removeMark( 7_lnum ) );
+                REQUIRE( displayed.removeMark( 12_lnum ) );
+                REQUIRE( displayed.maxLength( 0_length ) == LineLength( 25 ) );
+            }
+        }
+
+        WHEN( "the Marks are cleared" )
+        {
+            displayed.clearMarks();
+
+            THEN( "no Mark is wide any more" )
+            {
+                REQUIRE( displayed.maxLength( 0_length ) == 0_length );
+            }
+
+            AND_WHEN( "a shorter Log Line is marked" )
+            {
+                displayed.addMark( 7_lnum, LineLength( 5 ) );
+
+                THEN( "only its length counts" )
+                {
+                    REQUIRE( displayed.maxLength( 0_length ) == LineLength( 5 ) );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a Mark on a long Log Line and one on the last Log Line" )
+    {
+        std::vector<LineLength> lengths( logFile.nbLines, LineLength( 20 ) );
+        lengths[ 30 ] = LineLength( 60 );
+        lengths[ 99 ] = LineLength( 5 );
+        displayed.addMark( 30_lnum, lengths[ 30 ] );
+        displayed.addMark( 99_lnum, lengths[ 99 ] );
+
+        WHEN( "the last Log Line grew and the lengths are read again from there" )
+        {
+            lengths[ 30 ] = LineLength( 1 );
+            lengths[ 99 ] = LineLength( 70 );
+            Lines read;
+            displayed.logLinesChanged( 99_lnum, [ & ]( LineNumber line ) {
+                read.push_back( line.get() );
+                return lengths[ line.get() ];
+            } );
+
+            THEN( "only the Marks from there on are read again, and the grown one is the widest" )
+            {
+                REQUIRE( read == Lines{ 99 } );
+                REQUIRE( displayed.maxLength( 0_length ) == LineLength( 70 ) );
+            }
+        }
+
+        WHEN( "the last Log Line was cut short and the lengths are read again from there" )
+        {
+            displayed.logLinesChanged( 50_lnum, []( LineNumber ) { return 0_length; } );
+
+            THEN( "the Mark before the change keeps its length" )
+            {
+                REQUIRE( displayed.maxLength( 0_length ) == LineLength( 60 ) );
+            }
+        }
+
+        WHEN( "every Log Line changed" )
+        {
+            lengths[ 30 ] = LineLength( 8 );
+            displayed.logLinesChanged( 0_lnum,
+                                       [ & ]( LineNumber line ) { return lengths[ line.get() ]; } );
+
+            THEN( "every Mark's length is read again" )
+            {
+                REQUIRE( displayed.maxLength( 0_length ) == LineLength( 8 ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "The Displayed Lines follow new Matches arriving", "[displayedlines]" )
 {
     LogFile logFile;
     logFile.matches = bitmapOf( { 10 } );
     auto displayed = displayedLinesOf( logFile, 1 );
     displayed.setShown( Everything );
-    displayed.addMark( 50_lnum );
+    displayed.addMark( 50_lnum, 0_length );
     displayed.searchCompleted();
     REQUIRE( linesOf( displayed.lines() ) == Lines{ 9, 10, 11, 49, 50, 51 } );
 
@@ -516,7 +663,7 @@ SCENARIO( "The Displayed Lines drop a Match that stopped matching", "[displayedl
 
     WHEN( "the Match is removed while a Mark sits next to it" )
     {
-        displayed.addMark( 31_lnum );
+        displayed.addMark( 31_lnum, 0_length );
         logFile.matches.remove( uint64_t{ 30 } );
         displayed.matchesRemoved( bitmapOf( { 30 } ) );
 
@@ -529,7 +676,7 @@ SCENARIO( "The Displayed Lines drop a Match that stopped matching", "[displayedl
 
     WHEN( "a Match that is Marked too is removed" )
     {
-        displayed.addMark( 30_lnum );
+        displayed.addMark( 30_lnum, 0_length );
         logFile.matches.remove( uint64_t{ 30 } );
         displayed.matchesRemoved( bitmapOf( { 30 } ) );
 
@@ -668,12 +815,12 @@ struct IncrementalAndRebuilt {
 
     void toggleMark( uint64_t line )
     {
-        if ( !incremental.addMark( LineNumber( line ) ) ) {
+        if ( !incremental.addMark( LineNumber( line ), 0_length ) ) {
             REQUIRE( incremental.removeMark( LineNumber( line ) ) );
             REQUIRE( rebuilt.removeMark( LineNumber( line ) ) );
         }
         else {
-            REQUIRE( rebuilt.addMark( LineNumber( line ) ) );
+            REQUIRE( rebuilt.addMark( LineNumber( line ), 0_length ) );
         }
     }
 
@@ -917,9 +1064,9 @@ SCENARIO( "The Displayed Lines count the Matches and the other Log Lines in a ra
     logFile.matches = bitmapOf( { 10, 20, 30, 40 } );
     auto displayed = displayedLinesOf( logFile, 1 );
     displayed.searchCompleted();
-    displayed.addMark( 20_lnum );
-    displayed.addMark( 25_lnum );
-    displayed.addMark( 60_lnum );
+    displayed.addMark( 20_lnum, 0_length );
+    displayed.addMark( 25_lnum, 0_length );
+    displayed.addMark( 60_lnum, 0_length );
 
     const auto requireCount
         = [ & ]( uint64_t first, uint64_t end, uint64_t matches, uint64_t others ) {
@@ -970,7 +1117,7 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
     logFile.matches = bitmapOf( { 10, 20 } );
     auto displayed = displayedLinesOf( logFile, 0 );
     displayed.searchCompleted();
-    displayed.addMark( 30_lnum );
+    displayed.addMark( 30_lnum, 0_length );
     auto rewrites = displayed.rewrites();
 
     WHEN( "Matches arrive after every Match and Mark" )
@@ -1016,7 +1163,7 @@ SCENARIO( "The Displayed Lines tell whether they changed only past their last Lo
 
     WHEN( "a Mark is added past the last Log Line" )
     {
-        displayed.addMark( 90_lnum );
+        displayed.addMark( 90_lnum, 0_length );
 
         THEN( "it is a rewrite, as is any change of the Marks or of what is shown" )
         {

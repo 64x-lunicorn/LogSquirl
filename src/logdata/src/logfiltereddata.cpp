@@ -188,12 +188,8 @@ void LogFilteredData::setSearchPolicy( const SearchPolicy& searchPolicy )
 void LogFilteredData::toggleMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
-        if ( displayedLines_.addMark( line ) ) {
-            markLengths_.add( line, sourceLogData_->getLineLength( line ) );
-        }
-        else {
-            displayedLines_.removeMark( line );
-            markLengths_.remove( line );
+        if ( !displayedLines_.removeMark( line ) ) {
+            displayedLines_.addMark( line, sourceLogData_->getLineLength( line ) );
         }
     }
     else {
@@ -204,9 +200,8 @@ void LogFilteredData::toggleMark( LineNumber line )
 void LogFilteredData::addMark( LineNumber line )
 {
     if ( ( line >= 0_lnum ) && line < sourceLogData_->getNbLine() ) {
-        displayedLines_.addMark( line );
-        if ( !markLengths_.contains( line ) ) {
-            markLengths_.add( line, sourceLogData_->getLineLength( line ) );
+        if ( !displayedLines_.marks().contains( line.get() ) ) {
+            displayedLines_.addMark( line, sourceLogData_->getLineLength( line ) );
         }
     }
     else {
@@ -227,24 +222,19 @@ OptionalLineNumber LogFilteredData::getMarkBefore( LineNumber line ) const
 void LogFilteredData::deleteMark( LineNumber line )
 {
     displayedLines_.removeMark( line );
-    markLengths_.remove( line );
 }
 
 void LogFilteredData::clearMarks()
 {
     displayedLines_.clearMarks();
-    markLengths_.clear();
 }
 
 void LogFilteredData::logLinesChanged( LineNumber firstChanged )
 {
     const auto nbLines = sourceLogData_->getNbLine();
-    for ( const auto line : getMarks() ) {
-        if ( line >= firstChanged ) {
-            markLengths_.add( line,
-                              line < nbLines ? sourceLogData_->getLineLength( line ) : 0_length );
-        }
-    }
+    displayedLines_.logLinesChanged( firstChanged, [ this, nbLines ]( LineNumber line ) {
+        return line < nbLines ? sourceLogData_->getLineLength( line ) : 0_length;
+    } );
 }
 
 QList<LineNumber> LogFilteredData::getMarks() const
@@ -403,7 +393,7 @@ LinesCount LogFilteredData::doGetNbLine() const
 // Implementation of the virtual function.
 LineLength LogFilteredData::doGetMaxLength() const
 {
-    return qMax( session_.maxLength(), markLengths_.longest() );
+    return displayedLines_.maxLength( session_.maxLength() );
 }
 
 // Implementation of the virtual function.

@@ -24,9 +24,12 @@
 #include "linetypes.h"
 #include "logfiltereddataworker.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
+#include <unordered_map>
 
 // Walks displayed Log Lines forwards and backwards from a position. It finds
 // the Log Line at that position with one select() and then steps from Log
@@ -132,9 +135,11 @@ public:
     // are no Matches, and the Context Lines are dropped with them.
     void searchDiscarded();
 
-    // Adds a Mark; false if the Log Line was already marked.
-    bool addMark( LineNumber line );
-    // Removes a Mark; false if the Log Line was not marked.
+    // Adds a Mark on a Log Line of the given length; false if the Log Line
+    // was already marked, when the length it was marked with stays.
+    bool addMark( LineNumber line, LineLength length );
+    // Removes a Mark, and its length with it; false if the Log Line was not
+    // marked.
     bool removeMark( LineNumber line );
     void clearMarks();
     const SearchResultArray& marks() const;
@@ -142,6 +147,16 @@ public:
     OptionalLineNumber markAfter( LineNumber line ) const;
     // The last Mark strictly before line.
     OptionalLineNumber markBefore( LineNumber line ) const;
+
+    // The Log Lines of the Log File from firstChanged on may read differently
+    // now: the length of every Mark among them is read again through
+    // lengthOf, which knows the Log File (these lines do not).
+    void logLinesChanged( LineNumber firstChanged,
+                          const std::function<LineLength( LineNumber )>& lengthOf );
+    // How wide the Filtered View may have to scroll: the longer of the longest
+    // Mark and longestMatch, the longest Match, whether or not either is
+    // displayed.
+    LineLength maxLength( LineLength longestMatch ) const;
 
     // Whether a Log Line is a Match, a Mark or both, or else a Context Line,
     // whether or not it is displayed.
@@ -218,6 +233,15 @@ private:
     LineType shown_ = LineType{ LineTypeFlags::Match } | LineTypeFlags::Mark;
 
     SearchResultArray marks_;
+    // The length of every Mark, given when it was added or read again since,
+    // so the longest Mark is known again when one is removed without reading
+    // any Log Line.
+    std::unordered_map<LineNumber::UnderlyingType, LineLength::UnderlyingType> markLengths_;
+    // How many Marks have each length.
+    std::map<LineLength::UnderlyingType, std::size_t> marksByLength_;
+    // Remembers the length of a Mark, replacing the one remembered before.
+    void setMarkLength( uint64_t line, LineLength length );
+    void forgetMarkLength( uint64_t line );
     // Log Lines displayed only because they neighbour a Match or a Mark;
     // never a Match or a Mark itself.
     SearchResultArray contextLines_;

@@ -102,7 +102,8 @@ struct Search {
                             | DisplayedLines::LineTypeFlags::Context );
         const auto markSpacing = LogLineCount / MarkCount;
         for ( uint64_t mark = 0; mark < MarkCount; ++mark ) {
-            displayed.addMark( LineNumber( mark * markSpacing + ( mark % 2 == 0 ? 3 : 5 ) ) );
+            displayed.addMark( LineNumber( mark * markSpacing + ( mark % 2 == 0 ? 3 : 5 ) ),
+                               0_length );
         }
     }
 
@@ -217,7 +218,7 @@ TEST_CASE( "Displayed Lines of a Search with a million Matches", "[displayedline
         // Two Log Lines after a Match: their Context Lines overlap.
         const auto line = LineNumber( LogLineCount / 2 + 5 );
         meter.measure( [ & ] {
-            search.displayed.addMark( line );
+            search.displayed.addMark( line, 0_length );
             search.displayed.removeMark( line );
             return search.displayed.count();
         } );
