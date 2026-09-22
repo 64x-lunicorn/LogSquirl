@@ -61,6 +61,13 @@
 #include "theme.h"
 #include "theme_lists.h"
 
+#include <functional>
+#include <optional>
+#include <string>
+#include <utility>
+#include <variant>
+#include <vector>
+
 static const qint64 SL_NB_LINES = 100LL;
 
 namespace {
@@ -324,6 +331,24 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     {
         crawler->clearSearchLimits();
         QCoreApplication::processEvents();
+    }
+
+    // The Search Limits every view of the Log File was handed last.
+    std::optional<std::pair<LineNumber, LineNumber>> searchLimits() const
+    {
+        return crawler->viewSet_.searchLimits();
+    }
+
+    // The words of every Color Label every view of the Log File was handed.
+    const ViewSet::ColorLabels& colorLabels() const
+    {
+        return crawler->viewSet_.colorLabels();
+    }
+
+    // What a Log File growing in the background does: its tab shows new data.
+    void showNewData()
+    {
+        crawler->changeDataStatus( DataStatus::NEW_DATA );
     }
 
     // What marking a Log Line in the main view does.
@@ -965,6 +990,198 @@ SCENARIO( "Both Presentations report to the CrawlerWidget alike", "[ui][presenta
         THEN( "its selection, Marks, Search and scratchpad reports reach the CrawlerWidget" )
         {
             reportThroughShownPresentation( crawlerVisitor.tableView() );
+        }
+    }
+}
+
+namespace {
+
+// Any view of a Log File that emits the signals every view shares.
+using SharedSignalView = std::variant<LogMainView*, LogTableView*, FilteredView*>;
+
+// What a Crawler Widget made of a shared signal, watched from before it was
+// emitted.
+struct SharedSignalArrivals {
+    explicit SharedSignalArrivals( CrawlerWidget* crawler )
+        : dataStatus( crawler, &CrawlerWidget::dataStatusChanged )
+        , sentToScratchpad( crawler, &CrawlerWidget::sendToScratchpad )
+        , replacedInScratchpad( crawler, &CrawlerWidget::replaceDataInScratchpad )
+    {
+    }
+
+    QSignalSpy dataStatus;
+    QSignalSpy sentToScratchpad;
+    QSignalSpy replacedInScratchpad;
+    // The changes the views reported for every open Log File.
+    std::vector<Changed> reported;
+};
+
+// One signal of the set every view shares (ADR 0003): how a view emits it,
+// and whether the Crawler Widget did what it asks.
+struct SharedSignal {
+    const char* name;
+    std::function<void( SharedSignalView )> emit;
+    std::function<bool( CrawlerWidgetVisitor&, const SharedSignalArrivals& )> arrived;
+};
+
+// Emits through whichever view is handed.
+template <class Emit>
+std::function<void( SharedSignalView )> emitting( Emit emit )
+{
+    return [ emit ]( SharedSignalView view ) { std::visit( emit, view ); };
+}
+
+// The Search line reads "haystack", the Search Limits are Log Lines 3 to 8,
+// Color Label 1 holds Log Line 10, which is selected in the main view, and
+// the tab shows new data, before any of these is emitted.
+std::vector<SharedSignal> sharedSignals()
+{
+    return {
+        { "markLines", emitting( []( auto* view ) { Q_EMIT view->markLines( { 5_lnum } ); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) { return crawler.isMarked( 5_lnum ); } },
+        { "highlightersChange", emitting( []( auto* view ) { Q_EMIT view->highlightersChange(); } ),
+          []( CrawlerWidgetVisitor&, const auto& arrivals ) {
+              return arrivals.reported == std::vector<Changed>{ Changed::HighlighterSets };
+          } },
+        { "addToSearch", emitting( []( auto* view ) { Q_EMIT view->addToSearch( "needle" ); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              return crawler.searchText().contains( "haystack" )
+                     && crawler.searchText().contains( "needle" );
+          } },
+        { "excludeFromSearch",
+          emitting( []( auto* view ) { Q_EMIT view->excludeFromSearch( "needle" ); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              return crawler.searchText().contains( "haystack" )
+                     && crawler.searchText().contains( "not(" )
+                     && crawler.searchText().contains( "needle" );
+          } },
+        { "replaceSearch", emitting( []( auto* view ) { Q_EMIT view->replaceSearch( "needle" ); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              return crawler.searchText() == "needle";
+          } },
+        { "activity", emitting( []( auto* view ) { Q_EMIT view->activity(); } ),
+          []( CrawlerWidgetVisitor&, const auto& arrivals ) {
+              return arrivals.dataStatus.size() == 1
+                     && arrivals.dataStatus.first().at( 0 ).template value<DataStatus>()
+                            == DataStatus::OLD_DATA;
+          } },
+        { "changeSearchLimits",
+          emitting( []( auto* view ) { Q_EMIT view->changeSearchLimits( 4_lnum, 9_lnum ); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              return crawler.searchLimits() == std::make_pair( 4_lnum, 9_lnum );
+          } },
+        { "clearSearchLimits", emitting( []( auto* view ) { Q_EMIT view->clearSearchLimits(); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              return crawler.searchLimits() == std::make_pair( 0_lnum, LineNumber( SL_NB_LINES ) );
+          } },
+        { "saveDefaultSplitterSizes",
+          emitting( []( auto* view ) { Q_EMIT view->saveDefaultSplitterSizes(); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              return Configuration::get().splitterSizes() == crawler.crawler->sizes();
+          } },
+        { "addColorLabel", emitting( []( auto* view ) { Q_EMIT view->addColorLabel( 0 ); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              return !crawler.colorLabels()[ 0 ].isEmpty();
+          } },
+        { "clearColorLabels", emitting( []( auto* view ) { Q_EMIT view->clearColorLabels(); } ),
+          []( CrawlerWidgetVisitor& crawler, const auto& ) {
+              const auto& labels = crawler.colorLabels();
+              return std::all_of( labels.cbegin(), labels.cend(),
+                                  []( const auto& words ) { return words.isEmpty(); } );
+          } },
+        { "sendSelectionToScratchpad",
+          emitting( []( auto* view ) { Q_EMIT view->sendSelectionToScratchpad(); } ),
+          []( CrawlerWidgetVisitor&, const auto& arrivals ) {
+              return arrivals.sentToScratchpad.size() == 1;
+          } },
+        { "replaceScratchpadWithSelection",
+          emitting( []( auto* view ) { Q_EMIT view->replaceScratchpadWithSelection(); } ),
+          []( CrawlerWidgetVisitor&, const auto& arrivals ) {
+              return arrivals.replacedInScratchpad.size() == 1;
+          } },
+    };
+}
+
+// The splitter sizes saved in the settings, restored when this object goes.
+class PinnedSplitterSizes {
+public:
+    PinnedSplitterSizes()
+        : sizes_( Configuration::get().splitterSizes() )
+    {
+    }
+
+    ~PinnedSplitterSizes()
+    {
+        auto& config = Configuration::get();
+        config.setSplitterSizes( sizes_ );
+        config.save();
+    }
+
+    PinnedSplitterSizes( const PinnedSplitterSizes& ) = delete;
+    PinnedSplitterSizes& operator=( const PinnedSplitterSizes& ) = delete;
+
+private:
+    QList<int> sizes_;
+};
+
+} // namespace
+
+// The views of a Log File share one set of signals (ADR 0003), and the
+// Crawler Widget connects that set in one place for the Presentations and
+// the Filtered Views alike (#391).
+SCENARIO( "Every shared signal reaches the Crawler Widget from a Presentation and from a "
+          "Filtered View",
+          "[ui][presentation]" )
+{
+    const auto table = sharedSignals();
+    const auto& shared = table.at( GENERATE( range( std::size_t{ 0 }, sharedSignals().size() ) ) );
+    const auto viewName = GENERATE( as<std::string>{}, "Text View", "Table View", "Filtered View" );
+
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    const PinnedSplitterSizes pinnedSplitterSizes;
+
+    std::vector<Changed> reported;
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>(
+        session.open( file.fileName(), [ & ]( const ViewBuild& build ) {
+            auto recording = build;
+            recording.changeReport
+                = [ &reported ]( Changed change ) { reported.push_back( change ); };
+            return new CrawlerWidget( recording );
+        } ) ) );
+    waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); } );
+    crawlerVisitor.showSized();
+
+    crawlerVisitor.setSearchPattern( "haystack" );
+    crawlerVisitor.setSearchLimits( 3_lnum, 8_lnum );
+    crawlerVisitor.addColorLabelToLogLine( 10_lnum, 1 );
+    crawlerVisitor.showNewData();
+    Configuration::get().setSplitterSizes( { 1, 2 } );
+
+    const auto view = [ & ]() -> SharedSignalView {
+        if ( viewName == "Text View" ) {
+            return crawlerVisitor.textView();
+        }
+        if ( viewName == "Table View" ) {
+            return crawlerVisitor.tableView();
+        }
+        return crawlerVisitor.filteredView();
+    }();
+
+    WHEN( std::string{ "the " } + viewName + " emits " + shared.name )
+    {
+        SharedSignalArrivals arrivals{ crawlerVisitor.crawler.get() };
+        shared.emit( view );
+        QCoreApplication::processEvents();
+        arrivals.reported = reported;
+
+        THEN( "the Crawler Widget does what it asks" )
+        {
+            INFO( "Search line: " << crawlerVisitor.searchText().toStdString() );
+            REQUIRE( shared.arrived( crawlerVisitor, arrivals ) );
         }
     }
 }

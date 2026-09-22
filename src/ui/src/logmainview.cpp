@@ -145,6 +145,11 @@ void LogMainView::setSearchLimits( LineNumber startLine, LineNumber endLine )
     AbstractLogView::setSearchLimits( startLine, endLine );
 }
 
+void LogMainView::setSearchPattern( const RegularExpressionPattern& pattern )
+{
+    AbstractLogView::setSearchPattern( pattern );
+}
+
 void LogMainView::saveSelectedTo( const QString& filename )
 {
     AbstractLogView::saveSelectedTo( filename );

@@ -239,10 +239,6 @@ private Q_SLOTS:
     // to instruct the main view to jump to the matching line.
     void jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols );
-    // Called when the Presentation shown is on a new Log Line; the
-    // Presentations not shown follow it.
-    void updateLineNumberHandler( LineNumber line, LinesCount nLines, LineColumn startCol,
-                                  LineLength nSymbols );
     // Mark Log Lines from a Presentation or a Filtered View.
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
 
@@ -390,9 +386,22 @@ private:
     // Both Presentations, the one shown and the one not.
     std::array<LogPresentation*, 2> presentations() const;
 
-    // Connect the signals every Presentation emits to the same slots.
+    // Connect a Presentation: its selection, and the signals every view
+    // shares.
     template <class Presentation>
     void connectPresentation( Presentation* presentation );
+
+    // Connect the signals every view of the Log File emits alike -- both
+    // Presentations and every Filtered View -- to the same slots (ADR 0003).
+    // A signal added to the set is connected here, once. What only one kind
+    // of view emits, and what a selection means, is connected with that kind.
+    template <class View>
+    void connectSharedSignals( View* view );
+
+    // Called when a Presentation is on a new Log Line. Only the one shown
+    // reports; the Presentations not shown follow it.
+    void updateLineNumberHandler( const LogPresentation& reporter, LineNumber line,
+                                  LinesCount nLines, LineColumn startCol, LineLength nSymbols );
 
     // The Search info line's palette for an error: the default palette in the
     // Theme's error colors.

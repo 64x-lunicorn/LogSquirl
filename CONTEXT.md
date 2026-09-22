@@ -81,7 +81,9 @@ _Avoid_: screen, canvas, page
 Every view of one Log File: its Presentations and its Filtered Views, those of kept
 Searches included. Whatever all of them must show alike — the Policies, the font, the Color
 Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
-view added later starts with all of it.
+view added later starts with all of it. The pattern of the current Search reaches the
+Presentations and the current Search's Filtered View through it too; a kept Search's Filtered
+View keeps coloring the pattern it ran with.
 _Avoid_: views, panes, tabs
 
 **Visual Line**:
