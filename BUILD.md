@@ -284,6 +284,39 @@ before committing — values should only go down, never up.
 
 See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
+### Sanitizer builds
+
+`cmake/Sanitizers.cmake` adds Address, Memory, Undefined Behavior and Thread sanitizers behind their own
+options (GCC/Clang only): `-DENABLE_SANITIZER_ADDRESS=ON`, `-DENABLE_SANITIZER_MEMORY=ON`,
+`-DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON`, `-DENABLE_SANITIZER_THREAD=ON`. Measure with `RelWithDebInfo` and
+`-DLOGSQUIRL_USE_LTO=OFF`; LTO makes linking a sanitizer build a lot slower for no measurement benefit.
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_USE_LTO=OFF -DENABLE_SANITIZER_THREAD=ON ..
+cmake --build .
+ctest --build-config RelWithDebInfo --verbose
+```
+
+**ThreadSanitizer baseline (#347).** Both oneTBB's flow graph (used by indexing and search) and one
+finding inside uninstrumented `QtCore` (`QThreadPoolThread::run()`, reported against the
+`shared_ptr<const RegularExpression>` that `LogFilteredDataWorker::search()` hands to its worker thread)
+are findings in code TSan cannot instrument, not races in LogSquirl's own logic; see
+`docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md` for how each was investigated
+and, for the `shared_ptr` finding, why it is judged safe rather than merely suppressed. `cmake/tsan.supp`
+lists both, each with its reasoning as a comment.
+
+`ctest` picks the suppression file up automatically (`cmake/CatchTestDiscoveryRunTest.cmake` sets
+`TSAN_OPTIONS=suppressions=cmake/tsan.supp` for every test case; harmless for a non-TSan build, since
+`TSAN_OPTIONS` is then simply unread). Running a TSan binary directly, outside ctest, needs the same
+option by hand:
+
+```bash
+TSAN_OPTIONS="suppressions=$(pwd)/cmake/tsan.supp" build_root/output/logsquirl_tests
+```
+
+With the suppression file applied, most but not all of the search tests pass; the ADR above records which
+findings remain and why they are not yet covered, rather than a suppression widened to hide them.
+
 ## CI/CD Pipeline
 
 ### Version Numbering

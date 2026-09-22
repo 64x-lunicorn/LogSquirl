@@ -72,10 +72,18 @@ foreach(_neighbour IN LISTS _neighbours)
   file(CREATE_LINK "${_neighbour}" "${_work_dir}/${_neighbour_name}" RESULT _link_result)
 endforeach()
 
+# A ThreadSanitizer build reads its suppression file from here by default
+# (#347); TSAN_OPTIONS is ignored by a binary that was not built with
+# -fsanitize=thread, so setting it unconditionally is harmless for every other
+# build. See cmake/tsan.supp and
+# docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md.
+set(_tsan_suppressions "${CMAKE_CURRENT_LIST_DIR}/tsan.supp")
+
 # No OUTPUT_VARIABLE: what the test case prints is what this script prints, so
 # ctest reads it as it always did, as it is printed.
 execute_process(
   COMMAND "${CMAKE_COMMAND}" -E env "LOGSQUIRL_TEST_SETTINGS_ISOLATED=1"
+          "TSAN_OPTIONS=suppressions=${_tsan_suppressions}"
           -- "${_work_dir}/${_binary_name}" ${_arguments}
   RESULT_VARIABLE _result
 )
