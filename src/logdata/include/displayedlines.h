@@ -250,8 +250,8 @@ private:
     // How many Marks have each length.
     std::map<LineLength::UnderlyingType, std::size_t> marksByLength_;
     // Remembers the length of a Mark, replacing the one remembered before.
-    void setMarkLength( uint64_t line, LineLength length );
-    void forgetMarkLength( uint64_t line );
+    void setMarkLength( LineNumber line, LineLength length );
+    void forgetMarkLength( LineNumber line );
     // Log Lines displayed only because they neighbour a Match or a Mark;
     // never a Match or a Mark itself.
     SearchResultArray contextLines_;

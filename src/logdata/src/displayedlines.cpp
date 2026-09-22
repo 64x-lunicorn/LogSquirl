@@ -195,7 +195,7 @@ bool DisplayedLines::addMark( LineNumber line, LineLength length )
 {
     const bool added = marks_.addChecked( line.get() );
     if ( added ) {
-        setMarkLength( line.get(), length );
+        setMarkLength( line, length );
         markToggled( line.get(), true );
     }
     return added;
@@ -205,7 +205,7 @@ bool DisplayedLines::removeMark( LineNumber line )
 {
     const bool removed = marks_.removeChecked( line.get() );
     if ( removed ) {
-        forgetMarkLength( line.get() );
+        forgetMarkLength( line );
         markToggled( line.get(), false );
     }
     return removed;
@@ -232,7 +232,8 @@ void DisplayedLines::logLinesChanged( LineNumber firstChanged,
     auto mark = marks_.begin();
     mark.move_equalorlarger( firstChanged.get() );
     for ( ; mark != marks_.end(); ++mark ) {
-        setMarkLength( *mark, lengthOf( LineNumber( *mark ) ) );
+        const LineNumber line{ *mark };
+        setMarkLength( line, lengthOf( line ) );
     }
 }
 
@@ -243,16 +244,16 @@ LineLength DisplayedLines::maxLength( LineLength longestMatch ) const
     return std::max( longestMatch, longestMark );
 }
 
-void DisplayedLines::setMarkLength( uint64_t line, LineLength length )
+void DisplayedLines::setMarkLength( LineNumber line, LineLength length )
 {
     forgetMarkLength( line );
-    markLengths_.emplace( line, length.get() );
+    markLengths_.emplace( line.get(), length.get() );
     ++marksByLength_[ length.get() ];
 }
 
-void DisplayedLines::forgetMarkLength( uint64_t line )
+void DisplayedLines::forgetMarkLength( LineNumber line )
 {
-    const auto remembered = markLengths_.find( line );
+    const auto remembered = markLengths_.find( line.get() );
     if ( remembered == markLengths_.end() ) {
         return;
     }
