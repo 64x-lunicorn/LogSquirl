@@ -633,6 +633,13 @@
   length function they are handed. The separate Mark length structure the log
   filtered data kept in step by hand in every Mark operation is gone; the
   Filtered View is as wide as before (#401).
+- **The FileWatcher runs clean under TSan**: The Watch Policy's polling
+  half reaches the poll thread through a queued signal wired once, before
+  that thread starts, instead of a lambda queued per change. TSan reported
+  the lambda, built on the UI thread and run on the poll thread, because it
+  cannot see Qt's event queue hand it over; nothing it carried was ever
+  written again, so it was no race, and the FileWatcher itests now run
+  clean under TSan without a suppression. Behaviour is unchanged (#409).
 - **Index jobs as values**: The log data hands its worker one index job as a
   value -- Attach, Full, Partial or Check, the `IndexJob` variant the job
   rule already decides over -- and the worker runs it with `run()`. The four

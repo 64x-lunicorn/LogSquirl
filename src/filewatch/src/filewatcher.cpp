@@ -433,6 +433,14 @@ FileWatcher::FileWatcher()
     pollThread_->setObjectName( QStringLiteral( "FileWatcherPoll" ) );
     pollWorker_->moveToThread( pollThread_ );
     connect( pollThread_, &QThread::finished, pollWorker_, &QObject::deleteLater );
+    // Wired once, before the poll thread starts, instead of queueing a lambda
+    // per Policy change (#409): a queued lambda is a functor this thread
+    // builds and the poll thread runs, handed over through Qt's event queue,
+    // which ThreadSanitizer cannot see into. The hand-off was never a race,
+    // but a signal carries only copied values and leaves TSan nothing to
+    // report, so the FileWatcher itests need no suppression.
+    connect( this, &FileWatcher::pollingPolicyChanged, pollWorker_,
+             &FileWatcherPollWorker::setPolling, Qt::QueuedConnection );
     pollThread_->start();
 }
 
@@ -503,12 +511,7 @@ void FileWatcher::applyWatchPolicy()
     const auto pollingEnabled = watchPolicy_.pollingEnabled;
     const auto pollIntervalMs = watchPolicy_.pollIntervalMs;
 
-    QMetaObject::invokeMethod(
-        pollWorker_,
-        [ this, pollingEnabled, pollIntervalMs ]() {
-            pollWorker_->setPolling( pollingEnabled, pollIntervalMs );
-        },
-        Qt::QueuedConnection );
+    Q_EMIT pollingPolicyChanged( pollingEnabled, pollIntervalMs );
 
     efswWatcher_->enableWatch( watchPolicy_.nativeWatchEnabled );
 }
