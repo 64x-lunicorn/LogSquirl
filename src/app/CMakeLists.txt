@@ -155,11 +155,18 @@ if(LOGSQUIRL_USE_SENTRY)
       # written; dsymutil can no longer find where the line tables live, and
       # the dSYM it produces resolves a frame to a function but not a file or
       # line (#340). -object_path_lto tells ld64 to keep that object instead,
-      # one per executable so parallel links do not collide.
+      # one per executable so parallel links do not collide. It has to land
+      # outside the .app bundle: kept beside the binary, it used to end up
+      # under Contents/MacOS, and codesign then tried to sign it as part of
+      # the bundle and failed ("bundle format unrecognized") because it is a
+      # raw LTO object, not a Mach-O executable or library.
       if(LOGSQUIRL_USE_LTO)
-        target_link_options(logsquirl PRIVATE "LINKER:-object_path_lto,$<TARGET_FILE:logsquirl>-lto.o")
+        file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/lto-objects")
+        target_link_options(logsquirl PRIVATE
+                             "LINKER:-object_path_lto,${CMAKE_CURRENT_BINARY_DIR}/lto-objects/logsquirl-lto.o"
+        )
         target_link_options(logsquirl_portable PRIVATE
-                             "LINKER:-object_path_lto,$<TARGET_FILE:logsquirl_portable>-lto.o"
+                             "LINKER:-object_path_lto,${CMAKE_CURRENT_BINARY_DIR}/lto-objects/logsquirl_portable-lto.o"
         )
       endif()
 

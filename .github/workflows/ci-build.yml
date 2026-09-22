@@ -542,7 +542,10 @@ jobs:
         run: |
           set -eu
           cd "$LOGSQUIRL_BUILD_ROOT"
-          lines=$(dwarfdump --debug-line ./output/logsquirl.dSym | grep -c '\.cpp"$' || true)
+          # logsquirl.dSym is a bundle (a directory), not a file: dwarfdump
+          # wants the DWARF file inside it, not the bundle path itself.
+          dwarf_file="./output/logsquirl.dSym/Contents/Resources/DWARF/logsquirl"
+          lines=$(dwarfdump --debug-line "$dwarf_file" | grep -c '\.cpp"$' || true)
           echo "source files in the debug line program: $lines"
           if [ "$lines" -eq 0 ]; then
             echo "::error::dSYM has no debug line info (dsymutil likely lost the LTO object, #340)"
