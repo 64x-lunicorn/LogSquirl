@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import platform
 from pathlib import Path
 
 import pytest
@@ -90,6 +91,13 @@ def test_user_locations_exist_to_be_protected():
     assert present
 
 
+@pytest.mark.xfail(
+    platform.system() == "Windows",
+    reason="the raw Windows build output has no plugins/ directory next to "
+    "the executable (unlike macOS's .app bundle), so PluginCatalog never "
+    "logs a directory to scan and this test's second half never runs -- #403",
+    strict=False,
+)
 def test_isolated_instance_leaves_user_data_untouched(isolated_gui, test_data_dir):
     """An isolated instance changes nothing of the user's and keeps its own data.
 
