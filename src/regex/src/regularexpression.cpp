@@ -164,6 +164,20 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 
 } // namespace
 
+QStringList logicalSubPatterns( const QString& combination )
+{
+    auto expression = combination;
+    QStringList subPatterns;
+    try {
+        for ( const auto& subPattern : parseBooleanExpressions( expression, true, false ) ) {
+            subPatterns.append( subPattern.pattern );
+        }
+    } catch ( const std::exception& ) {
+        return {};
+    }
+    return subPatterns;
+}
+
 RegularExpression::RegularExpression( const RegularExpressionPattern& pattern, RegexpEngine engine )
     : isInverse_( pattern.isExclude )
     , isBooleanCombination_( pattern.isBoolean )

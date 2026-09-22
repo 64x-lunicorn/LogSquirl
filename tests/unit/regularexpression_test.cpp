@@ -611,3 +611,48 @@ SCENARIO( "A MultiRegularExpression says whether its patterns compiled", "[regex
         }
     }
 }
+
+// Filter frequency charts each sub-pattern of a logical combination on its
+// own; it takes them from the parser the Search uses, so the chart counts the
+// sub-patterns the Search matches (#410).
+SCENARIO( "The sub-patterns of a logical combination are read as the Search reads them",
+          "[regex][boolean]" )
+{
+    GIVEN( "sub-patterns with an escaped quote and with the word or inside" )
+    {
+        THEN( "each is read unescaped and whole" )
+        {
+            REQUIRE( logicalSubPatterns( R"("say \"hi\"" or "a or b")" )
+                     == QStringList{ R"(say "hi")", "a or b" } );
+        }
+    }
+
+    GIVEN( "a sub-pattern ending in a backslash and a regexp class" )
+    {
+        THEN( "the backslashes before the closing quote are read two for one, the others as "
+              "written" )
+        {
+            REQUIRE( logicalSubPatterns( R"("C:\temp\\" | "\d+")" )
+                     == QStringList{ R"(C:\temp\)", R"(\d+)" } );
+        }
+    }
+
+    GIVEN( "sub-patterns joined with and, and not()" )
+    {
+        THEN( "every sub-pattern is read, in the order written, the negated one included" )
+        {
+            REQUIRE( logicalSubPatterns( R"(("error" and "disk") and not("debug"))" )
+                     == QStringList{ "error", "disk", "debug" } );
+        }
+    }
+
+    GIVEN( "patterns that are no valid logical combination" )
+    {
+        THEN( "there are no sub-patterns" )
+        {
+            REQUIRE( logicalSubPatterns( R"("error" | "warn)" ).isEmpty() );
+            REQUIRE( logicalSubPatterns( "error | warn" ).isEmpty() );
+            REQUIRE( logicalSubPatterns( R"("error" | warn)" ).isEmpty() );
+        }
+    }
+}

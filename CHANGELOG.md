@@ -226,6 +226,14 @@
 
 ## Bug fixes
 
+- **Filter frequency counts what a logical Search matches**: Show Filter
+  Frequency reads the sub-patterns of a logical Search the way the Search
+  does, with the same parser: an escaped quote `\"` and the backslashes
+  before a quote are unescaped, `"a or b"` stays one sub-pattern, and
+  sub-patterns joined with `and` or `not(...)` are charted too, each on its
+  own, the excluded one included. With regular expressions off the
+  sub-patterns are counted as fixed strings, not as regexps. Plain and
+  non-logical regexp Searches are charted as before (#410).
 - **Adding a word to a plain Search keeps both words searchable**: With
   neither regular expression nor logical combination on, adding a word to a
   non-empty Search, or combining several Predefined Filters, switches the
