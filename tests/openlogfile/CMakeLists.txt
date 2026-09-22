@@ -3,6 +3,7 @@
 add_executable(logsquirl_openlogfile_tests
     openlogfile_tests_main.cpp
     openlogfile_test.cpp
+    loadrule_test.cpp
 )
 
 target_link_libraries(logsquirl_openlogfile_tests logsquirl_openlogfile Catch2 Qt6::Test test_utils)

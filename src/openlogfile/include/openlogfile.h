@@ -21,6 +21,7 @@
 
 #include "linetypes.h"
 #include "loadingstatus.h"
+#include "loadrule.h"
 #include "logformatdefinition.h"
 #include "regularexpressionpattern.h"
 #include "searchautorefresh.h"
@@ -46,12 +47,12 @@ class LogFormatCatalog;
 // what follows it as it changes on disk: its log data, its Searches and their
 // auto-refresh, its Marks and its Log Format.
 //
-// It decides what growing, truncation and reloading mean. A Search continues
-// over the Log Lines that were added, and starts again when the Log File was
-// truncated; a reload by hand drops it. Marks do not survive a truncation or a
-// reload; the Marks saved with the Session are applied once, after the first
-// load. Format Recognition is taken after the first load, and again after a
-// reload or a truncation, never on growth.
+// It carries out what its Load Rule decides growing, truncation and reloading
+// mean. A Search continues over the Log Lines that were added, and starts
+// again when the Log File was truncated; a reload by hand drops it. Marks do
+// not survive a truncation or a reload; the Marks saved with the Session are
+// applied once, after the first load. Format Recognition is taken after the
+// first load, and again after a reload or a truncation, never on growth.
 //
 // It tells its users what happened -- the Log File loaded, grew or was
 // truncated, the Search updated -- and they only show it. It knows no widget:
@@ -253,32 +254,15 @@ private:
     QMetaObject::Connection searchConnection_;
 
     SearchAutoRefresh autoRefresh_;
-    // Whether a Search was requested since the last clearSearch() or reload,
-    // valid or not.
-    bool searchRequested_ = false;
-    // A Search was requested before the first load finished, and runs once
-    // it has.
-    bool searchWaitsForLoad_ = false;
-    // Whether a load of the Log File has finished, whatever its outcome.
-    bool loadFinishedOnce_ = false;
+    // What a load, a change on disk and a reload mean: every flag they set.
+    LoadRule loadRule_;
     // The pattern last requested, which a restarted Search runs with.
     RegularExpressionPattern searchPattern_;
     LineNumber searchStartLine_;
     LineNumber searchEndLine_;
 
-    bool firstLoadDone_ = false;
-    // What changed on disk since the last load finished: whether Log Lines
-    // were added, and whether the Log File was truncated, which a later
-    // growth does not undo.
-    bool grewSinceLoad_ = false;
-    bool truncatedSinceLoad_ = false;
-    logsquirl::vector<LineNumber> savedMarks_;
-
     RecognitionPolicy recognitionPolicy_;
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog_;
-    // Whether the next load to finish is to recognize the Log Format: the
-    // first load, and the one after a reload or a truncation.
-    bool formatRecognitionPending_ = true;
     int formatRecognitionCount_ = 0;
     std::shared_ptr<const LogFormatDefinition> logFormat_;
 

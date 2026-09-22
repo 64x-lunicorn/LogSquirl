@@ -44,6 +44,10 @@ The desktop application and the command line tool follow a Log File the same way
 both use it.
 _Avoid_: document, loaded file, file session
 
+**Load Rule**:
+What a load, a change on disk and a reload mean for an Open Log File, decided in one place and without reading the Log File: whether the load that finishes brings only lines that were added, whether the Marks are cleared and the Log Format is recognized again, whether the Marks saved with the Session are applied, and whether a Search waiting for the first load runs now. Whether a Search continues or starts again after a truncation it asks the Search's auto-refresh, which keeps deciding that. The Open Log File carries out what it decides.
+_Avoid_: follow rule (follow is the view following the end of the Log File), change tracker
+
 **File Watch Port**:
 Everything an Open Log File needs from file watching: to have its Log File watched from its
 first load until it is closed, and to hear that a watched file changed on disk. It does not

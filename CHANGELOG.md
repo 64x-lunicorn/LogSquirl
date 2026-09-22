@@ -600,6 +600,17 @@
 
 ## Internal
 
+- **The Load Rule**: What a load, a change on disk and a reload mean for an
+  Open Log File -- only Log Lines added, the Marks cleared, the Log Format
+  recognized again, the Marks saved with the Session applied, a Search
+  waiting for the first load run -- is decided by one Qt-free class,
+  `LoadRule`, which holds every flag the Open Log File kept for it and asks
+  the Search's auto-refresh whether a Search continues or starts again. The
+  Open Log File carries out its decisions; behaviour is unchanged, and two
+  oddities are kept as commented table rows: a check that finds the Log File
+  unchanged reports it grew, and a load with no Log Lines leaves Format
+  Recognition to the next one. Table tests cover the sequences without a Log
+  File, a thread or an event loop (#396).
 - **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
   `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
   (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on
