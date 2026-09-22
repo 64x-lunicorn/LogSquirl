@@ -15,6 +15,7 @@ add_executable(logsquirl_tests
     displayedlines_test.cpp
     encodingdetector_test.cpp
     fontutils_test.cpp
+    hyperscanruntime_test.cpp
     indexcache_test.cpp
     headerandtaildigests_test.cpp
     indexedhash_test.cpp
@@ -107,6 +108,18 @@ add_test(NAME logsquirl_tests_scrollrepaint_device_pixel_ratio_2
 set_tests_properties(logsquirl_tests_scrollrepaint_device_pixel_ratio_2 PROPERTIES
     ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2"
     TIMEOUT 120)
+
+# The Windows release chooses its Hyperscan DLL at run time (#281). The default
+# run uses AVX2 where the runner has it; this one disables AVX2 and runs the
+# Searches and regex tests again on the SSE4.2 build.
+if(TARGET logsquirl_hyperscan_avx2)
+  add_test(NAME logsquirl_tests_hyperscan_without_avx2
+      COMMAND logsquirl_tests "[hyperscanruntime],[regex],[searchsession]" -platform offscreen
+      WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+  set_tests_properties(logsquirl_tests_hyperscan_without_avx2 PROPERTIES
+      ENVIRONMENT "LOGSQUIRL_HYPERSCAN_DISABLE_AVX2=1;LOGSQUIRL_EXPECT_HYPERSCAN_RUNTIME=sse4.2"
+      TIMEOUT 300)
+endif()
 
 # The compression library is tested on its own, without the UI library or
 # Qt Widgets (#169).

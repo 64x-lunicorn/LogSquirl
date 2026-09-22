@@ -73,6 +73,8 @@ Section "logsquirl" logsquirl
     File release\logsquirl_crashpad_handler.exe
     File release\logsquirl_minidump_dump.exe
     File release\tbb12.dll
+    File release\hs.dll
+    File release\hs_avx2.dll
 
     File COPYING
     File NOTICE
@@ -210,6 +212,8 @@ Section "Uninstall"
     Delete "$INSTDIR\vcruntime140.dll"
     Delete "$INSTDIR\vcruntime140_1.dll"
     Delete "$INSTDIR\tbb12.dll"
+    Delete "$INSTDIR\hs.dll"
+    Delete "$INSTDIR\hs_avx2.dll"
     Delete "$INSTDIR\libcrypto-3-x64.dll"
     Delete "$INSTDIR\libssl-3-x64.dll"
     Delete "$INSTDIR\libcrypto-3.dll"

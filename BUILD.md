@@ -64,6 +64,11 @@ offline builds or other targets.
 LogSquirl uses Vectorscan regular expressions library which requires CPU with SSSE3 support, ragel and boost headers.
 LogSquirl can be built with only Qt regular expressions backend by passing `-DLOGSQUIRL_USE_VECTORSCAN=OFF` to cmake.
 
+On Windows, a build with `-DLOGSQUIRL_GENERIC_CPU=ON` (the release) builds Hyperscan twice, as `hs.dll` for SSE4.2
+and `hs_avx2.dll` with `/arch:AVX2`, and loads the one the CPU supports at the first Search. Setting the environment
+variable `LOGSQUIRL_HYPERSCAN_DISABLE_AVX2=1` makes it load `hs.dll` on a CPU with AVX2 too. Without the option,
+Hyperscan is linked statically and built for the build machine's CPU, like the rest of LogSquirl.
+
 Releases are `RelWithDebInfo` builds. LogSquirl optimizes that build type as fully as `Release`
 (`-O3` with GCC and Clang, `/Ob2` and a non-incremental `/OPT:REF /OPT:ICF` link with MSVC) and keeps its
 debug information for crash reports. Link time optimization is on for every LogSquirl target, not for the

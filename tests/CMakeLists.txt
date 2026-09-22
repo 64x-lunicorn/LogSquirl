@@ -172,3 +172,18 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl_grep_cli.cmake
 )
 set_tests_properties(logsquirl_grep_cli PROPERTIES TIMEOUT 300)
+
+# The same on the Hyperscan build for CPUs without AVX2, where the Windows
+# release chooses its Hyperscan DLL at run time (#281).
+if(TARGET logsquirl_hyperscan_avx2)
+  add_test(
+      NAME logsquirl_grep_cli_hyperscan_without_avx2
+      COMMAND ${CMAKE_COMMAND}
+              -DGREP=$<TARGET_FILE:logsquirl_grep>
+              -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/logsquirl_grep_cli_hyperscan_without_avx2
+              -P ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl_grep_cli.cmake
+  )
+  set_tests_properties(logsquirl_grep_cli_hyperscan_without_avx2 PROPERTIES
+      ENVIRONMENT "LOGSQUIRL_HYPERSCAN_DISABLE_AVX2=1"
+      TIMEOUT 300)
+endif()
