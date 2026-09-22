@@ -443,6 +443,8 @@ The release workflow does not build. It:
    master, and workflows may not open pull requests here, so **the maintainer opens and merges it**; the app
    announces the release once it is merged. The Changelog check needs no entry for a `feed/` branch.
 8. Dispatches **Deploy Website**, so the release's page goes live (see *Release pages on the website*)
+9. For a stable release, sets the Homebrew cask to it, checks that it installs and pushes it to the tap, in the
+   `release` environment (see *Homebrew tap*)
 
 `latest.json` on master is the update feed LogSquirl reads at start-up
 (`src/versioncheck`). Its fields:
@@ -505,10 +507,26 @@ of its own because only a repository named `homebrew-*` can be tapped by that sh
 `homebrew/cask` does not accept LogSquirl yet (its notability threshold); once it does, the cask moves there.
 
 The app does not update itself, so the cask declares no `auto_updates` and `brew upgrade` is how cask users get a
-new release. That makes a stale cask a stale install: after every stable release (never a beta), set `version` and
-`sha256` in the cask to the release and its `logsquirl-mac-arm64.dmg`. Take the hash of the published asset
-(`shasum -a 256` of the download): the checksum file lists no macOS package, because it is written before the DMG
-is signed. Check the change with `brew audit --cask --strict --online` before pushing it to the tap.
+new release. That makes a stale cask a stale install, so CI Release's `update-homebrew` job sets `version` and
+`sha256` in the cask after every stable release (never a beta, which would reach every cask user):
+
+1. It takes the hash from the `logsquirl-mac-arm64.dmg` line of the release's checksum file, which lists the signed
+   DMG as published (`.github/scripts/release-cask.py`). A cask that already has the release and hash, or a newer
+   release, stays as it is: a re-run pushes nothing and an older release never downgrades the cask.
+2. It commits the change in its clone of the tap, taps that clone, runs `brew audit --cask --strict --online`,
+   installs the cask, checks that the installed app's `CFBundleVersion` is the release's version and uninstalls it
+   again, on a macOS runner and without launching the app. The audit checks URL and hash, not that the DMG holds
+   the app the cask names; the install does.
+3. Only then it pushes the commit to the tap's `main`, through the deploy key `HOMEBREW_TAP_DEPLOY_KEY` (a secret of
+   the `release` environment with write access to `homebrew-tap` alone). The tap has no required checks, so unlike
+   the update feed there is no pull request.
+
+The job runs after the release is published: when it fails, the release is out and only the cask lags behind. Fix
+the cause and re-run the job, or update the cask by hand the same way (`release-cask.py update`, then audit and
+push). Releases up to 26.07.0 have no DMG line in their checksum file; hash their download with `shasum -a 256`.
+
+Removing the tap, for instance once the cask moves to `homebrew/cask`, means removing three things together: the
+`update-homebrew` job, the tap's deploy key and the `HOMEBREW_TAP_DEPLOY_KEY` secret.
 
 #### Secrets and environments
 
@@ -518,7 +536,7 @@ for the refs its deployment policy admits:
 
 | Environment | Deployment policy | Secrets | Jobs |
 |-------------|-------------------|---------|------|
-| `release` | tags `v*` | `MACOS_P12_FILE`, `MACOS_P12_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `SENTRY_TOKEN`, `HOMEBREW_TAP_DEPLOY_KEY` | CI Release `sign-mac`, `sentry`; the tap's deploy key (write access to `homebrew-tap` only) has no job yet |
+| `release` | tags `v*` | `MACOS_P12_FILE`, `MACOS_P12_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `SENTRY_TOKEN`, `HOMEBREW_TAP_DEPLOY_KEY` | CI Release `sign-mac`, `sentry`, `update-homebrew` (the tap's deploy key, write access to `homebrew-tap` only) |
 | `website` | branch `master` | `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` | Deploy Website `deploy` |
 
 CI Build never signs and references no signing secret: a pull request, a push

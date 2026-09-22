@@ -7,6 +7,10 @@
   it. The cask installs the same signed and notarized DMG as the release
   page, for Apple Silicon and macOS 15 or later; `brew uninstall --zap`
   also removes settings, caches, formats and plugins (#377).
+- **Homebrew cask follows every stable release**: CI Release sets the cask to
+  each stable release as soon as it is published, after checking that it
+  installs, so `brew upgrade` offers it right away; betas stay out of the
+  cask (#378).
 - **Windows Search uses AVX2 where the CPU has it**: The release build ships
   Hyperscan twice, as `hs.dll` for SSE4.2 and `hs_avx2.dll` built with
   `/arch:AVX2`, and loads the one the CPU supports at the first Search;

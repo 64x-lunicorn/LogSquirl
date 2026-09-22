@@ -22,6 +22,17 @@ class ReleaseError(Exception):
     pass
 
 
+_VERSION = re.compile(r"[0-9]+(?:\.[0-9]+){2,3}")
+
+
+def version_key(version: str) -> tuple[int, ...]:
+    """A version X.Y.Z or build X.Y.Z.BUILD as numbers, so 26.7.0 sorts below
+    26.10.0 (#385)."""
+    if not _VERSION.fullmatch(version):
+        raise ReleaseError(f"{version!r} is not a version X.Y.Z or a build X.Y.Z.BUILD.")
+    return tuple(int(part) for part in version.split("."))
+
+
 def parse_tag(tag: str) -> tuple[str, bool]:
     """Returns (base version, is prerelease) of a release tag."""
     m = _TAG.fullmatch(tag)
