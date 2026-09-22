@@ -245,11 +245,11 @@ void SearchLine::progressed( const SearchSession::State& state,
     }
 }
 
-void SearchLine::stopped( SearchAutoRefresh::State autoRefresh )
+void SearchLine::stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount )
 {
     // An interrupted Search tells no completion, so the gauge and the buttons
     // are put back here.
-    settled( autoRefresh, 0_lcount );
+    settled( autoRefresh, matchCount );
     showDone();
 }
 

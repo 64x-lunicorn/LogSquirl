@@ -226,6 +226,10 @@
 
 ## Bug fixes
 
+- **Stopping a Search says how many Matches it found**: After Stop, the
+  Search line says how many Matches the Filtered View holds, "1 match found"
+  or "7 matches found", instead of always "0 match found". The same after a
+  reload, a Log File truncated on disk or switching auto-refresh (#406).
 - **A word ending in a backslash keeps a logical Search valid**: In the
   logical combination mode a run of backslashes right before a quote of a
   sub-pattern is now written and read doubled: adding a word such as

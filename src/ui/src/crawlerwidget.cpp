@@ -465,7 +465,8 @@ void CrawlerWidget::stopSearch()
     // An interrupted run no longer reports completion (it is not one): the
     // Search Line puts the buttons and the gauge back now, rather than
     // waiting on a signal that won't come.
-    searchLine_.stopped( openLogFile_->searchAutoRefresh().state() );
+    searchLine_.stopped( openLogFile_->searchAutoRefresh().state(),
+                         openLogFile_->filteredData()->getNbMatches() );
     showSearchLine();
 }
 
@@ -883,7 +884,7 @@ void CrawlerWidget::resetStateOnSearchPatternChanges()
     // We suspend auto-refresh
 
     openLogFile_->changeSearchExpression();
-    printSearchInfoMessage( openLogFile_->filteredData()->getNbMatches() );
+    printSearchInfoMessage();
 }
 
 void CrawlerWidget::searchRefreshChangedHandler( bool isRefreshing )
@@ -893,7 +894,7 @@ void CrawlerWidget::searchRefreshChangedHandler( bool isRefreshing )
     searchLine_.setFlags( flags );
 
     openLogFile_->setAutoRefresh( isRefreshing );
-    printSearchInfoMessage( openLogFile_->filteredData()->getNbMatches() );
+    printSearchInfoMessage();
 }
 
 void CrawlerWidget::matchCaseChangedHandler( bool shouldMatchCase )
@@ -1878,9 +1879,10 @@ void CrawlerWidget::updateSearchCombo()
     searchLineCompleter_->setModel( new QStringListModel( searchHistory, searchLineCompleter_ ) );
 }
 
-void CrawlerWidget::printSearchInfoMessage( LinesCount nbMatches )
+void CrawlerWidget::printSearchInfoMessage()
 {
-    searchLine_.settled( openLogFile_->searchAutoRefresh().state(), nbMatches );
+    searchLine_.settled( openLogFile_->searchAutoRefresh().state(),
+                         openLogFile_->filteredData()->getNbMatches() );
     showSearchLine();
 }
 

@@ -107,8 +107,9 @@ public:
     // The Search tells how far it came, or that it is done one way or
     // another.
     void progressed( const SearchSession::State& state, SearchAutoRefresh::State autoRefresh );
-    // The user stopped the Search.
-    void stopped( SearchAutoRefresh::State autoRefresh );
+    // The user stopped the Search; the Filtered View holds the Matches it
+    // found until then.
+    void stopped( SearchAutoRefresh::State autoRefresh, LinesCount matchCount );
     // The Search was replaced by none: the pattern is empty.
     void cleared();
     // Nothing runs; the line says what is known of the Search: its Matches,

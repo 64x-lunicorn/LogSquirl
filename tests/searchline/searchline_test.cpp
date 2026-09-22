@@ -650,7 +650,7 @@ SCENARIO( "The Search Line shows a stopped Search", "[searchline]" )
 
     WHEN( "the user stops the Search" )
     {
-        line.stopped( AutoRefresh::Static );
+        line.stopped( AutoRefresh::Static, 1_lcount );
 
         THEN( "the gauge goes and the Search button is back" )
         {
@@ -661,9 +661,33 @@ SCENARIO( "The Search Line shows a stopped Search", "[searchline]" )
         }
     }
 
+    // The Filtered View holds the Matches the Search found until it was
+    // stopped (#406).
+    struct Row {
+        LinesCount matches;
+        QString text;
+    };
+    const auto row = GENERATE( values<Row>( {
+        { 0_lcount, "0 match found" },
+        { 1_lcount, "1 match found" },
+        { 7_lcount, "7 matches found" },
+    } ) );
+
+    WHEN( "the user stops the Search with " << row.matches.get()
+                                            << " Matches in the Filtered View" )
+    {
+        line.stopped( AutoRefresh::Static, row.matches );
+
+        THEN( "the text says " << row.text.toStdString() )
+        {
+            REQUIRE( line.display().text == row.text );
+            REQUIRE( line.display().visible );
+        }
+    }
+
     WHEN( "the user stops the Search over a truncated Log File" )
     {
-        line.stopped( AutoRefresh::FileTruncated );
+        line.stopped( AutoRefresh::FileTruncated, 1_lcount );
 
         THEN( "the text says so" )
         {
