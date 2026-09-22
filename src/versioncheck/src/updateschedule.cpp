@@ -17,24 +17,24 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Runner for the update check's tests. It uses QCoreApplication on purpose:
-// deciding an update offer needs no GUI (#306).
+#include "updateschedule.h"
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+namespace logsquirl::versioncheck {
 
-#include <QCoreApplication>
+namespace {
 
-#include "persistentinfo.h"
+constexpr std::time_t CheckIntervalS = 3600 * 24 * 7; /* 7 days */
 
-// The version checker links the settings store. Its tests hand it settings of
-// their own and never reach the store; should one ever do, it stays portable,
-// beside the test binary, as in the other test runners (#389).
-const bool PersistentInfo::ForcePortable = true;
+} // namespace
 
-int main( int argc, char* argv[] )
+bool isCheckDue( std::time_t now, std::time_t nextDeadline, bool betaCheckingEnabled )
 {
-    QCoreApplication app( argc, argv );
-
-    return Catch::Session().run( argc, argv );
+    return nextDeadline < now || betaCheckingEnabled;
 }
+
+std::time_t nextDeadlineAfterCheck( std::time_t now, bool /*downloadSucceeded*/ )
+{
+    return now + CheckIntervalS;
+}
+
+} // namespace logsquirl::versioncheck

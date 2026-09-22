@@ -310,7 +310,8 @@ the Shortcuts, a keyed table of actions with a codec of its own rather than a fl
 registered by each widget that owns them; logging, which configures the process's logger
 outside the lifetime of any Log File; follow-file-on-load, which the main window alone reads
 once as a file is opened; the font, assembled in one place by the Crawler Widget and handed
-to its own views; and SSL peer verification, one value read by the version checker alone.
+to its own views; and SSL peer verification, one value read by the downloader alone, which
+fetches a new release; the version checker does not read it.
 _Avoid_: config object, options, preferences
 
 **Decoration Policy**:

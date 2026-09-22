@@ -40,6 +40,7 @@
 #define VERSIONCHECKER_H
 
 #include <ctime>
+#include <functional>
 
 #include <QObject>
 #include <QtNetwork>
@@ -71,14 +72,33 @@ private:
     std::time_t next_deadline_ = {};
 };
 
+// What the update check reads from and writes to the settings store: whether
+// it is enabled, whether it looks for betas, and the deadline of the next
+// check. The application's checker uses the store; a test hands in its own, so
+// the check runs without one (#389).
+struct UpdateCheckSettings {
+    std::function<bool()> checkingEnabled;
+    std::function<bool()> betaCheckingEnabled;
+    std::function<std::time_t()> nextDeadline;
+    std::function<void( std::time_t )> saveNextDeadline;
+
+    static UpdateCheckSettings fromSettingsStore();
+};
+
 // This class compares the current version number with the latest
 // stored on a central server
 class VersionChecker : public QObject {
     Q_OBJECT
 
 public:
-    VersionChecker();
+    // feedUrl is where the update feed is downloaded from; a test serves its
+    // own from a file.
+    explicit VersionChecker( UpdateCheckSettings settings
+                             = UpdateCheckSettings::fromSettingsStore(),
+                             QUrl feedUrl = defaultFeedUrl() );
     ~VersionChecker() override = default;
+
+    static QUrl defaultFeedUrl();
 
     // Starts an asynchronous check for a newer version if it is needed.
     // A newVersionFound signal is sent if one is found.
@@ -97,6 +117,8 @@ private:
     void checkVersionData( QByteArray versionData );
 
 private:
+    UpdateCheckSettings settings_;
+    QUrl feedUrl_;
     QNetworkAccessManager* manager_ = nullptr;
 };
 

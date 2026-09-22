@@ -3,6 +3,8 @@ add_library(
                             ${CMAKE_CURRENT_SOURCE_DIR}/src/versionchecker.cpp
                             ${CMAKE_CURRENT_SOURCE_DIR}/include/updateoffer.h
                             ${CMAKE_CURRENT_SOURCE_DIR}/src/updateoffer.cpp
+                            ${CMAKE_CURRENT_SOURCE_DIR}/include/updateschedule.h
+                            ${CMAKE_CURRENT_SOURCE_DIR}/src/updateschedule.cpp
 )
 
 set_target_properties(logsquirl_versioncheck PROPERTIES AUTOMOC ON)
