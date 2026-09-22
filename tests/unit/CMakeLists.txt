@@ -61,6 +61,7 @@ add_executable(logsquirl_tests
     theme_test.cpp
     viewportlayout_test.cpp
     viewset_test.cpp
+    viewstatecodec_test.cpp
     wrappedstring_test.cpp
     tests_main.cpp
 )
