@@ -108,6 +108,16 @@ void offerIssueReport( const QString& failure )
     } );
 }
 
+// A sub-pattern of a logical combination: enclosed in quotes, a quote inside
+// it written \" -- what the logical expression parser reads back as a quote
+// (#398).
+QString quoteSubPattern( QString pattern )
+{
+    return pattern.replace( QLatin1Char( '"' ), QLatin1String( R"(\")" ) )
+        .prepend( QLatin1Char( '"' ) )
+        .append( QLatin1Char( '"' ) );
+}
+
 // The Search line keeps room for this many characters, whatever else is in
 // its row (#261).
 constexpr int SearchLineMinimumCharacters = 20;
@@ -980,7 +990,7 @@ QString CrawlerWidget::escapeSearchPattern( const QString& pattern, bool isRegex
                               : pattern;
 
     if ( booleanButton_->isChecked() ) {
-        escapedPattern.replace( '"', "\"" ).prepend( '"' ).append( '"' );
+        escapedPattern = quoteSubPattern( escapedPattern );
     }
 
     return escapedPattern;
@@ -1015,7 +1025,7 @@ void CrawlerWidget::excludeFromSearch( const QString& searchString )
 
     const auto wasInBooleanCombinationMode = booleanButton_->isChecked();
     if ( !wasInBooleanCombinationMode ) {
-        currentPattern.replace( '"', "\"" ).prepend( '"' ).append( '"' );
+        currentPattern = quoteSubPattern( currentPattern );
     }
 
     booleanButton_->setChecked( true );

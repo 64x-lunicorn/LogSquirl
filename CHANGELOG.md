@@ -226,6 +226,13 @@
 
 ## Bug fixes
 
+- **A word with quotes keeps a logical Search valid**: Adding a word that
+  contains a `"` to the Search, excluding it, replacing the Search with it or
+  combining Predefined Filters with it in the logical combination mode writes
+  the inner quote as `\"`, so the Search runs and matches the word with its
+  quotes instead of failing with an error in the expression. Excluding a word
+  from a Search that is not a logical combination and contains a quote gives a
+  valid one too (#398).
 - **File watch polling stops stalling the UI**: The poll tick now runs on a
   thread of its own and stats each watched file with no lock held, instead of
   holding the file watcher's lock across every `QFileInfo` stat on the thread
