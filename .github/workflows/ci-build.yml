@@ -481,7 +481,11 @@ jobs:
             qt_modules: qt5compat
             arch: arm64
             artifacts_id: mac-arm64
-            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON -DCMAKE_BUILD_TYPE=Release
+            # No -DCMAKE_BUILD_TYPE override: RelWithDebInfo is the default
+            # (StandardProjectSettings.cmake), so the release dSYM carries
+            # line info at the same optimization as before (#340), matching
+            # Windows and Linux (#280).
+            cmake_opts: -DLOGSQUIRL_OSX_DEPLOYMENT_TARGET=15.0 -DCMAKE_SKIP_INSTALL_RPATH=ON
 
     runs-on: ${{ matrix.config.runner }}
     # Slowest successful run 25 min, when master builds still waited on
@@ -526,6 +530,27 @@ jobs:
       # Unsigned on every event and branch: the signing secrets live in the
       # `release` environment, and CI Release signs these packages (#203).
       - uses: ./.github/actions/agent-package-mac
+
+      # The release build is RelWithDebInfo with LTO (#340), so this checks
+      # what #280 already gets for free on Windows and Linux: the dSYM's
+      # debug line program actually names a LogSquirl source file, meaning
+      # dsymutil found the LTO object's line table rather than only the
+      # symbol table (which would resolve a crash to a function, not a
+      # file and line).
+      - name: Verify the dSYM carries line info
+        shell: sh
+        run: |
+          set -eu
+          cd "$LOGSQUIRL_BUILD_ROOT"
+          # logsquirl.dSym is a bundle (a directory), not a file: dwarfdump
+          # wants the DWARF file inside it, not the bundle path itself.
+          dwarf_file="./output/logsquirl.dSym/Contents/Resources/DWARF/logsquirl"
+          lines=$(dwarfdump --debug-line "$dwarf_file" | grep -c '\.cpp"$' || true)
+          echo "source files in the debug line program: $lines"
+          if [ "$lines" -eq 0 ]; then
+            echo "::error::dSYM has no debug line info (dsymutil likely lost the LTO object, #340)"
+            exit 1
+          fi
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

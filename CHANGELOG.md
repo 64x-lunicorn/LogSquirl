@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **Windows Search uses AVX2 where the CPU has it**: The release build ships
+  Hyperscan twice, as `hs.dll` for SSE4.2 and `hs_avx2.dll` built with
+  `/arch:AVX2`, and loads the one the CPU supports at the first Search;
+  MSVC has no equivalent of Vectorscan's Linux fat runtime, so this is a
+  run-time choice between two DLLs instead. A CPU without AVX2 still gets the
+  SSE4.2 build it always had (#281).
 - **mimalloc, process-wide**: A `LOGSQUIRL_MIMALLOC_OVERRIDE` option lets
   mimalloc serve `malloc`/`operator new` for the whole process, Qt included,
   where its override mechanism actually works. Wired for Linux and Windows;
@@ -211,6 +217,12 @@
 
 ## Bug fixes
 
+- **File watch polling stops stalling the UI**: The poll tick now runs on a
+  thread of its own and stats each watched file with no lock held, instead of
+  holding the file watcher's lock across every `QFileInfo` stat on the thread
+  that owns the UI. With many open Log Files, or files on a slow or network
+  drive, adding or removing a watch as a Log File is opened or closed no
+  longer waits behind the poll (#322).
 - **A local build knows its own version**: A build made without a version in
   the environment -- every build a developer makes -- called itself 26.7.0
   while the release it was cut from is 26.07.0: CMake dropped the leading zero
@@ -511,6 +523,11 @@
 
 ## Build and packaging
 
+- **macOS releases carry line info**: The macOS release build now uses
+  RelWithDebInfo, same as Windows and Linux since #280, so its dSYM resolves
+  a symbolicated crash to a file and line instead of just a function; the
+  build stays at full optimization, with the intermediate link-time
+  optimization object kept for `dsymutil` to read (#340).
 - **Linux packages declare Qt**: The DEB and RPM packages depend on the
   distribution's Qt 6 packages, with the Qt version LogSquirl is built with as
   the minimum. On a distribution with an older Qt the package manager refuses
@@ -565,6 +582,17 @@
 
 ## Internal
 
+- **Smaller indexing parse blocks**: The blocks indexing reads and parses a
+  Log File in are now 1 MiB, down from 5 MiB, so a 16 MiB read buffer keeps
+  about 16 of them in flight instead of 3 and more cores parse in parallel.
+  The 5 MiB size stays as the encoding-detection sample, the header and tail
+  digest and the Index Cache resume check, unaffected by the parse block
+  size and unchanged in what they read, so a cached Index still resumes.
+  Measured on the indexing benchmark (1 GB generated Log Files,
+  `RelWithDebInfo`, 10 samples each, before and after run back to back
+  under the same otherwise-idle machine): short lines 109.5 ms -> 99.8 ms
+  (~9% faster), tabs and long lines 163.3 ms -> 114.2 ms (~30% faster)
+  (#339).
 - **Sentry release job**: Without a Sentry token the release's Sentry job
   skips its steps and stays green; with one, a failing upload shows as a red
   job (#228).

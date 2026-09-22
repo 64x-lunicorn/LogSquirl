@@ -19,6 +19,12 @@ xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_minidump_dum
 REM Copy TBB DLL from build output (placed there by cmake post-build step)
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\tbb12.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 
+REM Hyperscan for CPUs without and with AVX2, chosen at run time (#281)
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\hs.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\hs_avx2.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\hs.pdb %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\hs_avx2.pdb %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\generated\documentation.html %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\COPYING %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\NOTICE %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1

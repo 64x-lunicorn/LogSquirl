@@ -52,6 +52,8 @@
 
 #ifdef LOGSQUIRL_HAS_HS
 #include <hs.h>
+
+#include "hyperscanruntime.h"
 #endif
 
 #include "tbb/global_control.h"
@@ -148,7 +150,9 @@ int main( int argc, char* argv[] )
     roaring_init_memory_hook( roaring_memory_allocators );
 
 #ifdef LOGSQUIRL_HAS_HS
+    // On Windows the first call into Hyperscan loads the build for this CPU (#281).
     hs_set_allocator( mi_malloc, mi_free );
+    LOG_INFO << "Hyperscan runtime " << hyperscanRuntimeName( selectedHyperscanRuntime() );
 #endif
 
     // Kept alive for the rest of main() (not scoped to this if): a
