@@ -26,7 +26,9 @@
 #include "logdata.h"
 #include "logfiltereddata.h"
 #include "logpresentation.h"
+#include "overview.h"
 #include "quickfindpattern.h"
+#include "regularexpressionpattern.h"
 #include "test_policies.h"
 #include "viewset.h"
 
@@ -41,6 +43,7 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -75,6 +78,15 @@ struct AbstractLogView::access_by<ViewSetTest> {
     static std::pair<LineNumber, LineNumber> searchLimits( const AbstractLogView& view )
     {
         return { view.searchStart_, view.searchEnd_ };
+    }
+    static const QString& searchPattern( const AbstractLogView& view )
+    {
+        return view.searchPattern_.pattern;
+    }
+    // Counts each time the view was told to read the Log Lines it shows again.
+    static uint64_t linesReadAgain( const AbstractLogView& view )
+    {
+        return view.viewportGeneration_;
     }
 };
 
@@ -131,6 +143,10 @@ public:
     {
         searchLimits = std::make_pair( startLine, endLine );
     }
+    void setSearchPattern( const RegularExpressionPattern& pattern ) override
+    {
+        searchPattern = pattern.pattern;
+    }
     void saveSelectedTo( const QString& ) override {}
     void registerShortcuts() override
     {
@@ -144,6 +160,7 @@ public:
     std::optional<QFont> font;
     std::optional<std::vector<QStringList>> colorLabels;
     std::optional<std::pair<LineNumber, LineNumber>> searchLimits;
+    std::optional<QString> searchPattern;
     int decorationUpdates = 0;
     int rereads = 0;
     int shortcutRegistrations = 0;
@@ -492,6 +509,117 @@ SCENARIO( "What the View Set is handed reaches every view in it", "[viewset]" )
                 {
                     REQUIRE( ViewAccess::searchLimits( *another.view ) == HandedSearchLimits );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO( "The search pattern reaches every Presentation and the Filtered View of the current "
+          "Search",
+          "[viewset]" )
+{
+    LogFile logFile;
+    ViewSet viewSet;
+
+    GIVEN( "a View Set with both Presentations, a kept Search's Filtered View and the current "
+           "one" )
+    {
+        RecordingPresentation textView;
+        RecordingPresentation tableView;
+        auto kept = logFile.newSearch();
+        auto current = logFile.newSearch();
+        viewSet.addPresentation( &textView );
+        viewSet.addPresentation( &tableView );
+        viewSet.addFilteredView( kept.view.get() );
+        viewSet.addFilteredView( current.view.get() );
+        viewSet.setSearchPattern( RegularExpressionPattern( QStringLiteral( "kept" ) ) );
+        REQUIRE( ViewAccess::searchPattern( *current.view ) == QStringLiteral( "kept" ) );
+
+        WHEN( "a new search pattern is handed to it" )
+        {
+            viewSet.setSearchPattern( RegularExpressionPattern( QStringLiteral( "needle" ) ) );
+
+            THEN( "both Presentations and the current Search's Filtered View color it" )
+            {
+                REQUIRE( textView.searchPattern == QStringLiteral( "needle" ) );
+                REQUIRE( tableView.searchPattern == QStringLiteral( "needle" ) );
+                REQUIRE( ViewAccess::searchPattern( *current.view ) == QStringLiteral( "needle" ) );
+            }
+
+            AND_WHEN( "another Search is kept and its Filtered View added" )
+            {
+                auto another = logFile.newSearch();
+                viewSet.addFilteredView( another.view.get() );
+
+                THEN( "it starts with the current pattern" )
+                {
+                    REQUIRE( ViewAccess::searchPattern( *another.view )
+                             == QStringLiteral( "needle" ) );
+                }
+            }
+        }
+
+        WHEN( "the kept Search's tab is made current and a pattern handed over" )
+        {
+            // Not a Search of its own: the pattern the kept Search ran with
+            // stays its own until it is searched again.
+            viewSet.makeFilteredViewCurrent( kept.view.get() );
+            viewSet.setSearchPattern( RegularExpressionPattern( QStringLiteral( "needle" ) ) );
+
+            THEN( "the kept Search's Filtered View colors it, and the other keeps its own" )
+            {
+                REQUIRE( ViewAccess::searchPattern( *kept.view ) == QStringLiteral( "needle" ) );
+                REQUIRE( ViewAccess::searchPattern( *current.view ) == QStringLiteral( "kept" ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "New Matches and Marks are shown by one call on the View Set", "[viewset]" )
+{
+    LogFile logFile;
+    ViewSet viewSet;
+
+    GIVEN( "a View Set with both Presentations, a kept Search's Filtered View, the current one "
+           "and the Overview" )
+    {
+        RecordingPresentation textView;
+        RecordingPresentation tableView;
+        auto kept = logFile.newSearch();
+        auto current = logFile.newSearch();
+        Overview overview;
+        overview.setVisible( true );
+        viewSet.addPresentation( &textView );
+        viewSet.addPresentation( &tableView );
+        viewSet.addFilteredView( kept.view.get() );
+        viewSet.addFilteredView( current.view.get() );
+        viewSet.setOverview( &overview );
+
+        const auto keptReads = ViewAccess::linesReadAgain( *kept.view );
+        const auto currentReads = ViewAccess::linesReadAgain( *current.view );
+
+        WHEN( "it is told the Matches or Marks changed in a Log File of 100 Log Lines" )
+        {
+            viewSet.refreshMatchesAndMarks( 100_lcount );
+
+            THEN( "both Presentations repaint their decorations" )
+            {
+                REQUIRE( textView.decorationUpdates == 1 );
+                REQUIRE( tableView.decorationUpdates == 1 );
+            }
+
+            THEN( "the current Search's Filtered View reads what it shows again, the kept "
+                  "Search's does not" )
+            {
+                REQUIRE( ViewAccess::linesReadAgain( *current.view ) > currentReads );
+                REQUIRE( ViewAccess::linesReadAgain( *kept.view ) == keptReads );
+            }
+
+            THEN( "the Overview counts the Log File's Log Lines" )
+            {
+                overview.updateView( 100 );
+                overview.updateCurrentPosition( 0_lnum, 50_lnum );
+                REQUIRE( overview.getViewLines() == std::make_pair( 0, 50 ) );
             }
         }
     }

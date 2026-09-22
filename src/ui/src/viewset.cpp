@@ -44,7 +44,18 @@ void ViewSet::addFilteredView( FilteredView* view )
 {
     std::erase_if( filteredViews_, []( const auto& held ) { return held.isNull(); } );
     filteredViews_.emplace_back( view );
+    currentFilteredView_ = view;
     seed( view );
+}
+
+void ViewSet::makeFilteredViewCurrent( FilteredView* view )
+{
+    currentFilteredView_ = view;
+}
+
+void ViewSet::setOverview( Overview* overview )
+{
+    overview_ = overview;
 }
 
 void ViewSet::setDecorationPolicy( const DecorationPolicy& policy )
@@ -120,6 +131,34 @@ void ViewSet::setSearchLimits( LineNumber startLine, LineNumber endLine )
         [ & ]( FilteredView* view ) { view->setSearchLimits( startLine, endLine ); } );
 }
 
+void ViewSet::setSearchPattern( const RegularExpressionPattern& pattern )
+{
+    searchPattern_ = pattern;
+
+    for ( auto* presentation : presentations_ ) {
+        presentation->setSearchPattern( pattern );
+    }
+    if ( !currentFilteredView_.isNull() ) {
+        currentFilteredView_->setSearchPattern( pattern );
+    }
+}
+
+void ViewSet::refreshMatchesAndMarks( LinesCount logFileLines, Overview::UpdatePace pace )
+{
+    if ( !currentFilteredView_.isNull() ) {
+        currentFilteredView_->updateData();
+    }
+
+    if ( overview_ != nullptr ) {
+        overview_->updateData( logFileLines, pace );
+    }
+
+    // The Presentations draw a bullet for each Match and Mark.
+    for ( auto* presentation : presentations_ ) {
+        presentation->updateDecorations();
+    }
+}
+
 void ViewSet::applyHighlighterSetChange()
 {
     // A Color Label's color comes from the Highlighter Set Collection and is
@@ -166,6 +205,9 @@ void ViewSet::seed( LogPresentation* presentation ) const
     if ( searchLimits_ ) {
         presentation->setSearchLimits( searchLimits_->first, searchLimits_->second );
     }
+    if ( searchPattern_ ) {
+        presentation->setSearchPattern( *searchPattern_ );
+    }
 }
 
 void ViewSet::seed( FilteredView* view ) const
@@ -180,5 +222,9 @@ void ViewSet::seed( FilteredView* view ) const
     view->setQuickHighlighters( colorLabels_ );
     if ( searchLimits_ ) {
         view->setSearchLimits( searchLimits_->first, searchLimits_->second );
+    }
+    // A Filtered View added is the current Search's.
+    if ( searchPattern_ ) {
+        view->setSearchPattern( *searchPattern_ );
     }
 }

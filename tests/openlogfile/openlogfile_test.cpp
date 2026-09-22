@@ -30,7 +30,9 @@
 #include <QFile>
 #include <QHash>
 #include <QList>
+#include <QMetaType>
 #include <QTemporaryDir>
+#include <QTextCodec>
 
 #include <algorithm>
 #include <memory>
@@ -902,6 +904,243 @@ SCENARIO( "A Search requested while the Log File loads runs once it has loaded",
                     500 ) );
                 REQUIRE( logFile.searchState().phase == Phase::Idle );
             }
+        }
+    }
+}
+
+namespace {
+
+// Log Lines with non-ASCII text, written as UTF-8: read as UTF-8 they say
+// "Grüße", read as ISO-8859-1 they do not. Every other one says "hit".
+constexpr auto EncodedLineCount = 40;
+
+QString encodedLine( int number )
+{
+    return QString( "%1: Grüße aus München, line %2" )
+        .arg( number % 2 == 0 ? "hit" : "miss" )
+        .arg( number, 6, 10, QChar( '0' ) );
+}
+
+bool writeUtf8LogFile( const QString& path )
+{
+    QFile file( path );
+    if ( !file.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {
+        return false;
+    }
+    QByteArray lines;
+    for ( auto number = 0; number < EncodedLineCount; ++number ) {
+        lines += encodedLine( number ).toUtf8() + '\n';
+    }
+    return file.write( lines ) == lines.size();
+}
+
+int mibOf( const char* encoding )
+{
+    return QTextCodec::codecForName( encoding )->mibEnum();
+}
+
+// The first Log Line as it reads in ISO-8859-1.
+QString firstLineAsLatin1()
+{
+    return QString::fromLatin1( encodedLine( 0 ).toUtf8() );
+}
+
+struct EncodingObserver {
+    explicit EncodingObserver( OpenLogFile& openLogFile )
+    {
+        QObject::connect( &openLogFile, &OpenLogFile::encodingChanged, [ this ] { ++changes; } );
+    }
+
+    int changes = 0;
+};
+
+} // namespace
+
+SCENARIO( "An Open Log File reads its Log File in the Encoding detected unless one is chosen",
+          "[openlogfile][encoding]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "encoded.log" );
+    REQUIRE( writeUtf8LogFile( path ) );
+
+    GIVEN( "no Encoding forced by the settings" )
+    {
+        OpenedLogFile logFile( path );
+        EncodingObserver encoding( logFile.openLogFile );
+
+        THEN( "none is chosen" )
+        {
+            REQUIRE_FALSE( logFile.openLogFile.chosenEncoding().has_value() );
+        }
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+            THEN( "it is read in the Encoding detected" )
+            {
+                REQUIRE( logFile.openLogFile.logData()->getDetectedEncoding() != nullptr );
+                REQUIRE( logFile.openLogFile.encoding()->mibEnum()
+                         == logFile.openLogFile.logData()->getDetectedEncoding()->mibEnum() );
+                REQUIRE( logFile.openLogFile.encoding()->mibEnum() == mibOf( "UTF-8" ) );
+                REQUIRE( logFile.openLogFile.logData()->getDisplayEncoding()->mibEnum()
+                         == mibOf( "UTF-8" ) );
+                REQUIRE( logFile.openLogFile.logData()->getLineString( 0_lnum )
+                         == encodedLine( 0 ) );
+                REQUIRE( encoding.changes == 1 );
+            }
+
+            AND_WHEN( "an Encoding is chosen" )
+            {
+                logFile.openLogFile.setEncoding( mibOf( "ISO-8859-1" ) );
+
+                THEN( "it overrides the one detected" )
+                {
+                    REQUIRE( logFile.openLogFile.chosenEncoding() == mibOf( "ISO-8859-1" ) );
+                    REQUIRE( logFile.openLogFile.encoding()->mibEnum() == mibOf( "ISO-8859-1" ) );
+                    REQUIRE( logFile.openLogFile.logData()->getLineString( 0_lnum )
+                             == firstLineAsLatin1() );
+                    REQUIRE( encoding.changes == 2 );
+                }
+
+                AND_WHEN( "the one detected is asked for again" )
+                {
+                    logFile.openLogFile.setEncoding( std::nullopt );
+
+                    THEN( "the Log File reads as it was detected" )
+                    {
+                        REQUIRE_FALSE( logFile.openLogFile.chosenEncoding().has_value() );
+                        REQUIRE( logFile.openLogFile.logData()->getLineString( 0_lnum )
+                                 == encodedLine( 0 ) );
+                        REQUIRE( encoding.changes == 3 );
+                    }
+                }
+            }
+
+            AND_WHEN( "the Encoding it is read in already is chosen" )
+            {
+                logFile.openLogFile.setEncoding( mibOf( "UTF-8" ) );
+
+                THEN( "nothing reads differently, and nothing is told" )
+                {
+                    REQUIRE( logFile.openLogFile.chosenEncoding() == mibOf( "UTF-8" ) );
+                    REQUIRE( encoding.changes == 1 );
+                }
+            }
+        }
+    }
+
+    GIVEN( "an Encoding forced by the settings" )
+    {
+        auto policies = testSettingsPolicies();
+        policies.fileAccess.defaultEncodingMib = mibOf( "ISO-8859-1" );
+        OpenLogFile openLogFile( policies.indexing, policies.search, policies.fileAccess,
+                                 policies.decoding, RecognitionPolicy{}, nullptr, nullptr );
+        Observer observer( openLogFile );
+        openLogFile.open( path );
+
+        THEN( "it is the one chosen from the start" )
+        {
+            REQUIRE( openLogFile.chosenEncoding() == mibOf( "ISO-8859-1" ) );
+        }
+
+        WHEN( "the Log File has loaded" )
+        {
+            REQUIRE( observer.waitLoads( 1 ) );
+
+            THEN( "it is read in the Encoding forced, not in the one detected" )
+            {
+                REQUIRE( openLogFile.encoding()->mibEnum() == mibOf( "ISO-8859-1" ) );
+                REQUIRE( openLogFile.logData()->getLineString( 0_lnum ) == firstLineAsLatin1() );
+            }
+        }
+    }
+}
+
+SCENARIO( "Choosing another Encoding while a Search is shown reads its Log Lines anew",
+          "[openlogfile][encoding]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "searched.log" );
+    REQUIRE( writeUtf8LogFile( path ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    EncodingObserver encoding( logFile.openLogFile );
+
+    logFile.openLogFile.requestSearch( RegularExpressionPattern( "^hit" ) );
+    REQUIRE( logFile.waitSearchSettled() );
+    REQUIRE( logFile.searchState().matchCount == LinesCount( EncodedLineCount / 2 ) );
+    REQUIRE( logFile.openLogFile.filteredData()->getLineString( 0_lnum ) == encodedLine( 0 ) );
+
+    WHEN( "another Encoding is chosen" )
+    {
+        logFile.openLogFile.setEncoding( mibOf( "ISO-8859-1" ) );
+
+        THEN( "the Search's Log Lines read in it, and that they read differently is told" )
+        {
+            REQUIRE( logFile.openLogFile.filteredData()->getLineString( 0_lnum )
+                     == firstLineAsLatin1() );
+            REQUIRE( encoding.changes == 1 );
+        }
+    }
+
+    WHEN( "the Search is kept, another one made current, and another Encoding chosen" )
+    {
+        const auto kept = logFile.openLogFile.filteredData();
+        logFile.openLogFile.startAnotherSearch();
+        logFile.openLogFile.setEncoding( mibOf( "ISO-8859-1" ) );
+
+        THEN( "the kept Search's Log Lines read in it too" )
+        {
+            REQUIRE( kept->getLineString( 0_lnum ) == firstLineAsLatin1() );
+            REQUIRE( encoding.changes == 1 );
+        }
+    }
+}
+
+SCENARIO( "An Open Log File is heard by a host that registers no meta types",
+          "[openlogfile][metatypes]" )
+{
+    // This runner registers none of the types the Open Log File and its log
+    // data carry through their queued signals: the library does (#394).
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "unregistered.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+
+    THEN( "the types those signals carry are known to the meta type system by name" )
+    {
+        for ( const auto* name :
+              { "LoadingStatus", "MonitoredFileStatus", "LinesCount", "LineNumber", "LineLength",
+                "SearchId", "SearchSession::State", "OpenLogFile::LoadFinished" } ) {
+            INFO( name );
+            REQUIRE( QMetaType::fromName( name ).isValid() );
+        }
+    }
+
+    WHEN( "the Log File has loaded and a Search runs over it" )
+    {
+        REQUIRE( logFile.observer.waitLoads( 1 ) );
+        REQUIRE( logFile.observer.loads.front().status == LoadingStatus::Successful );
+
+        logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+
+        THEN( "the Search's progress is heard until it is complete" )
+        {
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return !logFile.observer.searchStates.empty()
+                           && logFile.observer.searchStates.back().phase == Phase::Complete;
+                },
+                30000 ) );
+            const auto& complete = logFile.observer.searchStates.back();
+            REQUIRE( complete.progress == 100 );
+            REQUIRE( complete.matchCount == fizzCount( FirstLineCount ) );
         }
     }
 }

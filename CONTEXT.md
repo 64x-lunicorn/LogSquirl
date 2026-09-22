@@ -55,6 +55,8 @@ _Avoid_: file watcher singleton, watch service
 
 **Encoding**:
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
+The Open Log File settles it after every load and whenever one is chosen: the one chosen, else
+the one detected, else the locale's. An Encoding the settings force is chosen from the start.
 
 ### Displaying
 
@@ -79,7 +81,9 @@ _Avoid_: screen, canvas, page
 Every view of one Log File: its Presentations and its Filtered Views, those of kept
 Searches included. Whatever all of them must show alike — the Policies, the font, the Color
 Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
-view added later starts with all of it.
+view added later starts with all of it. The pattern of the current Search reaches the
+Presentations and the current Search's Filtered View through it too; a kept Search's Filtered
+View keeps coloring the pattern it ran with.
 _Avoid_: views, panes, tabs
 
 **Visual Line**:
@@ -310,7 +314,8 @@ the Shortcuts, a keyed table of actions with a codec of its own rather than a fl
 registered by each widget that owns them; logging, which configures the process's logger
 outside the lifetime of any Log File; follow-file-on-load, which the main window alone reads
 once as a file is opened; the font, assembled in one place by the Crawler Widget and handed
-to its own views; and SSL peer verification, one value read by the version checker alone.
+to its own views; and SSL peer verification, one value read by the downloader alone, which
+fetches a new release; the version checker does not read it.
 _Avoid_: config object, options, preferences
 
 **Decoration Policy**:

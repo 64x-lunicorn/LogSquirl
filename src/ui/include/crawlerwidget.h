@@ -239,10 +239,6 @@ private Q_SLOTS:
     // to instruct the main view to jump to the matching line.
     void jumpToMatchingLine( LineNumber logLine, LinesCount nLines, LineColumn startCol,
                              LineLength nSymbols );
-    // Called when the Presentation shown is on a new Log Line; the
-    // Presentations not shown follow it.
-    void updateLineNumberHandler( LineNumber line, LinesCount nLines, LineColumn startCol,
-                                  LineLength nSymbols );
     // Mark Log Lines from a Presentation or a Filtered View.
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
 
@@ -347,10 +343,11 @@ private:
     AbstractLogView* activeView() const;
     void printSearchInfoMessage( LinesCount nbMatches = 0_lcount );
     void changeDataStatus( DataStatus status );
-    // Determines the Encoding the Log File is displayed in. Only when it
-    // differs from the one displayed until now are the Log Lines decoded,
-    // read and extracted for the chart again.
-    void updateEncoding();
+    // Describes the Encoding the Open Log File settled on.
+    void updateEncodingText();
+    // The Open Log File reads in another Encoding: the Log Lines are read and
+    // extracted for the chart again.
+    void applyEncodingChange();
     // The Log Lines decode differently: the chart drops the points extracted
     // before and extracts them all again.
     void restartChartExtraction();
@@ -389,9 +386,22 @@ private:
     // Both Presentations, the one shown and the one not.
     std::array<LogPresentation*, 2> presentations() const;
 
-    // Connect the signals every Presentation emits to the same slots.
+    // Connect a Presentation: its selection, and the signals every view
+    // shares.
     template <class Presentation>
     void connectPresentation( Presentation* presentation );
+
+    // Connect the signals every view of the Log File emits alike -- both
+    // Presentations and every Filtered View -- to the same slots (ADR 0003).
+    // A signal added to the set is connected here, once. What only one kind
+    // of view emits, and what a selection means, is connected with that kind.
+    template <class View>
+    void connectSharedSignals( View* view );
+
+    // Called when a Presentation is on a new Log Line. Only the one shown
+    // reports; the Presentations not shown follow it.
+    void updateLineNumberHandler( const LogPresentation& reporter, LineNumber line,
+                                  LinesCount nLines, LineColumn startCol, LineLength nSymbols );
 
     // The Search info line's palette for an error: the default palette in the
     // Theme's error colors.
@@ -469,10 +479,6 @@ private:
     // should consider we are loading something.
     bool loadingInProgress_ = true;
 
-    // Current encoding setting;
-    std::optional<int> encodingMib_;
-    // The Encoding the Log File is displayed in, once one was set.
-    std::optional<int> displayedEncodingMib_;
     QString encodingText_;
 
     ColorLabelsManager colorLabelsManager_;
@@ -484,12 +490,8 @@ private:
     // the font, the Color Labels and the Search Limits.
     ViewSet viewSet_;
 
-    // Whether this Log File may be followed, and what it was opened under.
-    // The File Access Policy is read when the views are built -- the
-    // Encoding it names is the one a Log File is read with by default -- so
-    // a later one reaches the Log Files opened from then on, not this one.
+    // Whether this Log File may be followed.
     WatchPolicy watchPolicy_;
-    FileAccessPolicy fileAccessPolicy_;
 
     // Whom a change the views write themselves is told to: the Session.
     std::function<void( Changed )> changeReport_;

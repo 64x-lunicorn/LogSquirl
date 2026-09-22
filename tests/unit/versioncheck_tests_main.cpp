@@ -25,6 +25,13 @@
 
 #include <QCoreApplication>
 
+#include "persistentinfo.h"
+
+// The version checker links the settings store. Its tests hand it settings of
+// their own and never reach the store; should one ever do, it stays portable,
+// beside the test binary, as in the other test runners (#389).
+const bool PersistentInfo::ForcePortable = true;
+
 int main( int argc, char* argv[] )
 {
     QCoreApplication app( argc, argv );

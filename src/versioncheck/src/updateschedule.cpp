@@ -17,19 +17,24 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Runner for the Open Log File's tests. It uses QCoreApplication on purpose:
-// the Open Log File follows a Log File without any widget (#244). It
-// registers no meta types either: the library registers the types its queued
-// signals carry, so a host only opens a Log File (#394).
+#include "updateschedule.h"
 
-#include <QCoreApplication>
+namespace logsquirl::versioncheck {
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+namespace {
 
-int main( int argc, char* argv[] )
+constexpr std::time_t CheckIntervalS = 3600 * 24 * 7; /* 7 days */
+
+} // namespace
+
+bool isCheckDue( std::time_t now, std::time_t nextDeadline, bool betaCheckingEnabled )
 {
-    QCoreApplication app( argc, argv );
-
-    return Catch::Session().run( argc, argv );
+    return nextDeadline < now || betaCheckingEnabled;
 }
+
+std::time_t nextDeadlineAfterCheck( std::time_t now, bool /*downloadSucceeded*/ )
+{
+    return now + CheckIntervalS;
+}
+
+} // namespace logsquirl::versioncheck

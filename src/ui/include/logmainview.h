@@ -74,6 +74,7 @@ public:
     void allowFollowMode( bool allow ) override;
     void setColorLabels( const std::vector<QStringList>& labels ) override;
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
+    void setSearchPattern( const RegularExpressionPattern& pattern ) override;
     void saveSelectedTo( const QString& filename ) override;
 
 private:
