@@ -177,7 +177,7 @@ void LogData::attachFile( const QString& fileName )
     attached_file_.reset( new FileHolder( fileAccessPolicy_.keepFileClosed ) );
     attached_file_->open( indexingFileName_ );
 
-    operationQueue_.enqueueOperation( AttachJob{ fileName, fileAccessPolicy_.defaultEncodingMib } );
+    operationQueue_.enqueueJob( AttachJob{ fileName, fileAccessPolicy_.defaultEncodingMib } );
 }
 
 void LogData::interruptLoading()
@@ -218,7 +218,7 @@ void LogData::reload( QTextCodec* forcedEncoding )
 
     // The user asked for the Log File to be read again, so a cached Index is
     // taken only while every byte it was built from is still the same (#337).
-    operationQueue_.enqueueOperation(
+    operationQueue_.enqueueJob(
         FullReindexJob{ FullIndexRequest::ExplicitReload, forcedEncoding } );
 }
 
@@ -268,7 +268,7 @@ void LogData::fileChangedOnDisk( const QString& filename )
         attached_file_->reOpenFile();
     }
 
-    operationQueue_.enqueueOperation( CheckForChangesJob{} );
+    operationQueue_.enqueueJob( CheckForChangesJob{} );
 }
 
 void LogData::indexingFinished( LoadingStatus status, const QString& failure )
@@ -301,7 +301,7 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
     LOG_DEBUG << "Sending indexingFinished.";
     Q_EMIT loadingFinished( status, failure );
 
-    operationQueue_.finishOperationAndStartNext();
+    operationQueue_.finishJobAndStartNext();
 }
 
 void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QString& failure )
@@ -315,11 +315,11 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
     // waits behind a Check that could still find a truncation.
     switch ( status ) {
     case MonitoredFileStatus::Truncated:
-        operationQueue_.enqueueOperation( FullReindexJob{} );
+        operationQueue_.enqueueJob( FullReindexJob{} );
         break;
     case MonitoredFileStatus::DataAdded:
         nbLinesBeforeDataAdded_ = doGetNbLine();
-        operationQueue_.enqueueOperation( PartialReindexJob{} );
+        operationQueue_.enqueueJob( PartialReindexJob{} );
         break;
     case MonitoredFileStatus::Unchanged:
         break;
@@ -329,7 +329,7 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
         Q_EMIT fileChanged( status, failure );
     }
 
-    operationQueue_.finishOperationAndStartNext();
+    operationQueue_.finishJobAndStartNext();
 }
 
 //

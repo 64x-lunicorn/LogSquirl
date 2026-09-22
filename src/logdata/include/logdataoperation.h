@@ -67,7 +67,7 @@ IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving );
 
 class OperationQueue {
 public:
-    explicit OperationQueue( std::function<void()> beforeOperationStart );
+    explicit OperationQueue( std::function<void()> beforeJobStart );
 
     void setWorker( std::unique_ptr<LogDataWorker>&& worker );
 
@@ -79,25 +79,26 @@ public:
 
     // Hands the index job to the worker, or, while another one runs, has it
     // meet the one waiting under the job rule.
-    void enqueueOperation( IndexJob&& operation );
+    void enqueueJob( IndexJob&& job );
 
-    void finishOperationAndStartNext();
+    // The running index job is done: the one waiting, if any, starts.
+    void finishJobAndStartNext();
 
     // Whether the index job running is a Partial, which leaves the Log
     // Lines indexed before it as they were.
     bool isPartialReindexRunning() const;
 
 private:
-    void tryStartPendingOperation();
+    void tryStartWaitingJob();
 
-    std::function<void()> beforeOperationStart_;
+    std::function<void()> beforeJobStart_;
 
 private:
     mutable Mutex mutex_;
 
-    IndexJob executingOperation_;
+    IndexJob runningJob_;
     // Decided by waitingIndexJob() whenever another one arrives.
-    IndexJob pendingOperation_;
+    IndexJob waitingJob_;
 
     std::unique_ptr<LogDataWorker> worker_;
 };
