@@ -28,8 +28,8 @@ from pathlib import Path
 
 from typing import NamedTuple
 
-from releases import (feed_changelog_versions, is_release_of, release_heading, report,
-                      sections)
+from releases import (ReleaseError, feed_changelog_versions, is_release_of, release_heading,
+                      report, sections, version_key)
 
 UNRELEASED = "# Unreleased"
 NO_CHANGELOG_LABEL = "no-changelog"
@@ -89,11 +89,6 @@ def _expected(version: str, release: str | None) -> _Expected:
     return _Expected(version, " or a pre-release of it", is_release_of(version))
 
 
-def _version_order(version: str) -> tuple[int, ...]:
-    """A project version as numbers, so 26.7.0 sorts below 26.10.0."""
-    return tuple(int(part) for part in version.split("."))
-
-
 def release_preparation_problems(*, base_cmake: str, head_cmake: str, changelog: str, feed,
                                  news_dir: Path) -> list[str]:
     """What a release preparation lacks; empty when complete, when the pull
@@ -109,7 +104,7 @@ def release_preparation_problems(*, base_cmake: str, head_cmake: str, changelog:
     # contradict each other: the version has to go back for the repository's
     # own consistency test to pass, and going back is what this check would
     # read as an incomplete preparation (#338).
-    if base_version is not None and _version_order(version) < _version_order(base_version):
+    if base_version is not None and version_key(version) < version_key(base_version):
         return []
     found = []
     all_sections = sections(changelog)
@@ -162,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
                 changelog=args.changelog.read_text(encoding="utf-8"),
                 feed=json.loads(args.feed.read_text(encoding="utf-8")),
                 news_dir=args.news_dir)
-    except (OSError, ValueError) as err:
+    except (OSError, ValueError, ReleaseError) as err:
         found = [str(err)]
     return report(found)
 
