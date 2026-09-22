@@ -72,10 +72,15 @@
 
 #include "logdataworker.h"
 
-constexpr int IndexingBlockSize = IndexingBlockPlan::DefaultBlockSize;
+// The size of the encoding-detection sample, the header and tail digests
+// and the Index Cache resume check: unrelated to the parse block size
+// (IndexingBlockPlan::blockSize, #339), which only bounds how much of a Log
+// File is parsed on its own by one thread. Kept at the parse block size's
+// former, only value, so cached Indexes built before #339 still resume.
+constexpr int DigestBlockSize = 5 * 1024 * 1024;
 
 IndexingData::IndexingData()
-    : headerAndTailDigests_( IndexingBlockSize )
+    : headerAndTailDigests_( DigestBlockSize )
 {
 }
 
@@ -160,7 +165,7 @@ IndexedBytesDigests IndexingData::takeDigests()
     return IndexedBytesDigests{ .full = std::move( full ),
                                 .headerAndTail
                                 = std::exchange( headerAndTailDigests_,
-                                                 HeaderAndTailDigests( IndexingBlockSize ) ) };
+                                                 HeaderAndTailDigests( DigestBlockSize ) ) };
 }
 
 void IndexingData::returnDigests( IndexedBytesDigests&& digests )
@@ -579,7 +584,7 @@ IndexOperation::HeaderAndTail IndexOperation::recordHeaderAndTail( QFile& file, 
 
     auto tail = digests.tail( end );
     if ( !tail ) {
-        const auto range = HeaderAndTailDigests::tailRange( IndexingBlockSize, end );
+        const auto range = HeaderAndTailDigests::tailRange( DigestBlockSize, end );
         QByteArray bytes( static_cast<qsizetype>( range.size ), Qt::Uninitialized );
         const auto readBytes
             = file.seek( range.offset ) ? file.read( bytes.data(), range.size ) : qint64{ -1 };
@@ -600,7 +605,7 @@ IndexOperation::HeaderAndTail IndexOperation::recordHeaderAndTail( QFile& file, 
     }
     recorded.header = digests.header( end );
     if ( !recorded.header ) {
-        recorded.header = digestReadFrom( file, 0, std::min( end, qint64{ IndexingBlockSize } ) );
+        recorded.header = digestReadFrom( file, 0, std::min( end, qint64{ DigestBlockSize } ) );
     }
     return recorded;
 }
@@ -638,7 +643,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
         IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
         state.digests = scopedAccessor.takeDigests();
         state.digests->headerAndTail.expectLogFileSize( state.file_size );
-        hasWholeBlockHeader = scopedAccessor.getHash().headerSize == IndexingBlockSize;
+        hasWholeBlockHeader = scopedAccessor.getHash().headerSize == DigestBlockSize;
 
         state.fileTextCodec = scopedAccessor.getForcedEncoding();
         if ( !state.fileTextCodec ) {
@@ -846,7 +851,7 @@ QTextCodec* detectedEncodingOf( const QString& fileName, qint64 fileSize )
     // The detector only looks at a sample of the block; one byte past the
     // sample is enough to take the same sample as from the whole block.
     const auto bytesToRead
-        = std::min( { fileSize, qint64{ IndexingBlockSize },
+        = std::min( { fileSize, qint64{ DigestBlockSize },
                       static_cast<qint64>( EncodingDetector::MaxSampleSize ) + 1 } );
     logsquirl::vector<char> block( static_cast<size_t>( bytesToRead ) );
     const auto readBytes = file.read( block.data(), logsquirl::ssize( block ) );
@@ -866,7 +871,7 @@ std::optional<FileDigest> digestOfPrefix( const QString& fileName, OffsetInFile 
         return std::nullopt;
     }
     FileDigest digest;
-    QByteArray buffer( IndexingBlockSize, Qt::Uninitialized );
+    QByteArray buffer( DigestBlockSize, Qt::Uninitialized );
     for ( qint64 remaining = end.get(); remaining > 0; ) {
         if ( interruptRequest ) {
             return std::nullopt;
@@ -902,7 +907,7 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
     // A full re-index detects the encoding from the first indexing block.
     // Unless the Index was built from at least that block, what was appended
     // since may lead to another encoding.
-    if ( cached.hash.size < IndexingBlockSize ) {
+    if ( cached.hash.size < DigestBlockSize ) {
         const auto* detected = detectedEncodingOf( fileName_, fileSize );
         if ( !detected || detected->name() != codec->name() ) {
             LOG_INFO << "Encoding of " << fileName_ << " changed as it grew, indexing it again";

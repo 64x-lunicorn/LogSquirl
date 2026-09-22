@@ -565,6 +565,17 @@
 
 ## Internal
 
+- **Smaller indexing parse blocks**: The blocks indexing reads and parses a
+  Log File in are now 1 MiB, down from 5 MiB, so a 16 MiB read buffer keeps
+  about 16 of them in flight instead of 3 and more cores parse in parallel.
+  The 5 MiB size stays as the encoding-detection sample, the header and tail
+  digest and the Index Cache resume check, unaffected by the parse block
+  size and unchanged in what they read, so a cached Index still resumes.
+  Measured on the indexing benchmark (1 GB generated Log Files,
+  `RelWithDebInfo`, 10 samples each, before and after run back to back
+  under the same otherwise-idle machine): short lines 109.5 ms -> 99.8 ms
+  (~9% faster), tabs and long lines 163.3 ms -> 114.2 ms (~30% faster)
+  (#339).
 - **Sentry release job**: Without a Sentry token the release's Sentry job
   skips its steps and stays green; with one, a failing upload shows as a red
   job (#228).
