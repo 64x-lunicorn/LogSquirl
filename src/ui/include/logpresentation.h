@@ -29,6 +29,7 @@
 class QFont;
 class QPoint;
 class QString;
+struct RegularExpressionPattern;
 
 // A Presentation, as whoever coordinates a Log File's panes asks and tells it
 // things: the Text View or the Table View. See ADR 0003.
@@ -95,6 +96,9 @@ public:
     // The words of each Color Label, one list per color slot.
     virtual void setColorLabels( const std::vector<QStringList>& labels ) = 0;
     virtual void setSearchLimits( LineNumber startLine, LineNumber endLine ) = 0;
+    // The pattern of the current Search, whose Matches the Presentation
+    // colors.
+    virtual void setSearchPattern( const RegularExpressionPattern& pattern ) = 0;
 
     // Save the selected Log Lines to filename, behind a progress dialog.
     // Nothing is saved without a selection.

@@ -20,6 +20,8 @@
 #pragma once
 
 #include "linetypes.h"
+#include "overview.h"
+#include "regularexpressionpattern.h"
 #include "settingspolicies.h"
 
 #include <QFont>
@@ -42,7 +44,9 @@ class LogPresentation;
 // be built before it is handed over.
 //
 // Each view keeps its own Decoration setup: a kept Search's Filtered View
-// colors a Search pattern of its own, which is not the View Set's.
+// colors a Search pattern of its own, which is not the View Set's. The
+// search pattern the View Set is handed is the current Search's: it reaches
+// the Presentations and the current Search's Filtered View only.
 //
 // The Presentations are held through the plain Presentation interface (ADR
 // 0003). No view is owned: a Presentation outlives the View Set, and a
@@ -55,9 +59,20 @@ public:
     // shortcut, as many as ColorLabelsManager holds.
     static constexpr std::size_t ColorLabelCount = 9;
 
-    // Add a view, and hand it everything held so far.
+    // Add a view, and hand it everything held so far. A Filtered View added
+    // is the current Search's: a kept Search's new view is the new Search's.
     void addPresentation( LogPresentation* presentation );
     void addFilteredView( FilteredView* view );
+
+    // The Filtered View of the current Search, one already added: the one
+    // the search pattern and new Matches and Marks reach. Nothing is handed
+    // to it now; the pattern a kept Search ran with stays its own until it
+    // is searched again.
+    void makeFilteredViewCurrent( FilteredView* view );
+
+    // The Overview the Presentations share, counted again when Matches or
+    // Marks changed. Not owned.
+    void setOverview( Overview* overview );
 
     // Hold a piece of state and hand it to every view.
     void setDecorationPolicy( const DecorationPolicy& policy );
@@ -74,6 +89,17 @@ public:
     void setColorLabels( const ColorLabels& labels );
     // Until they are set, a view keeps the Search Limits it was built with.
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
+    // The pattern of the current Search, colored by the Presentations and
+    // the current Search's Filtered View. Until one is set, a view colors
+    // none.
+    void setSearchPattern( const RegularExpressionPattern& pattern );
+
+    // Show what the Matches or Marks of the current Search are now: its
+    // Filtered View reads the Log Lines it shows again, the Overview counts
+    // them in a Log File of logFileLines Log Lines, as soon as pace says, and
+    // every Presentation repaints their decorations.
+    void refreshMatchesAndMarks( LinesCount logFileLines,
+                                 Overview::UpdatePace pace = Overview::UpdatePace::Now );
 
     // Paint every view again with the Highlighter Sets now active. The Color
     // Labels are handed over again too: a view caches their colors with
@@ -134,6 +160,8 @@ private:
 
     std::vector<LogPresentation*> presentations_;
     std::vector<QPointer<FilteredView>> filteredViews_;
+    QPointer<FilteredView> currentFilteredView_;
+    Overview* overview_ = nullptr;
 
     DecorationPolicy decorationPolicy_;
     PresentationPolicy presentationPolicy_;
@@ -142,4 +170,5 @@ private:
     std::optional<QFont> font_;
     ColorLabels colorLabels_ = ColorLabels( ColorLabelCount );
     std::optional<std::pair<LineNumber, LineNumber>> searchLimits_;
+    std::optional<RegularExpressionPattern> searchPattern_;
 };

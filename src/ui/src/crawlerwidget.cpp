@@ -340,7 +340,7 @@ void CrawlerWidget::reload()
     // Log Format again once it has loaded. A reload is loaded from its start
     // like the first load, so the "new data" icon is not triggered.
     openLogFile_->reload();
-    filteredView_->updateData();
+    viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
     printSearchInfoMessage();
 }
 
@@ -688,13 +688,11 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
     if ( nbMatches != nbMatches_ ) {
         nbMatches_ = nbMatches;
 
-        // Recompute the content of the filtered window.
-        filteredView_->updateData();
-
-        // Update the match overview: while the Search runs, at a bounded rate.
-        overview_.updateData( openLogFile_->logData()->getNbLine(),
-                              isDone ? Overview::UpdatePace::Now
-                                     : Overview::UpdatePace::WhileSearching );
+        // Show the new Matches; the overview, while the Search runs, at a
+        // bounded rate.
+        viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine(),
+                                         isDone ? Overview::UpdatePace::Now
+                                                : Overview::UpdatePace::WhileSearching );
 
         // New data found icon: fires for a continuation (autorefresh
         // extending the range) and equally for a fresh search whose
@@ -703,12 +701,6 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
         // Search Session existed.
         if ( state.isContinuation || state.startLine > 0_lnum ) {
             changeDataStatus( DataStatus::NEW_FILTERED_DATA );
-        }
-
-        // Also update the Presentations for the colored bullets.
-        update();
-        for ( auto* presentation : presentations() ) {
-            presentation->updateDecorations();
         }
     }
 
@@ -799,17 +791,7 @@ void CrawlerWidget::markLinesFromMain( const logsquirl::vector<LineNumber>& line
         }
     }
 
-    // Recompute the content of the filtered window.
-    filteredView_->updateData();
-
-    // Update the match overview
-    overview_.updateData( openLogFile_->logData()->getNbLine() );
-
-    // Also update the Presentations for the colored bullets.
-    update();
-    for ( auto* presentation : presentations() ) {
-        presentation->updateDecorations();
-    }
+    viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
 }
 
 void CrawlerWidget::broughtToFront()
@@ -982,7 +964,7 @@ void CrawlerWidget::truncatedHandler( const QString& failure )
     // The Open Log File has cleared the Marks, dropped an active Search and
     // forgotten the Log Format.
     if ( openLogFile_->searchAutoRefresh().isFileTruncated() ) {
-        filteredView_->updateData();
+        viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
         printSearchInfoMessage();
         nbMatches_ = 0_lcount;
     }
@@ -1587,6 +1569,7 @@ void CrawlerWidget::setup()
     viewSet_.addPresentation( logMainView_ );
     viewSet_.addPresentation( logTableView_ );
     viewSet_.addFilteredView( filteredView_ );
+    viewSet_.setOverview( &overview_ );
 
     // Once every view is in the View Set, which registers theirs too.
     registerShortcuts();
@@ -1674,6 +1657,7 @@ void CrawlerWidget::changeFilteredView( int tabIndex )
             = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( tabIndex ) );
 
         filteredView_ = tabFilteredView;
+        viewSet_.makeFilteredViewCurrent( filteredView_ );
         openLogFile_->makeSearchCurrent( filteredViewsData_.at( tabFilteredView ) );
 
         Q_EMIT filteredViewChanged();
@@ -2013,10 +1997,7 @@ void CrawlerWidget::prepareForNewSearch()
         visibilityBox_->setCurrentIndex( 0 );
     }
 
-    filteredView_->updateData();
-
-    // Update the match overview
-    overview_.updateData( openLogFile_->logData()->getNbLine() );
+    viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
 }
 
 void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
@@ -2029,15 +2010,13 @@ void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
         searchButton_->hide();
         searchInfoLine_->hide();
         searchInfoLineShowsError_ = false;
-        logMainView_->setSearchPattern( state.pattern );
-        filteredView_->setSearchPattern( state.pattern );
-        logTableView_->setSearchPattern( state.pattern );
+        viewSet_.setSearchPattern( state.pattern );
     }
     else {
         // The regexp is wrong. The request already drove the Session to
         // InvalidPattern, which on its own clears results/Context Lines the
         // same way an idle request would -- no separate clear needed here.
-        filteredView_->updateData();
+        viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
 
         // Inform the user
         QString errorMessage = tr( "Error in expression" );
@@ -2046,9 +2025,7 @@ void CrawlerWidget::showSearchRequested( const SearchSession::State& state )
         showSearchInfoError( errorMessage );
         searchInfoLine_->show();
 
-        logMainView_->setSearchPattern( {} );
-        filteredView_->setSearchPattern( {} );
-        logTableView_->setSearchPattern( {} );
+        viewSet_.setSearchPattern( {} );
     }
 }
 

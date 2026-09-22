@@ -82,11 +82,11 @@ public:
     void setActive( bool active );
 
     void setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern );
-    void setSearchPattern( const RegularExpressionPattern& pattern );
     // Place the Overview strip and its current-view indicator anew.
     void updateOverview();
 
     // LogPresentation
+    void setSearchPattern( const RegularExpressionPattern& pattern ) override;
     // The characters selected inside a cell if there are any, otherwise the
     // selected Rows, each as its cells separated by tabs.
     QString selectedText() const override;
