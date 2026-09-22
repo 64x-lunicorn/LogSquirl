@@ -119,6 +119,10 @@ Q_SIGNALS:
     // disk in any way.
     void notifyFileChangedOnDisk();
 
+    // Hands the polling half of the Watch Policy, by value, to the poll
+    // worker on its own thread. Internal wiring, not for anyone else.
+    void pollingPolicyChanged( bool enabled, int intervalMs );
+
 private Q_SLOTS:
     void sendChangesNotifications();
 
