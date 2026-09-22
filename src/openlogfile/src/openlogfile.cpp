@@ -94,13 +94,14 @@ void OpenLogFile::open( const QString& fileName )
 
 void OpenLogFile::restoreMarks( const logsquirl::vector<LineNumber>& marks )
 {
-    savedMarks_.insert( savedMarks_.end(), marks.begin(), marks.end() );
+    loadRule_.restoreMarks( marks );
 }
 
 QList<LineNumber> OpenLogFile::marks() const
 {
-    if ( !firstLoadDone_ ) {
-        return QList<LineNumber>( savedMarks_.begin(), savedMarks_.end() );
+    if ( loadRule_.isLoadingFromStart() ) {
+        const auto& savedMarks = loadRule_.savedMarks();
+        return QList<LineNumber>( savedMarks.begin(), savedMarks.end() );
     }
     return filteredData_->getMarks();
 }
@@ -119,22 +120,17 @@ void OpenLogFile::reload()
     }
 
     autoRefresh_.resetState();
-    searchRequested_ = false;
-    searchWaitsForLoad_ = false;
 
-    constexpr auto DropCache = true;
-    filteredData_->request( DropCache );
-    filteredData_->clearMarks();
-
-    // A reload recognizes the Log Format again, so an edited user Log Format
-    // is picked up by reloading.
-    formatRecognitionPending_ = true;
+    const auto decision = loadRule_.reload();
+    if ( decision.dropSearch ) {
+        constexpr auto DropCache = true;
+        filteredData_->request( DropCache );
+    }
+    if ( decision.clearMarks ) {
+        filteredData_->clearMarks();
+    }
 
     logData_->reload();
-
-    // A reload is loaded from its start, like the first load.
-    firstLoadDone_ = false;
-    truncatedSinceLoad_ = true;
 }
 
 void OpenLogFile::stopLoading()
@@ -155,7 +151,7 @@ const std::shared_ptr<LogFilteredData>& OpenLogFile::filteredData() const
 
 std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
 {
-    searchWaitsForLoad_ = false;
+    loadRule_.waitingSearchDropped();
     filteredData_->stop();
     filteredData_ = logData_->getNewFilteredData();
     followCurrentSearch();
@@ -164,7 +160,7 @@ std::shared_ptr<LogFilteredData> OpenLogFile::startAnotherSearch()
 
 void OpenLogFile::makeSearchCurrent( std::shared_ptr<LogFilteredData> search )
 {
-    searchWaitsForLoad_ = false;
+    loadRule_.waitingSearchDropped();
     filteredData_->stop();
     if ( search && search != filteredData_ ) {
         filteredData_ = std::move( search );
@@ -174,13 +170,11 @@ void OpenLogFile::makeSearchCurrent( std::shared_ptr<LogFilteredData> search )
 
 SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern& pattern )
 {
-    searchRequested_ = true;
     searchPattern_ = pattern;
 
-    if ( !loadFinishedOnce_ ) {
+    if ( loadRule_.searchRequested() ) {
         // Nothing to search yet: it runs over the Log Lines once they have
         // loaded, rather than over none now.
-        searchWaitsForLoad_ = true;
         SearchSession::State waiting;
         waiting.pattern = pattern;
         waiting.phase = SearchSession::Phase::Running;
@@ -204,15 +198,14 @@ SearchSession::State OpenLogFile::requestSearch( const RegularExpressionPattern&
 
 void OpenLogFile::clearSearch()
 {
-    searchRequested_ = false;
-    searchWaitsForLoad_ = false;
+    loadRule_.searchCleared();
     filteredData_->request();
     autoRefresh_.resetState();
 }
 
 void OpenLogFile::stopSearch()
 {
-    searchWaitsForLoad_ = false;
+    loadRule_.waitingSearchDropped();
     filteredData_->stop();
     autoRefresh_.stopSearch();
 }
@@ -320,15 +313,15 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
         watched_ = true;
     }
 
+    const auto lineCount = logData_->getNbLine();
+    const auto nbLines = LineNumber( lineCount.get() );
+    auto decision = loadRule_.loadFinished( status, lineCount, autoRefresh_ );
+
     LoadFinished load;
     load.status = status;
     load.failure = failure;
-    load.fromStart = !firstLoadDone_;
-    load.onlyAppended = firstLoadDone_ && grewSinceLoad_ && !truncatedSinceLoad_;
-    grewSinceLoad_ = false;
-    truncatedSinceLoad_ = false;
-
-    const auto nbLines = LineNumber( logData_->getNbLine().get() );
+    load.fromStart = decision.fromStart;
+    load.onlyAppended = decision.onlyAppended;
 
     // Settled before any Search runs below, so it matches the Log Lines as
     // they read, and before the users hear of the load. The Encoding detected
@@ -337,49 +330,38 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
 
     // The Search follows the Log Lines loaded: it continues over the ones
     // added, or starts again over a Log File truncated under it.
-    if ( autoRefresh_.isAutoRefreshAllowed() ) {
+    switch ( decision.searchRefresh ) {
+    case LoadRule::SearchRefresh::None:
+        break;
+    case LoadRule::SearchRefresh::Continue:
         searchEndLine_ = nbLines;
-        if ( autoRefresh_.isFileTruncated() ) {
-            restartSearch();
-            load.searchRestarted = true;
-        }
-        else {
-            // Same pattern and start, a larger end: the Search Session
-            // continues the run rather than starting over.
-            filteredData_->request( filteredData_->searchState().pattern, searchStartLine_,
-                                    searchEndLine_ );
-        }
+        // Same pattern and start, a larger end: the Search Session continues
+        // the run rather than starting over.
+        filteredData_->request( filteredData_->searchState().pattern, searchStartLine_,
+                                searchEndLine_ );
+        break;
+    case LoadRule::SearchRefresh::Restart:
+        searchEndLine_ = nbLines;
+        restartSearch();
+        load.searchRestarted = true;
+        break;
     }
 
     // A finished load makes the Search Limits the whole Log File again.
     searchStartLine_ = 0_lnum;
     searchEndLine_ = nbLines;
 
-    if ( !firstLoadDone_ ) {
-        firstLoadDone_ = true;
-        for ( const auto& mark : savedMarks_ ) {
-            filteredData_->addMark( mark );
-        }
-        // Applied once: a reload clears the Marks, and they stay cleared.
-        savedMarks_.clear();
+    for ( const auto& mark : decision.savedMarksToApply ) {
+        filteredData_->addMark( mark );
     }
 
-    loadFinishedOnce_ = true;
-    if ( std::exchange( searchWaitsForLoad_, false ) ) {
+    if ( decision.runWaitingSearch ) {
         // The Search requested while the Log File loaded runs over the whole
-        // of it now; a Log File that did not load has nothing to search.
-        if ( status == LoadingStatus::Successful ) {
-            requestSearch( searchPattern_ );
-        }
-        else {
-            searchRequested_ = false;
-        }
+        // of it now.
+        requestSearch( searchPattern_ );
     }
 
-    // A Log File with no Log Lines yet has nothing to recognize from, so it
-    // waits for a load that brings some.
-    if ( formatRecognitionPending_ && nbLines.get() > 0 ) {
-        formatRecognitionPending_ = false;
+    if ( decision.recognizeFormat ) {
         load.formatRecognized = recognizeFormat();
     }
 
@@ -402,32 +384,28 @@ void OpenLogFile::handleChangeOnDisk( const QString& fileName )
 
 void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& failure )
 {
-    switch ( status ) {
-    case MonitoredFileStatus::Truncated:
-        truncatedSinceLoad_ = true;
-        // Marks do not survive a truncation.
+    const auto decision = loadRule_.changedOnDisk( status );
+
+    if ( decision.clearMarks ) {
         filteredData_->clearMarks();
-        if ( searchRequested_ ) {
-            // The Search's results and its cache no longer describe the Log
-            // File.
-            constexpr auto DropCache = true;
-            filteredData_->request( DropCache );
-            autoRefresh_.truncateFile();
-        }
-
-        // Forgotten, so it is recognized again once the truncated Log File
-        // has loaded.
+    }
+    if ( decision.dropSearch ) {
+        // The Search's results and its cache no longer describe the Log File;
+        // whether it continues or starts again stays with the auto-refresh.
+        constexpr auto DropCache = true;
+        filteredData_->request( DropCache );
+        autoRefresh_.truncateFile();
+    }
+    if ( decision.forgetLogFormat ) {
         logFormat_.reset();
-        formatRecognitionPending_ = true;
+    }
 
+    switch ( decision.report ) {
+    case LoadRule::Change::Grew:
+        Q_EMIT grew( failure );
+        break;
+    case LoadRule::Change::Truncated:
         Q_EMIT truncated( failure );
-        break;
-    case MonitoredFileStatus::DataAdded:
-        grewSinceLoad_ = true;
-        Q_EMIT grew( failure );
-        break;
-    case MonitoredFileStatus::Unchanged:
-        Q_EMIT grew( failure );
         break;
     }
 }

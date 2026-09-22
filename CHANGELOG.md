@@ -226,6 +226,15 @@
 
 ## Bug fixes
 
+- **A reload is not lost to a change on disk**: A reload asked for while the
+  Log File was still being indexed or checked waited in a slot the next change
+  on disk overwrote with a check, and when that check found nothing changed in
+  what the Index covers, the reload never ran -- a rewrite in place went
+  unseen, and an Encoding chosen meanwhile was dropped. The log data now
+  decides which of two index jobs waits by one rule, strongest first: Attach,
+  explicit reload, automatic full reindex, check, partial reindex; an Attach
+  takes the Encoding a reload forces. The "truncated" state the log data kept
+  so a truncation would not be lost the same way is gone (#395).
 - **File watch polling stops stalling the UI**: The poll tick now runs on a
   thread of its own and stats each watched file with no lock held, instead of
   holding the file watcher's lock across every `QFileInfo` stat on the thread
@@ -607,6 +616,23 @@
   length function they are handed. The separate Mark length structure the log
   filtered data kept in step by hand in every Mark operation is gone; the
   Filtered View is as wide as before (#401).
+- **Index jobs as values**: The log data hands its worker one index job as a
+  value -- Attach, Full, Partial or Check, the `IndexJob` variant the job
+  rule already decides over -- and the worker runs it with `run()`. The four
+  job classes that only called the worker method of the same name are gone,
+  and the worker's finished notifications reach the log data without slots
+  that only sent them again. Behaviour is unchanged (#397).
+- **The Load Rule**: What a load, a change on disk and a reload mean for an
+  Open Log File -- only Log Lines added, the Marks cleared, the Log Format
+  recognized again, the Marks saved with the Session applied, a Search
+  waiting for the first load run -- is decided by one Qt-free class,
+  `LoadRule`, which holds every flag the Open Log File kept for it and asks
+  the Search's auto-refresh whether a Search continues or starts again. The
+  Open Log File carries out its decisions; behaviour is unchanged, and two
+  oddities are kept as commented table rows: a check that finds the Log File
+  unchanged reports it grew, and a load with no Log Lines leaves Format
+  Recognition to the next one. Table tests cover the sequences without a Log
+  File, a thread or an event loop (#396).
 - **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
   `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
   (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on

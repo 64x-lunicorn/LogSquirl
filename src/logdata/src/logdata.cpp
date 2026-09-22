@@ -177,8 +177,7 @@ void LogData::attachFile( const QString& fileName )
     attached_file_.reset( new FileHolder( fileAccessPolicy_.keepFileClosed ) );
     attached_file_->open( indexingFileName_ );
 
-    operationQueue_.enqueueOperation<AttachOperation>( fileName,
-                                                       fileAccessPolicy_.defaultEncodingMib );
+    operationQueue_.enqueueOperation( AttachJob{ fileName, fileAccessPolicy_.defaultEncodingMib } );
 }
 
 void LogData::interruptLoading()
@@ -219,8 +218,8 @@ void LogData::reload( QTextCodec* forcedEncoding )
 
     // The user asked for the Log File to be read again, so a cached Index is
     // taken only while every byte it was built from is still the same (#337).
-    operationQueue_.enqueueOperation<FullReindexOperation>( FullIndexRequest::ExplicitReload,
-                                                            forcedEncoding );
+    operationQueue_.enqueueOperation(
+        FullReindexJob{ FullIndexRequest::ExplicitReload, forcedEncoding } );
 }
 
 void LogData::fileChangedOnDisk( const QString& filename )
@@ -269,7 +268,7 @@ void LogData::fileChangedOnDisk( const QString& filename )
         attached_file_->reOpenFile();
     }
 
-    operationQueue_.enqueueOperation<CheckDataChangesOperation>();
+    operationQueue_.enqueueOperation( CheckForChangesJob{} );
 }
 
 void LogData::indexingFinished( LoadingStatus status, const QString& failure )
@@ -288,9 +287,9 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
             lastModifiedDate_ = fileInfo.lastModified();
     }
 
-    // Only the last Log Line indexed before data was added can have changed
-    // then; otherwise any of them can have.
-    if ( fileChangedOnDisk_ == MonitoredFileStatus::DataAdded ) {
+    // After a Partial only the last Log Line indexed before data was added
+    // can have changed; after an Attach or a Full any of them can have.
+    if ( operationQueue_.isPartialReindexRunning() ) {
         logLinesChanged( nbLinesBeforeDataAdded_.get() > 0
                              ? LineNumber( nbLinesBeforeDataAdded_.get() - 1 )
                              : 0_lnum );
@@ -298,8 +297,6 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
     else {
         logLinesChanged();
     }
-
-    fileChangedOnDisk_ = MonitoredFileStatus::Unchanged;
 
     LOG_DEBUG << "Sending indexingFinished.";
     Q_EMIT loadingFinished( status, failure );
@@ -313,29 +310,23 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
 
     LOG_INFO << "File " << indexingFileName_ << " status " << static_cast<uint8_t>( status );
 
-    if ( fileChangedOnDisk_ != MonitoredFileStatus::Truncated ) {
-        switch ( status ) {
-        case MonitoredFileStatus::Truncated:
-            fileChangedOnDisk_ = MonitoredFileStatus::Truncated;
-            operationQueue_.enqueueOperation<FullReindexOperation>();
-            break;
-        case MonitoredFileStatus::DataAdded:
-            fileChangedOnDisk_ = MonitoredFileStatus::DataAdded;
-            nbLinesBeforeDataAdded_ = doGetNbLine();
-            operationQueue_.enqueueOperation<PartialReindexOperation>();
-            break;
-        case MonitoredFileStatus::Unchanged:
-            fileChangedOnDisk_ = MonitoredFileStatus::Unchanged;
-            break;
-        }
-    }
-    else {
-        operationQueue_.enqueueOperation<FullReindexOperation>();
+    // What is queued meets the index job already waiting, if any, under the
+    // job rule: a Full it queues is not lost to a later Check, and a Partial
+    // waits behind a Check that could still find a truncation.
+    switch ( status ) {
+    case MonitoredFileStatus::Truncated:
+        operationQueue_.enqueueOperation( FullReindexJob{} );
+        break;
+    case MonitoredFileStatus::DataAdded:
+        nbLinesBeforeDataAdded_ = doGetNbLine();
+        operationQueue_.enqueueOperation( PartialReindexJob{} );
+        break;
+    case MonitoredFileStatus::Unchanged:
+        break;
     }
 
-    if ( status != MonitoredFileStatus::Unchanged
-         || fileChangedOnDisk_ == MonitoredFileStatus::Truncated ) {
-        Q_EMIT fileChanged( fileChangedOnDisk_, failure );
+    if ( status != MonitoredFileStatus::Unchanged ) {
+        Q_EMIT fileChanged( status, failure );
     }
 
     operationQueue_.finishOperationAndStartNext();
