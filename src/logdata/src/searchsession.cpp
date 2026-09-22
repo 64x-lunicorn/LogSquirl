@@ -23,6 +23,7 @@
 #include <utility>
 
 #include "log.h"
+#include "logdatametatypes.h"
 #include "regularexpression.h"
 #include "searchblocksource.h"
 
@@ -32,6 +33,9 @@ SearchSession::SearchSession( const SearchBlockSource& blockSource,
     , searchPolicy_( searchPolicy )
     , workerThread_( blockSource, searchPolicy )
 {
+    // A Search can be run without any log data, on a block source of its own.
+    registerLogDataMetaTypes();
+
     connect( &workerThread_, &LogFilteredDataWorker::searchProgressed, this,
              &SearchSession::handleSearchProgressed );
     connect( &workerThread_, &LogFilteredDataWorker::searchFinished, this,

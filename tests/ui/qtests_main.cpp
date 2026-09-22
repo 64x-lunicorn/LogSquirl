@@ -21,15 +21,11 @@
 #include <catch2/catch.hpp>
 
 #include <QApplication>
-#include <QMetaType>
 #include <QtConcurrent>
 
 #include <configuration.h>
 #include <highlighterset.h>
-#include <linetypes.h>
-#include <logfiltereddataworker.h>
 #include <persistentinfo.h>
-#include <searchsession.h>
 
 #include <logger.h>
 
@@ -83,12 +79,6 @@ int main( int argc, char* argv[] )
     QApplication a( argc, argv );
 
     logging::enableLogging();
-
-    qRegisterMetaType<LinesCount>( "LinesCount" );
-    qRegisterMetaType<LineNumber>( "LineNumber" );
-    qRegisterMetaType<LineLength>( "LineLength" );
-    qRegisterMetaType<SearchId>( "SearchId" );
-    qRegisterMetaType<SearchSession::State>( "SearchSession::State" );
 
     auto& config = Configuration::getSynced();
     config.setSearchReadBufferSizeLines( 10 );

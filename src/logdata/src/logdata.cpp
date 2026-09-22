@@ -61,6 +61,7 @@
 #include "sparselineread.h"
 
 #include "logdata.h"
+#include "logdatametatypes.h"
 
 namespace {
 
@@ -104,6 +105,8 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     , codec_( QTextCodec::codecForName( "ISO-8859-1" ) )
     , decodingPolicy_( decodingPolicy )
 {
+    registerLogDataMetaTypes();
+
     auto worker = std::make_unique<LogDataWorker>( indexing_data_, indexingPolicy_ );
 
     // Forward the update signal

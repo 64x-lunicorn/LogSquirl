@@ -100,14 +100,6 @@ int main( int argc, char* argv[] )
 #ifdef LOGSQUIRL_USE_MIMALLOC
     mi_stats_reset();
 #endif
-    // The types the engine's signals carry across threads, as the desktop
-    // application registers them.
-    qRegisterMetaType<LoadingStatus>( "LoadingStatus" );
-    qRegisterMetaType<LinesCount>( "LinesCount" );
-    qRegisterMetaType<LineNumber>( "LineNumber" );
-    qRegisterMetaType<SearchId>( "SearchId" );
-    qRegisterMetaType<SearchSession::State>( "SearchSession::State" );
-
     QCoreApplication app( argc, argv );
     CliParameters parameters( app, true );
 
