@@ -598,6 +598,18 @@
 
 ## Internal
 
+- **The Search Line is a model without widgets**: How adding a word to the
+  Search, excluding one, replacing the Search or combining Predefined Filters
+  edits the pattern, that excluding switches the logical combination on, and
+  what the line says about the Search that runs (progress with its plural and
+  gauge, the Matches found, a truncated Log File, an error in the expression,
+  the Search / Stop / Clear buttons) moved out of the Crawler Widget into
+  `SearchLine`, in a library of its own that the
+  `searchline_no_qt_widgets` check keeps free of Qt Widgets. The Crawler
+  Widget hands it every event and mirrors its flags, pattern and display;
+  the search history, the Theme's palettes and refreshing the views stay in
+  the widget. Its texts keep the `CrawlerWidget` translation context, so the
+  translations still match. Table tests cover it without a widget (#399).
 - **A TSan baseline**: `cmake/tsan.supp` suppresses the findings a
   `-DENABLE_SANITIZER_THREAD=ON` build reports in code TSan cannot instrument
   (oneTBB's flow graph, and a `QThreadPoolThread::run()` finding on

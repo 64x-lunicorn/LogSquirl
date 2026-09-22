@@ -2921,3 +2921,41 @@ SCENARIO( "A word with quotes added to a Search keeps its pattern valid", "[ui][
         }
     }
 }
+
+// The Search Line holds the pattern the Search runs with; the line starts
+// with the latest Search of the history in it (#399).
+SCENARIO( "A Search started without typing runs the pattern the Search line shows", "[ui][search]" )
+{
+    QTemporaryFile file{ "crawler_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    session.savedSearches().clear();
+    session.savedSearches().addRecent( "10" );
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.isLoadingFinished()
+               && crawlerVisitor.getLogNbLines().get() == SL_NB_LINES;
+    } ) );
+
+    GIVEN( "a Search history whose latest Search is 10" )
+    {
+        REQUIRE( crawlerVisitor.searchText() == "10" );
+
+        WHEN( "the Search is started" )
+        {
+            crawlerVisitor.runSearch();
+
+            THEN( "it runs for 10" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ]() { return crawlerVisitor.getLogFilteredNbLines().get() == 1; } ) );
+            }
+        }
+    }
+
+    session.savedSearches().clear();
+}
