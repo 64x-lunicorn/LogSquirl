@@ -828,3 +828,103 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run deploy-website.yml --repo "$GITHUB_REPOSITORY" --ref master
+
+  # ── Job 9: Update the Homebrew cask ────────────────────────────────────
+  # The app does not update itself, so `brew upgrade` is how cask users get a
+  # release, and a cask left behind leaves their installs behind (#378).
+  # Stable releases only: a beta in the cask would reach every cask user. It
+  # runs after publishing, so a failing tap update shows red without holding
+  # the release back. The only job with the tap's deploy key, a secret of the
+  # `release` environment that can write to 64x-lunicorn/homebrew-tap and
+  # nothing else; BUILD.md ("Homebrew tap") documents the tap.
+  update-homebrew:
+    # macOS, because the cask is installed before it is pushed: the audit
+    # checks URL and hash, not that the DMG holds the app the cask names.
+    runs-on: macos-26
+    needs: [prepare, release]
+    # always(): without it the implicit success() also requires every job
+    # release waited for, so a failed sentry job (which does not hold the
+    # release back, #228) would leave the cask behind.
+    if: >-
+      always() && needs.release.result == 'success'
+      && needs.prepare.outputs.is_prerelease != 'true'
+    environment: release
+    # Audit, install and uninstall on macOS; no run history yet (#218).
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      HOMEBREW_NO_ANALYTICS: 1
+      HOMEBREW_NO_AUTO_UPDATE: 1
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
+    steps:
+      # The update script of the tagged commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The tap, with the deploy key kept for the push at the end. The job
+      # uploads no artifact that could leak it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: 64x-lunicorn/homebrew-tap
+          path: tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          persist-credentials: true # zizmor: ignore[artipacked]
+
+      # The checksum file lists the signed DMG, as published. The script leaves
+      # the cask as it is when it already has this release and hash, or a newer
+      # release: a re-run never pushes, an older release never downgrades.
+      - name: Set the cask to the release
+        id: cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'logsquirl-*-sha256.txt' --dir "$RUNNER_TEMP/checksums"
+          .github/scripts/release-cask.py update --cask tap/Casks/logsquirl.rb --tag "$TAG" \
+            --checksums "$RUNNER_TEMP"/checksums/logsquirl-*-sha256.txt
+          if git -C tap diff --quiet; then
+            echo "::notice::The cask already has ${TAG#v} or a newer release; nothing to push."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Committed before the check, so brew taps exactly the commit that is
+      # pushed. The app is installed and removed again, never launched.
+      - name: Check the cask installs the release
+        if: steps.cask.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          git -C tap config user.name "github-actions[bot]"
+          git -C tap config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C tap commit --quiet -m "logsquirl ${VERSION}" -- Casks/logsquirl.rb
+
+          brew tap 64x-lunicorn/tap "$GITHUB_WORKSPACE/tap"
+          brew audit --cask --strict --online 64x-lunicorn/tap/logsquirl
+          brew install --cask 64x-lunicorn/tap/logsquirl
+          installed=$(defaults read /Applications/logsquirl.app/Contents/Info.plist CFBundleVersion)
+          if [ "$installed" != "$VERSION" ]; then
+            echo "::error::The cask installed logsquirl.app ${installed}, not ${VERSION}."
+            exit 1
+          fi
+          brew uninstall --cask 64x-lunicorn/tap/logsquirl
+          if [ -e /Applications/logsquirl.app ]; then
+            echo "::error::brew uninstall left /Applications/logsquirl.app behind."
+            exit 1
+          fi
+
+      - name: Push the cask to the tap
+        if: steps.cask.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git -C tap push origin HEAD
+          {
+            echo "### Homebrew cask set to ${TAG#v}"
+            echo
+            echo "\`brew upgrade --cask logsquirl\` now offers ${TAG#v}: [Casks/logsquirl.rb](https://github.com/64x-lunicorn/homebrew-tap/blob/main/Casks/logsquirl.rb)."
+          } >> "$GITHUB_STEP_SUMMARY"
