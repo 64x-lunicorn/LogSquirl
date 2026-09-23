@@ -261,7 +261,22 @@ logsquirl_compiled_targets("${CMAKE_SOURCE_DIR}/3rdparty" _third_party_targets)
 set(_third_party_entries "")
 foreach(_target IN LISTS _third_party_targets)
   logsquirl_built_quietly(${_target} _quiet)
-  list(APPEND _third_party_entries "${_target}=${_quiet}")
+  # A target that is not quiet says what it is carrying. Without that the
+  # report names a target and leaves whoever reads it to guess which of the
+  # shapes a warning level arrives in this one used. The separators the entries
+  # are joined with are spelled out of the way first.
+  set(_name "${_target}")
+  if(NOT _quiet)
+    get_target_property(_target_options ${_target} COMPILE_OPTIONS)
+    if(NOT _target_options)
+      set(_target_options "(none)")
+    endif()
+    string(REPLACE ";" " " _target_options "${_target_options}")
+    string(REPLACE "=" "~" _target_options "${_target_options}")
+    string(REPLACE "|" "!" _target_options "${_target_options}")
+    set(_name "${_target} [${_target_options}]")
+  endif()
+  list(APPEND _third_party_entries "${_name}=${_quiet}")
 endforeach()
 list(JOIN _third_party_entries "|" _third_party_entries)
 set(_project_quiet_entries "")
