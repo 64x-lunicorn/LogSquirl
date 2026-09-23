@@ -57,10 +57,13 @@ set(LOGSQUIRL_UI_SOURCES
 
 set(LOGSQUIRL_GREP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl_grep.cpp)
 
+# Only what the application does not already get from logsquirl_ui. That
+# library passes logsquirl_logdata and logsquirl_crash_handler on PUBLIC, and
+# the log data library passes roaring on PUBLIC; naming those three here as
+# well put each archive on the link line twice, and Apple's linker warns about
+# a duplicate library since Xcode 15 (#450). kdsingleapp arrives nowhere else:
+# LogSquirlApp keeps the single-instance guard.
 set(MAIN_LIBS
-    logsquirl_logdata
-    logsquirl_crash_handler
-    roaring
     kdsingleapp
 )
 
@@ -91,9 +94,13 @@ set_target_properties(logsquirl_grep PROPERTIES AUTOMOC ON)
 # engine is handed its port and does not link it (#249).
 target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
 target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
-# main.cpp caps TBB's concurrency itself (#168).
-target_link_libraries(logsquirl PRIVATE tbb)
-target_link_libraries(logsquirl_portable PRIVATE tbb)
+# main.cpp caps TBB's concurrency itself (#168), so the dependency stays here.
+# The TBB library itself already arrives through logsquirl_ui, which links it
+# privately and hands it on as $<LINK_ONLY:tbb>; naming tbb here too put the
+# archive on the link line twice (#450). logsquirl_tbb_headers carries TBB's
+# include directory and compile definitions without its library.
+target_link_libraries(logsquirl PRIVATE logsquirl_tbb_headers)
+target_link_libraries(logsquirl_portable PRIVATE logsquirl_tbb_headers)
 # logsquirl_grep derives the Policies itself (there is no LogSquirlApp
 # here), so unlike the log data library it does link the settings library.
 # It reports a failure the engine reports by printing it, and so does not

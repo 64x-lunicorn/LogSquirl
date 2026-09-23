@@ -68,7 +68,13 @@ add_executable(logsquirl_tests
     tests_main.cpp
 )
 
-target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_highlighting logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings Catch2 Qt6::Test test_utils)
+# logsquirl_ui passes every library the test cases use on PUBLIC: the
+# highlighting, plugin and Log Format libraries directly, the utils library
+# through the log data one, the logging library through the utils one and the
+# settings library through the update check. Naming them here as well put four
+# of the archives on the link line twice, and Apple's linker warns about a
+# duplicate library since Xcode 15 (#450).
+target_link_libraries(logsquirl_tests logsquirl_ui Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 # The Options Dialog test needs the dialog's generated form header, and the

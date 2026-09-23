@@ -589,6 +589,20 @@ endif()
 
 set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_TBB})
 
+# TBB's usage requirements without its library. A target whose own sources
+# include a TBB header, but that already gets the TBB library itself through
+# another library it links, uses this instead of tbb: naming tbb again would
+# put the archive on the link line a second time, which Apple's linker warns
+# about since Xcode 15 (#450). $<COMPILE_ONLY:tbb> would say the same in one
+# line but needs CMake 3.27, and the project requires 3.16.
+add_library(logsquirl_tbb_headers INTERFACE)
+target_include_directories(
+  logsquirl_tbb_headers SYSTEM INTERFACE "$<TARGET_PROPERTY:tbb,INTERFACE_INCLUDE_DIRECTORIES>"
+)
+target_compile_definitions(
+  logsquirl_tbb_headers INTERFACE "$<TARGET_PROPERTY:tbb,INTERFACE_COMPILE_DEFINITIONS>"
+)
+
 set(CPM_USE_LOCAL_PACKAGES OFF)
 # Windows has no build-time equivalent of Linux's ELF symbol interposition
 # (see CMakeLists.txt for why, and for why macOS's own dynamic-library
