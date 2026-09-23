@@ -33,7 +33,7 @@ if(_offenders)
   message(
     FATAL_ERROR
       "These targets compile LogSquirl's own code without the project's warnings:\n  ${_report}\n"
-      "Link project_options and project_warnings on them, as every other library and executable does."
+      "Link project_warnings on them -- with project_options, as every other library and executable does."
   )
 endif()
 

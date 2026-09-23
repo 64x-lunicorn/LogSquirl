@@ -670,8 +670,11 @@ another tool. Everything else goes to standard error: the log messages, and
 the reason a log file could not be loaded or a pattern was not a valid regular
 expression, prefixed with `logsquirl_grep:`.
 
-On Linux and Windows the tool is installed beside *logsquirl*, so it is found
-wherever *logsquirl* is. On macOS it is a helper inside the application bundle:
+In the deb, the rpm and the Windows packages the tool is installed beside
+*logsquirl*, so it is found wherever *logsquirl* is. On macOS it is a helper
+inside the application bundle, and in the AppImage it sits in the image's own
+`usr/bin`, which a shell only sees once the image is extracted
+(`LogSquirl.AppImage --appimage-extract`):
 
 |Platform|Command                                                                       |
 |--------|------------------------------------------------------------------------------|
@@ -685,7 +688,7 @@ To call it by name on macOS, link it into a directory on the `PATH`:
 ln -s /Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep /usr/local/bin/logsquirl_grep
 ```
 
-The pattern is the regular expression the search field of *logsquirl* takes,
+The pattern is the regular expression the Search Line of *logsquirl* takes,
 and the file to search is passed as an argument:
 
 |Switch             |Actions                                                   |
@@ -693,7 +696,7 @@ and the file to search is passed as an argument:
 |-h, --help         |print help message and exit                               |
 |-v, --version      |print version information                                 |
 |-e, --pattern      |pattern to search for                                     |
-|-d, --debug        |output more debug (include multiple times for more verbosity e.g. -dddd) |
+|-d, --debug <level>|output more debug, a higher level is more verbose (default 0)|
 
 A search that matched nothing is not a failure: the tool exits with 0 and
 prints nothing. It exits with a non-zero code when no log file was passed, the
@@ -702,4 +705,4 @@ expression.
 
 *logsquirl_grep* is always portable: it reads its settings from a
 `logsquirl.conf` beside its own executable and not from the application's, and
-honours a default Encoding pinned there over the one it detects.
+honors a default Encoding pinned there over the one it detects.

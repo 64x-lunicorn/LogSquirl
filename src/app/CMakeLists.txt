@@ -76,8 +76,10 @@ add_dependencies(ci_build logsquirl logsquirl_grep)
 # The command line tool ships with the application (install() below), so
 # whatever builds the application builds it too: a packaging recipe that names
 # the `logsquirl` target -- packaging/linux/arch/PKGBUILD does -- would
-# otherwise install a file the build never produced (#430).
+# otherwise install a file the build never produced (#430). The portable build
+# ships it as well, in the portable zip and through the scoop manifest.
 add_dependencies(logsquirl logsquirl_grep)
+add_dependencies(logsquirl_portable logsquirl_grep)
 
 if(WIN32)
   add_dependencies(ci_build logsquirl_portable)

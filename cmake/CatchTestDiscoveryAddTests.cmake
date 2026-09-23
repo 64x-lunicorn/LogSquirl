@@ -2,8 +2,8 @@
 # Catch2 executable and registers each as its own test (#217). The variables
 # come from the file logsquirl_add_catch_tests() generated.
 
-# ctest reads this with `cmake -P`, so no policy of the project reaches it and it
-# has to set the two it relies on itself (#453):
+# ctest includes this from a `cmake -P` process of its own, so no policy of the
+# project reaches it and it has to set the two it relies on itself (#453):
 #
 #   CMP0007 -- `list()` keeps the empty elements of the listing instead of
 #   dropping them silently. The empty lines are removed below by the filter that

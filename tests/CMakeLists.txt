@@ -136,45 +136,55 @@ add_test(
 # graph: walk it here and hand the check one TRUE or FALSE per target. Only
 # the project's own directories are walked; the 3rdparty libraries CPM brings
 # in are not ours to keep warning-clean.
-function(logsquirl_reaches_project_warnings target out_var)
-  set(_seen "")
-  set(_pending "${target}")
-  while(_pending)
-    list(POP_FRONT _pending _current)
-    if(_current IN_LIST _seen)
+# The link libraries of one target along which the project's warnings can
+# travel. own_private is TRUE for the target the question is about: its own
+# PRIVATE dependencies compile its sources too. Further out, only what a
+# library hands on counts, which is its INTERFACE_LINK_LIBRARIES without the
+# entries wrapped in $<LINK_ONLY:...> -- those name a library to link and pass
+# on none of its usage requirements, warnings included.
+function(logsquirl_warning_edges target own_private out_var)
+  set(_properties INTERFACE_LINK_LIBRARIES)
+  # An INTERFACE library has no LINK_LIBRARIES, and CMake before 3.19 refuses
+  # to be asked for one.
+  get_target_property(_type ${target} TYPE)
+  if(own_private AND NOT _type STREQUAL "INTERFACE_LIBRARY")
+    list(APPEND _properties LINK_LIBRARIES)
+  endif()
+  set(_edges "")
+  foreach(_property IN LISTS _properties)
+    get_target_property(_libs ${target} ${_property})
+    if(NOT _libs)
       continue()
     endif()
-    list(APPEND _seen "${_current}")
+    foreach(_lib IN LISTS _libs)
+      if(_lib MATCHES "^\\$<" OR NOT TARGET "${_lib}")
+        continue()
+      endif()
+      get_target_property(_aliased ${_lib} ALIASED_TARGET)
+      if(_aliased)
+        set(_lib "${_aliased}")
+      endif()
+      list(APPEND _edges "${_lib}")
+    endforeach()
+  endforeach()
+  set(${out_var} "${_edges}" PARENT_SCOPE)
+endfunction()
+
+function(logsquirl_reaches_project_warnings target out_var)
+  set(_seen "${target}")
+  logsquirl_warning_edges("${target}" TRUE _pending)
+  while(_pending)
+    list(POP_FRONT _pending _current)
     if(_current STREQUAL "project_warnings")
       set(${out_var} TRUE PARENT_SCOPE)
       return()
     endif()
-    # An INTERFACE library has no LINK_LIBRARIES, and CMake before 3.19 refuses
-    # to be asked for one.
-    get_target_property(_type ${_current} TYPE)
-    set(_properties INTERFACE_LINK_LIBRARIES)
-    if(NOT _type STREQUAL "INTERFACE_LIBRARY")
-      list(APPEND _properties LINK_LIBRARIES)
+    if(_current IN_LIST _seen)
+      continue()
     endif()
-    foreach(_property IN LISTS _properties)
-      get_target_property(_libs ${_current} ${_property})
-      if(NOT _libs)
-        continue()
-      endif()
-      foreach(_lib IN LISTS _libs)
-        # A private dependency of a static library is handed on wrapped in
-        # $<LINK_ONLY:...>; it still carries the warnings of what it links.
-        string(REGEX REPLACE "^\\$<LINK_ONLY:(.*)>$" "\\1" _lib "${_lib}")
-        if(_lib MATCHES "^\\$<" OR NOT TARGET "${_lib}")
-          continue()
-        endif()
-        get_target_property(_aliased ${_lib} ALIASED_TARGET)
-        if(_aliased)
-          set(_lib "${_aliased}")
-        endif()
-        list(APPEND _pending "${_lib}")
-      endforeach()
-    endforeach()
+    list(APPEND _seen "${_current}")
+    logsquirl_warning_edges("${_current}" FALSE _edges)
+    list(APPEND _pending ${_edges})
   endwhile()
   set(${out_var} FALSE PARENT_SCOPE)
 endfunction()
