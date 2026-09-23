@@ -22,6 +22,7 @@
 #include "logformatcatalog.h"
 
 #include <QDir>
+#include <QRegularExpression>
 #include <QTemporaryDir>
 
 // Helper to write a format JSON file into a directory
@@ -310,6 +311,35 @@ SCENARIO( "The Log Format Catalog is built from the built-in and the user's Log 
                 const auto syslog = catalog.formatByName( "syslog_log" );
                 REQUIRE( syslog != nullptr );
                 REQUIRE( syslog->title() != "My Custom Syslog" );
+            }
+        }
+    }
+}
+
+SCENARIO( "Every built-in format can be recognized", "[logformat][catalog]" )
+{
+    GIVEN( "the built-in formats loaded the way the application loads them" )
+    {
+        LogFormatCatalog catalog;
+        catalog.loadBuiltinFormats();
+
+        REQUIRE( catalog.formatCount() > 0 );
+
+        THEN( "each one has at least one valid regex pattern" )
+        {
+            for ( const auto& name : catalog.formatNames() ) {
+                const auto format = catalog.formatByName( name );
+                REQUIRE( format != nullptr );
+
+                int validPatterns = 0;
+                const auto& patterns = format->regexPatterns();
+                for ( auto it = patterns.cbegin(); it != patterns.cend(); ++it ) {
+                    if ( QRegularExpression( it.value() ).isValid() ) {
+                        ++validPatterns;
+                    }
+                }
+                INFO( "Built-in format without a valid regex pattern: " << name.toStdString() );
+                CHECK( validPatterns > 0 );
             }
         }
     }

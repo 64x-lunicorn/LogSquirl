@@ -263,7 +263,7 @@ or more formats with:
 - **Level mapping** — maps format-specific level strings to standard
   severity levels.
 
-*logsquirl* ships with 24 built-in format definitions. Additional user-defined
+*logsquirl* ships with 22 built-in format definitions. Additional user-defined
 formats can be placed in the platform data directory:
 
 | Platform  | Path                                                     |
