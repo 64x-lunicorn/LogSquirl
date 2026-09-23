@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **Go to timestamp**: `Edit->Go to timestamp...` (`Ctrl+Shift+L`) jumps to the
+  first line at or after a time, such as `14:02` or `2026-09-23 14:02:30`,
+  instead of a line number. It works for Log Files with a recognized Log
+  Format that has a timestamp field, finds the line in milliseconds even in a
+  file of ten million lines, and says why it is disabled otherwise. Log
+  Formats can now declare `timestamp-divisor` for epoch timestamps (#435).
 - **Ubuntu users install and update LogSquirl with apt**: After every stable
   release, a signed APT repository at `https://packages.lunicorn-lab.de` is
   rebuilt with the `.deb` of the last three stable releases, exactly as

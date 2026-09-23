@@ -101,6 +101,13 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
         def.setTimestampFormats( formats );
     }
 
+    if ( obj.contains( "timestamp-divisor" ) ) {
+        const auto divisor = obj.value( "timestamp-divisor" ).toDouble( 1.0 );
+        if ( divisor > 0.0 ) {
+            def.setTimestampDivisor( divisor );
+        }
+    }
+
     // Parse level mappings
     if ( obj.contains( "level" ) && obj.value( "level" ).isObject() ) {
         QHash<QString, QString> levels;

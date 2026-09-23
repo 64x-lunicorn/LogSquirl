@@ -62,6 +62,8 @@ add_executable(logsquirl_tests
     tabbarstyle_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
+    timelookup_test.cpp
+    timestampreader_test.cpp
     viewportlayout_test.cpp
     viewset_test.cpp
     viewstatecodec_test.cpp

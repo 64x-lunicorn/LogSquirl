@@ -78,6 +78,7 @@
 
 #include "logformatdefinition.h"
 #include "settingspolicies.h"
+#include "timestampreader.h"
 
 class LogFormatCatalog;
 class LogTableView;
@@ -126,6 +127,10 @@ public:
     // Returns whether follow is enabled in this crawler
     bool isFollowEnabled() const;
 
+    // Why "Go to timestamp" is not available for this Log File, empty when it
+    // is: it needs a recognized Log Format with a timestamp field.
+    QString goToTimestampUnavailableReason() const;
+
     bool isTextWrapEnabled() const;
 
     // The Policies this Log File's views show and search under, as last
@@ -152,6 +157,8 @@ public Q_SLOTS:
 
     void focusSearchEdit();
     void goToLine();
+    // Asks for a time and goes to the first Log Line at or after it.
+    void goToTimestamp();
 
     // Takes what a tab brought to the front shows afresh -- the Search
     // history, which another tab may have added to, and the status of its
@@ -505,6 +512,9 @@ private:
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
+    // Reads the Timestamps of Log Lines for "Go to timestamp"; built when it
+    // is first used, so opening a Log File does not pay for it.
+    mutable std::unique_ptr<TimestampReader> timestampReader_;
 
     // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;
