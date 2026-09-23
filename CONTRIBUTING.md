@@ -129,6 +129,23 @@ release-preparation check does not object: it only runs on a pull request that c
 project version, which an ordinary one does not, so the `no-changelog` label is not needed
 for this (#338).
 
+## Translations
+
+Every `src/app/i18n/<code>.ts` is built into the application and offered in the Options
+Dialog through `src/app/i18n/Languages.xml`. A language is offered only while at least
+95 % of its strings are finished; the `translations_shipped` test fails otherwise and
+reports the share of unfinished strings for every language (#448).
+
+A pull request that adds, rewords or removes user-visible text runs
+
+```bash
+cmake --build <build dir> --target lupdate
+```
+
+and commits the updated `.ts` files. The same test runs lupdate on copies of them and
+fails when the committed files are behind the source. To add a language, add its `.ts`
+and a `Languages.xml` entry; to drop one, remove both.
+
 ## Testing checklist
 
 Every pull request **must** pass all tests before being merged. Run these locally:

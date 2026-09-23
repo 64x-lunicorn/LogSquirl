@@ -20,11 +20,14 @@
 #ifndef LOGSQUIRL_ISSUE_REPORTER_H
 #define LOGSQUIRL_ISSUE_REPORTER_H
 
+#include <QCoreApplication>
 #include <QString>
 
 enum class IssueTemplate { Crash, Exception, Bug };
 
 class IssueReporter {
+    Q_DECLARE_TR_FUNCTIONS( IssueReporter )
+
 public:
     static void askUserAndReportIssue( IssueTemplate issueTemplate,
                                        const QString& information = {} );

@@ -22,10 +22,14 @@
 
 #ifdef LOGSQUIRL_USE_SENTRY
 
+#include <QCoreApplication>
 #include <memory>
 
 class QTimer;
 class CrashHandler {
+    // The crash report dialog is translated in this context (#448).
+    Q_DECLARE_TR_FUNCTIONS( CrashHandler )
+
 public:
     CrashHandler();
     ~CrashHandler();
