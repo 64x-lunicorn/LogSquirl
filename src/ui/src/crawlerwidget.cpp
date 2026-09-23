@@ -62,6 +62,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSettings>
@@ -77,6 +78,7 @@
 #include <type_traits>
 
 #include "regularexpression.h"
+#include "timelookup.h"
 
 #include "crawlerwidget.h"
 
@@ -280,6 +282,85 @@ void CrawlerWidget::goToLine()
             presentation_->showLogLine(
                 std::min( selectedLine, LineNumber( nbLines.get() ) - 1_lcount ) );
         }
+    }
+}
+
+QString CrawlerWidget::goToTimestampUnavailableReason() const
+{
+    if ( !recognizedFormat_ ) {
+        return tr( "Go to timestamp needs a Log Format: none was recognized for this Log File." );
+    }
+    if ( !TimestampReader::isAvailableFor( *recognizedFormat_ ) ) {
+        return tr( "Go to timestamp is not available: the Log Format \"%1\" has no timestamp "
+                   "field." )
+            .arg( recognizedFormat_->title() );
+    }
+    return {};
+}
+
+void CrawlerWidget::goToTimestamp()
+{
+    if ( !goToTimestampUnavailableReason().isEmpty() ) {
+        return;
+    }
+    if ( !timestampReader_ ) {
+        timestampReader_ = std::make_unique<TimestampReader>( *recognizedFormat_ );
+    }
+
+    const auto& logData = *openLogFile_->logData();
+    const auto& reader = *timestampReader_;
+
+    // The date of the Log Line the user is at, for a time typed without one.
+    const auto nearby = timelookup::timestampNear( currentLineNumber_, logData, reader );
+    if ( !nearby ) {
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "No Log Line near the current one has a timestamp." ) );
+        return;
+    }
+
+    const auto text = QInputDialog::getText(
+        this, tr( "Go to timestamp" ),
+        tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
+            "Without a date, %1 is used." )
+            .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) ) );
+    if ( text.trimmed().isEmpty() ) {
+        return;
+    }
+
+    const auto time = timelookup::parseTimeInput( text, nearby->date() );
+    if ( !time ) {
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
+                                      "YYYY-MM-DD HH:MM:SS." )
+                                      .arg( text.trimmed() ) );
+        return;
+    }
+
+    const auto result = timelookup::firstLineAtOrAfter( *time, logData, reader );
+    if ( !result ) {
+        return;
+    }
+
+    filteredView_->trySelectLine( result->line );
+    presentation_->showLogLine( result->line );
+
+    switch ( result->position ) {
+    case timelookup::Position::BeforeFirst:
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "The time is before the first timestamp in the Log File. "
+                                      "Went to the first line." ) );
+        break;
+    case timelookup::Position::AfterLast:
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "The time is after the last timestamp in the Log File. "
+                                      "Went to the last line." ) );
+        break;
+    case timelookup::Position::NoTimestamps:
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "No Log Line has a timestamp this Log Format can read." ) );
+        break;
+    case timelookup::Position::AtOrAfter:
+        break;
     }
 }
 
@@ -2062,6 +2143,7 @@ void CrawlerWidget::showRecognizedFormat()
     // The Table View still points at the previous Log Format until it is
     // handed the new one, so the previous one stays alive until then.
     const auto previousFormat = std::exchange( recognizedFormat_, std::move( recognized ) );
+    timestampReader_.reset();
     logTableView_->setLogFormat( recognizedFormat_.get(), openLogFile_->logData().get() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
@@ -2085,6 +2167,7 @@ void CrawlerWidget::resetLogFormat()
     logTableView_->setLogFormat( nullptr, nullptr );
     showPresentation( false );
     recognizedFormat_.reset();
+    timestampReader_.reset();
 
     // Clear format info from chart panel.
     chartPanel_->setLogFormat( nullptr );

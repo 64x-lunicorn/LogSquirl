@@ -92,6 +92,23 @@ Marks also appear as blue lines in the match overview.
 
 It is possible to quickly jump to a specific line using `Ctrl+L` shortcut.
 
+#### Go to timestamp
+
+`Edit->Go to timestamp...` (`Ctrl+Shift+L`, configurable) jumps to a point in
+time instead of a line number. Type a time such as `14:02` or `14:02:30.250`,
+optionally after a date (`2026-09-23 14:02`); without a date, the date of the
+line you are at is used. The view goes to the first line whose timestamp is at
+or after that time. If the time is before the first or after the last
+timestamp, it goes to the first or last line and tells you so.
+
+The action needs a Log File with a recognized Log Format that has a timestamp
+field (see [Auto Log Format Detection](#auto-log-format-detection-table-view));
+otherwise it is disabled and its tooltip says why. Lines without a timestamp,
+such as stack traces, are skipped. Timestamps are compared as written: a time
+zone in the log is not converted, so type the time as it appears in the file.
+The search assumes the file is in time order; if it is not, the line found is
+only approximate.
+
 *logsquirl* uses Hyperscan library to perform regular expressions search. Hyperscan is very
 fast, but it doesn't support some patterns, most notably any lookahead is not supported 
 (check [hyperscan documentation](https://intel.github.io/hyperscan/dev-reference/compilation.html#pattern-support) for 

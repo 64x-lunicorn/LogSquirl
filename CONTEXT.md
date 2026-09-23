@@ -234,6 +234,14 @@ is reloaded or truncated; in between, the Log File keeps the Log Format it was r
 with, even when the Catalog changes.
 _Avoid_: detection, sniffing
 
+**Timestamp**:
+The point in time a Log Line carries, read through its Log Format's timestamp field
+(its timestamp format, and for epoch values its divisor). Continuation lines, such as a
+stack trace, have none. Taken as written: one without a time zone is not converted, and a
+written zone is ignored. Only what a Log Format declares or a common format covers can be
+read; a Log File without a Log Format that has a timestamp field has no Timestamps.
+_Avoid_: date, time (both name only a part of it)
+
 **Table View**:
 The Presentation of a Log File as one column per Log Format field, as an alternative to
 the Text View.

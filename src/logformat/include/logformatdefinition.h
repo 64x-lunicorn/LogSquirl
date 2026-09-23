@@ -189,6 +189,17 @@ public:
         timestampFormats_ = formats;
     }
 
+    // What an epoch timestamp ("%s") is divided by to get seconds: 1000 for
+    // milliseconds since the epoch. 1 when the format does not say.
+    double timestampDivisor() const
+    {
+        return timestampDivisor_;
+    }
+    void setTimestampDivisor( double divisor )
+    {
+        timestampDivisor_ = divisor;
+    }
+
     // Whether the format's messages are ordered by time
     bool orderedByTime() const
     {
@@ -219,5 +230,6 @@ private:
 
     QString filePattern_;
     QStringList timestampFormats_;
+    double timestampDivisor_ = 1.0;
     bool orderedByTime_ = true;
 };

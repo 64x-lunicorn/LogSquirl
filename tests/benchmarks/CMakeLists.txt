@@ -139,3 +139,12 @@ add_executable(logsquirl_linepositionarray_benchmark
 )
 
 target_link_libraries(logsquirl_linepositionarray_benchmark logsquirl_logdata Catch2::Catch2WithMain)
+
+# "Go to timestamp" on a Log File of 10 million Log Lines (#435): the lookup by
+# binary search through the Index. Run it in an optimized build.
+add_executable(logsquirl_timelookup_benchmark
+    timelookup_benchmark.cpp
+)
+
+target_include_directories(logsquirl_timelookup_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
+target_link_libraries(logsquirl_timelookup_benchmark logsquirl_logformat logsquirl_logdata Catch2::Catch2)

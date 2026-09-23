@@ -44,6 +44,9 @@ const char* action::selectAllStatusTip = QT_TR_NOOP( "Select all the text" );
 const char* action::goToLineText = QT_TR_NOOP( "Go to line..." );
 const char* action::goToLineStatusTip
     = QT_TR_NOOP( "Scrolls selected main view to specified line" );
+const char* action::goToTimestampText = QT_TR_NOOP( "Go to timestamp..." );
+const char* action::goToTimestampStatusTip
+    = QT_TR_NOOP( "Scrolls selected main view to the first line at or after a time" );
 const char* action::findText = QT_TR_NOOP( "&Find..." );
 const char* action::findStatusTip = QT_TR_NOOP( "Find the text" );
 const char* action::clearLogText = QT_TR_NOOP( "Clear file..." );
