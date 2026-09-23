@@ -10,7 +10,10 @@
         }
     },
     "pre_install": "Remove-Item \"$dir\\`$*\", \"$dir\\uninstal*\" -Recurse",
-    "bin": "logsquirl_portable.exe",
+    "bin": [
+        "logsquirl_portable.exe",
+        "logsquirl_grep.exe"
+    ],
     "shortcuts": [
         [
             "logsquirl_portable.exe",

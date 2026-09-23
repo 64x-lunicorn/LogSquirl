@@ -14,12 +14,18 @@ runs:
       run: |
         printf 'APPL????' > $LOGSQUIRL_BUILD_ROOT/output/logsquirl.app/Contents/PkgInfo
 
+    # The command line tool sits in Contents/MacOS beside the application
+    # (src/app/CMakeLists.txt), so macdeployqt is told about it as a second
+    # executable: it then rewrites that binary's Qt references to the
+    # frameworks inside the bundle, the way it does for the application's own
+    # (#430).
     - name: Mac deploy Qt
       shell: sh
       run: |
         set -eu
         cd $LOGSQUIRL_BUILD_ROOT
-        macdeployqt ./output/logsquirl.app -always-overwrite -verbose=2
+        macdeployqt ./output/logsquirl.app -always-overwrite -verbose=2 \
+          -executable=./output/logsquirl.app/Contents/MacOS/logsquirl_grep
 
     - name: Mac deploy Qt fixing
       shell: sh
@@ -43,6 +49,47 @@ runs:
       with:
         app: ${{ env.LOGSQUIRL_BUILD_ROOT }}/output/logsquirl.app
         dmg: ${{ env.LOGSQUIRL_BUILD_ROOT }}/packages/logsquirl-mac-${{ env.LOGSQUIRL_ARCH }}.dmg
+
+    # ── 2b. The command line tool is in the package ───────────────────────
+    #
+    # `logsquirl_grep` ships inside the bundle (src/app/CMakeLists.txt), so it
+    # has to survive the Qt deployment and reach the DMG. Nothing else would
+    # notice it missing: the E2E suite runs the build tree's binary, never the
+    # packaged one (#430).
+    - name: Mac check the command line tool is packaged
+      shell: bash
+      run: |
+        set -euo pipefail
+        app="$LOGSQUIRL_BUILD_ROOT/output/logsquirl.app"
+        tool="$app/Contents/MacOS/logsquirl_grep"
+        if [ ! -x "$tool" ]; then
+          echo "::error::logsquirl_grep is not in $app/Contents/MacOS"
+          ls -l "$app/Contents/MacOS"
+          exit 1
+        fi
+
+        # Its Qt has to be the Qt in the bundle: the runner's Qt directory does
+        # not exist on a user's machine.
+        echo "::group::otool -L logsquirl_grep"
+        otool -L "$tool"
+        echo "::endgroup::"
+        outside=$(otool -L "$tool" | awk '/Qt[A-Za-z0-9]*\.framework/ && $1 ~ /^\// { print $1 }')
+        if [ -n "$outside" ]; then
+          echo "::error::logsquirl_grep loads Qt from outside the bundle: $(echo "$outside" | tr '\n' ' ')"
+          exit 1
+        fi
+
+        dmg="$LOGSQUIRL_BUILD_ROOT/packages/logsquirl-mac-$LOGSQUIRL_ARCH.dmg"
+        mount=$(mktemp -d)
+        hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount" > /dev/null
+        status=0
+        test -x "$mount/logsquirl.app/Contents/MacOS/logsquirl_grep" || status=1
+        hdiutil detach "$mount" > /dev/null
+        if [ "$status" -ne 0 ]; then
+          echo "::error::$(basename "$dmg") does not ship logsquirl.app/Contents/MacOS/logsquirl_grep"
+          exit 1
+        fi
+        echo "logsquirl_grep ships in the app bundle and in $(basename "$dmg")."
 
     # ── 3. Archive app and symbols for CI artifacts ───────────────────────
     #

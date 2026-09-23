@@ -13,6 +13,10 @@ xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_portable.pdb
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl.exe %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl.pdb %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 
+REM The command line tool ships beside the application (#430)
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_grep.exe %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_grep.pdb %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_crashpad_handler.exe %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\output\logsquirl_minidump_dump.exe %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 

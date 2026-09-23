@@ -2,10 +2,10 @@ name: "Run E2E tests"
 description: "Run the E2E suite (without performance benchmarks) against the binaries this job just built"
 # The suite runs here, in the build job, rather than in a job of its own
 # downloading an artifact (#366). It needs the real `logsquirl` and
-# `logsquirl_grep`, and `logsquirl_grep` is in no package: only `logsquirl` is
-# installed (src/app/CMakeLists.txt), so a packages artifact can never serve
-# the suite. Both binaries link Qt, so wherever they run, Qt has to be -- and
-# that is here, where the job built them.
+# `logsquirl_grep` side by side in one directory, which no package lays them
+# out as -- on macOS they sit inside the app bundle (#430). Both binaries link
+# Qt, so wherever they run, Qt has to be -- and that is here, where the job
+# built them.
 inputs:
   install_tools:
     description: "Shell command installing the compression tools the E2E suite exercises on this runner"

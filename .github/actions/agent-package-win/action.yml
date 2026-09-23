@@ -58,3 +58,15 @@ runs:
         xcopy logsquirl-win-%LOGSQUIRL_ARCH%-portable.zip %LOGSQUIRL_BUILD_ROOT%\packages /y || exit /b 1
         xcopy logsquirl-win-%LOGSQUIRL_ARCH%-pdb.zip %LOGSQUIRL_BUILD_ROOT%\packages /y || exit /b 1
         xcopy logsquirl-win-%LOGSQUIRL_ARCH%-setup.exe %LOGSQUIRL_BUILD_ROOT%\packages /y || exit /b 1
+
+    # The command line tool ships beside the application: the installer picks
+    # it up through `File release\logsquirl_grep.exe` (packaging/windows/
+    # logsquirl.nsi), which makensis above fails without, and the portable zip
+    # through its file list, which 7z does not fail without -- so the archive
+    # is listed and checked here (#430).
+    - name: Win check the command line tool is packaged
+      # zizmor cannot analyse cmd scripts; this one expands no expression (#204).
+      shell: cmd # zizmor: ignore[misfeature]
+      run: |
+        7z l %LOGSQUIRL_BUILD_ROOT%\packages\logsquirl-win-%LOGSQUIRL_ARCH%-portable.zip | findstr /i /c:"logsquirl_grep.exe" > nul || exit /b 1
+        echo logsquirl_grep.exe ships in the portable archive and in the installer.

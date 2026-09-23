@@ -70,6 +70,8 @@ Section "logsquirl" logsquirl
 
     SetOutPath $INSTDIR
     File release\logsquirl.exe
+    ; The command line tool, installed beside the application (#430)
+    File release\logsquirl_grep.exe
     File release\logsquirl_crashpad_handler.exe
     File release\logsquirl_minidump_dump.exe
     File release\tbb12.dll
@@ -187,6 +189,7 @@ Section "Uninstall"
     Delete "$INSTDIR\Uninstall.exe"
 
     Delete "$INSTDIR\logsquirl.exe"
+    Delete "$INSTDIR\logsquirl_grep.exe"
     Delete "$INSTDIR\logsquirl_crashpad_handler.exe"
     Delete "$INSTDIR\logsquirl_minidump_dump.exe"
     Delete "$INSTDIR\README.md"

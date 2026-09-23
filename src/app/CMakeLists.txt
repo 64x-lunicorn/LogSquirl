@@ -70,6 +70,12 @@ add_executable(logsquirl_grep ${MAIN_SOURCES} ${LOGSQUIRL_GREP_SOURCES})
 
 add_dependencies(ci_build logsquirl logsquirl_grep)
 
+# The command line tool ships with the application (install() below), so
+# whatever builds the application builds it too: a packaging recipe that names
+# the `logsquirl` target -- packaging/linux/arch/PKGBUILD does -- would
+# otherwise install a file the build never produced (#430).
+add_dependencies(logsquirl logsquirl_grep)
+
 if(WIN32)
   add_dependencies(ci_build logsquirl_portable)
 endif()
@@ -134,6 +140,31 @@ install(
   DESTINATION ${CMAKE_INSTALL_BINDIR}
   BUNDLE DESTINATION .
 )
+
+# The command line tool is installed beside the application, so it reaches the
+# deb, the rpm and the AppImage. On macOS there is no bin directory to be
+# beside: it goes into the app bundle, where a bundled helper belongs and where
+# the crashpad handler and the minidump tool go too, and is then called as
+# /Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep (#430).
+if(APPLE)
+  install(TARGETS logsquirl_grep DESTINATION $<TARGET_BUNDLE_CONTENT_DIR:logsquirl>/MacOS)
+
+  # The DMG is packed from the app bundle in the build tree and not from an
+  # install tree (.github/actions/agent-package-mac), so the tool is copied
+  # into the bundle at build time as well -- the way the crashpad handler and
+  # the minidump tool get there. macdeployqt is told about it so it uses the
+  # bundled Qt frameworks (#430).
+  add_custom_command(
+    TARGET logsquirl_grep
+    POST_BUILD
+    COMMAND cmake -E make_directory $<TARGET_FILE_DIR:logsquirl>
+    COMMAND cmake -E copy $<TARGET_FILE:logsquirl_grep> $<TARGET_FILE_DIR:logsquirl>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Copy logsquirl_grep into the app bundle"
+  )
+else()
+  install(TARGETS logsquirl_grep DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 
 if(WIN32)
   if(TARGET tbb)
