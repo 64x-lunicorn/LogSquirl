@@ -227,11 +227,15 @@ function(logsquirl_built_quietly target out_var)
     set(_options "")
   endif()
   if(MSVC)
-    # Quiet is the absence of a level of its own, whatever shape it came in --
-    # a package's generator expression counts as one.
-    set(_levels "${_options}")
-    logsquirl_strip_msvc_warning_level(_levels)
-    if("${_levels}" STREQUAL "${_options}")
+    # Quiet is /W0 and no other level, whatever shape the other one came in --
+    # a package's generator expression counts as one. cl says nothing about the
+    # same level twice, so /W0 in the flags and /W0 here is fine; a second,
+    # different level is a D9025 for every file of that target.
+    set(_others "${_options}")
+    list(REMOVE_ITEM _others "${_quiet_flag}")
+    set(_stripped "${_others}")
+    logsquirl_strip_msvc_warning_level(_stripped)
+    if("${_quiet_flag}" IN_LIST _options AND "${_stripped}" STREQUAL "${_others}")
       set(${out_var} TRUE PARENT_SCOPE)
     else()
       set(${out_var} FALSE PARENT_SCOPE)

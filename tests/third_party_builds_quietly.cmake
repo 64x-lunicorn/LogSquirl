@@ -8,11 +8,11 @@
 # its own code without a single warning, with nothing failing and nothing to
 # see in the log.
 #
-# THIRD_PARTY says, per target, whether it is built quietly -- which means
-# carrying -w on GCC and Clang, where it has to come last to inhibit what a
-# package turned on for itself, and carrying no warning level at all on MSVC,
-# where the one /W0 in the flags is the level and a second one on the same
-# command line is a D9025 per file rather than a quieter build.
+# THIRD_PARTY says, per target, whether it is built quietly. On GCC and Clang
+# that means carrying -w, which has to come last to inhibit what a package
+# turned on for itself. On MSVC it means carrying /W0 and no other level: cl
+# says nothing about the same level twice, but two different ones are a D9025
+# for every file of that target.
 #
 # PROJECT_FLAGS is the other half read where it would actually go wrong:
 # CMAKE_CXX_FLAGS as LogSquirl's own directories see it. A target's compile
@@ -62,7 +62,7 @@ function(entry_offenders out_var expected saying)
   set(${out_var} "${_offenders}" PARENT_SCOPE)
 endfunction()
 
-entry_offenders(_loud TRUE "compiled with warnings on, or carrying a warning level of its own where the flags already set one" ${_third_party})
+entry_offenders(_loud TRUE "compiled with warnings on, or carrying a warning level of its own beside the quiet one" ${_third_party})
 entry_offenders(_silenced FALSE "compiled with the third-party '${QUIET_FLAG}', so nothing checks it" ${_project})
 
 separate_arguments(_project_flags NATIVE_COMMAND "${PROJECT_FLAGS}")

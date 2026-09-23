@@ -85,12 +85,11 @@ set(LOGSQUIRL_THIRD_PARTY_MSVC_UNKNOWN_OPTIONS
 
 # logsquirl_strip_msvc_warning_level(<list_var>)
 #
-# Every warning level out of a list of compile options, leaving the one /W0
-# logsquirl_third_party_quiet_flags() put in CMAKE_C_FLAGS and CMAKE_CXX_FLAGS
-# as the only one on the command line. Two of them there is what makes cl report
-# "D9025: overriding '/W4' with '/W0'" once per file -- the same noise the
-# levels were taken out to avoid, which is how a first measurement on CI turned
-# 1210 warnings into 327 command line warnings instead of none (#452).
+# Every warning level out of a list of compile options, so that /W0 is the only
+# one cl is handed. Two different levels on one command line is what makes it
+# report "D9025: overriding '/W4' with '/W0'" once per file -- the same noise
+# the levels were taken out to avoid, which is how a first measurement on CI
+# turned 1210 warnings into 327 command line warnings instead of none (#452).
 #
 # A level does not only arrive as a plain `/W4`. oneTBB sets its own as the
 # generator expression `$<$<NOT:$<CXX_COMPILER_ID:Intel>>:/W4>`, and a package
@@ -117,13 +116,17 @@ function(logsquirl_strip_msvc_warning_level list_var)
 endfunction()
 
 function(logsquirl_third_party_build_quietly dir)
-  # On MSVC the level is the /W0 already in CMAKE_C_FLAGS and CMAKE_CXX_FLAGS
-  # for this directory and below, and nothing is added per target: a second one
-  # on the same command line would be a D9025 rather than a quieter build.
-  # Elsewhere -w has to be appended per target, because it only inhibits what
-  # comes before it and a package may turn warnings on for its own targets.
+  # The quiet level goes on every target, and every other level comes off, so
+  # that the only level cl is ever handed twice is this one. That is a measured
+  # distinction, not a guess: a Windows run with /W0 in the flags and /W0 on
+  # every target reported 327 D9025 lines, and every one of them named two
+  # *different* levels -- cl says nothing about the same level twice. Which
+  # matters, because a package may take the flags' /W0 back out from under us:
+  # oneTBB's cmake/compilers/MSVC.cmake strips /W[0-4] out of CMAKE_CXX_FLAGS
+  # before setting its own, so its targets would otherwise be left at cl's
+  # default of /W1.
   if(MSVC)
-    set(_quiet "")
+    set(_quiet /W0)
   else()
     set(_quiet -w)
   endif()
@@ -163,14 +166,10 @@ function(logsquirl_third_party_build_quietly dir)
       # overridden: /W0 next to it on one command line is what makes cl report
       # "D9025: overriding '/Wall' with '/W0'" once per file, the same noise
       # under another name that logsquirl_third_party_quiet_flags() takes the
-      # trouble to avoid.
-      list(
-        FILTER
-        _options
-        EXCLUDE
-        REGEX
-        "^[-/]W(all|[0-4])$"
-      )
+      # trouble to avoid. Through the same helper as the directory's, because
+      # a level arrives here in the same three shapes -- oneTBB's targets carry
+      # theirs as a generator expression, which no match of exact strings sees.
+      logsquirl_strip_msvc_warning_level(_options)
       # And the GCC options cl does not know, each of which it reports as
       # "D9002: ignoring unknown option" once per file. Named one by one rather
       # than matched by shape: CMake's MSVC is true for clang-cl too, where
