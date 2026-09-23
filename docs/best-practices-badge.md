@@ -98,7 +98,7 @@ Status: everything is Met or N/A except the items under "Unmet or needs your con
 | vulnerabilities_fixed_60_days | Met once confirmed | `vuln-scan.yml`, Renovate/Dependabot, CHANGELOG `## Security`; check no open advisory older than 60 days |
 | vulnerabilities_critical_fixed | Met | see above |
 | no_leaked_credentials | Met | No secrets in repo; workflows use GitHub secrets; zizmor and Scorecard checks |
-| static_analysis | Met | CodeQL `.github/workflows/codeql-analysis.yml`; clang-tidy config `.clang-tidy`, `cmake/StaticAnalyzers.cmake` |
+| static_analysis | Met | CodeQL `.github/workflows/codeql-analysis.yml`; clang-tidy is optional locally (`-DENABLE_CLANG_TIDY=ON`, `cmake/StaticAnalyzers.cmake`), not run in CI |
 | static_analysis_common_vulnerabilities | Met | CodeQL |
 | static_analysis_fixed | Met | CodeQL alerts in the Security tab; check none is open and exploitable |
 | static_analysis_often | Met | On every pull request |
