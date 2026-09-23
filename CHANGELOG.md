@@ -62,6 +62,15 @@
   hyperscan fork's `-fpermissive` -- are asked not to. A new test fails if the
   flag that does it ever reaches LogSquirl's own targets, or stops reaching a
   third-party one (#452).
+- **A warning from the link step fails the build**: LogSquirl builds with link
+  time optimization, so the compiler generates code a second time at the link
+  step -- and `-Werror` never reached that command line, because CMake puts a
+  target's compile options on its compile lines only. GCC 12 and 13 printed
+  `-Wstringop-overflow` on every appimage and noble run with everything staying
+  green. The link step now fails on a warning too, on GCC and Clang. That one
+  diagnostic is a GCC 12/13 bug rather than a finding about this code, and is
+  recorded as accepted with the versions it applies to and a guard that takes it
+  back at GCC 14 (#454, `docs/adr/0008`).
 - **Every source file of the project is built with the project's warnings**: Two
   MODULE libraries the tests load, the Plugin UI Port probe and the slow
   converter plugin, linked neither `project_warnings` nor `project_options`, so

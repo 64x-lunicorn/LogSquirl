@@ -252,6 +252,17 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/third_party_quiet_flags.cmake
 )
 
+# The link step of a build with link time optimization generates code a second
+# time, and what it reports has to fail the build the same way. The one warning
+# accepted there is accepted for the GCC versions that report it and no longer
+# (#454).
+add_test(
+    NAME project_warning_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/project_warning_flags.cmake
+)
+
 # A packaging recipe passes only build options the project declares, and only
 # build types CMake knows: CMake takes an unknown -D or build type without a
 # word, so nothing but a check tells the packager (#333).
