@@ -71,6 +71,10 @@
     {
       "version": "26.07.0",
       "description": "Windows dark mode icon fixes, AppImage runs on Ubuntu 22.04, correct release version numbering"
+    },
+    {
+      "version": "26.10.0-beta2",
+      "description": "Smyck themes, flatter look, Dashboard, live theme switching, faster Search, indexing and startup, 60 bug fixes"
     }
   ],
   "stable_version": "26.07.0",
