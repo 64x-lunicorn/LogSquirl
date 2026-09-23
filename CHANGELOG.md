@@ -14,6 +14,15 @@
   published on the release page, so LogSquirl updates with `apt upgrade`
   and an older release can be pinned. Betas are not published. The README and
   the website show the two-file setup (#380).
+- **Import asks what to do with a group that already exists**: Import in the
+  Predefined Filters and the Highlighters dialog brings each group of a file
+  in as a group of its own. When a group of the same id or name already
+  exists you choose Replace (it keeps its position and id, so an active
+  Highlighter Set stays active), Keep both (the new one gets the first free
+  name `<name> (n)`) or Skip, once or for all remaining conflicts across all
+  selected files. A group carrying the Default group's id never replaces your
+  Default group. A file that cannot be read or holds no group is reported.
+  Nothing takes effect before OK / Apply (#469).
 - **Export writes one group**: Export in the Predefined Filters and the
   Highlighters dialog now writes only the Filter Group or Highlighter Set
   selected in the list, and proposes a file name from its name

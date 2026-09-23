@@ -138,7 +138,12 @@ _Avoid_: saved search, bookmark
 A named group of Predefined Filters, the counterpart of a Highlighter Set. The non-deletable
 Default Filter Group always exists and carries the same id for every user. A Filter Group, like
 a Highlighter Set, is handed to someone else as a file of its own: the Group Exchange proposes
-its file name from the group's name and writes exactly that one group.
+its file name from the group's name and writes exactly that one group. Import reads every
+group of a file as a group of its own. A group of the same id is a conflict, and so is one of
+only the same name; the user answers Replace (the existing group keeps its position and id),
+Keep both (the imported group gets a fresh id and the first free name `<name> (n)`) or Skip,
+once or for all remaining conflicts of the import. An imported group with the Default Filter
+Group's id never replaces the recipient's Default group: it arrives as a new group.
 _Avoid_: filter set, filter list, folder
 
 **Search Limits**:

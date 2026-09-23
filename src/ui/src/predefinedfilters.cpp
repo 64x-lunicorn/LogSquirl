@@ -71,6 +71,13 @@ void PredefinedFilterSet::setName( const QString& name )
     name_ = name;
 }
 
+PredefinedFilterSet PredefinedFilterSet::withId( const QString& id ) const
+{
+    auto copy = *this;
+    copy.id_ = id;
+    return copy;
+}
+
 QList<PredefinedFilter> PredefinedFilterSet::filters() const
 {
     return filters_;
