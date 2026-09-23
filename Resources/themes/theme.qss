@@ -262,7 +262,12 @@ QTabBar::close-button {
     height: 24px;
     subcontrol-origin: padding;
     subcontrol-position: right center;
-    margin-right: 6px;
+    /* The margin is taken off the drawn box, so a right margin alone makes the
+       hover fill narrower without making it shorter: 14x20 around a 16px icon.
+       Keeping it level on all four sides keeps the fill square (issue 418).
+       An issue reference here is written without a hash: the template may
+       name no color, and a hash before three digits reads as one. */
+    margin: 2px 4px 2px 0px;
     border-radius: 2px;
 }
 QTabBar::close-button:hover {
