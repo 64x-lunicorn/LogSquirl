@@ -2,6 +2,10 @@
 
 ## Bug fixes
 
+- **The close button of a tab is square again**: The red fill under the mouse
+  was 14x20 pixels around a 16-pixel icon, taller than it was wide and larger
+  than the button it belongs to. Its right margin was taken off the drawn box
+  without anything taking off as much above and below (#418).
 - **Menu icons on macOS**: macOS draws the menu bar's menus in the system's
   appearance, not the Theme's, so a dark Theme's white icons sat on a light
   menu and were hard to make out (and a light Theme's dark ones on a dark
