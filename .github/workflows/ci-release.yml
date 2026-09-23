@@ -956,3 +956,25 @@ jobs:
             echo
             echo "\`brew upgrade --cask logsquirl\` now offers ${TAG#v}: [Casks/logsquirl.rb](https://github.com/64x-lunicorn/homebrew-tap/blob/main/Casks/logsquirl.rb)."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── Job 10: Publish the package repository ────────────────────────────
+  # After every stable release the APT repository at
+  # https://packages.lunicorn-lab.de is rebuilt from the GitHub Releases and
+  # deployed with Pages (#380). Stable releases only: a beta in the repository
+  # would reach every apt user. It runs after publishing, so a failing
+  # repository update shows red without holding the release back. The called
+  # workflow's jobs run in the `release` environment (the signing key) and
+  # `github-pages` (the deploy); BUILD.md ("Package repository") documents it.
+  publish-packages:
+    needs: [prepare, release]
+    # always(): without it the implicit success() also requires every job
+    # release waited for, so a failed sentry job (which does not hold the
+    # release back, #228) would leave the repository behind (#384).
+    if: >-
+      always() && needs.release.result == 'success'
+      && needs.prepare.outputs.is_prerelease != 'true'
+    uses: ./.github/workflows/publish-packages.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
