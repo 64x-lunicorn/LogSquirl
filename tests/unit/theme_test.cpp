@@ -226,6 +226,40 @@ SCENARIO( "The stylesheet template names no color", "[theme]" )
     }
 }
 
+SCENARIO( "The close button of a tab keeps its hover fill square", "[theme]" )
+{
+    GIVEN( "the close button rule of the stylesheet template" )
+    {
+        QFile file( ":/themes/theme.qss" );
+        REQUIRE( file.open( QIODevice::ReadOnly | QIODevice::Text ) );
+        const auto templateText = QString::fromUtf8( file.readAll() );
+
+        static const QRegularExpression rule( "QTabBar::close-button\\s*\\{([^}]*)\\}" );
+        const auto block = rule.match( templateText );
+        REQUIRE( block.hasMatch() );
+
+        WHEN( "its margins are read" )
+        {
+            static const QRegularExpression margin(
+                "margin:\\s*(\\d+)px\\s+(\\d+)px\\s+(\\d+)px\\s+(\\d+)px\\s*;" );
+            const auto sides = margin.match( block.captured( 1 ) );
+            REQUIRE( sides.hasMatch() );
+            const auto top = sides.captured( 1 ).toInt();
+            const auto right = sides.captured( 2 ).toInt();
+            const auto bottom = sides.captured( 3 ).toInt();
+            const auto left = sides.captured( 4 ).toInt();
+
+            THEN( "they take as much off the height as off the width" )
+            {
+                // A margin is taken off the drawn box. A right margin on its
+                // own made the hover fill 14x20 around a 16px icon: narrower,
+                // but no shorter (#418).
+                REQUIRE( top + bottom == left + right );
+            }
+        }
+    }
+}
+
 SCENARIO( "A Theme is chosen by its stored name", "[theme]" )
 {
     GIVEN( "the stored names of the Themes" )
