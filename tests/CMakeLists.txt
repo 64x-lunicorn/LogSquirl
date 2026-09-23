@@ -130,6 +130,69 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/lto_covers_project_targets.cmake
 )
 
+# The project's warnings cover every compiled target under src/ and tests/
+# alike (#451). They come from project_warnings, which a target either links
+# itself or reaches through a library it links, so the answer is in the link
+# graph: walk it here and hand the check one TRUE or FALSE per target. Only
+# the project's own directories are walked; the 3rdparty libraries CPM brings
+# in are not ours to keep warning-clean.
+function(logsquirl_reaches_project_warnings target out_var)
+  set(_seen "")
+  set(_pending "${target}")
+  while(_pending)
+    list(POP_FRONT _pending _current)
+    if(_current IN_LIST _seen)
+      continue()
+    endif()
+    list(APPEND _seen "${_current}")
+    if(_current STREQUAL "project_warnings")
+      set(${out_var} TRUE PARENT_SCOPE)
+      return()
+    endif()
+    # An INTERFACE library has no LINK_LIBRARIES, and CMake before 3.19 refuses
+    # to be asked for one.
+    get_target_property(_type ${_current} TYPE)
+    set(_properties INTERFACE_LINK_LIBRARIES)
+    if(NOT _type STREQUAL "INTERFACE_LIBRARY")
+      list(APPEND _properties LINK_LIBRARIES)
+    endif()
+    foreach(_property IN LISTS _properties)
+      get_target_property(_libs ${_current} ${_property})
+      if(NOT _libs)
+        continue()
+      endif()
+      foreach(_lib IN LISTS _libs)
+        # A private dependency of a static library is handed on wrapped in
+        # $<LINK_ONLY:...>; it still carries the warnings of what it links.
+        string(REGEX REPLACE "^\\$<LINK_ONLY:(.*)>$" "\\1" _lib "${_lib}")
+        if(_lib MATCHES "^\\$<" OR NOT TARGET "${_lib}")
+          continue()
+        endif()
+        get_target_property(_aliased ${_lib} ALIASED_TARGET)
+        if(_aliased)
+          set(_lib "${_aliased}")
+        endif()
+        list(APPEND _pending "${_lib}")
+      endforeach()
+    endforeach()
+  endwhile()
+  set(${out_var} FALSE PARENT_SCOPE)
+endfunction()
+logsquirl_compiled_targets("${CMAKE_SOURCE_DIR}/src" _warning_targets)
+logsquirl_compiled_targets("${CMAKE_CURRENT_SOURCE_DIR}" _warning_tests)
+set(_warning_entries "")
+foreach(_target IN LISTS _warning_targets _warning_tests)
+  logsquirl_reaches_project_warnings(${_target} _reaches_warnings)
+  list(APPEND _warning_entries "${_target}=${_reaches_warnings}")
+endforeach()
+list(JOIN _warning_entries "|" _warning_entries)
+add_test(
+    NAME project_warnings_cover_project_targets
+    COMMAND ${CMAKE_COMMAND}
+            "-DTARGETS=${_warning_entries}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/project_warnings_cover_project_targets.cmake
+)
+
 # A packaging recipe passes only build options the project declares, and only
 # build types CMake knows: CMake takes an unknown -D or build type without a
 # word, so nothing but a check tells the packager (#333).

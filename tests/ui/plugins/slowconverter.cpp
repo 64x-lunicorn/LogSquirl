@@ -55,6 +55,9 @@ LOGSQUIRL_PLUGIN_EXPORT const LogSquirlPluginInfo* logsquirl_plugin_get_info( vo
 
 LOGSQUIRL_PLUGIN_EXPORT int logsquirl_plugin_init( const LogSquirlHostApi*, void* )
 {
+    // std::getenv and not qEnvironmentVariable: a plugin links no Qt. MSVC
+    // deprecates it (C4996), which the project's warnings suppress for every
+    // file of it alike (#451).
     // NOLINTNEXTLINE(concurrency-mt-unsafe): read once, on the loading thread.
     if ( const char* delay = std::getenv( "LOGSQUIRL_TEST_PLUGIN_INIT_DELAY_MS" ) ) {
         std::this_thread::sleep_for( std::chrono::milliseconds( std::atoi( delay ) ) );

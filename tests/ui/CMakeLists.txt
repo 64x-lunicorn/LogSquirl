@@ -62,6 +62,11 @@ target_include_directories(logsquirl_itests PRIVATE
 # a slow converter plugin built for the test shows that a Log File opened
 # before it loaded still goes through it.
 add_library(logsquirl_test_slow_converter MODULE plugins/slowconverter.cpp)
+# Its source is the project's own, so it is compiled with the project's
+# warnings and options like every other target of it (#451). The warnings
+# carry the /wd4996 that lets the plugin read its delay with std::getenv: it
+# links no Qt, so qEnvironmentVariable is not open to it.
+target_link_libraries(logsquirl_test_slow_converter PRIVATE project_options project_warnings)
 target_include_directories(logsquirl_test_slow_converter PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
 set_target_properties(logsquirl_test_slow_converter PROPERTIES CXX_VISIBILITY_PRESET hidden)
 add_dependencies(logsquirl_itests logsquirl_test_slow_converter)

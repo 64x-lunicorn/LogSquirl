@@ -95,6 +95,9 @@ target_compile_definitions(logsquirl_tests PRIVATE
 # The Plugin UI Port test loads a real plugin library that hands its host
 # callback table back to the test (#175).
 add_library(logsquirl_ui_port_probe MODULE plugins/uiportprobe.cpp)
+# Its source is the project's own, so it is compiled with the project's
+# warnings and options like every other target of it (#451).
+target_link_libraries(logsquirl_ui_port_probe PRIVATE project_options project_warnings)
 target_include_directories(logsquirl_ui_port_probe PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
 set_target_properties(logsquirl_ui_port_probe PROPERTIES CXX_VISIBILITY_PRESET hidden)
 add_dependencies(logsquirl_tests logsquirl_ui_port_probe)
