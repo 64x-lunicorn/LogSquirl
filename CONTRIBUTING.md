@@ -105,6 +105,24 @@ For something that is bigger than a ten line fix:
     * **Run the test suites before creating a pull request** (see below)
     * Create a pull request
 
+## Tests for new functionality
+
+A change that adds a feature or fixes a bug **comes with a test** that fails without the
+change: a Catch2 case under `tests/unit` or `tests/ui`, or an end-to-end test under
+`tests/e2e`. A change that cannot be tested automatically (documentation, packaging,
+pure refactoring covered by existing tests) says so in the pull request description.
+CI runs the suites on every pull request; BUILD.md, section "Running tests", shows how to
+run them locally.
+
+## Coding standard and warnings
+
+The code is C++23 and follows the `.clang-format` and `.clang-tidy` files at the repository
+root. The build enables `-Wall -Wextra -Wpedantic` (and the MSVC equivalents) and treats
+warnings as errors (`WARNINGS_AS_ERRORS`, `cmake/CompilerWarnings.cmake`), so a pull request
+that adds a compiler warning does not build in CI. Static analysis (CodeQL) runs on every
+pull request, and CI builds the test suites with AddressSanitizer and UndefinedBehaviorSanitizer.
+Findings of these tools are fixed rather than suppressed.
+
 ## Changelog entry
 
 A pull request with a change users, packagers or plugin authors notice adds an entry to
