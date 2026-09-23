@@ -58,6 +58,20 @@ import highlighters from '@assets/screenshots/highlighters.png';
 
 <LinkCard title="LogSquirl Wiki" description="Full documentation including Getting Started, feature guides, configuration reference, and plugin development." href="https://github.com/64x-lunicorn/LogSquirl/wiki" />
 
+## Install on Ubuntu with apt
+
+On Ubuntu 24.04 (amd64), add the LogSquirl APT repository once and update LogSquirl with `apt upgrade` from then on:
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-packages.asc -o /etc/apt/keyrings/logsquirl.asc
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl.sources -o /etc/apt/sources.list.d/logsquirl.sources
+sudo apt update
+sudo apt install logsquirl
+```
+
+The repository holds the last three stable releases, signed with the key `51ABA6432D0407ED62E8EC403169E5DF85C9A3A3`. It has no betas.
+
 ## System Requirements
 
 - **CPU**: SSE2 minimum. SSSE3/POPCNT recommended. AVX2/AVX512 auto-detected for best performance.
