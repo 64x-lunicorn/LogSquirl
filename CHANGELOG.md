@@ -1,3 +1,13 @@
+# Unreleased
+
+## Bug fixes
+
+- **Menu icons on macOS**: macOS draws the menu bar's menus in the system's
+  appearance, not the Theme's, so a dark Theme's white icons sat on a light
+  menu and were hard to make out (and a light Theme's dark ones on a dark
+  menu). Those menus now carry no icons on macOS, the way macOS menus usually
+  look; the toolbar keeps its icons (#421).
+
 # v26.10.0-beta2 (2026-09-23)
 
 ## Changes
