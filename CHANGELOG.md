@@ -52,6 +52,16 @@
 
 ## Internal
 
+- **Third-party code no longer drowns the project's own warnings**: The CPM
+  packages were compiled with whatever warnings the project sets for itself, and
+  a Windows build printed 1210 warnings out of them plus 394 command line
+  warnings on top, so a new warning in LogSquirl's own code was one line among
+  sixteen hundred. Third-party code is built without warnings now and its
+  headers are system headers, and the three packages that turned warnings back
+  on for themselves -- streamvbyte's `/Wall`, uchardet's `-ffloat-store` and the
+  hyperscan fork's `-fpermissive` -- are asked not to. A new test fails if the
+  flag that does it ever reaches LogSquirl's own targets, or stops reaching a
+  third-party one (#452).
 - **Every source file of the project is built with the project's warnings**: Two
   MODULE libraries the tests load, the Plugin UI Port probe and the slow
   converter plugin, linked neither `project_warnings` nor `project_options`, so

@@ -203,6 +203,55 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/project_warnings_cover_project_targets.cmake
 )
 
+# The other side of the same line: the third-party libraries CPM brings in are
+# built without warnings, and the flag that does it reaches none of LogSquirl's
+# own targets (#452). Read from the compile options here, where
+# logsquirl_third_party_build_quietly() has already put them on -- 3rdparty/ is
+# added long before this directory.
+if(MSVC)
+  set(_quiet_flag /W0)
+else()
+  set(_quiet_flag -w)
+endif()
+function(logsquirl_built_quietly target out_var)
+  get_target_property(_options ${target} COMPILE_OPTIONS)
+  if(_options AND "${_quiet_flag}" IN_LIST _options)
+    set(${out_var} TRUE PARENT_SCOPE)
+  else()
+    set(${out_var} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+logsquirl_compiled_targets("${CMAKE_SOURCE_DIR}/3rdparty" _third_party_targets)
+set(_third_party_entries "")
+foreach(_target IN LISTS _third_party_targets)
+  logsquirl_built_quietly(${_target} _quiet)
+  list(APPEND _third_party_entries "${_target}=${_quiet}")
+endforeach()
+list(JOIN _third_party_entries "|" _third_party_entries)
+set(_project_quiet_entries "")
+foreach(_target IN LISTS _warning_targets _warning_tests)
+  logsquirl_built_quietly(${_target} _quiet)
+  list(APPEND _project_quiet_entries "${_target}=${_quiet}")
+endforeach()
+list(JOIN _project_quiet_entries "|" _project_quiet_entries)
+add_test(
+    NAME third_party_builds_quietly
+    COMMAND ${CMAKE_COMMAND}
+            -DQUIET_FLAG=${_quiet_flag}
+            "-DTHIRD_PARTY=${_third_party_entries}"
+            "-DPROJECT_TARGETS=${_project_quiet_entries}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/third_party_builds_quietly.cmake
+)
+
+# And the flags that do it are the project's warning level taken out, not one
+# more level put on top (#452).
+add_test(
+    NAME third_party_quiet_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/third_party_quiet_flags.cmake
+)
+
 # A packaging recipe passes only build options the project declares, and only
 # build types CMake knows: CMake takes an unknown -D or build type without a
 # word, so nothing but a check tells the packager (#333).
