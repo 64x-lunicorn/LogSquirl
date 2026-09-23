@@ -38,7 +38,7 @@
 #include <memory>
 #include <vector>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // What a Log File changing on disk means is decided by the Open Log File;
 // these tests follow real Log Files on disk without any widget. It hears of a

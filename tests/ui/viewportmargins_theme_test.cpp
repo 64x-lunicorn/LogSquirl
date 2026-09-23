@@ -25,7 +25,7 @@
 // The view inherits the application's palette, as every view in the
 // application does; what it paints is read back with grab().
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <cmath>

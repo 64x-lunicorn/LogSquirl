@@ -17,7 +17,9 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
 #include <cstdint>
 #include <memory>

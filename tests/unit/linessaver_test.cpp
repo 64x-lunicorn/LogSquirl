@@ -20,7 +20,9 @@
 // Saving lines to a file runs off the UI thread, reports its progress and its
 // end on the UI thread, and stops when interrupted (#157).
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
 #include <algorithm>
 #include <atomic>

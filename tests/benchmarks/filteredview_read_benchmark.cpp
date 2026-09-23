@@ -52,9 +52,9 @@
 #include <iostream>
 #include <memory>
 
-#define CATCH_CONFIG_ENABLE_BENCHMARKING
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "isolated_settings.h"
 

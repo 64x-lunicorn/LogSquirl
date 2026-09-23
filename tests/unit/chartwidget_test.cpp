@@ -26,7 +26,10 @@
 // touched keeps following the data; changing the series, and asking for the
 // view to be fitted, make the view follow the data again.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
 #include <algorithm>
 #include <cstdint>
@@ -174,10 +177,10 @@ ChartViewport fittedView( int lines )
 void checkViewIs( const ChartWidget& chart, const ChartViewport& expected )
 {
     const auto view = chart.viewport();
-    CHECK( view.xMin == Approx( expected.xMin ) );
-    CHECK( view.xMax == Approx( expected.xMax ) );
-    CHECK( view.yMin == Approx( expected.yMin ) );
-    CHECK( view.yMax == Approx( expected.yMax ) );
+    CHECK( view.xMin == Catch::Approx( expected.xMin ) );
+    CHECK( view.xMax == Catch::Approx( expected.xMax ) );
+    CHECK( view.yMin == Catch::Approx( expected.yMin ) );
+    CHECK( view.yMax == Catch::Approx( expected.yMax ) );
 }
 
 } // namespace

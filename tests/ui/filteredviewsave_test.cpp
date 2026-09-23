@@ -21,7 +21,8 @@
 // displayed lines taken when the save starts (#157): Marks added while it
 // runs neither race it nor change what it writes.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QBuffer>
 #include <QSignalSpy>

@@ -24,7 +24,7 @@
 #include <ostream>
 #include <vector>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // Planning a sparse read over an Index held in memory: every Log Line is ten
 // bytes long, so Log Line n ends at byte 10 * (n + 1).

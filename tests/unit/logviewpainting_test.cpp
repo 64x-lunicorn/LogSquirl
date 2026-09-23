@@ -49,7 +49,7 @@
 // for review. On a mismatch the image that was actually painted is written
 // to the temporary directory, and the failure names the file.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <functional>

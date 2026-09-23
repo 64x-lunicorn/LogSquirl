@@ -28,7 +28,8 @@
 #include <QRegularExpression>
 #include <QTest>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -119,7 +120,7 @@ SCENARIO( "The Dashboard shows its lists as cards in one column", "[ui][theme]" 
                 INFO( title->text().toStdString() );
                 REQUIRE( title->font().bold() );
                 REQUIRE( title->font().pointSizeF()
-                         == Approx( QApplication::font().pointSizeF() * 1.25 ) );
+                         == Catch::Approx( QApplication::font().pointSizeF() * 1.25 ) );
             }
         }
 

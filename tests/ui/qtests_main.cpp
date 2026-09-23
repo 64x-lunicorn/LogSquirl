@@ -17,8 +17,8 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <QApplication>
 #include <QtConcurrent>

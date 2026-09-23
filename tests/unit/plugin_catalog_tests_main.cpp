@@ -20,8 +20,8 @@
 // Runner for the Plugin Catalog's tests. It uses QCoreApplication on purpose:
 // the catalog reads manifests only, without a Qt GUI or a plugin library (#178).
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <QCoreApplication>
 
