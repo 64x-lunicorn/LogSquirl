@@ -274,6 +274,12 @@ foreach(_target IN LISTS _third_party_targets)
     string(REPLACE ";" " " _target_options "${_target_options}")
     string(REPLACE "=" "~" _target_options "${_target_options}")
     string(REPLACE "|" "!" _target_options "${_target_options}")
+    # And the $ of a generator expression becomes a # -- this text goes into an
+    # add_test() command line, where CMake would evaluate it, and a package's
+    # own $<$<NOT:$<CXX_COMPILER_ID:Intel>>:...> fails the generate step there
+    # ("$<CXX_COMPILER_ID> may only be used with binary targets"). The point is
+    # to read what the target carries, not to run it.
+    string(REPLACE "$" "#" _target_options "${_target_options}")
     set(_name "${_target} [${_target_options}]")
   endif()
   list(APPEND _third_party_entries "${_name}=${_quiet}")
