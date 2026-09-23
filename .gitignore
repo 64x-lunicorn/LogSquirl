@@ -151,3 +151,4 @@ tmp/
 
 # Audit working directory (local only)
 audit/
+build-fuzz/
