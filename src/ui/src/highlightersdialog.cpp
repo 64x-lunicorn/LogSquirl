@@ -36,7 +36,9 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <QDir>
 #include <QFileDialog>
+#include <QMessageBox>
 #include <QTimer>
 
 #include <qcheckbox.h>
@@ -48,6 +50,7 @@
 
 #include "containers.h"
 #include "dispatch_to.h"
+#include "groupexchange.h"
 #include "highlightersdialog.h"
 #include "highlighterset.h"
 #include "iconloader.h"
@@ -80,6 +83,7 @@ HighlightersDialog::HighlightersDialog( QWidget* parent )
     removeHighlighterButton->setEnabled( false );
     upHighlighterButton->setEnabled( false );
     downHighlighterButton->setEnabled( false );
+    exportButton->setEnabled( false );
 
     connect( addHighlighterButton, &QToolButton::clicked, this,
              &HighlightersDialog::addHighlighterSet );
@@ -214,19 +218,30 @@ void HighlightersDialog::loadIcons()
 
 void HighlightersDialog::exportHighlighters()
 {
+    if ( selectedRow_ < 0 ) {
+        return;
+    }
+
+    const HighlighterSet group = highlighterSetCollection_.highlighters_.at( selectedRow_ );
+    using namespace logsquirl::groupexchange;
+
+    const auto proposed
+        = QDir( exportFolder() )
+              .filePath( suggestedFileName( group.name(), GroupKind::Highlighter ) );
     QString file = QFileDialog::getSaveFileName( this, tr( "Export highlighters configuration" ),
-                                                 "", "Highlighters (*.conf)" );
+                                                 proposed, tr( "Highlighters (*.conf)" ) );
 
     if ( file.isEmpty() ) {
         return;
     }
+    file = withConfSuffix( file );
 
-    if ( !file.endsWith( ".conf" ) ) {
-        file += ".conf";
+    if ( !writeGroup( file, group ) ) {
+        QMessageBox::warning( this, tr( "Export highlighters configuration" ),
+                              tr( "The file %1 could not be written." ).arg( file ) );
+        return;
     }
-
-    QSettings settings{ file, QSettings::IniFormat };
-    highlighterSetCollection_.saveToStorage( settings );
+    rememberExportFolder( file );
 }
 
 void HighlightersDialog::importHighlighters()
@@ -382,9 +397,11 @@ void HighlightersDialog::updatePropertyFields()
         removeHighlighterButton->setEnabled( true );
         upHighlighterButton->setEnabled( selectedRow_ > 0 );
         downHighlighterButton->setEnabled( selectedRow_ < ( highlighterListWidget->count() - 1 ) );
+        exportButton->setEnabled( true );
     }
     else {
         highlighterSetEdit_->reset();
+        exportButton->setEnabled( false );
 
         removeHighlighterButton->setEnabled( false );
         upHighlighterButton->setEnabled( false );

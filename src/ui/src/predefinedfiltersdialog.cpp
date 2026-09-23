@@ -38,10 +38,13 @@
 
 #include "predefinedfiltersdialog.h"
 
+#include <QDir>
 #include <QFileDialog>
+#include <QMessageBox>
 
 #include "containers.h"
 #include "dispatch_to.h"
+#include "groupexchange.h"
 #include "iconloader.h"
 #include "log.h"
 #include "predefinedfilters.h"
@@ -80,6 +83,7 @@ PredefinedFiltersDialog::PredefinedFiltersDialog( QWidget* parent )
     connect( importButton, &QPushButton::clicked, this, &PredefinedFiltersDialog::importFilters );
 
     selectedRow_ = -1;
+    exportButton->setEnabled( false );
 
     connect( setListWidget, &QListWidget::itemSelectionChanged, this,
              &PredefinedFiltersDialog::updatePropertyFields );
@@ -186,19 +190,29 @@ void PredefinedFiltersDialog::moveFilterSetDown()
 
 void PredefinedFiltersDialog::exportFilters()
 {
-    auto file = QFileDialog::getSaveFileName( this, tr( "Export predefined filters" ), "",
+    if ( selectedRow_ < 0 ) {
+        return;
+    }
+
+    // The edit widget holds the group as the user sees it now.
+    const auto group = filterSetEdit_->filterSet();
+    using namespace logsquirl::groupexchange;
+
+    const auto proposed
+        = QDir( exportFolder() ).filePath( suggestedFileName( group.name(), GroupKind::Filter ) );
+    auto file = QFileDialog::getSaveFileName( this, tr( "Export predefined filters" ), proposed,
                                               tr( "Predefined filters (*.conf)" ) );
     if ( file.isEmpty() ) {
         return;
     }
-    if ( !file.endsWith( ".conf" ) ) {
-        file += ".conf";
-    }
+    file = withConfSuffix( file );
 
-    QSettings settings{ file, QSettings::IniFormat };
-    PredefinedFiltersCollection collection;
-    collection.setFilterSets( filterSets_ );
-    collection.saveToStorage( settings );
+    if ( !writeGroup( file, group ) ) {
+        QMessageBox::warning( this, tr( "Export predefined filters" ),
+                              tr( "The file %1 could not be written." ).arg( file ) );
+        return;
+    }
+    rememberExportFolder( file );
 }
 
 void PredefinedFiltersDialog::importFilters()
@@ -290,8 +304,10 @@ void PredefinedFiltersDialog::updatePropertyFields()
         removeSetButton->setEnabled( !isDefault );
         upSetButton->setEnabled( selectedRow_ > 0 );
         downSetButton->setEnabled( selectedRow_ < setListWidget->count() - 1 );
+        exportButton->setEnabled( true );
     }
     else {
+        exportButton->setEnabled( false );
         filterSetEdit_->reset();
         removeSetButton->setEnabled( false );
         upSetButton->setEnabled( false );

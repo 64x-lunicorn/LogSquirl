@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **Export writes one group**: Export in the Predefined Filters and the
+  Highlighters dialog now writes only the Filter Group or Highlighter Set
+  selected in the list, and proposes a file name from its name
+  (`<name>_filter.conf`, `<name>_highlighter.conf`). The save dialog opens in
+  the folder last exported to. A Highlighter Set file no longer carries your
+  Color Labels or your active sets. Export is disabled while nothing is
+  selected. Earlier versions still import the files (#468).
 - **Color presets for Highlighters**: The Highlighter editor offers 20
   ready-made color pairs, 12 soft pastels with dark text and 8 strong colors
   with white text; one click sets both the text and the background color.

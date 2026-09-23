@@ -1246,17 +1246,24 @@ Pattern: %2</translation>
         <translation>Include into cycle</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="217"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="231"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="240"/>
         <source>Export highlighters configuration</source>
         <translation>Export highlighters configuration</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="241"/>
+        <source>The file %1 could not be written.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="250"/>
         <source>Select one or more files to open</source>
         <translation>Select one or more files to open</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="232"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="250"/>
         <source>Highlighters (*.conf)</source>
         <translation>Highlighters (*.conf)</translation>
     </message>
@@ -2582,18 +2589,24 @@ Restart LogSquirl to try again.</translation>
         <translation>Export</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="189"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="204"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="212"/>
         <source>Export predefined filters</source>
         <translation>Export predefined filters</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="190"/>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="207"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="205"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="222"/>
         <source>Predefined filters (*.conf)</source>
         <translation>Predefined filters (*.conf)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="207"/>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="213"/>
+        <source>The file %1 could not be written.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="222"/>
         <source>Select one or more files to open</source>
         <translation>Select one or more files to open</translation>
     </message>
