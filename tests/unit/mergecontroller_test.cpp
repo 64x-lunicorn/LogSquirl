@@ -23,6 +23,8 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QEventLoop>
+#include <QTimer>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
@@ -55,6 +57,31 @@ QStringList readAllLines( const QString& path )
         result.append( in.readLine() );
     }
     return result;
+}
+
+// Runs the event loop until the controller reports an update or `timeoutMs` passes.
+bool waitForUpdate( MergeController& controller, int timeoutMs = 5000 )
+{
+    QEventLoop loop;
+    QTimer timeout;
+    timeout.setSingleShot( true );
+    bool updated = false;
+    QObject::connect( &controller, &MergeController::mergedFileUpdated, &loop, [ & ] {
+        updated = true;
+        loop.quit();
+    } );
+    QObject::connect( &timeout, &QTimer::timeout, &loop, &QEventLoop::quit );
+    timeout.start( timeoutMs );
+    loop.exec();
+    return updated;
+}
+
+void appendToFile( const QString& path, const QString& text )
+{
+    QFile f( path );
+    (void)f.open( QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text );
+    QTextStream out( &f );
+    out << text << '\n';
 }
 
 } // namespace
@@ -150,18 +177,13 @@ SCENARIO( "MergeController scheduleRebuild re-merges", "[mergecontroller]" )
             // Rewrite the source file
             writeTestFile( tmpDir, "a.log", { "line1", "line2" } );
 
-            // Manually trigger immediate rebuild (skip debounce timer)
+            // Ask explicitly; the watcher may already have asked, the
+            // debounce folds both into one rebuild.
             bool signalReceived = false;
             QObject::connect( &controller, &MergeController::mergedFileUpdated,
                               [ &signalReceived ] { signalReceived = true; } );
-
-            // Force immediate merge rather than waiting for timer
             controller.scheduleRebuild();
-            // Process events so the timer fires
-            QCoreApplication::processEvents();
-            // The timer is 300ms, so we need to wait
-            QThread::msleep( 350 );
-            QCoreApplication::processEvents();
+            waitForUpdate( controller );
 
             THEN( "The merged file reflects the updated content" )
             {
@@ -174,6 +196,75 @@ SCENARIO( "MergeController scheduleRebuild re-merges", "[mergecontroller]" )
             THEN( "The update signal was emitted" )
             {
                 REQUIRE( signalReceived );
+            }
+        }
+    }
+}
+
+SCENARIO( "MergeController follows its sources", "[mergecontroller]" )
+{
+    QTemporaryDir tmpDir;
+    REQUIRE( tmpDir.isValid() );
+
+    GIVEN( "A merge of two sources" )
+    {
+        const auto pathA = writeTestFile( tmpDir, "a.log", { "a1" } );
+        const auto pathB = writeTestFile( tmpDir, "b.log", { "b1" } );
+
+        MergeController controller;
+        controller.merge( { pathA, pathB }, false );
+
+        WHEN( "A line is appended to the second source" )
+        {
+            appendToFile( pathB, "b2" );
+
+            THEN( "The merged file is rebuilt without anyone asking" )
+            {
+                REQUIRE( waitForUpdate( controller ) );
+                REQUIRE( readAllLines( controller.mergedFilePath() )
+                         == QStringList{ "a1", "b1", "b2" } );
+            }
+        }
+
+        WHEN( "A source is truncated" )
+        {
+            writeTestFile( tmpDir, "a.log", {} );
+
+            THEN( "Its lines leave the merged file, the other source stays" )
+            {
+                REQUIRE( waitForUpdate( controller ) );
+                REQUIRE( readAllLines( controller.mergedFilePath() ) == QStringList{ "b1" } );
+
+                AND_WHEN( "The truncated source grows again" )
+                {
+                    appendToFile( pathA, "a2" );
+
+                    THEN( "The new lines are picked up" )
+                    {
+                        REQUIRE( waitForUpdate( controller ) );
+                        REQUIRE( readAllLines( controller.mergedFilePath() )
+                                 == QStringList{ "a2", "b1" } );
+                    }
+                }
+            }
+        }
+
+        WHEN( "A source is replaced by a new file" )
+        {
+            const auto replacement = writeTestFile( tmpDir, "a.tmp", { "new" } );
+            REQUIRE( QFile::remove( pathA ) );
+            REQUIRE( QFile::rename( replacement, pathA ) );
+
+            THEN( "The new content is merged and the new file is watched" )
+            {
+                REQUIRE( waitForUpdate( controller ) );
+                REQUIRE( readAllLines( controller.mergedFilePath() )
+                         == QStringList{ "new", "b1" } );
+
+                appendToFile( pathA, "more" );
+                REQUIRE( waitForUpdate( controller ) );
+                REQUIRE( readAllLines( controller.mergedFilePath() )
+                         == QStringList{ "new", "more", "b1" } );
             }
         }
     }

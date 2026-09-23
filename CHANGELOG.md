@@ -19,6 +19,12 @@
 
 ## Bug fixes
 
+- **A merged Log File follows its sources**: The merged tab was a one-time
+  snapshot that went stale while its sources kept growing. It is now rebuilt
+  when a source changes (lines of a truncated source leave it), and the tab is
+  named "Merged" or "Merged (dedup)" instead of after the temporary file
+  (#432).
+
 - **Selecting a Log Line no longer hangs on large Log Files on macOS**: With
   the Table View of a large Log File and an app on the Mac that uses the
   accessibility features, every click, double click or dragged selection in

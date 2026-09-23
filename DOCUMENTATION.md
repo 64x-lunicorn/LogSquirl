@@ -383,6 +383,22 @@ The following file mode requires monitoring of the file system for any changes.
 If native monitoring or polling are both disabled in settings, then the 
 following file mode is also disabled.
 
+### Merging Log Files
+
+Right-click a tab and choose "Merge All Left" or "Merge All Right" (or the
+"(dedup)" variants, which drop duplicate lines) to combine that tab with the
+tabs on one side of it into one merged tab, named "Merged" or "Merged (dedup)".
+The sources are written one after the other, in tab order; lines are not sorted
+by time.
+
+The merged tab follows its sources. When a source changes, the merged file is
+rebuilt after a short pause (300 ms) and the tab reloads. The rebuild always
+starts from what the sources contain at that moment: if a source is truncated
+or overwritten, its old lines disappear from the merged tab and the lines of
+the other sources stay. A source that is deleted contributes nothing until it
+exists again and changes. The merged file is a temporary file, removed when
+the window closes; it is not restored with the session.
+
 ### Filters Panel
 
 The Filters Panel is a right sidebar dock that provides quick access to filters
