@@ -1,8 +1,9 @@
 # Accepted vulnerability risks of the components LogSquirl ships (#213).
 #
-# scripts/sbom/logsquirl_vulns.py marks a finding as ignored (a suppressed
-# alert in code scanning, and no release failure for a critical one) while an
-# entry here matches it. Every entry needs all four keys:
+# scripts/sbom/logsquirl_vulns.py marks a finding as ignored while an entry
+# here matches it: no release failure for a critical one, and the daily scan
+# dismisses its code scanning alert with the reason below and reopens it once
+# the entry expires (#415). Every entry needs all four keys:
 #
 #   id         CVE, GHSA or OSV id; aliases of a finding match too
 #   component  component name as in the SBOM (qt, openssl, zstd, ...)

@@ -843,3 +843,184 @@ def test_sarif_of_a_bundled_ubuntu_package_points_at_the_appimage_build_image():
     loc = log["runs"][0]["results"][0]["locations"][0]["physicalLocation"]
     assert loc["artifactLocation"]["uri"] == "docker/ubuntu22.04/Dockerfile"
     assert (REPO / "docker/ubuntu22.04/Dockerfile").read_text().splitlines()[loc["region"]["startLine"] - 1].startswith("FROM ")
+
+
+# ── code scanning alerts ────────────────────────────────────────────────────
+
+
+def alert(f: vs.Finding, number: int = 1, **kw) -> dict:
+    """An alert as code scanning reports it for a finding: the message is the
+    one the SARIF upload carried, which is all the alert keeps of it."""
+    result = vs.to_sarif([f], REPO)["runs"][0]["results"][0]
+    return {"number": number, "state": "open", "dismissed_comment": None,
+            "rule": {"id": result["ruleId"]},
+            "most_recent_instance": {"message": {"text": result["message"]["text"]}}} | kw
+
+
+class FakeAlerts:
+    """GitHub's code scanning API: alerts in pages, PATCHes recorded."""
+
+    def __init__(self, *pages: list[dict]):
+        self.pages = list(pages) or [[]]
+        self.calls: list[tuple[str, str, dict | None]] = []
+
+    def __call__(self, method: str, path: str, body: dict | None):
+        self.calls.append((method, path, body))
+        if method != "GET":
+            return None
+        page = int(re.search(r"[?&]page=(\d+)", path).group(1))
+        return self.pages[page - 1] if page <= len(self.pages) else []
+
+    @property
+    def patches(self) -> list[tuple[str, dict | None]]:
+        return [(path, body) for method, path, body in self.calls if method == "PATCH"]
+
+
+ACCEPTED = [vs.IgnoreEntry("CVE-2026-0001", "zstd", "not reachable from LogSquirl", dt.date(2027, 1, 1))]
+
+
+def test_an_alert_an_accepted_risk_covers_is_dismissed_with_its_reason():
+    assert vs.alert_updates([alert(finding(id="CVE-2026-0001"), number=7)], ACCEPTED, TODAY) == [
+        (7, {"state": "dismissed", "dismissed_reason": "won't fix",
+             "dismissed_comment": "Accepted in scripts/sbom/vuln-ignore.yml: not reachable from LogSquirl"})]
+
+
+def test_an_accepted_risk_matches_an_alert_by_alias_and_regardless_of_case():
+    alerts = [alert(finding(id="GHSA-aaaa-bbbb-cccc", aliases=frozenset({"CVE-2026-0001"})), number=7)]
+    entries = [dataclasses.replace(ACCEPTED[0], component="ZSTD", id="cve-2026-0001")]
+    assert [n for n, _ in vs.alert_updates(alerts, entries, TODAY)] == [7]
+
+
+@pytest.mark.parametrize("f", [
+    finding(id="CVE-2026-0009"),  # no entry for this vulnerability
+    finding(id="CVE-2026-0001", ref="cpm:lz4", component="lz4"),  # the entry is for another component
+])
+def test_an_alert_no_accepted_risk_covers_stays_open(f):
+    assert vs.alert_updates([alert(f)], ACCEPTED, TODAY) == []
+
+
+def test_an_alert_is_reopened_once_the_accepted_risk_expires_or_goes_away():
+    dismissed = alert(finding(id="CVE-2026-0001"), number=7, state="dismissed",
+                      dismissed_comment="Accepted in scripts/sbom/vuln-ignore.yml: not reachable from LogSquirl")
+    expired = [dataclasses.replace(ACCEPTED[0], expires=dt.date(2026, 9, 15))]
+    assert vs.alert_updates([dismissed], expired, TODAY) == [(7, {"state": "open"})]
+    assert vs.alert_updates([dismissed], [], TODAY) == [(7, {"state": "open"})]
+
+
+def test_an_alert_already_dismissed_for_the_accepted_risk_is_left_untouched():
+    dismissed = alert(finding(id="CVE-2026-0001"), state="dismissed",
+                      dismissed_comment="Accepted in scripts/sbom/vuln-ignore.yml: not reachable from LogSquirl")
+    assert vs.alert_updates([dismissed], ACCEPTED, TODAY) == []
+
+
+def test_a_dismissal_made_by_a_person_is_neither_reopened_nor_overwritten():
+    by_hand = alert(finding(id="CVE-2026-0001"), state="dismissed", dismissed_comment="looked at it, not us")
+    assert vs.alert_updates([by_hand], ACCEPTED, TODAY) == []
+    assert vs.alert_updates([by_hand], [], TODAY) == []
+
+
+def test_a_rewritten_reason_updates_the_dismissal_it_made():
+    stale = alert(finding(id="CVE-2026-0001"), number=7, state="dismissed",
+                  dismissed_comment="Accepted in scripts/sbom/vuln-ignore.yml: the old reason")
+    assert vs.alert_updates([stale], ACCEPTED, TODAY) == [
+        (7, {"state": "dismissed", "dismissed_reason": "won't fix",
+             "dismissed_comment": "Accepted in scripts/sbom/vuln-ignore.yml: not reachable from LogSquirl"})]
+
+
+def test_a_long_reason_is_cut_to_the_comment_length_the_api_takes():
+    long = [dataclasses.replace(ACCEPTED[0], reason="word " * 200)]
+    comment = vs.alert_updates([alert(finding(id="CVE-2026-0001"))], long, TODAY)[0][1]["dismissed_comment"]
+    assert len(comment) == vs.MAX_COMMENT
+    assert comment.startswith(vs.DISMISS_MARKER) and comment.endswith("…")
+
+
+def test_an_alert_of_another_tool_is_left_alone():
+    foreign = {"number": 7, "state": "open", "rule": {"id": "CVE-2026-0001"},
+               "most_recent_instance": {"message": {"text": "zstd is vulnerable"}}}
+    assert vs.alert_updates([foreign], ACCEPTED, TODAY) == []
+
+
+def test_every_page_of_alerts_is_read_and_the_accepted_ones_dismissed():
+    api = FakeAlerts([alert(finding(id=f"CVE-2026-{n:04d}"), number=n) for n in range(100)],
+                     [alert(finding(id="CVE-2026-0001"), number=200)])
+    assert vs.reconcile_alerts(api, "64x-lunicorn/LogSquirl", ACCEPTED, TODAY) == ["alert 1: dismissed",
+                                                                                  "alert 200: dismissed"]
+    assert [path for method, path, _ in api.calls if method == "GET"] == [
+        "/repos/64x-lunicorn/LogSquirl/code-scanning/alerts?tool_name=logsquirl-vulns&per_page=100&page=1",
+        "/repos/64x-lunicorn/LogSquirl/code-scanning/alerts?tool_name=logsquirl-vulns&per_page=100&page=2"]
+    assert [path for path, _ in api.patches] == ["/repos/64x-lunicorn/LogSquirl/code-scanning/alerts/1",
+                                                 "/repos/64x-lunicorn/LogSquirl/code-scanning/alerts/200"]
+
+
+def test_an_unreadable_alert_list_is_a_tooling_error():
+    def wrong_shape(method, path, body):
+        return {"message": "Not Found"}
+
+    with pytest.raises(vs.VulnScanError, match="expected a list"):
+        vs.reconcile_alerts(wrong_shape, "64x-lunicorn/LogSquirl", ACCEPTED, TODAY)
+
+
+def test_the_repository_ignore_file_dismisses_the_accepted_qt_advisory(tmp_path, capsys):
+    """The accepted Qt advisory (#251) must not sit on the board as an open
+    alert, which is what code scanning does with a SARIF suppression (#415)."""
+    qt = finding(ref="platform:qt@6.11.2", component="qt", version="6.11.2", id="CVE-2026-15037",
+                 severity="LOW", score=2.9, sources=frozenset({"qt-advisories"}),
+                 affected="4.0.0 before 6.12.0", fixed=("6.12.0",))
+    api = FakeAlerts([alert(qt, number=57)])
+    code = vs.main(["dismiss", "--ignore", str(REPO / "scripts/sbom/vuln-ignore.yml"),
+                    "--repo", "64x-lunicorn/LogSquirl"], api=api, today=TODAY)
+    assert code == 0
+    assert "alert 57: dismissed" in capsys.readouterr().out
+    path, body = api.patches[0]
+    assert path == "/repos/64x-lunicorn/LogSquirl/code-scanning/alerts/57"
+    assert body["state"] == "dismissed" and body["dismissed_reason"] == "won't fix"
+    assert body["dismissed_comment"].startswith(vs.DISMISS_MARKER + "Fixed only in Qt 6.12.0")
+
+
+def test_the_dismiss_command_reports_when_nothing_has_to_change(tmp_path, capsys):
+    ignore = tmp_path / "vuln-ignore.yml"
+    ignore.write_text("ignore: []\n")
+    api = FakeAlerts([alert(finding(id="CVE-2026-0009"))])
+    assert vs.main(["dismiss", "--ignore", str(ignore), "--repo", "o/r"], api=api, today=TODAY) == 0
+    assert "already match the accepted risks" in capsys.readouterr().out
+    assert api.patches == []
+
+
+def test_the_dismiss_command_warns_about_an_expired_entry(tmp_path, capsys):
+    ignore = tmp_path / "vuln-ignore.yml"
+    ignore.write_text("ignore:\n  - {id: CVE-2026-0001, component: zstd, reason: why, expires: 2026-09-15}\n")
+    assert vs.main(["dismiss", "--ignore", str(ignore), "--repo", "o/r"], api=FakeAlerts(), today=TODAY) == 0
+    assert "::warning file=" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("api, message", [
+    (lambda method, path, body: (_ for _ in ()).throw(OSError("GET /alerts: HTTP 403")), "HTTP 403"),
+    (None, "cannot read the ignore file"),
+])
+def test_the_dismiss_command_fails_as_a_tooling_error(tmp_path, capsys, api, message):
+    ignore = tmp_path / "vuln-ignore.yml"
+    if api is None:
+        api = FakeAlerts()
+    else:
+        ignore.write_text("ignore: []\n")
+    assert vs.main(["dismiss", "--ignore", str(ignore), "--repo", "o/r"], api=api, today=TODAY) == 2
+    assert message in capsys.readouterr().err
+
+
+def test_the_github_transport_sends_the_workflow_token(monkeypatch):
+    seen = {}
+
+    def fake_fetch(method, url, data=None, headers=None, **kw):
+        seen.update(method=method, url=url, data=data, headers=headers)
+        return b'{"number": 7}'
+
+    monkeypatch.setattr(vs, "_fetch", fake_fetch)
+    monkeypatch.setenv("GITHUB_TOKEN", "t0ken")
+    assert vs.urllib_github("PATCH", "/repos/o/r/code-scanning/alerts/7", {"state": "open"}) == {"number": 7}
+    assert seen["url"] == "https://api.github.com/repos/o/r/code-scanning/alerts/7"
+    assert seen["headers"]["Authorization"] == "Bearer t0ken"
+    assert json.loads(seen["data"]) == {"state": "open"}
+
+    monkeypatch.delenv("GITHUB_TOKEN")
+    with pytest.raises(vs.VulnScanError, match="GITHUB_TOKEN"):
+        vs.urllib_github("GET", "/repos/o/r/code-scanning/alerts", None)
