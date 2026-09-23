@@ -20,10 +20,14 @@
 #ifndef LOGSQUIRL_HIGHLIGHTEREDIT_H
 #define LOGSQUIRL_HIGHLIGHTEREDIT_H
 
+#include <vector>
+
 #include <QWidget>
 
 #include "highlighterset.h"
 #include "ui_highlighteredit.h"
+
+class QToolButton;
 
 class HighlighterEdit : public QWidget, public Ui::HighlighterEdit {
     Q_OBJECT
@@ -50,11 +54,16 @@ private Q_SLOTS:
     void setVariateColors( bool variateColors );
     void setColorVariance( int colorVariance );
     void setPatternType( int index );
+    void applyColorPreset( int index );
 
 private:
+    void addColorPresetButtons();
+    void setColorsEnabled( bool enabled );
+
     const Highlighter defaultHighlighter_;
 
     Highlighter highlighter_;
+    std::vector<QToolButton*> colorPresetButtons_;
 };
 
 #endif // LOGSQUIRL_HIGHLIGHTEREDIT_H

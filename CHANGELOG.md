@@ -1,6 +1,23 @@
 # Unreleased
 
+## Changes
+
+- **Color presets for Highlighters**: The Highlighter editor offers 20
+  ready-made color pairs, 12 soft pastels with dark text and 8 strong colors
+  with white text; one click sets both the text and the background color.
+  Every pair stays readable and stands out from the Log Lines in every
+  Theme. The color dialog's basic colors are the same hues in tonal scales
+  instead of Qt's stock set, and a new Highlighter takes the next soft preset
+  instead of black on white. Existing Highlighters keep their colors (#423).
+
 ## Bug fixes
+
+- **Selecting a Log Line no longer hangs on large Log Files on macOS**: With
+  the Table View of a large Log File and an app on the Mac that uses the
+  accessibility features, every click, double click or dragged selection in
+  any view took seconds. The Table View no longer tells the accessibility
+  clients which Row is selected, because Qt then rebuilt an accessibility
+  element for every Row. A click takes milliseconds again (#425).
 
 - **The close button of a tab is square again**: The red fill under the mouse
   was 14x20 pixels around a 16-pixel icon, taller than it was wide and larger

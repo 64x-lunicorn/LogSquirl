@@ -168,6 +168,10 @@ protected:
     bool viewportEvent( QEvent* event ) override;
     // Paints the visible cells in one paint pass of the delegate.
     void paintEvent( QPaintEvent* event ) override;
+    // Repaint as QTableView does, without telling the accessibility clients.
+    void selectionChanged( const QItemSelection& selected,
+                           const QItemSelection& deselected ) override;
+    void currentChanged( const QModelIndex& current, const QModelIndex& previous ) override;
 
 private:
     void rowSelectionChanged();

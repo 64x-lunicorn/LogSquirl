@@ -6,6 +6,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersdialog.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighteredit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersetedit.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterpresets.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlighterset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/highlightersmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtablehighlightdelegate.h
@@ -82,6 +83,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/filteredview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersdialog.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighteredit.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterpresets.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp

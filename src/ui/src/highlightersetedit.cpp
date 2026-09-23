@@ -41,6 +41,7 @@
 
 #include <utility>
 
+#include "highlighterpresets.h"
 #include "highlighterset.h"
 #include "highlightersetedit.h"
 
@@ -55,8 +56,13 @@ static constexpr QLatin1String DEFAULT_PATTERN = QLatin1String( "New Highlighter
 static constexpr bool DEFAULT_IGNORE_CASE = false;
 static constexpr bool DEFAULT_ONLY_MATCH = false;
 
-static const QColor DEFAULT_FORE_COLOUR( "#000000" );
-static const QColor DEFAULT_BACK_COLOUR( "#FFFFFF" );
+// A new Highlighter takes the soft preset after the one the previous
+// Highlighter took, so a few new ones in a row are told apart at once.
+const HighlighterColorPreset& presetForNewHighlighter( qsizetype existingHighlighters )
+{
+    return highlighterColorPresets()[ static_cast<size_t>( existingHighlighters
+                                                           % SoftHighlighterColorPresetCount ) ];
+}
 } // namespace
 
 // Construct the box, including a copy of the global highlighterSet
@@ -66,9 +72,10 @@ HighlighterSetEdit::HighlighterSetEdit( QWidget* parent )
 {
     setupUi( this );
 
+    const auto& defaultPreset = presetForNewHighlighter( 0 );
     highlighterEdit_
         = new HighlighterEdit( Highlighter{ "", DEFAULT_IGNORE_CASE, DEFAULT_ONLY_MATCH,
-                                            DEFAULT_FORE_COLOUR, DEFAULT_BACK_COLOUR },
+                                            defaultPreset.foreColor, defaultPreset.backColor },
                                this );
     highlighterEdit_->setSizePolicy( QSizePolicy::Expanding, QSizePolicy::Expanding );
     highlighterLayout->addWidget( highlighterEdit_ );
@@ -149,9 +156,10 @@ void HighlighterSetEdit::addHighlighter()
 {
     LOG_DEBUG << "addHighlighter()";
 
+    const auto& preset = presetForNewHighlighter( highlighterSet_.highlighterList_.size() );
     highlighterSet_.highlighterList_.append( Highlighter( DEFAULT_PATTERN, DEFAULT_IGNORE_CASE,
-                                                          DEFAULT_ONLY_MATCH, DEFAULT_FORE_COLOUR,
-                                                          DEFAULT_BACK_COLOUR ) );
+                                                          DEFAULT_ONLY_MATCH, preset.foreColor,
+                                                          preset.backColor ) );
 
     // Add and select the newly created highlighter
     highlighterListWidget->addItem( DEFAULT_PATTERN );
