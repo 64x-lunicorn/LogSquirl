@@ -23,7 +23,8 @@
 #include <QFile>
 #include <QTemporaryDir>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 // The rule that decides whether an Index still fits its Log File, on its
 // own. The Index Cache and the change detection of an Open Log File both ask

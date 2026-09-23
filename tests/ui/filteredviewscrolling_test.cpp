@@ -25,7 +25,7 @@
 // without a widget in tests/textviewscrolling (#246); these check that the
 // Filtered View hands them its Displayed Lines.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <QShortcut>
 #include <QSignalSpy>

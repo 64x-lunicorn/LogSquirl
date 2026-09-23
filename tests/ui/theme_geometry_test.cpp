@@ -28,7 +28,7 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // Widgets the Themes drew differently, beyond color (#264).
 

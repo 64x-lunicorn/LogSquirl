@@ -5,6 +5,6 @@ add_executable(logsquirl_searchline_tests
     searchline_test.cpp
 )
 
-target_link_libraries(logsquirl_searchline_tests logsquirl_searchline Catch2 test_utils)
+target_link_libraries(logsquirl_searchline_tests logsquirl_searchline Catch2::Catch2 test_utils)
 
 logsquirl_add_catch_tests(logsquirl_searchline_tests TIMEOUT 120)

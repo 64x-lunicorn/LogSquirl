@@ -17,7 +17,8 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "chartseries.h"
 
@@ -53,7 +54,7 @@ SCENARIO( "ChartSeriesDefinition regex extraction", "[chartseries]" )
                 bool ok = false;
                 const double val = match.captured( 1 ).toDouble( &ok );
                 REQUIRE( ok );
-                REQUIRE( val == Approx( 123.45 ) );
+                REQUIRE( val == Catch::Approx( 123.45 ) );
             }
         }
 
@@ -105,7 +106,7 @@ SCENARIO( "ChartSeriesDefinition regex extraction", "[chartseries]" )
                 bool ok = false;
                 const double val = match.captured( 2 ).toDouble( &ok );
                 REQUIRE( ok );
-                REQUIRE( val == Approx( 85.0 ) );
+                REQUIRE( val == Catch::Approx( 85.0 ) );
             }
         }
     }
@@ -203,8 +204,8 @@ SCENARIO( "ChartPoint data model", "[chartseries]" )
         THEN( "Line, xValue and value are stored" )
         {
             REQUIRE( pt.line.get() == 42 );
-            REQUIRE( pt.xValue == Approx( 42.0 ) );
-            REQUIRE( pt.value == Approx( 99.5 ) );
+            REQUIRE( pt.xValue == Catch::Approx( 42.0 ) );
+            REQUIRE( pt.value == Catch::Approx( 99.5 ) );
             REQUIRE( pt.xLabel.isEmpty() );
         }
     }
@@ -216,7 +217,7 @@ SCENARIO( "ChartPoint data model", "[chartseries]" )
         THEN( "The xLabel is stored" )
         {
             REQUIRE( pt.xLabel == "04-08 20:02:49" );
-            REQUIRE( pt.xValue == Approx( 1000.0 ) );
+            REQUIRE( pt.xValue == Catch::Approx( 1000.0 ) );
         }
     }
 }
@@ -296,7 +297,7 @@ SCENARIO( "X-axis regex extraction from log lines", "[chartseries]" )
                 bool ok = false;
                 const double val = xMatch.captured( 1 ).toDouble( &ok );
                 REQUIRE( ok );
-                REQUIRE( val == Approx( 5678.0 ) );
+                REQUIRE( val == Catch::Approx( 5678.0 ) );
             }
         }
     }
@@ -456,7 +457,7 @@ SCENARIO( "Filter frequency series creation pattern", "[chartseries]" )
                 REQUIRE( match.hasMatch() );
                 // In count mode the Y value is always 1.0.
                 double yVal = 1.0;
-                REQUIRE( yVal == Approx( 1.0 ) );
+                REQUIRE( yVal == Catch::Approx( 1.0 ) );
             }
         }
 
@@ -664,7 +665,7 @@ SCENARIO( "ChartSeriesDefinition count mode with captureGroup zero", "[chartseri
                 if ( def.captureGroup > 0 && match.lastCapturedIndex() >= def.captureGroup ) {
                     yVal = match.captured( def.captureGroup ).toDouble();
                 }
-                REQUIRE( yVal == Approx( 1.0 ) );
+                REQUIRE( yVal == Catch::Approx( 1.0 ) );
             }
         }
     }

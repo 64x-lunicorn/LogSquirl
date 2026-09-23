@@ -35,7 +35,7 @@
 #include <memory>
 #include <vector>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // The Session builds the views of every Log File it opens through one seam
 // (#248): one value to build them from, and afterwards only what changed and

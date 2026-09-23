@@ -33,7 +33,7 @@
 
 #include <cstddef>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 inline constexpr qint64 DigestBlockSize = 5 * 1024 * 1024;
 

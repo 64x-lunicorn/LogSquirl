@@ -21,7 +21,8 @@
 // Encoding of the Log File, each Log Line of the view is the Log Line as it is
 // decoded, in UTF-8 (#291).
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <string>
 #include <string_view>

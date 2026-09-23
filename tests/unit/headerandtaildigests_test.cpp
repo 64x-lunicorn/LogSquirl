@@ -25,7 +25,9 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
 // The header and tail digests of an Index taken as its bytes are indexed
 // (#277), checked against digests of the same byte ranges taken in one go.

@@ -21,7 +21,8 @@
 // Log Line read, whether the Log Lines are read one at a time or as a block
 // for a Search (#278).
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <string>
 #include <string_view>

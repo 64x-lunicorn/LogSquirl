@@ -21,7 +21,9 @@
 // out against the overview background in every Theme, and a line standing
 // for more Log Lines is drawn stronger (#255).
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
 #include <algorithm>
 #include <cmath>

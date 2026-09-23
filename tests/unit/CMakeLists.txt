@@ -74,7 +74,7 @@ add_executable(logsquirl_tests
 # settings library through the update check. Naming them here as well put four
 # of the archives on the link line twice, and Apple's linker warns about a
 # duplicate library since Xcode 15 (#450).
-target_link_libraries(logsquirl_tests logsquirl_ui Catch2 Qt6::Test test_utils)
+target_link_libraries(logsquirl_tests logsquirl_ui Catch2::Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 # The Options Dialog test needs the dialog's generated form header, and the
@@ -141,7 +141,7 @@ add_executable(logsquirl_compression_tests
     zstddevice_test.cpp
 )
 
-target_link_libraries(logsquirl_compression_tests logsquirl_compression Catch2)
+target_link_libraries(logsquirl_compression_tests logsquirl_compression Catch2::Catch2)
 
 logsquirl_add_catch_tests(logsquirl_compression_tests TIMEOUT 60)
 
@@ -152,7 +152,7 @@ add_executable(logsquirl_plugin_catalog_tests
     plugincatalog_test.cpp
 )
 
-target_link_libraries(logsquirl_plugin_catalog_tests logsquirl_plugin_catalog Catch2)
+target_link_libraries(logsquirl_plugin_catalog_tests logsquirl_plugin_catalog Catch2::Catch2)
 
 logsquirl_add_catch_tests(logsquirl_plugin_catalog_tests TIMEOUT 60)
 
@@ -165,6 +165,6 @@ add_executable(logsquirl_versioncheck_tests
     versionchecker_test.cpp
 )
 
-target_link_libraries(logsquirl_versioncheck_tests logsquirl_versioncheck Catch2)
+target_link_libraries(logsquirl_versioncheck_tests logsquirl_versioncheck Catch2::Catch2)
 
 logsquirl_add_catch_tests(logsquirl_versioncheck_tests TIMEOUT 60)

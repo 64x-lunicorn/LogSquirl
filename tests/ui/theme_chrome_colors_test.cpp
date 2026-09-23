@@ -22,7 +22,7 @@
 // a conflicting shortcut in the Options Dialog. What they paint is read back
 // with grab().
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <cmath>

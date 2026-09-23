@@ -25,7 +25,9 @@
 #include <utility>
 #include <vector>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
 // The Displayed Lines over plain bitmaps: the Matches stand in for the ones
 // a Search Session holds, and the Log File is just a line count.

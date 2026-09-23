@@ -19,7 +19,7 @@ if(NOT EXISTS "${_logsquirl_catch_executable}")
     set(_logsquirl_catch_failed "the test executable ${_logsquirl_catch_executable} is not built")
 else()
     execute_process(
-        COMMAND "${_logsquirl_catch_executable}" ${_logsquirl_catch_extra_args} --list-test-names-only
+        COMMAND "${_logsquirl_catch_executable}" ${_logsquirl_catch_extra_args} --list-tests --verbosity quiet
         WORKING_DIRECTORY "${_logsquirl_catch_working_dir}"
         OUTPUT_VARIABLE _logsquirl_catch_output
         ERROR_VARIABLE _logsquirl_catch_error
@@ -38,16 +38,15 @@ else()
     # sets ("<ISO time> <type> [<thread>] ...").
     list(FILTER _logsquirl_catch_lines EXCLUDE REGEX
          "^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9][.0-9]* [a-z]+ <LOGSQUIRL_OPEN_BRACKET>")
+    # Catch2 v3 lists the test cases in the order the translation units
+    # registered them; ctest runs them in one stable order.
+    list(SORT _logsquirl_catch_lines)
     list(LENGTH _logsquirl_catch_lines _logsquirl_catch_count)
 
-    # Catch exits with the number of listed test cases, truncated to 8 bits on
-    # Unix. Anything else (a crash, a missing DLL, a failed QApplication, output
-    # that is neither a name nor a log line) means the list is wrong, and a
-    # silently shorter test list must not pass.
-    math(EXPR _logsquirl_catch_count_8bit "${_logsquirl_catch_count} % 256")
-    if(NOT _logsquirl_catch_result MATCHES "^-?[0-9]+$"
-       OR NOT (_logsquirl_catch_result EQUAL _logsquirl_catch_count
-               OR _logsquirl_catch_result EQUAL _logsquirl_catch_count_8bit))
+    # A listing exits with 0. Anything else (a crash, a missing DLL, a failed
+    # QApplication) means the list is wrong, and a silently shorter test list
+    # must not pass.
+    if(NOT _logsquirl_catch_result STREQUAL "0")
         set(_logsquirl_catch_failed
             "listing the test cases exited with '${_logsquirl_catch_result}' after ${_logsquirl_catch_count} names: ${_logsquirl_catch_error}")
     elseif(_logsquirl_catch_count EQUAL 0)
@@ -93,8 +92,8 @@ foreach(_logsquirl_catch_name IN LISTS _logsquirl_catch_lines)
     endif()
 
     set(_logsquirl_catch_test "${_logsquirl_catch_target}: ${_logsquirl_catch_name}")
-    # --warn NoTests: a spec that matches no test case fails instead of passing
-    # with zero assertions.
+    # --warn UnmatchedTestSpec: a spec that matches no test case fails instead
+    # of passing with zero assertions.
     #
     # The case runs through CatchTestDiscoveryRunTest.cmake, which puts it
     # beside a settings file of its own: the test binaries share the directory
@@ -102,7 +101,7 @@ foreach(_logsquirl_catch_name IN LISTS _logsquirl_catch_lines)
     add_test("${_logsquirl_catch_test}"
         "${_logsquirl_catch_cmake}" "-DTEST_BINARY=${_logsquirl_catch_executable}"
         -P "${_logsquirl_catch_run_script}"
-        -- "${_logsquirl_catch_spec}" --warn NoTests ${_logsquirl_catch_extra_args})
+        -- "${_logsquirl_catch_spec}" --warn UnmatchedTestSpec ${_logsquirl_catch_extra_args})
     set_tests_properties("${_logsquirl_catch_test}" PROPERTIES
         TIMEOUT "${_logsquirl_catch_timeout}"
         WORKING_DIRECTORY "${_logsquirl_catch_working_dir}")

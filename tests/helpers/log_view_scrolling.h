@@ -33,7 +33,7 @@
 // view's own Viewport layout, the one its hit testing and its painting read.
 // Nothing here re-derives where a Log Line is drawn.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
 #include <functional>

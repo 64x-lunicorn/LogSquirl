@@ -21,7 +21,7 @@
 // few points per pixel column when it has more points than pixel columns, and
 // the hovered point found by binary search.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <cmath>

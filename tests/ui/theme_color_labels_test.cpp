@@ -24,7 +24,7 @@
 //
 // What a view paints is read back with grab(), as the other Theme tests do.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <cmath>

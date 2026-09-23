@@ -5,6 +5,6 @@ add_executable(logsquirl_textviewscrolling_tests
     textviewscrolling_test.cpp
 )
 
-target_link_libraries(logsquirl_textviewscrolling_tests logsquirl_textviewscrolling Catch2 test_utils)
+target_link_libraries(logsquirl_textviewscrolling_tests logsquirl_textviewscrolling Catch2::Catch2 test_utils)
 
 logsquirl_add_catch_tests(logsquirl_textviewscrolling_tests TIMEOUT 120)

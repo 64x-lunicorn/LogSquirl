@@ -37,7 +37,7 @@
 
 #include <memory>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // The Search line keeps a usable width while the sidebar is open, and the
 // sidebar opens at a moderate width it remembers (#261). MainWindow builds
