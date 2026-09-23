@@ -228,9 +228,9 @@ void HighlighterEdit::addColorPresetButtons()
     }
     grid->setColumnStretch( SoftHighlighterColorPresetCount, 1 );
 
-    auto* label = new QLabel( tr( "Color presets:" ), this );
+    auto* presetsLabel = new QLabel( tr( "Color presets:" ), this );
     const int textColorRow = verticalLayout->indexOf( horizontalLayout_3 );
-    verticalLayout->insertWidget( textColorRow, label );
+    verticalLayout->insertWidget( textColorRow, presetsLabel );
     verticalLayout->insertLayout( textColorRow + 1, grid );
 }
 
