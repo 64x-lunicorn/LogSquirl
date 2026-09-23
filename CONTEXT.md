@@ -247,6 +247,12 @@ _Avoid_: record, entry
 **Chart Preset**:
 A saved configuration of which Log Format fields to plot and how.
 
+**Value Count**:
+How often each value of one Log Format field, or of one capture group of the Search,
+occurs: value, count and share, most frequent first. A snapshot taken on request, not
+followed as the Log File grows.
+_Avoid_: summary, statistics, histogram
+
 ### Plugins
 
 **Plugin Catalog**:
