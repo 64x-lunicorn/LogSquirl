@@ -25,21 +25,182 @@
 #include <QJsonObject>
 #include <QRegularExpression>
 
+#include <optional>
+
 // Keys in the lnav JSON schema that are not format definitions
 static bool isMetaKey( const QString& key )
 {
     return key.startsWith( '$' );
 }
 
+namespace {
+
+// QJsonObject sorts its members, but the order of the members of a Log
+// Format's "value" section is the order of its columns. This reads that order
+// from the text of the file: a minimal scanner that skips everything else.
+class MemberOrderScanner {
+public:
+    explicit MemberOrderScanner( const QByteArray& text )
+        : text_( text )
+    {
+    }
+
+    // The keys, in file order, of the object "value" of the top-level member
+    // formatName; empty when the text has no such object.
+    QStringList valueKeys( const QString& formatName )
+    {
+        pos_ = 0;
+        auto format = findMember( formatName );
+        if ( !format ) {
+            return {};
+        }
+        pos_ = *format;
+        auto value = findMember( QStringLiteral( "value" ) );
+        if ( !value ) {
+            return {};
+        }
+        pos_ = *value;
+        QStringList keys;
+        forEachMember( [ &keys ]( const QString& key, qsizetype ) {
+            keys << key;
+            return false;
+        } );
+        return keys;
+    }
+
+private:
+    // Calls visit( key, position of the value ) for each member of the object
+    // at pos_ until it returns true; leaves pos_ after the object, or, when
+    // stopped, wherever it was.
+    template <typename Visitor>
+    void forEachMember( Visitor visit )
+    {
+        skipSpace();
+        if ( pos_ >= text_.size() || text_[ pos_ ] != '{' ) {
+            return;
+        }
+        ++pos_;
+        for ( ;; ) {
+            skipSpace();
+            if ( pos_ >= text_.size() ) {
+                return;
+            }
+            if ( text_[ pos_ ] == '}' ) {
+                ++pos_;
+                return;
+            }
+            if ( text_[ pos_ ] == ',' ) {
+                ++pos_;
+                continue;
+            }
+            if ( text_[ pos_ ] != '"' ) {
+                pos_ = text_.size();
+                return;
+            }
+            const auto key = readString();
+            skipSpace();
+            if ( pos_ < text_.size() && text_[ pos_ ] == ':' ) {
+                ++pos_;
+            }
+            skipSpace();
+            const auto valuePos = pos_;
+            if ( visit( key, valuePos ) ) {
+                return;
+            }
+            pos_ = valuePos;
+            skipValue();
+        }
+    }
+
+    std::optional<qsizetype> findMember( const QString& name )
+    {
+        std::optional<qsizetype> found;
+        forEachMember( [ &found, &name ]( const QString& key, qsizetype valuePos ) {
+            if ( key == name ) {
+                found = valuePos;
+                return true;
+            }
+            return false;
+        } );
+        return found;
+    }
+
+    void skipSpace()
+    {
+        while ( pos_ < text_.size()
+                && ( text_[ pos_ ] == ' ' || text_[ pos_ ] == '\t' || text_[ pos_ ] == '\n'
+                     || text_[ pos_ ] == '\r' ) ) {
+            ++pos_;
+        }
+    }
+
+    // Reads the string at pos_ (which is on its opening quote), decoded.
+    QString readString()
+    {
+        const auto start = pos_;
+        ++pos_;
+        while ( pos_ < text_.size() && text_[ pos_ ] != '"' ) {
+            pos_ += text_[ pos_ ] == '\\' ? 2 : 1;
+        }
+        ++pos_;
+        const auto raw = text_.mid( start, pos_ - start );
+        if ( !raw.contains( '\\' ) ) {
+            return QString::fromUtf8( raw.mid( 1, raw.size() - 2 ) );
+        }
+        const auto array = QJsonDocument::fromJson( "[" + raw + "]" ).array();
+        return array.isEmpty() ? QString() : array.at( 0 ).toString();
+    }
+
+    void skipValue()
+    {
+        skipSpace();
+        if ( pos_ >= text_.size() ) {
+            return;
+        }
+        if ( text_[ pos_ ] == '"' ) {
+            readString();
+        }
+        else if ( text_[ pos_ ] == '{' ) {
+            forEachMember( []( const QString&, qsizetype ) { return false; } );
+        }
+        else if ( text_[ pos_ ] == '[' ) {
+            ++pos_;
+            for ( skipSpace(); pos_ < text_.size() && text_[ pos_ ] != ']'; skipSpace() ) {
+                if ( text_[ pos_ ] == ',' ) {
+                    ++pos_;
+                    continue;
+                }
+                skipValue();
+            }
+            ++pos_;
+        }
+        else {
+            while ( pos_ < text_.size() && text_[ pos_ ] != ',' && text_[ pos_ ] != '}'
+                    && text_[ pos_ ] != ']' ) {
+                ++pos_;
+            }
+        }
+    }
+
+    const QByteArray& text_;
+    qsizetype pos_ = 0;
+};
+
+} // namespace
+
 // Parse a single format definition from a JSON object.
-// Returns true on success, filling 'def'. Returns false if the format lacks a "regex" section.
+// Returns true on success, filling 'def'. Returns false if the format has no
+// "regex" section (a "file-type": "json" format needs none).
 static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
-                               LogFormatDefinition& def )
+                               LogFormatDefinition& def, const QStringList& valueKeyOrder )
 {
-    // "regex" is required — without it we cannot match log lines
-    if ( !obj.contains( "regex" ) || !obj.value( "regex" ).isObject() ) {
+    const bool isJson = obj.value( "file-type" ).toString() == QLatin1String( "json" );
+
+    // "regex" is required for a regex format — without it we cannot match log lines
+    if ( !isJson && ( !obj.contains( "regex" ) || !obj.value( "regex" ).isObject() ) ) {
         return false;
     }
+    def.setKind( isJson ? LogFormatKind::Json : LogFormatKind::Regex );
 
     def.setName( name );
     def.setTitle( obj.value( "title" ).toString() );
@@ -47,7 +208,7 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
 
     // Parse regex patterns
     QHash<QString, QString> patterns;
-    const auto regexObj = obj.value( "regex" ).toObject();
+    const auto regexObj = isJson ? QJsonObject() : obj.value( "regex" ).toObject();
     for ( auto it = regexObj.begin(); it != regexObj.end(); ++it ) {
         if ( it.value().isObject() ) {
             const auto patternObj = it.value().toObject();
@@ -58,7 +219,7 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
         }
     }
 
-    if ( patterns.isEmpty() ) {
+    if ( patterns.isEmpty() && !isJson ) {
         return false;
     }
     def.setRegexPatterns( patterns );
@@ -139,7 +300,20 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
         // Pick the pattern with the most named groups (e.g. "standard" over "dropped_data")
         // because QHash iteration order is non-deterministic.
         QStringList fieldOrder;
-        if ( !patterns.isEmpty() ) {
+        if ( isJson ) {
+            // The columns are the members of "value" in file order; the
+            // timestamp field is always one of them.
+            for ( const auto& key : valueKeyOrder ) {
+                if ( values.contains( key ) && !fieldOrder.contains( key ) ) {
+                    fieldOrder << key;
+                }
+            }
+            if ( !fieldOrder.isEmpty() && !def.timestampField().isEmpty()
+                 && !fieldOrder.contains( def.timestampField() ) ) {
+                fieldOrder.prepend( def.timestampField() );
+            }
+        }
+        else if ( !patterns.isEmpty() ) {
             static const QRegularExpression namedGroupRe( R"(\(\?<([a-zA-Z_]\w*)>)" );
 
             QString bestPattern;
@@ -198,6 +372,7 @@ QVector<LogFormatDefinition> LogFormatParser::parseJsonString( const char* jsonS
         return results;
     }
 
+    const QByteArray text( jsonString );
     const auto rootObj = doc.object();
     for ( auto it = rootObj.begin(); it != rootObj.end(); ++it ) {
         if ( isMetaKey( it.key() ) ) {
@@ -207,8 +382,15 @@ QVector<LogFormatDefinition> LogFormatParser::parseJsonString( const char* jsonS
             continue;
         }
 
+        const auto formatObj = it.value().toObject();
+        QStringList valueKeyOrder;
+        if ( formatObj.value( "file-type" ).toString() == QLatin1String( "json" )
+             && formatObj.value( "value" ).isObject() ) {
+            valueKeyOrder = MemberOrderScanner( text ).valueKeys( it.key() );
+        }
+
         LogFormatDefinition def;
-        if ( parseSingleFormat( it.key(), it.value().toObject(), def ) ) {
+        if ( parseSingleFormat( it.key(), formatObj, def, valueKeyOrder ) ) {
             results.append( std::move( def ) );
         }
     }

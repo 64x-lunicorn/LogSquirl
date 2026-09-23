@@ -37,8 +37,13 @@ class AbstractLogData;
 // answers nullptr without looking at a single Log Line.
 //
 // Among the Log Formats that match, the one matching the most sample lines
-// wins, and on a tie the more specific one (more capture groups); at least
-// half of the sample lines must match.
+// wins, and on a tie the more specific one (more capture groups, or more
+// fields for a JSON format); at least half of the sample lines must match.
+//
+// The kinds of Log Format are scored apart: a sample line that parses as a
+// JSON object is scored only against JSON formats, which it matches when it
+// contains the format's timestamp field; every other line only against regex
+// formats. A Catalog without a JSON format scores every line as before.
 namespace FormatRecognition {
 
 // How many Log Lines, from the first one, Format Recognition looks at.
