@@ -69,3 +69,18 @@ jobs:
         with:
           sarif_file: sbom-vulns.sarif
           category: sbom-vulns
+
+      # Code scanning does not read the suppressions the SARIF carries, so an
+      # accepted risk would stay on the board as an open alert. This dismisses
+      # the alerts the ignore file accepts, with the recorded reason, and
+      # reopens the ones whose entry has expired. It runs over every
+      # logsquirl-vulns alert, so it also settles a finding only the release
+      # SBOM has (#415).
+      - name: Reconcile the alerts with the accepted risks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python scripts/sbom/logsquirl_vulns.py dismiss \
+            --ignore scripts/sbom/vuln-ignore.yml --repo "$REPOSITORY"

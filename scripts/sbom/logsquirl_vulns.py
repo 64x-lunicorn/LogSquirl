@@ -34,12 +34,16 @@ Qt's advisories (read here, https://wiki.qt.io/List_of_known_vulnerabilities_in_
 Findings of all three are merged per component, matched against the versioned
 ignore file (id, component, reason, expiry), written as one SARIF run for code
 scanning and, with ``--fail-on critical``, fail the scan when a critical
-finding is not ignored.
+finding is not ignored (``scan``).
 
-Exit codes: 0 no blocking finding, 1 blocking findings, 2 the scan itself
+Code scanning ignores the suppressions of an uploaded SARIF, so an accepted
+risk would still sit on the board as an open alert; ``dismiss`` reconciles the
+alerts with the ignore file after the upload (#415).
+
+Exit codes: 0 no blocking finding, 1 blocking findings, 2 the command itself
 failed (OSV or Qt's advisory page unreachable, NVD unreachable while gating, a
-changed page format, unreadable input, invalid ignore file), so a report never
-looks clean because a source was missing.
+changed page format, unreadable input, invalid ignore file, GitHub's API
+unreachable), so a report never looks clean because a source was missing.
 """
 
 from __future__ import annotations
@@ -720,19 +724,31 @@ def parse_ignore_file(text: str) -> list[IgnoreEntry]:
     return entries
 
 
+def active_entries(entries: Iterable[IgnoreEntry], today: _dt.date) -> list[IgnoreEntry]:
+    return [e for e in entries if e.expires >= today]
+
+
+def expiry_warnings(entries: Iterable[IgnoreEntry], today: _dt.date) -> list[str]:
+    return [f"vuln-ignore entry {e.id} ({e.component}) expired on {e.expires.isoformat()} and no longer "
+            "suppresses it; fix the component or renew the entry with a new reason"
+            for e in entries if e.expires < today]
+
+
+def matching_entry(entries: Iterable[IgnoreEntry], ids: Iterable[str], component: str) -> IgnoreEntry | None:
+    """The accepted risk covering a vulnerability known under any of ``ids``
+    in ``component``, if one does."""
+    names = {n.upper() for n in ids}
+    return next((e for e in entries if e.id.upper() in names and e.component.lower() == component.lower()), None)
+
+
 def apply_ignores(findings: list[Finding], entries: list[IgnoreEntry],
                   today: _dt.date) -> tuple[list[Finding], list[str]]:
-    warnings = [f"vuln-ignore entry {e.id} ({e.component}) expired on {e.expires.isoformat()} and no longer "
-                "suppresses it; fix the component or renew the entry with a new reason"
-                for e in entries if e.expires < today]
-    active = [e for e in entries if e.expires >= today]
+    active = active_entries(entries, today)
     result = []
     for f in findings:
-        names = {n.upper() for n in {f.id} | f.aliases}
-        entry = next((e for e in active if e.id.upper() in names and e.component.lower() == f.component.lower()),
-                     None)
+        entry = matching_entry(active, {f.id} | f.aliases, f.component)
         result.append(dataclasses.replace(f, suppressed=entry.reason) if entry else f)
-    return result, warnings
+    return result, expiry_warnings(entries, today)
 
 
 # What blocks a gating scan: a critical finding, and one NVD has not scored yet,
@@ -856,6 +872,103 @@ def to_sarif(findings: list[Finding], repo_root: Path) -> dict:
     }
 
 
+# ── code scanning alerts ────────────────────────────────────────────────────
+#
+# Code scanning does not read the suppressions of an uploaded SARIF: they are
+# not among the properties it supports, so an accepted risk would sit on the
+# board as an open alert, indistinguishable from an unhandled one. The ignore
+# file stays the source of truth and the alerts are reconciled with it after
+# the upload: an alert an active entry covers is dismissed with its reason,
+# and one this reconciliation dismissed is reopened once the entry expires or
+# goes away. A dismissal a person made is left alone (#415).
+
+GITHUB_API = "https://api.github.com"
+# Parsed back out of the message to_sarif writes, which is all an alert keeps
+# of a finding: neither the component nor the aliases survive as fields.
+_ALERT_MESSAGE = re.compile(r"^(?P<component>.+?) \S+ (?:is|may be) affected by (?P<id>[^\s,]+)"
+                            r"(?: \(also (?P<aliases>[^)]*)\))?, severity ")
+ALERT_TOOL = "logsquirl-vulns"
+DISMISS_REASON = "won't fix"
+# Marks a dismissal as this reconciliation's own, so a person's dismissal of
+# the same alert is never reopened behind their back.
+DISMISS_MARKER = "Accepted in scripts/sbom/vuln-ignore.yml: "
+MAX_COMMENT = 280  # what the API takes for dismissed_comment
+
+GitHubApi = Callable[[str, str, "dict | None"], object]
+
+
+def dismissal_comment(reason: str) -> str:
+    comment = DISMISS_MARKER + " ".join(reason.split())
+    return comment if len(comment) <= MAX_COMMENT else comment[:MAX_COMMENT - 1].rstrip() + "…"
+
+
+def alert_updates(alerts: Iterable[dict], entries: Iterable[IgnoreEntry],
+                  today: _dt.date) -> list[tuple[int, dict]]:
+    """What the ignore file asks to change about the alerts, as the API body
+    to PATCH onto each alert; alerts already in the state it asks for are left
+    untouched."""
+    active = active_entries(entries, today)
+    updates = []
+    for alert in alerts:
+        message = (alert.get("most_recent_instance") or {}).get("message", {}).get("text", "")
+        parsed = _ALERT_MESSAGE.match(message)
+        if not parsed:  # not a finding of this scanner, or a message shape it no longer writes
+            continue
+        ids = {alert.get("rule", {}).get("id") or parsed["id"]}
+        ids |= {a.strip() for a in (parsed["aliases"] or "").split(",") if a.strip()}
+        entry = matching_entry(active, ids, parsed["component"])
+        comment = alert.get("dismissed_comment") or ""
+        ours = comment.startswith(DISMISS_MARKER)
+        # An entry whose reason was rewritten updates the dismissal it made,
+        # so what the board says is what the ignore file says today.
+        if entry and (alert.get("state") == "open" or (ours and comment != dismissal_comment(entry.reason))):
+            updates.append((alert["number"], {"state": "dismissed", "dismissed_reason": DISMISS_REASON,
+                                              "dismissed_comment": dismissal_comment(entry.reason)}))
+        elif not entry and alert.get("state") == "dismissed" and ours:
+            updates.append((alert["number"], {"state": "open"}))
+    return updates
+
+
+def urllib_github(method: str, path: str, body: dict | None) -> object:
+    """GitHub REST transport: the workflow token, which needs write access to
+    the code scanning alerts."""
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token:
+        raise VulnScanError("GITHUB_TOKEN is not set; the code scanning alerts cannot be reconciled")
+    data = json.dumps(body).encode() if body is not None else None
+    raw = _fetch(method, GITHUB_API + path, data,
+                 {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json"})
+    return json.loads(raw) if raw else None
+
+
+MAX_ALERT_PAGES = 20
+
+
+def code_scanning_alerts(api: GitHubApi, repo: str) -> list[dict]:
+    """Every alert this scanner has ever raised, in any state, so a finding
+    only the release SBOM carries is reconciled too."""
+    alerts: list[dict] = []
+    for page in range(1, MAX_ALERT_PAGES + 1):
+        batch = api("GET", f"/repos/{repo}/code-scanning/alerts"
+                           f"?tool_name={urllib.parse.quote(ALERT_TOOL)}&per_page=100&page={page}", None)
+        if not isinstance(batch, list):
+            raise VulnScanError(f"code scanning alerts: expected a list, got {type(batch).__name__}")
+        alerts += batch
+        if len(batch) < 100:
+            return alerts
+    raise VulnScanError(f"code scanning returned more than {MAX_ALERT_PAGES} pages of alerts")
+
+
+def reconcile_alerts(api: GitHubApi, repo: str, entries: list[IgnoreEntry], today: _dt.date) -> list[str]:
+    """Bring the alerts in line with the ignore file; returns what changed."""
+    changed = []
+    for number, payload in alert_updates(code_scanning_alerts(api, repo), entries, today):
+        api("PATCH", f"/repos/{repo}/code-scanning/alerts/{number}", payload)
+        changed.append(f"alert {number}: {'dismissed' if payload['state'] == 'dismissed' else 'reopened'}")
+    return changed
+
+
 # ── report ──────────────────────────────────────────────────────────────────
 
 
@@ -877,9 +990,32 @@ def _qt_page(saved: Path | None, fetch_page: Callable[[str], str]) -> str:
         raise VulnScanError(f"Qt advisory page could not be read: {e}") from e
 
 
+def _dismiss(args: argparse.Namespace, api: GitHubApi, today: _dt.date) -> int:
+    """The ``dismiss`` command: the accepted risks of the ignore file, applied
+    to the code scanning alerts the upload has just raised (#415)."""
+    try:
+        try:
+            ignore_text = args.ignore.read_text(encoding="utf-8")
+        except OSError as e:
+            raise VulnScanError(f"cannot read the ignore file: {e}") from e
+        entries = parse_ignore_file(ignore_text)
+        try:
+            changed = reconcile_alerts(api, args.repo, entries, today)
+        except (OSError, ValueError) as e:
+            raise VulnScanError(f"the code scanning alerts could not be reconciled: {e}") from e
+    except VulnScanError as e:
+        print(f"::error::{e}", file=sys.stderr)
+        return 2
+
+    for w in expiry_warnings(entries, today):
+        print(f"::warning file={args.ignore}::{w}")
+    print("\n".join(changed) if changed else "the code scanning alerts already match the accepted risks")
+    return 0
+
+
 def main(argv: list[str] | None = None, *, http: Http = urllib_http, nvd: NvdFetch = urllib_nvd,
          fetch_page: Callable[[str], str] = urllib_page, sleep: Callable[[float], None] = time.sleep,
-         today: _dt.date | None = None) -> int:
+         api: GitHubApi = urllib_github, today: _dt.date | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     sub = parser.add_subparsers(dest="command", required=True)
     scan = sub.add_parser("scan", help="report and gate the known vulnerabilities of an SBOM")
@@ -891,8 +1027,14 @@ def main(argv: list[str] | None = None, *, http: Http = urllib_http, nvd: NvdFet
     scan.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
     scan.add_argument("--qt-advisories-html", type=Path,
                       help=f"a saved copy of {QT_ADVISORIES_URL} to read instead of fetching it")
+    dismiss = sub.add_parser("dismiss", help="reconcile the code scanning alerts with the ignore file")
+    dismiss.add_argument("--ignore", type=Path, required=True, help="accepted risks (vuln-ignore.yml)")
+    dismiss.add_argument("--repo", required=True, help="owner/name of the repository to reconcile")
     args = parser.parse_args(argv)
     today = today or _dt.datetime.now(_dt.timezone.utc).date()
+
+    if args.command == "dismiss":
+        return _dismiss(args, api, today)
 
     try:
         try:

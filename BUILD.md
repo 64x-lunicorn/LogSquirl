@@ -465,7 +465,9 @@ The release workflow does not build. It:
    `gh secret set NVD_API_KEY`). The release and daily scans pass it to `.github/actions/sbom-vuln-scan`; without
    the secret they run unkeyed. The file is read
    from master even for a tag release, so accepting a risk and re-running the failed job is enough.
-   The `Vulnerability scan` workflow scans master's source SBOM daily and only reports.
+   The `Vulnerability scan` workflow scans master's source SBOM daily and only reports. It also reconciles the
+   code scanning alerts with the ignore file, which code scanning would otherwise not act on: an accepted
+   finding's alert is dismissed as *won't fix* with the recorded reason, and reopened once the entry expires.
 6. Creates a draft GitHub Release with all platform packages, the SBOM and the checksum file, and as its notes
    the tag's `CHANGELOG.md` section followed by how to verify the downloads,
    attests build provenance for every asset and the SBOM for every other asset, signs the checksum file keyless with
