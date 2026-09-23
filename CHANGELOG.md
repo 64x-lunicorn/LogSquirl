@@ -33,6 +33,48 @@
   from SVG files, and the Windows packages lacked Qt's SVG support; the
   installer and the portable zip now ship `Qt6Svg.dll` and its plugins (#427).
 
+## Build and packaging
+
+- **`logsquirl_grep` ships with LogSquirl**: Every build built the command line
+  tool and no package carried it. It is now installed beside the application in
+  the deb, the rpm, the AppImage, the Windows installer and the portable zip,
+  and on macOS it sits in the app bundle, where it is called as
+  `/Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep`. The user guide
+  documents the tool and its options, including that matches go to stdout and
+  log messages to stderr (#430).
+- **No library is named twice on the link line**: A macOS build of every target
+  ended in `ld: warning: ignoring duplicate libraries`, fourteen archives across
+  four executables, because a library that already arrives transitively was
+  named a second time. Those mentions are gone. `src/app` keeps the TBB
+  dependency `main.cpp` really uses, now through an interface target that
+  carries TBB's headers and definitions without naming its archive again.
+  Linux and Windows link unchanged (#450).
+
+## Internal
+
+- **Every source file of the project is built with the project's warnings**: Two
+  MODULE libraries the tests load, the Plugin UI Port probe and the slow
+  converter plugin, linked neither `project_warnings` nor `project_options`, so
+  nothing checked their code at all and MSVC's C4996 on `getenv` was neither
+  warned about nor suppressed the way the rest of the project does it. Both are
+  built with the project's warnings and options now, and a new test fails if any
+  target under `src/` or `tests/` compiles the project's code without them (#451).
+- **The ctest discovery script sets the policies it relies on**: Every Linux CI
+  run printed a CMP0007 developer warning eight times while ctest read its test
+  list -- the only CMake warning that came from this project's own code. The
+  script runs with `cmake -P` and inherits no policy from the project, so it now
+  sets the two it relies on itself. Test discovery finds the same tests (#453).
+
+## Documentation
+
+- **A first bug report has a form to follow**: A report from outside arrives
+  through an issue form that asks for the version, the operating system, how
+  LogSquirl was installed and the size and kind of the Log File, the fields the
+  crash reporter already pre-fills. The feature form asks what the reporter is
+  trying to find out in their logs rather than what the app should do, and
+  questions are pointed at the Q&A discussions, vulnerabilities at a private
+  security advisory (#447).
+
 # v26.10.0-beta2 (2026-09-23)
 
 ## Changes

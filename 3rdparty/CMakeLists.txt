@@ -589,6 +589,29 @@ endif()
 
 set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_TBB})
 
+# TBB's usage requirements without its library. A target whose own sources
+# include a TBB header, but that already gets the TBB library itself through
+# another library it links, uses this instead of tbb: naming tbb again would
+# put the archive on the link line a second time, which Apple's linker warns
+# about since Xcode 15 (#450). $<COMPILE_ONLY:tbb> would say the same in one
+# line but needs CMake 3.27, and the project requires 3.16.
+#
+# A TBB found on the build host (CPM_USE_LOCAL_PACKAGES, which the Arch
+# PKGBUILD and the Gentoo ebuild both set) is an imported TBB::tbb and no
+# target named tbb, and $<TARGET_PROPERTY:tbb,...> would be a generate-time
+# error there rather than the -ltbb the plain name falls back to.
+add_library(logsquirl_tbb_headers INTERFACE)
+if(TARGET tbb)
+  target_include_directories(
+    logsquirl_tbb_headers SYSTEM INTERFACE "$<TARGET_PROPERTY:tbb,INTERFACE_INCLUDE_DIRECTORIES>"
+  )
+  target_compile_definitions(
+    logsquirl_tbb_headers INTERFACE "$<TARGET_PROPERTY:tbb,INTERFACE_COMPILE_DEFINITIONS>"
+  )
+elseif(TARGET TBB::tbb)
+  target_link_libraries(logsquirl_tbb_headers INTERFACE TBB::tbb)
+endif()
+
 set(CPM_USE_LOCAL_PACKAGES OFF)
 # Windows has no build-time equivalent of Linux's ELF symbol interposition
 # (see CMakeLists.txt for why, and for why macOS's own dynamic-library

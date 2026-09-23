@@ -130,6 +130,79 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/lto_covers_project_targets.cmake
 )
 
+# The project's warnings cover every compiled target under src/ and tests/
+# alike (#451). They come from project_warnings, which a target either links
+# itself or reaches through a library it links, so the answer is in the link
+# graph: walk it here and hand the check one TRUE or FALSE per target. Only
+# the project's own directories are walked; the 3rdparty libraries CPM brings
+# in are not ours to keep warning-clean.
+# The link libraries of one target along which the project's warnings can
+# travel. own_private is TRUE for the target the question is about: its own
+# PRIVATE dependencies compile its sources too. Further out, only what a
+# library hands on counts, which is its INTERFACE_LINK_LIBRARIES without the
+# entries wrapped in $<LINK_ONLY:...> -- those name a library to link and pass
+# on none of its usage requirements, warnings included.
+function(logsquirl_warning_edges target own_private out_var)
+  set(_properties INTERFACE_LINK_LIBRARIES)
+  # An INTERFACE library has no LINK_LIBRARIES, and CMake before 3.19 refuses
+  # to be asked for one.
+  get_target_property(_type ${target} TYPE)
+  if(own_private AND NOT _type STREQUAL "INTERFACE_LIBRARY")
+    list(APPEND _properties LINK_LIBRARIES)
+  endif()
+  set(_edges "")
+  foreach(_property IN LISTS _properties)
+    get_target_property(_libs ${target} ${_property})
+    if(NOT _libs)
+      continue()
+    endif()
+    foreach(_lib IN LISTS _libs)
+      if(_lib MATCHES "^\\$<" OR NOT TARGET "${_lib}")
+        continue()
+      endif()
+      get_target_property(_aliased ${_lib} ALIASED_TARGET)
+      if(_aliased)
+        set(_lib "${_aliased}")
+      endif()
+      list(APPEND _edges "${_lib}")
+    endforeach()
+  endforeach()
+  set(${out_var} "${_edges}" PARENT_SCOPE)
+endfunction()
+
+function(logsquirl_reaches_project_warnings target out_var)
+  set(_seen "${target}")
+  logsquirl_warning_edges("${target}" TRUE _pending)
+  while(_pending)
+    list(POP_FRONT _pending _current)
+    if(_current STREQUAL "project_warnings")
+      set(${out_var} TRUE PARENT_SCOPE)
+      return()
+    endif()
+    if(_current IN_LIST _seen)
+      continue()
+    endif()
+    list(APPEND _seen "${_current}")
+    logsquirl_warning_edges("${_current}" FALSE _edges)
+    list(APPEND _pending ${_edges})
+  endwhile()
+  set(${out_var} FALSE PARENT_SCOPE)
+endfunction()
+logsquirl_compiled_targets("${CMAKE_SOURCE_DIR}/src" _warning_targets)
+logsquirl_compiled_targets("${CMAKE_CURRENT_SOURCE_DIR}" _warning_tests)
+set(_warning_entries "")
+foreach(_target IN LISTS _warning_targets _warning_tests)
+  logsquirl_reaches_project_warnings(${_target} _reaches_warnings)
+  list(APPEND _warning_entries "${_target}=${_reaches_warnings}")
+endforeach()
+list(JOIN _warning_entries "|" _warning_entries)
+add_test(
+    NAME project_warnings_cover_project_targets
+    COMMAND ${CMAKE_COMMAND}
+            "-DTARGETS=${_warning_entries}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/project_warnings_cover_project_targets.cmake
+)
+
 # A packaging recipe passes only build options the project declares, and only
 # build types CMake knows: CMake takes an unknown -D or build type without a
 # word, so nothing but a check tells the packager (#333).

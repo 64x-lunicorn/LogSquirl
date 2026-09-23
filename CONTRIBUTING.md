@@ -28,8 +28,12 @@ navigate through text files, extract information and reconstruct chain of events
 If you find yourself wishing for a feature that doesn't exist in LogSquirl,
 you are probably not alone. There are bound to be others out there with similar needs.
 Many of the features that LogSquirl has today have been added because our users saw the need.
-Open an issue on GitHub which describes the feature you would like to see,
-why you need it, and how it should work.
+Open an issue on GitHub with the **Feature request** form, which asks what you are trying
+to find out in your logs, how you answer that question today, and where LogSquirl stops
+being able to help. Start there rather than with the feature you had in mind: the question
+tells us whether LogSquirl can already answer it, and what the best answer would be.
+Would you rather talk an idea through first? Use the
+[Ideas discussions](https://github.com/64x-lunicorn/LogSquirl/discussions/categories/ideas).
 
 # How to report a bug
 
@@ -41,9 +45,11 @@ In order to determine whether you are dealing with a security issue, ask yoursel
 
  If the answer to either of those two questions are "yes", then you're probably dealing with a security issue.
  Note that even if you answer "no" to both questions, you may still be dealing with a security issue,
- so if you're unsure, just email us at LogSquirl issues on GitHub.
+ so if you're unsure, open a
+ [security advisory](https://github.com/64x-lunicorn/LogSquirl/security/advisories/new)
+ rather than an issue, as [SECURITY.md](SECURITY.md) asks.
 
-When filing an issue, make sure to answer these five questions:
+The **Bug report** form asks these five questions, so filling it in answers them all:
 
 1. What version of LogSquirl are you using (version is listed in window title and about dialog)?
 1. What operating system are you using?
@@ -51,9 +57,16 @@ When filing an issue, make sure to answer these five questions:
 1. What did you expect to see?
 1. What did you see instead?
 
-General questions do not need to follow this checklist. 
-Feel free to ask anything about using, developing or distributing LogSquirl. Such questions often
-help to improve project documentation.
+It also asks how you installed LogSquirl, and the size and kind of the Log File, because a
+bug in a 2 GB compressed log rarely shows up in a small plain one. If
+LogSquirl crashed and offered to create an issue for you, it has already pre-filled the
+version, the platform and the crash id — submit that report and the form's remaining
+questions can be answered in a comment.
+
+General questions do not need to follow this checklist.
+Feel free to ask anything about using, developing or distributing LogSquirl in the
+[Q&A discussions](https://github.com/64x-lunicorn/LogSquirl/discussions/categories/q-a).
+Such questions often help to improve project documentation.
 
 # Documentation
 

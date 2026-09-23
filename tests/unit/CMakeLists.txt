@@ -68,7 +68,13 @@ add_executable(logsquirl_tests
     tests_main.cpp
 )
 
-target_link_libraries(logsquirl_tests logsquirl_ui logsquirl_highlighting logsquirl_plugins logsquirl_logformat logsquirl_utils logsquirl_logging logsquirl_settings Catch2 Qt6::Test test_utils)
+# logsquirl_ui passes every library the test cases use on PUBLIC: the
+# highlighting, plugin and Log Format libraries directly, the utils library
+# through the log data one, the logging library through the utils one and the
+# settings library through the update check. Naming them here as well put four
+# of the archives on the link line twice, and Apple's linker warns about a
+# duplicate library since Xcode 15 (#450).
+target_link_libraries(logsquirl_tests logsquirl_ui Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_tests PROPERTIES AUTOMOC ON)
 
 # The Options Dialog test needs the dialog's generated form header, and the
@@ -89,6 +95,9 @@ target_compile_definitions(logsquirl_tests PRIVATE
 # The Plugin UI Port test loads a real plugin library that hands its host
 # callback table back to the test (#175).
 add_library(logsquirl_ui_port_probe MODULE plugins/uiportprobe.cpp)
+# Its source is the project's own, so it is compiled with the project's
+# warnings and options like every other target of it (#451).
+target_link_libraries(logsquirl_ui_port_probe PRIVATE project_options project_warnings)
 target_include_directories(logsquirl_ui_port_probe PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
 set_target_properties(logsquirl_ui_port_probe PROPERTIES CXX_VISIBILITY_PRESET hidden)
 add_dependencies(logsquirl_tests logsquirl_ui_port_probe)

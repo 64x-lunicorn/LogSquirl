@@ -2,6 +2,8 @@
 .\release\logsquirl.pdb
 .\release\logsquirl_portable.exe
 .\release\logsquirl_portable.pdb
+.\release\logsquirl_grep.exe
+.\release\logsquirl_grep.pdb
 
 .\release\hs.pdb
 .\release\hs_avx2.pdb

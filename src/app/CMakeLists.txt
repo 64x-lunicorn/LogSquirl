@@ -57,10 +57,13 @@ set(LOGSQUIRL_UI_SOURCES
 
 set(LOGSQUIRL_GREP_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl_grep.cpp)
 
+# Only what the application does not already get from logsquirl_ui. That
+# library passes logsquirl_logdata and logsquirl_crash_handler on PUBLIC, and
+# the log data library passes roaring on PUBLIC; naming those three here as
+# well put each archive on the link line twice, and Apple's linker warns about
+# a duplicate library since Xcode 15 (#450). kdsingleapp arrives nowhere else:
+# LogSquirlApp keeps the single-instance guard.
 set(MAIN_LIBS
-    logsquirl_logdata
-    logsquirl_crash_handler
-    roaring
     kdsingleapp
 )
 
@@ -69,6 +72,14 @@ add_executable(logsquirl_portable ${OS_BUNDLE} ${MAIN_SOURCES} ${LOGSQUIRL_UI_SO
 add_executable(logsquirl_grep ${MAIN_SOURCES} ${LOGSQUIRL_GREP_SOURCES})
 
 add_dependencies(ci_build logsquirl logsquirl_grep)
+
+# The command line tool ships with the application (install() below), so
+# whatever builds the application builds it too: a packaging recipe that names
+# the `logsquirl` target -- packaging/linux/arch/PKGBUILD does -- would
+# otherwise install a file the build never produced (#430). The portable build
+# ships it as well, in the portable zip and through the scoop manifest.
+add_dependencies(logsquirl logsquirl_grep)
+add_dependencies(logsquirl_portable logsquirl_grep)
 
 if(WIN32)
   add_dependencies(ci_build logsquirl_portable)
@@ -85,9 +96,13 @@ set_target_properties(logsquirl_grep PROPERTIES AUTOMOC ON)
 # engine is handed its port and does not link it (#249).
 target_link_libraries(logsquirl PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
 target_link_libraries(logsquirl_portable PUBLIC ${MAIN_LIBS} logsquirl_ui logsquirl_filewatch)
-# main.cpp caps TBB's concurrency itself (#168).
-target_link_libraries(logsquirl PRIVATE tbb)
-target_link_libraries(logsquirl_portable PRIVATE tbb)
+# main.cpp caps TBB's concurrency itself (#168), so the dependency stays here.
+# The TBB library itself already arrives through logsquirl_ui, which links it
+# privately and hands it on as $<LINK_ONLY:tbb>; naming tbb here too put the
+# archive on the link line twice (#450). logsquirl_tbb_headers carries TBB's
+# include directory and compile definitions without its library.
+target_link_libraries(logsquirl PRIVATE logsquirl_tbb_headers)
+target_link_libraries(logsquirl_portable PRIVATE logsquirl_tbb_headers)
 # logsquirl_grep derives the Policies itself (there is no LogSquirlApp
 # here), so unlike the log data library it does link the settings library.
 # It reports a failure the engine reports by printing it, and so does not
@@ -134,6 +149,39 @@ install(
   DESTINATION ${CMAKE_INSTALL_BINDIR}
   BUNDLE DESTINATION .
 )
+
+# The command line tool is installed beside the application, so it reaches the
+# deb, the rpm and the AppImage. On macOS there is no bin directory to be
+# beside: it goes into the app bundle, where a bundled helper belongs and where
+# the crashpad handler and the minidump tool go too, and is then called as
+# /Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep (#430).
+if(APPLE)
+  # The tool is copied into the app bundle at build time -- the way the crashpad
+  # handler and the minidump tool get there -- and needs no install() rule of
+  # its own: install(TARGETS logsquirl BUNDLE) above installs the bundle with
+  # everything in it, and that is also what CPack packs into the DMG. An
+  # install() into $<TARGET_BUNDLE_CONTENT_DIR:logsquirl> would name an absolute
+  # path in the build tree, which DESTDIR (CPack sets one) turns into a stray
+  # copy of that path inside the package.
+  #
+  # The build tree's bundle is what .github/actions/agent-package-mac packs, and
+  # macdeployqt is told about the tool there so it uses the bundled Qt
+  # frameworks.
+  #
+  # The copy hangs on logsquirl and not on logsquirl_grep: naming a target's
+  # file in a custom command makes the command's target depend on it, and with
+  # the command on logsquirl_grep that dependency closed a cycle against the
+  # add_dependencies() above.
+  add_custom_command(
+    TARGET logsquirl
+    POST_BUILD
+    COMMAND cmake -E copy $<TARGET_FILE:logsquirl_grep> $<TARGET_FILE_DIR:logsquirl>
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Copy logsquirl_grep into the app bundle"
+  )
+else()
+  install(TARGETS logsquirl_grep DESTINATION ${CMAKE_INSTALL_BINDIR})
+endif()
 
 if(WIN32)
   if(TARGET tbb)

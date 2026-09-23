@@ -631,6 +631,30 @@ jobs:
           On other distributions, use the AppImage, which brings its own Qt.
           NOTES
 
+      # Where the command line tool is in each package. It is a property of the
+      # assets, not of the release, so it is added here and not in the CHANGELOG
+      # (#430).
+      - name: Append the command line tool
+        run: |
+          set -euo pipefail
+          cat >> release_notes.md <<'NOTES'
+
+          ## The command line tool
+
+          Every package ships `logsquirl_grep`, which searches a log file with LogSquirl's
+          engine and prints the matching lines to standard output. On Linux and Windows it is
+          installed beside `logsquirl`; on macOS it is a helper inside the app bundle:
+
+          ```sh
+          /Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep -e 'ERROR|WARN' app.log
+          ```
+
+          Add it to your `PATH` with
+          `ln -s /Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep /usr/local/bin/logsquirl_grep`.
+          See the [documentation](https://github.com/64x-lunicorn/LogSquirl/blob/master/DOCUMENTATION.md#the-command-line-tool)
+          for its options.
+          NOTES
+
       # The verification commands name this release's files, so they are added
       # here rather than in the CHANGELOG, which knows nothing about assets (#214).
       - name: Append verification instructions

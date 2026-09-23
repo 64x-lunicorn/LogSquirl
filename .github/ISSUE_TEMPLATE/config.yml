@@ -1,0 +1,21 @@
+# A report from outside arrives through one of the forms in this directory, so it
+# carries a version, a platform and the shape of the Log File. The crash reporter's
+# pre-filled link (src/crash_handler/src/issuereporter.cpp) keeps working: it opens
+# /issues/new?body=..., which GitHub still serves as a writable form.
+blank_issues_enabled: false
+contact_links:
+  - name: Question about using LogSquirl
+    url: https://github.com/64x-lunicorn/LogSquirl/discussions/categories/q-a
+    about: >-
+      Ask anything about using, developing or distributing LogSquirl. Questions need no
+      bug form, and they often end up improving the documentation.
+  - name: Idea you would rather talk through first
+    url: https://github.com/64x-lunicorn/LogSquirl/discussions/categories/ideas
+    about: >-
+      Not sure yet what would actually help you get your answer out of a log? Discuss it
+      here before opening a feature request.
+  - name: Security vulnerability
+    url: https://github.com/64x-lunicorn/LogSquirl/security/advisories/new
+    about: >-
+      Never report a vulnerability as an issue. Open a private security advisory instead,
+      as SECURITY.md asks.

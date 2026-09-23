@@ -47,8 +47,12 @@ list(APPEND UI_TEST_SOURCES
 
 add_executable(logsquirl_itests ${UI_TEST_SOURCES} ${BACKWARD_ENABLE})
 
-# tbb: indexing_test and logfiltereddata_test pin TBB's concurrency (#168).
-target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_filewatch logsquirl_utils tbb Catch2 Qt6::Test test_utils)
+# indexing_test and logfiltereddata_test pin TBB's concurrency (#168), so the
+# dependency stays here. The TBB library itself and logsquirl_utils already
+# arrive through logsquirl_ui, and naming them here as well put both archives
+# on the link line twice (#450); logsquirl_tbb_headers carries TBB's include
+# directory and compile definitions without its library.
+target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_filewatch logsquirl_tbb_headers Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_itests PROPERTIES AUTOMOC ON AUTORCC ON)
 # theme_switch_test opens dialogs whose headers include uic-generated headers.
 target_include_directories(logsquirl_itests PRIVATE
@@ -58,6 +62,11 @@ target_include_directories(logsquirl_itests PRIVATE
 # a slow converter plugin built for the test shows that a Log File opened
 # before it loaded still goes through it.
 add_library(logsquirl_test_slow_converter MODULE plugins/slowconverter.cpp)
+# Its source is the project's own, so it is compiled with the project's
+# warnings and options like every other target of it (#451). The warnings
+# carry the /wd4996 that lets the plugin read its delay with std::getenv: it
+# links no Qt, so qEnvironmentVariable is not open to it.
+target_link_libraries(logsquirl_test_slow_converter PRIVATE project_options project_warnings)
 target_include_directories(logsquirl_test_slow_converter PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
 set_target_properties(logsquirl_test_slow_converter PROPERTIES CXX_VISIBILITY_PRESET hidden)
 add_dependencies(logsquirl_itests logsquirl_test_slow_converter)

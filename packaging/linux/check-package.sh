@@ -3,7 +3,8 @@
 # built for (CI Build, .github/actions/docker-package) (#226):
 #
 # 1. It ships only what the application needs at runtime: no static
-#    libraries, headers (except the Plugin SDK header), CMake or pkg-config files.
+#    libraries, headers (except the Plugin SDK header), CMake or pkg-config
+#    files. It does ship the command line tool beside the application (#430).
 # 2. It declares the distribution's Qt packages with the Qt it was built
 #    against ($QT_VERSION) as the minimum version.
 # 3. The package manager installs it (dry run) when the distribution has that
@@ -59,6 +60,8 @@ if [ -n "$unwanted" ]; then
     fail "ships build-time files of its dependencies: $(echo "$unwanted" | tr '\n' ' ')"
 fi
 echo "$files" | grep -qx '/usr/bin/logsquirl' || fail "does not ship /usr/bin/logsquirl"
+# The command line tool ships beside the application (#430).
+echo "$files" | grep -qx '/usr/bin/logsquirl_grep' || fail "does not ship /usr/bin/logsquirl_grep"
 
 # 2. Declared Qt dependency
 echo "$requires" | grep -qxF "$qt_requirement" \

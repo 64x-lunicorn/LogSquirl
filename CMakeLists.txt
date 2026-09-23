@@ -318,7 +318,9 @@ set(CPACK_PACKAGE_ICON "${ICON_FILE}")
 if(UNIX)
   include(InstallRequiredSystemLibraries)
 
-  set(CPACK_STRIP_FILES "bin/logsquirl")
+  # The command line tool ships in the packages beside the application
+  # (src/app/CMakeLists.txt), and is stripped there the way it is (#430).
+  set(CPACK_STRIP_FILES "bin/logsquirl" "bin/logsquirl_grep")
 
   if(APPLE)
     set(CPACK_GENERATOR "DragNDrop")

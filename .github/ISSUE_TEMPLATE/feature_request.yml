@@ -1,0 +1,82 @@
+name: Feature request
+description: There is something you cannot find out from your logs with LogSquirl today
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        LogSquirl is a log *viewing* tool: it helps you navigate large text files, extract
+        information and reconstruct a chain of events.
+
+        So start with the question you are asking your logs, not with the button you would
+        add. The question is what we can work with: sometimes LogSquirl already answers it
+        in a way you had not found, and sometimes it deserves an answer quite different
+        from the feature you had in mind.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: What are you trying to find out?
+      description: >-
+        The question you are putting to your logs — what you need to know when you open the
+        Log File, and what you would do with the answer.
+      placeholder: |
+        Which requests timed out in the ten minutes before the service restarted, and
+        whether they all came through the same upstream. I need it while the incident is
+        still running, so I can tell whether to fail over.
+    validations:
+      required: true
+
+  - type: textarea
+    id: today
+    attributes:
+      label: How do you answer that question today?
+      description: >-
+        In LogSquirl, with grep, less or tail, with a script, in another tool — or not at
+        all, because it takes too long.
+    validations:
+      required: true
+
+  - type: textarea
+    id: where-it-stops
+    attributes:
+      label: Where does LogSquirl stop being able to help?
+      description: >-
+        The point at which you leave LogSquirl or give up: the Search you cannot express,
+        the Log Lines you lose sight of, the step you repeat by hand every time.
+
+  - type: textarea
+    id: log-file
+    attributes:
+      label: What do the Log Files look like?
+      description: >-
+        Size, roughly how many Log Lines, plain text or compressed, one file or many, and
+        whether they have a structure a Log Format could describe. A few anonymized Log
+        Lines say more than a description.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of LogSquirl does this touch?
+      description: A guess is fine, and so is more than one. Pick nothing if you are unsure.
+      multiple: true
+      options:
+        - Opening and indexing a Log File
+        - Search, QuickFind and the Filtered View
+        - Predefined Filters and saved Searches
+        - Highlighters and Color Labels
+        - Log Formats and the Table View
+        - Charts
+        - Marks and the Scratchpad
+        - Session, settings and shortcuts
+        - Themes and appearance
+        - Plugins
+        - Command line tool
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: If you already have an idea how LogSquirl could answer it
+      description: >-
+        Optional, and secondary to the question above. If you have seen another tool do
+        this well, say which and what it does.

@@ -2,6 +2,17 @@
 # Catch2 executable and registers each as its own test (#217). The variables
 # come from the file logsquirl_add_catch_tests() generated.
 
+# ctest includes this from a `cmake -P` process of its own, so no policy of the
+# project reaches it and it has to set the two it relies on itself (#453):
+#
+#   CMP0007 -- `list()` keeps the empty elements of the listing instead of
+#   dropping them silently. The empty lines are removed below by the filter that
+#   names them, so nothing else goes with them and the test list is the same.
+#   CMP0011 -- while this one is unset, setting a policy in an included script is
+#   a developer warning of its own.
+cmake_policy(SET CMP0011 NEW)
+cmake_policy(SET CMP0007 NEW)
+
 set(_logsquirl_catch_failed "")
 
 if(NOT EXISTS "${_logsquirl_catch_executable}")
