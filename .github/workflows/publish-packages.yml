@@ -1,0 +1,183 @@
+name: Publish Packages
+
+# Builds the signed APT repository of the last three stable releases and
+# deploys it to https://packages.lunicorn-lab.de with GitHub Pages (#380).
+# The repository is rebuilt completely from the GitHub Releases on every run:
+# no binary lands in git, there is no repository state to corrupt, and a
+# re-run gives the same repository. BUILD.md ("Package repository")
+# documents it.
+on:
+  # CI Release calls this after a stable release is published.
+  workflow_call:
+  # The first fill, and after a key rotation. Dispatch it from a release tag
+  # ("Use workflow from: <tag>"): the signing key is a secret of the `release`
+  # environment, which admits only v* tags (#203). Which tag does not matter,
+  # the content is always the latest stable releases.
+  workflow_dispatch:
+
+# One deploy at a time, and never cancel one mid-way: a Pages deployment
+# replaces the whole site.
+concurrency:
+  group: publish-packages
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions: {}
+
+jobs:
+  # ── Job 1: Say so when this is not run from a release tag ─────────────
+  # Without it the run would fail at the `release` environment's deployment
+  # policy with a message about environments.
+  check-ref:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require a release tag
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          case "$REF_NAME" in
+            v*) [ "$REF_TYPE" = "tag" ] && exit 0 ;;
+          esac
+          echo "::error::Run Publish Packages from a release tag (\"Use workflow from: v26.x.y\"), not from ${REF_TYPE} ${REF_NAME}: the signing key is only reachable from v* tags."
+          exit 1
+
+  # ── Job 2: Build and sign the repository ──────────────────────────────
+  # The only job with the signing key, a secret of the `release` environment
+  # (#379). It has no permission besides reading the repository and its
+  # releases, and hands the site over as the Pages artifact.
+  build:
+    runs-on: ubuntu-24.04
+    needs: [check-ref]
+    environment: release
+    # No run history yet (#218): four small downloads, apt-ftparchive, gpg.
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      # The fingerprint posted on #379. A secret that holds another key is
+      # refused; rotating the key means changing this on purpose.
+      PACKAGES_KEY_FINGERPRINT: 51ABA6432D0407ED62E8EC403169E5DF85C9A3A3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The release list is the source: the last three stable releases, the
+      # .deb and checksum file each publishes, as published.
+      - name: Select the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/releases" > "$RUNNER_TEMP/releases.json"
+          .github/scripts/release-apt.py select --releases "$RUNNER_TEMP/releases.json" \
+            --manifest "$RUNNER_TEMP/manifest.json" | tee "$RUNNER_TEMP/downloads.tsv"
+
+      - name: Download the packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          while IFS=$'\t' read -r tag deb checksums; do
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+              --pattern "$deb" --pattern "$checksums" --dir "$RUNNER_TEMP/downloads/$tag"
+          done < "$RUNNER_TEMP/downloads.tsv"
+
+      - name: Install apt-ftparchive
+        run: |
+          set -euo pipefail
+          command -v apt-ftparchive >/dev/null \
+            || { sudo apt-get update && sudo apt-get install --yes --no-install-recommends apt-utils; }
+
+      # A throwaway keyring in the runner's temp directory, so the key is
+      # gone with the runner. The fingerprint is checked before anything is
+      # signed.
+      - name: Import the signing key
+        env:
+          PACKAGES_GPG_PRIVATE_KEY: ${{ secrets.PACKAGES_GPG_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          export GNUPGHOME="$RUNNER_TEMP/gnupg"
+          install -d -m 0700 "$GNUPGHOME"
+          printf '%s\n' "$PACKAGES_GPG_PRIVATE_KEY" | gpg --batch --import
+          actual=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/ {print $10; exit}')
+          if [ "$actual" != "$PACKAGES_KEY_FINGERPRINT" ]; then
+            echo "::error::PACKAGES_GPG_PRIVATE_KEY holds key ${actual}, not ${PACKAGES_KEY_FINGERPRINT}."
+            exit 1
+          fi
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
+          gpg --armor --export "$PACKAGES_KEY_FINGERPRINT" > "$RUNNER_TEMP/public-key.asc"
+
+      - name: Build and sign the repository
+        run: |
+          set -euo pipefail
+          .github/scripts/release-apt.py build --manifest "$RUNNER_TEMP/manifest.json" \
+            --downloads "$RUNNER_TEMP/downloads" --out site --public-key "$RUNNER_TEMP/public-key.asc"
+          .github/scripts/release-apt.py sign --out site --fingerprint "$PACKAGES_KEY_FINGERPRINT"
+          .github/scripts/release-apt.py verify --out site
+
+      # apt itself reads the repository, from a file: URI and in its own
+      # state directories: every release is offered, the signature and key
+      # raise no warning, and the .deb it downloads is the release asset.
+      - name: Check that apt reads the repository
+        run: |
+          set -euo pipefail
+          apt_dir="$RUNNER_TEMP/apt"
+          mkdir -p "$apt_dir/sources.d" "$apt_dir/state/lists/partial" \
+            "$apt_dir/cache/archives/partial" "$apt_dir/download"
+          sed -e "s|^URIs: .*|URIs: file://${GITHUB_WORKSPACE}/site/apt|" \
+              -e "s|^Signed-By: .*|Signed-By: ${GITHUB_WORKSPACE}/site/logsquirl-packages.asc|" \
+              site/logsquirl.sources > "$apt_dir/sources.d/logsquirl.sources"
+          apt_opts=(-o "Dir::Etc::sourcelist=/dev/null" -o "Dir::Etc::sourceparts=$apt_dir/sources.d"
+                    -o "Dir::State=$apt_dir/state" -o "Dir::Cache=$apt_dir/cache"
+                    -o "Debug::NoLocking=1" -o "APT::Sandbox::User=")
+
+          apt-get "${apt_opts[@]}" update 2>&1 | tee "$apt_dir/update.log"
+          if grep -Eq '^(W|E):' "$apt_dir/update.log"; then
+            echo "::error::apt update warns about the repository."
+            exit 1
+          fi
+
+          policy=$(apt-cache "${apt_opts[@]}" policy logsquirl)
+          echo "$policy"
+          while IFS=$'\t' read -r tag deb _; do
+            version=${deb#logsquirl-}; version=${version%-noble.deb}
+            grep -q " ${version} " <<<"$policy" \
+              || { echo "::error::apt does not offer logsquirl ${version} (${tag})."; exit 1; }
+          done < "$RUNNER_TEMP/downloads.tsv"
+
+          # The newest release comes first.
+          IFS=$'\t' read -r newest_tag newest_deb _ < "$RUNNER_TEMP/downloads.tsv"
+          newest=${newest_deb#logsquirl-}; newest=${newest%-noble.deb}
+          (cd "$apt_dir/download" && apt-get "${apt_opts[@]}" download "logsquirl=${newest}")
+          # apt names the file logsquirl_<version>_amd64.deb; it is the same bytes.
+          served=$(sha256sum "$apt_dir"/download/logsquirl_*.deb | cut -d' ' -f1)
+          released=$(sha256sum "$RUNNER_TEMP/downloads/${newest_tag}/${newest_deb}" | cut -d' ' -f1)
+          [ "$served" = "$released" ] \
+            || { echo "::error::apt downloaded a ${newest_deb} that is not the release asset."; exit 1; }
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+
+  # ── Job 3: Deploy the repository ──────────────────────────────────────
+  # The only job with Pages permissions. The `github-pages` environment
+  # admits master and v* tags.
+  deploy:
+    runs-on: ubuntu-24.04
+    needs: [build]
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

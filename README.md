@@ -66,6 +66,20 @@ brew install --cask 64x-lunicorn/tap/logsquirl
 
 The macOS build needs Apple Silicon and macOS 15 or later; there is no build for Intel Macs.
 
+On Ubuntu 24.04 (amd64), you can also add the LogSquirl APT repository once and keep LogSquirl up to date
+with `apt upgrade`:
+
+```sh
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-packages.asc -o /etc/apt/keyrings/logsquirl.asc
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl.sources -o /etc/apt/sources.list.d/logsquirl.sources
+sudo apt update
+sudo apt install logsquirl
+```
+
+The repository holds the last three stable releases, signed with the key
+`51ABA6432D0407ED62E8EC403169E5DF85C9A3A3`; it has no betas.
+
 See the release notes for package details and platform requirements. The DEB and
 RPM packages use your distribution's Qt and install only when it is at least the Qt
 version LogSquirl was built with; on other distributions, use the AppImage, which
