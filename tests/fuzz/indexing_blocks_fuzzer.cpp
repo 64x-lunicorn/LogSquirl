@@ -56,13 +56,17 @@ extern "C" int LLVMFuzzerTestOneInput( const uint8_t* data, size_t size )
         block.encoding = encoding;
 
         // The bytes of the neighbouring blocks, kept around the block's own.
-        block.bytesBefore = sequence == 0 ? 0 : input.ConsumeIntegralInRange<int>( 0, MaxDelimiterNeighbours );
-        block.bytesAfter = sequence + 1 == blockCount ? 0 : input.ConsumeIntegralInRange<int>( 0, MaxDelimiterNeighbours );
+        block.bytesBefore
+            = sequence == 0 ? 0 : input.ConsumeIntegralInRange<int>( 0, MaxDelimiterNeighbours );
+        block.bytesAfter = sequence + 1 == blockCount
+                               ? 0
+                               : input.ConsumeIntegralInRange<int>( 0, MaxDelimiterNeighbours );
         for ( int i = 1; i <= block.bytesBefore; ++i ) {
             block.bytes()[ -i ] = static_cast<char>( input.ConsumeIntegral<std::uint8_t>() );
         }
         for ( int i = 0; i < block.bytesAfter; ++i ) {
-            block.bytes()[ blockSize + i ] = static_cast<char>( input.ConsumeIntegral<std::uint8_t>() );
+            block.bytes()[ blockSize + i ]
+                = static_cast<char>( input.ConsumeIntegral<std::uint8_t>() );
         }
 
         parseBlock( block );

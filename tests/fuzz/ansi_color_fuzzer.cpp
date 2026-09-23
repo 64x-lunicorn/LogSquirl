@@ -29,7 +29,8 @@
 
 extern "C" int LLVMFuzzerTestOneInput( const uint8_t* data, size_t size )
 {
-    auto text = QString::fromUtf8( reinterpret_cast<const char*>( data ), static_cast<qsizetype>( size ) );
+    auto text = QString::fromUtf8( reinterpret_cast<const char*>( data ),
+                                   static_cast<qsizetype>( size ) );
     removeAnsiColorSequences( text );
     return 0;
 }

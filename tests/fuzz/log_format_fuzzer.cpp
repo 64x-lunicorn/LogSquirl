@@ -38,8 +38,10 @@ extern "C" int LLVMFuzzerTestOneInput( const uint8_t* data, size_t size )
     const auto documentSize = separator ? static_cast<std::size_t>( separator - bytes ) : size;
 
     const std::string document( bytes, documentSize );
-    const auto line = separator ? QString::fromUtf8( separator + 1, static_cast<qsizetype>( size - documentSize - 1 ) )
-                                : QString();
+    const auto line = separator
+                          ? QString::fromUtf8( separator + 1,
+                                               static_cast<qsizetype>( size - documentSize - 1 ) )
+                          : QString();
 
     const auto formats = LogFormatParser::parseJsonString( document.c_str() );
     for ( const auto& format : formats ) {
