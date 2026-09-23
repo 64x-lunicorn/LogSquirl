@@ -21,6 +21,7 @@
 #define TABBEDCRAWLERWIDGET_H
 
 #include <QTabBar>
+#include <QHash>
 #include <QTabWidget>
 #include <qobjectdefs.h>
 #include <qtabbar.h>
@@ -77,6 +78,10 @@ public:
 
     void removeCrawler( int index );
 
+    // Names the tab of `path`, when it is opened next, until the window
+    // closes. Unlike a renamed tab it is not saved; a rename by the user wins.
+    void setTransientTabName( const QString& path, const QString& name );
+
 protected:
     void keyPressEvent( QKeyEvent* event ) override;
     void mouseReleaseEvent( QMouseEvent* event ) override;
@@ -113,6 +118,7 @@ private:
     QIcon newfiltered_icon_;
 
     CrawlerTabBar myTabBar_;
+    QHash<QString, QString> transientTabNames_;
 };
 
 #endif

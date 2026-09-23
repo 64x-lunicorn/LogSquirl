@@ -28,7 +28,13 @@
 - **Bunyan and Pino formats removed**: Both were listed as built-in Log Formats
   but could never be recognized, because Format Recognition only understands
   regular expressions and neither had one. LogSquirl now ships 22 built-in
-  formats, all recognizable. JSON Log Lines are tracked separately (#431).
+  formats, all recognizable. JSON Log Lines are tracked separately (#460).
+
+- **A merged Log File follows its sources**: The merged tab was a one-time
+  snapshot that went stale while its sources kept growing. It is now rebuilt
+  when a source changes (lines of a truncated source leave it), and the tab is
+  named "Merged" or "Merged (dedup)" instead of after the temporary file
+  (#432).
 
 - **Selecting a Log Line no longer hangs on large Log Files on macOS**: With
   the Table View of a large Log File and an app on the Mac that uses the

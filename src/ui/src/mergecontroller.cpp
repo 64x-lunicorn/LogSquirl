@@ -35,6 +35,8 @@ MergeController::MergeController( QObject* parent )
     rebuildTimer_.setSingleShot( true );
     rebuildTimer_.setInterval( 300 );
     connect( &rebuildTimer_, &QTimer::timeout, this, &MergeController::doMerge );
+    connect( &sourceWatcher_, &QFileSystemWatcher::fileChanged, this,
+             &MergeController::onSourceChanged );
 }
 
 MergeController::~MergeController()
@@ -50,6 +52,10 @@ QString MergeController::merge( const QStringList& sourcePaths, bool dedup )
     sourcePaths_ = sourcePaths;
     dedup_ = dedup;
 
+    if ( !sourceWatcher_.files().isEmpty() ) {
+        sourceWatcher_.removePaths( sourceWatcher_.files() );
+    }
+
     // Create a stable temp file path in the app's temp directory
     const auto tempDir = QStandardPaths::writableLocation( QStandardPaths::TempLocation );
     const auto uniqueId = QUuid::createUuid().toString( QUuid::Id128 ).left( 12 );
@@ -57,6 +63,7 @@ QString MergeController::merge( const QStringList& sourcePaths, bool dedup )
         = QDir( tempDir ).filePath( QString( "logsquirl_merged_%1.log" ).arg( uniqueId ) );
 
     doMerge();
+    watchSources();
 
     return mergedFilePath_;
 }
@@ -74,6 +81,21 @@ const QStringList& MergeController::sourcePaths() const
 void MergeController::scheduleRebuild()
 {
     rebuildTimer_.start();
+}
+
+void MergeController::watchSources()
+{
+    const auto watched = sourceWatcher_.files();
+    for ( const auto& path : sourcePaths_ ) {
+        if ( !watched.contains( path ) && QFile::exists( path ) ) {
+            sourceWatcher_.addPath( path );
+        }
+    }
+}
+
+void MergeController::onSourceChanged()
+{
+    scheduleRebuild();
 }
 
 void MergeController::doMerge()
@@ -114,5 +136,10 @@ void MergeController::doMerge()
     }
 
     outFile.close();
+
+    // A source replaced by a new file (rotation, editors saving atomically)
+    // drops out of the watcher; pick it up again.
+    watchSources();
+
     Q_EMIT mergedFileUpdated();
 }

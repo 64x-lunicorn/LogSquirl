@@ -1731,13 +1731,14 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
 
     // Open the merged temp file as a regular tab
     const auto direction = dedup ? tr( "Merged (dedup)" ) : tr( "Merged" );
+    mainTabWidget_.setTransientTabName( mergedPath, direction );
     loadFile( mergedPath );
 
     // Connect live updates: when the merged file is rebuilt, reload the LogData
     connect( controller.get(), &MergeController::mergedFileUpdated, this, [ this, mergedPath ] {
         // The loadFile + reload mechanism handles re-reading
         for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-            if ( mainTabWidget_.tabToolTip( i ) == mergedPath ) {
+            if ( mainTabWidget_.tabToolTip( i ) == QDir::toNativeSeparators( mergedPath ) ) {
                 auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
                 if ( crawler ) {
                     crawler->reload();
