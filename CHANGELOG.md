@@ -19,6 +19,11 @@
 
 ## Bug fixes
 
+- **Bunyan and Pino formats removed**: Both were listed as built-in Log Formats
+  but could never be recognized, because Format Recognition only understands
+  regular expressions and neither had one. LogSquirl now ships 22 built-in
+  formats, all recognizable. JSON Log Lines are tracked separately (#431).
+
 - **Selecting a Log Line no longer hangs on large Log Files on macOS**: With
   the Table View of a large Log File and an app on the Mac that uses the
   accessibility features, every click, double click or dragged selection in

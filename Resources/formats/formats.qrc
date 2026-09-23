@@ -1,7 +1,6 @@
 <RCC>
     <qresource prefix="/formats">
         <file>access_log.json</file>
-        <file>bunyan_log.json</file>
         <file>cups_log.json</file>
         <file>dpkg_log.json</file>
         <file>env_logger_log.json</file>
@@ -14,7 +13,6 @@
         <file>logcat_log.json</file>
         <file>mysql_error_log.json</file>
         <file>openstack_log.json</file>
-        <file>pino_log.json</file>
         <file>postgres_log.json</file>
         <file>rails_log.json</file>
         <file>redis_log.json</file>
