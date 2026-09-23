@@ -2,6 +2,14 @@
 
 ## Changes
 
+- **JSON Log Files get a Table View**: Log Formats now understand
+  `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
+  objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
+  `value` field, in the order of the format. A field name can address a nested
+  member by path (`src/file`), and an epoch `timestamp-field` is converted with
+  `timestamp-divisor`. A Log Line that is not a JSON object is still a Row,
+  with empty fields. The Text View keeps the raw line. No JSON Log Format is
+  shipped; bring your own (#460).
 - **Go to timestamp**: `Edit->Go to timestamp...` (`Ctrl+Shift+L`) jumps to the
   first line at or after a time, such as `14:02` or `2026-09-23 14:02:30`,
   instead of a line number. It works for Log Files with a recognized Log
