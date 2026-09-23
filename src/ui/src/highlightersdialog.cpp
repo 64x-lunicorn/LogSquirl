@@ -51,6 +51,7 @@
 #include "containers.h"
 #include "dispatch_to.h"
 #include "groupexchange.h"
+#include "groupimportprompt.h"
 #include "highlightersdialog.h"
 #include "highlighterset.h"
 #include "iconloader.h"
@@ -249,26 +250,27 @@ void HighlightersDialog::importHighlighters()
     const QStringList files = QFileDialog::getOpenFileNames(
         this, tr( "Select one or more files to open" ), "", tr( "Highlighters (*.conf)" ) );
 
+    if ( files.isEmpty() ) {
+        return;
+    }
+
+    using namespace logsquirl::groupexchange;
+    const auto title = tr( "Import highlighters configuration" );
+    ImportSession session( askUser( this, title ) );
+
+    // The imported sets are only in this dialog's copy: OK / Apply take them
+    // over, Cancel discards them. A replaced set keeps its id, so it stays
+    // active when it was.
     for ( const auto& file : files ) {
         LOG_INFO << "Loading highlighters from " << file;
-        QSettings settings{ file, QSettings::IniFormat };
-        HighlighterSetCollection collection;
-        collection.retrieveFromStorage( settings );
-        for ( const auto& set : logsquirl::as_const( collection.highlighters_ ) ) {
-            if ( highlighterSetCollection_.hasSet( set.id() )
-                 || highlighterSetCollection_.hasSetByName( set.name() ) ) {
-
-                LOG_INFO << "Skipping set " << set.name() << " (" << set.id() << ")";
-
-                continue;
-            }
-
-            LOG_INFO << "Adding set " << set.name() << " (" << set.id() << ")";
-
-            highlighterSetCollection_.highlighters_.append( set );
-            highlighterListWidget->addItem( set.name() );
-        }
+        reportImportError( this, title, file,
+                           importFile( file, highlighterSetCollection_.highlighters_, session ) );
     }
+
+    // Show the list as it is now; a replaced set is read again from it.
+    const int row = selectedRow_;
+    populateHighlighterList();
+    setCurrentRow( row >= 0 ? row : highlighterListWidget->count() - 1 );
 }
 
 void HighlightersDialog::addHighlighterSet()

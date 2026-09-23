@@ -59,6 +59,10 @@ public:
     QString name() const;
     void setName( const QString& name );
 
+    // A copy of this group under the given id: a group that arrives from
+    // elsewhere takes the id of the one it replaces, or a fresh one.
+    PredefinedFilterSet withId( const QString& id ) const;
+
     QList<PredefinedFilter> filters() const;
     void setFilters( const QList<PredefinedFilter>& filters );
     void addFilter( const PredefinedFilter& filter );

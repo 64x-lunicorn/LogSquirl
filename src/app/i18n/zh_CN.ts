@@ -984,6 +984,54 @@ Pattern: %2</source>
     </message>
 </context>
 <context>
+    <name>GroupImportPrompt</name>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="42"/>
+        <source>The group &quot;%1&quot; is already in the list (the imported one is called &quot;%2&quot;).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="47"/>
+        <source>A group named &quot;%1&quot; is already in the list.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="50"/>
+        <source>Replace it, keep both, or skip the imported group?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="54"/>
+        <source>Replace</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="56"/>
+        <source>Keep both</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="57"/>
+        <source>Skip</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="63"/>
+        <source>Apply to all remaining conflicts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="91"/>
+        <source>The file %1 could not be read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/groupimportprompt.cpp" line="95"/>
+        <source>The file %1 holds no group.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>HighlighterColorPreset</name>
     <message>
         <location filename="../../ui/src/highlighterpresets.cpp" line="38"/>
@@ -1246,24 +1294,29 @@ Pattern: %2</source>
         <translation>加入颜色循环</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="231"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="240"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="232"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="241"/>
         <source>Export highlighters configuration</source>
         <translation>导出高亮规则配置</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="241"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="242"/>
         <source>The file %1 could not be written.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="250"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="251"/>
         <source>Select one or more files to open</source>
         <translation>选择一个或多个要打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="232"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="250"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="258"/>
+        <source>Import highlighters configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="233"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="251"/>
         <source>Highlighters (*.conf)</source>
         <translation>高亮规则 (*.conf)</translation>
     </message>
@@ -1297,22 +1350,22 @@ Pattern: %2</source>
         <translation>打开URL作为日志文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2820"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2821"/>
         <source>Select item to remove from favorites</source>
         <translation>选择要从收藏中移除的项目</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2865"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2866"/>
         <source>logsquirl -- switch to file</source>
         <translation>logsquirl -- 切换到已打开的文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3023"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3024"/>
         <source>logsquirl - generate crash dump</source>
         <translation>logsquirl - 生成崩溃记录</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="3024"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="3025"/>
         <source>This will shutdown logsquirl and generate diagnostic crash dump. Continue?</source>
         <translation>关闭logsquirl并产生诊断性的崩溃信息。是否继续？</translation>
     </message>
@@ -1338,7 +1391,7 @@ Pattern: %2</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1206"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2429"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2430"/>
         <source>All files (*)</source>
         <translation>全部文件 (*)</translation>
     </message>
@@ -1409,25 +1462,25 @@ Pattern: %2</source>
         <translation>logsquirl文档</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2429"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2430"/>
         <source>Open file from archive</source>
         <translation>从压缩包中打开文件</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2581"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2582"/>
         <source>Untitled</source>
         <translation>未命名</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2591"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2592"/>
         <source>%1 - %2%3</source>
         <translation>%1 - %2%3</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2374"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2414"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2439"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2591"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2375"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2415"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2440"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2592"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
@@ -1459,7 +1512,7 @@ Pattern: %2</source>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="337"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2176"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2177"/>
         <source>Dashboard</source>
         <translation>仪表板</translation>
     </message>
@@ -1553,142 +1606,142 @@ Pattern: %2</source>
         <translation>已合并</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1774"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1775"/>
         <source>Import Chipmunk filters</source>
         <translation>导入 Chipmunk 过滤器</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1775"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1776"/>
         <source>Chipmunk filters (*.json);;All files (*)</source>
         <translation>Chipmunk 过滤器 (*.json);;所有文件 (*)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1783"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1784"/>
         <source>Import error</source>
         <translation>导入错误</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1784"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1785"/>
         <source>Could not open file: %1</source>
         <translation>无法打开文件：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1792"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1804"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="1836"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1793"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1805"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1837"/>
         <source>Import result</source>
         <translation>导入结果</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1793"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1794"/>
         <source>No filters found in the selected file.</source>
         <translation>所选文件中未找到过滤器。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1805"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1806"/>
         <source>A filter group named &apos;%1&apos; already exists. Skipping filter import.</source>
         <translation>名为“%1”的过滤器分组已存在。跳过过滤器导入。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1837"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1838"/>
         <source>Imported %1 filter(s) and %2 highlighter set.</source>
         <translation>已导入 %1 个过滤器和 %2 个高亮规则集。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1912"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1913"/>
         <source>Ln:%1/%2</source>
         <translation>行:%1/%2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1917"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1918"/>
         <source>Ln:%1/%2 Col:%3 Sel:%4|%5</source>
         <translation>行:%1/%2 列:%3 选:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1926"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1927"/>
         <source>Ln:%1/%2 Sel:%4|%5</source>
         <translation>行:%1/%2 选:%4|%5</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1960"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="1961"/>
         <source> - Indexing lines... (%1 %)</source>
         <translation> - 正在索引行... (%1 %)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="1999"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2000"/>
         <source>Not enough memory.</source>
         <translation>内存不足。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2001"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2002"/>
         <source>The system does not have enough memory to hold the index for this file. The file will now be closed.</source>
         <translation>系统内存不足，无法保存此文件的索引。文件将被关闭。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2055"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2056"/>
         <source>Close Tab</source>
         <translation>关闭标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2056"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2057"/>
         <source>Close tab &quot;%1&quot;?</source>
         <translation>要关闭标签页“%1”吗？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2060"/>
-        <location filename="../../ui/src/mainwindow.cpp" line="2103"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2061"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2104"/>
         <source>Don&apos;t ask again</source>
         <translation>不再询问</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2098"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2099"/>
         <source>Close Tabs</source>
         <translation>关闭标签页</translation>
     </message>
     <message numerus="yes">
-        <location filename="../../ui/src/mainwindow.cpp" line="2099"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2100"/>
         <source>Close %n tab(s)?</source>
         <translation>
             <numerusform>要关闭 %n 个标签页吗？</numerusform>
         </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2375"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2376"/>
         <source>Extract archive to temp folder?</source>
         <translation>将存档解压缩到临时文件夹？</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2387"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2388"/>
         <source>Extracting %1</source>
         <translation>正在解压 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2415"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2416"/>
         <source>Failed to decompress %1</source>
         <translation>解压 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2440"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2441"/>
         <source>Failed to extract %1</source>
         <translation>提取 %1 失败</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2592"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2593"/>
         <source> (build </source>
         <translation> （构建 </translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2618"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2619"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2693"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2694"/>
         <source>modified on %1</source>
         <translation>修改于 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/mainwindow.cpp" line="2819"/>
+        <location filename="../../ui/src/mainwindow.cpp" line="2820"/>
         <source>Remove from favorites</source>
         <translation>从收藏中移除</translation>
     </message>
@@ -2609,6 +2662,11 @@ Restart LogSquirl to try again.</source>
         <source>Select one or more files to open</source>
         <translation>选择一个或多个要打开的文件</translation>
     </message>
+    <message>
+        <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="229"/>
+        <source>Import predefined filters</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>PresentationMenu</name>
@@ -3352,129 +3410,129 @@ Restart LogSquirl to try again.</source>
 <context>
     <name>TabbedCrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="197"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="209"/>
         <source>Close this</source>
         <translation>关闭</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="198"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="210"/>
         <source>Close others</source>
         <translation>关闭其他标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="199"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="211"/>
         <source>Close to the left</source>
         <translation>关闭左侧标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="200"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="212"/>
         <source>Close to the right</source>
         <translation>关闭右侧标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="201"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="213"/>
         <source>Close all</source>
         <translation>关闭所有标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="203"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="215"/>
         <source>Copy full path</source>
         <translation>拷贝完整路径</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="204"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="216"/>
         <source>Open containing folder</source>
         <translation>打开包含此文件的文件夹</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="206"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="218"/>
         <source>Rename tab</source>
         <translation>重命名标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="207"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="219"/>
         <source>Reset tab name</source>
         <translation>恢复标签页名称</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="282"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="294"/>
         <source>Add to Group</source>
         <translation>添加到分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="299"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="311"/>
         <source>New Group...</source>
         <translation>新建分组...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="302"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="314"/>
         <source>New Tab Group</source>
         <translation>新建标签页分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="302"/>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="334"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="314"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="346"/>
         <source>Group name:</source>
         <translation>分组名称：</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="307"/>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="345"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="319"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="357"/>
         <source>Group Color</source>
         <translation>分组颜色</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="318"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="330"/>
         <source>Remove from Group</source>
         <translation>从分组中移除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="327"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="339"/>
         <source>Group: %1</source>
         <translation>分组：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="330"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="342"/>
         <source>Rename Group...</source>
         <translation>重命名分组...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="334"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="346"/>
         <source>Rename Group</source>
         <translation>重命名分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="342"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="354"/>
         <source>Change Group Color...</source>
         <translation>更改分组颜色...</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="354"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="366"/>
         <source>Close All in Group</source>
         <translation>关闭分组中的全部标签页</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="372"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="384"/>
         <source>Ungroup All</source>
         <translation>取消全部分组</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="384"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="396"/>
         <source>Merge All Left</source>
         <translation>向左合并全部</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="393"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="405"/>
         <source>Merge All Left (dedup)</source>
         <translation>向左合并全部（去重）</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="404"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="416"/>
         <source>Merge All Right</source>
         <translation>向右合并全部</translation>
     </message>
     <message>
-        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="413"/>
+        <location filename="../../ui/src/tabbedcrawlerwidget.cpp" line="425"/>
         <source>Merge All Right (dedup)</source>
         <translation>向右合并全部（去重）</translation>
     </message>
