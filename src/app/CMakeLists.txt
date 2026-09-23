@@ -154,17 +154,25 @@ install(
 # the crashpad handler and the minidump tool go too, and is then called as
 # /Applications/LogSquirl.app/Contents/MacOS/logsquirl_grep (#430).
 if(APPLE)
-  install(TARGETS logsquirl_grep DESTINATION $<TARGET_BUNDLE_CONTENT_DIR:logsquirl>/MacOS)
-
-  # The DMG is packed from the app bundle in the build tree and not from an
-  # install tree (.github/actions/agent-package-mac), so the tool is copied
-  # into the bundle at build time as well -- the way the crashpad handler and
-  # the minidump tool get there. macdeployqt is told about it so it uses the
-  # bundled Qt frameworks (#430).
+  # The tool is copied into the app bundle at build time -- the way the crashpad
+  # handler and the minidump tool get there -- and needs no install() rule of
+  # its own: install(TARGETS logsquirl BUNDLE) above installs the bundle with
+  # everything in it, and that is also what CPack packs into the DMG. An
+  # install() into $<TARGET_BUNDLE_CONTENT_DIR:logsquirl> would name an absolute
+  # path in the build tree, which DESTDIR (CPack sets one) turns into a stray
+  # copy of that path inside the package.
+  #
+  # The build tree's bundle is what .github/actions/agent-package-mac packs, and
+  # macdeployqt is told about the tool there so it uses the bundled Qt
+  # frameworks.
+  #
+  # The copy hangs on logsquirl and not on logsquirl_grep: naming a target's
+  # file in a custom command makes the command's target depend on it, and with
+  # the command on logsquirl_grep that dependency closed a cycle against the
+  # add_dependencies() above.
   add_custom_command(
-    TARGET logsquirl_grep
+    TARGET logsquirl
     POST_BUILD
-    COMMAND cmake -E make_directory $<TARGET_FILE_DIR:logsquirl>
     COMMAND cmake -E copy $<TARGET_FILE:logsquirl_grep> $<TARGET_FILE_DIR:logsquirl>
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     COMMENT "Copy logsquirl_grep into the app bundle"
