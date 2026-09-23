@@ -22,6 +22,15 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/logdata_public_headers_no_tbb.cmake
 )
 
+# The log data library reads text through Qt 6's converters: no public header
+# may name QTextCodec and the library may not link Qt5Compat (#442).
+add_test(
+    NAME logdata_no_qt5compat
+    COMMAND ${CMAKE_COMMAND}
+            -DLOGDATA_DIR=${CMAKE_SOURCE_DIR}/src/logdata
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/logdata_no_qt5compat.cmake
+)
+
 # The plugin layer builds without Qt Widgets: no file of it may include a Qt
 # Widgets header, and the library may not link Qt Widgets (#175). Nor may it
 # link the settings store: the Plugin Host is handed its configuration (#236).

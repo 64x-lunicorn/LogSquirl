@@ -185,7 +185,7 @@ void OptionsDialog::setupEncodings()
 
     for ( const auto& group : availableEncodings ) {
         for ( const auto& mib : group.second ) {
-            auto codec = QTextCodec::codecForMib( mib );
+            auto codec = TextEncoding::forMib( mib );
             if ( codec ) {
                 allMibs.emplace( codec->name(), mib );
             }

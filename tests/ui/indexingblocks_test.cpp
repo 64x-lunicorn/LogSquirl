@@ -27,10 +27,10 @@
 #include <utility>
 #include <vector>
 
+#include "textencoding.h"
 #include <QByteArray>
 #include <QFile>
 #include <QTemporaryDir>
-#include <QTextCodec>
 
 #include "test_policies.h"
 
@@ -118,7 +118,7 @@ void writeLogFile( const QString& path, const QByteArray& bytes )
     REQUIRE( file.write( bytes ) == bytes.size() );
 }
 
-IndexingRun indexInBlocks( const QString& path, QTextCodec* encoding, qint64 blockSize,
+IndexingRun indexInBlocks( const QString& path, const TextEncoding* encoding, qint64 blockSize,
                            int readBufferSizeMb = 16 )
 {
     auto policy = testSettingsPolicies().indexing;
@@ -242,13 +242,10 @@ SCENARIO( "Indexing in blocks finds the Log Lines a scan of the whole Log File f
         = GENERATE( qint64{ 1 }, qint64{ 2 }, qint64{ 3 }, qint64{ 5 }, qint64{ 16 }, qint64{ 17 },
                     qint64{ 64 }, qint64{ 1000 }, DefaultIndexingBlockSize );
     const auto encoded = GENERATE( from_range( std::begin( Encodings ), std::end( Encodings ) ) );
-    auto* codec = QTextCodec::codecForName( encoded.encoding );
+    auto* codec = TextEncoding::forName( encoded.encoding );
     REQUIRE( codec != nullptr );
 
-    const auto encode = [ codec ]( const QString& text ) {
-        QTextCodec::ConverterState state( QTextCodec::IgnoreHeader );
-        return codec->fromUnicode( text.constData(), static_cast<int>( text.size() ), &state );
-    };
+    const auto encode = [ codec ]( const QString& text ) { return codec->fromUnicode( text ); };
 
     CAPTURE( blockSize, encoded.encoding );
 
@@ -308,7 +305,7 @@ SCENARIO( "Indexing in blocks digests the Log File as indexing it in one block d
     const auto path = dir.filePath( "generated.log" );
     const auto bytes = generatedText( 293, 400, true ).toUtf8();
     writeLogFile( path, bytes );
-    auto* codec = QTextCodec::codecForName( "UTF-8" );
+    auto* codec = TextEncoding::forName( "UTF-8" );
 
     const auto whole = indexInBlocks( path, codec, DefaultIndexingBlockSize );
     const auto blocks = indexInBlocks( path, codec, GENERATE( qint64{ 7 }, qint64{ 4096 } ) );
@@ -336,7 +333,7 @@ SCENARIO( "The read buffer setting bounds the blocks read ahead, in MiB", "[inde
             bytes += generatedText( static_cast<std::uint32_t>( bytes.size() ), 50, true ).toUtf8();
         }
         writeLogFile( path, bytes );
-        auto* codec = QTextCodec::codecForName( "UTF-8" );
+        auto* codec = TextEncoding::forName( "UTF-8" );
         const Encoded utf8{ "UTF-8", 1, 0 };
         constexpr qint64 BlockSize = 256 * 1024;
 

@@ -21,10 +21,10 @@
 
 #include "searchblocksource.h"
 
+#include "textencoding.h"
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
-#include <QTextCodec>
 
 #include <atomic>
 #include <condition_variable>
@@ -169,8 +169,8 @@ public:
             rawLines.endOfLines.push_back( static_cast<qint64>( rawLines.buffer.size() ) );
         }
 
-        const auto* codec = QTextCodec::codecForName( "UTF-8" );
-        rawLines.textDecoder.decoder = std::make_unique<QTextDecoder>( codec );
+        const auto* codec = TextEncoding::forName( "UTF-8" );
+        rawLines.textDecoder.decoder = codec->makeDecoder();
         rawLines.textDecoder.encodingParams = EncodingParameters( codec );
         return rawLines;
     }

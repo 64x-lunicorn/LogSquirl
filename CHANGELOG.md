@@ -87,6 +87,16 @@
   carries TBB's headers and definitions without naming its archive again.
   Linux and Windows link unchanged (#450).
 
+- **LogSquirl no longer ships Qt5Compat**: The engine decoded and detected text
+  through `QTextCodec`, which forced the deprecated Qt5Compat module onto every
+  package. It now uses Qt 6's own converters through a small `TextEncoding`
+  type, so the deb no longer depends on `libqt6core5compat6` and the Windows
+  installer and portable zip no longer carry `Qt6Core5Compat.dll`. The
+  Encoding menu offers the same Encodings, and the Encodings the settings and
+  the Index cache store by name or MIB enum still resolve. Legacy Encodings
+  (Windows code pages, ISO-8859, CJK) are read through the ICU or iconv of the
+  Qt in use (#442).
+
 ## Internal
 
 - **The tests run on Catch2 v3**: Catch2 v2 is end of life. v3 is pinned by

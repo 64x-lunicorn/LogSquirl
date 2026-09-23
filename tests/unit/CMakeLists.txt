@@ -60,6 +60,7 @@ add_executable(logsquirl_tests
     settingspolicies_test.cpp
     sparselineread_test.cpp
     tabbarstyle_test.cpp
+    textencoding_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
     timelookup_test.cpp

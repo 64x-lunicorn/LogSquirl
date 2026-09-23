@@ -142,7 +142,7 @@ protected:
         return LineLength( 0 );
     }
     void doSetDisplayEncoding( const char* ) override {}
-    QTextCodec* doGetDisplayEncoding() const override
+    const TextEncoding* doGetDisplayEncoding() const override
     {
         return nullptr;
     }

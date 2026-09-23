@@ -198,7 +198,7 @@ private:
     LineLength doGetLineLength( LineNumber line ) const override;
 
     void doSetDisplayEncoding( const char* encoding ) override;
-    QTextCodec* doGetDisplayEncoding() const override;
+    const TextEncoding* doGetDisplayEncoding() const override;
 
     void doAttachReader() const override;
     void doDetachReader() const override;

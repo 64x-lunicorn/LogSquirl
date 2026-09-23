@@ -23,9 +23,9 @@
 #include "encodingdetector.h"
 #include "linetypes.h"
 
+#include "textencoding.h"
 #include <QByteArray>
 #include <QString>
-#include <QTextCodec>
 #include <QtGlobal>
 
 #include <string_view>

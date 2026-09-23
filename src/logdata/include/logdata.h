@@ -42,14 +42,13 @@
 #include <cstddef>
 #include <memory>
 
+#include "textencoding.h"
 #include <QDateTime>
 #include <QFile>
 #include <QObject>
 #include <QPointer>
 #include <QString>
-#include <QTextCodec>
 #include <qregularexpression.h>
-#include <qtextcodec.h>
 #include <span>
 #include <string>
 #include <string_view>
@@ -126,10 +125,10 @@ public:
     // Null if the file is not on disk.
     QDateTime getLastModifiedDate() const;
     // Throw away all the file data and reload/reindex.
-    void reload( QTextCodec* forcedEncoding = nullptr );
+    void reload( const TextEncoding* forcedEncoding = nullptr );
 
     // Get the auto-detected encoding for the indexed text.
-    QTextCodec* getDetectedEncoding() const;
+    const TextEncoding* getDetectedEncoding() const;
 
     // Replaces the Decoding Policy: every Log Line read from now on, for a
     // view or for a Search, is decoded under it, and decodingPolicyChanged()
@@ -226,7 +225,7 @@ private:
     LineLength doGetMaxLength() const override;
     LineLength doGetLineLength( LineNumber line ) const override;
     void doSetDisplayEncoding( const char* encoding ) override;
-    QTextCodec* doGetDisplayEncoding() const override;
+    const TextEncoding* doGetDisplayEncoding() const override;
     void doAttachReader() const override;
     void doDetachReader() const override;
 
