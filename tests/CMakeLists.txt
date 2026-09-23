@@ -240,6 +240,11 @@ add_test(
             -DQUIET_FLAG=${_quiet_flag}
             "-DTHIRD_PARTY=${_third_party_entries}"
             "-DPROJECT_TARGETS=${_project_quiet_entries}"
+            # This directory's CMAKE_CXX_FLAGS is the one src/ has too: both
+            # inherit it from the top-level CMakeLists.txt, which is where the
+            # third-party flags would land if they were set one directory too
+            # high.
+            "-DPROJECT_FLAGS=${CMAKE_CXX_FLAGS}"
             -P ${CMAKE_CURRENT_SOURCE_DIR}/third_party_builds_quietly.cmake
 )
 

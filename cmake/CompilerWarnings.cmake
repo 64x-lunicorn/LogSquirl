@@ -15,7 +15,10 @@
 # decisions can be read back in a check (tests/project_warning_flags.cmake)
 # without a compiler of that version to hand.
 function(logsquirl_project_warnings compile_out link_out)
-  cmake_parse_arguments(ARG "" "COMPILER_ID;COMPILER_VERSION;MSVC;AS_ERRORS;SANITIZERS" "" ${ARGN})
+  # PARSE_ARGV, not ${ARGN}: an empty value -- an unset compiler version, a
+  # WARNINGS_AS_ERRORS someone configured to nothing -- would drop out of an
+  # expanded list and shift every keyword after it onto the wrong argument.
+  cmake_parse_arguments(PARSE_ARGV 2 ARG "" "COMPILER_ID;COMPILER_VERSION;MSVC;AS_ERRORS;SANITIZERS" "")
 
   set(MSVC_WARNINGS
       /W4 # Baseline reasonable warnings
@@ -114,7 +117,14 @@ function(logsquirl_project_warnings compile_out link_out)
     # sanitizer build; ordinary (non-sanitizer) GCC builds keep it as an
     # error. Appended after -Werror (already in GCC_WARNINGS via
     # CLANG_WARNINGS) so it takes priority for this one diagnostic.
+    #
+    # And on the link line as well as the compile lines, since #454 put -Werror
+    # there too: the CI sanitizer job builds with LOGSQUIRL_USE_LTO off, but
+    # nothing in the build system couples the two, so a sanitizer build with
+    # LTO left at its default would otherwise meet the same false positive
+    # again as a link error it cannot get past.
     list(APPEND GCC_WARNINGS -Wno-error=maybe-uninitialized)
+    list(APPEND GCC_LINK_WARNINGS -Wno-error=maybe-uninitialized)
   endif()
 
   if(ARG_COMPILER_ID STREQUAL "GNU" AND ARG_COMPILER_VERSION VERSION_LESS 14)
@@ -181,11 +191,11 @@ function(set_project_warnings project_name)
     COMPILER_VERSION
     "${CMAKE_CXX_COMPILER_VERSION}"
     MSVC
-    ${_msvc}
+    "${_msvc}"
     AS_ERRORS
-    ${WARNINGS_AS_ERRORS}
+    "${WARNINGS_AS_ERRORS}"
     SANITIZERS
-    ${_sanitizers}
+    "${_sanitizers}"
   )
 
   target_compile_options(${project_name} INTERFACE ${PROJECT_WARNINGS})

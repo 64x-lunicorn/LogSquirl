@@ -162,15 +162,29 @@ if(LOGSQUIRL_USE_VECTORSCAN)
     # the KArchive fork is patched further down; for a build that adds the fork
     # as a subdirectory instead, the same option is taken off the targets by
     # logsquirl_third_party_build_quietly() at the end of this file (#452).
-    if(EXISTS "${hyperscan_SOURCE_DIR}/CMakeLists.txt")
+    # Only written when it actually changes something: this is the CPM source
+    # cache, shared with every other worktree and build directory that pins the
+    # same commit, so a configure that has nothing to change leaves its
+    # timestamp alone. And it says so when the pattern is not there at all, the
+    # one way this could quietly become a no-op if the fork ever reformats
+    # those lines.
+    if(_HS_RUNTIME_DISPATCH AND EXISTS "${hyperscan_SOURCE_DIR}/CMakeLists.txt")
       file(READ "${hyperscan_SOURCE_DIR}/CMakeLists.txt" _hyperscan_cmake)
       string(
         REPLACE " PRIVATE \"-fpermissive\")"
                 " PRIVATE)"
-                _hyperscan_cmake
+                _hyperscan_patched
                 "${_hyperscan_cmake}"
       )
-      file(WRITE "${hyperscan_SOURCE_DIR}/CMakeLists.txt" "${_hyperscan_cmake}")
+      if(NOT _hyperscan_patched STREQUAL _hyperscan_cmake)
+        file(WRITE "${hyperscan_SOURCE_DIR}/CMakeLists.txt" "${_hyperscan_patched}")
+      elseif(NOT _hyperscan_cmake MATCHES " PRIVATE\\)")
+        message(
+          WARNING
+            "The hyperscan fork no longer sets -fpermissive the way 3rdparty/CMakeLists.txt "
+            "takes it out; a Windows build will print D9002 for it again (#452)."
+        )
+      endif()
     endif()
 
     add_library(logsquirl_vectorscan INTERFACE)

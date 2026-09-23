@@ -8,9 +8,16 @@
 # its own code without a single warning, with nothing failing and nothing to
 # see in the log.
 #
+# PROJECT_FLAGS is that second half read where it would actually go wrong:
+# CMAKE_CXX_FLAGS as LogSquirl's own directories see it. A target's compile
+# options would say nothing about it, because these flags never become any
+# target's compile options -- they are handed to the compiler ahead of them,
+# and -w ahead of -Wall -Werror wins.
+#
 # Usage: cmake -DQUIET_FLAG=<-w|/W0>
 #              -DTHIRD_PARTY=<target=TRUE|FALSE, |-separated>
 #              -DPROJECT_TARGETS=<target=TRUE|FALSE, |-separated>
+#              -DPROJECT_FLAGS=<CMAKE_CXX_FLAGS of the project's own directories>
 #              -P third_party_builds_quietly.cmake
 
 cmake_minimum_required(VERSION 3.16)
@@ -51,6 +58,15 @@ endfunction()
 
 entry_offenders(_loud TRUE "compiled with warnings on" ${_third_party})
 entry_offenders(_silenced FALSE "compiled with the third-party '${QUIET_FLAG}', so nothing checks it" ${_project})
+
+separate_arguments(_project_flags NATIVE_COMMAND "${PROJECT_FLAGS}")
+if("${QUIET_FLAG}" IN_LIST _project_flags)
+  list(
+    APPEND
+    _silenced
+    "CMAKE_CXX_FLAGS of the project's own directories: carries '${QUIET_FLAG}', which is handed to the compiler ahead of the project's warnings and takes every one of them back"
+  )
+endif()
 
 set(_offenders ${_loud} ${_silenced})
 if(_offenders)

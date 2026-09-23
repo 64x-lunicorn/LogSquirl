@@ -39,7 +39,9 @@
 # -w inhibits every warning whatever came before it, so nothing has to be taken
 # out.
 function(logsquirl_third_party_quiet_flags out_var)
-  cmake_parse_arguments(ARG "" "MSVC;FLAGS" "" ${ARGN})
+  # PARSE_ARGV, not ${ARGN}: empty flags would drop out of an expanded list
+  # and shift the keywords after them.
+  cmake_parse_arguments(PARSE_ARGV 1 ARG "" "MSVC;FLAGS" "")
 
   if(ARG_MSVC)
     string(
@@ -76,7 +78,11 @@ endfunction()
 # well. cl does not know them and reports "D9002: ignoring unknown option" once
 # per file for each: the hyperscan fork's unconditional
 # `target_compile_options(hs PRIVATE "-fpermissive")` alone is 320 of them in a
-# Windows build.
+# Windows build. Add the next one to this list, with the package it comes from.
+set(LOGSQUIRL_THIRD_PARTY_MSVC_UNKNOWN_OPTIONS
+    -fpermissive # variar/hyperscan, on all three of its libraries
+)
+
 function(logsquirl_third_party_build_quietly dir)
   if(MSVC)
     set(_quiet /W0)
@@ -107,17 +113,25 @@ function(logsquirl_third_party_build_quietly dir)
       set(_options "")
     endif()
     if(MSVC)
-      # cl takes its own options with a dash as well as a slash, and some of
-      # them start with -f or -m (-fp:fast, -favor:blend). Those carry their
-      # argument after a colon, which no GCC option of this shape does, so the
-      # colon is what tells the two apart.
+      # A warning level a package set on its own target has to go, not be
+      # overridden: /W0 next to it on one command line is what makes cl report
+      # "D9025: overriding '/Wall' with '/W0'" once per file, the same noise
+      # under another name that logsquirl_third_party_quiet_flags() takes the
+      # trouble to avoid.
       list(
         FILTER
         _options
         EXCLUDE
         REGEX
-        "^-[fm][^:]*$"
+        "^[-/]W(all|[0-4])$"
       )
+      # And the GCC options cl does not know, each of which it reports as
+      # "D9002: ignoring unknown option" once per file. Named one by one rather
+      # than matched by shape: CMake's MSVC is true for clang-cl too, where
+      # -mavx2 and -flto=thin are real options a package may well be selecting
+      # its instruction set with, and a function whose job is to turn warnings
+      # off has no business changing what code a package generates.
+      list(REMOVE_ITEM _options ${LOGSQUIRL_THIRD_PARTY_MSVC_UNKNOWN_OPTIONS})
     endif()
     list(APPEND _options ${_quiet})
     set_property(TARGET ${_target} PROPERTY COMPILE_OPTIONS "${_options}")
