@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **Ubuntu users install and update LogSquirl with apt**: After every stable
+  release, a signed APT repository at `https://packages.lunicorn-lab.de` is
+  rebuilt with the `.deb` of the last three stable releases, exactly as
+  published on the release page, so LogSquirl updates with `apt upgrade`
+  and an older release can be pinned. Betas are not published. The README and
+  the website show the two-file setup (#380).
 - **Color presets for Highlighters**: The Highlighter editor offers 20
   ready-made color pairs, 12 soft pastels with dark text and 8 strong colors
   with white text; one click sets both the text and the background color.

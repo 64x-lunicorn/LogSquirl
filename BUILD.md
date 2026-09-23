@@ -563,6 +563,44 @@ push). Releases up to 26.07.0 have no DMG line in their checksum file; hash thei
 Removing the tap, for instance once the cask moves to `homebrew/cask`, means removing three things together: the
 `update-homebrew` job, the tap's deploy key and the `HOMEBREW_TAP_DEPLOY_KEY` secret.
 
+#### Package repository
+
+Ubuntu 24.04 (amd64) users add the LogSquirl APT repository once (README) and get every release with
+`apt upgrade`. It is served at `https://packages.lunicorn-lab.de/apt` by the GitHub Pages of this repository,
+deployed from Actions: no package binary is ever committed, and the website's FTPS sync never touches it. The
+domain is a CNAME to `64x-lunicorn.github.io` at Netcup, so the repository can move without users changing anything.
+
+After every stable release, CI Release calls `publish-packages.yml` (never after a beta, which would reach every
+apt user). The repository is rebuilt completely on every run, so there is no state to corrupt and a re-run gives the
+same repository:
+
+1. `release-apt.py select` takes the last three stable, published releases from the release list that carry a noble
+   `.deb` and a checksum file, ordered by version.
+2. `release-apt.py build` refuses a `.deb` whose SHA-256 differs from the one its release's checksum file lists, so
+   the served files are the release assets byte for byte and their attestations still apply. It lays out
+   `apt/pool`, `apt/dists/noble` (`Packages` from `apt-ftparchive`, and a `Release` dated by the newest release, not
+   by the build), the public key `logsquirl-packages.asc` and the deb822 file `logsquirl.sources`.
+3. `sign` writes `InRelease` and `Release.gpg`; `verify` checks both with the served public key alone, and a real
+   `apt-get update` against the site (with `Signed-By` and a `file:` URI) must show no warning, offer every
+   selected release and download the newest `.deb` unchanged.
+4. The site is the Pages artifact; the `deploy` job deploys it.
+
+Signing and deploying are separate jobs because a job has one environment: `build` runs in `release` and holds the
+signing key `PACKAGES_GPG_PRIVATE_KEY` with `contents: read` only; `deploy` runs in `github-pages` with only
+`pages: write` and `id-token: write`. The workflow fails when the secret holds another key than the pinned
+fingerprint `51ABA6432D0407ED62E8EC403169E5DF85C9A3A3` (#379).
+
+A failing run leaves the release out and the repository as it was: fix the cause and re-run the job, or dispatch
+Publish Packages *from a release tag* (*Use workflow from*, or `gh workflow run publish-packages.yml --ref <tag>`);
+any `v*` tag that contains the workflow works, the content is always the latest stable releases. A branch fails at
+once with a message, because the signing key is only reachable from `v*` tags. Dispatch it for the first fill and
+after a key rotation. A tag from before this workflow existed has no workflow to dispatch.
+
+Rotating the key is a deliberate step, because every user then has to fetch the new key: create the key as #379
+describes (without a passphrase: the secret is the key alone, and signing fails on a protected one), replace the secret, change `PACKAGES_KEY_FINGERPRINT` in `publish-packages.yml` and dispatch Publish
+Packages from a release tag. The DNF repository (#381) will join the same Pages site, so the site is always built
+as a whole.
+
 #### Secrets and environments
 
 The signing and upload secrets are not repository secrets but secrets of GitHub
@@ -571,7 +609,8 @@ for the refs its deployment policy admits:
 
 | Environment | Deployment policy | Secrets | Jobs |
 |-------------|-------------------|---------|------|
-| `release` | tags `v*` | `MACOS_P12_FILE`, `MACOS_P12_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `SENTRY_TOKEN`, `HOMEBREW_TAP_DEPLOY_KEY` | CI Release `sign-mac`, `sentry`, `update-homebrew` (the tap's deploy key, write access to `homebrew-tap` only) |
+| `release` | tags `v*` | `MACOS_P12_FILE`, `MACOS_P12_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `SENTRY_TOKEN`, `HOMEBREW_TAP_DEPLOY_KEY`, `PACKAGES_GPG_PRIVATE_KEY` | CI Release `sign-mac`, `sentry`, `update-homebrew` (the tap's deploy key, write access to `homebrew-tap` only); Publish Packages `build` (the package repository's signing key) |
+| `github-pages` | branch `master`, tags `v*` | none | Publish Packages `deploy` |
 | `website` | branch `master` | `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` | Deploy Website `deploy` |
 
 CI Build never signs and references no signing secret: a pull request, a push
@@ -588,6 +627,7 @@ before anything is downloaded, because its signing job could not enter the
 | `changelog.yml` | PR to master (also on label changes) | Require a CHANGELOG entry under `# Unreleased`, or the `no-changelog` label |
 | `deploy-website.yml` | dispatch only: by CI Release after a release is published, or by hand from the Actions tab | Build the website without the pages of unpublished releases and upload it |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
+| `publish-packages.yml` | called by CI Release after a stable release; dispatch from a release tag | Build the signed APT repository from the last three stable releases and deploy it with GitHub Pages |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
