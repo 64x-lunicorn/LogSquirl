@@ -640,6 +640,9 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
     logsquirl::vector<bool> isRead( lines.size(), false );
 
     try {
+        // One decoder for the whole read: making one costs a converter, dear
+        // for the legacy Encodings. Its state is reset for every Log Line.
+        const auto textDecoder = codec_.makeDecoder();
         readSparseLines( lines, [ & ]( const SparseReadLine& line ) {
             QString decodedLine;
             if ( !line.warning.empty() ) {
@@ -650,7 +653,7 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
                 // does: a character cut short at the end of one must not
                 // reach the next, and a byte order mark starting any of them
                 // is dropped.
-                const auto textDecoder = codec_.makeDecoder();
+                textDecoder.decoder->resetState();
                 decodedLine = textDecoder.decode( line.bytes.data(),
                                                   static_cast<qsizetype>( line.bytes.size() ) );
                 if ( line.hideAnsiColorSequences ) {
@@ -699,6 +702,7 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
     try {
         const auto encodingParams = codec_.encodingParameters();
         const bool isUtf8 = codec_.mibEnum() == Utf8Mib;
+        const auto textDecoder = codec_.makeDecoder();
 
         readSparseLines( lines, [ & ]( const SparseReadLine& line ) {
             const auto begin = pieces.size();
@@ -722,7 +726,7 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
             }
             else {
                 // Decoded on its own, as getLineString() does.
-                const auto textDecoder = codec_.makeDecoder();
+                textDecoder.decoder->resetState();
                 auto decodedLine
                     = textDecoder.decode( text.data(), static_cast<qsizetype>( text.size() ) );
                 if ( line.hideAnsiColorSequences ) {
