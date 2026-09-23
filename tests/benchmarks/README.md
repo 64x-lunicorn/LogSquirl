@@ -47,7 +47,7 @@ samples). Useful options (see `--help` for the full list):
 
 ## Comparing two runs
 
-Catch2 2.x has no built-in run-comparison tool (unlike the `tests/e2e`
+Catch2 has no built-in run-comparison tool (unlike the `tests/e2e`
 Python suite, which diffs against `baseline.json` automatically). To
 compare before/after an optimisation:
 
@@ -179,7 +179,7 @@ cp tests/benchmarks/textview_scroll_benchmark.cpp tests/benchmarks/generated_log
    ../logsquirl-before/tests/benchmarks/
 cat >> ../logsquirl-before/tests/benchmarks/CMakeLists.txt <<'CMAKE'
 add_executable(logsquirl_textview_scroll_benchmark textview_scroll_benchmark.cpp)
-target_link_libraries(logsquirl_textview_scroll_benchmark logsquirl_ui Catch2 test_utils)
+target_link_libraries(logsquirl_textview_scroll_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 CMAKE
 cmake -S ../logsquirl-before -B ../logsquirl-before/build-release -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build ../logsquirl-before/build-release --target logsquirl_textview_scroll_benchmark
@@ -273,7 +273,7 @@ cp tests/benchmarks/logdata_benchmark.cpp tests/benchmarks/generated_log_file.h 
    ../logsquirl-before/tests/benchmarks/
 cat >> ../logsquirl-before/tests/benchmarks/CMakeLists.txt <<'CMAKE'
 add_executable(logsquirl_logdata_benchmark logdata_benchmark.cpp)
-target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2 test_utils)
+target_link_libraries(logsquirl_logdata_benchmark logsquirl_logdata Catch2::Catch2 test_utils)
 CMAKE
 ```
 
@@ -305,7 +305,7 @@ as above, with
 ```cmake
 add_executable(logsquirl_logdata_read_benchmark logdata_read_benchmark.cpp)
 target_include_directories(logsquirl_logdata_read_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
-target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2)
+target_link_libraries(logsquirl_logdata_read_benchmark logsquirl_logdata Catch2::Catch2)
 ```
 
 # Session restore benchmark
@@ -380,7 +380,7 @@ commit as above, with
 
 ```cmake
 add_executable(logsquirl_regex_matcher_benchmark regex_matcher_benchmark.cpp)
-target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2)
+target_link_libraries(logsquirl_regex_matcher_benchmark logsquirl_regex Catch2::Catch2)
 ```
 
 # Table View paint benchmark
@@ -442,7 +442,7 @@ above:
 
 ```cmake
 add_executable(logsquirl_displayedlines_benchmark displayedlines_benchmark.cpp)
-target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2)
+target_link_libraries(logsquirl_displayedlines_benchmark logsquirl_logdata Catch2::Catch2)
 ```
 
 # QuickFind benchmark
@@ -477,7 +477,7 @@ of origin/master as above, with
 
 ```cmake
 add_executable(logsquirl_quickfind_benchmark quickfind_benchmark.cpp)
-target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2 test_utils)
+target_link_libraries(logsquirl_quickfind_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 ```
 
 # Chart follow benchmark
@@ -514,7 +514,7 @@ worktree of that commit as described for the scrolling benchmarks above, with
 
 ```cmake
 add_executable(logsquirl_chart_follow_benchmark chart_follow_benchmark.cpp)
-target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2 test_utils)
+target_link_libraries(logsquirl_chart_follow_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 ```
 
 # Chart paint benchmark
@@ -555,7 +555,7 @@ origin/master as described for the scrolling benchmarks above, with
 
 ```cmake
 add_executable(logsquirl_chart_paint_benchmark chart_paint_benchmark.cpp)
-target_link_libraries(logsquirl_chart_paint_benchmark logsquirl_ui Catch2)
+target_link_libraries(logsquirl_chart_paint_benchmark logsquirl_ui Catch2::Catch2)
 ```
 
 # Overview and selection benchmark
@@ -596,7 +596,7 @@ commit as described for the scrolling benchmarks above, with
 
 ```cmake
 add_executable(logsquirl_overview_selection_benchmark overview_selection_benchmark.cpp)
-target_link_libraries(logsquirl_overview_selection_benchmark logsquirl_ui Catch2 test_utils)
+target_link_libraries(logsquirl_overview_selection_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 ```
 
 # Before and after in CI
@@ -665,7 +665,7 @@ LOGSQUIRL_BENCHMARK_LOG_FILE_MB=16 ./build/output/logsquirl_filteredview_read_be
 
 ```cmake
 add_executable(logsquirl_filteredview_read_benchmark filteredview_read_benchmark.cpp)
-target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2 test_utils)
+target_link_libraries(logsquirl_filteredview_read_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 ```
 
 # Line position benchmark
