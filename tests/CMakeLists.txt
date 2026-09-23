@@ -208,12 +208,44 @@ add_test(
 # own targets (#452). Read from the compile options here, where
 # logsquirl_third_party_build_quietly() has already put them on -- 3rdparty/ is
 # added long before this directory.
+#
+# What "quietly" means differs by compiler, because the two compilers answer a
+# second warning level differently. On GCC and Clang -w has to be on the target
+# itself, last, to inhibit whatever a package turned on for itself. On MSVC the
+# level is the one /W0 in CMAKE_C(XX)_FLAGS and a target may carry none of its
+# own: a second one on the same command line is a D9025 per file rather than a
+# quieter build.
 if(MSVC)
   set(_quiet_flag /W0)
 else()
   set(_quiet_flag -w)
 endif()
+include(ThirdPartyWarnings)
 function(logsquirl_built_quietly target out_var)
+  get_target_property(_options ${target} COMPILE_OPTIONS)
+  if(NOT _options)
+    set(_options "")
+  endif()
+  if(MSVC)
+    # Quiet is the absence of a level of its own, whatever shape it came in --
+    # a package's generator expression counts as one.
+    set(_levels "${_options}")
+    logsquirl_strip_msvc_warning_level(_levels)
+    if("${_levels}" STREQUAL "${_options}")
+      set(${out_var} TRUE PARENT_SCOPE)
+    else()
+      set(${out_var} FALSE PARENT_SCOPE)
+    endif()
+  elseif("${_quiet_flag}" IN_LIST _options)
+    set(${out_var} TRUE PARENT_SCOPE)
+  else()
+    set(${out_var} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
+# The project's own half asks the other question, on every compiler alike: the
+# flag that silences third-party code has not reached this target.
+function(logsquirl_carries_quiet_flag target out_var)
   get_target_property(_options ${target} COMPILE_OPTIONS)
   if(_options AND "${_quiet_flag}" IN_LIST _options)
     set(${out_var} TRUE PARENT_SCOPE)
@@ -230,7 +262,7 @@ endforeach()
 list(JOIN _third_party_entries "|" _third_party_entries)
 set(_project_quiet_entries "")
 foreach(_target IN LISTS _warning_targets _warning_tests)
-  logsquirl_built_quietly(${_target} _quiet)
+  logsquirl_carries_quiet_flag(${_target} _quiet)
   list(APPEND _project_quiet_entries "${_target}=${_quiet}")
 endforeach()
 list(JOIN _project_quiet_entries "|" _project_quiet_entries)

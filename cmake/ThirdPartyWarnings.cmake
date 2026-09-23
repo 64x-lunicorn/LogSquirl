@@ -83,11 +83,57 @@ set(LOGSQUIRL_THIRD_PARTY_MSVC_UNKNOWN_OPTIONS
     -fpermissive # variar/hyperscan, on all three of its libraries
 )
 
+# logsquirl_strip_msvc_warning_level(<list_var>)
+#
+# Every warning level out of a list of compile options, leaving the one /W0
+# logsquirl_third_party_quiet_flags() put in CMAKE_C_FLAGS and CMAKE_CXX_FLAGS
+# as the only one on the command line. Two of them there is what makes cl report
+# "D9025: overriding '/W4' with '/W0'" once per file -- the same noise the
+# levels were taken out to avoid, which is how a first measurement on CI turned
+# 1210 warnings into 327 command line warnings instead of none (#452).
+#
+# A level does not only arrive as a plain `/W4`. oneTBB sets its own as the
+# generator expression `$<$<NOT:$<CXX_COMPILER_ID:Intel>>:/W4>`, and a package
+# calling add_definitions("/W3 /D_CRT_SECURE_NO_WARNINGS /nologo") puts three
+# options into one list element. So each element is rewritten rather than
+# dropped, and a level counts where an option would begin: at the start, after
+# a space, or after a generator expression's colon.
+function(logsquirl_strip_msvc_warning_level list_var)
+  set(_stripped "")
+  foreach(_option IN LISTS ${list_var})
+    string(
+      REGEX
+      REPLACE "(^|[ :])[-/]W(all|[0-4])([ >]|$)"
+              "\\1\\3"
+              _option
+              "${_option}"
+    )
+    string(STRIP "${_option}" _option)
+    if(NOT _option STREQUAL "")
+      list(APPEND _stripped "${_option}")
+    endif()
+  endforeach()
+  set(${list_var} "${_stripped}" PARENT_SCOPE)
+endfunction()
+
 function(logsquirl_third_party_build_quietly dir)
+  # On MSVC the level is the /W0 already in CMAKE_C_FLAGS and CMAKE_CXX_FLAGS
+  # for this directory and below, and nothing is added per target: a second one
+  # on the same command line would be a D9025 rather than a quieter build.
+  # Elsewhere -w has to be appended per target, because it only inhibits what
+  # comes before it and a package may turn warnings on for its own targets.
   if(MSVC)
-    set(_quiet /W0)
+    set(_quiet "")
   else()
     set(_quiet -w)
+  endif()
+
+  # A level a package set for a whole directory, with add_compile_options() or
+  # add_definitions(), reaches its targets without being any target's option.
+  if(MSVC)
+    get_property(_dir_options DIRECTORY "${dir}" PROPERTY COMPILE_OPTIONS)
+    logsquirl_strip_msvc_warning_level(_dir_options)
+    set_property(DIRECTORY "${dir}" PROPERTY COMPILE_OPTIONS "${_dir_options}")
   endif()
 
   get_property(_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)

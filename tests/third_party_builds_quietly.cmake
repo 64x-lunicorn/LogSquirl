@@ -8,7 +8,13 @@
 # its own code without a single warning, with nothing failing and nothing to
 # see in the log.
 #
-# PROJECT_FLAGS is that second half read where it would actually go wrong:
+# THIRD_PARTY says, per target, whether it is built quietly -- which means
+# carrying -w on GCC and Clang, where it has to come last to inhibit what a
+# package turned on for itself, and carrying no warning level at all on MSVC,
+# where the one /W0 in the flags is the level and a second one on the same
+# command line is a D9025 per file rather than a quieter build.
+#
+# PROJECT_FLAGS is the other half read where it would actually go wrong:
 # CMAKE_CXX_FLAGS as LogSquirl's own directories see it. A target's compile
 # options would say nothing about it, because these flags never become any
 # target's compile options -- they are handed to the compiler ahead of them,
@@ -56,7 +62,7 @@ function(entry_offenders out_var expected saying)
   set(${out_var} "${_offenders}" PARENT_SCOPE)
 endfunction()
 
-entry_offenders(_loud TRUE "compiled with warnings on" ${_third_party})
+entry_offenders(_loud TRUE "compiled with warnings on, or carrying a warning level of its own where the flags already set one" ${_third_party})
 entry_offenders(_silenced FALSE "compiled with the third-party '${QUIET_FLAG}', so nothing checks it" ${_project})
 
 separate_arguments(_project_flags NATIVE_COMMAND "${PROJECT_FLAGS}")
