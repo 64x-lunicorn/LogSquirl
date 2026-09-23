@@ -22,10 +22,37 @@
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QGridLayout>
+#include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QToolButton>
 #include <qcolor.h>
+
+#include "highlighterpresets.h"
+
+namespace {
+// A preset's swatch: its background with sample text in its text color.
+QIcon colorPresetIcon( const HighlighterColorPreset& preset, qreal devicePixelRatio )
+{
+    const QSize size( 30, 18 );
+    QPixmap pixmap( size * devicePixelRatio );
+    pixmap.setDevicePixelRatio( devicePixelRatio );
+    pixmap.fill( preset.backColor );
+
+    QPainter painter( &pixmap );
+    painter.setRenderHint( QPainter::TextAntialiasing );
+    QFont font = painter.font();
+    font.setPixelSize( 11 );
+    font.setBold( true );
+    painter.setFont( font );
+    painter.setPen( preset.foreColor );
+    painter.drawText( QRect( QPoint( 0, 0 ), size ), Qt::AlignCenter, QStringLiteral( "Aa" ) );
+    return QIcon( pixmap );
+}
+} // namespace
 
 HighlighterEdit::HighlighterEdit( Highlighter defaultHighlighter, QWidget* parent )
     : QWidget( parent )
@@ -36,6 +63,8 @@ HighlighterEdit::HighlighterEdit( Highlighter defaultHighlighter, QWidget* paren
     QStringList regexpTypes;
     regexpTypes << tr( "Extended Regexp" ) << tr( "Fixed Strings" );
     patternTypeComboBox->addItems( regexpTypes );
+
+    addColorPresetButtons();
 
     reset();
 
@@ -61,8 +90,7 @@ void HighlighterEdit::reset()
 
     ignoreCaseCheckBox->setEnabled( false );
     onlyMatchCheckBox->setEnabled( false );
-    foreColorButton->setEnabled( false );
-    backColorButton->setEnabled( false );
+    setColorsEnabled( false );
 
     ignoreCaseCheckBox->setChecked( defaultHighlighter_.ignoreCase() );
     onlyMatchCheckBox->setChecked( defaultHighlighter_.highlightOnlyMatch() );
@@ -95,8 +123,7 @@ void HighlighterEdit::setHighlighter( Highlighter highlighter )
     patternTypeComboBox->setEnabled( true );
     ignoreCaseCheckBox->setEnabled( true );
     onlyMatchCheckBox->setEnabled( true );
-    foreColorButton->setEnabled( true );
-    backColorButton->setEnabled( true );
+    setColorsEnabled( true );
 
     variateColorsCheckBox->setEnabled( highlighter_.highlightOnlyMatch() );
     variationSpinBox->setEnabled( highlighter_.highlightOnlyMatch() );
@@ -167,6 +194,55 @@ void HighlighterEdit::changeBackColor()
     }
 }
 
+void HighlighterEdit::applyColorPreset( int index )
+{
+    const auto& preset = highlighterColorPresets()[ static_cast<size_t>( index ) ];
+    highlighter_.setForeColor( preset.foreColor );
+    highlighter_.setBackColor( preset.backColor );
+    updateIcon( foreColorButton, highlighter_.foreColor() );
+    updateIcon( backColorButton, highlighter_.backColor() );
+    Q_EMIT changed();
+}
+
+// One row of swatches for the soft presets and one for the strong ones, above
+// the buttons that pick a text or background color freely.
+void HighlighterEdit::addColorPresetButtons()
+{
+    auto* grid = new QGridLayout;
+    grid->setSpacing( 4 );
+
+    const auto& presets = highlighterColorPresets();
+    for ( int i = 0; i < HighlighterColorPresetCount; ++i ) {
+        const auto& preset = presets[ static_cast<size_t>( i ) ];
+        auto* button = new QToolButton( this );
+        button->setObjectName( QStringLiteral( "colorPresetButton%1" ).arg( i ) );
+        button->setIcon( colorPresetIcon( preset, devicePixelRatioF() ) );
+        button->setIconSize( QSize( 30, 18 ) );
+        button->setToolTip( preset.displayName() );
+        button->setAccessibleName( preset.displayName() );
+        connect( button, &QToolButton::clicked, this, [ this, i ] { applyColorPreset( i ); } );
+
+        const bool soft = i < SoftHighlighterColorPresetCount;
+        grid->addWidget( button, soft ? 0 : 1, soft ? i : i - SoftHighlighterColorPresetCount );
+        colorPresetButtons_.push_back( button );
+    }
+    grid->setColumnStretch( SoftHighlighterColorPresetCount, 1 );
+
+    auto* label = new QLabel( tr( "Color presets:" ), this );
+    const int textColorRow = verticalLayout->indexOf( horizontalLayout_3 );
+    verticalLayout->insertWidget( textColorRow, label );
+    verticalLayout->insertLayout( textColorRow + 1, grid );
+}
+
+void HighlighterEdit::setColorsEnabled( bool enabled )
+{
+    foreColorButton->setEnabled( enabled );
+    backColorButton->setEnabled( enabled );
+    for ( auto* button : colorPresetButtons_ ) {
+        button->setEnabled( enabled );
+    }
+}
+
 void HighlighterEdit::updateIcon( QPushButton* button, const QColor& color )
 {
     QPixmap pixmap( 20, 10 );
@@ -176,6 +252,8 @@ void HighlighterEdit::updateIcon( QPushButton* button, const QColor& color )
 
 bool HighlighterEdit::showColorPicker( const QColor& in, QColor& out )
 {
+    installHighlighterDialogColors();
+
     QColorDialog dialog;
 
     // non native dialog ensures they will have a default

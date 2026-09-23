@@ -1,5 +1,15 @@
 # Unreleased
 
+## Changes
+
+- **Color presets for Highlighters**: The Highlighter editor offers 20
+  ready-made color pairs, 12 soft pastels with dark text and 8 strong colors
+  with white text; one click sets both the text and the background color.
+  Every pair stays readable and stands out from the Log Lines in every
+  Theme. The color dialog's basic colors are the same hues in tonal scales
+  instead of Qt's stock set, and a new Highlighter takes the next soft preset
+  instead of black on white. Existing Highlighters keep their colors (#423).
+
 ## Bug fixes
 
 - **The close button of a tab is square again**: The red fill under the mouse
