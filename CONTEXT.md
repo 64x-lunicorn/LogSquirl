@@ -131,6 +131,13 @@ _Avoid_: find, incremental search
 A saved, named search pattern the user can apply without retyping it.
 _Avoid_: saved search, bookmark
 
+**Filter Group**:
+A named group of Predefined Filters, the counterpart of a Highlighter Set. The non-deletable
+Default Filter Group always exists and carries the same id for every user. A Filter Group, like
+a Highlighter Set, is handed to someone else as a file of its own: the Group Exchange proposes
+its file name from the group's name and writes exactly that one group.
+_Avoid_: filter set, filter list, folder
+
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
 subdued. Half-open everywhere: from the first Log Line searched up to, not including, its
