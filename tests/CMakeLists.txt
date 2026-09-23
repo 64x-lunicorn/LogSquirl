@@ -293,6 +293,21 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/version_as_declared.cmake
 )
 
+# The translations that exist are the ones built into the application and
+# offered in the Options Dialog, each of them is finished enough to be usable,
+# and none is behind the strings the source holds today (#448).
+find_package(Qt6 COMPONENTS LinguistTools REQUIRED)
+add_test(
+    NAME translations_shipped
+    COMMAND ${CMAKE_COMMAND}
+            -DI18N_DIR=${CMAKE_SOURCE_DIR}/src/app/i18n
+            -DAPP_QRC=${CMAKE_BINARY_DIR}/src/app/app_translations.qrc
+            -DLUPDATE=$<TARGET_FILE:Qt6::lupdate>
+            -DSOURCES_DIR=${CMAKE_SOURCE_DIR}/src
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/translations_shipped
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/translations_shipped.cmake
+)
+
 # A test binary reads and writes its settings in a throwaway location of its
 # own: the Options Dialog case saves everything it changed, and nothing of it
 # may reach the settings file beside the built binaries, which the application,

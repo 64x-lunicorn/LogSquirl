@@ -607,21 +607,25 @@ int MainWindow::installLanguage( QString lang )
     QApplication::removeTranslator( &mTranslator );
     QApplication::removeTranslator( &mQtTranslator );
 
+    // Qt's own strings (standard buttons, file dialogs) come from the Qt the
+    // build found, which need not have every language LogSquirl has: without
+    // them the application's strings are still translated (#448).
     QString qtPath( ":/i18n/qt_" + lang + ".qm" );
     QResource qtTranslations( qtPath );
-    if ( !mQtTranslator.load( qtTranslations.data(), (int)qtTranslations.size() ) ) {
-        LOG_ERROR << "load fail";
-        return -1;
+    if ( !qtTranslations.isValid()
+         || !mQtTranslator.load( qtTranslations.data(), (int)qtTranslations.size() ) ) {
+        LOG_WARNING << "No Qt translation for " << lang;
     }
-    if ( !QApplication::installTranslator( &mQtTranslator ) ) {
+    else if ( !QApplication::installTranslator( &mQtTranslator ) ) {
         LOG_ERROR << "install fail";
         return -1;
     }
 
     QString appPath( ":/i18n/" + lang + ".qm" );
     QResource appTranslations( appPath );
-    if ( !mTranslator.load( appTranslations.data(), (int)appTranslations.size() ) ) {
-        LOG_ERROR << "load fail";
+    if ( !appTranslations.isValid()
+         || !mTranslator.load( appTranslations.data(), (int)appTranslations.size() ) ) {
+        LOG_ERROR << "No translation for " << lang;
         return -1;
     }
     if ( !QApplication::installTranslator( &mTranslator ) ) {

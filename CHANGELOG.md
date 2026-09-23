@@ -9,6 +9,13 @@
   Theme. The color dialog's basic colors are the same hues in tonal scales
   instead of Qt's stock set, and a new Highlighter takes the next soft preset
   instead of black on white. Existing Highlighters keep their colors (#423).
+- **Every language is translated throughout**: More than half of the
+  application's text had never reached the translations, so the charts, the
+  plugins, the Presentation menu and parts of the Options Dialog stayed
+  English in every language. All nine languages are now complete, the crash
+  report and issue report dialogs included. Traditional Chinese, offered but
+  never built, now works; Simplified Chinese, half English until now, is
+  complete too (#448).
 
 ## Bug fixes
 
