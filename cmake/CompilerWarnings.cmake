@@ -91,7 +91,7 @@ function(logsquirl_project_warnings compile_out link_out)
   # anything turning red (#454). GCC and Clang carry the warning switches
   # themselves into the intermediate code, so the link line needs no more than
   # the one flag that says what to do with what they report. MSVC is left out
-  # on purpose -- see docs/adr/0008-lto-link-diagnostics-fail-the-build.md.
+  # on purpose -- see docs/adr/0009-lto-link-diagnostics-fail-the-build.md.
   set(CLANG_LINK_WARNINGS)
   set(GCC_LINK_WARNINGS)
   set(MSVC_LINK_WARNINGS)

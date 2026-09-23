@@ -63,7 +63,7 @@ expect_flag(link HAS -Werror OF ${GCC16})
 expect_flag(link HAS -Werror OF ${APPLECLANG})
 # MSVC is left out on purpose: /WX on the linker is about the linker's own LNK
 # warnings, not about the code generation this is after
-# (docs/adr/0008-lto-link-diagnostics-fail-the-build.md).
+# (docs/adr/0009-lto-link-diagnostics-fail-the-build.md).
 expect_flag(link LACKS /WX OF ${MSVC2022})
 expect_flag(compile HAS /WX OF ${MSVC2022})
 
