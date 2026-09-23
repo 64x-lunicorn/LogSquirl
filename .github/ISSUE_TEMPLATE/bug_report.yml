@@ -1,0 +1,144 @@
+name: Bug report
+description: LogSquirl did something other than what you expected
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        **Found a security vulnerability?** Do not open an issue. Open a
+        [security advisory](https://github.com/64x-lunicorn/LogSquirl/security/advisories/new)
+        instead, as described in
+        [SECURITY.md](https://github.com/64x-lunicorn/LogSquirl/blob/master/SECURITY.md).
+
+        If LogSquirl crashed and offered to create an issue for you, the browser tab it
+        opened already carries a **Useful extra information** block with the version, the
+        build commit, the operating system and the crash id. Paste that block into the
+        fields below — or simply submit the report LogSquirl pre-filled for you and add the
+        Log File details in a comment.
+
+  - type: input
+    id: version
+    attributes:
+      label: LogSquirl version
+      description: >-
+        The version is shown in the window title and in the About dialog (Help → About
+        LogSquirl). If you built LogSquirl yourself, the commit is useful too.
+      placeholder: 26.03.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: Operating system version
+      description: For example macOS 15.4, Windows 11 24H2, Ubuntu 24.04, Fedora 44.
+      placeholder: macOS 15.4 (Apple Silicon)
+
+  - type: dropdown
+    id: install-source
+    attributes:
+      label: How did you install LogSquirl?
+      description: Every package of a release, plus the ways to get LogSquirl without one.
+      options:
+        - macOS DMG (Apple Silicon)
+        - Homebrew cask (64x-lunicorn/tap/logsquirl)
+        - Windows NSIS installer
+        - Windows portable zip
+        - AppImage
+        - deb package
+        - rpm package
+        - Built from source
+        - Other, or I do not know
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-did-you-do
+    attributes:
+      label: What did you do?
+      description: >-
+        The steps that lead to the problem, precise enough for someone else to repeat them
+        on their own machine.
+      placeholder: |
+        1. Opened a 1.8 GB log with File → Open
+        2. Searched for `ERROR|timeout` with regex mode on
+        3. Clicked the third match in the Filtered View
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-did-you-expect
+    attributes:
+      label: What did you expect to see?
+
+  - type: textarea
+    id: what-did-you-see
+    attributes:
+      label: What did you see instead?
+      description: >-
+        Screenshots and short screen recordings are welcome — drag them into this field.
+    validations:
+      required: true
+
+  - type: textarea
+    id: log-file
+    attributes:
+      label: Size and kind of the Log File
+      description: >-
+        How big the Log File is, roughly how many Log Lines it has, and what kind of file
+        it is: plain text or compressed (`.gz`, `.bz2`, `.xz`, `.zst`, `.lz4`, a tarball),
+        which Encoding was detected or chosen, whether a Log Format was recognized, and
+        whether the file was still growing while you were looking at it. Please do not
+        attach a log that carries data you cannot share — a description of its shape is
+        usually enough.
+      placeholder: |
+        1.8 GB, about 12 million Log Lines, plain text, UTF-8 detected,
+        no Log Format recognized, still growing with follow mode on.
+
+  - type: textarea
+    id: extra-information
+    attributes:
+      label: Useful extra information
+      description: >-
+        The block LogSquirl pre-fills when it reports a crash: version, build date and
+        commit, target ABI, operating system, kernel, architecture, concurrency, and the
+        Qt and tbb versions. Leave it empty if you have no crash to report.
+      render: text
+      placeholder: |
+        > LogSquirl version 26.03.0 (built on 2026-03-14 from commit 1a2b3c4) [built for x86_64-little_endian-lp64]
+        > running on Ubuntu 24.04.2 LTS (linux/6.8.0-51-generic) [x86_64], concurrency 16
+        > Qt 6.9.1, tbb 12140
+
+  - type: textarea
+    id: crash-id
+    attributes:
+      label: Crash id or exception
+      description: >-
+        If LogSquirl crashed or reported an unexpected exception, the crash id or the
+        exception text it showed.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: >-
+            I searched the existing issues and this does not look like one of them.
+        - label: >-
+            This is not a security vulnerability (those go to a security advisory, not
+            here).
