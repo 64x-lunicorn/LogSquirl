@@ -112,6 +112,22 @@ void MenuActionToolTipBehavior::showToolTip( const QPoint& position )
     QToolTip::showText( position, toolTip, parentMenu, activeRegion );
 }
 
+void hideIconsInMenus( QWidget* menuOrMenuBar )
+{
+    if ( menuOrMenuBar == nullptr ) {
+        return;
+    }
+    for ( QAction* action : menuOrMenuBar->actions() ) {
+        // Only where the action says so does Qt hand its icon to a menu,
+        // the system's menu included (QMenuPrivate::copyActionToPlatformItem).
+        // The icon stays on the action, so a toolbar showing it is unaffected.
+        action->setIconVisibleInMenu( false );
+        if ( QMenu* submenu = action->menu() ) {
+            hideIconsInMenus( submenu );
+        }
+    }
+}
+
 HoverMenu::HoverMenu( const QString& title, QWidget* parent )
     : QMenu( title, parent )
     , mouseInMenu_{ false }

@@ -106,6 +106,7 @@
 #include "logger.h"
 #include "logsquirl_version.h"
 #include "mainwindowtext.h"
+#include "menu.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
 #include "plugindialog.h"
@@ -962,6 +963,14 @@ void MainWindow::loadIcons()
     addToFavoritesMenuAction->setIcon( iconLoader_.load( "icons8-star" ) );
     sidebarFloatButton_->setIcon( iconLoader_.load( "icons8-undock-16" ) );
     sidebarCloseButton_->setIcon( iconLoader_.load( "icons8-close-window-16" ) );
+
+#ifdef Q_OS_MACOS
+    // The menu bar is the system's here, and macOS draws its popups in the
+    // system's appearance rather than the Theme's: the icons just loaded are
+    // inverse for a dark Theme and would sit on a light menu. Runs after every
+    // load, so a Theme change does not bring them back (#421).
+    hideIconsInMenus( menuBar() );
+#endif
 }
 
 void MainWindow::createMenus()

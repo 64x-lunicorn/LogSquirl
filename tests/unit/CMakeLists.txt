@@ -18,6 +18,7 @@ add_executable(logsquirl_tests
     hyperscanruntime_test.cpp
     indexcache_test.cpp
     headerandtaildigests_test.cpp
+    highlighterpresets_test.cpp
     indexedhash_test.cpp
     indexjobrule_test.cpp
     jwtdecoder_test.cpp
@@ -35,6 +36,7 @@ add_executable(logsquirl_tests
     logtableview_test.cpp
     logviewinteractions_test.cpp
     logviewpainting_test.cpp
+    menu_test.cpp
     mergecontroller_test.cpp
     optionsdialog_test.cpp
     overviewwidget_test.cpp
