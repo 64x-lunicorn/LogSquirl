@@ -224,7 +224,7 @@ clang-format -i <file>
 ### C++ unit tests (Catch2)
 
 Tests are built by default. To turn them off pass `-DLOGSQUIRL_BUILD_TESTS=OFF` to cmake.
-Tests use Catch2 (bundled with logsquirl sources) and require QtTest module. Tests can be run using ctest tool provided by CMake:
+Tests use Catch2 v3 (fetched and built by CMake, pinned in `3rdparty/CMakeLists.txt`) and require QtTest module. Tests can be run using ctest tool provided by CMake:
 
 ```
 cd <path_to_logsquirl_repository_clone>

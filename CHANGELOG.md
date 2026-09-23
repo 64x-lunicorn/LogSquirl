@@ -59,6 +59,12 @@
 
 ## Internal
 
+- **The tests run on Catch2 v3**: Catch2 v2 is end of life. v3 is pinned by
+  commit like every other dependency, Renovate keeps tracking it, and the 135
+  test files include only the Catch2 headers they use instead of the one big
+  `catch.hpp`. A clean build of the test targets takes about 14 % less CPU time
+  than before. The 622 tests are the same, with the same names, and the test
+  case discovery lists them with v3's `--list-tests --verbosity quiet` (#443).
 - **Every source file of the project is built with the project's warnings**: Two
   MODULE libraries the tests load, the Plugin UI Port probe and the slow
   converter plugin, linked neither `project_warnings` nor `project_options`, so
