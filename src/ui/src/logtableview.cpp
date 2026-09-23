@@ -568,6 +568,23 @@ bool LogTableView::viewportEvent( QEvent* event )
     return QTableView::viewportEvent( event );
 }
 
+// QTableView tells the accessibility clients of every selection and every
+// current Row. On macOS, Qt answers that by building an accessibility element
+// for every Row anew, seconds for a Log File of millions of Log Lines, and
+// every view keeps the Table View on its Log Line, so every click in any view
+// paid for it. Both go to QAbstractItemView, which repaints, and skip the
+// events.
+void LogTableView::selectionChanged( const QItemSelection& selected,
+                                     const QItemSelection& deselected )
+{
+    QAbstractItemView::selectionChanged( selected, deselected );
+}
+
+void LogTableView::currentChanged( const QModelIndex& current, const QModelIndex& previous )
+{
+    QAbstractItemView::currentChanged( current, previous );
+}
+
 void LogTableView::keyPressEvent( QKeyEvent* event )
 {
     if ( active_ ) {
