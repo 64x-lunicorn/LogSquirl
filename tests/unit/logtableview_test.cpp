@@ -30,6 +30,7 @@
 #include "rowmapping.h"
 #include "test_policies.h"
 
+#include <QAccessible>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
@@ -970,6 +971,102 @@ SCENARIO( "Moving the mouse to another Row of the Table View repaints only the t
                 REQUIRE( regions.painted.intersects( rowRect( view, 1 ) ) );
                 REQUIRE( ( regions.painted - rowRect( view, 1 ) ).isEmpty() );
             }
+        }
+    }
+}
+
+namespace {
+
+// What the Table View tells the accessibility clients of its Rows, while it
+// lives: QAccessible hands every event to this handler in place of the
+// platform.
+class AccessibilityEvents {
+public:
+    explicit AccessibilityEvents( const QObject* view )
+    {
+        view_ = view;
+        received_.clear();
+        QAccessible::setActive( true );
+        QAccessible::installUpdateHandler( &record );
+    }
+    ~AccessibilityEvents()
+    {
+        QAccessible::installUpdateHandler( nullptr );
+        view_ = nullptr;
+    }
+    AccessibilityEvents( const AccessibilityEvents& ) = delete;
+    AccessibilityEvents& operator=( const AccessibilityEvents& ) = delete;
+
+    // The selection and focus events the Table View sent.
+    std::vector<QAccessible::Event> received() const
+    {
+        return received_;
+    }
+
+private:
+    static void record( QAccessibleEvent* event )
+    {
+        if ( event->object() != view_ ) {
+            return;
+        }
+        switch ( event->type() ) {
+        case QAccessible::Focus:
+        case QAccessible::Selection:
+        case QAccessible::SelectionAdd:
+        case QAccessible::SelectionRemove:
+        case QAccessible::SelectionWithin:
+            received_.push_back( event->type() );
+            break;
+        default:
+            break;
+        }
+    }
+
+    static inline const QObject* view_ = nullptr;
+    static inline std::vector<QAccessible::Event> received_;
+};
+
+} // namespace
+
+// On macOS, Qt answers a selection or focus event of a table by building an
+// accessibility element for every Row of it anew: seconds for a Log File of
+// millions of Log Lines, on every click in any view of it, since every view
+// keeps the Table View on its Log Line.
+SCENARIO( "Selecting a Row of the Table View tells the accessibility clients nothing",
+          "[logtableview][accessibility]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( SaveLines );
+    LogTableView view;
+    open( view, format, logData );
+    view.show();
+    REQUIRE( QTest::qWaitForWindowExposed( &view ) );
+    REQUIRE( view.model()->rowCount() == 5 );
+
+    AccessibilityEvents events( &view );
+    REQUIRE( QAccessible::isActive() );
+
+    WHEN( "another view shows a Log Line in the Table View" )
+    {
+        view.showLogLine( 3_lnum );
+
+        THEN( "its Row is selected, and no selection or focus event is sent" )
+        {
+            REQUIRE( view.selectionModel()->isRowSelected( 3 ) );
+            REQUIRE( events.received().empty() );
+        }
+    }
+
+    WHEN( "a Row is clicked" )
+    {
+        const auto row = QRect( 0, view.rowViewportPosition( 1 ), view.viewport()->width(),
+                                view.rowHeight( 1 ) );
+        QTest::mouseClick( view.viewport(), Qt::LeftButton, Qt::NoModifier, row.center() );
+
+        THEN( "its Row is selected, and no selection or focus event is sent" )
+        {
+            REQUIRE( view.selectionModel()->isRowSelected( 1 ) );
+            REQUIRE( events.received().empty() );
         }
     }
 }
