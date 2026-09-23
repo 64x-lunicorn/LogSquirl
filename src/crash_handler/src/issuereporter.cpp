@@ -57,15 +57,14 @@ static constexpr auto BugTemplate = "#### What did you do?\n\n\n"
                                     "#### What did you expect to see?\n\n\n"
                                     "#### What did you see instead?\n\n\n";
 
-static constexpr auto ExceptionAskUserAction
-    = "Ooops! Something unexpected happend. Create issue on Github?";
-
-static constexpr auto AskUserAction = "Create issue on Github?";
-
 void IssueReporter::askUserAndReportIssue( IssueTemplate issueTemplate, const QString& information )
 {
+    // The question is the user's; the issue body below stays English, it is
+    // read by the maintainers.
     const auto askAction
-        = issueTemplate == IssueTemplate::Exception ? ExceptionAskUserAction : AskUserAction;
+        = issueTemplate == IssueTemplate::Exception
+              ? tr( "Oops! Something unexpected happened. Create an issue on GitHub?" )
+              : tr( "Create an issue on GitHub?" );
 
     if ( QMessageBox::Yes
          == QMessageBox::question( nullptr, "LogSquirl", askAction, QMessageBox::Yes,

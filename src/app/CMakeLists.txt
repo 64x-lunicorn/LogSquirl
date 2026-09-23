@@ -12,16 +12,15 @@ add_custom_command(
   DEPENDS maddy ${DOCUMENTATION_FILE}
 )
 
-set(TS_FILES
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/en.ts
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/de.ts
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/es.ts
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/fr.ts
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/pt_BR.ts
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/pt_PT.ts
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/uk.ts
-  ${CMAKE_CURRENT_SOURCE_DIR}/i18n/zh_CN.ts
-)
+# Every translation under i18n/ is built into the application and every one
+# is offered in the Options Dialog through i18n/Languages.xml; the check
+# translations_shipped keeps the three in step (#448).
+file(GLOB TS_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/i18n/*.ts)
+set(TRANSLATION_LANGUAGES "")
+foreach(_ts_file IN LISTS TS_FILES)
+  get_filename_component(_language ${_ts_file} NAME_WE)
+  list(APPEND TRANSLATION_LANGUAGES ${_language})
+endforeach()
 
 find_package(Qt6LinguistTools REQUIRED)
 qt6_add_translation(QM_FILES ${TS_FILES})
@@ -39,7 +38,7 @@ add_custom_target(lupdate
 
 include(TranslationUtils)
 add_app_translations_resource(LOGSQUIRL_I18N_RES ${QM_FILES})
-add_qt_translations_resource(LOGSQUIRL_QT_TRANSLATION_RES de es fr pt_BR pt_PT uk zh_CN)
+add_qt_translations_resource(LOGSQUIRL_QT_TRANSLATION_RES ${TRANSLATION_LANGUAGES})
 
 set(MAIN_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cli.h
                  ${CMAKE_CURRENT_SOURCE_DIR}/logsquirl.qrc 
