@@ -370,7 +370,7 @@ void LogFilteredData::doSetDisplayEncoding( const char* encoding )
     LOG_DEBUG << "AbstractLogData::setDisplayEncoding: " << encoding;
 }
 
-QTextCodec* LogFilteredData::doGetDisplayEncoding() const
+const TextEncoding* LogFilteredData::doGetDisplayEncoding() const
 {
     return sourceLogData_->getDisplayEncoding();
 }

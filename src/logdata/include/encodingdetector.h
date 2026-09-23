@@ -22,17 +22,15 @@
 
 #include "containers.h"
 #include "synchronization.h"
+#include "textencoding.h"
 
 #include <QByteArray>
 #include <cstddef>
 #include <memory>
 
-class QTextCodec;
-class QTextDecoder;
-
 struct EncodingParameters {
     EncodingParameters() = default;
-    explicit EncodingParameters( const QTextCodec* codec );
+    explicit EncodingParameters( const TextEncoding* codec );
 
     bool isUtf8Compatible{ false };
     bool isUtf16LE{ false };
@@ -86,8 +84,8 @@ public:
     // feed in there so no character is cut in half.
     static std::size_t sampleSize( const char* bytes, std::size_t size );
 
-    QTextCodec* detectEncoding( const logsquirl::vector<char>& block ) const;
-    QTextCodec* detectEncoding( const char* bytes, std::size_t size ) const;
+    const TextEncoding* detectEncoding( const logsquirl::vector<char>& block ) const;
+    const TextEncoding* detectEncoding( const char* bytes, std::size_t size ) const;
 
 private:
     EncodingDetector() = default;
@@ -97,24 +95,28 @@ private:
 };
 
 struct TextDecoder {
-    std::unique_ptr<QTextDecoder> decoder;
+    std::unique_ptr<QStringDecoder> decoder;
+
+    // Decodes the bytes, carrying a partial multi-byte sequence over to the
+    // next call.
+    QString decode( const char* bytes, qsizetype size ) const;
     EncodingParameters encodingParams;
 };
 
 class TextCodecHolder {
 public:
-    explicit TextCodecHolder( QTextCodec* codec );
+    explicit TextCodecHolder( const TextEncoding* codec );
 
-    void setCodec( QTextCodec* codec );
+    void setCodec( const TextEncoding* codec );
 
-    QTextCodec* codec() const;
+    const TextEncoding* codec() const;
     EncodingParameters encodingParameters() const;
     int mibEnum() const;
 
     TextDecoder makeDecoder() const;
 
 private:
-    QTextCodec* codec_;
+    const TextEncoding* codec_;
     EncodingParameters encodingParams_;
     mutable SharedMutex mutex_;
 };

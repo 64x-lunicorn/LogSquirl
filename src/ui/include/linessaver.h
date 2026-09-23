@@ -32,7 +32,7 @@
 #include "linetypes.h"
 
 class QIODevice;
-class QTextCodec;
+class TextEncoding;
 class QWidget;
 
 // Reads the text of count lines a text view displays, starting at position
@@ -50,7 +50,7 @@ using DisplayedLinesReader
 // when the save was interrupted or a write failed: output must then not be
 // committed.
 bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin, LineNumber end,
-                         const QTextCodec* codec, QIODevice& output, const AtomicFlag& interrupt,
+                         const TextEncoding* codec, QIODevice& output, const AtomicFlag& interrupt,
                          const std::function<void( int )>& progress );
 
 // Runs saveDisplayedLines off the UI thread, and reports its progress and its
@@ -66,7 +66,7 @@ public:
     // else may use output until finished() is emitted or waitForResult()
     // returned.
     void save( DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-               const QTextCodec* codec, QIODevice* output, const AtomicFlag& interrupt );
+               const TextEncoding* codec, QIODevice* output, const AtomicFlag& interrupt );
 
     // Waits for the save to end; true if every line was written.
     bool waitForResult();
@@ -88,6 +88,6 @@ private:
 // it as it was.
 void saveLinesWithProgress( QWidget* parent, const QString& filename,
                             DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-                            const QTextCodec* codec );
+                            const TextEncoding* codec );
 
 #endif // LOGSQUIRL_LINESSAVER_H

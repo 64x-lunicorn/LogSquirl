@@ -39,10 +39,10 @@
 #ifndef ABSTRACTLOGDATA_H
 #define ABSTRACTLOGDATA_H
 
+#include "textencoding.h"
 #include <QObject>
 #include <QString>
 #include <QStringList>
-#include <QTextCodec>
 
 #include <span>
 
@@ -85,7 +85,7 @@ public:
     // in multiple bytes (e.g. UTF-16)
     void setMultibyteEncodingOffsets( int before_cr, int after_cr );
 
-    QTextCodec* getDisplayEncoding() const;
+    const TextEncoding* getDisplayEncoding() const;
 
     void attachReader() const;
     void detachReader() const;
@@ -126,7 +126,7 @@ protected:
     virtual LineLength doGetLineLength( LineNumber line ) const = 0;
     // Internal function called to set the encoding
     virtual void doSetDisplayEncoding( const char* encoding ) = 0;
-    virtual QTextCodec* doGetDisplayEncoding() const = 0;
+    virtual const TextEncoding* doGetDisplayEncoding() const = 0;
 
     virtual void doAttachReader() const = 0;
     virtual void doDetachReader() const = 0;

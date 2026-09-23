@@ -94,7 +94,6 @@ xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Network.dll %LOGSQUIRL_WORKSPACE%\release\ /y ||
 xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Widgets.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Concurrent.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Xml.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
-xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Core5Compat.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Svg.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 
 md %LOGSQUIRL_WORKSPACE%\release\platforms || exit /b 1

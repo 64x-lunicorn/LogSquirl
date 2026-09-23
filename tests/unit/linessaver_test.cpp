@@ -29,9 +29,9 @@
 #include <chrono>
 #include <thread>
 
+#include "textencoding.h"
 #include <QBuffer>
 #include <QSignalSpy>
-#include <QTextCodec>
 #include <QThread>
 
 #include "fake_log_data.h"
@@ -73,7 +73,7 @@ QByteArray utf8File( const QStringList& lines, int begin, int end )
 }
 
 QByteArray save( const DisplayedLinesReader& readLines, LineNumber begin, LineNumber end,
-                 const QTextCodec* codec = nullptr )
+                 const TextEncoding* codec = nullptr )
 {
     QBuffer output;
     output.open( QIODevice::WriteOnly );
@@ -120,17 +120,17 @@ SCENARIO( "saving lines writes each line encoded, with its line ending, after th
                     expected += static_cast<char>( unit.unicode() >> 8 );
                 }
             }
-            REQUIRE( save( readerOf( logFile ), 0_lnum, 6000_lnum,
-                           QTextCodec::codecForName( "UTF-16LE" ) )
-                     == expected );
+            REQUIRE(
+                save( readerOf( logFile ), 0_lnum, 6000_lnum, TextEncoding::forName( "UTF-16LE" ) )
+                == expected );
         }
 
         THEN( "saving as ISO-8859-1 writes no Byte Order Mark" )
         {
             const FakeLogData latinFile{ { QStringLiteral( "café" ), QStringLiteral( "b" ) } };
-            REQUIRE( save( readerOf( latinFile ), 0_lnum, 2_lnum,
-                           QTextCodec::codecForName( "ISO-8859-1" ) )
-                     == QByteArray( "caf\xE9" ) + LineEnding + "b" + LineEnding );
+            REQUIRE(
+                save( readerOf( latinFile ), 0_lnum, 2_lnum, TextEncoding::forName( "ISO-8859-1" ) )
+                == QByteArray( "caf\xE9" ) + LineEnding + "b" + LineEnding );
         }
     }
 }

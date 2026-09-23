@@ -26,7 +26,7 @@
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
 
-#include <QTextCodec>
+#include "textencoding.h"
 
 #include <mutex>
 #include <utility>
@@ -274,11 +274,11 @@ std::optional<int> OpenLogFile::chosenEncoding() const
     return chosenEncoding_;
 }
 
-QTextCodec* OpenLogFile::encoding() const
+const TextEncoding* OpenLogFile::encoding() const
 {
-    QTextCodec* codec = chosenEncoding_ ? QTextCodec::codecForMib( *chosenEncoding_ )
-                                        : logData_->getDetectedEncoding();
-    return codec ? codec : QTextCodec::codecForLocale();
+    const TextEncoding* codec = chosenEncoding_ ? TextEncoding::forMib( *chosenEncoding_ )
+                                                : logData_->getDetectedEncoding();
+    return codec ? codec : TextEncoding::forLocale();
 }
 
 bool OpenLogFile::settleEncoding()
