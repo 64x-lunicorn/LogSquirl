@@ -57,6 +57,13 @@ private:
     QPoint hoverPoint;
 };
 
+// Takes the icons out of the menus below a QMenuBar or QMenu, down through
+// its submenus, leaving the icons themselves on the actions: a toolbar showing
+// the same action keeps its icon. For macOS, where the menu bar's popups are
+// drawn by the system in the system's appearance, so a dark Theme's white
+// icons would sit on a light menu (#421).
+void hideIconsInMenus( QWidget* menuOrMenuBar );
+
 class HoverMenu : public QMenu {
 public:
     explicit HoverMenu( const QString& title, QWidget* parent = nullptr );
