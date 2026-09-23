@@ -6,9 +6,14 @@
 # logsquirl_project_warnings(<compile_out> <link_out>
 #                            COMPILER_ID <CMAKE_CXX_COMPILER_ID>
 #                            COMPILER_VERSION <CMAKE_CXX_COMPILER_VERSION>
-#                            MSVC <ON|OFF>
+#                            IS_MSVC <ON|OFF>
 #                            AS_ERRORS <ON|OFF>
 #                            SANITIZERS <ON|OFF>)
+#
+# IS_MSVC and not MSVC: cmake_parse_arguments() reads a keyword's value as a
+# keyword when it happens to be one, and CMAKE_CXX_COMPILER_ID is the string
+# "MSVC" on exactly the compiler this has to get right -- COMPILER_ID would be
+# left unset there and every keyword after it read onto the wrong argument.
 #
 # The warnings the project's own code is compiled with, and the ones its link
 # step is given. Everything this decides it decides from its arguments, so the
@@ -18,7 +23,7 @@ function(logsquirl_project_warnings compile_out link_out)
   # PARSE_ARGV, not ${ARGN}: an empty value -- an unset compiler version, a
   # WARNINGS_AS_ERRORS someone configured to nothing -- would drop out of an
   # expanded list and shift every keyword after it onto the wrong argument.
-  cmake_parse_arguments(PARSE_ARGV 2 ARG "" "COMPILER_ID;COMPILER_VERSION;MSVC;AS_ERRORS;SANITIZERS" "")
+  cmake_parse_arguments(PARSE_ARGV 2 ARG "" "COMPILER_ID;COMPILER_VERSION;IS_MSVC;AS_ERRORS;SANITIZERS" "")
 
   set(MSVC_WARNINGS
       /W4 # Baseline reasonable warnings
@@ -127,25 +132,30 @@ function(logsquirl_project_warnings compile_out link_out)
     list(APPEND GCC_LINK_WARNINGS -Wno-error=maybe-uninitialized)
   endif()
 
-  if(ARG_COMPILER_ID STREQUAL "GNU" AND ARG_COMPILER_VERSION VERSION_LESS 14)
-    # GCC 12 and 13 report -Wstringop-overflow from the link step for two
-    # setters that write a Policy into a member of a class inheriting more than
-    # one base -- LogSquirl's two Presentations both do, because Qt forbids
-    # deriving from two QObjects (docs/adr/0003). Inlining across that
-    # inheritance loses the pointer adjustment, and GCC then reports "writing 13
-    # bytes into a region of size 0 ... at offset -856 into destination object
-    # of size 8": the offset is measured from the interface base subobject,
-    # which is the bare vptr the "size 8" names, instead of from the complete
-    # object. Both writes are a plain assignment of one struct to a member of
-    # the same type, so there is nothing to write past. GCC 16 (the fedora job)
-    # does not report it. Not a finding about this project's own code, so it
-    # stays a warning; the guard takes it back as soon as the oldest GCC
-    # LogSquirl builds with reaches 14, and tests/project_warning_flags.cmake
-    # holds the guard to that (#454).
+  if(ARG_COMPILER_ID STREQUAL "GNU" AND ARG_COMPILER_VERSION VERSION_LESS 16)
+    # GCC reports -Wstringop-overflow from the link step for two setters that
+    # write a Policy into a member of a class inheriting more than one base --
+    # LogSquirl's two Presentations both do, because Qt forbids deriving from
+    # two QObjects (docs/adr/0003). Inlining across that inheritance loses the
+    # pointer adjustment, and GCC then names a destination object "of size 8",
+    # which is the interface base subobject's bare vptr, and an offset measured
+    # from there instead of from the complete object (-856 for one of them, 176
+    # for the other). Both writes are a plain assignment of one struct to a
+    # member of exactly that type, so there is nothing to write past. Not a
+    # finding about this project's own code, so it stays a warning.
+    #
+    # The bound: the appimage (12) and noble (13) jobs report it, and so does
+    # the oracle job (14.3.1) -- which this change found, because #454 is what
+    # made that diagnostic fail a build rather than scroll past. The fedora job
+    # (16) does not. GCC 15 is built nowhere here, so it is covered rather than
+    # guessed at: a -Wno-error= for a diagnostic the compiler does not emit
+    # costs nothing, and a version left uncovered costs a red build. Move the
+    # bound down when a job measures 15 clean, not before.
+    # tests/project_warning_flags.cmake holds the guard to all of that (#454).
     list(APPEND GCC_LINK_WARNINGS -Wno-error=stringop-overflow)
   endif()
 
-  if(ARG_MSVC)
+  if(ARG_IS_MSVC)
     set(PROJECT_WARNINGS ${MSVC_WARNINGS})
     set(PROJECT_LINK_WARNINGS ${MSVC_LINK_WARNINGS})
   elseif(ARG_COMPILER_ID MATCHES ".*Clang")
@@ -190,7 +200,7 @@ function(set_project_warnings project_name)
     "${CMAKE_CXX_COMPILER_ID}"
     COMPILER_VERSION
     "${CMAKE_CXX_COMPILER_VERSION}"
-    MSVC
+    IS_MSVC
     "${_msvc}"
     AS_ERRORS
     "${WARNINGS_AS_ERRORS}"
