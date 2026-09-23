@@ -119,10 +119,17 @@ Section "Qt Runtime libraries" qtlibs
     File release\${QT_MAJOR}Xml.dll
 !if ${QT_MAJOR} == "Qt6"
     File release\${QT_MAJOR}Core5Compat.dll
+    File release\${QT_MAJOR}Svg.dll
 !endif
 
     SetOutPath $INSTDIR\platforms
     File release\platforms\qwindows.dll
+
+    ; SVG support for the check marks, arrows and close buttons of the themes
+    SetOutPath $INSTDIR\imageformats
+    File release\imageformats\qsvg.dll
+    SetOutPath $INSTDIR\iconengines
+    File release\iconengines\qsvgicon.dll
     SetOutPath $INSTDIR\styles
 !if ${QT_MAJOR} == "Qt6"
     File release\styles\qmodernwindowsstyle.dll
@@ -200,7 +207,12 @@ Section "Uninstall"
     Delete "$INSTDIR\Qt6Concurrent.dll"
     Delete "$INSTDIR\Qt6Xml.dll"
     Delete "$INSTDIR\Qt6Core5Compat.dll"
+    Delete "$INSTDIR\Qt6Svg.dll"
     Delete "$INSTDIR\platforms\qwindows.dll"
+    Delete "$INSTDIR\imageformats\qsvg.dll"
+    RMDir "$INSTDIR\imageformats"
+    Delete "$INSTDIR\iconengines\qsvgicon.dll"
+    RMDir "$INSTDIR\iconengines"
     Delete "$INSTDIR\styles\qmodernwindowsstyle.dll"
     ; Clean up legacy Qt style plugins from previous installations
     Delete "$INSTDIR\styles\qwindowsvistastyle.dll"

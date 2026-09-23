@@ -91,12 +91,19 @@ xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Widgets.dll %LOGSQUIRL_WORKSPACE%\release\ /y ||
 xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Concurrent.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Xml.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Core5Compat.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+xcopy %QTDIR%\bin\%LOGSQUIRL_QT%Svg.dll %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 
 md %LOGSQUIRL_WORKSPACE%\release\platforms || exit /b 1
 xcopy %QTDIR%\plugins\platforms\qwindows.dll %LOGSQUIRL_WORKSPACE%\release\platforms\ /y || exit /b 1
 
 md %LOGSQUIRL_WORKSPACE%\release\styles || exit /b 1
 xcopy %QTDIR%\plugins\styles\qmodernwindowsstyle.dll %LOGSQUIRL_WORKSPACE%\release\styles /y || exit /b 1
+REM The themes draw check marks, arrows and close buttons from SVG files; without
+REM the SVG image format plugin a checked box is an empty filled square.
+md %LOGSQUIRL_WORKSPACE%\release\imageformats || exit /b 1
+xcopy %QTDIR%\plugins\imageformats\qsvg.dll %LOGSQUIRL_WORKSPACE%\release\imageformats\ /y || exit /b 1
+md %LOGSQUIRL_WORKSPACE%\release\iconengines || exit /b 1
+xcopy %QTDIR%\plugins\iconengines\qsvgicon.dll %LOGSQUIRL_WORKSPACE%\release\iconengines\ /y || exit /b 1
 
 echo "Copying Qt TLS plugins..."
 md %LOGSQUIRL_WORKSPACE%\release\tls || exit /b 1

@@ -28,6 +28,10 @@
   menu and were hard to make out (and a light Theme's dark ones on a dark
   menu). Those menus now carry no icons on macOS, the way macOS menus usually
   look; the toolbar keeps its icons (#421).
+- **Check marks on Windows**: A checked box was an empty filled square in
+  the Windows build. The Themes draw check marks, arrows and close buttons
+  from SVG files, and the Windows packages lacked Qt's SVG support; the
+  installer and the portable zip now ship `Qt6Svg.dll` and its plugins (#427).
 
 # v26.10.0-beta2 (2026-09-23)
 
