@@ -238,7 +238,9 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
     {
         const double step = niceStep( xMax_ - xMin_, targetTicks );
         const double first = std::ceil( xMin_ / step ) * step;
-        for ( double v = first; v <= xMax_; v += step ) {
+        // An integer counter: a floating-point loop variable accumulates rounding error.
+        for ( int i = 0; first + i * step <= xMax_; ++i ) {
+            const double v = first + i * step;
             const QPointF p = dataToPixel( v, yMin_ );
             painter.setPen( gridPen );
             painter.drawLine( QPointF( p.x(), area.top() ), QPointF( p.x(), area.bottom() ) );
@@ -256,7 +258,8 @@ void ChartWidget::drawAxes( QPainter& painter, const QRectF& area ) const
     {
         const double step = niceStep( yMax_ - yMin_, targetTicks );
         const double first = std::ceil( yMin_ / step ) * step;
-        for ( double v = first; v <= yMax_; v += step ) {
+        for ( int i = 0; first + i * step <= yMax_; ++i ) {
+            const double v = first + i * step;
             const QPointF p = dataToPixel( xMin_, v );
             painter.setPen( gridPen );
             painter.drawLine( QPointF( area.left(), p.y() ), QPointF( area.right(), p.y() ) );

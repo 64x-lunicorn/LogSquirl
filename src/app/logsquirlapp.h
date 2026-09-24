@@ -86,7 +86,7 @@ class LogSquirlApp : public QApplication {
     // real run never sets it, so it keeps today's fixed name.
     static QString singleApplicationName()
     {
-        const auto executableName = QFileInfo( QCoreApplication::applicationFilePath() ).fileName();
+        auto executableName = QFileInfo( QCoreApplication::applicationFilePath() ).fileName();
         const auto instanceId = qEnvironmentVariable( "LOGSQUIRL_INSTANCE_ID" );
         if ( instanceId.isEmpty() ) {
             return executableName;

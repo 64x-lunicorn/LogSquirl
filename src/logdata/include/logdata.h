@@ -40,6 +40,7 @@
 #define LOGDATA_H
 
 #include <cstddef>
+#include <exception>
 #include <memory>
 
 #include "textencoding.h"
@@ -83,7 +84,7 @@ private:
 };
 
 // Thrown when trying to attach an already attached LogData
-class CantReattachErr {};
+class CantReattachErr : public std::exception {};
 
 // Represents a complete set of data to be displayed (ie. a log file content)
 // This class is thread-safe.

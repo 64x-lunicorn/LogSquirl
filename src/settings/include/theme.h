@@ -156,6 +156,8 @@ class QObject;
     X( BoxBorderWidth )
 
 #define LOGSQUIRL_TOKEN_ENUMERATOR( name ) name,
+// A sum term, not a value: parenthesised it would not add up.
+// NOLINTNEXTLINE(bugprone-macro-parentheses)
 #define LOGSQUIRL_TOKEN_COUNT( name ) +1
 
 enum class ColorToken { LOGSQUIRL_COLOR_TOKENS( LOGSQUIRL_TOKEN_ENUMERATOR ) };

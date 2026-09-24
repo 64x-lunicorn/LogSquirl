@@ -315,7 +315,7 @@ void ChartPanel::editSeries()
         updated.id = series_[ idx ].id;
         updated.matchCase = series_[ idx ].matchCase;
         updated.compilePattern();
-        series_[ idx ] = updated;
+        series_[ idx ] = std::move( updated );
         rebuildSeriesCombo();
         seriesChanged();
     }

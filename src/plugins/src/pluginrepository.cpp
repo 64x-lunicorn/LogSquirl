@@ -21,6 +21,8 @@
 
 #include "log.h"
 
+#include <algorithm>
+
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -165,15 +167,13 @@ void PluginRepository::parseCatalogV1( const QJsonArray& plugins )
         asset.sha256 = le.sha256;
 
         auto& rels = releases_[ le.id ];
-        bool found = false;
-        for ( auto& rel : rels ) {
-            if ( rel.version == le.version ) {
-                rel.assets.push_back( std::move( asset ) );
-                found = true;
-                break;
-            }
+        const auto existing = std::find_if( rels.begin(), rels.end(), [ &le ]( const auto& rel ) {
+            return rel.version == le.version;
+        } );
+        if ( existing != rels.end() ) {
+            existing->assets.push_back( std::move( asset ) );
         }
-        if ( !found ) {
+        else {
             ReleaseEntry rel;
             rel.version = le.version;
             rel.apiVersion = le.apiVersion;

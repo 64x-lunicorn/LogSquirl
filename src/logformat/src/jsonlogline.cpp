@@ -46,7 +46,7 @@ std::optional<QJsonObject> parse( const QString& line )
 
 QJsonValue valueAt( const QJsonObject& object, const QString& path )
 {
-    const auto direct = object.value( path );
+    auto direct = object.value( path );
     if ( !direct.isUndefined() || !path.contains( QLatin1Char( '/' ) ) ) {
         return direct;
     }

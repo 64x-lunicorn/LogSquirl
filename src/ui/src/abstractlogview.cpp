@@ -2342,7 +2342,7 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
     painter->fillRect( 0, 0, BulletAreaWidth, paintDeviceHeight, marginColor );
 
     // Column at which the content should start (pixels)
-    int contentStartPosX = layout.bulletZoneWidthPx();
+    const int contentStartPosX = layout.bulletZoneWidthPx();
 
     // Update the length of line numbers
     const int nbDigitsInLineNumber = layout.lineNumberDigits();
@@ -2362,9 +2362,6 @@ void AbstractLogView::drawTextArea( QPaintDevice* paintDevice, int firstRow,
         painter->drawLine( contentStartPosX + lineNumberAreaWidth - SeparatorWidth, 0,
                            contentStartPosX + lineNumberAreaWidth - SeparatorWidth,
                            paintDeviceHeight );
-
-        // Update for drawing the actual text
-        contentStartPosX += lineNumberAreaWidth;
     }
     else {
         painter->fillRect( contentStartPosX - SeparatorWidth, 0, SeparatorWidth + 1,

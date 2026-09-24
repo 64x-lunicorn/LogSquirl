@@ -117,8 +117,7 @@ private:
                                            _mm_cmpeq_epi8( bytes, _mm_set1_epi8( '\t' ) ) );
         return static_cast<std::uint32_t>( _mm_movemask_epi8( matches ) );
 #elif defined( LOGSQUIRL_INDEXING_SCAN_NEON )
-        const auto bytes
-            = vld1q_u8( static_cast<const std::uint8_t*>( static_cast<const void*>( chunk ) ) );
+        const auto bytes = vld1q_u8( reinterpret_cast<const std::uint8_t*>( chunk ) );
         const auto matches = vorrq_u8( vceqq_u8( bytes, vdupq_n_u8( '\n' ) ),
                                        vceqq_u8( bytes, vdupq_n_u8( '\t' ) ) );
         const auto nibbles = vget_lane_u64(

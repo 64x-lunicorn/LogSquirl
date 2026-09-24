@@ -444,7 +444,10 @@ TimestampReader::TimestampReader( const LogFormatDefinition& format, int referen
     }
     if ( format.timestampFormats().isEmpty() ) {
         for ( const auto* fallback : FallbackFormats ) {
-            impl_->patterns.push_back( *compile( QLatin1String( fallback ) ) );
+            // The fallbacks are known to compile; one that did not is skipped.
+            if ( auto pattern = compile( QLatin1String( fallback ) ) ) {
+                impl_->patterns.push_back( std::move( *pattern ) );
+            }
         }
     }
 }

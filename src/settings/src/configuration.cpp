@@ -547,7 +547,7 @@ void Configuration::setMainFont( QFont newFont )
 {
     LOG_DEBUG << "Configuration::setMainFont";
 
-    mainFont_ = resolvedMainFont( std::move( newFont ) );
+    mainFont_ = resolvedMainFont( newFont );
 }
 
 QString Configuration::mainFontInWords( const QFont& font )

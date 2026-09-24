@@ -188,7 +188,7 @@ void PredefinedFilterSetEdit::syncTableToSet()
         filters.append( { nameItem->text(), patternItem->text(), useRegex } );
     }
 
-    filterSet_.filters_ = filters;
+    filterSet_.filters_ = std::move( filters );
 }
 
 void PredefinedFilterSetEdit::updateButtons( int currentRow )

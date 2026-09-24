@@ -144,7 +144,7 @@ void SharedPluginUiPort::removeWidget( WidgetPlace place, const QString& pluginI
     if ( it == widgets_.end() ) {
         return;
     }
-    const auto removed = *it;
+    const auto removed = std::move( *it );
     widgets_.erase( it );
     if ( !removed.shownIn ) {
         return;
