@@ -649,13 +649,13 @@ jobs:
               # leaves the image untouched (as for aqtinstall in the Dockerfile).
               pip3 install --no-cache-dir --require-hashes --only-binary :all: \
                 --target /tmp/clang-tidy -r .github/requirements/clang-tidy.txt
-              # The wheel's launcher imports its clang_tidy module, which --target
-              # puts in the same directory: name it for Python.
-              export PYTHONPATH=/tmp/clang-tidy
-              test -x /tmp/clang-tidy/bin/clang-tidy
-              /tmp/clang-tidy/bin/clang-tidy --version
+              # The wheel carries the real binary; its Python launcher in bin/ needs
+              # the package on sys.path, so name the binary itself.
+              tidy=/tmp/clang-tidy/clang_tidy/data/bin/clang-tidy
+              test -x "$tidy"
+              "$tidy" --version
               cmake -B "$LOGSQUIRL_BUILD_ROOT" $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache .
-              CLANG_TIDY=/tmp/clang-tidy/bin/clang-tidy .github/scripts/run-clang-tidy.sh "$LOGSQUIRL_BUILD_ROOT" "$MODE"
+              CLANG_TIDY=$tidy .github/scripts/run-clang-tidy.sh "$LOGSQUIRL_BUILD_ROOT" "$MODE"
             '
 
   # -----------------------------------------------------------------------
