@@ -263,7 +263,7 @@ See `BUILD.md` for full dependency and platform-specific instructions.
 
 ## Platform Notes
 
-- **Windows**: NSIS installer, Scoop package. Uses MSVC.
+- **Windows**: NSIS installer and portable zip. Uses MSVC.
 - **macOS**: `.pkg` installer via CPack. Supports `LOGSQUIRL_OSX_DEPLOYMENT_TARGET`.
 - **Linux**: DEB, RPM, AppImage packages. CI uses Docker containers for reproducible builds.
 

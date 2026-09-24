@@ -684,8 +684,8 @@ set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD_TBB})
 # about since Xcode 15 (#450). $<COMPILE_ONLY:tbb> would say the same in one
 # line but needs CMake 3.27, and the project requires 3.16.
 #
-# A TBB found on the build host (CPM_USE_LOCAL_PACKAGES, which the Arch
-# PKGBUILD and the Gentoo ebuild both set) is an imported TBB::tbb and no
+# A TBB found on the build host (CPM_USE_LOCAL_PACKAGES, which a
+# distribution's own build recipe sets) is an imported TBB::tbb and no
 # target named tbb, and $<TARGET_PROPERTY:tbb,...> would be a generate-time
 # error there rather than the -ltbb the plain name falls back to.
 add_library(logsquirl_tbb_headers INTERFACE)
