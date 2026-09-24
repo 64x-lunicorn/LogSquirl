@@ -5,6 +5,7 @@ add_executable(logsquirl_tests
     applicationplugins_test.cpp
     ansicolorsequences_test.cpp
     chartextraction_test.cpp
+    valuecount_test.cpp
     chartplot_test.cpp
     chartwidget_test.cpp
     chartseries_test.cpp
