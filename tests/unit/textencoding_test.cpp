@@ -28,12 +28,16 @@
 #include <stdexcept>
 #include <string>
 
+#include <QStringDecoder>
+#include <QStringEncoder>
+
+#include "encodingdetector.h"
 #include "encodings.h"
+#include "logdata.h"
+#include "test_policies.h"
 #include "textencoding.h"
 
 #ifdef Q_OS_MACOS
-#include <QStringDecoder>
-#include <QStringEncoder>
 
 #include "iconvconverter.h"
 #endif
@@ -297,6 +301,23 @@ SCENARIO( "The converters of iconv keep a character cut short and forget it on a
     REQUIRE( !decoder->hasError() );
 }
 
+SCENARIO( "Resetting an iconv decoder does not open a new conversion", "[encoding][textencoding]" )
+{
+    const int index = iconv_converter::indexForName( "Shift_JIS" );
+    REQUIRE( index >= 0 );
+
+    const QByteArray bytes = QByteArray::fromHex( "82a082a2" );
+    auto decoder = iconv_converter::makeDecoder( index, {} );
+    decoder->decode( bytes );
+
+    const auto opensBefore = iconv_converter::openedConversions();
+    for ( int line = 0; line < 1000; ++line ) {
+        decoder->resetState();
+        REQUIRE( decoder->decode( bytes ) == QStringLiteral( "あい" ) );
+    }
+    REQUIRE( iconv_converter::openedConversions() == opensBefore );
+}
+
 SCENARIO( "The converters of iconv say what they cannot convert", "[encoding][textencoding]" )
 {
     const auto* latin2 = TextEncoding::forName( "ISO-8859-2" );
@@ -308,3 +329,39 @@ SCENARIO( "The converters of iconv say what they cannot convert", "[encoding][te
 }
 
 #endif // Q_OS_MACOS
+
+SCENARIO( "An Encoding setting nothing here knows does not bring LogData down",
+          "[encoding][textencoding]" )
+{
+    GIVEN( "a MIB of an Encoding this build has no converter for" )
+    {
+        auto policies = testSettingsPolicies();
+        policies.fileAccess.defaultEncodingMib = 2013;
+        REQUIRE( TextEncoding::forMib( 2013 ) == nullptr );
+
+        THEN( "the LogData reads with the Encoding of the locale" )
+        {
+            LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                             policies.decoding };
+            TextCodecHolder holder{ TextEncoding::forName( "ISO-8859-1" ) };
+            holder.setCodec( TextEncoding::forMib( 2013 ) );
+            REQUIRE( holder.mibEnum() == TextEncoding::forLocale()->mibEnum() );
+        }
+    }
+}
+
+SCENARIO( "The Encodings uchardet reports for Thai and Traditional Chinese are known",
+          "[encoding][textencoding]" )
+{
+    const auto name = GENERATE( "ISO-8859-11", "ISO_8859-11", "TIS-620", "EUC-TW", "x-euc-tw" );
+    CAPTURE( name );
+
+#ifdef Q_OS_MACOS
+    const bool known = true;
+#else
+    const bool known = QStringDecoder( QAnyStringView( name ) ).isValid();
+#endif
+    if ( known ) {
+        REQUIRE( TextEncoding::forName( name ) != nullptr );
+    }
+}

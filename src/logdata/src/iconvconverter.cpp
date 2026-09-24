@@ -25,13 +25,17 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
 
@@ -85,6 +89,8 @@ constexpr std::array entries = {
     Entry{ "ISO-2022-KR", "ISO-2022-KR" },
     Entry{ "windows-949", "CP949" },
     Entry{ "TIS-620", "TIS-620" },
+    Entry{ "ISO-8859-11", "ISO-8859-11" },
+    Entry{ "EUC-TW", "EUC-TW" },
 };
 
 // What Qt's QChar is in memory.
@@ -105,6 +111,7 @@ const iconv_t noDescriptor = reinterpret_cast<iconv_t>( static_cast<std::intptr_
 struct Context {
     iconv_t descriptor = noDescriptor;
     std::string pending;
+    std::string key;
 
     Context() = default;
     Context( const Context& ) = delete;
@@ -118,16 +125,70 @@ struct Context {
     }
 };
 
+std::atomic<unsigned long long> openedCount{ 0 };
+
+// Qt's State::reset() runs clearFn and then forgets it, so a reset State
+// cannot keep its Context. The closed Contexts wait here instead, and the next
+// State that needs one for the same conversion takes it back: a reset costs
+// no iconv_close() and iconv_open() pair, which for a decoder reset before
+// every Log Line is what would otherwise be paid per line.
+class ContextPool {
+public:
+    static ContextPool& instance()
+    {
+        // Never destroyed: a State may die after the statics do.
+        static auto* pool = new ContextPool;
+        return *pool;
+    }
+
+    std::unique_ptr<Context> take( const char* to, const char* from )
+    {
+        const std::string key = std::string( to ) + '\n' + from;
+        {
+            const std::lock_guard lock( mutex_ );
+            auto& list = free_[ key ];
+            if ( !list.empty() ) {
+                auto context = std::move( list.back() );
+                list.pop_back();
+                return context;
+            }
+        }
+        auto context = std::make_unique<Context>();
+        context->key = key;
+        context->descriptor = ::iconv_open( to, from );
+        ++openedCount;
+        return context;
+    }
+
+    void give( std::unique_ptr<Context> context )
+    {
+        if ( context->descriptor != noDescriptor ) {
+            // Back to the initial shift state.
+            ::iconv( context->descriptor, nullptr, nullptr, nullptr, nullptr );
+        }
+        context->pending.clear();
+        const std::lock_guard lock( mutex_ );
+        auto& list = free_[ context->key ];
+        if ( list.size() < maxPooledPerConversion ) {
+            list.push_back( std::move( context ) );
+        }
+    }
+
+private:
+    static constexpr std::size_t maxPooledPerConversion = 8;
+    std::mutex mutex_;
+    std::map<std::string, std::vector<std::unique_ptr<Context>>> free_;
+};
+
 // Made when the first bytes come, so a State that was reset finds its way
 // again without being told what it converts.
 Context& contextOf( QStringConverter::State* state, const char* to, const char* from )
 {
     if ( state->d[ 0 ] == nullptr ) {
-        auto context = std::make_unique<Context>();
-        context->descriptor = ::iconv_open( to, from );
-        state->d[ 0 ] = context.release();
+        state->d[ 0 ] = ContextPool::instance().take( to, from ).release();
         state->clearFn = []( QStringConverter::State* dying ) noexcept {
-            delete static_cast<Context*>( dying->d[ 0 ] );
+            ContextPool::instance().give(
+                std::unique_ptr<Context>( static_cast<Context*>( dying->d[ 0 ] ) ) );
             dying->d[ 0 ] = nullptr;
         };
     }
@@ -320,6 +381,11 @@ std::unique_ptr<QStringDecoder> makeDecoder( int index, QStringConverter::Flags 
 QStringEncoder makeEncoder( int index )
 {
     return QStringEncoder( Encoder( index ) );
+}
+
+unsigned long long openedConversions()
+{
+    return openedCount.load();
 }
 
 } // namespace iconv_converter
