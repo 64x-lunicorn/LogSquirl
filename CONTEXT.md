@@ -284,8 +284,9 @@ _Avoid_: detection, sniffing
 **Timestamp**:
 The point in time a Log Line carries, read through its Log Format's timestamp field
 (its timestamp format, and for epoch values its divisor). Continuation lines, such as a
-stack trace, have none. Taken as written: one without a time zone is not converted, and a
-written zone is ignored. Only what a Log Format declares or a common format covers can be
+stack trace, have none. A written offset (`+02:00`, `Z`) makes it the UTC instant it names;
+one without a time zone is taken as written, and a year-less one gets its year from the Log
+File's modification date (ADR-0010). Only what a Log Format declares or a common format covers can be
 read; a Log File without a Log Format that has a timestamp field has no Timestamps.
 _Avoid_: date, time (both name only a part of it)
 

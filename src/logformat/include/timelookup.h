@@ -25,6 +25,7 @@
 #include <QDateTime>
 #include <QString>
 
+#include <atomic>
 #include <functional>
 #include <optional>
 
@@ -52,7 +53,17 @@ enum class Position {
 struct Result {
     LineNumber line{ 0 };
     Position position = Position::NoTimestamps;
+    // The Timestamps around the line are not in time order: the search
+    // assumes the order, so the line may be off. Checked over a small window
+    // (OrderWindow Timestamps on each side), not the whole Log File.
+    bool outOfOrder = false;
 };
+
+// How many Log Lines with a Timestamp are looked at on each side of a result
+// to see whether the Log File is in time order there, and how far to look for
+// them.
+constexpr size_t OrderWindow = 8;
+constexpr uint64_t OrderScanLines = 200;
 
 // How far a probe looks for a Log Line with a Timestamp among Log Lines
 // without one (a stack trace) before it counts the stretch as having none.
@@ -61,22 +72,36 @@ constexpr uint64_t MaxLinesWithoutTimestamp = 5'000;
 // The first Log Line, among lineCount, whose Timestamp is at or after time.
 // Log Lines without a Timestamp are skipped by scanning to the nearest one
 // that has one. A Log File that is not in time order gives an approximate
-// answer: the binary search assumes the order, and does not check it. The
-// Log Lines are read O(log n) times; none if lineCount is 0.
+// answer: the binary search assumes the order, and only afterwards checks a
+// window of Timestamps around the result (Result::outOfOrder). The Log Lines
+// are read O(log n) times, plus the window; none if lineCount is 0.
+//
+// The search can start at a Log Line other than the first: the answer is then
+// not before it, for when the time is known to lie at or after it. It can be
+// cancelled from another thread with the flag, which is looked at before every
+// Log Line read; a cancelled search gives none.
+struct Options {
+    LineNumber from{ 0 };
+    const std::atomic<bool>* cancelled = nullptr;
+};
 std::optional<Result> firstLineAtOrAfter( const QDateTime& time, LinesCount lineCount,
-                                          const TimestampAt& timestampAt );
+                                          const TimestampAt& timestampAt,
+                                          const Options& options = {} );
 
 // The Timestamp of the Log Line nearest to line, looking at it first, then at
 // the lines after it and before it alternately, up to MaxLinesWithoutTimestamp
 // in each direction; none if there is none.
 std::optional<QDateTime> timestampNear( LineNumber line, LinesCount lineCount,
-                                        const TimestampAt& timestampAt );
+                                        const TimestampAt& timestampAt,
+                                        const std::atomic<bool>* cancelled = nullptr );
 
 // The same over a Log File, reading its Log Lines with the reader.
 std::optional<Result> firstLineAtOrAfter( const QDateTime& time, const AbstractLogData& logData,
-                                          const TimestampReader& reader );
+                                          const TimestampReader& reader,
+                                          const Options& options = {} );
 std::optional<QDateTime> timestampNear( LineNumber line, const AbstractLogData& logData,
-                                        const TimestampReader& reader );
+                                        const TimestampReader& reader,
+                                        const std::atomic<bool>* cancelled = nullptr );
 
 // Search Limits given as a time range, as Log Lines: the half-open range
 // [start, end), like every Search Limits.
@@ -92,26 +117,33 @@ struct LimitsResult {
         NoTimestamps,
         // The end is not after the start.
         EndNotAfterStart,
+        // Cancelled; nothing was found.
+        Cancelled,
         // The range lies inside the Log File but no Log Line falls into it.
         NoLogLines,
     };
     Outcome outcome = Outcome::NoTimestamps;
     LineNumber start{ 0 };
     LineNumber end{ 0 };
+    // Either search landed among Timestamps out of time order.
+    bool outOfOrder = false;
 };
 
 // Converts a time range to Search Limits: start is the first Log Line with a
 // Timestamp at or after startTime, end the first at or after endTime (the
 // line count when there is none), so a Log Line without a Timestamp belongs
 // to the range of the Log Line before it. A start before the Log File is the
-// first Log Line. Only the Limits outcome carries lines.
+// first Log Line. Only the Limits outcome carries lines. The search for the
+// end starts at the line the search for the start found.
 LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
-                                       LinesCount lineCount, const TimestampAt& timestampAt );
+                                       LinesCount lineCount, const TimestampAt& timestampAt,
+                                       const std::atomic<bool>* cancelled = nullptr );
 
 // The same over a Log File, reading its Log Lines with the reader.
 LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
                                        const AbstractLogData& logData,
-                                       const TimestampReader& reader );
+                                       const TimestampReader& reader,
+                                       const std::atomic<bool>* cancelled = nullptr );
 
 // Reads a time a user typed: "14:02", "14:02:30", "14:02:30.250", optionally
 // after a date, "2026-09-23 14:02" or "2026-09-23T14:02" (also with "/" in

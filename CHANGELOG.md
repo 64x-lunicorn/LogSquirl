@@ -9,6 +9,25 @@
   instead of following a link to the release page. The app checks on the
   machine how it was installed; a dragged DMG, an AppImage, the Windows builds
   and a package installed by hand keep the link (#382).
+- **Elapsed time in the Table View**: a log format with a timestamp field gets
+  a **Δt** column after the timestamp, with the time since the previous line
+  that has a timestamp (`+0.004s`, `+12.3s`, `+5m02s`). Stack traces are
+  skipped, the look-back is bounded to 100 lines, and it reads the same
+  Timestamps as Go to timestamp (#462). Measured on a 10-million-line Log
+  File (optimized build, offscreen, 50 Rows visible), a scroll step costs
+  about 5.3 ms instead of 4.7 ms (+0.6 ms, about 13%); part of that is the
+  extra column itself being painted.
+- **Time lookups no longer block the window**: Go to timestamp and the time
+  search limits look the time up on a worker thread while the status bar says
+  so. A reload, a truncation or a change of Log Format cancels the lookup, and
+  the end of a time range is searched from the line the start was found on
+  instead of from the top (#486).
+- **Time lookups honour time zones and years**: a time zone offset written in a
+  log (`+02:00`, `Z`) now counts in Go to timestamp and the time search
+  limits, a timestamp without a year (syslog) takes it from the Log File's
+  modification date so a file across New Year stays in order, and the status
+  bar says when the timestamps around the found line are not in time order
+  (#485, ADR 0010).
 - **The user guide covers the features the app has**: `DOCUMENTATION.md`, the
   guide behind Help->Documentation, now describes installing with Homebrew or
   apt, the Dashboard, Tab groups, Plugins (linking the Plugin SDK guide) and

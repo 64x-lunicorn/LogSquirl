@@ -22,14 +22,18 @@
 #include "logfieldextractor.h"
 #include "logformatdefinition.h"
 #include "rowmapping.h"
+#include "timestampreader.h"
 
 #include <QAbstractTableModel>
+#include <QDate>
+#include <QDateTime>
 #include <QHash>
 #include <QStringList>
 #include <QVector>
 
 #include <list>
 #include <memory>
+#include <optional>
 
 class AbstractLogData;
 
@@ -38,6 +42,12 @@ class AbstractLogData;
 // with an LRU cache to avoid re-extracting recently displayed rows.
 // Column order matches the regex capture group order from the format definition.
 // Non-matching lines show the raw text in the body column.
+//
+// When the Log Format has a timestamp field the model has one more column
+// after it, the time elapsed since the previous Log Line of the Log File that
+// has a Timestamp (Timestamps are read by the TimestampReader, #435). It is
+// empty for a Log Line without a Timestamp, for the first one with a
+// Timestamp, and when no Log Line within ElapsedLookBack before it has one.
 class LogFormatTableModel : public QAbstractTableModel {
     Q_OBJECT
 
@@ -53,6 +63,25 @@ public:
     // Each Row shows the Log Line rows maps it onto.
     LogFormatTableModel( const LogFormatDefinition& format, AbstractLogData* logData,
                          std::shared_ptr<const RowMapping> rows, QObject* parent = nullptr );
+
+    // How many Log Lines before a Row are looked at for the previous
+    // Timestamp; beyond that the elapsed time is left empty.
+    static constexpr uint64_t ElapsedLookBack = 100;
+
+    // The elapsed time as shown: "+0.004s", "+12.3s", "+5m02s", "+1h05m",
+    // "+2d03h", with a "-" for a negative one (Log Lines out of order).
+    static QString formatElapsed( qint64 milliseconds );
+
+    // The date the Log File was last written, which gives Timestamps without
+    // a year theirs (ADR 0010). Optional; the current year is used without it.
+    void setModificationDate( const QDate& date );
+
+    // Whether the column is the elapsed-time one, which is not a field of the
+    // Log Format.
+    bool isElapsedColumn( int column ) const
+    {
+        return column >= 0 && column == elapsedColumn_;
+    }
 
     // Notify the model that the Log File now has lineCount Log Lines.
     void setLineCount( int lineCount );
@@ -76,10 +105,35 @@ public:
 
 private:
     // Extracts fields from a single line into a row of column values.
-    QVector<QString> extractRow( const QString& line ) const;
+    // matched tells whether the line matched the Log Format.
+    QVector<QString> extractRow( const QString& line, bool& matched ) const;
+
+    // The column of the Log Format's fields behind a model column.
+    int fieldColumn( int column ) const
+    {
+        return elapsedColumn_ >= 0 && column > elapsedColumn_ ? column - 1 : column;
+    }
+
+    // The Timestamp of a Log Line, none for one without; remembered, so that
+    // scrolling does not read and parse the same Log Lines again.
+    std::optional<QDateTime> timestampOfLogLine( LineNumber line ) const;
+    void rememberTimestamp( uint64_t line, const std::optional<QDateTime>& timestamp ) const;
+    // The elapsed time shown for a Row, given its Timestamp.
+    QString elapsedBefore( LineNumber line, const std::optional<QDateTime>& timestamp ) const;
+    void forgetTimestamps() const;
 
     LogFieldExtractor extractor_;
+    const LogFormatDefinition& format_;
     QStringList columnNames_;
+    // Reads Timestamps; none when the Log Format has no timestamp field.
+    std::unique_ptr<TimestampReader> reader_;
+    QDate modificationDate_;
+    // The model column with the elapsed time, -1 when there is none.
+    int elapsedColumn_ = -1;
+    // The column of the timestamp field among the Log Format's fields.
+    int timestampField_ = -1;
+    static constexpr int TimestampCacheCapacity = 16384;
+    mutable QHash<uint64_t, std::optional<QDateTime>> timestampCache_;
     AbstractLogData* logData_;
     std::shared_ptr<const RowMapping> rows_;
     // The number of Rows
@@ -90,6 +144,7 @@ private:
     struct CachedRow {
         QString rawLine;
         QVector<QString> columns;
+        QString elapsed;
     };
 
     // LRU cache for extracted rows (mutable because data() is const)

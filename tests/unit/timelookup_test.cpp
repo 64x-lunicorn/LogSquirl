@@ -19,7 +19,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "logformatcatalog.h"
 #include "timelookup.h"
+#include "timestampreader.h"
 
 #include <QDateTime>
 #include <QTimeZone>
@@ -338,4 +340,167 @@ TEST_CASE( "A time range that does not reach the Log File gives no Search Limits
     CHECK( limits( empty, at( 10, 0 ), at( 10, 5 ) ).outcome == Outcome::NoTimestamps );
     FakeLogFile untimed( { std::nullopt, std::nullopt } );
     CHECK( limits( untimed, at( 10, 0 ), at( 10, 5 ) ).outcome == Outcome::NoTimestamps );
+}
+
+TEST_CASE( "A lookup says when the Log File is not in time order around the result",
+           "[logformat][timelookup]" )
+{
+    SECTION( "a Log File in order never says so" )
+    {
+        std::vector<std::optional<QDateTime>> lines;
+        for ( int i = 0; i < 100; ++i ) {
+            lines.push_back( at( 10, i / 2 ) );
+        }
+        FakeLogFile file( lines );
+        for ( int minute : { 0, 1, 25, 49, 50 } ) {
+            const auto result = file.lookup( at( 10, minute ) );
+            REQUIRE( result );
+            CHECK( !result->outOfOrder );
+        }
+        // Log Lines without a Timestamp between them change nothing.
+        auto traced = withStackTraces();
+        CHECK( !traced.lookup( at( 10, 7 ) )->outOfOrder );
+    }
+
+    SECTION( "timestamps that go back near the result" )
+    {
+        // 10:00 .. 10:04, then a jump back to 09:00, then in order again.
+        std::vector<std::optional<QDateTime>> lines;
+        for ( int i = 0; i < 20; ++i ) {
+            lines.push_back( i < 10 ? at( 10, i ) : at( 9, i ) );
+        }
+        FakeLogFile file( lines );
+        const auto result = file.lookup( at( 9, 14 ) );
+        REQUIRE( result );
+        CHECK( result->outOfOrder );
+    }
+
+    SECTION( "a disorder far from the result is not looked for" )
+    {
+        std::vector<std::optional<QDateTime>> lines;
+        for ( int i = 0; i < 2000; ++i ) {
+            lines.push_back( at( 10, 0, 0 ).addSecs( i ) );
+        }
+        std::swap( lines[ 1900 ], lines[ 1901 ] );
+        FakeLogFile file( lines );
+        CHECK( !file.lookup( at( 10, 0, 0 ).addSecs( 5 ) )->outOfOrder );
+    }
+
+    SECTION( "Search Limits carry it" )
+    {
+        std::vector<std::optional<QDateTime>> lines;
+        for ( int i = 0; i < 20; ++i ) {
+            lines.push_back( i < 10 ? at( 10, i ) : at( 9, i ) );
+        }
+        FakeLogFile file( lines );
+        const auto result = searchLimitsForTimeRange( at( 9, 12 ), at( 9, 16 ), file.count(),
+                                                      file.reader() );
+        REQUIRE( result.outcome == LimitsResult::Outcome::Limits );
+        CHECK( result.outOfOrder );
+    }
+}
+
+TEST_CASE( "A Log File across New Year is found in January", "[logformat][timelookup]" )
+{
+    LogFormatCatalog catalog;
+    catalog.rebuild();
+    const auto& syslog = *catalog.allFormats().value( QStringLiteral( "syslog_log" ) );
+    // Written on 2027-01-05: December is 2026, January 2027.
+    const TimestampReader reader( syslog, 0, QDate( 2027, 1, 5 ) );
+
+    const QStringList text = {
+        QStringLiteral( "Dec 30 10:00:00 host prog: a" ),
+        QStringLiteral( "Dec 31 23:59:58 host prog: b" ),
+        QStringLiteral( "Jan  1 00:00:01 host prog: c" ),
+        QStringLiteral( "Jan  2 08:00:00 host prog: d" ),
+        QStringLiteral( "Jan  3 09:00:00 host prog: e" ),
+    };
+    const TimestampAt read = [ & ]( LineNumber line ) {
+        return reader.timestampOf( text.at( static_cast<qsizetype>( line.get() ) ) );
+    };
+    const auto january = QDateTime( QDate( 2027, 1, 2 ), QTime( 8, 0, 0 ), QTimeZone::UTC );
+
+    const auto result = firstLineAtOrAfter( january, LinesCount( 5 ), read );
+    REQUIRE( result );
+    CHECK( result->position == Position::AtOrAfter );
+    CHECK( result->line == LineNumber( 3 ) );
+    CHECK( !result->outOfOrder );
+}
+
+TEST_CASE( "A Log File mixing offsets is compared by instant", "[logformat][timelookup]" )
+{
+    LogFormatCatalog catalog;
+    catalog.rebuild();
+    const auto& spdlog = *catalog.allFormats().value( QStringLiteral( "spdlog_log" ) );
+    const TimestampReader reader( spdlog, 2026 );
+    const auto parse = [ & ]( const char* text ) {
+        return reader.parseField( QString::fromLatin1( text ) );
+    };
+    // The same instants, written in two zones, in the order they happened.
+    const std::vector<std::optional<QDateTime>> lines = {
+        parse( "2026-09-24T07:00:00Z" ),      parse( "2026-09-24T09:30:00+02:00" ),
+        parse( "2026-09-24T08:00:00Z" ),      parse( "2026-09-24T10:30:00+02:00" ),
+        parse( "2026-09-24T09:30:00Z" ),
+    };
+    const TimestampAt read = [ & ]( LineNumber line ) { return lines.at( line.get() ); };
+    const auto result = firstLineAtOrAfter( parse( "2026-09-24T10:00:00+02:00" ).value(),
+                                            LinesCount( 5 ), read );
+    REQUIRE( result );
+    CHECK( result->line == LineNumber( 2 ) );
+    CHECK( !result->outOfOrder );
+}
+
+TEST_CASE( "A lookup can begin at a Log Line, and stops when cancelled", "[logformat][timelookup]" )
+{
+    std::vector<std::optional<QDateTime>> lines;
+    for ( int i = 0; i < 1000; ++i ) {
+        lines.push_back( at( 10, 0, 0 ).addSecs( i ) );
+    }
+
+    SECTION( "the search from a line does not read before it" )
+    {
+        FakeLogFile file( lines );
+        uint64_t lowest = 1000;
+        const TimestampAt reader = [ & ]( LineNumber line ) {
+            lowest = std::min( lowest, line.get() );
+            return lines.at( line.get() );
+        };
+        const auto result = firstLineAtOrAfter( at( 10, 0, 0 ).addSecs( 950 ), file.count(), reader,
+                                                { LineNumber( 900 ), nullptr } );
+        REQUIRE( result );
+        CHECK( result->line == LineNumber( 950 ) );
+        // The search narrows down within [900, 1000); only the window that
+        // checks the order looks back from the result.
+        CHECK( lowest >= 900 - OrderWindow );
+    }
+
+    SECTION( "the end of a range is searched from the start line on" )
+    {
+        FakeLogFile file( lines );
+        const auto result = searchLimitsForTimeRange( at( 10, 0, 0 ).addSecs( 900 ),
+                                                      at( 10, 0, 0 ).addSecs( 950 ), file.count(),
+                                                      file.reader() );
+        REQUIRE( result.outcome == LimitsResult::Outcome::Limits );
+        CHECK( result.start == LineNumber( 900 ) );
+        CHECK( result.end == LineNumber( 950 ) );
+
+        // Fewer reads than two searches from the top: the second begins at 900.
+        FakeLogFile top( lines );
+        top.lookup( at( 10, 0, 0 ).addSecs( 900 ) );
+        top.lookup( at( 10, 0, 0 ).addSecs( 950 ) );
+        CHECK( file.reads < top.reads );
+    }
+
+    SECTION( "a cancelled lookup gives nothing" )
+    {
+        FakeLogFile file( lines );
+        std::atomic<bool> cancelled{ true };
+        CHECK( !firstLineAtOrAfter( at( 10, 5 ), file.count(), file.reader(),
+                                    { LineNumber( 0 ), &cancelled } ) );
+        CHECK( searchLimitsForTimeRange( at( 10, 1 ), at( 10, 5 ), file.count(), file.reader(),
+                                         &cancelled )
+                   .outcome
+               == LimitsResult::Outcome::Cancelled );
+        CHECK( file.reads == 0 );
+    }
 }

@@ -162,7 +162,7 @@ TEST_CASE( "table view paint benchmarks", "[tableview-paint-benchmark]" )
         view.resize( 1400, view.height() - 1 );
         QCoreApplication::processEvents();
     }
-    REQUIRE( view.model()->columnCount() == 6 );
+    REQUIRE( view.model()->columnCount() >= 6 );
     REQUIRE( view.rowAt( view.viewport()->height() - 1 ) == VisibleRows - 1 );
 
     view.viewport()->repaint();
