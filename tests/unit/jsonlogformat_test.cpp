@@ -123,9 +123,12 @@ SCENARIO( "A JSON Log Format loads without a regex", "[logformat][json]" )
 
             FakeLogData logData;
             LogFormatTableModel model( format, &logData );
-            REQUIRE( model.columnCount() == expected.size() );
-            for ( int i = 0; i < expected.size(); ++i ) {
-                REQUIRE( model.headerData( i, Qt::Horizontal ).toString() == expected[ i ] );
+            // The elapsed time follows the timestamp column.
+            auto withElapsed = expected;
+            withElapsed.insert( 1, QString( QChar( 0x0394 ) ) + QLatin1Char( 't' ) );
+            REQUIRE( model.columnCount() == withElapsed.size() );
+            for ( int i = 0; i < withElapsed.size(); ++i ) {
+                REQUIRE( model.headerData( i, Qt::Horizontal ).toString() == withElapsed[ i ] );
             }
         }
     }
@@ -267,19 +270,19 @@ SCENARIO( "The Table View shows the fields of JSON Log Lines", "[logformat][json
         THEN( "each value field is a column, the nested one and the converted timestamp included" )
         {
             REQUIRE( cell( 0, 0 ) == "2023-11-14 22:13:20.000" );
-            REQUIRE( cell( 0, 1 ) == "info" );
-            REQUIRE( cell( 0, 2 ) == "a.cpp" );
-            REQUIRE( cell( 0, 3 ) == "42" );
-            REQUIRE( cell( 0, 4 ) == "true" );
-            REQUIRE( cell( 0, 5 ) == "started" );
+            REQUIRE( cell( 0, 2 ) == "info" );
+            REQUIRE( cell( 0, 3 ) == "a.cpp" );
+            REQUIRE( cell( 0, 4 ) == "42" );
+            REQUIRE( cell( 0, 5 ) == "true" );
+            REQUIRE( cell( 0, 6 ) == "started" );
             REQUIRE( cell( 1, 0 ) == "2023-11-14 22:13:21.500" );
         }
 
         THEN( "a missing field is an empty cell" )
         {
-            REQUIRE( cell( 1, 4 ).isEmpty() );
-            REQUIRE( cell( 2, 2 ).isEmpty() );
+            REQUIRE( cell( 1, 5 ).isEmpty() );
             REQUIRE( cell( 2, 3 ).isEmpty() );
+            REQUIRE( cell( 2, 4 ).isEmpty() );
         }
 
         THEN( "a line that is not a JSON object is a Row with empty fields" )

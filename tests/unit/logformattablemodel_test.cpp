@@ -61,9 +61,9 @@ SCENARIO( "LogFormatTableModel provides correct column count", "[logformat][tabl
         FakeLogData logData;
         LogFormatTableModel model( format, &logData );
 
-        THEN( "Column count is 4: timestamp, level, host, body" )
+        THEN( "Column count is 5: timestamp, elapsed time, level, host, body" )
         {
-            REQUIRE( model.columnCount() == 4 );
+            REQUIRE( model.columnCount() == 5 );
         }
     }
 }
@@ -80,8 +80,9 @@ SCENARIO( "LogFormatTableModel returns proper column headers", "[logformat][tabl
         {
             // Order must be: timestamp, level, [value fields], body
             REQUIRE( model.headerData( 0, Qt::Horizontal ).toString() == "timestamp" );
-            REQUIRE( model.headerData( 1, Qt::Horizontal ).toString() == "level" );
-            REQUIRE( model.headerData( 2, Qt::Horizontal ).toString() == "host" );
+            REQUIRE( model.headerData( 1, Qt::Horizontal ).toString() == "\u0394t" );
+            REQUIRE( model.headerData( 2, Qt::Horizontal ).toString() == "level" );
+            REQUIRE( model.headerData( 3, Qt::Horizontal ).toString() == "host" );
             REQUIRE( model.headerData( model.columnCount() - 1, Qt::Horizontal ).toString()
                      == "body" );
         }
@@ -116,13 +117,13 @@ SCENARIO( "LogFormatTableModel column order is stable with multiple value fields
         THEN( "Value field columns are sorted alphabetically (fallback)" )
         {
             // Expected order: timestamp, level, alpha, middle, zebra, body
-            REQUIRE( model.columnCount() == 6 );
+            REQUIRE( model.columnCount() == 7 );
             REQUIRE( model.headerData( 0, Qt::Horizontal ).toString() == "timestamp" );
-            REQUIRE( model.headerData( 1, Qt::Horizontal ).toString() == "level" );
-            REQUIRE( model.headerData( 2, Qt::Horizontal ).toString() == "alpha" );
-            REQUIRE( model.headerData( 3, Qt::Horizontal ).toString() == "middle" );
-            REQUIRE( model.headerData( 4, Qt::Horizontal ).toString() == "zebra" );
-            REQUIRE( model.headerData( 5, Qt::Horizontal ).toString() == "body" );
+            REQUIRE( model.headerData( 2, Qt::Horizontal ).toString() == "level" );
+            REQUIRE( model.headerData( 3, Qt::Horizontal ).toString() == "alpha" );
+            REQUIRE( model.headerData( 4, Qt::Horizontal ).toString() == "middle" );
+            REQUIRE( model.headerData( 5, Qt::Horizontal ).toString() == "zebra" );
+            REQUIRE( model.headerData( 6, Qt::Horizontal ).toString() == "body" );
         }
     }
 }
@@ -157,13 +158,13 @@ SCENARIO( "LogFormatTableModel preserves JSON field order when valueFieldOrder i
         THEN( "Value field columns follow JSON insertion order" )
         {
             // Expected order: timestamp, level, zebra, alpha, middle, body
-            REQUIRE( model.columnCount() == 6 );
+            REQUIRE( model.columnCount() == 7 );
             REQUIRE( model.headerData( 0, Qt::Horizontal ).toString() == "timestamp" );
-            REQUIRE( model.headerData( 1, Qt::Horizontal ).toString() == "level" );
-            REQUIRE( model.headerData( 2, Qt::Horizontal ).toString() == "zebra" );
-            REQUIRE( model.headerData( 3, Qt::Horizontal ).toString() == "alpha" );
-            REQUIRE( model.headerData( 4, Qt::Horizontal ).toString() == "middle" );
-            REQUIRE( model.headerData( 5, Qt::Horizontal ).toString() == "body" );
+            REQUIRE( model.headerData( 2, Qt::Horizontal ).toString() == "level" );
+            REQUIRE( model.headerData( 3, Qt::Horizontal ).toString() == "zebra" );
+            REQUIRE( model.headerData( 4, Qt::Horizontal ).toString() == "alpha" );
+            REQUIRE( model.headerData( 5, Qt::Horizontal ).toString() == "middle" );
+            REQUIRE( model.headerData( 6, Qt::Horizontal ).toString() == "body" );
         }
     }
 }
@@ -611,6 +612,141 @@ SCENARIO( "LogFormatTableModel unsupported role returns empty variant",
         THEN( "DecorationRole returns empty variant" )
         {
             REQUIRE_FALSE( model.data( model.index( 0, 0 ), Qt::DecorationRole ).isValid() );
+        }
+    }
+}
+
+namespace {
+
+LogFormatDefinition elapsedFormat( bool withTimestamp = true )
+{
+    LogFormatDefinition def;
+    def.setName( "elapsed_log" );
+    QHash<QString, QString> regex;
+    regex[ "std" ] = R"(^(?<timestamp>\d{2}:\d{2}:\d{2}\.\d{3}) (?<body>.*)$)";
+    def.setRegexPatterns( regex );
+    def.setTimestampField( withTimestamp ? "timestamp" : "" );
+    def.setBodyField( "body" );
+    return def;
+}
+
+QString elapsedCell( const LogFormatTableModel& model, int row )
+{
+    return model.data( model.index( row, 1 ) ).toString();
+}
+
+} // namespace
+
+TEST_CASE( "The elapsed time is shown compactly", "[logformat][tablemodel][elapsed]" )
+{
+    CHECK( LogFormatTableModel::formatElapsed( 0 ) == "+0.000s" );
+    CHECK( LogFormatTableModel::formatElapsed( 4 ) == "+0.004s" );
+    CHECK( LogFormatTableModel::formatElapsed( 999 ) == "+0.999s" );
+    CHECK( LogFormatTableModel::formatElapsed( 1000 ) == "+1.0s" );
+    CHECK( LogFormatTableModel::formatElapsed( 12'300 ) == "+12.3s" );
+    CHECK( LogFormatTableModel::formatElapsed( 59'949 ) == "+59.9s" );
+    CHECK( LogFormatTableModel::formatElapsed( 59'950 ) == "+1m00s" );
+    CHECK( LogFormatTableModel::formatElapsed( 302'000 ) == "+5m02s" );
+    CHECK( LogFormatTableModel::formatElapsed( 3'900'000 ) == "+1h05m" );
+    CHECK( LogFormatTableModel::formatElapsed( 90'000'000 ) == "+1d01h" );
+    CHECK( LogFormatTableModel::formatElapsed( -1000 ) == "-1.0s" );
+    CHECK( LogFormatTableModel::formatElapsed( -4 ) == "-0.004s" );
+}
+
+SCENARIO( "The Table View shows the time elapsed since the previous Log Line with a Timestamp",
+          "[logformat][tablemodel][elapsed]" )
+{
+    GIVEN( "a Log File with a stack trace between timestamped Log Lines" )
+    {
+        const auto format = elapsedFormat();
+        FakeLogData logData;
+        const QStringList lines = {
+            "10:00:00.000 start",  "10:00:00.004 a",     "    at Foo.bar(Foo.java:1)",
+            "    at Foo.baz(Foo.java:2)", "10:00:12.304 b", "10:05:14.304 c",
+            "10:05:13.304 d",
+        };
+        logData.setLines( lines );
+        LogFormatTableModel model( format, &logData );
+        model.setLineCount( static_cast<int>( lines.size() ) );
+
+        THEN( "the column follows the timestamp column" )
+        {
+            REQUIRE( model.columnCount() == 4 );
+            REQUIRE( model.headerData( 1, Qt::Horizontal ).toString() == "Δt" );
+            REQUIRE( model.isElapsedColumn( 1 ) );
+            REQUIRE( !model.isElapsedColumn( 0 ) );
+            REQUIRE( model.data( model.index( 1, 0 ) ).toString() == "10:00:00.004" );
+            REQUIRE( model.data( model.index( 1, 3 ) ).toString() == "a" );
+        }
+
+        THEN( "the first Log Line with a Timestamp has no elapsed time" )
+        {
+            REQUIRE( elapsedCell( model, 0 ).isEmpty() );
+        }
+
+        THEN( "a Log Line is compared with the one before it" )
+        {
+            REQUIRE( elapsedCell( model, 1 ) == "+0.004s" );
+        }
+
+        THEN( "a continuation line has none, and the line after it compares with the one before" )
+        {
+            REQUIRE( elapsedCell( model, 2 ).isEmpty() );
+            REQUIRE( elapsedCell( model, 3 ).isEmpty() );
+            REQUIRE( elapsedCell( model, 4 ) == "+12.3s" );
+        }
+
+        THEN( "long and negative differences keep their unit and sign" )
+        {
+            REQUIRE( elapsedCell( model, 5 ) == "+5m02s" );
+            REQUIRE( elapsedCell( model, 6 ) == "-1.0s" );
+        }
+
+        THEN( "reading the Rows in another order gives the same cells" )
+        {
+            REQUIRE( elapsedCell( model, 6 ) == "-1.0s" );
+            REQUIRE( elapsedCell( model, 4 ) == "+12.3s" );
+            REQUIRE( elapsedCell( model, 1 ) == "+0.004s" );
+        }
+    }
+
+    GIVEN( "a stack trace longer than the look-back" )
+    {
+        const auto format = elapsedFormat();
+        FakeLogData logData;
+        QStringList lines = { "10:00:00.000 start" };
+        for ( uint64_t i = 1; i < LogFormatTableModel::ElapsedLookBack; ++i ) {
+            lines << "    at frame";
+        }
+        lines << "10:00:01.000 within";
+        lines << "    at frame";
+        for ( uint64_t i = 0; i < LogFormatTableModel::ElapsedLookBack; ++i ) {
+            lines << "    at frame";
+        }
+        lines << "10:00:02.000 beyond";
+        logData.setLines( lines );
+        LogFormatTableModel model( format, &logData );
+        model.setLineCount( static_cast<int>( lines.size() ) );
+
+        THEN( "the bound is inclusive, and beyond it the cell stays empty" )
+        {
+            REQUIRE( elapsedCell( model, static_cast<int>( LogFormatTableModel::ElapsedLookBack ) )
+                     == "+1.0s" );
+            REQUIRE( elapsedCell( model, static_cast<int>( lines.size() ) - 1 ).isEmpty() );
+        }
+    }
+
+    GIVEN( "a Log Format without a timestamp field" )
+    {
+        const auto format = elapsedFormat( false );
+        FakeLogData logData;
+        LogFormatTableModel model( format, &logData );
+
+        THEN( "there is no elapsed column" )
+        {
+            REQUIRE( model.columnCount() == 2 );
+            REQUIRE( !model.isElapsedColumn( 1 ) );
+            REQUIRE( model.headerData( 1, Qt::Horizontal ).toString() == "body" );
         }
     }
 }

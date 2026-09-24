@@ -203,18 +203,18 @@ SCENARIO( "The Table View shows the fields of logfmt Log Lines", "[logformat][lo
 
         THEN( "each declared key is a column, whatever the order of keys in the line" )
         {
-            REQUIRE( cell( 0, 1 ) == "info" );
-            REQUIRE( cell( 0, 2 ) == "8080" );
-            REQUIRE( cell( 0, 3 ) == "server started" );
-            REQUIRE( cell( 1, 1 ) == "warn" );
-            REQUIRE( cell( 1, 2 ) == "9090" );
-            REQUIRE( cell( 1, 3 ) == R"(said "hi" to \ you)" );
+            REQUIRE( cell( 0, 2 ) == "info" );
+            REQUIRE( cell( 0, 3 ) == "8080" );
+            REQUIRE( cell( 0, 4 ) == "server started" );
+            REQUIRE( cell( 1, 2 ) == "warn" );
+            REQUIRE( cell( 1, 3 ) == "9090" );
+            REQUIRE( cell( 1, 4 ) == R"(said "hi" to \ you)" );
         }
 
         THEN( "a missing key is an empty cell" )
         {
-            REQUIRE( cell( 2, 2 ).isEmpty() );
             REQUIRE( cell( 2, 3 ).isEmpty() );
+            REQUIRE( cell( 2, 4 ).isEmpty() );
         }
 
         THEN( "a line that is not logfmt is a Row with empty fields" )

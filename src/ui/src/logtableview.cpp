@@ -38,6 +38,7 @@
 #include "clipboard.h"
 #include "linessaver.h"
 #include "logfiltereddata.h"
+#include "logdata.h"
 #include "logformattablemodel.h"
 #include "logtablehighlightdelegate.h"
 #include "overview.h"
@@ -194,6 +195,9 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
     const auto lineCount = logData_->getNbLine().get();
     const int lineCountInt
         = static_cast<int>( std::min( lineCount, static_cast<uint64_t>( INT_MAX ) ) );
+    if ( const auto* file = dynamic_cast<const LogData*>( logData_ ) ) {
+        model_->setModificationDate( file->getLastModifiedDate().date() );
+    }
     model_->setLineCount( lineCountInt );
     const bool hasRows = model_->rowCount() > 0;
 
@@ -698,9 +702,10 @@ void LogTableView::showHeaderContextMenu( const QPoint& pos )
         return;
     }
     const auto* header = horizontalHeader();
-    const auto fieldName
-        = model_->headerData( header->logicalIndexAt( pos ), Qt::Horizontal ).toString();
-    if ( fieldName.isEmpty() ) {
+    const auto column = header->logicalIndexAt( pos );
+    const auto fieldName = model_->headerData( column, Qt::Horizontal ).toString();
+    // The elapsed time is no field of the Log Format: there is nothing to count.
+    if ( fieldName.isEmpty() || model_->isElapsedColumn( column ) ) {
         return;
     }
 
