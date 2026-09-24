@@ -818,7 +818,10 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
 
             THEN( "Saving writes back every value unchanged" )
             {
-                const auto stored = storedSettings( config );
+                auto stored = storedSettings( config );
+                // Settings added after v26.07.0 are not in its file; loading it
+                // leaves them at their default.
+                stored.remove( "defaultView.searchWindowMinutes" );
                 CHECK( stored.keys() == release.keys() );
                 for ( const auto& key : release.keys() ) {
                     // The stored family is the one the platform resolves.
