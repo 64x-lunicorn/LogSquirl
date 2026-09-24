@@ -221,6 +221,7 @@ private Q_SLOTS:
 
     // Update quick find searchable
     void handleFilteredViewChanged();
+    void showStatusMessage( QString message );
 
     // Close the tab with the passed index
     void closeTab( int index, ActionInitiator initiator );

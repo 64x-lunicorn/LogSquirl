@@ -200,6 +200,9 @@ MainWindow::MainWindow( WindowSession session,
     signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus ) ), this,
                         SLOT( handleLoadingFinished( LoadingStatus ) ) );
 
+    signalMux_.connect( SIGNAL( statusMessage( QString ) ), this,
+                        SLOT( showStatusMessage( QString ) ) );
+
     signalMux_.connect( SIGNAL( filteredViewChanged() ), this,
                         SLOT( handleFilteredViewChanged() ) );
 
@@ -2287,6 +2290,11 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
     }
 
     // mainTabWidget_.setEnabled( true );
+}
+
+void MainWindow::showStatusMessage( QString message )
+{
+    statusBar()->showMessage( message, 8000 );
 }
 
 void MainWindow::handleFilteredViewChanged()

@@ -131,6 +131,9 @@ public:
     // Why "Go to timestamp" is not available for this Log File, empty when it
     // is: it needs a recognized Log Format with a timestamp field.
     QString goToTimestampUnavailableReason() const;
+    // Said in the status bar when a time lookup landed among Timestamps that
+    // are not in time order.
+    static QString notInTimeOrderNotice();
     //! The reader for the current Log Format, built on demand; nullptr when there is none.
     //! Never keep it across a modal dialog: the Log Format can be reset meanwhile.
     TimestampReader* currentTimestampReader() const;
@@ -237,6 +240,9 @@ Q_SIGNALS:
 
     // Sent up when the current filtered view has been changed
     void filteredViewChanged();
+
+    // A short note for the status bar.
+    void statusMessage( QString message );
 
 public Q_SLOTS:
     // Apply a list of predefined filters as the current search pattern.

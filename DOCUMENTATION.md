@@ -132,10 +132,14 @@ timestamp, it goes to the first or last line and tells you so.
 The action needs a Log File with a recognized Log Format that has a timestamp
 field (see [Auto Log Format Detection](#auto-log-format-detection-table-view));
 otherwise it is disabled and its tooltip says why. Lines without a timestamp,
-such as stack traces, are skipped. Timestamps are compared as written: a time
-zone in the log is not converted, so type the time as it appears in the file.
-The search assumes the file is in time order; if it is not, the line found is
-only approximate.
+such as stack traces, are skipped. A time zone offset written in the log
+(`+02:00`, `Z`) is honoured: the timestamp counts as the instant it names, in
+UTC. A timestamp without one is compared as written, so type the time as it
+appears in the file. A timestamp without a year (syslog) takes the year of the
+file's modification date, or the year before when its month and day lie later
+in the year. The search assumes the file is in time order; if it is not, the
+line found is only approximate, and the status bar says so when the timestamps
+around it are out of order.
 
 #### Search limits by time
 

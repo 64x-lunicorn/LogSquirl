@@ -27,6 +27,7 @@
 #include <QTimeZone>
 
 #include <algorithm>
+#include <vector>
 
 namespace timelookup {
 
@@ -51,10 +52,45 @@ std::optional<Found> firstTimestampFrom( uint64_t start, uint64_t end,
     return std::nullopt;
 }
 
-} // namespace
+// Whether the Timestamps in a window around a line are out of time order.
+bool isOutOfOrderAround( uint64_t line, uint64_t count, const TimestampAt& timestampAt )
+{
+    std::vector<QDateTime> before;
+    const auto lowest = line > OrderScanLines ? line - OrderScanLines : 0;
+    for ( auto probe = line; probe > lowest && before.size() < OrderWindow; ) {
+        --probe;
+        if ( auto timestamp = timestampAt( LineNumber( probe ) ) ) {
+            before.push_back( std::move( *timestamp ) );
+        }
+    }
+    std::reverse( before.begin(), before.end() );
 
-std::optional<Result> firstLineAtOrAfter( const QDateTime& time, LinesCount lineCount,
-                                          const TimestampAt& timestampAt )
+    auto previous = std::optional<QDateTime>();
+    if ( !before.empty() ) {
+        for ( const auto& timestamp : before ) {
+            if ( previous && *previous > timestamp ) {
+                return true;
+            }
+            previous = timestamp;
+        }
+    }
+
+    size_t taken = 0;
+    const auto stop = std::min( count, line + OrderScanLines );
+    for ( auto probe = line; probe < stop && taken < OrderWindow; ++probe ) {
+        if ( auto timestamp = timestampAt( LineNumber( probe ) ) ) {
+            if ( previous && *previous > *timestamp ) {
+                return true;
+            }
+            previous = std::move( timestamp );
+            ++taken;
+        }
+    }
+    return false;
+}
+
+std::optional<Result> binarySearch( const QDateTime& time, LinesCount lineCount,
+                                   const TimestampAt& timestampAt )
 {
     const auto count = lineCount.get();
     if ( count == 0 ) {
@@ -90,6 +126,18 @@ std::optional<Result> firstLineAtOrAfter( const QDateTime& time, LinesCount line
         return Result{ LineNumber( 0 ), Position::BeforeFirst };
     }
     return Result{ LineNumber( found->line ), Position::AtOrAfter };
+}
+
+} // namespace
+
+std::optional<Result> firstLineAtOrAfter( const QDateTime& time, LinesCount lineCount,
+                                          const TimestampAt& timestampAt )
+{
+    auto result = binarySearch( time, lineCount, timestampAt );
+    if ( result ) {
+        result->outOfOrder = isOutOfOrderAround( result->line.get(), lineCount.get(), timestampAt );
+    }
+    return result;
 }
 
 std::optional<QDateTime> timestampNear( LineNumber line, LinesCount lineCount,
@@ -175,6 +223,7 @@ LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTi
     result.outcome = Outcome::Limits;
     result.start = start->line;
     result.end = endLine;
+    result.outOfOrder = start->outOfOrder || end->outOfOrder;
     return result;
 }
 

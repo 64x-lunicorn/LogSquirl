@@ -299,6 +299,11 @@ QString CrawlerWidget::goToTimestampUnavailableReason() const
     return {};
 }
 
+QString CrawlerWidget::notInTimeOrderNotice()
+{
+    return tr( "The Log File is not in time order here: the position may be off." );
+}
+
 QString CrawlerWidget::searchLimitsByTimeUnavailableReason() const
 {
     if ( !recognizedFormat_ ) {
@@ -321,7 +326,10 @@ TimestampReader* CrawlerWidget::currentTimestampReader() const
         return nullptr;
     }
     if ( !timestampReader_ ) {
-        timestampReader_ = std::make_unique<TimestampReader>( *recognizedFormat_ );
+        // The year of a timestamp without one comes from when the Log File was
+        // last written.
+        timestampReader_ = std::make_unique<TimestampReader>(
+            *recognizedFormat_, 0, openLogFile_->logData()->getLastModifiedDate().date() );
     }
     return timestampReader_.get();
 }
@@ -423,6 +431,9 @@ void CrawlerWidget::setSearchLimitsFromTimes( const QDateTime& start, const QDat
     case Outcome::Limits:
         // From here on ordinary Search Limits, lines like any others.
         setSearchLimits( result.start, result.end );
+        if ( result.outOfOrder ) {
+            Q_EMIT statusMessage( notInTimeOrderNotice() );
+        }
         return;
     case Outcome::BeforeFile:
         QMessageBox::information( this, title,
@@ -503,6 +514,9 @@ void CrawlerWidget::goToTimestamp()
 
     filteredView_->trySelectLine( result->line );
     presentation_->showLogLine( result->line );
+    if ( result->outOfOrder ) {
+        Q_EMIT statusMessage( notInTimeOrderNotice() );
+    }
 
     switch ( result->position ) {
     case timelookup::Position::BeforeFirst:
@@ -1048,6 +1062,10 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
     // The Search Limits are the whole Log File again; every view shows it.
     viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
+
+    // The modification date, which gives a timestamp without a year its year,
+    // has moved on.
+    timestampReader_.reset();
 
     // Also change the data available icon
     if ( !load.fromStart ) {

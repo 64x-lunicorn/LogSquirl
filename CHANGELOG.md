@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **Time lookups honour time zones and years**: a time zone offset written in a
+  log (`+02:00`, `Z`) now counts in Go to timestamp and the time search
+  limits, a timestamp without a year (syslog) takes it from the Log File's
+  modification date so a file across New Year stays in order, and the status
+  bar says when the timestamps around the found line are not in time order
+  (#485, ADR 0010).
 - **The user guide covers the features the app has**: `DOCUMENTATION.md`, the
   guide behind Help->Documentation, now describes installing with Homebrew or
   apt, the Dashboard, Tab groups, Plugins (linking the Plugin SDK guide) and

@@ -1,0 +1,16 @@
+# A written offset counts, and a missing year comes from the Log File's modification date
+
+Until #485 a Timestamp was "the clock time as if it were UTC": `TimestampReader` read a written zone (`Z`, `+0100`, `-07:00`, `PDT`) and threw it away. The rule was simple, and it was written into the reader's header on purpose, as "compared as written". It is wrong exactly where Log Files are hard to read: one that mixes `+02:00` and `Z` (a service that logs in local time next to one that logs in UTC) is not in time order under it, and the lookup ("Go to timestamp", the time Search Limits) lands on an arbitrary line. A format without a year had the same problem in another place: it took the current year, so a syslog file that runs across New Year went from `Dec 31` of this year to `Jan 1` of this year, one year backwards.
+
+## Decision
+
+1. **A written offset counts.** A Timestamp with an offset (`+02:00`, `+0200`, `+02`, `-0400`) or a zone that is UTC by name (`Z`, `UTC`, `GMT`, `UT`) is converted to the UTC instant it names, so `2026-09-24T10:00:00+02:00` and `2026-09-24T08:00:00Z` are equal. This reverses the rule the reader's header documented until now.
+2. **What has no zone keeps its meaning.** A Timestamp without a zone is its clock time, compared as written, as if it were UTC. The same goes for a zone name that carries no offset of its own (`PDT`, `CET`): the abbreviations are ambiguous (`CST` is three different zones), so guessing one would be worse than not converting. Such a Log File keeps working the way it did.
+3. **The year of a year-less timestamp comes from the Log File's modification date.** A month and day later in the year than the modification date belong to the previous year (the usual syslog rule); the rest are in the modification date's year. That keeps the lookup a plain binary search: no neighbouring lines are read to detect a wrap. The caller hands the modification date to `TimestampReader`; the reader does not look at files itself. Without a date it takes the reference year it was given, or the current year.
+4. **A Log File that is not in time order says so.** The lookup checks a small window of Timestamps (`timelookup::OrderWindow` on each side of the result) after the search. If they are out of order it still goes to the line, and reports `outOfOrder`; the crawler says in the status bar that the position may be off. Nothing is scanned linearly: the check is bounded, and a disorder far from the result is not looked for.
+
+## Consequences
+
+- A Timestamp is now a UTC instant where the Log File says which. Times a user types (`14:02`) are still clock times without a zone, so on a Log File written with offsets they mean the UTC clock of that instant, not the local one of the writer. A setting for the zone is deliberately not part of this.
+- The modification date is that of the moment the Log File was loaded. A Log File copied or touched later than it was written gives the wrong year for lines more than a year old; that is the price of not reading neighbours, and the same as syslog's own rule.
+- The Table View's elapsed-time column (#462) reads the same Timestamps, so it is right in the same places: across New Year, and across zones.

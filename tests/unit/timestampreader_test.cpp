@@ -117,15 +117,32 @@ TEST_CASE( "The Timestamp reader reads the point in time as written", "[logforma
                == asWritten( 2020, 8, 6, 14, 25, 2, 835 ) );
     }
 
-    SECTION( "a zone that is written is not converted" )
+    SECTION( "a written offset names the UTC instant" )
     {
         const auto reader = readerOf( "access_log" );
-        const auto west = reader.timestampOf(
-            "10.0.0.1 - - [11/Feb/2013:06:43:36 -0700] \"GET / HTTP/1.1\" 200 5 \"-\" \"x\"" );
-        const auto east = reader.timestampOf(
-            "10.0.0.1 - - [11/Feb/2013:06:43:36 +0100] \"GET / HTTP/1.1\" 200 5 \"-\" \"x\"" );
-        CHECK( west == asWritten( 2013, 2, 11, 6, 43, 36 ) );
-        CHECK( east == west );
+        const auto line = []( const char* zone ) {
+            return QStringLiteral( "10.0.0.1 - - [11/Feb/2013:06:43:36 %1] \"GET / HTTP/1.1\" 200 5 "
+                                   "\"-\" \"x\"" )
+                .arg( QLatin1String( zone ) );
+        };
+        CHECK( reader.timestampOf( line( "-0700" ) ) == asWritten( 2013, 2, 11, 13, 43, 36 ) );
+        CHECK( reader.timestampOf( line( "+0100" ) ) == asWritten( 2013, 2, 11, 5, 43, 36 ) );
+        CHECK( reader.timestampOf( line( "+0530" ) ) == asWritten( 2013, 2, 11, 1, 13, 36 ) );
+        // A name that carries no offset is read as written.
+        CHECK( reader.timestampOf( line( "PDT" ) ) == asWritten( 2013, 2, 11, 6, 43, 36 ) );
+    }
+
+    SECTION( "an offset and Z name the same instant" )
+    {
+        const auto reader = readerOf( "spdlog_log" );
+        CHECK( reader.parseField( u"2026-09-24T10:00:00+02:00" )
+               == reader.parseField( u"2026-09-24T08:00:00Z" ) );
+        CHECK( reader.parseField( u"2026-09-24T10:00:00+0200" )
+               == asWritten( 2026, 9, 24, 8, 0, 0 ) );
+        CHECK( reader.parseField( u"2026-09-24T02:00:00-06:00" )
+               == asWritten( 2026, 9, 24, 8, 0, 0 ) );
+        // No zone: the clock time as written.
+        CHECK( reader.parseField( u"2026-09-24T08:00:00" ) == asWritten( 2026, 9, 24, 8, 0, 0 ) );
     }
 
     SECTION( "a format without a year takes the reference year" )
@@ -162,6 +179,35 @@ TEST_CASE( "The Timestamp reader reads the point in time as written", "[logforma
                == asWritten( 2026, 9, 23, 14, 2, 3 ) );
         CHECK( reader.timestampOf( "23.09.2026 a" ) == asWritten( 2026, 9, 23, 0, 0, 0 ) );
     }
+}
+
+TEST_CASE( "A format without a year takes it from the modification date of the Log File",
+           "[logformat][timestamp]" )
+{
+    LogFormatCatalog catalog;
+    catalog.rebuild();
+    const auto& syslog = *catalog.allFormats().value( QStringLiteral( "syslog_log" ) );
+    const TimestampReader reader( syslog, 0, QDate( 2027, 1, 5 ) );
+    const auto line = []( const char* stamp ) {
+        return QStringLiteral( "%1 host prog: message" ).arg( QLatin1String( stamp ) );
+    };
+
+    // Later in the year than the modification date: the year before.
+    CHECK( reader.timestampOf( line( "Dec 31 23:59:59" ) ) == asWritten( 2026, 12, 31, 23, 59, 59 ) );
+    CHECK( reader.timestampOf( line( "Jan  6 00:00:00" ) ) == asWritten( 2026, 1, 6, 0, 0, 0 ) );
+    // Up to the modification date: its year.
+    CHECK( reader.timestampOf( line( "Jan  1 00:00:01" ) ) == asWritten( 2027, 1, 1, 0, 0, 1 ) );
+    CHECK( reader.timestampOf( line( "Jan  5 12:00:00" ) ) == asWritten( 2027, 1, 5, 12, 0, 0 ) );
+
+    // A Log File from December to January stays in time order.
+    const auto december = reader.timestampOf( line( "Dec 31 23:59:59" ) );
+    const auto january = reader.timestampOf( line( "Jan  1 00:00:01" ) );
+    REQUIRE( ( december && january ) );
+    CHECK( *december < *january );
+
+    // Written in the middle of the year, nothing moves back.
+    const TimestampReader summer( syslog, 0, QDate( 2026, 9, 24 ) );
+    CHECK( summer.timestampOf( line( "Apr 28 04:02:03" ) ) == asWritten( 2026, 4, 28, 4, 2, 3 ) );
 }
 
 TEST_CASE( "The Timestamp reader has none for what carries no Timestamp", "[logformat][timestamp]" )

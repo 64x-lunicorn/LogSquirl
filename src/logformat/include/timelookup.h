@@ -52,7 +52,17 @@ enum class Position {
 struct Result {
     LineNumber line{ 0 };
     Position position = Position::NoTimestamps;
+    // The Timestamps around the line are not in time order: the search
+    // assumes the order, so the line may be off. Checked over a small window
+    // (OrderWindow Timestamps on each side), not the whole Log File.
+    bool outOfOrder = false;
 };
+
+// How many Log Lines with a Timestamp are looked at on each side of a result
+// to see whether the Log File is in time order there, and how far to look for
+// them.
+constexpr size_t OrderWindow = 8;
+constexpr uint64_t OrderScanLines = 200;
 
 // How far a probe looks for a Log Line with a Timestamp among Log Lines
 // without one (a stack trace) before it counts the stretch as having none.
@@ -61,8 +71,9 @@ constexpr uint64_t MaxLinesWithoutTimestamp = 5'000;
 // The first Log Line, among lineCount, whose Timestamp is at or after time.
 // Log Lines without a Timestamp are skipped by scanning to the nearest one
 // that has one. A Log File that is not in time order gives an approximate
-// answer: the binary search assumes the order, and does not check it. The
-// Log Lines are read O(log n) times; none if lineCount is 0.
+// answer: the binary search assumes the order, and only afterwards checks a
+// window of Timestamps around the result (Result::outOfOrder). The Log Lines
+// are read O(log n) times, plus the window; none if lineCount is 0.
 std::optional<Result> firstLineAtOrAfter( const QDateTime& time, LinesCount lineCount,
                                           const TimestampAt& timestampAt );
 
@@ -98,6 +109,8 @@ struct LimitsResult {
     Outcome outcome = Outcome::NoTimestamps;
     LineNumber start{ 0 };
     LineNumber end{ 0 };
+    // Either search landed among Timestamps out of time order.
+    bool outOfOrder = false;
 };
 
 // Converts a time range to Search Limits: start is the first Log Line with a
