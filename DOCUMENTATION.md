@@ -3,9 +3,14 @@
 ## Table of Contents
 
 1. [Getting started](#Getting-started)
+   - [Installing](#installing)
+   - [The Dashboard](#the-dashboard)
 1. [Exploring log files](#Exploring-log-files)
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
+   - [Tab groups](#tab-groups)
+1. [The menu bar](#the-menu-bar)
+1. [Plugins](#Plugins)
 1. [Settings](#Settings)
 1. [Keyboard commands](#Keyboard-commands)
 1. [Command line options](#Command-line-options)
@@ -28,6 +33,29 @@ Entering a new regular expression or a simple search term will update
 the bottom view, displaying the results of the search. The lines
 matching the search criteria are listed in order in the results, and are
 marked with a red circle in both windows.
+
+### Installing
+
+Download the package for your platform from the
+[release page](https://github.com/64x-lunicorn/LogSquirl/releases/latest):
+the NSIS installer for Windows, the DMG for macOS (Apple Silicon, macOS 15 or
+later) or an AppImage, DEB or RPM for Linux. Two package managers keep
+*logsquirl* up to date for you:
+
+- On a Mac, with [Homebrew](https://brew.sh/):
+  `brew install --cask 64x-lunicorn/tap/logsquirl`, then `brew upgrade`.
+- On Ubuntu 24.04 (amd64), with the LogSquirl APT repository, which holds the
+  last three stable releases and no betas, then `apt upgrade`. The commands
+  that add the repository are in the
+  [README](https://github.com/64x-lunicorn/LogSquirl#readme).
+
+### The Dashboard
+
+When *Show dashboard on startup* is enabled (`Settings->General`, it is by
+default), the first tab is the Dashboard, which cannot be closed. It shows the
+buttons *Open File* and *Load Session*, cards for your recent files, your
+favorites and the status of your plugins, and the hint that log files can be
+dropped on it to open them. Selecting a file in a card opens it.
 
 ## Exploring log files
 
@@ -188,6 +216,16 @@ or simple text search.
 It is possible to save the current search pattern as a predefined filter from
 search input context menu.
 
+Predefined filters are kept in filter groups. The dialog lists the groups
+(*New Filter Group*, *Delete Filter Group*, *Move Group Up* and *Move Group Down*);
+the Default group always exists and cannot be deleted. Groups are exchanged
+the same way as highlighter sets: *Export* writes the selected group only, to a
+file named `<name>_filter.conf` by default, and *Import* reads every group of
+the selected files, asking *Replace*, *Keep both* or *Skip* when a group of the
+same id or name exists (see [Using highlighters](#using-highlighters)). A group
+that carries the id of the Default group never replaces your Default group; it
+arrives as a group of its own.
+
 ### Importing filters from Chipmunk
 
 *logsquirl* can import filters and highlighters from Chipmunk JSON export files.
@@ -202,7 +240,7 @@ a color with a certain type of event.
 
 Highlighters are grouped into sets. One set of highlighters can be active
 at any given time. The current active set can be selected using either the
-context menu or the `Tools->Highlighters` menu.
+context menu or the `Highlighters` menu.
 
 Any number of highlighters can be defined in a single set.
 Highlighter configuration includes a regular expression to match
@@ -226,10 +264,20 @@ The order of highlighters in the set and the order of sets in configuration is i
 For each line all highlighters are tried from bottom to top. Each new matching 
 highlighter overrides colors for the current line. 
 
-Highlighter configuration can be exported to a file and 
-imported on another machine. Each set is identified
-by unique id. Only new sets are imported from the file. Please export the file
-with a `.conf` extension to ensure *logsquirl* will be able to import it.
+The highlighter editor offers 20 ready-made color pairs, 12 soft pastels with
+dark text and 8 strong colors with white text; one click sets both the text
+and the background color.
+
+A highlighter set can be handed to someone else: select it in the
+`Highlighters` dialog and use *Export*, which writes that one set to a file
+and proposes a file name from the set's name (`<name>_highlighter.conf`). Keep
+the `.conf` extension so that *logsquirl* can import the file. *Import* reads
+every set in the selected files. Each set is identified by a unique id. When a
+set with the same id, or just the same name, already exists you choose
+*Replace* (the existing set keeps its position and id, so an active set stays
+active), *Keep both* (the new set gets the first free name `<name> (n)`) or
+*Skip*, for that set or for all remaining conflicts. A file that cannot be
+read or holds no set is reported. Nothing takes effect before OK or Apply.
 
 ### Color labels
 
@@ -271,12 +319,20 @@ Format definitions are JSON files compatible with the
 [lnav](https://lnav.org/) log format specification. Each file describes one
 or more formats with:
 
-- **Regex patterns** — named capture groups define the fields
+- **File type** — `"file-type": "json"` marks a format for log files whose
+  lines are JSON objects (NDJSON, Bunyan, Pino). Its fields are the members
+  named by the `value` definitions, one column each in that order; a name can
+  address a nested member by path (`src/file`). A line that is not a JSON
+  object still gets a row, with empty fields, and the text view keeps the raw
+  line. No JSON format is shipped, bring your own. A format without it is a
+  regex format.
+- **Regex patterns** — for regex formats, named capture groups define the fields
   (e.g. `(?<timestamp>...)`, `(?<level>...)`, `(?<body>...)`).
 - **Value definitions** — metadata for custom fields (kind, hidden flag,
   identifier flag).
 - **Timestamp format** — strftime-style pattern for parsing the timestamp
-  field.
+  field. An epoch timestamp (`%s`) is divided by the format's
+  `timestamp-divisor` to get seconds (for example 1000 for milliseconds).
 - **Level mapping** — maps format-specific level strings to standard
   severity levels.
 
@@ -416,6 +472,21 @@ the other sources stay. A source that is deleted contributes nothing until it
 exists again and changes. The merged file is a temporary file, removed when
 the window closes; it is not restored with the session.
 
+### Tab groups
+
+Open tabs can be organized into named, colored groups. Right-click a tab and
+choose `Add to Group` to put it into an existing group or into a `New Group...`
+(you are asked for a name and a color). A grouped tab shows a colored bullet
+before its name and its text is tinted in the group's color. `Remove from Group`
+takes a tab out again. For a grouped tab the context menu also has a `Group:`
+submenu with `Rename Group...`, `Change Group Color...`, `Close All in Group`
+and `Ungroup All`.
+
+`Tools->Manage Tab Groups...` opens a dialog listing the groups with their
+color, name and number of tabs, to rename, recolor or delete them without going
+through a tab. Group membership is remembered by the file's path and restored
+with the session.
+
 ### Filters Panel
 
 The Filters Panel is a right sidebar dock that provides quick access to filters
@@ -444,6 +515,67 @@ The Scratchpad includes a JWT (JSON Web Token) decoder. When a JWT is pasted
 into the Scratchpad, it can decode the Base64URL-encoded header and payload,
 format the JSON with indentation, and annotate epoch timestamp fields
 (`iat`, `exp`, `nbf`, `auth_time`) with human-readable UTC dates.
+
+## The menu bar
+
+Most of the menu bar is described where its feature is explained; this is the
+whole list, with what the entries not explained elsewhere do.
+
+- **File**: `New window`, `Open...`, `Open from clipboard` and
+  `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
+  with `Clear List`, `Close`, `Close All`, `Preferences...` and `Exit`.
+- **Edit**: `Copy`, `Select All`, `Find...` (the QuickFind bar), `Go to line...`
+  and `Go to timestamp...`, then `Copy full path` (of the current file to the
+  clipboard), `Open containing folder`, `Open in editor` (in the default
+  editor of the system) and `Clear file...`. `Clear file...` asks first and then
+  empties the file on disk; this cannot be undone.
+- **View**: `Opened files` (see
+  [Switching between opened files](#switching-between-opened-files)),
+  `Matches overview`, `Line numbers in main view`,
+  `Line numbers in filtered view`, `Wrap text`, `Follow File`, `Reload`,
+  `Chart Panel` and `Show Filter Frequency`, which charts how often the current
+  search matched, one series for every alternative of the search pattern (it
+  does nothing while the search line is empty).
+- **Tools**: `Predefined filters...`, `Import Chipmunk filters...`,
+  `Manage Tab Groups...`, `Scratchpad` and `Filters panel`.
+- **Highlighters**: `Configure highlighters...` and the list of highlighter
+  sets to activate (see [Using highlighters](#using-highlighters)).
+- **Encoding**: see [Encodings](#encodings).
+- **Favorites**: `Add to favorites` and `Remove from favorites...`, followed by
+  the favorite files, which open when chosen.
+- **Plugins** and **Sources**: see [Plugins](#plugins).
+- **Help**: `Documentation...` (this guide), `Report issue...` (opens a bug
+  report on GitHub), `Generate crash dump` (after a confirmation, shuts
+  *logsquirl* down and produces a diagnostic crash dump, see
+  [Crash reporting](#crash-reporting)), `About` and `About Qt`.
+
+The toolbar has the buttons `Open`, `Reload`, `Follow File` and
+`Add to favorites`, the information about the current file (size, modification
+date, encoding and the line number of the selection), `Stop` to stop a running
+load, and a button that shows or hides the sidebar.
+
+## Plugins
+
+Plugins extend *logsquirl*. There are three kinds: *data source* plugins stream
+log lines into a tab, *converter* plugins turn a file format into plain text
+before it is shown, and *UI extension* plugins add menu items, status bar
+widgets or panels. How to write one is described in the
+[Plugin SDK guide](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/plugin-sdk.md).
+
+`Plugins->Manage Plugins...` opens the Plugin Management dialog. It lists the
+plugins in the catalog and the ones installed on your machine under the tabs
+*All*, *Installed* and *Updates*, and can be searched. Each plugin offers
+*Install* (or *Update*) and *Enable* or *Disable*. With *Auto-load enabled
+plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
+*Plugin Folder* opens the directory user plugins are installed to. The catalog
+is fetched when the dialog opens; if that fails, the error is shown in the
+status line at the bottom. Menu items that a UI extension plugin adds appear
+in the `Plugins` menu, above `Manage Plugins...`.
+
+The `Sources` menu lists the installed data source plugins. Choosing one loads
+the plugin if needed and starts it; the stream opens as a new tab in the window
+you chose it in. Without a data source plugin the menu says
+"(no data source plugins)".
 
 ## Settings
 
@@ -483,6 +615,13 @@ immediately perform search when pattern is update from context menu.
 *   Minimize to tray -- if enabled, *logsquirl* will minimize to tray instead
     of closing main window. Use tray icon context menu of `File->Exit`
     to exit application. This option is not available on Mac OS.
+*   Show splash screen on startup -- if enabled, a splash screen with the
+    application icon and version is shown while *logsquirl* starts.
+*   Show dashboard on startup -- if enabled, the [Dashboard](#the-dashboard)
+    is the first tab.
+*   Confirm before closing tabs -- if enabled, closing one tab or several asks
+    first. The question has a "Don't ask again" box; this option turns it back
+    on.
 *   Enable multiple windows -- if enabled *logsquirl* will allow opening
     more than one main window using `File->New window`. In this mode last
     closed windows will be saved to open session on next *logsquirl* start.
@@ -539,6 +678,16 @@ A theme can be extended with a stylesheet of your own: put a `.qss` file named
 after the theme (`fusion-light.qss`, `dark.qss`, `high-contrast.qss`,
 `smyck.qss` or `smyck-light.qss`) into the `themes` directory of the
 configuration directory, and it is appended to the theme's stylesheet.
+
+#### Language
+
+*logsquirl* is translated into English, German (Deutsch), Spanish (Español),
+French (Français), Brazilian Portuguese (Português (Brasil)), European
+Portuguese (Português (Portugal)), Ukrainian (Українська), Simplified Chinese
+(中文 (简体)) and Traditional Chinese (中文 (繁體)). Choose the language under
+`Settings->View->Language`. When you press OK or Apply with another language,
+*logsquirl* tells you that it needs to be restarted to apply the change, so
+restart it to have every part of the interface in the new language.
 
 #### High DPI
 
@@ -653,6 +802,7 @@ The main commands are:
 |G               |jump to the first line of the file (selecting it)                 |
 |Shift+G         |jump to the last line of the file (selecting it)                  |
 |Alt+G           |show jump to line dialog                                          |
+|Ctrl+Shift+L    |show go to timestamp dialog                                       |
 |' or "          |start a quickfind search in the current screen                    |
 |                |(forward and backward)                                            |
 |n or N          |repeat the previous quickfind search forward/backward             |

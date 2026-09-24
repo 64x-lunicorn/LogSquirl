@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **The user guide covers the features the app has**: `DOCUMENTATION.md`, the
+  guide behind Help->Documentation, now describes installing with Homebrew or
+  apt, the Dashboard, Tab groups, Plugins (linking the Plugin SDK guide) and
+  the Sources menu, the language setting and its restart, every entry of the
+  menu bar, Filter Group and Highlighter Set exchange, the Highlighter color
+  presets and JSON Log Formats. The Highlighters menu is a menu of its own,
+  not part of Tools (#433).
 - **JSON Log Files get a Table View**: Log Formats now understand
   `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
   objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
