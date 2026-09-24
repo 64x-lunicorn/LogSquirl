@@ -368,20 +368,23 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
-  # Sanitizers — ASan + UBSan build of the test suites in the Noble
-  # container. Runs alongside the Linux matrix; no packaging, only the test report.
+  # Sanitizers — ASan + UBSan and TSan builds of the test suites in the Noble
+  # container. Runs alongside the Linux matrix; no packaging, only the test
+  # report. ASan and TSan cannot share one binary, hence one build each (#439).
   # -----------------------------------------------------------------------
   Sanitizers:
-    name: Sanitizers / asan-ubsan
+    name: Sanitizers / ${{ matrix.config.artifacts_id }}
     needs: [Changes]
     if: "needs.Changes.outputs.build == 'true'"
     strategy:
+      fail-fast: false
       matrix:
         config:
-          # Single-entry matrix so the shared composite actions (which read
-          # matrix.config.*) work unchanged.
+          # Entries shaped like the Linux matrix so the shared composite
+          # actions (which read matrix.config.*) work unchanged.
           - arch: x64
-            artifacts_id: asan
+            artifacts_id: asan-ubsan
+            sanitizers: ASan/UBSan
             container_root: docker/ubuntu24.04
             image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
             # Sentry/crashpad is a release concern and its own crash handler
@@ -391,6 +394,21 @@ jobs:
             cmake_opts: >-
               -DENABLE_SANITIZER_ADDRESS=ON
               -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON
+              -DLOGSQUIRL_USE_SENTRY=OFF
+              -DLOGSQUIRL_USE_LTO=OFF
+          # Blocking, like asan-ubsan: a data race in the oneTBB flow graphs
+          # (indexing, search) is the fault class ASan cannot see (#439). The
+          # suppressions in cmake/tsan.supp reach the test binaries through
+          # cmake/CatchTestDiscoveryRunTest.cmake, so adding a suppression
+          # needs no change here. TSan's default is to report and exit
+          # non-zero, which turns the test case, and so ctest, red.
+          - arch: x64
+            artifacts_id: tsan
+            sanitizers: TSan
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts: >-
+              -DENABLE_SANITIZER_THREAD=ON
               -DLOGSQUIRL_USE_SENTRY=OFF
               -DLOGSQUIRL_USE_LTO=OFF
 
@@ -433,9 +451,9 @@ jobs:
           restore-keys: |
             cpm-Linux-noble-
 
-      - name: Lower ASLR entropy for ASan
+      - name: Lower ASLR entropy for the sanitizer runtime
         # Kernels with vm.mmap_rnd_bits=32 (GitHub's Ubuntu runners) break the
-        # shadow-memory layout of GCC's libasan; containers share the host
+        # shadow-memory layout of GCC's libasan and libtsan; containers share the host
         # kernel, so this must be set on the runner.
         run: sudo sysctl -w vm.mmap_rnd_bits=28
 
@@ -444,7 +462,7 @@ jobs:
       - uses: ./.github/actions/docker-build
 
       # Per test case, with a JUnit report kept even when a case fails (#217).
-      - name: Run tests under ASan/UBSan
+      - name: Run tests under ${{ matrix.config.sanitizers }}
         id: tests
         run: |
           docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
