@@ -626,7 +626,7 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
     {
         modals.inputText( "12:10:00" );
         trigger( logsquirl::mainwindow::action::goToTimestampText );
-        CHECK( modals.unanswered() == 0 );
+        REQUIRE( waitUiState( [ & ] { return modals.unanswered() == 0; }, 10'000 ) );
         CHECK( modals.unexpectedMessageBoxes() == 0 );
         // 12:10:00 is line 60 (ten seconds a line, from 12:00:00).
         REQUIRE( waitUiState( [ & ] { return state.currentLine().get() == 60; }, 10'000 ) );
@@ -636,7 +636,8 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
     {
         modals.inputText( "11:00:00" ).click( QMessageBox::Ok );
         trigger( logsquirl::mainwindow::action::goToTimestampText );
-        REQUIRE( modals.messages().size() == 1 );
+        // The lookup runs in the background: the answer comes a moment later.
+        REQUIRE( waitUiState( [ & ] { return modals.messages().size() == 1; }, 10'000 ) );
         CHECK( modals.messages()[ 0 ].contains( "before the first timestamp" ) );
     }
 
@@ -644,7 +645,8 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
     {
         modals.inputText( "not a time" ).click( QMessageBox::Ok );
         trigger( logsquirl::mainwindow::action::goToTimestampText );
-        REQUIRE( modals.messages().size() == 1 );
+        // The lookup runs in the background: the answer comes a moment later.
+        REQUIRE( waitUiState( [ & ] { return modals.messages().size() == 1; }, 10'000 ) );
         CHECK( modals.messages()[ 0 ].contains( "is not a time" ) );
     }
 
@@ -652,7 +654,7 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
     {
         modals.cancelInput();
         trigger( logsquirl::mainwindow::action::goToTimestampText );
-        CHECK( modals.unanswered() == 0 );
+        REQUIRE( waitUiState( [ & ] { return modals.unanswered() == 0; }, 10'000 ) );
         CHECK( state.currentLine().get() == 0 );
     }
 
@@ -660,17 +662,18 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
     {
         modals.inputText( "12:10:00" ).inputText( "12:20:00" );
         trigger( logsquirl::mainwindow::action::searchLimitsTimeRangeText );
+        REQUIRE( waitUiState( [ & ] { return state.searchEnd().get() == 120; }, 10'000 ) );
         CHECK( modals.unanswered() == 0 );
         CHECK( modals.unexpectedMessageBoxes() == 0 );
         CHECK( state.searchStart().get() == 60 );
-        CHECK( state.searchEnd().get() == 120 );
     }
 
     SECTION( "Set search limits to a time range after the end of the file says so" )
     {
         modals.inputText( "13:00:00" ).inputText( "13:10:00" ).click( QMessageBox::Ok );
         trigger( logsquirl::mainwindow::action::searchLimitsTimeRangeText );
-        REQUIRE( modals.messages().size() == 1 );
+        // The lookup runs in the background: the answer comes a moment later.
+        REQUIRE( waitUiState( [ & ] { return modals.messages().size() == 1; }, 10'000 ) );
         CHECK( modals.messages()[ 0 ].contains( "after the last timestamp" ) );
         CHECK( state.searchStart() == wholeFile.first );
         CHECK( state.searchEnd() == wholeFile.second );
@@ -685,10 +688,10 @@ TEST_CASE( "The time dialogs move to a time and limit the search to it", "[ui][m
 
         modals.inputInt( 2 );
         trigger( logsquirl::mainwindow::action::searchLimitsAroundLineText );
+        REQUIRE( waitUiState( [ & ] { return state.searchEnd().get() == 162; }, 10'000 ) );
         CHECK( modals.unanswered() == 0 );
         // Two minutes are twelve lines, each way.
         CHECK( state.searchStart().get() == 138 );
-        CHECK( state.searchEnd().get() == 162 );
     }
 }
 
