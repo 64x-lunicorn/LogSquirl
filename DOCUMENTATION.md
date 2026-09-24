@@ -802,6 +802,7 @@ The main commands are:
 |G               |jump to the first line of the file (selecting it)                 |
 |Shift+G         |jump to the last line of the file (selecting it)                  |
 |Alt+G           |show jump to line dialog                                          |
+|Ctrl+Shift+L    |show go to timestamp dialog                                       |
 |' or "          |start a quickfind search in the current screen                    |
 |                |(forward and backward)                                            |
 |n or N          |repeat the previous quickfind search forward/backward             |
