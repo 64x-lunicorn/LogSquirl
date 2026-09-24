@@ -85,6 +85,11 @@ SCENARIO( "A Homebrew cask install is recognised by the Caskroom", "[versionchec
 {
     GIVEN( "An app in Applications that the cask's Caskroom entry points to" )
     {
+#ifdef Q_OS_WIN
+        // Homebrew exists only on macOS, and QFile::link makes a shortcut on
+        // Windows, which is no symbolic link the Caskroom check could follow.
+        SKIP( "The Caskroom is a macOS thing" );
+#endif
         FakeMachine machine;
         const auto bundle = QStringLiteral( "/Applications/logsquirl.app" );
         const auto executable = bundle + "/Contents/MacOS/logsquirl";
