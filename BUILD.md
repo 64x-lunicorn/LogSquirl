@@ -342,10 +342,11 @@ TSAN_OPTIONS="suppressions=$(pwd)/cmake/tsan.supp" build_root/output/logsquirl_t
 ```
 
 **TSan in CI (#439).** The `Sanitizers / tsan` job in `.github/workflows/ci-build.yml` builds the same
-configuration as above in the Noble container and runs every test case under `ctest`. It does not block yet
-(`continue-on-error`): its first run over the whole suite reported 912 races and turned 78 of about 740 test
-cases red, mostly in oneTBB and Qt internals and in Search code; the job becomes blocking, like
-`Sanitizers / asan-ubsan`, once those are triaged (#482). It needs no `TSAN_OPTIONS` of its own: a suppression added to
+configuration as above in the Noble container and runs every test case under `ctest`. It runs on every
+push to master and by hand (`workflow_dispatch`), not on pull requests, and does not fail the run
+(`continue-on-error`) yet: its first run over the whole suite reported 912 races and turned 78 of about 740
+test cases red, mostly in oneTBB and Qt internals and in Search code. Once those are triaged (#482) it joins
+the pull requests and blocks, like `Sanitizers / asan-ubsan`. It needs no `TSAN_OPTIONS` of its own: a suppression added to
 `cmake/tsan.supp` reaches it through `cmake/CatchTestDiscoveryRunTest.cmake`. Runtime: expect it to take
 about as long as the ASan/UBSan job (the ASan job's slowest successful run is 25 minutes), because TSan
 slows the tests down by a similar factor; the first runs of the job will give the real number, which

@@ -379,45 +379,29 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        config:
-          # Entries shaped like the Linux matrix so the shared composite
-          # actions (which read matrix.config.*) work unchanged.
-          - arch: x64
-            artifacts_id: asan-ubsan
-            sanitizers: ASan/UBSan
-            container_root: docker/ubuntu24.04
-            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
-            # Sentry/crashpad is a release concern and its own crash handler
-            # would fight the sanitizer runtime; LTO only slows the link of a
-            # build nobody ships. Vectorscan stays ON: it builds and runs clean
-            # under ASan (it is a CPM dependency, so it is not instrumented).
-            cmake_opts: >-
-              -DENABLE_SANITIZER_ADDRESS=ON
-              -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON
-              -DLOGSQUIRL_USE_SENTRY=OFF
-              -DLOGSQUIRL_USE_LTO=OFF
-          # A data race in the oneTBB flow graphs (indexing, search) is the
-          # fault class ASan cannot see (#439). The suppressions in
-          # cmake/tsan.supp reach the test binaries through
-          # cmake/CatchTestDiscoveryRunTest.cmake, so adding a suppression
-          # needs no change here. TSan's default is to report and exit
-          # non-zero, which turns the test case, and so ctest, red.
-          #
-          # NOT blocking yet (continue-on-error below): the first run over the
-          # whole suite reported 912 races and turned 78 of ~740 test cases
-          # red, mostly in oneTBB/Qt internals and Search code that predate
-          # the job (ADR 0007 expected this). The job stays visible with its
-          # logs; it becomes blocking again when the findings are triaged
-          # (#482).
-          - arch: x64
-            artifacts_id: tsan
-            sanitizers: TSan
-            container_root: docker/ubuntu24.04
-            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
-            cmake_opts: >-
-              -DENABLE_SANITIZER_THREAD=ON
-              -DLOGSQUIRL_USE_SENTRY=OFF
-              -DLOGSQUIRL_USE_LTO=OFF
+        # Entries shaped like the Linux matrix so the shared composite
+        # actions (which read matrix.config.*) work unchanged.
+        #
+        # ASan/UBSan: no third-party code is instrumented, and Sentry/crashpad
+        # is a release concern whose own crash handler would fight the
+        # sanitizer runtime; LTO only slows the link of a build nobody ships.
+        # Vectorscan stays ON: it builds and runs clean under ASan (it is a
+        # CPM dependency, so it is not instrumented).
+        #
+        # TSan (#439) finds a data race in the oneTBB flow graphs (indexing,
+        # search), the fault class ASan cannot see. The suppressions in
+        # cmake/tsan.supp reach the test binaries through
+        # cmake/CatchTestDiscoveryRunTest.cmake, so adding a suppression needs
+        # no change here. It is NOT run for a pull request yet: its first run
+        # over the whole suite reported 912 races and turned 78 of ~740 test
+        # cases red, mostly in oneTBB/Qt internals and Search code that
+        # predate the job (ADR 0007 expected this), so it would only show a
+        # red check that says nothing about the pull request. It runs on
+        # every push to master and by hand (workflow_dispatch), where it
+        # reports without failing the run (continue-on-error below), until
+        # the findings are triaged (#482); then it joins the pull requests
+        # and blocks, like asan-ubsan.
+        config: ${{ fromJSON(github.event_name == 'pull_request' && '[{"arch":"x64","artifacts_id":"asan-ubsan","sanitizers":"ASan/UBSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_ADDRESS=ON -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"}]' || '[{"arch":"x64","artifacts_id":"asan-ubsan","sanitizers":"ASan/UBSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_ADDRESS=ON -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"},{"arch":"x64","artifacts_id":"tsan","sanitizers":"TSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_THREAD=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"}]') }}
 
     runs-on: ubuntu-24.04
     # Only the TSan entry is allowed to fail the job for now, see its comment.
