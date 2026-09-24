@@ -289,3 +289,106 @@ SCENARIO( "LogFieldExtractor maps each named group of each pattern", "[logformat
         }
     }
 }
+
+namespace {
+
+const char* const SingleFieldJsonFormat = R"({
+    "single_json": {
+        "title": "Single JSON",
+        "file-type": "json",
+        "timestamp-field": "ts",
+        "timestamp-divisor": 1000,
+        "level-field": "level",
+        "body-field": "msg",
+        "value": {
+            "ts": { "kind": "integer" },
+            "level": { "kind": "string" },
+            "src/file": { "kind": "string" },
+            "pid": { "kind": "integer" },
+            "ok": { "kind": "boolean" },
+            "msg": { "kind": "string" }
+        }
+    }
+})";
+
+const char* const SingleFieldLogfmtFormat = R"({
+    "single_logfmt": {
+        "title": "Single logfmt",
+        "file-type": "logfmt",
+        "timestamp-field": "time",
+        "level-field": "level",
+        "body-field": "msg",
+        "value": {
+            "time": { "kind": "string" },
+            "level": { "kind": "string" },
+            "port": { "kind": "integer" },
+            "msg": { "kind": "string" }
+        }
+    }
+})";
+
+// Every field of every line, one at a time, must be what the extraction of all
+// the fields gives, and a line that extraction calls invalid has no field.
+void requireSingleFieldsEqualFullExtraction( const char* formatJson, const QStringList& lines,
+                                             const QStringList& fieldNames )
+{
+    const auto formats = LogFormatParser::parseJsonString( formatJson );
+    REQUIRE( formats.size() == 1 );
+    const LogFieldExtractor extractor( formats[ 0 ] );
+
+    for ( const auto& line : lines ) {
+        const auto all = extractor.extractFields( line );
+        for ( const auto& name : fieldNames ) {
+            const auto single = extractor.extractField( line, name );
+            INFO( line.toStdString() << " / " << name.toStdString() );
+            if ( !all.isValid() ) {
+                REQUIRE_FALSE( single.has_value() );
+            }
+            else {
+                REQUIRE( single.has_value() );
+                REQUIRE( *single == all.value( name ) );
+            }
+        }
+    }
+}
+
+} // namespace
+
+SCENARIO( "Extracting a single field gives what extracting every field gives",
+          "[logformat][extractor]" )
+{
+    THEN( "it does for a Regex format" )
+    {
+        requireSingleFieldsEqualFullExtraction(
+            TestFormatJson,
+            { "2024-01-15 12:30:45.123 INFO [main] com.example.App - Application started",
+              "2024-01-15 12:30:45.123 WARN [t] c - ",
+              "some random text without structure", "" },
+            { "timestamp", "level", "thread", "component", "body", "nosuchfield" } );
+        requireSingleFieldsEqualFullExtraction(
+            MultiRegexFormatJson,
+            { "2024-01-01 12:00:00 [1234] ERROR Something failed",
+              "2024-01-01 12:00:00 INFO Starting up", "garbage" },
+            { "timestamp", "level", "pid", "body", "nosuchfield" } );
+    }
+
+    THEN( "it does for a JSON format" )
+    {
+        requireSingleFieldsEqualFullExtraction(
+            SingleFieldJsonFormat,
+            { R"({"ts":1700000000123,"level":"info","src":{"file":"a.cpp"},"pid":42,"ok":true,"msg":"hi"})",
+              R"({"ts":"not a number","level":null,"pid":1.5,"extra":"ignored","msg":["a",1]})",
+              R"({"src/file":"flat","msg":{"nested":1}})", R"({"a":1})", "not json", "", "[1,2]" },
+            { "ts", "level", "src/file", "pid", "ok", "msg", "extra", "nosuchfield" } );
+    }
+
+    THEN( "it does for a logfmt format" )
+    {
+        requireSingleFieldsEqualFullExtraction(
+            SingleFieldLogfmtFormat,
+            { R"(time=2026-09-23T18:00:00Z level=info msg="server started" port=8080)",
+              R"(port=9090 msg="said \"hi\" to \\ you" level=warn extra=ignored)",
+              R"(time=2026-09-23T18:00:02Z level=error flag)", "=value", R"({"a":1})", "" },
+            { "time", "level", "port", "msg", "extra", "flag", "nosuchfield" } );
+    }
+}

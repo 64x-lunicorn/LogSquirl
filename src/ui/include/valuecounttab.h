@@ -31,9 +31,10 @@ class AbstractLogData;
 class QAction;
 class QLabel;
 class QProgressBar;
-class QTableWidget;
+class QTableView;
+class ValueCountModel;
 
-// The Chart Panel's tab that shows a Value Count as a table of value, count
+// The Chart Panel's tab that shows a Value Count as a table (a model and a view) of value, count
 // and share, the most frequent value first. It counts on a worker thread,
 // shows how far it got, and can be stopped; a stopped count shows nothing. It
 // is a snapshot: "Count again" takes a new one.
@@ -79,5 +80,6 @@ private:
     QAction* countAgainAction_;
     QLabel* statusLabel_;
     QProgressBar* progressBar_;
-    QTableWidget* table_;
+    ValueCountModel* model_;
+    QTableView* table_;
 };

@@ -61,11 +61,7 @@ ValueOfLine fieldValueOf( const LogFormatDefinition& format, const QString& fiel
     auto reader = std::make_shared<FieldReader>( format );
 
     return [ reader, fieldName ]( const QString& line ) -> std::optional<QString> {
-        const auto fields = reader->extractor.extractFields( line );
-        if ( !fields.isValid() ) {
-            return std::nullopt;
-        }
-        return fields.value( fieldName );
+        return reader->extractor.extractField( line, fieldName );
     };
 }
 
