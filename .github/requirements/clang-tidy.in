@@ -1,0 +1,5 @@
+# clang-tidy for CI Build's Tidy job. Major version 19: the .clang-tidy checks
+# are tuned for it, and it reads the GCC compile database the noble image
+# builds with (18 cannot). CI installs the hash-locked clang-tidy.txt (#495);
+# after a change here, regenerate it with the command at the top of that file.
+clang-tidy==19.1.0.1
