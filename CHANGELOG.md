@@ -112,7 +112,8 @@
   Encoding menu offers the same Encodings, and the Encodings the settings and
   the Index cache store by name or MIB enum still resolve. Legacy Encodings
   (Windows code pages, ISO-8859, CJK) are read through the ICU or iconv of the
-  Qt in use (#442).
+  Qt in use; the Qt packages for macOS have neither, so there they are read
+  through the iconv of macOS (#442).
 
 ## Internal
 
