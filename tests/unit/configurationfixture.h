@@ -222,6 +222,10 @@ inline Configuration nonDefaultConfiguration()
 
     config.setVerifySslPeers( false );
 
+    config.setTeamFolderEnabled( true );
+    config.setTeamFolderUrl( "https://git.example.invalid/team/logsquirl.git" );
+    config.setTeamFolderSubfolder( "groups" );
+
     config.setOverviewVisible( false );
     config.setMainLineNumbersVisible( true );
     config.setFilteredLineNumbersVisible( false );

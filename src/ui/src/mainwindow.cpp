@@ -111,6 +111,7 @@
 #include "optionsdialog.h"
 #include "plugindialog.h"
 #include "predefinedfiltersdialog.h"
+#include "teamfolder.h"
 #include "progress.h"
 #include "readablesize.h"
 #include "recentfiles.h"
@@ -370,6 +371,8 @@ MainWindow::MainWindow( WindowSession session,
                                                    *sidebarTabs_ );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
+
+    connectTeamFolder();
 
     plugins_->whenLoaded( this, [ this ] {
         updateSourcesMenu();
@@ -1145,6 +1148,13 @@ void MainWindow::createToolBars()
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( lineNbField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
+
+    teamFolderButton_ = new QToolButton();
+    teamFolderButton_->setAutoRaise( true );
+    teamFolderButton_->setToolButtonStyle( Qt::ToolButtonTextOnly );
+    teamFolderButtonAction_ = toolBar->addWidget( teamFolderButton_ );
+    teamFolderButtonAction_->setVisible( false );
+
     toolBar->addAction( toggleSidebarAction );
 
     showInfoLabels( false );
@@ -1473,6 +1483,10 @@ void MainWindow::editHighlighters()
 void MainWindow::editPredefinedFilters( const QString& newFilter )
 {
     PredefinedFiltersDialog dialog( newFilter, this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamGroups( teamFolder->filterGroups() );
+    }
 
     // The Predefined Filters are no setting a Log File shows: only the filters
     // panel lists them.
@@ -1487,12 +1501,50 @@ void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
     OptionsDialog dialog( *logFormatCatalog, this );
+    if ( const auto teamFolder = session_.teamFolder() ) {
+        dialog.showTeamFolder( *teamFolder );
+    }
 
     // The dialog only says that the settings changed; the Session takes it
     // from there, to every open Log File and every window, this one included.
     connect( &dialog, &OptionsDialog::optionsChanged,
              [ this ]() { session_.applyChange( Changed::Settings ); } );
     dialog.exec();
+}
+
+void MainWindow::connectTeamFolder()
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    connect( teamFolder.get(), &TeamFolder::stateChanged, this,
+             &MainWindow::updateTeamFolderIndicator );
+    // A changed or removed Team group shows at the next sync, in every
+    // window's Filters panel.
+    connect( teamFolder.get(), &TeamFolder::groupsChanged, this,
+             [ this ] { filtersPanel_.setTeamGroups( session_.teamFolder()->filterGroups() ); } );
+    connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
+
+    filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+    updateTeamFolderIndicator();
+}
+
+void MainWindow::updateTeamFolderIndicator()
+{
+    const auto teamFolder = session_.teamFolder();
+    const bool shown = teamFolder && teamFolder->state() != TeamFolder::State::Off;
+    teamFolderButtonAction_->setVisible( shown );
+    if ( !shown ) {
+        return;
+    }
+
+    teamFolderButton_->setText( teamFolder->summary() );
+    const auto details = teamFolder->details();
+    teamFolderButton_->setToolTip(
+        ( details.isEmpty() ? teamFolder->summary() : teamFolder->summary() + "\n" + details )
+        + "\n" + tr( "Click to sync now." ) );
 }
 
 void MainWindow::applySettingsChange()

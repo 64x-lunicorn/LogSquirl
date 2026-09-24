@@ -41,6 +41,9 @@
 #define PREDEFINEDFILTERSDIALOG_H_
 
 #include <QDialog>
+#include <QLabel>
+#include <QList>
+#include <QListWidget>
 
 #include "predefinedfilters.h"
 #include "predefinedfiltersetedit.h"
@@ -54,6 +57,12 @@ class PredefinedFiltersDialog : public QDialog, public Ui::PredefinedFiltersDial
 public:
     explicit PredefinedFiltersDialog( QWidget* parent = nullptr );
     PredefinedFiltersDialog( const QString& newFilter, QWidget* parent = nullptr );
+
+    // Shows the Team groups in a section of their own below the user's own
+    // groups, in the order given (alphabetical, as the Team Folder hands them
+    // over). They can be looked at and exported, not changed: this dialog
+    // writes only the user's own groups. Without a call there is no section.
+    void showTeamGroups( const QList<PredefinedFilterSet>& groups );
 
 Q_SIGNALS:
     void optionsChanged();
@@ -76,6 +85,9 @@ private Q_SLOTS:
     // Write changes from the embedded editor back to the selected group.
     void updateFilterSetProperties();
 
+    // Shows the selected Team group, read-only.
+    void showSelectedTeamGroup();
+
 private:
     void populateSetList();
     void setCurrentRow( int row );
@@ -87,6 +99,12 @@ private:
     QList<PredefinedFilterSet> filterSets_;
 
     int selectedRow_;
+
+    QLabel* teamGroupsLabel_ = nullptr;
+    QListWidget* teamGroupsList_ = nullptr;
+    QList<PredefinedFilterSet> teamGroups_;
+    // The row of the Team group shown, -1 when none is.
+    int selectedTeamRow_ = -1;
 };
 
 #endif

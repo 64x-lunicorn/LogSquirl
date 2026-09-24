@@ -191,7 +191,7 @@ void PredefinedFiltersDialog::moveFilterSetDown()
 
 void PredefinedFiltersDialog::exportFilters()
 {
-    if ( selectedRow_ < 0 ) {
+    if ( selectedRow_ < 0 && selectedTeamRow_ < 0 ) {
         return;
     }
 
@@ -293,6 +293,12 @@ void PredefinedFiltersDialog::updatePropertyFields()
     }
 
     if ( selectedRow_ >= 0 ) {
+        // One group is shown at a time: one of the user's own, or a Team group.
+        if ( teamGroupsList_ ) {
+            teamGroupsList_->clearSelection();
+        }
+        selectedTeamRow_ = -1;
+        filterSetEdit_->setReadOnly( false );
         filterSetEdit_->setFilterSet( filterSets_.at( selectedRow_ ) );
 
         // The Default group cannot be removed or renamed.
@@ -302,7 +308,7 @@ void PredefinedFiltersDialog::updatePropertyFields()
         downSetButton->setEnabled( selectedRow_ < setListWidget->count() - 1 );
         exportButton->setEnabled( true );
     }
-    else {
+    else if ( selectedTeamRow_ < 0 ) {
         exportButton->setEnabled( false );
         filterSetEdit_->reset();
         removeSetButton->setEnabled( false );
@@ -317,6 +323,53 @@ void PredefinedFiltersDialog::updateFilterSetProperties()
         filterSets_[ selectedRow_ ] = filterSetEdit_->filterSet();
         setListWidget->currentItem()->setText( filterSets_[ selectedRow_ ].name() );
     }
+}
+
+// --- Team groups ---
+
+void PredefinedFiltersDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups )
+{
+    teamGroups_ = groups;
+
+    if ( !teamGroupsList_ ) {
+        teamGroupsLabel_ = new QLabel( tr( "Team groups" ), leftPanel );
+        teamGroupsLabel_->setAlignment( Qt::AlignCenter );
+        teamGroupsLabel_->setToolTip(
+            tr( "Shared through the Team Folder: they change when the team changes them." ) );
+        teamGroupsList_ = new QListWidget( leftPanel );
+        teamGroupsList_->setSizePolicy( QSizePolicy::MinimumExpanding, QSizePolicy::Expanding );
+        leftLayout->addWidget( teamGroupsLabel_ );
+        leftLayout->addWidget( teamGroupsList_ );
+        connect( teamGroupsList_, &QListWidget::itemSelectionChanged, this,
+                 &PredefinedFiltersDialog::showSelectedTeamGroup );
+    }
+
+    selectedTeamRow_ = -1;
+    teamGroupsList_->clear();
+    for ( const auto& group : teamGroups_ ) {
+        teamGroupsList_->addItem( group.name() );
+    }
+}
+
+void PredefinedFiltersDialog::showSelectedTeamGroup()
+{
+    const auto selected = teamGroupsList_->selectedItems();
+    if ( selected.isEmpty() ) {
+        return;
+    }
+    const auto row = teamGroupsList_->row( selected.at( 0 ) );
+
+    // Leaves the user's own group; what was changed in it stays in this
+    // dialog's copy until OK, Apply or Cancel.
+    setListWidget->clearSelection();
+
+    selectedTeamRow_ = row;
+    filterSetEdit_->setReadOnly( true );
+    filterSetEdit_->setFilterSet( teamGroups_.at( row ) );
+    removeSetButton->setEnabled( false );
+    upSetButton->setEnabled( false );
+    downSetButton->setEnabled( false );
+    exportButton->setEnabled( true );
 }
 
 // --- Helpers ---

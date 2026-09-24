@@ -268,6 +268,9 @@ private:
     void tryOpenClipboard( int tryTimes );
     void updateShortcuts();
     void showDashboardOrTabs();
+    // Shows the Team Folder's Team groups and state in this window.
+    void connectTeamFolder();
+    void updateTeamFolderIndicator();
 
     /// Build the full list of commands for the command palette by
     /// collecting menu actions, plugin actions, recent files, and
@@ -296,6 +299,11 @@ private:
     QMenu* helpMenu;
 
     PathLine* infoLine;
+    // The Team Folder's state, quietly: shown only while there is a Team
+    // Folder, it says synced, not synced or error, tells Git's message in its
+    // tooltip and syncs when clicked. It never opens a dialog.
+    QToolButton* teamFolderButton_ = nullptr;
+    QAction* teamFolderButtonAction_ = nullptr;
     QLabel* lineNbField;
     QLabel* sizeField;
     QLabel* dateField;

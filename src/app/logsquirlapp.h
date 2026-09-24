@@ -59,6 +59,7 @@
 #include "logsquirl_version.h"
 #include "session.h"
 #include "settingspolicies.h"
+#include "teamfolder.h"
 #include "uuid.h"
 
 #include <kdsingleapplication.h>
@@ -147,6 +148,10 @@ public:
 
         fileWatcher_ = FileWatcher::sharedFileWatcher();
 
+        // The one Team Folder. The Session sets it up from the Team Folder
+        // Policy, which starts its first sync, and every window shows it.
+        teamFolder_ = std::make_shared<TeamFolder>( TeamFolder::defaultCloneDirectory() );
+
         // Loaded once, after the first window shows, and shared by every
         // window (#303).
         plugins_ = std::make_shared<logsquirl::plugins::ApplicationPlugins>(
@@ -232,7 +237,8 @@ public:
     {
         if ( !session_ ) {
             session_
-                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
+                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_,
+                                                  teamFolder_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -275,7 +281,8 @@ public:
     {
         if ( !session_ ) {
             session_
-                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
+                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_,
+                                                  teamFolder_ );
         }
 
         const auto previousSessions = session_->windowSessions();
@@ -451,6 +458,9 @@ private:
     // opens as their File Watch Port (#249, #245). File watching reads no
     // setting of its own (#93).
     std::shared_ptr<FileWatcher> fileWatcher_;
+
+    // The application's one Team Folder, handed to the Session (#470).
+    std::shared_ptr<TeamFolder> teamFolder_;
 
     std::shared_ptr<Session> session_;
 

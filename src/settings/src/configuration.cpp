@@ -494,6 +494,10 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
            withinIndexCacheSizeLimits );
     visit( "net.verifySslPeers", config.verifySslPeers_, true );
 
+    visit( "teamFolder.enabled", config.teamFolderEnabled_, false );
+    visit( "teamFolder.url", config.teamFolderUrl_, QString{} );
+    visit( "teamFolder.subfolder", config.teamFolderSubfolder_, QString{} );
+
     visit( "view.overviewVisible", config.overviewVisible_, true );
     visit( "view.lineNumbersVisibleInMain", config.lineNumbersVisibleInMain_, false );
     visit( "view.lineNumbersVisibleInFiltered", config.lineNumbersVisibleInFiltered_, true );

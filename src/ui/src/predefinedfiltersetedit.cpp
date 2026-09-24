@@ -73,6 +73,7 @@ PredefinedFilterSetEdit::PredefinedFilterSetEdit( QWidget* parent )
     : QWidget( parent )
 {
     setupUi( this );
+    editTriggers_ = filtersTableWidget->editTriggers();
 
     connect( nameEdit, &QLineEdit::textEdited, this, &PredefinedFilterSetEdit::setName );
 
@@ -112,6 +113,13 @@ void PredefinedFilterSetEdit::reset()
     filtersTableWidget->setRowCount( 0 );
 }
 
+void PredefinedFilterSetEdit::setReadOnly( bool readOnly )
+{
+    readOnly_ = readOnly;
+    filtersTableWidget->setEditTriggers( readOnly_ ? QAbstractItemView::NoEditTriggers
+                                                   : editTriggers_ );
+}
+
 PredefinedFilterSet PredefinedFilterSetEdit::filterSet() const
 {
     return filterSet_;
@@ -123,6 +131,7 @@ void PredefinedFilterSetEdit::setFilterSet( PredefinedFilterSet set )
     populateTable();
 
     nameEdit->setEnabled( true );
+    nameEdit->setReadOnly( readOnly_ );
     nameEdit->setText( filterSet_.name() );
 
     // Disable renaming the Default set.
@@ -130,7 +139,7 @@ void PredefinedFilterSetEdit::setFilterSet( PredefinedFilterSet set )
         nameEdit->setEnabled( false );
     }
 
-    addFilterButton->setEnabled( true );
+    addFilterButton->setEnabled( !readOnly_ );
 }
 
 void PredefinedFilterSetEdit::setName( const QString& name )
@@ -155,6 +164,7 @@ void PredefinedFilterSetEdit::populateTable()
         filtersTableWidget->setItem( i, 1, new QTableWidgetItem( filters[ i ].pattern ) );
         auto* regexCheckbox = new CenteredCheckbox;
         regexCheckbox->setChecked( filters[ i ].useRegex );
+        regexCheckbox->setEnabled( !readOnly_ );
         filtersTableWidget->setCellWidget( i, 2, regexCheckbox );
     }
 
@@ -194,9 +204,9 @@ void PredefinedFilterSetEdit::syncTableToSet()
 void PredefinedFilterSetEdit::updateButtons( int currentRow )
 {
     const int rowCount = filtersTableWidget->rowCount();
-    removeFilterButton->setEnabled( currentRow >= 0 );
-    upFilterButton->setEnabled( currentRow > 0 );
-    downFilterButton->setEnabled( currentRow >= 0 && currentRow < rowCount - 1 );
+    removeFilterButton->setEnabled( !readOnly_ && currentRow >= 0 );
+    upFilterButton->setEnabled( !readOnly_ && currentRow > 0 );
+    downFilterButton->setEnabled( !readOnly_ && currentRow >= 0 && currentRow < rowCount - 1 );
 }
 
 void PredefinedFilterSetEdit::addFilter()

@@ -44,10 +44,12 @@
 #include <QHBoxLayout>
 #include <QKeySequenceEdit>
 #include <QLabel>
+#include <QPointer>
 #include <QPushButton>
 #include <QStyledItemDelegate>
 
 #include "configuration.h"
+#include "teamfolder.h"
 
 #include "ui_optionsdialog.h"
 
@@ -95,6 +97,11 @@ public:
     // The Log Formats tab lists the application's Log Format Catalog.
     explicit OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget* parent = nullptr );
 
+public:
+    // Shows how the application's Team Folder stands, and lets it sync now.
+    // Without a call the dialog only edits the Team Folder settings.
+    void showTeamFolder( TeamFolder& teamFolder );
+
 Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
@@ -123,6 +130,8 @@ private:
     void setupLogging();
     void setupArchives();
     void setupIndexCache();
+    void setupTeamFolder();
+    void updateTeamFolderStatus();
     void setupStyles();
     void setupEncodings();
     void setupLanguageList();
@@ -142,6 +151,8 @@ private:
 
     QColor mainSearchColor_;
     QColor qfSearchColor_;
+
+    QPointer<TeamFolder> teamFolder_;
 };
 
 #endif
