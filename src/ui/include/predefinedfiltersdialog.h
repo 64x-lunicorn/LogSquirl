@@ -69,6 +69,11 @@ public:
     void showTeamGroups( const QList<PredefinedFilterSet>& groups, bool editable = false,
                          const QHash<QString, QString>& revisions = {} );
 
+    // The revisions of the files of the groups with these ids are now those
+    // given: what a publish of them made. The next publish of them is based
+    // on these.
+    void updateTeamRevisions( const QStringList& ids, const QHash<QString, QString>& revisions );
+
 Q_SIGNALS:
     void optionsChanged();
     // Team groups were added, renamed or changed, and OK or Apply asks for them

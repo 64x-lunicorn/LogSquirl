@@ -44,6 +44,7 @@
 #include "containers.h"
 #include "log.h"
 #include <QNetworkReply>
+#include <algorithm>
 #include <cassert>
 #include <exception>
 
@@ -476,16 +477,13 @@ void MainWindow::openStandardInput()
         return;
     }
 
+    // The tab is named when it is opened, which is later than here when the
+    // plugins have not loaded yet: it is the file's, not the current tab's.
+    tabTitles_.insert( filePath, { tr( "stdin" ), tr( "Standard input\n%1" ).arg( filePath ) } );
     if ( !loadFile( filePath, true ) ) {
+        tabTitles_.remove( filePath );
         standardInputWriter_.reset();
         return;
-    }
-
-    const auto tabIndex = mainTabWidget_.currentIndex();
-    const auto tabToolTip = tr( "Standard input\n%1" ).arg( filePath );
-    if ( tabIndex >= 0 ) {
-        mainTabWidget_.setTabText( tabIndex, tr( "stdin" ) );
-        mainTabWidget_.setTabToolTip( tabIndex, tabToolTip );
     }
 
     // The pump calls back on its own thread: hop over to this window's.
@@ -1541,6 +1539,18 @@ void MainWindow::editHighlighters()
                                teamFolder->highlighterGroupRevisions() );
         connect( &dialog, &HighlightersDialog::publishRequested, teamFolder.get(),
                  &TeamFolder::publish );
+        // What Apply published has new revisions: the dialog is still open.
+        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
+                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
+                     QStringList ids;
+                     for ( const auto& result : outcome.results ) {
+                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
+                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
+                             ids.append( result.request.id );
+                         }
+                     }
+                     dialog.updateTeamRevisions( ids, folder->highlighterGroupRevisions() );
+                 } );
     }
 
     // Reaches every open Log File, in every window, not only the current tab.
@@ -1562,6 +1572,18 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
                                teamFolder->filterGroupRevisions() );
         connect( &dialog, &PredefinedFiltersDialog::publishRequested, teamFolder.get(),
                  &TeamFolder::publish );
+        // What Apply published has new revisions: the dialog is still open.
+        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
+                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
+                     QStringList ids;
+                     for ( const auto& result : outcome.results ) {
+                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
+                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
+                             ids.append( result.request.id );
+                         }
+                     }
+                     dialog.updateTeamRevisions( ids, folder->filterGroupRevisions() );
+                 } );
     }
 
     // The Predefined Filters are no setting a Log File shows: only the filters
@@ -1604,29 +1626,78 @@ void MainWindow::connectTeamFolder()
     // A changed or removed Team Highlighter Set re-colors every open Log File
     // at once, and a removed one is no longer active.
     connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
-             &MainWindow::applyTeamHighlighterSets );
+             [ this ] { applyTeamHighlighterSets( true ); } );
+    // A sync that reached the repository knows the groups, however few: only
+    // then is an activation of a Team set that is not there dropped.
+    connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
+        if ( const auto folder = session_.teamFolder();
+             folder && folder->state() == TeamFolder::State::Synced ) {
+            applyTeamHighlighterSets( true );
+        }
+    } );
     connect( teamFolder.get(), &TeamFolder::publishFinished, this,
              &MainWindow::askAboutPublishConflicts );
     connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
 
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
-    applyTeamHighlighterSets();
+    // Before the first sync no group is known yet: nothing is dropped.
+    applyTeamHighlighterSets( teamFolder->state() == TeamFolder::State::Synced );
     updateTeamFolderIndicator();
 }
 
+namespace {
+// The conflicts of publishes that no window has asked about yet, shared by
+// every window: each window hears of a publish, but one conflict is asked
+// once. It waits here while no window can ask -- the app is in the
+// background, or a dialog of it is open.
+QList<logsquirl::teamfolder::PublishResult>& pendingPublishConflicts()
+{
+    static QList<logsquirl::teamfolder::PublishResult> pending;
+    return pending;
+}
+} // namespace
+
 void MainWindow::askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome )
 {
-    using logsquirl::teamfolder::ConflictChoice;
     using logsquirl::teamfolder::PublishStatus;
 
-    // Every window hears of the publish; the one that has the focus asks.
-    if ( !isActiveWindow() ) {
+    auto& pending = pendingPublishConflicts();
+    for ( const auto& result : outcome.results ) {
+        if ( result.status != PublishStatus::Conflict ) {
+            continue;
+        }
+        // Every window hears of the same publish: remembered once.
+        const auto known = std::any_of( pending.cbegin(), pending.cend(), [ &result ]( auto& p ) {
+            return p.request.kind == result.request.kind && p.request.id == result.request.id;
+        } );
+        if ( !known ) {
+            pending.append( result );
+        }
+    }
+    askAboutPendingConflicts();
+}
+
+void MainWindow::askAboutPendingConflicts()
+{
+    using logsquirl::teamfolder::ConflictChoice;
+
+    auto& pending = pendingPublishConflicts();
+    if ( pending.isEmpty() ) {
+        return;
+    }
+
+    // The window that has the focus asks, and not while a dialog is open on
+    // top of it (then the dialog is the active window): the question waits,
+    // and every window looks again shortly.
+    if ( !isActiveWindow() || QApplication::activeModalWidget() ) {
+        QTimer::singleShot( 500, this, &MainWindow::askAboutPendingConflicts );
         return;
     }
 
     const auto teamFolder = session_.teamFolder();
-    for ( const auto& result : outcome.results ) {
-        if ( result.status != PublishStatus::Conflict || !teamFolder ) {
+    while ( !pending.isEmpty() ) {
+        const auto result = pending.takeFirst();
+        if ( !teamFolder ) {
             continue;
         }
 
@@ -1659,7 +1730,7 @@ void MainWindow::askAboutPublishConflicts( const logsquirl::teamfolder::PublishO
     }
 }
 
-void MainWindow::applyTeamHighlighterSets()
+void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
 {
     const auto teamFolder = session_.teamFolder();
     if ( !teamFolder ) {
@@ -1669,7 +1740,8 @@ void MainWindow::applyTeamHighlighterSets()
     // Every window comes here for the same sync; the first one changes the
     // collection and saves it, the others only bring their menu up to date.
     auto& collection = HighlighterSetCollection::get();
-    if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups() ) ) {
+    if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups(),
+                                            dropUnknownActivations ) ) {
         collection.save();
         session_.applyChange( Changed::HighlighterSets );
     }
@@ -1783,15 +1855,12 @@ void MainWindow::handleDataSourceStarted( const QString& pluginId, const QString
     LOG_INFO << "DataSource started: " << pluginId << " -> " << filePath;
 
     // Open the temp file with follow mode so it tails as the plugin pushes lines
-    const bool loaded = loadFile( filePath, true );
-    if ( loaded ) {
-        // Set a friendly tab title instead of the temp file path
-        const int tabIndex = mainTabWidget_.currentIndex();
-        if ( tabIndex >= 0 ) {
-            mainTabWidget_.setTabText( tabIndex, displayName );
-            mainTabWidget_.setTabToolTip( tabIndex,
-                                          tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) );
-        }
+    // A friendly tab title instead of the temp file path, given to the tab of
+    // that file when it opens.
+    tabTitles_.insert( filePath,
+                       { displayName, tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) } );
+    if ( !loadFile( filePath, true ) ) {
+        tabTitles_.remove( filePath );
     }
 }
 
@@ -2744,6 +2813,10 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             // mainTabWidget_.setEnabled( false );
 
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName );
+            if ( const auto title = tabTitles_.constFind( fileName ); title != tabTitles_.cend() ) {
+                mainTabWidget_.setTabText( index, title->first );
+                mainTabWidget_.setTabToolTip( index, title->second );
+            }
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
