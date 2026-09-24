@@ -111,8 +111,7 @@ private:
         nextChunk_ = chunk_ + ChunkSize;
 
 #if defined( LOGSQUIRL_INDEXING_SCAN_SSE2 )
-        const auto bytes
-            = _mm_loadu_si128( static_cast<const __m128i*>( static_cast<const void*>( chunk ) ) );
+        const auto bytes = _mm_loadu_si128( reinterpret_cast<const __m128i*>( chunk ) );
         const auto matches = _mm_or_si128( _mm_cmpeq_epi8( bytes, _mm_set1_epi8( '\n' ) ),
                                            _mm_cmpeq_epi8( bytes, _mm_set1_epi8( '\t' ) ) );
         return static_cast<std::uint32_t>( _mm_movemask_epi8( matches ) );
