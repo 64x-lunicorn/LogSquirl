@@ -21,13 +21,13 @@
 
 #include "encodingdetector.h"
 
-#include <QTextCodec>
+#include "textencoding.h"
 
 SCENARIO( "EncodingParameters from UTF-8 codec", "[encoding]" )
 {
     GIVEN( "The UTF-8 text codec" )
     {
-        auto* codec = QTextCodec::codecForName( "UTF-8" );
+        auto* codec = TextEncoding::forName( "UTF-8" );
         REQUIRE( codec != nullptr );
 
         EncodingParameters params( codec );
@@ -58,7 +58,7 @@ SCENARIO( "EncodingParameters from UTF-16 LE codec", "[encoding]" )
 {
     GIVEN( "The UTF-16 LE text codec" )
     {
-        auto* codec = QTextCodec::codecForName( "UTF-16LE" );
+        auto* codec = TextEncoding::forName( "UTF-16LE" );
         REQUIRE( codec != nullptr );
 
         EncodingParameters params( codec );
@@ -84,7 +84,7 @@ SCENARIO( "EncodingParameters from UTF-16 BE codec", "[encoding]" )
 {
     GIVEN( "The UTF-16 BE text codec" )
     {
-        auto* codec = QTextCodec::codecForName( "UTF-16BE" );
+        auto* codec = TextEncoding::forName( "UTF-16BE" );
         REQUIRE( codec != nullptr );
 
         EncodingParameters params( codec );
@@ -110,7 +110,7 @@ SCENARIO( "EncodingParameters from Latin-1 codec", "[encoding]" )
 {
     GIVEN( "A Latin-1 (ISO-8859-1) text codec" )
     {
-        auto* codec = QTextCodec::codecForName( "ISO-8859-1" );
+        auto* codec = TextEncoding::forName( "ISO-8859-1" );
         REQUIRE( codec != nullptr );
 
         EncodingParameters params( codec );
@@ -136,8 +136,8 @@ SCENARIO( "EncodingParameters equality operator", "[encoding]" )
 {
     GIVEN( "Two parameters with the same widths" )
     {
-        auto* utf8 = QTextCodec::codecForName( "UTF-8" );
-        auto* latin1 = QTextCodec::codecForName( "ISO-8859-1" );
+        auto* utf8 = TextEncoding::forName( "UTF-8" );
+        auto* latin1 = TextEncoding::forName( "ISO-8859-1" );
         REQUIRE( utf8 != nullptr );
         REQUIRE( latin1 != nullptr );
 
@@ -152,8 +152,8 @@ SCENARIO( "EncodingParameters equality operator", "[encoding]" )
 
     GIVEN( "Parameters with different feed widths" )
     {
-        auto* utf8 = QTextCodec::codecForName( "UTF-8" );
-        auto* utf16 = QTextCodec::codecForName( "UTF-16LE" );
+        auto* utf8 = TextEncoding::forName( "UTF-8" );
+        auto* utf16 = TextEncoding::forName( "UTF-16LE" );
         REQUIRE( utf8 != nullptr );
         REQUIRE( utf16 != nullptr );
 
@@ -171,7 +171,7 @@ SCENARIO( "EncodingParameters CR offset helpers", "[encoding]" )
 {
     GIVEN( "UTF-8 encoding parameters" )
     {
-        auto* codec = QTextCodec::codecForName( "UTF-8" );
+        auto* codec = TextEncoding::forName( "UTF-8" );
         REQUIRE( codec != nullptr );
         EncodingParameters params( codec );
 
@@ -311,7 +311,7 @@ SCENARIO( "TextCodecHolder manages codec state", "[encoding]" )
 {
     GIVEN( "A holder initialized with UTF-8" )
     {
-        auto* utf8Codec = QTextCodec::codecForName( "UTF-8" );
+        auto* utf8Codec = TextEncoding::forName( "UTF-8" );
         REQUIRE( utf8Codec != nullptr );
 
         TextCodecHolder holder( utf8Codec );
@@ -334,7 +334,7 @@ SCENARIO( "TextCodecHolder manages codec state", "[encoding]" )
 
         WHEN( "The codec is changed to Latin-1" )
         {
-            auto* latin1 = QTextCodec::codecForName( "ISO-8859-1" );
+            auto* latin1 = TextEncoding::forName( "ISO-8859-1" );
             REQUIRE( latin1 != nullptr );
 
             holder.setCodec( latin1 );

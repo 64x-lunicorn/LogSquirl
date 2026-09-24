@@ -506,6 +506,9 @@ void MainWindow::reTranslateUI()
     goToLineAction->setText( transAction( action::goToLineText ) );
     goToLineAction->setStatusTip( transAction( action::goToLineStatusTip ) );
 
+    goToTimestampAction->setText( transAction( action::goToTimestampText ) );
+    goToTimestampAction->setStatusTip( transAction( action::goToTimestampStatusTip ) );
+
     findAction->setText( transAction( action::findText ) );
     findAction->setStatusTip( transAction( action::findStatusTip ) );
 
@@ -693,6 +696,10 @@ void MainWindow::createActions()
     goToLineAction = new QAction( tr( action::goToLineText ), this );
     goToLineAction->setStatusTip( tr( action::goToLineStatusTip ) );
     signalMux_.connect( goToLineAction, SIGNAL( triggered() ), SLOT( goToLine() ) );
+
+    goToTimestampAction = new QAction( tr( action::goToTimestampText ), this );
+    goToTimestampAction->setStatusTip( tr( action::goToTimestampStatusTip ) );
+    signalMux_.connect( goToTimestampAction, SIGNAL( triggered() ), SLOT( goToTimestamp() ) );
 
     findAction = new QAction( tr( action::findText ), this );
     findAction->setStatusTip( tr( action::findStatusTip ) );
@@ -935,6 +942,7 @@ void MainWindow::updateShortcuts()
     setShortcuts( showScratchPadAction, ShortcutAction::MainWindowScratchpad );
     setShortcuts( selectOpenFileAction, ShortcutAction::MainWindowSelectOpenFile );
     setShortcuts( goToLineAction, ShortcutAction::LogViewJumpToLine );
+    setShortcuts( goToTimestampAction, ShortcutAction::LogViewJumpToTimestamp );
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
 }
 
@@ -1013,6 +1021,7 @@ void MainWindow::createMenus()
     editMenu->addAction( findAction );
     editMenu->addSeparator();
     editMenu->addAction( goToLineAction );
+    editMenu->addAction( goToTimestampAction );
     editMenu->addSeparator();
     editMenu->addAction( copyPathToClipboardAction );
     editMenu->addAction( openContainingFolderAction );
@@ -1991,6 +2000,9 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
 
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
 
+        // The Log Format is recognized once the load has finished.
+        updateGoToTimestampAction( crawler );
+
         // Now everything is ready, we can finally show the file!
         crawler->show();
     }
@@ -2662,6 +2674,16 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
 
     followAction->setChecked( crawler->isFollowEnabled() );
     textWrapAction->setChecked( crawler->isTextWrapEnabled() );
+    updateGoToTimestampAction( crawler );
+}
+
+// "Go to timestamp" is there for a Log File whose Log Format has a timestamp
+// field; without one it says why it is not.
+void MainWindow::updateGoToTimestampAction( const CrawlerWidget* crawler )
+{
+    const auto reason = crawler ? crawler->goToTimestampUnavailableReason() : QString();
+    goToTimestampAction->setEnabled( crawler != nullptr && reason.isEmpty() );
+    goToTimestampAction->setToolTip( reason.isEmpty() ? goToTimestampAction->statusTip() : reason );
 }
 
 // Update the top info line from the session

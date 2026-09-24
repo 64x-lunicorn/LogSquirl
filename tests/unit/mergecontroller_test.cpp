@@ -24,11 +24,11 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QEventLoop>
-#include <QTimer>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QThread>
+#include <QTimer>
 
 namespace {
 

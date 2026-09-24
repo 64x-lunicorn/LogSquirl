@@ -209,7 +209,7 @@ protected:
             scrollingbenchmark::generatedLogLine( line.get() ).size() ) );
     }
     void doSetDisplayEncoding( const char* ) override {}
-    QTextCodec* doGetDisplayEncoding() const override
+    const TextEncoding* doGetDisplayEncoding() const override
     {
         return nullptr;
     }

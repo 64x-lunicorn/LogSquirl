@@ -26,13 +26,13 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
+#include "textencoding.h"
 #include <QCoreApplication>
 #include <QFile>
 #include <QHash>
 #include <QList>
 #include <QMetaType>
 #include <QTemporaryDir>
-#include <QTextCodec>
 
 #include <algorithm>
 #include <memory>
@@ -936,7 +936,7 @@ bool writeUtf8LogFile( const QString& path )
 
 int mibOf( const char* encoding )
 {
-    return QTextCodec::codecForName( encoding )->mibEnum();
+    return TextEncoding::forName( encoding )->mibEnum();
 }
 
 // The first Log Line as it reads in ISO-8859-1.

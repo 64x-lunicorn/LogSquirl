@@ -121,29 +121,29 @@ logsquirl::vector<OffsetInFile> IndexingData::getEndOfLineOffsets( LineNumber li
         linePosition_ );
 }
 
-QTextCodec* IndexingData::getEncodingGuess() const
+const TextEncoding* IndexingData::getEncodingGuess() const
 {
     return encodingGuess_;
 }
 
-void IndexingData::setEncodingGuess( QTextCodec* codec )
+void IndexingData::setEncodingGuess( const TextEncoding* codec )
 {
     encodingGuess_ = codec;
 }
 
-void IndexingData::forceEncoding( QTextCodec* codec )
+void IndexingData::forceEncoding( const TextEncoding* codec )
 {
     encodingForced_ = codec;
 }
 
-QTextCodec* IndexingData::getForcedEncoding() const
+const TextEncoding* IndexingData::getForcedEncoding() const
 {
     return encodingForced_;
 }
 
 void IndexingData::addAll( qint64 blockSize, LineLength length,
-                           const FastLinePositionArray& newLinePosition, QTextCodec* encoding,
-                           std::optional<quint64> fullDigest )
+                           const FastLinePositionArray& newLinePosition,
+                           const TextEncoding* encoding, std::optional<quint64> fullDigest )
 {
     maxLength_ = std::max( maxLength_, length );
     std::visit(
@@ -208,7 +208,7 @@ void IndexingData::clear( const IndexingPolicy& policy )
 }
 
 void IndexingData::loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                                  const IndexedHash& hash, QTextCodec* encoding,
+                                  const IndexedHash& hash, const TextEncoding* encoding,
                                   bool fastModificationDetection )
 {
     useFastModificationDetection_ = fastModificationDetection;
@@ -309,7 +309,7 @@ void LogDataWorker::run( const IndexJob& job )
                         }
                         else {
                             indexAll( attach.defaultEncodingMib >= 0
-                                          ? QTextCodec::codecForMib( attach.defaultEncodingMib )
+                                          ? TextEncoding::forMib( attach.defaultEncodingMib )
                                           : nullptr,
                                       FullIndexRequest::Automatic );
                         }
@@ -337,7 +337,7 @@ void LogDataWorker::attachFile( const QString& fileName )
     fileName_ = fileName;
 }
 
-void LogDataWorker::indexAll( QTextCodec* forcedEncoding, FullIndexRequest request )
+void LogDataWorker::indexAll( const TextEncoding* forcedEncoding, FullIndexRequest request )
 {
     ScopedLock locker( operationsMutex_ );
     operationsPool_.waitForDone();
@@ -645,7 +645,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
         IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
         scopedAccessor.clear( indexingPolicy_ );
-        scopedAccessor.setEncodingGuess( QTextCodec::codecForLocale() );
+        scopedAccessor.setEncodingGuess( TextEncoding::forLocale() );
 
         scopedAccessor.setProgress( 100 );
         Q_EMIT indexingProgressed( 100 );
@@ -846,7 +846,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     }
 
     if ( !scopedAccessor.getEncodingGuess() ) {
-        scopedAccessor.setEncodingGuess( QTextCodec::codecForLocale() );
+        scopedAccessor.setEncodingGuess( TextEncoding::forLocale() );
     }
 }
 
@@ -864,7 +864,7 @@ IndexCache indexCacheFor( const IndexingPolicy& policy )
 
 // The encoding a full re-index of the Log File detects: the one its first
 // indexing block is taken for. Nothing when the file cannot be read.
-QTextCodec* detectedEncodingOf( const QString& fileName, qint64 fileSize )
+const TextEncoding* detectedEncodingOf( const QString& fileName, qint64 fileSize )
 {
     QFile file( fileName );
     if ( !file.open( QIODevice::ReadOnly ) ) {
@@ -921,7 +921,7 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
 
     // Going on from a cached Index only keeps its line positions right if
     // the appended bytes are read with the encoding they were read with.
-    auto* codec = QTextCodec::codecForName( cached.encodingName );
+    auto* codec = TextEncoding::forName( cached.encodingName );
     if ( !codec || ( forcedEncoding_ && forcedEncoding_->name() != codec->name() ) ) {
         return false;
     }
@@ -1043,9 +1043,9 @@ OperationResult FullIndexOperation::doRun()
     if ( cached && cached->hash.size == fileSize ) {
         LOG_INFO << "Using cached index for " << fileName_;
 
-        auto* codec = QTextCodec::codecForName( cached->encodingName );
+        auto* codec = TextEncoding::forName( cached->encodingName );
         if ( !codec ) {
-            codec = QTextCodec::codecForLocale();
+            codec = TextEncoding::forLocale();
         }
 
         {

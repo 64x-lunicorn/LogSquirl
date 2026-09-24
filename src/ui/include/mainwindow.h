@@ -259,6 +259,7 @@ private:
     CrawlerWidget* currentCrawlerWidget() const;
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
     void updateMenuBarFromDocument( const CrawlerWidget* crawler );
+    void updateGoToTimestampAction( const CrawlerWidget* crawler );
     void updateInfoLine();
     void showInfoLabels( bool show );
     void logScreenInfo( QScreen* screen );
@@ -311,6 +312,7 @@ private:
     QAction* copyAction;
     QAction* selectAllAction;
     QAction* goToLineAction;
+    QAction* goToTimestampAction;
     QAction* findAction;
     QAction* clearLogAction;
     QAction* copyPathToClipboardAction;

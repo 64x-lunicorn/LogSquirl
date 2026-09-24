@@ -44,6 +44,8 @@ extern const char* selectAllText;
 extern const char* selectAllStatusTip;
 extern const char* goToLineText;
 extern const char* goToLineStatusTip;
+extern const char* goToTimestampText;
+extern const char* goToTimestampStatusTip;
 extern const char* findText;
 extern const char* findStatusTip;
 extern const char* clearLogText;

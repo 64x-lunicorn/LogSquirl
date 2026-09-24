@@ -500,6 +500,13 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            LogViewJumpToTimestamp,
+            {
+                QApplication::tr( "Jump to timestamp" ),
+                QStringList{ "Ctrl+Shift+L" },
+            },
+        },
+        {
             LogViewQfForward,
             {
                 QApplication::tr( "Main view: find next" ),

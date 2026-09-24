@@ -37,11 +37,29 @@ struct LogFormatSample {
     QString level; // optional expected level
 };
 
+// What a Log Format describes a Log Line as. It decides how Format Recognition
+// scores the Log Format and how fields are read from a Log Line.
+enum class LogFormatKind {
+    Regex, // text matched by regex patterns; fields are their named capture groups
+    Json,  // a JSON object; fields are members addressed by path ("file-type": "json")
+};
+
 // Represents a single parsed log format definition (one entry from a lnav JSON file).
 // Holds metadata, regex patterns, field definitions, and sample lines.
 class LogFormatDefinition {
 public:
     LogFormatDefinition() = default;
+
+    // What kind of Log Line the format describes. For a Json format the regex
+    // patterns are empty and the value definitions name the field paths.
+    LogFormatKind kind() const
+    {
+        return kind_;
+    }
+    void setKind( LogFormatKind kind )
+    {
+        kind_ = kind;
+    }
 
     // Format symbolic name (JSON key, e.g. "syslog_log")
     const QString& name() const
@@ -189,6 +207,17 @@ public:
         timestampFormats_ = formats;
     }
 
+    // What an epoch timestamp ("%s") is divided by to get seconds: 1000 for
+    // milliseconds since the epoch. 1 when the format does not say.
+    double timestampDivisor() const
+    {
+        return timestampDivisor_;
+    }
+    void setTimestampDivisor( double divisor )
+    {
+        timestampDivisor_ = divisor;
+    }
+
     // Whether the format's messages are ordered by time
     bool orderedByTime() const
     {
@@ -200,6 +229,7 @@ public:
     }
 
 private:
+    LogFormatKind kind_ = LogFormatKind::Regex;
     QString name_;
     QString title_;
     QString description_;
@@ -219,5 +249,6 @@ private:
 
     QString filePattern_;
     QStringList timestampFormats_;
+    double timestampDivisor_ = 1.0;
     bool orderedByTime_ = true;
 };

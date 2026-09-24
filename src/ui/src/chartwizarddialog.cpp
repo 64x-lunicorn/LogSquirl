@@ -253,7 +253,10 @@ ChartSeriesDefinition ChartWizardDialog::series() const
         const auto pattern = ChartTemplateGenerator::patternContainingGroup( *format_, yField );
         if ( pattern.isEmpty() ) {
             // Fallback: use filter or first format pattern
-            basePattern = filter.isEmpty() ? format_->regexPatterns().constBegin().value() : filter;
+            // A JSON format has no regex patterns to fall back on
+            basePattern = filter.isEmpty() && !format_->regexPatterns().isEmpty()
+                              ? format_->regexPatterns().constBegin().value()
+                              : filter;
             captureGroup = 0;
         }
         else {

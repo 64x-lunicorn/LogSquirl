@@ -5,6 +5,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/compressedlinestorage.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayedlines.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdetector.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/textencoding.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linepositionarray.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loadingstatus.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdata.h
@@ -29,6 +30,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/compressedlinestorage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayedlines.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdetector.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/textencoding.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdatametatypes.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logdataoperation.cpp
@@ -83,9 +85,11 @@ target_link_libraries(
 # it from here (#168). tests/logdata_public_headers_no_tbb.cmake guards that.
 target_link_libraries(logsquirl_logdata PRIVATE xxhash tbb)
 
-find_package(
-  Qt6
-  COMPONENTS Core5Compat
-  REQUIRED
-)
-target_link_libraries(logsquirl_logdata PUBLIC Qt6::Core5Compat)
+# Qt for macOS has neither ICU nor iconv, so the Encodings Qt5Compat used to
+# bring along are converted with the iconv of the system (#442).
+if(APPLE)
+  target_sources(
+    logsquirl_logdata PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/iconvconverter.h
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/iconvconverter.cpp)
+  target_link_libraries(logsquirl_logdata PRIVATE iconv)
+endif()

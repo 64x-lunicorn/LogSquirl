@@ -45,6 +45,7 @@
 #include "containers.h"
 #include "dispatch_to.h"
 #include "groupexchange.h"
+#include "groupimportprompt.h"
 #include "iconloader.h"
 #include "log.h"
 #include "predefinedfilters.h"
@@ -220,30 +221,25 @@ void PredefinedFiltersDialog::importFilters()
     const QStringList files = QFileDialog::getOpenFileNames(
         this, tr( "Select one or more files to open" ), "", tr( "Predefined filters (*.conf)" ) );
 
+    if ( files.isEmpty() ) {
+        return;
+    }
+
+    using namespace logsquirl::groupexchange;
+    const auto title = tr( "Import predefined filters" );
+    ImportSession session( askUser( this, title ) );
+
+    // The imported groups are only in this dialog's copy: OK / Apply take
+    // them over, Cancel discards them.
     for ( const auto& file : files ) {
         LOG_INFO << "Loading filters from " << file;
-        QSettings settings{ file, QSettings::IniFormat };
-        PredefinedFiltersCollection collection;
-        collection.retrieveFromStorage( settings );
-
-        for ( const auto& set : collection.filterSets() ) {
-            // Skip duplicates by name or id.
-            bool duplicate = false;
-            for ( const auto& existing : filterSets_ ) {
-                if ( existing.id() == set.id() || existing.name() == set.name() ) {
-                    duplicate = true;
-                    break;
-                }
-            }
-            if ( duplicate ) {
-                LOG_INFO << "Skipping duplicate set: " << set.name();
-                continue;
-            }
-
-            filterSets_.append( set );
-            setListWidget->addItem( set.name() );
-        }
+        reportImportError( this, title, file, importFile( file, filterSets_, session ) );
     }
+
+    // Show the list as it is now; a replaced group is read again from it.
+    const int row = selectedRow_;
+    populateSetList();
+    setCurrentRow( row >= 0 ? row : setListWidget->count() - 1 );
 }
 
 // --- Apply / OK / Cancel ---

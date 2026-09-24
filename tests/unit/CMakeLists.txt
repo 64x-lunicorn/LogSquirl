@@ -29,6 +29,7 @@ add_executable(logsquirl_tests
     linepositionarray_test.cpp
     linetypes_test.cpp
     formatrecognition_test.cpp
+    jsonlogformat_test.cpp
     logfieldextractor_test.cpp
     logformatcatalog_test.cpp
     logformatparser_test.cpp
@@ -60,8 +61,11 @@ add_executable(logsquirl_tests
     settingspolicies_test.cpp
     sparselineread_test.cpp
     tabbarstyle_test.cpp
+    textencoding_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
+    timelookup_test.cpp
+    timestampreader_test.cpp
     viewportlayout_test.cpp
     viewset_test.cpp
     viewstatecodec_test.cpp

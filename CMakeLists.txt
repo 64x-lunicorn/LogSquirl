@@ -26,6 +26,7 @@ set(IDENTIFIER "io.github.logsquirl")
 set(PROJECT_DESCRIPTION "${PROJECT_NAME} log viewer")
 
 option(LOGSQUIRL_BUILD_TESTS "Build tests" ON)
+option(LOGSQUIRL_BUILD_FUZZERS "Build the libFuzzer targets (needs Clang)" OFF)
 option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
 option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
 option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
@@ -300,6 +301,10 @@ if(${LOGSQUIRL_BUILD_TESTS})
   add_subdirectory(tests)
 endif()
 
+if(LOGSQUIRL_BUILD_FUZZERS)
+  add_subdirectory(tests/fuzz)
+endif()
+
 # Installation and packaging
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY true)
 set(CPACK_SOURCE_IGNORE_FILES "build_root;.git")
@@ -374,14 +379,14 @@ if(UNIX)
     # on a distribution with an older Qt the install fails, instead of the
     # start. Users of such a distribution take the AppImage (#226).
     # Core, Network, Concurrent, Xml; Gui, Widgets; the xcb platform plugin;
-    # Core5Compat; the SVG image format and icon engine plugins.
+    # the SVG image format and icon engine plugins.
     set(LOGSQUIRL_QT_MIN "${LOGSQUIRL_QT_VERSION}")
     set(_deb_qt_depends)
     foreach(_lib core gui widgets network concurrent xml)
       # Ubuntu 24.04 and Debian 13 renamed the libraries for the 64-bit time_t transition.
       list(APPEND _deb_qt_depends "libqt6${_lib}6t64 (>= ${LOGSQUIRL_QT_MIN}) | libqt6${_lib}6 (>= ${LOGSQUIRL_QT_MIN})")
     endforeach()
-    foreach(_pkg libqt6core5compat6 libqt6svg6 qt6-qpa-plugins)
+    foreach(_pkg libqt6svg6 qt6-qpa-plugins)
       list(APPEND _deb_qt_depends "${_pkg} (>= ${LOGSQUIRL_QT_MIN})")
     endforeach()
     list(JOIN _deb_qt_depends ", " CPACK_DEBIAN_PACKAGE_DEPENDS)

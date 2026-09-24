@@ -61,6 +61,9 @@ _Avoid_: file watcher singleton, watch service
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 The Open Log File settles it after every load and whenever one is chosen: the one chosen, else
 the one detected, else the locale's. An Encoding the settings force is chosen from the start.
+The engine names one by a `TextEncoding`, an interned, immutable value found by name or IANA MIB enum;
+null means none chosen or unknown. It wraps Qt 6's `QStringConverter`; the engine has no
+`QTextCodec` and links no Qt5Compat.
 
 ### Displaying
 
@@ -135,7 +138,12 @@ _Avoid_: saved search, bookmark
 A named group of Predefined Filters, the counterpart of a Highlighter Set. The non-deletable
 Default Filter Group always exists and carries the same id for every user. A Filter Group, like
 a Highlighter Set, is handed to someone else as a file of its own: the Group Exchange proposes
-its file name from the group's name and writes exactly that one group.
+its file name from the group's name and writes exactly that one group. Import reads every
+group of a file as a group of its own. A group of the same id is a conflict, and so is one of
+only the same name; the user answers Replace (the existing group keeps its position and id),
+Keep both (the imported group gets a fresh id and the first free name `<name> (n)`) or Skip,
+once or for all remaining conflicts of the import. An imported group with the Default Filter
+Group's id never replaces the recipient's Default group: it arrives as a new group.
 _Avoid_: filter set, filter list, folder
 
 **Search Limits**:
@@ -226,7 +234,9 @@ _Avoid_: variable, constant, design value
 **Log Format**:
 A description of how a Log Line is composed of named fields, used to present the file as
 columns. Either built in or supplied by the user; which one applies to a Log File is decided
-by Format Recognition.
+by Format Recognition. A Log Format is of one kind: **regex**, whose fields are the named
+capture groups of its patterns, or **JSON** (`"file-type": "json"`), for Log Files whose Log
+Lines are JSON objects and whose fields are members addressed by path (`src/file`).
 _Avoid_: schema, parser, layout
 
 **Log Format Catalog**:
@@ -238,8 +248,18 @@ _Avoid_: registry, library
 The decision which Log Format, if any, applies to a Log File, taken from its first Log
 Lines against the Log Format Catalog. Taken when a Log File has loaded, and again after it
 is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
-with, even when the Catalog changes.
+with, even when the Catalog changes. The kinds of Log Format are scored apart: a sample Log
+Line that is a JSON object counts only for JSON Log Formats, every other one only for regex
+Log Formats.
 _Avoid_: detection, sniffing
+
+**Timestamp**:
+The point in time a Log Line carries, read through its Log Format's timestamp field
+(its timestamp format, and for epoch values its divisor). Continuation lines, such as a
+stack trace, have none. Taken as written: one without a time zone is not converted, and a
+written zone is ignored. Only what a Log Format declares or a common format covers can be
+read; a Log File without a Log Format that has a timestamp field has no Timestamps.
+_Avoid_: date, time (both name only a part of it)
 
 **Table View**:
 The Presentation of a Log File as one column per Log Format field, as an alternative to

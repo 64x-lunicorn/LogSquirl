@@ -2,12 +2,40 @@
 
 ## Changes
 
+- **JSON Log Files get a Table View**: Log Formats now understand
+  `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
+  objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
+  `value` field, in the order of the format. A field name can address a nested
+  member by path (`src/file`), and an epoch `timestamp-field` is converted with
+  `timestamp-divisor`. A Log Line that is not a JSON object is still a Row,
+  with empty fields. The Text View keeps the raw line. No JSON Log Format is
+  shipped; bring your own (#460).
+- **Go to timestamp**: `Edit->Go to timestamp...` (`Ctrl+Shift+L`) jumps to the
+  first line at or after a time, such as `14:02` or `2026-09-23 14:02:30`,
+  instead of a line number. It works for Log Files with a recognized Log
+  Format that has a timestamp field, finds the line in milliseconds even in a
+  file of ten million lines, and says why it is disabled otherwise. Log
+  Formats can now declare `timestamp-divisor` for epoch timestamps (#435).
+- **Parsers of untrusted files are fuzzed**: The indexing of a Log File's
+  bytes in blocks, the Log Format parser and field extractor, and the ANSI
+  color filter now have fuzz targets that ClusterFuzzLite runs on pull
+  requests that change code and every week, to find crashes and memory errors
+  in what an arbitrary file can make them read (#477).
 - **Ubuntu users install and update LogSquirl with apt**: After every stable
   release, a signed APT repository at `https://packages.lunicorn-lab.de` is
   rebuilt with the `.deb` of the last three stable releases, exactly as
   published on the release page, so LogSquirl updates with `apt upgrade`
   and an older release can be pinned. Betas are not published. The README and
   the website show the two-file setup (#380).
+- **Import asks what to do with a group that already exists**: Import in the
+  Predefined Filters and the Highlighters dialog brings each group of a file
+  in as a group of its own. When a group of the same id or name already
+  exists you choose Replace (it keeps its position and id, so an active
+  Highlighter Set stays active), Keep both (the new one gets the first free
+  name `<name> (n)`) or Skip, once or for all remaining conflicts across all
+  selected files. A group carrying the Default group's id never replaces your
+  Default group. A file that cannot be read or holds no group is reported.
+  Nothing takes effect before OK / Apply (#469).
 - **Export writes one group**: Export in the Predefined Filters and the
   Highlighters dialog now writes only the Filter Group or Highlighter Set
   selected in the list, and proposes a file name from its name
@@ -80,6 +108,17 @@
   dependency `main.cpp` really uses, now through an interface target that
   carries TBB's headers and definitions without naming its archive again.
   Linux and Windows link unchanged (#450).
+
+- **LogSquirl no longer ships Qt5Compat**: The engine decoded and detected text
+  through `QTextCodec`, which forced the deprecated Qt5Compat module onto every
+  package. It now uses Qt 6's own converters through a small `TextEncoding`
+  type, so the deb no longer depends on `libqt6core5compat6` and the Windows
+  installer and portable zip no longer carry `Qt6Core5Compat.dll`. The
+  Encoding menu offers the same Encodings, and the Encodings the settings and
+  the Index cache store by name or MIB enum still resolve. Legacy Encodings
+  (Windows code pages, ISO-8859, CJK) are read through the ICU or iconv of the
+  Qt in use; the Qt packages for macOS have neither, so there they are read
+  through the iconv of macOS (#442).
 
 ## Internal
 

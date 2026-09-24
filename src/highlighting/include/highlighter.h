@@ -153,6 +153,11 @@ public:
 
     QString name() const;
     QString id() const;
+    void setName( const QString& name );
+
+    // A copy of this set under the given id: a set that arrives from
+    // elsewhere takes the id of the one it replaces, or a fresh one.
+    HighlighterSet withId( const QString& id ) const;
 
     // Append a highlighter to this set.
     void addHighlighter( const Highlighter& highlighter );

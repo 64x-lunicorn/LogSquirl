@@ -306,6 +306,18 @@ QString HighlighterSet::name() const
     return name_;
 }
 
+void HighlighterSet::setName( const QString& name )
+{
+    name_ = name;
+}
+
+HighlighterSet HighlighterSet::withId( const QString& id ) const
+{
+    auto copy = *this;
+    copy.id_ = id;
+    return copy;
+}
+
 void HighlighterSet::addHighlighter( const Highlighter& highlighter )
 {
     highlighterList_.append( highlighter );
