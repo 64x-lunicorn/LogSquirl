@@ -20,8 +20,8 @@
 #ifndef TABBEDCRAWLERWIDGET_H
 #define TABBEDCRAWLERWIDGET_H
 
-#include <QTabBar>
 #include <QHash>
+#include <QTabBar>
 #include <QTabWidget>
 #include <qobjectdefs.h>
 #include <qtabbar.h>

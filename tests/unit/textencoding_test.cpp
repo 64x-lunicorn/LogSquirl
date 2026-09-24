@@ -18,6 +18,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QByteArray>
 #include <QString>
@@ -29,6 +30,13 @@
 
 #include "encodings.h"
 #include "textencoding.h"
+
+#ifdef Q_OS_MACOS
+#include <QStringDecoder>
+#include <QStringEncoder>
+
+#include "iconvconverter.h"
+#endif
 
 namespace {
 
@@ -205,3 +213,98 @@ SCENARIO( "An Encoding no converter exists for cannot be used", "[encoding][text
     REQUIRE_THROWS_AS( unusable.makeDecoder(), std::runtime_error );
     REQUIRE_THROWS_AS( unusable.fromUnicode( u"x" ), std::runtime_error );
 }
+
+#ifdef Q_OS_MACOS
+
+// The Qt packages for macOS know no Encoding but the Unicode ones and Latin-1
+// (#442), so this compares the converters of iconv with the ones Qt has where
+// it has them, and where it has none the tests above cover what iconv gives.
+SCENARIO( "The system's iconv converts the Encodings Qt for macOS lacks",
+          "[encoding][textencoding]" )
+{
+    const auto name
+        = GENERATE( "windows-1252", "windows-1251", "ISO-8859-2", "KOI8-R", "IBM850", "Big5", "GBK",
+                    "Shift_JIS", "EUC-JP", "ISO-2022-JP", "windows-949", "TIS-620", "macintosh" );
+
+    GIVEN( std::string( "the Encoding " ) + name )
+    {
+        const int index = iconv_converter::indexForName( name );
+        REQUIRE( index >= 0 );
+
+        QStringDecoder qtDecoder{ QAnyStringView( name ) };
+        WHEN( "every byte value is decoded" )
+        {
+            THEN( "it is what Qt makes of it, where Qt converts the Encoding" )
+            {
+                if ( !qtDecoder.isValid() ) {
+                    SUCCEED( "Qt cannot convert this Encoding here" );
+                }
+                else if ( std::string( name ).find( "windows-12" ) == 0
+                          || std::string( name ).find( "ISO-8859" ) == 0
+                          || std::string( name ).find( "KOI8" ) == 0 ) {
+                    for ( int byte = 0x20; byte < 0x100; ++byte ) {
+                        const QByteArray one( 1, static_cast<char>( byte ) );
+                        auto viaIconv = iconv_converter::makeDecoder( index, {} );
+                        const QString got = viaIconv->decode( one );
+                        // A byte the Encoding leaves undefined: ICU maps it to
+                        // the control character of that number, iconv rejects it.
+                        if ( got.contains( QChar::ReplacementCharacter ) ) {
+                            continue;
+                        }
+                        INFO( "byte " << byte );
+                        REQUIRE( got == QStringDecoder( QAnyStringView( name ) ).decode( one ) );
+                    }
+                }
+            }
+        }
+
+        WHEN( "text is encoded and decoded again" )
+        {
+            const auto* encoding = TextEncoding::forName( name );
+            REQUIRE( encoding != nullptr );
+            const QString plain = QStringLiteral( "plain text 123" );
+
+            THEN( "it comes back" )
+            {
+                REQUIRE( encoding->toUnicode( encoding->fromUnicode( plain ) ) == plain );
+            }
+        }
+    }
+}
+
+SCENARIO( "The converters of iconv keep a character cut short and forget it on a reset",
+          "[encoding][textencoding]" )
+{
+    const int index = iconv_converter::indexForName( "Shift_JIS" );
+    REQUIRE( index >= 0 );
+
+    // Two Japanese characters, two bytes each.
+    const QByteArray bytes = QByteArray::fromHex( "82a082a2" );
+    const QString expected = QStringLiteral( "\u3042\u3044" );
+
+    auto decoder = iconv_converter::makeDecoder( index, {} );
+    QString text;
+    for ( const char byte : bytes ) {
+        text += decoder->decode( QByteArrayView( &byte, 1 ) );
+    }
+    REQUIRE( text == expected );
+
+    // A lead byte cut off, then a reset: the half character is not glued to
+    // what comes after.
+    decoder->decode( QByteArrayView( bytes ).first( 1 ) );
+    decoder->resetState();
+    REQUIRE( decoder->decode( QByteArrayView( bytes ) ) == expected );
+    REQUIRE( !decoder->hasError() );
+}
+
+SCENARIO( "The converters of iconv say what they cannot convert", "[encoding][textencoding]" )
+{
+    const auto* latin2 = TextEncoding::forName( "ISO-8859-2" );
+    REQUIRE( latin2 != nullptr );
+
+    REQUIRE( latin2->canEncode( u"caf\u00E9" ) );
+    REQUIRE( !latin2->canEncode( u"\u20AC" ) );
+    REQUIRE( !latin2->canEncode( u"\U0001D11E" ) );
+}
+
+#endif // Q_OS_MACOS

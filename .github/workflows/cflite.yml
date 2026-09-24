@@ -1,0 +1,67 @@
+name: "Fuzzing"
+
+# ClusterFuzzLite runs the libFuzzer targets in tests/fuzz (#477): the code a
+# pull request changes for a few minutes, and everything weekly for longer.
+# They read what an arbitrary file or Log Format holds before a user sees
+# anything: indexing blocks, the Log Format parser and field extractor, the
+# ANSI color filter. It is also what the Scorecard Fuzzing check looks for.
+#
+# No storage repository is configured, so the corpus is not kept between runs;
+# the seeds in tests/fuzz/corpus start every run.
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - '.clusterfuzzlite/**'
+      - '.github/workflows/cflite.yml'
+      - 'docker/shared/aqtinstall-requirements.txt'
+      - 'src/**'
+      - 'tests/fuzz/**'
+      - 'CMakeLists.txt'
+  schedule:
+    - cron: '41 2 * * 3'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cflite-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.sanitizer }})
+    runs-on: ubuntu-24.04
+    # The image installs Qt and builds the third-party libraries and the
+    # targets cold, then fuzzes for at most 10 minutes (#477).
+    timeout-minutes: 60
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, undefined]
+
+    steps:
+      - name: Build the fuzzers
+        id: build
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: c++
+          sanitizer: ${{ matrix.sanitizer }}
+          github-token: ${{ github.token }}
+
+      - name: Run the fuzzers
+        uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          github-token: ${{ github.token }}
+          language: c++
+          sanitizer: ${{ matrix.sanitizer }}
+          # A pull request only fuzzes what it changes, briefly; the weekly
+          # run fuzzes every target for longer.
+          mode: ${{ github.event_name == 'pull_request' && 'code-change' || 'batch' }}
+          fuzz-seconds: ${{ github.event_name == 'pull_request' && 300 || 600 }}
