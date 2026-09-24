@@ -295,7 +295,9 @@ SCENARIO( "The converters of iconv keep a character cut short and forget it on a
 
     // A lead byte cut off, then a reset: the half character is not glued to
     // what comes after.
-    decoder->decode( QByteArrayView( bytes ).first( 1 ) );
+    // decode() only converts once its result is read as a QString.
+    const QString cutOff = decoder->decode( QByteArrayView( bytes ).first( 1 ) );
+    REQUIRE( cutOff.isEmpty() );
     decoder->resetState();
     REQUIRE( decoder->decode( QByteArrayView( bytes ) ) == expected );
     REQUIRE( !decoder->hasError() );
@@ -308,7 +310,7 @@ SCENARIO( "Resetting an iconv decoder does not open a new conversion", "[encodin
 
     const QByteArray bytes = QByteArray::fromHex( "82a082a2" );
     auto decoder = iconv_converter::makeDecoder( index, {} );
-    decoder->decode( bytes );
+    REQUIRE( QString( decoder->decode( bytes ) ) == QStringLiteral( "あい" ) );
 
     const auto opensBefore = iconv_converter::openedConversions();
     for ( int line = 0; line < 1000; ++line ) {
