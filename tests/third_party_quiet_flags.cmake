@@ -70,3 +70,19 @@ expect_stripped("/W3 /D_CRT_SECURE_NO_WARNINGS /nologo" "/D_CRT_SECURE_NO_WARNIN
 # raises individual warnings by number, and those have to survive untouched.
 expect_stripped("/wd4996;/w14242;/we4289" "/wd4996;/w14242;/we4289")
 expect_stripped("/permissive-;/W4;/bigobj" "/permissive-;/bigobj")
+
+# The helper reads a variable the caller names, so it must survive being handed
+# one named like any of its own locals. It did not: a caller passing a variable
+# called _stripped got an empty list back every time, because the accumulator
+# was called that too, and the check built on it called every third-party
+# target loud on Windows while the build itself was fine.
+set(_stripped "/Zi;/EHsc;/GR;/W4")
+logsquirl_strip_msvc_warning_level(_stripped)
+if(NOT "${_stripped}" STREQUAL "/Zi;/EHsc;/GR")
+  message(SEND_ERROR "a variable named like one of the helper's own\n  expected: '/Zi;/EHsc;/GR'\n  actual:   '${_stripped}'")
+endif()
+set(_option "/W4;/GR")
+logsquirl_strip_msvc_warning_level(_option)
+if(NOT "${_option}" STREQUAL "/GR")
+  message(SEND_ERROR "a variable named _option\n  expected: '/GR'\n  actual:   '${_option}'")
+endif()

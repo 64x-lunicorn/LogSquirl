@@ -98,8 +98,13 @@ set(LOGSQUIRL_THIRD_PARTY_MSVC_UNKNOWN_OPTIONS
 # dropped, and a level counts where an option would begin: at the start, after
 # a space, or after a generator expression's colon.
 function(logsquirl_strip_msvc_warning_level list_var)
-  set(_stripped "")
-  foreach(_option IN LISTS ${list_var})
+  # The input is copied out before anything else is set. list_var holds a
+  # caller's variable *name*, so a local of the same name would clear the list
+  # this is supposed to read -- which is exactly what happened to a caller that
+  # named its variable _stripped, and the answer was an empty list every time.
+  set(_logsquirl_levels_in "${${list_var}}")
+  set(_logsquirl_levels_out "")
+  foreach(_option IN LISTS _logsquirl_levels_in)
     string(
       REGEX
       REPLACE "(^|[ :])[-/]W(all|[0-4])([ >]|$)"
@@ -109,10 +114,10 @@ function(logsquirl_strip_msvc_warning_level list_var)
     )
     string(STRIP "${_option}" _option)
     if(NOT _option STREQUAL "")
-      list(APPEND _stripped "${_option}")
+      list(APPEND _logsquirl_levels_out "${_option}")
     endif()
   endforeach()
-  set(${list_var} "${_stripped}" PARENT_SCOPE)
+  set(${list_var} "${_logsquirl_levels_out}" PARENT_SCOPE)
 endfunction()
 
 function(logsquirl_third_party_build_quietly dir)
