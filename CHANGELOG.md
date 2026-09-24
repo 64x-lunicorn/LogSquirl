@@ -2,6 +2,14 @@
 
 ## Changes
 
+- **Team Folder**: In the options, name a Git repository (and optionally a
+  subfolder) and LogSquirl clones it with the installed `git`, using Git's own
+  authentication, and keeps it current at startup, every five minutes and with
+  "Sync now", without blocking the window. The Filter Groups in it arrive as
+  Team groups in their own read-only section of the Predefined Filters dialog
+  and in the Filters panel. A file that cannot be read is skipped and
+  reported; a quiet indicator shows synced, not synced or error, with Git's
+  own message, and never opens a dialog (#470).
 - **JSON Log Files get a Table View**: Log Formats now understand
   `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
   objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
