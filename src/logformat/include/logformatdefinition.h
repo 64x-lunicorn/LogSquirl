@@ -40,8 +40,8 @@ struct LogFormatSample {
 // What a Log Format describes a Log Line as. It decides how Format Recognition
 // scores the Log Format and how fields are read from a Log Line.
 enum class LogFormatKind {
-    Regex, // text matched by regex patterns; fields are their named capture groups
-    Json,  // a JSON object; fields are members addressed by path ("file-type": "json")
+    Regex,  // text matched by regex patterns; fields are their named capture groups
+    Json,   // a JSON object; fields are members addressed by path ("file-type": "json")
     Logfmt, // key/value pairs; fields are the keys ("file-type": "logfmt")
 };
 

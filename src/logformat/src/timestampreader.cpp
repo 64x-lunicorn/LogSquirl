@@ -20,8 +20,8 @@
 #include "timestampreader.h"
 
 #include "jsonlogline.h"
-#include "logfmtlogline.h"
 #include "logfieldextractor.h"
+#include "logfmtlogline.h"
 
 #include <QDate>
 #include <QTime>
