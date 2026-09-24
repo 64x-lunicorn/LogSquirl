@@ -40,6 +40,7 @@
 
 #include <QDir>
 #include <QFileDialog>
+#include <QGridLayout>
 #include <QMessageBox>
 
 #include "containers.h"
@@ -328,6 +329,7 @@ void PredefinedFiltersDialog::updatePropertyFields()
         upSetButton->setEnabled( false );
         downSetButton->setEnabled( false );
     }
+    updateTeamButtons();
 }
 
 void PredefinedFiltersDialog::updateFilterSetProperties()
@@ -369,15 +371,104 @@ void PredefinedFiltersDialog::showTeamGroups( const QList<PredefinedFilterSet>& 
         teamAddButton_ = new QPushButton( tr( "New Team group" ), leftPanel );
         connect( teamAddButton_, &QPushButton::clicked, this,
                  &PredefinedFiltersDialog::addTeamGroup );
-        leftLayout->addWidget( teamAddButton_ );
+        teamShareButton_ = new QPushButton( tr( "Share with team" ), leftPanel );
+        teamShareButton_->setToolTip( tr( "Adds a Team copy of the selected group of your own." ) );
+        connect( teamShareButton_, &QPushButton::clicked, this,
+                 &PredefinedFiltersDialog::shareSelectedGroup );
+        teamCopyButton_ = new QPushButton( tr( "Copy to my groups" ), leftPanel );
+        connect( teamCopyButton_, &QPushButton::clicked, this,
+                 &PredefinedFiltersDialog::copySelectedTeamGroup );
+        teamDeleteButton_ = new QPushButton( tr( "Delete for the team" ), leftPanel );
+        connect( teamDeleteButton_, &QPushButton::clicked, this,
+                 &PredefinedFiltersDialog::deleteSelectedTeamGroup );
+        auto* buttons = new QGridLayout;
+        buttons->addWidget( teamAddButton_, 0, 0 );
+        buttons->addWidget( teamShareButton_, 0, 1 );
+        buttons->addWidget( teamCopyButton_, 1, 0 );
+        buttons->addWidget( teamDeleteButton_, 1, 1 );
+        leftLayout->addLayout( buttons );
     }
     teamAddButton_->setVisible( teamEditable_ );
+    teamShareButton_->setVisible( teamEditable_ );
+    teamDeleteButton_->setVisible( teamEditable_ );
+    updateTeamButtons();
 
     selectedTeamRow_ = -1;
     teamGroupsList_->clear();
     for ( const auto& group : teamGroups_ ) {
         teamGroupsList_->addItem( group.name() );
     }
+}
+
+void PredefinedFiltersDialog::updateTeamButtons()
+{
+    if ( !teamGroupsList_ ) {
+        return;
+    }
+    teamShareButton_->setEnabled( teamEditable_ && selectedRow_ >= 0 );
+    teamCopyButton_->setEnabled( selectedTeamRow_ >= 0 );
+    teamDeleteButton_->setEnabled( teamEditable_ && selectedTeamRow_ >= 0 );
+}
+
+void PredefinedFiltersDialog::shareSelectedGroup()
+{
+    if ( selectedRow_ < 0 ) {
+        return;
+    }
+    // What was typed in the group so far is shared.
+    filterSets_[ selectedRow_ ] = filterSetEdit_->filterSet();
+
+    QStringList taken;
+    for ( const auto& group : teamGroups_ ) {
+        taken.append( group.name() );
+    }
+    const auto copy = logsquirl::teamfolder::copyOfGroup( filterSets_[ selectedRow_ ], taken );
+    teamGroups_.append( copy );
+    teamGroupsList_->addItem( copy.name() );
+    // The Team copy is shown; the group of the user's own stays as it is.
+    teamGroupsList_->setCurrentRow( teamGroupsList_->count() - 1 );
+}
+
+void PredefinedFiltersDialog::copySelectedTeamGroup()
+{
+    if ( selectedTeamRow_ < 0 ) {
+        return;
+    }
+    if ( teamEditable_ ) {
+        teamGroups_[ selectedTeamRow_ ] = filterSetEdit_->filterSet();
+    }
+
+    QStringList taken;
+    for ( const auto& group : filterSets_ ) {
+        taken.append( group.name() );
+    }
+    const auto copy
+        = logsquirl::teamfolder::copyOfGroup( teamGroups_.at( selectedTeamRow_ ), taken );
+    filterSets_.append( copy );
+    setListWidget->addItem( copy.name() );
+    setCurrentRow( setListWidget->count() - 1 );
+}
+
+void PredefinedFiltersDialog::deleteSelectedTeamGroup()
+{
+    if ( selectedTeamRow_ < 0 || !teamEditable_ ) {
+        return;
+    }
+    const auto answer = QMessageBox::question(
+        this, tr( "Delete Team group" ), tr( "This deletes the group for the whole team." ),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
+    if ( answer != QMessageBox::Yes ) {
+        return;
+    }
+
+    const auto row = selectedTeamRow_;
+    selectedTeamRow_ = -1;
+    teamGroups_.removeAt( row );
+    delete teamGroupsList_->takeItem( row );
+    filterSetEdit_->setReadOnly( false );
+    filterSetEdit_->reset();
+    exportButton->setEnabled( false );
+    updateTeamButtons();
 }
 
 void PredefinedFiltersDialog::addTeamGroup()
@@ -406,6 +497,7 @@ void PredefinedFiltersDialog::showSelectedTeamGroup()
     upSetButton->setEnabled( false );
     downSetButton->setEnabled( false );
     exportButton->setEnabled( true );
+    updateTeamButtons();
 }
 
 // --- Helpers ---

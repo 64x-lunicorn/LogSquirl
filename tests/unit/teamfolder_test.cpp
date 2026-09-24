@@ -1044,8 +1044,11 @@ TEST_CASE( "A dialog's edited Team groups ask to publish what was added, renamed
     CHECK( requests[ 2 ].action == GroupAction::Add );
     CHECK( requests[ 2 ].id == added.id() );
 
-    // A removed group is not asked for.
-    CHECK( requestsForChanges( before, { network } ).isEmpty() );
+    // A group that is no longer in the copy is asked to be deleted.
+    const auto deletions = requestsForChanges( before, { network } );
+    REQUIRE( deletions.size() == 1 );
+    CHECK( deletions[ 0 ].action == GroupAction::Delete );
+    CHECK( deletions[ 0 ].id == storage.id() );
 }
 
 // --- Conflicts (#473) ---
@@ -1192,4 +1195,101 @@ TEST_CASE( "A dialog's requests carry the revisions of the groups it loaded",
     CHECK( requests[ 0 ].baseRevision == std::optional<QString>( "abc123" ) );
     // A new group has no base: nobody else can have changed it.
     CHECK_FALSE( requests[ 1 ].baseRevision.has_value() );
+}
+
+// --- Share, copy and delete (#474) ---
+
+TEST_CASE( "A group is shared as a Team copy with a fresh id and a free name",
+           "[teamfolder][share]" )
+{
+    using logsquirl::teamfolder::copyOfGroup;
+
+    const auto mine = makeGroup( "Network", "refused" );
+
+    const auto copy = copyOfGroup( mine, { "Storage" } );
+    CHECK( copy.id() != mine.id() );
+    CHECK( copy.name() == "Network" );
+    REQUIRE( copy.filters().size() == 1 );
+    CHECK( copy.filters()[ 0 ].pattern == "refused" );
+
+    // A clash takes the first free "<name> (n)".
+    CHECK( copyOfGroup( mine, { "Network" } ).name() == "Network (2)" );
+    CHECK( copyOfGroup( mine, { "Network", "Network (2)" } ).name() == "Network (3)" );
+
+    const auto levels = makeSet( "Levels" );
+    const auto setCopy = copyOfGroup( levels, { "Levels" } );
+    CHECK( setCopy.id() != levels.id() );
+    CHECK( setCopy.name() == "Levels (2)" );
+}
+
+TEST_CASE( "Sharing publishes a Team copy and leaves the personal group", "[teamfolder][share]" )
+{
+    using logsquirl::teamfolder::copyOfGroup;
+
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bob = team.member( "bob" );
+    team.pushGroupByHand( "alice", makeGroup( "Network" ) );
+    syncNow( *alice );
+
+    const auto mine = makeGroup( "Network", "mine" );
+    const auto shared = copyOfGroup( mine, { "Network" } );
+    REQUIRE( publishGroup( *alice, shared, GroupAction::Add ).results[ 0 ].status
+             == PublishStatus::Published );
+
+    syncNow( *bob );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network", "Network (2)" } );
+    CHECK( bob->filterGroups()[ 1 ].id() == shared.id() );
+    CHECK( shared.id() != mine.id() );
+}
+
+TEST_CASE( "A deleted Team group disappears for everyone at their next sync",
+           "[teamfolder][share]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto network = makeGroup( "Network" );
+    const auto levels = makeSet( "Levels" );
+    team.pushGroupByHand( "alice", network );
+    team.pushGroupByHand( "alice", levels );
+    team.pushGroupByHand( "alice", makeGroup( "Storage" ) );
+    syncNow( *alice );
+    const auto bob = team.member( "bob" );
+
+    const auto deleted = publishAndWait(
+        *alice, { PublishRequest::forDeletion( logsquirl::groupexchange::GroupKind::Filter,
+                                               network.id(), network.name() ),
+                  PublishRequest::forDeletion( logsquirl::groupexchange::GroupKind::Highlighter,
+                                               levels.id(), levels.name() ) } );
+    REQUIRE( deleted.results.size() == 2 );
+    CHECK( deleted.results[ 0 ].status == PublishStatus::Published );
+    CHECK( deleted.results[ 1 ].status == PublishStatus::Published );
+    CHECK( team.serverFiles() == QStringList{ "Storage_filter.conf" } );
+    CHECK( namesOf( alice->filterGroups() ) == QStringList{ "Storage" } );
+
+    QSignalSpy changed( bob.get(), &TeamFolder::groupsChanged );
+    syncNow( *bob );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Storage" } );
+    CHECK( bob->highlighterGroups().isEmpty() );
+    REQUIRE( changed.size() == 1 );
+    CHECK( changed.at( 0 ).at( 0 ).value<TeamGroupChanges>().removed
+           == QStringList{ network.id() } );
+
+    // Deleting a group that is already gone changes nothing.
+    const auto again = publishAndWait(
+        *alice, { PublishRequest::forDeletion( logsquirl::groupexchange::GroupKind::Filter,
+                                               network.id(), network.name() ) } );
+    CHECK( again.results[ 0 ].status == PublishStatus::Published );
 }

@@ -157,7 +157,10 @@ _Avoid_: shared folder, team repository, sync folder
 **Team group**:
 A Filter Group or Highlighter Set that lives in the Team Folder, one file each. Team groups
 show in their own section of the dialogs, sorted alphabetically, and are never written into the
-user's own settings.
+user's own settings. Changing a Team group and pressing OK or Apply publishes that one file
+to the team; when someone else changed the same group meanwhile the user chooses keep mine,
+take theirs or save mine as a copy. Nothing is locked (ADR-0008). A personal group is shared
+as a Team copy, a Team group is copied back into the personal groups, each with a fresh id.
 _Avoid_: shared group, remote group
 
 **Search Limits**:

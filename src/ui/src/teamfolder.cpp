@@ -339,6 +339,8 @@ QString commitMessage( const PublishRequest& request )
     case GroupAction::Rename:
         return QStringLiteral( "Rename %1 \"%2\" to \"%3\"" )
             .arg( kind, request.previousName, request.name );
+    case GroupAction::Delete:
+        return QStringLiteral( "Delete %1 \"%2\"" ).arg( kind, request.name );
     case GroupAction::Change:
         break;
     }
@@ -423,6 +425,36 @@ PublishResult commitRequest( const Git& git, const QString& clone, const QString
 {
     PublishResult result;
     result.request = request;
+
+    if ( request.action == GroupAction::Delete ) {
+        const auto found = findGroup( folder, request );
+        if ( !found ) {
+            // Already gone: nothing to delete.
+            result.status = PublishStatus::Published;
+            return result;
+        }
+        result.file = found->file;
+        const auto relative
+            = QDir( clone ).relativeFilePath( QDir( folder ).filePath( found->file ) );
+        const auto removed = git.run( { QStringLiteral( "rm" ), QStringLiteral( "--quiet" ),
+                                        QStringLiteral( "--" ), relative },
+                                      clone );
+        if ( !removed.succeeded ) {
+            result.message = removed.message();
+            return result;
+        }
+        const auto committed = git.run( { QStringLiteral( "commit" ), QStringLiteral( "--quiet" ),
+                                          QStringLiteral( "-m" ), commitMessage( request ),
+                                          QStringLiteral( "--" ), relative },
+                                        clone );
+        if ( !committed.succeeded ) {
+            result.message = committed.message();
+            return result;
+        }
+        result.status = PublishStatus::Published;
+        return result;
+    }
+
     result.file = fileFor( folder, request );
     const auto path = QDir( folder ).filePath( result.file );
     QDir().mkpath( QFileInfo( path ).absolutePath() );
@@ -815,17 +847,13 @@ void TeamFolder::resolveConflict( const PublishRequest& request, ConflictChoice 
                 taken.append( group.group.name() );
             }
         }
-        const auto name = logsquirl::groupexchange::firstFreeName( request.name, taken );
         if ( request.filterGroup ) {
-            auto copy
-                = request.filterGroup->withId( PredefinedFilterSet::createNewSet( name ).id() );
-            copy.setName( name );
-            publish( { PublishRequest::forGroup( copy, GroupAction::Add ) } );
+            publish( { PublishRequest::forGroup( copyOfGroup( *request.filterGroup, taken ),
+                                                 GroupAction::Add ) } );
         }
         else if ( request.highlighterSet ) {
-            auto copy = request.highlighterSet->withId( HighlighterSet::createNewSet( name ).id() );
-            copy.setName( name );
-            publish( { PublishRequest::forGroup( copy, GroupAction::Add ) } );
+            publish( { PublishRequest::forGroup( copyOfGroup( *request.highlighterSet, taken ),
+                                                 GroupAction::Add ) } );
         }
         break;
     }
@@ -1057,6 +1085,16 @@ std::optional<QString> revisionOf( const QHash<QString, QString>& revisions, con
     return found == revisions.constEnd() ? std::nullopt : std::optional<QString>( *found );
 }
 
+groupexchange::GroupKind kindOf( const PredefinedFilterSet& )
+{
+    return groupexchange::GroupKind::Filter;
+}
+
+groupexchange::GroupKind kindOf( const HighlighterSet& )
+{
+    return groupexchange::GroupKind::Highlighter;
+}
+
 template <typename Group>
 QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<Group>& after,
                                        const QHash<QString, QString>& revisions )
@@ -1076,6 +1114,15 @@ QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<G
         else if ( !sameContent( *was, group ) ) {
             requests.append( PublishRequest::forGroup( group, GroupAction::Change ) );
             requests.back().baseRevision = revisionOf( revisions, group.id() );
+        }
+    }
+    for ( const auto& group : before ) {
+        const auto stays
+            = std::any_of( after.cbegin(), after.cend(),
+                           [ &group ]( const auto& other ) { return other.id() == group.id(); } );
+        if ( !stays ) {
+            requests.append(
+                PublishRequest::forDeletion( kindOf( group ), group.id(), group.name() ) );
         }
     }
     return requests;
@@ -1121,6 +1168,33 @@ PublishRequest PublishRequest::forGroup( const HighlighterSet& group, GroupActio
     request.previousName = previousName;
     request.highlighterSet = group;
     return request;
+}
+
+PublishRequest PublishRequest::forDeletion( groupexchange::GroupKind kind, const QString& id,
+                                            const QString& name )
+{
+    PublishRequest request;
+    request.kind = kind;
+    request.action = GroupAction::Delete;
+    request.id = id;
+    request.name = name;
+    return request;
+}
+
+PredefinedFilterSet copyOfGroup( const PredefinedFilterSet& group, const QStringList& takenNames )
+{
+    const auto name = groupexchange::firstFreeName( group.name(), takenNames );
+    auto copy = group.withId( PredefinedFilterSet::createNewSet( name ).id() );
+    copy.setName( name );
+    return copy;
+}
+
+HighlighterSet copyOfGroup( const HighlighterSet& group, const QStringList& takenNames )
+{
+    const auto name = groupexchange::firstFreeName( group.name(), takenNames );
+    auto copy = group.withId( HighlighterSet::createNewSet( name ).id() );
+    copy.setName( name );
+    return copy;
 }
 
 bool PublishRequest::writeTo( const QString& file ) const

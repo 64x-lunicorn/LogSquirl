@@ -38,6 +38,7 @@
 
 #include <QDir>
 #include <QFileDialog>
+#include <QGridLayout>
 #include <QMessageBox>
 #include <QTimer>
 
@@ -438,6 +439,7 @@ void HighlightersDialog::updatePropertyFields()
         upHighlighterButton->setEnabled( false );
         downHighlighterButton->setEnabled( false );
     }
+    updateTeamButtons();
 }
 
 void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bool editable,
@@ -473,6 +475,79 @@ void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bo
     }
 }
 
+void HighlightersDialog::updateTeamButtons()
+{
+    if ( !teamGroupsList_ ) {
+        return;
+    }
+    teamShareButton_->setEnabled( teamEditable_ && selectedRow_ >= 0 );
+    teamCopyButton_->setEnabled( selectedTeamRow_ >= 0 );
+    teamDeleteButton_->setEnabled( teamEditable_ && selectedTeamRow_ >= 0 );
+}
+
+void HighlightersDialog::shareSelectedGroup()
+{
+    if ( selectedRow_ < 0 ) {
+        return;
+    }
+    // What was typed in the set so far is shared.
+    highlighterSetCollection_.highlighters_[ selectedRow_ ] = highlighterSetEdit_->highlighters();
+
+    QStringList taken;
+    for ( const auto& group : teamGroups_ ) {
+        taken.append( group.name() );
+    }
+    const auto copy = logsquirl::teamfolder::copyOfGroup(
+        highlighterSetCollection_.highlighters_[ selectedRow_ ], taken );
+    teamGroups_.append( copy );
+    teamGroupsList_->addItem( copy.name() );
+    // The Team copy is shown; the set of the user's own stays as it is.
+    teamGroupsList_->setCurrentRow( teamGroupsList_->count() - 1 );
+}
+
+void HighlightersDialog::copySelectedTeamGroup()
+{
+    if ( selectedTeamRow_ < 0 ) {
+        return;
+    }
+    if ( teamEditable_ ) {
+        teamGroups_[ selectedTeamRow_ ] = highlighterSetEdit_->highlighters();
+    }
+
+    QStringList taken;
+    for ( const auto& group : highlighterSetCollection_.highlighters_ ) {
+        taken.append( group.name() );
+    }
+    const auto copy
+        = logsquirl::teamfolder::copyOfGroup( teamGroups_.at( selectedTeamRow_ ), taken );
+    highlighterSetCollection_.highlighters_.append( copy );
+    highlighterListWidget->addItem( copy.name() );
+    setCurrentRow( highlighterListWidget->count() - 1 );
+}
+
+void HighlightersDialog::deleteSelectedTeamGroup()
+{
+    if ( selectedTeamRow_ < 0 || !teamEditable_ ) {
+        return;
+    }
+    const auto answer
+        = QMessageBox::question( this, tr( "Delete Team highlighter set" ),
+                                 tr( "This deletes the group for the whole team." ),
+                                 QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
+    if ( answer != QMessageBox::Yes ) {
+        return;
+    }
+
+    const auto row = selectedTeamRow_;
+    selectedTeamRow_ = -1;
+    teamGroups_.removeAt( row );
+    delete teamGroupsList_->takeItem( row );
+    highlighterSetEdit_->setEnabled( true );
+    highlighterSetEdit_->reset();
+    exportButton->setEnabled( false );
+    updateTeamButtons();
+}
+
 void HighlightersDialog::addTeamGroup()
 {
     teamGroups_.append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
@@ -499,6 +574,7 @@ void HighlightersDialog::showSelectedTeamGroup()
     upHighlighterButton->setEnabled( false );
     downHighlighterButton->setEnabled( false );
     exportButton->setEnabled( true );
+    updateTeamButtons();
 }
 
 void HighlightersDialog::updateHighlighterProperties()

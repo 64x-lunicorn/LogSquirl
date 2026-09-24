@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **Groups are shared with the team, copied back, and deleted for the team**:
+  "Share with team" in the Predefined Filters and Highlighters dialogs adds a
+  Team copy of your own group under a fresh id and, on a name clash, the first
+  free `<name> (n)`; your group stays. "Copy to my groups" does the reverse. A
+  Team group can be deleted for everyone after the question "This deletes the
+  group for the whole team"; it disappears at everyone's next sync, and a
+  deleted Team Highlighter Set that was active is switched off (#474).
 - **Publishing asks what to do when someone else changed the same Team
   group**: A Team group's file remembers the revision it had when you started
   editing. If it changed after the sync that comes before publishing, nothing

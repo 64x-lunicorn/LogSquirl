@@ -69,7 +69,7 @@ struct TeamGroupChanges {
     }
 };
 
-enum class GroupAction { Add, Change, Rename };
+enum class GroupAction { Add, Change, Rename, Delete };
 
 // A change to one Team group, to be published: written into its file, committed
 // on its own and pushed. The Team Folder finds the group's file by its id;
@@ -96,6 +96,10 @@ struct PublishRequest {
     // Writes the group into the file it is given, in the Group Exchange's
     // one-group format.
     bool writeTo( const QString& file ) const;
+
+    // Deletes the group's file: the group is gone for the whole team.
+    static PublishRequest forDeletion( groupexchange::GroupKind kind, const QString& id,
+                                       const QString& name );
 
     static PublishRequest forGroup( const PredefinedFilterSet& group, GroupAction action,
                                     const QString& previousName = {} );
@@ -140,9 +144,15 @@ struct PublishOutcome {
     QList<PublishResult> results;
 };
 
+// A copy of a group under a fresh id and the first free name -- its own when
+// no group in takenNames has it, else "<name> (n)". Sharing a personal group
+// with the team, and copying a Team group into the personal ones, are copies.
+PredefinedFilterSet copyOfGroup( const PredefinedFilterSet& group, const QStringList& takenNames );
+HighlighterSet copyOfGroup( const HighlighterSet& group, const QStringList& takenNames );
+
 // What a dialog's edited copy of the Team groups asks to publish, against the
-// groups it was given: a group it added, one it renamed, one it changed. A
-// group that is no longer in the copy is not asked for here.
+// groups it was given: a group it added, one it renamed, one it changed, and
+// one that is no longer in the copy, to be deleted.
 // revisions holds the revision of each group's file when the dialog loaded it,
 // by group id; a changed or renamed group carries its revision.
 QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,

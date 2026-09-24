@@ -96,6 +96,9 @@ private Q_SLOTS:
     // Shows the selected Team group, read-only.
     void showSelectedTeamGroup();
     void addTeamGroup();
+    void shareSelectedGroup();
+    void copySelectedTeamGroup();
+    void deleteSelectedTeamGroup();
 
 private:
     void populateSetList();
@@ -115,6 +118,11 @@ private:
     // The Team groups as they were given, to tell what OK or Apply publishes.
     QList<PredefinedFilterSet> teamGroupsAsGiven_;
     QPushButton* teamAddButton_ = nullptr;
+    QPushButton* teamShareButton_ = nullptr;
+    QPushButton* teamCopyButton_ = nullptr;
+    QPushButton* teamDeleteButton_ = nullptr;
+    // What can be done with the selected group depends on which one it is.
+    void updateTeamButtons();
     bool teamEditable_ = false;
     // The revision of each Team group's file when it was loaded, by id.
     QHash<QString, QString> teamRevisions_;
