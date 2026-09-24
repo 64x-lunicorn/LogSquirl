@@ -20,7 +20,11 @@
 #include "teamfoldergit.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
+#include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
 
@@ -34,6 +38,23 @@ namespace {
 
 // How often a waiting run looks at its stop flag.
 constexpr int StopPollMs = 100;
+
+// A run that was killed while it changed the index leaves its lock behind, and
+// every later run in the clone then fails on it. The clone is the Team
+// Folder's alone and its runs follow one another, so once the killed one is
+// gone no lock can belong to anybody else.
+void removeOrphanedIndexLock( const QString& workingDirectory )
+{
+    if ( workingDirectory.isEmpty() ) {
+        return;
+    }
+    const QFileInfo lock(
+        QDir( workingDirectory ).filePath( QStringLiteral( ".git/index.lock" ) ) );
+    if ( lock.isFile() && lock.lastModified() <= QDateTime::currentDateTime() ) {
+        LOG_WARNING << "Team Folder removes the index.lock a stopped run left behind";
+        QFile::remove( lock.filePath() );
+    }
+}
 
 } // namespace
 
@@ -59,6 +80,10 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
     // it, Git fails with its own message. A credential helper, an SSH agent
     // and the rest of the user's configuration still apply.
     environment.insert( QStringLiteral( "GIT_TERMINAL_PROMPT" ), QStringLiteral( "0" ) );
+    // The sync reads the tool's output; a translated one would say the same in
+    // other words. Ask for the untranslated text.
+    environment.insert( QStringLiteral( "LC_ALL" ), QStringLiteral( "C" ) );
+    environment.insert( QStringLiteral( "LANGUAGE" ), QStringLiteral( "C" ) );
     process.setProcessEnvironment( environment );
     if ( !workingDirectory.isEmpty() ) {
         process.setWorkingDirectory( workingDirectory );
@@ -89,6 +114,7 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
         if ( stopped || elapsed.elapsed() > timeoutMs ) {
             process.kill();
             process.waitForFinished();
+            removeOrphanedIndexLock( workingDirectory );
             result.output = QString::fromUtf8( process.readAllStandardOutput() );
             result.error = stopped ? QCoreApplication::translate( "TeamFolder", "Stopped." )
                                    : QCoreApplication::translate( "TeamFolder",
