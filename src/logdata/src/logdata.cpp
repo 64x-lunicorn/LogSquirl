@@ -936,7 +936,7 @@ QString decode( std::string_view line, DirectEncoding encoding )
     const auto size = static_cast<qsizetype>( line.size() );
     switch ( encoding ) {
     case DirectEncoding::Latin1:
-        return QString::fromLatin1( line.data(), size );
+        return QString::fromLatin1( QByteArrayView( line ) );
     case DirectEncoding::Utf16LE:
     case DirectEncoding::Utf16BE: {
         QString text( size / 2, Qt::Uninitialized );
@@ -949,7 +949,7 @@ QString decode( std::string_view line, DirectEncoding encoding )
         return text;
     }
     default:
-        return QString::fromUtf8( line.data(), size );
+        return QString::fromUtf8( QByteArrayView( line ) );
     }
 }
 

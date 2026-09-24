@@ -124,7 +124,7 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )
 QString TabbedCrawlerWidget::baseTabName( int index ) const
 {
     const auto path = tabPathAt( index );
-    const auto customName = TabNameMapping::get().tabName( path );
+    auto customName = TabNameMapping::get().tabName( path );
     if ( !customName.isEmpty() ) {
         return customName;
     }

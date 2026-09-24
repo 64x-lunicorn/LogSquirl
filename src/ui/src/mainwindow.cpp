@@ -50,6 +50,7 @@
 #include <iterator>
 #include <qaction.h>
 #include <qapplication.h>
+#include <tuple>
 
 #ifdef Q_OS_WIN
 #define WIN32_LEAN_AND_MEAN
@@ -1712,7 +1713,7 @@ void MainWindow::updateSourcesMenu()
         if ( meta.type() == LOGSQUIRL_PLUGIN_DATASOURCE ) {
             auto* action = new QAction( meta.name(), sourcesMenu );
             action->setStatusTip( tr( "Start %1 data source" ).arg( meta.name() ) );
-            const auto id = meta.id();
+            const auto& id = meta.id();
             connect( action, &QAction::triggered, this,
                      [ this, id ]() { startPluginDataSource( id ); } );
             sourcesMenu->addAction( action );
@@ -2021,7 +2022,7 @@ void MainWindow::importChipmunkFilters()
     }
 
     // Import as HighlighterSet
-    const auto setName = groupName;
+    const auto& setName = groupName;
     const auto highlighterSet = logsquirl::chipmunk::toHighlighterSet( chipmunkFilters, setName );
 
     auto& highlighterCollection = HighlighterSetCollection::getSynced();
@@ -3149,9 +3150,10 @@ void MainWindow::selectOpenedFile()
     selectFileDialog->setModal( true );
     selectFileDialog->open();
 
-    filesModel.release();
-    filteredModel.release();
-    selectFileDialog.release();
+    // Ownership passes to the Qt parent chain; the raw pointers are not needed.
+    std::ignore = filesModel.release();
+    std::ignore = filteredModel.release();
+    std::ignore = selectFileDialog.release();
 }
 
 void MainWindow::showInfoLabels( bool show )

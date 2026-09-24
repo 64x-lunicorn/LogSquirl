@@ -44,7 +44,7 @@ namespace {
 // printed, and the tool exits with a non-zero code.
 void printFailure( const QString& failure )
 {
-    std::cerr << "logsquirl_grep: " << failure.toStdString() << std::endl;
+    std::cerr << "logsquirl_grep: " << failure.toStdString() << '\n';
 }
 
 void printMatches( const LogFilteredData& search, LinesCount nbMatches )

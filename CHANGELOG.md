@@ -213,6 +213,18 @@
   the number boxes, and the XML cases the accepted CVE-2026-15037 rests on),
   the compressed line storage (including its damaged disk cache) and the regex
   wrapper have tests of their own. (#444)
+- **clang-tidy finds bugs, not only names, and runs in CI**: `.clang-tidy` now
+  enables the `bugprone-*`, `clang-analyzer-*` and `performance-*` checks
+  instead of only the naming check, with the reason for every excluded check
+  written next to it. A new Tidy job in CI Build runs them over the C++ sources
+  under `src/` that a pull request changes (a changed header selects its whole
+  module) and fails on any finding; a manual run analyses every source, and
+  `.github/scripts/run-clang-tidy.sh` does the same locally. The findings that
+  existed are fixed: a use after move in the Highlighter editor, unchecked
+  optional accesses, string views passed without their size, a thrown type
+  outside `std::exception`, floating-point loop counters in the chart axes,
+  dead stores and a few missing moves. The naming check stays configured but
+  off, because about 400 existing names break it (#440).
 - **The tests run on Catch2 v3**: Catch2 v2 is end of life. v3 is pinned by
   commit like every other dependency, Renovate keeps tracking it, and the 135
   test files include only the Catch2 headers they use instead of the one big

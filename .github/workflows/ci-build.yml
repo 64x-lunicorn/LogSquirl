@@ -562,6 +562,100 @@ jobs:
           if-no-files-found: warn
 
   # -----------------------------------------------------------------------
+  # Tidy — clang-tidy with the bugprone, clang-analyzer and performance
+  # checks of .clang-tidy over the C++ sources under src/ that a pull request
+  # changes (a changed header selects its whole module), and any finding
+  # fails the job (#440). It configures the build for its compile database
+  # and runs the Qt code generators, but compiles and links nothing. The
+  # findings that existed when this job came in are fixed, or silenced with
+  # their reason at the line; the excluded checks carry theirs in .clang-tidy.
+  # A run started by hand analyses every source. Ubuntu's clang-tidy 18 reads
+  # the GCC compile database the noble image builds with.
+  # -----------------------------------------------------------------------
+  Tidy:
+    name: Tidy / clang-tidy
+    needs: [Changes]
+    if: "needs.Changes.outputs.build == 'true'"
+    strategy:
+      matrix:
+        config:
+          # Single-entry matrix so the shared composite actions (which read
+          # matrix.config.*) work unchanged.
+          - arch: x64
+            artifacts_id: tidy
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            # Only headers and the compile database are needed: no Sentry
+            # download, no LTO.
+            cmake_opts: >-
+              -DLOGSQUIRL_USE_SENTRY=OFF
+              -DLOGSQUIRL_USE_LTO=OFF
+
+    runs-on: ubuntu-24.04
+    # Not measured on a real run yet: a pull request should take a few minutes
+    # (configure, the clang-tidy install, the changed files); 45 leaves room
+    # for a full run over every source. Tighten it after the first runs (#218).
+    timeout-minutes: 45
+    steps:
+      # Depth 2: the pull request's merge commit and its base, which say
+      # what changed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      # The noble job's CPM cache already holds every dependency the configure
+      # step fetches (#219).
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+
+      - name: Analyse with clang-tidy
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          mode=changed
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            mode=all
+          fi
+          docker run --rm \
+            --env LOGSQUIRL_VERSION="$LOGSQUIRL_VERSION" \
+            --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+            --env LOGSQUIRL_CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS" \
+            --env MODE="$mode" \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
+            /bin/bash -c '
+              set -euo pipefail
+              # The checkout belongs to the runner user, not to root.
+              git config --global --add safe.directory /usr/local
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends clang-tidy-18 > /dev/null
+              cd /usr/local
+              cmake -B "$LOGSQUIRL_BUILD_ROOT" $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache .
+              CLANG_TIDY=clang-tidy-18 .github/scripts/run-clang-tidy.sh "$LOGSQUIRL_BUILD_ROOT" "$MODE"
+            '
+
+  # -----------------------------------------------------------------------
   # macOS — runs alongside Linux and Windows (#121, #349). Linux gated this
   # job to keep a compile error off the dearer runners; the repository is
   # public, so those runners are free and carry no cost multiplier, and the
@@ -779,7 +873,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Windows, Mac, Website]
+      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Tidy, Windows, Mac, Website]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5

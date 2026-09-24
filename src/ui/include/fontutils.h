@@ -118,7 +118,7 @@ public:
     // on the path where the alternative is painting Log Lines proportional.
     static QString platformFixedPitchFamily()
     {
-        const auto systemFamily = QFontDatabase::systemFont( QFontDatabase::FixedFont ).family();
+        auto systemFamily = QFontDatabase::systemFont( QFontDatabase::FixedFont ).family();
         if ( resolvesToFixedPitch( systemFamily ) ) {
             return systemFamily;
         }

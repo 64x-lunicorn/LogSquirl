@@ -80,7 +80,7 @@ public:
 
     void setLanguage( QString lang )
     {
-        language_ = lang;
+        language_ = std::move( lang );
     }
 
     // Accesses the regexp types

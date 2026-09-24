@@ -297,7 +297,7 @@ void FiltersPanel::emitCurrentSelection()
         }
     }
 
-    pinnedFilterKeys_ = checkedKeys;
+    pinnedFilterKeys_ = std::move( checkedKeys );
     savePinnedFilters();
 
     Q_EMIT filtersChanged( selected );

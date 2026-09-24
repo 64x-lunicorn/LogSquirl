@@ -22,6 +22,9 @@
 
 #include <QRunnable>
 
+#include <type_traits>
+#include <utility>
+
 template <typename TRunnable>
 class RunnableWrapper : public QRunnable {
 public:
@@ -41,9 +44,12 @@ private:
 };
 
 template <typename TRunnable>
-RunnableWrapper<TRunnable>* createRunnable( TRunnable&& runnable )
+auto* createRunnable( TRunnable&& runnable )
 {
-    return new RunnableWrapper<TRunnable>( std::move( runnable ) );
+    // Forwarded: an lvalue no longer binds, so a caller cannot have its
+    // runnable moved from silently; it passes std::move() explicitly.
+    return new RunnableWrapper<std::remove_cvref_t<TRunnable>>(
+        std::forward<TRunnable>( runnable ) );
 }
 
 #endif

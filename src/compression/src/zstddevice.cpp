@@ -34,7 +34,8 @@ ZstdDevice::ZstdDevice( const QString& filePath, QObject* parent )
 
 ZstdDevice::~ZstdDevice()
 {
-    close();
+    // Qualified: the destructor runs this class's close(), not a subclass's.
+    ZstdDevice::close();
 }
 
 bool ZstdDevice::open( OpenMode mode )

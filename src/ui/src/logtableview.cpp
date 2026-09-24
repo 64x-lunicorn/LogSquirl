@@ -341,7 +341,7 @@ void LogTableView::updateOverview()
         return;
     }
 
-    const bool shouldShow = active_ && overview_->isVisible();
+    const bool shouldShow = active_ && overview_ && overview_->isVisible();
     if ( !shouldShow ) {
         overviewWidget_->hide();
         return;
@@ -581,12 +581,16 @@ bool LogTableView::viewportEvent( QEvent* event )
 void LogTableView::selectionChanged( const QItemSelection& selected,
                                      const QItemSelection& deselected )
 {
-    QAbstractItemView::selectionChanged( selected, deselected );
+    // Skipping QTableView is the point (see above).
+    QAbstractItemView::selectionChanged( selected, // NOLINT(bugprone-parent-virtual-call)
+                                         deselected );
 }
 
 void LogTableView::currentChanged( const QModelIndex& current, const QModelIndex& previous )
 {
-    QAbstractItemView::currentChanged( current, previous );
+    // Skipping QTableView is the point (see above).
+    QAbstractItemView::currentChanged( current, // NOLINT(bugprone-parent-virtual-call)
+                                       previous );
 }
 
 void LogTableView::keyPressEvent( QKeyEvent* event )

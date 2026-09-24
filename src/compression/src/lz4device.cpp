@@ -34,7 +34,8 @@ Lz4Device::Lz4Device( const QString& filePath, QObject* parent )
 
 Lz4Device::~Lz4Device()
 {
-    close();
+    // Qualified: the destructor runs this class's close(), not a subclass's.
+    Lz4Device::close();
 }
 
 bool Lz4Device::open( OpenMode mode )

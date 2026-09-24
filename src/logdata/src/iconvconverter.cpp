@@ -96,6 +96,8 @@ constexpr std::size_t maxPendingBytes = 8;
 constexpr std::size_t encodedBytesPerUnit = 4;
 constexpr std::size_t encodedSlack = 16;
 
+// iconv_open()'s failure value, (iconv_t)-1: a sentinel, never dereferenced.
+// NOLINTNEXTLINE(performance-no-int-to-ptr)
 const iconv_t noDescriptor = reinterpret_cast<iconv_t>( static_cast<std::intptr_t>( -1 ) );
 
 // What a State keeps between two calls: the iconv conversion, which holds the

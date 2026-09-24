@@ -50,7 +50,9 @@ public:
 
     LineNumber line() const
     {
-        return *line_;
+        // Callers hold a valid Portion (see isValid()); the default one is only
+        // a placeholder that is never read.
+        return *line_; // NOLINT(bugprone-unchecked-optional-access)
     }
     LineColumn startColumn() const
     {

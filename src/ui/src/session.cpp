@@ -434,6 +434,7 @@ std::vector<WindowSession> Session::windowSessions()
     const auto& sessionWindows = session.windows();
 
     std::vector<WindowSession> windows;
+    windows.reserve( static_cast<std::size_t>( sessionWindows.size() ) );
     for ( auto i = 0; i < sessionWindows.size(); ++i ) {
         windows.emplace_back( shared_from_this(), sessionWindows.at( i ), i );
     }

@@ -33,7 +33,7 @@ in English.** No exceptions.
 The project uses `.clang-format` and `.clang-tidy` at the repository root. Always format code
 with clang-format before committing.
 
-### Naming Conventions (enforced by `.clang-tidy`)
+### Naming Conventions (configured in `.clang-tidy`, not enforced: about 400 names still break it)
 
 | Element              | Convention        | Example                              |
 |----------------------|-------------------|--------------------------------------|

@@ -148,7 +148,7 @@ bool SearchLine::useFilters( const QList<PredefinedFilter>& filters )
     for ( const auto& filter : filters ) {
         combine( pattern, escaped( filter.pattern, filter.useRegex ) );
     }
-    pattern_ = pattern;
+    pattern_ = std::move( pattern );
     return autoRun_;
 }
 

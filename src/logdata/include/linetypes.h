@@ -432,7 +432,8 @@ LineLength getUntabifiedLength( const LineType& utf8Line )
         tabPosition = utf8Line.find( '\t', tabPosition + 1 );
     }
 
-    const auto expandedLen = static_cast<int64_t>( utf8Line.size() + totalSpaces );
+    const auto expandedLen
+        = static_cast<int64_t>( utf8Line.size() ) + static_cast<int64_t>( totalSpaces );
     const auto cappedLen = std::min( expandedLen, static_cast<int64_t>( MaxExpandedLineLength ) );
 
     return LineLength( type_safe::narrow_cast<LineLength::UnderlyingType>( cappedLen ) );

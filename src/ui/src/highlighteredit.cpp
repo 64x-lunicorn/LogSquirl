@@ -128,7 +128,8 @@ void HighlighterEdit::setHighlighter( Highlighter highlighter )
     variateColorsCheckBox->setEnabled( highlighter_.highlightOnlyMatch() );
     variationSpinBox->setEnabled( highlighter_.highlightOnlyMatch() );
 
-    if ( highlighter.useRegex() ) {
+    // The parameter was moved into highlighter_ above.
+    if ( highlighter_.useRegex() ) {
         patternTypeComboBox->setCurrentIndex( 0 );
     }
     else {

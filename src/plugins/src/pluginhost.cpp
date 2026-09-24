@@ -105,7 +105,7 @@ QString PluginHost::loadPlugin( const QString& pluginId )
     // Load the shared library
     auto loadResult = PluginLoader::load( *meta );
     if ( !loadResult.has_value() ) {
-        const auto error = loadResult.error();
+        auto error = loadResult.error();
         LOG_ERROR << "Failed to load plugin '" << pluginId << "': " << error;
         Q_EMIT pluginError( pluginId, error );
         return error;
@@ -124,7 +124,7 @@ QString PluginHost::loadPlugin( const QString& pluginId )
 
     // Initialise — pass the context pointer as the opaque handle so that
     // host API trampolines can route back to this host
-    const auto error = ctx->handle.init( &ctx->hostApi, ctx.get() );
+    auto error = ctx->handle.init( &ctx->hostApi, ctx.get() );
     if ( !error.isEmpty() ) {
         LOG_ERROR << "Failed to init plugin '" << pluginId << "': " << error;
         // A plugin may have registered contributions before its init failed.

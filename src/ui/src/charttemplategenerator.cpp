@@ -81,7 +81,7 @@ bool configureTimestampXAxis( ChartSeriesDefinition& def, const LogFormatDefinit
 
     def.xPattern = xPattern;
     def.xCaptureGroup = tsGroupIdx;
-    def.xTimestampFormat = qtFmt;
+    def.xTimestampFormat = std::move( qtFmt );
     def.bucketSizeMs = bucketMs;
     return true;
 }

@@ -48,6 +48,8 @@
     SX( HIGHLIGHT_XPM_WIDTH )                                                                      \
     " " SX( HIGHLIGHT_XPM_HEIGHT ) " 2 1", "  s mask c none", "x c black"
 
+// The XPM rows are string literals in an array on purpose, not a missing comma.
+// NOLINTBEGIN(bugprone-suspicious-missing-comma)
 const char* const highlight_xpm[][ 14 ] = {
     {
         HIGHLIGHT_XPM_LEAD_LINE,
@@ -134,6 +136,7 @@ const char* const highlight_xpm[][ 14 ] = {
         "                           ",
     },
 };
+// NOLINTEND(bugprone-suspicious-missing-comma)
 
 namespace {
 

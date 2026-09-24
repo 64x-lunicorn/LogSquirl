@@ -98,6 +98,8 @@ Q_SIGNALS:
     // Sent every time the pattern is modified
     // (pattern and ignor_case flag)
     void patternUpdated( const QString&, bool, bool );
+    // A signal of the same name as QWidget::close(), by design.
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
     void close();
     // Emitted when the user closes the window
     void cancelSearch();
