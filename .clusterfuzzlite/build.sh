@@ -13,12 +13,24 @@ cmake -S "$SRC/logsquirl" -B "$WORK/build" -G Ninja \
     -DLOGSQUIRL_BUILD_FUZZERS=ON \
     -DLOGSQUIRL_BUILD_TESTS=OFF \
     -DLOGSQUIRL_USE_LTO=OFF \
-    -DLOGSQUIRL_USE_VECTORSCAN=OFF
+    -DLOGSQUIRL_USE_VECTORSCAN=OFF \
+    -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+    -DCMAKE_INSTALL_RPATH='$ORIGIN/lib'
 cmake --build "$WORK/build" --target logsquirl_fuzzers
 
 for fuzzer in "$SRC"/logsquirl/tests/fuzz/*_fuzzer.cpp; do
     name=$(basename "$fuzzer" .cpp)
     cp "$WORK/build/output/$name" "$OUT/$name"
+    # The image that checks and runs a fuzzer has no Qt: the shared libraries
+    # it needs, beyond glibc's, travel next to it, and its RPATH (set above)
+    # looks in lib/ first.
+    mkdir -p "$OUT/lib"
+    ldd "$OUT/$name" | awk '/=> \// { print $3 }' | while read -r lib; do
+        case "$(basename "$lib")" in
+            libc.so.*|libm.so.*|libdl.so.*|libpthread.so.*|librt.so.*|libresolv.so.*|libutil.so.*|ld-linux*) ;;
+            *) cp -nL "$lib" "$OUT/lib/" ;;
+        esac
+    done
     corpus="$SRC/logsquirl/tests/fuzz/corpus/${name%_fuzzer}"
     if [ -d "$corpus" ]; then
         zip -j -q "$OUT/${name}_seed_corpus.zip" "$corpus"/*
