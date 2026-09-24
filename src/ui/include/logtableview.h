@@ -154,6 +154,9 @@ Q_SIGNALS:
     void replaceScratchpadWithSelection();
     void saveDefaultSplitterSizes();
     void activity();
+    // The user asked to count the values of a Log Format field, from the
+    // context menu of its column header.
+    void countValuesRequested( const QString& fieldName );
 
 protected:
     // The context menu for the current selection, opened at pos in viewport
@@ -176,6 +179,8 @@ protected:
 private:
     void rowSelectionChanged();
     void showContextMenu( const QPoint& pos );
+    // The context menu of a column header, opened at pos in header coordinates.
+    void showHeaderContextMenu( const QPoint& pos );
     void copySelection();
     void copySelectionWithLineNumbers();
     void markSelection();

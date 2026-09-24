@@ -243,6 +243,9 @@ public Q_SLOTS:
     void startNewSearch();
 
 private Q_SLOTS:
+    // Offers a Value Count of each capture group of the current Search.
+    void fillCountValuesMenu();
+
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
@@ -330,6 +333,13 @@ public Q_SLOTS:
     // Create chart series from the current search filter patterns and show
     // them in the chart panel.
     void showFilterFrequency();
+    // Show a Value Count of the Log Format field in the chart panel.
+    void countFieldValues( const QString& fieldName );
+    // Show a Value Count of a capture group of the current Search in the chart
+    // panel, over the Log Lines the Search matches.
+    void countSearchGroupValues( int group );
+    // Start a Search for the value, as literal text.
+    void searchForValue( const QString& value );
 
 private Q_SLOTS:
 
@@ -459,6 +469,9 @@ private:
 
     QComboBox* searchLineEdit_;
     QMenu* searchLineContextMenu_;
+    // Its entries, one per capture group of the current Search, are made when
+    // the menu is shown.
+    QMenu* countValuesMenu_ = nullptr;
     QCompleter* searchLineCompleter_;
 
     InfoLine* searchInfoLine_;

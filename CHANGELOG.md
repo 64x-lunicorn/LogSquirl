@@ -24,6 +24,14 @@
   prints an error and exits non-zero. The received data lives in a temporary
   file that grows without bound and is removed at exit. On Windows, reading
   standard input redirected into the GUI executable is unverified (#436).
+- **Count the values of a field**: The context menu of a column header in the
+  Table View offers "Count values", and the context menu of the Search line
+  offers "Count values of capture group". The Value Count opens as a tab in
+  the Chart Panel: each value with its count and share, most frequent first.
+  Clicking a value searches for it as literal text. Counting runs in the
+  background with progress, can be stopped, and is a snapshot ("Count again"
+  takes a new one). Beyond 100 000 distinct values it stops and says so
+  instead of showing a partial list (#438).
 - **JSON Log Files get a Table View**: Log Formats now understand
   `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
   objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
