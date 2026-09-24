@@ -67,11 +67,14 @@ private:
 };
 
 // Extracts structured fields from raw log lines: a Regex format by its named
-// capture groups, a Json format by the path of each field in the JSON object.
+// capture groups, a Json format by the path of each field in the JSON object,
+// a Logfmt format by the key of each field.
 // It keeps no cache of its own: the table model caches the Rows it shows.
 //
-// For a Json format every Log Line is valid, so it is a Row; one that is not a
-// JSON object has all its fields empty. A numeric timestamp field is shown as
+// For a Json or Logfmt format every Log Line is valid, so it is a Row; one that
+// is not a JSON object (not logfmt) has all its fields empty. A key a Logfmt
+// Log Line lacks is an empty field, and a key the format does not declare is
+// ignored. A numeric timestamp field is shown as
 // the point in time it is (through the timestamp divisor), UTC.
 class LogFieldExtractor {
 public:
@@ -89,6 +92,7 @@ public:
 private:
     ExtractedFields extractRegexFields( const QString& line ) const;
     ExtractedFields extractJsonFields( const QString& line ) const;
+    ExtractedFields extractLogfmtFields( const QString& line ) const;
 
     // A pattern with its named capture groups, looked up once when the
     // extractor is built rather than for every line.
@@ -101,6 +105,6 @@ private:
 
     const LogFormatDefinition& format_;
     QVector<CompiledPattern> compiledPatterns_;
-    // Json format: the field paths to read from each Log Line
-    QStringList jsonFields_;
+    // Json or Logfmt format: the fields (paths, keys) to read from each Log Line
+    QStringList keyedFields_;
 };

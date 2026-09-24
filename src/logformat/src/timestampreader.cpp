@@ -21,6 +21,7 @@
 
 #include "jsonlogline.h"
 #include "logfieldextractor.h"
+#include "logfmtlogline.h"
 
 #include <QDate>
 #include <QTime>
@@ -459,7 +460,7 @@ bool TimestampReader::isAvailableFor( const LogFormatDefinition& format )
     if ( field.isEmpty() ) {
         return false;
     }
-    if ( format.kind() == LogFormatKind::Json ) {
+    if ( format.kind() != LogFormatKind::Regex ) {
         return true;
     }
     const auto named = "(?<" + field + ">";
@@ -493,6 +494,15 @@ std::optional<QDateTime> TimestampReader::timestampOf( const QString& line ) con
             return JsonLogLine::fromEpoch( value.toDouble(), impl_->divisor );
         }
         return value.isString() ? parseField( value.toString() ) : std::nullopt;
+    }
+
+    if ( impl_->format->kind() == LogFormatKind::Logfmt ) {
+        const auto pairs = LogfmtLogLine::parse( line );
+        if ( !pairs ) {
+            return std::nullopt;
+        }
+        const auto text = pairs->value( impl_->format->timestampField() );
+        return text.isEmpty() ? std::nullopt : parseField( text );
     }
 
     const auto fields = impl_->extractor->extractFields( line );
