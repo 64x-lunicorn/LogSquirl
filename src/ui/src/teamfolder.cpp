@@ -308,9 +308,18 @@ PushResult pushHead( const Git& git, const QString& clone )
     }
 
     // What Git says when it cannot even try (network, credentials) names the
-    // repository's URL and so may hold any number: it never classifies. Only
-    // the status of the ref does.
+    // repository's URL and so may hold any number: it never classifies, with
+    // one exception. An HTTP 403 prints nothing on standard output, only
+    // Git's fixed sentence on standard error (Git runs untranslated), and
+    // that sentence, not a bare number, says the server lets this user not
+    // write (ADR 0008). Every other failure stays "unreachable" so that a
+    // network error never discards a local commit. Otherwise only the status
+    // of the ref classifies.
     PushResult result{ PushResult::Kind::Unreachable, pushed.message() };
+    if ( pushed.error.contains( QStringLiteral( "The requested URL returned error: 403" ) ) ) {
+        result.kind = PushResult::Kind::Refused;
+        return result;
+    }
     const auto lines = pushed.output.split( QLatin1Char( '\n' ) );
     for ( const auto& line : lines ) {
         if ( !line.startsWith( QLatin1Char( '!' ) ) ) {

@@ -1352,6 +1352,34 @@ TEST_CASE( "A network failure whose URL holds 403 is no refusal and loses no cha
     CHECK( gitOutput( team.cloneOf( "alice" ), { "log", "--format=%s" } ).contains( "Network" ) );
 }
 
+TEST_CASE( "A push refused with HTTP 403 is a refusal: the Team groups turn read-only",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto wrapper
+        = wrapperGit( team.root(), "git-403.sh",
+                      "if [ \"$1\" = push ]; then\n"
+                      "  echo \"fatal: unable to access 'https://host/repo.git/': "
+                      "The requested URL returned error: 403\" >&2\n"
+                      "  exit 128\n"
+                      "fi" );
+    TeamFolder alice( team.cloneOf( "alice" ), wrapper );
+    alice.setUp( policyFor( team.url() ) );
+    REQUIRE( settled( alice ) );
+
+    const auto outcome = publishGroup( alice, makeGroup( "Network" ), GroupAction::Add );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Refused );
+    CHECK( outcome.results[ 0 ].message.contains( "error: 403" ) );
+    CHECK_FALSE( alice.isWritable() );
+    CHECK_FALSE( alice.hasPendingChanges() );
+}
+
 TEST_CASE( "Every Git of the Team Folder runs untranslated", "[teamfolder]" )
 {
     const IsolatedGitEnvironment environment;
@@ -1569,6 +1597,38 @@ TEST_CASE( "A stopped Git's index.lock is removed", "[teamfolder]" )
 
     CHECK_FALSE( result.succeeded );
     CHECK_FALSE( QFileInfo::exists( clone + "/.git/index.lock" ) );
+}
+
+TEST_CASE( "An index.lock older than the stopped run is not the run's and stays",
+           "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto clone = root.filePath( "clone" );
+    REQUIRE( QDir().mkpath( clone + "/.git" ) );
+    const auto lockPath = clone + "/.git/index.lock";
+    {
+        QFile lock( lockPath );
+        REQUIRE( lock.open( QIODevice::WriteOnly ) );
+        REQUIRE( lock.setFileTime( QDateTime::currentDateTime().addSecs( -3600 ),
+                                   QFileDevice::FileModificationTime ) );
+    }
+    const auto wrapper = wrapperGit( root.path(), "git-sleep.sh", "exec sleep 30" );
+    auto stop = std::make_shared<std::atomic_bool>( false );
+    std::thread stopper( [ stop ] {
+        std::this_thread::sleep_for( std::chrono::milliseconds( 400 ) );
+        stop->store( true );
+    } );
+    const auto result = Git( wrapper, stop ).run( { "status" }, clone );
+    stopper.join();
+
+    CHECK_FALSE( result.succeeded );
+    CHECK( QFileInfo::exists( lockPath ) );
 }
 
 #endif
