@@ -190,17 +190,22 @@ private:
 
 // Parse a single format definition from a JSON object.
 // Returns true on success, filling 'def'. Returns false if the format has no
-// "regex" section (a "file-type": "json" format needs none).
+// "regex" section (a "file-type": "json" or "logfmt" format needs none).
 static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
                                LogFormatDefinition& def, const QStringList& valueKeyOrder )
 {
-    const bool isJson = obj.value( "file-type" ).toString() == QLatin1String( "json" );
+    const auto fileType = obj.value( "file-type" ).toString();
+    const bool isJson = fileType == QLatin1String( "json" );
+    const bool isLogfmt = fileType == QLatin1String( "logfmt" ); // our own extension of the schema
+    const bool isKeyed = isJson || isLogfmt;
 
     // "regex" is required for a regex format — without it we cannot match log lines
-    if ( !isJson && ( !obj.contains( "regex" ) || !obj.value( "regex" ).isObject() ) ) {
+    if ( !isKeyed && ( !obj.contains( "regex" ) || !obj.value( "regex" ).isObject() ) ) {
         return false;
     }
-    def.setKind( isJson ? LogFormatKind::Json : LogFormatKind::Regex );
+    def.setKind( isJson     ? LogFormatKind::Json
+                 : isLogfmt ? LogFormatKind::Logfmt
+                            : LogFormatKind::Regex );
 
     def.setName( name );
     def.setTitle( obj.value( "title" ).toString() );
@@ -208,7 +213,7 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
 
     // Parse regex patterns
     QHash<QString, QString> patterns;
-    const auto regexObj = isJson ? QJsonObject() : obj.value( "regex" ).toObject();
+    const auto regexObj = isKeyed ? QJsonObject() : obj.value( "regex" ).toObject();
     for ( auto it = regexObj.begin(); it != regexObj.end(); ++it ) {
         if ( it.value().isObject() ) {
             const auto patternObj = it.value().toObject();
@@ -219,7 +224,7 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
         }
     }
 
-    if ( patterns.isEmpty() && !isJson ) {
+    if ( patterns.isEmpty() && !isKeyed ) {
         return false;
     }
     def.setRegexPatterns( patterns );
@@ -300,7 +305,7 @@ static bool parseSingleFormat( const QString& name, const QJsonObject& obj,
         // Pick the pattern with the most named groups (e.g. "standard" over "dropped_data")
         // because QHash iteration order is non-deterministic.
         QStringList fieldOrder;
-        if ( isJson ) {
+        if ( isKeyed ) {
             // The columns are the members of "value" in file order; the
             // timestamp field is always one of them.
             for ( const auto& key : valueKeyOrder ) {
@@ -384,7 +389,8 @@ QVector<LogFormatDefinition> LogFormatParser::parseJsonString( const char* jsonS
 
         const auto formatObj = it.value().toObject();
         QStringList valueKeyOrder;
-        if ( formatObj.value( "file-type" ).toString() == QLatin1String( "json" )
+        const auto fileType = formatObj.value( "file-type" ).toString();
+        if ( ( fileType == QLatin1String( "json" ) || fileType == QLatin1String( "logfmt" ) )
              && formatObj.value( "value" ).isObject() ) {
             valueKeyOrder = MemberOrderScanner( text ).valueKeys( it.key() );
         }

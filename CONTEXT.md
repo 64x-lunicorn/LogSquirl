@@ -235,8 +235,12 @@ _Avoid_: variable, constant, design value
 A description of how a Log Line is composed of named fields, used to present the file as
 columns. Either built in or supplied by the user; which one applies to a Log File is decided
 by Format Recognition. A Log Format is of one kind: **regex**, whose fields are the named
-capture groups of its patterns, or **JSON** (`"file-type": "json"`), for Log Files whose Log
-Lines are JSON objects and whose fields are members addressed by path (`src/file`).
+capture groups of its patterns, **JSON** (`"file-type": "json"`), for Log Files whose Log
+Lines are JSON objects and whose fields are members addressed by path (`src/file`), or
+**logfmt** (`"file-type": "logfmt"`, our own extension of the lnav schema), for Log Files
+whose Log Lines are key/value pairs (`time=... level=info msg="started"`) and whose fields
+are the declared keys, in any order; an undeclared key is ignored, a missing one is an empty
+cell.
 _Avoid_: schema, parser, layout
 
 **Log Format Catalog**:
@@ -250,7 +254,9 @@ Lines against the Log Format Catalog. Taken when a Log File has loaded, and agai
 is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
 with, even when the Catalog changes. The kinds of Log Format are scored apart: a sample Log
 Line that is a JSON object counts only for JSON Log Formats, every other one only for regex
-Log Formats.
+Log Formats. A logfmt Log Format counts a Log Line that reads completely as key/value pairs
+and holds its timestamp field as a key; it never wins over a regex or JSON Log Format that
+would have been recognized.
 _Avoid_: detection, sniffing
 
 **Timestamp**:

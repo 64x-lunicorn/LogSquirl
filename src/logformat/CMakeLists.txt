@@ -6,6 +6,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/formatrecognition.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfieldextractor.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/jsonlogline.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/logfmtlogline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logformattablemodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/rowmapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/timestampreader.h
@@ -15,6 +16,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/formatrecognition.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logfieldextractor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/jsonlogline.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/logfmtlogline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logformattablemodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timestampreader.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/timelookup.cpp

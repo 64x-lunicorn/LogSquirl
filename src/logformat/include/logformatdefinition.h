@@ -42,6 +42,7 @@ struct LogFormatSample {
 enum class LogFormatKind {
     Regex, // text matched by regex patterns; fields are their named capture groups
     Json,  // a JSON object; fields are members addressed by path ("file-type": "json")
+    Logfmt, // key/value pairs; fields are the keys ("file-type": "logfmt")
 };
 
 // Represents a single parsed log format definition (one entry from a lnav JSON file).
@@ -50,7 +51,7 @@ class LogFormatDefinition {
 public:
     LogFormatDefinition() = default;
 
-    // What kind of Log Line the format describes. For a Json format the regex
+    // What kind of Log Line the format describes. For a Json or Logfmt format the regex
     // patterns are empty and the value definitions name the field paths.
     LogFormatKind kind() const
     {

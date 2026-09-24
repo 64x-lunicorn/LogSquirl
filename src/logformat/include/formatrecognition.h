@@ -44,6 +44,11 @@ class AbstractLogData;
 // JSON object is scored only against JSON formats, which it matches when it
 // contains the format's timestamp field; every other line only against regex
 // formats. A Catalog without a JSON format scores every line as before.
+//
+// A logfmt format is scored on its own: a sample line counts for it when it
+// reads completely as key/value pairs and contains the format's timestamp
+// field as a key (a JSON object never does). A regex or JSON format keeps
+// precedence: a logfmt format is chosen only when none of them would have been.
 namespace FormatRecognition {
 
 // How many Log Lines, from the first one, Format Recognition looks at.

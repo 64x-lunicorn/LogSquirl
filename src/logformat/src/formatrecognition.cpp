@@ -22,6 +22,7 @@
 #include "abstractlogdata.h"
 #include "jsonlogline.h"
 #include "linetypes.h"
+#include "logfmtlogline.h"
 
 #include <QJsonObject>
 #include <QRegularExpression>
@@ -104,6 +105,58 @@ scoreJsonFormat( const std::shared_ptr<const LogFormatDefinition>& format,
     return FormatScore{ format, matchCount, static_cast<int>( format->valueFieldOrder().size() ) };
 }
 
+// A logfmt format: how many of the Log Lines read completely as key/value pairs
+// and contain its timestamp field as a key. A JSON object is no logfmt line.
+std::optional<FormatScore>
+scoreLogfmtFormat( const std::shared_ptr<const LogFormatDefinition>& format,
+                   const QStringList& lines )
+{
+    const auto& timestampField = format->timestampField();
+    if ( timestampField.isEmpty() ) {
+        return std::nullopt;
+    }
+
+    int matchCount = 0;
+    for ( const auto& line : lines ) {
+        const auto pairs = LogfmtLogLine::parse( line );
+        if ( pairs && pairs->contains( timestampField ) ) {
+            ++matchCount;
+        }
+    }
+
+    if ( matchCount == 0 ) {
+        return std::nullopt;
+    }
+    return FormatScore{ format, matchCount, static_cast<int>( format->valueFieldOrder().size() ) };
+}
+
+// The best of the scored formats, when it matches enough of the sample lines.
+std::shared_ptr<const LogFormatDefinition> pickBest( QVector<FormatScore>& scores,
+                                                     qsizetype lineCount )
+{
+    if ( scores.isEmpty() ) {
+        return nullptr;
+    }
+
+    // Sort by: (1) match count descending, (2) specificity descending (more specific)
+    std::sort( scores.begin(), scores.end(), []( const FormatScore& a, const FormatScore& b ) {
+        if ( a.matchCount != b.matchCount ) {
+            return a.matchCount > b.matchCount;
+        }
+        return a.specificity > b.specificity;
+    } );
+
+    // Check if the best candidate passes the minimum threshold
+    const auto& best = scores.first();
+    const double ratio = static_cast<double>( best.matchCount ) / static_cast<double>( lineCount );
+
+    if ( ratio < MinMatchRatio ) {
+        return nullptr;
+    }
+
+    return best.format;
+}
+
 std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
                                                       const LogFormatCatalog& catalog )
 {
@@ -138,40 +191,36 @@ std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
     const auto& regexLines = hasJsonFormat ? otherLines : lines;
 
     QVector<FormatScore> scores;
+    QVector<FormatScore> logfmtScores;
     scores.reserve( allFormats.size() );
 
     for ( auto it = allFormats.begin(); it != allFormats.end(); ++it ) {
         const auto& format = it.value();
-        const auto score = format->kind() == LogFormatKind::Json
-                               ? scoreJsonFormat( format, jsonObjects )
-                               : scoreRegexFormat( format, regexLines );
-        if ( score ) {
-            scores.append( *score );
+        switch ( format->kind() ) {
+        case LogFormatKind::Json:
+            if ( const auto score = scoreJsonFormat( format, jsonObjects ) ) {
+                scores.append( *score );
+            }
+            break;
+        case LogFormatKind::Logfmt:
+            if ( const auto score = scoreLogfmtFormat( format, lines ) ) {
+                logfmtScores.append( *score );
+            }
+            break;
+        case LogFormatKind::Regex:
+            if ( const auto score = scoreRegexFormat( format, regexLines ) ) {
+                scores.append( *score );
+            }
+            break;
         }
     }
 
-    if ( scores.isEmpty() ) {
-        return nullptr;
+    // A regex (or JSON) format keeps precedence: a logfmt format is only chosen
+    // when none of them would have been.
+    if ( auto best = pickBest( scores, lines.size() ) ) {
+        return best;
     }
-
-    // Sort by: (1) match count descending, (2) specificity descending (more specific)
-    std::sort( scores.begin(), scores.end(), []( const FormatScore& a, const FormatScore& b ) {
-        if ( a.matchCount != b.matchCount ) {
-            return a.matchCount > b.matchCount;
-        }
-        return a.specificity > b.specificity;
-    } );
-
-    // Check if the best candidate passes the minimum threshold
-    const auto& best = scores.first();
-    const double ratio
-        = static_cast<double>( best.matchCount ) / static_cast<double>( lines.size() );
-
-    if ( ratio < MinMatchRatio ) {
-        return nullptr;
-    }
-
-    return best.format;
+    return pickBest( logfmtScores, lines.size() );
 }
 
 } // namespace
