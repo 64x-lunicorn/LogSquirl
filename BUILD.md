@@ -715,7 +715,7 @@ PRs from both:
 **pip requirements.** Every `pip install` in CI and the build images reads a requirements file with exact versions and
 hashes and passes `--require-hashes`: `docker/shared/aqtinstall-requirements.txt` (aqtinstall, installed into a
 throwaway directory that is deleted once Qt is in the image), `.github/requirements/clang-format.txt`,
-`.github/requirements/e2e.txt` and `scripts/sbom/requirements.txt`. Each is generated from the `.in` file next to it by
+`.github/requirements/clang-tidy.txt`, `.github/requirements/e2e.txt` and `scripts/sbom/requirements.txt`. Each is generated from the `.in` file next to it by
 the `uv pip compile --generate-hashes --universal` command in its header; after editing a `.in` file, rerun that
 command. Renovate bumps the pins and reruns the command, and re-locks the dependencies below them once a month.
 

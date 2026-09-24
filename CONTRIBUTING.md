@@ -119,7 +119,7 @@ run them locally.
 The code is C++23 and follows the `.clang-format` file at the repository root. `.clang-tidy`
 enables the `bugprone`, `clang-analyzer` and `performance` checks (the reason for each
 exclusion is in the file), and CI's Tidy job runs them over the sources under `src/` that a pull
-request changes; run the same locally with `.github/scripts/run-clang-tidy.sh <build-dir>` on a
+request changes; run the same locally (CI uses clang-tidy 19, hash-locked in `.github/requirements/clang-tidy.txt`) with `.github/scripts/run-clang-tidy.sh <build-dir>` on a
 Ninja build, or with `-DENABLE_CLANG_TIDY=ON`. A finding is fixed; when it is wrong, silence it
 at the line with `// NOLINT(<check>)` and say why. The build enables `-Wall -Wextra -Wpedantic` (and the MSVC equivalents) and treats
 warnings as errors (`WARNINGS_AS_ERRORS`, `cmake/CompilerWarnings.cmake`), so a pull request
