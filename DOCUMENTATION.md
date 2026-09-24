@@ -9,6 +9,7 @@
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
    - [Tab groups](#tab-groups)
+1. [The menu bar](#the-menu-bar)
 1. [Plugins](#Plugins)
 1. [Settings](#Settings)
 1. [Keyboard commands](#Keyboard-commands)
@@ -229,7 +230,7 @@ a color with a certain type of event.
 
 Highlighters are grouped into sets. One set of highlighters can be active
 at any given time. The current active set can be selected using either the
-context menu or the `Tools->Highlighters` menu.
+context menu or the `Highlighters` menu.
 
 Any number of highlighters can be defined in a single set.
 Highlighter configuration includes a regular expression to match
@@ -486,6 +487,44 @@ The Scratchpad includes a JWT (JSON Web Token) decoder. When a JWT is pasted
 into the Scratchpad, it can decode the Base64URL-encoded header and payload,
 format the JSON with indentation, and annotate epoch timestamp fields
 (`iat`, `exp`, `nbf`, `auth_time`) with human-readable UTC dates.
+
+## The menu bar
+
+Most of the menu bar is described where its feature is explained; this is the
+whole list, with what the entries not explained elsewhere do.
+
+- **File**: `New window`, `Open...`, `Open from clipboard` and
+  `Open from URL...` (see [Opening files](#opening-files)), `Open Recent`
+  with `Clear List`, `Close`, `Close All`, `Preferences...` and `Exit`.
+- **Edit**: `Copy`, `Select All`, `Find...` (the QuickFind bar), `Go to line...`
+  and `Go to timestamp...`, then `Copy full path` (of the current file to the
+  clipboard), `Open containing folder`, `Open in editor` (in the default
+  editor of the system) and `Clear file...`. `Clear file...` asks first and then
+  empties the file on disk; this cannot be undone.
+- **View**: `Opened files` (see
+  [Switching between opened files](#switching-between-opened-files)),
+  `Matches overview`, `Line numbers in main view`,
+  `Line numbers in filtered view`, `Wrap text`, `Follow File`, `Reload`,
+  `Chart Panel` and `Show Filter Frequency`, which charts how often the current
+  search matched, one series for every alternative of the search pattern (it
+  does nothing while the search line is empty).
+- **Tools**: `Predefined filters...`, `Import Chipmunk filters...`,
+  `Manage Tab Groups...`, `Scratchpad` and `Filters panel`.
+- **Highlighters**: `Configure highlighters...` and the list of highlighter
+  sets to activate (see [Using highlighters](#using-highlighters)).
+- **Encoding**: see [Encodings](#encodings).
+- **Favorites**: `Add to favorites` and `Remove from favorites...`, followed by
+  the favorite files, which open when chosen.
+- **Plugins** and **Sources**: see [Plugins](#plugins).
+- **Help**: `Documentation...` (this guide), `Report issue...` (opens a bug
+  report on GitHub), `Generate crash dump` (after a confirmation, shuts
+  *logsquirl* down and produces a diagnostic crash dump, see
+  [Crash reporting](#crash-reporting)), `About` and `About Qt`.
+
+The toolbar has the buttons `Open`, `Reload`, `Follow File` and
+`Add to favorites`, the information about the current file (size, modification
+date, encoding and the line number of the selection), `Stop` to stop a running
+load, and a button that shows or hides the sidebar.
 
 ## Plugins
 
