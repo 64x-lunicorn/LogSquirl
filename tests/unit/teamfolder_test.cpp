@@ -30,16 +30,20 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSignalSpy>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
 
+#include <atomic>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 
 #include "groupexchange.h"
 #include "teamfolder.h"
@@ -1293,3 +1297,278 @@ TEST_CASE( "A deleted Team group disappears for everyone at their next sync",
                                                network.id(), network.name() ) } );
     CHECK( again.results[ 0 ].status == PublishStatus::Published );
 }
+
+#ifndef Q_OS_WIN
+
+namespace {
+
+// A stand-in for the tool that runs a shell snippet first, and then the real
+// one unless the snippet ended the run.
+QString wrapperGit( const QString& directory, const QString& name, const QString& snippet )
+{
+    const auto gitPath = QStandardPaths::findExecutable( QStringLiteral( "git" ) );
+    const auto path = QDir( directory ).filePath( name );
+    QFile script( path );
+    REQUIRE( script.open( QIODevice::WriteOnly ) );
+    script.write(
+        QStringLiteral( "#!/bin/sh\n%1\nexec '%2' \"$@\"\n" ).arg( snippet, gitPath ).toUtf8() );
+    script.close();
+    QFile::setPermissions( path, script.permissions() | QFileDevice::ExeUser );
+    return path;
+}
+
+QString gitOutput( const QString& clone, const QStringList& arguments )
+{
+    return Git( QStringLiteral( "git" ) ).run( arguments, clone ).output;
+}
+
+} // namespace
+
+TEST_CASE( "A network failure whose URL holds 403 is no refusal and loses no change",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto wrapper
+        = wrapperGit( team.root(), "git-net.sh",
+                      "if [ \"$1\" = push ]; then\n"
+                      "  echo \"fatal: unable to access 'https://host:8403/repo.git/': "
+                      "Could not resolve host\" >&2\n"
+                      "  exit 128\n"
+                      "fi" );
+    TeamFolder alice( team.cloneOf( "alice" ), wrapper );
+    alice.setUp( policyFor( team.url() ) );
+    REQUIRE( settled( alice ) );
+
+    const auto outcome = publishGroup( alice, makeGroup( "Network" ), GroupAction::Add );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Pending );
+    CHECK( alice.isWritable() );
+    CHECK( alice.hasPendingChanges() );
+    CHECK( gitOutput( team.cloneOf( "alice" ), { "log", "--format=%s" } ).contains( "Network" ) );
+}
+
+TEST_CASE( "Every Git of the Team Folder runs untranslated", "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto seen = root.filePath( "seen" );
+    const auto wrapper
+        = wrapperGit( root.path(), "git-env.sh",
+                      QStringLiteral( "echo \"$LC_ALL/$LANGUAGE\" > '%1'" ).arg( seen ) );
+    qputenv( "LC_ALL", "de_DE.UTF-8" );
+    qputenv( "LANGUAGE", "de" );
+    Git( wrapper ).run( { "--version" } );
+    qunsetenv( "LC_ALL" );
+    qunsetenv( "LANGUAGE" );
+
+    QFile file( seen );
+    REQUIRE( file.open( QIODevice::ReadOnly ) );
+    CHECK( file.readAll().trimmed() == "C/C" );
+}
+
+TEST_CASE( "A publish that stops before committing is answered, not lost", "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const auto request = PublishRequest::forGroup( makeGroup( "Network" ), GroupAction::Add );
+
+    SECTION( "a subfolder outside the repository" )
+    {
+        const Team team;
+        const auto member = team.member( "alice", "../outside" );
+        const auto outcome = publishAndWait( *member, { request } );
+        REQUIRE( outcome.results.size() == 1 );
+        CHECK( outcome.results[ 0 ].status == PublishStatus::Failed );
+        CHECK_FALSE( outcome.results[ 0 ].message.isEmpty() );
+    }
+
+    SECTION( "a clone that fails" )
+    {
+        const QTemporaryDir root;
+        REQUIRE( root.isValid() );
+        TeamFolder folder( root.filePath( "clone" ) );
+        folder.setUp(
+            policyFor( QUrl::fromLocalFile( root.filePath( "missing.git" ) ).toString() ) );
+        const auto outcome = publishAndWait( folder, { request } );
+        REQUIRE( outcome.results.size() == 1 );
+        CHECK( outcome.results[ 0 ].status == PublishStatus::Failed );
+        CHECK_FALSE( outcome.results[ 0 ].message.isEmpty() );
+    }
+
+    SECTION( "a Git that cannot start where a clone exists" )
+    {
+        const QTemporaryDir root;
+        REQUIRE( root.isValid() );
+        REQUIRE( QDir().mkpath( root.filePath( "clone/.git" ) ) );
+        TeamFolder folder( root.filePath( "clone" ), root.filePath( "no-git-here" ) );
+        folder.setUp(
+            policyFor( QUrl::fromLocalFile( root.filePath( "server.git" ) ).toString() ) );
+        const auto outcome = publishAndWait( folder, { request } );
+        REQUIRE( outcome.results.size() == 1 );
+        CHECK( outcome.results[ 0 ].status == PublishStatus::Failed );
+        CHECK( outcome.results[ 0 ].message.contains( "Git could not be started" ) );
+    }
+
+    SECTION( "a sync that cannot bring the clone up to date" )
+    {
+        const Team team;
+        const auto alice = team.member( "alice" );
+        team.pushGroupByHand( "alice", makeGroup( "Base" ) );
+        {
+            const auto bob = team.member( "bob" );
+        }
+        team.pushGroupByHand( "alice", makeGroup( "More" ) );
+        const auto wrapper
+            = wrapperGit( team.root(), "git-merge.sh",
+                          "if [ \"$1\" = merge ]; then echo 'merge broke' >&2; exit 1; fi" );
+        TeamFolder folder( team.cloneOf( "bob" ), wrapper );
+        folder.setUp( policyFor( team.url() ) );
+        const auto outcome = publishAndWait( folder, { request } );
+        REQUIRE( outcome.results.size() == 1 );
+        CHECK( outcome.results[ 0 ].status == PublishStatus::Failed );
+        CHECK( outcome.results[ 0 ].message.contains( "merge broke" ) );
+    }
+}
+
+TEST_CASE( "A change made offline does not silently overwrite what a colleague pushed",
+           "[teamfolder][conflict]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bob = team.member( "bob" );
+    const auto network = makeGroup( "Network", "original" );
+    team.pushGroupByHand( "alice", network );
+    syncNow( *alice );
+    syncNow( *bob );
+
+    const auto away = team.serverPath() + ".away";
+    REQUIRE( QDir().rename( team.serverPath(), away ) );
+    auto mine = network;
+    mine.setFilters( { { "Alices", "alices offline", false } } );
+    // A second, unrelated offline change stays publishable.
+    const auto stored = publishAndWait(
+        *alice, { PublishRequest::forGroup( mine, GroupAction::Change ),
+                  PublishRequest::forGroup( makeGroup( "Other" ), GroupAction::Add ) } );
+    REQUIRE( stored.results.size() == 2 );
+    CHECK( stored.results[ 0 ].status == PublishStatus::Pending );
+    REQUIRE( QDir().rename( away, team.serverPath() ) );
+
+    auto theirs = network;
+    theirs.setFilters( { { "Bobs", "bobs pattern", false } } );
+    REQUIRE( publishGroup( *bob, theirs ).results[ 0 ].status == PublishStatus::Published );
+
+    QSignalSpy finished( alice.get(), &TeamFolder::publishFinished );
+    syncNow( *alice );
+    REQUIRE( finished.size() >= 1 );
+    const auto outcome = finished.at( 0 ).at( 0 ).value<PublishOutcome>();
+    int conflicts = 0;
+    for ( const auto& result : outcome.results ) {
+        if ( result.status == PublishStatus::Conflict ) {
+            ++conflicts;
+            REQUIRE( result.theirsFilterGroup.has_value() );
+            CHECK( result.theirsFilterGroup->filters()[ 0 ].pattern == "bobs pattern" );
+            CHECK( result.request.id == network.id() );
+        }
+    }
+    CHECK( conflicts == 1 );
+    // Bob's version stands on the server and for Alice; her other change went through.
+    CHECK( team.serverFiles().contains( "Other_filter.conf" ) );
+    for ( const auto& group : alice->filterGroups() ) {
+        if ( group.id() == network.id() ) {
+            CHECK( group.filters()[ 0 ].pattern == "bobs pattern" );
+        }
+    }
+}
+
+TEST_CASE( "A push that is rejected and retried does not overwrite the racing change either",
+           "[teamfolder][conflict]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto carol = team.member( "carol" );
+    const auto network = makeGroup( "Network", "original" );
+    team.pushGroupByHand( "carol", network );
+
+    auto theirs = network;
+    theirs.setFilters( { { "Carols", "carols pattern", false } } );
+    const auto theirFile = QDir( team.root() ).filePath( "theirs.conf" );
+    REQUIRE( writeGroup( theirFile, theirs ) );
+    const auto carolClone = team.cloneOf( "carol" );
+    const auto marker = QDir( team.root() ).filePath( "raced" );
+    const auto gitPath = QStandardPaths::findExecutable( QStringLiteral( "git" ) );
+    const auto wrapper = wrapperGit( team.root(), "git-race.sh",
+                                     QStringLiteral( "if [ \"$1\" = push ] && [ ! -e '%1' ]; then\n"
+                                                     "  touch '%1'\n"
+                                                     "  cp '%2' '%3/Network_filter.conf'\n"
+                                                     "  '%4' -C '%3' add Network_filter.conf\n"
+                                                     "  '%4' -C '%3' commit -q -m 'Raced'\n"
+                                                     "  '%4' -C '%3' push -q origin HEAD\n"
+                                                     "fi" )
+                                         .arg( marker, theirFile, carolClone, gitPath ) );
+
+    TeamFolder alice( team.cloneOf( "alice" ), wrapper );
+    alice.setUp( policyFor( team.url() ) );
+    REQUIRE( settled( alice ) );
+
+    auto mine = network;
+    mine.setFilters( { { "Alices", "alices pattern", false } } );
+    const auto outcome = publishGroup( alice, mine );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Conflict );
+    CHECK( QFileInfo::exists( marker ) );
+    CHECK( gitOutput( team.serverPath(),
+                      { "--git-dir", team.serverPath(), "log", "-1", "--format=%s" } )
+               .trimmed()
+           == "Raced" );
+    CHECK_FALSE( alice.hasPendingChanges() );
+}
+
+TEST_CASE( "A stopped Git's index.lock is removed", "[teamfolder]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const QTemporaryDir root;
+    REQUIRE( root.isValid() );
+    const auto clone = root.filePath( "clone" );
+    REQUIRE( QDir().mkpath( clone + "/.git" ) );
+    const auto wrapper
+        = wrapperGit( root.path(), "git-lock.sh",
+                      QStringLiteral( "touch '%1/.git/index.lock'\nexec sleep 30" ).arg( clone ) );
+    auto stop = std::make_shared<std::atomic_bool>( false );
+    std::thread stopper( [ stop ] {
+        std::this_thread::sleep_for( std::chrono::milliseconds( 400 ) );
+        stop->store( true );
+    } );
+    const auto result = Git( wrapper, stop ).run( { "status" }, clone );
+    stopper.join();
+
+    CHECK_FALSE( result.succeeded );
+    CHECK_FALSE( QFileInfo::exists( clone + "/.git/index.lock" ) );
+}
+
+#endif

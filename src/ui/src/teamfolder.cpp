@@ -25,8 +25,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QMap>
 #include <QSet>
 #include <QStandardPaths>
+#include <QTemporaryFile>
 #include <QUuid>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -295,29 +297,35 @@ struct PushResult {
 
 PushResult pushHead( const Git& git, const QString& clone )
 {
+    // --porcelain reports what became of each ref on a line of standard
+    // output of a fixed form: "!<TAB>from:to<TAB>[reason] (why)".
     const auto pushed
-        = git.run( { QStringLiteral( "push" ), QStringLiteral( "--quiet" ),
+        = git.run( { QStringLiteral( "push" ), QStringLiteral( "--porcelain" ),
                      QStringLiteral( "--set-upstream" ), RemoteName, QStringLiteral( "HEAD" ) },
                    clone );
     if ( pushed.succeeded ) {
         return {};
     }
 
-    const auto message = pushed.message();
-    const auto text = message.toLower();
-    PushResult result{ PushResult::Kind::Unreachable, message };
-    if ( text.contains( QStringLiteral( "[rejected]" ) )
-         && ( text.contains( QStringLiteral( "non-fast-forward" ) )
-              || text.contains( QStringLiteral( "fetch first" ) ) ) ) {
-        result.kind = PushResult::Kind::Rejected;
-    }
-    else if ( text.contains( QStringLiteral( "[remote rejected]" ) )
-              || text.contains( QStringLiteral( "denied" ) )
-              || text.contains( QStringLiteral( "not allowed" ) )
-              || text.contains( QStringLiteral( "403" ) )
-              || text.contains( QStringLiteral( "protected branch" ) )
-              || text.contains( QStringLiteral( "declined" ) ) ) {
-        result.kind = PushResult::Kind::Refused;
+    // What Git says when it cannot even try (network, credentials) names the
+    // repository's URL and so may hold any number: it never classifies. Only
+    // the status of the ref does.
+    PushResult result{ PushResult::Kind::Unreachable, pushed.message() };
+    const auto lines = pushed.output.split( QLatin1Char( '\n' ) );
+    for ( const auto& line : lines ) {
+        if ( !line.startsWith( QLatin1Char( '!' ) ) ) {
+            continue;
+        }
+        const auto status = line.section( QLatin1Char( '\t' ), 2 );
+        if ( status.startsWith( QStringLiteral( "[rejected]" ) ) ) {
+            // The branch moved on since the last fetch.
+            result.kind = PushResult::Kind::Rejected;
+        }
+        else if ( status.startsWith( QStringLiteral( "[remote rejected]" ) ) ) {
+            // The server's rules or hooks said no.
+            result.kind = PushResult::Kind::Refused;
+            break;
+        }
     }
     return result;
 }
@@ -395,6 +403,21 @@ QString fileFor( const QString& folder, const PublishRequest& request )
     }
 }
 
+// The answer to a request that met a version of the group it did not know:
+// the version that is in the folder now.
+PublishResult conflictResult( const QString& folder, const PublishRequest& request )
+{
+    PublishResult result;
+    result.status = PublishStatus::Conflict;
+    result.request = request;
+    if ( const auto found = findGroup( folder, request ) ) {
+        result.file = found->file;
+        result.theirsFilterGroup = found->filterGroup;
+        result.theirsHighlighterSet = found->highlighterSet;
+    }
+    return result;
+}
+
 // Whether someone else changed the group since the user loaded it: the file
 // has another revision than the one remembered, or is gone.
 std::optional<PublishResult> conflictOf( const QString& folder, const PublishRequest& request )
@@ -406,16 +429,7 @@ std::optional<PublishResult> conflictOf( const QString& folder, const PublishReq
     if ( found && found->revision == *request.baseRevision ) {
         return std::nullopt;
     }
-
-    PublishResult result;
-    result.status = PublishStatus::Conflict;
-    result.request = request;
-    if ( found ) {
-        result.file = found->file;
-        result.theirsFilterGroup = found->filterGroup;
-        result.theirsHighlighterSet = found->highlighterSet;
-    }
-    return result;
+    return conflictResult( folder, request );
 }
 
 // Writes the group into the clone and commits that one file. Whether it was
@@ -506,6 +520,173 @@ void discardUnpushed( const Git& git, const QString& clone )
     }
 }
 
+// A sync that stops before it could commit anything still answers every
+// request it was given: with the reason it stopped.
+void failRequests( SyncOutcome& outcome, const QList<PublishRequest>& requests )
+{
+    if ( requests.isEmpty() ) {
+        return;
+    }
+    PublishOutcome published;
+    for ( const auto& request : requests ) {
+        PublishResult failed;
+        failed.status = PublishStatus::Failed;
+        failed.message = outcome.message;
+        failed.request = request;
+        published.results.append( failed );
+    }
+    outcome.published = published;
+}
+
+// Adds a result to the answers of the sync, in place of the one of the same
+// group when there is one.
+void addResult( SyncOutcome& outcome, const PublishResult& result )
+{
+    if ( !outcome.published ) {
+        outcome.published = PublishOutcome{};
+    }
+    for ( auto& known : outcome.published->results ) {
+        if ( known.request.kind == result.request.kind && known.request.id == result.request.id ) {
+            known = result;
+            return;
+        }
+    }
+    outcome.published->results.append( result );
+}
+
+// The group of the file at a revision of the clone, as a request; nothing for
+// a file that holds no group.
+std::optional<PublishRequest> requestFromRevision( const Git& git, const QString& clone,
+                                                   const QString& revision, const QString& path,
+                                                   GroupAction action )
+{
+    const auto shown
+        = git.run( { QStringLiteral( "show" ), revision + QLatin1Char( ':' ) + path }, clone );
+    QTemporaryFile file;
+    if ( !shown.succeeded || !file.open() ) {
+        return std::nullopt;
+    }
+    file.write( shown.output.toUtf8() );
+    file.flush();
+
+    const auto filters = groupexchange::readFilterGroups( file.fileName() );
+    if ( filters.error == groupexchange::ReadError::None && !filters.groups.isEmpty() ) {
+        const auto& group = filters.groups.first();
+        return action == GroupAction::Delete
+                   ? PublishRequest::forDeletion( groupexchange::GroupKind::Filter, group.id(),
+                                                  group.name() )
+                   : PublishRequest::forGroup( group, action );
+    }
+    const auto highlighters = groupexchange::readHighlighterGroups( file.fileName() );
+    if ( highlighters.error == groupexchange::ReadError::None && !highlighters.groups.isEmpty() ) {
+        const auto& group = highlighters.groups.first();
+        return action == GroupAction::Delete
+                   ? PublishRequest::forDeletion( groupexchange::GroupKind::Highlighter, group.id(),
+                                                  group.name() )
+                   : PublishRequest::forGroup( group, action );
+    }
+    return std::nullopt;
+}
+
+// The files a range of commits changed, with what became of them.
+QMap<QString, QChar> changedFiles( const Git& git, const QString& clone, const QString& from,
+                                   const QString& to )
+{
+    QMap<QString, QChar> changed;
+    const auto diff = git.run( { QStringLiteral( "diff" ), QStringLiteral( "--name-status" ),
+                                 QStringLiteral( "--no-renames" ), from, to },
+                               clone );
+    const auto lines = diff.output.split( QLatin1Char( '\n' ), Qt::SkipEmptyParts );
+    for ( const auto& line : lines ) {
+        const auto parts = line.split( QLatin1Char( '\t' ) );
+        if ( parts.size() == 2 ) {
+            changed.insert( parts[ 1 ], parts[ 0 ].at( 0 ) );
+        }
+    }
+    return changed;
+}
+
+// What became of the changes committed here and not pushed yet, when the
+// server changed the same files meanwhile.
+struct SetAside {
+    // Changes of files the server did not touch: to commit again.
+    QList<PublishRequest> recommit;
+    // Changes of files it did touch: the user decides, nothing is overwritten.
+    QList<PublishResult> conflicts;
+};
+
+// Before the clone takes over what the server holds, checks whether a change
+// committed here (offline, or just before a push was rejected) touches a file
+// the server changed too. If so, the local changes are taken back into
+// requests -- the clone goes to the server's state -- so that neither side's
+// version wins unasked.
+SetAside setAsideOverlaps( const Git& git, const QString& clone, const QString& folder )
+{
+    const auto head
+        = git.run( { QStringLiteral( "symbolic-ref" ), QStringLiteral( "--quiet" ),
+                     QStringLiteral( "--short" ), QStringLiteral( "refs/remotes/origin/HEAD" ) },
+                   clone );
+    if ( !head.succeeded || !hasCommit( git, clone ) ) {
+        return {};
+    }
+    const auto remoteBranch = head.output.trimmed();
+    if ( countCommits( git, clone, remoteBranch + QStringLiteral( "..HEAD" ) ) <= 0
+         || countCommits( git, clone, QStringLiteral( "HEAD.." ) + remoteBranch ) <= 0 ) {
+        return {};
+    }
+    const auto base = git.run(
+        { QStringLiteral( "merge-base" ), QStringLiteral( "HEAD" ), remoteBranch }, clone );
+    if ( !base.succeeded ) {
+        return {};
+    }
+    const auto baseRevision = base.output.trimmed();
+    const auto mine = changedFiles( git, clone, baseRevision, QStringLiteral( "HEAD" ) );
+    const auto theirs = changedFiles( git, clone, baseRevision, remoteBranch );
+    const bool overlaps
+        = std::any_of( mine.keyBegin(), mine.keyEnd(),
+                       [ &theirs ]( const QString& path ) { return theirs.contains( path ); } );
+    if ( !overlaps ) {
+        return {};
+    }
+
+    struct Taken {
+        PublishRequest request;
+        bool overlapping;
+    };
+    QList<Taken> taken;
+    for ( auto change = mine.cbegin(); change != mine.cend(); ++change ) {
+        const auto removed = change.value() == QLatin1Char( 'D' );
+        const auto action = removed                                ? GroupAction::Delete
+                            : change.value() == QLatin1Char( 'A' ) ? GroupAction::Add
+                                                                   : GroupAction::Change;
+        const auto request = requestFromRevision(
+            git, clone, removed ? baseRevision : QStringLiteral( "HEAD" ), change.key(), action );
+        if ( request ) {
+            taken.append( { *request, theirs.contains( change.key() ) } );
+        }
+        else {
+            LOG_WARNING << "Team Folder cannot take back the change to " << change.key();
+        }
+    }
+
+    const auto reset = git.run( { QStringLiteral( "reset" ), QStringLiteral( "--hard" ),
+                                  QStringLiteral( "--quiet" ), remoteBranch },
+                                clone );
+    if ( !reset.succeeded ) {
+        return {};
+    }
+    SetAside result;
+    for ( const auto& item : taken ) {
+        if ( item.overlapping ) {
+            result.conflicts.append( conflictResult( folder, item.request ) );
+        }
+        else {
+            result.recommit.append( item.request );
+        }
+    }
+    return result;
+}
+
 std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitProgram,
                                       const TeamFolderPolicy& policy, const Git::StopFlag& stop,
                                       const QList<PublishRequest>& requests, bool writable,
@@ -519,6 +700,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
     if ( !folder ) {
         outcome->message = TeamFolder::tr( "The subfolder %1 does not lie inside the repository." )
                                .arg( policy.subfolder );
+        failRequests( *outcome, requests );
         return outcome;
     }
 
@@ -529,6 +711,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
                                      clone );
         if ( !origin.started ) {
             outcome->message = origin.message();
+            failRequests( *outcome, requests );
             return outcome;
         }
         // A clone of another repository: the user pointed the Team Folder
@@ -547,6 +730,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         if ( !cloned.succeeded ) {
             QDir( clone ).removeRecursively();
             outcome->message = cloned.message();
+            failRequests( *outcome, requests );
             return outcome;
         }
     }
@@ -563,9 +747,21 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         }
     }
 
+    // What is to be committed: what was asked for, and changes of an earlier
+    // sync that the server's changes do not touch.
+    auto todo = requests;
+    QList<PublishResult> conflicts;
     if ( reachable ) {
+        // Changes committed offline meet what others pushed meanwhile.
+        auto aside = setAsideOverlaps( git, clone, *folder );
+        todo.append( aside.recommit );
+        conflicts = aside.conflicts;
         if ( const auto failed = integrate( git, clone ) ) {
             outcome->message = *failed;
+            failRequests( *outcome, todo );
+            for ( const auto& conflict : std::as_const( conflicts ) ) {
+                addResult( *outcome, conflict );
+            }
             readGroups( *folder, *outcome );
             outcome->hasPending = hasUnpushedCommits( git, clone );
             return outcome;
@@ -575,9 +771,10 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
 
     // Changes to publish are committed one by one, offline as well.
     bool committedSomething = false;
-    if ( !requests.isEmpty() ) {
+    if ( !todo.isEmpty() || !conflicts.isEmpty() ) {
         PublishOutcome published;
-        for ( const auto& request : requests ) {
+        published.results = conflicts;
+        for ( const auto& request : std::as_const( todo ) ) {
             if ( !writable ) {
                 PublishResult refused;
                 refused.status = PublishStatus::Refused;
@@ -610,8 +807,20 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
             const auto fetched = git.run( { QStringLiteral( "fetch" ), QStringLiteral( "--quiet" ),
                                             QStringLiteral( "--prune" ), RemoteName },
                                           clone );
-            if ( fetched.succeeded && !integrate( git, clone ) ) {
-                pushed = pushHead( git, clone );
+            if ( fetched.succeeded ) {
+                // What was committed meanwhile may touch what the others just
+                // pushed: that is asked about, not overwritten.
+                const auto aside = setAsideOverlaps( git, clone, *folder );
+                if ( !integrate( git, clone ) ) {
+                    for ( const auto& conflict : aside.conflicts ) {
+                        addResult( *outcome, conflict );
+                    }
+                    for ( const auto& request : aside.recommit ) {
+                        const auto again = commitRequest( git, clone, *folder, request );
+                        addResult( *outcome, again );
+                    }
+                    pushed = pushHead( git, clone );
+                }
             }
         }
 
