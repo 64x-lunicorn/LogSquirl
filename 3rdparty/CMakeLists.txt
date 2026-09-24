@@ -1,5 +1,20 @@
 set(QAPPLICATION_CLASS QApplication)
 
+# Third-party code is not built with the warnings LogSquirl holds its own code
+# to (#452). Set here, before the first package is added, these flags reach
+# every directory CPM adds below this one and no directory above it: src/ and
+# tests/ keep the /W4 the top-level CMakeLists.txt gave them. The targets the
+# packages define are gone over again at the end of this file, for the packages
+# that turn warnings back on for themselves.
+include(ThirdPartyWarnings)
+if(MSVC)
+  set(_LOGSQUIRL_THIRD_PARTY_MSVC ON)
+else()
+  set(_LOGSQUIRL_THIRD_PARTY_MSVC OFF)
+endif()
+logsquirl_third_party_quiet_flags(CMAKE_C_FLAGS MSVC ${_LOGSQUIRL_THIRD_PARTY_MSVC} FLAGS "${CMAKE_C_FLAGS}")
+logsquirl_third_party_quiet_flags(CMAKE_CXX_FLAGS MSVC ${_LOGSQUIRL_THIRD_PARTY_MSVC} FLAGS "${CMAKE_CXX_FLAGS}")
+
 include(CPM)
 
 set(_TMP_CPM_USE_LOCAL_PACKAGES ${CPM_USE_LOCAL_PACKAGES})
@@ -56,6 +71,11 @@ cpmaddpackage(
   GIT_TAG c43294a81501e0fdf14adc83818d47f7f9bc1bb6 # v1.0.0
   EXCLUDE_FROM_ALL YES
   SYSTEM YES
+  # On by default, and it calls add_compile_options(/Wall) on MSVC, which cl
+  # reports as "D9025: overriding '/W4' with '/Wall'" once per file -- the
+  # directory flags this file sets cannot take back what a package adds after
+  # them (#452).
+  OPTIONS "STREAMVBYTE_WALL OFF"
 )
 
 if(APPLE)
@@ -131,6 +151,41 @@ if(LOGSQUIRL_USE_VECTORSCAN)
       "BUILD_AVX512VBMI OFF"
       "FAT_RUNTIME OFF"
     )
+
+    # The fork ends its CMakeLists.txt with an unconditional
+    # `target_compile_options(hs PRIVATE "-fpermissive")`, once for each of its
+    # three libraries. cl does not know that GCC option and reports "D9002:
+    # ignoring unknown option" for it once per file -- 320 times in a Windows
+    # release build, where the two runtimes below compile these sources again
+    # through their own CMake run, which nothing outside it can reach into. The
+    # option is taken out of the sources rather than off the targets, the way
+    # the KArchive fork is patched further down; for a build that adds the fork
+    # as a subdirectory instead, the same option is taken off the targets by
+    # logsquirl_third_party_build_quietly() at the end of this file (#452).
+    # Only written when it actually changes something: this is the CPM source
+    # cache, shared with every other worktree and build directory that pins the
+    # same commit, so a configure that has nothing to change leaves its
+    # timestamp alone. And it says so when the pattern is not there at all, the
+    # one way this could quietly become a no-op if the fork ever reformats
+    # those lines.
+    if(_HS_RUNTIME_DISPATCH AND EXISTS "${hyperscan_SOURCE_DIR}/CMakeLists.txt")
+      file(READ "${hyperscan_SOURCE_DIR}/CMakeLists.txt" _hyperscan_cmake)
+      string(
+        REPLACE " PRIVATE \"-fpermissive\")"
+                " PRIVATE)"
+                _hyperscan_patched
+                "${_hyperscan_cmake}"
+      )
+      if(NOT _hyperscan_patched STREQUAL _hyperscan_cmake)
+        file(WRITE "${hyperscan_SOURCE_DIR}/CMakeLists.txt" "${_hyperscan_patched}")
+      elseif(NOT _hyperscan_cmake MATCHES " PRIVATE\\)")
+        message(
+          WARNING
+            "The hyperscan fork no longer sets -fpermissive the way 3rdparty/CMakeLists.txt "
+            "takes it out; a Windows build will print D9002 for it again (#452)."
+        )
+      endif()
+    endif()
 
     add_library(logsquirl_vectorscan INTERFACE)
     target_include_directories(logsquirl_vectorscan INTERFACE ${hyperscan_SOURCE_DIR}/src)
@@ -226,6 +281,24 @@ if(LOGSQUIRL_USE_VECTORSCAN)
   set(CMAKE_CXX_STANDARD ${_SAVED_CXX_STANDARD})
 endif()
 
+# MSVC's own spelling of the architecture ("x64", "ARM64"), or empty to let
+# uchardet detect it as before -- see the OPTIONS of the call below. A 32-bit
+# MSVC build is spelled "X86" and would still take uchardet's GCC branch;
+# LogSquirl ships no 32-bit Windows package, so that stays as it is.
+if(MSVC)
+  # LOGSQUIRL_TARGET_PROCESSOR falls back to CMAKE_SYSTEM_PROCESSOR, which
+  # spells the same architecture "AMD64" -- and uchardet's match does cover
+  # that one.
+  string(
+    REPLACE "AMD64"
+            "x64"
+            _LOGSQUIRL_UCHARDET_ARCHITECTURE
+            "${LOGSQUIRL_TARGET_PROCESSOR}"
+  )
+else()
+  set(_LOGSQUIRL_UCHARDET_ARCHITECTURE "")
+endif()
+
 cpmaddpackage(
   NAME
   Uchardet
@@ -239,6 +312,15 @@ cpmaddpackage(
   YES
   OPTIONS
   "BUILD_BINARY OFF"
+  # uchardet decides between -msse2 -mfpmath=sse and -ffloat-store whenever it
+  # reads the target architecture as x86, amd or i686, and puts the answer into
+  # CMAKE_C_FLAGS and CMAKE_CXX_FLAGS. Both answers are GCC options: on MSVC the
+  # check fails, -ffloat-store is handed to cl, and cl reports "D9002: ignoring
+  # unknown option" once per file, 50 times in a Windows build. Naming the
+  # architecture the way MSVC spells it -- which that match does not cover --
+  # skips the question. Nothing is lost: an MSVC x64 build has SSE2 either way,
+  # and the flag it would otherwise add is one cl does not know (#452).
+  "TARGET_ARCHITECTURE ${_LOGSQUIRL_UCHARDET_ARCHITECTURE}"
 )
 if(Uchardet_ADDED)
   message("Adding alias for uchardet")
@@ -757,40 +839,12 @@ if(LOGSQUIRL_USE_SENTRY)
   endif()
 endif(LOGSQUIRL_USE_SENTRY)
 
-set(logsquirl_cpm_targets
-    xxhash
-    Catch2
-    roaring
-    roaring-headers-cpp
-    libuchardet
-    robin_hood
-    whereami
-    simdutf
-    efsw
-    SingleApplication
-    hs
-    tbb
-    exprtk
-    type_safe
-    mimalloc-static
-    sentry
-    crashpad_client
-    crashpad_compat
-    crashpad_util
-    mini_chromium
-    streamvbyte
-    FastPFor
-)
-foreach(target ${logsquirl_cpm_targets})
-  if(TARGET ${target})
-    get_property(
-      ${target}_include_dirs
-      TARGET ${target}
-      PROPERTY INTERFACE_INCLUDE_DIRECTORIES
-    )
-    #message("Marking ${${target}_include_dirs} as system incldue")
-    set_property(TARGET ${target} PROPERTY INTERFACE_SYSTEM_INCLUDE_DIRECTORIES ${${target}_include_dirs})
-  endif()
-endforeach()
+# Every target the packages above defined, in this directory and below it: no
+# warnings, and its headers are system headers where LogSquirl includes them
+# (#452). This used to be a hand-written list of target names that only did the
+# second half, and had gone stale in both directions -- it still named
+# SingleApplication and FastPFor, which no package defines any more, and did
+# not name roaring-headers, which src/logdata links.
+logsquirl_third_party_build_quietly("${CMAKE_CURRENT_SOURCE_DIR}")
 
 
