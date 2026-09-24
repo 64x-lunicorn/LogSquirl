@@ -111,12 +111,12 @@
 #include "optionsdialog.h"
 #include "plugindialog.h"
 #include "predefinedfiltersdialog.h"
-#include "teamfolder.h"
 #include "progress.h"
 #include "readablesize.h"
 #include "recentfiles.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
+#include "teamfolder.h"
 #include "theme.h"
 
 namespace {

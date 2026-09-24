@@ -69,8 +69,9 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
     LOG_DEBUG << "Team Folder runs git " << arguments.join( ' ' );
     process.start( QIODevice::ReadOnly );
     if ( !process.waitForStarted() ) {
-        result.error = QCoreApplication::translate( "TeamFolder", "Git could not be started (%1). Install Git, or put it on "
-                                   "the PATH, to use a Team Folder." )
+        result.error = QCoreApplication::translate(
+                           "TeamFolder", "Git could not be started (%1). Install Git, or put it on "
+                                         "the PATH, to use a Team Folder." )
                            .arg( process.errorString() );
         LOG_WARNING << "Team Folder: " << result.error;
         return result;
@@ -90,17 +91,18 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
             process.waitForFinished();
             result.output = QString::fromUtf8( process.readAllStandardOutput() );
             result.error = stopped ? QCoreApplication::translate( "TeamFolder", "Stopped." )
-                                   : QCoreApplication::translate( "TeamFolder", "Git did not finish in time." );
+                                   : QCoreApplication::translate( "TeamFolder",
+                                                                  "Git did not finish in time." );
             return result;
         }
     }
 
     result.output = QString::fromUtf8( process.readAllStandardOutput() );
     result.error = QString::fromUtf8( process.readAllStandardError() );
-    result.succeeded
-        = process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+    result.succeeded = process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
     if ( !result.succeeded && result.error.trimmed().isEmpty() ) {
-        result.error = QCoreApplication::translate( "TeamFolder", "Git ended with exit code %1." ).arg( process.exitCode() );
+        result.error = QCoreApplication::translate( "TeamFolder", "Git ended with exit code %1." )
+                           .arg( process.exitCode() );
     }
     return result;
 }

@@ -236,9 +236,8 @@ public:
     MainWindow* reloadSession()
     {
         if ( !session_ ) {
-            session_
-                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_,
-                                                  teamFolder_ );
+            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_,
+                                                  fileWatcher_, teamFolder_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -280,9 +279,8 @@ public:
     MainWindow* newWindow()
     {
         if ( !session_ ) {
-            session_
-                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_,
-                                                  teamFolder_ );
+            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_,
+                                                  fileWatcher_, teamFolder_ );
         }
 
         const auto previousSessions = session_->windowSessions();

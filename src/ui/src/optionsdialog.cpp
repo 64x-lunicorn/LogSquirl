@@ -274,9 +274,9 @@ void OptionsDialog::updateTeamFolderStatus()
         return;
     }
     const auto details = teamFolder_->details();
-    teamFolderStatusLabel->setText( details.isEmpty()
-                                        ? teamFolder_->summary()
-                                        : teamFolder_->summary() + QStringLiteral( "\n" ) + details );
+    teamFolderStatusLabel->setText( details.isEmpty() ? teamFolder_->summary()
+                                                      : teamFolder_->summary()
+                                                            + QStringLiteral( "\n" ) + details );
     teamFolderSyncButton->setEnabled( !teamFolder_->isSyncing() );
 }
 

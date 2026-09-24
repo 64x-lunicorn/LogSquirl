@@ -37,8 +37,8 @@
 #include <QUrl>
 
 #include <map>
-#include <optional>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "groupexchange.h"
@@ -147,8 +147,7 @@ public:
     {
         REQUIRE( root_.isValid() );
         server_ = root_.filePath( "server.git" );
-        const auto created
-            = git_.run( { "init", "--quiet", "--bare", server_ }, root_.path() );
+        const auto created = git_.run( { "init", "--quiet", "--bare", server_ }, root_.path() );
         REQUIRE( created.succeeded );
     }
 
@@ -195,8 +194,8 @@ public:
     void pushGroupByHand( const QString& member, const PredefinedFilterSet& group,
                           const QString& subfolder = {} ) const
     {
-        const auto file = QDir( subfolder ).filePath(
-            suggestedFileName( group.name(), GroupKind::Filter ) );
+        const auto file
+            = QDir( subfolder ).filePath( suggestedFileName( group.name(), GroupKind::Filter ) );
         const QDir clone( cloneOf( member ) );
         QDir().mkpath( QFileInfo( clone.filePath( file ) ).absolutePath() );
         REQUIRE( writeGroup( clone.filePath( file ), group ) );

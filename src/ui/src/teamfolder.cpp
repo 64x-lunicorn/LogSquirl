@@ -151,20 +151,18 @@ std::optional<QString> fastForward( const Git& git, const QString& clone )
 
     const auto remoteBranch = head.output.trimmed();
     const auto localBranch = remoteBranch.mid( RemoteName.size() + 1 );
-    const auto current = git.run(
-        { QStringLiteral( "rev-parse" ), QStringLiteral( "--verify" ), QStringLiteral( "--quiet" ),
-          QStringLiteral( "HEAD" ) },
-        clone );
+    const auto current = git.run( { QStringLiteral( "rev-parse" ), QStringLiteral( "--verify" ),
+                                    QStringLiteral( "--quiet" ), QStringLiteral( "HEAD" ) },
+                                  clone );
 
-    const auto update
-        = current.succeeded
-              ? git.run( { QStringLiteral( "merge" ), QStringLiteral( "--ff-only" ),
-                           QStringLiteral( "--quiet" ), remoteBranch },
-                         clone )
-              // Nothing checked out yet: the repository was empty when cloned.
-              : git.run( { QStringLiteral( "checkout" ), QStringLiteral( "--quiet" ),
-                           QStringLiteral( "-B" ), localBranch, remoteBranch },
-                         clone );
+    const auto update = current.succeeded
+                            ? git.run( { QStringLiteral( "merge" ), QStringLiteral( "--ff-only" ),
+                                         QStringLiteral( "--quiet" ), remoteBranch },
+                                       clone )
+                            // Nothing checked out yet: the repository was empty when cloned.
+                            : git.run( { QStringLiteral( "checkout" ), QStringLiteral( "--quiet" ),
+                                         QStringLiteral( "-B" ), localBranch, remoteBranch },
+                                       clone );
     if ( !update.succeeded ) {
         return update.message();
     }
@@ -187,10 +185,9 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
 
     auto haveClone = QFileInfo( QDir( clone ).filePath( QStringLiteral( ".git" ) ) ).isDir();
     if ( haveClone ) {
-        const auto origin = git.run(
-            { QStringLiteral( "config" ), QStringLiteral( "--get" ),
-              QStringLiteral( "remote.origin.url" ) },
-            clone );
+        const auto origin = git.run( { QStringLiteral( "config" ), QStringLiteral( "--get" ),
+                                       QStringLiteral( "remote.origin.url" ) },
+                                     clone );
         if ( !origin.started ) {
             outcome->message = origin.message();
             return outcome;
@@ -356,10 +353,10 @@ void TeamFolder::startSync()
     syncing_ = true;
     runningGeneration_ = setUpGeneration_;
     stopRunning_ = std::make_shared<std::atomic_bool>( false );
-    running_.setFuture( QtConcurrent::run( [ clone = cloneDirectory_, git = gitProgram_,
-                                             policy = policy_, stop = stopRunning_ ] {
-        return runSync( clone, git, policy, stop );
-    } ) );
+    running_.setFuture( QtConcurrent::run(
+        [ clone = cloneDirectory_, git = gitProgram_, policy = policy_, stop = stopRunning_ ] {
+            return runSync( clone, git, policy, stop );
+        } ) );
     Q_EMIT stateChanged();
 }
 

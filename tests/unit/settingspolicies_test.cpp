@@ -386,7 +386,8 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
             THEN( "the Team Folder Policy carries the Team Folder settings" )
             {
                 REQUIRE( policies.teamFolder.enabled );
-                REQUIRE( policies.teamFolder.repositoryUrl == "ssh://git.example.invalid/team.git" );
+                REQUIRE( policies.teamFolder.repositoryUrl
+                         == "ssh://git.example.invalid/team.git" );
                 REQUIRE( policies.teamFolder.subfolder == "logsquirl" );
                 REQUIRE( policies.teamFolder.isActive() );
             }
