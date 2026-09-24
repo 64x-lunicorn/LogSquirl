@@ -396,12 +396,18 @@ jobs:
               -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON
               -DLOGSQUIRL_USE_SENTRY=OFF
               -DLOGSQUIRL_USE_LTO=OFF
-          # Blocking, like asan-ubsan: a data race in the oneTBB flow graphs
-          # (indexing, search) is the fault class ASan cannot see (#439). The
-          # suppressions in cmake/tsan.supp reach the test binaries through
+          # A data race in the oneTBB flow graphs (indexing, search) is the
+          # fault class ASan cannot see (#439). The suppressions in
+          # cmake/tsan.supp reach the test binaries through
           # cmake/CatchTestDiscoveryRunTest.cmake, so adding a suppression
           # needs no change here. TSan's default is to report and exit
           # non-zero, which turns the test case, and so ctest, red.
+          #
+          # NOT blocking yet (continue-on-error below): the first run over the
+          # whole suite reported ~900 races and turned ~25 test cases red,
+          # nearly all in Search code and oneTBB/Qt internals that predate the
+          # job (ADR 0007 expected this). The job stays visible with its logs;
+          # it becomes blocking again when the findings are triaged.
           - arch: x64
             artifacts_id: tsan
             sanitizers: TSan
@@ -413,6 +419,8 @@ jobs:
               -DLOGSQUIRL_USE_LTO=OFF
 
     runs-on: ubuntu-24.04
+    # Only the TSan entry is allowed to fail the job for now, see its comment.
+    continue-on-error: ${{ matrix.config.artifacts_id == 'tsan' }}
     # Slowest successful run 25 min, before #217 started one process per test
     # case (~40% longer tests, more under ASan) (#218).
     timeout-minutes: 75

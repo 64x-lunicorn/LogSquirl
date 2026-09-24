@@ -198,10 +198,12 @@
 ## Internal
 
 - **ThreadSanitizer runs in CI**: a `Sanitizers / tsan` job builds the tests with
-  `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the ASan/UBSan job, so a
-  data race in the oneTBB indexing and search flow graphs turns the pull request
-  red. It uses `cmake/tsan.supp`; a new suppression needs no change to the job
-  (#439).
+  `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the ASan/UBSan job, to
+  find a data race in the oneTBB indexing and search flow graphs. It uses
+  `cmake/tsan.supp`; a new suppression needs no change to the job. It does not
+  block yet: its first run over the whole suite reported about 900 races and
+  turned about 25 test cases red, nearly all in Search code and oneTBB/Qt
+  internals that predate it, and they are to be triaged first (#439).
 - **Coverage is measured, and the modules without tests got them**: `cmake
   --build <dir> --target coverage` in a build made with `-DENABLE_COVERAGE=ON`
   runs the tests and prints the line coverage of each module, from
