@@ -361,6 +361,7 @@ private:
     QAction* editHighlightersAction;
     QAction* optionsAction;
     QAction* showScratchPadAction;
+    QAction* commandPaletteAction;
     QAction* showFiltersPanelAction;
     QAction* toggleSidebarAction;
     QAction* toggleChartPanelAction;

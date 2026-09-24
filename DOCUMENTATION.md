@@ -585,7 +585,10 @@ whole list, with what the entries not explained elsewhere do.
   search matched, one series for every alternative of the search pattern (it
   does nothing while the search line is empty).
 - **Tools**: `Predefined filters...`, `Import Chipmunk filters...`,
-  `Manage Tab Groups...`, `Scratchpad` and `Filters panel`.
+  `Manage Tab Groups...`, `Scratchpad`, `Filters panel` and
+  `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
+  every enabled menu command: type to filter, `Enter` runs the selected one.
+  The key can be changed in the shortcut settings.
 - **Highlighters**: `Configure highlighters...` and the list of highlighter
   sets to activate (see [Using highlighters](#using-highlighters)).
 - **Encoding**: see [Encodings](#encodings).

@@ -20,6 +20,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/tabbedcrawlerwidget_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/settings_during_run_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/default_encoding_check_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/command_palette_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filterspanel_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_switch_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/applicationplugins_window_test.cpp
