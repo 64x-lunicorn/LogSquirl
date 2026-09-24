@@ -293,7 +293,6 @@ Q_SIGNALS:
 
 private:
     void startSync();
-    void takeWritableFrom( const logsquirl::teamfolder::SyncOutcome& outcome );
     void takeOutcome();
     void setGroups( QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
                     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups );
