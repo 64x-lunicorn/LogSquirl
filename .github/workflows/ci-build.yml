@@ -404,10 +404,11 @@ jobs:
           # non-zero, which turns the test case, and so ctest, red.
           #
           # NOT blocking yet (continue-on-error below): the first run over the
-          # whole suite reported ~900 races and turned ~25 test cases red,
-          # nearly all in Search code and oneTBB/Qt internals that predate the
-          # job (ADR 0007 expected this). The job stays visible with its logs;
-          # it becomes blocking again when the findings are triaged.
+          # whole suite reported 912 races and turned 78 of ~740 test cases
+          # red, mostly in oneTBB/Qt internals and Search code that predate
+          # the job (ADR 0007 expected this). The job stays visible with its
+          # logs; it becomes blocking again when the findings are triaged
+          # (#482).
           - arch: x64
             artifacts_id: tsan
             sanitizers: TSan
