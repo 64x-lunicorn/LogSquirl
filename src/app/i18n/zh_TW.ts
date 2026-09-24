@@ -1464,74 +1464,74 @@ Without a date, %1 is used.</source>
         <translation>包含到標記佇列</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="244"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="234"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="243"/>
         <source>Export highlighters configuration</source>
         <translation>匯出醒目提示規則到檔案</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="245"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="244"/>
         <source>The file %1 could not be written.</source>
         <translation>無法寫入檔案 %1。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="253"/>
         <source>Select one or more files to open</source>
         <translation>選擇一個或多個檔案開啟</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="261"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="260"/>
         <source>Import highlighters configuration</source>
         <translation>匯入醒目提示規則設定</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="453"/>
         <source>Team highlighter sets</source>
         <translation>團隊醒目提示規則集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="456"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>透過團隊資料夾共用：團隊變更時它們也會隨之變更。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="464"/>
         <source>New Team highlighter set</source>
         <translation>新增團隊醒目提示規則集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="466"/>
         <source>Share with team</source>
         <translation>與團隊共用</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="468"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>為您自己所選的群組新增一份團隊副本。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="471"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="470"/>
         <source>Copy to my groups</source>
         <translation>複製到我的群組</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="474"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="473"/>
         <source>Delete for the team</source>
         <translation>為團隊刪除</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="562"/>
         <source>Delete Team highlighter set</source>
         <translation>刪除團隊醒目提示規則集</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="564"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
         <source>This deletes the group for the whole team.</source>
         <translation>這會為整個團隊刪除此群組。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="236"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="253"/>
         <source>Highlighters (*.conf)</source>
         <translation>醒目提示規則 (*.conf)</translation>
     </message>
@@ -3965,42 +3965,42 @@ Restart LogSquirl to try again.</source>
         <translation>團隊資料夾已關閉。</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1229"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1230"/>
         <source>Team Folder syncing…</source>
         <translation>團隊資料夾同步中…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1233"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1234"/>
         <source>Team Folder off</source>
         <translation>團隊資料夾已關閉</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1235"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1236"/>
         <source>Team Folder not synced</source>
         <translation>團隊資料夾未同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1237"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1238"/>
         <source>Team Folder synced</source>
         <translation>團隊資料夾已同步</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1239"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1240"/>
         <source>Team Folder error</source>
         <translation>團隊資料夾錯誤</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1251"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1252"/>
         <source>Not published: %1</source>
         <translation>未發佈：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1254"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1255"/>
         <source>The Team groups are read-only: %1</source>
         <translation>團隊群組為唯讀：%1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1257"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1258"/>
         <source>Skipped %1: %2</source>
         <translation>已略過 %1：%2</translation>
     </message>
@@ -4023,6 +4023,24 @@ Restart LogSquirl to try again.</source>
         <location filename="../../ui/src/teamfoldergit.cpp" line="130"/>
         <source>Git ended with exit code %1.</source>
         <translation>Git 已結束，結束代碼為 %1。</translation>
+    </message>
+</context>
+<context>
+    <name>UpdateNotice</name>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="169"/>
+        <source>&lt;p&gt; A new version of logsquirl (%1) is available for download &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="176"/>
+        <source>&lt;p&gt; A new version of logsquirl (%1) is available. Update it with your package manager: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="184"/>
+        <source>&lt;p&gt;Important changes:&lt;/p&gt;&lt;ul&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

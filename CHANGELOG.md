@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **The update notice sends package manager installs to their package manager**:
+  When a newer release is found, an install from the Homebrew cask, the
+  LogSquirl APT repository or the LogSquirl DNF repository is told to run
+  `brew upgrade --cask logsquirl`, `sudo apt upgrade` or `sudo dnf upgrade`
+  instead of following a link to the release page. The app checks on the
+  machine how it was installed; a dragged DMG, an AppImage, the Windows builds
+  and a package installed by hand keep the link (#382).
 - **The user guide covers the features the app has**: `DOCUMENTATION.md`, the
   guide behind Help->Documentation, now describes installing with Homebrew or
   apt, the Dashboard, Tab groups, Plugins (linking the Plugin SDK guide) and
@@ -102,6 +109,12 @@
   published on the release page, so LogSquirl updates with `apt upgrade`
   and an older release can be pinned. Betas are not published. The README and
   the website show the two-file setup (#380).
+- **Fedora and Oracle Linux users install and update LogSquirl with dnf**: The
+  same deploy builds two DNF repositories, for Fedora 44 and for Oracle Linux 10,
+  from the RPMs of the last three stable releases, exactly as published on the
+  release page. The repository metadata is signed with the same key as the APT
+  repository; dnf checks each package through it. The README and the website
+  show the one-file setup (#381).
 - **Import asks what to do with a group that already exists**: Import in the
   Predefined Filters and the Highlighters dialog brings each group of a file
   in as a group of its own. When a group of the same id or name already

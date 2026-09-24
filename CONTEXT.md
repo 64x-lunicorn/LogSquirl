@@ -361,6 +361,15 @@ The newer release the update check announces to the user, with the notes of the 
 they skip. A release is only offered when the Update Feed points at its Release Page.
 _Avoid_: update notification, new version
 
+**Install Source**:
+How the running LogSquirl was installed, as far as the Update Offer cares: Homebrew cask, the
+LogSquirl APT repository, the LogSquirl DNF repository, or unknown. It is decided at run time
+from what is on the machine, never at build time, because a cask and a dragged DMG (or a
+repository and a hand-installed package) are the same bytes. Only positive evidence counts;
+for an unknown source, and for every AppImage and Windows build, the Update Offer links to
+its Release Page, and for a known one it names the package manager's upgrade command.
+_Avoid_: distribution channel
+
 ### Session and settings
 
 **Settings Policy**:

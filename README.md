@@ -80,6 +80,21 @@ sudo apt install logsquirl
 The repository holds the last three stable releases, signed with the key
 `51ABA6432D0407ED62E8EC403169E5DF85C9A3A3`; it has no betas.
 
+On Fedora 44 and Oracle Linux 10, add the LogSquirl DNF repository once and keep LogSquirl up to date with
+`dnf upgrade`:
+
+```sh
+sudo curl -fsSL https://packages.lunicorn-lab.de/logsquirl-fedora.repo -o /etc/yum.repos.d/logsquirl.repo
+sudo dnf install logsquirl
+```
+
+On Oracle Linux 10 (and EL10 clones), fetch `logsquirl-el10.repo` instead of `logsquirl-fedora.repo`. Updates arrive
+with `sudo dnf upgrade`. The Fedora package is built against Fedora 44 and supported there only; a newer Fedora that
+changes its Qt may need a newer LogSquirl build, so use the AppImage until then. The repositories hold the last three
+stable releases and no betas. The repository metadata is signed with the key
+`51ABA6432D0407ED62E8EC403169E5DF85C9A3A3` (`repo_gpgcheck=1`); the RPMs themselves are unsigned, exactly the
+release assets, and dnf verifies them through the signed metadata.
+
 See the release notes for package details and platform requirements. The DEB and
 RPM packages use your distribution's Qt and install only when it is at least the Qt
 version LogSquirl was built with; on other distributions, use the AppImage, which

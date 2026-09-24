@@ -1,7 +1,8 @@
 name: Publish Packages
 
-# Builds the signed APT repository of the last three stable releases and
-# deploys it to https://packages.lunicorn-lab.de with GitHub Pages (#380).
+# Builds the signed APT (#380) and DNF (#381) repositories of the last three
+# stable releases and deploys them to https://packages.lunicorn-lab.de with
+# GitHub Pages.
 # The repository is rebuilt completely from the GitHub Releases on every run:
 # no binary lands in git, there is no repository state to corrupt, and a
 # re-run gives the same repository. BUILD.md ("Package repository")
@@ -54,8 +55,10 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [check-ref]
     environment: release
-    # No run history yet (#218): four small downloads, apt-ftparchive, gpg.
-    timeout-minutes: 10
+    # No run history yet (#218): a dozen small downloads, apt-ftparchive,
+    # createrepo_c, gpg, and two containers that install the newest package
+    # with its Qt dependencies.
+    timeout-minutes: 30
     permissions:
       contents: read
     env:
@@ -88,11 +91,27 @@ jobs:
               --pattern "$deb" --pattern "$checksums" --dir "$RUNNER_TEMP/downloads/$tag"
           done < "$RUNNER_TEMP/downloads.tsv"
 
-      - name: Install apt-ftparchive
+      # The DNF repositories: the Fedora and the Oracle Linux 10 RPM of the
+      # last three stable releases, as published.
+      - name: Select and download the RPMs
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          command -v apt-ftparchive >/dev/null \
-            || { sudo apt-get update && sudo apt-get install --yes --no-install-recommends apt-utils; }
+          for flavor in fedora el10; do
+            .github/scripts/release-dnf.py select --flavor "$flavor" --releases "$RUNNER_TEMP/releases.json" \
+              --manifest "$RUNNER_TEMP/manifest-${flavor}.json" | tee "$RUNNER_TEMP/downloads-${flavor}.tsv"
+            while IFS=$'\t' read -r tag rpm checksums; do
+              gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+                --pattern "$rpm" --pattern "$checksums" --dir "$RUNNER_TEMP/downloads-${flavor}/$tag"
+            done < "$RUNNER_TEMP/downloads-${flavor}.tsv"
+          done
+
+      - name: Install apt-ftparchive and createrepo_c
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends apt-utils createrepo-c
 
       # A throwaway keyring in the runner's temp directory, so the key is
       # gone with the runner. The fingerprint is checked before anything is
@@ -118,8 +137,14 @@ jobs:
           set -euo pipefail
           .github/scripts/release-apt.py build --manifest "$RUNNER_TEMP/manifest.json" \
             --downloads "$RUNNER_TEMP/downloads" --out site --public-key "$RUNNER_TEMP/public-key.asc"
+          for flavor in fedora el10; do
+            .github/scripts/release-dnf.py build --flavor "$flavor" --manifest "$RUNNER_TEMP/manifest-${flavor}.json" \
+              --downloads "$RUNNER_TEMP/downloads-${flavor}" --out site
+          done
           .github/scripts/release-apt.py sign --out site --fingerprint "$PACKAGES_KEY_FINGERPRINT"
           .github/scripts/release-apt.py verify --out site
+          .github/scripts/release-dnf.py sign --out site --fingerprint "$PACKAGES_KEY_FINGERPRINT"
+          .github/scripts/release-dnf.py verify --out site
 
       # apt itself reads the repository, from a file: URI and in its own
       # state directories: every release is offered, the signature and key
@@ -160,6 +185,22 @@ jobs:
           released=$(sha256sum "$RUNNER_TEMP/downloads/${newest_tag}/${newest_deb}" | cut -d' ' -f1)
           [ "$served" = "$released" ] \
             || { echo "::error::apt downloaded a ${newest_deb} that is not the release asset."; exit 1; }
+
+      # dnf itself reads each repository in a clean container of the release
+      # it is for (the images CI Build checks the packages in), from a file:
+      # URL with the served .repo file: every release is offered, the signed
+      # metadata raises no warning, the newest RPM is the release asset, and
+      # an older release upgrades to the newest.
+      - name: Check that dnf reads the repositories
+        run: |
+          set -euo pipefail
+          check() {
+            docker run --rm -v "${GITHUB_WORKSPACE}/site:/site:ro" \
+              -v "${GITHUB_WORKSPACE}/.github/scripts/check-dnf-repo.sh:/check.sh:ro" \
+              "$1" sh /check.sh "$2"
+          }
+          check fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80 fedora
+          check oraclelinux:10@sha256:1628d6e6586862766a2d5925f0fab6c6e1a468bc33874ae68046c7ca57406baf el10
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

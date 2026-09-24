@@ -43,9 +43,9 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from email.utils import format_datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
-from releases import ReleaseError, parse_tag, report, version_key
+from releases import ReleaseError, asset_named, CHECKSUMS, listed_hash, parse_tag, report, verify_asset, version_key
 
 HOST = "https://packages.lunicorn-lab.de"
 SUITE = "noble"
@@ -57,14 +57,6 @@ SOURCES_FILE = "logsquirl.sources"
 KEYRING = "/etc/apt/keyrings/logsquirl.asc"
 
 _DEB = re.compile(r"logsquirl-[0-9]+(?:\.[0-9]+){2,3}-noble\.deb")
-_CHECKSUMS = re.compile(r"logsquirl-[0-9]+(?:\.[0-9]+){2,3}-sha256\.txt")
-# A `sha256sum` line: the hash, then " *" (binary mode) or "  " and the path.
-_CHECKSUM_LINE = re.compile(r"([0-9a-f]{64}) [ *](.+)")
-
-
-def _asset(names: list[str], pattern: re.Pattern) -> str | None:
-    found = [name for name in names if pattern.fullmatch(name)]
-    return found[0] if len(found) == 1 else None
 
 
 def select_releases(listing: list[dict], *, keep: int = KEEP) -> list[dict]:
@@ -82,7 +74,7 @@ def select_releases(listing: list[dict], *, keep: int = KEEP) -> list[dict]:
         if prerelease:
             continue
         names = [asset["name"] for asset in release.get("assets", [])]
-        deb, checksums = _asset(names, _DEB), _asset(names, _CHECKSUMS)
+        deb, checksums = asset_named(names, _DEB), asset_named(names, CHECKSUMS)
         if deb and checksums:
             found.append((version_key(version), {
                 "tag": tag, "published_at": release["published_at"],
@@ -91,25 +83,10 @@ def select_releases(listing: list[dict], *, keep: int = KEEP) -> list[dict]:
     return [release for _, release in found[:keep]]
 
 
-def listed_hash(checksums: str, name: str) -> str:
-    """The SHA-256 the checksum file lists for the file `name`; the file lists
-    it with its path in the release's packages directory."""
-    hashes = set()
-    for line in checksums.splitlines():
-        match = _CHECKSUM_LINE.fullmatch(line.strip())
-        if match and PurePosixPath(match.group(2)).name == name:
-            hashes.add(match.group(1))
-    if len(hashes) != 1:
-        raise ReleaseError(f"The checksum file must list {name} once, with one hash.")
-    return hashes.pop()
-
-
 def verify_deb(deb: Path, checksums: str) -> None:
     """Refuses a .deb that is not the release asset the checksum file lists,
     so what the repository serves is what the release's attestations cover."""
-    actual = hashlib.sha256(deb.read_bytes()).hexdigest()
-    if actual != listed_hash(checksums, deb.name):
-        raise ReleaseError(f"{deb.name} does not match the SHA-256 its release lists.")
+    verify_asset(deb, checksums)
 
 
 def http_date(when: datetime) -> str:
@@ -159,6 +136,8 @@ sudo curl -fsSL {HOST}/{SOURCES_FILE} -o /etc/apt/sources.list.d/logsquirl.sourc
 sudo apt update
 sudo apt install logsquirl</pre>
 <p>Updates arrive with <code>sudo apt upgrade</code>.</p>
+<p>Fedora 44 and Oracle Linux 10 (dnf): <code>sudo curl -fsSL {HOST}/logsquirl-fedora.repo -o /etc/yum.repos.d/logsquirl.repo</code>
+(<code>logsquirl-el10.repo</code> on Oracle Linux 10), then <code>sudo dnf install logsquirl</code>.</p>
 """
 
 
