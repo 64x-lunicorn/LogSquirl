@@ -55,6 +55,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandpalette.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filterspanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodings.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/defaultencodingcheck.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/favoritefiles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabnamemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupinfo.h

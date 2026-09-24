@@ -148,6 +148,15 @@
 
 ## Bug fixes
 
+- **The Command Palette opens**: `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) and
+  the new `Tools->Command Palette...` entry open it. Nothing was bound to the
+  shortcut before, although the shortcut settings listed it. Rebinding it in
+  the shortcut settings changes the key that opens it (#484).
+- **An unknown default encoding in the settings is reset**: a stored
+  encoding the application does not know (for example `encodingMib=2013`) is
+  set back to Auto at startup, saved, and named once in the log. Attaching a
+  Log File falls back to the locale encoding, with a warning, as opening one
+  already did (#488).
 - **Bunyan and Pino formats removed**: Both were listed as built-in Log Formats
   but could never be recognized, because Format Recognition only understands
   regular expressions and neither had one. LogSquirl now ships 22 built-in
