@@ -43,6 +43,10 @@ int indexForName( const char* encodingName );
 std::unique_ptr<QStringDecoder> makeDecoder( int index, QStringConverter::Flags flags );
 QStringEncoder makeEncoder( int index );
 
+// How many times iconv_open() ran for a conversion so far; a State that is
+// reset must not add to it.
+unsigned long long openedConversions();
+
 } // namespace iconv_converter
 
 #endif // LOGSQUIRL_ICONVCONVERTER_H
