@@ -341,6 +341,15 @@ option by hand:
 TSAN_OPTIONS="suppressions=$(pwd)/cmake/tsan.supp" build_root/output/logsquirl_tests
 ```
 
+**TSan in CI (#439).** The `Sanitizers / tsan` job in `.github/workflows/ci-build.yml` builds the same
+configuration as above in the Noble container and runs every test case under `ctest`, blocking like the
+`Sanitizers / asan-ubsan` job. It needs no `TSAN_OPTIONS` of its own: a suppression added to
+`cmake/tsan.supp` reaches it through `cmake/CatchTestDiscoveryRunTest.cmake`. Runtime: expect it to take
+about as long as the ASan/UBSan job (the ASan job's slowest successful run is 25 minutes), because TSan
+slows the tests down by a similar factor; the first runs of the job will give the real number, which
+belongs here. To see the job go red, add a plain `int` incremented from two `std::thread`s to any test
+case: TSan reports it, the case exits non-zero, and so does `ctest`.
+
 With the suppression file applied, most but not all of the search tests pass; the ADR above records which
 findings remain and why they are not yet covered, rather than a suppression widened to hide them.
 

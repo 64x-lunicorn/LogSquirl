@@ -122,6 +122,11 @@
 
 ## Internal
 
+- **ThreadSanitizer runs in CI**: a `Sanitizers / tsan` job builds the tests with
+  `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the ASan/UBSan job, so a
+  data race in the oneTBB indexing and search flow graphs turns the pull request
+  red. It uses `cmake/tsan.supp`; a new suppression needs no change to the job
+  (#439).
 - **The tests run on Catch2 v3**: Catch2 v2 is end of life. v3 is pinned by
   commit like every other dependency, Renovate keeps tracking it, and the 135
   test files include only the Catch2 headers they use instead of the one big
