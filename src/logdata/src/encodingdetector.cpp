@@ -70,6 +70,9 @@ private:
 
 EncodingParameters::EncodingParameters( const TextEncoding* codec )
 {
+    if ( !codec ) {
+        codec = TextEncoding::forLocale();
+    }
     static constexpr QChar LineFeed( QChar::LineFeed );
     static constexpr int Utf8Mib = TextEncoding::Utf8Mib;
     static constexpr int Utf16LEMib = TextEncoding::Utf16LEMib;
@@ -188,7 +191,9 @@ int TextCodecHolder::mibEnum() const
 void TextCodecHolder::setCodec( const TextEncoding* codec )
 {
     UniqueLock guard( mutex_ );
-    codec_ = codec;
+    // An Encoding this build does not know (a setting written elsewhere) is
+    // the Encoding of the locale.
+    codec_ = codec ? codec : TextEncoding::forLocale();
     encodingParams_ = EncodingParameters{ codec_ };
 }
 

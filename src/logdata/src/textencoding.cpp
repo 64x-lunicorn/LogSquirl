@@ -111,6 +111,9 @@ const std::vector<EncodingSpec>& specs()
         { 37, "ISO-2022-KR", std::nullopt, {}, {} },
         { 38, "windows-949", std::nullopt, { "EUC-KR", "CP949" }, {} },
         { 2259, "TIS-620", std::nullopt, {}, {} },
+        // No IANA MIB enum, as QTextCodec had none for them.
+        { 0, "ISO-8859-11", std::nullopt, { "ISO_8859-11", "ISO8859-11" }, {} },
+        { 0, "EUC-TW", std::nullopt, { "x-euc-tw" }, {} },
     };
     return all;
 }
