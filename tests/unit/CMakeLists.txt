@@ -11,12 +11,14 @@ add_executable(logsquirl_tests
     chartseries_test.cpp
     charttemplategenerator_test.cpp
     chipmunkimporter_test.cpp
+    compressedlinestorage_test.cpp
     configuration_test.cpp
     decorationsetup_test.cpp
     displayedlines_test.cpp
     encodingdetector_test.cpp
     fontutils_test.cpp
     groupexchange_test.cpp
+    hsregularexpression_test.cpp
     hyperscanruntime_test.cpp
     indexcache_test.cpp
     headerandtaildigests_test.cpp
@@ -47,6 +49,7 @@ add_executable(logsquirl_tests
     patternmatcher_test.cpp
     plugindialog_test.cpp
     pluginhost_test.cpp
+    pluginloader_test.cpp
     pluginmetadata_test.cpp
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
@@ -61,6 +64,7 @@ add_executable(logsquirl_tests
     searchdata_test.cpp
     searchfailure_test.cpp
     searchsession_test.cpp
+    scratchpad_test.cpp
     settingspolicies_test.cpp
     sparselineread_test.cpp
     tabbarstyle_test.cpp
@@ -111,6 +115,24 @@ set_target_properties(logsquirl_ui_port_probe PROPERTIES CXX_VISIBILITY_PRESET h
 add_dependencies(logsquirl_tests logsquirl_ui_port_probe)
 target_compile_definitions(logsquirl_tests PRIVATE
     LOGSQUIRL_UI_PORT_PROBE_PATH="$<TARGET_FILE:logsquirl_ui_port_probe>")
+
+# The Plugin Loader test loads one library per way a plugin can fail to load,
+# and one that loads (#444). They are built from one source, each with one
+# definition that breaks one thing.
+foreach(variant IN ITEMS
+    NO_GET_INFO NO_INIT NO_SHUTDOWN NULL_INFO BAD_API_VERSION INIT_FAILS CONVERTER)
+  string(TOLOWER "${variant}" variant_lower)
+  set(fixture_target "logsquirl_loader_fixture_${variant_lower}")
+  add_library(${fixture_target} MODULE plugins/loaderfixture.cpp)
+  target_link_libraries(${fixture_target} PRIVATE project_options project_warnings)
+  target_include_directories(${fixture_target} PRIVATE "${CMAKE_SOURCE_DIR}/src/plugins/include")
+  target_compile_definitions(${fixture_target} PRIVATE LOADER_FIXTURE_${variant}=1)
+  set_target_properties(${fixture_target} PROPERTIES CXX_VISIBILITY_PRESET hidden)
+  add_dependencies(logsquirl_tests ${fixture_target})
+  target_compile_definitions(logsquirl_tests PRIVATE
+      LOGSQUIRL_LOADER_FIXTURE_${variant}_PATH="$<TARGET_FILE:${fixture_target}>")
+endforeach()
+# A CONVERTER fixture that is otherwise complete also stands for a good plugin.
 
 # Each test case is its own ctest test (#217). Its timeout is the one the whole
 # executable had: the slowest case, the 10,000 Visual Lines scenario, takes a

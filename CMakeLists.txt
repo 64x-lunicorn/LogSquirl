@@ -299,6 +299,23 @@ add_test(
 
 if(${LOGSQUIRL_BUILD_TESTS})
   add_subdirectory(tests)
+
+  # `cmake --build <dir> --target coverage` runs the tests of a build made with
+  # -DENABLE_COVERAGE=ON and prints the line coverage of each module (#444).
+  # GCOV overrides the tool: `xcrun llvm-cov gcov` for Apple's Clang.
+  if(ENABLE_COVERAGE)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(logsquirl_coverage_report
+        "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/coverage_report.py"
+        --build-dir "${CMAKE_BINARY_DIR}" --source-root "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_custom_target(coverage
+        COMMAND ${logsquirl_coverage_report} --reset
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 120
+        COMMAND ${logsquirl_coverage_report} --json "${CMAKE_BINARY_DIR}/coverage.json"
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        USES_TERMINAL
+        COMMENT "Running the tests and measuring line coverage per module")
+  endif()
 endif()
 
 if(LOGSQUIRL_BUILD_FUZZERS)

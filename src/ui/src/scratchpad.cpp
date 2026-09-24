@@ -340,7 +340,12 @@ void ScratchPad::hexToDec()
 void ScratchPad::formatJson()
 {
     transformTextInPlace( []( QString text ) {
-        const auto start = std::min( text.indexOf( '{' ), text.indexOf( '[' ) );
+        // The first opening brace or bracket, whichever there is: indexOf is
+        // -1 for the one that is missing, which must not win the minimum.
+        const auto brace = text.indexOf( '{' );
+        const auto bracket = text.indexOf( '[' );
+        const auto start = brace < 0 ? std::max( bracket, qsizetype{ 0 } )
+                                     : ( bracket < 0 ? brace : std::min( brace, bracket ) );
 
         QJsonParseError parseError;
         auto json = QJsonDocument::fromJson( text.mid( start ).toUtf8(), &parseError );
@@ -358,8 +363,12 @@ void ScratchPad::formatXml()
     transformTextInPlace( []( QString text ) {
         const auto start = text.indexOf( '<' );
 
+        // XML that does not parse is not formatted: the partial document Qt
+        // keeps drops what it could not read, and the text would be replaced.
         QDomDocument xml;
-        xml.setContent( text.mid( start ).toUtf8() );
+        if ( !xml.setContent( text.mid( start ).toUtf8() ) ) {
+            return QString{};
+        }
 
         return xml.toString( 2 );
     } );
