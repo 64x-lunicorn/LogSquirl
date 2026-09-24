@@ -26,6 +26,7 @@ set(IDENTIFIER "io.github.logsquirl")
 set(PROJECT_DESCRIPTION "${PROJECT_NAME} log viewer")
 
 option(LOGSQUIRL_BUILD_TESTS "Build tests" ON)
+option(LOGSQUIRL_BUILD_FUZZERS "Build the libFuzzer targets (needs Clang)" OFF)
 option(LOGSQUIRL_USE_LTO "Use link time optimization" ON)
 option(LOGSQUIRL_USE_SENTRY "Use Sentry" OFF)
 option(LOGSQUIRL_GENERIC_CPU "Build for generic CPU" OFF)
@@ -298,6 +299,10 @@ add_test(
 
 if(${LOGSQUIRL_BUILD_TESTS})
   add_subdirectory(tests)
+endif()
+
+if(LOGSQUIRL_BUILD_FUZZERS)
+  add_subdirectory(tests/fuzz)
 endif()
 
 # Installation and packaging

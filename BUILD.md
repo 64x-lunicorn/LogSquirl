@@ -284,6 +284,33 @@ before committing — values should only go down, never up.
 
 See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
+### Fuzzing
+
+`tests/fuzz` holds libFuzzer targets for the code that reads bytes from anywhere before a user sees
+anything: `indexing_blocks_fuzzer` (indexing blocks and stitching, in every line feed width),
+`log_format_fuzzer` (Log Format JSON parser and field extractor) and `ansi_color_fuzzer`. Their seed
+inputs are in `tests/fuzz/corpus/<target>/`. CI runs them with ClusterFuzzLite
+(`.github/workflows/cflite.yml`, `.clusterfuzzlite/`): on pull requests for the changed code, weekly for
+every target.
+
+To run them locally you need Clang with libFuzzer (on macOS Homebrew's `llvm`, not Apple's Clang). The whole
+build must be instrumented with `-fsanitize=fuzzer-no-link`, or the fuzzers see no coverage of the libraries:
+
+```bash
+F="-fsanitize=address,undefined,fuzzer-no-link"
+cmake -S . -B build-fuzz -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+  -DCMAKE_C_FLAGS="$F" -DCMAKE_CXX_FLAGS="$F" \
+  -DLOGSQUIRL_BUILD_FUZZERS=ON -DLOGSQUIRL_BUILD_TESTS=OFF \
+  -DLOGSQUIRL_USE_LTO=OFF -DLOGSQUIRL_USE_VECTORSCAN=OFF
+cmake --build build-fuzz --target logsquirl_fuzzers
+mkdir -p /tmp/corpus && cp -r tests/fuzz/corpus/ansi_color/. /tmp/corpus/
+build-fuzz/output/ansi_color_fuzzer /tmp/corpus -max_total_time=60
+```
+
+A crash is written as `crash-<hash>`; run the target with that file as its only argument to reproduce it.
+Copy a small input that found new code into `tests/fuzz/corpus/<target>/` to keep it as a seed.
+
 ### Sanitizer builds
 
 `cmake/Sanitizers.cmake` adds Address, Memory, Undefined Behavior and Thread sanitizers behind their own
