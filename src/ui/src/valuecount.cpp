@@ -181,8 +181,8 @@ void ValueCounter::start( std::shared_ptr<const AbstractLogData> logData, ValueO
           state = job.get() ]() mutable -> std::optional<ValueCountResult> {
             // Released here, before the result is reported: the owner, which
             // waits for that on destruction, keeps the last reference.
-            const auto logData = std::move( data );
-            return countValues( *logData, 0_lnum, state->count, valueOf, maxDistinctValues,
+            const auto owned = std::move( data );
+            return countValues( *owned, 0_lnum, state->count, valueOf, maxDistinctValues,
                                 state->cancelled, state->linesDone );
         } );
     watcher->setFuture( job->future );

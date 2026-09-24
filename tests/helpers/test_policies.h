@@ -90,6 +90,8 @@ inline SettingsPolicies testSettingsPolicies()
                        .searchIgnoreCaseDefault = false,
                        .searchAutoRefreshDefault = false,
                        .searchLogicalCombiningDefault = false },
+
+        .teamFolder = { .enabled = false, .repositoryUrl = {}, .subfolder = {} },
     };
 }
 
