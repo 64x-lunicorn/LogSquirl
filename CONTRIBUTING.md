@@ -116,8 +116,12 @@ run them locally.
 
 ## Coding standard and warnings
 
-The code is C++23 and follows the `.clang-format` file at the repository root; a `.clang-tidy`
-is provided for local use (`-DENABLE_CLANG_TIDY=ON`), CI does not run it. The build enables `-Wall -Wextra -Wpedantic` (and the MSVC equivalents) and treats
+The code is C++23 and follows the `.clang-format` file at the repository root. `.clang-tidy`
+enables the `bugprone`, `clang-analyzer` and `performance` checks (the reason for each
+exclusion is in the file), and CI's Tidy job runs them over the sources under `src/` that a pull
+request changes; run the same locally with `.github/scripts/run-clang-tidy.sh <build-dir>` on a
+Ninja build, or with `-DENABLE_CLANG_TIDY=ON`. A finding is fixed; when it is wrong, silence it
+at the line with `// NOLINT(<check>)` and say why. The build enables `-Wall -Wextra -Wpedantic` (and the MSVC equivalents) and treats
 warnings as errors (`WARNINGS_AS_ERRORS`, `cmake/CompilerWarnings.cmake`), so a pull request
 that adds a compiler warning does not build in CI. Static analysis (CodeQL) runs on every
 pull request, and CI builds the test suites with AddressSanitizer and UndefinedBehaviorSanitizer.
