@@ -464,9 +464,26 @@ void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bo
 
         teamAddButton_ = new QPushButton( tr( "New Team highlighter set" ), layoutWidget );
         connect( teamAddButton_, &QPushButton::clicked, this, &HighlightersDialog::addTeamGroup );
-        verticalLayout->addWidget( teamAddButton_ );
+        teamShareButton_ = new QPushButton( tr( "Share with team" ), layoutWidget );
+        teamShareButton_->setToolTip( tr( "Adds a Team copy of the selected group of your own." ) );
+        connect( teamShareButton_, &QPushButton::clicked, this,
+                 &HighlightersDialog::shareSelectedGroup );
+        teamCopyButton_ = new QPushButton( tr( "Copy to my groups" ), layoutWidget );
+        connect( teamCopyButton_, &QPushButton::clicked, this,
+                 &HighlightersDialog::copySelectedTeamGroup );
+        teamDeleteButton_ = new QPushButton( tr( "Delete for the team" ), layoutWidget );
+        connect( teamDeleteButton_, &QPushButton::clicked, this,
+                 &HighlightersDialog::deleteSelectedTeamGroup );
+        auto* buttons = new QGridLayout;
+        buttons->addWidget( teamAddButton_, 0, 0 );
+        buttons->addWidget( teamShareButton_, 0, 1 );
+        buttons->addWidget( teamCopyButton_, 1, 0 );
+        buttons->addWidget( teamDeleteButton_, 1, 1 );
+        verticalLayout->addLayout( buttons );
     }
     teamAddButton_->setVisible( teamEditable_ );
+    teamShareButton_->setVisible( teamEditable_ );
+    teamDeleteButton_->setVisible( teamEditable_ );
 
     selectedTeamRow_ = -1;
     teamGroupsList_->clear();
@@ -475,9 +492,21 @@ void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bo
     }
 }
 
+void HighlightersDialog::updateTeamRevisions( const QStringList& ids,
+                                              const QHash<QString, QString>& revisions )
+{
+    // A published group's file has a new revision: the next edit of it is
+    // based on that one, not on the one it was loaded with.
+    for ( const auto& id : ids ) {
+        if ( const auto found = revisions.constFind( id ); found != revisions.constEnd() ) {
+            teamRevisions_.insert( id, *found );
+        }
+    }
+}
+
 void HighlightersDialog::updateTeamButtons()
 {
-    if ( !teamGroupsList_ ) {
+    if ( !teamGroupsList_ || !teamShareButton_ || !teamCopyButton_ || !teamDeleteButton_ ) {
         return;
     }
     teamShareButton_->setEnabled( teamEditable_ && selectedRow_ >= 0 );

@@ -71,7 +71,8 @@ QList<HighlighterSet> HighlighterSetCollection::teamHighlighterSets() const
     return teamSets_;
 }
 
-bool HighlighterSetCollection::setTeamHighlighterSets( const QList<HighlighterSet>& sets )
+bool HighlighterSetCollection::setTeamHighlighterSets( const QList<HighlighterSet>& sets,
+                                                       bool dropUnknownActivations )
 {
     const auto sameSets = std::equal(
         teamSets_.cbegin(), teamSets_.cend(), sets.cbegin(), sets.cend(),
@@ -79,15 +80,16 @@ bool HighlighterSetCollection::setTeamHighlighterSets( const QList<HighlighterSe
     const auto activeBefore = activeTeamSets_.size();
 
     teamSets_ = sets;
-    activeTeamSets_.erase( std::remove_if( activeTeamSets_.begin(), activeTeamSets_.end(),
-                                           [ this ]( const auto& setId ) {
-                                               return std::none_of( teamSets_.cbegin(),
-                                                                    teamSets_.cend(),
-                                                                    [ &setId ]( const auto& set ) {
-                                                                        return set.id() == setId;
-                                                                    } );
-                                           } ),
-                           activeTeamSets_.end() );
+    if ( dropUnknownActivations ) {
+        activeTeamSets_.erase(
+            std::remove_if( activeTeamSets_.begin(), activeTeamSets_.end(),
+                            [ this ]( const auto& setId ) {
+                                return std::none_of(
+                                    teamSets_.cbegin(), teamSets_.cend(),
+                                    [ &setId ]( const auto& set ) { return set.id() == setId; } );
+                            } ),
+            activeTeamSets_.end() );
+    }
     updateCombinedSet();
     return !sameSets || activeTeamSets_.size() != activeBefore;
 }

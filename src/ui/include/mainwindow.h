@@ -39,8 +39,10 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QHash>
 #include <QMainWindow>
 #include <QMenu>
+#include <QPair>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
@@ -282,10 +284,14 @@ private:
     void connectTeamFolder();
     void updateTeamFolderIndicator();
     // Hands the Team Highlighter Sets to the Highlighter Set collection.
-    void applyTeamHighlighterSets();
+    // dropUnknownActivations false: the first sync has not delivered groups.
+    void applyTeamHighlighterSets( bool dropUnknownActivations = true );
     // Asks what to do with a Team group somebody else changed while the user
     // was changing it too: keep mine, take theirs, or save mine as a copy.
     void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );
+    // Asks about the conflicts waiting, when this window can: it has the focus
+    // and no dialog is open on it. Else it looks again shortly.
+    void askAboutPendingConflicts();
 
     /// Build the full list of commands for the command palette by
     /// collecting menu actions, plugin actions, recent files, and
@@ -439,6 +445,9 @@ private:
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
 
     // Declared in this order: the pump reads into the writer, so it goes first.
+    // The title and tooltip of the tab of a file that is not named after its
+    // path (standard input, a data source), by path, given when it opens.
+    QHash<QString, QPair<QString, QString>> tabTitles_;
     std::unique_ptr<logsquirl::plugins::StreamWriter> standardInputWriter_;
     std::unique_ptr<logsquirl::plugins::StdinPump> standardInputPump_;
 

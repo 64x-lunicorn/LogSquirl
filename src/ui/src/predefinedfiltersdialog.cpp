@@ -347,6 +347,18 @@ void PredefinedFiltersDialog::updateFilterSetProperties()
 
 // --- Team groups ---
 
+void PredefinedFiltersDialog::updateTeamRevisions( const QStringList& ids,
+                                                   const QHash<QString, QString>& revisions )
+{
+    // A published group's file has a new revision: the next edit of it is
+    // based on that one, not on the one it was loaded with.
+    for ( const auto& id : ids ) {
+        if ( const auto found = revisions.constFind( id ); found != revisions.constEnd() ) {
+            teamRevisions_.insert( id, *found );
+        }
+    }
+}
+
 void PredefinedFiltersDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups,
                                               bool editable,
                                               const QHash<QString, QString>& revisions )

@@ -73,8 +73,12 @@ public:
     // is the user's own, stored with the active sets. A Team set that is no
     // longer there is no longer active; setting them re-colors the combined
     // active set at once. Whether this changed a Team set or an activation.
+    // dropUnknownActivations false keeps the activations of Team sets that are
+    // not in sets: for the time before the first sync has delivered groups,
+    // when an empty list means "not known yet", not "none".
     QList<HighlighterSet> teamHighlighterSets() const;
-    bool setTeamHighlighterSets( const QList<HighlighterSet>& sets );
+    bool setTeamHighlighterSets( const QList<HighlighterSet>& sets,
+                                 bool dropUnknownActivations = true );
 
     const HighlighterSet& currentActiveSet() const;
 

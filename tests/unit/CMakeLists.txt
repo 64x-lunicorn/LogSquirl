@@ -20,6 +20,7 @@ add_executable(logsquirl_tests
     groupexchange_test.cpp
     hsregularexpression_test.cpp
     teamfolder_test.cpp
+    teamfolderdialogs_test.cpp
     hyperscanruntime_test.cpp
     indexcache_test.cpp
     headerandtaildigests_test.cpp
