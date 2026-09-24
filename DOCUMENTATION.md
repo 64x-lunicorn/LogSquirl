@@ -8,6 +8,8 @@
 1. [Exploring log files](#Exploring-log-files)
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
+   - [Tab groups](#tab-groups)
+1. [Plugins](#Plugins)
 1. [Settings](#Settings)
 1. [Keyboard commands](#Keyboard-commands)
 1. [Command line options](#Command-line-options)
@@ -441,6 +443,21 @@ the other sources stay. A source that is deleted contributes nothing until it
 exists again and changes. The merged file is a temporary file, removed when
 the window closes; it is not restored with the session.
 
+### Tab groups
+
+Open tabs can be organized into named, colored groups. Right-click a tab and
+choose `Add to Group` to put it into an existing group or into a `New Group...`
+(you are asked for a name and a color). A grouped tab shows a colored bullet
+before its name and its text is tinted in the group's color. `Remove from Group`
+takes a tab out again. For a grouped tab the context menu also has a `Group:`
+submenu with `Rename Group...`, `Change Group Color...`, `Close All in Group`
+and `Ungroup All`.
+
+`Tools->Manage Tab Groups...` opens a dialog listing the groups with their
+color, name and number of tabs, to rename, recolor or delete them without going
+through a tab. Group membership is remembered by the file's path and restored
+with the session.
+
 ### Filters Panel
 
 The Filters Panel is a right sidebar dock that provides quick access to filters
@@ -469,6 +486,29 @@ The Scratchpad includes a JWT (JSON Web Token) decoder. When a JWT is pasted
 into the Scratchpad, it can decode the Base64URL-encoded header and payload,
 format the JSON with indentation, and annotate epoch timestamp fields
 (`iat`, `exp`, `nbf`, `auth_time`) with human-readable UTC dates.
+
+## Plugins
+
+Plugins extend *logsquirl*. There are three kinds: *data source* plugins stream
+log lines into a tab, *converter* plugins turn a file format into plain text
+before it is shown, and *UI extension* plugins add menu items, status bar
+widgets or panels. How to write one is described in the
+[Plugin SDK guide](https://github.com/64x-lunicorn/LogSquirl/blob/master/docs/plugin-sdk.md).
+
+`Plugins->Manage Plugins...` opens the Plugin Management dialog. It lists the
+plugins in the catalog and the ones installed on your machine under the tabs
+*All*, *Installed* and *Updates*, and can be searched. Each plugin offers
+*Install* (or *Update*) and *Enable* or *Disable*. With *Auto-load enabled
+plugins on startup* the enabled plugins are loaded when *logsquirl* starts, and
+*Plugin Folder* opens the directory user plugins are installed to. The catalog
+is fetched when the dialog opens; if that fails, the error is shown in the
+status line at the bottom. Menu items that a UI extension plugin adds appear
+in the `Plugins` menu, above `Manage Plugins...`.
+
+The `Sources` menu lists the installed data source plugins. Choosing one loads
+the plugin if needed and starts it; the stream opens as a new tab in the window
+you chose it in. Without a data source plugin the menu says
+"(no data source plugins)".
 
 ## Settings
 
@@ -508,6 +548,13 @@ immediately perform search when pattern is update from context menu.
 *   Minimize to tray -- if enabled, *logsquirl* will minimize to tray instead
     of closing main window. Use tray icon context menu of `File->Exit`
     to exit application. This option is not available on Mac OS.
+*   Show splash screen on startup -- if enabled, a splash screen with the
+    application icon and version is shown while *logsquirl* starts.
+*   Show dashboard on startup -- if enabled, the [Dashboard](#the-dashboard)
+    is the first tab.
+*   Confirm before closing tabs -- if enabled, closing one tab or several asks
+    first. The question has a "Don't ask again" box; this option turns it back
+    on.
 *   Enable multiple windows -- if enabled *logsquirl* will allow opening
     more than one main window using `File->New window`. In this mode last
     closed windows will be saved to open session on next *logsquirl* start.
@@ -564,6 +611,16 @@ A theme can be extended with a stylesheet of your own: put a `.qss` file named
 after the theme (`fusion-light.qss`, `dark.qss`, `high-contrast.qss`,
 `smyck.qss` or `smyck-light.qss`) into the `themes` directory of the
 configuration directory, and it is appended to the theme's stylesheet.
+
+#### Language
+
+*logsquirl* is translated into English, German (Deutsch), Spanish (Español),
+French (Français), Brazilian Portuguese (Português (Brasil)), European
+Portuguese (Português (Portugal)), Ukrainian (Українська), Simplified Chinese
+(中文 (简体)) and Traditional Chinese (中文 (繁體)). Choose the language under
+`Settings->View->Language`. When you press OK or Apply with another language,
+*logsquirl* tells you that it needs to be restarted to apply the change, so
+restart it to have every part of the interface in the new language.
 
 #### High DPI
 
