@@ -55,6 +55,13 @@ file(WRITE "${_tool_dir}/logsquirl.conf" "[General]\ndefaultView.encodingMib=-1\
 
 set(_failures "")
 
+# A ThreadSanitizer build reports oneTBB's flow graph unless it is given the
+# suppression list every other test case gets from
+# cmake/CatchTestDiscoveryRunTest.cmake (#439). Ignored by a build without
+# -fsanitize=thread.
+get_filename_component(_tsan_suppressions "${CMAKE_CURRENT_LIST_DIR}/../cmake/tsan.supp" ABSOLUTE)
+set(ENV{TSAN_OPTIONS} "suppressions=${_tsan_suppressions}")
+
 # Runs the tool with the given arguments; sets _stdout, _stderr and _result.
 # Line endings are normalized, so the checks hold on every platform.
 function(run_grep)
