@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QAbstractItemView>
 #include <QWidget>
 
 #include "predefinedfilters.h"
@@ -40,6 +41,10 @@ public:
 
     // Clear all fields and disable editing controls.
     void reset();
+
+    // Shows the set without letting it be changed: a Team group. Applies to
+    // the set shown next.
+    void setReadOnly( bool readOnly );
 
 Q_SIGNALS:
     // Emitted whenever the set name or any filter changes.
@@ -66,4 +71,6 @@ private:
 
     PredefinedFilterSet filterSet_;
     bool updatingTable_{ false };
+    bool readOnly_{ false };
+    QAbstractItemView::EditTriggers editTriggers_;
 };

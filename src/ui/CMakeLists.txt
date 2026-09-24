@@ -15,6 +15,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/presentationmenu.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/groupexchange.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/groupimportprompt.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/teamfolder.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/teamfoldergit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilters.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilterscombobox.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersdialog.h
@@ -93,6 +95,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupexchange.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/groupimportprompt.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfolder.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfoldergit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfilters.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfilterscombobox.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfiltersdialog.cpp

@@ -146,6 +146,23 @@ once or for all remaining conflicts of the import. An imported group with the De
 Group's id never replaces the recipient's Default group: it arrives as a new group.
 _Avoid_: filter set, filter list, folder
 
+**Team Folder**:
+A Git repository a team shares its Filter Groups and Highlighter Sets through. LogSquirl clones
+it into its own data folder with the installed `git` and keeps it current: at startup, every
+five minutes and on "Sync now", never blocking the user interface. It is the only part of the
+application that runs Git, and Git's own authentication applies unchanged. Turning it off, or
+pointing it at another repository, leaves the user's own groups alone.
+_Avoid_: shared folder, team repository, sync folder
+
+**Team group**:
+A Filter Group or Highlighter Set that lives in the Team Folder, one file each. Team groups
+show in their own section of the dialogs, sorted alphabetically, and are never written into the
+user's own settings. Changing a Team group and pressing OK or Apply publishes that one file
+to the team; when someone else changed the same group meanwhile the user chooses keep mine,
+take theirs or save mine as a copy. Nothing is locked (ADR-0008). A personal group is shared
+as a Team copy, a Team group is copied back into the personal groups, each with a fresh id.
+_Avoid_: shared group, remote group
+
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
 subdued. Half-open everywhere: from the first Log Line searched up to, not including, its

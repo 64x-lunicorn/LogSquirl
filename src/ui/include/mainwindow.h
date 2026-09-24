@@ -78,6 +78,10 @@ class QAction;
 class QActionGroup;
 class Session;
 class RecentFiles;
+namespace logsquirl::teamfolder {
+struct PublishOutcome;
+}
+
 class HighlightersMenu;
 
 // Main window of the application, creates menus, toolbar and
@@ -274,6 +278,14 @@ private:
     void tryOpenClipboard( int tryTimes );
     void updateShortcuts();
     void showDashboardOrTabs();
+    // Shows the Team Folder's Team groups and state in this window.
+    void connectTeamFolder();
+    void updateTeamFolderIndicator();
+    // Hands the Team Highlighter Sets to the Highlighter Set collection.
+    void applyTeamHighlighterSets();
+    // Asks what to do with a Team group somebody else changed while the user
+    // was changing it too: keep mine, take theirs, or save mine as a copy.
+    void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );
 
     /// Build the full list of commands for the command palette by
     /// collecting menu actions, plugin actions, recent files, and
@@ -302,6 +314,11 @@ private:
     QMenu* helpMenu;
 
     PathLine* infoLine;
+    // The Team Folder's state, quietly: shown only while there is a Team
+    // Folder, it says synced, not synced or error, tells Git's message in its
+    // tooltip and syncs when clicked. It never opens a dialog.
+    QToolButton* teamFolderButton_ = nullptr;
+    QAction* teamFolderButtonAction_ = nullptr;
     QLabel* lineNbField;
     QLabel* sizeField;
     QLabel* dateField;

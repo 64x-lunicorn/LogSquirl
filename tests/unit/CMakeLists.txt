@@ -19,6 +19,7 @@ add_executable(logsquirl_tests
     fontutils_test.cpp
     groupexchange_test.cpp
     hsregularexpression_test.cpp
+    teamfolder_test.cpp
     hyperscanruntime_test.cpp
     indexcache_test.cpp
     headerandtaildigests_test.cpp

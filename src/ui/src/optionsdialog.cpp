@@ -88,6 +88,9 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
     connect( extractArchivesCheckBox, &QCheckBox::toggled,
              [ this ]( auto ) { this->setupArchives(); } );
 
+    connect( teamFolderCheckBox, &QCheckBox::toggled,
+             [ this ]( auto ) { this->setupTeamFolder(); } );
+
     // Beta checkbox is only enabled when version checking is on
     connect( checkForNewVersionCheckBox, &QCheckBox::toggled, checkForBetaVersionCheckBox,
              &QWidget::setEnabled );
@@ -123,6 +126,7 @@ OptionsDialog::OptionsDialog( const LogFormatCatalog& logFormatCatalog, QWidget*
     setupLogging();
     setupArchives();
     setupIndexCache();
+    setupTeamFolder();
     setupLogFormats( logFormatCatalog );
 }
 
@@ -241,6 +245,39 @@ void OptionsDialog::setupArchives()
 void OptionsDialog::setupIndexCache()
 {
     indexCacheMaxSizeSpinBox->setEnabled( indexCacheCheckBox->isChecked() );
+}
+
+void OptionsDialog::setupTeamFolder()
+{
+    const auto teamFolderOn = teamFolderCheckBox->isChecked();
+    teamFolderUrlEdit->setEnabled( teamFolderOn );
+    teamFolderSubfolderEdit->setEnabled( teamFolderOn );
+    updateTeamFolderStatus();
+}
+
+void OptionsDialog::showTeamFolder( TeamFolder& teamFolder )
+{
+    teamFolder_ = &teamFolder;
+    connect( &teamFolder, &TeamFolder::stateChanged, this, &OptionsDialog::updateTeamFolderStatus );
+    connect( teamFolderSyncButton, &QPushButton::clicked, &teamFolder, &TeamFolder::sync );
+    updateTeamFolderStatus();
+}
+
+void OptionsDialog::updateTeamFolderStatus()
+{
+    // What the Team Folder does now, as it was last applied: Sync Now syncs
+    // that one, not what the dialog shows before Apply.
+    const bool active = teamFolder_ && teamFolder_->state() != TeamFolder::State::Off;
+    teamFolderStatusLabel->setVisible( active );
+    teamFolderSyncButton->setVisible( active );
+    if ( !active ) {
+        return;
+    }
+    const auto details = teamFolder_->details();
+    teamFolderStatusLabel->setText( details.isEmpty() ? teamFolder_->summary()
+                                                      : teamFolder_->summary()
+                                                            + QStringLiteral( "\n" ) + details );
+    teamFolderSyncButton->setEnabled( !teamFolder_->isSyncing() );
 }
 
 // Populate the Log Formats tab from the application's Log Format Catalog
@@ -445,6 +482,10 @@ void OptionsDialog::updateDialogFromConfig()
     // downloads
     verifySslCheckBox->setChecked( config.verifySslPeers() );
 
+    teamFolderCheckBox->setChecked( config.teamFolderEnabled() );
+    teamFolderUrlEdit->setText( config.teamFolderUrl() );
+    teamFolderSubfolderEdit->setText( config.teamFolderSubfolder() );
+
     const auto encodingIndex = encodingComboBox->findData( config.defaultEncodingMib() );
     encodingComboBox->setCurrentIndex( encodingIndex < 0 ? 0 : encodingIndex );
 
@@ -633,6 +674,10 @@ void OptionsDialog::updateConfigFromDialog()
     config.setBetaVersionCheckingEnabled( checkForBetaVersionCheckBox->isChecked() );
 
     config.setVerifySslPeers( verifySslCheckBox->isChecked() );
+
+    config.setTeamFolderEnabled( teamFolderCheckBox->isChecked() );
+    config.setTeamFolderUrl( teamFolderUrlEdit->text().trimmed() );
+    config.setTeamFolderSubfolder( teamFolderSubfolderEdit->text().trimmed() );
 
     const auto themeChanged = config.style() != styleComboBox->currentText();
     config.setStyle( styleComboBox->currentText() );

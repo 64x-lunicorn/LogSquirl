@@ -303,6 +303,10 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
         config.setSearchAutoRefreshDefault( true );
         config.setSearchLogicalCombiningDefault( true );
 
+        config.setTeamFolderEnabled( true );
+        config.setTeamFolderUrl( "ssh://git.example.invalid/team.git" );
+        config.setTeamFolderSubfolder( "logsquirl" );
+
         WHEN( "the Policies are derived from it" )
         {
             const auto policies = deriveSettingsPolicies( config );
@@ -378,6 +382,15 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.quickFind.searchAutoRefreshDefault );
                 REQUIRE( policies.quickFind.searchLogicalCombiningDefault );
             }
+
+            THEN( "the Team Folder Policy carries the Team Folder settings" )
+            {
+                REQUIRE( policies.teamFolder.enabled );
+                REQUIRE( policies.teamFolder.repositoryUrl
+                         == "ssh://git.example.invalid/team.git" );
+                REQUIRE( policies.teamFolder.subfolder == "logsquirl" );
+                REQUIRE( policies.teamFolder.isActive() );
+            }
         }
 
         WHEN( "QuickFind is made incremental and the Policies are derived again" )
@@ -403,6 +416,7 @@ SCENARIO( "The Policies are derived from the Configuration", "[settingspolicies]
                 REQUIRE( policies.decoding == stepwise.decoding );
                 REQUIRE( policies.decoration == stepwise.decoration );
                 REQUIRE( policies.presentation == stepwise.presentation );
+                REQUIRE( policies.teamFolder == stepwise.teamFolder );
             }
         }
 

@@ -49,6 +49,11 @@ public:
     // Reload filter sets from PredefinedFiltersCollection and re-populate the tree.
     void refreshFilters();
 
+    // The Team groups to list after the user's own groups, alphabetically as
+    // the Team Folder hands them over, and marked as Team groups. Usable like
+    // the user's own: checked, pinned and searched the same way.
+    void setTeamGroups( const QList<PredefinedFilterSet>& groups );
+
     // Flush any pending debounced save to disk immediately.
     // Call before destroying the panel when the pinned state must be persisted,
     // or in tests to force a synchronous write.
@@ -86,6 +91,7 @@ private:
     QPushButton* editFiltersButton_{ nullptr };
 
     QList<PredefinedFilterSet> allFilterSets_;
+    QList<PredefinedFilterSet> teamFilterSets_;
     QSet<QString> pinnedFilterKeys_;
 
     // Fast lookup: pinKey(groupId, filterName) → PredefinedFilter.

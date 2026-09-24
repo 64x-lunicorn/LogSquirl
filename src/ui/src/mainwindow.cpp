@@ -116,6 +116,7 @@
 #include "recentfiles.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
+#include "teamfolder.h"
 #include "theme.h"
 
 namespace {
@@ -370,6 +371,8 @@ MainWindow::MainWindow( WindowSession session,
                                                    *sidebarTabs_ );
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
+
+    connectTeamFolder();
 
     plugins_->whenLoaded( this, [ this ] {
         updateSourcesMenu();
@@ -1210,6 +1213,13 @@ void MainWindow::createToolBars()
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( lineNbField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
+
+    teamFolderButton_ = new QToolButton();
+    teamFolderButton_->setAutoRaise( true );
+    teamFolderButton_->setToolButtonStyle( Qt::ToolButtonTextOnly );
+    teamFolderButtonAction_ = toolBar->addWidget( teamFolderButton_ );
+    teamFolderButtonAction_->setVisible( false );
+
     toolBar->addAction( toggleSidebarAction );
 
     showInfoLabels( false );
@@ -1524,6 +1534,13 @@ void MainWindow::openUrl()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable(),
+                               teamFolder->highlighterGroupRevisions() );
+        connect( &dialog, &HighlightersDialog::publishRequested, teamFolder.get(),
+                 &TeamFolder::publish );
+    }
 
     // Reaches every open Log File, in every window, not only the current tab.
     connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
@@ -1538,6 +1555,13 @@ void MainWindow::editHighlighters()
 void MainWindow::editPredefinedFilters( const QString& newFilter )
 {
     PredefinedFiltersDialog dialog( newFilter, this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),
+                               teamFolder->filterGroupRevisions() );
+        connect( &dialog, &PredefinedFiltersDialog::publishRequested, teamFolder.get(),
+                 &TeamFolder::publish );
+    }
 
     // The Predefined Filters are no setting a Log File shows: only the filters
     // panel lists them.
@@ -1552,12 +1576,119 @@ void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
     OptionsDialog dialog( *logFormatCatalog, this );
+    if ( const auto teamFolder = session_.teamFolder() ) {
+        dialog.showTeamFolder( *teamFolder );
+    }
 
     // The dialog only says that the settings changed; the Session takes it
     // from there, to every open Log File and every window, this one included.
     connect( &dialog, &OptionsDialog::optionsChanged,
              [ this ]() { session_.applyChange( Changed::Settings ); } );
     dialog.exec();
+}
+
+void MainWindow::connectTeamFolder()
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    connect( teamFolder.get(), &TeamFolder::stateChanged, this,
+             &MainWindow::updateTeamFolderIndicator );
+    // A changed or removed Team group shows at the next sync, in every
+    // window's Filters panel.
+    connect( teamFolder.get(), &TeamFolder::groupsChanged, this,
+             [ this ] { filtersPanel_.setTeamGroups( session_.teamFolder()->filterGroups() ); } );
+    // A changed or removed Team Highlighter Set re-colors every open Log File
+    // at once, and a removed one is no longer active.
+    connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
+             &MainWindow::applyTeamHighlighterSets );
+    connect( teamFolder.get(), &TeamFolder::publishFinished, this,
+             &MainWindow::askAboutPublishConflicts );
+    connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
+
+    filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+    applyTeamHighlighterSets();
+    updateTeamFolderIndicator();
+}
+
+void MainWindow::askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome )
+{
+    using logsquirl::teamfolder::ConflictChoice;
+    using logsquirl::teamfolder::PublishStatus;
+
+    // Every window hears of the publish; the one that has the focus asks.
+    if ( !isActiveWindow() ) {
+        return;
+    }
+
+    const auto teamFolder = session_.teamFolder();
+    for ( const auto& result : outcome.results ) {
+        if ( result.status != PublishStatus::Conflict || !teamFolder ) {
+            continue;
+        }
+
+        QMessageBox question( QMessageBox::Question, tr( "Team group changed" ),
+                              tr( "Somebody else changed the Team group \"%1\" since you started "
+                                  "editing it." )
+                                  .arg( result.request.name ),
+                              QMessageBox::NoButton, this );
+        question.setInformativeText(
+            result.theirsFilterGroup || result.theirsHighlighterSet
+                ? tr( "Keep your version and replace theirs, take theirs and drop your change, or "
+                      "save yours as a copy next to theirs?" )
+                : tr( "Somebody deleted it. Keep your version to publish it again, or take the "
+                      "deletion and drop your change?" ) );
+        auto* keepMine = question.addButton( tr( "Keep mine" ), QMessageBox::AcceptRole );
+        auto* takeTheirs = question.addButton( tr( "Take theirs" ), QMessageBox::DestructiveRole );
+        auto* saveCopy = question.addButton( tr( "Save mine as a copy" ), QMessageBox::ActionRole );
+        question.setDefaultButton( saveCopy );
+        question.exec();
+
+        if ( question.clickedButton() == keepMine ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::KeepMine );
+        }
+        else if ( question.clickedButton() == saveCopy ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::SaveAsCopy );
+        }
+        else if ( question.clickedButton() == takeTheirs ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::TakeTheirs );
+        }
+    }
+}
+
+void MainWindow::applyTeamHighlighterSets()
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    // Every window comes here for the same sync; the first one changes the
+    // collection and saves it, the others only bring their menu up to date.
+    auto& collection = HighlighterSetCollection::get();
+    if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups() ) ) {
+        collection.save();
+        session_.applyChange( Changed::HighlighterSets );
+    }
+    updateHighlightersMenu();
+}
+
+void MainWindow::updateTeamFolderIndicator()
+{
+    const auto teamFolder = session_.teamFolder();
+    const bool shown = teamFolder && teamFolder->state() != TeamFolder::State::Off;
+    teamFolderButtonAction_->setVisible( shown );
+    if ( !shown ) {
+        return;
+    }
+
+    teamFolderButton_->setText( teamFolder->summary() );
+    const auto details = teamFolder->details();
+    teamFolderButton_->setToolTip(
+        ( details.isEmpty() ? teamFolder->summary() : teamFolder->summary() + "\n" + details )
+        + "\n" + tr( "Click to sync now." ) );
 }
 
 void MainWindow::applySettingsChange()

@@ -32,6 +32,43 @@
   background with progress, can be stopped, and is a snapshot ("Count again"
   takes a new one). Beyond 100 000 distinct values it stops and says so
   instead of showing a partial list (#438).
+- **Groups are shared with the team, copied back, and deleted for the team**:
+  "Share with team" in the Predefined Filters and Highlighters dialogs adds a
+  Team copy of your own group under a fresh id and, on a name clash, the first
+  free `<name> (n)`; your group stays. "Copy to my groups" does the reverse. A
+  Team group can be deleted for everyone after the question "This deletes the
+  group for the whole team"; it disappears at everyone's next sync, and a
+  deleted Team Highlighter Set that was active is switched off (#474).
+- **Publishing asks what to do when someone else changed the same Team
+  group**: A Team group's file remembers the revision it had when you started
+  editing. If it changed after the sync that comes before publishing, nothing
+  is pushed and you choose: keep mine (overwrites theirs), take theirs (drops
+  your change) or save mine as a copy (a new Team group with a fresh id and a
+  free name, theirs untouched). A change to a different group never asks
+  (#473).
+- **A changed Team group is published to the team**: The Team sections of the
+  Predefined Filters and Highlighters dialogs are editable, and a new Team
+  group can be created in them. OK or Apply commits only the changed group's
+  file under your own Git identity, with a message such as `Change filter
+  group "Network"`, and pushes it; everyone else has it at their next sync. A
+  rename keeps the group's id and file, a push rejected because the branch
+  moved is retried once after a sync, and offline the change stays pending
+  ("not synced") until the server can be reached. A server that refuses the
+  push switches the Team sections to read-only, with its message (#472).
+- **Team Highlighter Sets**: The Highlighter Sets in the Team Folder show in
+  their own read-only section of the Highlighters dialog and in the
+  Highlighters menu. Switching one on or off is each user's own, stored only
+  locally; a set the team changes re-colors every open Log File at the next
+  sync without reopening it, and one the team removes is switched off and
+  disappears (#471).
+- **Team Folder**: In the options, name a Git repository (and optionally a
+  subfolder) and LogSquirl clones it with the installed `git`, using Git's own
+  authentication, and keeps it current at startup, every five minutes and with
+  "Sync now", without blocking the window. The Filter Groups in it arrive as
+  Team groups in their own read-only section of the Predefined Filters dialog
+  and in the Filters panel. A file that cannot be read is skipped and
+  reported; a quiet indicator shows synced, not synced or error, with Git's
+  own message, and never opens a dialog (#470).
 - **JSON Log Files get a Table View**: Log Formats now understand
   `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
   objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
