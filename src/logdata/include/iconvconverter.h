@@ -28,8 +28,8 @@
 
 // The Qt macOS packages are built without ICU and iconv, so their
 // QStringConverter knows only the Unicode Encodings and Latin-1. The Encodings
-// the QTextCodec of Qt5Compat used to bring along (windows-125x, KOI8, Big5,
-// Shift_JIS, ...) are converted with the iconv every macOS ships instead.
+// the deprecated Qt 5 codec classes used to bring along (windows-125x, KOI8,
+// Big5, Shift_JIS, ...) are converted with the iconv every macOS ships instead.
 //
 // Every Encoding of the table has its own converter functions, because a
 // Qt converter function is handed nothing but its State and a State forgets
