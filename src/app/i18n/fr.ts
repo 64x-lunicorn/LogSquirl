@@ -1464,74 +1464,74 @@ Sans date, %1 est utilisé.</translation>
         <translation>Inclure dans le cycle</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="244"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="234"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="243"/>
         <source>Export highlighters configuration</source>
         <translation>Exporter la configuration des surligneurs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="245"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="244"/>
         <source>The file %1 could not be written.</source>
         <translation>Le fichier %1 n&apos;a pas pu être écrit.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="253"/>
         <source>Select one or more files to open</source>
         <translation>Sélectionner un ou plusieurs fichiers à ouvrir</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="261"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="260"/>
         <source>Import highlighters configuration</source>
         <translation>Importer la configuration des surligneurs</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="453"/>
         <source>Team highlighter sets</source>
         <translation>Jeux de surligneurs d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="456"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>Partagés via le dossier d&apos;équipe : ils changent quand l&apos;équipe les modifie.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="464"/>
         <source>New Team highlighter set</source>
         <translation>Nouveau jeu de surligneurs d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="466"/>
         <source>Share with team</source>
         <translation>Partager avec l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="468"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>Ajoute une copie d&apos;équipe du groupe personnel sélectionné.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="471"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="470"/>
         <source>Copy to my groups</source>
         <translation>Copier dans mes groupes</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="474"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="473"/>
         <source>Delete for the team</source>
         <translation>Supprimer pour l&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="562"/>
         <source>Delete Team highlighter set</source>
         <translation>Supprimer le jeu de surligneurs d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="564"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
         <source>This deletes the group for the whole team.</source>
         <translation>Cela supprime le groupe pour toute l&apos;équipe.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="236"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="253"/>
         <source>Highlighters (*.conf)</source>
         <translation>Surligneurs (*.conf)</translation>
     </message>
@@ -3966,42 +3966,42 @@ Redémarrez LogSquirl pour réessayer.</translation>
         <translation>Le dossier d&apos;équipe est désactivé.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1229"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1230"/>
         <source>Team Folder syncing…</source>
         <translation>Synchronisation du dossier d&apos;équipe…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1233"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1234"/>
         <source>Team Folder off</source>
         <translation>Dossier d&apos;équipe désactivé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1235"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1236"/>
         <source>Team Folder not synced</source>
         <translation>Dossier d&apos;équipe non synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1237"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1238"/>
         <source>Team Folder synced</source>
         <translation>Dossier d&apos;équipe synchronisé</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1239"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1240"/>
         <source>Team Folder error</source>
         <translation>Erreur du dossier d&apos;équipe</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1251"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1252"/>
         <source>Not published: %1</source>
         <translation>Non publié : %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1254"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1255"/>
         <source>The Team groups are read-only: %1</source>
         <translation>Les groupes d&apos;équipe sont en lecture seule : %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1257"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1258"/>
         <source>Skipped %1: %2</source>
         <translation>%1 ignoré : %2</translation>
     </message>
@@ -4024,6 +4024,24 @@ Redémarrez LogSquirl pour réessayer.</translation>
         <location filename="../../ui/src/teamfoldergit.cpp" line="130"/>
         <source>Git ended with exit code %1.</source>
         <translation>Git s&apos;est terminé avec le code de sortie %1.</translation>
+    </message>
+</context>
+<context>
+    <name>UpdateNotice</name>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="169"/>
+        <source>&lt;p&gt; A new version of logsquirl (%1) is available for download &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="176"/>
+        <source>&lt;p&gt; A new version of logsquirl (%1) is available. Update it with your package manager: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="184"/>
+        <source>&lt;p&gt;Important changes:&lt;/p&gt;&lt;ul&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

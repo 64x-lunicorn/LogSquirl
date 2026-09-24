@@ -1464,74 +1464,74 @@ Without a date, %1 is used.</source>
         <translation>Включити до циклу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="244"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="234"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="243"/>
         <source>Export highlighters configuration</source>
         <translation>Експортувати конфігурацію підсвічувань</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="245"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="244"/>
         <source>The file %1 could not be written.</source>
         <translation>Не вдалося записати файл %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="253"/>
         <source>Select one or more files to open</source>
         <translation>Виберіть один або кілька файлів для відкриття</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="261"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="260"/>
         <source>Import highlighters configuration</source>
         <translation>Імпорт конфігурації підсвічувань</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="453"/>
         <source>Team highlighter sets</source>
         <translation>Командні набори підсвічувань</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="456"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
         <translation>Спільні через командну теку: вони змінюються, коли їх змінює команда.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="464"/>
         <source>New Team highlighter set</source>
         <translation>Новий командний набір підсвічувань</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="466"/>
         <source>Share with team</source>
         <translation>Поділитися з командою</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="468"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="467"/>
         <source>Adds a Team copy of the selected group of your own.</source>
         <translation>Додає командну копію вибраної вашої власної групи.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="471"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="470"/>
         <source>Copy to my groups</source>
         <translation>Копіювати до моїх груп</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="474"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="473"/>
         <source>Delete for the team</source>
         <translation>Видалити для команди</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="562"/>
         <source>Delete Team highlighter set</source>
         <translation>Видалити командний набір підсвічувань</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="564"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="563"/>
         <source>This deletes the group for the whole team.</source>
         <translation>Це видалить групу для всієї команди.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="236"/>
-        <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="235"/>
+        <location filename="../../ui/src/highlightersdialog.cpp" line="253"/>
         <source>Highlighters (*.conf)</source>
         <translation>Підсвічування (*.conf)</translation>
     </message>
@@ -3967,42 +3967,42 @@ Restart LogSquirl to try again.</source>
         <translation>Командну теку вимкнено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1229"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1230"/>
         <source>Team Folder syncing…</source>
         <translation>Командна тека синхронізується…</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1233"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1234"/>
         <source>Team Folder off</source>
         <translation>Командну теку вимкнено</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1235"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1236"/>
         <source>Team Folder not synced</source>
         <translation>Командну теку не синхронізовано</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1237"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1238"/>
         <source>Team Folder synced</source>
         <translation>Командну теку синхронізовано</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1239"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1240"/>
         <source>Team Folder error</source>
         <translation>Помилка командної теки</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1251"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1252"/>
         <source>Not published: %1</source>
         <translation>Не опубліковано: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1254"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1255"/>
         <source>The Team groups are read-only: %1</source>
         <translation>Командні групи лише для читання: %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/teamfolder.cpp" line="1257"/>
+        <location filename="../../ui/src/teamfolder.cpp" line="1258"/>
         <source>Skipped %1: %2</source>
         <translation>Пропущено %1: %2</translation>
     </message>
@@ -4025,6 +4025,24 @@ Restart LogSquirl to try again.</source>
         <location filename="../../ui/src/teamfoldergit.cpp" line="130"/>
         <source>Git ended with exit code %1.</source>
         <translation>Git завершився з кодом виходу %1.</translation>
+    </message>
+</context>
+<context>
+    <name>UpdateNotice</name>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="169"/>
+        <source>&lt;p&gt; A new version of logsquirl (%1) is available for download &lt;/p&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="176"/>
+        <source>&lt;p&gt; A new version of logsquirl (%1) is available. Update it with your package manager: &lt;/p&gt;&lt;p&gt;&lt;code&gt;%2&lt;/code&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../versioncheck/src/installsource.cpp" line="184"/>
+        <source>&lt;p&gt;Important changes:&lt;/p&gt;&lt;ul&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

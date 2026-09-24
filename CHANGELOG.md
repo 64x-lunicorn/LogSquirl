@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **The update notice sends package manager installs to their package manager**:
+  When a newer release is found, an install from the Homebrew cask, the
+  LogSquirl APT repository or the LogSquirl DNF repository is told to run
+  `brew upgrade --cask logsquirl`, `sudo apt upgrade` or `sudo dnf upgrade`
+  instead of following a link to the release page. The app checks on the
+  machine how it was installed; a dragged DMG, an AppImage, the Windows builds
+  and a package installed by hand keep the link (#382).
 - **The user guide covers the features the app has**: `DOCUMENTATION.md`, the
   guide behind Help->Documentation, now describes installing with Homebrew or
   apt, the Dashboard, Tab groups, Plugins (linking the Plugin SDK guide) and

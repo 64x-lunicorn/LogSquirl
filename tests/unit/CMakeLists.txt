@@ -189,9 +189,12 @@ target_link_libraries(logsquirl_plugin_catalog_tests logsquirl_plugin_catalog Ca
 logsquirl_add_catch_tests(logsquirl_plugin_catalog_tests TIMEOUT 60)
 
 # The update check decides its offer from the feed alone, without a network
-# or a GUI (#306), and when it is due without a settings store (#389).
+# or a GUI (#306), and when it is due without a settings store (#389). How
+# LogSquirl was installed is decided from a fake file system below a temporary
+# directory, never from the machine running the test (#382).
 add_executable(logsquirl_versioncheck_tests
     versioncheck_tests_main.cpp
+    installsource_test.cpp
     updateoffer_test.cpp
     updateschedule_test.cpp
     versionchecker_test.cpp
