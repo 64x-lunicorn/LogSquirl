@@ -526,6 +526,7 @@ const QStringList StoredSettingNames = {
     "defaultView.searchAutoRefresh",
     "defaultView.searchIgnoreCase",
     "defaultView.searchLogicalCombining",
+    "defaultView.searchWindowMinutes",
     "defaultView.splitterSizes",
     "filewatch.allowFollowOnScroll",
     "filewatch.fastModificationDetection",
@@ -658,6 +659,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.isSearchLogicalCombiningDefault() == expected.isSearchLogicalCombiningDefault() );
     CHECK( actual.defaultEncodingMib() == expected.defaultEncodingMib() );
     CHECK( actual.splitterSizes() == expected.splitterSizes() );
+    CHECK( actual.searchWindowMinutes() == expected.searchWindowMinutes() );
 
     CHECK( actual.shortcuts() == expected.shortcuts() );
     CHECK( actual.showSplashScreen() == expected.showSplashScreen() );

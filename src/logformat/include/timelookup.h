@@ -78,6 +78,41 @@ std::optional<Result> firstLineAtOrAfter( const QDateTime& time, const AbstractL
 std::optional<QDateTime> timestampNear( LineNumber line, const AbstractLogData& logData,
                                         const TimestampReader& reader );
 
+// Search Limits given as a time range, as Log Lines: the half-open range
+// [start, end), like every Search Limits.
+struct LimitsResult {
+    enum class Outcome {
+        // start and end are the Log Lines to limit the Search to.
+        Limits,
+        // The range lies entirely before the first Timestamp of the Log File.
+        BeforeFile,
+        // The range lies entirely after the last Timestamp of the Log File.
+        AfterFile,
+        // The Log File has no Log Line with a Timestamp, or no Log Lines.
+        NoTimestamps,
+        // The end is not after the start.
+        EndNotAfterStart,
+        // The range lies inside the Log File but no Log Line falls into it.
+        NoLogLines,
+    };
+    Outcome outcome = Outcome::NoTimestamps;
+    LineNumber start{ 0 };
+    LineNumber end{ 0 };
+};
+
+// Converts a time range to Search Limits: start is the first Log Line with a
+// Timestamp at or after startTime, end the first at or after endTime (the
+// line count when there is none), so a Log Line without a Timestamp belongs
+// to the range of the Log Line before it. A start before the Log File is the
+// first Log Line. Only the Limits outcome carries lines.
+LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
+                                       LinesCount lineCount, const TimestampAt& timestampAt );
+
+// The same over a Log File, reading its Log Lines with the reader.
+LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
+                                       const AbstractLogData& logData,
+                                       const TimestampReader& reader );
+
 // Reads a time a user typed: "14:02", "14:02:30", "14:02:30.250", optionally
 // after a date, "2026-09-23 14:02" or "2026-09-23T14:02" (also with "/" in
 // the date). Without a date the time is on defaultDate. None when the text

@@ -150,6 +150,11 @@ _Avoid_: filter set, filter list, folder
 An optional line range a Search is restricted to. Lines outside it are shown but visually
 subdued. Half-open everywhere: from the first Log Line searched up to, not including, its
 end — the Log Line after the last one searched. No Presentation converts the end.
+They can be given as a time range, or as N minutes around the current Log Line: the times
+are converted to Log Lines once, where the Limits are decided (the start is the first Log
+Line with a Timestamp at or after the start time, the end the first at or after the end
+time), and from then on they are ordinary line Limits. They do not follow the Log File as it
+grows or is reloaded.
 _Avoid_: search range, scope
 
 **Match**:

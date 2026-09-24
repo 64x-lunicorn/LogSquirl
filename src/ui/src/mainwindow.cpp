@@ -509,6 +509,13 @@ void MainWindow::reTranslateUI()
     goToTimestampAction->setText( transAction( action::goToTimestampText ) );
     goToTimestampAction->setStatusTip( transAction( action::goToTimestampStatusTip ) );
 
+    searchLimitsTimeRangeAction->setText( transAction( action::searchLimitsTimeRangeText ) );
+    searchLimitsTimeRangeAction->setStatusTip(
+        transAction( action::searchLimitsTimeRangeStatusTip ) );
+    searchLimitsAroundLineAction->setText( transAction( action::searchLimitsAroundLineText ) );
+    searchLimitsAroundLineAction->setStatusTip(
+        transAction( action::searchLimitsAroundLineStatusTip ) );
+
     findAction->setText( transAction( action::findText ) );
     findAction->setStatusTip( transAction( action::findStatusTip ) );
 
@@ -700,6 +707,16 @@ void MainWindow::createActions()
     goToTimestampAction = new QAction( tr( action::goToTimestampText ), this );
     goToTimestampAction->setStatusTip( tr( action::goToTimestampStatusTip ) );
     signalMux_.connect( goToTimestampAction, SIGNAL( triggered() ), SLOT( goToTimestamp() ) );
+
+    searchLimitsTimeRangeAction = new QAction( tr( action::searchLimitsTimeRangeText ), this );
+    searchLimitsTimeRangeAction->setStatusTip( tr( action::searchLimitsTimeRangeStatusTip ) );
+    signalMux_.connect( searchLimitsTimeRangeAction, SIGNAL( triggered() ),
+                        SLOT( setSearchLimitsToTimeRange() ) );
+
+    searchLimitsAroundLineAction = new QAction( tr( action::searchLimitsAroundLineText ), this );
+    searchLimitsAroundLineAction->setStatusTip( tr( action::searchLimitsAroundLineStatusTip ) );
+    signalMux_.connect( searchLimitsAroundLineAction, SIGNAL( triggered() ),
+                        SLOT( setSearchLimitsAroundCurrentLine() ) );
 
     findAction = new QAction( tr( action::findText ), this );
     findAction->setStatusTip( tr( action::findStatusTip ) );
@@ -943,6 +960,8 @@ void MainWindow::updateShortcuts()
     setShortcuts( selectOpenFileAction, ShortcutAction::MainWindowSelectOpenFile );
     setShortcuts( goToLineAction, ShortcutAction::LogViewJumpToLine );
     setShortcuts( goToTimestampAction, ShortcutAction::LogViewJumpToTimestamp );
+    setShortcuts( searchLimitsTimeRangeAction, ShortcutAction::LogViewSearchLimitsTimeRange );
+    setShortcuts( searchLimitsAroundLineAction, ShortcutAction::LogViewSearchLimitsAroundLine );
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
 }
 
@@ -1022,6 +1041,9 @@ void MainWindow::createMenus()
     editMenu->addSeparator();
     editMenu->addAction( goToLineAction );
     editMenu->addAction( goToTimestampAction );
+    editMenu->addSeparator();
+    editMenu->addAction( searchLimitsTimeRangeAction );
+    editMenu->addAction( searchLimitsAroundLineAction );
     editMenu->addSeparator();
     editMenu->addAction( copyPathToClipboardAction );
     editMenu->addAction( openContainingFolderAction );
@@ -2684,6 +2706,13 @@ void MainWindow::updateGoToTimestampAction( const CrawlerWidget* crawler )
     const auto reason = crawler ? crawler->goToTimestampUnavailableReason() : QString();
     goToTimestampAction->setEnabled( crawler != nullptr && reason.isEmpty() );
     goToTimestampAction->setToolTip( reason.isEmpty() ? goToTimestampAction->statusTip() : reason );
+
+    // The time Search Limits need the same: a Timestamp on the Log Lines.
+    const auto limitsReason = crawler ? crawler->searchLimitsByTimeUnavailableReason() : QString();
+    for ( auto* action : { searchLimitsTimeRangeAction, searchLimitsAroundLineAction } ) {
+        action->setEnabled( crawler != nullptr && limitsReason.isEmpty() );
+        action->setToolTip( limitsReason.isEmpty() ? action->statusTip() : limitsReason );
+    }
 }
 
 // Update the top info line from the session

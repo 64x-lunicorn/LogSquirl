@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **Search limits by time**: `Edit->Set search limits to time range...`
+  (`Ctrl+Alt+T`) limits a search to the lines between a start and an end time,
+  and `Edit->Set search limits around current line...` (`Ctrl+Alt+W`) to N
+  minutes before and after the line you are at; N is remembered. The times are
+  turned into line limits once, so the search runs exactly as with limits set
+  by hand. Both need a Log File with a recognized Log Format that has a
+  timestamp field, and say why they are disabled otherwise (#461).
 - **Go to timestamp**: `Edit->Go to timestamp...` (`Ctrl+Shift+L`) jumps to the
   first line at or after a time, such as `14:02` or `2026-09-23 14:02:30`,
   instead of a line number. It works for Log Files with a recognized Log

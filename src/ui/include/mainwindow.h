@@ -313,6 +313,8 @@ private:
     QAction* selectAllAction;
     QAction* goToLineAction;
     QAction* goToTimestampAction;
+    QAction* searchLimitsTimeRangeAction;
+    QAction* searchLimitsAroundLineAction;
     QAction* findAction;
     QAction* clearLogAction;
     QAction* copyPathToClipboardAction;

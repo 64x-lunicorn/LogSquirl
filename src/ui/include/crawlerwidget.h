@@ -48,6 +48,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDateTime>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -130,6 +131,8 @@ public:
     // Why "Go to timestamp" is not available for this Log File, empty when it
     // is: it needs a recognized Log Format with a timestamp field.
     QString goToTimestampUnavailableReason() const;
+    // The same for the Search Limits given as a time.
+    QString searchLimitsByTimeUnavailableReason() const;
 
     bool isTextWrapEnabled() const;
 
@@ -159,6 +162,12 @@ public Q_SLOTS:
     void goToLine();
     // Asks for a time and goes to the first Log Line at or after it.
     void goToTimestamp();
+    // Ask for a start and an end time, and limit the Search to the Log Lines
+    // between them.
+    void setSearchLimitsToTimeRange();
+    // Limit the Search to N minutes before and after the current Log Line; N
+    // is asked for and remembered.
+    void setSearchLimitsAroundCurrentLine();
 
     // Takes what a tab brought to the front shows afresh -- the Search
     // history, which another tab may have added to, and the status of its
@@ -305,6 +314,9 @@ private Q_SLOTS:
 
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void clearSearchLimits();
+    // Turns a time range into line limits, once, here where the Limits are
+    // decided, and sets them; on failure tells the user and leaves them.
+    void setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end );
 
     void addColorLabelToSelection( size_t label );
     void addNextColorLabelToSelection();
