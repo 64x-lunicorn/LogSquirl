@@ -4,11 +4,15 @@
 # and WORK come from the OSS-Fuzz builder image.
 
 # Vectorscan is left out: the fuzz targets do not use it, and building it
-# with the builder's newest Clang trips its own -Werror.
+# with the builder's newest Clang trips its own -Werror. simdutf's AVX-512
+# (icelake) kernels are left out for the same reason: the builder's Clang 22
+# refuses their intrinsics ("requires target feature 'evex512'"), and no
+# fuzz target needs the fast path.
 cmake -S "$SRC/logsquirl" -B "$WORK/build" -G Ninja \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
     -DCMAKE_C_COMPILER="$CC" -DCMAKE_CXX_COMPILER="$CXX" \
-    -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_CXX_FLAGS="$CXXFLAGS" \
+    -DCMAKE_C_FLAGS="$CFLAGS" \
+    -DCMAKE_CXX_FLAGS="$CXXFLAGS -DSIMDUTF_IMPLEMENTATION_ICELAKE=0" \
     -DLOGSQUIRL_FUZZ_ENGINE="$LIB_FUZZING_ENGINE" \
     -DLOGSQUIRL_BUILD_FUZZERS=ON \
     -DLOGSQUIRL_BUILD_TESTS=OFF \
