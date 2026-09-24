@@ -83,10 +83,14 @@ public:
     // Only the look-ups above hand out Encodings a program should use. This
     // is public for them and for a test that needs one nothing can decode:
     // asked to convert, it throws std::runtime_error.
-    TextEncoding( int mib, QByteArray name, std::optional<QStringConverter::Encoding> builtin )
+    // `iconvIndex` is what the macOS converters of iconvconverter.h are looked
+    // up with, for an Encoding Qt does not convert itself; -1 for the rest.
+    TextEncoding( int mib, QByteArray name, std::optional<QStringConverter::Encoding> builtin,
+                  int iconvIndex = -1 )
         : mib_( mib )
         , name_( std::move( name ) )
         , builtin_( builtin )
+        , iconvIndex_( iconvIndex )
     {
     }
 
@@ -96,6 +100,7 @@ private:
     int mib_;
     QByteArray name_;
     std::optional<QStringConverter::Encoding> builtin_;
+    int iconvIndex_;
 };
 
 #endif // LOGSQUIRL_TEXTENCODING_H

@@ -239,7 +239,9 @@ _Avoid_: variable, constant, design value
 **Log Format**:
 A description of how a Log Line is composed of named fields, used to present the file as
 columns. Either built in or supplied by the user; which one applies to a Log File is decided
-by Format Recognition.
+by Format Recognition. A Log Format is of one kind: **regex**, whose fields are the named
+capture groups of its patterns, or **JSON** (`"file-type": "json"`), for Log Files whose Log
+Lines are JSON objects and whose fields are members addressed by path (`src/file`).
 _Avoid_: schema, parser, layout
 
 **Log Format Catalog**:
@@ -251,7 +253,9 @@ _Avoid_: registry, library
 The decision which Log Format, if any, applies to a Log File, taken from its first Log
 Lines against the Log Format Catalog. Taken when a Log File has loaded, and again after it
 is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
-with, even when the Catalog changes.
+with, even when the Catalog changes. The kinds of Log Format are scored apart: a sample Log
+Line that is a JSON object counts only for JSON Log Formats, every other one only for regex
+Log Formats.
 _Avoid_: detection, sniffing
 
 **Timestamp**:

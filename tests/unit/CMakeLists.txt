@@ -29,6 +29,7 @@ add_executable(logsquirl_tests
     linepositionarray_test.cpp
     linetypes_test.cpp
     formatrecognition_test.cpp
+    jsonlogformat_test.cpp
     logfieldextractor_test.cpp
     logformatcatalog_test.cpp
     logformatparser_test.cpp

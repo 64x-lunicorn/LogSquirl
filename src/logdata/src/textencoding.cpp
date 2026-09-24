@@ -21,6 +21,10 @@
 
 #include <QStringEncoder>
 
+#ifdef Q_OS_MACOS
+#include "iconvconverter.h"
+#endif
+
 #include <algorithm>
 #include <cctype>
 #include <deque>
@@ -149,10 +153,17 @@ struct TextEncodingRegistry {
             // Qt built without ICU or iconv only knows the Unicode Encodings
             // and Latin-1. An Encoding this Qt cannot decode is left out, the
             // way QTextCodec left out what it did not know.
+            int iconvIndex = -1;
             if ( !spec.builtin.has_value() && !canDecode( spec.name ) ) {
-                continue;
+#ifdef Q_OS_MACOS
+                // The Qt packages for macOS have neither; the system's iconv does.
+                iconvIndex = iconv_converter::indexForName( spec.name );
+#endif
+                if ( iconvIndex < 0 ) {
+                    continue;
+                }
             }
-            encodings.push_back( TextEncoding( spec.mib, spec.name, spec.builtin ) );
+            encodings.push_back( TextEncoding( spec.mib, spec.name, spec.builtin, iconvIndex ) );
             const TextEncoding* encoding = &encodings.back();
 
             byName.emplace( normalized( spec.name ), encoding );
@@ -247,6 +258,11 @@ const TextEncoding* TextEncoding::forUtfText( QByteArrayView data, const TextEnc
 
 std::unique_ptr<QStringDecoder> TextEncoding::makeDecoder( QStringConverter::Flags flags ) const
 {
+#ifdef Q_OS_MACOS
+    if ( iconvIndex_ >= 0 ) {
+        return iconv_converter::makeDecoder( iconvIndex_, flags );
+    }
+#endif
     auto decoder
         = builtin_.has_value()
               ? std::make_unique<QStringDecoder>( *builtin_, flags )
@@ -276,6 +292,11 @@ bool TextEncoding::canEncode( QStringView text ) const
 
 QStringEncoder TextEncoding::makeEncoder() const
 {
+#ifdef Q_OS_MACOS
+    if ( iconvIndex_ >= 0 ) {
+        return iconv_converter::makeEncoder( iconvIndex_ );
+    }
+#endif
     QStringEncoder encoder = builtin_.has_value()
                                  ? QStringEncoder( *builtin_ )
                                  : QStringEncoder( QAnyStringView( name_.constData() ) );

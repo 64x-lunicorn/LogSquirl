@@ -19,6 +19,7 @@
 
 #include "timestampreader.h"
 
+#include "jsonlogline.h"
 #include "logfieldextractor.h"
 
 #include <QDate>
@@ -458,6 +459,9 @@ bool TimestampReader::isAvailableFor( const LogFormatDefinition& format )
     if ( field.isEmpty() ) {
         return false;
     }
+    if ( format.kind() == LogFormatKind::Json ) {
+        return true;
+    }
     const auto named = "(?<" + field + ">";
     const auto namedPython = "(?P<" + field + ">";
     for ( const auto& patternText : format.regexPatterns() ) {
@@ -478,6 +482,19 @@ std::optional<QDateTime> TimestampReader::timestampOf( const QString& line ) con
     if ( !impl_->available ) {
         return std::nullopt;
     }
+    if ( impl_->format->kind() == LogFormatKind::Json ) {
+        // The value of the timestamp field itself, not the text of its cell
+        const auto object = JsonLogLine::parse( line );
+        if ( !object ) {
+            return std::nullopt;
+        }
+        const auto value = JsonLogLine::valueAt( *object, impl_->format->timestampField() );
+        if ( value.isDouble() ) {
+            return JsonLogLine::fromEpoch( value.toDouble(), impl_->divisor );
+        }
+        return value.isString() ? parseField( value.toString() ) : std::nullopt;
+    }
+
     const auto fields = impl_->extractor->extractFields( line );
     if ( !fields.isValid() ) {
         return std::nullopt;

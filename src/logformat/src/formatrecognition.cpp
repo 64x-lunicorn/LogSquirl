@@ -20,17 +20,89 @@
 #include "formatrecognition.h"
 
 #include "abstractlogdata.h"
+#include "jsonlogline.h"
 #include "linetypes.h"
 
+#include <QJsonObject>
 #include <QRegularExpression>
 #include <QVector>
 
 #include <algorithm>
+#include <optional>
 
 namespace {
 
 // Minimum fraction of lines that must match a format for it to be accepted.
 constexpr double MinMatchRatio = 0.5;
+
+// How well one Log Format fits the sample Log Lines. Each kind of Log Format
+// scores only the Log Lines of its own kind.
+struct FormatScore {
+    std::shared_ptr<const LogFormatDefinition> format;
+    int matchCount = 0;
+    int specificity = 0; // more capture groups (regex) or fields (JSON) = more specific
+};
+
+// A regex format: how many of the Log Lines match at least one of its patterns.
+std::optional<FormatScore>
+scoreRegexFormat( const std::shared_ptr<const LogFormatDefinition>& format,
+                  const QStringList& lines )
+{
+    // Compile all patterns for this format
+    QVector<QRegularExpression> compiledPatterns;
+    int maxGroups = 0;
+    for ( const auto& patternStr : format->regexPatterns() ) {
+        QRegularExpression re( patternStr );
+        if ( re.isValid() ) {
+            maxGroups = std::max( maxGroups, re.captureCount() );
+            compiledPatterns.append( std::move( re ) );
+        }
+    }
+
+    if ( compiledPatterns.isEmpty() ) {
+        return std::nullopt;
+    }
+
+    // Count how many lines match at least one pattern
+    int matchCount = 0;
+    for ( const auto& line : lines ) {
+        for ( const auto& re : compiledPatterns ) {
+            if ( re.match( line ).hasMatch() ) {
+                ++matchCount;
+                break; // one pattern matching is enough
+            }
+        }
+    }
+
+    if ( matchCount == 0 ) {
+        return std::nullopt;
+    }
+    return FormatScore{ format, matchCount, maxGroups };
+}
+
+// A JSON format: how many of the JSON objects contain its timestamp field.
+std::optional<FormatScore>
+scoreJsonFormat( const std::shared_ptr<const LogFormatDefinition>& format,
+                 const QVector<QJsonObject>& objects )
+{
+    const auto& timestampField = format->timestampField();
+    if ( timestampField.isEmpty() ) {
+        return std::nullopt;
+    }
+
+    int matchCount = 0;
+    for ( const auto& object : objects ) {
+        const auto value = JsonLogLine::valueAt( object, timestampField );
+        if ( !value.isUndefined() && !value.isNull() ) {
+            ++matchCount;
+        }
+    }
+
+    if ( matchCount == 0 ) {
+        return std::nullopt;
+    }
+    return FormatScore{ format, matchCount, static_cast<int>( format->valueFieldOrder().size() ) };
+}
 
 std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
                                                       const LogFormatCatalog& catalog )
@@ -44,48 +116,37 @@ std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
         return nullptr;
     }
 
-    // For each format, compile all its regex patterns and count how many lines match.
-    struct FormatScore {
-        std::shared_ptr<const LogFormatDefinition> format;
-        int matchCount = 0;
-        int captureGroupCount = 0; // specificity: more groups = more specific
-    };
+    const bool hasJsonFormat
+        = std::any_of( allFormats.begin(), allFormats.end(),
+                       []( const auto& format ) { return format->kind() == LogFormatKind::Json; } );
+
+    // A Log Line that is a JSON object is scored against the JSON formats only,
+    // every other Log Line against the regex formats only. Without a JSON
+    // format in the Catalog nothing is set apart, and no line is parsed.
+    QVector<QJsonObject> jsonObjects;
+    QStringList otherLines;
+    if ( hasJsonFormat ) {
+        for ( const auto& line : lines ) {
+            if ( auto object = JsonLogLine::parse( line ) ) {
+                jsonObjects.append( std::move( *object ) );
+            }
+            else {
+                otherLines.append( line );
+            }
+        }
+    }
+    const auto& regexLines = hasJsonFormat ? otherLines : lines;
 
     QVector<FormatScore> scores;
     scores.reserve( allFormats.size() );
 
     for ( auto it = allFormats.begin(); it != allFormats.end(); ++it ) {
         const auto& format = it.value();
-        const auto& patterns = format->regexPatterns();
-
-        // Compile all patterns for this format
-        QVector<QRegularExpression> compiledPatterns;
-        int maxGroups = 0;
-        for ( const auto& patternStr : patterns ) {
-            QRegularExpression re( patternStr );
-            if ( re.isValid() ) {
-                maxGroups = std::max( maxGroups, re.captureCount() );
-                compiledPatterns.append( std::move( re ) );
-            }
-        }
-
-        if ( compiledPatterns.isEmpty() ) {
-            continue;
-        }
-
-        // Count how many lines match at least one pattern
-        int matchCount = 0;
-        for ( const auto& line : lines ) {
-            for ( const auto& re : compiledPatterns ) {
-                if ( re.match( line ).hasMatch() ) {
-                    ++matchCount;
-                    break; // one pattern matching is enough
-                }
-            }
-        }
-
-        if ( matchCount > 0 ) {
-            scores.append( { format, matchCount, maxGroups } );
+        const auto score = format->kind() == LogFormatKind::Json
+                               ? scoreJsonFormat( format, jsonObjects )
+                               : scoreRegexFormat( format, regexLines );
+        if ( score ) {
+            scores.append( *score );
         }
     }
 
@@ -93,12 +154,12 @@ std::shared_ptr<const LogFormatDefinition> bestMatch( const QStringList& lines,
         return nullptr;
     }
 
-    // Sort by: (1) match count descending, (2) capture group count descending (more specific)
+    // Sort by: (1) match count descending, (2) specificity descending (more specific)
     std::sort( scores.begin(), scores.end(), []( const FormatScore& a, const FormatScore& b ) {
         if ( a.matchCount != b.matchCount ) {
             return a.matchCount > b.matchCount;
         }
-        return a.captureGroupCount > b.captureGroupCount;
+        return a.specificity > b.specificity;
     } );
 
     // Check if the best candidate passes the minimum threshold
