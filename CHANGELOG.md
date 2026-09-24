@@ -70,6 +70,26 @@
 
 ## Internal
 
+- **Third-party code no longer drowns the project's own warnings**: The CPM
+  packages were compiled with whatever warnings the project sets for itself, and
+  a Windows build printed 1210 warnings out of them plus 394 command line
+  warnings on top, so a new warning in LogSquirl's own code was one line among
+  sixteen hundred. Third-party code is built without warnings now and its
+  headers are system headers, and the three packages that turned warnings back
+  on for themselves -- streamvbyte's `/Wall`, uchardet's `-ffloat-store` and the
+  hyperscan fork's `-fpermissive` -- are asked not to. A new test fails if the
+  flag that does it ever reaches LogSquirl's own targets, or stops reaching a
+  third-party one (#452).
+- **A warning from the link step fails the build**: LogSquirl builds with link
+  time optimization, so the compiler generates code a second time at the link
+  step -- and `-Werror` never reached that command line, because CMake puts a
+  target's compile options on its compile lines only. GCC 12 and 13 printed
+  `-Wstringop-overflow` on every appimage and noble run with everything staying
+  green -- and so, it turned out, did GCC 14 on a fourth job nobody had looked
+  at. The link step now fails on a warning too, on GCC and Clang. That one
+  diagnostic is a GCC bug rather than a finding about this code, and is recorded
+  as accepted with the versions it applies to and a guard that takes it back at
+  GCC 16 (#454, `docs/adr/0009`).
 - **Every source file of the project is built with the project's warnings**: Two
   MODULE libraries the tests load, the Plugin UI Port probe and the slow
   converter plugin, linked neither `project_warnings` nor `project_options`, so

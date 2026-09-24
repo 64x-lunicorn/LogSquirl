@@ -203,6 +203,128 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/project_warnings_cover_project_targets.cmake
 )
 
+# The other side of the same line: the third-party libraries CPM brings in are
+# built without warnings, and the flag that does it reaches none of LogSquirl's
+# own targets (#452). Read from the compile options here, where
+# logsquirl_third_party_build_quietly() has already put them on -- 3rdparty/ is
+# added long before this directory.
+#
+# What "quietly" means differs by compiler, because the two compilers answer a
+# second warning level differently. On GCC and Clang -w has to be on the target
+# itself, last, to inhibit whatever a package turned on for itself. On MSVC the
+# level is the one /W0 in CMAKE_C(XX)_FLAGS and a target may carry none of its
+# own: a second one on the same command line is a D9025 per file rather than a
+# quieter build.
+if(MSVC)
+  set(_quiet_flag /W0)
+else()
+  set(_quiet_flag -w)
+endif()
+include(ThirdPartyWarnings)
+function(logsquirl_built_quietly target out_var)
+  get_target_property(_options ${target} COMPILE_OPTIONS)
+  if(NOT _options)
+    set(_options "")
+  endif()
+  if(MSVC)
+    # Quiet is /W0 and no other level, whatever shape the other one came in --
+    # a package's generator expression counts as one. cl says nothing about the
+    # same level twice, so /W0 in the flags and /W0 here is fine; a second,
+    # different level is a D9025 for every file of that target.
+    set(_others "${_options}")
+    list(REMOVE_ITEM _others "${_quiet_flag}")
+    set(_stripped "${_others}")
+    logsquirl_strip_msvc_warning_level(_stripped)
+    if("${_quiet_flag}" IN_LIST _options AND "${_stripped}" STREQUAL "${_others}")
+      set(${out_var} TRUE PARENT_SCOPE)
+    else()
+      set(${out_var} FALSE PARENT_SCOPE)
+    endif()
+  elseif("${_quiet_flag}" IN_LIST _options)
+    set(${out_var} TRUE PARENT_SCOPE)
+  else()
+    set(${out_var} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+
+# The project's own half asks the other question, on every compiler alike: the
+# flag that silences third-party code has not reached this target.
+function(logsquirl_carries_quiet_flag target out_var)
+  get_target_property(_options ${target} COMPILE_OPTIONS)
+  if(_options AND "${_quiet_flag}" IN_LIST _options)
+    set(${out_var} TRUE PARENT_SCOPE)
+  else()
+    set(${out_var} FALSE PARENT_SCOPE)
+  endif()
+endfunction()
+logsquirl_compiled_targets("${CMAKE_SOURCE_DIR}/3rdparty" _third_party_targets)
+set(_third_party_entries "")
+foreach(_target IN LISTS _third_party_targets)
+  logsquirl_built_quietly(${_target} _quiet)
+  # A target that is not quiet says what it is carrying. Without that the
+  # report names a target and leaves whoever reads it to guess which of the
+  # shapes a warning level arrives in this one used. The separators the entries
+  # are joined with are spelled out of the way first.
+  set(_name "${_target}")
+  if(NOT _quiet)
+    get_target_property(_target_options ${_target} COMPILE_OPTIONS)
+    if(NOT _target_options)
+      set(_target_options "(none)")
+    endif()
+    string(REPLACE ";" " " _target_options "${_target_options}")
+    string(REPLACE "=" "~" _target_options "${_target_options}")
+    string(REPLACE "|" "!" _target_options "${_target_options}")
+    # And the $ of a generator expression becomes a # -- this text goes into an
+    # add_test() command line, where CMake would evaluate it, and a package's
+    # own $<$<NOT:$<CXX_COMPILER_ID:Intel>>:...> fails the generate step there
+    # ("$<CXX_COMPILER_ID> may only be used with binary targets"). The point is
+    # to read what the target carries, not to run it.
+    string(REPLACE "$" "#" _target_options "${_target_options}")
+    set(_name "${_target} [${_target_options}]")
+  endif()
+  list(APPEND _third_party_entries "${_name}=${_quiet}")
+endforeach()
+list(JOIN _third_party_entries "|" _third_party_entries)
+set(_project_quiet_entries "")
+foreach(_target IN LISTS _warning_targets _warning_tests)
+  logsquirl_carries_quiet_flag(${_target} _quiet)
+  list(APPEND _project_quiet_entries "${_target}=${_quiet}")
+endforeach()
+list(JOIN _project_quiet_entries "|" _project_quiet_entries)
+add_test(
+    NAME third_party_builds_quietly
+    COMMAND ${CMAKE_COMMAND}
+            -DQUIET_FLAG=${_quiet_flag}
+            "-DTHIRD_PARTY=${_third_party_entries}"
+            "-DPROJECT_TARGETS=${_project_quiet_entries}"
+            # This directory's CMAKE_CXX_FLAGS is the one src/ has too: both
+            # inherit it from the top-level CMakeLists.txt, which is where the
+            # third-party flags would land if they were set one directory too
+            # high.
+            "-DPROJECT_FLAGS=${CMAKE_CXX_FLAGS}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/third_party_builds_quietly.cmake
+)
+
+# And the flags that do it are the project's warning level taken out, not one
+# more level put on top (#452).
+add_test(
+    NAME third_party_quiet_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/third_party_quiet_flags.cmake
+)
+
+# The link step of a build with link time optimization generates code a second
+# time, and what it reports has to fail the build the same way. The one warning
+# accepted there is accepted for the GCC versions that report it and no longer
+# (#454).
+add_test(
+    NAME project_warning_flags
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/project_warning_flags.cmake
+)
+
 # A packaging recipe passes only build options the project declares, and only
 # build types CMake knows: CMake takes an unknown -D or build type without a
 # word, so nothing but a check tells the packager (#333).
