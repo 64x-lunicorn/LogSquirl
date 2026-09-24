@@ -84,3 +84,12 @@ target_link_libraries(
 # public header includes it, so nothing that uses the log data library gets
 # it from here (#168). tests/logdata_public_headers_no_tbb.cmake guards that.
 target_link_libraries(logsquirl_logdata PRIVATE xxhash tbb)
+
+# Qt for macOS has neither ICU nor iconv, so the Encodings Qt5Compat used to
+# bring along are converted with the iconv of the system (#442).
+if(APPLE)
+  target_sources(
+    logsquirl_logdata PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/iconvconverter.h
+                              ${CMAKE_CURRENT_SOURCE_DIR}/src/iconvconverter.cpp)
+  target_link_libraries(logsquirl_logdata PRIVATE iconv)
+endif()

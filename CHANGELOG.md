@@ -2,12 +2,25 @@
 
 ## Changes
 
+- **JSON Log Files get a Table View**: Log Formats now understand
+  `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
+  objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
+  `value` field, in the order of the format. A field name can address a nested
+  member by path (`src/file`), and an epoch `timestamp-field` is converted with
+  `timestamp-divisor`. A Log Line that is not a JSON object is still a Row,
+  with empty fields. The Text View keeps the raw line. No JSON Log Format is
+  shipped; bring your own (#460).
 - **Go to timestamp**: `Edit->Go to timestamp...` (`Ctrl+Shift+L`) jumps to the
   first line at or after a time, such as `14:02` or `2026-09-23 14:02:30`,
   instead of a line number. It works for Log Files with a recognized Log
   Format that has a timestamp field, finds the line in milliseconds even in a
   file of ten million lines, and says why it is disabled otherwise. Log
   Formats can now declare `timestamp-divisor` for epoch timestamps (#435).
+- **Parsers of untrusted files are fuzzed**: The indexing of a Log File's
+  bytes in blocks, the Log Format parser and field extractor, and the ANSI
+  color filter now have fuzz targets that ClusterFuzzLite runs on pull
+  requests that change code and every week, to find crashes and memory errors
+  in what an arbitrary file can make them read (#477).
 - **Ubuntu users install and update LogSquirl with apt**: After every stable
   release, a signed APT repository at `https://packages.lunicorn-lab.de` is
   rebuilt with the `.deb` of the last three stable releases, exactly as
@@ -104,7 +117,8 @@
   Encoding menu offers the same Encodings, and the Encodings the settings and
   the Index cache store by name or MIB enum still resolve. Legacy Encodings
   (Windows code pages, ISO-8859, CJK) are read through the ICU or iconv of the
-  Qt in use (#442).
+  Qt in use; the Qt packages for macOS have neither, so there they are read
+  through the iconv of macOS (#442).
 
 ## Internal
 

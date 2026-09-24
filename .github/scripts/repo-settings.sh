@@ -42,6 +42,10 @@ ALLOWED_ACTIONS=(
   'docker/build-push-action@*'
   'docker/login-action@*'
   'docker/setup-buildx-action@*'
+  # Docker actions without nested ones; a pattern matches subdirectories only
+  # when it names them.
+  'google/clusterfuzzlite/actions/build_fuzzers@*'
+  'google/clusterfuzzlite/actions/run_fuzzers@*'
   'ilammy/msvc-dev-cmd@*'
   'jurplel/install-qt-action@*'
   # install-qt-action runs its implementation from this subdirectory ("$/action");
