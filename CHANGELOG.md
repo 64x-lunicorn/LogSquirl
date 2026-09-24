@@ -122,6 +122,17 @@
 
 ## Internal
 
+- **Coverage is measured, and the modules without tests got them**: `cmake
+  --build <dir> --target coverage` in a build made with `-DENABLE_COVERAGE=ON`
+  runs the tests and prints the line coverage of each module, from
+  `scripts/coverage_report.py` (standard library only; `GCOV="xcrun llvm-cov
+  gcov"` on macOS). A `Coverage` job does the same on master and on request and
+  puts the table in its summary; it sets no threshold and is not part of `CI
+  passed`. The Plugin Loader (every way a library fails to load, and the
+  converter entry points), the Scratchpad (encodings, JSON and XML formatting,
+  the number boxes, and the XML cases the accepted CVE-2026-15037 rests on),
+  the compressed line storage (including its damaged disk cache) and the regex
+  wrapper have tests of their own. (#444)
 - **The tests run on Catch2 v3**: Catch2 v2 is end of life. v3 is pinned by
   commit like every other dependency, Renovate keeps tracking it, and the 135
   test files include only the Catch2 headers they use instead of the one big
