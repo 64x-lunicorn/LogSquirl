@@ -456,6 +456,49 @@ void MainWindow::loadInitialFile( QString fileName, bool followFile )
     }
 }
 
+void MainWindow::openStandardInput()
+{
+    if ( standardInputWriter_ ) {
+        return;
+    }
+
+    standardInputWriter_ = std::make_unique<logsquirl::plugins::StreamWriter>( "stdin" );
+    const auto filePath = standardInputWriter_->filePath();
+    if ( filePath.isEmpty() ) {
+        QMessageBox::warning( this, tr( "Standard input" ),
+                              tr( "Could not create a file for the data read from standard "
+                                  "input." ) );
+        standardInputWriter_.reset();
+        return;
+    }
+
+    if ( !loadFile( filePath, true ) ) {
+        standardInputWriter_.reset();
+        return;
+    }
+
+    const auto tabIndex = mainTabWidget_.currentIndex();
+    const auto tabToolTip = tr( "Standard input\n%1" ).arg( filePath );
+    if ( tabIndex >= 0 ) {
+        mainTabWidget_.setTabText( tabIndex, tr( "stdin" ) );
+        mainTabWidget_.setTabToolTip( tabIndex, tabToolTip );
+    }
+
+    // The pump calls back on its own thread: hop over to this window's.
+    const QPointer<MainWindow> self( this );
+    standardInputPump_
+        = std::make_unique<logsquirl::plugins::StdinPump>( 0, *standardInputWriter_, [ self ] {
+              if ( !self ) {
+                  return;
+              }
+              QMetaObject::invokeMethod( self.data(), [ self ] {
+                  if ( self ) {
+                      self->statusBar()->showMessage( tr( "Standard input closed" ) );
+                  }
+              } );
+          } );
+}
+
 void MainWindow::reTranslateUI()
 {
     using namespace logsquirl::mainwindow;

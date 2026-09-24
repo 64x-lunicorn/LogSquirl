@@ -66,6 +66,8 @@
 #include "quickfindwidget.h"
 #include "session.h"
 #include "signalmux.h"
+#include "stdinpump.h"
+#include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
@@ -100,6 +102,10 @@ public:
     void reloadSession();
     // Loads the initial file (parameter passed or from config file)
     void loadInitialFile( QString fileName, bool followFile );
+
+    // Opens what arrives on standard input as a Log File that is followed. The
+    // window keeps reading until the writing end closes or it is destroyed.
+    void openStandardInput();
 
     void reTranslateUI();
 
@@ -414,6 +420,10 @@ private:
     // The application's one Plugin Catalog and Plugin Host, shared by every
     // window and loaded once, after the first window shows (#303).
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
+
+    // Declared in this order: the pump reads into the writer, so it goes first.
+    std::unique_ptr<logsquirl::plugins::StreamWriter> standardInputWriter_;
+    std::unique_ptr<logsquirl::plugins::StdinPump> standardInputPump_;
 
     // Shows what plugins contribute, when this window is the one the Plugin
     // Host shows them in: the first window built.

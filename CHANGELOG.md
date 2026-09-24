@@ -16,6 +16,14 @@
   turned into line limits once, so the search runs exactly as with limits set
   by hand. Both need a Log File with a recognized Log Format that has a
   timestamp field, and say why they are disabled otherwise (#461).
+- **LogSquirl reads a Log File from standard input**: `journalctl -f |
+  logsquirl -` opens what arrives on a pipe in a window of its own (as
+  `--multi`), named `stdin`, and follows it like a growing Log File. When the
+  writing end closes, following stops with every byte received and the status
+  bar says so. Started from a terminal with nothing piped in, `logsquirl -`
+  prints an error and exits non-zero. The received data lives in a temporary
+  file that grows without bound and is removed at exit. On Windows, reading
+  standard input redirected into the GUI executable is unverified (#436).
 - **JSON Log Files get a Table View**: Log Formats now understand
   `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
   objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per

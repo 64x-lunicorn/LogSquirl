@@ -175,10 +175,34 @@ if Hyperscan can't handle the search pattern. However, in this case search will 
 * dragging files from the file manager
 * downloading files from a provided url
 * providing one or many files via the command line
+* piping a stream into `logsquirl -` (see [Reading standard input](#Reading-standard-input))
 * using recent files or favorite menu items.
 
 On Windows and Mac OS, the *logsquirl* installer configures the operating system to open `.log` files by
 clicking them in the file manager.
+
+#### Reading standard input
+
+`logsquirl -` opens what arrives on standard input, for example
+`journalctl -f | logsquirl -`. It can be combined with files
+(`… | logsquirl - other.log`): they open in the same window.
+
+* `-` always starts a window of its own, as `--multi` does, even when
+  *logsquirl* is already running: the process at the end of the pipe has to
+  keep reading until the pipe closes.
+* What arrives is kept in a temporary file in the application's temporary
+  directory, and the tab (named `stdin`) follows it like any growing Log File:
+  Search and Marks work as they do for a file on disk.
+* The temporary file grows without bound for as long as the stream runs. It is
+  removed when the window closes or *logsquirl* exits; the data is not kept
+  and there is no "save as" for it.
+* When the writing end closes, following stops, every received byte is in the
+  Log File (including a last line without a trailing newline) and the status bar
+  says `Standard input closed`.
+* `logsquirl -` started from a terminal with nothing piped in prints an error
+  and exits with a non-zero status, without opening a window.
+* Windows: reading standard input redirected into the GUI executable has not
+  been verified. If it cannot be read, the window stays empty.
 
 #### Archives
 
@@ -861,6 +885,7 @@ Holding `Shift` while scrolling will scroll faster.
 |-n,--new-session   |do not load the previous session (default when a file is passed) |
 |-l,--log           |save the log to a file                                    |
 |-f,--follow        |follow initial opened files                               |
+|-                 |read a Log File from standard input, in a window of its own (as with -m); can be combined with files |
 |-d,--debug         |output more debug (include multiple times for more verbosity e.g. -dddd) |
 
 ## The command line tool
