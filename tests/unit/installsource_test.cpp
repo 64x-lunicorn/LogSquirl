@@ -81,15 +81,14 @@ const auto DnfRepo = QByteArrayLiteral(
 
 } // namespace
 
+// Homebrew exists only on macOS, and QFile::link makes a shortcut on Windows,
+// which is no symbolic link the Caskroom check could follow. A skipped test
+// case counts as failed in the test discovery, so the scenario is left out.
+#ifndef Q_OS_WIN
 SCENARIO( "A Homebrew cask install is recognised by the Caskroom", "[versioncheck][installsource]" )
 {
     GIVEN( "An app in Applications that the cask's Caskroom entry points to" )
     {
-#ifdef Q_OS_WIN
-        // Homebrew exists only on macOS, and QFile::link makes a shortcut on
-        // Windows, which is no symbolic link the Caskroom check could follow.
-        SKIP( "The Caskroom is a macOS thing" );
-#endif
         FakeMachine machine;
         const auto bundle = QStringLiteral( "/Applications/logsquirl.app" );
         const auto executable = bundle + "/Contents/MacOS/logsquirl";
@@ -142,6 +141,8 @@ SCENARIO( "A Homebrew cask install is recognised by the Caskroom", "[versionchec
         }
     }
 }
+
+#endif
 
 SCENARIO( "A deb from the LogSquirl APT repository is recognised", "[versioncheck][installsource]" )
 {
