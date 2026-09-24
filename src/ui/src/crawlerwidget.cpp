@@ -313,19 +313,33 @@ QString CrawlerWidget::searchLimitsByTimeUnavailableReason() const
     return {};
 }
 
+TimestampReader* CrawlerWidget::currentTimestampReader() const
+{
+    // The Log Format can change while a modal dialog is open (the file is truncated or
+    // recognized anew), so nothing obtained here is kept across a dialog.
+    if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
+        return nullptr;
+    }
+    if ( !timestampReader_ ) {
+        timestampReader_ = std::make_unique<TimestampReader>( *recognizedFormat_ );
+    }
+    return timestampReader_.get();
+}
+
 void CrawlerWidget::setSearchLimitsToTimeRange()
 {
     if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
         return;
     }
-    if ( !timestampReader_ ) {
-        timestampReader_ = std::make_unique<TimestampReader>( *recognizedFormat_ );
-    }
     const auto title = tr( "Set search limits to time range" );
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
 
     // The date of the Log Line the user is at, for a time typed without one.
-    const auto nearby = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(),
-                                                   *timestampReader_ );
+    const auto nearby
+        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *reader );
     if ( !nearby ) {
         QMessageBox::information( this, title,
                                   tr( "No Log Line near the current one has a timestamp." ) );
@@ -364,13 +378,14 @@ void CrawlerWidget::setSearchLimitsAroundCurrentLine()
     if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
         return;
     }
-    if ( !timestampReader_ ) {
-        timestampReader_ = std::make_unique<TimestampReader>( *recognizedFormat_ );
-    }
     const auto title = tr( "Set search limits around current line" );
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
 
-    const auto center = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(),
-                                                   *timestampReader_ );
+    const auto center
+        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *reader );
     if ( !center ) {
         QMessageBox::information( this, title,
                                   tr( "No Log Line near the current one has a timestamp." ) );
@@ -397,8 +412,13 @@ void CrawlerWidget::setSearchLimitsFromTimes( const QDateTime& start, const QDat
     using Outcome = timelookup::LimitsResult::Outcome;
     const auto title = tr( "Set search limits by time" );
 
-    const auto result = timelookup::searchLimitsForTimeRange( start, end, *openLogFile_->logData(),
-                                                              *timestampReader_ );
+    // Called after modal dialogs: fetch the reader anew, it may have been reset meanwhile.
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
+    const auto result
+        = timelookup::searchLimitsForTimeRange( start, end, *openLogFile_->logData(), *reader );
     switch ( result.outcome ) {
     case Outcome::Limits:
         // From here on ordinary Search Limits, lines like any others.
@@ -437,15 +457,16 @@ void CrawlerWidget::goToTimestamp()
     if ( !goToTimestampUnavailableReason().isEmpty() ) {
         return;
     }
-    if ( !timestampReader_ ) {
-        timestampReader_ = std::make_unique<TimestampReader>( *recognizedFormat_ );
+
+    // Only used before the dialog: the reader is fetched again after it.
+    const auto* firstReader = currentTimestampReader();
+    if ( !firstReader ) {
+        return;
     }
 
-    const auto& logData = *openLogFile_->logData();
-    const auto& reader = *timestampReader_;
-
     // The date of the Log Line the user is at, for a time typed without one.
-    const auto nearby = timelookup::timestampNear( currentLineNumber_, logData, reader );
+    const auto nearby
+        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *firstReader );
     if ( !nearby ) {
         QMessageBox::information( this, tr( "Go to timestamp" ),
                                   tr( "No Log Line near the current one has a timestamp." ) );
@@ -470,7 +491,12 @@ void CrawlerWidget::goToTimestamp()
         return;
     }
 
-    const auto result = timelookup::firstLineAtOrAfter( *time, logData, reader );
+    // The Log Format may have changed while the dialog was open.
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
+    const auto result = timelookup::firstLineAtOrAfter( *time, *openLogFile_->logData(), *reader );
     if ( !result ) {
         return;
     }

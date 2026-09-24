@@ -131,6 +131,9 @@ public:
     // Why "Go to timestamp" is not available for this Log File, empty when it
     // is: it needs a recognized Log Format with a timestamp field.
     QString goToTimestampUnavailableReason() const;
+    //! The reader for the current Log Format, built on demand; nullptr when there is none.
+    //! Never keep it across a modal dialog: the Log Format can be reset meanwhile.
+    TimestampReader* currentTimestampReader() const;
     // The same for the Search Limits given as a time.
     QString searchLimitsByTimeUnavailableReason() const;
 
