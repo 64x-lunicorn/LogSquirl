@@ -129,17 +129,17 @@
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="146"/>
         <source>Chart</source>
-        <translation type="unfinished"></translation>
+        <translation>图表</translation>
     </message>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="172"/>
         <source>field %1</source>
-        <translation type="unfinished"></translation>
+        <translation>字段 %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="192"/>
         <source>Values of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 的值</translation>
     </message>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="316"/>
@@ -828,12 +828,12 @@ Pattern: %2</source>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="292"/>
         <source>Go to timestamp needs a Log Format: none was recognized for this Log File.</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到时间戳需要日志格式：此日志文件未识别出任何日志格式。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="295"/>
         <source>Go to timestamp is not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法跳转到时间戳：日志格式“%1”没有时间戳字段。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="450"/>
@@ -843,109 +843,112 @@ Pattern: %2</source>
         <location filename="../../ui/src/crawlerwidget.cpp" line="488"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="493"/>
         <source>Go to timestamp</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到时间戳</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="331"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="376"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="451"/>
         <source>No Log Line near the current one has a timestamp.</source>
-        <translation type="unfinished"></translation>
+        <translation>当前日志行附近没有带时间戳的日志行。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="305"/>
         <source>Search limits by time need a Log Format: none was recognized for this Log File.</source>
-        <translation type="unfinished"></translation>
+        <translation>按时间设置搜索范围需要日志格式：此日志文件未识别出任何日志格式。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="309"/>
         <source>Search limits by time are not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法按时间设置搜索范围：日志格式“%1”没有时间戳字段。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="324"/>
         <source>Set search limits to time range</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索范围设为时间段</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="335"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="457"/>
         <source>Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.
 Without a date, %1 is used.</source>
-        <translation type="unfinished"></translation>
+        <translation>时间，格式为 HH:MM[:SS[.mmm]]，前面可加日期 YYYY-MM-DD。
+未指定日期时，使用 %1。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="340"/>
         <source>Start (included).
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>开始（含）。
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="345"/>
         <source>End (not included).
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>结束（不含）。
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="354"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="467"/>
         <source>&quot;%1&quot; is not a time. Use HH:MM, HH:MM:SS or YYYY-MM-DD HH:MM:SS.</source>
-        <translation type="unfinished"></translation>
+        <translation>“%1”不是有效的时间。请使用 HH:MM、HH:MM:SS 或 YYYY-MM-DD HH:MM:SS。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="370"/>
         <source>Set search limits around current line</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索范围设为当前行前后</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="382"/>
         <source>Minutes before and after:</source>
-        <translation type="unfinished"></translation>
+        <translation>前后分钟数：</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="398"/>
         <source>Set search limits by time</source>
-        <translation type="unfinished"></translation>
+        <translation>按时间设置搜索范围</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="409"/>
         <source>The time range is before the first timestamp in the Log File. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>该时间段早于日志文件中的第一个时间戳。搜索范围保持不变。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="414"/>
         <source>The time range is after the last timestamp in the Log File. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>该时间段晚于日志文件中的最后一个时间戳。搜索范围保持不变。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="419"/>
         <source>No Log Line has a timestamp this Log Format can read. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有日志行带有此日志格式可读取的时间戳。搜索范围保持不变。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="424"/>
         <source>The end is not after the start. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>结束时间不晚于开始时间。搜索范围保持不变。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="429"/>
         <source>No Log Line has a timestamp in the time range. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>该时间段内没有带时间戳的日志行。搜索范围保持不变。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="484"/>
         <source>The time is before the first timestamp in the Log File. Went to the first line.</source>
-        <translation type="unfinished"></translation>
+        <translation>该时间早于日志文件中的第一个时间戳。已跳转到第一行。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="489"/>
         <source>The time is after the last timestamp in the Log File. Went to the last line.</source>
-        <translation type="unfinished"></translation>
+        <translation>该时间晚于日志文件中的最后一个时间戳。已跳转到最后一行。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="494"/>
         <source>No Log Line has a timestamp this Log Format can read.</source>
-        <translation type="unfinished"></translation>
+        <translation>没有日志行带有此日志格式可读取的时间戳。</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1264"/>
@@ -1029,7 +1032,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1400"/>
         <source>Count values of capture group</source>
-        <translation type="unfinished"></translation>
+        <translation>统计捕获组的值</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1409"/>
@@ -1064,17 +1067,17 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1857"/>
         <source>Group %1</source>
-        <translation type="unfinished"></translation>
+        <translation>分组 %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1858"/>
         <source>Group %1 (%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>分组 %1 (%2)</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1886"/>
         <source>group %1 of &quot;%2&quot;</source>
-        <translation type="unfinished"></translation>
+        <translation>“%2”的分组 %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="2358"/>
@@ -1142,12 +1145,12 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="131"/>
         <source>%1 (Team)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1（团队）</translation>
     </message>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="132"/>
         <source>A Team group, shared through the Team Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>团队分组，通过团队文件夹共享</translation>
     </message>
 </context>
 <context>
@@ -1155,47 +1158,47 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="42"/>
         <source>The group &quot;%1&quot; is already in the list (the imported one is called &quot;%2&quot;).</source>
-        <translation type="unfinished"></translation>
+        <translation>分组“%1”已在列表中（导入的分组名为“%2”）。</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="47"/>
         <source>A group named &quot;%1&quot; is already in the list.</source>
-        <translation type="unfinished"></translation>
+        <translation>列表中已有名为“%1”的分组。</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="51"/>
         <source>Replace it, keep both, or skip the imported group?</source>
-        <translation type="unfinished"></translation>
+        <translation>替换它、两者都保留，还是跳过导入的分组？</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="55"/>
         <source>Replace</source>
-        <translation type="unfinished"></translation>
+        <translation>替换</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="57"/>
         <source>Keep both</source>
-        <translation type="unfinished"></translation>
+        <translation>两者都保留</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="58"/>
         <source>Skip</source>
-        <translation type="unfinished"></translation>
+        <translation>跳过</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="64"/>
         <source>Apply to all remaining conflicts</source>
-        <translation type="unfinished"></translation>
+        <translation>应用于所有剩余冲突</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="92"/>
         <source>The file %1 could not be read.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取文件 %1。</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="96"/>
         <source>The file %1 holds no group.</source>
-        <translation type="unfinished"></translation>
+        <translation>文件 %1 中没有分组。</translation>
     </message>
 </context>
 <context>
@@ -1469,7 +1472,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="245"/>
         <source>The file %1 could not be written.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法写入文件 %1。</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
@@ -1479,32 +1482,32 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="261"/>
         <source>Import highlighters configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>导入高亮规则配置</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
         <source>Team highlighter sets</source>
-        <translation type="unfinished"></translation>
+        <translation>团队高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation type="unfinished"></translation>
+        <translation>通过团队文件夹共享：团队修改后它们会随之变化。</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
         <source>New Team highlighter set</source>
-        <translation type="unfinished"></translation>
+        <translation>新建团队高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="534"/>
         <source>Delete Team highlighter set</source>
-        <translation type="unfinished"></translation>
+        <translation>删除团队高亮规则集</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="535"/>
         <source>This deletes the group for the whole team.</source>
-        <translation type="unfinished"></translation>
+        <translation>这将为整个团队删除该分组。</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="236"/>
@@ -1523,7 +1526,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="66"/>
         <source>Team</source>
-        <translation type="unfinished"></translation>
+        <translation>团队</translation>
     </message>
 </context>
 <context>
@@ -1544,7 +1547,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="708"/>
         <source>Count values</source>
-        <translation type="unfinished"></translation>
+        <translation>统计值</translation>
     </message>
 </context>
 <context>
@@ -1734,28 +1737,29 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="472"/>
         <source>Standard input</source>
-        <translation type="unfinished"></translation>
+        <translation>标准输入</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="473"/>
         <source>Could not create a file for the data read from standard input.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法为从标准输入读取的数据创建文件。</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="485"/>
         <source>Standard input
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>标准输入
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="487"/>
         <source>stdin</source>
-        <translation type="unfinished"></translation>
+        <translation>stdin</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="500"/>
         <source>Standard input closed</source>
-        <translation type="unfinished"></translation>
+        <translation>标准输入已关闭</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="940"/>
@@ -1790,42 +1794,42 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1633"/>
         <source>Team group changed</source>
-        <translation type="unfinished"></translation>
+        <translation>团队分组已更改</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1634"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
-        <translation type="unfinished"></translation>
+        <translation>自您开始编辑以来，其他人更改了团队分组“%1”。</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1640"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
-        <translation type="unfinished"></translation>
+        <translation>保留您的版本并替换对方的版本、采用对方的版本并放弃您的更改，还是将您的版本另存为副本放在对方的版本旁边？</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1642"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
-        <translation type="unfinished"></translation>
+        <translation>有人已将其删除。保留您的版本以重新发布，还是接受删除并放弃您的更改？</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1644"/>
         <source>Keep mine</source>
-        <translation type="unfinished"></translation>
+        <translation>保留我的</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1645"/>
         <source>Take theirs</source>
-        <translation type="unfinished"></translation>
+        <translation>采用对方的</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1646"/>
         <source>Save mine as a copy</source>
-        <translation type="unfinished"></translation>
+        <translation>将我的另存为副本</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1692"/>
         <source>Click to sync now.</source>
-        <translation type="unfinished"></translation>
+        <translation>点击立即同步。</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1715"/>
@@ -2388,42 +2392,42 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1047"/>
         <source>Team Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>团队文件夹</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1053"/>
         <source>Share Filter Groups with the team through a Team Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>通过团队文件夹与团队共享过滤器分组</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1062"/>
         <source>Repository URL:</source>
-        <translation type="unfinished"></translation>
+        <translation>仓库 URL：</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1072"/>
         <source>https://… or git@…</source>
-        <translation type="unfinished"></translation>
+        <translation>https://… 或 git@…</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1079"/>
         <source>Subfolder:</source>
-        <translation type="unfinished"></translation>
+        <translation>子文件夹：</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1089"/>
         <source>The repository&apos;s top folder</source>
-        <translation type="unfinished"></translation>
+        <translation>仓库的顶层文件夹</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1098"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl 使用本机安装的 Git 将仓库克隆到自己的数据文件夹中，并按 Git 为您配置的方式登录。关闭团队文件夹或更换仓库不会影响您自己的分组。</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1126"/>
         <source>Sync Now</source>
-        <translation type="unfinished"></translation>
+        <translation>立即同步</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1149"/>
@@ -2966,7 +2970,7 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="214"/>
         <source>The file %1 could not be written.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法写入文件 %1。</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="223"/>
@@ -2976,52 +2980,52 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="230"/>
         <source>Import predefined filters</source>
-        <translation type="unfinished"></translation>
+        <translation>导入预定义过滤器</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="360"/>
         <source>Team groups</source>
-        <translation type="unfinished"></translation>
+        <translation>团队分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="363"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation type="unfinished"></translation>
+        <translation>通过团队文件夹共享：团队修改后它们会随之变化。</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="371"/>
         <source>New Team group</source>
-        <translation type="unfinished"></translation>
+        <translation>新建团队分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="374"/>
         <source>Share with team</source>
-        <translation type="unfinished"></translation>
+        <translation>与团队共享</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="375"/>
         <source>Adds a Team copy of the selected group of your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>为您自己的所选分组添加一份团队副本。</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="378"/>
         <source>Copy to my groups</source>
-        <translation type="unfinished"></translation>
+        <translation>复制到我的分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="381"/>
         <source>Delete for the team</source>
-        <translation type="unfinished"></translation>
+        <translation>为团队删除</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="458"/>
         <source>Delete Team group</source>
-        <translation type="unfinished"></translation>
+        <translation>删除团队分组</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="458"/>
         <source>This deletes the group for the whole team.</source>
-        <translation type="unfinished"></translation>
+        <translation>这将为整个团队删除该分组。</translation>
     </message>
 </context>
 <context>
@@ -3467,17 +3471,17 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to timestamp</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到时间戳</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="512"/>
         <source>Set search limits to a time range</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索范围设为时间段</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="519"/>
         <source>Set search limits around the current line</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索范围设为当前行前后</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="526"/>
@@ -3913,92 +3917,92 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="110"/>
         <source>Another file holds the group %1 already.</source>
-        <translation type="unfinished"></translation>
+        <translation>另一个文件中已有分组 %1。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="145"/>
         <source>The file cannot be read.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法读取该文件。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="146"/>
         <source>The file holds no Filter Group or Highlighter Set.</source>
-        <translation type="unfinished"></translation>
+        <translation>该文件中没有过滤器分组或高亮规则集。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="462"/>
         <source>The group could not be written to %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法将分组写入 %1。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="520"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
-        <translation type="unfinished"></translation>
+        <translation>子文件夹 %1 不在仓库内。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="811"/>
         <source>The Team Folder is off.</source>
-        <translation type="unfinished"></translation>
+        <translation>团队文件夹已关闭。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1020"/>
         <source>Team Folder syncing…</source>
-        <translation type="unfinished"></translation>
+        <translation>团队文件夹同步中…</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1024"/>
         <source>Team Folder off</source>
-        <translation type="unfinished"></translation>
+        <translation>团队文件夹已关闭</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1026"/>
         <source>Team Folder not synced</source>
-        <translation type="unfinished"></translation>
+        <translation>团队文件夹未同步</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1028"/>
         <source>Team Folder synced</source>
-        <translation type="unfinished"></translation>
+        <translation>团队文件夹已同步</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1030"/>
         <source>Team Folder error</source>
-        <translation type="unfinished"></translation>
+        <translation>团队文件夹出错</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1042"/>
         <source>Not published: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>未发布：%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1045"/>
         <source>The Team groups are read-only: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>团队分组为只读：%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1048"/>
         <source>Skipped %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>已跳过 %1：%2</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="72"/>
         <source>Git could not be started (%1). Install Git, or put it on the PATH, to use a Team Folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>无法启动 Git (%1)。请安装 Git，或将其加入 PATH，以使用团队文件夹。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="93"/>
         <source>Stopped.</source>
-        <translation type="unfinished"></translation>
+        <translation>已停止。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="94"/>
         <source>Git did not finish in time.</source>
-        <translation type="unfinished"></translation>
+        <translation>Git 未能在限定时间内完成。</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="104"/>
         <source>Git ended with exit code %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Git 以退出码 %1 结束。</translation>
     </message>
 </context>
 <context>
@@ -4006,69 +4010,69 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="46"/>
         <source>Stop</source>
-        <translation type="unfinished"></translation>
+        <translation>停止</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="47"/>
         <source>Stop counting</source>
-        <translation type="unfinished"></translation>
+        <translation>停止统计</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="49"/>
         <source>Count again</source>
-        <translation type="unfinished"></translation>
+        <translation>重新统计</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="50"/>
         <source>Count the values again, from the Log File as it is now</source>
-        <translation type="unfinished"></translation>
+        <translation>按日志文件的当前内容重新统计这些值</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="65"/>
         <source>Value</source>
-        <translation type="unfinished"></translation>
+        <translation>值</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="65"/>
         <source>Count</source>
-        <translation type="unfinished"></translation>
+        <translation>计数</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="65"/>
         <source>Share</source>
-        <translation type="unfinished"></translation>
+        <translation>共享</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="110"/>
         <source>Counting values of %1…</source>
-        <translation type="unfinished"></translation>
+        <translation>正在统计 %1 的值…</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="131"/>
         <source>Stopped: values of %1 not counted</source>
-        <translation type="unfinished"></translation>
+        <translation>已停止：未统计 %1 的值</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="152"/>
         <source>Too many distinct values of %1 (more than %2) to count</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 的不同值过多（超过 %2 个），无法统计</translation>
     </message>
     <message numerus="yes">
         <location filename="../../ui/src/valuecounttab.cpp" line="158"/>
         <source>%1: %n Log Line(s) counted</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%1：已统计 %n 条日志行</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="167"/>
         <source>(empty)</source>
-        <translation type="unfinished"></translation>
+        <translation>（空）</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="172"/>
         <source>%1 %</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 %</translation>
     </message>
 </context>
 <context>
@@ -4227,32 +4231,32 @@ Restart LogSquirl to try again.</source>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
         <source>Go to timestamp...</source>
-        <translation type="unfinished"></translation>
+        <translation>跳转到时间戳...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
         <source>Scrolls selected main view to the first line at or after a time</source>
-        <translation type="unfinished"></translation>
+        <translation>将所选主视图滚动到时间点当时或之后的第一行</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
         <source>Set search limits to time range...</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索范围设为时间段...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
         <source>Limits the search to the log lines between a start and an end time</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索限制在开始与结束时间之间的日志行</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="54"/>
         <source>Set search limits around current line...</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索范围设为当前行前后...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="56"/>
         <source>Limits the search to N minutes before and after the current log line</source>
-        <translation type="unfinished"></translation>
+        <translation>将搜索限制在当前日志行前后 N 分钟内</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>

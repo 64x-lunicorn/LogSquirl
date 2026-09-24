@@ -129,17 +129,17 @@
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="146"/>
         <source>Chart</source>
-        <translation type="unfinished"></translation>
+        <translation>Diagramm</translation>
     </message>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="172"/>
         <source>field %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Feld %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="192"/>
         <source>Values of %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Werte von %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/chartpanel.cpp" line="316"/>
@@ -828,12 +828,12 @@ Muster: %2</translation>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="292"/>
         <source>Go to timestamp needs a Log Format: none was recognized for this Log File.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gehe zu Zeitstempel braucht ein Logformat: Für diese Logdatei wurde keines erkannt.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="295"/>
         <source>Go to timestamp is not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gehe zu Zeitstempel ist nicht verfügbar: Das Logformat &quot;%1&quot; hat kein Zeitstempel-Feld.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="450"/>
@@ -843,109 +843,112 @@ Muster: %2</translation>
         <location filename="../../ui/src/crawlerwidget.cpp" line="488"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="493"/>
         <source>Go to timestamp</source>
-        <translation type="unfinished"></translation>
+        <translation>Gehe zu Zeitstempel</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="331"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="376"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="451"/>
         <source>No Log Line near the current one has a timestamp.</source>
-        <translation type="unfinished"></translation>
+        <translation>Keine Logzeile in der Nähe der aktuellen hat einen Zeitstempel.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="305"/>
         <source>Search limits by time need a Log Format: none was recognized for this Log File.</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen nach Zeit brauchen ein Logformat: Für diese Logdatei wurde keines erkannt.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="309"/>
         <source>Search limits by time are not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen nach Zeit sind nicht verfügbar: Das Logformat &quot;%1&quot; hat kein Zeitstempel-Feld.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="324"/>
         <source>Set search limits to time range</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen auf Zeitraum setzen</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="335"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="457"/>
         <source>Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.
 Without a date, %1 is used.</source>
-        <translation type="unfinished"></translation>
+        <translation>Uhrzeit als HH:MM[:SS[.mmm]], optional nach einem Datum als JJJJ-MM-TT.
+Ohne Datum wird %1 verwendet.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="340"/>
         <source>Start (included).
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Anfang (eingeschlossen).
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="345"/>
         <source>End (not included).
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Ende (nicht eingeschlossen).
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="354"/>
         <location filename="../../ui/src/crawlerwidget.cpp" line="467"/>
         <source>&quot;%1&quot; is not a time. Use HH:MM, HH:MM:SS or YYYY-MM-DD HH:MM:SS.</source>
-        <translation type="unfinished"></translation>
+        <translation>&quot;%1&quot; ist keine Uhrzeit. Verwenden Sie HH:MM, HH:MM:SS oder JJJJ-MM-TT HH:MM:SS.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="370"/>
         <source>Set search limits around current line</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen um aktuelle Zeile setzen</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="382"/>
         <source>Minutes before and after:</source>
-        <translation type="unfinished"></translation>
+        <translation>Minuten davor und danach:</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="398"/>
         <source>Set search limits by time</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen nach Zeit setzen</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="409"/>
         <source>The time range is before the first timestamp in the Log File. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Der Zeitraum liegt vor dem ersten Zeitstempel der Logdatei. Die Suchgrenzen bleiben unverändert.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="414"/>
         <source>The time range is after the last timestamp in the Log File. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Der Zeitraum liegt nach dem letzten Zeitstempel der Logdatei. Die Suchgrenzen bleiben unverändert.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="419"/>
         <source>No Log Line has a timestamp this Log Format can read. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Keine Logzeile hat einen Zeitstempel, den dieses Logformat lesen kann. Die Suchgrenzen bleiben unverändert.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="424"/>
         <source>The end is not after the start. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Das Ende liegt nicht nach dem Anfang. Die Suchgrenzen bleiben unverändert.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="429"/>
         <source>No Log Line has a timestamp in the time range. The search limits are unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Keine Logzeile hat einen Zeitstempel im Zeitraum. Die Suchgrenzen bleiben unverändert.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="484"/>
         <source>The time is before the first timestamp in the Log File. Went to the first line.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Uhrzeit liegt vor dem ersten Zeitstempel der Logdatei. Zur ersten Zeile gesprungen.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="489"/>
         <source>The time is after the last timestamp in the Log File. Went to the last line.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Uhrzeit liegt nach dem letzten Zeitstempel der Logdatei. Zur letzten Zeile gesprungen.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="494"/>
         <source>No Log Line has a timestamp this Log Format can read.</source>
-        <translation type="unfinished"></translation>
+        <translation>Keine Logzeile hat einen Zeitstempel, den dieses Logformat lesen kann.</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1264"/>
@@ -1029,7 +1032,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1400"/>
         <source>Count values of capture group</source>
-        <translation type="unfinished"></translation>
+        <translation>Werte der Erfassungsgruppe zählen</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1409"/>
@@ -1064,17 +1067,17 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1857"/>
         <source>Group %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Gruppe %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1858"/>
         <source>Group %1 (%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>Gruppe %1 (%2)</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="1886"/>
         <source>group %1 of &quot;%2&quot;</source>
-        <translation type="unfinished"></translation>
+        <translation>Gruppe %1 von &quot;%2&quot;</translation>
     </message>
     <message>
         <location filename="../../ui/src/crawlerwidget.cpp" line="2358"/>
@@ -1142,12 +1145,12 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="131"/>
         <source>%1 (Team)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (Team)</translation>
     </message>
     <message>
         <location filename="../../ui/src/filterspanel.cpp" line="132"/>
         <source>A Team group, shared through the Team Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Eine Team-Gruppe, geteilt über den Team-Ordner</translation>
     </message>
 </context>
 <context>
@@ -1155,47 +1158,47 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="42"/>
         <source>The group &quot;%1&quot; is already in the list (the imported one is called &quot;%2&quot;).</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Gruppe &quot;%1&quot; ist bereits in der Liste (die importierte heißt &quot;%2&quot;).</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="47"/>
         <source>A group named &quot;%1&quot; is already in the list.</source>
-        <translation type="unfinished"></translation>
+        <translation>Eine Gruppe namens &quot;%1&quot; ist bereits in der Liste.</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="51"/>
         <source>Replace it, keep both, or skip the imported group?</source>
-        <translation type="unfinished"></translation>
+        <translation>Ersetzen, beide behalten oder die importierte Gruppe überspringen?</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="55"/>
         <source>Replace</source>
-        <translation type="unfinished"></translation>
+        <translation>Ersetzen</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="57"/>
         <source>Keep both</source>
-        <translation type="unfinished"></translation>
+        <translation>Beide behalten</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="58"/>
         <source>Skip</source>
-        <translation type="unfinished"></translation>
+        <translation>Überspringen</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="64"/>
         <source>Apply to all remaining conflicts</source>
-        <translation type="unfinished"></translation>
+        <translation>Auf alle übrigen Konflikte anwenden</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="92"/>
         <source>The file %1 could not be read.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei %1 konnte nicht gelesen werden.</translation>
     </message>
     <message>
         <location filename="../../ui/src/groupimportprompt.cpp" line="96"/>
         <source>The file %1 holds no group.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei %1 enthält keine Gruppe.</translation>
     </message>
 </context>
 <context>
@@ -1469,7 +1472,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="245"/>
         <source>The file %1 could not be written.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei %1 konnte nicht geschrieben werden.</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="254"/>
@@ -1479,32 +1482,32 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="261"/>
         <source>Import highlighters configuration</source>
-        <translation type="unfinished"></translation>
+        <translation>Hervorhebungs-Konfiguration importieren</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="454"/>
         <source>Team highlighter sets</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Hervorhebungssätze</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="457"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Über den Team-Ordner geteilt: Sie ändern sich, wenn das Team sie ändert.</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="465"/>
         <source>New Team highlighter set</source>
-        <translation type="unfinished"></translation>
+        <translation>Neuer Team-Hervorhebungssatz</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="534"/>
         <source>Delete Team highlighter set</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Hervorhebungssatz löschen</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="535"/>
         <source>This deletes the group for the whole team.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dies löscht die Gruppe für das ganze Team.</translation>
     </message>
     <message>
         <location filename="../../ui/src/highlightersdialog.cpp" line="236"/>
@@ -1523,7 +1526,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/highlightersmenu.cpp" line="66"/>
         <source>Team</source>
-        <translation type="unfinished"></translation>
+        <translation>Team</translation>
     </message>
 </context>
 <context>
@@ -1544,7 +1547,7 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/logtableview.cpp" line="708"/>
         <source>Count values</source>
-        <translation type="unfinished"></translation>
+        <translation>Werte zählen</translation>
     </message>
 </context>
 <context>
@@ -1625,28 +1628,29 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="472"/>
         <source>Standard input</source>
-        <translation type="unfinished"></translation>
+        <translation>Standardeingabe</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="473"/>
         <source>Could not create a file for the data read from standard input.</source>
-        <translation type="unfinished"></translation>
+        <translation>Es konnte keine Datei für die von der Standardeingabe gelesenen Daten angelegt werden.</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="485"/>
         <source>Standard input
 %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Standardeingabe
+%1</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="487"/>
         <source>stdin</source>
-        <translation type="unfinished"></translation>
+        <translation>stdin</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="500"/>
         <source>Standard input closed</source>
-        <translation type="unfinished"></translation>
+        <translation>Standardeingabe geschlossen</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="940"/>
@@ -1727,42 +1731,42 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1633"/>
         <source>Team group changed</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Gruppe geändert</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1634"/>
         <source>Somebody else changed the Team group &quot;%1&quot; since you started editing it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Jemand anderes hat die Team-Gruppe &quot;%1&quot; geändert, seit Sie mit dem Bearbeiten begonnen haben.</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1640"/>
         <source>Keep your version and replace theirs, take theirs and drop your change, or save yours as a copy next to theirs?</source>
-        <translation type="unfinished"></translation>
+        <translation>Ihre Version behalten und die andere ersetzen, die andere übernehmen und Ihre Änderung verwerfen, oder Ihre als Kopie neben der anderen speichern?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1642"/>
         <source>Somebody deleted it. Keep your version to publish it again, or take the deletion and drop your change?</source>
-        <translation type="unfinished"></translation>
+        <translation>Jemand hat sie gelöscht. Ihre Version behalten und erneut veröffentlichen, oder die Löschung übernehmen und Ihre Änderung verwerfen?</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1644"/>
         <source>Keep mine</source>
-        <translation type="unfinished"></translation>
+        <translation>Meine behalten</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1645"/>
         <source>Take theirs</source>
-        <translation type="unfinished"></translation>
+        <translation>Andere übernehmen</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1646"/>
         <source>Save mine as a copy</source>
-        <translation type="unfinished"></translation>
+        <translation>Meine als Kopie speichern</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1692"/>
         <source>Click to sync now.</source>
-        <translation type="unfinished"></translation>
+        <translation>Klicken, um jetzt zu synchronisieren.</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindow.cpp" line="1715"/>
@@ -2389,42 +2393,42 @@ Without a date, %1 is used.</source>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1047"/>
         <source>Team Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Ordner</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1053"/>
         <source>Share Filter Groups with the team through a Team Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Filtergruppen über einen Team-Ordner mit dem Team teilen</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1062"/>
         <source>Repository URL:</source>
-        <translation type="unfinished"></translation>
+        <translation>Repository-URL:</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1072"/>
         <source>https://… or git@…</source>
-        <translation type="unfinished"></translation>
+        <translation>https://… oder git@…</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1079"/>
         <source>Subfolder:</source>
-        <translation type="unfinished"></translation>
+        <translation>Unterordner:</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1089"/>
         <source>The repository&apos;s top folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Oberster Ordner des Repositorys</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1098"/>
         <source>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</source>
-        <translation type="unfinished"></translation>
+        <translation>LogSquirl klont das Repository mit dem auf diesem Computer installierten Git in seinen eigenen Datenordner und meldet sich so an, wie Git es für Sie tut. Wenn Sie den Team-Ordner ausschalten oder das Repository ändern, bleiben Ihre eigenen Gruppen unverändert.</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1126"/>
         <source>Sync Now</source>
-        <translation type="unfinished"></translation>
+        <translation>Jetzt synchronisieren</translation>
     </message>
     <message>
         <location filename="../../ui/include/optionsdialog.ui" line="1149"/>
@@ -2967,7 +2971,7 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="214"/>
         <source>The file %1 could not be written.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei %1 konnte nicht geschrieben werden.</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="223"/>
@@ -2977,52 +2981,52 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="230"/>
         <source>Import predefined filters</source>
-        <translation type="unfinished"></translation>
+        <translation>Vordefinierte Filter importieren</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="360"/>
         <source>Team groups</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Gruppen</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="363"/>
         <source>Shared through the Team Folder: they change when the team changes them.</source>
-        <translation type="unfinished"></translation>
+        <translation>Über den Team-Ordner geteilt: Sie ändern sich, wenn das Team sie ändert.</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="371"/>
         <source>New Team group</source>
-        <translation type="unfinished"></translation>
+        <translation>Neue Team-Gruppe</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="374"/>
         <source>Share with team</source>
-        <translation type="unfinished"></translation>
+        <translation>Mit Team teilen</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="375"/>
         <source>Adds a Team copy of the selected group of your own.</source>
-        <translation type="unfinished"></translation>
+        <translation>Fügt eine Team-Kopie der ausgewählten eigenen Gruppe hinzu.</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="378"/>
         <source>Copy to my groups</source>
-        <translation type="unfinished"></translation>
+        <translation>In meine Gruppen kopieren</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="381"/>
         <source>Delete for the team</source>
-        <translation type="unfinished"></translation>
+        <translation>Für das Team löschen</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="458"/>
         <source>Delete Team group</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Gruppe löschen</translation>
     </message>
     <message>
         <location filename="../../ui/src/predefinedfiltersdialog.cpp" line="458"/>
         <source>This deletes the group for the whole team.</source>
-        <translation type="unfinished"></translation>
+        <translation>Dies löscht die Gruppe für das ganze Team.</translation>
     </message>
 </context>
 <context>
@@ -3468,17 +3472,17 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="505"/>
         <source>Jump to timestamp</source>
-        <translation type="unfinished"></translation>
+        <translation>Zu Zeitstempel springen</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="512"/>
         <source>Set search limits to a time range</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen auf einen Zeitraum setzen</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="519"/>
         <source>Set search limits around the current line</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen um die aktuelle Zeile setzen</translation>
     </message>
     <message>
         <location filename="../../settings/src/shortcuts.cpp" line="526"/>
@@ -3914,92 +3918,92 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="110"/>
         <source>Another file holds the group %1 already.</source>
-        <translation type="unfinished"></translation>
+        <translation>Eine andere Datei enthält die Gruppe %1 bereits.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="145"/>
         <source>The file cannot be read.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei kann nicht gelesen werden.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="146"/>
         <source>The file holds no Filter Group or Highlighter Set.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Datei enthält weder eine Filtergruppe noch einen Hervorhebungssatz.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="462"/>
         <source>The group could not be written to %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Gruppe konnte nicht nach %1 geschrieben werden.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="520"/>
         <source>The subfolder %1 does not lie inside the repository.</source>
-        <translation type="unfinished"></translation>
+        <translation>Der Unterordner %1 liegt nicht innerhalb des Repositorys.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="811"/>
         <source>The Team Folder is off.</source>
-        <translation type="unfinished"></translation>
+        <translation>Der Team-Ordner ist ausgeschaltet.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1020"/>
         <source>Team Folder syncing…</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Ordner wird synchronisiert…</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1024"/>
         <source>Team Folder off</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Ordner aus</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1026"/>
         <source>Team Folder not synced</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Ordner nicht synchronisiert</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1028"/>
         <source>Team Folder synced</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Ordner synchronisiert</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1030"/>
         <source>Team Folder error</source>
-        <translation type="unfinished"></translation>
+        <translation>Team-Ordner-Fehler</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1042"/>
         <source>Not published: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Nicht veröffentlicht: %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1045"/>
         <source>The Team groups are read-only: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Team-Gruppen sind schreibgeschützt: %1</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfolder.cpp" line="1048"/>
         <source>Skipped %1: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 übersprungen: %2</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="72"/>
         <source>Git could not be started (%1). Install Git, or put it on the PATH, to use a Team Folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Git konnte nicht gestartet werden (%1). Installieren Sie Git oder nehmen Sie es in den PATH auf, um einen Team-Ordner zu verwenden.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="93"/>
         <source>Stopped.</source>
-        <translation type="unfinished"></translation>
+        <translation>Angehalten.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="94"/>
         <source>Git did not finish in time.</source>
-        <translation type="unfinished"></translation>
+        <translation>Git wurde nicht rechtzeitig fertig.</translation>
     </message>
     <message>
         <location filename="../../ui/src/teamfoldergit.cpp" line="104"/>
         <source>Git ended with exit code %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Git wurde mit Exit-Code %1 beendet.</translation>
     </message>
 </context>
 <context>
@@ -4007,70 +4011,70 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="46"/>
         <source>Stop</source>
-        <translation type="unfinished"></translation>
+        <translation>Stopp</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="47"/>
         <source>Stop counting</source>
-        <translation type="unfinished"></translation>
+        <translation>Zählen anhalten</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="49"/>
         <source>Count again</source>
-        <translation type="unfinished"></translation>
+        <translation>Erneut zählen</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="50"/>
         <source>Count the values again, from the Log File as it is now</source>
-        <translation type="unfinished"></translation>
+        <translation>Die Werte erneut zählen, aus der Logdatei im aktuellen Stand</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="65"/>
         <source>Value</source>
-        <translation type="unfinished"></translation>
+        <translation>Wert</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="65"/>
         <source>Count</source>
-        <translation type="unfinished"></translation>
+        <translation>Anzahl</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="65"/>
         <source>Share</source>
-        <translation type="unfinished"></translation>
+        <translation>Anteil</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="110"/>
         <source>Counting values of %1…</source>
-        <translation type="unfinished"></translation>
+        <translation>Werte von %1 werden gezählt…</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="131"/>
         <source>Stopped: values of %1 not counted</source>
-        <translation type="unfinished"></translation>
+        <translation>Angehalten: Werte von %1 nicht gezählt</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="152"/>
         <source>Too many distinct values of %1 (more than %2) to count</source>
-        <translation type="unfinished"></translation>
+        <translation>Zu viele verschiedene Werte von %1 (mehr als %2) zum Zählen</translation>
     </message>
     <message numerus="yes">
         <location filename="../../ui/src/valuecounttab.cpp" line="158"/>
         <source>%1: %n Log Line(s) counted</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>%1: %n Logzeile gezählt</numerusform>
+            <numerusform>%1: %n Logzeilen gezählt</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="167"/>
         <source>(empty)</source>
-        <translation type="unfinished"></translation>
+        <translation>(leer)</translation>
     </message>
     <message>
         <location filename="../../ui/src/valuecounttab.cpp" line="172"/>
         <source>%1 %</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 %</translation>
     </message>
 </context>
 <context>
@@ -4229,32 +4233,32 @@ Starten Sie LogSquirl neu, um es erneut zu versuchen.</translation>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="47"/>
         <source>Go to timestamp...</source>
-        <translation type="unfinished"></translation>
+        <translation>Gehe zu Zeitstempel...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="49"/>
         <source>Scrolls selected main view to the first line at or after a time</source>
-        <translation type="unfinished"></translation>
+        <translation>Scrollt die gewählte Hauptansicht zur ersten Zeile ab einer Uhrzeit</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="50"/>
         <source>Set search limits to time range...</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen auf Zeitraum setzen...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="52"/>
         <source>Limits the search to the log lines between a start and an end time</source>
-        <translation type="unfinished"></translation>
+        <translation>Begrenzt die Suche auf die Logzeilen zwischen einer Start- und einer Endzeit</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="54"/>
         <source>Set search limits around current line...</source>
-        <translation type="unfinished"></translation>
+        <translation>Suchgrenzen um aktuelle Zeile setzen...</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="56"/>
         <source>Limits the search to N minutes before and after the current log line</source>
-        <translation type="unfinished"></translation>
+        <translation>Begrenzt die Suche auf N Minuten vor und nach der aktuellen Logzeile</translation>
     </message>
     <message>
         <location filename="../../ui/src/mainwindowtext.cpp" line="57"/>
