@@ -108,6 +108,9 @@ target_link_libraries(logsquirl_portable PRIVATE logsquirl_tbb_headers)
 # link the crash handler (#240). It follows its Log File through the Open Log
 # File (#247), handing it no File Watch Port: it links no file watcher.
 target_link_libraries(logsquirl_grep PUBLIC logsquirl_openlogfile kdsingleapp logsquirl_settings)
+# cli.h, which it shares with the desktop application, includes a header of the
+# plugin layer for the command line's "-". That header is all it takes.
+target_include_directories(logsquirl_grep PRIVATE ${CMAKE_SOURCE_DIR}/src/plugins/include)
 
 target_compile_definitions(logsquirl_portable PUBLIC -DLOGSQUIRL_PORTABLE)
 

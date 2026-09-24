@@ -75,6 +75,14 @@ public:
      */
     void pushLines( const char* const* data, const size_t* lens, size_t count );
 
+    /**
+     * Append raw bytes to the stream exactly as given: no newline is added,
+     * and a line may span calls. Used for a stream that already carries its
+     * own line ends, such as standard input.
+     * Thread-safe — may be called from any thread.
+     */
+    void pushBytes( const char* data, size_t len );
+
     /** Mark the stream as complete (no more data expected). */
     void signalEos();
 

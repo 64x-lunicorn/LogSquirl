@@ -49,6 +49,7 @@ add_executable(logsquirl_tests
     pluginrepository_test.cpp
     pluginuiadapter_test.cpp
     sharedpluginuiport_test.cpp
+    stdinpump_test.cpp
     quickfind_test.cpp
     quickfindmux_test.cpp
     searchblockutf8view_test.cpp
