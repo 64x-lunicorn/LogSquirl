@@ -76,6 +76,10 @@ class QAction;
 class QActionGroup;
 class Session;
 class RecentFiles;
+namespace logsquirl::teamfolder {
+struct PublishOutcome;
+}
+
 class HighlightersMenu;
 
 // Main window of the application, creates menus, toolbar and
@@ -273,6 +277,9 @@ private:
     void updateTeamFolderIndicator();
     // Hands the Team Highlighter Sets to the Highlighter Set collection.
     void applyTeamHighlighterSets();
+    // Asks what to do with a Team group somebody else changed while the user
+    // was changing it too: keep mine, take theirs, or save mine as a copy.
+    void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );
 
     /// Build the full list of commands for the command palette by
     /// collecting menu actions, plugin actions, recent files, and

@@ -66,7 +66,8 @@ public:
     // the user's own groups, a new one can be added, and OK or Apply publishes
     // what changed through publishRequested. Without a call there is no
     // section.
-    void showTeamGroups( const QList<PredefinedFilterSet>& groups, bool editable = false );
+    void showTeamGroups( const QList<PredefinedFilterSet>& groups, bool editable = false,
+                         const QHash<QString, QString>& revisions = {} );
 
 Q_SIGNALS:
     void optionsChanged();
@@ -115,6 +116,8 @@ private:
     QList<PredefinedFilterSet> teamGroupsAsGiven_;
     QPushButton* teamAddButton_ = nullptr;
     bool teamEditable_ = false;
+    // The revision of each Team group's file when it was loaded, by id.
+    QHash<QString, QString> teamRevisions_;
     // The row of the Team group shown, -1 when none is.
     int selectedTeamRow_ = -1;
 };

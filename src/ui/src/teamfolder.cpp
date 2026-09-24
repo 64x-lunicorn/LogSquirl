@@ -20,7 +20,9 @@
 #include "teamfolder.h"
 
 #include <QCollator>
+#include <QCryptographicHash>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QHash>
 #include <QSet>
@@ -91,6 +93,17 @@ QString idForDefaultGroupIn( const QString& file )
     return QUuid::createUuidV5( space, file ).toString( QUuid::Id128 );
 }
 
+// What a file holds, as a revision: the same content is the same revision.
+QString revisionOfFile( const QString& path )
+{
+    QFile file( path );
+    if ( !file.open( QIODevice::ReadOnly ) ) {
+        return {};
+    }
+    return QString::fromLatin1(
+        QCryptographicHash::hash( file.readAll(), QCryptographicHash::Sha1 ).toHex() );
+}
+
 void skipDuplicate( SyncOutcome& outcome, const QString& file, const QString& groupName )
 {
     const auto reason
@@ -122,7 +135,8 @@ void readGroups( const QString& folder, SyncOutcome& outcome )
                         continue;
                     }
                     ids.insert( group.id() );
-                    outcome.highlighterGroups.append( { group, file } );
+                    outcome.highlighterGroups.append(
+                        { group, file, revisionOfFile( info.absoluteFilePath() ) } );
                 }
             }
             else {
@@ -145,7 +159,8 @@ void readGroups( const QString& folder, SyncOutcome& outcome )
                 continue;
             }
             ids.insert( group.id() );
-            outcome.filterGroups.append( { group, file } );
+            outcome.filterGroups.append(
+                { group, file, revisionOfFile( info.absoluteFilePath() ) } );
         }
     }
 }
@@ -330,25 +345,41 @@ QString commitMessage( const PublishRequest& request )
     return QStringLiteral( "Change %1 \"%2\"" ).arg( kind, request.name );
 }
 
-// The file a group lives in: the one it was read from, or for a group the
-// folder does not know a free one named after it.
-QString fileFor( const QString& folder, const PublishRequest& request )
+// A Team group as the folder holds it now.
+struct FoundGroup {
+    QString file;
+    QString revision;
+    std::optional<PredefinedFilterSet> filterGroup;
+    std::optional<HighlighterSet> highlighterSet;
+};
+
+std::optional<FoundGroup> findGroup( const QString& folder, const PublishRequest& request )
 {
     SyncOutcome known;
     readGroups( folder, known );
     if ( request.kind == groupexchange::GroupKind::Filter ) {
         for ( const auto& group : known.filterGroups ) {
             if ( group.group.id() == request.id ) {
-                return group.file;
+                return FoundGroup{ group.file, group.revision, group.group, std::nullopt };
             }
         }
     }
     else {
         for ( const auto& group : known.highlighterGroups ) {
             if ( group.group.id() == request.id ) {
-                return group.file;
+                return FoundGroup{ group.file, group.revision, std::nullopt, group.group };
             }
         }
+    }
+    return std::nullopt;
+}
+
+// The file a group lives in: the one it was read from, or for a group the
+// folder does not know a free one named after it.
+QString fileFor( const QString& folder, const PublishRequest& request )
+{
+    if ( const auto found = findGroup( folder, request ) ) {
+        return found->file;
     }
 
     for ( int number = 1;; ++number ) {
@@ -362,16 +393,40 @@ QString fileFor( const QString& folder, const PublishRequest& request )
     }
 }
 
+// Whether someone else changed the group since the user loaded it: the file
+// has another revision than the one remembered, or is gone.
+std::optional<PublishResult> conflictOf( const QString& folder, const PublishRequest& request )
+{
+    if ( !request.baseRevision || request.baseRevision->isEmpty() || request.overwrite ) {
+        return std::nullopt;
+    }
+    const auto found = findGroup( folder, request );
+    if ( found && found->revision == *request.baseRevision ) {
+        return std::nullopt;
+    }
+
+    PublishResult result;
+    result.status = PublishStatus::Conflict;
+    result.request = request;
+    if ( found ) {
+        result.file = found->file;
+        result.theirsFilterGroup = found->filterGroup;
+        result.theirsHighlighterSet = found->highlighterSet;
+    }
+    return result;
+}
+
 // Writes the group into the clone and commits that one file. Whether it was
 // done, and Git's message when not.
 PublishResult commitRequest( const Git& git, const QString& clone, const QString& folder,
                              const PublishRequest& request )
 {
     PublishResult result;
+    result.request = request;
     result.file = fileFor( folder, request );
     const auto path = QDir( folder ).filePath( result.file );
     QDir().mkpath( QFileInfo( path ).absolutePath() );
-    if ( !request.write || !request.write( path ) ) {
+    if ( !request.writeTo( path ) ) {
         result.message = TeamFolder::tr( "The group could not be written to %1." ).arg( path );
         return result;
     }
@@ -492,8 +547,20 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         PublishOutcome published;
         for ( const auto& request : requests ) {
             if ( !writable ) {
-                published.results.append( { PublishStatus::Refused, readOnlyReason, QString{} } );
+                PublishResult refused;
+                refused.status = PublishStatus::Refused;
+                refused.message = readOnlyReason;
+                refused.request = request;
+                published.results.append( refused );
                 continue;
+            }
+            // After a sync, the group can be compared with what the user
+            // loaded. Offline there is nothing newer to compare with.
+            if ( reachable ) {
+                if ( auto conflict = conflictOf( *folder, request ) ) {
+                    published.results.append( *conflict );
+                    continue;
+                }
             }
             auto result = commitRequest( git, clone, *folder, request );
             committedSomething = committedSomething || result.status == PublishStatus::Published;
@@ -706,8 +773,13 @@ void TeamFolder::publish( QList<PublishRequest> requests )
     }
     if ( state_ == State::Off ) {
         PublishOutcome outcome;
-        outcome.results.fill( { PublishStatus::Failed, tr( "The Team Folder is off." ), {} },
-                              requests.size() );
+        for ( const auto& request : requests ) {
+            PublishResult failed;
+            failed.status = PublishStatus::Failed;
+            failed.message = tr( "The Team Folder is off." );
+            failed.request = request;
+            outcome.results.append( failed );
+        }
         Q_EMIT publishFinished( outcome );
         return;
     }
@@ -717,6 +789,75 @@ void TeamFolder::publish( QList<PublishRequest> requests )
         return;
     }
     startSync();
+}
+
+void TeamFolder::resolveConflict( const PublishRequest& request, ConflictChoice answer )
+{
+    switch ( answer ) {
+    case ConflictChoice::KeepMine: {
+        auto again = request;
+        again.overwrite = true;
+        publish( { again } );
+        break;
+    }
+    case ConflictChoice::TakeTheirs:
+        // Their version is what the sync brought.
+        break;
+    case ConflictChoice::SaveAsCopy: {
+        QStringList taken;
+        if ( request.kind == logsquirl::groupexchange::GroupKind::Filter ) {
+            for ( const auto& group : filterGroups_ ) {
+                taken.append( group.group.name() );
+            }
+        }
+        else {
+            for ( const auto& group : highlighterGroups_ ) {
+                taken.append( group.group.name() );
+            }
+        }
+        const auto name = logsquirl::groupexchange::firstFreeName( request.name, taken );
+        if ( request.filterGroup ) {
+            auto copy
+                = request.filterGroup->withId( PredefinedFilterSet::createNewSet( name ).id() );
+            copy.setName( name );
+            publish( { PublishRequest::forGroup( copy, GroupAction::Add ) } );
+        }
+        else if ( request.highlighterSet ) {
+            auto copy = request.highlighterSet->withId( HighlighterSet::createNewSet( name ).id() );
+            copy.setName( name );
+            publish( { PublishRequest::forGroup( copy, GroupAction::Add ) } );
+        }
+        break;
+    }
+    }
+}
+
+QString TeamFolder::filterGroupRevision( const QString& id ) const
+{
+    return filterGroupRevisions().value( id );
+}
+
+QString TeamFolder::highlighterGroupRevision( const QString& id ) const
+{
+    return highlighterGroupRevisions().value( id );
+}
+
+QHash<QString, QString> TeamFolder::filterGroupRevisions() const
+{
+    QHash<QString, QString> revisions;
+    for ( const auto& group : filterGroups_ ) {
+        revisions.insert( group.group.id(), group.revision );
+    }
+    return revisions;
+}
+
+QHash<QString, QString> TeamFolder::highlighterGroupRevisions() const
+{
+    QHash<QString, QString> revisions;
+    for ( const auto& group : highlighterGroups_ ) {
+        revisions.insert( group.group.id(), group.revision );
+    }
+    return revisions;
 }
 
 bool TeamFolder::isWritable() const
@@ -910,8 +1051,15 @@ namespace logsquirl::teamfolder {
 
 namespace {
 
+std::optional<QString> revisionOf( const QHash<QString, QString>& revisions, const QString& id )
+{
+    const auto found = revisions.constFind( id );
+    return found == revisions.constEnd() ? std::nullopt : std::optional<QString>( *found );
+}
+
 template <typename Group>
-QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<Group>& after )
+QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<Group>& after,
+                                       const QHash<QString, QString>& revisions )
 {
     QList<PublishRequest> requests;
     for ( const auto& group : after ) {
@@ -923,9 +1071,11 @@ QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<G
         }
         else if ( was->name() != group.name() ) {
             requests.append( PublishRequest::forGroup( group, GroupAction::Rename, was->name() ) );
+            requests.back().baseRevision = revisionOf( revisions, group.id() );
         }
         else if ( !sameContent( *was, group ) ) {
             requests.append( PublishRequest::forGroup( group, GroupAction::Change ) );
+            requests.back().baseRevision = revisionOf( revisions, group.id() );
         }
     }
     return requests;
@@ -934,15 +1084,17 @@ QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<G
 } // namespace
 
 QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,
-                                          const QList<PredefinedFilterSet>& after )
+                                          const QList<PredefinedFilterSet>& after,
+                                          const QHash<QString, QString>& revisions )
 {
-    return requestsBetween( before, after );
+    return requestsBetween( before, after, revisions );
 }
 
 QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>& before,
-                                          const QList<HighlighterSet>& after )
+                                          const QList<HighlighterSet>& after,
+                                          const QHash<QString, QString>& revisions )
 {
-    return requestsBetween( before, after );
+    return requestsBetween( before, after, revisions );
 }
 
 PublishRequest PublishRequest::forGroup( const PredefinedFilterSet& group, GroupAction action,
@@ -954,8 +1106,7 @@ PublishRequest PublishRequest::forGroup( const PredefinedFilterSet& group, Group
     request.id = group.id();
     request.name = group.name();
     request.previousName = previousName;
-    request.write
-        = [ group ]( const QString& file ) { return groupexchange::writeGroup( file, group ); };
+    request.filterGroup = group;
     return request;
 }
 
@@ -968,9 +1119,16 @@ PublishRequest PublishRequest::forGroup( const HighlighterSet& group, GroupActio
     request.id = group.id();
     request.name = group.name();
     request.previousName = previousName;
-    request.write
-        = [ group ]( const QString& file ) { return groupexchange::writeGroup( file, group ); };
+    request.highlighterSet = group;
     return request;
+}
+
+bool PublishRequest::writeTo( const QString& file ) const
+{
+    if ( filterGroup ) {
+        return groupexchange::writeGroup( file, *filterGroup );
+    }
+    return highlighterSet && groupexchange::writeGroup( file, *highlighterSet );
 }
 
 } // namespace logsquirl::teamfolder

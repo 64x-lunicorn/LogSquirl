@@ -1471,7 +1471,8 @@ void MainWindow::editHighlighters()
     HighlightersDialog dialog( this );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable() );
+        dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable(),
+                               teamFolder->highlighterGroupRevisions() );
         connect( &dialog, &HighlightersDialog::publishRequested, teamFolder.get(),
                  &TeamFolder::publish );
     }
@@ -1491,7 +1492,8 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
     PredefinedFiltersDialog dialog( newFilter, this );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable() );
+        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),
+                               teamFolder->filterGroupRevisions() );
         connect( &dialog, &PredefinedFiltersDialog::publishRequested, teamFolder.get(),
                  &TeamFolder::publish );
     }
@@ -1537,11 +1539,58 @@ void MainWindow::connectTeamFolder()
     // at once, and a removed one is no longer active.
     connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
              &MainWindow::applyTeamHighlighterSets );
+    connect( teamFolder.get(), &TeamFolder::publishFinished, this,
+             &MainWindow::askAboutPublishConflicts );
     connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
 
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
     applyTeamHighlighterSets();
     updateTeamFolderIndicator();
+}
+
+void MainWindow::askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome )
+{
+    using logsquirl::teamfolder::ConflictChoice;
+    using logsquirl::teamfolder::PublishStatus;
+
+    // Every window hears of the publish; the one that has the focus asks.
+    if ( !isActiveWindow() ) {
+        return;
+    }
+
+    const auto teamFolder = session_.teamFolder();
+    for ( const auto& result : outcome.results ) {
+        if ( result.status != PublishStatus::Conflict || !teamFolder ) {
+            continue;
+        }
+
+        QMessageBox question( QMessageBox::Question, tr( "Team group changed" ),
+                              tr( "Somebody else changed the Team group \"%1\" since you started "
+                                  "editing it." )
+                                  .arg( result.request.name ),
+                              QMessageBox::NoButton, this );
+        question.setInformativeText(
+            result.theirsFilterGroup || result.theirsHighlighterSet
+                ? tr( "Keep your version and replace theirs, take theirs and drop your change, or "
+                      "save yours as a copy next to theirs?" )
+                : tr( "Somebody deleted it. Keep your version to publish it again, or take the "
+                      "deletion and drop your change?" ) );
+        auto* keepMine = question.addButton( tr( "Keep mine" ), QMessageBox::AcceptRole );
+        auto* takeTheirs = question.addButton( tr( "Take theirs" ), QMessageBox::DestructiveRole );
+        auto* saveCopy = question.addButton( tr( "Save mine as a copy" ), QMessageBox::ActionRole );
+        question.setDefaultButton( saveCopy );
+        question.exec();
+
+        if ( question.clickedButton() == keepMine ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::KeepMine );
+        }
+        else if ( question.clickedButton() == saveCopy ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::SaveAsCopy );
+        }
+        else if ( question.clickedButton() == takeTheirs ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::TakeTheirs );
+        }
+    }
 }
 
 void MainWindow::applyTeamHighlighterSets()

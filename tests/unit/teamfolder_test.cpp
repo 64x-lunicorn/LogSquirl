@@ -1047,3 +1047,149 @@ TEST_CASE( "A dialog's edited Team groups ask to publish what was added, renamed
     // A removed group is not asked for.
     CHECK( requestsForChanges( before, { network } ).isEmpty() );
 }
+
+// --- Conflicts (#473) ---
+
+namespace {
+
+using logsquirl::teamfolder::ConflictChoice;
+
+PublishRequest requestBasedOnWhatWasLoaded( const TeamFolder& member,
+                                            const PredefinedFilterSet& group )
+{
+    auto request = PublishRequest::forGroup( group, GroupAction::Change );
+    request.baseRevision = member.filterGroupRevision( group.id() );
+    return request;
+}
+
+} // namespace
+
+TEST_CASE( "Publishing a group someone else changed meanwhile reports a conflict",
+           "[teamfolder][conflict]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    auto network = makeGroup( "Network", "original" );
+    auto storage = makeGroup( "Storage" );
+    team.pushGroupByHand( "alice", network );
+    team.pushGroupByHand( "alice", storage );
+    syncNow( *alice );
+    const auto bob = team.member( "bob" );
+
+    // Both load the group; Bob's dialog remembers what it was when loaded.
+    auto mine = network;
+    mine.setFilters( { { "Bobs", "bobs pattern", false } } );
+    const auto request = requestBasedOnWhatWasLoaded( *bob, mine );
+    REQUIRE_FALSE( request.baseRevision.value_or( QString{} ).isEmpty() );
+
+    auto theirs = network;
+    theirs.setFilters( { { "Alices", "alices pattern", false } } );
+    REQUIRE( publishGroup( *alice, theirs ).results[ 0 ].status == PublishStatus::Published );
+    const auto serverHead = team.lastCommit();
+
+    const auto outcome = publishAndWait( *bob, { request } );
+    REQUIRE( outcome.results.size() == 1 );
+    const auto& conflict = outcome.results[ 0 ];
+    CHECK( conflict.status == PublishStatus::Conflict );
+    REQUIRE( conflict.theirsFilterGroup.has_value() );
+    REQUIRE( conflict.theirsFilterGroup->filters().size() == 1 );
+    CHECK( conflict.theirsFilterGroup->filters()[ 0 ].pattern == "alices pattern" );
+    // Nothing was pushed or committed.
+    CHECK( team.lastCommit() == serverHead );
+    CHECK_FALSE( bob->hasPendingChanges() );
+
+    SECTION( "keep mine overwrites their version" )
+    {
+        QSignalSpy finished( bob.get(), &TeamFolder::publishFinished );
+        bob->resolveConflict( request, ConflictChoice::KeepMine );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        CHECK( finished.at( 0 ).at( 0 ).value<PublishOutcome>().results[ 0 ].status
+               == PublishStatus::Published );
+        REQUIRE( settled( *bob ) );
+
+        syncNow( *alice );
+        const auto groups = alice->filterGroups();
+        REQUIRE( groups.size() == 2 );
+        CHECK( groups[ 0 ].id() == network.id() );
+        CHECK( groups[ 0 ].filters()[ 0 ].pattern == "bobs pattern" );
+    }
+
+    SECTION( "take theirs drops the local change" )
+    {
+        bob->resolveConflict( request, ConflictChoice::TakeTheirs );
+        REQUIRE( settled( *bob ) );
+        CHECK( team.lastCommit() == serverHead );
+        const auto groups = bob->filterGroups();
+        REQUIRE( groups.size() == 2 );
+        CHECK( groups[ 0 ].filters()[ 0 ].pattern == "alices pattern" );
+    }
+
+    SECTION( "save mine as a copy adds a group and leaves theirs" )
+    {
+        QSignalSpy finished( bob.get(), &TeamFolder::publishFinished );
+        bob->resolveConflict( request, ConflictChoice::SaveAsCopy );
+        REQUIRE( finished.wait( SyncTimeoutMs ) );
+        REQUIRE( settled( *bob ) );
+
+        syncNow( *alice );
+        const auto groups = alice->filterGroups();
+        REQUIRE( groups.size() == 3 );
+        CHECK( namesOf( groups ) == QStringList{ "Network", "Network (2)", "Storage" } );
+        CHECK( groups[ 0 ].id() == network.id() );
+        CHECK( groups[ 0 ].filters()[ 0 ].pattern == "alices pattern" );
+        CHECK( groups[ 1 ].id() != network.id() );
+        CHECK( groups[ 1 ].filters()[ 0 ].pattern == "bobs pattern" );
+    }
+}
+
+TEST_CASE( "A change to a different group never triggers the question", "[teamfolder][conflict]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    auto network = makeGroup( "Network" );
+    auto storage = makeGroup( "Storage" );
+    team.pushGroupByHand( "alice", network );
+    team.pushGroupByHand( "alice", storage );
+    syncNow( *alice );
+    const auto bob = team.member( "bob" );
+
+    storage.setFilters( { { "Full", "disk full", false } } );
+    const auto request = requestBasedOnWhatWasLoaded( *bob, storage );
+
+    network.setFilters( { { "Refused", "refused", false } } );
+    REQUIRE( publishGroup( *alice, network ).results[ 0 ].status == PublishStatus::Published );
+
+    CHECK( publishAndWait( *bob, { request } ).results[ 0 ].status == PublishStatus::Published );
+    // And a change nobody else touched publishes on its own base again.
+    const auto again = requestBasedOnWhatWasLoaded( *bob, storage );
+    CHECK( publishAndWait( *bob, { again } ).results[ 0 ].status == PublishStatus::Published );
+}
+
+TEST_CASE( "A dialog's requests carry the revisions of the groups it loaded",
+           "[teamfolder][conflict]" )
+{
+    using logsquirl::teamfolder::requestsForChanges;
+
+    const auto network = makeGroup( "Network" );
+    auto changed = network;
+    changed.setFilters( { { "Full", "disk full", false } } );
+    const auto added = makeGroup( "Fresh" );
+
+    const auto requests
+        = requestsForChanges( { network }, { changed, added }, { { network.id(), "abc123" } } );
+    REQUIRE( requests.size() == 2 );
+    CHECK( requests[ 0 ].baseRevision == std::optional<QString>( "abc123" ) );
+    // A new group has no base: nobody else can have changed it.
+    CHECK_FALSE( requests[ 1 ].baseRevision.has_value() );
+}

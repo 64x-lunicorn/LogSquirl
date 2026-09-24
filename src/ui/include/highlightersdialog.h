@@ -65,9 +65,11 @@ public:
     // user's own sets, in the order given (alphabetical, as the Team Folder
     // hands them over). Read-only when editable is false; otherwise they are
     // edited like the user's own sets, a new one can be added, and OK or Apply
-    // publishes what changed through publishRequested. Whether one is active is
+    // publishes what changed through publishRequested, based on the revisions
+    // of the groups' files at that time. Whether one is active is
     // chosen in the Highlighters menu. Without a call there is no section.
-    void showTeamGroups( const QList<HighlighterSet>& groups, bool editable = false );
+    void showTeamGroups( const QList<HighlighterSet>& groups, bool editable = false,
+                         const QHash<QString, QString>& revisions = {} );
 
 Q_SIGNALS:
     // Is emitted when new settings must be used
@@ -126,6 +128,8 @@ private:
     QList<HighlighterSet> teamGroupsAsGiven_;
     QPushButton* teamAddButton_ = nullptr;
     bool teamEditable_ = false;
+    // The revision of each Team group's file when it was loaded, by id.
+    QHash<QString, QString> teamRevisions_;
     // The row of the Team set shown, -1 when none is.
     int selectedTeamRow_ = -1;
 

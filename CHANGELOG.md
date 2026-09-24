@@ -2,6 +2,13 @@
 
 ## Changes
 
+- **Publishing asks what to do when someone else changed the same Team
+  group**: A Team group's file remembers the revision it had when you started
+  editing. If it changed after the sync that comes before publishing, nothing
+  is pushed and you choose: keep mine (overwrites theirs), take theirs (drops
+  your change) or save mine as a copy (a new Team group with a fresh id and a
+  free name, theirs untouched). A change to a different group never asks
+  (#473).
 - **A changed Team group is published to the team**: The Team sections of the
   Predefined Filters and Highlighters dialogs are editable, and a new Team
   group can be created in them. OK or Apply commits only the changed group's

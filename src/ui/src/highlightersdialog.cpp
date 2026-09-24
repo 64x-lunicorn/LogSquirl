@@ -387,8 +387,8 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
 
     // What was done to the Team sets goes to the team.
     if ( teamEditable_ ) {
-        const auto requests
-            = logsquirl::teamfolder::requestsForChanges( teamGroupsAsGiven_, teamGroups_ );
+        const auto requests = logsquirl::teamfolder::requestsForChanges(
+            teamGroupsAsGiven_, teamGroups_, teamRevisions_ );
         teamGroupsAsGiven_ = teamGroups_;
         if ( !requests.isEmpty() ) {
             Q_EMIT publishRequested( requests );
@@ -440,11 +440,13 @@ void HighlightersDialog::updatePropertyFields()
     }
 }
 
-void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bool editable )
+void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bool editable,
+                                         const QHash<QString, QString>& revisions )
 {
     teamGroups_ = groups;
     teamGroupsAsGiven_ = groups;
     teamEditable_ = editable;
+    teamRevisions_ = revisions;
 
     if ( !teamGroupsList_ ) {
         teamGroupsLabel_ = new QLabel( tr( "Team highlighter sets" ), layoutWidget );

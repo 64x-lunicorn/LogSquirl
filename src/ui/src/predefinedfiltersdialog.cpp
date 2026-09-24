@@ -280,8 +280,8 @@ void PredefinedFiltersDialog::resolveDialog( QAbstractButton* button )
 
     // What was done to the Team groups goes to the team.
     if ( teamEditable_ ) {
-        const auto requests
-            = logsquirl::teamfolder::requestsForChanges( teamGroupsAsGiven_, teamGroups_ );
+        const auto requests = logsquirl::teamfolder::requestsForChanges(
+            teamGroupsAsGiven_, teamGroups_, teamRevisions_ );
         teamGroupsAsGiven_ = teamGroups_;
         if ( !requests.isEmpty() ) {
             Q_EMIT publishRequested( requests );
@@ -346,11 +346,13 @@ void PredefinedFiltersDialog::updateFilterSetProperties()
 // --- Team groups ---
 
 void PredefinedFiltersDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups,
-                                              bool editable )
+                                              bool editable,
+                                              const QHash<QString, QString>& revisions )
 {
     teamGroups_ = groups;
     teamGroupsAsGiven_ = groups;
     teamEditable_ = editable;
+    teamRevisions_ = revisions;
 
     if ( !teamGroupsList_ ) {
         teamGroupsLabel_ = new QLabel( tr( "Team groups" ), leftPanel );

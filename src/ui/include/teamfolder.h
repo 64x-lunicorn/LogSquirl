@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QFutureWatcher>
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QString>
@@ -28,7 +29,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <functional>
 #include <memory>
 #include <optional>
 
@@ -46,6 +46,9 @@ template <typename Group>
 struct TeamGroup {
     Group group;
     QString file;
+    // The revision of the file: what it held when it was read. Two reads of
+    // the same content have the same revision.
+    QString revision;
 };
 
 // A file of the Team Folder that was skipped, and why.
@@ -78,9 +81,21 @@ struct PublishRequest {
     // The group's name to publish, and for a Rename the name it had.
     QString name;
     QString previousName;
+    // The group to publish: a Filter Group or a Highlighter Set, as kind says.
+    std::optional<PredefinedFilterSet> filterGroup;
+    std::optional<HighlighterSet> highlighterSet;
+    // The revision of the group's file when the user started editing it. When
+    // the file has another one after the sync, someone else changed the group
+    // meanwhile, and the user is asked. Empty for a group that is new, and for
+    // a publish that wants no such question.
+    std::optional<QString> baseRevision;
+    // Publish although someone else changed the group: the user's answer
+    // "keep mine".
+    bool overwrite = false;
+
     // Writes the group into the file it is given, in the Group Exchange's
     // one-group format.
-    std::function<bool( const QString& )> write;
+    bool writeTo( const QString& file ) const;
 
     static PublishRequest forGroup( const PredefinedFilterSet& group, GroupAction action,
                                     const QString& previousName = {} );
@@ -95,9 +110,15 @@ enum class PublishStatus {
     Pending,
     // The server refused the push (missing rights, a protected branch).
     Refused,
+    // Someone else changed the group since the user loaded it: nothing was
+    // committed, and the result carries their version.
+    Conflict,
     // Git could not do it.
     Failed
 };
+
+// What the user answers when publishing meets a change of someone else.
+enum class ConflictChoice { KeepMine, TakeTheirs, SaveAsCopy };
 
 struct PublishResult {
     PublishStatus status = PublishStatus::Failed;
@@ -105,6 +126,12 @@ struct PublishResult {
     QString message;
     // The file of the group, relative to the Team Folder's subfolder.
     QString file;
+    // The request this is the result of.
+    PublishRequest request;
+    // For a Conflict: their version of the group, when the group is still
+    // there and nobody deleted it.
+    std::optional<PredefinedFilterSet> theirsFilterGroup;
+    std::optional<HighlighterSet> theirsHighlighterSet;
 };
 
 // The results of one publish, one for each request, in the order of the
@@ -116,10 +143,14 @@ struct PublishOutcome {
 // What a dialog's edited copy of the Team groups asks to publish, against the
 // groups it was given: a group it added, one it renamed, one it changed. A
 // group that is no longer in the copy is not asked for here.
+// revisions holds the revision of each group's file when the dialog loaded it,
+// by group id; a changed or renamed group carries its revision.
 QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,
-                                          const QList<PredefinedFilterSet>& after );
+                                          const QList<PredefinedFilterSet>& after,
+                                          const QHash<QString, QString>& revisions = {} );
 QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>& before,
-                                          const QList<HighlighterSet>& after );
+                                          const QList<HighlighterSet>& after,
+                                          const QHash<QString, QString>& revisions = {} );
 
 // What one sync found: the result of the worker thread, taken over on the
 // main thread. Internal to the Team Folder, declared here for the watcher.
@@ -203,6 +234,21 @@ public:
     // the changes stay pending and are pushed at a later sync. Ends in
     // publishFinished.
     void publish( QList<logsquirl::teamfolder::PublishRequest> requests );
+
+    // Carries out the user's answer to a Conflict of a publish. Keep mine
+    // publishes the request again without the question; Take theirs leaves the
+    // server and the Team groups as the sync brought them; Save as copy
+    // publishes the group as a new Team group with a fresh id and a free name,
+    // leaving theirs. Ends in publishFinished, except for Take theirs.
+    void resolveConflict( const logsquirl::teamfolder::PublishRequest& request,
+                          logsquirl::teamfolder::ConflictChoice answer );
+
+    // The revision of a Team group's file as of the last sync, and of every
+    // Team group; empty for a group that is not there.
+    QString filterGroupRevision( const QString& id ) const;
+    QString highlighterGroupRevision( const QString& id ) const;
+    QHash<QString, QString> filterGroupRevisions() const;
+    QHash<QString, QString> highlighterGroupRevisions() const;
 
     // Whether Team groups can be changed: not when the server refused a push,
     // until the Team Folder is set up again.
