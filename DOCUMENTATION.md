@@ -216,6 +216,16 @@ or simple text search.
 It is possible to save the current search pattern as a predefined filter from
 search input context menu.
 
+Predefined filters are kept in filter groups. The dialog lists the groups
+(*New Filter Group*, *Delete Filter Group*, *Move Group Up* and *Move Group Down*);
+the Default group always exists and cannot be deleted. Groups are exchanged
+the same way as highlighter sets: *Export* writes the selected group only, to a
+file named `<name>_filter.conf` by default, and *Import* reads every group of
+the selected files, asking *Replace*, *Keep both* or *Skip* when a group of the
+same id or name exists (see [Using highlighters](#using-highlighters)). A group
+that carries the id of the Default group never replaces your Default group; it
+arrives as a group of its own.
+
 ### Importing filters from Chipmunk
 
 *logsquirl* can import filters and highlighters from Chipmunk JSON export files.
@@ -254,10 +264,20 @@ The order of highlighters in the set and the order of sets in configuration is i
 For each line all highlighters are tried from bottom to top. Each new matching 
 highlighter overrides colors for the current line. 
 
-Highlighter configuration can be exported to a file and 
-imported on another machine. Each set is identified
-by unique id. Only new sets are imported from the file. Please export the file
-with a `.conf` extension to ensure *logsquirl* will be able to import it.
+The highlighter editor offers 20 ready-made color pairs, 12 soft pastels with
+dark text and 8 strong colors with white text; one click sets both the text
+and the background color.
+
+A highlighter set can be handed to someone else: select it in the
+`Highlighters` dialog and use *Export*, which writes that one set to a file
+and proposes a file name from the set's name (`<name>_highlighter.conf`). Keep
+the `.conf` extension so that *logsquirl* can import the file. *Import* reads
+every set in the selected files. Each set is identified by a unique id. When a
+set with the same id, or just the same name, already exists you choose
+*Replace* (the existing set keeps its position and id, so an active set stays
+active), *Keep both* (the new set gets the first free name `<name> (n)`) or
+*Skip*, for that set or for all remaining conflicts. A file that cannot be
+read or holds no set is reported. Nothing takes effect before OK or Apply.
 
 ### Color labels
 
@@ -299,12 +319,20 @@ Format definitions are JSON files compatible with the
 [lnav](https://lnav.org/) log format specification. Each file describes one
 or more formats with:
 
-- **Regex patterns** — named capture groups define the fields
+- **File type** — `"file-type": "json"` marks a format for log files whose
+  lines are JSON objects (NDJSON, Bunyan, Pino). Its fields are the members
+  named by the `value` definitions, one column each in that order; a name can
+  address a nested member by path (`src/file`). A line that is not a JSON
+  object still gets a row, with empty fields, and the text view keeps the raw
+  line. No JSON format is shipped, bring your own. A format without it is a
+  regex format.
+- **Regex patterns** — for regex formats, named capture groups define the fields
   (e.g. `(?<timestamp>...)`, `(?<level>...)`, `(?<body>...)`).
 - **Value definitions** — metadata for custom fields (kind, hidden flag,
   identifier flag).
 - **Timestamp format** — strftime-style pattern for parsing the timestamp
-  field.
+  field. An epoch timestamp (`%s`) is divided by the format's
+  `timestamp-divisor` to get seconds (for example 1000 for milliseconds).
 - **Level mapping** — maps format-specific level strings to standard
   severity levels.
 
