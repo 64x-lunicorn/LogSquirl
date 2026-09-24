@@ -1,0 +1,5 @@
+# ClusterFuzzLite project file (#477): the libFuzzer targets in tests/fuzz.
+language: c++
+sanitizers:
+  - address
+  - undefined

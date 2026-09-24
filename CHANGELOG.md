@@ -16,6 +16,11 @@
   Format that has a timestamp field, finds the line in milliseconds even in a
   file of ten million lines, and says why it is disabled otherwise. Log
   Formats can now declare `timestamp-divisor` for epoch timestamps (#435).
+- **Parsers of untrusted files are fuzzed**: The indexing of a Log File's
+  bytes in blocks, the Log Format parser and field extractor, and the ANSI
+  color filter now have fuzz targets that ClusterFuzzLite runs on pull
+  requests that change code and every week, to find crashes and memory errors
+  in what an arbitrary file can make them read (#477).
 - **Ubuntu users install and update LogSquirl with apt**: After every stable
   release, a signed APT repository at `https://packages.lunicorn-lab.de` is
   rebuilt with the `.deb` of the last three stable releases, exactly as
