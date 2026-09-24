@@ -31,6 +31,7 @@
 
 #include "log.h"
 #include "logsquirl_version.h"
+#include "stdinpump.h"
 
 struct CliParameters {
     bool new_session = false;
@@ -38,6 +39,8 @@ struct CliParameters {
     bool multi_instance = false;
     bool log_to_file = false;
     bool follow_file = false;
+    // A "-" among the arguments: read a Log File from standard input.
+    bool read_stdin = false;
 
     bool enable_logging = false;
     int log_level = 3;
@@ -100,6 +103,8 @@ struct CliParameters {
         parser.addOption( debugOption );
 
         if ( !console ) {
+            parser.addPositionalArgument( "files", "Log Files to open; \"-\" reads standard input",
+                                          "[files|-]..." );
             const QCommandLineOption windowWidthOption( "window-width", "new window width",
                                                         "1024" );
             const QCommandLineOption windowHeightOption( "window-height", "new window height",
@@ -161,7 +166,25 @@ struct CliParameters {
             }
         }
 
-        for ( const auto& file : parser.positionalArguments() ) {
+        // Only the desktop application reads standard input: for the grep
+        // tool a "-" stays a file name.
+        logsquirl::plugins::PositionalArguments positional;
+        if ( console ) {
+            for ( const auto& argument : parser.positionalArguments() ) {
+                positional.files.push_back( argument );
+            }
+        }
+        else {
+            positional
+                = logsquirl::plugins::splitPositionalArguments( parser.positionalArguments() );
+        }
+        if ( positional.readStdin ) {
+            read_stdin = true;
+            // The process at the end of the pipe has to keep reading until the
+            // pipe closes: it cannot hand the stream over to another instance.
+            multi_instance = true;
+        }
+        for ( const auto& file : positional.files ) {
             const auto fileInfo = QFileInfo( file );
             filenames.emplace_back( fileInfo.absoluteFilePath() );
         }

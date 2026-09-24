@@ -34,9 +34,8 @@
 //
 // See tests/benchmarks/README.md for how to run this and compare two runs.
 
-#define CATCH_CONFIG_ENABLE_BENCHMARKING
-#define CATCH_CONFIG_MAIN
-#include <catch2/catch.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "linedecorator.h"
 

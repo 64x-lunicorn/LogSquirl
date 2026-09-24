@@ -224,7 +224,7 @@ clang-format -i <file>
 ### C++ unit tests (Catch2)
 
 Tests are built by default. To turn them off pass `-DLOGSQUIRL_BUILD_TESTS=OFF` to cmake.
-Tests use Catch2 (bundled with logsquirl sources) and require QtTest module. Tests can be run using ctest tool provided by CMake:
+Tests use Catch2 v3 (fetched and built by CMake, pinned in `3rdparty/CMakeLists.txt`) and require QtTest module. Tests can be run using ctest tool provided by CMake:
 
 ```
 cd <path_to_logsquirl_repository_clone>
@@ -340,6 +340,18 @@ option by hand:
 ```bash
 TSAN_OPTIONS="suppressions=$(pwd)/cmake/tsan.supp" build_root/output/logsquirl_tests
 ```
+
+**TSan in CI (#439).** The `Sanitizers / tsan` job in `.github/workflows/ci-build.yml` builds the same
+configuration as above in the Noble container and runs every test case under `ctest`. It runs on every
+push to master and by hand (`workflow_dispatch`), not on pull requests, and does not fail the run
+(`continue-on-error`) yet: its first run over the whole suite reported 912 races and turned 78 of about 740
+test cases red, mostly in oneTBB and Qt internals and in Search code. Once those are triaged (#482) it joins
+the pull requests and blocks, like `Sanitizers / asan-ubsan`. It needs no `TSAN_OPTIONS` of its own: a suppression added to
+`cmake/tsan.supp` reaches it through `cmake/CatchTestDiscoveryRunTest.cmake`. Runtime: expect it to take
+about as long as the ASan/UBSan job (the ASan job's slowest successful run is 25 minutes), because TSan
+slows the tests down by a similar factor; the first runs of the job will give the real number, which
+belongs here. To see the job go red, add a plain `int` incremented from two `std::thread`s to any test
+case: TSan reports it, the case exits non-zero, and so does `ctest`.
 
 With the suppression file applied, most but not all of the search tests pass; the ADR above records which
 findings remain and why they are not yet covered, rather than a suppression widened to hide them.

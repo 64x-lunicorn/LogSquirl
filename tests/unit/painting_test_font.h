@@ -30,7 +30,7 @@
 // metrics, the test fails and says so: without its font it would verify
 // nothing.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <optional>
 

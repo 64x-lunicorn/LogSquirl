@@ -17,7 +17,9 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -29,6 +31,7 @@
 #include <thread>
 #include <vector>
 
+#include "textencoding.h"
 #include <QDateTime>
 #include <QFileInfo>
 #include <QProcess>
@@ -36,7 +39,6 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
-#include <QTextCodec>
 #include <QThread>
 
 #include "file_write_helper.h"
@@ -307,40 +309,12 @@ SCENARIO( "Attaching log data to files", "[logdata]" )
 
 namespace {
 
-// An Encoding the indexing fails on: asked for its name by any thread but the
-// one that made it, it throws. That thread is the one a test runs on, so
-// only the indexing, which runs on a thread of its own, fails.
-class UnusableEncoding : public QTextCodec {
-public:
-    ~UnusableEncoding() override = default;
-
-    QByteArray name() const override
-    {
-        if ( QThread::currentThread() != owner_ ) {
-            throw std::runtime_error( "the Encoding cannot be used" );
-        }
-        return "LogSquirl-Unusable-Encoding";
-    }
-
-    int mibEnum() const override
-    {
-        return -4242;
-    }
-
-protected:
-    QString convertToUnicode( const char* in, int length, ConverterState* ) const override
-    {
-        return QString::fromLatin1( in, length );
-    }
-
-    QByteArray convertFromUnicode( const QChar* in, int length, ConverterState* ) const override
-    {
-        return QString( in, length ).toLatin1();
-    }
-
-private:
-    const QThread* owner_ = QThread::currentThread();
-};
+// An Encoding the indexing fails on: no converter exists for its name, so
+// the first use of it throws.
+TextEncoding makeUnusableEncoding()
+{
+    return TextEncoding( -4242, "LogSquirl-Unusable-Encoding", std::nullopt );
+}
 
 } // namespace
 
@@ -351,9 +325,8 @@ SCENARIO( "A Log File that fails to index reports the failure as its loading sta
         writeDataToFile( file, SL_NB_LINES );
     }
 
-    // Made only once the Log File has loaded, and gone only once the Log
-    // File is: while it exists, every look-up of an Encoding by name asks it.
-    std::unique_ptr<UnusableEncoding> unusableEncoding;
+    // Outlives the Log File, which holds on to the Encoding it was reloaded with.
+    const auto unusableEncoding = makeUnusableEncoding();
 
     const auto policies = testSettingsPolicies();
     LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
@@ -368,8 +341,7 @@ SCENARIO( "A Log File that fails to index reports the failure as its loading sta
 
         WHEN( "it is reloaded with an Encoding the indexing fails on" )
         {
-            unusableEncoding = std::make_unique<UnusableEncoding>();
-            logData.reload( unusableEncoding.get() );
+            logData.reload( &unusableEncoding );
 
             REQUIRE( endSpy.safeWait( 10000 ) );
 

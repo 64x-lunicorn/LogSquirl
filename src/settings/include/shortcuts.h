@@ -94,6 +94,9 @@ struct ShortcutAction {
     static constexpr auto LogViewJumpToEndOfLine = "logview.jump_to_end_of_line";
     static constexpr auto LogViewJumpToRightOfScreen = "logview.jump_to_right";
     static constexpr auto LogViewJumpToLine = "logview.jump_to_line";
+    static constexpr auto LogViewJumpToTimestamp = "logview.jump_to_timestamp";
+    static constexpr auto LogViewSearchLimitsTimeRange = "logview.search_limits_time_range";
+    static constexpr auto LogViewSearchLimitsAroundLine = "logview.search_limits_around_line";
     static constexpr auto LogViewJumpToLineNumber = "logview.jump_to_line_number";
 
     static constexpr auto LogViewQfSelectedForward = "logview.qf_selected_forward";

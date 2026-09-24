@@ -25,7 +25,7 @@
 // The indicators are read back with grab(): the indicator is what differs from
 // the widget's background, its mark what differs from the indicator's fill.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <cmath>

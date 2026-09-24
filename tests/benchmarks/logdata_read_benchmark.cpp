@@ -29,15 +29,15 @@
 #include "logdata.h"
 #include "test_policies.h"
 
+#include "textencoding.h"
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QTemporaryFile>
-#include <QTextCodec>
 #include <QTimer>
 
-#define CATCH_CONFIG_ENABLE_BENCHMARKING
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 namespace {
 
@@ -61,17 +61,17 @@ class LoadedLogFile {
 public:
     explicit LoadedLogFile( bool hideAnsiColorSequences, const char* encoding = "UTF-8" )
     {
-        auto* const codec = QTextCodec::codecForName( encoding );
+        auto* const codec = TextEncoding::forName( encoding );
         REQUIRE( codec != nullptr );
         // A UTF-16 Log File starts with its byte order mark, so it is detected.
-        QTextCodec::ConverterState state( codec->mibEnum() == 1014 ? QTextCodec::DefaultConversion
-                                                                   : QTextCodec::IgnoreHeader );
 
         REQUIRE( file_.open() );
+        if ( codec->mibEnum() == TextEncoding::Utf16LEMib ) {
+            file_.write( "\xFF\xFE", 2 );
+        }
         for ( int line = 0; line < LogLineCount; ++line ) {
             const auto text = QString::fromUtf8( logLine( line ) );
-            file_.write(
-                codec->fromUnicode( text.constData(), static_cast<int>( text.size() ), &state ) );
+            file_.write( codec->fromUnicode( text ) );
         }
         file_.flush();
 

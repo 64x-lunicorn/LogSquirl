@@ -17,7 +17,8 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "charttemplategenerator.h"
 #include "logformatdefinition.h"
@@ -925,7 +926,7 @@ SCENARIO( "Generated numeric templates extract values from log lines", "[chartte
                 bool ok = false;
                 const double val = match.captured( pidSeries->captureGroup ).toDouble( &ok );
                 REQUIRE( ok );
-                REQUIRE( val == Approx( 3814.0 ) );
+                REQUIRE( val == Catch::Approx( 3814.0 ) );
             }
         }
 
@@ -947,7 +948,7 @@ SCENARIO( "Generated numeric templates extract values from log lines", "[chartte
                 bool ok = false;
                 const double val = match.captured( tidSeries->captureGroup ).toDouble( &ok );
                 REQUIRE( ok );
-                REQUIRE( val == Approx( 6380.0 ) );
+                REQUIRE( val == Catch::Approx( 6380.0 ) );
             }
         }
     }

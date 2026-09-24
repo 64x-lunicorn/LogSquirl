@@ -24,6 +24,8 @@
 
 #include <QMenu>
 #include <QProgressBar>
+#include <QRegularExpression>
+#include <QTabWidget>
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
@@ -33,6 +35,7 @@
 #include "chartextraction.h"
 #include "chartseries.h"
 #include "chartwidget.h"
+#include "valuecounttab.h"
 
 class LogData;
 class LogFormatDefinition;
@@ -85,7 +88,19 @@ public:
     // match case as the Search does: matchCase is its Match case.
     void addFilterFrequencySeries( const QStringList& patterns, bool matchCase );
 
+    // Shows a Value Count of a Log Format field, in a tab of its own, and
+    // starts counting. Nothing without a Log Format.
+    void countFieldValues( const QString& fieldName );
+
+    // The same for a capture group of a regexp, over the Log Lines it matches.
+    // description says which group of which Search.
+    void countCaptureGroupValues( const QRegularExpression& regexp, int group,
+                                  const QString& description );
+
 Q_SIGNALS:
+    // A value of a Value Count was clicked.
+    void searchRequested( const QString& value );
+
     // Propagated from the chart widget when the user clicks a data point.
     void lineSelected( LineNumber line );
 
@@ -105,6 +120,9 @@ private Q_SLOTS:
     void importPreset();
 
 private:
+    void addValueCountTab( const QString& description,
+                           ValueCountTab::ValueOfLineFactory valueOfLine );
+    void closeValueCountTab( int index );
     void rebuildSeriesCombo();
     void rebuildTemplatesMenu();
     void addTemplateSeries( const QVector<ChartSeriesDefinition>& defs );
@@ -115,6 +133,7 @@ private:
     void onExtracted( bool fromStart );
     void showProgress();
 
+    QTabWidget* tabs_;
     ChartWidget* chartWidget_;
     QToolBar* toolBar_;
     QProgressBar* progressBar_;

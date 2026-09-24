@@ -120,7 +120,6 @@ Section "Qt Runtime libraries" qtlibs
     File release\${QT_MAJOR}Concurrent.dll
     File release\${QT_MAJOR}Xml.dll
 !if ${QT_MAJOR} == "Qt6"
-    File release\${QT_MAJOR}Core5Compat.dll
     File release\${QT_MAJOR}Svg.dll
 !endif
 

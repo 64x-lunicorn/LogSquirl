@@ -20,8 +20,8 @@
 // Runner for the compression library's tests. It uses QCoreApplication on
 // purpose: the library must work without Qt Widgets (#169).
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <QCoreApplication>
 

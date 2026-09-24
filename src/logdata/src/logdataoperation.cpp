@@ -75,7 +75,7 @@ const char* nameOf( const IndexJob& job )
 }
 
 // The Encoding a Full forces, if the job is one that forces one.
-QTextCodec* forcedEncodingOfFull( const IndexJob& job )
+const TextEncoding* forcedEncodingOfFull( const IndexJob& job )
 {
     const auto* full = std::get_if<FullReindexJob>( &job );
     return full ? full->forcedEncoding : nullptr;

@@ -500,6 +500,27 @@ const ShortcutAction::ShortcutList& ShortcutAction::defaultShortcutList()
             },
         },
         {
+            LogViewJumpToTimestamp,
+            {
+                QApplication::tr( "Jump to timestamp" ),
+                QStringList{ "Ctrl+Shift+L" },
+            },
+        },
+        {
+            LogViewSearchLimitsTimeRange,
+            {
+                QApplication::tr( "Set search limits to a time range" ),
+                QStringList{ "Ctrl+Alt+T" },
+            },
+        },
+        {
+            LogViewSearchLimitsAroundLine,
+            {
+                QApplication::tr( "Set search limits around the current line" ),
+                QStringList{ "Ctrl+Alt+W" },
+            },
+        },
+        {
             LogViewQfForward,
             {
                 QApplication::tr( "Main view: find next" ),

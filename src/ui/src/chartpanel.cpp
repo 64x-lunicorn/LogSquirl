@@ -29,6 +29,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QTabBar>
 #include <QTimer>
 
 #include "chartseriesdialog.h"
@@ -41,7 +42,17 @@
 ChartPanel::ChartPanel( QWidget* parent )
     : QWidget( parent )
 {
-    auto* layout = new QVBoxLayout( this );
+    // The chart is the first tab; a Value Count is a tab of its own.
+    auto* panelLayout = new QVBoxLayout( this );
+    panelLayout->setContentsMargins( 0, 0, 0, 0 );
+    tabs_ = new QTabWidget;
+    tabs_->setDocumentMode( true );
+    tabs_->setTabsClosable( true );
+    connect( tabs_, &QTabWidget::tabCloseRequested, this, &ChartPanel::closeValueCountTab );
+    panelLayout->addWidget( tabs_ );
+
+    auto* chartPage = new QWidget;
+    auto* layout = new QVBoxLayout( chartPage );
     layout->setContentsMargins( 0, 0, 0, 0 );
     layout->setSpacing( 0 );
 
@@ -132,6 +143,11 @@ ChartPanel::ChartPanel( QWidget* parent )
     connect( chartWidget_, &ChartWidget::lineSelected, this, &ChartPanel::lineSelected );
     layout->addWidget( chartWidget_, 1 );
 
+    tabs_->addTab( chartPage, tr( "Chart" ) );
+    // The chart is not closed.
+    tabs_->tabBar()->setTabButton( 0, QTabBar::RightSide, nullptr );
+    tabs_->tabBar()->setTabButton( 0, QTabBar::LeftSide, nullptr );
+
     connect( &extraction_, &ChartExtraction::started, this, &ChartPanel::onExtractionStarted );
     connect( &extraction_, &ChartExtraction::extracted, this, &ChartPanel::onExtracted );
 
@@ -145,6 +161,48 @@ void ChartPanel::setLogData( const std::shared_ptr<LogData>& logData )
 {
     logData_ = logData;
     extraction_.setLogData( logData );
+}
+
+void ChartPanel::countFieldValues( const QString& fieldName )
+{
+    if ( !logData_ || !format_ ) {
+        return;
+    }
+    // The tab counts with the Log Format as it is now.
+    addValueCountTab( tr( "field %1" ).arg( fieldName ), [ format = *format_, fieldName ] {
+        return fieldValueOf( format, fieldName );
+    } );
+}
+
+void ChartPanel::countCaptureGroupValues( const QRegularExpression& regexp, int group,
+                                          const QString& description )
+{
+    if ( !logData_ ) {
+        return;
+    }
+    addValueCountTab( description,
+                      [ regexp, group ] { return captureGroupValueOf( regexp, group ); } );
+}
+
+void ChartPanel::addValueCountTab( const QString& description,
+                                   ValueCountTab::ValueOfLineFactory valueOfLine )
+{
+    auto* tab = new ValueCountTab( logData_, description, std::move( valueOfLine ) );
+    connect( tab, &ValueCountTab::valueClicked, this, &ChartPanel::searchRequested );
+    const auto index = tabs_->addTab( tab, tr( "Values of %1" ).arg( description ) );
+    tabs_->setCurrentIndex( index );
+}
+
+void ChartPanel::closeValueCountTab( int index )
+{
+    auto* tab = qobject_cast<ValueCountTab*>( tabs_->widget( index ) );
+    if ( tab == nullptr ) {
+        return;
+    }
+    // Stops the count at once; the worker is not waited for here.
+    tab->stop();
+    tabs_->removeTab( index );
+    tab->deleteLater();
 }
 
 void ChartPanel::setLogFormat( const LogFormatDefinition* format )
@@ -315,7 +373,7 @@ void ChartPanel::editSeries()
         updated.id = series_[ idx ].id;
         updated.matchCase = series_[ idx ].matchCase;
         updated.compilePattern();
-        series_[ idx ] = updated;
+        series_[ idx ] = std::move( updated );
         rebuildSeriesCombo();
         seriesChanged();
     }

@@ -34,7 +34,7 @@ struct CachedIndex {
     LinePositionArray linePosition;
     LineLength maxLength;
     IndexedHash hash;
-    QByteArray encodingName; // QTextCodec::name()
+    QByteArray encodingName; // TextEncoding::name()
     bool fakeFinalLF = false;
 };
 

@@ -21,17 +21,17 @@
 // Encoding of the Log File, each Log Line of the view is the Log Line as it is
 // decoded, in UTF-8 (#291).
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "textencoding.h"
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
-#include <QTextCodec>
-#include <QTextDecoder>
 
 #include "ansicolorsequences.h"
 #include "searchblocksource.h"
@@ -43,7 +43,7 @@ namespace {
 RawLines rawLinesOfBytes( const std::vector<QByteArray>& lines, const char* encoding,
                           bool hideAnsiColorSequences )
 {
-    auto* const codec = QTextCodec::codecForName( encoding );
+    auto* const codec = TextEncoding::forName( encoding );
     REQUIRE( codec != nullptr );
 
     RawLines rawLines;
@@ -52,7 +52,7 @@ RawLines rawLinesOfBytes( const std::vector<QByteArray>& lines, const char* enco
         rawLines.buffer.insert( rawLines.buffer.end(), line.begin(), line.end() );
         rawLines.endOfLines.push_back( static_cast<qint64>( rawLines.buffer.size() ) );
     }
-    rawLines.textDecoder.decoder = std::make_unique<QTextDecoder>( codec );
+    rawLines.textDecoder.decoder = codec->makeDecoder();
     rawLines.textDecoder.encodingParams = EncodingParameters( codec );
     rawLines.hideAnsiColorSequences = hideAnsiColorSequences;
     return rawLines;
@@ -62,13 +62,11 @@ RawLines rawLinesOfBytes( const std::vector<QByteArray>& lines, const char* enco
 // line feed after each.
 std::vector<QByteArray> encodedLines( const QStringList& lines, const char* encoding )
 {
-    auto* const codec = QTextCodec::codecForName( encoding );
-    QTextCodec::ConverterState state( QTextCodec::IgnoreHeader );
+    auto* const codec = TextEncoding::forName( encoding );
     std::vector<QByteArray> encoded;
     for ( const auto& line : lines ) {
         const auto text = line + '\n';
-        encoded.push_back(
-            codec->fromUnicode( text.constData(), static_cast<int>( text.size() ), &state ) );
+        encoded.push_back( codec->fromUnicode( text ) );
     }
     return encoded;
 }
@@ -91,8 +89,7 @@ std::vector<std::string> decodedThenConvertedLines( const std::vector<QByteArray
         block += line;
     }
 
-    QTextDecoder decoder( QTextCodec::codecForName( encoding ) );
-    auto text = decoder.toUnicode( block );
+    auto text = TextEncoding::forName( encoding )->toUnicode( block );
     if ( hideAnsiColorSequences ) {
         removeAnsiColorSequences( text );
     }
@@ -123,7 +120,7 @@ QStringList logLinesFor( const char* encoding )
     };
 
     const QString beyondLatin1 = QStringLiteral( "euro \u20ac and a clef \U0001D11E" );
-    if ( QTextCodec::codecForName( encoding )->canEncode( beyondLatin1 ) ) {
+    if ( TextEncoding::forName( encoding )->canEncode( beyondLatin1 ) ) {
         lines.insert( 2, beyondLatin1 );
     }
     return lines;
@@ -160,7 +157,7 @@ SCENARIO( "A block's UTF-8 view has every Log Line as it is decoded", "[search][
     {
         auto bytes = encodedLines( logLinesFor( encoding ), encoding );
         const auto lineFeedWidth
-            = EncodingParameters( QTextCodec::codecForName( encoding ) ).lineFeedWidth;
+            = EncodingParameters( TextEncoding::forName( encoding ) ).lineFeedWidth;
         bytes.back().chop( lineFeedWidth );
         const auto rawLines = rawLinesOfBytes( bytes, encoding, hideAnsiColorSequences );
 

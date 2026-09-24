@@ -231,6 +231,28 @@ struct QuickFindPolicy {
     bool operator==( const QuickFindPolicy& ) const = default;
 };
 
+// What the Team Folder needs, and nothing else: whether there is one, the
+// repository it clones and the folder inside that repository its groups
+// live in. Where the clone is kept is not a setting; the application decides
+// it when it builds the Team Folder.
+struct TeamFolderPolicy {
+    bool enabled{};
+    // As the user typed it, handed to Git unchanged: Git's own configuration
+    // and authentication decide what it means.
+    QString repositoryUrl{};
+    // Relative to the repository's root; empty for the root itself.
+    QString subfolder{};
+
+    // Whether there is a Team Folder to set up: turned on, and a repository
+    // named. An underived Policy answers false.
+    bool isActive() const
+    {
+        return enabled && !repositoryUrl.trimmed().isEmpty();
+    }
+
+    bool operator==( const TeamFolderPolicy& ) const = default;
+};
+
 // The Policies as one bundle, so the place that builds the application's
 // long-lived objects derives and carries them together.
 struct SettingsPolicies {
@@ -243,6 +265,7 @@ struct SettingsPolicies {
     DecorationPolicy decoration;
     PresentationPolicy presentation;
     QuickFindPolicy quickFind;
+    TeamFolderPolicy teamFolder;
 
     bool operator==( const SettingsPolicies& ) const = default;
 };

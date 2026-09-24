@@ -6,7 +6,7 @@ add_executable(logsquirl_openlogfile_tests
     loadrule_test.cpp
 )
 
-target_link_libraries(logsquirl_openlogfile_tests logsquirl_openlogfile Catch2 Qt6::Test test_utils)
+target_link_libraries(logsquirl_openlogfile_tests logsquirl_openlogfile Catch2::Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_openlogfile_tests PROPERTIES AUTOMOC ON)
 
 logsquirl_add_catch_tests(logsquirl_openlogfile_tests TIMEOUT 120)

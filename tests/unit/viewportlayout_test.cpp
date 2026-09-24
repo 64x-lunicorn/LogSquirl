@@ -20,7 +20,7 @@
 // The viewport layout is a value built from plain integers, so every test here
 // uses literal inputs and needs no QApplication, no widget and no font.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <limits>
 #include <map>

@@ -52,7 +52,7 @@ add_executable(logsquirl_itests ${UI_TEST_SOURCES} ${BACKWARD_ENABLE})
 # arrive through logsquirl_ui, and naming them here as well put both archives
 # on the link line twice (#450); logsquirl_tbb_headers carries TBB's include
 # directory and compile definitions without its library.
-target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_filewatch logsquirl_tbb_headers Catch2 Qt6::Test test_utils)
+target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_filewatch logsquirl_tbb_headers Catch2::Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_itests PROPERTIES AUTOMOC ON AUTORCC ON)
 # theme_switch_test opens dialogs whose headers include uic-generated headers.
 target_include_directories(logsquirl_itests PRIVATE

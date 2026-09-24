@@ -44,12 +44,14 @@
 #include "containers.h"
 #include "log.h"
 #include <QNetworkReply>
+#include <algorithm>
 #include <cassert>
 #include <exception>
 
 #include <iterator>
 #include <qaction.h>
 #include <qapplication.h>
+#include <tuple>
 
 #ifdef Q_OS_WIN
 #define WIN32_LEAN_AND_MEAN
@@ -116,6 +118,7 @@
 #include "recentfiles.h"
 #include "shortcuts.h"
 #include "tabbedcrawlerwidget.h"
+#include "teamfolder.h"
 #include "theme.h"
 
 namespace {
@@ -371,6 +374,8 @@ MainWindow::MainWindow( WindowSession session,
     plugins_->uiPort().addWindow( pluginUi_.get() );
     servePluginCallbacks();
 
+    connectTeamFolder();
+
     plugins_->whenLoaded( this, [ this ] {
         updateSourcesMenu();
         if ( welcomeDashboard_ ) {
@@ -456,6 +461,46 @@ void MainWindow::loadInitialFile( QString fileName, bool followFile )
     }
 }
 
+void MainWindow::openStandardInput()
+{
+    if ( standardInputWriter_ ) {
+        return;
+    }
+
+    standardInputWriter_ = std::make_unique<logsquirl::plugins::StreamWriter>( "stdin" );
+    const auto filePath = standardInputWriter_->filePath();
+    if ( filePath.isEmpty() ) {
+        QMessageBox::warning( this, tr( "Standard input" ),
+                              tr( "Could not create a file for the data read from standard "
+                                  "input." ) );
+        standardInputWriter_.reset();
+        return;
+    }
+
+    // The tab is named when it is opened, which is later than here when the
+    // plugins have not loaded yet: it is the file's, not the current tab's.
+    tabTitles_.insert( filePath, { tr( "stdin" ), tr( "Standard input\n%1" ).arg( filePath ) } );
+    if ( !loadFile( filePath, true ) ) {
+        tabTitles_.remove( filePath );
+        standardInputWriter_.reset();
+        return;
+    }
+
+    // The pump calls back on its own thread: hop over to this window's.
+    const QPointer<MainWindow> self( this );
+    standardInputPump_
+        = std::make_unique<logsquirl::plugins::StdinPump>( 0, *standardInputWriter_, [ self ] {
+              if ( !self ) {
+                  return;
+              }
+              QMetaObject::invokeMethod( self.data(), [ self ] {
+                  if ( self ) {
+                      self->statusBar()->showMessage( tr( "Standard input closed" ) );
+                  }
+              } );
+          } );
+}
+
 void MainWindow::reTranslateUI()
 {
     using namespace logsquirl::mainwindow;
@@ -505,6 +550,16 @@ void MainWindow::reTranslateUI()
 
     goToLineAction->setText( transAction( action::goToLineText ) );
     goToLineAction->setStatusTip( transAction( action::goToLineStatusTip ) );
+
+    goToTimestampAction->setText( transAction( action::goToTimestampText ) );
+    goToTimestampAction->setStatusTip( transAction( action::goToTimestampStatusTip ) );
+
+    searchLimitsTimeRangeAction->setText( transAction( action::searchLimitsTimeRangeText ) );
+    searchLimitsTimeRangeAction->setStatusTip(
+        transAction( action::searchLimitsTimeRangeStatusTip ) );
+    searchLimitsAroundLineAction->setText( transAction( action::searchLimitsAroundLineText ) );
+    searchLimitsAroundLineAction->setStatusTip(
+        transAction( action::searchLimitsAroundLineStatusTip ) );
 
     findAction->setText( transAction( action::findText ) );
     findAction->setStatusTip( transAction( action::findStatusTip ) );
@@ -693,6 +748,20 @@ void MainWindow::createActions()
     goToLineAction = new QAction( tr( action::goToLineText ), this );
     goToLineAction->setStatusTip( tr( action::goToLineStatusTip ) );
     signalMux_.connect( goToLineAction, SIGNAL( triggered() ), SLOT( goToLine() ) );
+
+    goToTimestampAction = new QAction( tr( action::goToTimestampText ), this );
+    goToTimestampAction->setStatusTip( tr( action::goToTimestampStatusTip ) );
+    signalMux_.connect( goToTimestampAction, SIGNAL( triggered() ), SLOT( goToTimestamp() ) );
+
+    searchLimitsTimeRangeAction = new QAction( tr( action::searchLimitsTimeRangeText ), this );
+    searchLimitsTimeRangeAction->setStatusTip( tr( action::searchLimitsTimeRangeStatusTip ) );
+    signalMux_.connect( searchLimitsTimeRangeAction, SIGNAL( triggered() ),
+                        SLOT( setSearchLimitsToTimeRange() ) );
+
+    searchLimitsAroundLineAction = new QAction( tr( action::searchLimitsAroundLineText ), this );
+    searchLimitsAroundLineAction->setStatusTip( tr( action::searchLimitsAroundLineStatusTip ) );
+    signalMux_.connect( searchLimitsAroundLineAction, SIGNAL( triggered() ),
+                        SLOT( setSearchLimitsAroundCurrentLine() ) );
 
     findAction = new QAction( tr( action::findText ), this );
     findAction->setStatusTip( tr( action::findStatusTip ) );
@@ -935,6 +1004,9 @@ void MainWindow::updateShortcuts()
     setShortcuts( showScratchPadAction, ShortcutAction::MainWindowScratchpad );
     setShortcuts( selectOpenFileAction, ShortcutAction::MainWindowSelectOpenFile );
     setShortcuts( goToLineAction, ShortcutAction::LogViewJumpToLine );
+    setShortcuts( goToTimestampAction, ShortcutAction::LogViewJumpToTimestamp );
+    setShortcuts( searchLimitsTimeRangeAction, ShortcutAction::LogViewSearchLimitsTimeRange );
+    setShortcuts( searchLimitsAroundLineAction, ShortcutAction::LogViewSearchLimitsAroundLine );
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
 }
 
@@ -1013,6 +1085,10 @@ void MainWindow::createMenus()
     editMenu->addAction( findAction );
     editMenu->addSeparator();
     editMenu->addAction( goToLineAction );
+    editMenu->addAction( goToTimestampAction );
+    editMenu->addSeparator();
+    editMenu->addAction( searchLimitsTimeRangeAction );
+    editMenu->addAction( searchLimitsAroundLineAction );
     editMenu->addSeparator();
     editMenu->addAction( copyPathToClipboardAction );
     editMenu->addAction( openContainingFolderAction );
@@ -1136,6 +1212,13 @@ void MainWindow::createToolBars()
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
     toolBar->addWidget( lineNbField );
     infoToolbarSeparators.push_back( toolBar->addSeparator() );
+
+    teamFolderButton_ = new QToolButton();
+    teamFolderButton_->setAutoRaise( true );
+    teamFolderButton_->setToolButtonStyle( Qt::ToolButtonTextOnly );
+    teamFolderButtonAction_ = toolBar->addWidget( teamFolderButton_ );
+    teamFolderButtonAction_->setVisible( false );
+
     toolBar->addAction( toggleSidebarAction );
 
     showInfoLabels( false );
@@ -1450,6 +1533,25 @@ void MainWindow::openUrl()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable(),
+                               teamFolder->highlighterGroupRevisions() );
+        connect( &dialog, &HighlightersDialog::publishRequested, teamFolder.get(),
+                 &TeamFolder::publish );
+        // What Apply published has new revisions: the dialog is still open.
+        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
+                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
+                     QStringList ids;
+                     for ( const auto& result : outcome.results ) {
+                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
+                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
+                             ids.append( result.request.id );
+                         }
+                     }
+                     dialog.updateTeamRevisions( ids, folder->highlighterGroupRevisions() );
+                 } );
+    }
 
     // Reaches every open Log File, in every window, not only the current tab.
     connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
@@ -1464,6 +1566,25 @@ void MainWindow::editHighlighters()
 void MainWindow::editPredefinedFilters( const QString& newFilter )
 {
     PredefinedFiltersDialog dialog( newFilter, this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable(),
+                               teamFolder->filterGroupRevisions() );
+        connect( &dialog, &PredefinedFiltersDialog::publishRequested, teamFolder.get(),
+                 &TeamFolder::publish );
+        // What Apply published has new revisions: the dialog is still open.
+        connect( teamFolder.get(), &TeamFolder::publishFinished, &dialog,
+                 [ &dialog, folder = teamFolder.get() ]( const auto& outcome ) {
+                     QStringList ids;
+                     for ( const auto& result : outcome.results ) {
+                         if ( result.status == logsquirl::teamfolder::PublishStatus::Published
+                              || result.status == logsquirl::teamfolder::PublishStatus::Pending ) {
+                             ids.append( result.request.id );
+                         }
+                     }
+                     dialog.updateTeamRevisions( ids, folder->filterGroupRevisions() );
+                 } );
+    }
 
     // The Predefined Filters are no setting a Log File shows: only the filters
     // panel lists them.
@@ -1478,12 +1599,169 @@ void MainWindow::options()
 {
     const auto logFormatCatalog = session_.logFormatCatalog();
     OptionsDialog dialog( *logFormatCatalog, this );
+    if ( const auto teamFolder = session_.teamFolder() ) {
+        dialog.showTeamFolder( *teamFolder );
+    }
 
     // The dialog only says that the settings changed; the Session takes it
     // from there, to every open Log File and every window, this one included.
     connect( &dialog, &OptionsDialog::optionsChanged,
              [ this ]() { session_.applyChange( Changed::Settings ); } );
     dialog.exec();
+}
+
+void MainWindow::connectTeamFolder()
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    connect( teamFolder.get(), &TeamFolder::stateChanged, this,
+             &MainWindow::updateTeamFolderIndicator );
+    // A changed or removed Team group shows at the next sync, in every
+    // window's Filters panel.
+    connect( teamFolder.get(), &TeamFolder::groupsChanged, this,
+             [ this ] { filtersPanel_.setTeamGroups( session_.teamFolder()->filterGroups() ); } );
+    // A changed or removed Team Highlighter Set re-colors every open Log File
+    // at once, and a removed one is no longer active.
+    connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
+             [ this ] { applyTeamHighlighterSets( true ); } );
+    // A sync that reached the repository knows the groups, however few: only
+    // then is an activation of a Team set that is not there dropped.
+    connect( teamFolder.get(), &TeamFolder::syncFinished, this, [ this ] {
+        if ( const auto folder = session_.teamFolder();
+             folder && folder->state() == TeamFolder::State::Synced ) {
+            applyTeamHighlighterSets( true );
+        }
+    } );
+    connect( teamFolder.get(), &TeamFolder::publishFinished, this,
+             &MainWindow::askAboutPublishConflicts );
+    connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
+
+    filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+    // Before the first sync no group is known yet: nothing is dropped.
+    applyTeamHighlighterSets( teamFolder->state() == TeamFolder::State::Synced );
+    updateTeamFolderIndicator();
+}
+
+namespace {
+// The conflicts of publishes that no window has asked about yet, shared by
+// every window: each window hears of a publish, but one conflict is asked
+// once. It waits here while no window can ask -- the app is in the
+// background, or a dialog of it is open.
+QList<logsquirl::teamfolder::PublishResult>& pendingPublishConflicts()
+{
+    static QList<logsquirl::teamfolder::PublishResult> pending;
+    return pending;
+}
+} // namespace
+
+void MainWindow::askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome )
+{
+    using logsquirl::teamfolder::PublishStatus;
+
+    auto& pending = pendingPublishConflicts();
+    for ( const auto& result : outcome.results ) {
+        if ( result.status != PublishStatus::Conflict ) {
+            continue;
+        }
+        // Every window hears of the same publish: remembered once.
+        const auto known = std::any_of( pending.cbegin(), pending.cend(), [ &result ]( auto& p ) {
+            return p.request.kind == result.request.kind && p.request.id == result.request.id;
+        } );
+        if ( !known ) {
+            pending.append( result );
+        }
+    }
+    askAboutPendingConflicts();
+}
+
+void MainWindow::askAboutPendingConflicts()
+{
+    using logsquirl::teamfolder::ConflictChoice;
+
+    auto& pending = pendingPublishConflicts();
+    if ( pending.isEmpty() ) {
+        return;
+    }
+
+    // The window that has the focus asks, and not while a dialog is open on
+    // top of it (then the dialog is the active window): the question waits,
+    // and every window looks again shortly.
+    if ( !isActiveWindow() || QApplication::activeModalWidget() ) {
+        QTimer::singleShot( 500, this, &MainWindow::askAboutPendingConflicts );
+        return;
+    }
+
+    const auto teamFolder = session_.teamFolder();
+    while ( !pending.isEmpty() ) {
+        const auto result = pending.takeFirst();
+        if ( !teamFolder ) {
+            continue;
+        }
+
+        QMessageBox question( QMessageBox::Question, tr( "Team group changed" ),
+                              tr( "Somebody else changed the Team group \"%1\" since you started "
+                                  "editing it." )
+                                  .arg( result.request.name ),
+                              QMessageBox::NoButton, this );
+        question.setInformativeText(
+            result.theirsFilterGroup || result.theirsHighlighterSet
+                ? tr( "Keep your version and replace theirs, take theirs and drop your change, or "
+                      "save yours as a copy next to theirs?" )
+                : tr( "Somebody deleted it. Keep your version to publish it again, or take the "
+                      "deletion and drop your change?" ) );
+        auto* keepMine = question.addButton( tr( "Keep mine" ), QMessageBox::AcceptRole );
+        auto* takeTheirs = question.addButton( tr( "Take theirs" ), QMessageBox::DestructiveRole );
+        auto* saveCopy = question.addButton( tr( "Save mine as a copy" ), QMessageBox::ActionRole );
+        question.setDefaultButton( saveCopy );
+        question.exec();
+
+        if ( question.clickedButton() == keepMine ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::KeepMine );
+        }
+        else if ( question.clickedButton() == saveCopy ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::SaveAsCopy );
+        }
+        else if ( question.clickedButton() == takeTheirs ) {
+            teamFolder->resolveConflict( result.request, ConflictChoice::TakeTheirs );
+        }
+    }
+}
+
+void MainWindow::applyTeamHighlighterSets( bool dropUnknownActivations )
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    // Every window comes here for the same sync; the first one changes the
+    // collection and saves it, the others only bring their menu up to date.
+    auto& collection = HighlighterSetCollection::get();
+    if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups(),
+                                            dropUnknownActivations ) ) {
+        collection.save();
+        session_.applyChange( Changed::HighlighterSets );
+    }
+    updateHighlightersMenu();
+}
+
+void MainWindow::updateTeamFolderIndicator()
+{
+    const auto teamFolder = session_.teamFolder();
+    const bool shown = teamFolder && teamFolder->state() != TeamFolder::State::Off;
+    teamFolderButtonAction_->setVisible( shown );
+    if ( !shown ) {
+        return;
+    }
+
+    teamFolderButton_->setText( teamFolder->summary() );
+    const auto details = teamFolder->details();
+    teamFolderButton_->setToolTip(
+        ( details.isEmpty() ? teamFolder->summary() : teamFolder->summary() + "\n" + details )
+        + "\n" + tr( "Click to sync now." ) );
 }
 
 void MainWindow::applySettingsChange()
@@ -1507,7 +1785,7 @@ void MainWindow::updateSourcesMenu()
         if ( meta.type() == LOGSQUIRL_PLUGIN_DATASOURCE ) {
             auto* action = new QAction( meta.name(), sourcesMenu );
             action->setStatusTip( tr( "Start %1 data source" ).arg( meta.name() ) );
-            const auto id = meta.id();
+            const auto& id = meta.id();
             connect( action, &QAction::triggered, this,
                      [ this, id ]() { startPluginDataSource( id ); } );
             sourcesMenu->addAction( action );
@@ -1577,15 +1855,12 @@ void MainWindow::handleDataSourceStarted( const QString& pluginId, const QString
     LOG_INFO << "DataSource started: " << pluginId << " -> " << filePath;
 
     // Open the temp file with follow mode so it tails as the plugin pushes lines
-    const bool loaded = loadFile( filePath, true );
-    if ( loaded ) {
-        // Set a friendly tab title instead of the temp file path
-        const int tabIndex = mainTabWidget_.currentIndex();
-        if ( tabIndex >= 0 ) {
-            mainTabWidget_.setTabText( tabIndex, displayName );
-            mainTabWidget_.setTabToolTip( tabIndex,
-                                          tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) );
-        }
+    // A friendly tab title instead of the temp file path, given to the tab of
+    // that file when it opens.
+    tabTitles_.insert( filePath,
+                       { displayName, tr( "DataSource: %1\n%2" ).arg( displayName, filePath ) } );
+    if ( !loadFile( filePath, true ) ) {
+        tabTitles_.remove( filePath );
     }
 }
 
@@ -1731,13 +2006,14 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
 
     // Open the merged temp file as a regular tab
     const auto direction = dedup ? tr( "Merged (dedup)" ) : tr( "Merged" );
+    mainTabWidget_.setTransientTabName( mergedPath, direction );
     loadFile( mergedPath );
 
     // Connect live updates: when the merged file is rebuilt, reload the LogData
     connect( controller.get(), &MergeController::mergedFileUpdated, this, [ this, mergedPath ] {
         // The loadFile + reload mechanism handles re-reading
         for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-            if ( mainTabWidget_.tabToolTip( i ) == mergedPath ) {
+            if ( mainTabWidget_.tabToolTip( i ) == QDir::toNativeSeparators( mergedPath ) ) {
                 auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
                 if ( crawler ) {
                     crawler->reload();
@@ -1815,7 +2091,7 @@ void MainWindow::importChipmunkFilters()
     }
 
     // Import as HighlighterSet
-    const auto setName = groupName;
+    const auto& setName = groupName;
     const auto highlighterSet = logsquirl::chipmunk::toHighlighterSet( chipmunkFilters, setName );
 
     auto& highlighterCollection = HighlighterSetCollection::getSynced();
@@ -1989,6 +2265,9 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
         reloadAction->setEnabled( true );
 
         lineNumberHandler( 0_lnum, LinesCount( 0 ), LineColumn( 0 ), LineLength( 0 ) );
+
+        // The Log Format is recognized once the load has finished.
+        updateGoToTimestampAction( crawler );
 
         // Now everything is ready, we can finally show the file!
         crawler->show();
@@ -2534,6 +2813,10 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             // mainTabWidget_.setEnabled( false );
 
             int index = mainTabWidget_.addCrawler( crawlerWidget, fileName );
+            if ( const auto title = tabTitles_.constFind( fileName ); title != tabTitles_.cend() ) {
+                mainTabWidget_.setTabText( index, title->first );
+                mainTabWidget_.setTabToolTip( index, title->second );
+            }
 
             // Setting the new tab, the user will see a blank page for the duration
             // of the loading, with no way to switch to another tab
@@ -2661,6 +2944,23 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
 
     followAction->setChecked( crawler->isFollowEnabled() );
     textWrapAction->setChecked( crawler->isTextWrapEnabled() );
+    updateGoToTimestampAction( crawler );
+}
+
+// "Go to timestamp" is there for a Log File whose Log Format has a timestamp
+// field; without one it says why it is not.
+void MainWindow::updateGoToTimestampAction( const CrawlerWidget* crawler )
+{
+    const auto reason = crawler ? crawler->goToTimestampUnavailableReason() : QString();
+    goToTimestampAction->setEnabled( crawler != nullptr && reason.isEmpty() );
+    goToTimestampAction->setToolTip( reason.isEmpty() ? goToTimestampAction->statusTip() : reason );
+
+    // The time Search Limits need the same: a Timestamp on the Log Lines.
+    const auto limitsReason = crawler ? crawler->searchLimitsByTimeUnavailableReason() : QString();
+    for ( auto* action : { searchLimitsTimeRangeAction, searchLimitsAroundLineAction } ) {
+        action->setEnabled( crawler != nullptr && limitsReason.isEmpty() );
+        action->setToolTip( limitsReason.isEmpty() ? action->statusTip() : limitsReason );
+    }
 }
 
 // Update the top info line from the session
@@ -2923,9 +3223,10 @@ void MainWindow::selectOpenedFile()
     selectFileDialog->setModal( true );
     selectFileDialog->open();
 
-    filesModel.release();
-    filteredModel.release();
-    selectFileDialog.release();
+    // Ownership passes to the Qt parent chain; the raw pointers are not needed.
+    std::ignore = filesModel.release();
+    std::ignore = filteredModel.release();
+    std::ignore = selectFileDialog.release();
 }
 
 void MainWindow::showInfoLabels( bool show )

@@ -77,7 +77,7 @@ logsquirl::vector<LineNumber> TableViewSelection::selectedLogLines( const RowMap
 
 QString TableViewSelection::selectedText( const QAbstractItemModel& model ) const
 {
-    if ( hasInCellSelection() ) {
+    if ( inCell_ && hasInCellSelection() ) {
         const auto cellText
             = model.index( inCell_->row, inCell_->column ).data( Qt::DisplayRole ).toString();
         const int lo = std::min( inCell_->startChar, inCell_->endChar );

@@ -39,8 +39,10 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <QHash>
 #include <QMainWindow>
 #include <QMenu>
+#include <QPair>
 #include <QStatusBar>
 #include <QSystemTrayIcon>
 #include <QTemporaryDir>
@@ -66,6 +68,8 @@
 #include "quickfindwidget.h"
 #include "session.h"
 #include "signalmux.h"
+#include "stdinpump.h"
+#include "streamwriter.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabbedscratchpad.h"
 #include "tabgroupmanagerdialog.h"
@@ -76,6 +80,10 @@ class QAction;
 class QActionGroup;
 class Session;
 class RecentFiles;
+namespace logsquirl::teamfolder {
+struct PublishOutcome;
+}
+
 class HighlightersMenu;
 
 // Main window of the application, creates menus, toolbar and
@@ -100,6 +108,10 @@ public:
     void reloadSession();
     // Loads the initial file (parameter passed or from config file)
     void loadInitialFile( QString fileName, bool followFile );
+
+    // Opens what arrives on standard input as a Log File that is followed. The
+    // window keeps reading until the writing end closes or it is destroyed.
+    void openStandardInput();
 
     void reTranslateUI();
 
@@ -259,6 +271,7 @@ private:
     CrawlerWidget* currentCrawlerWidget() const;
     void displayQuickFindBar( QuickFindMux::QFDirection direction );
     void updateMenuBarFromDocument( const CrawlerWidget* crawler );
+    void updateGoToTimestampAction( const CrawlerWidget* crawler );
     void updateInfoLine();
     void showInfoLabels( bool show );
     void logScreenInfo( QScreen* screen );
@@ -267,6 +280,18 @@ private:
     void tryOpenClipboard( int tryTimes );
     void updateShortcuts();
     void showDashboardOrTabs();
+    // Shows the Team Folder's Team groups and state in this window.
+    void connectTeamFolder();
+    void updateTeamFolderIndicator();
+    // Hands the Team Highlighter Sets to the Highlighter Set collection.
+    // dropUnknownActivations false: the first sync has not delivered groups.
+    void applyTeamHighlighterSets( bool dropUnknownActivations = true );
+    // Asks what to do with a Team group somebody else changed while the user
+    // was changing it too: keep mine, take theirs, or save mine as a copy.
+    void askAboutPublishConflicts( const logsquirl::teamfolder::PublishOutcome& outcome );
+    // Asks about the conflicts waiting, when this window can: it has the focus
+    // and no dialog is open on it. Else it looks again shortly.
+    void askAboutPendingConflicts();
 
     /// Build the full list of commands for the command palette by
     /// collecting menu actions, plugin actions, recent files, and
@@ -295,6 +320,11 @@ private:
     QMenu* helpMenu;
 
     PathLine* infoLine;
+    // The Team Folder's state, quietly: shown only while there is a Team
+    // Folder, it says synced, not synced or error, tells Git's message in its
+    // tooltip and syncs when clicked. It never opens a dialog.
+    QToolButton* teamFolderButton_ = nullptr;
+    QAction* teamFolderButtonAction_ = nullptr;
     QLabel* lineNbField;
     QLabel* sizeField;
     QLabel* dateField;
@@ -311,6 +341,9 @@ private:
     QAction* copyAction;
     QAction* selectAllAction;
     QAction* goToLineAction;
+    QAction* goToTimestampAction;
+    QAction* searchLimitsTimeRangeAction;
+    QAction* searchLimitsAroundLineAction;
     QAction* findAction;
     QAction* clearLogAction;
     QAction* copyPathToClipboardAction;
@@ -410,6 +443,13 @@ private:
     // The application's one Plugin Catalog and Plugin Host, shared by every
     // window and loaded once, after the first window shows (#303).
     std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins_;
+
+    // Declared in this order: the pump reads into the writer, so it goes first.
+    // The title and tooltip of the tab of a file that is not named after its
+    // path (standard input, a data source), by path, given when it opens.
+    QHash<QString, QPair<QString, QString>> tabTitles_;
+    std::unique_ptr<logsquirl::plugins::StreamWriter> standardInputWriter_;
+    std::unique_ptr<logsquirl::plugins::StdinPump> standardInputPump_;
 
     // Shows what plugins contribute, when this window is the one the Plugin
     // Host shows them in: the first window built.

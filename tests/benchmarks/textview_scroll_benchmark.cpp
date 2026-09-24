@@ -43,9 +43,9 @@
 
 #include <algorithm>
 
-#define CATCH_CONFIG_ENABLE_BENCHMARKING
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "isolated_settings.h"
 
@@ -105,7 +105,7 @@ protected:
             static_cast<LineLength::UnderlyingType>( generatedLogLine( line.get() ).size() ) );
     }
     void doSetDisplayEncoding( const char* ) override {}
-    QTextCodec* doGetDisplayEncoding() const override
+    const TextEncoding* doGetDisplayEncoding() const override
     {
         return nullptr;
     }

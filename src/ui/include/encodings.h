@@ -5,16 +5,11 @@
 #ifndef LOGSQUIRL_ENCODINGS_H
 #define LOGSQUIRL_ENCODINGS_H
 
-#ifdef Q_OS_WIN
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif // Q_OS_WIN
-
+#include "textencoding.h"
 #include <QActionGroup>
 #include <QApplication>
 #include <QMenu>
 #include <QString>
-#include <QTextCodec>
 
 #include <mainwindowtext.h>
 #include <settingspolicies.h>
@@ -66,16 +61,9 @@ public:
 
         encodingsMenu->addSeparator();
 
-        QTextCodec* systemCodec = nullptr;
-
-#ifdef Q_OS_WIN
-        auto systemCodePage = ::GetACP();
-        systemCodec
-            = QTextCodec::codecForName( QString( "CP%1" ).arg( systemCodePage ).toLatin1() );
-#endif
-        if ( systemCodec == nullptr ) {
-            systemCodec = QTextCodec::codecForLocale();
-        }
+        // The Encoding the system reads text with; on Windows that is the
+        // active code page.
+        const auto* systemCodec = TextEncoding::forLocale();
 
         auto systemEncodingName
             = QApplication::tr( "System (%1)" ).arg( systemCodec->name().constData() );
@@ -90,7 +78,7 @@ public:
         for ( const auto& group : supportedEncodings ) {
             auto menu = encodingsMenu->addMenu( group.first );
             for ( const auto mib : group.second ) {
-                auto codec = QTextCodec::codecForMib( mib );
+                auto codec = TextEncoding::forMib( mib );
                 if ( codec ) {
                     auto action = menu->addAction( QString::fromLatin1( codec->name() ) );
                     action->setActionGroup( actionGroup );

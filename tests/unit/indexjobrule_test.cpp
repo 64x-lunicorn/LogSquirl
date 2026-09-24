@@ -17,12 +17,12 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <string>
 #include <vector>
 
-#include <QTextCodec>
+#include "textencoding.h"
 
 #include "logdataoperation.h"
 #include "overload_visitor.h"
@@ -34,14 +34,14 @@ namespace {
 
 constexpr auto DefaultEncodingMib = 106; // UTF-8
 
-QTextCodec* latin1()
+const TextEncoding* latin1()
 {
-    return QTextCodec::codecForName( "ISO-8859-1" );
+    return TextEncoding::forName( "ISO-8859-1" );
 }
 
-QTextCodec* utf16()
+const TextEncoding* utf16()
 {
-    return QTextCodec::codecForName( "UTF-16LE" );
+    return TextEncoding::forName( "UTF-16LE" );
 }
 
 IndexJob nothing()
@@ -54,7 +54,7 @@ IndexJob attach()
     return AttachJob{ "attached.log", DefaultEncodingMib };
 }
 
-IndexJob explicitReload( QTextCodec* forcedEncoding = nullptr )
+IndexJob explicitReload( const TextEncoding* forcedEncoding = nullptr )
 {
     return FullReindexJob{ FullIndexRequest::ExplicitReload, forcedEncoding };
 }
@@ -74,7 +74,7 @@ IndexJob partial()
     return PartialReindexJob{};
 }
 
-std::string encodingName( QTextCodec* encoding )
+std::string encodingName( const TextEncoding* encoding )
 {
     return encoding ? " forcing " + encoding->name().toStdString() : std::string{};
 }

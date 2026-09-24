@@ -27,13 +27,13 @@ Status: everything is Met or N/A except the items under "Unmet or needs your con
   honour it; otherwise edit before answering.
 - **report_responses / enhancement_responses**: "majority of reports in the last 2-12 months
   answered" is a fact of the issue history, not verifiable from files. Check the issue list.
-- **SECURITY.md "Supported Versions"** still lists 26.03; latest stable tag is v26.07.0
-  (v26.10.0-beta2 exists). Not a criterion, but update it.
+- **SECURITY.md "Supported Versions"** now lists 26.07 (latest stable tag v26.07.0); keep it
+  current at each release.
 - **know_secure_design / know_common_errors**: need the primary developer to attest; evidence
   below is supportive only.
 - **Unmet outright: none found.** Suggested-level items not met: `test_most` (no coverage
-  measurement in the repo; 90 % is not claimed). Fuzzing is tracked in #477 (not needed
-  for passing).
+  measurement in the repo; 90 % is not claimed). Fuzzing (ClusterFuzzLite, #477) is in
+  place on top of that.
 
 ## Criteria
 
@@ -102,7 +102,7 @@ Status: everything is Met or N/A except the items under "Unmet or needs your con
 | static_analysis_common_vulnerabilities | Met | CodeQL |
 | static_analysis_fixed | Met | CodeQL alerts in the Security tab; check none is open and exploitable |
 | static_analysis_often | Met | On every pull request |
-| dynamic_analysis | Met | ASan/UBSan job, TSan builds, e2e tests (ci-build.yml) |
+| dynamic_analysis | Met | ASan/UBSan job (ci-build.yml), ClusterFuzzLite fuzzers (`.github/workflows/cflite.yml`, `tests/fuzz`), TSan builds |
 | dynamic_analysis_unsafe | Met | ASan/UBSan (memory-unsafe C++) |
 | dynamic_analysis_enable_assertions | Met | Sanitizer job runs the test suites with assertions of the test build |
 | dynamic_analysis_fixed | Met | Sanitizer job is red on any report (`halt_on_error`) |

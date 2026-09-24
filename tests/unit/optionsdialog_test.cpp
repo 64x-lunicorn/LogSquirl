@@ -17,7 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <QApplication>
 #include <QMessageBox>
@@ -82,6 +82,9 @@ const QStringList DialogSettingNames = {
     "session.loadLast",
     "session.multipleWindows",
     "shortcuts",
+    "teamFolder.enabled",
+    "teamFolder.subfolder",
+    "teamFolder.url",
     "versionchecker.betaEnabled",
     "versionchecker.enabled",
     "view.contextLinesCount",

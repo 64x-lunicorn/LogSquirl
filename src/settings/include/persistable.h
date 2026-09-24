@@ -56,6 +56,8 @@ class QSettings;
 // later get() sees it; Qt writes the change to the settings store on its own
 // shortly after save().
 template <typename T, typename SettingsType = app_settings>
+// A static holder that is never instantiated, so its constructor cannot be misused.
+// NOLINTNEXTLINE(bugprone-crtp-constructor-accessibility)
 class Persistable {
 
 public:

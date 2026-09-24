@@ -25,7 +25,7 @@
 // 8 x 16 px on every platform and each point below lies on a known character
 // of a known Visual Line.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <vector>

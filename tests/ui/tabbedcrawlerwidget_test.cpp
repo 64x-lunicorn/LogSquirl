@@ -25,7 +25,7 @@
 #include <QTabBar>
 #include <QWidget>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // Building and styling a tab reads the tab names and tab groups from what was
 // read at startup, not from the settings store again for every tab (#301).

@@ -42,7 +42,7 @@ endfunction()
 settings_files_state(_before)
 
 execute_process(
-  COMMAND "${TEST_BINARY}" "${TEST_SPEC}" --warn NoTests -platform offscreen
+  COMMAND "${TEST_BINARY}" "${TEST_SPEC}" --warn UnmatchedTestSpec -platform offscreen
   WORKING_DIRECTORY "${_binary_dir}"
   OUTPUT_VARIABLE _stdout
   ERROR_VARIABLE _stderr

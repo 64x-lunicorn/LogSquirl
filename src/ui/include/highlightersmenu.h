@@ -50,7 +50,7 @@ public:
 
     inline void setApplyChange( std::function<void()> apply )
     {
-        applyChange_ = apply;
+        applyChange_ = std::move( apply );
     }
 
 private:

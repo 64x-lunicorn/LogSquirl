@@ -489,23 +489,29 @@ if(LOGSQUIRL_BUILD_TESTS)
     EXCLUDE_FROM_ALL YES
     SYSTEM YES
   )
+  # Catch2 v3 is a compiled library (Catch2::Catch2, and Catch2::Catch2WithMain
+  # for the executables that use its main); the test executables with their own
+  # main() link the first (#443). Neither its install rules nor its own tests
+  # are wanted here.
   cpmaddpackage(
     NAME
     Catch2
     GITHUB_REPOSITORY
     catchorg/Catch2
     VERSION
-    2.13.8
+    3.16.0
     GIT_TAG
-    216713a4066b79d9803d374f261ccb30c0fb451f # v2.13.8
+    317ac1ed4c0bb6e6b91eafc817e05c488feffcb3 # v3.16.0
     EXCLUDE_FROM_ALL
     YES
+    SYSTEM
+    YES
+    OPTIONS
+    "CATCH_INSTALL_DOCS OFF"
+    "CATCH_INSTALL_EXTRAS OFF"
+    "CATCH_DEVELOPMENT_BUILD OFF"
+    "CATCH_BUILD_TESTING OFF"
   )
-  if(NOT TARGET Catch2)
-    message("Adding imported target for catch2")
-    add_library(Catch2 INTERFACE)
-    target_include_directories(Catch2 INTERFACE ${CATCH2_INCLUDE_DIRS})
-  endif(NOT TARGET Catch2)
 endif()
 
 cpmaddpackage(

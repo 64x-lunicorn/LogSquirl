@@ -25,7 +25,7 @@
 #include <variant>
 #include <vector>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // The Load Rule (#396): what a load, a change on disk and a reload mean for an
 // Open Log File. Each row is a sequence of events and what the rule decides at

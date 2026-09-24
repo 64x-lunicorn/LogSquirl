@@ -1042,6 +1042,108 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="teamFolderTab">
+      <attribute name="title">
+       <string>Team Folder</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="teamFolderLayout">
+       <item>
+        <widget class="QCheckBox" name="teamFolderCheckBox">
+         <property name="text">
+          <string>Share Filter Groups with the team through a Team Folder</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="teamFolderFormLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="teamFolderUrlLabel">
+           <property name="text">
+            <string>Repository URL:</string>
+           </property>
+           <property name="buddy">
+            <cstring>teamFolderUrlEdit</cstring>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="teamFolderUrlEdit">
+           <property name="placeholderText">
+            <string>https://… or git@…</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="teamFolderSubfolderLabel">
+           <property name="text">
+            <string>Subfolder:</string>
+           </property>
+           <property name="buddy">
+            <cstring>teamFolderSubfolderEdit</cstring>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="teamFolderSubfolderEdit">
+           <property name="placeholderText">
+            <string>The repository's top folder</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="teamFolderNoteLabel">
+         <property name="text">
+          <string>LogSquirl clones the repository into its own data folder with the Git installed on this computer, and signs in the way Git does for you. Turning the Team Folder off or changing the repository leaves your own groups as they are.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="teamFolderStatusLayout">
+         <item>
+          <widget class="QLabel" name="teamFolderStatusLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+             <horstretch>1</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+           <property name="textInteractionFlags">
+            <set>Qt::TextSelectableByMouse</set>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="teamFolderSyncButton">
+           <property name="text">
+            <string>Sync Now</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="teamFolderVerticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
      <widget class="QWidget" name="logFormatsTab">
       <attribute name="title">
        <string>Log Formats</string>

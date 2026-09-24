@@ -17,8 +17,11 @@
  * along with logsquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+#include <catch2/generators/catch_generators_range.hpp>
 
+#include "textencoding.h"
 #include <QHeaderView>
 #include <QImage>
 #include <QPointer>
@@ -28,7 +31,6 @@
 #include <QTemporaryDir>
 #include <QTemporaryFile>
 #include <QTest>
-#include <QTextCodec>
 #include <QTimer>
 #include <qglobal.h>
 #include <qnamespace.h>
@@ -768,15 +770,14 @@ SCENARIO( "The chart extracts its points again under a changed Encoding", "[ui][
 
     GIVEN( "a chart counting the Log Lines that read an accented word decoded as UTF-8" )
     {
-        crawlerVisitor.crawler->setEncoding( QTextCodec::codecForName( "UTF-8" )->mibEnum() );
+        crawlerVisitor.crawler->setEncoding( TextEncoding::forName( "UTF-8" )->mibEnum() );
         crawlerVisitor.showChartCounting( QString::fromUtf8( "caf\xC3\xA9" ) );
         REQUIRE(
             waitUiState( [ & ]() { return crawlerVisitor.chartPoints() == SL_NB_LINES; }, 20000 ) );
 
         WHEN( "the Log File is displayed as ISO-8859-1, where none reads so" )
         {
-            crawlerVisitor.crawler->setEncoding(
-                QTextCodec::codecForName( "ISO-8859-1" )->mibEnum() );
+            crawlerVisitor.crawler->setEncoding( TextEncoding::forName( "ISO-8859-1" )->mibEnum() );
 
             THEN( "the chart drops the points extracted under the old Encoding" )
             {

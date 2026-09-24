@@ -494,6 +494,10 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
            withinIndexCacheSizeLimits );
     visit( "net.verifySslPeers", config.verifySslPeers_, true );
 
+    visit( "teamFolder.enabled", config.teamFolderEnabled_, false );
+    visit( "teamFolder.url", config.teamFolderUrl_, QString{} );
+    visit( "teamFolder.subfolder", config.teamFolderSubfolder_, QString{} );
+
     visit( "view.overviewVisible", config.overviewVisible_, true );
     visit( "view.lineNumbersVisibleInMain", config.lineNumbersVisibleInMain_, false );
     visit( "view.lineNumbersVisibleInFiltered", config.lineNumbersVisibleInFiltered_, true );
@@ -511,6 +515,7 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "defaultView.searchLogicalCombining", config.searchLogicalCombining_, false );
     visit( "defaultView.encodingMib", config.defaultEncodingMib_, -1 );
     visit( "defaultView.splitterSizes", config.splitterSizes_, QList<int>{ 400, 100 } );
+    visit( "defaultView.searchWindowMinutes", config.searchWindowMinutes_, 5 );
 
     visit( { "shortcuts", "shortcuts.mapping" }, config.shortcuts_, Shortcuts{} );
 
@@ -547,7 +552,7 @@ void Configuration::setMainFont( QFont newFont )
 {
     LOG_DEBUG << "Configuration::setMainFont";
 
-    mainFont_ = resolvedMainFont( std::move( newFont ) );
+    mainFont_ = resolvedMainFont( newFont );
 }
 
 QString Configuration::mainFontInWords( const QFont& font )

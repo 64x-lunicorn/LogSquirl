@@ -80,7 +80,7 @@ public:
 
     void setLanguage( QString lang )
     {
-        language_ = lang;
+        language_ = std::move( lang );
     }
 
     // Accesses the regexp types
@@ -407,6 +407,15 @@ public:
     {
         splitterSizes_ = std::move( sizes );
     }
+    // The N of "Search Limits around the current Log Line: +-N minutes".
+    int searchWindowMinutes() const
+    {
+        return searchWindowMinutes_;
+    }
+    void setSearchWindowMinutes( int minutes )
+    {
+        searchWindowMinutes_ = minutes;
+    }
 
     bool extractArchives() const
     {
@@ -433,6 +442,33 @@ public:
     void setVerifySslPeers( bool verify )
     {
         verifySslPeers_ = verify;
+    }
+
+    // The Team Folder: on or off, the repository it clones and the folder
+    // inside it that holds the groups.
+    bool teamFolderEnabled() const
+    {
+        return teamFolderEnabled_;
+    }
+    void setTeamFolderEnabled( bool enabled )
+    {
+        teamFolderEnabled_ = enabled;
+    }
+    QString teamFolderUrl() const
+    {
+        return teamFolderUrl_;
+    }
+    void setTeamFolderUrl( QString url )
+    {
+        teamFolderUrl_ = std::move( url );
+    }
+    QString teamFolderSubfolder() const
+    {
+        return teamFolderSubfolder_;
+    }
+    void setTeamFolderSubfolder( QString subfolder )
+    {
+        teamFolderSubfolder_ = std::move( subfolder );
     }
 
     bool forceFontAntialiasing() const
@@ -729,6 +765,7 @@ private:
     bool searchIgnoreCase_{};
     bool searchLogicalCombining_{};
     QList<int> splitterSizes_;
+    int searchWindowMinutes_{};
 
     // Performance settings
     bool useSearchResultsCache_{};
@@ -752,6 +789,10 @@ private:
     bool extractArchivesAlways_{};
 
     bool verifySslPeers_{};
+
+    bool teamFolderEnabled_{};
+    QString teamFolderUrl_;
+    QString teamFolderSubfolder_;
 
     bool forceFontAntialiasing_{};
     bool enableQtHighDpi_{};

@@ -8,7 +8,7 @@
 # the listing and to every test case (e.g. "-platform offscreen"); TIMEOUT is
 # the timeout of each test case, not of the whole executable.
 #
-# Catch2 v2's own catch_discover_tests is not used: it lists the test cases in
+# Catch2's own catch_discover_tests is not used: it lists the test cases in
 # a POST_BUILD step, which runs every test executable during the build without
 # its arguments (a headless container has no display without
 # "-platform offscreen"), without the environment the tests run in (Qt DLLs on

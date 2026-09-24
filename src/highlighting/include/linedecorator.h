@@ -154,7 +154,7 @@ public:
 
     Decoration( logsquirl::vector<HighlightedMatch> spans, HighlightColor lineColors )
         : spans_{ std::move( spans ) }
-        , lineColors_{ std::move( lineColors ) }
+        , lineColors_{ lineColors }
     {
     }
 

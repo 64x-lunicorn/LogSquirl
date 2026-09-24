@@ -1,5 +1,8 @@
 # ClusterFuzzLite project file (#477): the libFuzzer targets in tests/fuzz.
 language: c++
+# The builder image is Ubuntu 24.04 (Dockerfile); the image that checks and runs
+# the fuzzers has to be too, or its older glibc cannot load them.
+base_os_version: ubuntu-24-04
 sanitizers:
   - address
   - undefined

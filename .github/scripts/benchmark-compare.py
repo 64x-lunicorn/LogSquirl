@@ -5,7 +5,7 @@ The Benchmarks workflow (.github/workflows/benchmarks.yml) runs every Catch2
 benchmark in tests/benchmarks and the e2e performance suite on both builds and
 lays the results out as:
 
-    <side>/catch2/<benchmark binary>.xml      Catch2 2.x `--reporter xml`
+    <side>/catch2/<benchmark binary>.xml      Catch2 `--reporter xml`
     <side>/e2e/benchmark_report.json          tests/e2e `--bench-report json`
 
 Either part may be missing, e.g. when a benchmark binary does not exist on one

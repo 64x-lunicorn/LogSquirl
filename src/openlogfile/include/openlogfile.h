@@ -38,7 +38,7 @@
 #include <optional>
 
 class FileWatchPort;
-class QTextCodec;
+class TextEncoding;
 class LogData;
 class LogFilteredData;
 class LogFormatCatalog;
@@ -200,7 +200,7 @@ public:
     void setEncoding( std::optional<int> mib );
     std::optional<int> chosenEncoding() const;
     // The Encoding the Log File is read in, as settled now.
-    QTextCodec* encoding() const;
+    const TextEncoding* encoding() const;
 
 Q_SIGNALS:
     // The first load of this Log File is wanted now, before open() was

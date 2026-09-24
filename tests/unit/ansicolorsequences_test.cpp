@@ -21,16 +21,16 @@
 // Log Line read, whether the Log Lines are read one at a time or as a block
 // for a Search (#278).
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
 
+#include "textencoding.h"
 #include <QString>
-#include <QTextCodec>
-#include <QTextDecoder>
 
 #include "ansicolorsequences.h"
 #include "searchblocksource.h"
@@ -42,20 +42,18 @@ namespace {
 RawLines rawLinesOf( const std::vector<std::string>& lines, const char* encoding,
                      bool hideAnsiColorSequences )
 {
-    auto* const codec = QTextCodec::codecForName( encoding );
+    auto* const codec = TextEncoding::forName( encoding );
 
     RawLines rawLines;
     rawLines.startLine = LineNumber{ 0 };
     // No byte order mark: a Log File has at most one, before its first line.
-    QTextCodec::ConverterState state( QTextCodec::IgnoreHeader );
     for ( const auto& line : lines ) {
         const auto text = QString::fromStdString( line + "\n" );
-        const auto encoded
-            = codec->fromUnicode( text.constData(), static_cast<int>( text.size() ), &state );
+        const auto encoded = codec->fromUnicode( text );
         rawLines.buffer.insert( rawLines.buffer.end(), encoded.begin(), encoded.end() );
         rawLines.endOfLines.push_back( static_cast<qint64>( rawLines.buffer.size() ) );
     }
-    rawLines.textDecoder.decoder = std::make_unique<QTextDecoder>( codec );
+    rawLines.textDecoder.decoder = codec->makeDecoder();
     rawLines.textDecoder.encodingParams = EncodingParameters( codec );
     rawLines.hideAnsiColorSequences = hideAnsiColorSequences;
     return rawLines;

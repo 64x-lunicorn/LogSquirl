@@ -90,10 +90,18 @@ void TabbedCrawlerWidget::loadIcons()
     }
 }
 
+void TabbedCrawlerWidget::setTransientTabName( const QString& path, const QString& name )
+{
+    transientTabNames_.insert( path, name );
+}
+
 void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )
 {
     const auto tabLabel = QFileInfo( fileName ).fileName();
-    const auto tabName = TabNameMapping::get().tabName( fileName );
+    auto tabName = TabNameMapping::get().tabName( fileName );
+    if ( tabName.isEmpty() ) {
+        tabName = transientTabNames_.value( fileName );
+    }
 
     myTabBar_.setTabIcon( index, olddata_icon_ );
     myTabBar_.setTabText( index, tabName.isEmpty() ? tabLabel : tabName );
@@ -116,8 +124,12 @@ void TabbedCrawlerWidget::addTabBarItem( int index, const QString& fileName )
 QString TabbedCrawlerWidget::baseTabName( int index ) const
 {
     const auto path = tabPathAt( index );
-    const auto customName = TabNameMapping::get().tabName( path );
-    return customName.isEmpty() ? QFileInfo( path ).fileName() : customName;
+    auto customName = TabNameMapping::get().tabName( path );
+    if ( !customName.isEmpty() ) {
+        return customName;
+    }
+    const auto transientName = transientTabNames_.value( path );
+    return transientName.isEmpty() ? QFileInfo( path ).fileName() : transientName;
 }
 
 void TabbedCrawlerWidget::updateTabGroupAppearance( int index )

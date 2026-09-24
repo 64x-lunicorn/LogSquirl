@@ -11,7 +11,7 @@ add_subdirectory(ui)
 add_subdirectory(benchmarks)
 
 add_dependencies(logsquirl_itests file_write_helper)
-add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_versioncheck_tests)
+add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_timelookup_benchmark logsquirl_versioncheck_tests)
 
 # TBB is a private dependency of the log data library: no public header of
 # it may include a TBB header (#168).
@@ -20,6 +20,15 @@ add_test(
     COMMAND ${CMAKE_COMMAND}
             -DHEADERS_DIR=${CMAKE_SOURCE_DIR}/src/logdata/include
             -P ${CMAKE_CURRENT_SOURCE_DIR}/logdata_public_headers_no_tbb.cmake
+)
+
+# The log data library reads text through Qt 6's converters: no public header
+# may name QTextCodec and the library may not link Qt5Compat (#442).
+add_test(
+    NAME logdata_no_qt5compat
+    COMMAND ${CMAKE_COMMAND}
+            -DLOGDATA_DIR=${CMAKE_SOURCE_DIR}/src/logdata
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/logdata_no_qt5compat.cmake
 )
 
 # The plugin layer builds without Qt Widgets: no file of it may include a Qt

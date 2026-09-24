@@ -61,6 +61,9 @@ _Avoid_: file watcher singleton, watch service
 The character encoding a Log File is interpreted with, either detected or chosen by the user.
 The Open Log File settles it after every load and whenever one is chosen: the one chosen, else
 the one detected, else the locale's. An Encoding the settings force is chosen from the start.
+The engine names one by a `TextEncoding`, an interned, immutable value found by name or IANA MIB enum;
+null means none chosen or unknown. It wraps Qt 6's `QStringConverter`; the engine has no
+`QTextCodec` and links no Qt5Compat.
 
 ### Displaying
 
@@ -131,10 +134,44 @@ _Avoid_: find, incremental search
 A saved, named search pattern the user can apply without retyping it.
 _Avoid_: saved search, bookmark
 
+**Filter Group**:
+A named group of Predefined Filters, the counterpart of a Highlighter Set. The non-deletable
+Default Filter Group always exists and carries the same id for every user. A Filter Group, like
+a Highlighter Set, is handed to someone else as a file of its own: the Group Exchange proposes
+its file name from the group's name and writes exactly that one group. Import reads every
+group of a file as a group of its own. A group of the same id is a conflict, and so is one of
+only the same name; the user answers Replace (the existing group keeps its position and id),
+Keep both (the imported group gets a fresh id and the first free name `<name> (n)`) or Skip,
+once or for all remaining conflicts of the import. An imported group with the Default Filter
+Group's id never replaces the recipient's Default group: it arrives as a new group.
+_Avoid_: filter set, filter list, folder
+
+**Team Folder**:
+A Git repository a team shares its Filter Groups and Highlighter Sets through. LogSquirl clones
+it into its own data folder with the installed `git` and keeps it current: at startup, every
+five minutes and on "Sync now", never blocking the user interface. It is the only part of the
+application that runs Git, and Git's own authentication applies unchanged. Turning it off, or
+pointing it at another repository, leaves the user's own groups alone.
+_Avoid_: shared folder, team repository, sync folder
+
+**Team group**:
+A Filter Group or Highlighter Set that lives in the Team Folder, one file each. Team groups
+show in their own section of the dialogs, sorted alphabetically, and are never written into the
+user's own settings. Changing a Team group and pressing OK or Apply publishes that one file
+to the team; when someone else changed the same group meanwhile the user chooses keep mine,
+take theirs or save mine as a copy. Nothing is locked (ADR-0008). A personal group is shared
+as a Team copy, a Team group is copied back into the personal groups, each with a fresh id.
+_Avoid_: shared group, remote group
+
 **Search Limits**:
 An optional line range a Search is restricted to. Lines outside it are shown but visually
 subdued. Half-open everywhere: from the first Log Line searched up to, not including, its
 end — the Log Line after the last one searched. No Presentation converts the end.
+They can be given as a time range, or as N minutes around the current Log Line: the times
+are converted to Log Lines once, where the Limits are decided (the start is the first Log
+Line with a Timestamp at or after the start time, the end the first at or after the end
+time), and from then on they are ordinary line Limits. They do not follow the Log File as it
+grows or is reloaded.
 _Avoid_: search range, scope
 
 **Match**:
@@ -219,7 +256,13 @@ _Avoid_: variable, constant, design value
 **Log Format**:
 A description of how a Log Line is composed of named fields, used to present the file as
 columns. Either built in or supplied by the user; which one applies to a Log File is decided
-by Format Recognition.
+by Format Recognition. A Log Format is of one kind: **regex**, whose fields are the named
+capture groups of its patterns, **JSON** (`"file-type": "json"`), for Log Files whose Log
+Lines are JSON objects and whose fields are members addressed by path (`src/file`), or
+**logfmt** (`"file-type": "logfmt"`, our own extension of the lnav schema), for Log Files
+whose Log Lines are key/value pairs (`time=... level=info msg="started"`) and whose fields
+are the declared keys, in any order; an undeclared key is ignored, a missing one is an empty
+cell.
 _Avoid_: schema, parser, layout
 
 **Log Format Catalog**:
@@ -231,8 +274,20 @@ _Avoid_: registry, library
 The decision which Log Format, if any, applies to a Log File, taken from its first Log
 Lines against the Log Format Catalog. Taken when a Log File has loaded, and again after it
 is reloaded or truncated; in between, the Log File keeps the Log Format it was recognized
-with, even when the Catalog changes.
+with, even when the Catalog changes. The kinds of Log Format are scored apart: a sample Log
+Line that is a JSON object counts only for JSON Log Formats, every other one only for regex
+Log Formats. A logfmt Log Format counts a Log Line that reads completely as key/value pairs
+and holds its timestamp field as a key; it never wins over a regex or JSON Log Format that
+would have been recognized.
 _Avoid_: detection, sniffing
+
+**Timestamp**:
+The point in time a Log Line carries, read through its Log Format's timestamp field
+(its timestamp format, and for epoch values its divisor). Continuation lines, such as a
+stack trace, have none. Taken as written: one without a time zone is not converted, and a
+written zone is ignored. Only what a Log Format declares or a common format covers can be
+read; a Log File without a Log Format that has a timestamp field has no Timestamps.
+_Avoid_: date, time (both name only a part of it)
 
 **Table View**:
 The Presentation of a Log File as one column per Log Format field, as an alternative to

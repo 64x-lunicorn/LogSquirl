@@ -2,6 +2,95 @@
 
 ## Changes
 
+- **The user guide covers the features the app has**: `DOCUMENTATION.md`, the
+  guide behind Help->Documentation, now describes installing with Homebrew or
+  apt, the Dashboard, Tab groups, Plugins (linking the Plugin SDK guide) and
+  the Sources menu, the language setting and its restart, every entry of the
+  menu bar, Filter Group and Highlighter Set exchange, the Highlighter color
+  presets and JSON Log Formats. The Highlighters menu is a menu of its own,
+  not part of Tools (#433).
+- **Search limits by time**: `Edit->Set search limits to time range...`
+  (`Ctrl+Alt+T`) limits a search to the lines between a start and an end time,
+  and `Edit->Set search limits around current line...` (`Ctrl+Alt+W`) to N
+  minutes before and after the line you are at; N is remembered. The times are
+  turned into line limits once, so the search runs exactly as with limits set
+  by hand. Both need a Log File with a recognized Log Format that has a
+  timestamp field, and say why they are disabled otherwise (#461).
+- **LogSquirl reads a Log File from standard input**: `journalctl -f |
+  logsquirl -` opens what arrives on a pipe in a window of its own (as
+  `--multi`), named `stdin`, and follows it like a growing Log File. When the
+  writing end closes, following stops with every byte received and the status
+  bar says so. Started from a terminal with nothing piped in, `logsquirl -`
+  prints an error and exits non-zero. The received data lives in a temporary
+  file that grows without bound and is removed at exit. On Windows, reading
+  standard input redirected into the GUI executable is unverified (#436).
+- **Count the values of a field**: The context menu of a column header in the
+  Table View offers "Count values", and the context menu of the Search line
+  offers "Count values of capture group". The Value Count opens as a tab in
+  the Chart Panel: each value with its count and share, most frequent first.
+  Clicking a value searches for it as literal text. Counting runs in the
+  background with progress, can be stopped, and is a snapshot ("Count again"
+  takes a new one). Beyond 100 000 distinct values it stops and says so
+  instead of showing a partial list (#438).
+- **Groups are shared with the team, copied back, and deleted for the team**:
+  "Share with team" in the Predefined Filters and Highlighters dialogs adds a
+  Team copy of your own group under a fresh id and, on a name clash, the first
+  free `<name> (n)`; your group stays. "Copy to my groups" does the reverse. A
+  Team group can be deleted for everyone after the question "This deletes the
+  group for the whole team"; it disappears at everyone's next sync, and a
+  deleted Team Highlighter Set that was active is switched off (#474).
+- **Publishing asks what to do when someone else changed the same Team
+  group**: A Team group's file remembers the revision it had when you started
+  editing. If it changed after the sync that comes before publishing, nothing
+  is pushed and you choose: keep mine (overwrites theirs), take theirs (drops
+  your change) or save mine as a copy (a new Team group with a fresh id and a
+  free name, theirs untouched). A change to a different group never asks
+  (#473).
+- **A changed Team group is published to the team**: The Team sections of the
+  Predefined Filters and Highlighters dialogs are editable, and a new Team
+  group can be created in them. OK or Apply commits only the changed group's
+  file under your own Git identity, with a message such as `Change filter
+  group "Network"`, and pushes it; everyone else has it at their next sync. A
+  rename keeps the group's id and file, a push rejected because the branch
+  moved is retried once after a sync, and offline the change stays pending
+  ("not synced") until the server can be reached. A server that refuses the
+  push switches the Team sections to read-only, with its message (#472).
+- **Team Highlighter Sets**: The Highlighter Sets in the Team Folder show in
+  their own read-only section of the Highlighters dialog and in the
+  Highlighters menu. Switching one on or off is each user's own, stored only
+  locally; a set the team changes re-colors every open Log File at the next
+  sync without reopening it, and one the team removes is switched off and
+  disappears (#471).
+- **Team Folder**: In the options, name a Git repository (and optionally a
+  subfolder) and LogSquirl clones it with the installed `git`, using Git's own
+  authentication, and keeps it current at startup, every five minutes and with
+  "Sync now", without blocking the window. The Filter Groups in it arrive as
+  Team groups in their own read-only section of the Predefined Filters dialog
+  and in the Filters panel. A file that cannot be read is skipped and
+  reported; a quiet indicator shows synced, not synced or error, with Git's
+  own message, and never opens a dialog (#470).
+- **JSON Log Files get a Table View**: Log Formats now understand
+  `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
+  objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
+  `value` field, in the order of the format. A field name can address a nested
+  member by path (`src/file`), and an epoch `timestamp-field` is converted with
+  `timestamp-divisor`. A Log Line that is not a JSON object is still a Row,
+  with empty fields. The Text View keeps the raw line. No JSON Log Format is
+  shipped; bring your own (#460).
+- **logfmt Log Files get a Table View**: Log Formats now understand
+  `"file-type": "logfmt"` (our own extension of the lnav schema): a Log File
+  whose Log Lines are key/value pairs (`time=... level=info msg="started"`) is
+  recognized and shown with one column per `value` key, whatever the order of
+  the keys in a line. Quoted values may hold spaces and escaped quotes; a
+  missing key is an empty cell, and a key the format does not declare is
+  ignored. A regex or JSON Log Format that would be recognized keeps
+  precedence. No logfmt Log Format is shipped; bring your own (#464).
+- **Go to timestamp**: `Edit->Go to timestamp...` (`Ctrl+Shift+L`) jumps to the
+  first line at or after a time, such as `14:02` or `2026-09-23 14:02:30`,
+  instead of a line number. It works for Log Files with a recognized Log
+  Format that has a timestamp field, finds the line in milliseconds even in a
+  file of ten million lines, and says why it is disabled otherwise. Log
+  Formats can now declare `timestamp-divisor` for epoch timestamps (#435).
 - **Parsers of untrusted files are fuzzed**: The indexing of a Log File's
   bytes in blocks, the Log Format parser and field extractor, and the ANSI
   color filter now have fuzz targets that ClusterFuzzLite runs on pull
@@ -13,6 +102,22 @@
   published on the release page, so LogSquirl updates with `apt upgrade`
   and an older release can be pinned. Betas are not published. The README and
   the website show the two-file setup (#380).
+- **Import asks what to do with a group that already exists**: Import in the
+  Predefined Filters and the Highlighters dialog brings each group of a file
+  in as a group of its own. When a group of the same id or name already
+  exists you choose Replace (it keeps its position and id, so an active
+  Highlighter Set stays active), Keep both (the new one gets the first free
+  name `<name> (n)`) or Skip, once or for all remaining conflicts across all
+  selected files. A group carrying the Default group's id never replaces your
+  Default group. A file that cannot be read or holds no group is reported.
+  Nothing takes effect before OK / Apply (#469).
+- **Export writes one group**: Export in the Predefined Filters and the
+  Highlighters dialog now writes only the Filter Group or Highlighter Set
+  selected in the list, and proposes a file name from its name
+  (`<name>_filter.conf`, `<name>_highlighter.conf`). The save dialog opens in
+  the folder last exported to. A Highlighter Set file no longer carries your
+  Color Labels or your active sets. Export is disabled while nothing is
+  selected. Earlier versions still import the files (#468).
 - **Color presets for Highlighters**: The Highlighter editor offers 20
   ready-made color pairs, 12 soft pastels with dark text and 8 strong colors
   with white text; one click sets both the text and the background color.
@@ -29,6 +134,17 @@
   complete too (#448).
 
 ## Bug fixes
+
+- **Bunyan and Pino formats removed**: Both were listed as built-in Log Formats
+  but could never be recognized, because Format Recognition only understands
+  regular expressions and neither had one. LogSquirl now ships 22 built-in
+  formats, all recognizable. JSON Log Lines are tracked separately (#460).
+
+- **A merged Log File follows its sources**: The merged tab was a one-time
+  snapshot that went stale while its sources kept growing. It is now rebuilt
+  when a source changes (lines of a truncated source leave it), and the tab is
+  named "Merged" or "Merged (dedup)" instead of after the temporary file
+  (#432).
 
 - **Selecting a Log Line no longer hangs on large Log Files on macOS**: With
   the Table View of a large Log File and an app on the Mac that uses the
@@ -68,8 +184,56 @@
   carries TBB's headers and definitions without naming its archive again.
   Linux and Windows link unchanged (#450).
 
+- **LogSquirl no longer ships Qt5Compat**: The engine decoded and detected text
+  through `QTextCodec`, which forced the deprecated Qt5Compat module onto every
+  package. It now uses Qt 6's own converters through a small `TextEncoding`
+  type, so the deb no longer depends on `libqt6core5compat6` and the Windows
+  installer and portable zip no longer carry `Qt6Core5Compat.dll`. The
+  Encoding menu offers the same Encodings, and the Encodings the settings and
+  the Index cache store by name or MIB enum still resolve. Legacy Encodings
+  (Windows code pages, ISO-8859, CJK) are read through the ICU or iconv of the
+  Qt in use; the Qt packages for macOS have neither, so there they are read
+  through the iconv of macOS (#442).
+
 ## Internal
 
+- **ThreadSanitizer runs in CI**: a `Sanitizers / tsan` job builds the tests with
+  `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the ASan/UBSan job, to
+  find a data race in the oneTBB indexing and search flow graphs. It uses
+  `cmake/tsan.supp`; a new suppression needs no change to the job. It runs on
+  every push to master and by hand, not on pull requests, and does not fail
+  the run yet: its first run over the whole suite reported 912 races and
+  turned 78 of about 740 test cases red, mostly in oneTBB and Qt internals and
+  in Search code that predate it; they are triaged in #482 (#439).
+- **Coverage is measured, and the modules without tests got them**: `cmake
+  --build <dir> --target coverage` in a build made with `-DENABLE_COVERAGE=ON`
+  runs the tests and prints the line coverage of each module, from
+  `scripts/coverage_report.py` (standard library only; `GCOV="xcrun llvm-cov
+  gcov"` on macOS). A `Coverage` job does the same on master and on request and
+  puts the table in its summary; it sets no threshold and is not part of `CI
+  passed`. The Plugin Loader (every way a library fails to load, and the
+  converter entry points), the Scratchpad (encodings, JSON and XML formatting,
+  the number boxes, and the XML cases the accepted CVE-2026-15037 rests on),
+  the compressed line storage (including its damaged disk cache) and the regex
+  wrapper have tests of their own. (#444)
+- **clang-tidy finds bugs, not only names, and runs in CI**: `.clang-tidy` now
+  enables the `bugprone-*`, `clang-analyzer-*` and `performance-*` checks
+  instead of only the naming check, with the reason for every excluded check
+  written next to it. A new Tidy job in CI Build runs them over the C++ sources
+  under `src/` that a pull request changes (a changed header selects its whole
+  module) and fails on any finding; a manual run analyses every source, and
+  `.github/scripts/run-clang-tidy.sh` does the same locally. The findings that
+  existed are fixed: a use after move in the Highlighter editor, unchecked
+  optional accesses, string views passed without their size, a thrown type
+  outside `std::exception`, floating-point loop counters in the chart axes,
+  dead stores and a few missing moves. The naming check stays configured but
+  off, because about 400 existing names break it (#440).
+- **The tests run on Catch2 v3**: Catch2 v2 is end of life. v3 is pinned by
+  commit like every other dependency, Renovate keeps tracking it, and the 135
+  test files include only the Catch2 headers they use instead of the one big
+  `catch.hpp`. A clean build of the test targets takes about 14 % less CPU time
+  than before. The 622 tests are the same, with the same names, and the test
+  case discovery lists them with v3's `--list-tests --verbosity quiet` (#443).
 - **Third-party code no longer drowns the project's own warnings**: The CPM
   packages were compiled with whatever warnings the project sets for itself, and
   a Windows build printed 1210 warnings out of them plus 394 command line

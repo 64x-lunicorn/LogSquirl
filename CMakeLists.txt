@@ -299,6 +299,23 @@ add_test(
 
 if(${LOGSQUIRL_BUILD_TESTS})
   add_subdirectory(tests)
+
+  # `cmake --build <dir> --target coverage` runs the tests of a build made with
+  # -DENABLE_COVERAGE=ON and prints the line coverage of each module (#444).
+  # GCOV overrides the tool: `xcrun llvm-cov gcov` for Apple's Clang.
+  if(ENABLE_COVERAGE)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(logsquirl_coverage_report
+        "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/coverage_report.py"
+        --build-dir "${CMAKE_BINARY_DIR}" --source-root "${CMAKE_CURRENT_SOURCE_DIR}")
+    add_custom_target(coverage
+        COMMAND ${logsquirl_coverage_report} --reset
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure --timeout 120
+        COMMAND ${logsquirl_coverage_report} --json "${CMAKE_BINARY_DIR}/coverage.json"
+        WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+        USES_TERMINAL
+        COMMENT "Running the tests and measuring line coverage per module")
+  endif()
 endif()
 
 if(LOGSQUIRL_BUILD_FUZZERS)
@@ -379,14 +396,14 @@ if(UNIX)
     # on a distribution with an older Qt the install fails, instead of the
     # start. Users of such a distribution take the AppImage (#226).
     # Core, Network, Concurrent, Xml; Gui, Widgets; the xcb platform plugin;
-    # Core5Compat; the SVG image format and icon engine plugins.
+    # the SVG image format and icon engine plugins.
     set(LOGSQUIRL_QT_MIN "${LOGSQUIRL_QT_VERSION}")
     set(_deb_qt_depends)
     foreach(_lib core gui widgets network concurrent xml)
       # Ubuntu 24.04 and Debian 13 renamed the libraries for the 64-bit time_t transition.
       list(APPEND _deb_qt_depends "libqt6${_lib}6t64 (>= ${LOGSQUIRL_QT_MIN}) | libqt6${_lib}6 (>= ${LOGSQUIRL_QT_MIN})")
     endforeach()
-    foreach(_pkg libqt6core5compat6 libqt6svg6 qt6-qpa-plugins)
+    foreach(_pkg libqt6svg6 qt6-qpa-plugins)
       list(APPEND _deb_qt_depends "${_pkg} (>= ${LOGSQUIRL_QT_MIN})")
     endforeach()
     list(JOIN _deb_qt_depends ", " CPACK_DEBIAN_PACKAGE_DEPENDS)

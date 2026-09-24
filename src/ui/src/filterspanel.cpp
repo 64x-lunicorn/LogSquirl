@@ -102,9 +102,16 @@ void FiltersPanel::showEvent( QShowEvent* event )
 void FiltersPanel::refreshFilters()
 {
     allFilterSets_ = PredefinedFiltersCollection::getSynced().filterSets();
+    allFilterSets_.append( teamFilterSets_ );
     rebuildFilterIndex();
     populateTree( allFilterSets_ );
     filtersDirty_ = false;
+}
+
+void FiltersPanel::setTeamGroups( const QList<PredefinedFilterSet>& groups )
+{
+    teamFilterSets_ = groups;
+    refreshFilters();
 }
 
 void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
@@ -114,9 +121,16 @@ void FiltersPanel::populateTree( const QList<PredefinedFilterSet>& sets )
 
     const auto searchText = searchBox_ ? searchBox_->text().trimmed() : QString{};
 
-    for ( const auto& set : sets ) {
+    // The Team groups come last, after the user's own.
+    const auto firstTeamGroup = sets.size() - teamFilterSets_.size();
+    for ( qsizetype index = 0; index < sets.size(); ++index ) {
+        const auto& set = sets[ index ];
         auto* groupItem = new QTreeWidgetItem( filterTree_ );
         groupItem->setText( 0, set.name() );
+        if ( index >= firstTeamGroup ) {
+            groupItem->setText( 0, tr( "%1 (Team)" ).arg( set.name() ) );
+            groupItem->setToolTip( 0, tr( "A Team group, shared through the Team Folder" ) );
+        }
         groupItem->setFlags( groupItem->flags() | Qt::ItemIsAutoTristate
                              | Qt::ItemIsUserCheckable );
         // Store group id for later retrieval.
@@ -283,7 +297,7 @@ void FiltersPanel::emitCurrentSelection()
         }
     }
 
-    pinnedFilterKeys_ = checkedKeys;
+    pinnedFilterKeys_ = std::move( checkedKeys );
     savePinnedFilters();
 
     Q_EMIT filtersChanged( selected );

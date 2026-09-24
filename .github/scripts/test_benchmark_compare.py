@@ -19,7 +19,7 @@ _SPEC.loader.exec_module(bc)
 
 def catch2_xml(binary: str, results: list[tuple[str, float, float, float]],
                section: str | None = None) -> str:
-    """A Catch2 2.x XML report: one test case, benchmarks as (name, mean, low, high) in ns."""
+    """A Catch2 XML report: one test case, benchmarks as (name, mean, low, high) in ns."""
     benchmarks = "\n".join(
         f"""<BenchmarkResults name="{name}" samples="20" resamples="100000" iterations="1" clockResolution="20" estimatedDuration="1e+06">
         <!--All values in nano seconds-->

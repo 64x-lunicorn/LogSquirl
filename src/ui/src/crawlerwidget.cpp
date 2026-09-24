@@ -62,6 +62,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSettings>
@@ -77,6 +78,8 @@
 #include <type_traits>
 
 #include "regularexpression.h"
+#include "timelookup.h"
+#include "valuecount.h"
 
 #include "crawlerwidget.h"
 
@@ -280,6 +283,244 @@ void CrawlerWidget::goToLine()
             presentation_->showLogLine(
                 std::min( selectedLine, LineNumber( nbLines.get() ) - 1_lcount ) );
         }
+    }
+}
+
+QString CrawlerWidget::goToTimestampUnavailableReason() const
+{
+    if ( !recognizedFormat_ ) {
+        return tr( "Go to timestamp needs a Log Format: none was recognized for this Log File." );
+    }
+    if ( !TimestampReader::isAvailableFor( *recognizedFormat_ ) ) {
+        return tr( "Go to timestamp is not available: the Log Format \"%1\" has no timestamp "
+                   "field." )
+            .arg( recognizedFormat_->title() );
+    }
+    return {};
+}
+
+QString CrawlerWidget::searchLimitsByTimeUnavailableReason() const
+{
+    if ( !recognizedFormat_ ) {
+        return tr( "Search limits by time need a Log Format: none was recognized for this Log "
+                   "File." );
+    }
+    if ( !TimestampReader::isAvailableFor( *recognizedFormat_ ) ) {
+        return tr( "Search limits by time are not available: the Log Format \"%1\" has no "
+                   "timestamp field." )
+            .arg( recognizedFormat_->title() );
+    }
+    return {};
+}
+
+TimestampReader* CrawlerWidget::currentTimestampReader() const
+{
+    // The Log Format can change while a modal dialog is open (the file is truncated or
+    // recognized anew), so nothing obtained here is kept across a dialog.
+    if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
+        return nullptr;
+    }
+    if ( !timestampReader_ ) {
+        timestampReader_ = std::make_unique<TimestampReader>( *recognizedFormat_ );
+    }
+    return timestampReader_.get();
+}
+
+void CrawlerWidget::setSearchLimitsToTimeRange()
+{
+    if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
+        return;
+    }
+    const auto title = tr( "Set search limits to time range" );
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
+
+    // The date of the Log Line the user is at, for a time typed without one.
+    const auto nearby
+        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *reader );
+    if ( !nearby ) {
+        QMessageBox::information( this, title,
+                                  tr( "No Log Line near the current one has a timestamp." ) );
+        return;
+    }
+
+    const auto prompt = tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
+                            "Without a date, %1 is used." )
+                            .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) );
+    bool ok = false;
+    const auto startText = QInputDialog::getText(
+        this, title, tr( "Start (included).\n%1" ).arg( prompt ), QLineEdit::Normal, {}, &ok );
+    if ( !ok || startText.trimmed().isEmpty() ) {
+        return;
+    }
+    const auto endText = QInputDialog::getText(
+        this, title, tr( "End (not included).\n%1" ).arg( prompt ), QLineEdit::Normal, {}, &ok );
+    if ( !ok || endText.trimmed().isEmpty() ) {
+        return;
+    }
+
+    const auto start = timelookup::parseTimeInput( startText, nearby->date() );
+    const auto end = timelookup::parseTimeInput( endText, nearby->date() );
+    if ( !start || !end ) {
+        QMessageBox::information( this, title,
+                                  tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
+                                      "YYYY-MM-DD HH:MM:SS." )
+                                      .arg( ( !start ? startText : endText ).trimmed() ) );
+        return;
+    }
+    setSearchLimitsFromTimes( *start, *end );
+}
+
+void CrawlerWidget::setSearchLimitsAroundCurrentLine()
+{
+    if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
+        return;
+    }
+    const auto title = tr( "Set search limits around current line" );
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
+
+    const auto center
+        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *reader );
+    if ( !center ) {
+        QMessageBox::information( this, title,
+                                  tr( "No Log Line near the current one has a timestamp." ) );
+        return;
+    }
+
+    auto& config = Configuration::get();
+    bool ok = false;
+    const auto minutes = QInputDialog::getInt( this, title, tr( "Minutes before and after:" ),
+                                               config.searchWindowMinutes(), 1, 24 * 60, 1, &ok );
+    if ( !ok ) {
+        return;
+    }
+    if ( minutes != config.searchWindowMinutes() ) {
+        config.setSearchWindowMinutes( minutes );
+        config.save();
+    }
+
+    setSearchLimitsFromTimes( center->addSecs( -minutes * 60 ), center->addSecs( minutes * 60 ) );
+}
+
+void CrawlerWidget::setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end )
+{
+    using Outcome = timelookup::LimitsResult::Outcome;
+    const auto title = tr( "Set search limits by time" );
+
+    // Called after modal dialogs: fetch the reader anew, it may have been reset meanwhile.
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
+    const auto result
+        = timelookup::searchLimitsForTimeRange( start, end, *openLogFile_->logData(), *reader );
+    switch ( result.outcome ) {
+    case Outcome::Limits:
+        // From here on ordinary Search Limits, lines like any others.
+        setSearchLimits( result.start, result.end );
+        return;
+    case Outcome::BeforeFile:
+        QMessageBox::information( this, title,
+                                  tr( "The time range is before the first timestamp in the Log "
+                                      "File. The search limits are unchanged." ) );
+        return;
+    case Outcome::AfterFile:
+        QMessageBox::information( this, title,
+                                  tr( "The time range is after the last timestamp in the Log "
+                                      "File. The search limits are unchanged." ) );
+        return;
+    case Outcome::NoTimestamps:
+        QMessageBox::information( this, title,
+                                  tr( "No Log Line has a timestamp this Log Format can read. The "
+                                      "search limits are unchanged." ) );
+        return;
+    case Outcome::EndNotAfterStart:
+        QMessageBox::information( this, title,
+                                  tr( "The end is not after the start. The search limits are "
+                                      "unchanged." ) );
+        return;
+    case Outcome::NoLogLines:
+        QMessageBox::information( this, title,
+                                  tr( "No Log Line has a timestamp in the time range. The search "
+                                      "limits are unchanged." ) );
+        return;
+    }
+}
+
+void CrawlerWidget::goToTimestamp()
+{
+    if ( !goToTimestampUnavailableReason().isEmpty() ) {
+        return;
+    }
+
+    // Only used before the dialog: the reader is fetched again after it.
+    const auto* firstReader = currentTimestampReader();
+    if ( !firstReader ) {
+        return;
+    }
+
+    // The date of the Log Line the user is at, for a time typed without one.
+    const auto nearby
+        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *firstReader );
+    if ( !nearby ) {
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "No Log Line near the current one has a timestamp." ) );
+        return;
+    }
+
+    const auto text = QInputDialog::getText(
+        this, tr( "Go to timestamp" ),
+        tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
+            "Without a date, %1 is used." )
+            .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) ) );
+    if ( text.trimmed().isEmpty() ) {
+        return;
+    }
+
+    const auto time = timelookup::parseTimeInput( text, nearby->date() );
+    if ( !time ) {
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
+                                      "YYYY-MM-DD HH:MM:SS." )
+                                      .arg( text.trimmed() ) );
+        return;
+    }
+
+    // The Log Format may have changed while the dialog was open.
+    const auto* reader = currentTimestampReader();
+    if ( !reader ) {
+        return;
+    }
+    const auto result = timelookup::firstLineAtOrAfter( *time, *openLogFile_->logData(), *reader );
+    if ( !result ) {
+        return;
+    }
+
+    filteredView_->trySelectLine( result->line );
+    presentation_->showLogLine( result->line );
+
+    switch ( result->position ) {
+    case timelookup::Position::BeforeFirst:
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "The time is before the first timestamp in the Log File. "
+                                      "Went to the first line." ) );
+        break;
+    case timelookup::Position::AfterLast:
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "The time is after the last timestamp in the Log File. "
+                                      "Went to the last line." ) );
+        break;
+    case timelookup::Position::NoTimestamps:
+        QMessageBox::information( this, tr( "Go to timestamp" ),
+                                  tr( "No Log Line has a timestamp this Log Format can read." ) );
+        break;
+    case timelookup::Position::AtOrAfter:
+        break;
     }
 }
 
@@ -513,6 +754,9 @@ void CrawlerWidget::saveAsPredefinedFilter()
 
 void CrawlerWidget::showSearchContextMenu()
 {
+    if ( countValuesMenu_ ) {
+        fillCountValuesMenu();
+    }
     if ( searchLineContextMenu_ )
         searchLineContextMenu_->exec( QCursor::pos( activeScreen( this ) ) );
 }
@@ -975,7 +1219,7 @@ void CrawlerWidget::showEditedPattern( bool runNow )
     searchLineEdit_->lineEdit()->setFocus();
 
     if ( runNow ) {
-        dispatchToMainThread( [ this ] { startNewSearch(); } );
+        QTimer::singleShot( 0, this, [ this ] { startNewSearch(); } );
     }
 }
 
@@ -1179,6 +1423,7 @@ void CrawlerWidget::setup()
     searchLineContextMenu_ = searchLineEdit_->lineEdit()->createStandardContextMenu();
     searchLineContextMenu_->addSeparator();
     searchLineContextMenu_->addAction( saveAsPredefinedFilterAction );
+    countValuesMenu_ = searchLineContextMenu_->addMenu( tr( "Count values of capture group" ) );
     searchLineContextMenu_->addSeparator();
     searchLineContextMenu_->addAction( editSearchHistoryAction );
     searchLineContextMenu_->addAction( clearSearchHistoryAction );
@@ -1324,6 +1569,8 @@ void CrawlerWidget::setup()
     // What the user does in either Presentation
     connectPresentation( logMainView_ );
     connectPresentation( logTableView_ );
+    connect( logTableView_, &LogTableView::countValuesRequested, this,
+             &CrawlerWidget::countFieldValues );
 
     // What only the Text View lets the user do: leave following by moving
     // away from the bottom, or start it at the bottom, and zoom with the
@@ -1396,6 +1643,7 @@ void CrawlerWidget::setup()
 
     // Wire chart panel — provide log data and connect click-to-navigate.
     chartPanel_->setLogData( openLogFile_->logData() );
+    connect( chartPanel_, &ChartPanel::searchRequested, this, &CrawlerWidget::searchForValue );
     connect( chartPanel_, &ChartPanel::lineSelected, this,
              [ this ]( LineNumber line ) { presentation_->showLogLine( line ); } );
 
@@ -1607,6 +1855,73 @@ void CrawlerWidget::showFilterFrequency()
 
     // The chart counts with the Search's Match case (#411).
     chartPanel_->addFilterFrequencySeries( patterns, flags.matchCase );
+}
+
+// The Search as a regexp with capture groups: none for a Search that is not a
+// plain regexp, and none for one that excludes the Log Lines it matches.
+namespace {
+QRegularExpression searchRegexp( const SearchLine::Flags& flags, const QString& pattern )
+{
+    if ( !flags.useRegexp || flags.booleanCombination || flags.inverse || pattern.isEmpty() ) {
+        return {};
+    }
+    return QRegularExpression( pattern, flags.matchCase
+                                            ? QRegularExpression::NoPatternOption
+                                            : QRegularExpression::CaseInsensitiveOption );
+}
+} // namespace
+
+void CrawlerWidget::fillCountValuesMenu()
+{
+    countValuesMenu_->clear();
+
+    const auto regexp = searchRegexp( searchLine_.flags(), searchLine_.pattern() );
+    const auto groups = captureGroupCount( regexp );
+    const auto names = regexp.namedCaptureGroups();
+    for ( int group = 1; group <= groups; ++group ) {
+        const auto name = group < names.size() ? names[ group ] : QString();
+        const auto text = name.isEmpty() ? tr( "Group %1" ).arg( group )
+                                         : tr( "Group %1 (%2)" ).arg( group ).arg( name );
+        countValuesMenu_->addAction( text, this,
+                                     [ this, group ] { countSearchGroupValues( group ); } );
+    }
+    // Without a capture group there is nothing to count.
+    countValuesMenu_->setEnabled( groups > 0 );
+}
+
+void CrawlerWidget::countFieldValues( const QString& fieldName )
+{
+    if ( !chartPanel_->isVisible() ) {
+        toggleChartPanel();
+    }
+    chartPanel_->countFieldValues( fieldName );
+}
+
+void CrawlerWidget::countSearchGroupValues( int group )
+{
+    const auto flags = searchLine_.flags();
+    const auto pattern = searchLine_.pattern();
+    const auto regexp = searchRegexp( flags, pattern );
+    if ( group < 1 || group > captureGroupCount( regexp ) ) {
+        return;
+    }
+    if ( !chartPanel_->isVisible() ) {
+        toggleChartPanel();
+    }
+    chartPanel_->countCaptureGroupValues( regexp, group,
+                                          tr( "group %1 of \"%2\"" ).arg( group ).arg( pattern ) );
+}
+
+void CrawlerWidget::searchForValue( const QString& value )
+{
+    // A literal Search for the value: not a logical combination, not
+    // inverted. Match case stays as the user has it.
+    auto flags = searchLine_.flags();
+    flags.booleanCombination = false;
+    flags.inverse = false;
+    searchLine_.setFlags( flags );
+    searchLine_.replace( value );
+    showEditedPattern( true );
 }
 
 void CrawlerWidget::changeFontSize( bool increase )
@@ -2062,6 +2377,7 @@ void CrawlerWidget::showRecognizedFormat()
     // The Table View still points at the previous Log Format until it is
     // handed the new one, so the previous one stays alive until then.
     const auto previousFormat = std::exchange( recognizedFormat_, std::move( recognized ) );
+    timestampReader_.reset();
     logTableView_->setLogFormat( recognizedFormat_.get(), openLogFile_->logData().get() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
@@ -2085,6 +2401,7 @@ void CrawlerWidget::resetLogFormat()
     logTableView_->setLogFormat( nullptr, nullptr );
     showPresentation( false );
     recognizedFormat_.reset();
+    timestampReader_.reset();
 
     // Clear format info from chart panel.
     chartPanel_->setLogFormat( nullptr );

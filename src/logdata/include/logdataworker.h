@@ -51,10 +51,10 @@
 #include <utility>
 #include <variant>
 
+#include "textencoding.h"
 #include <QDateTime>
 #include <QFile>
 #include <QObject>
-#include <QTextCodec>
 
 namespace indexing_blocks {
 struct IndexingBlock;
@@ -89,7 +89,7 @@ struct ResumedIndex {
     // The digest of the bytes before offset, needed only without fast
     // modification detection.
     FileDigest digestBeforeOffset;
-    QTextCodec* encoding = nullptr;
+    const TextEncoding* encoding = nullptr;
     bool fastModificationDetection = true;
 };
 
@@ -148,7 +148,7 @@ public:
     }
 
     // Get the guessed encoding for the content.
-    QTextCodec* getEncodingGuess() const
+    const TextEncoding* getEncodingGuess() const
     {
         return data_->getEncodingGuess();
     }
@@ -159,16 +159,16 @@ public:
         return data_->getCompressedLinePosition();
     }
 
-    void setEncodingGuess( QTextCodec* codec )
+    void setEncodingGuess( const TextEncoding* codec )
     {
         data_->setEncodingGuess( codec );
     }
 
-    QTextCodec* getForcedEncoding() const
+    const TextEncoding* getForcedEncoding() const
     {
         return data_->getForcedEncoding();
     }
-    void forceEncoding( QTextCodec* codec )
+    void forceEncoding( const TextEncoding* codec )
     {
         return data_->forceEncoding( codec );
     }
@@ -177,7 +177,7 @@ public:
     // indexing data: blockSize bytes more are indexed, and fullDigest, when
     // there is one, is the digest of every byte indexed so far.
     void addAll( qint64 blockSize, LineLength length, const FastLinePositionArray& linePosition,
-                 QTextCodec* encoding, std::optional<quint64> fullDigest )
+                 const TextEncoding* encoding, std::optional<quint64> fullDigest )
     {
         data_->addAll( blockSize, length, linePosition, encoding, fullDigest );
     }
@@ -243,7 +243,7 @@ public:
 
     /// Load index data from a CachedIndex (disk cache).
     void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                        const IndexedHash& hash, QTextCodec* encoding,
+                        const IndexedHash& hash, const TextEncoding* encoding,
                         bool fastModificationDetection )
     {
         data_->loadFromCache( std::move( linePosition ), maxLength, hash, encoding,
@@ -291,16 +291,16 @@ private:
     logsquirl::vector<OffsetInFile> getEndOfLineOffsets( LineNumber line, LinesCount count ) const;
 
     // Get the guessed encoding for the content.
-    QTextCodec* getEncodingGuess() const;
-    void setEncodingGuess( QTextCodec* codec );
+    const TextEncoding* getEncodingGuess() const;
+    void setEncodingGuess( const TextEncoding* codec );
 
-    QTextCodec* getForcedEncoding() const;
-    void forceEncoding( QTextCodec* codec );
+    const TextEncoding* getForcedEncoding() const;
+    void forceEncoding( const TextEncoding* codec );
 
     // Atomically add to all the existing
     // indexing data.
     void addAll( qint64 blockSize, LineLength length, const FastLinePositionArray& linePosition,
-                 QTextCodec* encoding, std::optional<quint64> fullDigest );
+                 const TextEncoding* encoding, std::optional<quint64> fullDigest );
 
     IndexedBytesDigests takeDigests();
     void returnDigests( IndexedBytesDigests&& digests );
@@ -310,7 +310,7 @@ private:
 
     // Load index data from a CachedIndex (disk cache).
     void loadFromCache( LinePositionArray&& linePosition, LineLength maxLength,
-                        const IndexedHash& hash, QTextCodec* encoding,
+                        const IndexedHash& hash, const TextEncoding* encoding,
                         bool fastModificationDetection );
 
     // Start from a cached Index, going on from its offset.
@@ -339,8 +339,8 @@ private:
     HeaderAndTailDigests headerAndTailDigests_;
     QDateTime indexedModificationTime_;
 
-    QTextCodec* encodingGuess_{};
-    QTextCodec* encodingForced_{};
+    const TextEncoding* encodingGuess_{};
+    const TextEncoding* encodingForced_{};
 
     bool useFastModificationDetection_ = true;
 
@@ -358,8 +358,8 @@ struct IndexingState {
     std::int64_t max_length{};
     OffsetInFile::UnderlyingType file_size{};
 
-    QTextCodec* encodingGuess{};
-    QTextCodec* fileTextCodec{};
+    const TextEncoding* encodingGuess{};
+    const TextEncoding* fileTextCodec{};
 
     // Taken from the indexing data when the run starts, and built on as
     // blocks are parsed.
@@ -513,7 +513,7 @@ struct AttachJob {
     int defaultEncodingMib = -1;
     // Handed over by a reload that arrived while the Attach was waiting, and
     // indexed under instead of the default Encoding.
-    QTextCodec* forcedEncoding = nullptr;
+    const TextEncoding* forcedEncoding = nullptr;
 };
 
 // Indexing the Log File again in full. What asked for it is carried through
@@ -521,7 +521,7 @@ struct AttachJob {
 // asked for the Log File to be read again (#337).
 struct FullReindexJob {
     FullIndexRequest request = FullIndexRequest::Automatic;
-    QTextCodec* forcedEncoding = nullptr;
+    const TextEncoding* forcedEncoding = nullptr;
 };
 
 // Indexing the Log Lines added since the end of the Log File as indexed.
@@ -541,7 +541,8 @@ public:
     FullIndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
                         AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy,
                         FullIndexRequest request = FullIndexRequest::Automatic,
-                        QTextCodec* forcedEncoding = nullptr, IndexingBlockPlan blockPlan = {} )
+                        const TextEncoding* forcedEncoding = nullptr,
+                        IndexingBlockPlan blockPlan = {} )
         : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy,
                           std::move( blockPlan ) )
         , request_( request )
@@ -563,7 +564,7 @@ private:
     DigestCoverage cachedIndexCoverage() const;
 
     FullIndexRequest request_;
-    QTextCodec* forcedEncoding_;
+    const TextEncoding* forcedEncoding_;
 };
 
 class PartialIndexOperation : public IndexOperation {
@@ -646,7 +647,7 @@ private:
     void attachFile( const QString& fileName );
     // Starts a new full indexing of the file. What asked for it decides how
     // closely a cached Index is checked against the Log File (#337).
-    void indexAll( QTextCodec* forcedEncoding, FullIndexRequest request );
+    void indexAll( const TextEncoding* forcedEncoding, FullIndexRequest request );
     // Starts a partial indexing, at the end of the file as indexed.
     void indexAdditionalLines();
     void checkFileChanges();

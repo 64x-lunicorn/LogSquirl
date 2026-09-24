@@ -59,6 +59,19 @@ void HighlightersMenu::populateHighlightersMenu()
         setAction->setChecked( activeSetIds.contains( highlighter.id() ) );
         setAction->setData( highlighter.id() );
     }
+
+    // The Team sets are the team's, but switching one on is the user's own.
+    const auto& teamSets = highlightersCollection.teamHighlighterSets();
+    if ( !teamSets.isEmpty() ) {
+        addSection( tr( "Team" ) );
+        for ( const auto& highlighter : teamSets ) {
+            auto setAction = addAction( highlighter.name() );
+            setAction->setActionGroup( highLighters_ );
+            setAction->setCheckable( true );
+            setAction->setChecked( activeSetIds.contains( highlighter.id() ) );
+            setAction->setData( highlighter.id() );
+        }
+    }
 }
 
 void HighlightersMenu::saveCurrentHighlighterFromAction( const QAction* action ) const

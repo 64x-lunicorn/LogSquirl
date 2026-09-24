@@ -66,15 +66,23 @@ private:
     QHash<QString, QString> fields_;
 };
 
-// Extracts structured fields from raw log lines using a format definition's regex patterns.
+// Extracts structured fields from raw log lines: a Regex format by its named
+// capture groups, a Json format by the path of each field in the JSON object,
+// a Logfmt format by the key of each field.
 // It keeps no cache of its own: the table model caches the Rows it shows.
+//
+// For a Json or Logfmt format every Log Line is valid, so it is a Row; one that
+// is not a JSON object (not logfmt) has all its fields empty. A key a Logfmt
+// Log Line lacks is an empty field, and a key the format does not declare is
+// ignored. A numeric timestamp field is shown as
+// the point in time it is (through the timestamp divisor), UTC.
 class LogFieldExtractor {
 public:
     // Construct an extractor for the given format definition, which must
     // outlive the extractor.
     explicit LogFieldExtractor( const LogFormatDefinition& format );
 
-    // Extract fields from a raw line (always runs the regex).
+    // Extract fields from a raw line (always runs the regex or parses the JSON).
     ExtractedFields extractFields( const QString& line ) const;
 
     // Get the ordered list of column names for table display.
@@ -82,6 +90,10 @@ public:
     QStringList columnNames() const;
 
 private:
+    ExtractedFields extractRegexFields( const QString& line ) const;
+    ExtractedFields extractJsonFields( const QString& line ) const;
+    ExtractedFields extractLogfmtFields( const QString& line ) const;
+
     // A pattern with its named capture groups, looked up once when the
     // extractor is built rather than for every line.
     struct CompiledPattern {
@@ -93,4 +105,6 @@ private:
 
     const LogFormatDefinition& format_;
     QVector<CompiledPattern> compiledPatterns_;
+    // Json or Logfmt format: the fields (paths, keys) to read from each Log Line
+    QStringList keyedFields_;
 };

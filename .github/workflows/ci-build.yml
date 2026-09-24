@@ -368,33 +368,44 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
-  # Sanitizers — ASan + UBSan build of the test suites in the Noble
-  # container. Runs alongside the Linux matrix; no packaging, only the test report.
+  # Sanitizers — ASan + UBSan and TSan builds of the test suites in the Noble
+  # container. Runs alongside the Linux matrix; no packaging, only the test
+  # report. ASan and TSan cannot share one binary, hence one build each (#439).
   # -----------------------------------------------------------------------
   Sanitizers:
-    name: Sanitizers / asan-ubsan
+    name: Sanitizers / ${{ matrix.config.artifacts_id }}
     needs: [Changes]
     if: "needs.Changes.outputs.build == 'true'"
     strategy:
+      fail-fast: false
       matrix:
-        config:
-          # Single-entry matrix so the shared composite actions (which read
-          # matrix.config.*) work unchanged.
-          - arch: x64
-            artifacts_id: asan
-            container_root: docker/ubuntu24.04
-            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
-            # Sentry/crashpad is a release concern and its own crash handler
-            # would fight the sanitizer runtime; LTO only slows the link of a
-            # build nobody ships. Vectorscan stays ON: it builds and runs clean
-            # under ASan (it is a CPM dependency, so it is not instrumented).
-            cmake_opts: >-
-              -DENABLE_SANITIZER_ADDRESS=ON
-              -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON
-              -DLOGSQUIRL_USE_SENTRY=OFF
-              -DLOGSQUIRL_USE_LTO=OFF
+        # Entries shaped like the Linux matrix so the shared composite
+        # actions (which read matrix.config.*) work unchanged.
+        #
+        # ASan/UBSan: no third-party code is instrumented, and Sentry/crashpad
+        # is a release concern whose own crash handler would fight the
+        # sanitizer runtime; LTO only slows the link of a build nobody ships.
+        # Vectorscan stays ON: it builds and runs clean under ASan (it is a
+        # CPM dependency, so it is not instrumented).
+        #
+        # TSan (#439) finds a data race in the oneTBB flow graphs (indexing,
+        # search), the fault class ASan cannot see. The suppressions in
+        # cmake/tsan.supp reach the test binaries through
+        # cmake/CatchTestDiscoveryRunTest.cmake, so adding a suppression needs
+        # no change here. It is NOT run for a pull request yet: its first run
+        # over the whole suite reported 912 races and turned 78 of ~740 test
+        # cases red, mostly in oneTBB/Qt internals and Search code that
+        # predate the job (ADR 0007 expected this), so it would only show a
+        # red check that says nothing about the pull request. It runs on
+        # every push to master and by hand (workflow_dispatch), where it
+        # reports without failing the run (continue-on-error below), until
+        # the findings are triaged (#482); then it joins the pull requests
+        # and blocks, like asan-ubsan.
+        config: ${{ fromJSON(github.event_name == 'pull_request' && '[{"arch":"x64","artifacts_id":"asan-ubsan","sanitizers":"ASan/UBSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_ADDRESS=ON -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"}]' || '[{"arch":"x64","artifacts_id":"asan-ubsan","sanitizers":"ASan/UBSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_ADDRESS=ON -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"},{"arch":"x64","artifacts_id":"tsan","sanitizers":"TSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_THREAD=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"}]') }}
 
     runs-on: ubuntu-24.04
+    # Only the TSan entry is allowed to fail the job for now, see its comment.
+    continue-on-error: ${{ matrix.config.artifacts_id == 'tsan' }}
     # Slowest successful run 25 min, before #217 started one process per test
     # case (~40% longer tests, more under ASan) (#218).
     timeout-minutes: 75
@@ -433,9 +444,9 @@ jobs:
           restore-keys: |
             cpm-Linux-noble-
 
-      - name: Lower ASLR entropy for ASan
+      - name: Lower ASLR entropy for the sanitizer runtime
         # Kernels with vm.mmap_rnd_bits=32 (GitHub's Ubuntu runners) break the
-        # shadow-memory layout of GCC's libasan; containers share the host
+        # shadow-memory layout of GCC's libasan and libtsan; containers share the host
         # kernel, so this must be set on the runner.
         run: sudo sysctl -w vm.mmap_rnd_bits=28
 
@@ -444,7 +455,7 @@ jobs:
       - uses: ./.github/actions/docker-build
 
       # Per test case, with a JUnit report kept even when a case fails (#217).
-      - name: Run tests under ASan/UBSan
+      - name: Run tests under ${{ matrix.config.sanitizers }}
         id: tests
         run: |
           docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
@@ -457,6 +468,186 @@ jobs:
         with:
           junit-file: ${{ env.LOGSQUIRL_BUILD_ROOT }}/ctest-junit.xml
           artifact-name: ${{ matrix.config.artifacts_id }}
+
+  # -----------------------------------------------------------------------
+  # Coverage — line coverage of each module (the directories under src/),
+  # measured by the test suites in the Noble container (#444). A report, not a
+  # gate: no threshold, not in "CI passed", and a failure of the job itself
+  # (continue-on-error) leaves the check green. It runs on master and on
+  # request only, because the instrumented -O0 build and a whole test run cost
+  # as much as the Sanitizers job.
+  # -----------------------------------------------------------------------
+  Coverage:
+    name: Coverage / line
+    needs: [Changes]
+    if: >-
+      needs.Changes.outputs.build == 'true'
+      && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    continue-on-error: true
+    strategy:
+      matrix:
+        config:
+          # Single-entry matrix so the shared composite actions (which read
+          # matrix.config.*) work unchanged. Same container and options as the
+          # Sanitizers job, with the coverage instrumentation in its place; the
+          # optimizer would merge the lines the report counts.
+          - arch: x64
+            artifacts_id: coverage
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts: >-
+              -DENABLE_COVERAGE=ON
+              -DLOGSQUIRL_USE_SENTRY=OFF
+              -DLOGSQUIRL_USE_LTO=OFF
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+      - uses: ./.github/actions/docker-build
+
+      # The tests may fail without the report being any less true, so their
+      # result does not decide this step; the report step below does.
+      - name: Run tests
+        run: |
+          docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
+            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && (ctest --timeout 120 || true)"
+
+      - name: Report line coverage per module
+        run: |
+          docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
+            /bin/bash -c "cd /usr/local && python3 scripts/coverage_report.py --build-dir $LOGSQUIRL_BUILD_ROOT --source-root /usr/local --json $LOGSQUIRL_BUILD_ROOT/coverage.json --markdown $LOGSQUIRL_BUILD_ROOT/coverage.md"
+          cat "$LOGSQUIRL_BUILD_ROOT/coverage.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: |
+            ${{ env.LOGSQUIRL_BUILD_ROOT }}/coverage.json
+            ${{ env.LOGSQUIRL_BUILD_ROOT }}/coverage.md
+          if-no-files-found: warn
+
+  # -----------------------------------------------------------------------
+  # Tidy — clang-tidy with the bugprone, clang-analyzer and performance
+  # checks of .clang-tidy over the C++ sources under src/ that a pull request
+  # changes (a changed header selects its whole module), and any finding
+  # fails the job (#440). It configures the build for its compile database
+  # and runs the Qt code generators, but compiles and links nothing. The
+  # findings that existed when this job came in are fixed, or silenced with
+  # their reason at the line; the excluded checks carry theirs in .clang-tidy.
+  # A run started by hand analyses every source. Ubuntu's clang-tidy 19 reads
+  # the GCC compile database the noble image builds with; 18 cannot, because
+  # it reports __cpp_concepts too low for libstdc++'s <expected>.
+  # -----------------------------------------------------------------------
+  Tidy:
+    name: Tidy / clang-tidy
+    needs: [Changes]
+    if: "needs.Changes.outputs.build == 'true'"
+    strategy:
+      matrix:
+        config:
+          # Single-entry matrix so the shared composite actions (which read
+          # matrix.config.*) work unchanged.
+          - arch: x64
+            artifacts_id: tidy
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            # Only headers and the compile database are needed: no Sentry
+            # download, no LTO.
+            cmake_opts: >-
+              -DLOGSQUIRL_USE_SENTRY=OFF
+              -DLOGSQUIRL_USE_LTO=OFF
+
+    runs-on: ubuntu-24.04
+    # Not measured on a real run yet: a pull request should take a few minutes
+    # (configure, the clang-tidy install, the changed files); 45 leaves room
+    # for a full run over every source. Tighten it after the first runs (#218).
+    timeout-minutes: 45
+    steps:
+      # Depth 2: the pull request's merge commit and its base, which say
+      # what changed.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      # The noble job's CPM cache already holds every dependency the configure
+      # step fetches (#219).
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+
+      - name: Analyse with clang-tidy
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          mode=changed
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            mode=all
+          fi
+          docker run --rm \
+            --env LOGSQUIRL_VERSION="$LOGSQUIRL_VERSION" \
+            --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+            --env LOGSQUIRL_CMAKE_OPTS="$LOGSQUIRL_CMAKE_OPTS" \
+            --env MODE="$mode" \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
+            /bin/bash -c '
+              set -euo pipefail
+              # The checkout belongs to the runner user, not to root.
+              git config --global --add safe.directory /usr/local
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends clang-tidy-19 > /dev/null
+              cd /usr/local
+              cmake -B "$LOGSQUIRL_BUILD_ROOT" $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache .
+              CLANG_TIDY=clang-tidy-19 .github/scripts/run-clang-tidy.sh "$LOGSQUIRL_BUILD_ROOT" "$MODE"
+            '
 
   # -----------------------------------------------------------------------
   # macOS — runs alongside Linux and Windows (#121, #349). Linux gated this
@@ -676,7 +867,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Windows, Mac, Website]
+      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Tidy, Windows, Mac, Website]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5

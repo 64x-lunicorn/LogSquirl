@@ -42,6 +42,7 @@ class PolicyFileWatchPort;
 class LogFormatCatalog;
 class OpenLogFile;
 class SavedSearches;
+class TeamFolder;
 
 // File unreadable error
 class FileUnreadableErr {};
@@ -88,8 +89,13 @@ public:
     // file is added to it, and again whenever a settings change alters it.
     // Without one no Log File is followed on disk, which is what a test that
     // does not care wants.
+    //
+    // The Team Folder is the application's one, handed the Team Folder Policy
+    // here, which sets it up, and again whenever a settings change alters it.
+    // Without one there are no Team groups.
     Session( const SettingsPolicies& policies, std::shared_ptr<LogFormatCatalog> logFormatCatalog,
-             std::shared_ptr<PolicyFileWatchPort> fileWatch = {} );
+             std::shared_ptr<PolicyFileWatchPort> fileWatch = {},
+             std::shared_ptr<TeamFolder> teamFolder = {} );
     ~Session();
 
     // No copy/assignment please
@@ -168,6 +174,12 @@ public:
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog() const
     {
         return logFormatCatalog_;
+    }
+
+    // The application's Team Folder; null when there is none, as in a test.
+    std::shared_ptr<TeamFolder> teamFolder() const
+    {
+        return teamFolder_;
     }
 
     // The axes a window consumes, read at the point of use.
@@ -314,6 +326,9 @@ private:
     // Handed to every Open Log File, and handed the Watch Policy.
     std::shared_ptr<PolicyFileWatchPort> fileWatch_;
 
+    // Handed the Team Folder Policy.
+    std::shared_ptr<TeamFolder> teamFolder_;
+
     // Told of every settings change.
     std::vector<SessionWindow*> windows_;
 
@@ -383,6 +398,12 @@ public:
     std::shared_ptr<const LogFormatCatalog> logFormatCatalog() const
     {
         return appSession_->logFormatCatalog();
+    }
+
+    // The application's Team Folder, or null.
+    std::shared_ptr<TeamFolder> teamFolder() const
+    {
+        return appSession_->teamFolder();
     }
 
     // The axes the window this session belongs to consumes. See the

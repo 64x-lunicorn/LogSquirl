@@ -17,7 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include "configuration.h"
 #include "configurationfixture.h"
@@ -130,6 +130,13 @@ SCENARIO( "Configuration default values", "[configuration]" )
         THEN( "SSL peer verification is on" )
         {
             REQUIRE( config.verifySslPeers() );
+        }
+
+        THEN( "There is no Team Folder" )
+        {
+            REQUIRE_FALSE( config.teamFolderEnabled() );
+            REQUIRE( config.teamFolderUrl().isEmpty() );
+            REQUIRE( config.teamFolderSubfolder().isEmpty() );
         }
 
         THEN( "Regexp engine defaults to Vectorscan" )
@@ -526,6 +533,7 @@ const QStringList StoredSettingNames = {
     "defaultView.searchAutoRefresh",
     "defaultView.searchIgnoreCase",
     "defaultView.searchLogicalCombining",
+    "defaultView.searchWindowMinutes",
     "defaultView.splitterSizes",
     "filewatch.allowFollowOnScroll",
     "filewatch.fastModificationDetection",
@@ -569,6 +577,9 @@ const QStringList StoredSettingNames = {
     "session.loadLast",
     "session.multipleWindows",
     "shortcuts",
+    "teamFolder.enabled",
+    "teamFolder.subfolder",
+    "teamFolder.url",
     "versionchecker.betaEnabled",
     "versionchecker.enabled",
     "view.contextLinesCount",
@@ -643,6 +654,9 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.useIndexCache() == expected.useIndexCache() );
     CHECK( actual.indexCacheMaxSizeMb() == expected.indexCacheMaxSizeMb() );
     CHECK( actual.verifySslPeers() == expected.verifySslPeers() );
+    CHECK( actual.teamFolderEnabled() == expected.teamFolderEnabled() );
+    CHECK( actual.teamFolderUrl() == expected.teamFolderUrl() );
+    CHECK( actual.teamFolderSubfolder() == expected.teamFolderSubfolder() );
 
     CHECK( actual.isOverviewVisible() == expected.isOverviewVisible() );
     CHECK( actual.mainLineNumbersVisible() == expected.mainLineNumbersVisible() );
@@ -658,6 +672,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.isSearchLogicalCombiningDefault() == expected.isSearchLogicalCombiningDefault() );
     CHECK( actual.defaultEncodingMib() == expected.defaultEncodingMib() );
     CHECK( actual.splitterSizes() == expected.splitterSizes() );
+    CHECK( actual.searchWindowMinutes() == expected.searchWindowMinutes() );
 
     CHECK( actual.shortcuts() == expected.shortcuts() );
     CHECK( actual.showSplashScreen() == expected.showSplashScreen() );
@@ -816,7 +831,13 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
 
             THEN( "Saving writes back every value unchanged" )
             {
-                const auto stored = storedSettings( config );
+                auto stored = storedSettings( config );
+                // Settings added after v26.07.0 are not in its file; loading it
+                // leaves them at their default.
+                for ( const auto* added : { "defaultView.searchWindowMinutes", "teamFolder.enabled",
+                                            "teamFolder.url", "teamFolder.subfolder" } ) {
+                    stored.remove( added );
+                }
                 CHECK( stored.keys() == release.keys() );
                 for ( const auto& key : release.keys() ) {
                     // The stored family is the one the platform resolves.

@@ -101,6 +101,9 @@ public:
 
     RegularExpressionPattern expressionPattern() const;
 
+    // Whether both would color the same text the same way.
+    bool sameAs( const Highlighter& other ) const;
+
 private:
     std::pair<QColor, QColor> vairateColors( QStringView match ) const;
 
@@ -153,6 +156,11 @@ public:
 
     QString name() const;
     QString id() const;
+    void setName( const QString& name );
+
+    // A copy of this set under the given id: a set that arrives from
+    // elsewhere takes the id of the one it replaces, or a fresh one.
+    HighlighterSet withId( const QString& id ) const;
 
     // Append a highlighter to this set.
     void addHighlighter( const Highlighter& highlighter );
@@ -162,6 +170,10 @@ public:
     HighlighterMatchType matchLine( const QString& line, HighlightedMatchRanges& matches ) const;
 
     bool isEmpty() const;
+
+    // Whether both have the same name and color the same way. The id is not
+    // compared.
+    bool sameAs( const HighlighterSet& other ) const;
 
     // Reads/writes the current config in the QSettings object passed
     void saveToStorage( QSettings& settings ) const;

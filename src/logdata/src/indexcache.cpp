@@ -175,7 +175,7 @@ std::optional<CachedIndex> IndexCache::tryLoad( const QString& filePath,
         result.linePosition = std::move( linePosition );
         result.maxLength = LineLength( maxLen );
         result.hash = hash;
-        result.encodingName = encodingName;
+        result.encodingName = std::move( encodingName );
         result.fakeFinalLF = fakeLF;
         return result;
     };

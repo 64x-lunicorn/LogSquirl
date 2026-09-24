@@ -110,7 +110,6 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
 
         currentIndex = leftQuote + 1;
         if ( isEscapedQuote( pattern, leftQuote ) ) {
-            leftQuote = -1;
             continue;
         }
 
@@ -144,7 +143,6 @@ parseBooleanExpressions( QString& pattern, bool isCaseSensitive, bool isPlainTex
                          QString::fromStdString( subPatterns.back().id() ) );
 
         currentIndex = 0;
-        leftQuote = -1;
         rightQuote = -1;
     }
 

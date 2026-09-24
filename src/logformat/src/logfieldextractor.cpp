@@ -19,9 +19,25 @@
 
 #include "logfieldextractor.h"
 
+#include "jsonlogline.h"
+#include "logfmtlogline.h"
+
 LogFieldExtractor::LogFieldExtractor( const LogFormatDefinition& format )
     : format_( format )
 {
+    if ( format_.kind() != LogFormatKind::Regex ) {
+        // Every column is read, and the special fields even when they are not one
+        keyedFields_ = columnNames();
+        for ( const auto& special :
+              { format_.timestampField(), format_.levelField(), format_.bodyField(),
+                format_.threadIdField(), format_.opidField() } ) {
+            if ( !special.isEmpty() && !keyedFields_.contains( special ) ) {
+                keyedFields_ << special;
+            }
+        }
+        return;
+    }
+
     // Pre-compile all regex patterns from the format definition
     const auto& patterns = format_.regexPatterns();
     compiledPatterns_.reserve( patterns.size() );
@@ -135,6 +151,60 @@ QStringList LogFieldExtractor::columnNames() const
 }
 
 ExtractedFields LogFieldExtractor::extractFields( const QString& line ) const
+{
+    switch ( format_.kind() ) {
+    case LogFormatKind::Json:
+        return extractJsonFields( line );
+    case LogFormatKind::Logfmt:
+        return extractLogfmtFields( line );
+    case LogFormatKind::Regex:
+        break;
+    }
+    return extractRegexFields( line );
+}
+
+ExtractedFields LogFieldExtractor::extractJsonFields( const QString& line ) const
+{
+    // Valid even when the line is no JSON object: it is a Row with empty fields
+    ExtractedFields result;
+    result.setValid( true );
+
+    const auto object = JsonLogLine::parse( line );
+    if ( !object ) {
+        return result;
+    }
+
+    for ( const auto& field : keyedFields_ ) {
+        const auto value = JsonLogLine::valueAt( *object, field );
+        if ( field == format_.timestampField() && value.isDouble() ) {
+            result.setValue(
+                field, JsonLogLine::epochCellText( value.toDouble(), format_.timestampDivisor() ) );
+        }
+        else {
+            result.setValue( field, JsonLogLine::cellText( value ) );
+        }
+    }
+    return result;
+}
+
+ExtractedFields LogFieldExtractor::extractLogfmtFields( const QString& line ) const
+{
+    // Valid even when the line is not logfmt: it is a Row with empty fields
+    ExtractedFields result;
+    result.setValid( true );
+
+    const auto pairs = LogfmtLogLine::parse( line );
+    if ( !pairs ) {
+        return result;
+    }
+
+    for ( const auto& field : keyedFields_ ) {
+        result.setValue( field, pairs->value( field ) );
+    }
+    return result;
+}
+
+ExtractedFields LogFieldExtractor::extractRegexFields( const QString& line ) const
 {
     ExtractedFields result;
 

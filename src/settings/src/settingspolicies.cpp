@@ -80,5 +80,9 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                        .searchIgnoreCaseDefault = config.isSearchIgnoreCaseDefault(),
                        .searchAutoRefreshDefault = config.isSearchAutoRefreshDefault(),
                        .searchLogicalCombiningDefault = config.isSearchLogicalCombiningDefault() },
+
+        .teamFolder = { .enabled = config.teamFolderEnabled(),
+                        .repositoryUrl = config.teamFolderUrl(),
+                        .subfolder = config.teamFolderSubfolder() },
     };
 }

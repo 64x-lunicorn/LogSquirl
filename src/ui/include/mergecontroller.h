@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QFileSystemWatcher>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -26,7 +27,11 @@
 
 // Manages the creation and live-updating of a merged log file.
 // Concatenates multiple source files into a single temporary file
-// that can be opened as a regular LogData tab.
+// that can be opened as a regular LogData tab. The sources are watched:
+// when one changes, the whole merged file is rewritten from what the sources
+// contain at that moment (so lines appended to a source appear, and lines
+// of a truncated or rewritten source disappear), and mergedFileUpdated()
+// is emitted.
 class MergeController : public QObject {
     Q_OBJECT
 
@@ -52,6 +57,12 @@ Q_SIGNALS:
     void mergedFileUpdated();
 
 private:
+    // Starts watching every source that is not watched yet.
+    void watchSources();
+
+    // A source changed on disk.
+    void onSourceChanged();
+
     // Actually performs the merge (writes the temp file).
     void doMerge();
 
@@ -59,4 +70,5 @@ private:
     QString mergedFilePath_;
     bool dedup_ = false;
     QTimer rebuildTimer_;
+    QFileSystemWatcher sourceWatcher_;
 };

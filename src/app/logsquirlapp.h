@@ -59,6 +59,7 @@
 #include "logsquirl_version.h"
 #include "session.h"
 #include "settingspolicies.h"
+#include "teamfolder.h"
 #include "uuid.h"
 
 #include <kdsingleapplication.h>
@@ -86,7 +87,7 @@ class LogSquirlApp : public QApplication {
     // real run never sets it, so it keeps today's fixed name.
     static QString singleApplicationName()
     {
-        const auto executableName = QFileInfo( QCoreApplication::applicationFilePath() ).fileName();
+        auto executableName = QFileInfo( QCoreApplication::applicationFilePath() ).fileName();
         const auto instanceId = qEnvironmentVariable( "LOGSQUIRL_INSTANCE_ID" );
         if ( instanceId.isEmpty() ) {
             return executableName;
@@ -146,6 +147,10 @@ public:
         logFormatCatalog_->rebuild();
 
         fileWatcher_ = FileWatcher::sharedFileWatcher();
+
+        // The one Team Folder. The Session sets it up from the Team Folder
+        // Policy, which starts its first sync, and every window shows it.
+        teamFolder_ = std::make_shared<TeamFolder>( TeamFolder::defaultCloneDirectory() );
 
         // Loaded once, after the first window shows, and shared by every
         // window (#303).
@@ -231,8 +236,8 @@ public:
     MainWindow* reloadSession()
     {
         if ( !session_ ) {
-            session_
-                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
+            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_,
+                                                  fileWatcher_, teamFolder_ );
         }
 
         for ( auto&& windowSession : session_->windowSessions() ) {
@@ -274,8 +279,8 @@ public:
     MainWindow* newWindow()
     {
         if ( !session_ ) {
-            session_
-                = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_, fileWatcher_ );
+            session_ = std::make_shared<Session>( settingsPolicies_, logFormatCatalog_,
+                                                  fileWatcher_, teamFolder_ );
         }
 
         const auto previousSessions = session_->windowSessions();
@@ -451,6 +456,9 @@ private:
     // opens as their File Watch Port (#249, #245). File watching reads no
     // setting of its own (#93).
     std::shared_ptr<FileWatcher> fileWatcher_;
+
+    // The application's one Team Folder, handed to the Session (#470).
+    std::shared_ptr<TeamFolder> teamFolder_;
 
     std::shared_ptr<Session> session_;
 

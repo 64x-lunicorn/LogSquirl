@@ -43,7 +43,6 @@
 #include <numeric>
 #include <optional>
 #include <qregularexpression.h>
-#include <qtextcodec.h>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -102,7 +101,7 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     , indexingPolicy_( indexingPolicy )
     , searchPolicy_( searchPolicy )
     , fileAccessPolicy_( fileAccessPolicy )
-    , codec_( QTextCodec::codecForName( "ISO-8859-1" ) )
+    , codec_( TextEncoding::forName( "ISO-8859-1" ) )
     , decodingPolicy_( decodingPolicy )
 {
     registerLogDataMetaTypes();
@@ -123,7 +122,13 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     }
 
     if ( fileAccessPolicy_.defaultEncodingMib >= 0 ) {
-        codec_.setCodec( QTextCodec::codecForMib( fileAccessPolicy_.defaultEncodingMib ) );
+        const auto* defaultEncoding = TextEncoding::forMib( fileAccessPolicy_.defaultEncodingMib );
+        if ( !defaultEncoding ) {
+            LOG_WARNING << "Unknown default encoding " << fileAccessPolicy_.defaultEncodingMib
+                        << ", using the one of the locale";
+            defaultEncoding = TextEncoding::forLocale();
+        }
+        codec_.setCodec( defaultEncoding );
     }
 }
 
@@ -209,7 +214,7 @@ std::unique_ptr<LogFilteredData> LogData::getNewFilteredData() const
     return filteredData;
 }
 
-void LogData::reload( QTextCodec* forcedEncoding )
+void LogData::reload( const TextEncoding* forcedEncoding )
 {
     operationQueue_.interrupt();
 
@@ -358,14 +363,14 @@ LineLength LogData::doGetLineLength( LineNumber line ) const
 void LogData::doSetDisplayEncoding( const char* encoding )
 {
     LOG_DEBUG << "AbstractLogData::setDisplayEncoding: " << encoding;
-    codec_.setCodec( QTextCodec::codecForName( encoding ) );
+    codec_.setCodec( TextEncoding::forName( encoding ) );
     auto needReload = false;
     auto useGuessedCodec = false;
 
     {
         IndexingData::ConstAccessor scopedAccessor{ indexing_data_.get() };
 
-        const QTextCodec* currentIndexCodec = scopedAccessor.getForcedEncoding();
+        const TextEncoding* currentIndexCodec = scopedAccessor.getForcedEncoding();
         if ( !currentIndexCodec ) {
             currentIndexCodec = scopedAccessor.getEncodingGuess();
         }
@@ -396,7 +401,7 @@ void LogData::logLinesChanged( LineNumber firstChanged ) const
     }
 }
 
-QTextCodec* LogData::doGetDisplayEncoding() const
+const TextEncoding* LogData::doGetDisplayEncoding() const
 {
     return codec_.codec();
 }
@@ -641,6 +646,9 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
     logsquirl::vector<bool> isRead( lines.size(), false );
 
     try {
+        // One decoder for the whole read: making one costs a converter, dear
+        // for the legacy Encodings. Its state is reset for every Log Line.
+        const auto textDecoder = codec_.makeDecoder();
         readSparseLines( lines, [ & ]( const SparseReadLine& line ) {
             QString decodedLine;
             if ( !line.warning.empty() ) {
@@ -651,9 +659,9 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
                 // does: a character cut short at the end of one must not
                 // reach the next, and a byte order mark starting any of them
                 // is dropped.
-                const auto textDecoder = codec_.makeDecoder();
-                decodedLine = textDecoder.decoder->toUnicode(
-                    line.bytes.data(), static_cast<int>( line.bytes.size() ) );
+                textDecoder.decoder->resetState();
+                decodedLine = textDecoder.decode( line.bytes.data(),
+                                                  static_cast<qsizetype>( line.bytes.size() ) );
                 if ( line.hideAnsiColorSequences ) {
                     removeAnsiColorSequences( decodedLine );
                 }
@@ -700,6 +708,7 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
     try {
         const auto encodingParams = codec_.encodingParameters();
         const bool isUtf8 = codec_.mibEnum() == Utf8Mib;
+        const auto textDecoder = codec_.makeDecoder();
 
         readSparseLines( lines, [ & ]( const SparseReadLine& line ) {
             const auto begin = pieces.size();
@@ -723,9 +732,9 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
             }
             else {
                 // Decoded on its own, as getLineString() does.
-                const auto textDecoder = codec_.makeDecoder();
-                auto decodedLine = textDecoder.decoder->toUnicode(
-                    text.data(), static_cast<int>( text.size() ) );
+                textDecoder.decoder->resetState();
+                auto decodedLine
+                    = textDecoder.decode( text.data(), static_cast<qsizetype>( text.size() ) );
                 if ( line.hideAnsiColorSequences ) {
                     removeAnsiColorSequences( decodedLine );
                 }
@@ -772,7 +781,7 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
     return text;
 }
 
-QTextCodec* LogData::getDetectedEncoding() const
+const TextEncoding* LogData::getDetectedEncoding() const
 {
     return IndexingData::ConstAccessor{ indexing_data_.get() }.getEncodingGuess();
 }
@@ -823,8 +832,8 @@ logsquirl::vector<QString> RawLines::decodeLines() const
                 break;
             }
 
-            auto decodedLine = textDecoder.decoder->toUnicode(
-                buffer.data() + lineStart, type_safe::narrow_cast<int>( length ) );
+            auto decodedLine = textDecoder.decode( buffer.data() + lineStart,
+                                                   type_safe::narrow_cast<int>( length ) );
 
             if ( hideAnsiColorSequences ) {
                 removeAnsiColorSequences( decodedLine );
@@ -933,7 +942,7 @@ QString decode( std::string_view line, DirectEncoding encoding )
     const auto size = static_cast<qsizetype>( line.size() );
     switch ( encoding ) {
     case DirectEncoding::Latin1:
-        return QString::fromLatin1( line.data(), size );
+        return QString::fromLatin1( QByteArrayView( line ) );
     case DirectEncoding::Utf16LE:
     case DirectEncoding::Utf16BE: {
         QString text( size / 2, Qt::Uninitialized );
@@ -946,7 +955,7 @@ QString decode( std::string_view line, DirectEncoding encoding )
         return text;
     }
     default:
-        return QString::fromUtf8( line.data(), size );
+        return QString::fromUtf8( QByteArrayView( line ) );
     }
 }
 
@@ -1172,8 +1181,7 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
             }
         }
         else {
-            auto utf16Data
-                = textDecoder.decoder->toUnicode( buffer.data(), logsquirl::isize( buffer ) );
+            auto utf16Data = textDecoder.decode( buffer.data(), logsquirl::isize( buffer ) );
             if ( hideAnsiColorSequences ) {
                 removeAnsiColorSequences( utf16Data );
             }

@@ -23,7 +23,7 @@
 // to the displayed lines while it runs neither races its worker thread nor
 // moves its result onto another Log Line.
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <QRegularExpression>
 #include <QSignalSpy>

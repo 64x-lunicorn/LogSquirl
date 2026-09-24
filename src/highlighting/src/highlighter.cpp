@@ -306,6 +306,37 @@ QString HighlighterSet::name() const
     return name_;
 }
 
+void HighlighterSet::setName( const QString& name )
+{
+    name_ = name;
+}
+
+bool Highlighter::sameAs( const Highlighter& other ) const
+{
+    return regexp_.pattern() == other.regexp_.pattern()
+           && regexp_.patternOptions() == other.regexp_.patternOptions()
+           && useRegex_ == other.useRegex_ && highlightOnlyMatch_ == other.highlightOnlyMatch_
+           && variateColors_ == other.variateColors_ && colorVariance_ == other.colorVariance_
+           && color_.foreColor == other.color_.foreColor
+           && color_.backColor == other.color_.backColor;
+}
+
+bool HighlighterSet::sameAs( const HighlighterSet& other ) const
+{
+    return name_ == other.name_
+           && std::equal(
+               highlighterList_.cbegin(), highlighterList_.cend(), other.highlighterList_.cbegin(),
+               other.highlighterList_.cend(),
+               []( const Highlighter& a, const Highlighter& b ) { return a.sameAs( b ); } );
+}
+
+HighlighterSet HighlighterSet::withId( const QString& id ) const
+{
+    auto copy = *this;
+    copy.id_ = id;
+    return copy;
+}
+
 void HighlighterSet::addHighlighter( const Highlighter& highlighter )
 {
     highlighterList_.append( highlighter );

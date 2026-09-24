@@ -74,7 +74,7 @@ public:
     MatchedPatterns match( const std::string_view& utf8Data ) const
     {
         // One conversion per Log Line, however many sub-patterns match it.
-        const auto line = QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) );
+        const auto line = QString::fromUtf8( QByteArrayView( utf8Data ) );
 
         MatchedPatterns matchedPatterns( regexp_.size(), 0 );
         std::transform(
@@ -113,8 +113,8 @@ public:
     HsMatcher( const HsMatcher& ) = delete;
     HsMatcher& operator=( const HsMatcher& ) = delete;
 
-    HsMatcher( HsMatcher&& other ) = default;
-    HsMatcher& operator=( HsMatcher&& other ) = default;
+    HsMatcher( HsMatcher&& other ) noexcept = default;
+    HsMatcher& operator=( HsMatcher&& other ) noexcept = default;
 
 protected:
     HsDatabase database_;

@@ -47,6 +47,13 @@ jobs:
         sanitizer: [address, undefined]
 
     steps:
+      # The action reads .clusterfuzzlite/project.yaml (base_os_version) from
+      # the workspace; without a checkout it finds nothing, stays on its old
+      # Ubuntu and cannot load the fuzzers built on 24.04.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
       - name: Build the fuzzers
         id: build
         uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1

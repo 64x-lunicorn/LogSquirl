@@ -20,8 +20,8 @@
 // Runner for the update check's tests. It uses QCoreApplication on purpose:
 // deciding an update offer needs no GUI (#306).
 
-#define CATCH_CONFIG_RUNNER
-#include <catch2/catch.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <QCoreApplication>
 

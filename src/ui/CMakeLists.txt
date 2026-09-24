@@ -13,6 +13,10 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logpresentation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logtableview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/presentationmenu.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/groupexchange.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/groupimportprompt.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/teamfolder.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/teamfoldergit.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilters.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfilterscombobox.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/predefinedfiltersdialog.h
@@ -21,6 +25,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/pathline.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logmainview.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecount.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecounttab.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindowtext.h
@@ -87,6 +93,10 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlightersetedit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/highlighterset.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/groupexchange.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/groupimportprompt.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfolder.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/teamfoldergit.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfilters.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfilterscombobox.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/predefinedfiltersdialog.cpp
@@ -95,6 +105,8 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pathline.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logtableview.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecount.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecounttab.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/presentationmenu.cpp

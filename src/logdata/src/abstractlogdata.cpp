@@ -118,7 +118,7 @@ void AbstractLogData::setDisplayEncoding( const char* encoding )
     doSetDisplayEncoding( encoding );
 }
 
-QTextCodec* AbstractLogData::getDisplayEncoding() const
+const TextEncoding* AbstractLogData::getDisplayEncoding() const
 {
     return doGetDisplayEncoding();
 }

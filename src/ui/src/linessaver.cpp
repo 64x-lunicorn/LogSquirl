@@ -28,15 +28,15 @@
 #include <QMetaObject>
 #include <QProgressDialog>
 #include <QSaveFile>
-#include <QTextCodec>
 #include <QtConcurrent>
 
 #include <tbb/flow_graph.h>
 
 #include "log.h"
+#include "textencoding.h"
 
 bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin, LineNumber end,
-                         const QTextCodec* codec, QIODevice& output, const AtomicFlag& interrupt,
+                         const TextEncoding* codec, QIODevice& output, const AtomicFlag& interrupt,
                          const std::function<void( int )>& progress )
 {
     // The lines are read and written in chunks of chunkSize lines; only the
@@ -51,7 +51,7 @@ bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin
     }
 
     if ( !codec ) {
-        codec = QTextCodec::codecForName( "utf-8" );
+        codec = TextEncoding::forName( "utf-8" );
     }
 
     // Write BOM (Byte Order Mark) for Unicode encodings so other applications
@@ -112,11 +112,9 @@ bool saveDisplayedLines( const DisplayedLinesReader& readLines, LineNumber begin
                     break;
                 }
 
-                // Use IgnoreHeader to prevent codec from inserting its own BOM
+                // fromUnicode() writes no BOM of its own, so none is inserted
                 // per line — we already wrote the BOM once at the start of the file.
-                QTextCodec::ConverterState state( QTextCodec::IgnoreHeader );
-                const auto encodedLine
-                    = codec->fromUnicode( l.constData(), static_cast<int>( l.length() ), &state );
+                const auto encodedLine = codec->fromUnicode( l );
                 const auto written = output.write( encodedLine );
 
                 if ( written != encodedLine.size() ) {
@@ -149,7 +147,7 @@ LinesSaver::~LinesSaver()
 }
 
 void LinesSaver::save( DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-                       const QTextCodec* codec, QIODevice* output, const AtomicFlag& interrupt )
+                       const TextEncoding* codec, QIODevice* output, const AtomicFlag& interrupt )
 {
     // Progress is posted to this object's thread and emitted there, so every
     // slot connected to progressed() runs on that thread. The destructor waits
@@ -173,7 +171,7 @@ bool LinesSaver::waitForResult()
 
 void saveLinesWithProgress( QWidget* parent, const QString& filename,
                             DisplayedLinesReader readLines, LineNumber begin, LineNumber end,
-                            const QTextCodec* codec )
+                            const TextEncoding* codec )
 {
     QSaveFile saveFile{ filename };
     if ( !saveFile.open( QIODevice::WriteOnly | QIODevice::Truncate ) ) {

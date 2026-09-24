@@ -26,19 +26,19 @@
 #include "test_policies.h"
 #include "test_utils.h"
 
+#include "textencoding.h"
 #include <QCoreApplication>
 #include <QFile>
 #include <QHash>
 #include <QList>
 #include <QMetaType>
 #include <QTemporaryDir>
-#include <QTextCodec>
 
 #include <algorithm>
 #include <memory>
 #include <vector>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 // What a Log File changing on disk means is decided by the Open Log File;
 // these tests follow real Log Files on disk without any widget. It hears of a
@@ -936,7 +936,7 @@ bool writeUtf8LogFile( const QString& path )
 
 int mibOf( const char* encoding )
 {
-    return QTextCodec::codecForName( encoding )->mibEnum();
+    return TextEncoding::forName( encoding )->mibEnum();
 }
 
 // The first Log Line as it reads in ISO-8859-1.

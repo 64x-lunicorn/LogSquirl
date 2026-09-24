@@ -148,7 +148,7 @@ MatchedPatterns HsPrefilterMatcher::match( const std::string_view& utf8Data ) co
     for ( size_t i = 0u; i < matchingPatterns.size(); ++i ) {
         if ( matchingPatterns[ i ] ) {
             if ( !line ) {
-                line = QString::fromUtf8( utf8Data.data(), logsquirl::isize( utf8Data ) );
+                line = QString::fromUtf8( QByteArrayView( utf8Data ) );
             }
             matchingPatterns[ i ] = regexps_[ i ].match( *line ).hasMatch();
         }

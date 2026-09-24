@@ -48,6 +48,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDateTime>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QLabel>
@@ -78,6 +79,7 @@
 
 #include "logformatdefinition.h"
 #include "settingspolicies.h"
+#include "timestampreader.h"
 
 class LogFormatCatalog;
 class LogTableView;
@@ -126,6 +128,15 @@ public:
     // Returns whether follow is enabled in this crawler
     bool isFollowEnabled() const;
 
+    // Why "Go to timestamp" is not available for this Log File, empty when it
+    // is: it needs a recognized Log Format with a timestamp field.
+    QString goToTimestampUnavailableReason() const;
+    //! The reader for the current Log Format, built on demand; nullptr when there is none.
+    //! Never keep it across a modal dialog: the Log Format can be reset meanwhile.
+    TimestampReader* currentTimestampReader() const;
+    // The same for the Search Limits given as a time.
+    QString searchLimitsByTimeUnavailableReason() const;
+
     bool isTextWrapEnabled() const;
 
     // The Policies this Log File's views show and search under, as last
@@ -152,6 +163,14 @@ public Q_SLOTS:
 
     void focusSearchEdit();
     void goToLine();
+    // Asks for a time and goes to the first Log Line at or after it.
+    void goToTimestamp();
+    // Ask for a start and an end time, and limit the Search to the Log Lines
+    // between them.
+    void setSearchLimitsToTimeRange();
+    // Limit the Search to N minutes before and after the current Log Line; N
+    // is asked for and remembered.
+    void setSearchLimitsAroundCurrentLine();
 
     // Takes what a tab brought to the front shows afresh -- the Search
     // history, which another tab may have added to, and the status of its
@@ -227,6 +246,9 @@ public Q_SLOTS:
     void startNewSearch();
 
 private Q_SLOTS:
+    // Offers a Value Count of each capture group of the current Search.
+    void fillCountValuesMenu();
+
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
@@ -298,6 +320,9 @@ private Q_SLOTS:
 
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     void clearSearchLimits();
+    // Turns a time range into line limits, once, here where the Limits are
+    // decided, and sets them; on failure tells the user and leaves them.
+    void setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end );
 
     void addColorLabelToSelection( size_t label );
     void addNextColorLabelToSelection();
@@ -311,6 +336,13 @@ public Q_SLOTS:
     // Create chart series from the current search filter patterns and show
     // them in the chart panel.
     void showFilterFrequency();
+    // Show a Value Count of the Log Format field in the chart panel.
+    void countFieldValues( const QString& fieldName );
+    // Show a Value Count of a capture group of the current Search in the chart
+    // panel, over the Log Lines the Search matches.
+    void countSearchGroupValues( int group );
+    // Start a Search for the value, as literal text.
+    void searchForValue( const QString& value );
 
 private Q_SLOTS:
 
@@ -440,6 +472,9 @@ private:
 
     QComboBox* searchLineEdit_;
     QMenu* searchLineContextMenu_;
+    // Its entries, one per capture group of the current Search, are made when
+    // the menu is shown.
+    QMenu* countValuesMenu_ = nullptr;
     QCompleter* searchLineCompleter_;
 
     InfoLine* searchInfoLine_;
@@ -505,6 +540,9 @@ private:
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
+    // Reads the Timestamps of Log Lines for "Go to timestamp"; built when it
+    // is first used, so opening a Log File does not pay for it.
+    mutable std::unique_ptr<TimestampReader> timestampReader_;
 
     // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;

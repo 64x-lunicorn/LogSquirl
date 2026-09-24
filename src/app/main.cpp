@@ -128,6 +128,14 @@ int main( int argc, char* argv[] )
     LogSquirlApp app( argc, argv );
     CliParameters parameters( app );
 
+    // "-" with nothing piped in would wait on the keyboard behind a window
+    // that never fills: refuse before anything is set up.
+    if ( parameters.read_stdin && logsquirl::plugins::isTerminal( 0 ) ) {
+        std::cerr << "logsquirl: '-' reads a Log File from standard input, but standard input "
+                     "is a terminal. Pipe something into it, e.g. 'journalctl -f | logsquirl -'.\n";
+        return EXIT_FAILURE;
+    }
+
     // A secondary instance hands its Log Files over to the primary instance
     // and exits. It needs none of what follows -- no settings, translations,
     // crash handler, Log Format Catalog or file watcher -- so it checks first
@@ -256,7 +264,7 @@ int main( int argc, char* argv[] )
     updateSplash( QObject::tr( "Restoring session..." ) );
 
     if ( parameters.load_session
-         || ( parameters.filenames.empty() && !parameters.new_session
+         || ( parameters.filenames.empty() && !parameters.read_stdin && !parameters.new_session
               && config.loadLastSession() ) ) {
         mw = app.reloadSession();
         startNewSession = false;
@@ -278,6 +286,10 @@ int main( int argc, char* argv[] )
 
     for ( const auto& filename : parameters.filenames ) {
         mw->loadInitialFile( filename, parameters.follow_file );
+    }
+
+    if ( parameters.read_stdin ) {
+        mw->openStandardInput();
     }
 
     if ( startNewSession ) {

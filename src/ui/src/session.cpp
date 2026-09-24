@@ -32,18 +32,26 @@
 #include "policyfilewatchport.h"
 #include "savedsearches.h"
 #include "sessioninfo.h"
+#include "teamfolder.h"
 #include "viewinterface.h"
 
 Session::Session( const SettingsPolicies& policies,
                   std::shared_ptr<LogFormatCatalog> logFormatCatalog,
-                  std::shared_ptr<PolicyFileWatchPort> fileWatch )
+                  std::shared_ptr<PolicyFileWatchPort> fileWatch,
+                  std::shared_ptr<TeamFolder> teamFolder )
     : policies_( policies )
     , logFormatCatalog_( std::move( logFormatCatalog ) )
     , fileWatch_( std::move( fileWatch ) )
+    , teamFolder_( std::move( teamFolder ) )
 {
     // Before any Log File is opened, and so before any file is added to it.
     if ( fileWatch_ ) {
         fileWatch_->setWatchPolicy( policies_.watch );
+    }
+
+    // Sets it up and starts its first sync, off the main thread.
+    if ( teamFolder_ ) {
+        teamFolder_->setUp( policies_.teamFolder );
     }
 
     // Get the global search history (it remains the property
@@ -319,6 +327,7 @@ void Session::applyPolicies( const SettingsPolicies& policies, ViewChange change
     const auto recognitionChanged = policies.recognition != policies_.recognition;
     const auto decodingChanged = policies.decoding != policies_.decoding;
     const auto watchChanged = policies.watch != policies_.watch;
+    const auto teamFolderChanged = policies.teamFolder != policies_.teamFolder;
 
     // The Axes the views hold. One that did not change is left empty, and so
     // is not handed to anybody.
@@ -357,6 +366,12 @@ void Session::applyPolicies( const SettingsPolicies& policies, ViewChange change
         // Once for the whole application: the watcher is shared by every
         // Log File, so changing the poll interval restarts nothing else.
         fileWatch_->setWatchPolicy( policies_.watch );
+    }
+
+    if ( teamFolderChanged && teamFolder_ ) {
+        // Turned on or off, or pointed elsewhere. The user's own groups are
+        // not the Team Folder's and are not touched.
+        teamFolder_->setUp( policies_.teamFolder );
     }
 
     for ( auto& [ view, openFile ] : openFiles_ ) {
@@ -419,6 +434,7 @@ std::vector<WindowSession> Session::windowSessions()
     const auto& sessionWindows = session.windows();
 
     std::vector<WindowSession> windows;
+    windows.reserve( static_cast<std::size_t>( sessionWindows.size() ) );
     for ( auto i = 0; i < sessionWindows.size(); ++i ) {
         windows.emplace_back( shared_from_this(), sessionWindows.at( i ), i );
     }

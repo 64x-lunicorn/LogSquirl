@@ -19,7 +19,7 @@
 
 #include "encodingdetector.h"
 
-#include <QTextCodec>
+#include "textencoding.h"
 
 #include <string>
 #include <string_view>
@@ -68,29 +68,31 @@ private:
 
 } // namespace
 
-EncodingParameters::EncodingParameters( const QTextCodec* codec )
+EncodingParameters::EncodingParameters( const TextEncoding* codec )
 {
+    if ( !codec ) {
+        codec = TextEncoding::forLocale();
+    }
     static constexpr QChar LineFeed( QChar::LineFeed );
-    static constexpr int Utf8Mib = 106;
-    static constexpr int Utf16LEMib = 1014;
-    static constexpr int Utf16BEMib = 1013;
-    static constexpr int Latin1Mib = 4;
-    static constexpr int UsAsciiMib = 3;
+    static constexpr int Utf8Mib = TextEncoding::Utf8Mib;
+    static constexpr int Utf16LEMib = TextEncoding::Utf16LEMib;
+    static constexpr int Utf16BEMib = TextEncoding::Utf16BEMib;
+    static constexpr int Latin1Mib = TextEncoding::Latin1Mib;
+    static constexpr int UsAsciiMib = TextEncoding::UsAsciiMib;
 
     isUtf8Compatible = codec->mibEnum() == Utf8Mib || codec->mibEnum() == UsAsciiMib;
     isUtf16LE = codec->mibEnum() == Utf16LEMib;
     isUtf16BE = codec->mibEnum() == Utf16BEMib;
     isLatin1 = codec->mibEnum() == Latin1Mib;
 
-    QTextCodec::ConverterState convertState( QTextCodec::IgnoreHeader );
-    const QByteArray encodedLineFeed = codec->fromUnicode( &LineFeed, 1, &convertState );
+    const QByteArray encodedLineFeed = codec->fromUnicode( QStringView( &LineFeed, 1 ) );
 
     lineFeedWidth = static_cast<int>( encodedLineFeed.size() );
     lineFeedIndex
         = encodedLineFeed[ 0 ] == '\n' ? 0 : ( static_cast<int>( encodedLineFeed.size() ) - 1 );
 }
 
-QTextCodec* EncodingDetector::detectEncoding( const logsquirl::vector<char>& block ) const
+const TextEncoding* EncodingDetector::detectEncoding( const logsquirl::vector<char>& block ) const
 {
     return detectEncoding( block.data(), block.size() );
 }
@@ -116,7 +118,7 @@ std::size_t EncodingDetector::sampleSize( const char* bytes, std::size_t size )
     return end;
 }
 
-QTextCodec* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const
+const TextEncoding* EncodingDetector::detectEncoding( const char* bytes, std::size_t size ) const
 {
     size = sampleSize( bytes, size );
 
@@ -135,10 +137,10 @@ QTextCodec* EncodingDetector::detectEncoding( const char* bytes, std::size_t siz
         }
     }
 
-    QTextCodec* uchardetCodec = nullptr;
+    const TextEncoding* uchardetCodec = nullptr;
     if ( rc == 0 ) {
         LOG_DEBUG << "Uchardet encoding guess " << uchardetGuess;
-        uchardetCodec = QTextCodec::codecForName( uchardetGuess.c_str() );
+        uchardetCodec = TextEncoding::forName( uchardetGuess.c_str() );
         if ( uchardetCodec ) {
             LOG_DEBUG << "Uchardet codec selected " << uchardetCodec->name().constData();
         }
@@ -149,22 +151,26 @@ QTextCodec* EncodingDetector::detectEncoding( const char* bytes, std::size_t siz
 
     QByteArray blockArray = QByteArray::fromRawData( bytes, static_cast<qsizetype>( size ) );
 
-    auto encodingGuess = uchardetCodec ? QTextCodec::codecForUtfText( blockArray, uchardetCodec )
-                                       : QTextCodec::codecForUtfText( blockArray );
+    const auto* encodingGuess = TextEncoding::forUtfText( blockArray, uchardetCodec );
 
     LOG_DEBUG << "Final encoding guess " << encodingGuess->name().constData();
 
     return encodingGuess;
 }
 
-TextCodecHolder::TextCodecHolder( QTextCodec* codec )
+QString TextDecoder::decode( const char* bytes, qsizetype size ) const
+{
+    return decoder->decode( QByteArrayView( bytes, size ) );
+}
+
+TextCodecHolder::TextCodecHolder( const TextEncoding* codec )
     : codec_{ codec }
     , encodingParams_{ codec }
 {
     assert( codec != nullptr );
 }
 
-QTextCodec* TextCodecHolder::codec() const
+const TextEncoding* TextCodecHolder::codec() const
 {
     SharedLock guard( mutex_ );
     return codec_;
@@ -182,15 +188,17 @@ int TextCodecHolder::mibEnum() const
     return codec_->mibEnum();
 }
 
-void TextCodecHolder::setCodec( QTextCodec* codec )
+void TextCodecHolder::setCodec( const TextEncoding* codec )
 {
     UniqueLock guard( mutex_ );
-    codec_ = codec;
+    // An Encoding this build does not know (a setting written elsewhere) is
+    // the Encoding of the locale.
+    codec_ = codec ? codec : TextEncoding::forLocale();
     encodingParams_ = EncodingParameters{ codec_ };
 }
 
 TextDecoder TextCodecHolder::makeDecoder() const
 {
     SharedLock guard( mutex_ );
-    return { std::make_unique<QTextDecoder>( codec_ ), encodingParams_ };
+    return { codec_->makeDecoder(), encodingParams_ };
 }

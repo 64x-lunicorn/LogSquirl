@@ -86,6 +86,17 @@ void StreamWriter::pushLines( const char* const* data, const size_t* lens, size_
     file_.flush();
 }
 
+void StreamWriter::pushBytes( const char* data, size_t len )
+{
+    QMutexLocker lock( &mutex_ );
+    if ( !file_.isOpen() || finished_ ) {
+        return;
+    }
+
+    file_.write( data, static_cast<qint64>( len ) );
+    file_.flush();
+}
+
 void StreamWriter::signalEos()
 {
     QMutexLocker lock( &mutex_ );
