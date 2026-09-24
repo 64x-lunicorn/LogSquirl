@@ -79,6 +79,7 @@
 
 #include "regularexpression.h"
 #include "timelookup.h"
+#include "valuecount.h"
 
 #include "crawlerwidget.h"
 
@@ -594,6 +595,9 @@ void CrawlerWidget::saveAsPredefinedFilter()
 
 void CrawlerWidget::showSearchContextMenu()
 {
+    if ( countValuesMenu_ ) {
+        fillCountValuesMenu();
+    }
     if ( searchLineContextMenu_ )
         searchLineContextMenu_->exec( QCursor::pos( activeScreen( this ) ) );
 }
@@ -1260,6 +1264,7 @@ void CrawlerWidget::setup()
     searchLineContextMenu_ = searchLineEdit_->lineEdit()->createStandardContextMenu();
     searchLineContextMenu_->addSeparator();
     searchLineContextMenu_->addAction( saveAsPredefinedFilterAction );
+    countValuesMenu_ = searchLineContextMenu_->addMenu( tr( "Count values of capture group" ) );
     searchLineContextMenu_->addSeparator();
     searchLineContextMenu_->addAction( editSearchHistoryAction );
     searchLineContextMenu_->addAction( clearSearchHistoryAction );
@@ -1405,6 +1410,8 @@ void CrawlerWidget::setup()
     // What the user does in either Presentation
     connectPresentation( logMainView_ );
     connectPresentation( logTableView_ );
+    connect( logTableView_, &LogTableView::countValuesRequested, this,
+             &CrawlerWidget::countFieldValues );
 
     // What only the Text View lets the user do: leave following by moving
     // away from the bottom, or start it at the bottom, and zoom with the
@@ -1477,6 +1484,7 @@ void CrawlerWidget::setup()
 
     // Wire chart panel — provide log data and connect click-to-navigate.
     chartPanel_->setLogData( openLogFile_->logData() );
+    connect( chartPanel_, &ChartPanel::searchRequested, this, &CrawlerWidget::searchForValue );
     connect( chartPanel_, &ChartPanel::lineSelected, this,
              [ this ]( LineNumber line ) { presentation_->showLogLine( line ); } );
 
@@ -1688,6 +1696,73 @@ void CrawlerWidget::showFilterFrequency()
 
     // The chart counts with the Search's Match case (#411).
     chartPanel_->addFilterFrequencySeries( patterns, flags.matchCase );
+}
+
+// The Search as a regexp with capture groups: none for a Search that is not a
+// plain regexp, and none for one that excludes the Log Lines it matches.
+namespace {
+QRegularExpression searchRegexp( const SearchLine::Flags& flags, const QString& pattern )
+{
+    if ( !flags.useRegexp || flags.booleanCombination || flags.inverse || pattern.isEmpty() ) {
+        return {};
+    }
+    return QRegularExpression( pattern, flags.matchCase
+                                            ? QRegularExpression::NoPatternOption
+                                            : QRegularExpression::CaseInsensitiveOption );
+}
+} // namespace
+
+void CrawlerWidget::fillCountValuesMenu()
+{
+    countValuesMenu_->clear();
+
+    const auto regexp = searchRegexp( searchLine_.flags(), searchLine_.pattern() );
+    const auto groups = captureGroupCount( regexp );
+    const auto names = regexp.namedCaptureGroups();
+    for ( int group = 1; group <= groups; ++group ) {
+        const auto name = group < names.size() ? names[ group ] : QString();
+        const auto text = name.isEmpty() ? tr( "Group %1" ).arg( group )
+                                         : tr( "Group %1 (%2)" ).arg( group ).arg( name );
+        countValuesMenu_->addAction( text, this,
+                                     [ this, group ] { countSearchGroupValues( group ); } );
+    }
+    // Without a capture group there is nothing to count.
+    countValuesMenu_->setEnabled( groups > 0 );
+}
+
+void CrawlerWidget::countFieldValues( const QString& fieldName )
+{
+    if ( !chartPanel_->isVisible() ) {
+        toggleChartPanel();
+    }
+    chartPanel_->countFieldValues( fieldName );
+}
+
+void CrawlerWidget::countSearchGroupValues( int group )
+{
+    const auto flags = searchLine_.flags();
+    const auto pattern = searchLine_.pattern();
+    const auto regexp = searchRegexp( flags, pattern );
+    if ( group < 1 || group > captureGroupCount( regexp ) ) {
+        return;
+    }
+    if ( !chartPanel_->isVisible() ) {
+        toggleChartPanel();
+    }
+    chartPanel_->countCaptureGroupValues( regexp, group,
+                                          tr( "group %1 of \"%2\"" ).arg( group ).arg( pattern ) );
+}
+
+void CrawlerWidget::searchForValue( const QString& value )
+{
+    // A literal Search for the value: not a logical combination, not
+    // inverted. Match case stays as the user has it.
+    auto flags = searchLine_.flags();
+    flags.booleanCombination = false;
+    flags.inverse = false;
+    searchLine_.setFlags( flags );
+    searchLine_.replace( value );
+    showEditedPattern( true );
 }
 
 void CrawlerWidget::changeFontSize( bool increase )

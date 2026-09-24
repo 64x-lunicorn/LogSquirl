@@ -122,6 +122,10 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     setContextMenuPolicy( Qt::CustomContextMenu );
     connect( this, &QWidget::customContextMenuRequested, this, &LogTableView::showContextMenu );
 
+    horizontalHeader()->setContextMenuPolicy( Qt::CustomContextMenu );
+    connect( horizontalHeader(), &QWidget::customContextMenuRequested, this,
+             &LogTableView::showHeaderContextMenu );
+
     // Move the overview's current-view indicator along when scrolling
     connect( verticalScrollBar(), &QScrollBar::valueChanged, this,
              [ this ]() { updateOverview(); } );
@@ -682,6 +686,28 @@ void LogTableView::showContextMenu( const QPoint& pos )
     QPointer<QMenu> menu = createContextMenu( pos ).release();
     menu->exec( viewport()->mapToGlobal( pos ) );
     delete menu;
+}
+
+void LogTableView::showHeaderContextMenu( const QPoint& pos )
+{
+    if ( !model_ ) {
+        return;
+    }
+    const auto* header = horizontalHeader();
+    const auto fieldName
+        = model_->headerData( header->logicalIndexAt( pos ), Qt::Horizontal ).toString();
+    if ( fieldName.isEmpty() ) {
+        return;
+    }
+
+    QPointer<QMenu> menu = new QMenu( this );
+    const auto* countAction = menu->addAction( tr( "Count values" ) );
+    const auto* chosen = menu->exec( header->mapToGlobal( pos ) );
+    const bool count = chosen == countAction;
+    delete menu;
+    if ( count ) {
+        Q_EMIT countValuesRequested( fieldName );
+    }
 }
 
 std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
