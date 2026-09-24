@@ -59,10 +59,11 @@ public:
 
     void release()
     {
-        {
-            const std::scoped_lock lock{ mutex_ };
-            released_ = true;
-        }
+        // Notified under the lock: the waiting worker may hold the last
+        // reference to this object, and must not be able to destroy the
+        // condition variable while release() is still inside notify_all().
+        const std::scoped_lock lock{ mutex_ };
+        released_ = true;
         condition_.notify_all();
     }
 
