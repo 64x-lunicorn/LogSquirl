@@ -244,3 +244,98 @@ TEST_CASE( "A time typed by a user", "[logformat][timelookup]" )
         CHECK( !parseTimeInput( "14", day ).has_value() );
     }
 }
+
+namespace {
+
+using Outcome = LimitsResult::Outcome;
+
+LimitsResult limits( FakeLogFile& file, const QDateTime& start, const QDateTime& end )
+{
+    return searchLimitsForTimeRange( start, end, file.count(), file.reader() );
+}
+
+} // namespace
+
+TEST_CASE( "A time range becomes the Search Limits of the first Log Lines at or after its ends",
+           "[logformat][timelookup]" )
+{
+    auto file = withStackTraces();
+
+    SECTION( "both ends on Timestamps: half-open, the end line is not in" )
+    {
+        const auto result = limits( file, at( 10, 5 ), at( 10, 10 ) );
+        REQUIRE( result.outcome == Outcome::Limits );
+        CHECK( result.start == LineNumber( 4 ) );
+        CHECK( result.end == LineNumber( 6 ) );
+    }
+
+    SECTION( "the same lines as the ones found for the ends by hand" )
+    {
+        const auto result = limits( file, at( 10, 1 ), at( 10, 12 ) );
+        REQUIRE( result.outcome == Outcome::Limits );
+        CHECK( result.start == file.lookup( at( 10, 1 ) )->line );
+        CHECK( result.end == file.lookup( at( 10, 12 ) )->line );
+    }
+
+    SECTION( "continuation lines follow the Log Line before them" )
+    {
+        // 10:10 holds line 6 and its stack trace, 7 and 8; 10:20 is line 9.
+        const auto result = limits( file, at( 10, 10 ), at( 10, 20 ) );
+        REQUIRE( result.outcome == Outcome::Limits );
+        CHECK( result.start == LineNumber( 6 ) );
+        CHECK( result.end == LineNumber( 9 ) );
+    }
+
+    SECTION( "a start inside a stack trace begins after it" )
+    {
+        const auto result = limits( file, at( 10, 2 ), at( 10, 6 ) );
+        REQUIRE( result.outcome == Outcome::Limits );
+        CHECK( result.start == LineNumber( 4 ) );
+        CHECK( result.end == LineNumber( 6 ) );
+    }
+
+    SECTION( "an end after the last Timestamp reaches the end of the Log File" )
+    {
+        const auto result = limits( file, at( 10, 12 ), at( 11, 0 ) );
+        REQUIRE( result.outcome == Outcome::Limits );
+        CHECK( result.start == LineNumber( 9 ) );
+        CHECK( result.end == LineNumber( 10 ) );
+    }
+
+    SECTION( "a start before the first Timestamp begins at the first Log Line" )
+    {
+        const auto result = limits( file, at( 9, 0 ), at( 10, 5 ) );
+        REQUIRE( result.outcome == Outcome::Limits );
+        CHECK( result.start == LineNumber( 0 ) );
+        CHECK( result.end == LineNumber( 4 ) );
+    }
+
+    SECTION( "a range around the whole Log File" )
+    {
+        const auto result = limits( file, at( 9, 0 ), at( 11, 0 ) );
+        REQUIRE( result.outcome == Outcome::Limits );
+        CHECK( result.start == LineNumber( 0 ) );
+        CHECK( result.end == LineNumber( 10 ) );
+    }
+}
+
+TEST_CASE( "A time range that does not reach the Log File gives no Search Limits",
+           "[logformat][timelookup]" )
+{
+    auto file = withStackTraces();
+
+    CHECK( limits( file, at( 9, 0 ), at( 9, 30 ) ).outcome == Outcome::BeforeFile );
+    // Half-open: ending at the first Timestamp leaves that Log Line out.
+    CHECK( limits( file, at( 9, 0 ), at( 10, 0 ) ).outcome == Outcome::BeforeFile );
+    CHECK( limits( file, at( 10, 21 ), at( 11, 0 ) ).outcome == Outcome::AfterFile );
+    CHECK( limits( file, at( 11, 0 ), at( 12, 0 ) ).outcome == Outcome::AfterFile );
+    CHECK( limits( file, at( 10, 11 ), at( 10, 11 ) ).outcome == Outcome::EndNotAfterStart );
+    CHECK( limits( file, at( 10, 12 ), at( 10, 11 ) ).outcome == Outcome::EndNotAfterStart );
+    // Inside the Log File, between two Timestamps: no Log Line to limit to.
+    CHECK( limits( file, at( 10, 6 ), at( 10, 7 ) ).outcome == Outcome::NoLogLines );
+
+    FakeLogFile empty( {} );
+    CHECK( limits( empty, at( 10, 0 ), at( 10, 5 ) ).outcome == Outcome::NoTimestamps );
+    FakeLogFile untimed( { std::nullopt, std::nullopt } );
+    CHECK( limits( untimed, at( 10, 0 ), at( 10, 5 ) ).outcome == Outcome::NoTimestamps );
+}

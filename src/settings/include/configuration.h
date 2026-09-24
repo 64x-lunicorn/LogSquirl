@@ -407,6 +407,15 @@ public:
     {
         splitterSizes_ = std::move( sizes );
     }
+    // The N of "Search Limits around the current Log Line: +-N minutes".
+    int searchWindowMinutes() const
+    {
+        return searchWindowMinutes_;
+    }
+    void setSearchWindowMinutes( int minutes )
+    {
+        searchWindowMinutes_ = minutes;
+    }
 
     bool extractArchives() const
     {
@@ -729,6 +738,7 @@ private:
     bool searchIgnoreCase_{};
     bool searchLogicalCombining_{};
     QList<int> splitterSizes_;
+    int searchWindowMinutes_{};
 
     // Performance settings
     bool useSearchResultsCache_{};

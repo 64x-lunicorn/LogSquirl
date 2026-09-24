@@ -511,6 +511,7 @@ void Configuration::forEachSetting( Self& config, Visit&& visit )
     visit( "defaultView.searchLogicalCombining", config.searchLogicalCombining_, false );
     visit( "defaultView.encodingMib", config.defaultEncodingMib_, -1 );
     visit( "defaultView.splitterSizes", config.splitterSizes_, QList<int>{ 400, 100 } );
+    visit( "defaultView.searchWindowMinutes", config.searchWindowMinutes_, 5 );
 
     visit( { "shortcuts", "shortcuts.mapping" }, config.shortcuts_, Shortcuts{} );
 

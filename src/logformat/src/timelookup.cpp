@@ -137,6 +137,56 @@ std::optional<QDateTime> timestampNear( LineNumber line, const AbstractLogData& 
     } );
 }
 
+LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
+                                       LinesCount lineCount, const TimestampAt& timestampAt )
+{
+    using Outcome = LimitsResult::Outcome;
+    const auto outcome = []( Outcome value ) {
+        LimitsResult result;
+        result.outcome = value;
+        return result;
+    };
+
+    if ( endTime <= startTime ) {
+        return outcome( Outcome::EndNotAfterStart );
+    }
+    const auto start = firstLineAtOrAfter( startTime, lineCount, timestampAt );
+    if ( !start || start->position == Position::NoTimestamps ) {
+        return outcome( Outcome::NoTimestamps );
+    }
+    if ( start->position == Position::AfterLast ) {
+        return outcome( Outcome::AfterFile );
+    }
+    const auto end = firstLineAtOrAfter( endTime, lineCount, timestampAt );
+    if ( !end ) {
+        return outcome( Outcome::NoTimestamps );
+    }
+    if ( end->position == Position::BeforeFirst ) {
+        return outcome( Outcome::BeforeFile );
+    }
+
+    const auto endLine
+        = end->position == Position::AfterLast ? LineNumber( lineCount.get() ) : end->line;
+    if ( endLine <= start->line ) {
+        return outcome( start->position == Position::BeforeFirst ? Outcome::BeforeFile
+                                                                 : Outcome::NoLogLines );
+    }
+    LimitsResult result;
+    result.outcome = Outcome::Limits;
+    result.start = start->line;
+    result.end = endLine;
+    return result;
+}
+
+LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
+                                       const AbstractLogData& logData,
+                                       const TimestampReader& reader )
+{
+    return searchLimitsForTimeRange(
+        startTime, endTime, logData.getNbLine(),
+        [ & ]( LineNumber line ) { return reader.timestampOf( logData.getLineString( line ) ); } );
+}
+
 std::optional<QDateTime> parseTimeInput( const QString& text, const QDate& defaultDate )
 {
     static const QRegularExpression pattern(

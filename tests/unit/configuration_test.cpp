@@ -526,6 +526,7 @@ const QStringList StoredSettingNames = {
     "defaultView.searchAutoRefresh",
     "defaultView.searchIgnoreCase",
     "defaultView.searchLogicalCombining",
+    "defaultView.searchWindowMinutes",
     "defaultView.splitterSizes",
     "filewatch.allowFollowOnScroll",
     "filewatch.fastModificationDetection",
@@ -658,6 +659,7 @@ void checkSameSettings( const Configuration& expected, const Configuration& actu
     CHECK( actual.isSearchLogicalCombiningDefault() == expected.isSearchLogicalCombiningDefault() );
     CHECK( actual.defaultEncodingMib() == expected.defaultEncodingMib() );
     CHECK( actual.splitterSizes() == expected.splitterSizes() );
+    CHECK( actual.searchWindowMinutes() == expected.searchWindowMinutes() );
 
     CHECK( actual.shortcuts() == expected.shortcuts() );
     CHECK( actual.showSplashScreen() == expected.showSplashScreen() );
@@ -816,7 +818,10 @@ SCENARIO( "A settings file written by v26.07.0 loads unchanged", "[configuration
 
             THEN( "Saving writes back every value unchanged" )
             {
-                const auto stored = storedSettings( config );
+                auto stored = storedSettings( config );
+                // Settings added after v26.07.0 are not in its file; loading it
+                // leaves them at their default.
+                stored.remove( "defaultView.searchWindowMinutes" );
                 CHECK( stored.keys() == release.keys() );
                 for ( const auto& key : release.keys() ) {
                     // The stored family is the one the platform resolves.

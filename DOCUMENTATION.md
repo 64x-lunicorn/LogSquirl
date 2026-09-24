@@ -137,6 +137,30 @@ zone in the log is not converted, so type the time as it appears in the file.
 The search assumes the file is in time order; if it is not, the line found is
 only approximate.
 
+#### Search limits by time
+
+Two more `Edit` actions set the search limits from times instead of from log
+lines, for when you know the window of an incident but not its first and last
+line:
+
+- `Set search limits to time range...` (`Ctrl+Alt+T`, configurable) asks for a
+  start and an end time, typed as for *Go to timestamp*. The search is limited
+  to the lines from the first one at or after the start up to, but not
+  including, the first one at or after the end.
+- `Set search limits around current line...` (`Ctrl+Alt+W`, configurable)
+  limits the search to N minutes before and after the line you are at. You
+  choose N; it is remembered for the next time.
+
+The times are turned into line numbers once, when you set the limits. From then
+on they are ordinary search limits, exactly as if you had set them by hand
+with *Set search start* and *Set search end*: they do not move when the file
+grows or is reloaded, and *Clear search limits* removes them. Lines without a
+timestamp, such as stack traces, stay with the line before them. If the time
+range lies entirely before or after the log file, or holds no line, you are
+told so and the limits stay as they were. Like *Go to timestamp*, the actions
+need a Log File with a recognized Log Format that has a timestamp field and are
+disabled, with a tooltip saying why, otherwise.
+
 *logsquirl* uses Hyperscan library to perform regular expressions search. Hyperscan is very
 fast, but it doesn't support some patterns, most notably any lookahead is not supported 
 (check [hyperscan documentation](https://intel.github.io/hyperscan/dev-reference/compilation.html#pattern-support) for 

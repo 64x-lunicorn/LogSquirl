@@ -9,6 +9,13 @@
   menu bar, Filter Group and Highlighter Set exchange, the Highlighter color
   presets and JSON Log Formats. The Highlighters menu is a menu of its own,
   not part of Tools (#433).
+- **Search limits by time**: `Edit->Set search limits to time range...`
+  (`Ctrl+Alt+T`) limits a search to the lines between a start and an end time,
+  and `Edit->Set search limits around current line...` (`Ctrl+Alt+W`) to N
+  minutes before and after the line you are at; N is remembered. The times are
+  turned into line limits once, so the search runs exactly as with limits set
+  by hand. Both need a Log File with a recognized Log Format that has a
+  timestamp field, and say why they are disabled otherwise (#461).
 - **JSON Log Files get a Table View**: Log Formats now understand
   `"file-type": "json"` (the lnav schema): a Log File whose Log Lines are JSON
   objects (NDJSON, Bunyan, Pino) is recognized and shown with one column per
