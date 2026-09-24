@@ -801,12 +801,12 @@ Pattern: %2</source>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="748"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="796"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="749"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="797"/>
         <source>Search history:</source>
         <translation>Історія пошуку:</translation>
     </message>
@@ -826,266 +826,271 @@ Pattern: %2</source>
         <translation> Знайдено %1 збіг.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="292"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="293"/>
         <source>Go to timestamp needs a Log Format: none was recognized for this Log File.</source>
         <translation>Для переходу до мітки часу потрібен формат логу, але для цього лог-файлу жодного не розпізнано.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="295"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="296"/>
         <source>Go to timestamp is not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
         <translation>Перехід до мітки часу недоступний: формат логу &quot;%1&quot; не має поля мітки часу.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="482"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="488"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="498"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="523"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="528"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="533"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="520"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="526"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="536"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="571"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="576"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="581"/>
         <source>Go to timestamp</source>
         <translation>Перейти до мітки часу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="353"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="399"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="483"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="391"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="434"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="521"/>
         <source>No Log Line near the current one has a timestamp.</source>
         <translation>Жоден рядок логу поблизу поточного не має мітки часу.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="304"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="305"/>
         <source>The Log File is not in time order here: the position may be off.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="310"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="311"/>
         <source>Search limits by time need a Log Format: none was recognized for this Log File.</source>
         <translation>Для обмеження пошуку за часом потрібен формат логу, але для цього лог-файлу жодного не розпізнано.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="314"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="315"/>
         <source>Search limits by time are not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
         <translation>Обмеження пошуку за часом недоступні: формат логу &quot;%1&quot; не має поля мітки часу.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="342"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="353"/>
+        <source>Looking up the time...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="388"/>
         <source>Set search limits to time range</source>
         <translation>Обмежити пошук діапазоном часу</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="357"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="489"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="396"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="527"/>
         <source>Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.
 Without a date, %1 is used.</source>
         <translation>Час у форматі HH:MM[:SS[.mmm]], за бажанням після дати у форматі YYYY-MM-DD.
 Якщо дату не вказано, використовується %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="362"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="401"/>
         <source>Start (included).
 %1</source>
         <translation>Початок (включно).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="367"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="406"/>
         <source>End (not included).
 %1</source>
         <translation>Кінець (не включно).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="376"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="499"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="416"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="537"/>
         <source>&quot;%1&quot; is not a time. Use HH:MM, HH:MM:SS or YYYY-MM-DD HH:MM:SS.</source>
         <translation>&quot;%1&quot; не є часом. Використовуйте HH:MM, HH:MM:SS або YYYY-MM-DD HH:MM:SS.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="389"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="431"/>
         <source>Set search limits around current line</source>
         <translation>Обмежити пошук навколо поточного рядка</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="405"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="440"/>
         <source>Minutes before and after:</source>
         <translation>Хвилин до і після:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="421"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="471"/>
         <source>Set search limits by time</source>
         <translation>Обмежити пошук за часом</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="440"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="484"/>
         <source>The time range is before the first timestamp in the Log File. The search limits are unchanged.</source>
         <translation>Діапазон часу лежить до першої мітки часу в лог-файлі. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="445"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="489"/>
         <source>The time range is after the last timestamp in the Log File. The search limits are unchanged.</source>
         <translation>Діапазон часу лежить після останньої мітки часу в лог-файлі. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="450"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="494"/>
         <source>No Log Line has a timestamp this Log Format can read. The search limits are unchanged.</source>
         <translation>Жоден рядок логу не має мітки часу, яку цей формат логу здатен прочитати. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="455"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="499"/>
         <source>The end is not after the start. The search limits are unchanged.</source>
         <translation>Кінець не йде після початку. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="460"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="504"/>
         <source>No Log Line has a timestamp in the time range. The search limits are unchanged.</source>
         <translation>Жоден рядок логу не має мітки часу в цьому діапазоні. Обмеження пошуку не змінено.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="524"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="572"/>
         <source>The time is before the first timestamp in the Log File. Went to the first line.</source>
         <translation>Час лежить до першої мітки часу в лог-файлі. Виконано перехід до першого рядка.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="529"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="577"/>
         <source>The time is after the last timestamp in the Log File. Went to the last line.</source>
         <translation>Час лежить після останньої мітки часу в лог-файлі. Виконано перехід до останнього рядка.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="534"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="582"/>
         <source>No Log Line has a timestamp this Log Format can read.</source>
         <translation>Жоден рядок логу не має мітки часу, яку цей формат логу здатен прочитати.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1308"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1359"/>
         <source>Marks and matches</source>
         <translation>Позначки та збіги</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1314"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1365"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Позначки, збіги + контекст</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1319"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1370"/>
         <source>Matches + breadcrumbs</source>
         <translation>Збіги + контекст</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1324"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1375"/>
         <source>Marks</source>
         <translation>Позначки</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1328"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1379"/>
         <source>Matches</source>
         <translation>Збіги</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1381"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1382"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1432"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1433"/>
         <source>Match case</source>
         <translation>Враховувати регістр</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1388"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1389"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1439"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1440"/>
         <source>Use regex</source>
         <translation>Використовувати regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1395"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1396"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1446"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1447"/>
         <source>Inverse match</source>
         <translation>Інвертований збіг</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1402"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
         <source>Enable regular expression logical combining</source>
         <translation>Увімкнути логічне поєднання регулярних виразів</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1403"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1454"/>
         <source>Boolean combining</source>
         <translation>Логічне поєднання</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1409"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1410"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1460"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1461"/>
         <source>Auto-refresh</source>
         <translation>Автооновлення</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1428"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1479"/>
         <source>Search pattern</source>
         <translation>Шаблон пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1437"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1488"/>
         <source>Clear search history</source>
         <translation>Очистити історію пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1438"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1489"/>
         <source>Edit search history</source>
         <translation>Редагувати історію пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1439"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1490"/>
         <source>Save as Filter</source>
         <translation>Зберегти як фільтр</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1444"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1495"/>
         <source>Count values of capture group</source>
         <translation>Підрахунок значень групи захоплення</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1504"/>
         <source>Clear search text</source>
         <translation>Очистити текст пошуку</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1458"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1509"/>
         <source>Search</source>
         <translation>Пошук</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1463"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1514"/>
         <source>Keep Results</source>
         <translation>Зберегти результати</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1465"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1516"/>
         <source>Keep these results and show subsequent results in a new window</source>
         <translation>Зберегти ці результати й показувати наступні результати в новому вікні</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1493"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1544"/>
         <source>Toggle table/text view</source>
         <translation>Перемкнути табличний/текстовий вигляд</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1494"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1545"/>
         <source>Toggle table view</source>
         <translation>Перемкнути табличний вигляд</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1901"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1952"/>
         <source>Group %1</source>
         <translation>Група %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1902"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1953"/>
         <source>Group %1 (%2)</source>
         <translation>Група %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1930"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1981"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>група %1 з &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2402"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2453"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Перемкнути табличний/текстовий вигляд (%1)</translation>
     </message>
@@ -1115,12 +1120,12 @@ Without a date, %1 is used.</source>
         <translation>Файл обрізаний на диску</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2282"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2333"/>
         <source>Displayed as %1</source>
         <translation>Відображено як %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2282"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2333"/>
         <source>Detected as %1</source>
         <translation>Визначено як %1</translation>
     </message>

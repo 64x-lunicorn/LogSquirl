@@ -25,6 +25,7 @@
 #include <QDateTime>
 #include <QString>
 
+#include <atomic>
 #include <functional>
 #include <optional>
 
@@ -74,20 +75,33 @@ constexpr uint64_t MaxLinesWithoutTimestamp = 5'000;
 // answer: the binary search assumes the order, and only afterwards checks a
 // window of Timestamps around the result (Result::outOfOrder). The Log Lines
 // are read O(log n) times, plus the window; none if lineCount is 0.
+//
+// The search can start at a Log Line other than the first: the answer is then
+// not before it, for when the time is known to lie at or after it. It can be
+// cancelled from another thread with the flag, which is looked at before every
+// Log Line read; a cancelled search gives none.
+struct Options {
+    LineNumber from{ 0 };
+    const std::atomic<bool>* cancelled = nullptr;
+};
 std::optional<Result> firstLineAtOrAfter( const QDateTime& time, LinesCount lineCount,
-                                          const TimestampAt& timestampAt );
+                                          const TimestampAt& timestampAt,
+                                          const Options& options = {} );
 
 // The Timestamp of the Log Line nearest to line, looking at it first, then at
 // the lines after it and before it alternately, up to MaxLinesWithoutTimestamp
 // in each direction; none if there is none.
 std::optional<QDateTime> timestampNear( LineNumber line, LinesCount lineCount,
-                                        const TimestampAt& timestampAt );
+                                        const TimestampAt& timestampAt,
+                                        const std::atomic<bool>* cancelled = nullptr );
 
 // The same over a Log File, reading its Log Lines with the reader.
 std::optional<Result> firstLineAtOrAfter( const QDateTime& time, const AbstractLogData& logData,
-                                          const TimestampReader& reader );
+                                          const TimestampReader& reader,
+                                          const Options& options = {} );
 std::optional<QDateTime> timestampNear( LineNumber line, const AbstractLogData& logData,
-                                        const TimestampReader& reader );
+                                        const TimestampReader& reader,
+                                        const std::atomic<bool>* cancelled = nullptr );
 
 // Search Limits given as a time range, as Log Lines: the half-open range
 // [start, end), like every Search Limits.
@@ -103,6 +117,8 @@ struct LimitsResult {
         NoTimestamps,
         // The end is not after the start.
         EndNotAfterStart,
+        // Cancelled; nothing was found.
+        Cancelled,
         // The range lies inside the Log File but no Log Line falls into it.
         NoLogLines,
     };
@@ -117,14 +133,17 @@ struct LimitsResult {
 // Timestamp at or after startTime, end the first at or after endTime (the
 // line count when there is none), so a Log Line without a Timestamp belongs
 // to the range of the Log Line before it. A start before the Log File is the
-// first Log Line. Only the Limits outcome carries lines.
+// first Log Line. Only the Limits outcome carries lines. The search for the
+// end starts at the line the search for the start found.
 LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
-                                       LinesCount lineCount, const TimestampAt& timestampAt );
+                                       LinesCount lineCount, const TimestampAt& timestampAt,
+                                       const std::atomic<bool>* cancelled = nullptr );
 
 // The same over a Log File, reading its Log Lines with the reader.
 LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
                                        const AbstractLogData& logData,
-                                       const TimestampReader& reader );
+                                       const TimestampReader& reader,
+                                       const std::atomic<bool>* cancelled = nullptr );
 
 // Reads a time a user typed: "14:02", "14:02:30", "14:02:30.250", optionally
 // after a date, "2026-09-23 14:02" or "2026-09-23T14:02" (also with "/" in

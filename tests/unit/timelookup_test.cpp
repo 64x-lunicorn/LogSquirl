@@ -449,3 +449,58 @@ TEST_CASE( "A Log File mixing offsets is compared by instant", "[logformat][time
     CHECK( result->line == LineNumber( 2 ) );
     CHECK( !result->outOfOrder );
 }
+
+TEST_CASE( "A lookup can begin at a Log Line, and stops when cancelled", "[logformat][timelookup]" )
+{
+    std::vector<std::optional<QDateTime>> lines;
+    for ( int i = 0; i < 1000; ++i ) {
+        lines.push_back( at( 10, 0, 0 ).addSecs( i ) );
+    }
+
+    SECTION( "the search from a line does not read before it" )
+    {
+        FakeLogFile file( lines );
+        uint64_t lowest = 1000;
+        const TimestampAt reader = [ & ]( LineNumber line ) {
+            lowest = std::min( lowest, line.get() );
+            return lines.at( line.get() );
+        };
+        const auto result = firstLineAtOrAfter( at( 10, 0, 0 ).addSecs( 950 ), file.count(), reader,
+                                                { LineNumber( 900 ), nullptr } );
+        REQUIRE( result );
+        CHECK( result->line == LineNumber( 950 ) );
+        // The search narrows down within [900, 1000); only the window that
+        // checks the order looks back from the result.
+        CHECK( lowest >= 900 - OrderWindow );
+    }
+
+    SECTION( "the end of a range is searched from the start line on" )
+    {
+        FakeLogFile file( lines );
+        const auto result = searchLimitsForTimeRange( at( 10, 0, 0 ).addSecs( 900 ),
+                                                      at( 10, 0, 0 ).addSecs( 950 ), file.count(),
+                                                      file.reader() );
+        REQUIRE( result.outcome == LimitsResult::Outcome::Limits );
+        CHECK( result.start == LineNumber( 900 ) );
+        CHECK( result.end == LineNumber( 950 ) );
+
+        // Fewer reads than two searches from the top: the second begins at 900.
+        FakeLogFile top( lines );
+        top.lookup( at( 10, 0, 0 ).addSecs( 900 ) );
+        top.lookup( at( 10, 0, 0 ).addSecs( 950 ) );
+        CHECK( file.reads < top.reads );
+    }
+
+    SECTION( "a cancelled lookup gives nothing" )
+    {
+        FakeLogFile file( lines );
+        std::atomic<bool> cancelled{ true };
+        CHECK( !firstLineAtOrAfter( at( 10, 5 ), file.count(), file.reader(),
+                                    { LineNumber( 0 ), &cancelled } ) );
+        CHECK( searchLimitsForTimeRange( at( 10, 1 ), at( 10, 5 ), file.count(), file.reader(),
+                                         &cancelled )
+                   .outcome
+               == LimitsResult::Outcome::Cancelled );
+        CHECK( file.reads == 0 );
+    }
+}

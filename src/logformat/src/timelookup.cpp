@@ -52,6 +52,26 @@ std::optional<Found> firstTimestampFrom( uint64_t start, uint64_t end,
     return std::nullopt;
 }
 
+// Reads no more once cancelled: a Log Line is then taken as one without a
+// Timestamp, which ends a search quickly; the caller drops what it found.
+TimestampAt cancellable( const TimestampAt& timestampAt, const std::atomic<bool>* cancelled )
+{
+    if ( !cancelled ) {
+        return timestampAt;
+    }
+    return [ &timestampAt, cancelled ]( LineNumber line ) -> std::optional<QDateTime> {
+        if ( cancelled->load() ) {
+            return std::nullopt;
+        }
+        return timestampAt( line );
+    };
+}
+
+bool isCancelled( const std::atomic<bool>* cancelled )
+{
+    return cancelled && cancelled->load();
+}
+
 // Whether the Timestamps in a window around a line are out of time order.
 bool isOutOfOrderAround( uint64_t line, uint64_t count, const TimestampAt& timestampAt )
 {
@@ -90,7 +110,7 @@ bool isOutOfOrderAround( uint64_t line, uint64_t count, const TimestampAt& times
 }
 
 std::optional<Result> binarySearch( const QDateTime& time, LinesCount lineCount,
-                                   const TimestampAt& timestampAt )
+                                    const TimestampAt& timestampAt, uint64_t from )
 {
     const auto count = lineCount.get();
     if ( count == 0 ) {
@@ -99,7 +119,7 @@ std::optional<Result> binarySearch( const QDateTime& time, LinesCount lineCount,
 
     // The boundary: the first index from which every Log Line that has a
     // Timestamp has one at or after the time.
-    uint64_t low = 0;
+    uint64_t low = std::min( from, count - 1 );
     uint64_t high = count;
     while ( low < high ) {
         const auto middle = low + ( high - low ) / 2;
@@ -131,18 +151,28 @@ std::optional<Result> binarySearch( const QDateTime& time, LinesCount lineCount,
 } // namespace
 
 std::optional<Result> firstLineAtOrAfter( const QDateTime& time, LinesCount lineCount,
-                                          const TimestampAt& timestampAt )
+                                          const TimestampAt& unguardedTimestampAt,
+                                          const Options& options )
 {
-    auto result = binarySearch( time, lineCount, timestampAt );
+    const auto timestampAt = cancellable( unguardedTimestampAt, options.cancelled );
+    auto result = binarySearch( time, lineCount, timestampAt, options.from.get() );
+    if ( isCancelled( options.cancelled ) ) {
+        return std::nullopt;
+    }
     if ( result ) {
         result->outOfOrder = isOutOfOrderAround( result->line.get(), lineCount.get(), timestampAt );
+    }
+    if ( isCancelled( options.cancelled ) ) {
+        return std::nullopt;
     }
     return result;
 }
 
 std::optional<QDateTime> timestampNear( LineNumber line, LinesCount lineCount,
-                                        const TimestampAt& timestampAt )
+                                        const TimestampAt& unguardedTimestampAt,
+                                        const std::atomic<bool>* cancelled )
 {
+    const auto timestampAt = cancellable( unguardedTimestampAt, cancelled );
     const auto count = lineCount.get();
     if ( count == 0 ) {
         return std::nullopt;
@@ -170,23 +200,27 @@ std::optional<QDateTime> timestampNear( LineNumber line, LinesCount lineCount,
 }
 
 std::optional<Result> firstLineAtOrAfter( const QDateTime& time, const AbstractLogData& logData,
-                                          const TimestampReader& reader )
+                                          const TimestampReader& reader, const Options& options )
 {
-    return firstLineAtOrAfter( time, logData.getNbLine(), [ & ]( LineNumber line ) {
-        return reader.timestampOf( logData.getLineString( line ) );
-    } );
+    return firstLineAtOrAfter(
+        time, logData.getNbLine(),
+        [ & ]( LineNumber line ) { return reader.timestampOf( logData.getLineString( line ) ); },
+        options );
 }
 
 std::optional<QDateTime> timestampNear( LineNumber line, const AbstractLogData& logData,
-                                        const TimestampReader& reader )
+                                        const TimestampReader& reader,
+                                        const std::atomic<bool>* cancelled )
 {
-    return timestampNear( line, logData.getNbLine(), [ & ]( LineNumber other ) {
-        return reader.timestampOf( logData.getLineString( other ) );
-    } );
+    return timestampNear(
+        line, logData.getNbLine(),
+        [ & ]( LineNumber other ) { return reader.timestampOf( logData.getLineString( other ) ); },
+        cancelled );
 }
 
 LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
-                                       LinesCount lineCount, const TimestampAt& timestampAt )
+                                       LinesCount lineCount, const TimestampAt& timestampAt,
+                                       const std::atomic<bool>* cancelled )
 {
     using Outcome = LimitsResult::Outcome;
     const auto outcome = []( Outcome value ) {
@@ -198,14 +232,23 @@ LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTi
     if ( endTime <= startTime ) {
         return outcome( Outcome::EndNotAfterStart );
     }
-    const auto start = firstLineAtOrAfter( startTime, lineCount, timestampAt );
+    const auto start = firstLineAtOrAfter( startTime, lineCount, timestampAt, { {}, cancelled } );
+    if ( isCancelled( cancelled ) ) {
+        return outcome( Outcome::Cancelled );
+    }
     if ( !start || start->position == Position::NoTimestamps ) {
         return outcome( Outcome::NoTimestamps );
     }
     if ( start->position == Position::AfterLast ) {
         return outcome( Outcome::AfterFile );
     }
-    const auto end = firstLineAtOrAfter( endTime, lineCount, timestampAt );
+    // The end is not before the start: the search for it begins where the
+    // start was found.
+    const auto end
+        = firstLineAtOrAfter( endTime, lineCount, timestampAt, { start->line, cancelled } );
+    if ( isCancelled( cancelled ) ) {
+        return outcome( Outcome::Cancelled );
+    }
     if ( !end ) {
         return outcome( Outcome::NoTimestamps );
     }
@@ -229,11 +272,13 @@ LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTi
 
 LimitsResult searchLimitsForTimeRange( const QDateTime& startTime, const QDateTime& endTime,
                                        const AbstractLogData& logData,
-                                       const TimestampReader& reader )
+                                       const TimestampReader& reader,
+                                       const std::atomic<bool>* cancelled )
 {
     return searchLimitsForTimeRange(
         startTime, endTime, logData.getNbLine(),
-        [ & ]( LineNumber line ) { return reader.timestampOf( logData.getLineString( line ) ); } );
+        [ & ]( LineNumber line ) { return reader.timestampOf( logData.getLineString( line ) ); },
+        cancelled );
 }
 
 std::optional<QDateTime> parseTimeInput( const QString& text, const QDate& defaultDate )

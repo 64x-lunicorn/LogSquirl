@@ -79,6 +79,8 @@
 
 #include "logformatdefinition.h"
 #include "settingspolicies.h"
+#include "lookuprunner.h"
+#include "timelookup.h"
 #include "timestampreader.h"
 
 class LogFormatCatalog;
@@ -134,9 +136,6 @@ public:
     // Said in the status bar when a time lookup landed among Timestamps that
     // are not in time order.
     static QString notInTimeOrderNotice();
-    //! The reader for the current Log Format, built on demand; nullptr when there is none.
-    //! Never keep it across a modal dialog: the Log Format can be reset meanwhile.
-    TimestampReader* currentTimestampReader() const;
     // The same for the Search Limits given as a time.
     QString searchLimitsByTimeUnavailableReason() const;
 
@@ -329,6 +328,20 @@ private Q_SLOTS:
     // Turns a time range into line limits, once, here where the Limits are
     // decided, and sets them; on failure tells the user and leaves them.
     void setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end );
+
+    // Time lookups run on a worker thread (LookupRunner); whatever makes their
+    // answer stale -- a reload, a truncation, another Log Format -- cancels
+    // them, and a cancelled lookup reports nothing.
+private:
+    struct LookupSource;
+    std::optional<LookupSource> lookupSource() const;
+    template <typename Result, typename Work, typename Done>
+    void runTimeLookup( Work work, Done done );
+    void cancelTimeLookup();
+    // Looks up the Timestamp near the current line, then calls then with it.
+    void lookUpNearbyTimestamp( std::function<void( std::optional<QDateTime> )> then );
+    void showTimeLookupResult( const timelookup::Result& result );
+private Q_SLOTS:
 
     void addColorLabelToSelection( size_t label );
     void addNextColorLabelToSelection();
@@ -546,9 +559,8 @@ private:
     // The Log Format the Table View shows, if any: the one the Open Log File
     // recognized, kept alive for the Table View until it is handed another.
     std::shared_ptr<const LogFormatDefinition> recognizedFormat_;
-    // Reads the Timestamps of Log Lines for "Go to timestamp"; built when it
-    // is first used, so opening a Log File does not pay for it.
-    mutable std::unique_ptr<TimestampReader> timestampReader_;
+    // Runs the time lookups (Go to timestamp, Search Limits by time).
+    LookupRunner timeLookup_{ this };
 
     // The upper pane shows either the text view or the Table View
     QStackedWidget* mainViewStack_ = nullptr;

@@ -245,6 +245,7 @@ void CrawlerWidget::reload()
     // The Open Log File drops the Search and the Marks, and recognizes the
     // Log Format again once it has loaded. A reload is loaded from its start
     // like the first load, so the "new data" icon is not triggered.
+    cancelTimeLookup();
     openLogFile_->reload();
     viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
     printSearchInfoMessage();
@@ -318,20 +319,63 @@ QString CrawlerWidget::searchLimitsByTimeUnavailableReason() const
     return {};
 }
 
-TimestampReader* CrawlerWidget::currentTimestampReader() const
+// What a time lookup on a worker thread needs, copied out of the widget: the
+// worker builds its own reader from it, so nothing of the widget is shared.
+struct CrawlerWidget::LookupSource {
+    std::shared_ptr<LogData> logData;
+    std::shared_ptr<const LogFormatDefinition> format;
+    QDate modified;
+
+    TimestampReader reader() const
+    {
+        // The year of a timestamp without one comes from when the Log File was
+        // last written.
+        return TimestampReader( *format, 0, modified );
+    }
+};
+
+std::optional<CrawlerWidget::LookupSource> CrawlerWidget::lookupSource() const
 {
     // The Log Format can change while a modal dialog is open (the file is truncated or
     // recognized anew), so nothing obtained here is kept across a dialog.
     if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
-        return nullptr;
+        return std::nullopt;
     }
-    if ( !timestampReader_ ) {
-        // The year of a timestamp without one comes from when the Log File was
-        // last written.
-        timestampReader_ = std::make_unique<TimestampReader>(
-            *recognizedFormat_, 0, openLogFile_->logData()->getLastModifiedDate().date() );
+    return LookupSource{ openLogFile_->logData(), recognizedFormat_,
+                         openLogFile_->logData()->getLastModifiedDate().date() };
+}
+
+template <typename Result, typename Work, typename Done>
+void CrawlerWidget::runTimeLookup( Work work, Done done )
+{
+    // No progress and no cancel button: the status bar says it runs, and the
+    // lookup is cancelled by whatever makes its answer stale.
+    Q_EMIT statusMessage( tr( "Looking up the time..." ) );
+    timeLookup_.start<Result>( std::move( work ), [ this, done = std::move( done ) ]( Result result ) {
+        Q_EMIT statusMessage( QString() );
+        done( std::move( result ) );
+    } );
+}
+
+void CrawlerWidget::cancelTimeLookup()
+{
+    if ( timeLookup_.isRunning() ) {
+        timeLookup_.cancel();
+        Q_EMIT statusMessage( QString() );
     }
-    return timestampReader_.get();
+}
+
+void CrawlerWidget::lookUpNearbyTimestamp( std::function<void( std::optional<QDateTime> )> then )
+{
+    const auto source = lookupSource();
+    if ( !source ) {
+        return;
+    }
+    runTimeLookup<std::optional<QDateTime>>(
+        [ source = *source, line = currentLineNumber_ ]( const std::atomic<bool>& cancelled ) {
+            return timelookup::timestampNear( line, *source.logData, source.reader(), &cancelled );
+        },
+        std::move( then ) );
 }
 
 void CrawlerWidget::setSearchLimitsToTimeRange()
@@ -339,46 +383,43 @@ void CrawlerWidget::setSearchLimitsToTimeRange()
     if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
         return;
     }
-    const auto title = tr( "Set search limits to time range" );
-    const auto* reader = currentTimestampReader();
-    if ( !reader ) {
-        return;
-    }
-
     // The date of the Log Line the user is at, for a time typed without one.
-    const auto nearby
-        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *reader );
-    if ( !nearby ) {
-        QMessageBox::information( this, title,
-                                  tr( "No Log Line near the current one has a timestamp." ) );
-        return;
-    }
+    lookUpNearbyTimestamp( [ this ]( std::optional<QDateTime> nearby ) {
+        const auto title = tr( "Set search limits to time range" );
+        if ( !nearby ) {
+            QMessageBox::information( this, title,
+                                      tr( "No Log Line near the current one has a timestamp." ) );
+            return;
+        }
 
-    const auto prompt = tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
-                            "Without a date, %1 is used." )
-                            .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) );
-    bool ok = false;
-    const auto startText = QInputDialog::getText(
-        this, title, tr( "Start (included).\n%1" ).arg( prompt ), QLineEdit::Normal, {}, &ok );
-    if ( !ok || startText.trimmed().isEmpty() ) {
-        return;
-    }
-    const auto endText = QInputDialog::getText(
-        this, title, tr( "End (not included).\n%1" ).arg( prompt ), QLineEdit::Normal, {}, &ok );
-    if ( !ok || endText.trimmed().isEmpty() ) {
-        return;
-    }
+        const auto prompt
+            = tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
+                  "Without a date, %1 is used." )
+                  .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) );
+        bool ok = false;
+        const auto startText = QInputDialog::getText(
+            this, title, tr( "Start (included).\n%1" ).arg( prompt ), QLineEdit::Normal, {}, &ok );
+        if ( !ok || startText.trimmed().isEmpty() ) {
+            return;
+        }
+        const auto endText = QInputDialog::getText(
+            this, title, tr( "End (not included).\n%1" ).arg( prompt ), QLineEdit::Normal, {},
+            &ok );
+        if ( !ok || endText.trimmed().isEmpty() ) {
+            return;
+        }
 
-    const auto start = timelookup::parseTimeInput( startText, nearby->date() );
-    const auto end = timelookup::parseTimeInput( endText, nearby->date() );
-    if ( !start || !end ) {
-        QMessageBox::information( this, title,
-                                  tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
-                                      "YYYY-MM-DD HH:MM:SS." )
-                                      .arg( ( !start ? startText : endText ).trimmed() ) );
-        return;
-    }
-    setSearchLimitsFromTimes( *start, *end );
+        const auto start = timelookup::parseTimeInput( startText, nearby->date() );
+        const auto end = timelookup::parseTimeInput( endText, nearby->date() );
+        if ( !start || !end ) {
+            QMessageBox::information( this, title,
+                                      tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
+                                          "YYYY-MM-DD HH:MM:SS." )
+                                          .arg( ( !start ? startText : endText ).trimmed() ) );
+            return;
+        }
+        setSearchLimitsFromTimes( *start, *end );
+    } );
 }
 
 void CrawlerWidget::setSearchLimitsAroundCurrentLine()
@@ -386,81 +427,85 @@ void CrawlerWidget::setSearchLimitsAroundCurrentLine()
     if ( !searchLimitsByTimeUnavailableReason().isEmpty() ) {
         return;
     }
-    const auto title = tr( "Set search limits around current line" );
-    const auto* reader = currentTimestampReader();
-    if ( !reader ) {
-        return;
-    }
+    lookUpNearbyTimestamp( [ this ]( std::optional<QDateTime> center ) {
+        const auto title = tr( "Set search limits around current line" );
+        if ( !center ) {
+            QMessageBox::information( this, title,
+                                      tr( "No Log Line near the current one has a timestamp." ) );
+            return;
+        }
 
-    const auto center
-        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *reader );
-    if ( !center ) {
-        QMessageBox::information( this, title,
-                                  tr( "No Log Line near the current one has a timestamp." ) );
-        return;
-    }
+        auto& config = Configuration::get();
+        bool ok = false;
+        const auto minutes = QInputDialog::getInt( this, title, tr( "Minutes before and after:" ),
+                                                   config.searchWindowMinutes(), 1, 24 * 60, 1,
+                                                   &ok );
+        if ( !ok ) {
+            return;
+        }
+        if ( minutes != config.searchWindowMinutes() ) {
+            config.setSearchWindowMinutes( minutes );
+            config.save();
+        }
 
-    auto& config = Configuration::get();
-    bool ok = false;
-    const auto minutes = QInputDialog::getInt( this, title, tr( "Minutes before and after:" ),
-                                               config.searchWindowMinutes(), 1, 24 * 60, 1, &ok );
-    if ( !ok ) {
-        return;
-    }
-    if ( minutes != config.searchWindowMinutes() ) {
-        config.setSearchWindowMinutes( minutes );
-        config.save();
-    }
-
-    setSearchLimitsFromTimes( center->addSecs( -minutes * 60 ), center->addSecs( minutes * 60 ) );
+        setSearchLimitsFromTimes( center->addSecs( -minutes * 60 ),
+                                  center->addSecs( minutes * 60 ) );
+    } );
 }
 
 void CrawlerWidget::setSearchLimitsFromTimes( const QDateTime& start, const QDateTime& end )
 {
     using Outcome = timelookup::LimitsResult::Outcome;
-    const auto title = tr( "Set search limits by time" );
 
-    // Called after modal dialogs: fetch the reader anew, it may have been reset meanwhile.
-    const auto* reader = currentTimestampReader();
-    if ( !reader ) {
+    // Called after modal dialogs: the source is taken anew, the Log Format may have changed.
+    const auto source = lookupSource();
+    if ( !source ) {
         return;
     }
-    const auto result
-        = timelookup::searchLimitsForTimeRange( start, end, *openLogFile_->logData(), *reader );
-    switch ( result.outcome ) {
-    case Outcome::Limits:
-        // From here on ordinary Search Limits, lines like any others.
-        setSearchLimits( result.start, result.end );
-        if ( result.outOfOrder ) {
-            Q_EMIT statusMessage( notInTimeOrderNotice() );
-        }
-        return;
-    case Outcome::BeforeFile:
-        QMessageBox::information( this, title,
-                                  tr( "The time range is before the first timestamp in the Log "
-                                      "File. The search limits are unchanged." ) );
-        return;
-    case Outcome::AfterFile:
-        QMessageBox::information( this, title,
-                                  tr( "The time range is after the last timestamp in the Log "
-                                      "File. The search limits are unchanged." ) );
-        return;
-    case Outcome::NoTimestamps:
-        QMessageBox::information( this, title,
-                                  tr( "No Log Line has a timestamp this Log Format can read. The "
-                                      "search limits are unchanged." ) );
-        return;
-    case Outcome::EndNotAfterStart:
-        QMessageBox::information( this, title,
-                                  tr( "The end is not after the start. The search limits are "
-                                      "unchanged." ) );
-        return;
-    case Outcome::NoLogLines:
-        QMessageBox::information( this, title,
-                                  tr( "No Log Line has a timestamp in the time range. The search "
-                                      "limits are unchanged." ) );
-        return;
-    }
+    runTimeLookup<timelookup::LimitsResult>(
+        [ source = *source, start, end ]( const std::atomic<bool>& cancelled ) {
+            return timelookup::searchLimitsForTimeRange( start, end, *source.logData,
+                                                         source.reader(), &cancelled );
+        },
+        [ this ]( const timelookup::LimitsResult& result ) {
+            const auto title = tr( "Set search limits by time" );
+            switch ( result.outcome ) {
+            case Outcome::Cancelled:
+                return;
+            case Outcome::Limits:
+                // From here on ordinary Search Limits, lines like any others.
+                setSearchLimits( result.start, result.end );
+                if ( result.outOfOrder ) {
+                    Q_EMIT statusMessage( notInTimeOrderNotice() );
+                }
+                return;
+            case Outcome::BeforeFile:
+                QMessageBox::information( this, title,
+                                          tr( "The time range is before the first timestamp in "
+                                              "the Log File. The search limits are unchanged." ) );
+                return;
+            case Outcome::AfterFile:
+                QMessageBox::information( this, title,
+                                          tr( "The time range is after the last timestamp in the "
+                                              "Log File. The search limits are unchanged." ) );
+                return;
+            case Outcome::NoTimestamps:
+                QMessageBox::information( this, title,
+                                          tr( "No Log Line has a timestamp this Log Format can "
+                                              "read. The search limits are unchanged." ) );
+                return;
+            case Outcome::EndNotAfterStart:
+                QMessageBox::information( this, title,
+                                          tr( "The end is not after the start. The search limits "
+                                              "are unchanged." ) );
+                return;
+            case Outcome::NoLogLines:
+                QMessageBox::information( this, title,
+                                          tr( "No Log Line has a timestamp in the time range. The "
+                                              "search limits are unchanged." ) );
+                return;
+            }
+        } );
 }
 
 void CrawlerWidget::goToTimestamp()
@@ -469,56 +514,59 @@ void CrawlerWidget::goToTimestamp()
         return;
     }
 
-    // Only used before the dialog: the reader is fetched again after it.
-    const auto* firstReader = currentTimestampReader();
-    if ( !firstReader ) {
-        return;
-    }
-
     // The date of the Log Line the user is at, for a time typed without one.
-    const auto nearby
-        = timelookup::timestampNear( currentLineNumber_, *openLogFile_->logData(), *firstReader );
-    if ( !nearby ) {
-        QMessageBox::information( this, tr( "Go to timestamp" ),
-                                  tr( "No Log Line near the current one has a timestamp." ) );
-        return;
-    }
+    lookUpNearbyTimestamp( [ this ]( std::optional<QDateTime> nearby ) {
+        if ( !nearby ) {
+            QMessageBox::information( this, tr( "Go to timestamp" ),
+                                      tr( "No Log Line near the current one has a timestamp." ) );
+            return;
+        }
 
-    const auto text = QInputDialog::getText(
-        this, tr( "Go to timestamp" ),
-        tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
-            "Without a date, %1 is used." )
-            .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) ) );
-    if ( text.trimmed().isEmpty() ) {
-        return;
-    }
+        const auto text = QInputDialog::getText(
+            this, tr( "Go to timestamp" ),
+            tr( "Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.\n"
+                "Without a date, %1 is used." )
+                .arg( QLocale().toString( nearby->date(), QLocale::ShortFormat ) ) );
+        if ( text.trimmed().isEmpty() ) {
+            return;
+        }
 
-    const auto time = timelookup::parseTimeInput( text, nearby->date() );
-    if ( !time ) {
-        QMessageBox::information( this, tr( "Go to timestamp" ),
-                                  tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
-                                      "YYYY-MM-DD HH:MM:SS." )
-                                      .arg( text.trimmed() ) );
-        return;
-    }
+        const auto time = timelookup::parseTimeInput( text, nearby->date() );
+        if ( !time ) {
+            QMessageBox::information( this, tr( "Go to timestamp" ),
+                                      tr( "\"%1\" is not a time. Use HH:MM, HH:MM:SS or "
+                                          "YYYY-MM-DD HH:MM:SS." )
+                                          .arg( text.trimmed() ) );
+            return;
+        }
 
-    // The Log Format may have changed while the dialog was open.
-    const auto* reader = currentTimestampReader();
-    if ( !reader ) {
-        return;
-    }
-    const auto result = timelookup::firstLineAtOrAfter( *time, *openLogFile_->logData(), *reader );
-    if ( !result ) {
-        return;
-    }
+        // The Log Format may have changed while the dialog was open.
+        const auto source = lookupSource();
+        if ( !source ) {
+            return;
+        }
+        runTimeLookup<std::optional<timelookup::Result>>(
+            [ source = *source, time = *time ]( const std::atomic<bool>& cancelled ) {
+                return timelookup::firstLineAtOrAfter( time, *source.logData, source.reader(),
+                                                       { {}, &cancelled } );
+            },
+            [ this ]( const std::optional<timelookup::Result>& result ) {
+                if ( result ) {
+                    showTimeLookupResult( *result );
+                }
+            } );
+    } );
+}
 
-    filteredView_->trySelectLine( result->line );
-    presentation_->showLogLine( result->line );
-    if ( result->outOfOrder ) {
+void CrawlerWidget::showTimeLookupResult( const timelookup::Result& result )
+{
+    filteredView_->trySelectLine( result.line );
+    presentation_->showLogLine( result.line );
+    if ( result.outOfOrder ) {
         Q_EMIT statusMessage( notInTimeOrderNotice() );
     }
 
-    switch ( result->position ) {
+    switch ( result.position ) {
     case timelookup::Position::BeforeFirst:
         QMessageBox::information( this, tr( "Go to timestamp" ),
                                   tr( "The time is before the first timestamp in the Log File. "
@@ -1063,9 +1111,11 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // The Search Limits are the whole Log File again; every view shows it.
     viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
 
-    // The modification date, which gives a timestamp without a year its year,
-    // has moved on.
-    timestampReader_.reset();
+    // A lookup over the old lines has nothing to say about a Log File that
+    // was loaded anew; appended lines leave it valid.
+    if ( !load.onlyAppended ) {
+        cancelTimeLookup();
+    }
 
     // Also change the data available icon
     if ( !load.fromStart ) {
@@ -1090,6 +1140,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 
 void CrawlerWidget::truncatedHandler( const QString& failure )
 {
+    cancelTimeLookup();
     if ( !failure.isEmpty() ) {
         offerIssueReport( failure );
     }
@@ -2395,7 +2446,7 @@ void CrawlerWidget::showRecognizedFormat()
     // The Table View still points at the previous Log Format until it is
     // handed the new one, so the previous one stays alive until then.
     const auto previousFormat = std::exchange( recognizedFormat_, std::move( recognized ) );
-    timestampReader_.reset();
+    cancelTimeLookup();
     logTableView_->setLogFormat( recognizedFormat_.get(), openLogFile_->logData().get() );
     tableViewToggle_->setVisible( true );
     tableViewToggle_->setToolTip(
@@ -2419,7 +2470,7 @@ void CrawlerWidget::resetLogFormat()
     logTableView_->setLogFormat( nullptr, nullptr );
     showPresentation( false );
     recognizedFormat_.reset();
-    timestampReader_.reset();
+    cancelTimeLookup();
 
     // Clear format info from chart panel.
     chartPanel_->setLogFormat( nullptr );

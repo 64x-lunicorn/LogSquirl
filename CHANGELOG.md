@@ -2,6 +2,11 @@
 
 ## Changes
 
+- **Time lookups no longer block the window**: Go to timestamp and the time
+  search limits look the time up on a worker thread while the status bar says
+  so. A reload, a truncation or a change of Log Format cancels the lookup, and
+  the end of a time range is searched from the line the start was found on
+  instead of from the top (#486).
 - **Time lookups honour time zones and years**: a time zone offset written in a
   log (`+02:00`, `Z`) now counts in Go to timestamp and the time search
   limits, a timestamp without a year (syslog) takes it from the Log File's

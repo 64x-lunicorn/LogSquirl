@@ -801,12 +801,12 @@ Patrón: %2</translation>
 <context>
     <name>CrawlerWidget</name>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="748"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="796"/>
         <source>logsquirl</source>
         <translation>logsquirl</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="749"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="797"/>
         <source>Search history:</source>
         <translation>Historial de búsqueda:</translation>
     </message>
@@ -826,266 +826,271 @@ Patrón: %2</translation>
         <translation> %1 coincidencia encontrada hasta ahora.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="292"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="293"/>
         <source>Go to timestamp needs a Log Format: none was recognized for this Log File.</source>
         <translation>Ir a marca de tiempo necesita un formato de registro: no se reconoció ninguno para este archivo de registro.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="295"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="296"/>
         <source>Go to timestamp is not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
         <translation>Ir a marca de tiempo no está disponible: el formato de registro &quot;%1&quot; no tiene campo de marca de tiempo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="482"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="488"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="498"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="523"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="528"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="533"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="520"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="526"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="536"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="571"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="576"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="581"/>
         <source>Go to timestamp</source>
         <translation>Ir a marca de tiempo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="353"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="399"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="483"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="391"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="434"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="521"/>
         <source>No Log Line near the current one has a timestamp.</source>
         <translation>Ninguna línea de registro cercana a la actual tiene marca de tiempo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="304"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="305"/>
         <source>The Log File is not in time order here: the position may be off.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="310"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="311"/>
         <source>Search limits by time need a Log Format: none was recognized for this Log File.</source>
         <translation>Los límites de búsqueda por tiempo necesitan un formato de registro: no se reconoció ninguno para este archivo de registro.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="314"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="315"/>
         <source>Search limits by time are not available: the Log Format &quot;%1&quot; has no timestamp field.</source>
         <translation>Los límites de búsqueda por tiempo no están disponibles: el formato de registro &quot;%1&quot; no tiene campo de marca de tiempo.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="342"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="353"/>
+        <source>Looking up the time...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="388"/>
         <source>Set search limits to time range</source>
         <translation>Establecer los límites de búsqueda a un intervalo de tiempo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="357"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="489"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="396"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="527"/>
         <source>Time, as HH:MM[:SS[.mmm]], optionally after a date as YYYY-MM-DD.
 Without a date, %1 is used.</source>
         <translation>Hora, como HH:MM[:SS[.mmm]], opcionalmente después de una fecha como AAAA-MM-DD.
 Sin fecha, se usa %1.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="362"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="401"/>
         <source>Start (included).
 %1</source>
         <translation>Inicio (incluido).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="367"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="406"/>
         <source>End (not included).
 %1</source>
         <translation>Fin (no incluido).
 %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="376"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="499"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="416"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="537"/>
         <source>&quot;%1&quot; is not a time. Use HH:MM, HH:MM:SS or YYYY-MM-DD HH:MM:SS.</source>
         <translation>&quot;%1&quot; no es una hora. Use HH:MM, HH:MM:SS o AAAA-MM-DD HH:MM:SS.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="389"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="431"/>
         <source>Set search limits around current line</source>
         <translation>Establecer los límites de búsqueda alrededor de la línea actual</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="405"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="440"/>
         <source>Minutes before and after:</source>
         <translation>Minutos antes y después:</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="421"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="471"/>
         <source>Set search limits by time</source>
         <translation>Establecer los límites de búsqueda por tiempo</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="440"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="484"/>
         <source>The time range is before the first timestamp in the Log File. The search limits are unchanged.</source>
         <translation>El intervalo de tiempo es anterior a la primera marca de tiempo del archivo de registro. Los límites de búsqueda no han cambiado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="445"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="489"/>
         <source>The time range is after the last timestamp in the Log File. The search limits are unchanged.</source>
         <translation>El intervalo de tiempo es posterior a la última marca de tiempo del archivo de registro. Los límites de búsqueda no han cambiado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="450"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="494"/>
         <source>No Log Line has a timestamp this Log Format can read. The search limits are unchanged.</source>
         <translation>Ninguna línea de registro tiene una marca de tiempo que este formato de registro pueda leer. Los límites de búsqueda no han cambiado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="455"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="499"/>
         <source>The end is not after the start. The search limits are unchanged.</source>
         <translation>El fin no es posterior al inicio. Los límites de búsqueda no han cambiado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="460"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="504"/>
         <source>No Log Line has a timestamp in the time range. The search limits are unchanged.</source>
         <translation>Ninguna línea de registro tiene una marca de tiempo en el intervalo de tiempo. Los límites de búsqueda no han cambiado.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="524"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="572"/>
         <source>The time is before the first timestamp in the Log File. Went to the first line.</source>
         <translation>La hora es anterior a la primera marca de tiempo del archivo de registro. Se fue a la primera línea.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="529"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="577"/>
         <source>The time is after the last timestamp in the Log File. Went to the last line.</source>
         <translation>La hora es posterior a la última marca de tiempo del archivo de registro. Se fue a la última línea.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="534"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="582"/>
         <source>No Log Line has a timestamp this Log Format can read.</source>
         <translation>Ninguna línea de registro tiene una marca de tiempo que este formato de registro pueda leer.</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1308"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1359"/>
         <source>Marks and matches</source>
         <translation>Marcas y coincidencias</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1314"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1365"/>
         <source>Marks, matches + breadcrumbs</source>
         <translation>Marcas, coincidencias + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1319"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1370"/>
         <source>Matches + breadcrumbs</source>
         <translation>Coincidencias + contexto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1324"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1375"/>
         <source>Marks</source>
         <translation>Marcas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1328"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1379"/>
         <source>Matches</source>
         <translation>Coincidencias</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1381"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1382"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1432"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1433"/>
         <source>Match case</source>
         <translation>Coincidir mayúsculas</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1388"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1389"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1439"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1440"/>
         <source>Use regex</source>
         <translation>Usar regex</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1395"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1396"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1446"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1447"/>
         <source>Inverse match</source>
         <translation>Coincidencia inversa</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1402"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
         <source>Enable regular expression logical combining</source>
         <translation>Habilitar combinación lógica de expresiones regulares</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1403"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1454"/>
         <source>Boolean combining</source>
         <translation>Combinación booleana</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1409"/>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1410"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1460"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1461"/>
         <source>Auto-refresh</source>
         <translation>Actualización automática</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1428"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1479"/>
         <source>Search pattern</source>
         <translation>Patrón de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1437"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1488"/>
         <source>Clear search history</source>
         <translation>Borrar historial de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1438"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1489"/>
         <source>Edit search history</source>
         <translation>Editar historial de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1439"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1490"/>
         <source>Save as Filter</source>
         <translation>Guardar como filtro</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1444"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1495"/>
         <source>Count values of capture group</source>
         <translation>Contar valores del grupo de captura</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1453"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1504"/>
         <source>Clear search text</source>
         <translation>Borrar texto de búsqueda</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1458"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1509"/>
         <source>Search</source>
         <translation>Buscar</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1463"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1514"/>
         <source>Keep Results</source>
         <translation>Conservar resultados</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1465"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1516"/>
         <source>Keep these results and show subsequent results in a new window</source>
         <translation>Conservar estos resultados y mostrar los resultados siguientes en una nueva ventana</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1493"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1544"/>
         <source>Toggle table/text view</source>
         <translation>Alternar vista de tabla/texto</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1494"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1545"/>
         <source>Toggle table view</source>
         <translation>Alternar vista de tabla</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1901"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1952"/>
         <source>Group %1</source>
         <translation>Grupo %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1902"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1953"/>
         <source>Group %1 (%2)</source>
         <translation>Grupo %1 (%2)</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="1930"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="1981"/>
         <source>group %1 of &quot;%2&quot;</source>
         <translation>grupo %1 de &quot;%2&quot;</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2402"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2453"/>
         <source>Toggle table/text view (%1)</source>
         <translation>Alternar vista de tabla/texto (%1)</translation>
     </message>
@@ -1115,12 +1120,12 @@ Sin fecha, se usa %1.</translation>
         <translation>Archivo truncado en disco</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2282"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2333"/>
         <source>Displayed as %1</source>
         <translation>Mostrado como %1</translation>
     </message>
     <message>
-        <location filename="../../ui/src/crawlerwidget.cpp" line="2282"/>
+        <location filename="../../ui/src/crawlerwidget.cpp" line="2333"/>
         <source>Detected as %1</source>
         <translation>Detectado como %1</translation>
     </message>
