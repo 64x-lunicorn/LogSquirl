@@ -2,6 +2,12 @@
 
 ## Changes
 
+- **Team Highlighter Sets**: The Highlighter Sets in the Team Folder show in
+  their own read-only section of the Highlighters dialog and in the
+  Highlighters menu. Switching one on or off is each user's own, stored only
+  locally; a set the team changes re-colors every open Log File at the next
+  sync without reopening it, and one the team removes is switched off and
+  disappears (#471).
 - **Team Folder**: In the options, name a Git repository (and optionally a
   subfolder) and LogSquirl clones it with the installed `git`, using Git's own
   authentication, and keeps it current at startup, every five minutes and with

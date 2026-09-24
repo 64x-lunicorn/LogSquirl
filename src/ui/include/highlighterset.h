@@ -68,6 +68,14 @@ public:
     QList<HighlighterSet> highlighterSets() const;
     void setHighlighterSets( const QList<HighlighterSet>& highlighters );
 
+    // The Highlighter Sets of the Team Folder (Team groups): read-only here
+    // and never stored, they come and go with the sync. Whether one is active
+    // is the user's own, stored with the active sets. A Team set that is no
+    // longer there is no longer active; setting them re-colors the combined
+    // active set at once. Whether this changed a Team set or an activation.
+    QList<HighlighterSet> teamHighlighterSets() const;
+    bool setTeamHighlighterSets( const QList<HighlighterSet>& sets );
+
     const HighlighterSet& currentActiveSet() const;
 
     bool hasSet( const QString& setId ) const;
@@ -110,6 +118,11 @@ private:
 private:
     QList<HighlighterSet> highlighters_;
     QStringList activeSets_;
+    // The active ones of the Team sets, kept apart: a Team set is not known
+    // until the first sync, and what the user changes in their own sets must
+    // not drop its activation meanwhile.
+    QStringList activeTeamSets_;
+    QList<HighlighterSet> teamSets_;
     HighlighterSet combinedActiveSet_;
 
     QList<QuickHighlighter> quickHighlighters_;

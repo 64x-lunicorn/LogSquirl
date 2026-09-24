@@ -271,6 +271,8 @@ private:
     // Shows the Team Folder's Team groups and state in this window.
     void connectTeamFolder();
     void updateTeamFolderIndicator();
+    // Hands the Team Highlighter Sets to the Highlighter Set collection.
+    void applyTeamHighlighterSets();
 
     /// Build the full list of commands for the command palette by
     /// collecting menu actions, plugin actions, recent files, and

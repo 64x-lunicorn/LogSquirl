@@ -219,11 +219,13 @@ void HighlightersDialog::loadIcons()
 
 void HighlightersDialog::exportHighlighters()
 {
-    if ( selectedRow_ < 0 ) {
+    if ( selectedRow_ < 0 && selectedTeamRow_ < 0 ) {
         return;
     }
 
-    const HighlighterSet group = highlighterSetCollection_.highlighters_.at( selectedRow_ );
+    const HighlighterSet group = selectedRow_ >= 0
+                                     ? highlighterSetCollection_.highlighters_.at( selectedRow_ )
+                                     : teamGroups_.at( selectedTeamRow_ );
     using namespace logsquirl::groupexchange;
 
     const auto proposed
@@ -360,6 +362,9 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
 
     // persist it to disk
     auto& persistentHighlighterSet = HighlighterSetCollection::get();
+    // The Team sets are not this dialog's: a sync may have changed them since
+    // it opened, and they stay as the Team Folder has them.
+    const auto teamSets = persistentHighlighterSet.teamHighlighterSets();
     if ( role == QDialogButtonBox::AcceptRole ) {
         persistentHighlighterSet = std::move( highlighterSetCollection_ );
         accept();
@@ -371,6 +376,7 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
         LOG_ERROR << "unhandled role : " << role;
         return;
     }
+    persistentHighlighterSet.setTeamHighlighterSets( teamSets );
     persistentHighlighterSet.save();
     Q_EMIT optionsChanged();
 }
@@ -391,6 +397,13 @@ void HighlightersDialog::updatePropertyFields()
     LOG_DEBUG << "updatePropertyFields(), row = " << selectedRow_;
 
     if ( selectedRow_ >= 0 ) {
+        // One set is shown at a time: one of the user's own, or a Team set.
+        if ( teamGroupsList_ ) {
+            teamGroupsList_->clearSelection();
+        }
+        selectedTeamRow_ = -1;
+        highlighterSetEdit_->setEnabled( true );
+
         const HighlighterSet& currentSet
             = highlighterSetCollection_.highlighters_.at( selectedRow_ );
         highlighterSetEdit_->setHighlighters( currentSet );
@@ -401,7 +414,8 @@ void HighlightersDialog::updatePropertyFields()
         downHighlighterButton->setEnabled( selectedRow_ < ( highlighterListWidget->count() - 1 ) );
         exportButton->setEnabled( true );
     }
-    else {
+    else if ( selectedTeamRow_ < 0 ) {
+        highlighterSetEdit_->setEnabled( true );
         highlighterSetEdit_->reset();
         exportButton->setEnabled( false );
 
@@ -409,6 +423,51 @@ void HighlightersDialog::updatePropertyFields()
         upHighlighterButton->setEnabled( false );
         downHighlighterButton->setEnabled( false );
     }
+}
+
+void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups )
+{
+    teamGroups_ = groups;
+
+    if ( !teamGroupsList_ ) {
+        teamGroupsLabel_ = new QLabel( tr( "Team highlighter sets" ), layoutWidget );
+        teamGroupsLabel_->setAlignment( Qt::AlignCenter );
+        teamGroupsLabel_->setToolTip(
+            tr( "Shared through the Team Folder: they change when the team changes them." ) );
+        teamGroupsList_ = new QListWidget( layoutWidget );
+        teamGroupsList_->setSizePolicy( QSizePolicy::MinimumExpanding, QSizePolicy::Expanding );
+        verticalLayout->addWidget( teamGroupsLabel_ );
+        verticalLayout->addWidget( teamGroupsList_ );
+        connect( teamGroupsList_, &QListWidget::itemSelectionChanged, this,
+                 &HighlightersDialog::showSelectedTeamGroup );
+    }
+
+    selectedTeamRow_ = -1;
+    teamGroupsList_->clear();
+    for ( const auto& group : teamGroups_ ) {
+        teamGroupsList_->addItem( group.name() );
+    }
+}
+
+void HighlightersDialog::showSelectedTeamGroup()
+{
+    const auto selected = teamGroupsList_->selectedItems();
+    if ( selected.isEmpty() ) {
+        return;
+    }
+    const auto row = teamGroupsList_->row( selected.at( 0 ) );
+
+    // Leaves the user's own set; what was changed in it stays in this
+    // dialog's copy until OK, Apply or Cancel.
+    highlighterListWidget->clearSelection();
+
+    selectedTeamRow_ = row;
+    highlighterSetEdit_->setHighlighters( teamGroups_.at( row ) );
+    highlighterSetEdit_->setEnabled( false );
+    removeHighlighterButton->setEnabled( false );
+    upHighlighterButton->setEnabled( false );
+    downHighlighterButton->setEnabled( false );
+    exportButton->setEnabled( true );
 }
 
 void HighlightersDialog::updateHighlighterProperties()

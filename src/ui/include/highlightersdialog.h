@@ -43,6 +43,9 @@
 #include <vector>
 
 #include <QDialog>
+#include <QLabel>
+#include <QList>
+#include <QListWidget>
 
 class QPushButton;
 
@@ -55,6 +58,13 @@ class HighlightersDialog : public QDialog, public Ui::HighlightersDialog {
 
 public:
     explicit HighlightersDialog( QWidget* parent = nullptr );
+
+    // Shows the Team Highlighter Sets in a section of their own below the
+    // user's own sets, in the order given (alphabetical, as the Team Folder
+    // hands them over). They can be looked at and exported, not changed here.
+    // Whether one is active is chosen in the Highlighters menu. Without a
+    // call there is no section.
+    void showTeamGroups( const QList<HighlighterSet>& groups );
 
 Q_SIGNALS:
     // Is emitted when new settings must be used
@@ -78,6 +88,9 @@ private Q_SLOTS:
     void exportHighlighters();
     void importHighlighters();
 
+    // Shows the selected Team Highlighter Set, read-only.
+    void showSelectedTeamGroup();
+
 private:
     void populateHighlighterList();
     void setCurrentRow( int row );
@@ -98,6 +111,12 @@ private:
 
     // Index of the row currently selected or -1 if none.
     int selectedRow_;
+
+    QLabel* teamGroupsLabel_ = nullptr;
+    QListWidget* teamGroupsList_ = nullptr;
+    QList<HighlighterSet> teamGroups_;
+    // The row of the Team set shown, -1 when none is.
+    int selectedTeamRow_ = -1;
 
     // The color buttons of the Color Labels, in slot order.
     std::vector<QPushButton*> colorLabelForeButtons_;

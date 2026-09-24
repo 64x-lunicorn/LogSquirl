@@ -1469,6 +1469,10 @@ void MainWindow::openUrl()
 void MainWindow::editHighlighters()
 {
     HighlightersDialog dialog( this );
+    if ( const auto teamFolder = session_.teamFolder();
+         teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
+        dialog.showTeamGroups( teamFolder->highlighterGroups() );
+    }
 
     // Reaches every open Log File, in every window, not only the current tab.
     connect( &dialog, &HighlightersDialog::optionsChanged, [ this ]() {
@@ -1525,10 +1529,32 @@ void MainWindow::connectTeamFolder()
     // window's Filters panel.
     connect( teamFolder.get(), &TeamFolder::groupsChanged, this,
              [ this ] { filtersPanel_.setTeamGroups( session_.teamFolder()->filterGroups() ); } );
+    // A changed or removed Team Highlighter Set re-colors every open Log File
+    // at once, and a removed one is no longer active.
+    connect( teamFolder.get(), &TeamFolder::highlighterGroupsChanged, this,
+             &MainWindow::applyTeamHighlighterSets );
     connect( teamFolderButton_, &QToolButton::clicked, teamFolder.get(), &TeamFolder::sync );
 
     filtersPanel_.setTeamGroups( teamFolder->filterGroups() );
+    applyTeamHighlighterSets();
     updateTeamFolderIndicator();
+}
+
+void MainWindow::applyTeamHighlighterSets()
+{
+    const auto teamFolder = session_.teamFolder();
+    if ( !teamFolder ) {
+        return;
+    }
+
+    // Every window comes here for the same sync; the first one changes the
+    // collection and saves it, the others only bring their menu up to date.
+    auto& collection = HighlighterSetCollection::get();
+    if ( collection.setTeamHighlighterSets( teamFolder->highlighterGroups() ) ) {
+        collection.save();
+        session_.applyChange( Changed::HighlighterSets );
+    }
+    updateHighlightersMenu();
 }
 
 void MainWindow::updateTeamFolderIndicator()

@@ -130,6 +130,22 @@ PredefinedFilterSet makeGroup( const QString& name, const QString& pattern = "ER
     return group;
 }
 
+HighlighterSet makeSet( const QString& name, const QString& pattern = "ERROR" )
+{
+    auto set = HighlighterSet::createNewSet( name );
+    set.addHighlighter( Highlighter( pattern, false, true, Qt::red, Qt::white ) );
+    return set;
+}
+
+QStringList namesOf( const QList<HighlighterSet>& sets )
+{
+    QStringList names;
+    for ( const auto& set : sets ) {
+        names.append( set.name() );
+    }
+    return names;
+}
+
 QStringList namesOf( const QList<PredefinedFilterSet>& groups )
 {
     QStringList names;
@@ -200,6 +216,14 @@ public:
         QDir().mkpath( QFileInfo( clone.filePath( file ) ).absolutePath() );
         REQUIRE( writeGroup( clone.filePath( file ), group ) );
         commitAndPush( member, { "add", "--", QDir::cleanPath( file ) }, "Share a group" );
+    }
+
+    // The same for a Highlighter Set.
+    void pushGroupByHand( const QString& member, const HighlighterSet& group ) const
+    {
+        const auto file = suggestedFileName( group.name(), GroupKind::Highlighter );
+        REQUIRE( writeGroup( QDir( cloneOf( member ) ).filePath( file ), group ) );
+        commitAndPush( member, { "add", "--", file }, "Share a set" );
     }
 
     void removeByHand( const QString& member, const QString& file ) const
@@ -530,4 +554,181 @@ TEST_CASE( "Turning the Team Folder off or pointing it elsewhere replaces only T
     }
 
     CHECK( namesOf( PredefinedFiltersCollection::getSynced().filterSets() ) == personalBefore );
+}
+
+TEST_CASE( "Team Highlighter Sets arrive next to the Filter Groups, sorted by name",
+           "[teamfolder][highlighter]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    team.pushGroupByHand( "alice", makeSet( "zeta" ) );
+    team.pushGroupByHand( "alice", makeSet( "Alpha" ) );
+    team.pushGroupByHand( "alice", makeGroup( "Network" ) );
+
+    const auto bob = team.member( "bob" );
+    CHECK( namesOf( bob->highlighterGroups() ) == QStringList{ "Alpha", "zeta" } );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network" } );
+    // A Highlighter Set file is a group, not a malformed file.
+    CHECK( bob->skippedFiles().isEmpty() );
+}
+
+TEST_CASE( "A changed and a removed Team Highlighter Set reach the other side",
+           "[teamfolder][highlighter]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto levels = makeSet( "Levels" );
+    team.pushGroupByHand( "alice", levels );
+    team.pushGroupByHand( "alice", makeSet( "Other" ) );
+    const auto bob = team.member( "bob" );
+
+    SECTION( "changed" )
+    {
+        auto changedLevels = levels;
+        changedLevels.addHighlighter( Highlighter( "WARN", false, true, Qt::black, Qt::yellow ) );
+        team.pushGroupByHand( "alice", changedLevels );
+
+        QSignalSpy filterChanges( bob.get(), &TeamFolder::groupsChanged );
+        QSignalSpy changed( bob.get(), &TeamFolder::highlighterGroupsChanged );
+        syncNow( *bob );
+
+        REQUIRE( changed.size() == 1 );
+        const auto changes = changed.at( 0 ).at( 0 ).value<TeamGroupChanges>();
+        CHECK( changes.changed == QStringList{ levels.id() } );
+        CHECK( changes.added.isEmpty() );
+        CHECK( changes.removed.isEmpty() );
+        CHECK( filterChanges.isEmpty() );
+    }
+
+    SECTION( "removed" )
+    {
+        team.removeByHand( "alice", suggestedFileName( "Levels", GroupKind::Highlighter ) );
+
+        QSignalSpy changed( bob.get(), &TeamFolder::highlighterGroupsChanged );
+        syncNow( *bob );
+
+        CHECK( namesOf( bob->highlighterGroups() ) == QStringList{ "Other" } );
+        REQUIRE( changed.size() == 1 );
+        CHECK( changed.at( 0 ).at( 0 ).value<TeamGroupChanges>().removed
+               == QStringList{ levels.id() } );
+    }
+
+    SECTION( "unchanged" )
+    {
+        QSignalSpy changed( bob.get(), &TeamFolder::highlighterGroupsChanged );
+        syncNow( *bob );
+        CHECK( changed.isEmpty() );
+    }
+}
+
+namespace {
+
+// How many ranges of a line the active Highlighters color.
+int matchCount( const HighlighterSetCollection& collection, const QString& line )
+{
+    HighlightedMatchRanges matches;
+    collection.currentActiveSet().matchLine( line, matches );
+    return static_cast<int>( matches.matches().size() );
+}
+
+} // namespace
+
+TEST_CASE( "A user activates a Team Highlighter Set for themselves, and only locally",
+           "[teamfolder][highlighter]" )
+{
+    const auto levels = makeSet( "Levels", "ERROR" );
+    HighlighterSetCollection collection;
+    auto own = makeSet( "Own", "own" );
+    collection.setHighlighterSets( { own } );
+    collection.setTeamHighlighterSets( { levels } );
+
+    CHECK( collection.teamHighlighterSets().size() == 1 );
+    // The user's own sets are the collection's sets; Team sets are not.
+    CHECK( collection.highlighterSets().size() == 1 );
+    CHECK( collection.hasSet( levels.id() ) );
+
+    CHECK( matchCount( collection, "an ERROR here" ) == 0 );
+    collection.activateSet( levels.id() );
+    CHECK( collection.activeSetIds() == QStringList{ levels.id() } );
+    CHECK( matchCount( collection, "an ERROR here" ) == 1 );
+
+    SECTION( "stored locally, the Team set itself never" )
+    {
+        const QTemporaryDir dir;
+        REQUIRE( dir.isValid() );
+        const auto file = dir.filePath( "settings.ini" );
+        {
+            QSettings settings( file, QSettings::IniFormat );
+            collection.saveToStorage( settings );
+        }
+        QSettings settings( file, QSettings::IniFormat );
+        CHECK( settings.value( "HighlighterSetCollection/sets/size" ).toInt() == 1 );
+
+        HighlighterSetCollection restarted;
+        restarted.retrieveFromStorage( settings );
+        CHECK( restarted.highlighterSets().size() == 1 );
+        // The Team set has not arrived yet: its activation waits for it.
+        CHECK( matchCount( restarted, "an ERROR here" ) == 0 );
+        restarted.setTeamHighlighterSets( { levels } );
+        CHECK( matchCount( restarted, "an ERROR here" ) == 1 );
+    }
+
+    SECTION( "a personal edit before the first sync keeps the activation" )
+    {
+        const QTemporaryDir dir;
+        REQUIRE( dir.isValid() );
+        QSettings settings( dir.filePath( "settings.ini" ), QSettings::IniFormat );
+        collection.saveToStorage( settings );
+        HighlighterSetCollection restarted;
+        restarted.retrieveFromStorage( settings );
+        restarted.setHighlighterSets( { own, makeSet( "More", "more" ) } );
+        restarted.setTeamHighlighterSets( { levels } );
+        CHECK( restarted.activeSetIds() == QStringList{ levels.id() } );
+    }
+}
+
+TEST_CASE( "A synced change to an active Team Highlighter Set re-colors at once",
+           "[teamfolder][highlighter]" )
+{
+    const auto levels = makeSet( "Levels", "ERROR" );
+    HighlighterSetCollection collection;
+    collection.setTeamHighlighterSets( { levels } );
+    collection.activateSet( levels.id() );
+    REQUIRE( matchCount( collection, "WARN and ERROR" ) == 1 );
+
+    auto changedLevels = levels;
+    changedLevels.addHighlighter( Highlighter( "WARN", false, true, Qt::black, Qt::yellow ) );
+    collection.setTeamHighlighterSets( { changedLevels } );
+
+    CHECK( collection.activeSetIds() == QStringList{ levels.id() } );
+    CHECK( matchCount( collection, "WARN and ERROR" ) == 2 );
+}
+
+TEST_CASE( "A synced removal of an active Team Highlighter Set deactivates it",
+           "[teamfolder][highlighter]" )
+{
+    const auto levels = makeSet( "Levels", "ERROR" );
+    const auto other = makeSet( "Other", "other" );
+    HighlighterSetCollection collection;
+    collection.setTeamHighlighterSets( { levels, other } );
+    collection.activateSet( levels.id() );
+    collection.activateSet( other.id() );
+
+    collection.setTeamHighlighterSets( { other } );
+
+    CHECK_FALSE( collection.hasSet( levels.id() ) );
+    CHECK( collection.activeSetIds() == QStringList{ other.id() } );
+    CHECK( matchCount( collection, "an ERROR here" ) == 0 );
 }

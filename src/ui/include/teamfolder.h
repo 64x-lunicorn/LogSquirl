@@ -30,6 +30,7 @@
 #include <chrono>
 #include <memory>
 
+#include "highlighterset.h"
 #include "predefinedfilters.h"
 #include "settingspolicies.h"
 
@@ -146,19 +147,24 @@ public:
 
     // The Team Filter Groups, sorted alphabetically by name.
     QList<PredefinedFilterSet> filterGroups() const;
+    // The Team Highlighter Sets, sorted alphabetically by name.
+    QList<HighlighterSet> highlighterGroups() const;
 
 Q_SIGNALS:
     void stateChanged();
     // The Team groups changed: a sync brought groups that were added,
     // changed or removed, or the Team Folder was turned off.
     void groupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
+    // The same for the Team Highlighter Sets.
+    void highlighterGroupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
     // A sync ended, whatever it brought.
     void syncFinished();
 
 private:
     void startSync();
     void takeOutcome();
-    void setGroups( QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> groups );
+    void setGroups( QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
+                    QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups );
     void setState( State state, const QString& message );
 
     QString cloneDirectory_;
@@ -169,6 +175,7 @@ private:
     QString message_;
     QList<logsquirl::teamfolder::SkippedFile> skippedFiles_;
     QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups_;
+    QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups_;
 
     QTimer syncTimer_;
     QFutureWatcher<std::shared_ptr<logsquirl::teamfolder::SyncOutcome>> running_;

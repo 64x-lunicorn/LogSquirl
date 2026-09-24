@@ -51,12 +51,11 @@ struct SyncOutcome {
     Result result = Result::Failed;
     QString message;
     QList<TeamGroup<PredefinedFilterSet>> filterGroups;
+    QList<TeamGroup<HighlighterSet>> highlighterGroups;
     QList<SkippedFile> skippedFiles;
 };
 
 namespace {
-
-using FilterGroup = TeamGroup<PredefinedFilterSet>;
 
 const QString RemoteName = QStringLiteral( "origin" );
 
@@ -84,6 +83,14 @@ QString idForDefaultGroupIn( const QString& file )
     return QUuid::createUuidV5( space, file ).toString( QUuid::Id128 );
 }
 
+void skipDuplicate( SyncOutcome& outcome, const QString& file, const QString& groupName )
+{
+    const auto reason
+        = TeamFolder::tr( "Another file holds the group %1 already." ).arg( groupName );
+    outcome.skippedFiles.append( { file, reason } );
+    LOG_WARNING << "Team Folder skips " << file << ": " << reason;
+}
+
 void readGroups( const QString& folder, SyncOutcome& outcome )
 {
     using namespace logsquirl::groupexchange;
@@ -99,8 +106,18 @@ void readGroups( const QString& folder, SyncOutcome& outcome )
         const auto file = info.fileName();
         const auto filters = readFilterGroups( info.absoluteFilePath() );
         if ( filters.error != ReadError::None ) {
-            // A Highlighter Set file is no Filter Group, and not malformed.
-            if ( readHighlighterGroups( info.absoluteFilePath() ).error != ReadError::None ) {
+            const auto highlighters = readHighlighterGroups( info.absoluteFilePath() );
+            if ( highlighters.error == ReadError::None ) {
+                for ( const auto& group : highlighters.groups ) {
+                    if ( ids.contains( group.id() ) ) {
+                        skipDuplicate( outcome, file, group.name() );
+                        continue;
+                    }
+                    ids.insert( group.id() );
+                    outcome.highlighterGroups.append( { group, file } );
+                }
+            }
+            else {
                 const auto reason
                     = filters.error == ReadError::Unreadable
                           ? TeamFolder::tr( "The file cannot be read." )
@@ -116,10 +133,7 @@ void readGroups( const QString& folder, SyncOutcome& outcome )
                 group = group.withId( idForDefaultGroupIn( file ) );
             }
             if ( ids.contains( group.id() ) ) {
-                const auto reason = TeamFolder::tr( "Another file holds the group %1 already." )
-                                        .arg( group.name() );
-                outcome.skippedFiles.append( { file, reason } );
-                LOG_WARNING << "Team Folder skips " << file << ": " << reason;
+                skipDuplicate( outcome, file, group.name() );
                 continue;
             }
             ids.insert( group.id() );
@@ -234,18 +248,28 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
     return outcome;
 }
 
-bool sameFilters( const QList<PredefinedFilter>& a, const QList<PredefinedFilter>& b )
+bool sameContent( const PredefinedFilterSet& a, const PredefinedFilterSet& b )
 {
-    return std::equal( a.cbegin(), a.cend(), b.cbegin(), b.cend(),
-                       []( const PredefinedFilter& x, const PredefinedFilter& y ) {
-                           return x.name == y.name && x.pattern == y.pattern
-                                  && x.useRegex == y.useRegex;
-                       } );
+    const auto& x = a.filters();
+    const auto& y = b.filters();
+    return a.name() == b.name()
+           && std::equal( x.cbegin(), x.cend(), y.cbegin(), y.cend(),
+                          []( const PredefinedFilter& p, const PredefinedFilter& q ) {
+                              return p.name == q.name && p.pattern == q.pattern
+                                     && p.useRegex == q.useRegex;
+                          } );
 }
 
-TeamGroupChanges changesBetween( const QList<FilterGroup>& before, const QList<FilterGroup>& after )
+bool sameContent( const HighlighterSet& a, const HighlighterSet& b )
 {
-    QHash<QString, const FilterGroup*> old;
+    return a.sameAs( b );
+}
+
+template <typename Group>
+TeamGroupChanges changesBetween( const QList<TeamGroup<Group>>& before,
+                                 const QList<TeamGroup<Group>>& after )
+{
+    QHash<QString, const TeamGroup<Group>*> old;
     for ( const auto& group : before ) {
         old.insert( group.group.id(), &group );
     }
@@ -258,9 +282,7 @@ TeamGroupChanges changesBetween( const QList<FilterGroup>& before, const QList<F
             changes.added.append( id );
             continue;
         }
-        const auto& was = ( *found )->group;
-        if ( was.name() != group.group.name()
-             || !sameFilters( was.filters(), group.group.filters() ) ) {
+        if ( !sameContent( ( *found )->group, group.group ) ) {
             changes.changed.append( id );
         }
         old.erase( found );
@@ -271,6 +293,17 @@ TeamGroupChanges changesBetween( const QList<FilterGroup>& before, const QList<F
         }
     }
     return changes;
+}
+
+template <typename Group>
+void sortByName( QList<TeamGroup<Group>>& groups )
+{
+    QCollator collator;
+    collator.setCaseSensitivity( Qt::CaseInsensitive );
+    collator.setNumericMode( true );
+    std::stable_sort( groups.begin(), groups.end(), [ &collator ]( const auto& a, const auto& b ) {
+        return collator.compare( a.group.name(), b.group.name() ) < 0;
+    } );
 }
 
 } // namespace
@@ -324,7 +357,7 @@ void TeamFolder::setUp( const TeamFolderPolicy& policy )
         syncTimer_.stop();
         syncAgain_ = false;
         skippedFiles_.clear();
-        setGroups( {} );
+        setGroups( {}, {} );
         setState( State::Off, {} );
         return;
     }
@@ -370,15 +403,15 @@ void TeamFolder::takeOutcome()
         skippedFiles_ = outcome->skippedFiles;
         switch ( outcome->result ) {
         case SyncOutcome::Result::Synced:
-            setGroups( outcome->filterGroups );
+            setGroups( outcome->filterGroups, outcome->highlighterGroups );
             setState( State::Synced, {} );
             break;
         case SyncOutcome::Result::Offline:
-            setGroups( outcome->filterGroups );
+            setGroups( outcome->filterGroups, outcome->highlighterGroups );
             setState( State::NotSynced, outcome->message );
             break;
         case SyncOutcome::Result::Failed:
-            setGroups( outcome->filterGroups );
+            setGroups( outcome->filterGroups, outcome->highlighterGroups );
             setState( State::Error, outcome->message );
             break;
         }
@@ -395,20 +428,21 @@ void TeamFolder::takeOutcome()
     }
 }
 
-void TeamFolder::setGroups( QList<FilterGroup> groups )
+void TeamFolder::setGroups( QList<TeamGroup<PredefinedFilterSet>> filterGroups,
+                            QList<TeamGroup<HighlighterSet>> highlighterGroups )
 {
-    QCollator collator;
-    collator.setCaseSensitivity( Qt::CaseInsensitive );
-    collator.setNumericMode( true );
-    std::stable_sort( groups.begin(), groups.end(),
-                      [ &collator ]( const FilterGroup& a, const FilterGroup& b ) {
-                          return collator.compare( a.group.name(), b.group.name() ) < 0;
-                      } );
+    sortByName( filterGroups );
+    sortByName( highlighterGroups );
 
-    const auto changes = changesBetween( filterGroups_, groups );
-    filterGroups_ = std::move( groups );
-    if ( !changes.isEmpty() ) {
-        Q_EMIT groupsChanged( changes );
+    const auto filterChanges = changesBetween( filterGroups_, filterGroups );
+    const auto highlighterChanges = changesBetween( highlighterGroups_, highlighterGroups );
+    filterGroups_ = std::move( filterGroups );
+    highlighterGroups_ = std::move( highlighterGroups );
+    if ( !filterChanges.isEmpty() ) {
+        Q_EMIT groupsChanged( filterChanges );
+    }
+    if ( !highlighterChanges.isEmpty() ) {
+        Q_EMIT highlighterGroupsChanged( highlighterChanges );
     }
 }
 
@@ -477,6 +511,16 @@ QList<PredefinedFilterSet> TeamFolder::filterGroups() const
     QList<PredefinedFilterSet> groups;
     groups.reserve( filterGroups_.size() );
     for ( const auto& group : filterGroups_ ) {
+        groups.append( group.group );
+    }
+    return groups;
+}
+
+QList<HighlighterSet> TeamFolder::highlighterGroups() const
+{
+    QList<HighlighterSet> groups;
+    groups.reserve( highlighterGroups_.size() );
+    for ( const auto& group : highlighterGroups_ ) {
         groups.append( group.group );
     }
     return groups;
