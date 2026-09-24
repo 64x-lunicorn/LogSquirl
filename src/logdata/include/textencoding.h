@@ -100,7 +100,8 @@ private:
     int mib_;
     QByteArray name_;
     std::optional<QStringConverter::Encoding> builtin_;
-    int iconvIndex_;
+    // Read only where the macOS converters are compiled in (textencoding.cpp).
+    [[maybe_unused]] int iconvIndex_;
 };
 
 #endif // LOGSQUIRL_TEXTENCODING_H
