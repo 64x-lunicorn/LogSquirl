@@ -34,6 +34,7 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_color_labels_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/theme_geometry_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/welcomedashboard_layout_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/modal_paths_test.cpp
 )
 
 if(NOT APPLE)
