@@ -1,4 +1,42 @@
-Checks: '-*,readability-identifier-naming'
+# The groups that find defects (#440); every exclusion says why. Findings that
+# existed are fixed or carry a NOLINT with its reason, so CI's Tidy job blocks
+# on any new one.
+#
+# readability-identifier-naming is configured below but not enabled: the tree
+# has ~400 names that break it, so it cannot gate anything yet. Run it by hand
+# with `clang-tidy --checks=-*,readability-identifier-naming <file>`.
+Checks: >-
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  performance-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-signed-bitwise,
+  -bugprone-narrowing-conversions,
+  -bugprone-branch-clone,
+  -bugprone-throwing-static-initialization,
+  -bugprone-exception-escape,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -performance-enum-size,
+  -performance-unnecessary-value-param,
+  -performance-trivially-destructible
+# Exclusions, with the reason for each:
+#  bugprone-easily-swappable-parameters   style, not a defect: ~75 API shapes (line, column pairs) would change
+#  bugprone-implicit-widening-of-multiplication-result  int index arithmetic on sizes far below 2^31
+#  bugprone-signed-bitwise                Qt flag enums and hash mixing use signed operands on purpose
+#  bugprone-narrowing-conversions         same ground as -Wconversion, which the build has not adopted
+#  bugprone-branch-clone                  identical branches document cases (quick find, chart defaults)
+#  bugprone-throwing-static-initialization  Qt statics (QString, QTranslator); a throw there means out of memory
+#  bugprone-exception-escape              main() and Qt event handlers: an escaping exception aborts, as wanted
+#  clang-analyzer-optin.core.EnumCastOutOfRange  false positive on bit-flag enums (CpuInstructions)
+#  performance-enum-size                  a size choice, not a defect
+#  performance-unnecessary-value-param    Qt containers and QString are implicitly shared, so a by-value copy is a
+#                                         reference count; pass-by-value sinks and slots would churn ~60 signatures
+#  performance-trivially-destructible     out-of-line destructors keep pimpl types incomplete in the header
+# Project headers only (src/<module>/include and src/<module>/src); the moc
+# and uic output in <build>/src/<module>/*_autogen is not ours to fix.
+HeaderFilterRegex: '.*/src/[^/]+/(include|src)/.*'
 CheckOptions:
   - { key: readability-identifier-naming.NamespaceCase,       value: lower_case }
   - { key: readability-identifier-naming.ClassCase,           value: CamelCase  }
