@@ -2,6 +2,15 @@
 
 ## Changes
 
+- **A changed Team group is published to the team**: The Team sections of the
+  Predefined Filters and Highlighters dialogs are editable, and a new Team
+  group can be created in them. OK or Apply commits only the changed group's
+  file under your own Git identity, with a message such as `Change filter
+  group "Network"`, and pushes it; everyone else has it at their next sync. A
+  rename keeps the group's id and file, a push rejected because the branch
+  moved is retried once after a sync, and offline the change stays pending
+  ("not synced") until the server can be reached. A server that refuses the
+  push switches the Team sections to read-only, with its message (#472).
 - **Team Highlighter Sets**: The Highlighter Sets in the Team Folder show in
   their own read-only section of the Highlighters dialog and in the
   Highlighters menu. Switching one on or off is each user's own, stored only

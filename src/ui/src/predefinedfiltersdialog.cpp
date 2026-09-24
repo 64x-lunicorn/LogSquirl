@@ -257,6 +257,9 @@ void PredefinedFiltersDialog::resolveDialog( QAbstractButton* button )
     if ( selectedRow_ >= 0 ) {
         filterSets_[ selectedRow_ ] = filterSetEdit_->filterSet();
     }
+    else if ( selectedTeamRow_ >= 0 && teamEditable_ ) {
+        teamGroups_[ selectedTeamRow_ ] = filterSetEdit_->filterSet();
+    }
 
     auto& persistent = PredefinedFiltersCollection::get();
 
@@ -274,6 +277,16 @@ void PredefinedFiltersDialog::resolveDialog( QAbstractButton* button )
 
     persistent.save();
     Q_EMIT optionsChanged();
+
+    // What was done to the Team groups goes to the team.
+    if ( teamEditable_ ) {
+        const auto requests
+            = logsquirl::teamfolder::requestsForChanges( teamGroupsAsGiven_, teamGroups_ );
+        teamGroupsAsGiven_ = teamGroups_;
+        if ( !requests.isEmpty() ) {
+            Q_EMIT publishRequested( requests );
+        }
+    }
 }
 
 // --- Selection / property sync ---
@@ -323,13 +336,21 @@ void PredefinedFiltersDialog::updateFilterSetProperties()
         filterSets_[ selectedRow_ ] = filterSetEdit_->filterSet();
         setListWidget->currentItem()->setText( filterSets_[ selectedRow_ ].name() );
     }
+    else if ( selectedTeamRow_ >= 0 && teamEditable_ ) {
+        teamGroups_[ selectedTeamRow_ ] = filterSetEdit_->filterSet();
+        teamGroupsList_->item( selectedTeamRow_ )
+            ->setText( teamGroups_[ selectedTeamRow_ ].name() );
+    }
 }
 
 // --- Team groups ---
 
-void PredefinedFiltersDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups )
+void PredefinedFiltersDialog::showTeamGroups( const QList<PredefinedFilterSet>& groups,
+                                              bool editable )
 {
     teamGroups_ = groups;
+    teamGroupsAsGiven_ = groups;
+    teamEditable_ = editable;
 
     if ( !teamGroupsList_ ) {
         teamGroupsLabel_ = new QLabel( tr( "Team groups" ), leftPanel );
@@ -342,13 +363,26 @@ void PredefinedFiltersDialog::showTeamGroups( const QList<PredefinedFilterSet>& 
         leftLayout->addWidget( teamGroupsList_ );
         connect( teamGroupsList_, &QListWidget::itemSelectionChanged, this,
                  &PredefinedFiltersDialog::showSelectedTeamGroup );
+
+        teamAddButton_ = new QPushButton( tr( "New Team group" ), leftPanel );
+        connect( teamAddButton_, &QPushButton::clicked, this,
+                 &PredefinedFiltersDialog::addTeamGroup );
+        leftLayout->addWidget( teamAddButton_ );
     }
+    teamAddButton_->setVisible( teamEditable_ );
 
     selectedTeamRow_ = -1;
     teamGroupsList_->clear();
     for ( const auto& group : teamGroups_ ) {
         teamGroupsList_->addItem( group.name() );
     }
+}
+
+void PredefinedFiltersDialog::addTeamGroup()
+{
+    teamGroups_.append( PredefinedFilterSet::createNewSet( DEFAULT_SET_NAME ) );
+    teamGroupsList_->addItem( DEFAULT_SET_NAME );
+    teamGroupsList_->setCurrentRow( teamGroupsList_->count() - 1 );
 }
 
 void PredefinedFiltersDialog::showSelectedTeamGroup()
@@ -364,7 +398,7 @@ void PredefinedFiltersDialog::showSelectedTeamGroup()
     setListWidget->clearSelection();
 
     selectedTeamRow_ = row;
-    filterSetEdit_->setReadOnly( true );
+    filterSetEdit_->setReadOnly( !teamEditable_ );
     filterSetEdit_->setFilterSet( teamGroups_.at( row ) );
     removeSetButton->setEnabled( false );
     upSetButton->setEnabled( false );

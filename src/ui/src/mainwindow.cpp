@@ -1471,7 +1471,9 @@ void MainWindow::editHighlighters()
     HighlightersDialog dialog( this );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->highlighterGroups() );
+        dialog.showTeamGroups( teamFolder->highlighterGroups(), teamFolder->isWritable() );
+        connect( &dialog, &HighlightersDialog::publishRequested, teamFolder.get(),
+                 &TeamFolder::publish );
     }
 
     // Reaches every open Log File, in every window, not only the current tab.
@@ -1489,7 +1491,9 @@ void MainWindow::editPredefinedFilters( const QString& newFilter )
     PredefinedFiltersDialog dialog( newFilter, this );
     if ( const auto teamFolder = session_.teamFolder();
          teamFolder && teamFolder->state() != TeamFolder::State::Off ) {
-        dialog.showTeamGroups( teamFolder->filterGroups() );
+        dialog.showTeamGroups( teamFolder->filterGroups(), teamFolder->isWritable() );
+        connect( &dialog, &PredefinedFiltersDialog::publishRequested, teamFolder.get(),
+                 &TeamFolder::publish );
     }
 
     // The Predefined Filters are no setting a Log File shows: only the filters

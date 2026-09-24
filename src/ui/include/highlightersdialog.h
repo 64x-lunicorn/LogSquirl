@@ -46,11 +46,13 @@
 #include <QLabel>
 #include <QList>
 #include <QListWidget>
+#include <QPushButton>
 
 class QPushButton;
 
 #include "highlighterset.h"
 #include "highlightersetedit.h"
+#include "teamfolder.h"
 #include "ui_highlightersdialog.h"
 
 class HighlightersDialog : public QDialog, public Ui::HighlightersDialog {
@@ -61,14 +63,18 @@ public:
 
     // Shows the Team Highlighter Sets in a section of their own below the
     // user's own sets, in the order given (alphabetical, as the Team Folder
-    // hands them over). They can be looked at and exported, not changed here.
-    // Whether one is active is chosen in the Highlighters menu. Without a
-    // call there is no section.
-    void showTeamGroups( const QList<HighlighterSet>& groups );
+    // hands them over). Read-only when editable is false; otherwise they are
+    // edited like the user's own sets, a new one can be added, and OK or Apply
+    // publishes what changed through publishRequested. Whether one is active is
+    // chosen in the Highlighters menu. Without a call there is no section.
+    void showTeamGroups( const QList<HighlighterSet>& groups, bool editable = false );
 
 Q_SIGNALS:
     // Is emitted when new settings must be used
     void optionsChanged();
+    // Team sets were added, renamed or changed, and OK or Apply asks for them
+    // to be published.
+    void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
 
 private Q_SLOTS:
     void addHighlighterSet();
@@ -90,6 +96,7 @@ private Q_SLOTS:
 
     // Shows the selected Team Highlighter Set, read-only.
     void showSelectedTeamGroup();
+    void addTeamGroup();
 
 private:
     void populateHighlighterList();
@@ -115,6 +122,10 @@ private:
     QLabel* teamGroupsLabel_ = nullptr;
     QListWidget* teamGroupsList_ = nullptr;
     QList<HighlighterSet> teamGroups_;
+    // The Team sets as they were given, to tell what OK or Apply publishes.
+    QList<HighlighterSet> teamGroupsAsGiven_;
+    QPushButton* teamAddButton_ = nullptr;
+    bool teamEditable_ = false;
     // The row of the Team set shown, -1 when none is.
     int selectedTeamRow_ = -1;
 

@@ -44,9 +44,11 @@
 #include <QLabel>
 #include <QList>
 #include <QListWidget>
+#include <QPushButton>
 
 #include "predefinedfilters.h"
 #include "predefinedfiltersetedit.h"
+#include "teamfolder.h"
 #include "ui_predefinedfiltersdialog.h"
 
 // Dialog for managing predefined filter groups.
@@ -60,12 +62,17 @@ public:
 
     // Shows the Team groups in a section of their own below the user's own
     // groups, in the order given (alphabetical, as the Team Folder hands them
-    // over). They can be looked at and exported, not changed: this dialog
-    // writes only the user's own groups. Without a call there is no section.
-    void showTeamGroups( const QList<PredefinedFilterSet>& groups );
+    // over). Read-only when editable is false; otherwise they are edited like
+    // the user's own groups, a new one can be added, and OK or Apply publishes
+    // what changed through publishRequested. Without a call there is no
+    // section.
+    void showTeamGroups( const QList<PredefinedFilterSet>& groups, bool editable = false );
 
 Q_SIGNALS:
     void optionsChanged();
+    // Team groups were added, renamed or changed, and OK or Apply asks for them
+    // to be published.
+    void publishRequested( const QList<logsquirl::teamfolder::PublishRequest>& requests );
 
 private Q_SLOTS:
     void addFilterSet();
@@ -87,6 +94,7 @@ private Q_SLOTS:
 
     // Shows the selected Team group, read-only.
     void showSelectedTeamGroup();
+    void addTeamGroup();
 
 private:
     void populateSetList();
@@ -103,6 +111,10 @@ private:
     QLabel* teamGroupsLabel_ = nullptr;
     QListWidget* teamGroupsList_ = nullptr;
     QList<PredefinedFilterSet> teamGroups_;
+    // The Team groups as they were given, to tell what OK or Apply publishes.
+    QList<PredefinedFilterSet> teamGroupsAsGiven_;
+    QPushButton* teamAddButton_ = nullptr;
+    bool teamEditable_ = false;
     // The row of the Team group shown, -1 when none is.
     int selectedTeamRow_ = -1;
 };

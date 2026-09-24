@@ -360,6 +360,11 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
         return;
     }
 
+    // What was typed in a Team set is in the dialog's copy before it is sent.
+    if ( selectedTeamRow_ >= 0 && teamEditable_ ) {
+        teamGroups_[ selectedTeamRow_ ] = highlighterSetEdit_->highlighters();
+    }
+
     // persist it to disk
     auto& persistentHighlighterSet = HighlighterSetCollection::get();
     // The Team sets are not this dialog's: a sync may have changed them since
@@ -379,6 +384,16 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
     persistentHighlighterSet.setTeamHighlighterSets( teamSets );
     persistentHighlighterSet.save();
     Q_EMIT optionsChanged();
+
+    // What was done to the Team sets goes to the team.
+    if ( teamEditable_ ) {
+        const auto requests
+            = logsquirl::teamfolder::requestsForChanges( teamGroupsAsGiven_, teamGroups_ );
+        teamGroupsAsGiven_ = teamGroups_;
+        if ( !requests.isEmpty() ) {
+            Q_EMIT publishRequested( requests );
+        }
+    }
 }
 
 void HighlightersDialog::setCurrentRow( int row )
@@ -425,9 +440,11 @@ void HighlightersDialog::updatePropertyFields()
     }
 }
 
-void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups )
+void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups, bool editable )
 {
     teamGroups_ = groups;
+    teamGroupsAsGiven_ = groups;
+    teamEditable_ = editable;
 
     if ( !teamGroupsList_ ) {
         teamGroupsLabel_ = new QLabel( tr( "Team highlighter sets" ), layoutWidget );
@@ -440,13 +457,25 @@ void HighlightersDialog::showTeamGroups( const QList<HighlighterSet>& groups )
         verticalLayout->addWidget( teamGroupsList_ );
         connect( teamGroupsList_, &QListWidget::itemSelectionChanged, this,
                  &HighlightersDialog::showSelectedTeamGroup );
+
+        teamAddButton_ = new QPushButton( tr( "New Team highlighter set" ), layoutWidget );
+        connect( teamAddButton_, &QPushButton::clicked, this, &HighlightersDialog::addTeamGroup );
+        verticalLayout->addWidget( teamAddButton_ );
     }
+    teamAddButton_->setVisible( teamEditable_ );
 
     selectedTeamRow_ = -1;
     teamGroupsList_->clear();
     for ( const auto& group : teamGroups_ ) {
         teamGroupsList_->addItem( group.name() );
     }
+}
+
+void HighlightersDialog::addTeamGroup()
+{
+    teamGroups_.append( HighlighterSet::createNewSet( DEFAULT_NAME ) );
+    teamGroupsList_->addItem( DEFAULT_NAME );
+    teamGroupsList_->setCurrentRow( teamGroupsList_->count() - 1 );
 }
 
 void HighlightersDialog::showSelectedTeamGroup()
@@ -463,7 +492,7 @@ void HighlightersDialog::showSelectedTeamGroup()
 
     selectedTeamRow_ = row;
     highlighterSetEdit_->setHighlighters( teamGroups_.at( row ) );
-    highlighterSetEdit_->setEnabled( false );
+    highlighterSetEdit_->setEnabled( teamEditable_ );
     removeHighlighterButton->setEnabled( false );
     upHighlighterButton->setEnabled( false );
     downHighlighterButton->setEnabled( false );
@@ -480,6 +509,11 @@ void HighlightersDialog::updateHighlighterProperties()
         currentSet = highlighterSetEdit_->highlighters();
         // Update the entry in the highlighterList widget
         highlighterListWidget->currentItem()->setText( currentSet.name() );
+    }
+    else if ( selectedTeamRow_ >= 0 && teamEditable_ ) {
+        teamGroups_[ selectedTeamRow_ ] = highlighterSetEdit_->highlighters();
+        teamGroupsList_->item( selectedTeamRow_ )
+            ->setText( teamGroups_[ selectedTeamRow_ ].name() );
     }
 }
 

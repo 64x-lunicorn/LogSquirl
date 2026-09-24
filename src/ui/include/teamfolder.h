@@ -28,8 +28,11 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <memory>
+#include <optional>
 
+#include "groupexchange.h"
 #include "highlighterset.h"
 #include "predefinedfilters.h"
 #include "settingspolicies.h"
@@ -62,6 +65,61 @@ struct TeamGroupChanges {
         return added.isEmpty() && changed.isEmpty() && removed.isEmpty();
     }
 };
+
+enum class GroupAction { Add, Change, Rename };
+
+// A change to one Team group, to be published: written into its file, committed
+// on its own and pushed. The Team Folder finds the group's file by its id;
+// a group it does not know yet gets a file of its own.
+struct PublishRequest {
+    groupexchange::GroupKind kind = groupexchange::GroupKind::Filter;
+    GroupAction action = GroupAction::Change;
+    QString id;
+    // The group's name to publish, and for a Rename the name it had.
+    QString name;
+    QString previousName;
+    // Writes the group into the file it is given, in the Group Exchange's
+    // one-group format.
+    std::function<bool( const QString& )> write;
+
+    static PublishRequest forGroup( const PredefinedFilterSet& group, GroupAction action,
+                                    const QString& previousName = {} );
+    static PublishRequest forGroup( const HighlighterSet& group, GroupAction action,
+                                    const QString& previousName = {} );
+};
+
+enum class PublishStatus {
+    // Pushed: everyone has it at their next sync.
+    Published,
+    // Committed here, but the server cannot be reached: pushed at a later sync.
+    Pending,
+    // The server refused the push (missing rights, a protected branch).
+    Refused,
+    // Git could not do it.
+    Failed
+};
+
+struct PublishResult {
+    PublishStatus status = PublishStatus::Failed;
+    // Git's own message when it did not work out, empty otherwise.
+    QString message;
+    // The file of the group, relative to the Team Folder's subfolder.
+    QString file;
+};
+
+// The results of one publish, one for each request, in the order of the
+// requests.
+struct PublishOutcome {
+    QList<PublishResult> results;
+};
+
+// What a dialog's edited copy of the Team groups asks to publish, against the
+// groups it was given: a group it added, one it renamed, one it changed. A
+// group that is no longer in the copy is not asked for here.
+QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,
+                                          const QList<PredefinedFilterSet>& after );
+QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>& before,
+                                          const QList<HighlighterSet>& after );
 
 // What one sync found: the result of the worker thread, taken over on the
 // main thread. Internal to the Team Folder, declared here for the watcher.
@@ -139,6 +197,21 @@ public:
     // files were read all the same.
     QList<logsquirl::teamfolder::SkippedFile> skippedFiles() const;
 
+    // Publishes changed Team groups: each is committed on its own, under the
+    // user's own Git identity, and pushed after a sync. A push rejected
+    // because the branch moved is retried once after syncing again. Offline,
+    // the changes stay pending and are pushed at a later sync. Ends in
+    // publishFinished.
+    void publish( QList<logsquirl::teamfolder::PublishRequest> requests );
+
+    // Whether Team groups can be changed: not when the server refused a push,
+    // until the Team Folder is set up again.
+    bool isWritable() const;
+    // The server's message for why not.
+    QString readOnlyReason() const;
+    // Whether changes are committed here that the server does not have yet.
+    bool hasPendingChanges() const;
+
     // The state in a few words, for where it is shown: "Team Folder synced".
     QString summary() const;
     // Git's message and the files skipped, one per line; empty when there is
@@ -157,11 +230,14 @@ Q_SIGNALS:
     void groupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
     // The same for the Team Highlighter Sets.
     void highlighterGroupsChanged( const logsquirl::teamfolder::TeamGroupChanges& changes );
+    // A publish ended.
+    void publishFinished( const logsquirl::teamfolder::PublishOutcome& outcome );
     // A sync ended, whatever it brought.
     void syncFinished();
 
 private:
     void startSync();
+    void takeWritableFrom( const logsquirl::teamfolder::SyncOutcome& outcome );
     void takeOutcome();
     void setGroups( QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
                     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups );
@@ -189,6 +265,15 @@ private:
     // From the start of a sync until its outcome is taken over.
     bool syncing_ = false;
     bool syncAgain_ = false;
+    // Publishes asked for and not started yet, and those running.
+    QList<logsquirl::teamfolder::PublishRequest> queuedRequests_;
+    bool writable_ = true;
+    QString readOnlyReason_;
+    bool hasPending_ = false;
+    // Git's message for the last publish that did not work out, until a
+    // publish does.
+    QString publishError_;
 };
 
 Q_DECLARE_METATYPE( logsquirl::teamfolder::TeamGroupChanges )
+Q_DECLARE_METATYPE( logsquirl::teamfolder::PublishOutcome )

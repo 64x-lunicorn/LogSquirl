@@ -191,6 +191,29 @@ public:
         return folder;
     }
 
+    // What the server's default branch holds: the subject and author of its
+    // last commit, and the files that commit touched.
+    QStringList lastCommit() const
+    {
+        const auto shown = git_.run( { "--git-dir", server_, "log", "-1", "--format=%s%n%an",
+                                       "--name-only", "--no-renames" },
+                                     root_.path() );
+        return shown.output.trimmed().split( '\n', Qt::SkipEmptyParts );
+    }
+
+    // The files the server's default branch holds.
+    QStringList serverFiles() const
+    {
+        const auto listed = git_.run(
+            { "--git-dir", server_, "ls-tree", "-r", "--name-only", "HEAD" }, root_.path() );
+        return listed.output.trimmed().split( '\n', Qt::SkipEmptyParts );
+    }
+
+    QString root() const
+    {
+        return root_.path();
+    }
+
     // What a member does by hand, without LogSquirl: writes a file into the
     // clone, commits and pushes it.
     void pushByHand( const QString& member, const QString& file, const QByteArray& content,
@@ -731,4 +754,296 @@ TEST_CASE( "A synced removal of an active Team Highlighter Set deactivates it",
     CHECK_FALSE( collection.hasSet( levels.id() ) );
     CHECK( collection.activeSetIds() == QStringList{ other.id() } );
     CHECK( matchCount( collection, "an ERROR here" ) == 0 );
+}
+
+// --- Publishing (#472) ---
+
+namespace {
+
+using logsquirl::teamfolder::GroupAction;
+using logsquirl::teamfolder::PublishOutcome;
+using logsquirl::teamfolder::PublishRequest;
+using logsquirl::teamfolder::PublishStatus;
+
+PublishOutcome publishAndWait( TeamFolder& folder, QList<PublishRequest> requests )
+{
+    REQUIRE( settled( folder ) );
+    QSignalSpy finished( &folder, &TeamFolder::publishFinished );
+    folder.publish( std::move( requests ) );
+    REQUIRE( finished.wait( SyncTimeoutMs ) );
+    REQUIRE( settled( folder ) );
+    return finished.at( 0 ).at( 0 ).value<PublishOutcome>();
+}
+
+PublishOutcome publishGroup( TeamFolder& folder, const PredefinedFilterSet& group,
+                             GroupAction action = GroupAction::Change,
+                             const QString& previousName = {} )
+{
+    return publishAndWait( folder, { PublishRequest::forGroup( group, action, previousName ) } );
+}
+
+} // namespace
+
+TEST_CASE( "A published group reaches the others, committed alone under a message naming it",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bob = team.member( "bob" );
+    team.pushGroupByHand( "alice", makeGroup( "Storage" ) );
+    syncNow( *alice );
+
+    auto network = makeGroup( "Network", "refused" );
+    const auto added = publishGroup( *alice, network, GroupAction::Add );
+    REQUIRE( added.results.size() == 1 );
+    CHECK( added.results[ 0 ].status == PublishStatus::Published );
+    CHECK( alice->state() == TeamFolder::State::Synced );
+
+    CHECK( team.lastCommit()
+           == QStringList{ "Add filter group \"Network\"", "Team Folder Test",
+                           "Network_filter.conf" } );
+
+    syncNow( *bob );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Network", "Storage" } );
+
+    SECTION( "a change" )
+    {
+        network.setFilters( { { "Timeout", "timeout", false } } );
+        publishGroup( *alice, network );
+        CHECK( team.lastCommit()
+               == QStringList{ "Change filter group \"Network\"", "Team Folder Test",
+                               "Network_filter.conf" } );
+        syncNow( *bob );
+        REQUIRE( bob->filterGroups().size() == 2 );
+        CHECK( bob->filterGroups()[ 0 ].filters()[ 0 ].pattern == "timeout" );
+    }
+
+    SECTION( "a rename keeps the id and the file" )
+    {
+        network.setName( "Networking" );
+        publishGroup( *alice, network, GroupAction::Rename, "Network" );
+        CHECK( team.lastCommit()
+               == QStringList{ "Rename filter group \"Network\" to \"Networking\"",
+                               "Team Folder Test", "Network_filter.conf" } );
+        CHECK( team.serverFiles() == QStringList{ "Network_filter.conf", "Storage_filter.conf" } );
+
+        QSignalSpy changed( bob.get(), &TeamFolder::groupsChanged );
+        syncNow( *bob );
+        CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Networking", "Storage" } );
+        REQUIRE( changed.size() == 1 );
+        const auto changes = changed.at( 0 ).at( 0 ).value<TeamGroupChanges>();
+        CHECK( changes.changed == QStringList{ network.id() } );
+        CHECK( changes.added.isEmpty() );
+        CHECK( changes.removed.isEmpty() );
+    }
+
+    SECTION( "a new group's file name is made unique in the folder" )
+    {
+        publishGroup( *alice, makeGroup( "Network", "other" ), GroupAction::Add );
+        CHECK( team.serverFiles()
+               == QStringList{ "Network (2)_filter.conf", "Network_filter.conf",
+                               "Storage_filter.conf" } );
+    }
+
+    SECTION( "a Highlighter Set" )
+    {
+        const auto levels = makeSet( "Levels" );
+        const auto outcome
+            = publishAndWait( *alice, { PublishRequest::forGroup( levels, GroupAction::Add ) } );
+        CHECK( outcome.results[ 0 ].status == PublishStatus::Published );
+        CHECK( team.lastCommit()
+               == QStringList{ "Add highlighter set \"Levels\"", "Team Folder Test",
+                               "Levels_highlighter.conf" } );
+        syncNow( *bob );
+        CHECK( namesOf( bob->highlighterGroups() ) == QStringList{ "Levels" } );
+    }
+}
+
+TEST_CASE( "Two members changing different groups both publish", "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        checkMissingGitIsReported();
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    auto network = makeGroup( "Network" );
+    auto storage = makeGroup( "Storage" );
+    team.pushGroupByHand( "alice", network );
+    team.pushGroupByHand( "alice", storage );
+    syncNow( *alice );
+    const auto bob = team.member( "bob" );
+
+    network.setFilters( { { "Refused", "refused", false } } );
+    storage.setFilters( { { "Full", "disk full", false } } );
+    CHECK( publishGroup( *alice, network ).results[ 0 ].status == PublishStatus::Published );
+    // Bob has not synced: his publish syncs first, then commits on top.
+    CHECK( publishGroup( *bob, storage ).results[ 0 ].status == PublishStatus::Published );
+
+    syncNow( *alice );
+    for ( const auto* member : { alice.get(), bob.get() } ) {
+        const auto groups = member->filterGroups();
+        REQUIRE( groups.size() == 2 );
+        CHECK( groups[ 0 ].filters()[ 0 ].pattern == "refused" );
+        CHECK( groups[ 1 ].filters()[ 0 ].pattern == "disk full" );
+    }
+}
+
+#ifndef Q_OS_WIN
+
+TEST_CASE( "A push rejected because the branch moved is retried once after a sync",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto carol = team.member( "carol" );
+    team.pushGroupByHand( "carol", makeGroup( "Base" ) );
+
+    // A Git that lets Carol push in the moment before Alice's first push.
+    const auto gitPath = QStandardPaths::findExecutable( QStringLiteral( "git" ) );
+    const auto wrapper = QDir( team.root() ).filePath( "git-wrapper.sh" );
+    {
+        QFile script( wrapper );
+        REQUIRE( script.open( QIODevice::WriteOnly ) );
+        const auto marker = QDir( team.root() ).filePath( "raced" );
+        const auto carolClone = team.cloneOf( "carol" );
+        script.write( QStringLiteral( "#!/bin/sh\n"
+                                      "if [ \"$1\" = push ] && [ ! -e '%1' ]; then\n"
+                                      "  touch '%1'\n"
+                                      "  cp '%2/Base_filter.conf' '%2/Raced_filter.conf'\n"
+                                      "  '%3' -C '%2' add Raced_filter.conf\n"
+                                      "  '%3' -C '%2' commit -q -m 'Raced'\n"
+                                      "  '%3' -C '%2' push -q origin HEAD\n"
+                                      "fi\n"
+                                      "exec '%3' \"$@\"\n" )
+                          .arg( marker, carolClone, gitPath )
+                          .toUtf8() );
+        script.setPermissions( script.permissions() | QFileDevice::ExeUser );
+    }
+
+    TeamFolder alice( team.cloneOf( "alice" ), wrapper );
+    alice.setUp( policyFor( team.url() ) );
+    REQUIRE( settled( alice ) );
+
+    const auto outcome = publishGroup( alice, makeGroup( "Network" ), GroupAction::Add );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Published );
+    CHECK( QFileInfo::exists( QDir( team.root() ).filePath( "raced" ) ) );
+    CHECK( team.serverFiles()
+           == QStringList{ "Base_filter.conf", "Network_filter.conf", "Raced_filter.conf" } );
+}
+
+TEST_CASE( "A push refused for missing rights makes the Team groups read-only",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    REQUIRE( alice->isWritable() );
+
+    const auto hook = QDir( team.serverPath() ).filePath( "hooks/pre-receive" );
+    {
+        QFile script( hook );
+        REQUIRE( script.open( QIODevice::WriteOnly ) );
+        script.write( "#!/bin/sh\necho 'you may not push here' >&2\nexit 1\n" );
+        script.setPermissions( script.permissions() | QFileDevice::ExeUser );
+    }
+
+    const auto outcome = publishGroup( *alice, makeGroup( "Network" ), GroupAction::Add );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Refused );
+    CHECK( outcome.results[ 0 ].message.contains( "you may not push here" ) );
+    CHECK_FALSE( alice->isWritable() );
+    CHECK( alice->readOnlyReason().contains( "you may not push here" ) );
+    // Nothing is left pending that could never be pushed.
+    CHECK_FALSE( alice->hasPendingChanges() );
+    CHECK( alice->filterGroups().isEmpty() );
+
+    // Publishing to a read-only Team Folder is refused without asking Git.
+    const auto again = publishGroup( *alice, makeGroup( "Other" ), GroupAction::Add );
+    CHECK( again.results[ 0 ].status == PublishStatus::Refused );
+}
+
+TEST_CASE( "Offline, a change stays pending and is pushed once the server is back",
+           "[teamfolder][publish]" )
+{
+    const IsolatedGitEnvironment environment;
+    if ( !gitInstalled() ) {
+        return;
+    }
+
+    const Team team;
+    const auto alice = team.member( "alice" );
+    const auto bob = team.member( "bob" );
+    team.pushGroupByHand( "alice", makeGroup( "Base" ) );
+    syncNow( *alice );
+
+    const auto away = team.serverPath() + ".away";
+    REQUIRE( QDir().rename( team.serverPath(), away ) );
+
+    const auto outcome = publishGroup( *alice, makeGroup( "Network" ), GroupAction::Add );
+    REQUIRE( outcome.results.size() == 1 );
+    CHECK( outcome.results[ 0 ].status == PublishStatus::Pending );
+    CHECK( alice->state() == TeamFolder::State::NotSynced );
+    CHECK( alice->hasPendingChanges() );
+    // The user's own change shows meanwhile.
+    CHECK( namesOf( alice->filterGroups() ) == QStringList{ "Base", "Network" } );
+    CHECK( alice->isWritable() );
+
+    REQUIRE( QDir().rename( away, team.serverPath() ) );
+    syncNow( *alice );
+
+    CHECK( alice->state() == TeamFolder::State::Synced );
+    CHECK_FALSE( alice->hasPendingChanges() );
+    syncNow( *bob );
+    CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Base", "Network" } );
+}
+
+#endif
+
+TEST_CASE( "A dialog's edited Team groups ask to publish what was added, renamed or changed",
+           "[teamfolder][publish]" )
+{
+    using logsquirl::teamfolder::requestsForChanges;
+
+    const auto network = makeGroup( "Network" );
+    const auto storage = makeGroup( "Storage" );
+    const QList<PredefinedFilterSet> before{ network, storage };
+
+    CHECK( requestsForChanges( before, before ).isEmpty() );
+
+    auto renamed = network;
+    renamed.setName( "Networking" );
+    auto changed = storage;
+    changed.setFilters( { { "Full", "disk full", false } } );
+    const auto added = makeGroup( "Fresh" );
+    const auto requests = requestsForChanges( before, { renamed, changed, added } );
+
+    REQUIRE( requests.size() == 3 );
+    CHECK( requests[ 0 ].action == GroupAction::Rename );
+    CHECK( requests[ 0 ].previousName == "Network" );
+    CHECK( requests[ 0 ].id == network.id() );
+    CHECK( requests[ 1 ].action == GroupAction::Change );
+    CHECK( requests[ 1 ].id == storage.id() );
+    CHECK( requests[ 2 ].action == GroupAction::Add );
+    CHECK( requests[ 2 ].id == added.id() );
+
+    // A removed group is not asked for.
+    CHECK( requestsForChanges( before, { network } ).isEmpty() );
 }

@@ -53,6 +53,14 @@ struct SyncOutcome {
     QList<TeamGroup<PredefinedFilterSet>> filterGroups;
     QList<TeamGroup<HighlighterSet>> highlighterGroups;
     QList<SkippedFile> skippedFiles;
+
+    // Set when a publish was asked for.
+    std::optional<PublishOutcome> published;
+    // The server refused a push: nothing more can be published.
+    bool refused = false;
+    QString refusedReason;
+    // Committed here and not on the server yet.
+    bool hasPending = false;
 };
 
 namespace {
@@ -142,9 +150,65 @@ void readGroups( const QString& folder, SyncOutcome& outcome )
     }
 }
 
+QStringList args( std::initializer_list<const char*> list )
+{
+    QStringList result;
+    for ( const auto* item : list ) {
+        result.append( QString::fromUtf8( item ) );
+    }
+    return result;
+}
+
+bool hasCommit( const Git& git, const QString& clone )
+{
+    return git.run( args( { "rev-parse", "--verify", "--quiet", "HEAD" } ), clone ).succeeded;
+}
+
+QString currentBranch( const Git& git, const QString& clone )
+{
+    const auto branch = git.run( args( { "symbolic-ref", "--quiet", "--short", "HEAD" } ), clone );
+    return branch.succeeded ? branch.output.trimmed() : QString{};
+}
+
+bool remoteBranchExists( const Git& git, const QString& clone, const QString& branch )
+{
+    return !branch.isEmpty()
+           && git.run( { QStringLiteral( "rev-parse" ), QStringLiteral( "--verify" ),
+                         QStringLiteral( "--quiet" ),
+                         QStringLiteral( "refs/remotes/" ) + RemoteName + QLatin1Char( '/' )
+                             + branch },
+                       clone )
+                  .succeeded;
+}
+
+// How many commits a range holds, -1 when Git cannot tell.
+int countCommits( const Git& git, const QString& clone, const QString& range )
+{
+    const auto counted
+        = git.run( { QStringLiteral( "rev-list" ), QStringLiteral( "--count" ), range }, clone );
+    return counted.succeeded ? counted.output.trimmed().toInt() : -1;
+}
+
+// Whether commits are here that the server does not have.
+bool hasUnpushedCommits( const Git& git, const QString& clone )
+{
+    if ( !hasCommit( git, clone ) ) {
+        return false;
+    }
+    const auto branch = currentBranch( git, clone );
+    if ( !remoteBranchExists( git, clone, branch ) ) {
+        return true;
+    }
+    return countCommits( git, clone,
+                         RemoteName + QLatin1Char( '/' ) + branch + QStringLiteral( "..HEAD" ) )
+           != 0;
+}
+
 // Brings the clone's working tree to what the repository's default branch
-// holds. Nothing to do for an empty repository. Git's message when it fails.
-std::optional<QString> fastForward( const Git& git, const QString& clone )
+// holds, and puts changes committed here that were not pushed yet on top of
+// it: a change of this user's wins over the same lines of the server's. Nothing
+// to do for an empty repository. Git's message when it fails.
+std::optional<QString> integrate( const Git& git, const QString& clone )
 {
     const QStringList defaultBranch{ QStringLiteral( "symbolic-ref" ), QStringLiteral( "--quiet" ),
                                      QStringLiteral( "--short" ),
@@ -165,26 +229,200 @@ std::optional<QString> fastForward( const Git& git, const QString& clone )
 
     const auto remoteBranch = head.output.trimmed();
     const auto localBranch = remoteBranch.mid( RemoteName.size() + 1 );
-    const auto current = git.run( { QStringLiteral( "rev-parse" ), QStringLiteral( "--verify" ),
-                                    QStringLiteral( "--quiet" ), QStringLiteral( "HEAD" ) },
-                                  clone );
 
-    const auto update = current.succeeded
-                            ? git.run( { QStringLiteral( "merge" ), QStringLiteral( "--ff-only" ),
-                                         QStringLiteral( "--quiet" ), remoteBranch },
-                                       clone )
-                            // Nothing checked out yet: the repository was empty when cloned.
-                            : git.run( { QStringLiteral( "checkout" ), QStringLiteral( "--quiet" ),
-                                         QStringLiteral( "-B" ), localBranch, remoteBranch },
-                                       clone );
+    GitResult update;
+    if ( !hasCommit( git, clone ) ) {
+        // Nothing checked out yet: the repository was empty when cloned.
+        update = git.run( { QStringLiteral( "checkout" ), QStringLiteral( "--quiet" ),
+                            QStringLiteral( "-B" ), localBranch, remoteBranch },
+                          clone );
+    }
+    else {
+        const auto ahead = countCommits( git, clone, remoteBranch + QStringLiteral( "..HEAD" ) );
+        const auto behind = countCommits( git, clone, QStringLiteral( "HEAD.." ) + remoteBranch );
+        if ( ahead == 0 ) {
+            update = git.run( { QStringLiteral( "merge" ), QStringLiteral( "--ff-only" ),
+                                QStringLiteral( "--quiet" ), remoteBranch },
+                              clone );
+        }
+        else if ( behind == 0 ) {
+            // Only ahead: a change waiting to be pushed.
+            return std::nullopt;
+        }
+        else {
+            update = git.run( { QStringLiteral( "rebase" ), QStringLiteral( "--quiet" ),
+                                QStringLiteral( "-X" ), QStringLiteral( "theirs" ), remoteBranch },
+                              clone );
+            if ( !update.succeeded ) {
+                git.run( args( { "rebase", "--abort" } ), clone );
+            }
+        }
+    }
     if ( !update.succeeded ) {
         return update.message();
     }
     return std::nullopt;
 }
 
+struct PushResult {
+    enum class Kind {
+        Pushed,
+        // The branch moved on the server since the last fetch.
+        Rejected,
+        // The server does not let this user push.
+        Refused,
+        // The server could not be reached, or Git failed for another reason.
+        Unreachable
+    };
+    Kind kind = Kind::Pushed;
+    QString message;
+};
+
+PushResult pushHead( const Git& git, const QString& clone )
+{
+    const auto pushed
+        = git.run( { QStringLiteral( "push" ), QStringLiteral( "--quiet" ),
+                     QStringLiteral( "--set-upstream" ), RemoteName, QStringLiteral( "HEAD" ) },
+                   clone );
+    if ( pushed.succeeded ) {
+        return {};
+    }
+
+    const auto message = pushed.message();
+    const auto text = message.toLower();
+    PushResult result{ PushResult::Kind::Unreachable, message };
+    if ( text.contains( QStringLiteral( "[rejected]" ) )
+         && ( text.contains( QStringLiteral( "non-fast-forward" ) )
+              || text.contains( QStringLiteral( "fetch first" ) ) ) ) {
+        result.kind = PushResult::Kind::Rejected;
+    }
+    else if ( text.contains( QStringLiteral( "[remote rejected]" ) )
+              || text.contains( QStringLiteral( "denied" ) )
+              || text.contains( QStringLiteral( "not allowed" ) )
+              || text.contains( QStringLiteral( "403" ) )
+              || text.contains( QStringLiteral( "protected branch" ) )
+              || text.contains( QStringLiteral( "declined" ) ) ) {
+        result.kind = PushResult::Kind::Refused;
+    }
+    return result;
+}
+
+QString kindWord( groupexchange::GroupKind kind )
+{
+    return kind == groupexchange::GroupKind::Filter ? QStringLiteral( "filter group" )
+                                                    : QStringLiteral( "highlighter set" );
+}
+
+// What the commit of a change says: the action and the group, in the
+// repository's own language -- it is the team's history, not LogSquirl's UI.
+QString commitMessage( const PublishRequest& request )
+{
+    const auto kind = kindWord( request.kind );
+    switch ( request.action ) {
+    case GroupAction::Add:
+        return QStringLiteral( "Add %1 \"%2\"" ).arg( kind, request.name );
+    case GroupAction::Rename:
+        return QStringLiteral( "Rename %1 \"%2\" to \"%3\"" )
+            .arg( kind, request.previousName, request.name );
+    case GroupAction::Change:
+        break;
+    }
+    return QStringLiteral( "Change %1 \"%2\"" ).arg( kind, request.name );
+}
+
+// The file a group lives in: the one it was read from, or for a group the
+// folder does not know a free one named after it.
+QString fileFor( const QString& folder, const PublishRequest& request )
+{
+    SyncOutcome known;
+    readGroups( folder, known );
+    if ( request.kind == groupexchange::GroupKind::Filter ) {
+        for ( const auto& group : known.filterGroups ) {
+            if ( group.group.id() == request.id ) {
+                return group.file;
+            }
+        }
+    }
+    else {
+        for ( const auto& group : known.highlighterGroups ) {
+            if ( group.group.id() == request.id ) {
+                return group.file;
+            }
+        }
+    }
+
+    for ( int number = 1;; ++number ) {
+        const auto name = number == 1
+                              ? request.name
+                              : QStringLiteral( "%1 (%2)" ).arg( request.name ).arg( number );
+        const auto file = groupexchange::suggestedFileName( name, request.kind );
+        if ( !QFileInfo::exists( QDir( folder ).filePath( file ) ) ) {
+            return file;
+        }
+    }
+}
+
+// Writes the group into the clone and commits that one file. Whether it was
+// done, and Git's message when not.
+PublishResult commitRequest( const Git& git, const QString& clone, const QString& folder,
+                             const PublishRequest& request )
+{
+    PublishResult result;
+    result.file = fileFor( folder, request );
+    const auto path = QDir( folder ).filePath( result.file );
+    QDir().mkpath( QFileInfo( path ).absolutePath() );
+    if ( !request.write || !request.write( path ) ) {
+        result.message = TeamFolder::tr( "The group could not be written to %1." ).arg( path );
+        return result;
+    }
+
+    const auto relative = QDir( clone ).relativeFilePath( path );
+    const auto staged
+        = git.run( { QStringLiteral( "add" ), QStringLiteral( "--" ), relative }, clone );
+    if ( !staged.succeeded ) {
+        result.message = staged.message();
+        return result;
+    }
+    const auto changed = git.run( { QStringLiteral( "status" ), QStringLiteral( "--porcelain" ),
+                                    QStringLiteral( "--" ), relative },
+                                  clone );
+    if ( changed.succeeded && changed.output.trimmed().isEmpty() ) {
+        // The group is in the folder as it is: nothing to commit.
+        result.status = PublishStatus::Published;
+        return result;
+    }
+
+    const auto committed = git.run( { QStringLiteral( "commit" ), QStringLiteral( "--quiet" ),
+                                      QStringLiteral( "-m" ), commitMessage( request ),
+                                      QStringLiteral( "--" ), relative },
+                                    clone );
+    if ( !committed.succeeded ) {
+        result.message = committed.message();
+        return result;
+    }
+    result.status = PublishStatus::Published;
+    return result;
+}
+
+// Takes back what was committed here and cannot be pushed.
+void discardUnpushed( const Git& git, const QString& clone )
+{
+    const auto branch = currentBranch( git, clone );
+    if ( remoteBranchExists( git, clone, branch ) ) {
+        git.run( { QStringLiteral( "reset" ), QStringLiteral( "--hard" ),
+                   QStringLiteral( "--quiet" ), RemoteName + QLatin1Char( '/' ) + branch },
+                 clone );
+    }
+    else {
+        // The server holds nothing to go back to: start over.
+        QDir( clone ).removeRecursively();
+    }
+}
+
 std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitProgram,
-                                      const TeamFolderPolicy& policy, const Git::StopFlag& stop )
+                                      const TeamFolderPolicy& policy, const Git::StopFlag& stop,
+                                      const QList<PublishRequest>& requests, bool writable,
+                                      const QString& readOnlyReason )
 {
     auto outcome = std::make_shared<SyncOutcome>();
     const Git git( gitProgram, stop );
@@ -211,6 +449,8 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         haveClone = origin.output.trimmed() == url;
     }
 
+    // Whether the repository could be reached in this sync.
+    bool reachable = true;
     if ( !haveClone ) {
         QDir( clone ).removeRecursively();
         QDir().mkpath( QFileInfo( clone ).absolutePath() );
@@ -230,20 +470,93 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         if ( !fetched.succeeded ) {
             // Git runs but the repository cannot be reached: go on with the
             // groups of the last sync.
+            reachable = false;
             outcome->result = SyncOutcome::Result::Offline;
             outcome->message = fetched.message();
-            readGroups( *folder, *outcome );
-            return outcome;
         }
     }
 
-    if ( const auto failed = fastForward( git, clone ) ) {
-        outcome->message = *failed;
-        readGroups( *folder, *outcome );
-        return outcome;
+    if ( reachable ) {
+        if ( const auto failed = integrate( git, clone ) ) {
+            outcome->message = *failed;
+            readGroups( *folder, *outcome );
+            outcome->hasPending = hasUnpushedCommits( git, clone );
+            return outcome;
+        }
+        outcome->result = SyncOutcome::Result::Synced;
     }
 
-    outcome->result = SyncOutcome::Result::Synced;
+    // Changes to publish are committed one by one, offline as well.
+    bool committedSomething = false;
+    if ( !requests.isEmpty() ) {
+        PublishOutcome published;
+        for ( const auto& request : requests ) {
+            if ( !writable ) {
+                published.results.append( { PublishStatus::Refused, readOnlyReason, QString{} } );
+                continue;
+            }
+            auto result = commitRequest( git, clone, *folder, request );
+            committedSomething = committedSomething || result.status == PublishStatus::Published;
+            published.results.append( result );
+        }
+        outcome->published = published;
+    }
+
+    // Everything committed here goes to the server: this change, and earlier
+    // ones that could not be pushed.
+    if ( reachable && ( committedSomething || hasUnpushedCommits( git, clone ) ) ) {
+        auto pushed = pushHead( git, clone );
+        if ( pushed.kind == PushResult::Kind::Rejected ) {
+            // Someone pushed in between: sync once more and try again.
+            const auto fetched = git.run( { QStringLiteral( "fetch" ), QStringLiteral( "--quiet" ),
+                                            QStringLiteral( "--prune" ), RemoteName },
+                                          clone );
+            if ( fetched.succeeded && !integrate( git, clone ) ) {
+                pushed = pushHead( git, clone );
+            }
+        }
+
+        switch ( pushed.kind ) {
+        case PushResult::Kind::Pushed:
+            break;
+        case PushResult::Kind::Rejected:
+        case PushResult::Kind::Unreachable:
+            outcome->result = SyncOutcome::Result::Offline;
+            outcome->message = pushed.message;
+            break;
+        case PushResult::Kind::Refused:
+            outcome->refused = true;
+            outcome->refusedReason = pushed.message;
+            discardUnpushed( git, clone );
+            break;
+        }
+
+        if ( outcome->published ) {
+            for ( auto& result : outcome->published->results ) {
+                if ( result.status != PublishStatus::Published ) {
+                    continue;
+                }
+                if ( outcome->refused ) {
+                    result.status = PublishStatus::Refused;
+                    result.message = pushed.message;
+                }
+                else if ( outcome->result == SyncOutcome::Result::Offline ) {
+                    result.status = PublishStatus::Pending;
+                    result.message = pushed.message;
+                }
+            }
+        }
+    }
+    else if ( !reachable && outcome->published ) {
+        for ( auto& result : outcome->published->results ) {
+            if ( result.status == PublishStatus::Published ) {
+                result.status = PublishStatus::Pending;
+                result.message = outcome->message;
+            }
+        }
+    }
+
+    outcome->hasPending = !outcome->refused && hasUnpushedCommits( git, clone );
     readGroups( *folder, *outcome );
     return outcome;
 }
@@ -318,6 +631,7 @@ TeamFolder::TeamFolder( QString cloneDirectory, QString gitProgram, QObject* par
     , gitProgram_( std::move( gitProgram ) )
 {
     qRegisterMetaType<TeamGroupChanges>( "logsquirl::teamfolder::TeamGroupChanges" );
+    qRegisterMetaType<PublishOutcome>( "logsquirl::teamfolder::PublishOutcome" );
 
     syncTimer_.setInterval( SyncInterval );
     connect( &syncTimer_, &QTimer::timeout, this, &TeamFolder::sync );
@@ -348,6 +662,11 @@ void TeamFolder::setUp( const TeamFolderPolicy& policy )
     }
     policy_ = policy;
     ++setUpGeneration_;
+    queuedRequests_.clear();
+    writable_ = true;
+    publishError_.clear();
+    readOnlyReason_.clear();
+    hasPending_ = false;
     // A sync for the earlier set-up is no longer wanted.
     if ( stopRunning_ ) {
         stopRunning_->store( true );
@@ -380,15 +699,52 @@ void TeamFolder::sync()
     startSync();
 }
 
+void TeamFolder::publish( QList<PublishRequest> requests )
+{
+    if ( requests.isEmpty() ) {
+        return;
+    }
+    if ( state_ == State::Off ) {
+        PublishOutcome outcome;
+        outcome.results.fill( { PublishStatus::Failed, tr( "The Team Folder is off." ), {} },
+                              requests.size() );
+        Q_EMIT publishFinished( outcome );
+        return;
+    }
+    queuedRequests_.append( std::move( requests ) );
+    if ( syncing_ ) {
+        syncAgain_ = true;
+        return;
+    }
+    startSync();
+}
+
+bool TeamFolder::isWritable() const
+{
+    return writable_;
+}
+
+QString TeamFolder::readOnlyReason() const
+{
+    return readOnlyReason_;
+}
+
+bool TeamFolder::hasPendingChanges() const
+{
+    return hasPending_;
+}
+
 void TeamFolder::startSync()
 {
     syncAgain_ = false;
     syncing_ = true;
     runningGeneration_ = setUpGeneration_;
     stopRunning_ = std::make_shared<std::atomic_bool>( false );
+    auto requests = std::exchange( queuedRequests_, {} );
     running_.setFuture( QtConcurrent::run(
-        [ clone = cloneDirectory_, git = gitProgram_, policy = policy_, stop = stopRunning_ ] {
-            return runSync( clone, git, policy, stop );
+        [ clone = cloneDirectory_, git = gitProgram_, policy = policy_, stop = stopRunning_,
+          requests = std::move( requests ), writable = writable_, reason = readOnlyReason_ ] {
+            return runSync( clone, git, policy, stop, requests, writable, reason );
         } ) );
     Q_EMIT stateChanged();
 }
@@ -401,6 +757,11 @@ void TeamFolder::takeOutcome()
 
     if ( current && outcome ) {
         skippedFiles_ = outcome->skippedFiles;
+        hasPending_ = outcome->hasPending;
+        if ( outcome->refused ) {
+            writable_ = false;
+            readOnlyReason_ = outcome->refusedReason;
+        }
         switch ( outcome->result ) {
         case SyncOutcome::Result::Synced:
             setGroups( outcome->filterGroups, outcome->highlighterGroups );
@@ -422,6 +783,19 @@ void TeamFolder::takeOutcome()
     }
     else {
         Q_EMIT stateChanged();
+    }
+    if ( current && outcome && outcome->published ) {
+        publishError_.clear();
+        for ( const auto& result : outcome->published->results ) {
+            if ( result.status == PublishStatus::Failed ) {
+                publishError_ = result.message;
+            }
+        }
+        if ( !publishError_.isEmpty() ) {
+            LOG_WARNING << "Team Folder could not publish: " << publishError_;
+            Q_EMIT stateChanged();
+        }
+        Q_EMIT publishFinished( *outcome->published );
     }
     if ( current ) {
         Q_EMIT syncFinished();
@@ -495,6 +869,12 @@ QString TeamFolder::details() const
     if ( !message_.isEmpty() ) {
         lines.append( message_ );
     }
+    if ( !publishError_.isEmpty() ) {
+        lines.append( tr( "Not published: %1" ).arg( publishError_ ) );
+    }
+    if ( !writable_ ) {
+        lines.append( tr( "The Team groups are read-only: %1" ).arg( readOnlyReason_ ) );
+    }
     for ( const auto& skipped : skippedFiles_ ) {
         lines.append( tr( "Skipped %1: %2" ).arg( skipped.file, skipped.reason ) );
     }
@@ -525,3 +905,72 @@ QList<HighlighterSet> TeamFolder::highlighterGroups() const
     }
     return groups;
 }
+
+namespace logsquirl::teamfolder {
+
+namespace {
+
+template <typename Group>
+QList<PublishRequest> requestsBetween( const QList<Group>& before, const QList<Group>& after )
+{
+    QList<PublishRequest> requests;
+    for ( const auto& group : after ) {
+        const auto was
+            = std::find_if( before.cbegin(), before.cend(),
+                            [ &group ]( const auto& other ) { return other.id() == group.id(); } );
+        if ( was == before.cend() ) {
+            requests.append( PublishRequest::forGroup( group, GroupAction::Add ) );
+        }
+        else if ( was->name() != group.name() ) {
+            requests.append( PublishRequest::forGroup( group, GroupAction::Rename, was->name() ) );
+        }
+        else if ( !sameContent( *was, group ) ) {
+            requests.append( PublishRequest::forGroup( group, GroupAction::Change ) );
+        }
+    }
+    return requests;
+}
+
+} // namespace
+
+QList<PublishRequest> requestsForChanges( const QList<PredefinedFilterSet>& before,
+                                          const QList<PredefinedFilterSet>& after )
+{
+    return requestsBetween( before, after );
+}
+
+QList<PublishRequest> requestsForChanges( const QList<HighlighterSet>& before,
+                                          const QList<HighlighterSet>& after )
+{
+    return requestsBetween( before, after );
+}
+
+PublishRequest PublishRequest::forGroup( const PredefinedFilterSet& group, GroupAction action,
+                                         const QString& previousName )
+{
+    PublishRequest request;
+    request.kind = groupexchange::GroupKind::Filter;
+    request.action = action;
+    request.id = group.id();
+    request.name = group.name();
+    request.previousName = previousName;
+    request.write
+        = [ group ]( const QString& file ) { return groupexchange::writeGroup( file, group ); };
+    return request;
+}
+
+PublishRequest PublishRequest::forGroup( const HighlighterSet& group, GroupAction action,
+                                         const QString& previousName )
+{
+    PublishRequest request;
+    request.kind = groupexchange::GroupKind::Highlighter;
+    request.action = action;
+    request.id = group.id();
+    request.name = group.name();
+    request.previousName = previousName;
+    request.write
+        = [ group ]( const QString& file ) { return groupexchange::writeGroup( file, group ); };
+    return request;
+}
+
+} // namespace logsquirl::teamfolder
