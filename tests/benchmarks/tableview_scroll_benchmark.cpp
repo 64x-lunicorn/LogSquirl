@@ -191,9 +191,9 @@ TEST_CASE( "Scrolling a Table View over 10 million Log Lines", "[tableview-scrol
     for ( int round = 0; round < 5; ++round ) {
         timer.restart();
         for ( int jump = 1; jump <= 200; ++jump ) {
-            scrollTo( static_cast<int>( ( static_cast<qint64>( jump ) * 2654435761LL
-                                          + round * 7919 )
-                                        % ( lines - VisibleRows ) ) );
+            scrollTo(
+                static_cast<int>( ( static_cast<qint64>( jump ) * 2654435761LL + round * 7919 )
+                                  % ( lines - VisibleRows ) ) );
         }
         jumpMilliseconds.push_back( static_cast<double>( timer.nsecsElapsed() ) / 1e6 / 200 );
     }

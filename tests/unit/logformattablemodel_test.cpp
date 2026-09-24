@@ -661,8 +661,12 @@ SCENARIO( "The Table View shows the time elapsed since the previous Log Line wit
         const auto format = elapsedFormat();
         FakeLogData logData;
         const QStringList lines = {
-            "10:00:00.000 start",  "10:00:00.004 a",     "    at Foo.bar(Foo.java:1)",
-            "    at Foo.baz(Foo.java:2)", "10:00:12.304 b", "10:05:14.304 c",
+            "10:00:00.000 start",
+            "10:00:00.004 a",
+            "    at Foo.bar(Foo.java:1)",
+            "    at Foo.baz(Foo.java:2)",
+            "10:00:12.304 b",
+            "10:05:14.304 c",
             "10:05:13.304 d",
         };
         logData.setLines( lines );

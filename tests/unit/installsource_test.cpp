@@ -200,7 +200,8 @@ SCENARIO( "A deb from the LogSquirl APT repository is recognised", "[versionchec
     }
 }
 
-SCENARIO( "An RPM from the LogSquirl DNF repository is recognised", "[versioncheck][installsource]" )
+SCENARIO( "An RPM from the LogSquirl DNF repository is recognised",
+          "[versioncheck][installsource]" )
 {
     GIVEN( "A binary that the installed logsquirl RPM owns" )
     {
@@ -259,7 +260,8 @@ SCENARIO( "Nothing on the machine means nothing is known", "[versioncheck][insta
 SCENARIO( "The update notice names the package manager only for a known install source",
           "[versioncheck][installsource]" )
 {
-    const auto url = QStringLiteral( "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0" );
+    const auto url
+        = QStringLiteral( "https://github.com/64x-lunicorn/LogSquirl/releases/tag/v26.10.0" );
     const QStringList changes{ "26.10.0: Notes" };
 
     GIVEN( "An unknown install source" )

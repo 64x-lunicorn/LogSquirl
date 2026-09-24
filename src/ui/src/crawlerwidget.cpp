@@ -351,10 +351,11 @@ void CrawlerWidget::runTimeLookup( Work work, Done done )
     // No progress and no cancel button: the status bar says it runs, and the
     // lookup is cancelled by whatever makes its answer stale.
     Q_EMIT statusMessage( tr( "Looking up the time..." ) );
-    timeLookup_.start<Result>( std::move( work ), [ this, done = std::move( done ) ]( Result result ) {
-        Q_EMIT statusMessage( QString() );
-        done( std::move( result ) );
-    } );
+    timeLookup_.start<Result>( std::move( work ),
+                               [ this, done = std::move( done ) ]( Result result ) {
+                                   Q_EMIT statusMessage( QString() );
+                                   done( std::move( result ) );
+                               } );
 }
 
 void CrawlerWidget::cancelTimeLookup()
@@ -402,9 +403,9 @@ void CrawlerWidget::setSearchLimitsToTimeRange()
         if ( !ok || startText.trimmed().isEmpty() ) {
             return;
         }
-        const auto endText = QInputDialog::getText(
-            this, title, tr( "End (not included).\n%1" ).arg( prompt ), QLineEdit::Normal, {},
-            &ok );
+        const auto endText
+            = QInputDialog::getText( this, title, tr( "End (not included).\n%1" ).arg( prompt ),
+                                     QLineEdit::Normal, {}, &ok );
         if ( !ok || endText.trimmed().isEmpty() ) {
             return;
         }
@@ -437,9 +438,9 @@ void CrawlerWidget::setSearchLimitsAroundCurrentLine()
 
         auto& config = Configuration::get();
         bool ok = false;
-        const auto minutes = QInputDialog::getInt( this, title, tr( "Minutes before and after:" ),
-                                                   config.searchWindowMinutes(), 1, 24 * 60, 1,
-                                                   &ok );
+        const auto minutes
+            = QInputDialog::getInt( this, title, tr( "Minutes before and after:" ),
+                                    config.searchWindowMinutes(), 1, 24 * 60, 1, &ok );
         if ( !ok ) {
             return;
         }

@@ -65,7 +65,8 @@ bool homebrewCaskOwnsBundle( const InstallEnvironment& environment )
         const QDir cask( below( environment, QString( prefix ) + "/Caskroom/" + PackageName ) );
         for ( const auto& version : cask.entryList( QDir::Dirs | QDir::NoDotAndDotDot ) ) {
             const QDir staged( cask.filePath( version ) );
-            for ( const auto& app : staged.entryList( { "*.app" }, QDir::AllEntries | QDir::NoDotAndDotDot ) ) {
+            for ( const auto& app :
+                  staged.entryList( { "*.app" }, QDir::AllEntries | QDir::NoDotAndDotDot ) ) {
                 if ( canonical( staged.filePath( app ) ) == running ) {
                     return true;
                 }
@@ -91,8 +92,8 @@ bool repositoryConfigured( const InstallEnvironment& environment, const QString&
 
 bool debOwnsBinary( const InstallEnvironment& environment )
 {
-    QFile list( below( environment,
-                       QStringLiteral( "/var/lib/dpkg/info/" ) + PackageName + ".list" ) );
+    QFile list(
+        below( environment, QStringLiteral( "/var/lib/dpkg/info/" ) + PackageName + ".list" ) );
     if ( !list.open( QIODevice::ReadOnly ) ) {
         return false;
     }
@@ -117,8 +118,7 @@ InstallSource detectInstallSource( const InstallEnvironment& environment )
     if ( homebrewCaskOwnsBundle( environment ) ) {
         return InstallSource::Homebrew;
     }
-    if ( repositoryConfigured( environment, "/etc/apt/sources.list.d",
-                               { "*.sources", "*.list" } )
+    if ( repositoryConfigured( environment, "/etc/apt/sources.list.d", { "*.sources", "*.list" } )
          && debOwnsBinary( environment ) ) {
         return InstallSource::Apt;
     }
@@ -133,7 +133,8 @@ InstallSource detectInstallSource( const InstallEnvironment& environment )
 InstallEnvironment runningInstallEnvironment()
 {
     return InstallEnvironment{
-        QString(), QCoreApplication::applicationFilePath(), []( const QString& path ) {
+        QString(), QCoreApplication::applicationFilePath(),
+        []( const QString& path ) {
             QProcess rpm;
             rpm.start( "rpm", { "-qf", "--qf", "%{NAME}", path } );
             constexpr int RpmTimeoutMs = 3000;
@@ -142,7 +143,8 @@ InstallEnvironment runningInstallEnvironment()
                 return QString();
             }
             return QString::fromUtf8( rpm.readAllStandardOutput() ).trimmed();
-        } };
+        }
+    };
 }
 
 QString updateCommand( InstallSource source )
@@ -181,8 +183,8 @@ QString updateNoticeHtml( const QString& version, const QString& url, const QStr
     }
 
     if ( !changes.empty() ) {
-        message.append( QCoreApplication::translate( "UpdateNotice",
-                                                     "<p>Important changes:</p><ul>" ) );
+        message.append(
+            QCoreApplication::translate( "UpdateNotice", "<p>Important changes:</p><ul>" ) );
         for ( const auto& change : changes ) {
             message.append( QString( "<li>%1</li>" ).arg( change ) );
         }

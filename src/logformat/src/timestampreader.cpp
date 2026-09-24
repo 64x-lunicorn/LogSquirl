@@ -590,7 +590,8 @@ std::optional<QDateTime> TimestampReader::parseField( QStringView text ) const
             continue;
         }
         // A written offset names an instant: it is converted to UTC.
-        return QDateTime( date, time, QTimeZone::UTC ).addSecs( -fields.offsetSeconds.value_or( 0 ) );
+        return QDateTime( date, time, QTimeZone::UTC )
+            .addSecs( -fields.offsetSeconds.value_or( 0 ) );
     }
     return std::nullopt;
 }

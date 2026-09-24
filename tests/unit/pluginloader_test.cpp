@@ -47,12 +47,9 @@ PluginMetadata manifestFor( const QTemporaryDir& dir, const QString& libraryPath
     QFile manifest( manifestPath );
     REQUIRE( manifest.open( QIODevice::WriteOnly ) );
     // Built as JSON, not pasted into a string: a Windows path has backslashes.
-    const QJsonObject object{ { "id", "com.test.loader" },
-                              { "name", "Loader Test" },
-                              { "version", "1.0.0" },
-                              { "type", type },
-                              { "library", libraryPath },
-                              { "api_version", 1 } };
+    const QJsonObject object{ { "id", "com.test.loader" }, { "name", "Loader Test" },
+                              { "version", "1.0.0" },      { "type", type },
+                              { "library", libraryPath },  { "api_version", 1 } };
     manifest.write( QJsonDocument( object ).toJson() );
     manifest.close();
 

@@ -78,8 +78,8 @@
 #include "viewset.h"
 
 #include "logformatdefinition.h"
-#include "settingspolicies.h"
 #include "lookuprunner.h"
+#include "settingspolicies.h"
 #include "timelookup.h"
 #include "timestampreader.h"
 

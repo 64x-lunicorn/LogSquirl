@@ -362,8 +362,7 @@ SCENARIO( "Extracting a single field gives what extracting every field gives",
         requireSingleFieldsEqualFullExtraction(
             TestFormatJson,
             { "2024-01-15 12:30:45.123 INFO [main] com.example.App - Application started",
-              "2024-01-15 12:30:45.123 WARN [t] c - ",
-              "some random text without structure", "" },
+              "2024-01-15 12:30:45.123 WARN [t] c - ", "some random text without structure", "" },
             { "timestamp", "level", "thread", "component", "body", "nosuchfield" } );
         requireSingleFieldsEqualFullExtraction(
             MultiRegexFormatJson,

@@ -64,9 +64,9 @@
 
 #include <kdsingleapplication.h>
 
+#include "installsource.h"
 #include "mainwindow.h"
 #include "messagereceiver.h"
-#include "installsource.h"
 #include "versionchecker.h"
 
 class LogSquirlApp : public QApplication {

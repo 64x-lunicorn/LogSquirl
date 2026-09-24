@@ -1976,8 +1976,7 @@ void MainWindow::showCommandPalette()
         = [ this, &entries ]( QMenu* menu, const QString& category, auto&& self ) -> void {
         for ( QAction* action : menu->actions() ) {
             // Opening the palette from inside itself would do nothing useful.
-            if ( action->isSeparator() || !action->isEnabled()
-                 || action == commandPaletteAction ) {
+            if ( action->isSeparator() || !action->isEnabled() || action == commandPaletteAction ) {
                 continue;
             }
             if ( action->menu() ) {

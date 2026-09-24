@@ -53,7 +53,8 @@ QString LogFormatTableModel::formatElapsed( qint64 milliseconds )
     const auto magnitude = milliseconds < 0 ? -milliseconds : milliseconds;
 
     if ( magnitude < 1000 ) {
-        return QString( sign ) + QStringLiteral( "0.%1s" ).arg( magnitude, 3, 10, QLatin1Char( '0' ) );
+        return QString( sign )
+               + QStringLiteral( "0.%1s" ).arg( magnitude, 3, 10, QLatin1Char( '0' ) );
     }
     // Rounded before it is cut into units, so 59.96 s does not read "60.0s".
     const auto tenths = ( magnitude + 50 ) / 100;

@@ -393,8 +393,8 @@ TEST_CASE( "A lookup says when the Log File is not in time order around the resu
             lines.push_back( i < 10 ? at( 10, i ) : at( 9, i ) );
         }
         FakeLogFile file( lines );
-        const auto result = searchLimitsForTimeRange( at( 9, 12 ), at( 9, 16 ), file.count(),
-                                                      file.reader() );
+        const auto result
+            = searchLimitsForTimeRange( at( 9, 12 ), at( 9, 16 ), file.count(), file.reader() );
         REQUIRE( result.outcome == LimitsResult::Outcome::Limits );
         CHECK( result.outOfOrder );
     }
@@ -433,18 +433,17 @@ TEST_CASE( "A Log File mixing offsets is compared by instant", "[logformat][time
     catalog.rebuild();
     const auto& spdlog = *catalog.allFormats().value( QStringLiteral( "spdlog_log" ) );
     const TimestampReader reader( spdlog, 2026 );
-    const auto parse = [ & ]( const char* text ) {
-        return reader.parseField( QString::fromLatin1( text ) );
-    };
+    const auto parse
+        = [ & ]( const char* text ) { return reader.parseField( QString::fromLatin1( text ) ); };
     // The same instants, written in two zones, in the order they happened.
     const std::vector<std::optional<QDateTime>> lines = {
-        parse( "2026-09-24T07:00:00Z" ),      parse( "2026-09-24T09:30:00+02:00" ),
-        parse( "2026-09-24T08:00:00Z" ),      parse( "2026-09-24T10:30:00+02:00" ),
+        parse( "2026-09-24T07:00:00Z" ), parse( "2026-09-24T09:30:00+02:00" ),
+        parse( "2026-09-24T08:00:00Z" ), parse( "2026-09-24T10:30:00+02:00" ),
         parse( "2026-09-24T09:30:00Z" ),
     };
     const TimestampAt read = [ & ]( LineNumber line ) { return lines.at( line.get() ); };
-    const auto result = firstLineAtOrAfter( parse( "2026-09-24T10:00:00+02:00" ).value(),
-                                            LinesCount( 5 ), read );
+    const auto result
+        = firstLineAtOrAfter( parse( "2026-09-24T10:00:00+02:00" ).value(), LinesCount( 5 ), read );
     REQUIRE( result );
     CHECK( result->line == LineNumber( 2 ) );
     CHECK( !result->outOfOrder );

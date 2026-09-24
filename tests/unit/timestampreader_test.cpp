@@ -121,8 +121,9 @@ TEST_CASE( "The Timestamp reader reads the point in time as written", "[logforma
     {
         const auto reader = readerOf( "access_log" );
         const auto line = []( const char* zone ) {
-            return QStringLiteral( "10.0.0.1 - - [11/Feb/2013:06:43:36 %1] \"GET / HTTP/1.1\" 200 5 "
-                                   "\"-\" \"x\"" )
+            return QStringLiteral(
+                       "10.0.0.1 - - [11/Feb/2013:06:43:36 %1] \"GET / HTTP/1.1\" 200 5 "
+                       "\"-\" \"x\"" )
                 .arg( QLatin1String( zone ) );
         };
         CHECK( reader.timestampOf( line( "-0700" ) ) == asWritten( 2013, 2, 11, 13, 43, 36 ) );
@@ -193,7 +194,8 @@ TEST_CASE( "A format without a year takes it from the modification date of the L
     };
 
     // Later in the year than the modification date: the year before.
-    CHECK( reader.timestampOf( line( "Dec 31 23:59:59" ) ) == asWritten( 2026, 12, 31, 23, 59, 59 ) );
+    CHECK( reader.timestampOf( line( "Dec 31 23:59:59" ) )
+           == asWritten( 2026, 12, 31, 23, 59, 59 ) );
     CHECK( reader.timestampOf( line( "Jan  6 00:00:00" ) ) == asWritten( 2026, 1, 6, 0, 0, 0 ) );
     // Up to the modification date: its year.
     CHECK( reader.timestampOf( line( "Jan  1 00:00:01" ) ) == asWritten( 2027, 1, 1, 0, 0, 1 ) );

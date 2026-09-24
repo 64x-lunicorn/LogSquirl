@@ -74,7 +74,8 @@ QAction* toolsPaletteAction( MainWindow& window )
 
 } // namespace
 
-SCENARIO( "The Command Palette opens from the Tools menu and its shortcut", "[mainwindow][palette]" )
+SCENARIO( "The Command Palette opens from the Tools menu and its shortcut",
+          "[mainwindow][palette]" )
 {
     auto session
         = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
@@ -92,8 +93,7 @@ SCENARIO( "The Command Palette opens from the Tools menu and its shortcut", "[ma
 
         THEN( "the Tools entry shows Ctrl+Shift+P" )
         {
-            REQUIRE( action->shortcut()
-                     == QKeySequence( Qt::CTRL | Qt::SHIFT | Qt::Key_P ) );
+            REQUIRE( action->shortcut() == QKeySequence( Qt::CTRL | Qt::SHIFT | Qt::Key_P ) );
         }
 
         WHEN( "the Tools action is triggered" )
@@ -126,9 +126,8 @@ SCENARIO( "The Command Palette opens from the Tools menu and its shortcut", "[ma
         auto& config = Configuration::get();
         const auto original = config.shortcuts();
         auto rebound = original;
-        rebound[ ShortcutAction::MainWindowCommandPalette ] = QStringList{
-            QKeySequence( Qt::CTRL | Qt::ALT | Qt::Key_K ).toString()
-        };
+        rebound[ ShortcutAction::MainWindowCommandPalette ]
+            = QStringList{ QKeySequence( Qt::CTRL | Qt::ALT | Qt::Key_K ).toString() };
         config.setShortcuts( rebound );
         window.applySettingsChange();
         hidePalette( window );
