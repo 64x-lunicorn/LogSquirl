@@ -3,6 +3,8 @@
 ## Table of Contents
 
 1. [Getting started](#Getting-started)
+   - [Installing](#installing)
+   - [The Dashboard](#the-dashboard)
 1. [Exploring log files](#Exploring-log-files)
    - [Auto Log Format Detection (Table View)](#auto-log-format-detection-table-view)
    - [Chart Panel](#chart-panel)
@@ -28,6 +30,29 @@ Entering a new regular expression or a simple search term will update
 the bottom view, displaying the results of the search. The lines
 matching the search criteria are listed in order in the results, and are
 marked with a red circle in both windows.
+
+### Installing
+
+Download the package for your platform from the
+[release page](https://github.com/64x-lunicorn/LogSquirl/releases/latest):
+the NSIS installer for Windows, the DMG for macOS (Apple Silicon, macOS 15 or
+later) or an AppImage, DEB or RPM for Linux. Two package managers keep
+*logsquirl* up to date for you:
+
+- On a Mac, with [Homebrew](https://brew.sh/):
+  `brew install --cask 64x-lunicorn/tap/logsquirl`, then `brew upgrade`.
+- On Ubuntu 24.04 (amd64), with the LogSquirl APT repository, which holds the
+  last three stable releases and no betas, then `apt upgrade`. The commands
+  that add the repository are in the
+  [README](https://github.com/64x-lunicorn/LogSquirl#readme).
+
+### The Dashboard
+
+When *Show dashboard on startup* is enabled (`Settings->General`, it is by
+default), the first tab is the Dashboard, which cannot be closed. It shows the
+buttons *Open File* and *Load Session*, cards for your recent files, your
+favorites and the status of your plugins, and the hint that log files can be
+dropped on it to open them. Selecting a file in a card opens it.
 
 ## Exploring log files
 
