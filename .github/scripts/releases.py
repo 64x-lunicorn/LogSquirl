@@ -6,7 +6,9 @@ on sys.path (as a script, or under pytest).
 
 from __future__ import annotations
 
+import hashlib
 import re
+from pathlib import Path, PurePosixPath
 from collections.abc import Callable, Iterable
 
 # The suffix of a pre-release name; accepts the historical formats
@@ -106,3 +108,36 @@ def report(problems: Iterable[str]) -> int:
         print(f"::error::{' '.join(problem.split())}")
         found = True
     return 1 if found else 0
+
+
+# The checksum file of a release, and one of its `sha256sum` lines: the hash,
+# then " *" (binary mode) or "  " and the path (#380, #381).
+CHECKSUMS = re.compile(r"logsquirl-[0-9]+(?:\.[0-9]+){2,3}-sha256\.txt")
+_CHECKSUM_LINE = re.compile(r"([0-9a-f]{64}) [ *](.+)")
+
+
+def asset_named(names: list[str], pattern: re.Pattern) -> str | None:
+    """The one asset name matching `pattern`, or None when there is none or
+    more than one."""
+    found = [name for name in names if pattern.fullmatch(name)]
+    return found[0] if len(found) == 1 else None
+
+
+def listed_hash(checksums: str, name: str) -> str:
+    """The SHA-256 the checksum file lists for the file `name`; the file lists
+    it with its path in the release's packages directory."""
+    hashes = set()
+    for line in checksums.splitlines():
+        match = _CHECKSUM_LINE.fullmatch(line.strip())
+        if match and PurePosixPath(match.group(2)).name == name:
+            hashes.add(match.group(1))
+    if len(hashes) != 1:
+        raise ReleaseError(f"The checksum file must list {name} once, with one hash.")
+    return hashes.pop()
+
+
+def verify_asset(path: Path, checksums: str) -> None:
+    """Refuses a package that is not the release asset the checksum file
+    lists, so what a repository serves is what the attestations cover."""
+    if hashlib.sha256(path.read_bytes()).hexdigest() != listed_hash(checksums, path.name):
+        raise ReleaseError(f"{path.name} does not match the SHA-256 its release lists.")

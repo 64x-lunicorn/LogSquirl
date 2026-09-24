@@ -637,8 +637,21 @@ after a key rotation. A tag from before this workflow existed has no workflow to
 
 Rotating the key is a deliberate step, because every user then has to fetch the new key: create the key as #379
 describes (without a passphrase: the secret is the key alone, and signing fails on a protected one), replace the secret, change `PACKAGES_KEY_FINGERPRINT` in `publish-packages.yml` and dispatch Publish
-Packages from a release tag. The DNF repository (#381) will join the same Pages site, so the site is always built
-as a whole.
+Packages from a release tag. The site is always built as a whole: the APT and the DNF repositories are one Pages
+artifact.
+
+**DNF repositories (#381).** The same run builds `dnf/fedora` (the Fedora 44 RPM) and `dnf/el10` (the Oracle Linux 10
+RPM) from the last three stable releases that carry them, with `release-dnf.py` (`select`, `build`, `sign`, `verify`,
+the same steps as for APT), and serves `logsquirl-fedora.repo` and `logsquirl-el10.repo` next to the key. Only the
+metadata is signed, with the key of the APT repository (`repomd.xml.asc`; `repo_gpgcheck=1`, `gpgcheck=0`): signing an
+RPM rewrites it, and it would no longer be the release asset the attestations cover. The signed `repomd.xml` carries
+every package's checksum, so dnf still verifies each package. `build` refuses an RPM whose SHA-256 differs from its
+release's checksum file. The Fedora RPM is built against Fedora 44; when a newer Fedora changes its Qt it may stop
+working there until the build matrix follows, which is why the install instructions name the supported releases.
+The workflow's last check runs dnf itself in clean `fedora:44` and `oraclelinux:10` containers
+(`.github/scripts/check-dnf-repo.sh`): no warning from the signed metadata, every release offered, the downloaded RPM
+is the release asset, and an older release upgrades to the newest with `dnf upgrade`. `createrepo_c` is given the
+newest release's publication as revision, so a re-run is meant to give the same metadata.
 
 #### Secrets and environments
 
@@ -666,7 +679,7 @@ before anything is downloaded, because its signing job could not enter the
 | `changelog.yml` | PR to master (also on label changes) | Require a CHANGELOG entry under `# Unreleased`, or the `no-changelog` label |
 | `deploy-website.yml` | dispatch only: by CI Release after a release is published, or by hand from the Actions tab | Build the website without the pages of unpublished releases and upload it |
 | `ci-release.yml` | tag push `v*` | Sign and publish the CI Build packages of the tagged commit as a GitHub Release |
-| `publish-packages.yml` | called by CI Release after a stable release; dispatch from a release tag | Build the signed APT repository from the last three stable releases and deploy it with GitHub Pages |
+| `publish-packages.yml` | called by CI Release after a stable release; dispatch from a release tag | Build the signed APT and DNF repositories from the last three stable releases and deploy them with GitHub Pages |
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
