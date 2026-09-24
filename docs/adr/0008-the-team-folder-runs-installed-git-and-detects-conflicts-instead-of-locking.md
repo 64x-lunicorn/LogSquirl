@@ -17,6 +17,6 @@ Nothing is locked. Every group is its own file in the Team Folder. When a Team g
 
 - LogSquirl starts an external program that can reach the network. That is new for the application, and it is confined to the Team Folder module.
 - Git must be installed for the Team Folder. Without it the feature reports that and stays off; nothing else depends on it.
-- Git's own messages (authentication failures, refused pushes) are what the user sees for failures. LogSquirl does not translate them.
+- Git's own messages (authentication failures, refused pushes) are what the user sees for failures. LogSquirl does not translate them. There is one exception: it reads, but does not translate, a single message. A push that fails with Git's fixed sentence `The requested URL returned error: 403` on standard error (Git runs with `LC_ALL=C`) counts as refused, like a `[remote rejected]` ref, and the Team groups turn read-only. The sentence is matched, not a bare number, so a URL that contains 403 never matches. Every other failure of a push that is not a rejected ref stays "unreachable", so a network error never discards or blocks a local commit.
 - Two people changing the same group at the same time get a question instead of a lock. Nobody is ever locked out, and nobody's change is dropped without a decision.
 - Tests run against real Git repositories with `file://` remotes, so CI needs Git, which its runners have.
