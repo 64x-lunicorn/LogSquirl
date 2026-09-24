@@ -1219,7 +1219,7 @@ void CrawlerWidget::showEditedPattern( bool runNow )
     searchLineEdit_->lineEdit()->setFocus();
 
     if ( runNow ) {
-        dispatchToMainThread( [ this ] { startNewSearch(); } );
+        QTimer::singleShot( 0, this, [ this ] { startNewSearch(); } );
     }
 }
 

@@ -569,8 +569,9 @@ jobs:
   # and runs the Qt code generators, but compiles and links nothing. The
   # findings that existed when this job came in are fixed, or silenced with
   # their reason at the line; the excluded checks carry theirs in .clang-tidy.
-  # A run started by hand analyses every source. Ubuntu's clang-tidy 18 reads
-  # the GCC compile database the noble image builds with.
+  # A run started by hand analyses every source. Ubuntu's clang-tidy 19 reads
+  # the GCC compile database the noble image builds with; 18 cannot, because
+  # it reports __cpp_concepts too low for libstdc++'s <expected>.
   # -----------------------------------------------------------------------
   Tidy:
     name: Tidy / clang-tidy
@@ -649,10 +650,10 @@ jobs:
               # The checkout belongs to the runner user, not to root.
               git config --global --add safe.directory /usr/local
               apt-get update -qq
-              apt-get install -y -qq --no-install-recommends clang-tidy-18 > /dev/null
+              apt-get install -y -qq --no-install-recommends clang-tidy-19 > /dev/null
               cd /usr/local
               cmake -B "$LOGSQUIRL_BUILD_ROOT" $LOGSQUIRL_CMAKE_OPTS -DCPM_SOURCE_CACHE=/usr/local/cpm_cache .
-              CLANG_TIDY=clang-tidy-18 .github/scripts/run-clang-tidy.sh "$LOGSQUIRL_BUILD_ROOT" "$MODE"
+              CLANG_TIDY=clang-tidy-19 .github/scripts/run-clang-tidy.sh "$LOGSQUIRL_BUILD_ROOT" "$MODE"
             '
 
   # -----------------------------------------------------------------------

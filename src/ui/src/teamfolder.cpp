@@ -839,8 +839,8 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
             break;
         }
 
-        if ( outcome->published ) {
-            for ( auto& result : outcome->published->results ) {
+        if ( auto& published = outcome->published; published ) {
+            for ( auto& result : published->results ) {
                 if ( result.status != PublishStatus::Published ) {
                     continue;
                 }
@@ -855,8 +855,8 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
             }
         }
     }
-    else if ( !reachable && outcome->published ) {
-        for ( auto& result : outcome->published->results ) {
+    else if ( auto& published = outcome->published; !reachable && published ) {
+        for ( auto& result : published->results ) {
             if ( result.status == PublishStatus::Published ) {
                 result.status = PublishStatus::Pending;
                 result.message = outcome->message;
@@ -1162,9 +1162,10 @@ void TeamFolder::takeOutcome()
     else {
         Q_EMIT stateChanged();
     }
-    if ( current && outcome && outcome->published ) {
+    if ( const auto& published = outcome ? outcome->published : std::optional<PublishOutcome>{};
+         current && published ) {
         publishError_.clear();
-        for ( const auto& result : outcome->published->results ) {
+        for ( const auto& result : published->results ) {
             if ( result.status == PublishStatus::Failed ) {
                 publishError_ = result.message;
             }
@@ -1173,7 +1174,7 @@ void TeamFolder::takeOutcome()
             LOG_WARNING << "Team Folder could not publish: " << publishError_;
             Q_EMIT stateChanged();
         }
-        Q_EMIT publishFinished( *outcome->published );
+        Q_EMIT publishFinished( *published );
     }
     if ( current ) {
         Q_EMIT syncFinished();

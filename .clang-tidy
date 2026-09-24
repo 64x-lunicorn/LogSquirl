@@ -18,6 +18,8 @@ Checks: >-
   -bugprone-throwing-static-initialization,
   -bugprone-exception-escape,
   -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -clang-analyzer-cplusplus.NewDelete,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
   -performance-enum-size,
   -performance-unnecessary-value-param,
   -performance-trivially-destructible
@@ -30,6 +32,8 @@ Checks: >-
 #  bugprone-throwing-static-initialization  Qt statics (QString, QTranslator); a throw there means out of memory
 #  bugprone-exception-escape              main() and Qt event handlers: an escaping exception aborts, as wanted
 #  clang-analyzer-optin.core.EnumCastOutOfRange  false positive on bit-flag enums (CpuInstructions)
+#  clang-analyzer-cplusplus.NewDelete, ...NewDeleteLeaks  Qt owns objects through parents (new X( this ), deleteLater())
+#                                         and QSharedPointer's atomics: the analyzer sees a leak or a use after free that is not one
 #  performance-enum-size                  a size choice, not a defect
 #  performance-unnecessary-value-param    Qt containers and QString are implicitly shared, so a by-value copy is a
 #                                         reference count; pass-by-value sinks and slots would churn ~60 signatures

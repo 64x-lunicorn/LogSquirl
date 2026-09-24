@@ -50,7 +50,6 @@
 #include <utility>
 
 #include "containers.h"
-#include "dispatch_to.h"
 #include "groupexchange.h"
 #include "groupimportprompt.h"
 #include "highlightersdialog.h"
@@ -295,7 +294,7 @@ void HighlightersDialog::removeHighlighterSet()
 
     if ( index >= 0 ) {
         setCurrentRow( -1 );
-        dispatchToMainThread( [ this, index ] {
+        QTimer::singleShot( 0, this, [ this, index ] {
             {
                 const auto& set = highlighterSetCollection_.highlighters_.at( index );
                 highlighterSetCollection_.deactivateSet( set.id() );
@@ -325,7 +324,7 @@ void HighlightersDialog::moveHighlighterSetUp()
     if ( index > 0 ) {
         highlighterSetCollection_.highlighters_.move( index, index - 1 );
 
-        dispatchToMainThread( [ this, index ] {
+        QTimer::singleShot( 0, this, [ this, index ] {
             QListWidgetItem* item = highlighterListWidget->takeItem( index );
             highlighterListWidget->insertItem( index - 1, item );
 
@@ -342,7 +341,7 @@ void HighlightersDialog::moveHighlighterSetDown()
     if ( ( index >= 0 ) && ( index < ( highlighterListWidget->count() - 1 ) ) ) {
         highlighterSetCollection_.highlighters_.move( index, index + 1 );
 
-        dispatchToMainThread( [ this, index ] {
+        QTimer::singleShot( 0, this, [ this, index ] {
             QListWidgetItem* item = highlighterListWidget->takeItem( index );
             highlighterListWidget->insertItem( index + 1, item );
 
@@ -400,7 +399,7 @@ void HighlightersDialog::resolveDialog( QAbstractButton* button )
 void HighlightersDialog::setCurrentRow( int row )
 {
     // ugly hack for mac
-    dispatchToMainThread( [ this, row ]() { highlighterListWidget->setCurrentRow( row ); } );
+    QTimer::singleShot( 0, this, [ this, row ]() { highlighterListWidget->setCurrentRow( row ); } );
 }
 
 void HighlightersDialog::updatePropertyFields()
