@@ -33,6 +33,7 @@
 #include "growinglogdata.h"
 #include "logformatdefinition.h"
 #include "valuecount.h"
+#include "valuecountmodel.h"
 
 using namespace std::chrono_literals;
 using testing_support::GrowingLogData;
@@ -248,5 +249,45 @@ SCENARIO( "A Value Count runs on a worker thread", "[valuecount]" )
                 CHECK( weak.expired() );
             }
         }
+    }
+}
+
+SCENARIO( "The Value Count model shows a Value Count as rows of value, count and share",
+          "[valuecount][model]" )
+{
+    ValueCountResult result;
+    result.entries = { { "alpha", 3 }, { "", 1 } };
+    result.linesCounted = 4;
+
+    ValueCountModel model;
+    model.setResult( result );
+
+    THEN( "there is a row per value and three columns" )
+    {
+        REQUIRE( model.rowCount() == 2 );
+        REQUIRE( model.columnCount() == 3 );
+        REQUIRE( model.valueAt( 0 ) == "alpha" );
+        REQUIRE( model.valueAt( 5 ).isEmpty() );
+    }
+
+    THEN( "a cell shows value, count and share" )
+    {
+        REQUIRE( model.data( model.index( 0, 0 ) ).toString() == "alpha" );
+        REQUIRE( model.data( model.index( 0, 1 ) ).toString() == QLocale().toString( 3 ) );
+        REQUIRE( model.data( model.index( 0, 2 ) ).toString().contains( "75" ) );
+    }
+
+    THEN( "an empty value is marked and is not a value to search for" )
+    {
+        REQUIRE( model.data( model.index( 1, 0 ) ).toString() == "(empty)" );
+        REQUIRE( model.data( model.index( 1, 0 ), ValueCountModel::IsEmptyRole ).toBool() );
+        REQUIRE_FALSE( model.data( model.index( 0, 0 ), ValueCountModel::IsEmptyRole ).toBool() );
+        REQUIRE( model.valueAt( 1 ).isEmpty() );
+    }
+
+    THEN( "clearing leaves no rows" )
+    {
+        model.clear();
+        REQUIRE( model.rowCount() == 0 );
     }
 }

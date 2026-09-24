@@ -22,11 +22,14 @@
 #include "logformatdefinition.h"
 
 #include <QHash>
+#include <QJsonObject>
 #include <QList>
 #include <QPair>
 #include <QRegularExpression>
 #include <QString>
 #include <QStringList>
+
+#include <optional>
 
 // Represents the result of extracting fields from a single log line.
 class ExtractedFields {
@@ -85,11 +88,17 @@ public:
     // Extract fields from a raw line (always runs the regex or parses the JSON).
     ExtractedFields extractFields( const QString& line ) const;
 
+    // Extract one field of a raw line: the value extractFields() gives for it,
+    // or nothing when extractFields() calls the line invalid. For a Json or
+    // Logfmt format only that key is read, not every field of the line.
+    std::optional<QString> extractField( const QString& line, const QString& fieldName ) const;
+
     // Get the ordered list of column names for table display.
     // Order: timestamp, level, [value fields ordered by definition], body
     QStringList columnNames() const;
 
 private:
+    QString jsonFieldText( const QJsonObject& object, const QString& field ) const;
     ExtractedFields extractRegexFields( const QString& line ) const;
     ExtractedFields extractJsonFields( const QString& line ) const;
     ExtractedFields extractLogfmtFields( const QString& line ) const;
