@@ -21,6 +21,7 @@ Search huge files, follow live logs, and turn noisy output into something you ca
 [![CI Build](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/ci-build.yml?branch=master&label=build)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/ci-build.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/64x-lunicorn/LogSquirl/codeql-analysis.yml?branch=master&label=CodeQL)](https://github.com/64x-lunicorn/LogSquirl/actions/workflows/codeql-analysis.yml)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/64x-lunicorn/LogSquirl/badge)](https://scorecard.dev/viewer/?uri=github.com/64x-lunicorn/LogSquirl)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14784/badge)](https://www.bestpractices.dev/projects/14784)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](COPYING)
 
 [Why LogSquirl?](#why-logsquirl) · [Get started](#get-started) · [Features](#features) · [Plugins](#plugins) · [Contribute](#contributing)
