@@ -389,9 +389,10 @@ jobs:
         # CPM dependency, so it is not instrumented).
         #
         # TSan (#439) finds data races, the fault class ASan cannot see, and
-        # blocks like asan-ubsan, pull requests included (#482). Qt, GLib and
-        # glibc are not built with TSan, so it cannot see their own locks and
-        # reports what they do on two threads as races. The ctest runner
+        # blocks like asan-ubsan, pull requests included (#482). oneTBB is
+        # built with TSan here too; Qt, GLib and glibc come prebuilt without
+        # it, so TSan cannot see their own locks and reports what they do on
+        # two threads as races. The ctest runner
         # (cmake/CatchTestDiscoveryRunTest.cmake) leaves out a report only
         # when both racing accesses were made inside one of those libraries,
         # as listed in cmake/tsan.supp; any other report fails the case (ADR
@@ -467,33 +468,7 @@ jobs:
           docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
             --env ASAN_OPTIONS="$ASAN_OPTIONS" --env UBSAN_OPTIONS="$UBSAN_OPTIONS" \
             -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
-            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure --timeout 120 --test-output-size-passed 2000000 --test-output-size-failed 2000000 --output-junit ctest-junit.xml"
-
-      # TEMPORARY (#482): how long the three cases skipped under TSan take.
-      - name: Time the cases skipped under TSan
-        if: always() && matrix.config.artifacts_id == 'tsan'
-        continue-on-error: true
-        timeout-minutes: 25
-        run: |
-          docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
-            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
-            cd /usr/local/$LOGSQUIRL_BUILD_ROOT/tests/ui || exit 1
-            i=0
-            for name in \
-              "Scenario: An explicit reload notices a Log File rewritten in place with the same size" \
-              "Scenario: Following a growing Log File reads only what was appended" \
-              "Scenario: Reopening a grown Log File indexes only what was added to it"; do
-              i=$((i + 1))
-              ( start=$(date +%s)
-                timeout 1200 cmake -DTEST_BINARY=/usr/local/$LOGSQUIRL_BUILD_ROOT/output/logsquirl_itests \
-                  -P /usr/local/cmake/CatchTestDiscoveryRunTest.cmake -- "$name" -platform offscreen \
-                  > /usr/local/$LOGSQUIRL_BUILD_ROOT/skipped-$i.log 2>&1
-                echo "=== $name: exit $? after $(( $(date +%s) - start )) s" ) &
-            done
-            wait
-            for f in /usr/local/$LOGSQUIRL_BUILD_ROOT/skipped-*.log; do
-              echo "--- $f"; grep -c "Indexing done" "$f"; grep "left out\|test cases\|FAILED\|All tests passed\|ThreadSanitizer" "$f" | head -20
-            done'
+            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure --timeout 120 --output-junit ctest-junit.xml"
 
       - uses: ./.github/actions/ctest-report
         if: always() && steps.tests.outcome != 'skipped'

@@ -10,10 +10,8 @@
 #   names them, so nothing else goes with them and the test list is the same.
 #   CMP0011 -- while this one is unset, setting a policy in an included script is
 #   a developer warning of its own.
-#   CMP0057 -- `if(IN_LIST)`, for the cases skipped under TSan (#482).
 cmake_policy(SET CMP0011 NEW)
 cmake_policy(SET CMP0007 NEW)
-cmake_policy(SET CMP0057 NEW)
 
 set(_logsquirl_catch_failed "")
 
@@ -107,8 +105,4 @@ foreach(_logsquirl_catch_name IN LISTS _logsquirl_catch_lines)
     set_tests_properties("${_logsquirl_catch_test}" PROPERTIES
         TIMEOUT "${_logsquirl_catch_timeout}"
         WORKING_DIRECTORY "${_logsquirl_catch_working_dir}")
-    # Registered, so ctest names it, but not run in a ThreadSanitizer build.
-    if(_logsquirl_catch_name IN_LIST _logsquirl_catch_skipped_cases)
-        set_tests_properties("${_logsquirl_catch_test}" PROPERTIES DISABLED TRUE)
-    endif()
 endforeach()

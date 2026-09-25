@@ -54,7 +54,7 @@ SUMMARY: ThreadSanitizer: data race ../../../../src/libsanitizer/tsan/tsan_new_d
 ==================
 ")
 expect(inside_qtcore "${_inside_qtcore}ThreadSanitizer: reported 1 warnings\n" 0 1
-  "left out 1 data race(s) made inside libQt6Core.so.6 and libQt6Core.so.6")
+  "left out 1 data race(s) between libQt6Core.so.6 and libQt6Core.so.6")
 
 # A slot's argument array: Qt allocates it on the sending thread, the inlined
 # Qt template that calls the slot reads it on the receiving one.
@@ -110,7 +110,7 @@ WARNING: ThreadSanitizer: data race (pid=9)
 
 SUMMARY: ThreadSanitizer: data race in free
 ==================
-" 0 1 "left out 1 data race(s) made inside libc.so.6 and libc.so.6")
+" 0 1 "left out 1 data race(s) between libc.so.6 and libc.so.6")
 
 # Both accesses in LogSquirl's code, one through an inlined std:: header, and
 # a frame with characters a CMake list treats as syntax.
@@ -131,6 +131,55 @@ SUMMARY: ThreadSanitizer: data race /usr/include/c++/13/bits/shared_ptr_base.h:1
 ")
 expect(in_logsquirl "${_in_logsquirl}" 1 0
   "logfiltereddataworker.cpp:287" "createRunnable<[with T = int; U = char]>")
+
+# A slot of a queued signal reads the argument QtCore copied for the call on
+# the emitting thread: Qt's event queue hands it over.
+set(_queued_argument_read "  Read of size 8 at 0x720800006550 by main thread:
+    #0 QString::size() const /opt/qt/6.11.2/gcc_64/include/QtCore/qstring.h:278 (logsquirl_openlogfile_tests+0x34403c)
+    #1 SearchSession::handleSearchFinished(SearchId, LineNumber, bool, QString const&) /usr/local/src/logdata/src/searchsession.cpp:446 (logsquirl_openlogfile_tests+0x34403c)
+    #2 QtPrivate::QCallableObject<void (SearchSession::*)(SearchId, LineNumber, bool, QString const&), QtPrivate::List<SearchId, LineNumber, bool, QString const&>, void>::impl(int, QtPrivate::QSlotObjectBase*, QObject*, void**, bool*) /opt/qt/6.11.2/gcc_64/include/QtCore/qobjectdefs_impl.h:546 (logsquirl_openlogfile_tests+0x1)
+    #3 QObject::event(QEvent*) <null> (libQt6Core.so.6+0x1e492c) (BuildId: fcf7)
+    #4 waitSearchSettled /usr/local/tests/openlogfile/openlogfile_test.cpp:147 (logsquirl_openlogfile_tests+0x1a0c19)
+")
+expect(queued_argument "==================
+WARNING: ThreadSanitizer: data race (pid=7124)
+${_queued_argument_read}
+  Previous write of size 8 at 0x720800006550 by thread T13:
+    #0 operator new(unsigned long, std::nothrow_t const&) ../../../../src/libsanitizer/tsan/tsan_new_delete.cpp:76 ${_tsan}
+    #1 QMetaType::create(void const*) const <null> (libQt6Core.so.6+0x1b2341) (BuildId: fcf7)
+    #2 SearchOperation::doSearch(SearchData&, LineNumber) /usr/local/src/logdata/src/logfiltereddataworker.cpp:610 (logsquirl_openlogfile_tests+0x332959)
+
+SUMMARY: ThreadSanitizer: data race /opt/qt/6.11.2/gcc_64/include/QtCore/qstring.h:278 in QString::size() const
+==================
+" 0 1 "left out 1 data race(s) between a queued call's argument")
+
+# The same read against a block QtCore allocated otherwise stays: nothing says
+# the event queue handed it over.
+expect(slot_reads_other_block "==================
+WARNING: ThreadSanitizer: data race (pid=7124)
+${_queued_argument_read}
+  Previous write of size 8 at 0x720800006550 by thread T13:
+${_qt_new}
+    #1 QArrayData::reallocateUnaligned(QArrayData*, void*, long long, long long, QArrayData::AllocationOption) <null> (libQt6Core.so.6+0x1)
+    #2 SearchOperation::doSearch(SearchData&, LineNumber) /usr/local/src/logdata/src/logfiltereddataworker.cpp:610 (logsquirl_openlogfile_tests+0x332959)
+
+SUMMARY: ThreadSanitizer: data race
+==================
+" 1 0)
+
+# And a queued argument read outside a slot Qt called for an event stays too.
+expect(argument_read_elsewhere "==================
+WARNING: ThreadSanitizer: data race (pid=7124)
+  Read of size 8 at 0x720800006550 by thread T2:
+    #0 SearchOperation::run() /usr/local/src/logdata/src/logfiltereddataworker.cpp:120 (logsquirl_tests+0x1)
+
+  Previous write of size 8 at 0x720800006550 by thread T13:
+    #0 operator new(unsigned long, std::nothrow_t const&) ../../../../src/libsanitizer/tsan/tsan_new_delete.cpp:76 ${_tsan}
+    #1 QMetaType::create(void const*) const <null> (libQt6Core.so.6+0x1b2341) (BuildId: fcf7)
+
+SUMMARY: ThreadSanitizer: data race
+==================
+" 1 0)
 
 # Qt frees what LogSquirl's code still reads: LogSquirl's side keeps it.
 expect(one_side_in_logsquirl "==================

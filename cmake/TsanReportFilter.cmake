@@ -25,16 +25,36 @@
 # the reference count of a Qt payload (QArrayData::ref/deref, inlined anywhere)
 # is QtCore's: the payload is freed inside QtCore after a decrement TSan does
 # not see there. An access whose frames say nothing counts as LogSquirl's.
+#
+# One race with an access in LogSquirl's code is left out as well: a slot that
+# Qt calls for a queued signal (QObject::event in QtCore below it) reading an
+# argument QtCore copied for that call (QMetaType::create in QtCore allocating
+# it on the emitting thread). Qt hands the copy over through its event queue,
+# and nothing else holds it.
 
-# Which module made the access these frames (innermost first) describe, or ""
-# when it was not one of the libraries.
+# Who made the access these frames (innermost first) describe:
+#   out_var            the library, or "" when it was not one of them
+#   out_var_ARGUMENT   TRUE when it is QtCore allocating a queued argument
+#   out_var_IN_EVENT   TRUE when it runs in a slot QtCore called for an event
 function(_logsquirl_tsan_access_owner out_var atomic libraries)
   set(_owner "")
   set(_reference_count FALSE)
+  set(_argument FALSE)
+  set(_in_event FALSE)
+  set(_first TRUE)
+  set(_decided FALSE)
   foreach(_frame IN LISTS ARGN)
-    if(_frame MATCHES "\\(libtsan\\.so")
+    if(_frame MATCHES "QObject::event\\(QEvent\\*\\) .*\\(libQt6Core\\.so\\.6\\+0x")
+      set(_in_event TRUE)
+    endif()
+    if(_decided OR _frame MATCHES "\\(libtsan\\.so")
       continue()
     endif()
+    if(_first AND _frame MATCHES "QMetaType::create\\(.*\\(libQt6Core\\.so\\.6\\+0x"
+       AND "libQt6Core.so.6" IN_LIST libraries)
+      set(_argument TRUE)
+    endif()
+    set(_first FALSE)
     if(_frame MATCHES "/include/Qt[A-Za-z0-9]*/" OR _frame MATCHES "/include/c\\+\\+/")
       if(atomic AND _frame MATCHES "QArrayData::(ref|deref)\\(")
         set(_reference_count TRUE)
@@ -50,13 +70,15 @@ function(_logsquirl_tsan_access_owner out_var atomic libraries)
         set(_owner "${CMAKE_MATCH_1}")
       endif()
     endif()
-    break()
+    set(_decided TRUE)
   endforeach()
   set(${out_var} "${_owner}" PARENT_SCOPE)
+  set(${out_var}_ARGUMENT "${_argument}" PARENT_SCOPE)
+  set(${out_var}_IN_EVENT "${_in_event}" PARENT_SCOPE)
 endfunction()
 
-# Whether a report (its lines between the two "=====" lines) is a data race
-# both of whose accesses were made inside the libraries; out_var names them.
+# Whether a report (its lines between the two "=====" lines) is left out;
+# out_var then says why, and is empty otherwise.
 function(_logsquirl_tsan_report_left_out out_var libraries)
   set(_result "")
   if(ARGC LESS 3)
@@ -69,7 +91,6 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
     return()
   endif()
   set(_accesses 0)
-  set(_owners "")
   set(_in_access FALSE)
   set(_frames "")
   set(_atomic FALSE)
@@ -79,8 +100,7 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
       continue()
     endif()
     if(_in_access)
-      _logsquirl_tsan_access_owner(_owner "${_atomic}" "${libraries}" ${_frames})
-      list(APPEND _owners "${_owner}")
+      _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
       set(_in_access FALSE)
     endif()
     if(_accesses LESS 2 AND _line MATCHES "^  (Previous )?([Aa]tomic )?([Ww]rite|[Rr]ead) of size [0-9]+ at ")
@@ -95,16 +115,14 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
     endif()
   endforeach()
   if(_in_access)
-    _logsquirl_tsan_access_owner(_owner "${_atomic}" "${libraries}" ${_frames})
-    list(APPEND _owners "${_owner}")
+    _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
   endif()
 
-  list(LENGTH _owners _count)
-  if(_count EQUAL 2)
-    list(GET _owners 0 _first)
-    list(GET _owners 1 _second)
-    if(NOT _first STREQUAL "" AND NOT _second STREQUAL "")
-      set(_result "${_first} and ${_second}")
+  if(_accesses EQUAL 2)
+    if(NOT _owner_1 STREQUAL "" AND NOT _owner_2 STREQUAL "")
+      set(_result "${_owner_1} and ${_owner_2}")
+    elseif((_owner_1_ARGUMENT AND _owner_2_IN_EVENT) OR (_owner_2_ARGUMENT AND _owner_1_IN_EVENT))
+      set(_result "a queued call's argument copied by libQt6Core.so.6 and its slot")
     endif()
   endif()
   set(${out_var} "${_result}" PARENT_SCOPE)
@@ -201,7 +219,7 @@ function(logsquirl_tsan_filter)
       endif()
     endforeach()
     _logsquirl_tsan_write("${arg_OUTPUT_FILE}"
-      "ThreadSanitizer: left out ${_count} data race(s) made inside ${_pair} on both sides (cmake/tsan.supp)")
+      "ThreadSanitizer: left out ${_count} data race(s) between ${_pair} (cmake/tsan.supp)")
   endforeach()
 
   set(${arg_FAILURES} "${_failures}" PARENT_SCOPE)

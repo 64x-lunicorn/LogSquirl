@@ -10,11 +10,25 @@
 # It holds no `race:` entry. TSan matches such an entry against every frame of
 # a stack, callers included, and the frames of LogSquirl's own code run on top
 # of Qt's event loop, QThreadPool and oneTBB's flow graph. An entry naming one
-# of those would hide a race in LogSquirl's code as well, so none is allowed.
-# The ones this file held matched nothing in a whole CI run (#482):
-# `QThreadPoolThread::run` and `QThreadPool::start` have no symbol in the Qt of
-# the CI container, and the oneTBB entries (`tbb::detail::`, `tbb::flow::`)
-# were never reached.
+# of those hides a race in LogSquirl's code as well, so none is allowed. The
+# oneTBB entries this file held (`tbb::detail::`, `tbb::flow::`) did exactly
+# that: without them, ~2200 reports came out of the Search and indexing code
+# that runs in TBB's flow graph nodes (#482). oneTBB is now built with TSan
+# instead (3rdparty/CMakeLists.txt), which leaves none of them. The Qt entries
+# (`QThreadPoolThread::run`, `QThreadPool::start`) could not match: the Qt of
+# the CI container has no symbols for them.
+#
+# A `race_top:` entry matches only the frame that made a racing access, not its
+# callers. One is allowed for a function that calls no code of LogSquirl's,
+# with its reason next to it.
+#
+# oneTBB: threading_control::set_active_num_workers() calls
+# get_threading_control() without the lock every other caller holds, so it
+# reads the global threading_control while a TBB thread that ends drops the
+# last reference and clears it. A bug of the oneTBB fork LogSquirl builds
+# (variar/oneTBB c9be1ac); upstream oneTBB takes the lock there. It is reached
+# when a tbb::global_control is destroyed (the TBB-worker test, main() at exit).
+race_top:tbb::detail::r1::threading_control::get_threading_control
 #
 # --- Libraries that are not built with ThreadSanitizer (#482) ---------------
 #

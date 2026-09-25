@@ -2,16 +2,11 @@
 # so one failing or hanging case turns only itself red and reports its own name
 # (#217).
 #
-#   logsquirl_add_catch_tests(<target> TIMEOUT <seconds> [EXTRA_ARGS <arg>...]
-#                             [TSAN_SKIPPED_CASES <name>...])
+#   logsquirl_add_catch_tests(<target> TIMEOUT <seconds> [EXTRA_ARGS <arg>...])
 #
 # Each test is named "<target>: <test case name>". EXTRA_ARGS are passed both to
 # the listing and to every test case (e.g. "-platform offscreen"); TIMEOUT is
-# the timeout of each test case, not of the whole executable. In a
-# ThreadSanitizer build (-DENABLE_SANITIZER_THREAD=ON) the cases named in
-# TSAN_SKIPPED_CASES are registered but disabled: ctest lists them as "Not Run
-# (Disabled)". Only for a case that cannot meaningfully run under TSan, named
-# with its reason where it is listed (#482).
+# the timeout of each test case, not of the whole executable.
 #
 # Catch2's own catch_discover_tests is not used: it lists the test cases in
 # a POST_BUILD step, which runs every test executable during the build without
@@ -28,13 +23,9 @@ set(_LOGSQUIRL_CATCH_ADD_TESTS_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/CatchTestDiscov
 set(_LOGSQUIRL_CATCH_RUN_TEST_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/CatchTestDiscoveryRunTest.cmake")
 
 function(logsquirl_add_catch_tests TARGET)
-    cmake_parse_arguments(PARSE_ARGV 1 arg "" "TIMEOUT" "EXTRA_ARGS;TSAN_SKIPPED_CASES")
+    cmake_parse_arguments(PARSE_ARGV 1 arg "" "TIMEOUT" "EXTRA_ARGS")
     if(NOT arg_TIMEOUT)
         message(FATAL_ERROR "logsquirl_add_catch_tests(${TARGET}): TIMEOUT is required")
-    endif()
-    set(skipped_cases "")
-    if(ENABLE_SANITIZER_THREAD)
-        set(skipped_cases "${arg_TSAN_SKIPPED_CASES}")
     endif()
 
     # The executable's path depends on the configuration, so its parameters are
@@ -47,7 +38,6 @@ function(logsquirl_add_catch_tests TARGET)
 set(_logsquirl_catch_executable [==[$<TARGET_FILE:${TARGET}>]==])
 set(_logsquirl_catch_extra_args [==[${arg_EXTRA_ARGS}]==])
 set(_logsquirl_catch_timeout [==[${arg_TIMEOUT}]==])
-set(_logsquirl_catch_skipped_cases [==[${skipped_cases}]==])
 set(_logsquirl_catch_working_dir [==[${CMAKE_CURRENT_BINARY_DIR}]==])
 set(_logsquirl_catch_cmake [==[${CMAKE_COMMAND}]==])
 set(_logsquirl_catch_run_script [==[${_LOGSQUIRL_CATCH_RUN_TEST_SCRIPT}]==])
