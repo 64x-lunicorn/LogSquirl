@@ -105,14 +105,10 @@ void LogFilteredData::request( const RegularExpressionPattern& regExp, LineNumbe
     session_.request( regExp, startLine, endLine );
 }
 
-void LogFilteredData::request( bool dropCache )
+void LogFilteredData::request()
 {
     LOG_DEBUG << "Entering request (idle)";
     session_.request();
-
-    if ( dropCache ) {
-        session_.dropCache();
-    }
 }
 
 void LogFilteredData::stop()
@@ -246,6 +242,8 @@ void LogFilteredData::clearMarks()
 
 void LogFilteredData::logLinesChanged( LineNumber firstChanged )
 {
+    session_.logLinesChanged( firstChanged );
+
     const auto nbLines = sourceLogData_->getNbLine();
     displayedLines_.logLinesChanged( firstChanged, [ this, nbLines ]( LineNumber line ) {
         return line < nbLines ? sourceLogData_->getLineLength( line ) : 0_length;

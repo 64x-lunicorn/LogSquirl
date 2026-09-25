@@ -80,6 +80,17 @@ SearchResultArray nonFizzLines( int count )
     return lines;
 }
 
+// The Log Lines of numberedLines( count, 1 ) that say "fizz": each reads as
+// the one after it did in numberedLines( count ).
+SearchResultArray fizzLinesReadAnew( int count )
+{
+    SearchResultArray lines;
+    for ( auto number = 2; number < count; number += 3 ) {
+        lines.add( static_cast<uint64_t>( number ) );
+    }
+    return lines;
+}
+
 bool waitUntilSettled( const SearchSession& session )
 {
     return QTest::qWaitFor( [ &session ] { return session.state().phase != Phase::Running; },
@@ -553,6 +564,215 @@ SCENARIO( "A Search repeated over the same range is served from the cache", "[se
             REQUIRE( state.matchCount == 14_lcount );
             REQUIRE( session.matches() == fizzLines( 40 ) );
             REQUIRE( blockSource.readBlocks().size() == blocksBefore );
+        }
+    }
+}
+
+SCENARIO( "A Search repeated after the Log Lines changed finds the Matches of the new reading",
+          "[searchsession]" )
+{
+    const auto policies = testSettingsPolicies();
+    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    SearchSession session( blockSource, policies.search );
+
+    const RegularExpressionPattern fizz( "fizz" );
+    session.request( fizz );
+    REQUIRE( waitUntilSettled( session ) );
+    REQUIRE( session.matches() == fizzLines( 40 ) );
+
+    GIVEN( "every Log Line reading anew, as after another Encoding was chosen" )
+    {
+        blockSource.replaceLines( numberedLines( 40, 1 ) );
+
+        WHEN( "that the Log Lines changed is told, and the same Search is repeated" )
+        {
+            session.logLinesChanged( 0_lnum );
+            const auto blocksBefore = blockSource.readBlocks().size();
+            session.request( fizz );
+            const auto requested = session.state();
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "it runs again and finds the Matches of the new reading" )
+            {
+                REQUIRE_FALSE( requested.fromCache );
+                REQUIRE_FALSE( requested.isContinuation );
+                REQUIRE( requested.phase == Phase::Running );
+                REQUIRE( blockSource.readBlocks().size() > blocksBefore );
+
+                const auto state = session.state();
+                REQUIRE( state.phase == Phase::Complete );
+                REQUIRE( session.matches() == fizzLinesReadAnew( 40 ) );
+                REQUIRE( state.matchCount == 13_lcount );
+            }
+
+            AND_WHEN( "it is repeated once more, with nothing changed since" )
+            {
+                session.request( RegularExpressionPattern( "line 1" ) );
+                REQUIRE( waitUntilSettled( session ) );
+                session.request( fizz );
+
+                THEN( "the new reading's Matches come from the cache" )
+                {
+                    REQUIRE( session.state().fromCache );
+                    REQUIRE( session.matches() == fizzLinesReadAnew( 40 ) );
+                }
+            }
+        }
+
+        WHEN( "the Log Lines grow as well and the Search is asked to follow them" )
+        {
+            blockSource.appendLines( numberedLines( 10, 41 ) );
+            session.logLinesChanged( 0_lnum );
+            session.request( fizz, 0_lnum, 50_lnum );
+            const auto requested = session.state();
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "it starts over rather than continuing from Log Lines that read differently" )
+            {
+                REQUIRE_FALSE( requested.isContinuation );
+                REQUIRE( session.matches() == fizzLinesReadAnew( 50 ) );
+            }
+        }
+    }
+
+    GIVEN( "the Log Lines cut short and written again to as many as before" )
+    {
+        blockSource.replaceLines( numberedLines( 10 ) );
+        blockSource.appendLines( numberedLines( 30, 11 ) );
+        REQUIRE( blockSource.getNbLines() == 40_lcount );
+
+        WHEN( "that the Log Lines changed is told, and the same Search is repeated" )
+        {
+            session.logLinesChanged( 0_lnum );
+            session.request( fizz );
+            const auto requested = session.state();
+            REQUIRE( waitUntilSettled( session ) );
+
+            THEN( "it starts again and finds the Matches of what is there now" )
+            {
+                REQUIRE_FALSE( requested.fromCache );
+                SearchResultArray expected = fizzLines( 10 );
+                for ( auto line = 10; line < 40; ++line ) {
+                    if ( ( line + 1 ) % 3 == 0 ) {
+                        expected.add( static_cast<uint64_t>( line ) );
+                    }
+                }
+                REQUIRE( session.matches() == expected );
+            }
+        }
+    }
+
+    GIVEN( "nothing changed" )
+    {
+        WHEN( "the same Search is repeated" )
+        {
+            const auto blocksBefore = blockSource.readBlocks().size();
+            session.request( fizz );
+
+            THEN( "it is served from the cache" )
+            {
+                REQUIRE( session.state().fromCache );
+                REQUIRE( session.matches() == fizzLines( 40 ) );
+                REQUIRE( blockSource.readBlocks().size() == blocksBefore );
+            }
+        }
+    }
+}
+
+SCENARIO( "Log Lines that changed past a Search's range leave it served from the cache",
+          "[searchsession]" )
+{
+    const auto policies = testSettingsPolicies();
+    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    SearchSession session( blockSource, policies.search );
+
+    const RegularExpressionPattern fizz( "fizz" );
+    session.request( fizz, 0_lnum, 20_lnum );
+    REQUIRE( waitUntilSettled( session ) );
+    session.request( RegularExpressionPattern( "line 1" ) );
+    REQUIRE( waitUntilSettled( session ) );
+
+    WHEN( "the Log Lines from the end of its range on change" )
+    {
+        session.logLinesChanged( 20_lnum );
+        session.request( fizz, 0_lnum, 20_lnum );
+
+        THEN( "the Search over the Log Lines before them is served from the cache" )
+        {
+            REQUIRE( session.state().fromCache );
+            REQUIRE( session.matches() == fizzLines( 20 ) );
+        }
+    }
+
+    WHEN( "the last Log Line of its range changes" )
+    {
+        session.logLinesChanged( 19_lnum );
+        session.request( fizz, 0_lnum, 20_lnum );
+
+        THEN( "the Search runs again" )
+        {
+            REQUIRE_FALSE( session.state().fromCache );
+            REQUIRE( waitUntilSettled( session ) );
+        }
+    }
+}
+
+SCENARIO( "A Search continues when only the last Log Line it searched changed", "[searchsession]" )
+{
+    const auto policies = testSettingsPolicies();
+    InMemoryBlockSource blockSource( numberedLines( 30 ) );
+    SearchSession session( blockSource, policies.search );
+
+    const RegularExpressionPattern fizz( "fizz" );
+    session.request( fizz, 0_lnum, 30_lnum );
+    REQUIRE( waitUntilSettled( session ) );
+
+    WHEN( "Log Lines are appended, the last one searched told changed, as after a Log File grew" )
+    {
+        blockSource.appendLines( numberedLines( 20, 30 ) );
+        session.logLinesChanged( 29_lnum );
+        session.request( fizz, 0_lnum, 50_lnum );
+        const auto requested = session.state();
+        REQUIRE( waitUntilSettled( session ) );
+
+        THEN( "it continues from where it left off" )
+        {
+            REQUIRE( requested.isContinuation );
+            REQUIRE( session.matches() == fizzLines( 50 ) );
+        }
+    }
+}
+
+SCENARIO( "A Search in flight when the Log Lines changed is not served from the cache later",
+          "[searchsession]" )
+{
+    const auto policies = testSettingsPolicies();
+    InMemoryBlockSource blockSource( numberedLines( 40 ) );
+    SearchSession session( blockSource, policies.search );
+    const RegularExpressionPattern fizz( "fizz" );
+
+    GIVEN( "a Search held in its first block read while the Log Lines change" )
+    {
+        blockSource.holdReading();
+        session.request( fizz );
+        blockSource.waitUntilReadingHeld();
+        session.logLinesChanged( 0_lnum );
+        blockSource.releaseReading();
+        REQUIRE( waitUntilSettled( session ) );
+        REQUIRE( session.state().phase == Phase::Complete );
+
+        WHEN( "the same Search is repeated" )
+        {
+            session.request( RegularExpressionPattern( "line 1" ) );
+            REQUIRE( waitUntilSettled( session ) );
+            session.request( fizz );
+
+            THEN( "it runs again: what it found may have read the old way" )
+            {
+                REQUIRE_FALSE( session.state().fromCache );
+                REQUIRE( waitUntilSettled( session ) );
+                REQUIRE( session.matches() == fizzLines( 40 ) );
+            }
         }
     }
 }

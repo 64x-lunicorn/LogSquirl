@@ -124,7 +124,11 @@ _Avoid_: background task, async job
 **Search Session**:
 The owner of everything whose correctness depends on the ordering of a Search: the current
 pattern, the run in flight, its results, its progress and its cached results. A new request
-supersedes the one in flight rather than waiting for it.
+supersedes the one in flight rather than waiting for it. Told that the Log Lines changed from
+one on — indexed again, cut short, or read in another Encoding or Decoding Policy — it drops
+the cached results and the continuation point they no longer describe, so the same Search
+repeated finds the Matches of the new reading; every Search of the Log File is told, kept or
+current.
 _Avoid_: search manager, search controller, search engine
 
 **Kept Searches**:

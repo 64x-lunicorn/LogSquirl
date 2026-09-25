@@ -318,6 +318,9 @@ void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QStrin
     // waits behind a Check that could still find a truncation.
     switch ( status ) {
     case MonitoredFileStatus::Truncated:
+        // Told at once, not only once indexed again: until then no Search may
+        // be served what it found in the Log Lines that were there before.
+        logLinesChanged();
         operationQueue_.enqueueJob( FullReindexJob{} );
         break;
     case MonitoredFileStatus::DataAdded:

@@ -39,6 +39,7 @@
 #include <QTemporaryFile>
 #include <QTest>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -46,15 +47,20 @@
 
 namespace {
 
+QString numberedLine( int line )
+{
+    return QStringLiteral( "this is line %1" ).arg( line, 6, 10, QChar( '0' ) );
+}
+
 // An Open Log File of 100 loaded Log Lines, its View Set and its Kept
 // Searches, whose Filtered Views nothing else owns.
 struct LogFile {
-    LogFile()
+    // Each Log Line reads as lineText says, by default "this is line 000042".
+    explicit LogFile( const std::function<QString( int )>& lineText = numberedLine )
     {
         REQUIRE( file.open() );
         for ( int line = 0; line < 100; ++line ) {
-            file.write(
-                QStringLiteral( "this is line %1\n" ).arg( line, 6, 10, QChar( '0' ) ).toLatin1() );
+            file.write( ( lineText( line ) + '\n' ).toUtf8() );
         }
         file.flush();
 
@@ -235,6 +241,67 @@ SCENARIO( "Only the current Search's progress is told", "[keptsearches]" )
                         30000 ) );
                     REQUIRE( told.back().pattern.pattern == "line 00002" );
                 }
+            }
+        }
+    }
+}
+
+SCENARIO(
+    "A kept Search repeated after the Decoding Policy changed finds the new reading's Matches",
+    "[keptsearches]" )
+{
+    // Every other Log Line has "bold end" in it, split by an ANSI color
+    // sequence: it matches only once such sequences are hidden.
+    LogFile logFile( []( int line ) {
+        return line % 2 == 0 ? numberedLine( line ) + QStringLiteral( " \x1b[1mbold\x1b[0m end" )
+                             : numberedLine( line );
+    } );
+    auto* first = logFile.keptSearches.showCurrentSearch();
+    const auto firstSearch = logFile.currentSearch().lock();
+
+    const RegularExpressionPattern boldEnd( "bold end" );
+    const auto waitComplete = [ &firstSearch ] {
+        return waitUiState(
+            [ &firstSearch ] {
+                return firstSearch->searchState().phase == SearchSession::Phase::Complete;
+            },
+            30000 );
+    };
+
+    GIVEN( "a Search that finds nothing while the ANSI color sequences show, kept" )
+    {
+        logFile.openLogFile->requestSearch( boldEnd );
+        REQUIRE( waitComplete() );
+        REQUIRE( firstSearch->getNbMatches() == 0_lcount );
+        logFile.keptSearches.startAnother();
+
+        WHEN( "they are hidden, and the kept Search is made current and repeated" )
+        {
+            auto decoding = logFile.policies.decoding;
+            decoding.hideAnsiColorSequences = true;
+            logFile.openLogFile->logData()->setDecodingPolicy( decoding );
+
+            logFile.keptSearches.makeCurrent( first );
+            logFile.openLogFile->requestSearch( boldEnd );
+            const auto requested = firstSearch->searchState();
+            REQUIRE( waitComplete() );
+
+            THEN( "it runs again and finds the Log Lines as they read now" )
+            {
+                REQUIRE_FALSE( requested.fromCache );
+                REQUIRE( firstSearch->getNbMatches() == 50_lcount );
+            }
+        }
+
+        WHEN( "nothing changed, and the kept Search is made current and repeated" )
+        {
+            logFile.keptSearches.makeCurrent( first );
+            logFile.openLogFile->requestSearch( boldEnd );
+
+            THEN( "it is served from the cache" )
+            {
+                REQUIRE( firstSearch->searchState().fromCache );
+                REQUIRE( firstSearch->getNbMatches() == 0_lcount );
             }
         }
     }

@@ -69,6 +69,17 @@ public:
         }
     }
 
+    // Every Log Line reads anew: the Log File was cut short and written again,
+    // or reads differently now (another Encoding, another Decoding Policy).
+    void replaceLines( const QStringList& lines )
+    {
+        {
+            std::lock_guard lock( mutex_ );
+            lines_.clear();
+        }
+        appendLines( lines );
+    }
+
     // The last Log Line was incomplete -- it was still being written when it
     // was last read -- and the rest of it has arrived now.
     void growLastLine( const QString& suffix )
