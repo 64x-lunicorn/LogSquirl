@@ -31,6 +31,14 @@
 # argument QtCore copied for that call (QMetaType::create in QtCore allocating
 # it on the emitting thread). Qt hands the copy over through its event queue,
 # and nothing else holds it.
+#
+# And so is its twin for a functor handed to QMetaObject::invokeMethod with a
+# queued connection (#517): Qt's header code, inlined into LogSquirl's binary,
+# allocates a QCallableObject and copies the functor into it on the calling
+# thread (QMetaObject::invokeMethodCallableHelper<F> below that write), and
+# QtCore calls or destroys that same QCallableObject<F> on the receiving thread
+# (QObject::event or ~QQueuedMetaCallEvent in QtCore below it). Both sides must
+# name the same functor type F; a race against any other code still fails.
 
 # Who made the access these frames (innermost first) describe:
 #   out_var            the library, or "" when it was not one of them
@@ -77,6 +85,36 @@ function(_logsquirl_tsan_access_owner out_var atomic libraries)
   set(${out_var}_IN_EVENT "${_in_event}" PARENT_SCOPE)
 endfunction()
 
+# Whether a write (write_frames, innermost first) was made while Qt built a
+# queued call of a functor, and the other access (other_frames) is QtCore
+# delivering or destroying that call of the same functor type (#517).
+function(_logsquirl_tsan_queued_functor out_var libraries write_frames other_frames)
+  set(${out_var} FALSE PARENT_SCOPE)
+  if(NOT "libQt6Core.so.6" IN_LIST libraries)
+    return()
+  endif()
+  set(_helper "QMetaObject::invokeMethodCallableHelper<")
+  string(FIND "${write_frames}" "${_helper}" _at)
+  if(_at EQUAL -1)
+    return()
+  endif()
+  string(LENGTH "${_helper}" _length)
+  math(EXPR _at "${_at} + ${_length}")
+  string(SUBSTRING "${write_frames}" ${_at} -1 _functor)
+  string(FIND "${_functor}" ">(QtPrivate::ContextTypeForFunctor<" _end)
+  if(_end LESS 1)
+    return()
+  endif()
+  string(SUBSTRING "${_functor}" 0 ${_end} _functor)
+  string(FIND "${other_frames}" "QtPrivate::QCallableObject<${_functor}, QtPrivate::List<" _call)
+  if(_call EQUAL -1)
+    return()
+  endif()
+  if(other_frames MATCHES "(QObject::event\\(QEvent\\*\\)|QQueuedMetaCallEvent::~QQueuedMetaCallEvent\\(\\)) [^;]*\\(libQt6Core\\.so\\.6\\+0x")
+    set(${out_var} TRUE PARENT_SCOPE)
+  endif()
+endfunction()
+
 # Whether a report (its lines between the two "=====" lines) is left out;
 # out_var then says why, and is empty otherwise.
 function(_logsquirl_tsan_report_left_out out_var libraries)
@@ -101,6 +139,7 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
     endif()
     if(_in_access)
       _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
+      set(_frames_${_accesses} "${_frames}")
       set(_in_access FALSE)
     endif()
     if(_accesses LESS 2 AND _line MATCHES "^  (Previous )?([Aa]tomic )?([Ww]rite|[Rr]ead) of size [0-9]+ at ")
@@ -112,10 +151,16 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
       else()
         set(_atomic FALSE)
       endif()
+      if(_line MATCHES "^  (Previous )?([Aa]tomic )?[Ww]rite ")
+        set(_write_${_accesses} TRUE)
+      else()
+        set(_write_${_accesses} FALSE)
+      endif()
     endif()
   endforeach()
   if(_in_access)
     _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
+    set(_frames_${_accesses} "${_frames}")
   endif()
 
   if(_accesses EQUAL 2)
@@ -123,6 +168,17 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
       set(_result "${_owner_1} and ${_owner_2}")
     elseif((_owner_1_ARGUMENT AND _owner_2_IN_EVENT) OR (_owner_2_ARGUMENT AND _owner_1_IN_EVENT))
       set(_result "a queued call's argument copied by libQt6Core.so.6 and its slot")
+    else()
+      set(_functor FALSE)
+      if(_write_1)
+        _logsquirl_tsan_queued_functor(_functor "${libraries}" "${_frames_1}" "${_frames_2}")
+      endif()
+      if(NOT _functor AND _write_2)
+        _logsquirl_tsan_queued_functor(_functor "${libraries}" "${_frames_2}" "${_frames_1}")
+      endif()
+      if(_functor)
+        set(_result "a queued call's functor copied by Qt and its call in libQt6Core.so.6")
+      endif()
     endif()
   endif()
   set(${out_var} "${_result}" PARENT_SCOPE)

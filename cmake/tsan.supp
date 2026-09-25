@@ -61,6 +61,12 @@ race_top:tbb::detail::r1::threading_control::get_threading_control
 # QtCore copied for that call on the emitting thread (QMetaType::create in
 # QtCore allocating it). Qt hands the copy over through its event queue, and
 # nothing else holds it. The same read against any other block still fails.
+# Its twin for a functor queued with QMetaObject::invokeMethod is left out too
+# (#517): the calling thread writing the QCallableObject Qt's inlined header
+# code builds for it (QMetaObject::invokeMethodCallableHelper<F>), against
+# QtCore calling or destroying that QCallableObject<F> on the receiving thread
+# (QObject::event or ~QQueuedMetaCallEvent in QtCore). Both must name the same
+# functor type F.
 #
 # The lines starting with "#@uninstrumented" are read by that filter, not by
 # TSan, for which they are comments. Each needs its reason next to it.
