@@ -190,6 +190,35 @@ Read the [contributing guide](CONTRIBUTING.md) to get started.
 If LogSquirl helps you, **give it a star** or share it with someone who spends too much
 time scrolling through logs.
 
+## Code signing policy
+
+<!-- TODO(#445): once the SignPath Foundation has accepted LogSquirl, and not before,
+replace the status line below with:
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+-->
+**Status:** signing of the Windows releases through the SignPath Foundation is being set up
+([#445](https://github.com/64x-lunicorn/LogSquirl/issues/445)). Until it is in place, the
+Windows releases are not signed.
+
+What is signed: `logsquirl.exe`, `logsquirl_portable.exe`, `logsquirl_grep.exe` and the
+Windows installer, built by this repository's GitHub Actions workflows and never on a
+developer's computer. The components LogSquirl ships but does not develop (Qt, OpenSSL,
+oneTBB, Hyperscan, the Microsoft Visual C++ runtime, the Sentry crash handler) are not signed
+with the LogSquirl certificate.
+
+Team roles:
+
+- **Committers and reviewers:** [64x-lunicorn](https://github.com/64x-lunicorn), the maintainer.
+  Changes by other contributors are reviewed by the maintainer before they are merged.
+- **Approvers:** [64x-lunicorn](https://github.com/64x-lunicorn). A release is signed only
+  after an approver has approved its signing request.
+
+Privacy: LogSquirl checks for updates on its own when it starts, at most once a week (at
+every start with beta updates on), with a request that carries nothing about you; the
+Windows installer and the Options turn it off. Crash reports are sent
+only if you agree, for each crash. Nothing else is sent unless you ask for it. See the
+[privacy policy](PRIVACY.md).
+
 ## About the project
 
 LogSquirl is a fork of [klogg](https://github.com/variar/klogg), which itself started as a fork of

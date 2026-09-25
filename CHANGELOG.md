@@ -2,6 +2,14 @@
 
 ## Changes
 
+- **The Windows installer shows the privacy policy and can turn the update
+  check off**: A page before the components shows the privacy policy, and the
+  new component *Check for updates automatically*, ticked by default, turns the
+  weekly update check off for the whole installation when it is unticked. The
+  Options then show *Check for new version* greyed out with the reason;
+  running the installer again with the component ticked turns it back on. Any
+  installation can do the same with an empty file named
+  `logsquirl_no_update_check` beside the executable (#445).
 - **The update notice sends package manager installs to their package manager**:
   When a newer release is found, an install from the Homebrew cask, the
   LogSquirl APT repository or the LogSquirl DNF repository is told to run
@@ -218,6 +226,11 @@
 
 ## Build and packaging
 
+- **The Windows programs and the installer are called LogSquirl**: The version
+  resource of `logsquirl.exe`, `logsquirl_portable.exe` and
+  `logsquirl_grep.exe` gives LogSquirl as the product name instead of
+  "logsquirl log viewer", and the installer now has a version resource too,
+  with the same product name, version, company and copyright (#445).
 - **`logsquirl_grep` ships with LogSquirl**: Every build built the command line
   tool and no package carried it. It is now installed beside the application in
   the deb, the rpm, the AppImage, the Windows installer and the portable zip,
@@ -329,6 +342,15 @@
 
 ## Documentation
 
+- **A privacy policy that says what LogSquirl sends**: `PRIVACY.md` and the
+  website's privacy policy list the update check (what it downloads, when, and
+  how to turn it off), the crash reports sent only with consent and what they
+  contain, and what uses the network only when asked: plugins, Open from URL
+  and the Team Folder. The crash dialog's *Privacy policy* link opens it
+  instead of `SECURITY.md` (#445).
+- **A code signing policy**: The README, the website and the release notes say
+  which Windows files are to be signed through the SignPath Foundation, who
+  approves a signature, and link the privacy policy (#445).
 - **A first bug report has a form to follow**: A report from outside arrives
   through an issue form that asks for the version, the operating system, how
   LogSquirl was installed and the size and kind of the Log File, the fields the

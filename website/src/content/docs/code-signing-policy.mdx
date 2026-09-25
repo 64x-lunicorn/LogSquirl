@@ -1,0 +1,24 @@
+---
+title: Code Signing Policy
+description: Which LogSquirl files are signed, who approves a signature, and what LogSquirl sends over the network.
+---
+
+{/* TODO(#445): once the SignPath Foundation has accepted LogSquirl, and not before, replace the status paragraph below with this line:
+Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org). */}
+
+**Status:** signing of the Windows releases through the SignPath Foundation is being set up ([#445](https://github.com/64x-lunicorn/LogSquirl/issues/445)). Until it is in place, the Windows releases are not signed.
+
+## What is signed
+
+The Windows programs the project builds from [its repository](https://github.com/64x-lunicorn/LogSquirl): `logsquirl.exe`, `logsquirl_portable.exe` and `logsquirl_grep.exe`, and the Windows installer. Only builds made by the project's GitHub Actions workflows from that repository are submitted for signing, never a build from a developer's computer.
+
+The components LogSquirl ships alongside but does not develop itself (Qt, OpenSSL, oneTBB, Hyperscan, the Microsoft Visual C++ runtime and the crash handler of the Sentry Native SDK) are not signed with the LogSquirl certificate.
+
+## Team roles
+
+- **Committers and reviewers:** [64x-lunicorn](https://github.com/64x-lunicorn) (Daniel Löffler), the maintainer. Changes by other contributors are reviewed by the maintainer before they are merged.
+- **Approvers:** [64x-lunicorn](https://github.com/64x-lunicorn). A release is signed only after an approver has approved its signing request.
+
+## Privacy
+
+LogSquirl checks for updates on its own: when it starts, at most once a week (at every start with beta updates on), it downloads a small file from GitHub that tells it the latest version. The request carries nothing about you or your installation, and you can turn the check off in the Windows installer or in the Options. Crash reports are sent only if you agree, for each crash. Nothing else is sent over the network unless you ask for it. The [privacy policy](/privacy-policy/) has the details.

@@ -34,6 +34,7 @@ export default defineConfig({
             { label: 'Getting Involved', slug: 'getting-involved' },
             { label: 'Legal Notice', slug: 'legal-notice' },
             { label: 'Privacy Policy', slug: 'privacy-policy' },
+            { label: 'Code Signing Policy', slug: 'code-signing-policy' },
           ],
         },
         {
