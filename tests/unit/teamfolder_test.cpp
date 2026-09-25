@@ -946,10 +946,9 @@ QString wrapperGit( const QString& directory, const QString& name, const QString
         = QDir( directory ).filePath( QFileInfo( name ).completeBaseName() + ".cmd" );
     QFile batch( batchPath );
     REQUIRE( batch.open( QIODevice::WriteOnly ) );
-    // MSYS_NO_PATHCONV: the sh hands Git its arguments unchanged instead of
-    // turning what looks like a Unix path into a Windows one.
+    // No MSYS_NO_PATHCONV here: Git reaches a file:// server through an sh of
+    // its own, which needs its path turned from /C:/... into C:/... .
     batch.write( QStringLiteral( "@echo off\r\n"
-                                 "set MSYS_NO_PATHCONV=1\r\n"
                                  "\"%1\" \"%2\" %*\r\n"
                                  "exit /b %ERRORLEVEL%\r\n" )
                      .arg( QDir::toNativeSeparators( shell ), QDir::toNativeSeparators( path ) )
@@ -1682,7 +1681,7 @@ TEST_CASE( "A stopped Git's index.lock is removed", "[teamfolder]" )
     REQUIRE( QDir().mkpath( clone + "/.git" ) );
     const auto wrapper
         = wrapperGit( root.path(), "git-lock.sh",
-                      QStringLiteral( "touch '%1/.git/index.lock'\nexec sleep 10" ).arg( clone ) );
+                      QStringLiteral( "touch '%1/.git/index.lock'\nexec sleep 5" ).arg( clone ) );
     auto stop = std::make_shared<std::atomic_bool>( false );
     auto stopper = stopOnceMade( clone + "/.git/index.lock", stop );
     const auto result = Git( wrapper, stop ).run( { "status" }, clone );
@@ -1712,7 +1711,7 @@ TEST_CASE( "An index.lock older than the stopped run is not the run's and stays"
     }
     const auto started = root.filePath( "started" );
     const auto wrapper = wrapperGit( root.path(), "git-sleep.sh",
-                                     QStringLiteral( "touch '%1'\nexec sleep 10" ).arg( started ) );
+                                     QStringLiteral( "touch '%1'\nexec sleep 5" ).arg( started ) );
     auto stop = std::make_shared<std::atomic_bool>( false );
     auto stopper = stopOnceMade( started, stop );
     const auto result = Git( wrapper, stop ).run( { "status" }, clone );
