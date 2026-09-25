@@ -56,6 +56,12 @@ race_top:tbb::detail::r1::threading_control::get_threading_control
 # the last reference frees the payload inside QtCore, after an atomic decrement
 # TSan does not see there.
 #
+# And one pair with an access in LogSquirl's code is left out: a slot Qt calls
+# for a queued signal (QObject::event in QtCore below it) reading an argument
+# QtCore copied for that call on the emitting thread (QMetaType::create in
+# QtCore allocating it). Qt hands the copy over through its event queue, and
+# nothing else holds it. The same read against any other block still fails.
+#
 # The lines starting with "#@uninstrumented" are read by that filter, not by
 # TSan, for which they are comments. Each needs its reason next to it.
 #
