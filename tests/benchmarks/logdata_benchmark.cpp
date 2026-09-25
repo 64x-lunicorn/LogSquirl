@@ -31,8 +31,8 @@
 #include "generated_log_file.h"
 #include "test_policies.h"
 
-#include "atomicflag.h"
 #include "displayedlines.h"
+#include "fake_run_control.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
@@ -469,10 +469,11 @@ TEST_CASE( "Following a growing Log File", "[logdata-benchmark][tailing]" )
 
             // Indexed once, not measured.
             auto data = std::make_shared<IndexingData>();
-            AtomicFlag interruptRequest;
+            const FakeRunControl indexRun;
             {
-                FullIndexOperation indexing{ file.fileName, data, interruptRequest, policy };
-                REQUIRE( std::get<bool>( indexing.run() ) );
+                FullIndexOperation indexing{ file.fileName, data, indexRun, policy };
+                REQUIRE( std::get<LoadingStatus>( indexing.run().status )
+                         == LoadingStatus::Successful );
             }
 
             const auto name = [ & ]( const char* how ) {
@@ -486,9 +487,9 @@ TEST_CASE( "Following a growing Log File", "[logdata-benchmark][tailing]" )
             BENCHMARK( name( "append, check and index the appended Log Lines" ) )
             {
                 appendLogLines( shape, file, AppendedLines );
-                CheckFileChangesOperation check{ file.fileName, data, interruptRequest, policy };
-                const auto status = std::get<MonitoredFileStatus>( check.run() );
-                PartialIndexOperation indexing{ file.fileName, data, interruptRequest, policy };
+                CheckFileChangesOperation check{ file.fileName, data, indexRun, policy };
+                const auto status = std::get<MonitoredFileStatus>( check.run().status );
+                PartialIndexOperation indexing{ file.fileName, data, indexRun, policy };
                 indexing.run();
                 return status == MonitoredFileStatus::DataAdded;
             };
@@ -497,8 +498,8 @@ TEST_CASE( "Following a growing Log File", "[logdata-benchmark][tailing]" )
             // appending in quick succession causes.
             BENCHMARK( name( "check with nothing appended" ) )
             {
-                CheckFileChangesOperation check{ file.fileName, data, interruptRequest, policy };
-                return std::get<MonitoredFileStatus>( check.run() )
+                CheckFileChangesOperation check{ file.fileName, data, indexRun, policy };
+                return std::get<MonitoredFileStatus>( check.run().status )
                        == MonitoredFileStatus::Unchanged;
             };
 

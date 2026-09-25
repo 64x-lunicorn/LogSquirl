@@ -35,10 +35,10 @@
 
 #include <tbb/global_control.h>
 
+#include "fake_run_control.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
-#include "atomicflag.h"
 #include "filedigest.h"
 #include "logdata.h"
 #include "logdataworker.h"
@@ -180,15 +180,14 @@ IndexingRun runFullIndex( const QString& fileName, const IndexingPolicy& policy,
                           FullIndexRequest request = FullIndexRequest::Automatic )
 {
     auto data = std::make_shared<IndexingData>();
-    AtomicFlag interruptRequest;
-    FullIndexOperation operation{ fileName, data, interruptRequest, policy, request };
+    const FakeRunControl indexRun;
+    FullIndexOperation operation{ fileName, data, indexRun, policy, request };
 
     IndexingRun run;
-    // Emitted from the indexing graph's serial parser or from the running
+    REQUIRE( std::get<LoadingStatus>( operation.run().status ) == LoadingStatus::Successful );
+    // Reported from the indexing graph's serial parser or from the running
     // thread, never from two at once.
-    QObject::connect( &operation, &IndexOperation::indexingProgressed,
-                      [ &run ]( int progress ) { run.progress.push_back( progress ); } );
-    REQUIRE( std::get<bool>( operation.run() ) );
+    run.progress = indexRun.progress();
 
     IndexingData::ConstAccessor accessor{ data.get() };
     run.lines = accessor.getNbLines();
@@ -481,22 +480,21 @@ SCENARIO( "An interrupt while a cached Index is checked stops indexing", "[index
         WHEN( "it is reopened by a run interrupted before it starts" )
         {
             auto data = std::make_shared<IndexingData>();
-            AtomicFlag interruptRequest{ true };
-            FullIndexOperation operation{ logFile, data, interruptRequest, policy };
+            // Another run is the active one: this one is superseded.
+            const std::atomic<uint64_t> activeRun{ 2 };
+            const FakeRunControl indexRun{ RunId( 1 ), activeRun };
+            FullIndexOperation operation{ logFile, data, indexRun, policy };
 
-            std::vector<int> progress;
-            QObject::connect( &operation, &IndexOperation::indexingProgressed,
-                              [ &progress ]( int percent ) { progress.push_back( percent ); } );
             const auto result = operation.run();
 
             THEN( "it reports not having finished" )
             {
-                REQUIRE_FALSE( std::get<bool>( result ) );
+                REQUIRE( std::get<LoadingStatus>( result.status ) == LoadingStatus::Interrupted );
             }
 
             THEN( "it stops there: no indexing of the whole Log File is started" )
             {
-                REQUIRE( progress.empty() );
+                REQUIRE( indexRun.progress().empty() );
                 REQUIRE( operation.bytesIndexed() == 0 );
             }
         }
@@ -545,21 +543,21 @@ public:
         : fileName_( fileName )
         , policy_( policy )
     {
-        FullIndexOperation operation{ fileName_, data_, interruptRequest_, policy_ };
-        REQUIRE( std::get<bool>( operation.run() ) );
+        FullIndexOperation operation{ fileName_, data_, run_, policy_ };
+        REQUIRE( std::get<LoadingStatus>( operation.run().status ) == LoadingStatus::Successful );
     }
 
     MonitoredFileStatus checkForChanges()
     {
-        CheckFileChangesOperation operation{ fileName_, data_, interruptRequest_, policy_ };
-        return std::get<MonitoredFileStatus>( operation.run() );
+        CheckFileChangesOperation operation{ fileName_, data_, run_, policy_ };
+        return std::get<MonitoredFileStatus>( operation.run().status );
     }
 
     // Returns how many bytes the partial index read.
     qint64 indexAppendedLines()
     {
-        PartialIndexOperation operation{ fileName_, data_, interruptRequest_, policy_ };
-        REQUIRE( std::get<bool>( operation.run() ) );
+        PartialIndexOperation operation{ fileName_, data_, run_, policy_ };
+        REQUIRE( std::get<LoadingStatus>( operation.run().status ) == LoadingStatus::Successful );
         return operation.bytesIndexed();
     }
 
@@ -577,7 +575,7 @@ private:
     QString fileName_;
     IndexingPolicy policy_;
     std::shared_ptr<IndexingData> data_ = std::make_shared<IndexingData>();
-    AtomicFlag interruptRequest_;
+    FakeRunControl run_;
 };
 
 constexpr qint64 IndexingBlock = 5 * 1024 * 1024;

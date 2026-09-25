@@ -95,7 +95,6 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
                   const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy )
     : AbstractLogData()
     , indexing_data_( std::make_shared<IndexingData>() )
-    , operationQueue_( [ this ] { attached_file_->attachReader(); } )
     , indexingPolicy_( indexingPolicy )
     , searchPolicy_( searchPolicy )
     , fileAccessPolicy_( fileAccessPolicy )
@@ -104,14 +103,17 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
 {
     registerLogDataMetaTypes();
 
-    auto worker = std::make_unique<LogDataWorker>( indexing_data_, indexingPolicy_ );
+    // The worker's Background Run keeps the Log File open for as long as an
+    // index run reads it.
+    auto worker = std::make_unique<LogDataWorker>(
+        indexing_data_, indexingPolicy_,
+        LogDataWorker::Reader{ [ this ] { doAttachReader(); }, [ this ] { doDetachReader(); } } );
 
-    // Forward the update signal
+    // Reported on this object's thread, by the worker's Background Run.
     connect( worker.get(), &LogDataWorker::indexingProgressed, this, &LogData::loadingProgressed );
-    connect( worker.get(), &LogDataWorker::indexingFinished, this, &LogData::indexingFinished,
-             Qt::QueuedConnection );
+    connect( worker.get(), &LogDataWorker::indexingFinished, this, &LogData::indexingFinished );
     connect( worker.get(), &LogDataWorker::checkFileChangesFinished, this,
-             &LogData::checkFileChangesFinished, Qt::QueuedConnection );
+             &LogData::checkFileChangesFinished );
 
     operationQueue_.setWorker( std::move( worker ) );
 
@@ -280,8 +282,6 @@ void LogData::fileChangedOnDisk( const QString& filename )
 
 void LogData::indexingFinished( LoadingStatus status, const QString& failure )
 {
-    attached_file_->detachReader();
-
     LOG_INFO << "indexingFinished for: " << indexingFileName_
              << ( status == LoadingStatus::Successful ) << ", found "
              << IndexingData::ConstAccessor{ indexing_data_.get() }.getNbLines() << " lines.";
@@ -313,8 +313,6 @@ void LogData::indexingFinished( LoadingStatus status, const QString& failure )
 
 void LogData::checkFileChangesFinished( MonitoredFileStatus status, const QString& failure )
 {
-    attached_file_->detachReader();
-
     LOG_INFO << "File " << indexingFileName_ << " status " << static_cast<uint8_t>( status );
 
     // What is queued meets the index job already waiting, if any, under the

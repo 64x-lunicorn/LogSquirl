@@ -22,18 +22,26 @@
 
 #include <atomic>
 #include <cstdint>
+#include <mutex>
+#include <vector>
 
 #include "backgroundrun.h"
 
 // The run a job is part of, for a test that runs the job itself, on its own
 // thread, without a Background Run: which run is the active one is whatever
 // the test stores in activeRun, so a test can supersede the run at a moment of
-// its own choosing. Progress is only counted.
+// its own choosing. Built without one, it is a run nothing supersedes. The
+// progress reported is kept, in the order reported.
 class FakeRunControl final : public RunControl {
 public:
     FakeRunControl( RunId id, const std::atomic<uint64_t>& activeRun )
         : id_( id )
         , activeRun_( activeRun )
+    {
+    }
+
+    FakeRunControl()
+        : FakeRunControl( RunId( 1 ), ownActiveRun_ )
     {
     }
 
@@ -47,20 +55,31 @@ public:
         return activeRun_.load() != id_.get();
     }
 
-    void reportProgress( int ) const override
+    void reportProgress( int percent ) const override
     {
-        ++progressReports_;
+        std::lock_guard lock( progressMutex_ );
+        progress_.push_back( percent );
     }
 
     int progressReports() const
     {
-        return progressReports_.load();
+        std::lock_guard lock( progressMutex_ );
+        return static_cast<int>( progress_.size() );
+    }
+
+    std::vector<int> progress() const
+    {
+        std::lock_guard lock( progressMutex_ );
+        return progress_;
     }
 
 private:
+    // Initialized before the delegating constructor binds activeRun_ to it.
+    std::atomic<uint64_t> ownActiveRun_{ 1 };
     RunId id_;
     const std::atomic<uint64_t>& activeRun_;
-    mutable std::atomic<int> progressReports_{ 0 };
+    mutable std::mutex progressMutex_;
+    mutable std::vector<int> progress_;
 };
 
 #endif
