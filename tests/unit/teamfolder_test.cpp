@@ -29,6 +29,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QSignalSpy>
@@ -901,7 +902,82 @@ TEST_CASE( "Two members changing different groups both publish", "[teamfolder][p
     }
 }
 
-#ifndef Q_OS_WIN
+namespace {
+
+#ifdef Q_OS_WIN
+// The sh of Git for Windows: its bin/sh.exe, which puts the tools a script
+// uses (touch, cp, sleep) on the PATH, found above the git on the PATH.
+QString gitForWindowsShell()
+{
+    QDir directory = QFileInfo( QStandardPaths::findExecutable( QStringLiteral( "git" ) ) ).dir();
+    for ( int up = 0; up < 3 && directory.cdUp(); ++up ) {
+        const auto shell = directory.filePath( QStringLiteral( "bin/sh.exe" ) );
+        if ( QFileInfo::exists( shell ) ) {
+            return shell;
+        }
+    }
+    return QStandardPaths::findExecutable( QStringLiteral( "sh" ) );
+}
+#endif
+
+// A stand-in for the tool that runs a shell snippet first, and then the real
+// one unless the snippet ended the run.
+//
+// Windows starts no shell script as a program. There the stand-in is a .cmd
+// file that runs the script with the sh of Git for Windows, hands it its
+// arguments and passes on its exit code. cmd.exe reads that command line
+// first, so no argument may hold % ^ & | < or >; none of the Team Folder's
+// arguments in these tests does. Killing the stand-in ends only the cmd.exe
+// there: the script and what it started run on until they end by themselves.
+QString wrapperGit( const QString& directory, const QString& name, const QString& snippet )
+{
+    const auto gitPath = QStandardPaths::findExecutable( QStringLiteral( "git" ) );
+    const auto path = QDir( directory ).filePath( name );
+    QFile script( path );
+    REQUIRE( script.open( QIODevice::WriteOnly ) );
+    script.write(
+        QStringLiteral( "#!/bin/sh\n%1\nexec '%2' \"$@\"\n" ).arg( snippet, gitPath ).toUtf8() );
+    script.close();
+    QFile::setPermissions( path, script.permissions() | QFileDevice::ExeUser );
+#ifdef Q_OS_WIN
+    const auto shell = gitForWindowsShell();
+    REQUIRE_FALSE( shell.isEmpty() );
+    const auto batchPath
+        = QDir( directory ).filePath( QFileInfo( name ).completeBaseName() + ".cmd" );
+    QFile batch( batchPath );
+    REQUIRE( batch.open( QIODevice::WriteOnly ) );
+    // No MSYS_NO_PATHCONV here: Git reaches a file:// server through an sh of
+    // its own, which needs its path turned from /C:/... into C:/... .
+    batch.write( QStringLiteral( "@echo off\r\n"
+                                 "\"%1\" \"%2\" %*\r\n"
+                                 "exit /b %ERRORLEVEL%\r\n" )
+                     .arg( QDir::toNativeSeparators( shell ), QDir::toNativeSeparators( path ) )
+                     .toLocal8Bit() );
+    return batchPath;
+#else
+    return path;
+#endif
+}
+
+QString gitOutput( const QString& clone, const QStringList& arguments )
+{
+    return Git( QStringLiteral( "git" ) ).run( arguments, clone ).output;
+}
+
+// Stops a run once its stand-in has made this file, however slowly it started.
+std::thread stopOnceMade( const QString& file, const Git::StopFlag& stop )
+{
+    return std::thread( [ file, stop ] {
+        QElapsedTimer waited;
+        waited.start();
+        while ( !QFileInfo::exists( file ) && waited.elapsed() < SyncTimeoutMs ) {
+            std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
+        }
+        stop->store( true );
+    } );
+}
+
+} // namespace
 
 TEST_CASE( "A push rejected because the branch moved is retried once after a sync",
            "[teamfolder][publish]" )
@@ -917,25 +993,18 @@ TEST_CASE( "A push rejected because the branch moved is retried once after a syn
 
     // A Git that lets Carol push in the moment before Alice's first push.
     const auto gitPath = QStandardPaths::findExecutable( QStringLiteral( "git" ) );
-    const auto wrapper = QDir( team.root() ).filePath( "git-wrapper.sh" );
-    {
-        QFile script( wrapper );
-        REQUIRE( script.open( QIODevice::WriteOnly ) );
-        const auto marker = QDir( team.root() ).filePath( "raced" );
-        const auto carolClone = team.cloneOf( "carol" );
-        script.write( QStringLiteral( "#!/bin/sh\n"
-                                      "if [ \"$1\" = push ] && [ ! -e '%1' ]; then\n"
+    const auto marker = QDir( team.root() ).filePath( "raced" );
+    const auto carolClone = team.cloneOf( "carol" );
+    const auto wrapper
+        = wrapperGit( team.root(), "git-wrapper.sh",
+                      QStringLiteral( "if [ \"$1\" = push ] && [ ! -e '%1' ]; then\n"
                                       "  touch '%1'\n"
                                       "  cp '%2/Base_filter.conf' '%2/Raced_filter.conf'\n"
                                       "  '%3' -C '%2' add Raced_filter.conf\n"
                                       "  '%3' -C '%2' commit -q -m 'Raced'\n"
                                       "  '%3' -C '%2' push -q origin HEAD\n"
-                                      "fi\n"
-                                      "exec '%3' \"$@\"\n" )
-                          .arg( marker, carolClone, gitPath )
-                          .toUtf8() );
-        script.setPermissions( script.permissions() | QFileDevice::ExeUser );
-    }
+                                      "fi" )
+                          .arg( marker, carolClone, gitPath ) );
 
     TeamFolder alice( team.cloneOf( "alice" ), wrapper );
     alice.setUp( policyFor( team.url() ) );
@@ -1018,8 +1087,6 @@ TEST_CASE( "Offline, a change stays pending and is pushed once the server is bac
     syncNow( *bob );
     CHECK( namesOf( bob->filterGroups() ) == QStringList{ "Base", "Network" } );
 }
-
-#endif
 
 TEST_CASE( "A dialog's edited Team groups ask to publish what was added, renamed or changed",
            "[teamfolder][publish]" )
@@ -1297,32 +1364,6 @@ TEST_CASE( "A deleted Team group disappears for everyone at their next sync",
                                                network.id(), network.name() ) } );
     CHECK( again.results[ 0 ].status == PublishStatus::Published );
 }
-
-#ifndef Q_OS_WIN
-
-namespace {
-
-// A stand-in for the tool that runs a shell snippet first, and then the real
-// one unless the snippet ended the run.
-QString wrapperGit( const QString& directory, const QString& name, const QString& snippet )
-{
-    const auto gitPath = QStandardPaths::findExecutable( QStringLiteral( "git" ) );
-    const auto path = QDir( directory ).filePath( name );
-    QFile script( path );
-    REQUIRE( script.open( QIODevice::WriteOnly ) );
-    script.write(
-        QStringLiteral( "#!/bin/sh\n%1\nexec '%2' \"$@\"\n" ).arg( snippet, gitPath ).toUtf8() );
-    script.close();
-    QFile::setPermissions( path, script.permissions() | QFileDevice::ExeUser );
-    return path;
-}
-
-QString gitOutput( const QString& clone, const QStringList& arguments )
-{
-    return Git( QStringLiteral( "git" ) ).run( arguments, clone ).output;
-}
-
-} // namespace
 
 TEST_CASE( "A network failure whose URL holds 403 is no refusal and loses no change",
            "[teamfolder][publish]" )
@@ -1640,12 +1681,9 @@ TEST_CASE( "A stopped Git's index.lock is removed", "[teamfolder]" )
     REQUIRE( QDir().mkpath( clone + "/.git" ) );
     const auto wrapper
         = wrapperGit( root.path(), "git-lock.sh",
-                      QStringLiteral( "touch '%1/.git/index.lock'\nexec sleep 30" ).arg( clone ) );
+                      QStringLiteral( "touch '%1/.git/index.lock'\nexec sleep 5" ).arg( clone ) );
     auto stop = std::make_shared<std::atomic_bool>( false );
-    std::thread stopper( [ stop ] {
-        std::this_thread::sleep_for( std::chrono::milliseconds( 400 ) );
-        stop->store( true );
-    } );
+    auto stopper = stopOnceMade( clone + "/.git/index.lock", stop );
     const auto result = Git( wrapper, stop ).run( { "status" }, clone );
     stopper.join();
 
@@ -1671,17 +1709,14 @@ TEST_CASE( "An index.lock older than the stopped run is not the run's and stays"
         REQUIRE( lock.setFileTime( QDateTime::currentDateTime().addSecs( -3600 ),
                                    QFileDevice::FileModificationTime ) );
     }
-    const auto wrapper = wrapperGit( root.path(), "git-sleep.sh", "exec sleep 30" );
+    const auto started = root.filePath( "started" );
+    const auto wrapper = wrapperGit( root.path(), "git-sleep.sh",
+                                     QStringLiteral( "touch '%1'\nexec sleep 5" ).arg( started ) );
     auto stop = std::make_shared<std::atomic_bool>( false );
-    std::thread stopper( [ stop ] {
-        std::this_thread::sleep_for( std::chrono::milliseconds( 400 ) );
-        stop->store( true );
-    } );
+    auto stopper = stopOnceMade( started, stop );
     const auto result = Git( wrapper, stop ).run( { "status" }, clone );
     stopper.join();
 
     CHECK_FALSE( result.succeeded );
     CHECK( QFileInfo::exists( lockPath ) );
 }
-
-#endif
