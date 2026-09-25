@@ -19,7 +19,7 @@
 #
 # A `race_top:` entry matches only the frame that made a racing access, not its
 # callers. One is allowed for a function that calls no code of LogSquirl's
-# (in oneTBB or Qt), with its reason next to it and how it goes away.
+# (in oneTBB, mimalloc or Qt), with its reason next to it and how it goes away.
 #
 # oneTBB: threading_control::set_active_num_workers() calls
 # get_threading_control() without the lock every other caller holds, so it
@@ -28,6 +28,14 @@
 # (variar/oneTBB c9be1ac); upstream oneTBB takes the lock there. It is reached
 # when a tbb::global_control is destroyed (the TBB-worker test, main() at exit).
 race_top:tbb::detail::r1::threading_control::get_threading_control
+#
+# mimalloc (built with TSan in a TSan build, #510): mi_process_done() sets the
+# plain bool os_preloading at process exit, under its own once-lock, while a
+# TBB worker that is still running frees memory and reads it in
+# _mi_preloading() without that lock. A shutdown flag of mimalloc's own
+# (v2.5.2), read in a function that calls nothing; it goes when mimalloc reads
+# it atomically.
+race_top:_mi_preloading
 #
 # A `deadlock:` entry matches a lock-order inversion by any frame of its mutex
 # stacks. One is allowed for a cycle Qt builds between two of its own mutexes,

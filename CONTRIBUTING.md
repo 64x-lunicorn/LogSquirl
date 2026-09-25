@@ -128,7 +128,7 @@ pull request, and CI builds the test suites with AddressSanitizer and UndefinedB
 and with ThreadSanitizer. Findings of these tools are fixed rather than suppressed. The
 exceptions are TSan's view of a library CI cannot build with it (glibc; Qt is built with TSan for
 that job): a report whose two racing accesses are both inside such a library is left out; and a
-finding inside oneTBB or Qt themselves that calls no code of LogSquirl's, suppressed by its own
+finding inside oneTBB, mimalloc or Qt themselves that calls no code of LogSquirl's, suppressed by its own
 frame (`race_top:`, `deadlock:`). Every entry says why and how it goes away (`cmake/tsan.supp`,
 ADR 0007).
 
