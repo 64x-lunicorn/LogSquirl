@@ -473,16 +473,14 @@ jobs:
   # Coverage — line coverage of each module (the directories under src/),
   # measured by the test suites in the Noble container (#444). A report, not a
   # gate: no threshold, not in "CI passed", and a failure of the job itself
-  # (continue-on-error) leaves the check green. It runs on master and on
-  # request only, because the instrumented -O0 build and a whole test run cost
-  # as much as the Sanitizers job.
+  # (continue-on-error) leaves the check green. It runs on pull requests too,
+  # so the numbers of a change are in its own run summary and artifact; it
+  # costs as much as the Sanitizers job, beside which it runs.
   # -----------------------------------------------------------------------
   Coverage:
     name: Coverage / line
     needs: [Changes]
-    if: >-
-      needs.Changes.outputs.build == 'true'
-      && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    if: "needs.Changes.outputs.build == 'true'"
     continue-on-error: true
     strategy:
       matrix:
