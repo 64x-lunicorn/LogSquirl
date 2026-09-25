@@ -75,7 +75,11 @@ void IssueReporter::askUserAndReportIssue( IssueTemplate issueTemplate, const QS
 
 void IssueReporter::reportIssue( IssueTemplate issueTemplate, const QString& information )
 {
+    QDesktopServices::openUrl( issueUrl( issueTemplate, information ) );
+}
 
+QUrl IssueReporter::issueUrl( IssueTemplate issueTemplate, const QString& information )
+{
     QString body = DetailsHeader;
     switch ( issueTemplate ) {
     case IssueTemplate::Bug:
@@ -108,5 +112,5 @@ void IssueReporter::reportIssue( IssueTemplate issueTemplate, const QString& inf
 
     QByteArray urlBytes = "https://github.com/64x-lunicorn/LogSquirl/issues/new?body=";
     urlBytes += QUrl::toPercentEncoding( body );
-    QDesktopServices::openUrl( QUrl::fromEncoded( urlBytes ) );
+    return QUrl::fromEncoded( urlBytes );
 }

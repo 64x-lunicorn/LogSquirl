@@ -14,6 +14,7 @@ add_executable(logsquirl_tests
     chipmunkimporter_test.cpp
     compressedlinestorage_test.cpp
     configuration_test.cpp
+    crashreports_test.cpp
     decorationsetup_test.cpp
     displayedlines_test.cpp
     encodingdetector_test.cpp

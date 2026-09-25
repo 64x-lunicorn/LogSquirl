@@ -36,10 +36,13 @@
 #include <QTimer>
 #include <QUrlQuery>
 #include <QVBoxLayout>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <qthreadpool.h>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #ifdef LOGSQUIRL_USE_MIMALLOC
 #include <mimalloc.h>
@@ -49,6 +52,7 @@
 #include "sentry.h"
 
 #include "cpu_info.h"
+#include "crashreports.h"
 #include "issuereporter.h"
 #include "log.h"
 #include "logsquirl_version.h"
@@ -69,7 +73,7 @@ QString sentryDatabasePath()
     auto basePath = QStandardPaths::writableLocation( QStandardPaths::AppDataLocation );
 #endif
 
-    return basePath.append( "/logsquirl_dump" );
+    return crashDumpDirectory( basePath );
 }
 
 void logSentry( sentry_level_t level, const char* message, va_list args, void* userdata )
@@ -172,8 +176,6 @@ bool checkCrashpadReports( const QString& databasePath )
 {
     using namespace crashpad;
 
-    bool needWaitForUpload = false;
-
 #ifdef Q_OS_WIN
     auto database = CrashReportDatabase::InitializeWithoutCreating(
         base::FilePath{ databasePath.toStdWString() } );
@@ -182,48 +184,48 @@ bool checkCrashpadReports( const QString& databasePath )
         base::FilePath{ databasePath.toStdString() } );
 #endif
 
-    std::vector<CrashReportDatabase::Report> pendingReports;
-    database->GetCompletedReports( &pendingReports );
-    LOG_INFO << "Pending reports " << pendingReports.size();
+    std::vector<CrashReportDatabase::Report> completedReports;
+    database->GetCompletedReports( &completedReports );
+    LOG_INFO << "Pending reports " << completedReports.size();
 
+    std::vector<PendingCrashReport> pendingReports;
+    pendingReports.reserve( completedReports.size() );
+    for ( const auto& completed : completedReports ) {
 #ifdef Q_OS_WIN
-    const auto stackwalker
-        = QCoreApplication::applicationDirPath() + "/logsquirl_minidump_dump.exe";
+        auto dumpFile = QString::fromStdWString( completed.file_path.value() );
 #else
-    const auto stackwalker = QCoreApplication::applicationDirPath() + "/logsquirl_minidump_dump";
+        auto dumpFile = QString::fromStdString( completed.file_path.value() );
 #endif
-
-    for ( const auto& report : pendingReports ) {
-        if ( report.uploaded ) {
-            continue;
-        }
-
-#ifdef Q_OS_WIN
-        const auto reportFile = QString::fromStdWString( report.file_path.value() );
-#else
-        const auto reportFile = QString::fromStdString( report.file_path.value() );
-#endif
-
-        QProcess stackProcess;
-        stackProcess.start( stackwalker, QStringList() << reportFile );
-        stackProcess.waitForFinished();
-
-        QString formattedReport = reportFile;
-        formattedReport.append( QChar::LineFeed )
-            .append( QString::fromUtf8( stackProcess.readAllStandardOutput() ) );
-
-        if ( QDialog::Accepted == askUserConfirmation( formattedReport, reportFile ) ) {
-            database->RequestUpload( report.uuid );
-            needWaitForUpload = true;
-        }
-        else {
-            database->DeleteReport( report.uuid );
-        }
-
-        IssueReporter::askUserAndReportIssue( IssueTemplate::Crash,
-                                              report.uuid.ToString().c_str() );
+        pendingReports.push_back( { QString::fromStdString( completed.uuid.ToString() ),
+                                    std::move( dumpFile ), completed.uploaded } );
     }
-    return needWaitForUpload;
+
+    const auto stackwalker = crashpadToolPath( QCoreApplication::applicationDirPath(),
+                                               QStringLiteral( "logsquirl_minidump_dump" ) );
+
+    CrashReportActions actions;
+    actions.symbolize = [ &stackwalker ]( const QString& dumpFile ) {
+        QProcess stackProcess;
+        stackProcess.start( stackwalker, QStringList() << dumpFile );
+        stackProcess.waitForFinished();
+        return QString::fromUtf8( stackProcess.readAllStandardOutput() );
+    };
+    actions.askUser = []( const QString& formattedReport, const QString& dumpFile ) {
+        return QDialog::Accepted == askUserConfirmation( formattedReport, dumpFile )
+                   ? CrashReportChoice::Send
+                   : CrashReportChoice::Discard;
+    };
+    actions.send = [ &database, &completedReports ]( std::size_t index ) {
+        database->RequestUpload( completedReports[ index ].uuid );
+    };
+    actions.discard = [ &database, &completedReports ]( std::size_t index ) {
+        database->DeleteReport( completedReports[ index ].uuid );
+    };
+    actions.offerIssue = []( const QString& crashId ) {
+        IssueReporter::askUserAndReportIssue( IssueTemplate::Crash, crashId );
+    };
+
+    return handlePendingCrashReports( pendingReports, actions );
 }
 } // namespace
 
@@ -243,13 +245,12 @@ CrashHandler::CrashHandler()
     sentry_options_set_debug( sentryOptions, 1 );
 #endif
 
+    const auto handlerPath = crashpadToolPath( QCoreApplication::applicationDirPath(),
+                                               QStringLiteral( "logsquirl_crashpad_handler" ) );
 #ifdef Q_OS_WIN
-    const auto handlerPath
-        = QCoreApplication::applicationDirPath() + "/logsquirl_crashpad_handler.exe";
     sentry_options_set_database_pathw( sentryOptions, dumpPath.toStdWString().c_str() );
     sentry_options_set_handler_pathw( sentryOptions, handlerPath.toStdWString().c_str() );
 #else
-    const auto handlerPath = QCoreApplication::applicationDirPath() + "/logsquirl_crashpad_handler";
     sentry_options_set_database_path( sentryOptions, dumpPath.toStdString().c_str() );
     sentry_options_set_handler_path( sentryOptions, handlerPath.toStdString().c_str() );
 #endif

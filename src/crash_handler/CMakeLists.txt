@@ -1,7 +1,9 @@
 add_library(
   logsquirl_crash_handler STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/crashhandler.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/crashreports.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/issuereporter.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/crashreports.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/issuereporter.cpp
 )
 
