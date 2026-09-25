@@ -317,6 +317,11 @@
   trying to find out in their logs rather than what the app should do, and
   questions are pointed at the Q&A discussions, vulnerabilities at a private
   security advisory (#447).
+- **The README says how LogSquirl differs from klogg**: A short section under
+  "About the project" names klogg's last stable release (22.06, June 2022),
+  lists what LogSquirl adds in its stable releases and in the next release, and
+  what it gives up: Qt 5, Intel Macs and macOS before 15, and a Chocolatey
+  package (#503).
 
 # v26.10.0-beta2 (2026-09-23)
 
