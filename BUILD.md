@@ -351,7 +351,8 @@ cmake -DTEST_BINARY=$(pwd)/build_root/output/logsquirl_tests \
 same configuration as above in the Noble container and runs every test case under `ctest`, for every pull
 request and every push to master. It blocks like `Sanitizers / asan-ubsan`, and no case is excluded from
 it. It needs no `TSAN_OPTIONS` of its own: the runner sets them, and a change to `cmake/tsan.supp` reaches
-it from there. Runtime: about 16 minutes, an 8-minute build and 7 to 8 minutes of tests (the tests took 19 minutes before oneTBB was built with TSan).
+it from there. Runtime: about 16 minutes, an 8-minute build and 7 to 8 minutes of tests (the tests took
+19 minutes before oneTBB was built with TSan).
 
 That a race in LogSquirl's code turns the job red is checked on every TSan run, not assumed: in a TSan
 build `tests/helpers/tsan_canary.cpp` increments a plain `int` from two `std::thread`s and exits 0, and

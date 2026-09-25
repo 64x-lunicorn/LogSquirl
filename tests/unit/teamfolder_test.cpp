@@ -965,14 +965,17 @@ QString gitOutput( const QString& clone, const QStringList& arguments )
 }
 
 // Stops a run once its stand-in has made this file, however slowly it started.
-std::thread stopOnceMade( const QString& file, const Git::StopFlag& stop )
+// It stops the run after SyncTimeoutMs anyway, and then leaves made false, so a
+// stand-in that never ran cannot pass a case for the wrong reason.
+std::thread stopOnceMade( const QString& file, const Git::StopFlag& stop, std::atomic_bool& made )
 {
-    return std::thread( [ file, stop ] {
+    return std::thread( [ file, stop, &made ] {
         QElapsedTimer waited;
         waited.start();
         while ( !QFileInfo::exists( file ) && waited.elapsed() < SyncTimeoutMs ) {
             std::this_thread::sleep_for( std::chrono::milliseconds( 20 ) );
         }
+        made.store( QFileInfo::exists( file ) );
         stop->store( true );
     } );
 }
@@ -1681,11 +1684,13 @@ TEST_CASE( "A stopped Git's index.lock is removed", "[teamfolder]" )
     REQUIRE( QDir().mkpath( clone + "/.git" ) );
     const auto wrapper
         = wrapperGit( root.path(), "git-lock.sh",
-                      QStringLiteral( "touch '%1/.git/index.lock'\nexec sleep 5" ).arg( clone ) );
+                      QStringLiteral( "touch '%1/.git/index.lock'\nexec sleep 10" ).arg( clone ) );
     auto stop = std::make_shared<std::atomic_bool>( false );
-    auto stopper = stopOnceMade( clone + "/.git/index.lock", stop );
+    std::atomic_bool made{ false };
+    auto stopper = stopOnceMade( clone + "/.git/index.lock", stop, made );
     const auto result = Git( wrapper, stop ).run( { "status" }, clone );
     stopper.join();
+    REQUIRE( made );
 
     CHECK_FALSE( result.succeeded );
     CHECK_FALSE( QFileInfo::exists( clone + "/.git/index.lock" ) );
@@ -1711,11 +1716,13 @@ TEST_CASE( "An index.lock older than the stopped run is not the run's and stays"
     }
     const auto started = root.filePath( "started" );
     const auto wrapper = wrapperGit( root.path(), "git-sleep.sh",
-                                     QStringLiteral( "touch '%1'\nexec sleep 5" ).arg( started ) );
+                                     QStringLiteral( "touch '%1'\nexec sleep 10" ).arg( started ) );
     auto stop = std::make_shared<std::atomic_bool>( false );
-    auto stopper = stopOnceMade( started, stop );
+    std::atomic_bool made{ false };
+    auto stopper = stopOnceMade( started, stop, made );
     const auto result = Git( wrapper, stop ).run( { "status" }, clone );
     stopper.join();
+    REQUIRE( made );
 
     CHECK_FALSE( result.succeeded );
     CHECK( QFileInfo::exists( lockPath ) );
