@@ -13,10 +13,12 @@
   a **Δt** column after the timestamp, with the time since the previous line
   that has a timestamp (`+0.004s`, `+12.3s`, `+5m02s`). Stack traces are
   skipped, the look-back is bounded to 100 lines, and it reads the same
-  Timestamps as Go to timestamp (#462). Measured on a 10-million-line Log
-  File (optimized build, offscreen, 50 Rows visible), a scroll step costs
-  about 5.3 ms instead of 4.7 ms (+0.6 ms, about 13%); part of that is the
-  extra column itself being painted.
+  Timestamps as Go to timestamp (#462). The Table View also measures the text
+  of a cell only when it needs its width, which makes scrolling faster than
+  before, column included: on a 10-million-line Log File (optimized build,
+  offscreen, 50 Rows visible) a scroll step costs about 3.7 ms instead of
+  4.8 ms. Painting the Δt column accounts for about 0.3 ms of that; computing
+  it is not measurable.
 - **Time lookups no longer block the window**: Go to timestamp and the time
   search limits look the time up on a worker thread while the status bar says
   so. A reload, a truncation or a change of Log Format cancels the lookup, and

@@ -27,6 +27,8 @@
 // unchanged on both sides of an A/B comparison (see README.md). Run it in an
 // optimized build. Writes the Log File at run time into a temporary file.
 // LOGSQUIRL_BENCHMARK_LOG_LINES writes fewer Log Lines, for a quick run.
+// LOGSQUIRL_BENCHMARK_HIDE_ELAPSED hides the elapsed-time column: the model
+// still computes it, the view no longer paints it.
 
 #include "configuration.h"
 #include "highlighterset.h"
@@ -147,6 +149,18 @@ TEST_CASE( "Scrolling a Table View over 10 million Log Lines", "[tableview-scrol
     view.updateFont( QApplication::font() );
     view.setLogFormat( &format, &logData );
     view.updateData( nullptr, false );
+    // LOGSQUIRL_BENCHMARK_HIDE_ELAPSED hides the elapsed-time column, found
+    // by its header so that this builds before #462 too (where it hides none).
+    int hiddenColumns = 0;
+    if ( !qEnvironmentVariableIsEmpty( "LOGSQUIRL_BENCHMARK_HIDE_ELAPSED" ) ) {
+        const auto elapsedHeader = QString( QChar( 0x0394 ) ) + QLatin1Char( 't' );
+        for ( int column = 0; column < view.model()->columnCount(); ++column ) {
+            if ( view.model()->headerData( column, Qt::Horizontal ).toString() == elapsedHeader ) {
+                view.setColumnHidden( column, true );
+                ++hiddenColumns;
+            }
+        }
+    }
     view.setActive( true );
     view.resize( 1400, 400 );
     view.show();
@@ -198,7 +212,7 @@ TEST_CASE( "Scrolling a Table View over 10 million Log Lines", "[tableview-scrol
         jumpMilliseconds.push_back( static_cast<double>( timer.nsecsElapsed() ) / 1e6 / 200 );
     }
 
-    std::cout << "columns: " << view.model()->columnCount() << "\n"
+    std::cout << "columns: " << view.model()->columnCount() << ", hidden: " << hiddenColumns << "\n"
               << "scroll down, one page: median " << median( pageMilliseconds ) << " ms\n"
               << "scroll up, one page: median " << median( pageUpMilliseconds ) << " ms\n"
               << "jump, one viewport: median " << median( jumpMilliseconds ) << " ms\n";

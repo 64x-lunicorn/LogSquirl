@@ -31,6 +31,7 @@
 #include <QPainter>
 #include <QStyledItemDelegate>
 
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -450,16 +451,24 @@ private:
         const int baseline = cellY + yOffset + fm.ascent();
 
         int x = textRect.left();
-        for ( const auto& span : decoration.spans() ) {
+        const auto& spans = decoration.spans();
+        for ( auto span = spans.begin(); span != spans.end(); ++span ) {
             // A span covering the whole text shares it rather than copying.
-            const auto spanText = cellText.mid( static_cast<qsizetype>( span.startColumn().get() ),
-                                                static_cast<qsizetype>( span.size().get() ) );
-            const auto spanWidth = fm.horizontalAdvance( spanText );
-            if ( span.backColor() != decoration.lineColors().backColor ) {
+            const auto spanText = cellText.mid( static_cast<qsizetype>( span->startColumn().get() ),
+                                                static_cast<qsizetype>( span->size().get() ) );
+            // Measuring a span shapes its text as much as drawing it does
+            // (#462), so it is measured only when something needs its width:
+            // a background of its own, or a span after it. Most cells are one
+            // span on the line colours, and are not measured at all.
+            const bool hasOwnBackground = span->backColor() != decoration.lineColors().backColor;
+            const bool isLast = std::next( span ) == spans.end();
+            const auto spanWidth
+                = ( hasOwnBackground || !isLast ) ? fm.horizontalAdvance( spanText ) : 0;
+            if ( hasOwnBackground ) {
                 // The cell is already filled with the line colours.
-                painter->fillRect( x, cellY, spanWidth, cellH, span.backColor() );
+                painter->fillRect( x, cellY, spanWidth, cellH, span->backColor() );
             }
-            painter->setPen( span.foreColor() );
+            painter->setPen( span->foreColor() );
             painter->drawText( x, baseline, spanText );
             x += spanWidth;
         }

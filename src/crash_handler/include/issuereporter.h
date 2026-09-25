@@ -22,6 +22,7 @@
 
 #include <QCoreApplication>
 #include <QString>
+#include <QUrl>
 
 enum class IssueTemplate { Crash, Exception, Bug };
 
@@ -32,6 +33,10 @@ public:
     static void askUserAndReportIssue( IssueTemplate issueTemplate,
                                        const QString& information = {} );
     static void reportIssue( IssueTemplate issueTemplate, const QString& information = {} );
+
+    // The GitHub address of a new issue with its body prefilled: the template,
+    // the information and the build and system it comes from (#444).
+    static QUrl issueUrl( IssueTemplate issueTemplate, const QString& information = {} );
 };
 
 #endif
