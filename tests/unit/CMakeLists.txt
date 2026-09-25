@@ -66,6 +66,7 @@ add_executable(logsquirl_tests
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
+    runnable_lambda_test.cpp
     searchdata_test.cpp
     searchfailure_test.cpp
     searchsession_test.cpp
@@ -153,8 +154,10 @@ logsquirl_add_catch_tests(logsquirl_tests
 add_test(NAME logsquirl_tests_scrollrepaint_device_pixel_ratio_2
     COMMAND logsquirl_tests "[scrollrepaint]" -platform offscreen
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+# It runs the binary directly, not through CatchTestDiscoveryRunTest.cmake, so
+# it names the TSan suppression file itself (#482); other builds ignore it.
 set_tests_properties(logsquirl_tests_scrollrepaint_device_pixel_ratio_2 PROPERTIES
-    ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2"
+    ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2;TSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/cmake/tsan.supp"
     TIMEOUT 120)
 
 # The Windows release chooses its Hyperscan DLL at run time (#281). The default

@@ -454,6 +454,15 @@ jobs:
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
 
+      # TEMPORARY (#482): hang or slowness of the cases that time out under TSan.
+      - name: Probe the TSan timeouts
+        if: matrix.config.artifacts_id == 'tsan'
+        run: |
+          docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
+            --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
+            /bin/bash /usr/local/.github/scripts/tsan-hang-probe.sh
+
       # Per test case, with a JUnit report kept even when a case fails (#217).
       - name: Run tests under ${{ matrix.config.sanitizers }}
         id: tests
@@ -461,7 +470,7 @@ jobs:
           docker run --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
             --env ASAN_OPTIONS="$ASAN_OPTIONS" --env UBSAN_OPTIONS="$UBSAN_OPTIONS" \
             -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
-            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure --timeout 120 --output-junit ctest-junit.xml"
+            /bin/bash -c "cd /usr/local/$LOGSQUIRL_BUILD_ROOT && ctest --output-on-failure --timeout 120 --test-output-size-passed 2000000 --test-output-size-failed 2000000 --output-junit ctest-junit.xml"
 
       - uses: ./.github/actions/ctest-report
         if: always() && steps.tests.outcome != 'skipped'

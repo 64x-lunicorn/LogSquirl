@@ -42,3 +42,29 @@ race:tbb::flow::
 # the full reasoning.
 race:QThreadPoolThread::run
 race:QThreadPool::start
+
+# --- Libraries that are not built with -fsanitize=thread (#482) -------------
+#
+# called_from_lib does not suppress reports. It tells TSan to ignore the memory
+# accesses its interceptors (malloc/free, new/delete, memcpy/memmove, strdup,
+# pthread_* objects, file descriptors) make when the library itself calls
+# them. The code of these libraries is not instrumented, so TSan never saw the
+# rest of what they do anyway; it only saw these interceptor calls, without the
+# library's own locks (QMutex, glibc's internal locks and GMutex are futexes,
+# invisible to TSan) that order them. Synchronization through the interceptors
+# (pthread_mutex, pthread_cond, thread start and join) still counts, and every
+# access LogSquirl's own code makes is still checked, so a race between two
+# accesses in LogSquirl's code is still reported. See ADR 0007.
+#
+# QtCore, QtGui, QtNetwork: Qt allocates an event, a slot's argument array or a
+# shared string on one thread and frees it on another, after handing it over
+# through its event queue, QThreadPool or its atomic reference counts.
+called_from_lib:libQt6Core.so.6
+called_from_lib:libQt6Gui.so.6
+called_from_lib:libQt6Network.so.6
+# GLib (Qt's event dispatcher on Linux): the eventfd a GMainContext wakes up
+# through is made on one thread and written to from another, under a GMutex.
+called_from_lib:libglib-2.0.so.0
+# glibc: mktime()/localtime() keep the parsed TZ under glibc's own lock and
+# replace it (strdup, free) from whichever thread converts a time first.
+called_from_lib:libc.so.6
