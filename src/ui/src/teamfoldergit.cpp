@@ -27,7 +27,9 @@
 #include <QFileInfo>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QStandardPaths>
 
+#include <cerrno>
 #include <utility>
 
 #include "log.h"
@@ -60,6 +62,42 @@ void removeOrphanedIndexLock( const QString& workingDirectory, const QDateTime& 
     }
 }
 
+// Why a program is known not to start without starting it: it is not on the
+// PATH, or the path it was given leads nowhere. Empty when it may start, or
+// when only starting it can tell (a relative path, or anything on Windows,
+// whose own lookup differs).
+//
+// On Linux and macOS QProcess looks a bare name up on the PATH the same way,
+// forks, and learns in the child that there is nothing to run. Under
+// ThreadSanitizer Qt then waits for that child's exit through a pipe its
+// SIGCHLD handler writes, and in CI that wait never returned: the child stayed
+// a zombie and the Team Folder's worker thread hung (#482). Not starting what
+// is not there spares that, and a fork, everywhere.
+QString missingProgram( const QString& program )
+{
+#ifdef Q_OS_WIN
+    Q_UNUSED( program );
+    return {};
+#else
+    if ( !program.contains( QLatin1Char( '/' ) ) ) {
+        return QStandardPaths::findExecutable( program ).isEmpty() ? qt_error_string( ENOENT )
+                                                                   : QString{};
+    }
+    if ( QDir::isAbsolutePath( program ) && !QFileInfo::exists( program ) ) {
+        return qt_error_string( ENOENT );
+    }
+    return {};
+#endif
+}
+
+QString couldNotStart( const QString& reason )
+{
+    return QCoreApplication::translate( "TeamFolder",
+                                        "Git could not be started (%1). Install Git, or put it on "
+                                        "the PATH, to use a Team Folder." )
+        .arg( reason );
+}
+
 } // namespace
 
 QString GitResult::message() const
@@ -76,6 +114,12 @@ Git::Git( QString program, StopFlag stop )
 GitResult Git::run( const QStringList& arguments, const QString& workingDirectory ) const
 {
     GitResult result;
+
+    if ( const auto missing = missingProgram( program_ ); !missing.isEmpty() ) {
+        result.error = couldNotStart( missing );
+        LOG_WARNING << "Team Folder: " << result.error;
+        return result;
+    }
 
     QProcess process;
     auto environment = QProcessEnvironment::systemEnvironment();
@@ -99,10 +143,7 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
     LOG_DEBUG << "Team Folder runs git " << arguments.join( ' ' );
     process.start( QIODevice::ReadOnly );
     if ( !process.waitForStarted() ) {
-        result.error = QCoreApplication::translate(
-                           "TeamFolder", "Git could not be started (%1). Install Git, or put it on "
-                                         "the PATH, to use a Team Folder." )
-                           .arg( process.errorString() );
+        result.error = couldNotStart( process.errorString() );
         LOG_WARNING << "Team Folder: " << result.error;
         return result;
     }

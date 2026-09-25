@@ -71,7 +71,18 @@ TEST_CASE( "mimalloc serves malloc only with the process-wide override", "[alloc
 #else
     const bool addressSanitizer = false;
 #endif
+    // Under ThreadSanitizer mimalloc's own blocks are not in a region it knows
+    // either: its segment map covers the addresses below 48 TiB, where it asks
+    // for memory at 2 TiB and up, but TSan keeps 1-16 TiB for its shadow
+    // memory and places the mappings far above 48 TiB instead (#482).
+#if defined( __SANITIZE_THREAD__ )
+    const bool threadSanitizer = true;
+#elif defined( __has_feature )
+    const bool threadSanitizer = __has_feature( thread_sanitizer );
+#else
+    const bool threadSanitizer = false;
+#endif
     void* const projectBlock = mi_malloc( 64 );
-    CHECK( mi_is_in_heap_region( projectBlock ) != addressSanitizer );
+    CHECK( mi_is_in_heap_region( projectBlock ) != ( addressSanitizer || threadSanitizer ) );
     mi_free( projectBlock );
 }

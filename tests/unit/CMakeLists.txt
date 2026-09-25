@@ -66,6 +66,7 @@ add_executable(logsquirl_tests
     quickfindwidget_test.cpp
     regularexpression_test.cpp
     regularexpressionpattern_test.cpp
+    runnable_lambda_test.cpp
     searchdata_test.cpp
     searchfailure_test.cpp
     searchsession_test.cpp
@@ -150,8 +151,12 @@ logsquirl_add_catch_tests(logsquirl_tests
 # A scrolled text view moves what it painted in device pixels, so the painting
 # after a scroll is also compared with a full repaint at a device pixel ratio
 # of 2 (#296).
+# It runs through the same runner as the discovered cases, beside a settings
+# file of its own and with TSan's reports sorted the same way (#482).
 add_test(NAME logsquirl_tests_scrollrepaint_device_pixel_ratio_2
-    COMMAND logsquirl_tests "[scrollrepaint]" -platform offscreen
+    COMMAND ${CMAKE_COMMAND} "-DTEST_BINARY=$<TARGET_FILE:logsquirl_tests>"
+            -P "${CMAKE_SOURCE_DIR}/cmake/CatchTestDiscoveryRunTest.cmake"
+            -- "[scrollrepaint]" -platform offscreen
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
 set_tests_properties(logsquirl_tests_scrollrepaint_device_pixel_ratio_2 PROPERTIES
     ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2"

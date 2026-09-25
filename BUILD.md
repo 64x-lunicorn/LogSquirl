@@ -324,37 +324,35 @@ cmake --build .
 ctest --build-config RelWithDebInfo --verbose
 ```
 
-**ThreadSanitizer baseline (#347).** Both oneTBB's flow graph (used by indexing and search) and one
-finding inside uninstrumented `QtCore` (`QThreadPoolThread::run()`, reported against the
-`shared_ptr<const RegularExpression>` that `LogFilteredDataWorker::search()` hands to its worker thread)
-are findings in code TSan cannot instrument, not races in LogSquirl's own logic; see
-`docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md` for how each was investigated
-and, for the `shared_ptr` finding, why it is judged safe rather than merely suppressed. `cmake/tsan.supp`
-lists both, each with its reasoning as a comment.
+**ThreadSanitizer and the libraries it cannot see (#347, #482).** A TSan build builds oneTBB with TSan
+too (`TBB_SANITIZE` in `3rdparty/CMakeLists.txt`). Qt, GLib and glibc come prebuilt without it, so TSan
+does not see their locks and reports what they do on two threads as data races between the library and
+itself. `ctest` sorts those out: `cmake/CatchTestDiscoveryRunTest.cmake` has TSan write its reports to
+files in the case's directory, and `cmake/TsanReportFilter.cmake` leaves out a data race only when both
+racing accesses were made inside a library `cmake/tsan.supp` lists on an `#@uninstrumented` line, each
+with its reason (plus two narrow Qt patterns, a shared payload's reference count and a queued call's
+argument, described there). Any other report, one access in LogSquirl's code being enough, fails the
+case, printed in full; the case's output ends with lines counting what was left out. `cmake/tsan.supp`
+holds no `race:` entry: TSan matches one against callers too, so it would hide races in LogSquirl's code
+running on top of Qt's event loop, its thread pool or oneTBB's flow graph. See
+`docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md` for how every finding of the
+CI job was sorted, what was fixed in the code, and why neither `called_from_lib` nor
+`ignore_noninstrumented_modules` does this job.
 
-`ctest` picks the suppression file up automatically (`cmake/CatchTestDiscoveryRunTest.cmake` sets
-`TSAN_OPTIONS=suppressions=cmake/tsan.supp` for every test case; harmless for a non-TSan build, since
-`TSAN_OPTIONS` is then simply unread). Running a TSan binary directly, outside ctest, needs the same
-option by hand:
+Running a TSan binary directly, outside `ctest`, prints every report, the libraries' own included. To
+sort them the same way, run the case through the runner:
 
 ```bash
-TSAN_OPTIONS="suppressions=$(pwd)/cmake/tsan.supp" build_root/output/logsquirl_tests
+cmake -DTEST_BINARY=$(pwd)/build_root/output/logsquirl_tests \
+      -P cmake/CatchTestDiscoveryRunTest.cmake -- "<test case name>" -platform offscreen
 ```
 
-**TSan in CI (#439).** The `Sanitizers / tsan` job in `.github/workflows/ci-build.yml` builds the same
-configuration as above in the Noble container and runs every test case under `ctest`. It runs on every
-push to master and by hand (`workflow_dispatch`), not on pull requests, and does not fail the run
-(`continue-on-error`) yet: its first run over the whole suite reported 912 races and turned 78 of about 740
-test cases red, mostly in oneTBB and Qt internals and in Search code. Once those are triaged (#482) it joins
-the pull requests and blocks, like `Sanitizers / asan-ubsan`. It needs no `TSAN_OPTIONS` of its own: a suppression added to
-`cmake/tsan.supp` reaches it through `cmake/CatchTestDiscoveryRunTest.cmake`. Runtime: expect it to take
-about as long as the ASan/UBSan job (the ASan job's slowest successful run is 25 minutes), because TSan
-slows the tests down by a similar factor; the first runs of the job will give the real number, which
-belongs here. To see the job go red, add a plain `int` incremented from two `std::thread`s to any test
-case: TSan reports it, the case exits non-zero, and so does `ctest`.
-
-With the suppression file applied, most but not all of the search tests pass; the ADR above records which
-findings remain and why they are not yet covered, rather than a suppression widened to hide them.
+**TSan in CI (#439, #482).** The `Sanitizers / tsan` job in `.github/workflows/ci-build.yml` builds the
+same configuration as above in the Noble container and runs every test case under `ctest`, for every pull
+request and every push to master. It blocks like `Sanitizers / asan-ubsan`, and no case is excluded from
+it. It needs no `TSAN_OPTIONS` of its own: the runner sets them, and a change to `cmake/tsan.supp` reaches
+it from there. Runtime: about 16 minutes, an 8-minute build and 7 to 8 minutes of tests (the tests took 19 minutes before oneTBB was built with TSan). To see the job go red, add a plain `int` incremented from two
+`std::thread`s to any test case: TSan reports it, and the case fails.
 
 ## CI/CD Pipeline
 
