@@ -293,6 +293,39 @@ SCENARIO( "Polling does not run on the UI thread", "[filewatch]" )
     }
 }
 
+// The watcher is never destroyed, but its poll thread runs an event loop,
+// and Qt's application object must not be destroyed while one does: under a
+// Qt built with ThreadSanitizer, every FileWatcher itest reported the poll
+// thread dispatching an event while main() tore QApplication down (#510).
+SCENARIO( "The poll thread ends before the application does", "[filewatch]" )
+{
+    GIVEN( "a watcher polling a file" )
+    {
+        QTemporaryDir tempDir;
+        const auto fileName = writeFile( tempDir, "one\n" );
+
+        auto& watcher = FileWatcher::getFileWatcher();
+        watcher.setWatchPolicy( WatchPolicy{
+            .nativeWatchEnabled = false, .pollingEnabled = true, .pollIntervalMs = 50 } );
+        watcher.addFile( fileName );
+
+        WHEN( "polling is stopped, twice over" )
+        {
+            watcher.stopPolling();
+            watcher.stopPolling();
+
+            THEN( "the poll thread has finished, and the watcher still takes a Policy and files" )
+            {
+                REQUIRE( watcher.pollThreadForTesting()->isFinished() );
+
+                watcher.setWatchPolicy( WatchPolicy{} );
+                watcher.removeFile( fileName );
+                QCoreApplication::processEvents();
+            }
+        }
+    }
+}
+
 // #116: every Log File closed removes the native watch on its directory once
 // no other watched file is left there, and the next one opened re-creates it
 // -- while the directory is still changing (the closed Log File's temporary

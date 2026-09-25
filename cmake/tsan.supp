@@ -29,6 +29,22 @@
 # when a tbb::global_control is destroyed (the TBB-worker test, main() at exit).
 race_top:tbb::detail::r1::threading_control::get_threading_control
 #
+# A `deadlock:` entry matches a lock-order inversion by any frame of its mutex
+# stacks. One is allowed for a cycle Qt builds between two of its own mutexes,
+# named by a function only that cycle runs, with its reason and how it goes
+# away.
+#
+# Qt (QtNetwork): QSslSocketPrivate::tlsBackendInUse() holds the socket's
+# backend mutex while QTlsBackend::defaultBackendName() takes the mutex of the
+# application-static backend collection; when QCoreApplication is destroyed,
+# that collection is reset under its own mutex, and ~QTlsBackend() emits
+# destroyed() into the lambda tlsBackendInUse() connected, which takes the
+# backend mutex: the opposite order (#510, first seen from PluginRepository's
+# catalog request in the PluginDialog case). Both run on the main thread there;
+# it deadlocks only if another thread asks for the TLS backend while the
+# application object is destroyed. Goes when Qt takes the two in one order.
+deadlock:QTlsBackend::~QTlsBackend
+#
 # --- Libraries that are not built with ThreadSanitizer (#482, #510) ---------
 #
 # Qt is built with TSan in the CI image of the TSan job

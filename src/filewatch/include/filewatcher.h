@@ -103,6 +103,14 @@ public:
     // first file is added. The Session does so when it is built.
     void setWatchPolicy( const WatchPolicy& policy ) override;
 
+    // Ends the poll thread and waits for it; polling stops for good. The
+    // watcher itself is never destroyed, but Qt's application object must
+    // not be torn down while a thread still runs its event loop (#510): the
+    // application calls this when its event loop ends (aboutToQuit), and so
+    // must a main() that destroys its QApplication without running exec().
+    // Calling it again does nothing. Native watching keeps working.
+    void stopPolling();
+
     // The thread polling runs on (#322), to let a test show directly that
     // it is never the one that owns the UI. Not for anything but that: the
     // engine has no reason to know which thread does the polling.
