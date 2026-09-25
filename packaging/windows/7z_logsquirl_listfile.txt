@@ -9,4 +9,5 @@
 .\release\COPYING
 .\release\NOTICE
 .\release\README.md
+.\release\PRIVACY.md
 .\release\DOCUMENTATION.md

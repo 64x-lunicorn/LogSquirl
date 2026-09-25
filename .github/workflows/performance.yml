@@ -1,0 +1,274 @@
+name: "Performance"
+
+# Measures master's performance once a week and keeps every result (#441).
+#
+# An optimized build (RelWithDebInfo with LTO, the options and container of the
+# CI Build noble job) runs the whole e2e performance suite, the 10, 50 and
+# 100 MB cases included, on a GitHub-hosted runner. Shared runners differ
+# from week to week, so the result is not compared with a fixed baseline but
+# with the median of the last runs, which moves with the runners:
+# .github/scripts/perf-history.py holds the rule, BUILD.md ("Weekly
+# performance") states it. A regression beyond it fails the run; while fewer
+# runs are recorded than the rule needs, the run reports only.
+#
+# Every result is committed to the perf-data branch (history/ and trend.csv),
+# so a trend over releases can be read there. Only runs of the default branch
+# write history/: a dispatch from any other branch is compared with master's
+# history the same way, but lands in trial/, which nothing compares with, so a
+# branch can never move master's reference.
+#
+# The Benchmarks workflow (benchmarks.yml) is the other tool: it compares a
+# branch with its merge base on one runner, on demand. This one watches
+# master over time. Neither gates pull requests.
+#
+# The build and the measurement run with a read-only token; only the record
+# job, which runs no code of the build and reads the result as JSON, may push,
+# and only to the data branch.
+on:
+  schedule:
+    # Mondays 03:41 UTC.
+    - cron: '41 3 * * 1'
+  workflow_dispatch:
+    inputs:
+      e2e_runs:
+        description: "Measured runs per e2e performance benchmark (--bench-runs)"
+        type: number
+        default: 21
+      accept_new_level:
+        description: "Default branch only: record this run as the new reference after an intentional slowdown; comparisons restart from it"
+        type: boolean
+        default: false
+
+# One run per ref at a time; the record job additionally serializes all
+# pushes to the data branch.
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  DATA_BRANCH: perf-data
+
+jobs:
+  measure:
+    name: Performance / measure
+    # Single-entry matrix so the shared composite actions (which read
+    # matrix.config.*) work unchanged. artifacts_id is the noble job's, so
+    # docker-build restores that job's sccache cache.
+    strategy:
+      matrix:
+        config:
+          - arch: x64
+            artifacts_id: noble
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts:
+
+    runs-on: ubuntu-24.04
+    # A build of about 20 minutes with a warm sccache, longer cold, and the
+    # performance suite of about ten minutes.
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      packages: read # pull the signed build container from GHCR
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    env:
+      RESULT_DIR: perf-result
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Same key as the noble job (#219); only restored.
+      - name: Restore CPM cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: cpm_cache
+          key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
+          restore-keys: |
+            cpm-Linux-noble-
+
+      - uses: ./.github/actions/logsquirl-version
+      - uses: ./.github/actions/prepare-workspace-env
+
+      - name: Remember the version
+        id: version
+        run: echo "version=$LOGSQUIRL_VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/docker-pull-or-build
+        with:
+          image: ${{ matrix.config.image }}
+          container_root: ${{ matrix.config.container_root }}
+
+      # RelWithDebInfo with LTO, as the noble job builds and ships it; a debug
+      # build's numbers say nothing about performance.
+      - uses: ./.github/actions/docker-build
+
+      # The 10, 50 and 100 MB files are generated, not checked in.
+      - name: Generate the e2e test data
+        run: python3 tests/e2e/generate_test_data.py
+
+      # The suite starts logsquirl only through its isolated instances
+      # (tests/e2e/isolated_instance.py: own HOME and XDG directories), in the
+      # container it was built in. --no-baseline-compare: baseline.json was
+      # recorded on another machine; perf-history.py compares instead.
+      - name: Run the e2e performance suite
+        env:
+          E2E_RUNS: ${{ inputs.e2e_runs || 21 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RESULT_DIR"
+          # shellcheck disable=SC2016 # expanded by the shell in the container
+          docker run --rm \
+            --env QT_QPA_PLATFORM="$QT_QPA_PLATFORM" \
+            --env PYTHONDONTWRITEBYTECODE=1 \
+            --env PIP_ROOT_USER_ACTION=ignore \
+            --workdir /usr/local \
+            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" /bin/bash -c '
+              set -euo pipefail
+              python3 -m pip install --quiet --break-system-packages --require-hashes --only-binary :all: \
+                -r .github/requirements/e2e.txt
+              cd tests/e2e
+              rm -f benchmark_report.json
+              python3 -m pytest -v -rs -m performance -p no:cacheprovider --require-binaries \
+                --no-baseline-compare --binary-dir="/usr/local/$1/output" \
+                --bench-runs "$2" --bench-report json --junitxml="/usr/local/$3/junit.xml"
+              mv benchmark_report.json "/usr/local/$3/benchmark_report.json"
+            ' e2e "$LOGSQUIRL_BUILD_ROOT" "$E2E_RUNS" "$RESULT_DIR"
+
+      # A skipped benchmark (a missing test file, a missing tool) would leave
+      # a hole in the history without failing anything.
+      - name: Check that no benchmark was skipped
+        run: |
+          set -euo pipefail
+          python3 - "$RESULT_DIR/junit.xml" <<'EOF'
+          import sys
+          import xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          skipped = [(case.get("name"), s.get("message", ""))
+                     for case in root.iter("testcase") for s in case.findall("skipped")]
+          for name, message in skipped:
+              print(f"::error::{name} was skipped: {message}")
+          sys.exit(1 if skipped else 0)
+          EOF
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: perf-result
+          path: perf-result
+          if-no-files-found: error
+
+  record:
+    name: Performance / compare and record
+    needs: measure
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # push the result to the data branch
+    # One writer at a time, whatever the ref: the push is then a fast-forward.
+    concurrency:
+      group: performance-data-branch
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      # Only the scripts; nothing of the build runs in this job.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: perf-result
+          path: perf-result
+
+      # The first run creates the branch, with no history of master's code.
+      - name: Check out the data branch
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY"
+          if git ls-remote --exit-code --heads "$url" "$DATA_BRANCH" > /dev/null; then
+            git clone --quiet --depth 1 --single-branch --branch "$DATA_BRANCH" "$url" perf-data
+          else
+            echo "::notice::$DATA_BRANCH does not exist yet; this run creates it"
+            git init --quiet --initial-branch "$DATA_BRANCH" perf-data
+            git -C perf-data remote add origin "$url"
+            cat > perf-data/README.md <<'EOF'
+          # Performance history
+
+          Written by the Performance workflow (.github/workflows/performance.yml on
+          master), one JSON file per run: `history/` for runs of master, `trial/` for
+          runs dispatched from other branches. `trend.csv` has one row per `history/`
+          run. BUILD.md ("Weekly performance") explains the comparison. Do not
+          edit by hand; do not delete the branch, it is the only copy.
+          EOF
+          fi
+
+      - name: Compare with the history and record the run
+        id: compare
+        env:
+          ACCEPT: ${{ inputs.accept_new_level && 'true' || 'false' }}
+          DEFAULT_REF: refs/heads/${{ github.event.repository.default_branch }}
+          VERSION: ${{ needs.measure.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" = "$DEFAULT_REF" ]; then
+            dest=history
+          else
+            dest=trial
+          fi
+          accept=()
+          if [ "$ACCEPT" = true ]; then
+            if [ "$dest" != history ]; then
+              echo "::error::accept_new_level applies to runs of the default branch only"
+              exit 2
+            fi
+            accept=(--accept)
+          fi
+          status=0
+          python3 .github/scripts/perf-history.py record \
+            --report perf-result/benchmark_report.json --data-dir perf-data --dest "$dest" \
+            --commit "$GITHUB_SHA" --ref "$GITHUB_REF" --run-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --version "$VERSION" "${accept[@]}" \
+            --markdown perf-result/comparison.md --json perf-result/comparison.json || status=$?
+          # 2: the report was unusable and nothing was recorded.
+          if [ "$status" -ge 2 ]; then
+            exit "$status"
+          fi
+          cat perf-result/comparison.md >> "$GITHUB_STEP_SUMMARY"
+          echo "dest=$dest" >> "$GITHUB_OUTPUT"
+          echo "regressed=$([ "$status" = 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      # The run is recorded whether it regressed or not: it is what was
+      # measured.
+      - name: Push the run to the data branch
+        env:
+          DEST: ${{ steps.compare.outputs.dest }}
+        run: |
+          set -euo pipefail
+          cd perf-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit --quiet -m "perf: record run $GITHUB_RUN_ID in $DEST (${GITHUB_SHA:0:12}, $GITHUB_REF_NAME)"
+          git push --quiet origin "HEAD:refs/heads/$DATA_BRANCH"
+          echo "Recorded in $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/$DATA_BRANCH/$DEST"
+
+      - name: Fail on a regression
+        if: steps.compare.outputs.regressed == 'true'
+        run: |
+          echo "::error::A benchmark regressed beyond the threshold or went missing; see the job summary"
+          exit 1

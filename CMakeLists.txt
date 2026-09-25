@@ -23,6 +23,10 @@ string(TIMESTAMP PRODUCT_CURRENT_YEAR "%Y")
 set(COMPANY "LogSquirl Contributors")
 set(COPYRIGHT "Copyright (c) ${PRODUCT_CURRENT_YEAR} LogSquirl Contributors. Based on klogg by Anton Filimonov and glogg by Nicolas Bonnefon.")
 set(IDENTIFIER "io.github.logsquirl")
+# The name the Windows version resources of the executables and of the
+# installer give as ProductName: the project's name, spelled the way users see
+# it, as code signing through the SignPath Foundation requires (#445).
+set(PRODUCT_DISPLAY_NAME "LogSquirl")
 set(PROJECT_DESCRIPTION "${PROJECT_NAME} log viewer")
 
 option(LOGSQUIRL_BUILD_TESTS "Build tests" ON)

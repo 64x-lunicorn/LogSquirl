@@ -11,13 +11,13 @@ Crash report provides information about:
 
 - Operating system: name, version, architecture
 - Qt version
-- Modules that were loaded into the LogSquirl process: filename, size and hashes for symbols
-- Stacktraces for all running threads in the LogSquirl process
+- Modules that were loaded into the LogSquirl process: file path, size and hashes for symbols
+- Stacktraces for all running threads in the LogSquirl process, with their stack memory
 
-These minidumps do not include content of LogSquirl process memory during the crash.
+The minidumps do not include the whole memory of the LogSquirl process, but the stack memory of each thread, which can hold fragments of what LogSquirl was working on at the moment of the crash.
 
 ## A word about privacy
 
-Although crash dumps can make fixing bugs easier, privacy of LogSquirl users is far more important. So crash reporting is not automated. If during startup LogSquirl finds minidumps from previous runs, it will show a dialog asking the user to look through the generated crash report and confirm sending it to Sentry servers. Unsent reports are deleted. Crash reports are anonymous and do not include any information to identify users or their computers (like hardware IDs, hostnames, usernames etc.).
+Although crash dumps can make fixing bugs easier, privacy of LogSquirl users is far more important. So crash reporting is not automated. If during startup LogSquirl finds minidumps from previous runs, it will show a dialog asking the user to look through the generated crash report and confirm sending it to Sentry servers. Unsent reports are deleted. Crash reports carry no hardware ids or host names and no account of any kind, but a module's file path can contain the user name, and Sentry sees the IP address a report comes from.
 
 Please check the [Privacy Policy](/privacy-policy) for more details.

@@ -5,6 +5,7 @@ add_custom_target(website
             src/content/docs/getting-involved.md
             src/content/docs/legal-notice.md
             src/content/docs/privacy-policy.md
+            src/content/docs/code-signing-policy.mdx
             src/content/docs/news/release-26-04.md
             src/content/docs/news/release-26-03.md
             src/content/docs/news/release-22-06.md

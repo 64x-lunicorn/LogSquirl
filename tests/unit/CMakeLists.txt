@@ -204,6 +204,7 @@ logsquirl_add_catch_tests(logsquirl_plugin_catalog_tests TIMEOUT 60)
 # directory, never from the machine running the test (#382).
 add_executable(logsquirl_versioncheck_tests
     versioncheck_tests_main.cpp
+    installoptout_test.cpp
     installsource_test.cpp
     updateoffer_test.cpp
     updateschedule_test.cpp
