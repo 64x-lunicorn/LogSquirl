@@ -58,6 +58,8 @@
 #include "logformatdefinition.h"
 #include "logtablehighlightdelegate.h"
 #include "logtableview.h"
+#include "quickfindmux.h"
+#include "quickfindpattern.h"
 #include "shortcuts.h"
 #include "textviewscrolling.h"
 
@@ -119,6 +121,11 @@ struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
         return TextViewScrolling::access_by<CrawlerWidgetPrivate>::bottomLinesKept(
             view.scrolling_ );
     }
+    // What runs the view's QuickFind searches.
+    static QuickFind* quickFind( const AbstractLogView& view )
+    {
+        return view.quickFind_;
+    }
 };
 
 template <>
@@ -141,6 +148,22 @@ struct LogTableView::access_by<CrawlerWidgetPrivate> {
     {
         return LogTableHighlightDelegate::access_by<CrawlerWidgetPrivate>::search(
             *view.delegate_ );
+    }
+    // What dragging over characters inside a cell does: they are selected.
+    static void selectInCell( LogTableView& view, int row, int column, int startChar, int endChar )
+    {
+        view.selection_.selectInCell( row, column, startChar, endChar );
+        view.showInCellSelection();
+    }
+    // What runs the view's QuickFind searches.
+    static QuickFind* quickFind( const LogTableView& view )
+    {
+        return view.quickFind_.get();
+    }
+    // What "Find next" and "Find previous" of the context menu do.
+    static void findSelected( LogTableView& view, bool forward )
+    {
+        view.findSelected( forward );
     }
 };
 
@@ -566,6 +589,29 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     QImage searchInfoImage() const
     {
         return crawler->searchInfoLine_->grab().toImage().convertToFormat( QImage::Format_RGB32 );
+    }
+
+    // The QuickFind pattern the views of the Log File search and paint: the
+    // one the window's QuickFind bar drives.
+    std::shared_ptr<QuickFindPattern> quickFindPattern() const
+    {
+        return crawler->quickFindPattern_;
+    }
+
+    // What the window does as its QuickFind bar opens: the bar takes the
+    // focus, here the Search line standing in for it.
+    void enterQuickFind()
+    {
+        crawler->enteringQuickFind();
+        crawler->searchLineEdit_->setFocus();
+        QCoreApplication::processEvents();
+    }
+
+    // What the window does as its QuickFind bar closes.
+    void leaveQuickFind()
+    {
+        crawler->exitingQuickFind();
+        QCoreApplication::processEvents();
     }
 };
 
@@ -3451,6 +3497,221 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                     REQUIRE( crawlerVisitor.tableViewDelegateSearch() == kept.lock().get() );
                     REQUIRE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 3_lnum ) );
                 }
+            }
+        }
+    }
+}
+
+namespace {
+
+// The column of the Table View's model whose cell of row shows text, and where.
+std::optional<std::pair<int, int>> cellShowing( const LogTableView& view, int row,
+                                                const QString& text )
+{
+    for ( int column = 0; column < view.model()->columnCount(); ++column ) {
+        const auto cell = view.model()->index( row, column ).data( Qt::DisplayRole ).toString();
+        if ( const auto at = cell.indexOf( text ); at >= 0 ) {
+            return std::make_pair( column, static_cast<int>( at ) );
+        }
+    }
+    return std::nullopt;
+}
+
+} // namespace
+
+// The QuickFind bar asks the Crawler Widget which view to search: the Filtered
+// View when it has or had the focus, else the Presentation shown, the Table
+// View included (#523). The Presentation not shown is never searched.
+SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
+          "[ui][presentation][quickfind]" )
+{
+    QTemporaryFile file{ "crawler_quickfind_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+    crawlerVisitor.crawler->activateWindow();
+    REQUIRE( QTest::qWaitForWindowActive( crawlerVisitor.crawler.get() ) );
+
+    // The window's QuickFind bar drives the mux, the mux the view the Crawler
+    // Widget names.
+    QuickFindMux mux{ crawlerVisitor.quickFindPattern() };
+    auto policy = testSettingsPolicies().quickFind;
+    policy.incremental = true;
+    mux.setQuickFindPolicy( policy );
+    mux.registerSelector( crawlerVisitor.crawler.get() );
+    mux.setDirection( QuickFindMux::Forward );
+
+    auto* table = crawlerVisitor.tableView();
+    auto* text = crawlerVisitor.textView();
+    // Every search either Presentation runs ends in its QuickFind's result.
+    QSignalSpy tableSearches( LogTableView::access_by<CrawlerWidgetPrivate>::quickFind( *table ),
+                              &QuickFind::searchDone );
+    QSignalSpy textSearches( AbstractLogView::access_by<CrawlerWidgetPrivate>::quickFind( *text ),
+                             &QuickFind::searchDone );
+    // The Log Line a view last reported as its QuickFind result.
+    const auto lastSearchResult = []( const QSignalSpy& searches ) {
+        return searches.isEmpty() ? std::optional<LineNumber>{}
+                                  : std::optional<LineNumber>{
+                                        qvariant_cast<Portion>( searches.last().at( 1 ) ).line()
+                                    };
+    };
+    const auto tableSelects = [ table ]( LineNumber line ) {
+        return waitUiState( [ table, line ]() {
+            return table->selectedLogLines() == logsquirl::vector<LineNumber>{ line };
+        } );
+    };
+
+    GIVEN( "the Table View shown and focused, on the Row of Log Line 12" )
+    {
+        crawlerVisitor.showTableView( true );
+        REQUIRE( crawlerVisitor.presentation() == table );
+        REQUIRE( waitUiState( [ table ]() {
+            return table->model() != nullptr && table->model()->rowCount() == SL_NB_LINES;
+        } ) );
+        table->selectRow( 12 );
+        table->setFocus();
+        QCoreApplication::processEvents();
+        REQUIRE( QApplication::focusWidget() == table );
+
+        WHEN( "QuickFind is entered and a pattern confirmed, then next and previous pressed" )
+        {
+            crawlerVisitor.enterQuickFind();
+            mux.confirmPattern( "line 00001", false, false );
+
+            mux.searchNext();
+            const bool first = tableSelects( 13_lnum );
+            mux.searchNext();
+            const bool second = tableSelects( 14_lnum );
+            mux.searchPrevious();
+            const bool back = tableSelects( 13_lnum );
+
+            THEN( "the Table View selects the Row of each match in turn, from its current Row" )
+            {
+                REQUIRE( first );
+                REQUIRE( second );
+                REQUIRE( back );
+            }
+
+            THEN( "the hidden Text View is never searched" )
+            {
+                QTest::qWait( 50 );
+                REQUIRE( tableSearches.size() == 3 );
+                REQUIRE( textSearches.isEmpty() );
+            }
+
+            AND_WHEN( "QuickFind is left" )
+            {
+                crawlerVisitor.leaveQuickFind();
+
+                THEN( "the focus returns to the Table View" )
+                {
+                    REQUIRE( QApplication::focusWidget() == table );
+                }
+            }
+        }
+
+        WHEN( "a pattern is typed, searched for as it is typed, and the search is cancelled" )
+        {
+            crawlerVisitor.enterQuickFind();
+            mux.setNewPattern( "line 000042", false, false );
+            const bool found = tableSelects( 42_lnum );
+            mux.cancelSearch();
+            const bool restored = tableSelects( 12_lnum );
+
+            THEN( "the Table View selects the match, then its Row from before again" )
+            {
+                REQUIRE( found );
+                REQUIRE( restored );
+                REQUIRE( textSearches.isEmpty() );
+            }
+        }
+
+        WHEN( "\"Find previous\" is chosen from the Table View's context menu on selected "
+              "characters" )
+        {
+            table->selectRow( 25 );
+            const auto cell = cellShowing( *table, 25, "glogg" );
+            REQUIRE( cell.has_value() );
+            LogTableView::access_by<CrawlerWidgetPrivate>::selectInCell(
+                *table, 25, cell->first, cell->second, cell->second + 5 );
+            LogTableView::access_by<CrawlerWidgetPrivate>::findSelected( *table, false );
+            const bool found = tableSelects( 24_lnum );
+
+            THEN( "the QuickFind bar searches the same pattern in the same direction" )
+            {
+                REQUIRE( found );
+                REQUIRE( crawlerVisitor.quickFindPattern()->getPattern() == "glogg" );
+
+                mux.searchNext();
+                REQUIRE( tableSelects( 23_lnum ) );
+                REQUIRE( textSearches.isEmpty() );
+            }
+        }
+    }
+
+    GIVEN( "the Table View shown and the Filtered View focused on the Match of Log Line 12" )
+    {
+        crawlerVisitor.showTableView( true );
+        REQUIRE( crawlerVisitor.presentation() == table );
+        crawlerVisitor.setSearchPattern( "this is line 00001" );
+        crawlerVisitor.runSearch();
+        REQUIRE( waitUiState( [ &crawlerVisitor ]() {
+            return crawlerVisitor.getLogFilteredNbLines().get() == 10;
+        } ) );
+        crawlerVisitor.selectInFilteredView( 12_lnum );
+        auto* filtered = crawlerVisitor.filteredView();
+        filtered->setFocus();
+        QCoreApplication::processEvents();
+        REQUIRE( QApplication::focusWidget() == filtered );
+        QSignalSpy filteredSearches(
+            AbstractLogView::access_by<CrawlerWidgetPrivate>::quickFind( *filtered ),
+            &QuickFind::searchDone );
+
+        WHEN( "QuickFind is entered and next pressed" )
+        {
+            crawlerVisitor.enterQuickFind();
+            mux.confirmPattern( "line 00001", false, false );
+            mux.searchNext();
+
+            THEN( "the Filtered View is searched, as before, and neither Presentation is" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ]() { return lastSearchResult( filteredSearches ) == 13_lnum; } ) );
+                REQUIRE( tableSearches.isEmpty() );
+                REQUIRE( textSearches.isEmpty() );
+            }
+
+            AND_WHEN( "QuickFind is left" )
+            {
+                crawlerVisitor.leaveQuickFind();
+
+                THEN( "the focus returns to the Filtered View" )
+                {
+                    REQUIRE( QApplication::focusWidget() == filtered );
+                }
+            }
+        }
+    }
+
+    GIVEN( "the Text View shown and focused" )
+    {
+        crawlerVisitor.showTableView( false );
+        REQUIRE( crawlerVisitor.presentation() == text );
+        text->selectAndDisplayLine( 12_lnum );
+        text->setFocus();
+        QCoreApplication::processEvents();
+
+        WHEN( "QuickFind is entered and next pressed" )
+        {
+            crawlerVisitor.enterQuickFind();
+            mux.confirmPattern( "line 00001", false, false );
+            mux.searchNext();
+
+            THEN( "the Text View is searched, as before, and the hidden Table View never is" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ]() { return lastSearchResult( textSearches ) == 13_lnum; } ) );
+                REQUIRE( tableSearches.isEmpty() );
             }
         }
     }

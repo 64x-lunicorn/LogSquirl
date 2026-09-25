@@ -152,7 +152,9 @@ _Avoid_: search bar, search box
 
 **QuickFind**:
 Interactive incremental search within the currently displayed lines. Distinct from Search:
-it navigates, it does not filter.
+it navigates, it does not filter. The window's QuickFind bar searches the Filtered View when
+that has or had the focus, else the Presentation shown — the Text View or the Table View,
+which shows a match as its Row, selected; the Presentation not shown is never searched.
 _Avoid_: find, incremental search
 
 **Predefined Filter**:

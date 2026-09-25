@@ -191,15 +191,20 @@ QString CrawlerWidget::getSelectedText() const
 
 bool CrawlerWidget::isPartialSelection() const
 {
-    if ( currentFilteredView()->hasFocus() )
+    if ( filteredViewIsActive() )
         return currentFilteredView()->isPartialSelection();
+    else if ( shownPresentation() == logTableView_ )
+        return logTableView_->selection().hasInCellSelection();
     else
         return logMainView_->isPartialSelection();
 }
 
 void CrawlerWidget::selectAll()
 {
-    activeView()->selectAll();
+    if ( auto* view = qobject_cast<AbstractLogView*>( activeView() ) )
+        view->selectAll();
+    else
+        logTableView_->selectAll();
 }
 
 std::optional<int> CrawlerWidget::encodingMib() const
@@ -225,13 +230,19 @@ QString CrawlerWidget::encodingText() const
 // Return a pointer to the view in which we should do the QuickFind
 SearchableWidgetInterface* CrawlerWidget::doGetActiveSearchable() const
 {
-    return activeView();
+    if ( filteredViewIsActive() )
+        return currentFilteredView();
+    else if ( shownPresentation() == logTableView_ )
+        return logTableView_;
+    else
+        return logMainView_;
 }
 
-// Return all the searchable widgets (views)
+// Return all the searchable widgets (views): both Presentations, shown or
+// not, so that either can hand the QuickFind bar a pattern once it is shown.
 std::vector<QObject*> CrawlerWidget::doGetAllSearchables() const
 {
-    std::vector<QObject*> searchables = { logMainView_, currentFilteredView() };
+    std::vector<QObject*> searchables = { logMainView_, logTableView_, currentFilteredView() };
 
     return searchables;
 }
@@ -1063,7 +1074,8 @@ void CrawlerWidget::enteringQuickFind()
     // Remember who had the focus (only if it is one of our views)
     QWidget* focus_widget = QApplication::focusWidget();
 
-    if ( ( focus_widget == logMainView_ ) || ( focus_widget == currentFilteredView() ) )
+    if ( ( focus_widget == logMainView_ ) || ( focus_widget == logTableView_ )
+         || ( focus_widget == currentFilteredView() ) )
         qfSavedFocus_ = focus_widget;
     else
         qfSavedFocus_ = nullptr;
@@ -1071,8 +1083,13 @@ void CrawlerWidget::enteringQuickFind()
 
 void CrawlerWidget::exitingQuickFind()
 {
-    // Restore the focus once the QFBar has been hidden
-    if ( qfSavedFocus_ )
+    // Restore the focus once the QFBar has been hidden; a Presentation that
+    // had it hands it to the one shown now, should they have been switched.
+    if ( !qfSavedFocus_ )
+        return;
+    if ( qfSavedFocus_ == logMainView_ || qfSavedFocus_ == logTableView_ )
+        shownPresentation()->setFocus();
+    else
         qfSavedFocus_->setFocus();
 }
 
@@ -1150,40 +1167,47 @@ void CrawlerWidget::truncatedHandler( const QString& failure )
     resetLogFormat();
 }
 
-// Returns a pointer to the window in which the search should be done
-AbstractLogView* CrawlerWidget::activeView() const
+// The view QuickFind searches: the one that has the focus, or the one where
+// QuickFind was entered from, the Filtered View or the Presentation shown.
+QWidget* CrawlerWidget::activeView() const
 {
-    QWidget* activeView;
-
-    // Search in the window that has focus, or the window where 'Find' was
-    // called from, or the main window.
-    if ( currentFilteredView()->hasFocus() || logMainView_->hasFocus() )
-        activeView = QApplication::focusWidget();
+    if ( filteredViewIsActive() )
+        return currentFilteredView();
     else
-        activeView = qfSavedFocus_;
+        return shownPresentation();
+}
 
-    if ( activeView ) {
-        auto* view = qobject_cast<AbstractLogView*>( activeView );
-        return view;
-    }
-    else {
-        LOG_WARNING << "No active view, defaulting to logMainView";
+bool CrawlerWidget::filteredViewIsActive() const
+{
+    const auto* filtered = currentFilteredView();
+    if ( filtered->hasFocus() )
+        return true;
+    else if ( shownPresentation()->hasFocus() )
+        return false;
+    else
+        return qfSavedFocus_ == filtered;
+}
+
+QWidget* CrawlerWidget::shownPresentation() const
+{
+    if ( presentation_ == logTableView_ )
+        return logTableView_;
+    else
         return logMainView_;
-    }
 }
 
 void CrawlerWidget::searchForward()
 {
     LOG_DEBUG << "CrawlerWidget::searchForward";
 
-    activeView()->searchForward();
+    doGetActiveSearchable()->searchForward();
 }
 
 void CrawlerWidget::searchBackward()
 {
     LOG_DEBUG << "CrawlerWidget::searchBackward";
 
-    activeView()->searchBackward();
+    doGetActiveSearchable()->searchBackward();
 }
 
 void CrawlerWidget::resetStateOnSearchPatternChanges()

@@ -195,6 +195,13 @@
   the Matches it found before, in the current Search and in every kept one.
   A Search repeated on an unchanged Log File is still answered from the cache
   (#520).
+- **QuickFind searches the Table View when it is shown**: With the Table View
+  shown, the QuickFind bar searched the hidden Text View, and the Table View
+  did not move. It now selects the Row of each match in turn, from the current
+  Row, forward, backward and while typing; the Filtered View is still searched
+  when it had the focus, and leaving QuickFind gives the focus back to the
+  Table View. "Find next / previous" from the Table View's context menu and
+  the QuickFind bar share the pattern and the direction (#523).
 - **Uninstalling on Windows leaves nothing behind**: the uninstaller left
   empty `platforms` and `styles` folders, and so the `logsquirl` folder
   itself, under Program Files, and the installing user's *Send to* shortcut.

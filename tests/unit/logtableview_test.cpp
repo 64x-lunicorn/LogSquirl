@@ -26,6 +26,7 @@
 #include "logformatdefinition.h"
 #include "logtableview.h"
 #include "persistentinfo.h"
+#include "quickfindmux.h"
 #include "quickfindpattern.h"
 #include "rowmapping.h"
 #include "test_policies.h"
@@ -465,6 +466,43 @@ public:
     using LogTableView::LogTableView;
 };
 
+// The window's QuickFind bar in front of one Table View: the mux it drives,
+// with the QuickFind pattern the view searches, and the view as the one it
+// searches. Find next and previous of the view's context menu go through it,
+// as they do in the window.
+class QuickFindBar : public QuickFindMuxSelectorInterface {
+public:
+    QuickFindBar( LogTableView& view, const QuickFindPolicy& policy )
+        : view_( view )
+    {
+        view.setQuickFindPattern( pattern );
+        mux.setQuickFindPolicy( policy );
+        mux.registerSelector( this );
+    }
+    ~QuickFindBar() override
+    {
+        mux.registerSelector( nullptr );
+    }
+    QuickFindBar( const QuickFindBar& ) = delete;
+    QuickFindBar& operator=( const QuickFindBar& ) = delete;
+
+    std::shared_ptr<QuickFindPattern> pattern = std::make_shared<QuickFindPattern>();
+    QuickFindMux mux{ pattern };
+
+protected:
+    SearchableWidgetInterface* doGetActiveSearchable() const override
+    {
+        return &view_;
+    }
+    std::vector<QObject*> doGetAllSearchables() const override
+    {
+        return { &view_ };
+    }
+
+private:
+    LogTableView& view_;
+};
+
 // The entries of a context menu, in order, without its separators.
 QStringList entriesOf( const QMenu& menu )
 {
@@ -745,6 +783,7 @@ SCENARIO( "Find next and previous in the Table View's context menu select the Lo
     const auto format = makeFormat();
     FakeLogData logData( needleLines() );
     InspectedTableView view( std::make_shared<RowsFromLogLine100>() );
+    QuickFindBar quickFind( view, testSettingsPolicies().quickFind );
     open( view, format, logData );
     view.setActive( true );
     view.show();
@@ -829,23 +868,23 @@ void doubleClickCell( LogTableView& view, int row, const QString& text )
 
 } // namespace
 
-SCENARIO(
-    "The Table View reads the text a QuickFind searches for the way its QuickFind Policy says",
-    "[logtableview][quickfindpolicy]" )
+SCENARIO( "The text chosen in the Table View for a QuickFind is read the way the QuickFind "
+          "Policy says",
+          "[logtableview][quickfindpolicy]" )
 {
     // No settings store takes part: the Policy is a literal, and how the
-    // selected text is read follows from it alone.
+    // selected text is read follows from it alone. The Table View hands the
+    // text to the window's QuickFind bar, which reads it under the Policy.
     const auto format = makeFormat();
     FakeLogData logData( metacharacterLines() );
     InspectedTableView view( std::make_shared<RowsFromLogLine100>() );
-    auto quickFindPattern = std::make_shared<QuickFindPattern>();
-    view.setQuickFindPattern( quickFindPattern );
+    auto policy = testSettingsPolicies().quickFind;
+    QuickFindBar quickFind( view, policy );
+    const auto& quickFindPattern = quickFind.pattern;
     open( view, format, logData );
     view.setActive( true );
     view.show();
     QCoreApplication::processEvents();
-
-    auto policy = testSettingsPolicies().quickFind;
 
     // Chooses an entry of the context menu over the Row holding the lone
     // metacharacter, and lets the QuickFind it starts finish: the search runs
@@ -865,7 +904,7 @@ SCENARIO(
         WHEN( "Find next is chosen under a Policy reading a pattern as an extended regexp" )
         {
             policy.quickFindRegexpType = SearchRegexpType::ExtendedRegexp;
-            view.setQuickFindPolicy( policy );
+            quickFind.mux.setQuickFindPolicy( policy );
 
             chooseAndLetTheQuickFindFinish( "Find &next" );
 
@@ -879,7 +918,7 @@ SCENARIO(
         WHEN( "Find next is chosen under a Policy reading a pattern as a fixed string" )
         {
             policy.quickFindRegexpType = SearchRegexpType::FixedString;
-            view.setQuickFindPolicy( policy );
+            quickFind.mux.setQuickFindPolicy( policy );
 
             chooseAndLetTheQuickFindFinish( "Find &next" );
 

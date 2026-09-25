@@ -119,6 +119,9 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // Direct: QuickFind checked that the Log Line is shown in the same call.
     connect( quickFind_.get(), &QuickFind::searchDone, this, &LogTableView::showQuickFindResult,
              Qt::DirectConnection );
+    connect( quickFind_.get(), &QuickFind::notify, this, &LogTableView::notifyQuickFind );
+    connect( quickFind_.get(), &QuickFind::clearNotification, this,
+             &LogTableView::clearQuickFindNotification );
 
     setContextMenuPolicy( Qt::CustomContextMenu );
     connect( this, &QWidget::customContextMenuRequested, this, &LogTableView::showContextMenu );
@@ -194,6 +197,8 @@ void LogTableView::updateData( bool follow )
         model_->setModificationDate( file->getLastModifiedDate().date() );
     }
     model_->setLineCount( lineCountInt );
+    // New Log Lines may match where QuickFind last found nothing more.
+    quickFind_->resetLimits();
     const bool hasRows = model_->rowCount() > 0;
 
     if ( columnsNeedSizing_ && hasRows ) {
@@ -242,7 +247,13 @@ void LogTableView::setActive( bool active )
 
 void LogTableView::setQuickFindPattern( std::shared_ptr<QuickFindPattern> pattern )
 {
+    if ( quickFindPattern_ ) {
+        disconnect( quickFindPattern_.get(), nullptr, this, nullptr );
+    }
     quickFindPattern_ = pattern;
+    // A new pattern may match beyond where the last one found nothing more.
+    connect( quickFindPattern_.get(), &QuickFindPattern::patternUpdated, this,
+             [ this ]() { quickFind_->resetLimits(); } );
     delegate_->setQuickFindPattern( std::move( pattern ) );
 }
 
@@ -295,11 +306,10 @@ void LogTableView::allowFollowMode( bool )
     // The Table View follows only as the Text View does.
 }
 
-void LogTableView::setQuickFindPolicy( const QuickFindPolicy& policy )
+void LogTableView::setQuickFindPolicy( const QuickFindPolicy& )
 {
-    // Nothing is repainted: this Policy says how a pattern is read, not how a
-    // match is painted, and it is read from here at the next QuickFind.
-    quickFindPolicy_ = policy;
+    // The selected text goes to the window's QuickFind, which reads the
+    // Policy itself.
 }
 
 void LogTableView::updateFont( const QFont& font )
@@ -779,19 +789,74 @@ void LogTableView::findSelected( bool forward )
         return;
     }
 
-    // What QuickFindMux does when the Text View asks for the selected text
-    quickFindPattern_->changeSearchPattern(
-        selectedText(), quickFindPolicy_.quickFindRegexpType == SearchRegexpType::ExtendedRegexp );
+    // The search starts from the Row holding the selected characters; which
+    // Rows are selected is left as it is.
+    selectionModel()->setCurrentIndex( model_->index( inCell->row, inCell->column ),
+                                       QItemSelectionModel::NoUpdate );
 
-    // From the Log Line holding the selected characters, whole
+    // What AbstractLogView::findNextSelected() does: the QuickFind bar takes
+    // the pattern and the direction and runs the search in the view that has
+    // the focus, which this one takes first.
+    setFocus( Qt::OtherFocusReason );
+    Q_EMIT changeQuickFind( selectedText(),
+                            forward ? QuickFindMux::Forward : QuickFindMux::Backward );
+    Q_EMIT searchNext();
+}
+
+Selection LogTableView::quickFindStart() const
+{
     Selection from;
-    from.selectLine( rows_->logLineAt( inCell->row ) );
-    if ( forward ) {
-        quickFind_->searchForward( from, quickFindPattern_->getMatcher() );
+    const auto current = currentIndex();
+    if ( model_ && current.isValid() ) {
+        from.selectLine( rows_->logLineAt( current.row() ) );
     }
-    else {
-        quickFind_->searchBackward( from, quickFindPattern_->getMatcher() );
+    return from;
+}
+
+void LogTableView::searchUsing( QuickFindSearch search )
+{
+    if ( model_ && logData_ ) {
+        ( quickFind_.get()->*search )( quickFindStart(), quickFindPattern_->getMatcher() );
     }
+}
+
+void LogTableView::searchForward()
+{
+    searchUsing( &QuickFind::searchForward );
+}
+
+void LogTableView::searchBackward()
+{
+    searchUsing( &QuickFind::searchBackward );
+}
+
+void LogTableView::incrementallySearchForward()
+{
+    searchUsing( &QuickFind::incrementallySearchForward );
+}
+
+void LogTableView::incrementallySearchBackward()
+{
+    searchUsing( &QuickFind::incrementallySearchBackward );
+}
+
+void LogTableView::incrementalSearchStop()
+{
+    // The Row of the match stays selected; without one, the Row the search
+    // started from still is.
+    quickFind_->incrementalSearchStop();
+}
+
+void LogTableView::incrementalSearchAbort()
+{
+    const auto initial = quickFind_->incrementalSearchAbort();
+    if ( const auto line = initial.selectedLine() ) {
+        selection_.clearInCell();
+        showInCellSelection();
+        showLogLine( *line );
+    }
+    // As the Text View does: the QuickFind bar forgets the pattern.
+    Q_EMIT changeQuickFind( "", QuickFindMux::Forward );
 }
 
 void LogTableView::showQuickFindResult( bool hasMatch, const Portion& logLinePortion )

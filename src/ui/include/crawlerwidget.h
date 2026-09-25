@@ -53,6 +53,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
+#include <QPointer>
 #include <QPushButton>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -201,7 +202,9 @@ protected:
     std::shared_ptr<const ViewContextInterface> doGetViewContext( void ) const override;
 
     // Implementation of the mux selector interface
-    // (for dispatching QuickFind to the right widget)
+    // (for dispatching QuickFind to the right widget): the Filtered View when
+    // it has or had the focus, else the Presentation shown, the Text View or
+    // the Table View. The Presentation not shown is never searched.
     SearchableWidgetInterface* doGetActiveSearchable() const override;
     std::vector<QObject*> doGetAllSearchables() const override;
 
@@ -259,9 +262,11 @@ private Q_SLOTS:
     // Stop the currently ongoing search (if one exists)
     void stopSearch();
     void loadIcons();
-    // QuickFind is being entered, save the focus for incremental qf.
+    // QuickFind is being entered: remember which view had the focus, the
+    // Filtered View or a Presentation, so QuickFind searches it while the
+    // QuickFind bar has the focus.
     void enteringQuickFind();
-    // QuickFind is being closed.
+    // QuickFind is being closed: the view that had the focus gets it back.
     void exitingQuickFind();
     // Called when new data must be displayed in the filtered window.
     void updateFilteredView( SearchSession::State state );
@@ -396,7 +401,14 @@ private:
     // Tells whom the Session handed over of a change this Log File's views
     // wrote themselves, so that it reaches every open Log File.
     void reportChange( Changed change );
-    AbstractLogView* activeView() const;
+    // The view QuickFind searches, Select All selects in and Esc focuses (see
+    // doGetActiveSearchable()).
+    QWidget* activeView() const;
+    // Whether the Filtered View has the focus, or had it when QuickFind was
+    // entered and the Presentation shown has not taken it since.
+    bool filteredViewIsActive() const;
+    // The Presentation the upper pane shows, as a widget.
+    QWidget* shownPresentation() const;
     // The Search Line says what is known of the Search, which does not run:
     // the Matches the Filtered View holds (#406).
     void printSearchInfoMessage();
@@ -528,7 +540,9 @@ private:
 
     // Reference to the QuickFind Pattern (not owned)
 
-    QWidget* qfSavedFocus_ = nullptr;
+    // The view that had the focus when QuickFind was entered; a kept
+    // Search's Filtered View can be closed meanwhile.
+    QPointer<QWidget> qfSavedFocus_;
 
     // the current dataStatus (whether we have new, not seen, data)
     DataStatus dataStatus_ = DataStatus::OLD_DATA;

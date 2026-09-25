@@ -87,9 +87,9 @@ public:
     // What the Presentation shows and scrolls under: its line numbers, and
     // whether it makes room for the Overview both Presentations share.
     virtual void setPresentationPolicy( const PresentationPolicy& policy ) = 0;
-    // How the text the user selected is read as a QuickFind pattern. The
-    // Text View hands its selection to the window's QuickFind, which reads
-    // the Policy itself, and so ignores it.
+    // How the text the user selected is read as a QuickFind pattern. Both
+    // Presentations hand their selection to the window's QuickFind, which
+    // reads the Policy itself, and so ignore it.
     virtual void setQuickFindPolicy( const QuickFindPolicy& policy ) = 0;
     // Whether follow may be engaged at all. The Table View follows only as
     // the Text View does, and so ignores it.
