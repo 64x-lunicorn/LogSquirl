@@ -169,6 +169,10 @@
 
 ## Bug fixes
 
+- **Uninstalling on Windows leaves nothing behind**: the uninstaller left
+  empty `platforms` and `styles` folders, and so the `logsquirl` folder
+  itself, under Program Files, and the installing user's *Send to* shortcut.
+  It now removes all three (#506).
 - **A merged view on Windows keeps lines written right after the merge**:
   lines written to a source in the moment its merge began (within the same
   ~15 ms modification time tick) now appear in the merged view. Windows only
@@ -339,6 +343,12 @@
 
 ## Documentation
 
+- **Silent install for administrators**: the user guide says how to deploy the
+  Windows installer without a dialog, for example through Intune: `/S`, `/D=`
+  for another directory, the Uninstall key to detect the version (in the
+  32-bit view of the registry), `Uninstall.exe /S`, and what an install as
+  SYSTEM means for the *Send to* shortcut. CI installs, upgrades and
+  uninstalls the installer this way on every build (#506).
 - **A first bug report has a form to follow**: A report from outside arrives
   through an issue form that asks for the version, the operating system, how
   LogSquirl was installed and the size and kind of the Log File, the fields the

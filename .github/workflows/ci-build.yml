@@ -831,6 +831,62 @@ jobs:
           if-no-files-found: error
 
   # -----------------------------------------------------------------------
+  # Windows installer — the installer the Windows job built, installed
+  # silently the way administrators deploy it (Intune and the like): /S as an
+  # administrator, /S /D= as SYSTEM, /S over the latest release, and /S
+  # uninstalls, each checked against logsquirl.nsi (#506). On a fresh runner,
+  # so the installed application starts on the DLLs it was installed with.
+  # -----------------------------------------------------------------------
+  WindowsInstaller:
+    name: Windows installer
+    needs: [SaveVersion, Windows]
+    runs-on: windows-2025
+    # Three installs and uninstalls, a minute each at most.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/scripts/check-windows-installer.ps1
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages-windows-x64
+          path: ${{ runner.temp }}/packages
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: logsquirl_version
+          path: ${{ runner.temp }}/version
+
+      # The Windows installer of the latest (non-pre-)release, to upgrade from.
+      # The release's checksum file does not list the Windows packages, so
+      # this relies on the download from the repository's own release.
+      - name: Download the latest release's installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/previous"
+          gh release download --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/previous" \
+            --pattern logsquirl-win-x64-setup.exe --pattern logsquirl_version.txt
+          ls -l "$RUNNER_TEMP/previous"
+
+      - name: Install, start, upgrade and uninstall silently
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw "$env:RUNNER_TEMP\version\logsquirl_version.txt").Trim()
+          $previous = (Get-Content -Raw "$env:RUNNER_TEMP\previous\logsquirl_version.txt").Trim()
+          .github\scripts\check-windows-installer.ps1 `
+            -Installer "$env:RUNNER_TEMP\packages\logsquirl-win-x64-setup.exe" `
+            -Version $version `
+            -PreviousInstaller "$env:RUNNER_TEMP\previous\logsquirl-win-x64-setup.exe" `
+            -PreviousVersion $previous `
+            -WorkDir "$env:RUNNER_TEMP\installer-check"
+
+  # -----------------------------------------------------------------------
   # Website — the build the deploy runs, including its link check, for a pull
   # request that changes the website; no secrets (#311).
   # -----------------------------------------------------------------------
@@ -881,7 +937,7 @@ jobs:
   ci-passed:
     name: CI passed
     needs:
-      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Tidy, Windows, Mac, Website]
+      [Changes, SaveVersion, Format, SBOM, Linux, Sanitizers, Tidy, Windows, WindowsInstaller, Mac, Website]
     if: ${{ always() && !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5

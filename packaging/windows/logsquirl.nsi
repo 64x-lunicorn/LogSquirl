@@ -211,6 +211,7 @@ Section "Uninstall"
     Delete "$INSTDIR\Qt6Core5Compat.dll"
     Delete "$INSTDIR\Qt6Svg.dll"
     Delete "$INSTDIR\platforms\qwindows.dll"
+    RMDir "$INSTDIR\platforms"
     Delete "$INSTDIR\imageformats\qsvg.dll"
     RMDir "$INSTDIR\imageformats"
     Delete "$INSTDIR\iconengines\qsvgicon.dll"
@@ -218,6 +219,7 @@ Section "Uninstall"
     Delete "$INSTDIR\styles\qmodernwindowsstyle.dll"
     ; Clean up legacy Qt style plugins from previous installations
     Delete "$INSTDIR\styles\qwindowsvistastyle.dll"
+    RMDir "$INSTDIR\styles"
     Delete "$INSTDIR\tls\qopensslbackend.dll"
     Delete "$INSTDIR\tls\qschannelbackend.dll"
     RMDir "$INSTDIR\tls"
@@ -262,6 +264,10 @@ Section "Uninstall"
     DeleteRegKey HKCR "Applications\logsquirl.exe\shell\open"
     DeleteRegKey HKCR "Applications\logsquirl.exe\shell"
     DeleteRegKey HKCR "Applications\logsquirl.exe"
+
+    ; The 'Send to' shortcut of the user uninstalling, who is usually the one
+    ; who installed (#506)
+    Delete "$SENDTO\logsquirl.lnk"
 
     ; Remove the shortcut, if any
     SetShellVarContext all

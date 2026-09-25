@@ -49,6 +49,30 @@ later) or an AppImage, DEB or RPM for Linux. Two package managers keep
   that add the repository are in the
   [README](https://github.com/64x-lunicorn/LogSquirl#readme).
 
+On Windows, administrators can deploy the installer without any dialog, for
+example wrapped into an `.intunewin` package for Microsoft Intune:
+
+- `logsquirl-win-x64-setup.exe /S` installs for all users of the machine into
+  `C:\Program Files\logsquirl`, with the Start menu shortcut and without the
+  `.log` association, and exits with 0. `/D=C:\Some Dir` as the last argument,
+  without quotes even with spaces, installs into another directory. Run over an
+  older version, it upgrades that in place.
+- It needs administrator rights, which the SYSTEM account Intune installs with
+  has. Started without them, Windows asks for elevation or refuses to start it;
+  it never installs half.
+- The installed version is the `DisplayVersion` value of
+  `HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\logsquirl`.
+  The installer is a 32-bit program, so its key is in the 32-bit view of the
+  registry: in an Intune detection rule, choose *Associated with a 32-bit app
+  on 64-bit clients*.
+- `"C:\Program Files\logsquirl\Uninstall.exe" /S` uninstalls silently. It
+  returns at once and finishes in the background within a few seconds.
+- The *Send to* shortcut goes to the profile of the account that installs, so
+  after an install as SYSTEM, users have no *Send to* entry for *logsquirl*.
+
+CI checks all of this, except the elevation prompt itself, on every build of
+the installer.
+
 ### The Dashboard
 
 When *Show dashboard on startup* is enabled (`Settings->General`, it is by
@@ -182,8 +206,10 @@ if Hyperscan can't handle the search pattern. However, in this case search will 
 * piping a stream into `logsquirl -` (see [Reading standard input](#Reading-standard-input))
 * using recent files or favorite menu items.
 
-On Windows and Mac OS, the *logsquirl* installer configures the operating system to open `.log` files by
-clicking them in the file manager.
+On Windows, the installer adds *logsquirl* to the *Open with* menu of the file manager, and makes it
+the program that opens `.log` files when its component *Associate with .log files* is selected, which it
+is not by default. On Mac OS, the *logsquirl* installer configures the operating system to open `.log`
+files by clicking them in the file manager.
 
 #### Reading standard input
 
