@@ -206,7 +206,7 @@ def test_an_empty_report_is_an_error_and_records_nothing(tmp_path):
 
 
 def test_the_entry_filename_sorts_by_time():
-    e = ph.make_entry(report({"grep": 1.0}), commit="b" * 40, ref="r", run_id="123/4",
+    e = ph.make_entry(report({"grep": 1.0}), commit="b" * 40, ref="r", run_id="123-4/",
                       version="", accept=False,
                       recorded_at=datetime(2026, 10, 5, 4, 23, tzinfo=timezone.utc))
-    assert ph.entry_filename(e) == "20261005T042300Z-bbbbbbbbbbbb-1234.json"
+    assert ph.entry_filename(e) == "20261005T042300Z-bbbbbbbbbbbb-123-4.json"

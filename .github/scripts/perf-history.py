@@ -158,7 +158,7 @@ def make_entry(report: dict, *, commit: str, ref: str, run_id: str, version: str
 
 def entry_filename(entry: dict) -> str:
     stamp = entry["recorded_at"].replace(":", "").replace("-", "")
-    safe_run = re.sub(r"[^0-9A-Za-z]", "", str(entry["run_id"])) or "local"
+    safe_run = re.sub(r"[^0-9A-Za-z-]", "", str(entry["run_id"])) or "local"
     return f"{stamp}-{entry['commit'][:12]}-{safe_run}.json"
 
 
