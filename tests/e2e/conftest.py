@@ -49,6 +49,15 @@ def pytest_addoption(parser):
         help="Update performance baselines with measured values instead of comparing",
     )
     parser.addoption(
+        "--no-baseline-compare",
+        action="store_true",
+        default=False,
+        help=(
+            "Measure and report only, without comparing with baseline.json. The weekly "
+            "Performance workflow compares with its own run history instead (#441)"
+        ),
+    )
+    parser.addoption(
         "--bench-runs",
         action="store",
         type=int,
@@ -511,10 +520,20 @@ def assert_performance(benchmark_name: str, measured: dict, baseline: dict):
        regression to be statistically significant (both conditions required)
 
     Emits a pytest warning if the benchmark is noisy (CV% > 15%).
+
+    ``baseline`` is None when the run was told not to compare
+    (--no-baseline-compare). A benchmark without a baseline entry is skipped
+    with the measured value in the reason, not passed: a comparison that did
+    not happen must not look like one that succeeded (#441).
     """
+    if baseline is None:
+        return
     entry = baseline.get("benchmarks", {}).get(benchmark_name)
     if not entry or entry.get("median_seconds") is None:
-        return  # No baseline yet — skip comparison
+        pytest.skip(
+            f"No baseline for '{benchmark_name}' in {_BASELINE_PATH.name}: measured "
+            f"{measured['median_seconds']:.6f}s, not compared. Record it with --update-baseline."
+        )
 
     tolerance = baseline.get("_meta", {}).get("tolerance_percent", 5) / 100
     max_allowed = entry["median_seconds"] * (1 + tolerance)
@@ -667,6 +686,7 @@ def generate_benchmark_report(
     """Generate a benchmark report after all performance tests complete."""
     if report_format == "none" or not collected_results:
         return
+    baseline = baseline or {}  # None with --no-baseline-compare
 
     if report_format == "json":
         _generate_json_report(collected_results, baseline, system_info, bench_runs, bench_warmup)
@@ -717,7 +737,7 @@ def _generate_markdown_report(
             status = "PASS" if med <= bl_med * (1 + tolerance / 100) else "FAIL"
         else:
             delta_str = "NEW"
-            status = "PASS"
+            status = "NOT COMPARED"
 
         lines.append(
             f"| {name} | {med:.4f}s | {m:.4f} ± {s:.4f} | {cv:.1f}% "
