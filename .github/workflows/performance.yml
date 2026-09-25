@@ -25,6 +25,11 @@ name: "Performance"
 # job, which runs no code of the build and reads the result as JSON, may push,
 # and only to the data branch.
 on:
+  # TEMPORARY, removed before merge: GitHub dispatches only workflows that
+  # exist on the default branch, so the branch that adds this one tests it
+  # through a push.
+  push:
+    branches: [agent/441-weekly-performance]
   schedule:
     # Mondays 03:41 UTC.
     - cron: '41 3 * * 1'
