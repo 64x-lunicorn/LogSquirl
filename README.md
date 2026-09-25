@@ -200,6 +200,35 @@ development under a new name, building on the excellent foundation laid by both 
 
 LogSquirl is standing on the shoulders of giants.
 
+### Differences from klogg
+
+klogg's last stable release is 22.06, from June 2022. LogSquirl picks up from
+there and should still feel like klogg: open, search, filter, follow. New
+capabilities are meant to come as optional plugins, so you choose what you add.
+
+**In stable releases:**
+
+- Log format detection and a column-based Table View
+- The Chart Panel, with format-aware templates
+- The Filters Panel and Filter Groups
+- Plugins for data sources, format converters, and UI extensions
+
+**Coming in the next release (on master, in the next beta):**
+
+- Time navigation: go to a timestamp, or limit a search to a time range
+- A Table View for JSON and logfmt logs
+- Reading a log from standard input: `journalctl -f | logsquirl -`
+- A Team Folder that shares Filter Groups and Highlighter Sets via a repository
+- APT and DNF repositories for Ubuntu, Fedora, and Oracle Linux
+
+**What it gives up:**
+
+- Qt 6.5+ and C++23 only; there is no Qt 5 build.
+- The macOS build is Apple Silicon only and needs macOS 15 or later.
+- There is no Chocolatey package; its unpublished package source was removed.
+
+The [changelog](CHANGELOG.md) has the details.
+
 ### Acknowledgements
 
 **[LogSquirl](https://github.com/64x-lunicorn/LogSquirl)** is built by
