@@ -64,6 +64,7 @@
 
 #include <kdsingleapplication.h>
 
+#include "installsource.h"
 #include "mainwindow.h"
 #include "messagereceiver.h"
 #include "versionchecker.h"
@@ -413,18 +414,11 @@ private:
     {
         LOG_DEBUG << "newVersionNotification( " << new_version << " from " << url << " )";
 
-        QString message
-            = QString( "<p> A new version of logsquirl (%1) is available for download </p>"
-                       "<a href=\"%2\">%2</a>" )
-                  .arg( new_version, url );
-
-        if ( !changes.empty() ) {
-            message.append( "<p>Important changes:</p><ul>" );
-            for ( const auto& change : changes ) {
-                message.append( QString( "<li>%1</li>" ).arg( change ) );
-            }
-            message.append( "</ul>" );
-        }
+        // Decided now, when the notice is shown, from what is on this machine.
+        const auto message = logsquirl::versioncheck::updateNoticeHtml(
+            new_version, url, changes,
+            logsquirl::versioncheck::detectInstallSource(
+                logsquirl::versioncheck::runningInstallEnvironment() ) );
 
         QMessageBox msgBox;
         msgBox.setText( message );

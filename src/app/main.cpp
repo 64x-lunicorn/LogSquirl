@@ -61,6 +61,7 @@
 #include "tbb/global_control.h"
 
 #include "configuration.h"
+#include "defaultencodingcheck.h"
 #include "highlighterset.h"
 #include "logger.h"
 #include "mainwindow.h"
@@ -149,13 +150,16 @@ int main( int argc, char* argv[] )
         return app.handOverToPrimaryInstance( parameters.filenames );
     }
 
-    const auto& config = Configuration::getSynced();
+    auto& config = Configuration::getSynced();
     MainWindow::installLanguage( config.language() );
 
     const auto logLevel
         = static_cast<logging::LogLevel>( std::max( parameters.log_level, config.loggingLevel() ) );
     logging::enableLogging( parameters.enable_logging || config.enableLogging(), logLevel );
     logging::enableFileLogging( parameters.log_to_file || config.enableLogging(), logLevel );
+
+    // Logging is on now, so the warning about an unknown Encoding lands in it.
+    resetUnknownDefaultEncoding( config );
 
     app.initCrashHandler();
     app.prepareForMainWindows();

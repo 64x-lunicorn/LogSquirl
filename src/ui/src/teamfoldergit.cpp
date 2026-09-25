@@ -39,18 +39,22 @@ namespace {
 // How often a waiting run looks at its stop flag.
 constexpr int StopPollMs = 100;
 
-// A run that was killed while it changed the index leaves its lock behind, and
-// every later run in the clone then fails on it. The clone is the Team
-// Folder's alone and its runs follow one another, so once the killed one is
-// gone no lock can belong to anybody else.
-void removeOrphanedIndexLock( const QString& workingDirectory )
+// A run that was killed while it changed the index leaves index.lock behind,
+// and every later run in the clone then fails on it. Only the killed git
+// itself writes that file: the helpers it starts (git-remote-https, ssh)
+// never do, and they end when their parent's pipes close, so they need no
+// care here. The clone is the Team Folder's alone and its runs follow one
+// another, so a lock made since this run started is the killed run's. An older
+// one is not: it is left alone. The modification time of a file system can be
+// coarse, hence the second of slack.
+void removeOrphanedIndexLock( const QString& workingDirectory, const QDateTime& runStarted )
 {
     if ( workingDirectory.isEmpty() ) {
         return;
     }
     const QFileInfo lock(
         QDir( workingDirectory ).filePath( QStringLiteral( ".git/index.lock" ) ) );
-    if ( lock.isFile() && lock.lastModified() <= QDateTime::currentDateTime() ) {
+    if ( lock.isFile() && lock.lastModified() >= runStarted.addSecs( -1 ) ) {
         LOG_WARNING << "Team Folder removes the index.lock a stopped run left behind";
         QFile::remove( lock.filePath() );
     }
@@ -91,6 +95,7 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
     process.setProgram( program_ );
     process.setArguments( arguments );
 
+    const auto runStarted = QDateTime::currentDateTime();
     LOG_DEBUG << "Team Folder runs git " << arguments.join( ' ' );
     process.start( QIODevice::ReadOnly );
     if ( !process.waitForStarted() ) {
@@ -114,7 +119,7 @@ GitResult Git::run( const QStringList& arguments, const QString& workingDirector
         if ( stopped || elapsed.elapsed() > timeoutMs ) {
             process.kill();
             process.waitForFinished();
-            removeOrphanedIndexLock( workingDirectory );
+            removeOrphanedIndexLock( workingDirectory, runStarted );
             result.output = QString::fromUtf8( process.readAllStandardOutput() );
             result.error = stopped ? QCoreApplication::translate( "TeamFolder", "Stopped." )
                                    : QCoreApplication::translate( "TeamFolder",

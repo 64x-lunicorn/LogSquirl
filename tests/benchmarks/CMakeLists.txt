@@ -73,6 +73,15 @@ add_executable(logsquirl_tableview_paint_benchmark
 
 target_link_libraries(logsquirl_tableview_paint_benchmark logsquirl_ui Catch2::Catch2 test_utils)
 
+# Scrolling a Table View over ten million Log Lines (#462), for the A/B of the
+# elapsed-time column. Uses only what the Table View offered before it.
+add_executable(logsquirl_tableview_scroll_benchmark
+    tableview_scroll_benchmark.cpp
+)
+
+target_include_directories(logsquirl_tableview_scroll_benchmark PRIVATE "${CMAKE_SOURCE_DIR}/tests/helpers")
+target_link_libraries(logsquirl_tableview_scroll_benchmark logsquirl_ui Catch2::Catch2 test_utils)
+
 # The Displayed Lines of a Search with a million Matches (#292): progress
 # ticks, completion, continuation and toggling a Mark. Links logsquirl_logdata
 # only; builds on commits from before #292 too (see README.md).

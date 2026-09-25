@@ -175,16 +175,56 @@ ExtractedFields LogFieldExtractor::extractJsonFields( const QString& line ) cons
     }
 
     for ( const auto& field : keyedFields_ ) {
-        const auto value = JsonLogLine::valueAt( *object, field );
-        if ( field == format_.timestampField() && value.isDouble() ) {
-            result.setValue(
-                field, JsonLogLine::epochCellText( value.toDouble(), format_.timestampDivisor() ) );
-        }
-        else {
-            result.setValue( field, JsonLogLine::cellText( value ) );
-        }
+        result.setValue( field, jsonFieldText( *object, field ) );
     }
     return result;
+}
+
+QString LogFieldExtractor::jsonFieldText( const QJsonObject& object, const QString& field ) const
+{
+    const auto value = JsonLogLine::valueAt( object, field );
+    if ( field == format_.timestampField() && value.isDouble() ) {
+        return JsonLogLine::epochCellText( value.toDouble(), format_.timestampDivisor() );
+    }
+    return JsonLogLine::cellText( value );
+}
+
+std::optional<QString> LogFieldExtractor::extractField( const QString& line,
+                                                        const QString& fieldName ) const
+{
+    switch ( format_.kind() ) {
+    case LogFormatKind::Json: {
+        // Every line is valid; a key the format does not read is empty
+        if ( !keyedFields_.contains( fieldName ) ) {
+            return QString();
+        }
+        const auto object = JsonLogLine::parse( line );
+        return object ? jsonFieldText( *object, fieldName ) : QString();
+    }
+    case LogFormatKind::Logfmt: {
+        if ( !keyedFields_.contains( fieldName ) ) {
+            return QString();
+        }
+        const auto pairs = LogfmtLogLine::parse( line );
+        return pairs ? pairs->value( fieldName ) : QString();
+    }
+    case LogFormatKind::Regex:
+        break;
+    }
+
+    for ( const auto& pattern : compiledPatterns_ ) {
+        const auto match = pattern.regex.match( line );
+        if ( !match.hasMatch() ) {
+            continue;
+        }
+        for ( const auto& [ name, index ] : pattern.namedGroups ) {
+            if ( name == fieldName ) {
+                return index >= 0 ? match.captured( index ) : match.captured( name );
+            }
+        }
+        return QString();
+    }
+    return std::nullopt;
 }
 
 ExtractedFields LogFieldExtractor::extractLogfmtFields( const QString& line ) const

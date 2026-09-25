@@ -67,6 +67,12 @@ struct SyncOutcome {
     bool hasPending = false;
 };
 
+std::atomic<int>& groupFileReads()
+{
+    static std::atomic<int> count{ 0 };
+    return count;
+}
+
 namespace {
 
 const QString RemoteName = QStringLiteral( "origin" );
@@ -114,10 +120,54 @@ void skipDuplicate( SyncOutcome& outcome, const QString& file, const QString& gr
     LOG_WARNING << "Team Folder skips " << file << ": " << reason;
 }
 
-void readGroups( const QString& folder, SyncOutcome& outcome )
+// Reads one file of the folder into the outcome. `ids` holds the groups known
+// already: a group whose id is taken is skipped, the first file by name wins.
+void readGroupFile( const QFileInfo& info, QSet<QString>& ids, SyncOutcome& outcome )
 {
     using namespace logsquirl::groupexchange;
 
+    groupFileReads().fetch_add( 1, std::memory_order_relaxed );
+    const auto file = info.fileName();
+    const auto filters = readFilterGroups( info.absoluteFilePath() );
+    if ( filters.error != ReadError::None ) {
+        const auto highlighters = readHighlighterGroups( info.absoluteFilePath() );
+        if ( highlighters.error == ReadError::None ) {
+            for ( const auto& group : highlighters.groups ) {
+                if ( ids.contains( group.id() ) ) {
+                    skipDuplicate( outcome, file, group.name() );
+                    continue;
+                }
+                ids.insert( group.id() );
+                outcome.highlighterGroups.append(
+                    { group, file, revisionOfFile( info.absoluteFilePath() ) } );
+            }
+        }
+        else {
+            const auto reason
+                = filters.error == ReadError::Unreadable
+                      ? TeamFolder::tr( "The file cannot be read." )
+                      : TeamFolder::tr( "The file holds no Filter Group or Highlighter Set." );
+            outcome.skippedFiles.append( { file, reason } );
+            LOG_WARNING << "Team Folder skips " << file << ": " << reason;
+        }
+        return;
+    }
+
+    for ( auto group : filters.groups ) {
+        if ( group.id() == defaultFilterSetId() ) {
+            group = group.withId( idForDefaultGroupIn( file ) );
+        }
+        if ( ids.contains( group.id() ) ) {
+            skipDuplicate( outcome, file, group.name() );
+            continue;
+        }
+        ids.insert( group.id() );
+        outcome.filterGroups.append( { group, file, revisionOfFile( info.absoluteFilePath() ) } );
+    }
+}
+
+void readGroups( const QString& folder, SyncOutcome& outcome )
+{
     const QDir dir( folder );
     if ( !dir.exists() ) {
         return;
@@ -126,46 +176,59 @@ void readGroups( const QString& folder, SyncOutcome& outcome )
     QSet<QString> ids;
     const auto files = dir.entryInfoList( { QStringLiteral( "*.conf" ) }, QDir::Files, QDir::Name );
     for ( const auto& info : files ) {
-        const auto file = info.fileName();
-        const auto filters = readFilterGroups( info.absoluteFilePath() );
-        if ( filters.error != ReadError::None ) {
-            const auto highlighters = readHighlighterGroups( info.absoluteFilePath() );
-            if ( highlighters.error == ReadError::None ) {
-                for ( const auto& group : highlighters.groups ) {
-                    if ( ids.contains( group.id() ) ) {
-                        skipDuplicate( outcome, file, group.name() );
-                        continue;
-                    }
-                    ids.insert( group.id() );
-                    outcome.highlighterGroups.append(
-                        { group, file, revisionOfFile( info.absoluteFilePath() ) } );
-                }
-            }
-            else {
-                const auto reason
-                    = filters.error == ReadError::Unreadable
-                          ? TeamFolder::tr( "The file cannot be read." )
-                          : TeamFolder::tr( "The file holds no Filter Group or Highlighter Set." );
-                outcome.skippedFiles.append( { file, reason } );
-                LOG_WARNING << "Team Folder skips " << file << ": " << reason;
-            }
-            continue;
-        }
-
-        for ( auto group : filters.groups ) {
-            if ( group.id() == defaultFilterSetId() ) {
-                group = group.withId( idForDefaultGroupIn( file ) );
-            }
-            if ( ids.contains( group.id() ) ) {
-                skipDuplicate( outcome, file, group.name() );
-                continue;
-            }
-            ids.insert( group.id() );
-            outcome.filterGroups.append(
-                { group, file, revisionOfFile( info.absoluteFilePath() ) } );
-        }
+        readGroupFile( info, ids, outcome );
     }
 }
+
+// The groups of the folder as a sync knows them: read once, looked up by the
+// steps that follow, and brought up to date where the files change -- after an
+// integrate as a whole, after a commit for the one file it touched -- so that
+// a request never sees a stale revision.
+class GroupIndex {
+public:
+    explicit GroupIndex( QString folder )
+        : folder_( std::move( folder ) )
+    {
+    }
+
+    void reload()
+    {
+        groups_ = {};
+        readGroups( folder_, groups_ );
+    }
+
+    // Reads one file again, after a commit wrote or removed it.
+    void reloadFile( const QString& file )
+    {
+        groups_.filterGroups.removeIf(
+            [ &file ]( const auto& known ) { return known.file == file; } );
+        groups_.highlighterGroups.removeIf(
+            [ &file ]( const auto& known ) { return known.file == file; } );
+        groups_.skippedFiles.removeIf(
+            [ &file ]( const auto& known ) { return known.file == file; } );
+
+        QSet<QString> ids;
+        for ( const auto& known : std::as_const( groups_.filterGroups ) ) {
+            ids.insert( known.group.id() );
+        }
+        for ( const auto& known : std::as_const( groups_.highlighterGroups ) ) {
+            ids.insert( known.group.id() );
+        }
+        const QFileInfo info( QDir( folder_ ).filePath( file ) );
+        if ( info.isFile() ) {
+            readGroupFile( info, ids, groups_ );
+        }
+    }
+
+    const SyncOutcome& groups() const
+    {
+        return groups_;
+    }
+
+private:
+    QString folder_;
+    SyncOutcome groups_;
+};
 
 QStringList args( std::initializer_list<const char*> list )
 {
@@ -308,9 +371,18 @@ PushResult pushHead( const Git& git, const QString& clone )
     }
 
     // What Git says when it cannot even try (network, credentials) names the
-    // repository's URL and so may hold any number: it never classifies. Only
-    // the status of the ref does.
+    // repository's URL and so may hold any number: it never classifies, with
+    // one exception. An HTTP 403 prints nothing on standard output, only
+    // Git's fixed sentence on standard error (Git runs untranslated), and
+    // that sentence, not a bare number, says the server lets this user not
+    // write (ADR 0008). Every other failure stays "unreachable" so that a
+    // network error never discards a local commit. Otherwise only the status
+    // of the ref classifies.
     PushResult result{ PushResult::Kind::Unreachable, pushed.message() };
+    if ( pushed.error.contains( QStringLiteral( "The requested URL returned error: 403" ) ) ) {
+        result.kind = PushResult::Kind::Refused;
+        return result;
+    }
     const auto lines = pushed.output.split( QLatin1Char( '\n' ) );
     for ( const auto& line : lines ) {
         if ( !line.startsWith( QLatin1Char( '!' ) ) ) {
@@ -363,10 +435,9 @@ struct FoundGroup {
     std::optional<HighlighterSet> highlighterSet;
 };
 
-std::optional<FoundGroup> findGroup( const QString& folder, const PublishRequest& request )
+std::optional<FoundGroup> findGroup( const GroupIndex& index, const PublishRequest& request )
 {
-    SyncOutcome known;
-    readGroups( folder, known );
+    const auto& known = index.groups();
     if ( request.kind == groupexchange::GroupKind::Filter ) {
         for ( const auto& group : known.filterGroups ) {
             if ( group.group.id() == request.id ) {
@@ -386,9 +457,9 @@ std::optional<FoundGroup> findGroup( const QString& folder, const PublishRequest
 
 // The file a group lives in: the one it was read from, or for a group the
 // folder does not know a free one named after it.
-QString fileFor( const QString& folder, const PublishRequest& request )
+QString fileFor( const QString& folder, const GroupIndex& index, const PublishRequest& request )
 {
-    if ( const auto found = findGroup( folder, request ) ) {
+    if ( const auto found = findGroup( index, request ) ) {
         return found->file;
     }
 
@@ -405,12 +476,12 @@ QString fileFor( const QString& folder, const PublishRequest& request )
 
 // The answer to a request that met a version of the group it did not know:
 // the version that is in the folder now.
-PublishResult conflictResult( const QString& folder, const PublishRequest& request )
+PublishResult conflictResult( const GroupIndex& index, const PublishRequest& request )
 {
     PublishResult result;
     result.status = PublishStatus::Conflict;
     result.request = request;
-    if ( const auto found = findGroup( folder, request ) ) {
+    if ( const auto found = findGroup( index, request ) ) {
         result.file = found->file;
         result.theirsFilterGroup = found->filterGroup;
         result.theirsHighlighterSet = found->highlighterSet;
@@ -420,28 +491,28 @@ PublishResult conflictResult( const QString& folder, const PublishRequest& reque
 
 // Whether someone else changed the group since the user loaded it: the file
 // has another revision than the one remembered, or is gone.
-std::optional<PublishResult> conflictOf( const QString& folder, const PublishRequest& request )
+std::optional<PublishResult> conflictOf( const GroupIndex& index, const PublishRequest& request )
 {
     if ( !request.baseRevision || request.baseRevision->isEmpty() || request.overwrite ) {
         return std::nullopt;
     }
-    const auto found = findGroup( folder, request );
+    const auto found = findGroup( index, request );
     if ( found && found->revision == *request.baseRevision ) {
         return std::nullopt;
     }
-    return conflictResult( folder, request );
+    return conflictResult( index, request );
 }
 
 // Writes the group into the clone and commits that one file. Whether it was
 // done, and Git's message when not.
-PublishResult commitRequest( const Git& git, const QString& clone, const QString& folder,
-                             const PublishRequest& request )
+PublishResult commitRequestToClone( const Git& git, const QString& clone, const QString& folder,
+                                    const GroupIndex& index, const PublishRequest& request )
 {
     PublishResult result;
     result.request = request;
 
     if ( request.action == GroupAction::Delete ) {
-        const auto found = findGroup( folder, request );
+        const auto found = findGroup( index, request );
         if ( !found ) {
             // Already gone: nothing to delete.
             result.status = PublishStatus::Published;
@@ -469,7 +540,7 @@ PublishResult commitRequest( const Git& git, const QString& clone, const QString
         return result;
     }
 
-    result.file = fileFor( folder, request );
+    result.file = fileFor( folder, index, request );
     const auto path = QDir( folder ).filePath( result.file );
     QDir().mkpath( QFileInfo( path ).absolutePath() );
     if ( !request.writeTo( path ) ) {
@@ -502,6 +573,17 @@ PublishResult commitRequest( const Git& git, const QString& clone, const QString
         return result;
     }
     result.status = PublishStatus::Published;
+    return result;
+}
+
+// The same, and the index takes in the file the commit changed.
+PublishResult commitRequest( const Git& git, const QString& clone, const QString& folder,
+                             GroupIndex& index, const PublishRequest& request )
+{
+    auto result = commitRequestToClone( git, clone, folder, index, request );
+    if ( !result.file.isEmpty() ) {
+        index.reloadFile( result.file );
+    }
     return result;
 }
 
@@ -676,9 +758,16 @@ SetAside setAsideOverlaps( const Git& git, const QString& clone, const QString& 
         return {};
     }
     SetAside result;
+    // The files just changed under the reset: the theirs of the conflicts are
+    // read from them once.
+    GroupIndex index( folder );
+    if ( std::any_of( taken.cbegin(), taken.cend(),
+                      []( const Taken& item ) { return item.overlapping; } ) ) {
+        index.reload();
+    }
     for ( const auto& item : taken ) {
         if ( item.overlapping ) {
-            result.conflicts.append( conflictResult( folder, item.request ) );
+            result.conflicts.append( conflictResult( index, item.request ) );
         }
         else {
             result.recommit.append( item.request );
@@ -769,6 +858,11 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
         outcome->result = SyncOutcome::Result::Synced;
     }
 
+    // The groups are read once here; the requests look them up in the index.
+    GroupIndex index( *folder );
+    index.reload();
+    bool groupsChanged = false;
+
     // Changes to publish are committed one by one, offline as well.
     bool committedSomething = false;
     if ( !todo.isEmpty() || !conflicts.isEmpty() ) {
@@ -786,12 +880,13 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
             // After a sync, the group can be compared with what the user
             // loaded. Offline there is nothing newer to compare with.
             if ( reachable ) {
-                if ( auto conflict = conflictOf( *folder, request ) ) {
+                if ( auto conflict = conflictOf( index, request ) ) {
                     published.results.append( *conflict );
                     continue;
                 }
             }
-            auto result = commitRequest( git, clone, *folder, request );
+            auto result = commitRequest( git, clone, *folder, index, request );
+            groupsChanged = true;
             committedSomething = committedSomething || result.status == PublishStatus::Published;
             published.results.append( result );
         }
@@ -811,12 +906,15 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
                 // What was committed meanwhile may touch what the others just
                 // pushed: that is asked about, not overwritten.
                 const auto aside = setAsideOverlaps( git, clone, *folder );
-                if ( !integrate( git, clone ) ) {
+                const auto integrated = integrate( git, clone );
+                index.reload();
+                groupsChanged = true;
+                if ( !integrated ) {
                     for ( const auto& conflict : aside.conflicts ) {
                         addResult( *outcome, conflict );
                     }
                     for ( const auto& request : aside.recommit ) {
-                        const auto again = commitRequest( git, clone, *folder, request );
+                        const auto again = commitRequest( git, clone, *folder, index, request );
                         addResult( *outcome, again );
                     }
                     pushed = pushHead( git, clone );
@@ -836,6 +934,7 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
             outcome->refused = true;
             outcome->refusedReason = pushed.message;
             discardUnpushed( git, clone );
+            groupsChanged = true;
             break;
         }
 
@@ -865,7 +964,12 @@ std::shared_ptr<SyncOutcome> runSync( const QString& clone, const QString& gitPr
     }
 
     outcome->hasPending = !outcome->refused && hasUnpushedCommits( git, clone );
-    readGroups( *folder, *outcome );
+    if ( groupsChanged ) {
+        index.reload();
+    }
+    outcome->filterGroups = index.groups().filterGroups;
+    outcome->highlighterGroups = index.groups().highlighterGroups;
+    outcome->skippedFiles = index.groups().skippedFiles;
     return outcome;
 }
 

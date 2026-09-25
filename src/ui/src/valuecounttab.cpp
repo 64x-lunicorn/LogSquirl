@@ -22,13 +22,13 @@
 #include <QAction>
 #include <QHeaderView>
 #include <QLabel>
-#include <QLocale>
 #include <QProgressBar>
-#include <QTableWidget>
+#include <QTableView>
 #include <QToolBar>
 #include <QVBoxLayout>
 
 #include "abstractlogdata.h"
+#include "valuecountmodel.h"
 
 ValueCountTab::ValueCountTab( std::shared_ptr<const AbstractLogData> logData, QString description,
                               ValueOfLineFactory valueOfLine, QWidget* parent )
@@ -61,20 +61,23 @@ ValueCountTab::ValueCountTab( std::shared_ptr<const AbstractLogData> logData, QS
     progressBar_->setVisible( false );
     layout->addWidget( progressBar_ );
 
-    table_ = new QTableWidget( 0, 3 );
-    table_->setHorizontalHeaderLabels( { tr( "Value" ), tr( "Count" ), tr( "Share" ) } );
+    model_ = new ValueCountModel( this );
+    table_ = new QTableView;
+    table_->setModel( model_ );
     table_->horizontalHeader()->setStretchLastSection( false );
-    table_->horizontalHeader()->setSectionResizeMode( 0, QHeaderView::Stretch );
+    table_->horizontalHeader()->setSectionResizeMode( ValueCountModel::ValueColumn,
+                                                      QHeaderView::Stretch );
     table_->verticalHeader()->setVisible( false );
+    table_->verticalHeader()->setSectionResizeMode( QHeaderView::Fixed );
     table_->setEditTriggers( QAbstractItemView::NoEditTriggers );
     table_->setSelectionBehavior( QAbstractItemView::SelectRows );
     table_->setSelectionMode( QAbstractItemView::SingleSelection );
-    connect( table_, &QTableWidget::cellClicked, this, [ this ]( int row, int ) {
-        const auto* item = table_->item( row, 0 );
+    connect( table_, &QTableView::clicked, this, [ this ]( const QModelIndex& index ) {
+        const auto value = model_->valueAt( index.row() );
         // The value of a row that stands for no text, or for a Log Line where
         // the field is empty, is not something to search for.
-        if ( item != nullptr && !item->text().isEmpty() && !item->data( Qt::UserRole ).toBool() ) {
-            Q_EMIT valueClicked( item->text() );
+        if ( !value.isEmpty() ) {
+            Q_EMIT valueClicked( value );
         }
     } );
     layout->addWidget( table_, 1 );
@@ -106,7 +109,7 @@ bool ValueCountTab::isCounting() const
 void ValueCountTab::countAgain()
 {
     // A snapshot: nothing of the count before stays on show.
-    table_->setRowCount( 0 );
+    model_->clear();
     showStatus( tr( "Counting values of %1…" ).arg( description_ ) );
     progressBar_->setValue( 0 );
     progressBar_->setVisible( true );
@@ -158,23 +161,5 @@ void ValueCountTab::onFinished( const ValueCountResult& result )
     showStatus( tr( "%1: %n Log Line(s) counted", "", static_cast<int>( result.linesCounted ) )
                     .arg( description_ ) );
 
-    const QLocale locale;
-    table_->setUpdatesEnabled( false );
-    table_->setRowCount( static_cast<int>( result.entries.size() ) );
-    int row = 0;
-    for ( const auto& entry : result.entries ) {
-        const bool isEmpty = entry.value.isEmpty();
-        auto* valueItem = new QTableWidgetItem( isEmpty ? tr( "(empty)" ) : entry.value );
-        valueItem->setData( Qt::UserRole, isEmpty );
-        auto* countItem = new QTableWidgetItem( locale.toString( entry.count ) );
-        countItem->setTextAlignment( Qt::AlignRight | Qt::AlignVCenter );
-        auto* shareItem = new QTableWidgetItem(
-            tr( "%1 %" ).arg( locale.toString( result.sharePercent( entry.count ), 'f', 2 ) ) );
-        shareItem->setTextAlignment( Qt::AlignRight | Qt::AlignVCenter );
-        table_->setItem( row, 0, valueItem );
-        table_->setItem( row, 1, countItem );
-        table_->setItem( row, 2, shareItem );
-        ++row;
-    }
-    table_->setUpdatesEnabled( true );
+    model_->setResult( result );
 }

@@ -308,10 +308,18 @@ void LogDataWorker::run( const IndexJob& job )
                             indexAll( attach.forcedEncoding, FullIndexRequest::Automatic );
                         }
                         else {
-                            indexAll( attach.defaultEncodingMib >= 0
-                                          ? TextEncoding::forMib( attach.defaultEncodingMib )
-                                          : nullptr,
-                                      FullIndexRequest::Automatic );
+                            const TextEncoding* defaultEncoding = nullptr;
+                            if ( attach.defaultEncodingMib >= 0 ) {
+                                defaultEncoding = TextEncoding::forMib( attach.defaultEncodingMib );
+                                if ( !defaultEncoding ) {
+                                    // Same fallback as LogData (#488).
+                                    LOG_WARNING << "Unknown default encoding "
+                                                << attach.defaultEncodingMib
+                                                << ", falling back to locale";
+                                    defaultEncoding = TextEncoding::forLocale();
+                                }
+                            }
+                            indexAll( defaultEncoding, FullIndexRequest::Automatic );
                         }
                     },
                     [ this ]( const FullReindexJob& full ) {

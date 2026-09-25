@@ -39,6 +39,10 @@
 
 namespace logsquirl::teamfolder {
 
+// How many group files the Team Folder has read (parsed and hashed) so far: a
+// seam for tests that count the reads of a sync.
+std::atomic<int>& groupFileReads();
+
 // A Team group as the Team Folder holds it: the group, and the file of the
 // Team Folder it was read from, relative to the Team Folder's subfolder.
 // A group is known by the id inside its file, not by the file's name.
@@ -293,7 +297,6 @@ Q_SIGNALS:
 
 private:
     void startSync();
-    void takeWritableFrom( const logsquirl::teamfolder::SyncOutcome& outcome );
     void takeOutcome();
     void setGroups( QList<logsquirl::teamfolder::TeamGroup<PredefinedFilterSet>> filterGroups,
                     QList<logsquirl::teamfolder::TeamGroup<HighlighterSet>> highlighterGroups );

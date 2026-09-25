@@ -25,6 +25,8 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLibrary>
 #include <QTemporaryDir>
 
@@ -44,16 +46,11 @@ PluginMetadata manifestFor( const QTemporaryDir& dir, const QString& libraryPath
     const auto manifestPath = QDir( dir.path() ).filePath( "plugin.json" );
     QFile manifest( manifestPath );
     REQUIRE( manifest.open( QIODevice::WriteOnly ) );
-    manifest.write( QStringLiteral( R"({
-        "id": "com.test.loader",
-        "name": "Loader Test",
-        "version": "1.0.0",
-        "type": "%1",
-        "library": "%2",
-        "api_version": 1
-    })" )
-                        .arg( type, libraryPath )
-                        .toUtf8() );
+    // Built as JSON, not pasted into a string: a Windows path has backslashes.
+    const QJsonObject object{ { "id", "com.test.loader" }, { "name", "Loader Test" },
+                              { "version", "1.0.0" },      { "type", type },
+                              { "library", libraryPath },  { "api_version", 1 } };
+    manifest.write( QJsonDocument( object ).toJson() );
     manifest.close();
 
     auto metadata = PluginMetadata::fromJsonFile( manifestPath );

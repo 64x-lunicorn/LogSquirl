@@ -26,6 +26,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/linemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logmainview.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecount.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecountmodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecounttab.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
@@ -55,6 +56,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/commandpalette.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/filterspanel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodings.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/defaultencodingcheck.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/favoritefiles.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabnamemapping.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/tabgroupinfo.h
@@ -106,6 +108,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logmainview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/logtableview.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecount.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecountmodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecounttab.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp

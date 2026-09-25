@@ -180,6 +180,9 @@ struct Fields {
     int second = 0;
     int millisecond = 0;
     std::optional<qint64> epoch;
+    // The written offset from UTC, in seconds; none when no zone is written
+    // or it is a name that carries no offset of its own ("PDT").
+    std::optional<int> offsetSeconds;
 };
 
 // Reads up to maxDigits digits at pos, at least one.
@@ -219,34 +222,56 @@ std::optional<int> readFraction( QStringView text, qsizetype& pos )
     return millis;
 }
 
-// Skips a written time zone, if there is one: "Z", "+01", "-0400", "+01:00",
-// "PDT", possibly after a space.
-void skipZone( QStringView text, qsizetype& pos )
+// Reads a written time zone, if there is one: "Z", "+01", "-0400", "+01:00",
+// "UTC", "GMT", possibly after a space. Returns its offset from UTC in
+// seconds; a zone name that says nothing about its offset ("PDT") is skipped
+// and has none.
+std::optional<int> readZone( QStringView text, qsizetype& pos )
 {
     auto p = pos;
     while ( p < text.size() && text[ p ].isSpace() ) {
         ++p;
     }
     if ( p >= text.size() ) {
-        return;
+        return std::nullopt;
     }
     if ( text[ p ] == QLatin1Char( '+' ) || text[ p ] == QLatin1Char( '-' ) ) {
+        const auto sign = text[ p ] == QLatin1Char( '-' ) ? -1 : 1;
         ++p;
         const auto digitsStart = p;
         while ( p < text.size() && ( isDigit( text[ p ] ) || text[ p ] == QLatin1Char( ':' ) ) ) {
             ++p;
         }
-        if ( p - digitsStart >= 2 ) {
-            pos = p;
+        if ( p - digitsStart < 2 ) {
+            return std::nullopt;
         }
-        return;
+        pos = p;
+        QString digits;
+        for ( auto i = digitsStart; i < p; ++i ) {
+            if ( text[ i ] != QLatin1Char( ':' ) ) {
+                digits += text[ i ];
+            }
+        }
+        const auto hours = digits.left( 2 ).toInt();
+        const auto minutes = digits.size() >= 4 ? digits.mid( 2, 2 ).toInt() : 0;
+        if ( hours > 23 || minutes > 59 ) {
+            return std::nullopt;
+        }
+        return sign * ( hours * 3600 + minutes * 60 );
     }
     if ( isLetter( text[ p ] ) ) {
+        const auto start = p;
         while ( p < text.size() && isLetter( text[ p ] ) ) {
             ++p;
         }
         pos = p;
+        const auto name = text.mid( start, p - start ).toString().toUpper();
+        if ( name == QLatin1String( "Z" ) || name == QLatin1String( "UTC" )
+             || name == QLatin1String( "GMT" ) || name == QLatin1String( "UT" ) ) {
+            return 0;
+        }
     }
+    return std::nullopt;
 }
 
 bool readFields( const Pattern& pattern, QStringView text, Fields& fields )
@@ -404,7 +429,7 @@ bool readFields( const Pattern& pattern, QStringView text, Fields& fields )
             break;
         }
         case Kind::Zone:
-            skipZone( text, pos );
+            fields.offsetSeconds = readZone( text, pos );
             break;
         }
     }
@@ -423,17 +448,25 @@ struct TimestampReader::Impl {
     std::vector<Pattern> patterns;
     bool available = false;
     int referenceYear = 0;
+    QDate modificationDate;
     double divisor = 1.0;
 };
 
-TimestampReader::TimestampReader( const LogFormatDefinition& format, int referenceYear )
+TimestampReader::TimestampReader( const LogFormatDefinition& format, int referenceYear,
+                                  const QDate& modificationDate )
     : impl_( std::make_unique<Impl>() )
 {
     // The extractor keeps a reference to the definition, so it gets a copy
     // that lives as long as it does.
     impl_->format = std::make_shared<const LogFormatDefinition>( format );
     impl_->extractor = std::make_unique<LogFieldExtractor>( *impl_->format );
-    impl_->referenceYear = referenceYear > 0 ? referenceYear : QDate::currentDate().year();
+    impl_->modificationDate = modificationDate;
+    if ( modificationDate.isValid() ) {
+        impl_->referenceYear = modificationDate.year();
+    }
+    else {
+        impl_->referenceYear = referenceYear > 0 ? referenceYear : QDate::currentDate().year();
+    }
     impl_->divisor = format.timestampDivisor() > 0.0 ? format.timestampDivisor() : 1.0;
 
     impl_->available = isAvailableFor( format );
@@ -536,14 +569,29 @@ std::optional<QDateTime> TimestampReader::parseField( QStringView text ) const
 
         QDate date( 1970, 1, 1 );
         if ( fields.month != 0 || fields.day != 0 || fields.year != 0 ) {
-            date = QDate( fields.year != 0 ? fields.year : impl_->referenceYear,
-                          fields.month != 0 ? fields.month : 1, fields.day != 0 ? fields.day : 1 );
+            const auto month = fields.month != 0 ? fields.month : 1;
+            const auto day = fields.day != 0 ? fields.day : 1;
+            auto year = fields.year;
+            if ( year == 0 ) {
+                // A month and day later in the year than the Log File was
+                // last written belong to the year before (the syslog rule).
+                year = impl_->referenceYear;
+                if ( impl_->modificationDate.isValid()
+                     && ( month > impl_->modificationDate.month()
+                          || ( month == impl_->modificationDate.month()
+                               && day > impl_->modificationDate.day() ) ) ) {
+                    --year;
+                }
+            }
+            date = QDate( year, month, day );
         }
         const QTime time( fields.hour, fields.minute, fields.second, fields.millisecond );
         if ( !date.isValid() || !time.isValid() ) {
             continue;
         }
-        return QDateTime( date, time, QTimeZone::UTC );
+        // A written offset names an instant: it is converted to UTC.
+        return QDateTime( date, time, QTimeZone::UTC )
+            .addSecs( -fields.offsetSeconds.value_or( 0 ) );
     }
     return std::nullopt;
 }

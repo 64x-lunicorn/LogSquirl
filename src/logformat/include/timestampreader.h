@@ -21,6 +21,7 @@
 
 #include "logformatdefinition.h"
 
+#include <QDate>
 #include <QDateTime>
 #include <QString>
 #include <QStringView>
@@ -39,17 +40,22 @@
 // the common formats tried in turn: ISO 8601 with a "T" or a space, syslog,
 // Common Log Format, glog and a few more.
 //
-// A Timestamp is compared as written: what has no time zone is not
-// converted, and a zone that is written ("Z", "+0100", "PDT") is read and
-// ignored. The result holds the clock time as if it were UTC, only so that
-// two Timestamps compare; it is not the instant the Log Line happened. A
-// format without a year takes the reference year, one without a date takes
-// 1970-01-01.
+// A written offset counts: "+02:00", "-0400", "Z", "UTC" and "GMT" make the
+// Timestamp the UTC instant they name, so 10:00+02:00 and 08:00Z are equal
+// (ADR 0010). What has no zone, or only a name that carries no offset
+// ("PDT"), is not converted: its clock time is compared as written, as if
+// it were UTC. A format without a year takes the year of the Log File's
+// modification date, or the year before it when the month and day lie later
+// in the year than that date; without one it takes the reference year. A
+// format without a date takes 1970-01-01.
 class TimestampReader {
 public:
-    // The reference year is the one a format without a year gets; 0 is the
-    // current year.
-    explicit TimestampReader( const LogFormatDefinition& format, int referenceYear = 0 );
+    // The modification date of the Log File, when known, gives a format
+    // without a year its year; the caller passes it, the reader never looks
+    // at files. Without one, the reference year is used; 0 is the current
+    // year.
+    explicit TimestampReader( const LogFormatDefinition& format, int referenceYear = 0,
+                              const QDate& modificationDate = QDate() );
     ~TimestampReader();
     TimestampReader( TimestampReader&& ) noexcept;
     TimestampReader& operator=( TimestampReader&& ) noexcept;

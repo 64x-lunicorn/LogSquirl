@@ -200,6 +200,9 @@ MainWindow::MainWindow( WindowSession session,
     signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus ) ), this,
                         SLOT( handleLoadingFinished( LoadingStatus ) ) );
 
+    signalMux_.connect( SIGNAL( statusMessage( QString ) ), this,
+                        SLOT( showStatusMessage( QString ) ) );
+
     signalMux_.connect( SIGNAL( filteredViewChanged() ), this,
                         SLOT( handleFilteredViewChanged() ) );
 
@@ -618,6 +621,9 @@ void MainWindow::reTranslateUI()
     showScratchPadAction->setText( transAction( action::showScratchPadText ) );
     showScratchPadAction->setStatusTip( transAction( action::showScratchPadStatusTip ) );
 
+    commandPaletteAction->setText( transAction( action::commandPaletteText ) );
+    commandPaletteAction->setStatusTip( transAction( action::commandPaletteStatusTip ) );
+
     showFiltersPanelAction->setText( transAction( action::showFiltersPanelText ) );
     showFiltersPanelAction->setStatusTip( transAction( action::showFiltersPanelStatusTip ) );
 
@@ -871,6 +877,11 @@ void MainWindow::createActions()
     connect( showScratchPadAction, &QAction::triggered, this,
              [ this ]( auto ) { this->showScratchPad(); } );
 
+    commandPaletteAction = new QAction( tr( action::commandPaletteText ), this );
+    commandPaletteAction->setStatusTip( tr( action::commandPaletteStatusTip ) );
+    connect( commandPaletteAction, &QAction::triggered, this,
+             [ this ]( auto ) { this->showCommandPalette(); } );
+
     showFiltersPanelAction = new QAction( tr( action::showFiltersPanelText ), this );
     showFiltersPanelAction->setStatusTip( tr( action::showFiltersPanelStatusTip ) );
     connect( showFiltersPanelAction, &QAction::triggered, this,
@@ -1002,6 +1013,7 @@ void MainWindow::updateShortcuts()
     setShortcuts( reloadAction, ShortcutAction::MainWindowReload );
     setShortcuts( stopAction, ShortcutAction::MainWindowStop );
     setShortcuts( showScratchPadAction, ShortcutAction::MainWindowScratchpad );
+    setShortcuts( commandPaletteAction, ShortcutAction::MainWindowCommandPalette );
     setShortcuts( selectOpenFileAction, ShortcutAction::MainWindowSelectOpenFile );
     setShortcuts( goToLineAction, ShortcutAction::LogViewJumpToLine );
     setShortcuts( goToTimestampAction, ShortcutAction::LogViewJumpToTimestamp );
@@ -1131,6 +1143,8 @@ void MainWindow::createMenus()
     toolsMenu->addSeparator();
     toolsMenu->addAction( showScratchPadAction );
     toolsMenu->addAction( showFiltersPanelAction );
+    toolsMenu->addSeparator();
+    toolsMenu->addAction( commandPaletteAction );
 
     menuBar()->addMenu( EncodingMenu::generate( encodingGroup, session_.fileAccessPolicy() ) );
     menuBar()->addSeparator();
@@ -1959,9 +1973,10 @@ void MainWindow::showCommandPalette()
     std::vector<CommandEntry> entries;
 
     const auto collectFromMenu
-        = [ &entries ]( QMenu* menu, const QString& category, auto&& self ) -> void {
+        = [ this, &entries ]( QMenu* menu, const QString& category, auto&& self ) -> void {
         for ( QAction* action : menu->actions() ) {
-            if ( action->isSeparator() || !action->isEnabled() ) {
+            // Opening the palette from inside itself would do nothing useful.
+            if ( action->isSeparator() || !action->isEnabled() || action == commandPaletteAction ) {
                 continue;
             }
             if ( action->menu() ) {
@@ -2287,6 +2302,11 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
     }
 
     // mainTabWidget_.setEnabled( true );
+}
+
+void MainWindow::showStatusMessage( QString message )
+{
+    statusBar()->showMessage( message, 8000 );
 }
 
 void MainWindow::handleFilteredViewChanged()

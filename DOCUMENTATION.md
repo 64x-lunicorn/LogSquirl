@@ -132,10 +132,14 @@ timestamp, it goes to the first or last line and tells you so.
 The action needs a Log File with a recognized Log Format that has a timestamp
 field (see [Auto Log Format Detection](#auto-log-format-detection-table-view));
 otherwise it is disabled and its tooltip says why. Lines without a timestamp,
-such as stack traces, are skipped. Timestamps are compared as written: a time
-zone in the log is not converted, so type the time as it appears in the file.
-The search assumes the file is in time order; if it is not, the line found is
-only approximate.
+such as stack traces, are skipped. A time zone offset written in the log
+(`+02:00`, `Z`) is honoured: the timestamp counts as the instant it names, in
+UTC. A timestamp without one is compared as written, so type the time as it
+appears in the file. A timestamp without a year (syslog) takes the year of the
+file's modification date, or the year before when its month and day lie later
+in the year. The search assumes the file is in time order; if it is not, the
+line found is only approximate, and the status bar says so when the timestamps
+around it are out of order.
 
 #### Search limits by time
 
@@ -361,6 +365,19 @@ opened file and matches them against its library of format definitions. If a
 format matches, a table-view toggle button appears in the toolbar. Click it
 to switch between the classic text view and the table view.
 
+#### The elapsed-time column
+
+When the format has a timestamp field, the table view shows one more column,
+**Δt**, right after the timestamp. It holds the time since the nearest earlier
+log line that has a timestamp, for example `+0.004s`, `+12.3s`, `+5m02s`,
+`+1h05m` or `+2d03h`; a negative value (lines out of time order) keeps its
+`-`. Continuation lines such as stack traces are skipped when looking back,
+and their own cell is empty, so the line after a trace is compared with the
+one before it. The first timestamped line, and a line with no timestamped line
+within the 100 lines before it, have an empty cell. Formats without a
+timestamp field have no such column. The column is not free: on a
+10-million-line file a page of scrolling takes about 5.3 ms instead of 4.7 ms.
+
 #### Format definitions
 
 Format definitions are JSON files compatible with the
@@ -585,7 +602,10 @@ whole list, with what the entries not explained elsewhere do.
   search matched, one series for every alternative of the search pattern (it
   does nothing while the search line is empty).
 - **Tools**: `Predefined filters...`, `Import Chipmunk filters...`,
-  `Manage Tab Groups...`, `Scratchpad` and `Filters panel`.
+  `Manage Tab Groups...`, `Scratchpad`, `Filters panel` and
+  `Command Palette...` (`Ctrl+Shift+P`, `Cmd+Shift+P` on macOS), which lists
+  every enabled menu command: type to filter, `Enter` runs the selected one.
+  The key can be changed in the shortcut settings.
 - **Highlighters**: `Configure highlighters...` and the list of highlighter
   sets to activate (see [Using highlighters](#using-highlighters)).
 - **Encoding**: see [Encodings](#encodings).

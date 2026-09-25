@@ -284,8 +284,9 @@ _Avoid_: detection, sniffing
 **Timestamp**:
 The point in time a Log Line carries, read through its Log Format's timestamp field
 (its timestamp format, and for epoch values its divisor). Continuation lines, such as a
-stack trace, have none. Taken as written: one without a time zone is not converted, and a
-written zone is ignored. Only what a Log Format declares or a common format covers can be
+stack trace, have none. A written offset (`+02:00`, `Z`) makes it the UTC instant it names;
+one without a time zone is taken as written, and a year-less one gets its year from the Log
+File's modification date (ADR-0010). Only what a Log Format declares or a common format covers can be
 read; a Log File without a Log Format that has a timestamp field has no Timestamps.
 _Avoid_: date, time (both name only a part of it)
 
@@ -360,6 +361,15 @@ _Avoid_: download link, release URL
 The newer release the update check announces to the user, with the notes of the releases
 they skip. A release is only offered when the Update Feed points at its Release Page.
 _Avoid_: update notification, new version
+
+**Install Source**:
+How the running LogSquirl was installed, as far as the Update Offer cares: Homebrew cask, the
+LogSquirl APT repository, the LogSquirl DNF repository, or unknown. It is decided at run time
+from what is on the machine, never at build time, because a cask and a dragged DMG (or a
+repository and a hand-installed package) are the same bytes. Only positive evidence counts;
+for an unknown source, and for every AppImage and Windows build, the Update Offer links to
+its Release Page, and for a known one it names the package manager's upgrade command.
+_Avoid_: distribution channel
 
 ### Session and settings
 

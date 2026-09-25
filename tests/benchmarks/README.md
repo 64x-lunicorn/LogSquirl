@@ -409,6 +409,18 @@ For the before side, copy `tableview_paint_benchmark.cpp` into a worktree of
 origin/master and add the target as in `CMakeLists.txt` here, as described for
 the scrolling benchmarks above.
 
+# Table View scroll benchmark
+
+`logsquirl_tableview_scroll_benchmark` (#462) writes a Log File of ten million
+Log Lines (one in twenty a stack trace line) and scrolls a Table View over it on
+the offscreen platform, 50 Rows visible: a page at a time down, a page at a
+time up, and jumps to somewhere else, each followed by the repaint. It prints
+the median milliseconds per scroll step and the column count. It uses only
+what the Table View offered before #462, so it builds unchanged on
+origin/master; copy it into a worktree of origin/master and add the target as
+in `CMakeLists.txt` here to get the before side. Run it in an optimized build;
+`LOGSQUIRL_BENCHMARK_LOG_LINES` writes fewer Log Lines for a quick run.
+
 # Displayed Lines benchmark
 
 `logsquirl_displayedlines_benchmark` (#292) measures the Displayed Lines of a

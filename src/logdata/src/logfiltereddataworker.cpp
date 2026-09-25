@@ -278,10 +278,13 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
     activeSearchId_.store( id.get(), std::memory_order_release );
 
     LOG_INFO << "Search requested";
-    QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, id, compiledExpression,
+    // Shared with the queued runnable, not captured by reference: the caller may
+    // return from acquire() and destroy its handle while the pool thread is still
+    // inside release(); the last owner destroys the semaphore (#482).
+    const auto operationStarted = std::make_shared<QSemaphore>();
+    operationsPool_.start( createRunnable( [ this, operationStarted, id, compiledExpression,
                                              startLine, endLine, searchPolicy = searchPolicy_ ] {
-        operationStarted.release();
+        operationStarted->release();
         // Deliberately not holding operationsMutex_ here: the pool (maxThreadCount 1)
         // already serializes actual execution, and holding it across a run -- which
         // can take a while -- would block a superseding search() call from even
@@ -292,7 +295,7 @@ SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression>
             searchPolicy );
         connectSignalsAndRun( operationRequested.get() );
     } ) );
-    operationStarted.acquire();
+    operationStarted->acquire();
 
     return id;
 }
@@ -308,11 +311,12 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
 
     LOG_INFO << "Search update requested from " << position.get();
 
-    QSemaphore operationStarted;
+    // Shared with the runnable, see search() (#482).
+    const auto operationStarted = std::make_shared<QSemaphore>();
     operationsPool_.start(
-        createRunnable( [ this, &operationStarted, id, compiledExpression, startLine, endLine,
+        createRunnable( [ this, operationStarted, id, compiledExpression, startLine, endLine,
                           position, searchPolicy = searchPolicy_ ] {
-            operationStarted.release();
+            operationStarted->release();
             // See the comment in search(): not holding operationsMutex_ here is what
             // lets a superseding call proceed without waiting for this run to finish.
             auto operationRequested = std::make_unique<UpdateSearchOperation>(
@@ -321,7 +325,7 @@ LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> co
             connectSignalsAndRun( operationRequested.get() );
         } ) );
 
-    operationStarted.acquire();
+    operationStarted->acquire();
 
     return id;
 }

@@ -2,6 +2,32 @@
 
 ## Changes
 
+- **The update notice sends package manager installs to their package manager**:
+  When a newer release is found, an install from the Homebrew cask, the
+  LogSquirl APT repository or the LogSquirl DNF repository is told to run
+  `brew upgrade --cask logsquirl`, `sudo apt upgrade` or `sudo dnf upgrade`
+  instead of following a link to the release page. The app checks on the
+  machine how it was installed; a dragged DMG, an AppImage, the Windows builds
+  and a package installed by hand keep the link (#382).
+- **Elapsed time in the Table View**: a log format with a timestamp field gets
+  a **Δt** column after the timestamp, with the time since the previous line
+  that has a timestamp (`+0.004s`, `+12.3s`, `+5m02s`). Stack traces are
+  skipped, the look-back is bounded to 100 lines, and it reads the same
+  Timestamps as Go to timestamp (#462). Measured on a 10-million-line Log
+  File (optimized build, offscreen, 50 Rows visible), a scroll step costs
+  about 5.3 ms instead of 4.7 ms (+0.6 ms, about 13%); part of that is the
+  extra column itself being painted.
+- **Time lookups no longer block the window**: Go to timestamp and the time
+  search limits look the time up on a worker thread while the status bar says
+  so. A reload, a truncation or a change of Log Format cancels the lookup, and
+  the end of a time range is searched from the line the start was found on
+  instead of from the top (#486).
+- **Time lookups honour time zones and years**: a time zone offset written in a
+  log (`+02:00`, `Z`) now counts in Go to timestamp and the time search
+  limits, a timestamp without a year (syslog) takes it from the Log File's
+  modification date so a file across New Year stays in order, and the status
+  bar says when the timestamps around the found line are not in time order
+  (#485, ADR 0010).
 - **The user guide covers the features the app has**: `DOCUMENTATION.md`, the
   guide behind Help->Documentation, now describes installing with Homebrew or
   apt, the Dashboard, Tab groups, Plugins (linking the Plugin SDK guide) and
@@ -102,6 +128,12 @@
   published on the release page, so LogSquirl updates with `apt upgrade`
   and an older release can be pinned. Betas are not published. The README and
   the website show the two-file setup (#380).
+- **Fedora and Oracle Linux users install and update LogSquirl with dnf**: The
+  same deploy builds two DNF repositories, for Fedora 44 and for Oracle Linux 10,
+  from the RPMs of the last three stable releases, exactly as published on the
+  release page. The repository metadata is signed with the same key as the APT
+  repository; dnf checks each package through it. The README and the website
+  show the one-file setup (#381).
 - **Import asks what to do with a group that already exists**: Import in the
   Predefined Filters and the Highlighters dialog brings each group of a file
   in as a group of its own. When a group of the same id or name already
@@ -135,6 +167,15 @@
 
 ## Bug fixes
 
+- **The Command Palette opens**: `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) and
+  the new `Tools->Command Palette...` entry open it. Nothing was bound to the
+  shortcut before, although the shortcut settings listed it. Rebinding it in
+  the shortcut settings changes the key that opens it (#484).
+- **An unknown default encoding in the settings is reset**: a stored
+  encoding the application does not know (for example `encodingMib=2013`) is
+  set back to Auto at startup, saved, and named once in the log. Attaching a
+  Log File falls back to the locale encoding, with a warning, as opening one
+  already did (#488).
 - **Bunyan and Pino formats removed**: Both were listed as built-in Log Formats
   but could never be recognized, because Format Recognition only understands
   regular expressions and neither had one. LogSquirl now ships 22 built-in
