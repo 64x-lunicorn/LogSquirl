@@ -169,6 +169,10 @@
 
 ## Bug fixes
 
+- **Uninstalling on Windows leaves nothing behind**: the uninstaller left
+  empty `platforms` and `styles` folders, and so the `logsquirl` folder
+  itself, under Program Files, and the installing user's *Send to* shortcut.
+  It now removes all three (#506).
 - **A merged view on Windows keeps lines written right after the merge**:
   lines written to a source in the moment its merge began (within the same
   ~15 ms modification time tick) now appear in the merged view. Windows only
