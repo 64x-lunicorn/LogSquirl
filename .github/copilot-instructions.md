@@ -264,7 +264,7 @@ See `BUILD.md` for full dependency and platform-specific instructions.
 ## Platform Notes
 
 - **Windows**: NSIS installer and portable zip. Uses MSVC.
-- **macOS**: `.pkg` installer via CPack. Supports `LOGSQUIRL_OSX_DEPLOYMENT_TARGET`.
+- **macOS**: DMG built with create-dmg (`.github/actions/mac-create-dmg`). Supports `LOGSQUIRL_OSX_DEPLOYMENT_TARGET`.
 - **Linux**: DEB, RPM, AppImage packages. CI uses Docker containers for reproducible builds.
 
 ## Attribution

@@ -1,8 +1,0 @@
-https://pmateusz.github.io/linux/2017/06/30/linux-secure-apt-repository.html
-
-gpg --output private.pgp --armor --export-secret-subkey B8A34571
-podman --rm --ti -v .:/logsquirl docker.io/ubuntu:noble
-
-apt install reprepro
-gpg --import private.pgp
-reprepro --basedir /logsquirl/website/public/deb/noble/ includedeb noble logsquirl-26.03.0-Linux-amd64-noble.deb
