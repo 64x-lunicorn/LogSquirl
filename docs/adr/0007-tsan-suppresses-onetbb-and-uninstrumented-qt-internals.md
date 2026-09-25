@@ -1,6 +1,6 @@
 # TSan suppresses oneTBB's flow graph and one uninstrumented-Qt finding
 
-The suppressions this decision made were removed by #482, and the job that runs TSan over the whole suite now blocks; see the update at the end, which supersedes the Decision below where they differ.
+The suppressions this decision made were removed by #482, and the job that runs TSan over the whole suite now blocks; since #510 it runs against a Qt built with TSan. See the two updates at the end, which supersede the Decision below where they differ, the later one the earlier.
 
 #331 needed "the TSan build of the search tests passes", which could not be satisfied as it stood: measured against `-DENABLE_SANITIZER_THREAD=ON` (`cmake/Sanitizers.cmake`), RelWithDebInfo, LTO off, the base commit (0845ff22) already failed 9 of 23 ctest cases, and #331's own change added a 24th failure that reports no new race — only the same 9 pre-existing findings plus one more report of them. Every one of those findings is in code TSan cannot instrument:
 
@@ -73,7 +73,7 @@ The reports of the first three rows are between a library and itself. TSan sees 
 - **`race:` on a library or on Qt's function names** matches any frame of either stack, callers included. LogSquirl's slots run on top of `QCoreApplicationPrivate::sendPostedEvents`, its runnables on top of `QThreadPoolThread::run`, its indexing on top of oneTBB's flow graph, so such an entry hides races in LogSquirl's own code as well, as the oneTBB entries did. All `race:` entries are removed.
 - **`called_from_lib:<library>`** also makes TSan skip the synchronization the library does through its interceptors (`pthread_cond_wait` in `QWaitCondition`, `pthread_join`). With QtCore, QtGui, QtNetwork, GLib and glibc listed, the run printed 4079 reports and turned 160 cases red (actions run 36102659877): races between LogSquirl's own accesses, because TSan no longer saw `QFuture` and `QThread` hand them over.
 - **`ignore_noninstrumented_modules=1`** keeps the synchronization, but on Linux TSan marks no module as instrumented, so it ignores every interceptor call, LogSquirl's own `new`, `delete` and `memcpy` included. That is the class of #476 (an object destroyed while another thread is still inside it), which TSan would stop finding.
-- **Qt built with `-fsanitize=thread`** would let TSan see Qt's locks and need no rule at all. Unlike oneTBB, Qt is not built with LogSquirl: it means building qtbase (and Qt 5 Compat, Qt SVG, the tools) from source into a second CI image, about an hour on a GitHub runner for every change to that image, a much larger image, and the image signing of #216 extended to it. Worth it if the rule below ever lets a real race through; not for the reports seen here.
+- **Qt built with `-fsanitize=thread`** would let TSan see Qt's locks and need no rule at all. Unlike oneTBB, Qt is not built with LogSquirl: it means building qtbase (and Qt 5 Compat, Qt SVG, the tools) from source into a second CI image, about an hour on a GitHub runner for every change to that image, a much larger image, and the image signing of #216 extended to it. Worth it if the rule below ever lets a real race through; not for the reports seen here. (#510 did it; see its update below.)
 
 So the rule lives in the ctest runner. `cmake/CatchTestDiscoveryRunTest.cmake` has TSan write its reports to files (`log_path`, with `exitcode=0` so the case keeps its own exit code), and `cmake/TsanReportFilter.cmake` sorts them once the case has ended. A data race report is left out only when both racing accesses were made inside a library that `cmake/tsan.supp` lists on an `#@uninstrumented <library>` line, with the reason next to it. Two narrow additions, each with a test:
 
@@ -82,7 +82,7 @@ So the rule lives in the ctest runner. `cmake/CatchTestDiscoveryRunTest.cmake` h
 
 Every other report fails the case, one access in LogSquirl's code being enough, and so does anything else TSan prints (an internal error, a warning about a thread, a report cut off). The case's output ends with lines that count what was left out. `tests/tsan_report_filter.cmake` checks the sorting on reports taken from the CI job, including the cases that must stay.
 
-The price: a race between two accesses that both happen inside Qt's library code, on an object LogSquirl shares between threads without a lock, is left out too, unless one of the accesses is in an inlined Qt header (most of `QString`'s and `QList`'s are). TSan never saw such a race before either, only Qt's calls into its interceptors around it.
+The price: a race between two accesses that both happen inside Qt's library code, on an object LogSquirl shares between threads without a lock, is left out too, unless one of the accesses is in an inlined Qt header (most of `QString`'s and `QList`'s are). TSan never saw such a race before either, only Qt's calls into its interceptors around it. (Since #510 Qt is built with TSan and the price is gone; see below.)
 
 ### One suppression, in oneTBB
 
@@ -106,3 +106,32 @@ Before (run 36096812787), 43 reports had a racing access in LogSquirl's code by 
 - The `Sanitizers / tsan` job runs for pull requests as well and blocks like `Sanitizers / asan-ubsan`; `continue-on-error` is gone, and no case is excluded from it. #439's "blocking like the ASan/UBSan job" holds.
 - A new report fails the case unless both of its accesses are inside a listed library (or it is one of the two narrow patterns above). A library is added to the list only with its reason, after its reports have been read. A report with an access in LogSquirl's code is fixed in the code, as #409 and the runnables were.
 - `cmake/tsan.supp` holds no `race:` entry. A `race_top:` entry is allowed for a function that calls no code of LogSquirl's, with its reason and how it goes away.
+
+## Update (#510): Qt is built with TSan
+
+The owner accepted the rule above for a while and filed #510 for the one thing that closes its gaps: a Qt that TSan can see into. Three cases were known in which the rule could hide a race LogSquirl causes: an out-of-line Qt function called on one object from two threads without a lock (both accesses inside `libQt6Core`), the inlined `QArrayData` reference count counted as Qt's, and a queued call's argument copied by `QMetaType::create`.
+
+### The image
+
+`docker/ubuntu24.04-tsan` (`ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble-tsan`) is the Noble image with Qt built from source with `-sanitize thread`: qtbase, qtsvg and qttools (lupdate, lrelease and lconvert; Qt Linguist needs Qt Quick and the other tools are switched off), `-no-glib` (GLib is not built with TSan, and its wake-up eventfd was one of the rows above) and no xcb plugin (the tests run offscreen). `aqt install-src` fetches the sources from Qt's online repository and checks their hashes, with the same hash-locked aqtinstall as the prebuilt Qt of the other images, and the image sets `QT_VERSION` like them: Renovate's Qt group moves it with the rest, and the SBOM job fails when they disagree. Qt's tools are TSan binaries too and run while Qt and LogSquirl are built, so every job that builds or uses the image sets `vm.mmap_rnd_bits=28` first.
+
+Only the `Sanitizers / tsan` job uses it; ASan/UBSan and the packaging jobs keep the prebuilt Qt. Building it took 41 minutes inside the job (actions run 36185998382). The Docker Images workflow builds, scans, signs and pushes it on master like the other images, with its own 150-minute limit. When its inputs hash is not on GHCR yet (a pull request that changes it, a Qt bump, the monthly refresh, or master before that workflow has pushed it), the TSan job builds the image itself and does not wait; its limit is 150 minutes for that. Every other run pulls it.
+
+### The rule, narrowed
+
+QtCore, QtGui, QtNetwork and GLib left the `#@uninstrumented` list, and the two Qt patterns (the `QArrayData` reference count and the queued call's argument) left the filter, with their tests turned around: the same reports now fail the case. Only glibc stays listed. A TSan build against a prebuilt Qt, a developer's for instance, reports Qt's hand-overs again, and they fail the case; BUILD.md says how to build inside the image instead.
+
+### What the instrumented Qt showed
+
+The first run against it (actions run 36185998382) printed 17 reports in 6 of 800 cases and left out none; the 1017 reports the rule used to leave out on master were gone. None of the 17 was one the rule had hidden. They were races TSan could not see at all before, because both accesses were in Qt's own code, not in its calls into TSan's interceptors:
+
+- **The poll thread outlived QApplication** (15 reports, the four FileWatcher itests). The FileWatcher is never destroyed, and its poll thread ran its event loop until the process ended, dispatching an event through `QApplication::notify()` while `main()` destroyed `QApplication` (`is_app_closing`, its private object, its vptr). Qt requires such a thread to end first. `FileWatcher::stopPolling()` ends it: the application calls it when its event loop ends (`aboutToQuit`), the itests' `main()`, which runs no event loop, before it returns. A test checks that the poll thread has finished after it and that the watcher still takes a Policy and files.
+- **mimalloc's hand-over** (1 report, `Changing settings during a Search cannot alter the run in flight`). A TBB worker built a vector in memory a Search thread had read a moment before, both through `mi_stl_allocator`: mimalloc had handed the freed block to the other thread through atomics TSan cannot see in an uninstrumented mimalloc. A TSan build now builds mimalloc with `-fsanitize=thread` and `MI_TSAN=1`, what mimalloc's own `MI_DEBUG_TSAN` sets but only for clang, as it builds oneTBB with TSan.
+- **A lock-order inversion inside QtNetwork** (1 report, `PluginDialog footer contains expected buttons`). `QSslSocketPrivate::tlsBackendInUse()` holds the socket's backend mutex and then takes the mutex of the backend collection; when `QCoreApplication` is destroyed, the collection is reset under its mutex, and `~QTlsBackend()` emits `destroyed()` into a lambda that takes the backend mutex. Both are Qt's; both ran on the main thread; it deadlocks only if another thread asks for the TLS backend while the application object is destroyed. `cmake/tsan.supp` holds `deadlock:QTlsBackend::~QTlsBackend` for it. A `deadlock:` entry matches any frame of the mutex stacks, so it names a function only this cycle runs.
+
+### Consequences
+
+- A race inside Qt, or on an object LogSquirl shares with Qt, fails the case like any other. The rule is left for glibc alone.
+- `cmake/tsan.supp` may hold a `race_top:` entry for a function of oneTBB or Qt that calls no code of LogSquirl's, and a `deadlock:` entry for a cycle between two mutexes of Qt's own, each with its reason and how it goes away. No `race:` entry.
+- The TSan job builds against its own image. A change to that image, a Qt bump or the monthly refresh costs a pull request's TSan run about 40 minutes more, once per run until master has the image.
+

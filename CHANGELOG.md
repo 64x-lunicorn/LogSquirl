@@ -297,7 +297,12 @@
   image, `logsquirl-ubuntu-noble-tsan`, builds Qt from source with TSan, so
   TSan sees Qt's own locks and a race inside Qt, or on an object LogSquirl
   shares with Qt, fails the case instead of being left out. Only glibc is still
-  left out. The image follows Qt's version with the others (#510).
+  left out. The image follows Qt's version with the others (#510). What it
+  showed: the file watcher's poll thread kept running while the application
+  object was destroyed at exit; it now ends first. A TSan build also builds
+  mimalloc with TSan, which hid how a freed block passes between threads, and
+  one lock-order inversion inside QtNetwork's TLS backends is suppressed by
+  its own frame.
 - **Coverage is measured, and the modules without tests got them**: `cmake
   --build <dir> --target coverage` in a build made with `-DENABLE_COVERAGE=ON`
   runs the tests and prints the line coverage of each module, from
