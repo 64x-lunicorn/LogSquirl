@@ -49,8 +49,8 @@ applies: **LogSquirl must never get slower.** A 5% tolerance is allowed.
 
 ### First Run (Establishing Baselines)
 
-On the first run all baseline values are `null`, so performance tests pass unconditionally.
-Create an initial baseline:
+A benchmark without a baseline value is skipped, with the measured value in the skip reason:
+it was not compared, so it does not pass. Create an initial baseline:
 
 ```bash
 pytest -v -m performance --update-baseline
@@ -76,6 +76,7 @@ Review the diff in `baseline.json` before committing — values should only decr
 | `--bench-warmup`    | 3       | Number of warmup runs (discarded)                 |
 | `--bench-report`    | markdown| Report format: `markdown`, `json`, or `none`     |
 | `--update-baseline` | off     | Write measured values to baseline.json            |
+| `--no-baseline-compare` | off | Measure and report only; the weekly Performance workflow compares with its run history instead (BUILD.md, *Weekly performance*) |
 
 Example with custom run count:
 

@@ -34,7 +34,10 @@ from conftest import (
 
 
 @pytest.fixture(scope="module")
-def baseline():
+def baseline(request):
+    """baseline.json, or None when the run compares elsewhere (--no-baseline-compare)."""
+    if request.config.getoption("--no-baseline-compare"):
+        return None
     return load_baseline()
 
 
