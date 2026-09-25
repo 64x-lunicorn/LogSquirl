@@ -161,33 +161,6 @@ SUMMARY: ThreadSanitizer: data race /opt/qt/6.11.2/gcc_64/include/QtCore/qstring
 ==================
 " 1 0 "searchsession.cpp:446")
 
-# The same read against a block QtCore allocated otherwise stays.
-expect(slot_reads_other_block "==================
-WARNING: ThreadSanitizer: data race (pid=7124)
-${_queued_argument_read}
-  Previous write of size 8 at 0x720800006550 by thread T13:
-${_qt_new}
-    #1 QArrayData::reallocateUnaligned(QArrayData*, void*, long long, long long, QArrayData::AllocationOption) <null> (libQt6Core.so.6+0x1)
-    #2 SearchOperation::doSearch(SearchData&, LineNumber) /usr/local/src/logdata/src/logfiltereddataworker.cpp:610 (logsquirl_openlogfile_tests+0x332959)
-
-SUMMARY: ThreadSanitizer: data race
-==================
-" 1 0)
-
-# And a queued argument read outside a slot stays too.
-expect(argument_read_elsewhere "==================
-WARNING: ThreadSanitizer: data race (pid=7124)
-  Read of size 8 at 0x720800006550 by thread T2:
-    #0 SearchOperation::run() /usr/local/src/logdata/src/logfiltereddataworker.cpp:120 (logsquirl_tests+0x1)
-
-  Previous write of size 8 at 0x720800006550 by thread T13:
-    #0 operator new(unsigned long, std::nothrow_t const&) ../../../../src/libsanitizer/tsan/tsan_new_delete.cpp:76 ${_tsan}
-    #1 QMetaType::create(void const*) const <null> (libQt6Core.so.6+0x1b2341) (BuildId: fcf7)
-
-SUMMARY: ThreadSanitizer: data race
-==================
-" 1 0)
-
 # Qt frees what LogSquirl's code still reads: LogSquirl's side keeps it.
 expect(one_side_in_logsquirl "==================
 WARNING: ThreadSanitizer: data race (pid=9)

@@ -391,9 +391,9 @@ jobs:
         # TSan (#439) finds data races, the fault class ASan cannot see, and
         # blocks like asan-ubsan, pull requests included (#482). It runs in
         # its own image, whose Qt is built from source with TSan (#510), and
-        # oneTBB is built with TSan here too. glibc comes prebuilt without it,
-        # so TSan cannot see its own locks and reports what it does on two
-        # threads as races. The ctest runner
+        # oneTBB and mimalloc are built with TSan here too. A library that
+        # still comes prebuilt without it hides its own locks from TSan, which
+        # reports what it does on two threads as races. The ctest runner
         # (cmake/CatchTestDiscoveryRunTest.cmake) leaves out a report only
         # when both racing accesses were made inside such a library, as
         # listed in cmake/tsan.supp; any other report fails the case (ADR

@@ -321,6 +321,8 @@ SCENARIO( "The poll thread ends before the application does", "[filewatch]" )
                 watcher.setWatchPolicy( WatchPolicy{} );
                 watcher.removeFile( fileName );
                 QCoreApplication::processEvents();
+
+                REQUIRE( watcher.pollThreadForTesting()->isFinished() );
             }
         }
     }
