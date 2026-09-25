@@ -39,10 +39,12 @@ The others, one by one:
   the AppImage already covers the distributions without apt or dnf.
 
 Intune does not need anything from LogSquirl: an administrator wraps any
-installer into an `.intunewin` package. The NSIS installer should already suit
-that — it installs per machine and records its version under the machine's
-Uninstall key for detection, and NSIS installers take `/S` for a silent install.
-That LogSquirl's does is not yet checked on Windows (#506).
+installer into an `.intunewin` package. The NSIS installer suits that: it
+installs silently with `/S`, per machine, and records its version under the
+machine's Uninstall key for detection — in the 32-bit view of the registry
+(`WOW6432Node`), since the installer is a 32-bit program. The CI job *Windows
+installer* checks this on every build, and the user guide's *Installing*
+section tells administrators how to use it (#506).
 
 ## Prior requests
 

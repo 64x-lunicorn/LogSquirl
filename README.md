@@ -57,6 +57,10 @@ and choose the package for your platform.
 | :--- | :--- | :--- |
 | NSIS installer | DMG (Apple Silicon) | AppImage, DEB, or RPM |
 
+The Windows installer also installs silently for all users with `/S` (`/D=<dir>` as the last argument sets the
+directory), for deployment through Intune or similar tools; the
+[user guide](DOCUMENTATION.md#installing) says what it installs and how to detect it.
+
 On a Mac, you can also install it with [Homebrew](https://brew.sh/) and keep it up to date with
 `brew upgrade`:
 
