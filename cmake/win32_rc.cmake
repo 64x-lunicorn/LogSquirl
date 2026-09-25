@@ -122,6 +122,11 @@ function(generate_product_version outfiles)
   set(_VersionInfoFile ${CMAKE_BINARY_DIR}/generated/version_info.h)
   set(_VersionResourceFile ${CMAKE_BINARY_DIR}/generated/version_resource.rc)
   configure_file(${GenerateProductVersionCurrentDir}/version_info.h.in ${_VersionInfoFile} @ONLY)
+  # The same values for the NSIS installer, which packaging/windows/
+  # prepare_release.cmd copies next to logsquirl.nsi (#445).
+  configure_file(${GenerateProductVersionCurrentDir}/version_info.nsh.in
+                 ${CMAKE_BINARY_DIR}/generated/version_info.nsh @ONLY
+  )
   configure_file(${GenerateProductVersionCurrentDir}/version_resource.rc.in ${_VersionResourceFile} COPYONLY)
   list(
     APPEND

@@ -33,7 +33,8 @@ name: "Benchmarks"
 # inputs hash (#215) and the sccache summary script (#219) does not build.
 #
 # There is no nightly schedule: a scheduled run only knows master, which would
-# measure master against itself.
+# measure master against itself. Master over time is what the weekly
+# Performance workflow (performance.yml) watches (#441).
 #
 # One Linux job (after a short one that resolves the before side) in the
 # Ubuntu 24.04 container of the CI Build noble job: those

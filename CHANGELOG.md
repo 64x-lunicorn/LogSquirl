@@ -2,6 +2,14 @@
 
 ## Changes
 
+- **The Windows installer shows the privacy policy and can turn the update
+  check off**: A page before the components shows the privacy policy, and the
+  new component *Check for updates automatically*, ticked by default, turns the
+  weekly update check off for the whole installation when it is unticked. The
+  Options then show *Check for new version* greyed out with the reason;
+  running the installer again with the component ticked turns it back on. Any
+  installation can do the same with an empty file named
+  `logsquirl_no_update_check` beside the executable (#445).
 - **The update notice sends package manager installs to their package manager**:
   When a newer release is found, an install from the Homebrew cask, the
   LogSquirl APT repository or the LogSquirl DNF repository is told to run
@@ -169,6 +177,10 @@
 
 ## Bug fixes
 
+- **Uninstalling on Windows leaves nothing behind**: the uninstaller left
+  empty `platforms` and `styles` folders, and so the `logsquirl` folder
+  itself, under Program Files, and the installing user's *Send to* shortcut.
+  It now removes all three (#506).
 - **A merged view on Windows keeps lines written right after the merge**:
   lines written to a source in the moment its merge began (within the same
   ~15 ms modification time tick) now appear in the merged view. Windows only
@@ -218,6 +230,11 @@
 
 ## Build and packaging
 
+- **The Windows programs and the installer are called LogSquirl**: The version
+  resource of `logsquirl.exe`, `logsquirl_portable.exe` and
+  `logsquirl_grep.exe` gives LogSquirl as the product name instead of
+  "logsquirl log viewer", and the installer now has a version resource too,
+  with the same product name, version, company and copyright (#445).
 - **`logsquirl_grep` ships with LogSquirl**: Every build built the command line
   tool and no package carried it. It is now installed beside the application in
   the deb, the rpm, the AppImage, the Windows installer and the portable zip,
@@ -246,6 +263,16 @@
 
 ## Internal
 
+- **A performance regression turns a run red**: a weekly `Performance`
+  workflow builds master as it ships (RelWithDebInfo with LTO) on a
+  GitHub-hosted runner and runs the whole e2e performance suite, the 10, 50
+  and 100 MB files included. Each benchmark is compared with its median over
+  the last six runs, so the check moves with the runners instead of with a
+  baseline recorded on one machine; more than 30 % and 10 ms slower fails the
+  run, and until six runs exist it only reports. Every result is committed to
+  the `perf-data` branch, with a `trend.csv` for the trend over releases. The
+  suite no longer passes a benchmark silently when `baseline.json` has no
+  entry for it: it is skipped with the measured value (#441).
 - **ThreadSanitizer runs in CI and blocks**: a `Sanitizers / tsan` job builds
   the tests with `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the
   ASan/UBSan job, for every pull request and push to master, and fails the run
@@ -330,6 +357,21 @@
 
 ## Documentation
 
+- **Silent install for administrators**: the user guide says how to deploy the
+  Windows installer without a dialog, for example through Intune: `/S`, `/D=`
+  for another directory, the Uninstall key to detect the version (in the
+  32-bit view of the registry), `Uninstall.exe /S`, and what an install as
+  SYSTEM means for the *Send to* shortcut. CI installs, upgrades and
+  uninstalls the installer this way on every build (#506).
+- **A privacy policy that says what LogSquirl sends**: `PRIVACY.md` and the
+  website's privacy policy list the update check (what it downloads, when, and
+  how to turn it off), the crash reports sent only with consent and what they
+  contain, and what uses the network only when asked: plugins, Open from URL
+  and the Team Folder. The crash dialog's *Privacy policy* link opens it
+  instead of `SECURITY.md` (#445).
+- **A code signing policy**: The README, the website and the release notes say
+  which Windows files are to be signed through the SignPath Foundation, who
+  approves a signature, and link the privacy policy (#445).
 - **A first bug report has a form to follow**: A report from outside arrives
   through an issue form that asks for the version, the operating system, how
   LogSquirl was installed and the size and kind of the Log File, the fields the
