@@ -613,7 +613,7 @@ bool IndexOperation::doIndex( OffsetInFile initialPosition )
 
         scopedAccessor.setProgress( 100 );
         reportProgress( 100 );
-        return true;
+        return !isSuperseded();
     }
 
     LOG_INFO << "File size " << file.size();

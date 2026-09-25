@@ -659,8 +659,10 @@ public:
     LogDataWorker( LogDataWorker&& ) = delete;
     LogDataWorker& operator=( LogDataWorker&& ) = delete;
 
-    // Starts running the index job on the worker's thread, superseding the
-    // one in flight if there is one, and returns once it has started. Its
+    // Starts running the index job on the worker's thread and returns once it
+    // has started. A run still in flight is superseded by it: whoever hands
+    // the jobs in (the job rule) starts one only once the one before is
+    // reported finished. Its
     // progress and its end are sent as the signals below, on the thread this
     // worker lives on. Nothing runs for no job.
     void run( const IndexJob& job );
