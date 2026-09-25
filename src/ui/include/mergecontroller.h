@@ -19,7 +19,9 @@
 
 #pragma once
 
+#include <QDateTime>
 #include <QFileSystemWatcher>
+#include <QHash>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -32,6 +34,12 @@
 // contain at that moment (so lines appended to a source appear, and lines
 // of a truncated or rewritten source disappear), and mergedFileUpdated()
 // is emitted.
+//
+// On Windows the watcher reports a file as changed only when its modification
+// time moves, and that time moves in ticks (on NTFS about every 15 ms): a
+// write in the tick a watch began in goes unreported. So each time a source
+// starts being watched, its size and modification time are compared once more
+// shortly after with what the merge read, and a difference merges again (#500).
 class MergeController : public QObject {
     Q_OBJECT
 
@@ -57,8 +65,24 @@ Q_SIGNALS:
     void mergedFileUpdated();
 
 private:
-    // Starts watching every source that is not watched yet.
+    // A source as the last merge found it on disk.
+    struct SourceState {
+        bool exists = false;
+        qint64 size = 0;
+        QDateTime modified;
+
+        bool operator==( const SourceState& ) const = default;
+    };
+
+    static SourceState sourceStateOnDisk( const QString& path );
+
+    // Starts watching every source that is not watched yet, and then checks
+    // the sources once more (see recheckSources()).
     void watchSources();
+
+    // Merges again if a source's size or modification time differs from what
+    // the last merge read: the change the watcher may have missed.
+    void recheckSources();
 
     // A source changed on disk.
     void onSourceChanged();
@@ -70,5 +94,7 @@ private:
     QString mergedFilePath_;
     bool dedup_ = false;
     QTimer rebuildTimer_;
+    QTimer recheckTimer_;
+    QHash<QString, SourceState> mergedSourceStates_;
     QFileSystemWatcher sourceWatcher_;
 };

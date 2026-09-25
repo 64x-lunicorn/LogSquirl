@@ -22,9 +22,11 @@
 #include "mergecontroller.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QTextStream>
 #include <QThread>
@@ -82,6 +84,14 @@ void appendToFile( const QString& path, const QString& text )
     (void)f.open( QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text );
     QTextStream out( &f );
     out << text << '\n';
+}
+
+// Sets a file's modification time, as if its last write had happened then.
+void setModificationTime( const QString& path, const QDateTime& time )
+{
+    QFile f( path );
+    (void)f.open( QIODevice::ReadWrite );
+    (void)f.setFileTime( time, QFileDevice::FileModificationTime );
 }
 
 } // namespace
@@ -211,8 +221,17 @@ SCENARIO( "MergeController follows its sources", "[mergecontroller]" )
         const auto pathA = writeTestFile( tmpDir, "a.log", { "a1" } );
         const auto pathB = writeTestFile( tmpDir, "b.log", { "b1" } );
 
+        // merge() writes the merged file and reports it before it returns, so
+        // every update awaited below comes from a change made after it.
         MergeController controller;
+        int initialUpdates = 0;
+        const auto initialConnection
+            = QObject::connect( &controller, &MergeController::mergedFileUpdated,
+                                [ &initialUpdates ] { ++initialUpdates; } );
         controller.merge( { pathA, pathB }, false );
+        QObject::disconnect( initialConnection );
+        REQUIRE( initialUpdates == 1 );
+        REQUIRE( readAllLines( controller.mergedFilePath() ) == QStringList{ "a1", "b1" } );
 
         WHEN( "A line is appended to the second source" )
         {
@@ -265,6 +284,39 @@ SCENARIO( "MergeController follows its sources", "[mergecontroller]" )
                 REQUIRE( waitForUpdate( controller ) );
                 REQUIRE( readAllLines( controller.mergedFilePath() )
                          == QStringList{ "new", "more", "b1" } );
+            }
+        }
+    }
+}
+
+SCENARIO( "MergeController sees a source grow within one timestamp tick", "[mergecontroller]" )
+{
+    QTemporaryDir tmpDir;
+    REQUIRE( tmpDir.isValid() );
+
+    GIVEN( "A merge of two sources" )
+    {
+        const auto pathA = writeTestFile( tmpDir, "a.log", { "a1" } );
+        const auto pathB = writeTestFile( tmpDir, "b.log", { "b1" } );
+
+        MergeController controller;
+        controller.merge( { pathA, pathB }, false );
+
+        WHEN( "A line is appended and the modification time stays what it was" )
+        {
+            // A file's modification time moves in ticks (on NTFS about every
+            // 15 ms), so a write in the tick the watch began in leaves it where
+            // it was. Windows reports a watched file as changed only when that
+            // time moves, and so misses such a write (#500).
+            const auto modified = QFileInfo( pathB ).lastModified();
+            appendToFile( pathB, "b2" );
+            setModificationTime( pathB, modified );
+
+            THEN( "The merged file is rebuilt anyway" )
+            {
+                REQUIRE( waitForUpdate( controller ) );
+                REQUIRE( readAllLines( controller.mergedFilePath() )
+                         == QStringList{ "a1", "b1", "b2" } );
             }
         }
     }

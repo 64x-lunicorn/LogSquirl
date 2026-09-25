@@ -22,6 +22,7 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSet>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -35,6 +36,11 @@ MergeController::MergeController( QObject* parent )
     rebuildTimer_.setSingleShot( true );
     rebuildTimer_.setInterval( 300 );
     connect( &rebuildTimer_, &QTimer::timeout, this, &MergeController::doMerge );
+    // Well past a modification time tick, so a write missed in the tick a
+    // watch began in shows as a different time or size by then.
+    recheckTimer_.setSingleShot( true );
+    recheckTimer_.setInterval( 300 );
+    connect( &recheckTimer_, &QTimer::timeout, this, &MergeController::recheckSources );
     connect( &sourceWatcher_, &QFileSystemWatcher::fileChanged, this,
              &MergeController::onSourceChanged );
 }
@@ -83,12 +89,35 @@ void MergeController::scheduleRebuild()
     rebuildTimer_.start();
 }
 
+MergeController::SourceState MergeController::sourceStateOnDisk( const QString& path )
+{
+    const QFileInfo info( path );
+    if ( !info.exists() ) {
+        return {};
+    }
+    return { true, info.size(), info.lastModified() };
+}
+
 void MergeController::watchSources()
 {
     const auto watched = sourceWatcher_.files();
+    bool startedWatching = false;
     for ( const auto& path : sourcePaths_ ) {
         if ( !watched.contains( path ) && QFile::exists( path ) ) {
-            sourceWatcher_.addPath( path );
+            startedWatching = sourceWatcher_.addPath( path ) || startedWatching;
+        }
+    }
+    if ( startedWatching ) {
+        recheckTimer_.start();
+    }
+}
+
+void MergeController::recheckSources()
+{
+    for ( const auto& path : sourcePaths_ ) {
+        if ( sourceStateOnDisk( path ) != mergedSourceStates_.value( path ) ) {
+            doMerge();
+            return;
         }
     }
 }
@@ -113,7 +142,11 @@ void MergeController::doMerge()
     QSet<QByteArray> seen;
     QTextStream out( &outFile );
 
+    // Taken before a source is read, so a write during the read shows as a
+    // difference on the next check.
+    mergedSourceStates_.clear();
     for ( const auto& path : sourcePaths_ ) {
+        mergedSourceStates_.insert( path, sourceStateOnDisk( path ) );
         QFile srcFile( path );
         if ( !srcFile.open( QIODevice::ReadOnly | QIODevice::Text ) ) {
             LOG_WARNING << "MergeController: cannot read source " << path;
