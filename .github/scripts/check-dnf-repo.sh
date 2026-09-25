@@ -14,7 +14,11 @@ grep -q '^repo_gpgcheck=1$' "$repo"
 
 fail() { echo "::error::$1"; exit 1; }
 
-dnf --assumeyes makecache 2>&1 | tee /tmp/makecache.log
+# sh has no pipefail: a `| tee` would hide a failed makecache.
+status=0
+dnf --assumeyes makecache >/tmp/makecache.log 2>&1 || status=$?
+cat /tmp/makecache.log
+[ "$status" -eq 0 ] || fail "dnf cannot read the ${flavor} repository."
 if grep -Eiq 'warning|gpg check FAILED|signature' /tmp/makecache.log; then
   fail "dnf warns about the ${flavor} repository."
 fi
@@ -33,7 +37,8 @@ newest_version=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$newest")
 oldest_version=$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$oldest")
 
 # What dnf downloads is the release asset.
-dnf --assumeyes install 'dnf-command(download)' >/dev/null
+# dnf5 (Fedora) has `download` built in; dnf4 (Oracle Linux) needs the plugin.
+dnf download --help >/dev/null 2>&1 || dnf --assumeyes install 'dnf-command(download)' >/dev/null
 mkdir /tmp/download
 (cd /tmp/download && dnf --assumeyes download "logsquirl-${newest_version}")
 [ "$(sha256sum /tmp/download/logsquirl-*.rpm | cut -d' ' -f1)" = "$(sha256sum "$newest" | cut -d' ' -f1)" ] \
