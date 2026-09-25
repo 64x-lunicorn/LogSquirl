@@ -246,14 +246,17 @@
   themselves: they are not built with TSan, so it cannot see their locks. The
   ctest runner now leaves out a report only when both racing accesses were made
   inside such a library (listed in `cmake/tsan.supp`, each with its reason);
-  every report with an access in LogSquirl's code fails the case. The
-  suppression file lost its `race:` entries, which matched nothing and would
-  have hidden races in LogSquirl's code. Fixed in the code: a runnable queued
-  to a pool thread now publishes its captures, which TSan could not see
-  QThreadPool hand over (42 reports in the Search worker), and the Team Folder
-  no longer starts a Git that is not there, the path on which Qt's wait for the
-  child hung under TSan. Three indexing cases that are only slow under TSan get
-  more time there. See ADR 0007.
+  every report with an access in LogSquirl's code fails the case. oneTBB is
+  built with TSan in a TSan build, and the suppression file lost its `race:`
+  entries, which hid about 2200 reports from the Search and indexing flow
+  graphs. Fixed in the code: a runnable queued to a pool thread now publishes
+  its captures, which TSan could not see QThreadPool hand over (42 reports in
+  the Search worker), a time lookup's worker shares the job whose cancel flag
+  it reads, and the Team Folder no longer starts a Git that is not there, the
+  path on which Qt's wait for the child hung under TSan. One race inside the
+  oneTBB fork, fixed upstream, is suppressed by its own frame. No test case is
+  excluded, and the TSan tests run in about 7 minutes instead of 19. See ADR
+  0007.
 - **Coverage is measured, and the modules without tests got them**: `cmake
   --build <dir> --target coverage` in a build made with `-DENABLE_COVERAGE=ON`
   runs the tests and prints the line coverage of each module, from
