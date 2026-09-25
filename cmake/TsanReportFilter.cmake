@@ -225,3 +225,46 @@ function(logsquirl_tsan_filter)
   set(${arg_FAILURES} "${_failures}" PARENT_SCOPE)
   set(${arg_LEFT_OUT} "${_left_out}" PARENT_SCOPE)
 endfunction()
+
+# --- For a test script that runs a LogSquirl binary itself (#482) ------------
+#
+# The ctest runner (cmake/CatchTestDiscoveryRunTest.cmake) sorts the reports of
+# every Catch2 case. A script that starts a LogSquirl binary on its own (the
+# command line tool, the application, a test binary) does the same with these:
+#
+#   logsquirl_tsan_prepare(<directory>)
+#       sets TSAN_OPTIONS for what the script starts next: the suppression
+#       file, reports written to files in <directory>, and exitcode=0 so the
+#       program keeps its own exit code
+#   logsquirl_tsan_check(<directory> <failures var> <output var>)
+#       sorts what TSan wrote there since, as the runner does, and empties the
+#       directory: <failures var> is 0 when nothing is left that fails a case,
+#       <output var> what to print
+#
+# Outside a TSan build TSAN_OPTIONS is unread and the directory stays empty.
+set(_LOGSQUIRL_TSAN_SUPPRESSIONS "${CMAKE_CURRENT_LIST_DIR}/tsan.supp")
+
+function(logsquirl_tsan_prepare directory)
+  file(REMOVE_RECURSE "${directory}")
+  file(MAKE_DIRECTORY "${directory}")
+  set(ENV{TSAN_OPTIONS}
+      "suppressions=${_LOGSQUIRL_TSAN_SUPPRESSIONS}:log_path=${directory}/tsan:exitcode=0")
+endfunction()
+
+function(logsquirl_tsan_check directory failures_var output_var)
+  file(GLOB _logs "${directory}/tsan.*")
+  set(_failures 0)
+  set(_output "")
+  if(_logs)
+    logsquirl_tsan_filter(
+      SUPPRESSIONS "${_LOGSQUIRL_TSAN_SUPPRESSIONS}"
+      LOGS ${_logs}
+      OUTPUT_FILE "${directory}/sorted.txt"
+      FAILURES _failures
+      LEFT_OUT _left_out)
+    file(READ "${directory}/sorted.txt" _output)
+    file(REMOVE ${_logs} "${directory}/sorted.txt")
+  endif()
+  set(${failures_var} "${_failures}" PARENT_SCOPE)
+  set(${output_var} "${_output}" PARENT_SCOPE)
+endfunction()

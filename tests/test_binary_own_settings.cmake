@@ -39,6 +39,12 @@ function(settings_files_state out_var)
   set(${out_var} "${_state}" PARENT_SCOPE)
 endfunction()
 
+# A ThreadSanitizer build sorts the reports of what this starts the way the
+# ctest runner does for every test case (#482); ignored by any other build.
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/TsanReportFilter.cmake")
+get_filename_component(_tsan_dir "${_binary_dir}/../test_settings/own_settings_tsan" ABSOLUTE)
+logsquirl_tsan_prepare("${_tsan_dir}")
+
 settings_files_state(_before)
 
 execute_process(
@@ -51,6 +57,12 @@ execute_process(
 )
 
 settings_files_state(_after)
+
+logsquirl_tsan_check("${_tsan_dir}" _tsan_failures _tsan_output)
+if(NOT _tsan_failures EQUAL 0)
+  message(FATAL_ERROR "ThreadSanitizer: ${_tsan_failures} finding(s) in '${TEST_SPEC}':\n${_tsan_output}")
+endif()
+file(REMOVE_RECURSE "${_tsan_dir}")
 
 if(NOT _result STREQUAL "0")
   message(FATAL_ERROR "'${TEST_SPEC}' exited with ${_result}\n"

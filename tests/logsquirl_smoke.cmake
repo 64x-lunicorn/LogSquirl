@@ -51,6 +51,12 @@ else()
   )
 endif()
 
+# A ThreadSanitizer build sorts the reports of what this starts the way the
+# ctest runner does for every test case (#482); ignored by any other build.
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/TsanReportFilter.cmake")
+set(_tsan_dir "${WORK_DIR}_tsan")
+logsquirl_tsan_prepare("${_tsan_dir}")
+
 execute_process(
   COMMAND "${CMAKE_COMMAND}" -E env ${_environment} -- "${LOGSQUIRL}" -platform offscreen -v
   WORKING_DIRECTORY "${WORK_DIR}"
@@ -61,6 +67,11 @@ execute_process(
 )
 
 file(REMOVE_RECURSE "${WORK_DIR}")
+logsquirl_tsan_check("${_tsan_dir}" _tsan_failures _tsan_output)
+if(NOT _tsan_failures EQUAL 0)
+  message(FATAL_ERROR "ThreadSanitizer: ${_tsan_failures} finding(s) in logsquirl -v:\n${_tsan_output}")
+endif()
+file(REMOVE_RECURSE "${_tsan_dir}")
 
 if(NOT _result STREQUAL "0")
   message(FATAL_ERROR "logsquirl -v exited with ${_result}\n"

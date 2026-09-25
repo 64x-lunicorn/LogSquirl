@@ -55,15 +55,18 @@ file(WRITE "${_tool_dir}/logsquirl.conf" "[General]\ndefaultView.encodingMib=-1\
 
 set(_failures "")
 
-# A ThreadSanitizer build reports oneTBB's flow graph unless it is given the
-# suppression list every other test case gets from
-# cmake/CatchTestDiscoveryRunTest.cmake (#439). Ignored by a build without
+# A ThreadSanitizer build sorts the tool's reports the way the ctest runner
+# sorts every test case's (cmake/CatchTestDiscoveryRunTest.cmake): a race made
+# inside Qt, GLib or glibc on both sides is left out, any other report fails
+# the check it came from (#439, #482). Ignored by a build without
 # -fsanitize=thread.
-get_filename_component(_tsan_suppressions "${CMAKE_CURRENT_LIST_DIR}/../cmake/tsan.supp" ABSOLUTE)
-set(ENV{TSAN_OPTIONS} "suppressions=${_tsan_suppressions}")
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/TsanReportFilter.cmake")
+set(_tsan_dir "${WORK_DIR}/tsan")
+logsquirl_tsan_prepare("${_tsan_dir}")
 
 # Runs the tool with the given arguments; sets _stdout, _stderr and _result.
-# Line endings are normalized, so the checks hold on every platform.
+# Line endings are normalized, so the checks hold on every platform. What
+# ThreadSanitizer finds is recorded as a failure of its own.
 function(run_grep)
   execute_process(
     COMMAND "${_tool}" ${ARGN}
@@ -78,6 +81,13 @@ function(run_grep)
   set(_stdout "${_out}" PARENT_SCOPE)
   set(_stderr "${_err}" PARENT_SCOPE)
   set(_result "${_res}" PARENT_SCOPE)
+  logsquirl_tsan_check("${_tsan_dir}" _tsan_failures _tsan_output)
+  if(NOT _tsan_failures EQUAL 0)
+    list(JOIN ARGN " " _arguments)
+    list(APPEND _failures
+         "ThreadSanitizer: ${_tsan_failures} finding(s) running '${_arguments}':\n${_tsan_output}")
+    set(_failures "${_failures}" PARENT_SCOPE)
+  endif()
 endfunction()
 
 # Records a failed check, with what the tool did.
