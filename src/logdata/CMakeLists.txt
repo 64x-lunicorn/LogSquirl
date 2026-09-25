@@ -2,6 +2,7 @@ add_library(
   logsquirl_logdata STATIC
   ${CMAKE_CURRENT_SOURCE_DIR}/include/abstractlogdata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/ansicolorsequences.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/backgroundrun.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/compressedlinestorage.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/displayedlines.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/encodingdetector.h
@@ -27,6 +28,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/readablesize.h
   ${CMAKE_CURRENT_SOURCE_DIR}/src/abstractlogdata.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/ansicolorsequences.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backgroundrun.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/compressedlinestorage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/displayedlines.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/encodingdetector.cpp

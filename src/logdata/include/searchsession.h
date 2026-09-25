@@ -134,9 +134,8 @@ Q_SIGNALS:
     void stateChanged( SearchSession::State state );
 
 private Q_SLOTS:
-    void handleSearchProgressed( int progress, LineNumber initialLine, SearchId searchId );
-    void handleSearchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
-                               const QString& failure );
+    void handleSearchProgressed( int progress, SearchId searchId );
+    void handleSearchFinished( SearchId searchId, bool interrupted, const QString& failure );
     // Emits the state change the throttler held back, unless one has been
     // reported directly since.
     void emitThrottledStateChanged();

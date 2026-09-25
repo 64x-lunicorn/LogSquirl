@@ -110,6 +110,15 @@ _Avoid_: first line, top line, anchor
 A pattern applied to a whole Log File, producing the set of lines shown in the Filtered View.
 _Avoid_: query, grep
 
+**Background Run**:
+The one way a Search (and, later, an index job) runs off the UI thread: one run at a time
+on a thread of its own. Starting a run supersedes the one in flight; each run gets a copy
+of the Policy taken as it starts, keeps the Log File's reader attached for as long as it
+lasts, and is reported finished exactly once — returned, superseded or failed. Shutting
+it down stops the run in flight and reports nothing more. The job it runs is plain code;
+which run supersedes which is still up to whoever starts them (the Search Session).
+_Avoid_: background task, async job
+
 **Search Session**:
 The owner of everything whose correctness depends on the ordering of a Search: the current
 pattern, the run in flight, its results, its progress and its cached results. A new request

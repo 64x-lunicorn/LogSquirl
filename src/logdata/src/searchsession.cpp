@@ -255,8 +255,6 @@ void SearchSession::startRun( const RegularExpressionPattern& pattern, LineNumbe
     newState.isContinuation = isContinuation;
     applyState( std::move( newState ) );
 
-    blockSource_.attachReader();
-
     currentSearchId_ = isContinuation
                            ? workerThread_.updateSearch( compiledExpression, startLine, endLine,
                                                          LineNumber( nbLinesProcessed_.get() ) )
@@ -408,8 +406,7 @@ void SearchSession::applyIncomingResults( SearchResults results )
     state_.matchCount = matchCount;
 }
 
-void SearchSession::handleSearchProgressed( int progress, LineNumber /*initialLine*/,
-                                            SearchId searchId )
+void SearchSession::handleSearchProgressed( int progress, SearchId searchId )
 {
     if ( searchId != currentSearchId_ ) {
         // Progress from a run we've since superseded; its results are stale.
@@ -427,16 +424,9 @@ void SearchSession::handleSearchProgressed( int progress, LineNumber /*initialLi
     Q_EMIT resultsReady();
 }
 
-void SearchSession::handleSearchFinished( SearchId searchId, LineNumber /*initialLine*/,
-                                          bool interrupted, const QString& failure )
+void SearchSession::handleSearchFinished( SearchId searchId, bool interrupted,
+                                          const QString& failure )
 {
-    // Every request()/completeFromCache() that reached the worker did
-    // exactly one attachReader(); this is its matching detachReader(),
-    // and it must happen regardless of whether this run's results end up
-    // applied below -- a superseded run must not leak the attach just
-    // because its results are discarded.
-    blockSource_.detachReader();
-
     if ( searchId != currentSearchId_ ) {
         // A superseded (or explicitly stopped) run finishing late;
         // discard rather than apply.

@@ -29,6 +29,7 @@
 #include <QStringList>
 #include <QTest>
 
+#include "fake_run_control.h"
 #include "in_memory_block_source.h"
 #include "logfiltereddataworker.h"
 #include "regularexpression.h"
@@ -488,7 +489,8 @@ SCENARIO( "A Search superseded before it runs leaves no Matches behind", "[searc
 
     GIVEN( "a Search whose Matches were never taken, because it was superseded" )
     {
-        FullSearchOperation previous{ blockSource, SearchId( 1 ),   activeSearchId, alpha,
+        const FakeRunControl previousRun{ SearchId( 1 ), activeSearchId };
+        FullSearchOperation previous{ blockSource, previousRun,     alpha,
                                       0_lnum,      LineNumber( 5 ), policies.search };
         previous.run( searchData );
         REQUIRE( searchData.getLastProcessedLine() == LineNumber( 5 ) );
@@ -499,14 +501,15 @@ SCENARIO( "A Search superseded before it runs leaves no Matches behind", "[searc
             // The continuation below is the active run by the time the Search
             // for the new pattern would start.
             activeSearchId.store( 3 );
-            FullSearchOperation superseded{ blockSource, SearchId( 2 ),   activeSearchId, beta,
+            const FakeRunControl supersededRun{ SearchId( 2 ), activeSearchId };
+            FullSearchOperation superseded{ blockSource, supersededRun,   beta,
                                             0_lnum,      LineNumber( 5 ), policies.search };
             superseded.run( searchData );
 
             blockSource.appendLines( QStringList{ "beta 5", "alpha 6" } );
-            UpdateSearchOperation continued{ blockSource, SearchId( 3 ),  activeSearchId,
-                                             beta,        0_lnum,         LineNumber( 7 ),
-                                             0_lnum,      policies.search };
+            const FakeRunControl continuedRun{ SearchId( 3 ), activeSearchId };
+            UpdateSearchOperation continued{ blockSource,     continuedRun, beta,           0_lnum,
+                                             LineNumber( 7 ), 0_lnum,       policies.search };
             continued.run( searchData );
 
             THEN( "only the Matches of the pattern that ran are left, over every Log Line" )

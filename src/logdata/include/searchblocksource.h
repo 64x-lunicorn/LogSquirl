@@ -85,7 +85,8 @@ public:
 
     // Bracket one run of a Search: whatever the source needs to keep open
     // while the run reads (the Log File, unless it is kept closed) is held
-    // from attachReader() until the matching detachReader().
+    // from attachReader() until the matching detachReader(). The Background
+    // Run the Search runs through pairs them; nothing else calls them.
     virtual void attachReader() const = 0;
     virtual void detachReader() const = 0;
 };

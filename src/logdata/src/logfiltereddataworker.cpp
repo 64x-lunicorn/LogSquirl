@@ -40,10 +40,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstddef>
-#include <exception>
 #include <memory>
 #include <mutex>
-#include <qsemaphore.h>
 #include <unordered_map>
 #include <utility>
 
@@ -55,7 +53,6 @@
 #include "linetypes.h"
 #include "log.h"
 #include "progress.h"
-#include "runnable_lambda.h"
 
 #include "regularexpression.h"
 #include "searchblocksource.h"
@@ -227,122 +224,54 @@ void SearchData::clear()
 LogFilteredDataWorker::LogFilteredDataWorker( const SearchBlockSource& blockSource,
                                               const SearchPolicy& searchPolicy )
     : blockSource_( blockSource )
-    , searchPolicy_( searchPolicy )
+    , run_(
+          "Search", searchPolicy,
+          { [ &blockSource ] { blockSource.attachReader(); },
+            [ &blockSource ] { blockSource.detachReader(); } },
+          [ this ]( RunId id, int percent ) { Q_EMIT searchProgressed( percent, id ); },
+          [ this ]( const RunEnd<std::monostate>& end ) {
+              Q_EMIT searchFinished( end.id, end.superseded, end.failure );
+          } )
 {
-    operationsPool_.setMaxThreadCount( 1 );
-}
-
-LogFilteredDataWorker::~LogFilteredDataWorker() noexcept
-{
-    try {
-        // Signal all running search operations to stop early
-        activeSearchId_.store( 0, std::memory_order_release );
-
-        // Remove pending runnables from the pool (thread-safe, no mutex needed)
-        operationsPool_.clear();
-
-        // Wait for the active runnable to finish WITHOUT holding operationsMutex_.
-        // The pool thread needs to notice the id no longer matches before it can
-        // exit. Holding the mutex here would deadlock.
-        // Use a timeout so the process can exit even if TBB hangs on Windows.
-        if ( !operationsPool_.waitForDone( 10000 ) ) {
-            LOG_ERROR << "Search thread did not finish within 10 s — giving up";
-        }
-
-        LOG_INFO << "LogFilteredDataWorker shutdown";
-    } catch ( const std::exception& e ) {
-        LOG_ERROR << "Failed to destroy LogFilteredDataWorker: " << e.what();
-    }
-}
-
-void LogFilteredDataWorker::connectSignalsAndRun( SearchOperation* operationRequested )
-{
-    connect( operationRequested, &SearchOperation::searchProgressed, this,
-             &LogFilteredDataWorker::searchProgressed );
-    connect( operationRequested, &SearchOperation::searchFinished, this,
-             &LogFilteredDataWorker::searchFinished, Qt::QueuedConnection );
-
-    operationRequested->run( searchData_ );
-    operationRequested->disconnect( this );
 }
 
 SearchId LogFilteredDataWorker::search( std::shared_ptr<const RegularExpression> compiledExpression,
                                         LineNumber startLine, LineNumber endLine )
 {
-    ScopedLock locker( operationsMutex_ ); // to protect enqueueing against interrupt()
-
-    // Becoming the active run immediately (without waiting for whatever ran
-    // before us to acknowledge) is what lets a still-running search be
-    // superseded rather than waited on.
-    const auto id = SearchId( ++nextSearchId_ );
-    activeSearchId_.store( id.get(), std::memory_order_release );
-
     LOG_INFO << "Search requested";
-    // Shared with the queued runnable, not captured by reference: the caller may
-    // return from acquire() and destroy its handle while the pool thread is still
-    // inside release(); the last owner destroys the semaphore (#482).
-    const auto operationStarted = std::make_shared<QSemaphore>();
-    operationsPool_.start( createRunnable( [ this, operationStarted, id, compiledExpression,
-                                             startLine, endLine, searchPolicy = searchPolicy_ ] {
-        operationStarted->release();
-        // Deliberately not holding operationsMutex_ here: the pool (maxThreadCount 1)
-        // already serializes actual execution, and holding it across a run -- which
-        // can take a while -- would block a superseding search() call from even
-        // updating activeSearchId_ until this run finished on its own, defeating
-        // supersession entirely (the same trap the destructor's wait avoids).
-        auto operationRequested = std::make_unique<FullSearchOperation>(
-            blockSource_, id, activeSearchId_, compiledExpression, startLine, endLine,
-            searchPolicy );
-        connectSignalsAndRun( operationRequested.get() );
-    } ) );
-    operationStarted->acquire();
-
-    return id;
+    return run_.start( [ this, compiledExpression = std::move( compiledExpression ), startLine,
+                         endLine ]( const RunControl& run, const SearchPolicy& searchPolicy ) {
+        FullSearchOperation( blockSource_, run, compiledExpression, startLine, endLine,
+                             searchPolicy )
+            .run( searchData_ );
+        return std::monostate{};
+    } );
 }
 
 SearchId
 LogFilteredDataWorker::updateSearch( std::shared_ptr<const RegularExpression> compiledExpression,
                                      LineNumber startLine, LineNumber endLine, LineNumber position )
 {
-    ScopedLock locker( operationsMutex_ ); // to protect enqueueing against interrupt()
-
-    const auto id = SearchId( ++nextSearchId_ );
-    activeSearchId_.store( id.get(), std::memory_order_release );
-
     LOG_INFO << "Search update requested from " << position.get();
-
-    // Shared with the runnable, see search() (#482).
-    const auto operationStarted = std::make_shared<QSemaphore>();
-    operationsPool_.start(
-        createRunnable( [ this, operationStarted, id, compiledExpression, startLine, endLine,
-                          position, searchPolicy = searchPolicy_ ] {
-            operationStarted->release();
-            // See the comment in search(): not holding operationsMutex_ here is what
-            // lets a superseding call proceed without waiting for this run to finish.
-            auto operationRequested = std::make_unique<UpdateSearchOperation>(
-                blockSource_, id, activeSearchId_, compiledExpression, startLine, endLine, position,
-                searchPolicy );
-            connectSignalsAndRun( operationRequested.get() );
-        } ) );
-
-    operationStarted->acquire();
-
-    return id;
+    return run_.start( [ this, compiledExpression = std::move( compiledExpression ), startLine,
+                         endLine,
+                         position ]( const RunControl& run, const SearchPolicy& searchPolicy ) {
+        UpdateSearchOperation( blockSource_, run, compiledExpression, startLine, endLine, position,
+                               searchPolicy )
+            .run( searchData_ );
+        return std::monostate{};
+    } );
 }
 
 void LogFilteredDataWorker::setSearchPolicy( const SearchPolicy& searchPolicy )
 {
-    ScopedLock locker( operationsMutex_ );
-    searchPolicy_ = searchPolicy;
+    run_.setPolicy( searchPolicy );
 }
 
 void LogFilteredDataWorker::interrupt()
 {
     LOG_INFO << "Search interruption requested";
-    // 0 is never handed out as a real search id (ids start at 1), so this
-    // makes whatever is currently running see itself as superseded without
-    // starting a replacement run.
-    activeSearchId_.store( 0, std::memory_order_release );
+    run_.interrupt();
 }
 
 // This will do an atomic copy of the object
@@ -355,14 +284,12 @@ SearchResults LogFilteredDataWorker::getSearchResults() const
 // Operations implementation
 //
 
-SearchOperation::SearchOperation( const SearchBlockSource& blockSource, SearchId searchId,
-                                  const std::atomic<uint64_t>& activeSearchId,
+SearchOperation::SearchOperation( const SearchBlockSource& blockSource, const RunControl& run,
                                   std::shared_ptr<const RegularExpression> compiledExpression,
                                   LineNumber startLine, LineNumber endLine,
                                   SearchPolicy searchPolicy )
 
-    : searchId_( searchId )
-    , activeSearchId_( activeSearchId )
+    : run_( run )
     , compiledExpression_( std::move( compiledExpression ) )
     , blockSource_( blockSource )
     , startLine_( startLine )
@@ -374,7 +301,7 @@ SearchOperation::SearchOperation( const SearchBlockSource& blockSource, SearchId
 
 bool SearchOperation::isSuperseded() const
 {
-    return activeSearchId_.load( std::memory_order_acquire ) != searchId_.get();
+    return run_.isSuperseded();
 }
 
 void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
@@ -531,7 +458,7 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
 
                 if ( percentage > reportedPercentage || nbMatches > reportedMatches ) {
 
-                    Q_EMIT searchProgressed( std::min( 99, percentage ), initialLine, searchId_ );
+                    run_.reportProgress( std::min( 99, percentage ) );
 
                     reportedPercentage = percentage;
                     reportedMatches = nbMatches;
@@ -603,25 +530,16 @@ void SearchOperation::doSearch( SearchData& searchData, LineNumber initialLine )
              << " lines/s";
     LOG_INFO << "Searching io perf "
              << ( static_cast<double>( bytesRead ) / elapsedSeconds ) / ( 1024 * 1024 ) << " MiB/s";
-
-    // Completion is reported once, here, rather than folded into the last progress
-    // tick -- that is what lets a superseded/interrupted run be told apart from a
-    // genuinely finished one instead of both claiming 100%.
-    Q_EMIT searchFinished( searchId_, initialLine, isSuperseded(), {} );
 }
 
 void SearchOperation::run( SearchData& searchData )
 {
     try {
         doRun( searchData );
-    } catch ( const std::exception& err ) {
-        const auto failure
-            = QString( "%1 failed: %2" ).arg( metaObject()->className(), err.what() );
-        LOG_ERROR << failure;
+    } catch ( ... ) {
+        // A failed run keeps nothing it found.
         searchData.clear();
-        // Still reported finished: whoever started this run paired it with
-        // one attachReader() that only searchFinished balances.
-        Q_EMIT searchFinished( searchId_, startLine_, false, failure );
+        throw;
     }
 }
 
@@ -640,11 +558,8 @@ void FullSearchOperation::doRun( SearchData& searchData )
     if ( isSuperseded() ) {
         // Superseded before we even started (e.g. several patterns were typed in
         // quick succession); skip the work itself, the Log Lines are the active
-        // run's to search. Still report finished -- whoever started us paired it
-        // with one attachReader() that only our searchFinished balances with a
-        // detachReader().
+        // run's to search.
         LOG_INFO << "Search superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, startLine_, true, {} );
         return;
     }
 
@@ -656,7 +571,6 @@ void UpdateSearchOperation::doRun( SearchData& searchData )
 {
     if ( isSuperseded() ) {
         LOG_INFO << "Search update superseded before it started, skipping";
-        Q_EMIT searchFinished( searchId_, initialPosition_, true, {} );
         return;
     }
 
