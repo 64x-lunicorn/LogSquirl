@@ -189,6 +189,12 @@
   display, the Search and `logsquirl_grep` read a Log Line as the same text:
   without its line feed, the carriage return that ends it or byte order marks
   that start it (#522).
+- **The same Search finds what the Log File reads now**: after choosing
+  another Encoding or turning the hiding of ANSI color sequences on or off,
+  running the same Search again searches the Log File anew instead of showing
+  the Matches it found before, in the current Search and in every kept one.
+  A Search repeated on an unchanged Log File is still answered from the cache
+  (#520).
 - **Uninstalling on Windows leaves nothing behind**: the uninstaller left
   empty `platforms` and `styles` folders, and so the `logsquirl` folder
   itself, under Program Files, and the installing user's *Send to* shortcut.

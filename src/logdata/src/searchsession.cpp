@@ -317,9 +317,9 @@ void SearchSession::logLinesChanged( LineNumber firstChanged )
     }
 
     // A continuation searches again from the last Log Line searched before,
-    // which may have been incomplete then: a change there needs no more than
-    // that. A run in flight may have read further than it reported, up to
-    // its whole range.
+    // which may have been incomplete then (recheckedLine_, set in
+    // startRun()): a change there needs no more than that. A run in flight may have read further
+    // than it reported, up to its whole range.
     const auto searchedEnd
         = held.phase == Phase::Running ? held.endLine.get() : nbLinesProcessed_.get();
     if ( firstChanged.get() + 1 < searchedEnd ) {

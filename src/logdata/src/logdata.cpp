@@ -216,6 +216,10 @@ void LogData::reload( const TextEncoding* forcedEncoding )
 {
     operationQueue_.interrupt();
 
+    // Told at once, not only once indexed again: until then no Search may be
+    // served what it found in the Log Lines as they were read before.
+    logLinesChanged();
+
     // Re-open the file, useful in case the file has been moved
     attached_file_->reOpenFile();
 
