@@ -39,6 +39,7 @@ RUN wget -q https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}
     chmod 755 cmake-${CMAKE_VERSION}-linux-x86_64.sh && \
     ./cmake-${CMAKE_VERSION}-linux-x86_64.sh --prefix=/opt/ --exclude-subdir --skip-license && \
     rm cmake-${CMAKE_VERSION}-linux-x86_64.sh
+ENV PATH=/opt/bin:$PATH
 
 # Qt from source, the same version as every other image (Renovate moves them
 # together, and the SBOM job fails when they disagree). aqtinstall fetches the
@@ -77,7 +78,7 @@ RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
     cd / && rm -rf /tmp/qt-build /tmp/qt-src
 
 ENV Qt6_DIR=/opt/qt/${QT_VERSION}/gcc_64
-ENV PATH=${Qt6_DIR}/bin:/opt/bin:$PATH
+ENV PATH=${Qt6_DIR}/bin:$PATH
 ENV LD_LIBRARY_PATH=${Qt6_DIR}/lib
 ENV CMAKE_PREFIX_PATH=${Qt6_DIR}
 
