@@ -43,13 +43,32 @@ fetch_verified \
 mkdir -p appdir/usr/lib
 cp /lib/x86_64-linux-gnu/libssl* appdir/usr/lib
 
-# Build the AppImage
+# Build the AppImage.
+# Of the platform plugins, linuxdeploy-plugin-qt deploys libqxcb.so and only
+# the ones EXTRA_PLATFORM_PLUGINS names (PlatformPluginsDeployer.cpp), so the
+# VNC platform plugin, with the authentication bypass of CVE-2026-79680, stays
+# out (#514). The EXTRA_QT_PLUGINS="iconengines;imageformats;platforms" set
+# here before was the plugin's deprecated name for EXTRA_QT_MODULES, and none of
+# the three is a Qt module, so it deployed nothing; the plugin deploys the
+# image formats itself and the SVG icon engine with Qt SVG.
 export VERSION=$LOGSQUIRL_VERSION
-export EXTRA_QT_PLUGINS="iconengines;imageformats;platforms"
+unset EXTRA_PLATFORM_PLUGINS EXTRA_QT_MODULES EXTRA_QT_PLUGINS
 ./linuxdeploy-x86_64.AppImage --appdir appdir \
     --desktop-file appdir/usr/share/applications/*.desktop \
     --plugin qt \
     --output appimage
+
+# The AppImage is the AppDir as it is now. LogSquirl needs the xcb platform on
+# Linux (and would need wayland); any other platform plugin, above all VNC,
+# fails the build instead of shipping (#514).
+echo "Platform plugins in the AppImage:"
+ls -1 appdir/usr/plugins/platforms
+unexpected=$(find appdir -name 'libqvnc*' -o -path 'appdir/usr/plugins/platforms/*' \
+    ! -name 'libqxcb.so' ! -name 'libqwayland*.so' | sort -u)
+if [ -n "$unexpected" ]; then
+    echo "::error::the AppImage would ship platform plugins LogSquirl does not use (#514): $(echo "$unexpected" | tr '\n' ' ')"
+    exit 1
+fi
 
 mkdir ./packages
 cp "./LogSquirl-${LOGSQUIRL_VERSION}-x86_64.AppImage" "./packages/logsquirl-${LOGSQUIRL_VERSION}-x86_64.AppImage"
