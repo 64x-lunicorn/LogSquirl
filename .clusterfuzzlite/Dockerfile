@@ -23,7 +23,7 @@ RUN apt-get update -y && \
 # Qt as in docker/ubuntu24.04: same version, aqtinstall from the hash-locked
 # requirements file, nothing of it left in the image. Renovate moves the
 # version there; keep this line equal to it.
-ENV QT_VERSION=6.11.2
+ENV QT_VERSION=6.11.3
 COPY docker/shared/aqtinstall-requirements.txt /tmp/
 RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
         --target /tmp/aqtinstall -r /tmp/aqtinstall-requirements.txt && \

@@ -213,12 +213,12 @@ def write(path: Path, data: bytes) -> None:
 @pytest.fixture
 def packages(tmp_path) -> dict[str, Path]:
     app, win, mac = tmp_path / "appimage", tmp_path / "windows", tmp_path / "macos"
-    write(app / "usr/lib/libQt6Core.so.6", b"Qt 6.11.2 (x86_64-little_endian-lp64 shared")
+    write(app / "usr/lib/libQt6Core.so.6", b"Qt 6.11.3 (x86_64-little_endian-lp64 shared")
     write(app / "usr/lib/libcrypto.so.3", b"OpenSSL 3.0.2 15 Mar 2022")
     write(app / "usr/lib/libicuuc.so.73", b"\x0073.2\x00")
-    write(win / "Qt6Core.dll", b"Qt 6.11.2 (x86_64")
+    write(win / "Qt6Core.dll", b"Qt 6.11.3 (x86_64")
     write(win / "libcrypto-3-x64.dll", b"OpenSSL 3.6.2  7 Apr 2026")
-    write(mac / "logsquirl.app/Contents/Frameworks/QtCore.framework/Versions/A/QtCore", b"Qt 6.11.2 (arm64")
+    write(mac / "logsquirl.app/Contents/Frameworks/QtCore.framework/Versions/A/QtCore", b"Qt 6.11.3 (arm64")
     (win / "unrelated.dll").write_bytes(b"OpenSSL 9.9.9 1 Jan 2030")  # name does not match
     return {"appimage": app, "windows": win, "macos": mac}
 
@@ -230,9 +230,9 @@ def detections(packages) -> list[sb.Detection]:
 def test_detects_bundled_versions(packages):
     found = {(d.package, d.key, d.version, d.upstream) for d in detections(packages)}
     assert found == {
-        ("appimage", "qt", "6.11.2", True), ("appimage", "openssl", "3.0.2", False),
-        ("appimage", "icu", "73.2", True), ("windows", "qt", "6.11.2", True),
-        ("windows", "openssl", "3.6.2", True), ("macos", "qt", "6.11.2", True)}
+        ("appimage", "qt", "6.11.3", True), ("appimage", "openssl", "3.0.2", False),
+        ("appimage", "icu", "73.2", True), ("windows", "qt", "6.11.3", True),
+        ("windows", "openssl", "3.6.2", True), ("macos", "qt", "6.11.3", True)}
 
 
 def test_detected_versions_fill_the_platform_components(packages):
@@ -253,7 +253,7 @@ def test_detected_versions_fill_the_platform_components(packages):
 
 def test_a_bundled_qt_other_than_the_pinned_one_fails(packages):
     write(packages["macos"] / "logsquirl.app/Contents/Frameworks/QtCore.framework/Versions/A/QtCore", b"Qt 6.9.0 (arm")
-    with pytest.raises(sb.SbomError, match=r"qt 6\.11\.2 is pinned, but the packages bundle 6\.9\.0"):
+    with pytest.raises(sb.SbomError, match=r"qt 6\.11\.3 is pinned, but the packages bundle 6\.9\.0"):
         sb.merge_detections(base_bom(), detections(packages))
 
 
@@ -282,7 +282,7 @@ SYFT = {
     "metadata": {"tools": {"components": [{"type": "application", "author": "anchore", "name": "syft",
                                            "version": "1.51.1"}]}},
     "components": [
-        syft_component("Qt6", "6.11.2.0", "/windows/Qt6Core.dll"),
+        syft_component("Qt6", "6.11.3.0", "/windows/Qt6Core.dll"),
         syft_component("The OpenSSL Toolkit", "3.6.2", "/windows/libcrypto-3-x64.dll"),
         syft_component("oneAPI Threading Building Blocks (oneTBB)", "2021.13.0", "/windows/tbb12.dll"),
         syft_component("Microsoft® C Runtime Library", "14.51.36247.0", "/windows/msvcp140.dll"),
@@ -332,8 +332,8 @@ def jammy(tmp_path):
     some files under one spelling and some under the other."""
     appdir, root = tmp_path / "appdir", tmp_path / "root"
     system = root / "usr/lib/x86_64-linux-gnu"
-    qt = root / "opt/qt/6.11.2/gcc_64/lib"
-    for d in (system, qt, root / "opt/qt/6.11.2/gcc_64/plugins/platforms"):
+    qt = root / "opt/qt/6.11.3/gcc_64/lib"
+    for d in (system, qt, root / "opt/qt/6.11.3/gcc_64/plugins/platforms"):
         d.mkdir(parents=True)
     (root / "lib").symlink_to("usr/lib")
     for name in ("libglib-2.0.so.0.7200.4", "libssl.so.3", "libkrb5.so.3.3", "libgssapi_krb5.so.2.2"):
