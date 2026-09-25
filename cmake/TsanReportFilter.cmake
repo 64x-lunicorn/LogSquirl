@@ -1,7 +1,7 @@
 # Sorts the ThreadSanitizer output of one test case (#482).
 #
 #   logsquirl_tsan_filter(SUPPRESSIONS <tsan.supp> LOGS <log file>...
-#                         OUTPUT <var> FAILURES <var> LEFT_OUT <var>)
+#                         OUTPUT_FILE <file> FAILURES <var> LEFT_OUT <var>)
 #
 # The ctest runner has TSan write its reports to log files instead of stderr
 # and hands them here. A data race report is left out when both racing
@@ -11,12 +11,13 @@
 # docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md for
 # why this is not a `race:` suppression). Everything else counts:
 #
-#   OUTPUT    what to print: the logs without the reports left out, and a line
-#             that counts those
-#   FAILURES  the number of reports kept, plus one for any other output of TSan
-#             than its reports and its summary lines (a TSan error, a warning
-#             about a thread): 0 when the case passes as far as TSan goes
-#   LEFT_OUT  the number of reports left out
+#   OUTPUT_FILE  written with what to print: the logs without the reports left
+#                out, and a line that counts those
+#   FAILURES     the number of reports kept, plus one for any other output of
+#                TSan than its reports and its summary lines (a TSan error, a
+#                warning about a thread): 0 when the case passes as far as TSan
+#                goes
+#   LEFT_OUT     the number of reports left out
 #
 # Who made an access: TSan's own interceptor frame (operator new, free, memcpy
 # ...) and the frames of inlined Qt and C++ standard library headers are passed
@@ -109,8 +110,17 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
   set(${out_var} "${_result}" PARENT_SCOPE)
 endfunction()
 
+# Appends a line (or several) to the output file, the parked characters back.
+function(_logsquirl_tsan_write file text)
+  string(REPLACE "<TSAN_CLOSE_BRACKET>" "]" text "${text}")
+  string(REPLACE "<TSAN_OPEN_BRACKET>" "[" text "${text}")
+  string(REPLACE "<TSAN_SEMICOLON>" ";" text "${text}")
+  string(REPLACE "<TSAN_BACKSLASH>" "\\" text "${text}")
+  file(APPEND "${file}" "${text}\n")
+endfunction()
+
 function(logsquirl_tsan_filter)
-  cmake_parse_arguments(PARSE_ARGV 0 arg "" "SUPPRESSIONS;OUTPUT;FAILURES;LEFT_OUT" "LOGS")
+  cmake_parse_arguments(PARSE_ARGV 0 arg "" "SUPPRESSIONS;OUTPUT_FILE;FAILURES;LEFT_OUT" "LOGS")
 
   file(STRINGS "${arg_SUPPRESSIONS}" _declared REGEX "^#@uninstrumented ")
   set(_libraries "")
@@ -119,7 +129,9 @@ function(logsquirl_tsan_filter)
     list(APPEND _libraries "${_library}")
   endforeach()
 
-  set(_output "")
+  # What is printed goes to the file as it is found: a case can print thousands
+  # of report lines, and a CMake variable is copied whole on every append.
+  file(WRITE "${arg_OUTPUT_FILE}" "")
   set(_failures 0)
   set(_left_out 0)
   set(_left_out_pairs "")
@@ -131,6 +143,7 @@ function(logsquirl_tsan_filter)
     string(REPLACE "[" "<TSAN_OPEN_BRACKET>" _content "${_content}")
     string(REPLACE "]" "<TSAN_CLOSE_BRACKET>" _content "${_content}")
     string(REPLACE "\n" ";" _lines "${_content}")
+    unset(_content)
 
     set(_in_report FALSE)
     set(_in_matched FALSE)
@@ -141,7 +154,8 @@ function(logsquirl_tsan_filter)
           _logsquirl_tsan_report_left_out(_libs "${_libraries}" ${_report})
           if(_libs STREQUAL "")
             math(EXPR _failures "${_failures} + 1")
-            list(APPEND _output "==================" ${_report} "==================")
+            list(JOIN _report "\n" _text)
+            _logsquirl_tsan_write("${arg_OUTPUT_FILE}" "==================\n${_text}\n==================")
           else()
             math(EXPR _left_out "${_left_out} + 1")
             list(APPEND _left_out_pairs "${_libs}")
@@ -160,19 +174,20 @@ function(logsquirl_tsan_filter)
         continue()
       elseif(_line MATCHES "^ThreadSanitizer: Matched [0-9]+ suppressions")
         set(_in_matched TRUE)
-        list(APPEND _output "${_line}")
+        _logsquirl_tsan_write("${arg_OUTPUT_FILE}" "${_line}")
       elseif(_in_matched AND _line MATCHES "^[0-9]+ [a-z_]+:")
-        list(APPEND _output "${_line}")
+        _logsquirl_tsan_write("${arg_OUTPUT_FILE}" "${_line}")
       else()
         # Not a report TSan recovers from: a TSan error, a warning about a
         # thread, a report cut off. It fails the case, printed as it came.
         math(EXPR _failures "${_failures} + 1")
-        list(APPEND _output "${_line}")
+        _logsquirl_tsan_write("${arg_OUTPUT_FILE}" "${_line}")
       endif()
     endforeach()
     if(_in_report)
       math(EXPR _failures "${_failures} + 1")
-      list(APPEND _output "==================" ${_report})
+      list(JOIN _report "\n" _text)
+      _logsquirl_tsan_write("${arg_OUTPUT_FILE}" "==================\n${_text}")
     endif()
   endforeach()
 
@@ -185,16 +200,10 @@ function(logsquirl_tsan_filter)
         math(EXPR _count "${_count} + 1")
       endif()
     endforeach()
-    list(APPEND _output
+    _logsquirl_tsan_write("${arg_OUTPUT_FILE}"
       "ThreadSanitizer: left out ${_count} data race(s) made inside ${_pair} on both sides (cmake/tsan.supp)")
   endforeach()
 
-  list(JOIN _output "\n" _text)
-  string(REPLACE "<TSAN_CLOSE_BRACKET>" "]" _text "${_text}")
-  string(REPLACE "<TSAN_OPEN_BRACKET>" "[" _text "${_text}")
-  string(REPLACE "<TSAN_SEMICOLON>" ";" _text "${_text}")
-  string(REPLACE "<TSAN_BACKSLASH>" "\\" _text "${_text}")
-  set(${arg_OUTPUT} "${_text}" PARENT_SCOPE)
   set(${arg_FAILURES} "${_failures}" PARENT_SCOPE)
   set(${arg_LEFT_OUT} "${_left_out}" PARENT_SCOPE)
 endfunction()

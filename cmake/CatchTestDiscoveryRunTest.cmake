@@ -102,9 +102,10 @@ if(_tsan_logs)
   logsquirl_tsan_filter(
     SUPPRESSIONS "${_tsan_suppressions}"
     LOGS ${_tsan_logs}
-    OUTPUT _tsan_output
+    OUTPUT_FILE "${_tsan_log}.sorted"
     FAILURES _tsan_failures
     LEFT_OUT _tsan_left_out)
+  file(READ "${_tsan_log}.sorted" _tsan_output)
   if(NOT _tsan_output STREQUAL "")
     message(NOTICE "${_tsan_output}")
   endif()
