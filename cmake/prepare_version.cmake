@@ -1,6 +1,12 @@
 # Everything a build needs to know about its version: the version itself,
 # which cmake/project_version.cmake derives (#372), and the Windows resource
 # and the generated header that carry it into the binaries.
+#
+# The resource names the product PRODUCT_DISPLAY_NAME ("LogSquirl") in
+# ProductName, and packaging/windows/logsquirl.nsi gives the installer the same
+# name, version, company and copyright: code signing through the SignPath
+# Foundation wants every signed binary's product name to be the project's name
+# (#445). PROJECT_DESCRIPTION stays the packages' summary line.
 
 include(project_version)
 
@@ -11,7 +17,11 @@ include(win32_rc)
 generate_product_version(
   ProductVersionResourceFiles
   NAME
-  "${PROJECT_DESCRIPTION}"
+  "${PRODUCT_DISPLAY_NAME}"
+  BUNDLE
+  "${PRODUCT_DISPLAY_NAME}"
+  FILE_DESCRIPTION
+  "${PRODUCT_DISPLAY_NAME} log viewer"
   ORIGINAL_FILENAME
   ${PROJECT_NAME}
   ICON
@@ -37,4 +47,5 @@ add_custom_target(
   DEPENDS ${ProductVersionResourceFiles}
   SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_version_h.cmake
           ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version_info.h.in ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version_resource.rc.in
+          ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version_info.nsh.in
 )

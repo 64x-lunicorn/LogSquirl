@@ -33,6 +33,7 @@ xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\generated\documentation.html 
 xcopy %LOGSQUIRL_WORKSPACE%\COPYING %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\NOTICE %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\README.md %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
+xcopy %LOGSQUIRL_WORKSPACE%\PRIVACY.md %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\DOCUMENTATION.md %LOGSQUIRL_WORKSPACE%\release\ /y || exit /b 1
 
 echo "Copying vc runtime..."
@@ -116,6 +117,8 @@ xcopy %QTDIR%\plugins\tls\qschannelbackend.dll %LOGSQUIRL_WORKSPACE%\release\tls
 echo "Copying packaging files..."
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\logsquirl.nsi  /y || exit /b 1
 xcopy %LOGSQUIRL_WORKSPACE%\packaging\windows\FileAssociation.nsh  /y || exit /b 1
+REM The version resource of the executables, for the installer's own (#445)
+xcopy %LOGSQUIRL_WORKSPACE%\%LOGSQUIRL_BUILD_ROOT%\generated\version_info.nsh  /y || exit /b 1
 
 echo "Making portable archive..."
 7z a -r %LOGSQUIRL_WORKSPACE%\logsquirl-win-%LOGSQUIRL_ARCH%-portable.zip @%LOGSQUIRL_WORKSPACE%\packaging\windows\7z_logsquirl_listfile.txt || exit /b 1

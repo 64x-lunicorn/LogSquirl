@@ -40,6 +40,7 @@
 #include "configuration.h"
 #include "log.h"
 
+#include "installoptout.h"
 #include "logsquirl_version.h"
 #include "updateoffer.h"
 #include "updateschedule.h"
@@ -69,7 +70,12 @@ void VersionCheckerConfig::saveToStorage( QSettings& settings ) const
 UpdateCheckSettings UpdateCheckSettings::fromSettingsStore()
 {
     return UpdateCheckSettings{
-        [] { return Configuration::get().versionCheckingEnabled(); },
+        // Off for the whole installation when the installer turned it off,
+        // whatever the user's settings say (#445).
+        [] {
+            return !logsquirl::versioncheck::updateCheckTurnedOffAtInstall()
+                   && Configuration::get().versionCheckingEnabled();
+        },
         [] { return Configuration::get().betaVersionCheckingEnabled(); },
         [] { return VersionCheckerConfig::getSynced().nextDeadline(); },
         []( std::time_t deadline ) {

@@ -694,6 +694,29 @@ jobs:
           section=$(cat "$template")
           printf '%s\n' "${section//@VERSION@/$LOGSQUIRL_VERSION}" >> release_notes.md
 
+      # Code signing through the SignPath Foundation asks for the code signing
+      # policy on the download pages, which a release page is (#445). The
+      # SignPath attribution line goes in only once the Foundation has accepted
+      # LogSquirl; then the status paragraph below becomes:
+      #   Free code signing provided by [SignPath.io](https://signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+      - name: Append the code signing policy
+        run: |
+          set -euo pipefail
+          cat >> release_notes.md <<'NOTES'
+
+          ## Code signing policy
+
+          Signing of the Windows releases through the SignPath Foundation is being set up
+          ([#445](https://github.com/64x-lunicorn/LogSquirl/issues/445)); until it is in place,
+          the Windows downloads are not signed. Committers, reviewers and approvers:
+          [64x-lunicorn](https://github.com/64x-lunicorn). See the
+          [code signing policy](https://logsquirl.lunicorn-lab.de/code-signing-policy/) and the
+          [privacy policy](https://github.com/64x-lunicorn/LogSquirl/blob/master/PRIVACY.md):
+          LogSquirl checks for updates on its own (the Windows installer and the Options turn
+          that off), sends a crash report only if you agree, and sends nothing else unless you
+          ask for it.
+          NOTES
+
       # Publish as a draft first: provenance and signature are created while
       # the release is still invisible, and a failure in any later step leaves
       # a draft instead of a public release without them. A re-run reuses the

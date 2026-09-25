@@ -46,6 +46,7 @@
 #include "encodings.h"
 #include "fontutils.h"
 #include "highlighteredit.h"
+#include "installoptout.h"
 #include "log.h"
 #include "logformatcatalog.h"
 #include "mainwindow.h"
@@ -478,6 +479,16 @@ void OptionsDialog::updateDialogFromConfig()
     checkForNewVersionCheckBox->setChecked( config.versionCheckingEnabled() );
     checkForBetaVersionCheckBox->setChecked( config.betaVersionCheckingEnabled() );
     checkForBetaVersionCheckBox->setEnabled( config.versionCheckingEnabled() );
+    // Turned off for the whole installation by the installer, which the
+    // settings cannot turn back on (#445).
+    if ( logsquirl::versioncheck::updateCheckTurnedOffAtInstall() ) {
+        checkForNewVersionCheckBox->setChecked( false );
+        checkForNewVersionCheckBox->setEnabled( false );
+        checkForNewVersionCheckBox->setToolTip(
+            tr( "Turned off when LogSquirl was installed. Run the installer again to turn it "
+                "back on." ) );
+        checkForBetaVersionCheckBox->setEnabled( false );
+    }
 
     // downloads
     verifySslCheckBox->setChecked( config.verifySslPeers() );
@@ -669,8 +680,11 @@ void OptionsDialog::updateConfigFromDialog()
     config.setIndexCacheMaxSizeMb( indexCacheMaxSizeSpinBox->value() );
     config.setOptimizeForNotLatinEncodings( optimizeForNotLatinEncodingsCheckBox->isChecked() );
 
-    // version checking
-    config.setVersionCheckingEnabled( checkForNewVersionCheckBox->isChecked() );
+    // version checking; the box shows no setting while the installer turned
+    // the check off (#445), so the stored one is kept for a later install
+    if ( !logsquirl::versioncheck::updateCheckTurnedOffAtInstall() ) {
+        config.setVersionCheckingEnabled( checkForNewVersionCheckBox->isChecked() );
+    }
     config.setBetaVersionCheckingEnabled( checkForBetaVersionCheckBox->isChecked() );
 
     config.setVerifySslPeers( verifySslCheckBox->isChecked() );

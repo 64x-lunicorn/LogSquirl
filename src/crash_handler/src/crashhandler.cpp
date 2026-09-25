@@ -129,7 +129,7 @@ QDialog::DialogCode askUserConfirmation( const QString& formattedReport, const Q
     auto privacyPolicy = std::make_unique<QLabel>();
     privacyPolicy->setText(
         QString(
-            "<a href=\"https://github.com/64x-lunicorn/LogSquirl/blob/master/SECURITY.md\">%1</a>" )
+            "<a href=\"https://github.com/64x-lunicorn/LogSquirl/blob/master/PRIVACY.md\">%1</a>" )
             .arg( CrashHandler::tr( "Privacy policy" ) ) );
 
     privacyPolicy->setTextFormat( Qt::RichText );
