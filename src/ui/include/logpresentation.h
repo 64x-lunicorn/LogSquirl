@@ -26,6 +26,7 @@
 #include "linetypes.h"
 #include "settingspolicies.h"
 
+class LogFilteredData;
 class QFont;
 class QPoint;
 class QString;
@@ -99,6 +100,9 @@ public:
     // The pattern of the current Search, whose Matches the Presentation
     // colors.
     virtual void setSearchPattern( const RegularExpressionPattern& pattern ) = 0;
+    // The current Search, whose Marks and Matches the Presentation shows,
+    // and repaints with. Not owned: another is handed over before it goes.
+    virtual void setCurrentSearch( const LogFilteredData* search ) = 0;
 
     // Save the selected Log Lines to filename, behind a progress dialog.
     // Nothing is saved without a selection.

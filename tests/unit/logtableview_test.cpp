@@ -77,7 +77,7 @@ void open( LogTableView& view, const LogFormatDefinition& format, FakeLogData& l
 {
     view.resize( 800, 400 );
     view.setLogFormat( &format, &logData );
-    view.updateData( nullptr, false );
+    view.updateData( false );
     QTest::qWait( 20 );
 }
 

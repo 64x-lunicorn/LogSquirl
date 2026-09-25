@@ -63,6 +63,7 @@
 #include "colorlabelsmanager.h"
 #include "filteredview.h"
 #include "iconloader.h"
+#include "keptsearches.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "logdata.h"
@@ -105,6 +106,7 @@ public:
     // Builds every view of the Log File from everything they show it with,
     // and restores the view context in it, if any (#248).
     explicit CrawlerWidget( const ViewBuild& build, QWidget* parent = nullptr );
+    ~CrawlerWidget() override;
 
     // Get the line number of the first line displayed.
     LineNumber getTopLine() const;
@@ -365,9 +367,10 @@ public Q_SLOTS:
 
 private Q_SLOTS:
 
+    // Makes the Search of the tab brought to the front current.
     void changeFilteredView( int tabIndex );
+    // Drops the Search of the tab closed, unless it is the last one.
     void closeFilteredView( int tabIndex );
-    void filteredViewDestroyed( QObject* view );
 
 private:
     // Private functions
@@ -421,6 +424,12 @@ private:
     void updateColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels );
 
     void connectAllFilteredViewSlots( FilteredView* view );
+
+    // The Filtered View of the current Search, the one in the front tab.
+    FilteredView* currentFilteredView() const;
+    // Builds the Filtered View a Search is shown in; the Kept Searches add it
+    // to the View Set.
+    FilteredView* buildFilteredView( LogFilteredData* search );
 
     void saveSplitterSizes() const;
 
@@ -480,8 +489,7 @@ private:
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
 
     LogMainView* logMainView_ = nullptr;
-    FilteredView* filteredView_ = nullptr;
-    std::unordered_map<FilteredView*, std::shared_ptr<LogFilteredData>> filteredViewsData_;
+    // One tab for each of the Kept Searches.
     QTabWidget* tabbedFilteredView_ = nullptr;
 
     OverviewWidget* overviewWidget_;
@@ -549,6 +557,11 @@ private:
     // Decoration, Presentation and QuickFind Policies, the follow allowance,
     // the font, the Color Labels and the Search Limits.
     ViewSet viewSet_;
+
+    // Every Search of this Log File, each shown in a tab of its own; which
+    // one is current reaches every view through the View Set. Declared after
+    // the View Set, which it hands the current Search.
+    KeptSearches keptSearches_;
 
     // Whether this Log File may be followed.
     WatchPolicy watchPolicy_;

@@ -30,6 +30,7 @@
 #include "quickfindpattern.h"
 #include "regularexpressionpattern.h"
 #include "test_policies.h"
+#include "test_utils.h"
 #include "viewset.h"
 
 #include <QCoreApplication>
@@ -41,6 +42,7 @@
 #include <QShortcut>
 #include <QString>
 #include <QStringList>
+#include <QTemporaryFile>
 
 #include <algorithm>
 #include <cstdint>
@@ -147,6 +149,10 @@ public:
     {
         searchPattern = pattern.pattern;
     }
+    void setCurrentSearch( const LogFilteredData* search ) override
+    {
+        currentSearch = search;
+    }
     void saveSelectedTo( const QString& ) override {}
     void registerShortcuts() override
     {
@@ -161,6 +167,7 @@ public:
     std::optional<std::vector<QStringList>> colorLabels;
     std::optional<std::pair<LineNumber, LineNumber>> searchLimits;
     std::optional<QString> searchPattern;
+    std::optional<const LogFilteredData*> currentSearch;
     int decorationUpdates = 0;
     int rereads = 0;
     int shortcutRegistrations = 0;
@@ -563,7 +570,7 @@ SCENARIO( "The search pattern reaches every Presentation and the Filtered View o
         {
             // Not a Search of its own: the pattern the kept Search ran with
             // stays its own until it is searched again.
-            viewSet.makeFilteredViewCurrent( kept.view.get() );
+            viewSet.makeSearchCurrent( kept.view.get(), kept.matches.get() );
             viewSet.setSearchPattern( RegularExpressionPattern( QStringLiteral( "needle" ) ) );
 
             THEN( "the kept Search's Filtered View colors it, and the other keeps its own" )
@@ -620,6 +627,135 @@ SCENARIO( "New Matches and Marks are shown by one call on the View Set", "[views
                 overview.updateView( 100 );
                 overview.updateCurrentPosition( 0_lnum, 50_lnum );
                 REQUIRE( overview.getViewLines() == std::make_pair( 0, 50 ) );
+            }
+        }
+    }
+}
+
+namespace {
+
+// A Log File of ten Log Lines, loaded, so that its Searches hold Marks.
+struct LoadedLogFile : LogFile {
+    LoadedLogFile()
+    {
+        REQUIRE( file.open() );
+        for ( int line = 0; line < 10; ++line ) {
+            file.write( QStringLiteral( "this is line %1\n" ).arg( line ).toLatin1() );
+        }
+        file.flush();
+
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+
+    QTemporaryFile file{ "viewset_test_XXXXXX" };
+};
+
+// The rows of the Overview, one per Log Line, that draw a Mark.
+std::vector<int> markRows( Overview& overview )
+{
+    overview.updateData( 10_lcount );
+    overview.updateView( 10 );
+    std::vector<int> rows;
+    for ( const auto& line : *overview.getMarkLines() ) {
+        rows.push_back( line.position() );
+    }
+    return rows;
+}
+
+} // namespace
+
+// Which Search is current reaches every view through the View Set, as the
+// Kept Searches make one current (#518).
+SCENARIO( "Making a kept Search current reaches every view in the View Set", "[viewset]" )
+{
+    LoadedLogFile logFile;
+    ViewSet viewSet;
+
+    GIVEN( "a View Set with both Presentations, the Overview, a kept Search marking Log Line 5 "
+           "and the current one marking Log Line 1" )
+    {
+        RecordingPresentation textView;
+        RecordingPresentation tableView;
+        Overview overview;
+        overview.setVisible( true );
+        auto kept = logFile.newSearch();
+        auto current = logFile.newSearch();
+        kept.matches->addMark( 5_lnum );
+        current.matches->addMark( 1_lnum );
+
+        viewSet.addPresentation( &textView );
+        viewSet.addPresentation( &tableView );
+        viewSet.setOverview( &overview );
+        viewSet.addFilteredView( kept.view.get() );
+        viewSet.makeSearchCurrent( kept.view.get(), kept.matches.get() );
+        viewSet.addFilteredView( current.view.get() );
+        viewSet.makeSearchCurrent( current.view.get(), current.matches.get() );
+        REQUIRE( textView.currentSearch == current.matches.get() );
+        REQUIRE( markRows( overview ) == std::vector<int>{ 1 } );
+
+        const auto keptReads = ViewAccess::linesReadAgain( *kept.view );
+        const auto currentReads = ViewAccess::linesReadAgain( *current.view );
+
+        WHEN( "the kept Search is made current" )
+        {
+            viewSet.makeSearchCurrent( kept.view.get(), kept.matches.get() );
+
+            THEN( "both Presentations show its Marks and Matches" )
+            {
+                REQUIRE( textView.currentSearch == kept.matches.get() );
+                REQUIRE( tableView.currentSearch == kept.matches.get() );
+                REQUIRE( viewSet.currentSearch() == kept.matches.get() );
+            }
+
+            THEN( "the Overview draws its Marks" )
+            {
+                REQUIRE( markRows( overview ) == std::vector<int>{ 5 } );
+            }
+
+            THEN( "new Matches and Marks reach its Filtered View, not the other one" )
+            {
+                viewSet.refreshMatchesAndMarks( 10_lcount );
+                REQUIRE( ViewAccess::linesReadAgain( *kept.view ) > keptReads );
+                REQUIRE( ViewAccess::linesReadAgain( *current.view ) == currentReads );
+            }
+
+            AND_WHEN( "a Presentation is added afterwards" )
+            {
+                RecordingPresentation later;
+                viewSet.addPresentation( &later );
+
+                THEN( "it starts with the kept Search" )
+                {
+                    REQUIRE( later.currentSearch == kept.matches.get() );
+                }
+            }
+
+            AND_WHEN( "the Overview is handed over afterwards" )
+            {
+                Overview laterOverview;
+                laterOverview.setVisible( true );
+                viewSet.setOverview( &laterOverview );
+
+                THEN( "it starts with the kept Search's Marks" )
+                {
+                    REQUIRE( markRows( laterOverview ) == std::vector<int>{ 5 } );
+                }
+            }
+        }
+    }
+
+    GIVEN( "a View Set no Search was made current in" )
+    {
+        WHEN( "a Presentation is added" )
+        {
+            RecordingPresentation presentation;
+            viewSet.addPresentation( &presentation );
+
+            THEN( "it is handed no Search" )
+            {
+                REQUIRE_FALSE( presentation.currentSearch.has_value() );
             }
         }
     }

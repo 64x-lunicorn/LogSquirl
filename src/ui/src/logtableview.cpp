@@ -165,7 +165,7 @@ void LogTableView::setLogFormat( const LogFormatDefinition* format, AbstractLogD
     }
 }
 
-void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
+void LogTableView::updateData( bool follow )
 {
     if ( !format_ || !logData_ ) {
         updateOverview();
@@ -185,11 +185,6 @@ void LogTableView::updateData( LogFilteredData* filteredData, bool follow )
 
         // Column widths need sizing once the first data has arrived
         columnsNeedSizing_ = true;
-    }
-
-    if ( filteredData ) {
-        filteredData_ = filteredData;
-        delegate_->setFilteredData( filteredData );
     }
 
     const auto lineCount = logData_->getNbLine().get();
@@ -254,6 +249,13 @@ void LogTableView::setQuickFindPattern( std::shared_ptr<QuickFindPattern> patter
 void LogTableView::setSearchPattern( const RegularExpressionPattern& pattern )
 {
     delegate_->setSearchPattern( pattern );
+    repaintIfActive();
+}
+
+void LogTableView::setCurrentSearch( const LogFilteredData* search )
+{
+    filteredData_ = search;
+    delegate_->setFilteredData( search );
     repaintIfActive();
 }
 

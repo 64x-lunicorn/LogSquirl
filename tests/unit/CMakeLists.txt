@@ -78,6 +78,7 @@ add_executable(logsquirl_tests
     textencoding_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
+    keptsearches_test.cpp
     lookuprunner_test.cpp
     timelookup_test.cpp
     timestampreader_test.cpp

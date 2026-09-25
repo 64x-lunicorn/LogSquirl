@@ -177,6 +177,11 @@
 
 ## Bug fixes
 
+- **The Table View shows the Marks and Matches of the Search in front**: After
+  another Filtered View tab is brought to the front, or a Search is kept and a
+  new one started, the Table View shows that Search's Marks and Matches instead
+  of those of the Search before it, and closing a tab no longer leaves the
+  Table View or the tab's Search behind in memory (#518).
 - **Uninstalling on Windows leaves nothing behind**: the uninstaller left
   empty `platforms` and `styles` folders, and so the `logsquirl` folder
   itself, under Program Files, and the installing user's *Send to* shortcut.

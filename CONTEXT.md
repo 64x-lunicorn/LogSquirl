@@ -88,9 +88,10 @@ _Avoid_: screen, canvas, page
 Every view of one Log File: its Presentations and its Filtered Views, those of kept
 Searches included. Whatever all of them must show alike — the Policies, the font, the Color
 Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
-view added later starts with all of it. The pattern of the current Search reaches the
-Presentations and the current Search's Filtered View through it too; a kept Search's Filtered
-View keeps coloring the pattern it ran with.
+view added later starts with all of it. Which Search is current reaches every Presentation,
+the Overview and that Search's Filtered View through it too, as the Kept Searches make one
+current, and so does the pattern of the current Search; a kept Search's Filtered View keeps
+coloring the pattern it ran with.
 _Avoid_: views, panes, tabs
 
 **Visual Line**:
@@ -114,6 +115,15 @@ The owner of everything whose correctness depends on the ordering of a Search: t
 pattern, the run in flight, its results, its progress and its cached results. A new request
 supersedes the one in flight rather than waiting for it.
 _Avoid_: search manager, search controller, search engine
+
+**Kept Searches**:
+The owner of every Search of one Log File, each shown in a Filtered View of its own: the
+current Search, which runs, follows the Log File and takes the Marks, and those whose results
+the user kept to start another. A Search is added, made current and dropped there alone.
+Making one current tells the Open Log File and hands it to the View Set, so no view is left
+showing the Marks and Matches of another; only the current Search's progress is reported. A
+Search dropped goes with its Filtered View, and a Log File always keeps one.
+_Avoid_: search tabs, filtered views data
 
 **Filtered View**:
 The lower pane, showing only the Log Lines a Search selected. Its selection, Marks and

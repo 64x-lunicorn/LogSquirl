@@ -146,7 +146,7 @@ TEST_CASE( "table view paint benchmarks", "[tableview-paint-benchmark]" )
     view.setPresentationPolicy( policies.presentation );
     view.updateFont( QApplication::font() );
     view.setLogFormat( &format, &logData );
-    view.updateData( nullptr, false );
+    view.updateData( false );
     view.setActive( true );
     view.resize( 1400, 400 );
     view.show();

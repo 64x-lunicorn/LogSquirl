@@ -60,6 +60,10 @@ class LogTableView : public QTableView, public LogPresentation {
     Q_OBJECT
 
 public:
+    // Lets a test read what the Table View was handed.
+    template <class T>
+    struct access_by;
+
     // Each Row shows one Log Line.
     explicit LogTableView( QWidget* parent = nullptr );
     // Each Row shows the Log Line rows maps it onto.
@@ -70,9 +74,10 @@ public:
     // for a null format. The rows appear on the next updateData().
     void setLogFormat( const LogFormatDefinition* format, AbstractLogData* logData );
 
-    // Catch up with the Log File's current Log Lines. filteredData supplies
-    // Marks and Matches; with follow, the last Row is scrolled into view.
-    void updateData( LogFilteredData* filteredData, bool follow );
+    // Catch up with the Log File's current Log Lines; with follow, the last
+    // Row is scrolled into view. The Marks and Matches are the current
+    // Search's, handed over by setCurrentSearch().
+    void updateData( bool follow );
 
     // The Table View positions overviewWidget over its right edge itself, and
     // shows a clicked Log Line.
@@ -87,6 +92,8 @@ public:
 
     // LogPresentation
     void setSearchPattern( const RegularExpressionPattern& pattern ) override;
+    // Its delegate paints the Search's Marks and Matches.
+    void setCurrentSearch( const LogFilteredData* search ) override;
     // The characters selected inside a cell if there are any, otherwise the
     // selected Rows, each as its cells separated by tabs.
     QString selectedText() const override;
@@ -219,8 +226,8 @@ private:
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
-    // Supplies the Marks.
-    LogFilteredData* filteredData_ = nullptr;
+    // The current Search: supplies the Marks and Matches. Not owned.
+    const LogFilteredData* filteredData_ = nullptr;
     LogFormatTableModel* model_ = nullptr;
     LogTableHighlightDelegate* delegate_ = nullptr;
 

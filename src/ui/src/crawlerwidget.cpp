@@ -143,6 +143,8 @@ public:
 CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     : QSplitter( parent )
     , searchLine_( build.policies.quickFind )
+    , keptSearches_( build.openLogFile, viewSet_,
+                     [ this ]( LogFilteredData* search ) { return buildFilteredView( search ); } )
 {
     openLogFile_ = build.openLogFile;
     quickFindPattern_ = build.quickFindPattern;
@@ -162,6 +164,17 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     }
 }
 
+CrawlerWidget::~CrawlerWidget()
+{
+    // A Filtered View reads its Search until it is gone, so the tabs go
+    // before the Kept Searches let the Searches go, and ask nothing of them
+    // as they go.
+    if ( tabbedFilteredView_ != nullptr ) {
+        disconnect( tabbedFilteredView_, nullptr, this, nullptr );
+        delete tabbedFilteredView_;
+    }
+}
+
 // The top line is first one on the main display
 LineNumber CrawlerWidget::getTopLine() const
 {
@@ -170,16 +183,16 @@ LineNumber CrawlerWidget::getTopLine() const
 
 QString CrawlerWidget::getSelectedText() const
 {
-    if ( filteredView_->hasFocus() )
-        return filteredView_->getSelectedText();
+    if ( currentFilteredView()->hasFocus() )
+        return currentFilteredView()->getSelectedText();
     else
         return presentation_->selectedText();
 }
 
 bool CrawlerWidget::isPartialSelection() const
 {
-    if ( filteredView_->hasFocus() )
-        return filteredView_->isPartialSelection();
+    if ( currentFilteredView()->hasFocus() )
+        return currentFilteredView()->isPartialSelection();
     else
         return logMainView_->isPartialSelection();
 }
@@ -218,7 +231,7 @@ SearchableWidgetInterface* CrawlerWidget::doGetActiveSearchable() const
 // Return all the searchable widgets (views)
 std::vector<QObject*> CrawlerWidget::doGetAllSearchables() const
 {
-    std::vector<QObject*> searchables = { logMainView_, filteredView_ };
+    std::vector<QObject*> searchables = { logMainView_, currentFilteredView() };
 
     return searchables;
 }
@@ -277,7 +290,7 @@ void CrawlerWidget::goToLine()
 
         const auto selectedLine
             = LineNumber( static_cast<LineNumber::UnderlyingType>( newLine - 1 ) );
-        filteredView_->trySelectLine( selectedLine );
+        currentFilteredView()->trySelectLine( selectedLine );
 
         const auto nbLines = openLogFile_->logData()->getNbLine();
         if ( nbLines.get() > 0 ) {
@@ -561,7 +574,7 @@ void CrawlerWidget::goToTimestamp()
 
 void CrawlerWidget::showTimeLookupResult( const timelookup::Result& result )
 {
-    filteredView_->trySelectLine( result.line );
+    currentFilteredView()->trySelectLine( result.line );
     presentation_->showLogLine( result.line );
     if ( result.outOfOrder ) {
         Q_EMIT statusMessage( notInTimeOrderNotice() );
@@ -724,23 +737,14 @@ void CrawlerWidget::startNewSearch()
     if ( keepSearchResultsButton_->isChecked() ) {
         keepSearchResultsButton_->setChecked( false );
 
-        const auto search = openLogFile_->startAnotherSearch();
+        // The current Search is kept, and a new one current in every view: its
+        // Filtered View starts with everything the others show.
+        auto* view = keptSearches_.startAnother();
 
-        // A new Filtered View starts with everything the others show.
-        filteredView_ = new FilteredView( search.get(), quickFindPattern_.get(),
-                                          viewSet_.presentationPolicy().useTextWrap );
-        viewSet_.addFilteredView( filteredView_ );
-        filteredViewsData_[ filteredView_ ] = search;
+        connectAllFilteredViewSlots( view );
 
-        connectAllFilteredViewSlots( filteredView_ );
-
-        auto index = tabbedFilteredView_->addTab( filteredView_, "" );
+        auto index = tabbedFilteredView_->addTab( view, "" );
         tabbedFilteredView_->setCurrentIndex( index );
-
-        connect( search.get(), &LogFilteredData::searchStateChanged, this,
-                 &CrawlerWidget::updateFilteredView, Qt::QueuedConnection );
-
-        logMainView_->useNewFiltering( openLogFile_->filteredData().get() );
 
         // The View Set handed the new Filtered View its font; its shortcuts
         // are registered here.
@@ -824,21 +828,10 @@ void CrawlerWidget::showSearchContextMenu()
         searchLineContextMenu_->exec( QCursor::pos( activeScreen( this ) ) );
 }
 
-// When receiving the Search Session's searchStateChanged signal
+// When the Kept Searches tell the current Search's state changed
 void CrawlerWidget::updateFilteredView( SearchSession::State state )
 {
     LOG_DEBUG << "updateFilteredView received.";
-
-    // Every tab's LogFilteredData keeps its own persistent connection to
-    // this slot, so a tab switched away from (e.g. via stop() in
-    // changeFilteredView()) can still have a notification queued when it
-    // arrives here -- after the current Search has already moved on to the
-    // newly-active tab. Since everything below mutates shared, single UI
-    // (the Search Line, the views), a stale notification from a
-    // no-longer-active tab must not be allowed to touch it.
-    if ( sender() != openLogFile_->filteredData().get() ) {
-        return;
-    }
 
     if ( state.phase == SearchSession::Phase::Idle ) {
         // No search: nothing to report, and nothing here should override
@@ -891,10 +884,10 @@ void CrawlerWidget::updateFilteredView( SearchSession::State state )
          && !isFollowEnabled() ) {
         LOG_DEBUG << "updateFilteredView: restoring selection: "
                   << " absolute line number (0based) " << currentLineNumber_;
-        filteredView_->selectAndDisplayLine( currentLineNumber_ );
+        currentFilteredView()->selectAndDisplayLine( currentLineNumber_ );
         // The View Set already handed this view the Search Limits, which are
         // the Open Log File's; only the redraw handing them over did is left.
-        filteredView_->updateDecorations();
+        currentFilteredView()->updateDecorations();
     }
 }
 
@@ -935,7 +928,7 @@ void CrawlerWidget::updateLineNumberHandler( const LogPresentation& reporter, Li
     if ( &reporter == logTableView_ && !syncingSelection_ && openLogFile_->filteredData()
          && openLogFile_->filteredData()->getNbLine().get() > 0 ) {
         syncingSelection_ = true;
-        filteredView_->selectAndDisplayLine( line );
+        currentFilteredView()->selectAndDisplayLine( line );
         syncingSelection_ = false;
     }
 
@@ -1070,7 +1063,7 @@ void CrawlerWidget::enteringQuickFind()
     // Remember who had the focus (only if it is one of our views)
     QWidget* focus_widget = QApplication::focusWidget();
 
-    if ( ( focus_widget == logMainView_ ) || ( focus_widget == filteredView_ ) )
+    if ( ( focus_widget == logMainView_ ) || ( focus_widget == currentFilteredView() ) )
         qfSavedFocus_ = focus_widget;
     else
         qfSavedFocus_ = nullptr;
@@ -1133,7 +1126,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     }
     else {
         // File was updated — refresh table model contents
-        logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
+        logTableView_->updateData( isFollowEnabled() );
     }
 
     Q_EMIT loadingFinished( load.status );
@@ -1164,7 +1157,7 @@ AbstractLogView* CrawlerWidget::activeView() const
 
     // Search in the window that has focus, or the window where 'Find' was
     // called from, or the main window.
-    if ( filteredView_->hasFocus() || logMainView_->hasFocus() )
+    if ( currentFilteredView()->hasFocus() || logMainView_->hasFocus() )
         activeView = QApplication::focusWidget();
     else
         activeView = qfSavedFocus_;
@@ -1251,10 +1244,10 @@ void CrawlerWidget::changeFilteredViewVisibility( int index )
     QStandardItem* item = visibilityModel_->item( index );
     auto visibility = item->data().value<FilteredView::Visibility>();
 
-    filteredView_->setVisibility( visibility );
+    currentFilteredView()->setVisibility( visibility );
 
     if ( openLogFile_->filteredData()->getNbLine() > 0_lcount ) {
-        filteredView_->selectAndDisplayLine( currentLineNumber_ );
+        currentFilteredView()->selectAndDisplayLine( currentLineNumber_ );
     }
 }
 
@@ -1342,16 +1335,12 @@ void CrawlerWidget::setup()
                            overviewWidget_, viewSet_.presentationPolicy().useTextWrap );
     logMainView_->setContentsMargins( 2, 0, 2, 0 );
 
-    filteredView_ = new FilteredView( openLogFile_->filteredData().get(), quickFindPattern_.get(),
-                                      viewSet_.presentationPolicy().useTextWrap );
-    filteredViewsData_[ filteredView_ ] = openLogFile_->filteredData();
-    filteredView_->setContentsMargins( 2, 0, 2, 0 );
+    // The Log File's first Search, current in every view: the Presentations
+    // and the Overview start with it once they are in the View Set.
+    auto* firstFilteredView = keptSearches_.showCurrentSearch();
 
     overviewWidget_->setOverview( &overview_ );
     overviewWidget_->setParent( logMainView_ );
-
-    // Connect the search to the top view
-    logMainView_->useNewFiltering( openLogFile_->filteredData().get() );
 
     // Construct the visibility button
     using VisibilityFlags = LogFilteredData::VisibilityFlags;
@@ -1555,7 +1544,7 @@ void CrawlerWidget::setup()
     // Construct the bottom window
     tabbedFilteredView_ = new QTabWidget;
     tabbedFilteredView_->setTabsClosable( true );
-    tabbedFilteredView_->addTab( filteredView_, "" );
+    tabbedFilteredView_->addTab( firstFilteredView, "" );
     tabbedFilteredView_->setDocumentMode( true );
     tabbedFilteredView_->setTabBarAutoHide( true );
 
@@ -1660,11 +1649,6 @@ void CrawlerWidget::setup()
     connect( tabbedFilteredView_, &QTabWidget::tabCloseRequested, this,
              &CrawlerWidget::closeFilteredView );
 
-    // Every Search keeps its own connection, so a notification is told
-    // apart by its sender: see updateFilteredView().
-    connect( openLogFile_->filteredData().get(), &LogFilteredData::searchStateChanged, this,
-             &CrawlerWidget::updateFilteredView, Qt::QueuedConnection );
-
     // Sent load file update to MainWindow (for status update)
     connect( openLogFile_.get(), &OpenLogFile::loadingProgressed, this,
              &CrawlerWidget::loadingProgressed );
@@ -1709,7 +1693,12 @@ void CrawlerWidget::setup()
              &CrawlerWidget::searchRefreshChanged );
     connect( matchCaseButton_, &QPushButton::toggled, this, &CrawlerWidget::matchCaseChanged );
 
-    connectAllFilteredViewSlots( filteredView_ );
+    connectAllFilteredViewSlots( firstFilteredView );
+
+    // Only the current Search's progress reaches the Search Line and the
+    // views, once the request that made it is done.
+    connect( &keptSearches_, &KeptSearches::currentSearchUpdated, this,
+             &CrawlerWidget::updateFilteredView );
 
     // Wire chart panel — provide log data and connect click-to-navigate.
     chartPanel_->setLogData( openLogFile_->logData() );
@@ -1739,7 +1728,6 @@ void CrawlerWidget::setup()
     viewSet_.setFont( configuredFont() );
     viewSet_.addPresentation( logMainView_ );
     viewSet_.addPresentation( logTableView_ );
-    viewSet_.addFilteredView( filteredView_ );
     viewSet_.setOverview( &overview_ );
 
     // Once every view is in the View Set, which registers theirs too.
@@ -1815,34 +1803,54 @@ void CrawlerWidget::connectPresentation( Presentation* presentation )
 
 void CrawlerWidget::changeFilteredView( int tabIndex )
 {
+    // No tab is left only while the widget goes: the last one is never closed.
     if ( tabIndex < 0 ) {
-        openLogFile_->filteredData()->stop();
+        return;
     }
-    else {
-        auto* tabFilteredView
-            = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( tabIndex ) );
 
-        filteredView_ = tabFilteredView;
-        viewSet_.makeFilteredViewCurrent( filteredView_ );
-        openLogFile_->makeSearchCurrent( filteredViewsData_.at( tabFilteredView ) );
-
-        Q_EMIT filteredViewChanged();
-
-        logMainView_->useNewFiltering( openLogFile_->filteredData().get() );
-        changeFilteredViewVisibility( visibilityBox_->currentIndex() );
+    auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( tabIndex ) );
+    if ( view == nullptr ) {
+        return;
     }
+
+    // Nothing to do when a new Search's tab comes to the front: it is current
+    // already.
+    keptSearches_.makeCurrent( view );
+
+    Q_EMIT filteredViewChanged();
+
+    changeFilteredViewVisibility( visibilityBox_->currentIndex() );
 }
 
 void CrawlerWidget::closeFilteredView( int tabIndex )
 {
-    auto* tabFilteredView = tabbedFilteredView_->widget( tabIndex );
-    connect( tabFilteredView, &QObject::destroyed, this, &CrawlerWidget::filteredViewDestroyed );
-    tabFilteredView->deleteLater();
+    // A Log File keeps one Search: its last tab is not closed.
+    if ( tabbedFilteredView_->count() <= 1 ) {
+        return;
+    }
+
+    auto* view = qobject_cast<FilteredView*>( tabbedFilteredView_->widget( tabIndex ) );
+    if ( view == nullptr ) {
+        return;
+    }
+
+    // Removing the current tab brings another to the front, whose Search is
+    // made current first; then the Search closed goes with its view.
+    tabbedFilteredView_->removeTab( tabIndex );
+    keptSearches_.drop( view );
 }
 
-void CrawlerWidget::filteredViewDestroyed( QObject* view )
+FilteredView* CrawlerWidget::currentFilteredView() const
 {
-    filteredViewsData_.erase( qobject_cast<FilteredView*>( view ) );
+    return keptSearches_.currentView();
+}
+
+FilteredView* CrawlerWidget::buildFilteredView( LogFilteredData* search )
+{
+    auto* view = new FilteredView( search, quickFindPattern_.get(),
+                                   viewSet_.presentationPolicy().useTextWrap );
+    view->setContentsMargins( 2, 0, 2, 0 );
+    return view;
 }
 
 void CrawlerWidget::saveSplitterSizes() const
@@ -2224,7 +2232,7 @@ void CrawlerWidget::prepareForNewSearch()
 
     // Switch to "Marks and matches" view when in "Marks" view
     using VisibilityFlags = LogFilteredData::VisibilityFlags;
-    if ( !filteredView_->visibility().testFlag( VisibilityFlags::Matches ) ) {
+    if ( !currentFilteredView()->visibility().testFlag( VisibilityFlags::Matches ) ) {
         visibilityBox_->setCurrentIndex( 0 );
     }
 
@@ -2400,9 +2408,8 @@ void CrawlerWidget::toggleTableView()
 
     if ( showTable ) {
         // Defer model population so the view switch renders immediately
-        QTimer::singleShot( 0, this, [ this ]() {
-            logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
-        } );
+        QTimer::singleShot( 0, this,
+                            [ this ]() { logTableView_->updateData( isFollowEnabled() ); } );
     }
 }
 
@@ -2440,7 +2447,7 @@ void CrawlerWidget::showRecognizedFormat()
     if ( recognized == recognizedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
-        logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
+        logTableView_->updateData( isFollowEnabled() );
         return;
     }
 
@@ -2458,7 +2465,7 @@ void CrawlerWidget::showRecognizedFormat()
 
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
-    logTableView_->updateData( openLogFile_->filteredData().get(), isFollowEnabled() );
+    logTableView_->updateData( isFollowEnabled() );
     if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );
