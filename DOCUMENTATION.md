@@ -739,7 +739,8 @@ The Windows installer can turn the check off for the whole installation: untick 
 component "Check for updates automatically". It leaves an empty file named
 `logsquirl_no_update_check` beside the executable, and while that file is there the check
 stays off and "Check for new version" is greyed out. Any other installation can be set up
-the same way by creating that file. What the check sends is described in the
+the same way by creating that file. A silent install (`/S`) leaves the file as it finds it,
+so an opt-out an administrator created survives silent upgrades. What the check sends is described in the
 [privacy policy](https://github.com/64x-lunicorn/LogSquirl/blob/master/PRIVACY.md).
 
 ### View

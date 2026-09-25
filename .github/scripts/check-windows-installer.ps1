@@ -59,7 +59,7 @@ $ApplicationFiles = @(
     'logsquirl.exe', 'logsquirl_grep.exe', 'logsquirl_crashpad_handler.exe',
     'logsquirl_minidump_dump.exe', 'tbb12.dll', 'hs.dll', 'hs_avx2.dll',
     'COPYING', 'NOTICE', 'README.md', 'DOCUMENTATION.md', 'documentation.html',
-    'Uninstall.exe'
+    'PRIVACY.md', 'Uninstall.exe'
 )
 $QtFiles = @(
     'Qt6Core.dll', 'Qt6Gui.dll', 'Qt6Network.dll', 'Qt6Widgets.dll',
@@ -252,6 +252,8 @@ Step '1. setup.exe /S as an administrator'
 $code = Invoke-Setup $Installer '/S'
 Check ($code -eq 0) 'setup.exe /S exits with 0'
 Test-Installed $DefaultInstallDir $Version
+$optOut = Join-Path $DefaultInstallDir 'logsquirl_no_update_check'
+Check (-not (Test-Path $optOut)) 'the update check stays on: no logsquirl_no_update_check file'
 Write-Host "  'Send to' shortcut in the installing user's profile ($UserSendToLink): $(Test-Path $UserSendToLink)"
 Test-Starts $DefaultInstallDir $Version
 Check ((Test-Path $realAppData) -eq $realAppDataBefore) "the runner's own $realAppData is untouched by the isolated starts"
@@ -341,6 +343,13 @@ $code = Invoke-Setup $Installer '/S'
 Check ($code -eq 0) 'setup.exe /S over it exits with 0'
 Test-Installed $DefaultInstallDir $Version
 Test-Starts $DefaultInstallDir $Version
+
+# An administrator turns the update check off with the file (#445); a silent
+# upgrade has no component page, so it must leave that choice alone.
+New-Item -ItemType File -Path $optOut | Out-Null
+$code = Invoke-Setup $Installer '/S'
+Check ($code -eq 0) 'setup.exe /S again, with logsquirl_no_update_check present, exits with 0'
+Check (Test-Path $optOut) "a silent upgrade keeps the administrator's logsquirl_no_update_check"
 Uninstall $DefaultInstallDir
 
 Write-Host "`nAll installer checks passed."

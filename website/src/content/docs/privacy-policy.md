@@ -51,7 +51,7 @@ After a crash LogSquirl also offers to open a new GitHub issue in your browser. 
 
 ## 4. On your computer
 
-LogSquirl keeps its settings, the list of recent files, the session and, if you turn them on, its index cache and its own log file on your computer. They are not sent anywhere except as described above. The Windows uninstaller removes the settings file.
+LogSquirl keeps its settings, the list of recent files, the session and, if you turn them on, its index cache and its own log file on your computer. They are not sent anywhere except as described above. The Windows uninstaller removes the settings file of the user who uninstalls it.
 
 ## 5. This website
 

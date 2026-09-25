@@ -100,7 +100,7 @@ Nothing is sent unless you submit that form on GitHub yourself.
 LogSquirl keeps its settings, the list of recent files, the session and, if
 you turn them on, its index cache and its own log file on your computer. They
 are not sent anywhere except as described above. The Windows uninstaller
-removes the settings file.
+removes the settings file of the user who uninstalls it.
 
 ## 5. The website
 

@@ -205,8 +205,12 @@ SectionEnd
 ; earlier install with it unticked left. While the file is there, LogSquirl
 ; does not check for updates, whatever its settings say
 ; (src/versioncheck/include/installoptout.h, #445).
+; A silent install (/S) shows no component page, so nobody chose anything: it
+; leaves the file as it is, and an administrator's opt-out survives an upgrade.
 Section "-Update check choice"
-    ${If} ${SectionIsSelected} ${updatecheck}
+    ${If} ${Silent}
+        ; keep what an earlier install or an administrator left
+    ${ElseIf} ${SectionIsSelected} ${updatecheck}
         Delete "$INSTDIR\logsquirl_no_update_check"
     ${Else}
         SetOutPath $INSTDIR
