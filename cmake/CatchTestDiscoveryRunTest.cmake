@@ -72,21 +72,43 @@ foreach(_neighbour IN LISTS _neighbours)
   file(CREATE_LINK "${_neighbour}" "${_work_dir}/${_neighbour_name}" RESULT _link_result)
 endforeach()
 
-# A ThreadSanitizer build reads its suppression file from here by default
-# (#347); TSAN_OPTIONS is ignored by a binary that was not built with
-# -fsanitize=thread, so setting it unconditionally is harmless for every other
-# build. See cmake/tsan.supp and
+# A ThreadSanitizer build reads its suppression file from here (#347), and
+# writes its reports to files in the case's directory instead of stderr, where
+# cmake/TsanReportFilter.cmake sorts them once the case has ended (#482): a
+# report of a race made inside a library that is not built with TSan is left
+# out, every other one fails the case. exitcode=0 keeps the case's own exit
+# code; what TSan found is decided below. TSAN_OPTIONS is ignored by a binary
+# that was not built with -fsanitize=thread, so setting it unconditionally is
+# harmless for every other build. See cmake/tsan.supp and
 # docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md.
 set(_tsan_suppressions "${CMAKE_CURRENT_LIST_DIR}/tsan.supp")
+set(_tsan_log "${_work_dir}/tsan")
 
 # No OUTPUT_VARIABLE: what the test case prints is what this script prints, so
 # ctest reads it as it always did, as it is printed.
 execute_process(
   COMMAND "${CMAKE_COMMAND}" -E env "LOGSQUIRL_TEST_SETTINGS_ISOLATED=1"
-          "TSAN_OPTIONS=suppressions=${_tsan_suppressions}"
+          "TSAN_OPTIONS=suppressions=${_tsan_suppressions}:log_path=${_tsan_log}:exitcode=0"
           -- "${_work_dir}/${_binary_name}" ${_arguments}
   RESULT_VARIABLE _result
 )
+
+# One file per process that TSan had something to say in: the case and any
+# program of LogSquirl's it started.
+file(GLOB _tsan_logs "${_tsan_log}.*")
+set(_tsan_failures 0)
+if(_tsan_logs)
+  include("${CMAKE_CURRENT_LIST_DIR}/TsanReportFilter.cmake")
+  logsquirl_tsan_filter(
+    SUPPRESSIONS "${_tsan_suppressions}"
+    LOGS ${_tsan_logs}
+    OUTPUT _tsan_output
+    FAILURES _tsan_failures
+    LEFT_OUT _tsan_left_out)
+  if(NOT _tsan_output STREQUAL "")
+    message(NOTICE "${_tsan_output}")
+  endif()
+endif()
 
 file(REMOVE_RECURSE "${_work_dir}")
 
@@ -94,4 +116,8 @@ file(REMOVE_RECURSE "${_work_dir}")
 # ending in an exit code nobody can read.
 if(NOT _result STREQUAL "0")
   message(FATAL_ERROR "the test case failed: ${_result}")
+endif()
+if(NOT _tsan_failures EQUAL 0)
+  message(FATAL_ERROR
+    "ThreadSanitizer: ${_tsan_failures} finding(s) in LogSquirl's code or of TSan itself, printed above")
 endif()

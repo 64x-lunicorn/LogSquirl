@@ -22,9 +22,16 @@
 
 #include <QRunnable>
 
+#include <atomic>
 #include <type_traits>
 #include <utility>
 
+// Built on the thread that queues it, run on a pool thread. QThreadPool hands
+// it over under a lock inside QtCore; that lock orders the two threads, but
+// ThreadSanitizer cannot see it, as QtCore is not built with it. So the wrapper
+// publishes what it captured itself: a release store once it is built, an
+// acquire load before it runs. The pair costs next to nothing and gives TSan
+// the edge it cannot see inside Qt (#482).
 template <typename TRunnable>
 class RunnableWrapper : public QRunnable {
 public:
@@ -32,15 +39,18 @@ public:
         : runnable_( std::move( runnable ) )
     {
         setAutoDelete( true );
+        published_.store( true, std::memory_order_release );
     }
 
     void run() override
     {
+        [[maybe_unused]] const auto published = published_.load( std::memory_order_acquire );
         runnable_();
     }
 
 private:
     TRunnable runnable_;
+    std::atomic<bool> published_{ false };
 };
 
 template <typename TRunnable>

@@ -83,6 +83,16 @@ add_backward(logsquirl_itests)
 
 # Each test case is its own ctest test; the timeout stops a hanging case (e.g.
 # on an unexpected modal dialog) and names it (#217).
+#
+# Under ThreadSanitizer three cases that index Log Files of several MiB again
+# and again take minutes, not a hang: they keep indexing to the end, one pass
+# taking 15 to 80 seconds where it takes 50 ms outside TSan, because TSan checks
+# every byte Qt copies and reads for them. They get more time there (#482).
 logsquirl_add_catch_tests(logsquirl_itests
     EXTRA_ARGS -platform offscreen
-    TIMEOUT 120)
+    TIMEOUT 120
+    TSAN_TIMEOUT 900
+    TSAN_SLOW_CASES
+        "Scenario: An explicit reload notices a Log File rewritten in place with the same size"
+        "Scenario: Following a growing Log File reads only what was appended"
+        "Scenario: Reopening a grown Log File indexes only what was added to it")

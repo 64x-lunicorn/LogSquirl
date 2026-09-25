@@ -98,6 +98,16 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/architecture_flags.cmake
 )
 
+# The ctest runner leaves out only the TSan reports of races made inside a
+# library that is not built with TSan; the rest fails the case (#482).
+add_test(
+    NAME tsan_report_filter
+    COMMAND ${CMAKE_COMMAND}
+            -DMODULE_DIR=${CMAKE_SOURCE_DIR}/cmake
+            -DWORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/tsan_report_filter
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tsan_report_filter.cmake
+)
+
 # The releases are optimized fully and keep their debug information (#280).
 add_test(
     NAME full_optimization_flags

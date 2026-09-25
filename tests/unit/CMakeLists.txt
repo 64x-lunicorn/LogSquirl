@@ -151,13 +151,15 @@ logsquirl_add_catch_tests(logsquirl_tests
 # A scrolled text view moves what it painted in device pixels, so the painting
 # after a scroll is also compared with a full repaint at a device pixel ratio
 # of 2 (#296).
+# It runs through the same runner as the discovered cases, beside a settings
+# file of its own and with TSan's reports sorted the same way (#482).
 add_test(NAME logsquirl_tests_scrollrepaint_device_pixel_ratio_2
-    COMMAND logsquirl_tests "[scrollrepaint]" -platform offscreen
+    COMMAND ${CMAKE_COMMAND} "-DTEST_BINARY=$<TARGET_FILE:logsquirl_tests>"
+            -P "${CMAKE_SOURCE_DIR}/cmake/CatchTestDiscoveryRunTest.cmake"
+            -- "[scrollrepaint]" -platform offscreen
     WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
-# It runs the binary directly, not through CatchTestDiscoveryRunTest.cmake, so
-# it names the TSan suppression file itself (#482); other builds ignore it.
 set_tests_properties(logsquirl_tests_scrollrepaint_device_pixel_ratio_2 PROPERTIES
-    ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2;TSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/cmake/tsan.supp"
+    ENVIRONMENT "QT_SCALE_FACTOR=2;LOGSQUIRL_EXPECT_DEVICE_PIXEL_RATIO=2"
     TIMEOUT 120)
 
 # The Windows release chooses its Hyperscan DLL at run time (#281). The default

@@ -388,24 +388,30 @@ jobs:
         # Vectorscan stays ON: it builds and runs clean under ASan (it is a
         # CPM dependency, so it is not instrumented).
         #
-        # TSan (#439) finds a data race in the oneTBB flow graphs (indexing,
-        # search), the fault class ASan cannot see. The suppressions in
-        # cmake/tsan.supp reach the test binaries through
-        # cmake/CatchTestDiscoveryRunTest.cmake, so adding a suppression needs
-        # no change here. It is NOT run for a pull request yet: its first run
-        # over the whole suite reported 912 races and turned 78 of ~740 test
-        # cases red, mostly in oneTBB/Qt internals and Search code that
-        # predate the job (ADR 0007 expected this), so it would only show a
-        # red check that says nothing about the pull request. It runs on
-        # every push to master and by hand (workflow_dispatch), where it
-        # reports without failing the run (continue-on-error below), until
-        # the findings are triaged (#482); then it joins the pull requests
-        # and blocks, like asan-ubsan.
-        config: ${{ fromJSON(github.event_name == 'pull_request' && '[{"arch":"x64","artifacts_id":"asan-ubsan","sanitizers":"ASan/UBSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_ADDRESS=ON -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"}]' || '[{"arch":"x64","artifacts_id":"asan-ubsan","sanitizers":"ASan/UBSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_ADDRESS=ON -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"},{"arch":"x64","artifacts_id":"tsan","sanitizers":"TSan","container_root":"docker/ubuntu24.04","image":"ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble","cmake_opts":"-DENABLE_SANITIZER_THREAD=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF"}]') }}
+        # TSan (#439) finds data races, the fault class ASan cannot see, and
+        # blocks like asan-ubsan, pull requests included (#482). Qt, GLib and
+        # glibc are not built with TSan, so it cannot see their own locks and
+        # reports what they do on two threads as races. The ctest runner
+        # (cmake/CatchTestDiscoveryRunTest.cmake) leaves out a report only
+        # when both racing accesses were made inside one of those libraries,
+        # as listed in cmake/tsan.supp; any other report fails the case (ADR
+        # 0007). A change to that list or to the suppression file needs no
+        # change here.
+        config:
+          - arch: x64
+            artifacts_id: asan-ubsan
+            sanitizers: ASan/UBSan
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts: -DENABLE_SANITIZER_ADDRESS=ON -DENABLE_SANITIZER_UNDEFINED_BEHAVIOR=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF
+          - arch: x64
+            artifacts_id: tsan
+            sanitizers: TSan
+            container_root: docker/ubuntu24.04
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            cmake_opts: -DENABLE_SANITIZER_THREAD=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF
 
     runs-on: ubuntu-24.04
-    # Only the TSan entry is allowed to fail the job for now, see its comment.
-    continue-on-error: ${{ matrix.config.artifacts_id == 'tsan' }}
     # Slowest successful run 25 min, before #217 started one process per test
     # case (~40% longer tests, more under ASan) (#218).
     timeout-minutes: 75
@@ -453,15 +459,6 @@ jobs:
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env
       - uses: ./.github/actions/docker-build
-
-      # TEMPORARY (#482): hang or slowness of the cases that time out under TSan.
-      - name: Probe the TSan timeouts
-        if: matrix.config.artifacts_id == 'tsan'
-        run: |
-          docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined \
-            --env LOGSQUIRL_BUILD_ROOT="$LOGSQUIRL_BUILD_ROOT" \
-            -v "$LOGSQUIRL_WORKSPACE":/usr/local "$LOGSQUIRL_CONTAINER" \
-            /bin/bash /usr/local/.github/scripts/tsan-hang-probe.sh
 
       # Per test case, with a JUnit report kept even when a case fails (#217).
       - name: Run tests under ${{ matrix.config.sanitizers }}
