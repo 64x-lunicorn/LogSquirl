@@ -420,6 +420,9 @@ what the Table View offered before #462, so it builds unchanged on
 origin/master; copy it into a worktree of origin/master and add the target as
 in `CMakeLists.txt` here to get the before side. Run it in an optimized build;
 `LOGSQUIRL_BENCHMARK_LOG_LINES` writes fewer Log Lines for a quick run.
+`LOGSQUIRL_BENCHMARK_HIDE_ELAPSED=1` hides the elapsed-time column (the
+header prints how many columns it hid), which tells the cost of computing the
+elapsed time, still done for a hidden column, from the cost of painting it.
 
 # Displayed Lines benchmark
 
