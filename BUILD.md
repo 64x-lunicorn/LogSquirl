@@ -257,7 +257,8 @@ path of your machine appears in the images.
 
 End-to-end tests exercise the compiled `logsquirl_grep` and `logsquirl` binaries
 against the files in `test_data/`. They cover search correctness, encoding handling,
-edge cases, GUI smoke tests, and **performance regression detection** (5 % tolerance).
+edge cases, GUI smoke tests, and **performance regression detection** (5 % tolerance locally;
+CI checks performance weekly, see *Weekly performance* below).
 
 **Prerequisites:** Python >= 3.10
 
@@ -280,7 +281,47 @@ pytest -v --binary-dir=../../build/output -m performance
 
 **Performance baselines:** After optimizations, update the baseline with
 `pytest -m performance --update-baseline`. Review the diff in `baseline.json`
-before committing — values should only go down, never up.
+before committing — values should only go down, never up. `baseline.json` is for
+measuring on your own machine; a benchmark it has no entry for is reported as
+skipped with the measured value, never as passed. CI does not compare with it.
+
+#### Weekly performance
+
+The **Performance** workflow (`.github/workflows/performance.yml`) runs every Monday at
+03:41 UTC on a GitHub-hosted `ubuntu-24.04` runner. It builds master as CI ships it
+(RelWithDebInfo with LTO, in the noble build container), generates the 10, 50 and 100 MB
+test files and runs the whole e2e performance suite (`-m performance`, 21 measured runs per
+benchmark) with `--no-baseline-compare`. The application is started only through the suite's
+isolated instances, as in every e2e run. A benchmark that is skipped fails the run.
+
+Each benchmark's median is compared with the **median of the same benchmark over the last 6
+recorded runs** of master (`.github/scripts/perf-history.py`), not with a fixed baseline: the
+runners change from week to week, and the reference changes with them, while one odd week
+does not move a median of six.
+
+- **Red** when a benchmark is **more than 30 % and more than 10 ms slower** than that median,
+  or when a benchmark the previous run measured is missing.
+- **Report only** while fewer than 6 runs of a benchmark are recorded (the first six weeks,
+  and after a new level is accepted); the job summary shows the table either way.
+- A run that is red is still recorded. If the slowdown stays, the median catches up after
+  three or four weeks and the run turns green again, so a red run is to be acted on when it
+  happens.
+
+The results live on the **`perf-data`** branch, which the workflow creates on its first run and
+only ever appends to: `history/<time>-<commit>-<run>.json` per run of master (the statistics of
+every benchmark, the commit, the version and the runner's CPU), and `trend.csv` with one row per
+run and one column per benchmark, for the trend over releases. The raw runs stay in each run's
+`perf-result` artifact. Do not delete or rewrite the branch; it is the only copy.
+
+Dispatched from another branch (`gh workflow run performance.yml --ref <branch>`), the run is
+compared with master's history the same way but recorded under `trial/`, which nothing
+compares with, so a branch never moves master's reference.
+
+**Accepting a slowdown** that is intended: dispatch the workflow from master with
+`accept_new_level` (`gh workflow run performance.yml --ref master -f accept_new_level=true`).
+That run is recorded as the start of a new level, does not fail, and comparisons from then on use
+only it and the runs after it, so the check reports only until six such runs exist; dispatching
+a few more runs from master shortens that.
 
 See [`tests/e2e/README.md`](tests/e2e/README.md) for full documentation.
 
@@ -681,6 +722,7 @@ before anything is downloaded, because its signing job could not enter the
 | `ci-docker.yml` | `docker/**` changes | Build + push Docker images to GHCR |
 | `ghcr-cleanup.yml` | weekly schedule, dispatch | Delete the build image versions on GHCR that no CI run uses any more |
 | `renovate-checksums.yml` | PR from a `renovate/*` branch | Recompute the SHA-256 of every pinned download after a Renovate version bump |
+| `performance.yml` | weekly schedule (Mondays 03:41 UTC), dispatch | Measure master's e2e performance suite in an optimized build, compare it with the last runs and record it on the `perf-data` branch (see *Weekly performance*) |
 | `codeql-analysis.yml` | push/PR + weekly schedule | CodeQL security analysis of the C++ code and the workflows; results in third-party code (`build/_deps`, `cpm_cache`) are dropped before upload, because `paths-ignore` has no effect for compiled languages |
 
 

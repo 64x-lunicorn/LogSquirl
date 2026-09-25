@@ -246,6 +246,16 @@
 
 ## Internal
 
+- **A performance regression turns a run red**: a weekly `Performance`
+  workflow builds master as it ships (RelWithDebInfo with LTO) on a
+  GitHub-hosted runner and runs the whole e2e performance suite, the 10, 50
+  and 100 MB files included. Each benchmark is compared with its median over
+  the last six runs, so the check moves with the runners instead of with a
+  baseline recorded on one machine; more than 30 % and 10 ms slower fails the
+  run, and until six runs exist it only reports. Every result is committed to
+  the `perf-data` branch, with a `trend.csv` for the trend over releases. The
+  suite no longer passes a benchmark silently when `baseline.json` has no
+  entry for it: it is skipped with the measured value (#441).
 - **ThreadSanitizer runs in CI and blocks**: a `Sanitizers / tsan` job builds
   the tests with `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the
   ASan/UBSan job, for every pull request and push to master, and fails the run
