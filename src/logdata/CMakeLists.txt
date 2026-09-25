@@ -15,6 +15,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddataworker.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/loglinetext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/matchesdelta.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchblocksource.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/searchsession.h

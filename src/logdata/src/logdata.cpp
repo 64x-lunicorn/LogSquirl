@@ -57,6 +57,7 @@
 #include "linetypes.h"
 #include "log.h"
 #include "logfiltereddata.h"
+#include "loglinetext.h"
 #include "sparselineread.h"
 
 #include "logdata.h"
@@ -76,19 +77,16 @@ QString asQString( std::string_view warning )
     return QString::fromLatin1( warning.data(), static_cast<qsizetype>( warning.size() ) );
 }
 
-// A Log Line as getLineString() returns it, from its decoded text.
-QString chopCarriageReturn( QString&& lineData )
+// A Log Line as getLineString() returns it, from its text.
+QString asText( QString&& lineText )
 {
-    if ( lineData.endsWith( QChar::CarriageReturn ) ) {
-        lineData.chop( 1 );
-    }
-    return std::move( lineData );
+    return std::move( lineText );
 }
 
-// A Log Line as getExpandedLineString() returns it, from its decoded text.
-QString chopCarriageReturnAndUntabify( QString&& lineData )
+// A Log Line as getExpandedLineString() returns it, from its text.
+QString untabified( QString&& lineText )
 {
-    return untabify( chopCarriageReturn( std::move( lineData ) ) );
+    return untabify( std::move( lineText ) );
 }
 
 } // namespace
@@ -422,15 +420,13 @@ QString LogData::doGetExpandedLineString( LineNumber line ) const
 // indexingFinished).
 logsquirl::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount number ) const
 {
-    return getLinesFromFile( first_line, number, chopCarriageReturn );
+    return getLinesFromFile( first_line, number, asText );
 }
 
 logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
                                                         LinesCount number ) const
 {
-    return getLinesFromFile( first_line, number, []( QString&& lineData ) {
-        return untabify( std::move( lineData ) );
-    } );
+    return getLinesFromFile( first_line, number, untabified );
 }
 
 LineNumber LogData::doGetLineNumber( LineNumber index ) const
@@ -572,13 +568,13 @@ logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, Line
 
 logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return getSparseLinesFromFile( lines, chopCarriageReturn );
+    return getSparseLinesFromFile( lines, asText );
 }
 
 logsquirl::vector<QString>
 LogData::doGetExpandedLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return getSparseLinesFromFile( lines, chopCarriageReturnAndUntabify );
+    return getSparseLinesFromFile( lines, untabified );
 }
 
 template <typename OnLine>
@@ -665,6 +661,7 @@ LogData::getSparseLinesFromFile( std::span<const LineNumber> lines,
                 if ( line.hideAnsiColorSequences ) {
                     removeAnsiColorSequences( decodedLine );
                 }
+                trimToLogLineText( decodedLine );
             }
 
             text[ line.request ] = processLine( std::move( decodedLine ) );
@@ -714,21 +711,20 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
             const auto begin = pieces.size();
             const auto& text = line.bytes;
 
-            // A decoder drops a byte order mark that starts a Log Line, and
-            // replaces what is not UTF-8; neither is copied as it is.
+            // A decoder replaces what is not UTF-8: that is not copied as it
+            // is.
             const bool isCopiedAsRead
                 = line.warning.empty() && encodingParams.isUtf8Compatible
                   && ( !line.hideAnsiColorSequences
                        || text.find( '\x1B' ) == std::string_view::npos )
                   && ( simdutf::validate_ascii( text.data(), text.size() )
-                       || ( isUtf8 && !text.starts_with( "\xEF\xBB\xBF" )
-                            && simdutf::validate_utf8( text.data(), text.size() ) ) );
+                       || ( isUtf8 && simdutf::validate_utf8( text.data(), text.size() ) ) );
 
             if ( !line.warning.empty() ) {
                 pieces.append( line.warning );
             }
             else if ( isCopiedAsRead ) {
-                pieces.append( text.ends_with( '\r' ) ? text.substr( 0, text.size() - 1 ) : text );
+                pieces.append( trimToLogLineText( text ) );
             }
             else {
                 // Decoded on its own, as getLineString() does.
@@ -738,7 +734,8 @@ std::string LogData::getUtf8LinesSparse( std::span<const LineNumber> lines ) con
                 if ( line.hideAnsiColorSequences ) {
                     removeAnsiColorSequences( decodedLine );
                 }
-                pieces += chopCarriageReturn( std::move( decodedLine ) ).toStdString();
+                trimToLogLineText( decodedLine );
+                pieces += decodedLine.toStdString();
             }
             pieces += '\n';
 
@@ -838,6 +835,7 @@ logsquirl::vector<QString> RawLines::decodeLines() const
             if ( hideAnsiColorSequences ) {
                 removeAnsiColorSequences( decodedLine );
             }
+            trimToLogLineText( decodedLine );
 
             decodedLines.push_back( std::move( decodedLine ) );
 
@@ -1006,17 +1004,12 @@ QByteArray toUtf8( const QString& text )
 }
 
 // Converts a block of Log Lines in a Latin-1 or UTF-16 encoding to UTF-8 at
-// once into utf8, and splits it at each line feed into lines. Does nothing and
-// returns false unless the block is valid in its encoding and has lineCount
-// Log Lines. A byte order mark starting a UTF-16 block is dropped, as decoding
-// drops it.
+// once into utf8, and splits it at each line feed into the text of its Log
+// Lines. Does nothing and returns false unless the block is valid in its
+// encoding and has lineCount Log Lines.
 bool convertValidBlock( std::string_view block, DirectEncoding encoding, std::size_t lineCount,
                         QByteArray& utf8, logsquirl::vector<std::string_view>& lines )
 {
-    if ( isUtf16( encoding ) && block.size() >= 2
-         && codeUnitAt( block, 0, encoding ) == u'\xFEFF' ) {
-        block.remove_prefix( 2 );
-    }
     if ( block.empty() ) {
         return false;
     }
@@ -1051,11 +1044,11 @@ bool convertValidBlock( std::string_view block, DirectEncoding encoding, std::si
     std::string_view rest( converted.constData(), static_cast<std::size_t>( converted.size() ) );
     for ( auto lineFeed = rest.find( '\n' ); lineFeed != std::string_view::npos;
           lineFeed = rest.find( '\n' ) ) {
-        split.push_back( rest.substr( 0, lineFeed ) );
+        split.push_back( trimToLogLineText( rest.substr( 0, lineFeed ) ) );
         rest.remove_prefix( lineFeed + 1 );
     }
     if ( !rest.empty() ) {
-        split.push_back( rest );
+        split.push_back( trimToLogLineText( rest ) );
     }
     if ( split.size() != lineCount ) {
         return false;
@@ -1086,6 +1079,8 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
         return lines;
     }
 
+    // However a Log Line gets into the view, it is trimmed to its text where it
+    // is split off: a Search matches it as it is displayed (#522).
     const auto encoding = directEncodingOf( textDecoder.encodingParams );
     const auto codeUnitWidth = isUtf16( encoding ) ? 2 : 1;
 
@@ -1136,12 +1131,6 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
                     std::string_view( buffer.data() + lineStart, lineEnd - lineStart ), encoding );
                 lineStart = lineEnd;
 
-                // Decoding drops a byte order mark that starts the block.
-                if ( index == 0 && isUtf16( encoding ) && line.bytes.size() >= 2
-                     && codeUnitAt( line.bytes, 0, encoding ) == u'\xFEFF' ) {
-                    line.bytes.remove_prefix( 2 );
-                }
-
                 const auto hasAnsiColorSequences
                     = hidesAnsiColorSequences && containsEscape( line.bytes, encoding );
                 if ( hasAnsiColorSequences || !isValid( line.bytes, encoding ) ) {
@@ -1168,15 +1157,17 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
                 if ( line.decoded ) {
                     std::copy( line.decoded->cbegin(), line.decoded->cend(),
                                utf8Data_.data() + line.utf8Offset );
-                    lines.emplace_back( utf8Data_.constData() + line.utf8Offset, line.utf8Size );
+                    lines.push_back( trimToLogLineText( std::string_view(
+                        utf8Data_.constData() + line.utf8Offset, line.utf8Size ) ) );
                 }
                 else if ( encoding == DirectEncoding::Utf8 ) {
-                    lines.push_back( line.bytes );
+                    lines.push_back( trimToLogLineText( line.bytes ) );
                 }
                 else {
                     const auto written
                         = convertToUtf8( line.bytes, encoding, utf8Data_.data() + line.utf8Offset );
-                    lines.emplace_back( utf8Data_.constData() + line.utf8Offset, written );
+                    lines.push_back( trimToLogLineText(
+                        std::string_view( utf8Data_.constData() + line.utf8Offset, written ) ) );
                 }
             }
         }
@@ -1191,13 +1182,13 @@ logsquirl::vector<std::string_view> RawLines::buildUtf8View() const
                                           static_cast<std::size_t>( utf8Data_.size() ) );
             auto nextLineFeed = wholeString.find( '\n' );
             while ( nextLineFeed != std::string_view::npos ) {
-                lines.push_back( wholeString.substr( 0, nextLineFeed ) );
+                lines.push_back( trimToLogLineText( wholeString.substr( 0, nextLineFeed ) ) );
                 wholeString.remove_prefix( nextLineFeed + 1 );
                 nextLineFeed = wholeString.find( '\n' );
             }
 
             if ( !wholeString.empty() ) {
-                lines.push_back( wholeString );
+                lines.push_back( trimToLogLineText( wholeString ) );
             }
         }
 

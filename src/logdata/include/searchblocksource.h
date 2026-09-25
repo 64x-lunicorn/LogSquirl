@@ -46,11 +46,14 @@ struct RawLines {
     bool hideAnsiColorSequences{};
 
 public:
+    // Every Log Line of the block as its text (loglinetext.h): as it is
+    // displayed, before untabifying.
     logsquirl::vector<QString> decodeLines() const;
 
-    // Every Log Line of the block, without its line feed, in UTF-8 as a Search
-    // matches it. A view stays valid while the block does and until the next
-    // call: it points into buffer, or into UTF-8 converted for this call.
+    // Every Log Line of the block as its text, the same as decodeLines(), in
+    // UTF-8 as a Search matches it. A view stays valid while the block does
+    // and until the next call: it points into buffer, or into UTF-8 converted
+    // for this call.
     logsquirl::vector<std::string_view> buildUtf8View() const;
 
 private:

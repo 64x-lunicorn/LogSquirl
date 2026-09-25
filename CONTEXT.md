@@ -16,7 +16,9 @@ plugin — once opened, all of these behave identically.
 _Avoid_: document, source, input
 
 **Log Line**:
-One line of a Log File, addressed by its number in the file.
+One line of a Log File, addressed by its number in the file. Its text — what is displayed,
+what a Search matches and what the grep CLI prints — is the line decoded, without its line
+feed, a carriage return that ends it or a byte order mark that starts it.
 _Avoid_: record, entry, row (row belongs to the Table View)
 
 **Index**:

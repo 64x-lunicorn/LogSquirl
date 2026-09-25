@@ -146,6 +146,30 @@ if(NOT (_stdout STREQUAL "first fizz\n\tcolumn\tfizz\nfizz at the end\n"))
   fail("a Search prints its Log Lines without their carriage returns")
 endif()
 
+# A Search matches a Log Line as it is displayed, without the carriage return
+# that ends it: "foo$" finds the same Log Lines whether they end in CRLF or LF
+# (#522).
+foreach(_line_end "\r\n" "\n")
+  set(_line_end_file "${WORK_DIR}/grep-line-end.log")
+  file(WRITE "${_line_end_file}" "alpha foo${_line_end}beta bar${_line_end}gamma foo${_line_end}")
+  run_grep("${_line_end_file}" -e "foo$")
+  if(NOT (_stdout STREQUAL "alpha foo\ngamma foo\n"))
+    string(REPLACE "\r" "CR" _shown_line_end "${_line_end}")
+    string(REPLACE "\n" "LF" _shown_line_end "${_shown_line_end}")
+    fail("a Search for 'foo$' finds foo at the end of Log Lines ending in ${_shown_line_end}")
+  endif()
+endforeach()
+
+# ... and without the byte order mark that starts a UTF-8 Log File: "^alpha"
+# finds its first Log Line, which is printed without it (#522).
+string(ASCII 239 187 191 _utf8_bom)
+set(_bom_file "${WORK_DIR}/grep-bom.log")
+file(WRITE "${_bom_file}" "${_utf8_bom}alpha foo\nbeta bar\nalpha baz\n")
+run_grep("${_bom_file}" -e "^alpha")
+if(NOT (_stdout STREQUAL "alpha foo\nalpha baz\n"))
+  fail("a Search for '^alpha' finds the first Log Line of a UTF-8 Log File with a byte order mark")
+endif()
+
 # A Log File is read in the Encoding it is detected as, and its matching Log
 # Lines are printed as they are in the file, byte for byte (#326).
 set(_utf8_file "${WORK_DIR}/grep-utf8.log")

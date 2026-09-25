@@ -22,6 +22,7 @@
 #include <catch2/generators/catch_generators_range.hpp>
 
 #include <QSignalSpy>
+#include <QStringList>
 #include <QTemporaryFile>
 #include <QTest>
 #include <qglobal.h>
@@ -29,7 +30,9 @@
 #include <tbb/global_control.h>
 
 #include <atomic>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "log.h"
@@ -38,6 +41,7 @@
 
 #include "logdata.h"
 #include "logfiltereddata.h"
+#include "textencoding.h"
 
 static const qint64 SL_NB_LINES = 500LL;
 
@@ -1513,6 +1517,76 @@ SCENARIO( "The Filtered View is as wide as its longest Mark as Marks come and go
             THEN( "the Marks past its end are no wider than nothing" )
             {
                 REQUIRE( filtered_data->getMaxLength() == LineLength( 21 ) );
+            }
+        }
+    }
+}
+
+SCENARIO( "A Search matches a Log Line as it is displayed", "[logdata][search][encoding]" )
+{
+    // Every Encoding a Search converts to UTF-8 directly, and one it decodes
+    // as a whole block (#522).
+    const auto* const encodingName
+        = GENERATE( "UTF-8", "US-ASCII", "ISO-8859-1", "UTF-16LE", "UTF-16BE", "windows-1252" );
+    const auto* const encoding = TextEncoding::forName( encodingName );
+    REQUIRE( encoding != nullptr );
+    const bool isUnicode = QByteArray( encodingName ).startsWith( "UTF-" );
+    CAPTURE( encodingName );
+
+    const QStringList texts{ "alpha foo", "beta bar", "gamma foo", "alpha baz" };
+
+    // A Log File with CRLF line ends; one in a Unicode Encoding starts with a
+    // byte order mark.
+    QTemporaryFile file{ "search_as_displayed_XXXXXX" };
+    REQUIRE( file.open() );
+    file.write( encoding->fromUnicode( ( isUnicode ? QString( QChar::ByteOrderMark ) : QString() )
+                                       + texts.join( "\r\n" ) + "\r\n" ) );
+    file.flush();
+
+    const auto policies = testSettingsPolicies();
+    LogData logData{ policies.indexing, policies.search, policies.fileAccess, policies.decoding };
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.attachFile( file.fileName() );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    {
+        SafeQSignalSpy loadEndSpy( &logData, SIGNAL( loadingFinished( LoadingStatus ) ) );
+        logData.reload( encoding );
+        REQUIRE( loadEndSpy.safeWait( 10000 ) );
+    }
+    logData.setDisplayEncoding( encodingName );
+    REQUIRE( logData.getNbLine() == 4_lcount );
+
+    GIVEN( std::string( "a Log File in " ) + encodingName + " with CRLF line ends"
+           + ( isUnicode ? " and a byte order mark" : "" ) )
+    {
+        THEN( "its Log Lines are displayed without the carriage returns or the byte order mark" )
+        {
+            const auto lines = logData.getLines( 0_lnum, 4_lcount );
+            REQUIRE( QStringList( lines.begin(), lines.end() ) == texts );
+        }
+
+        const auto [ pattern, matchingLines ]
+            = GENERATE( std::pair{ "foo$", std::vector<LineNumber>{ 0_lnum, 2_lnum } },
+                        std::pair{ "^alpha", std::vector<LineNumber>{ 0_lnum, 3_lnum } } );
+
+        WHEN( std::string( "a Search for " ) + pattern + " runs" )
+        {
+            auto filteredData = logData.getNewFilteredData();
+            SafeQSignalSpy searchStateSpy{ filteredData.get(),
+                                           &LogFilteredData::searchStateChanged };
+            requestSearch( filteredData.get(), pattern, searchStateSpy );
+
+            THEN( "it matches the Log Lines whose displayed text matches" )
+            {
+                REQUIRE( filteredData->getNbMatches()
+                         == LinesCount(
+                             static_cast<LinesCount::UnderlyingType>( matchingLines.size() ) ) );
+                for ( std::size_t index = 0; index < matchingLines.size(); ++index ) {
+                    REQUIRE( filteredData->getMatchingLineNumber( LineNumber( index ) )
+                             == matchingLines[ index ] );
+                }
             }
         }
     }
