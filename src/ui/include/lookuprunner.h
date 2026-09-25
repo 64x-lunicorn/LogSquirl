@@ -75,13 +75,18 @@ public:
                      watcher->deleteLater();
                  } );
 
-        auto future = QtConcurrent::run(
-            [ work = std::move( work ), state = job.get() ]() mutable -> Result {
-                // Released before the result is reported, so what the work
-                // holds (the log data) never outlives the owner's wait.
-                const auto owned = std::move( work );
-                return owned( state->cancelled );
-            } );
+        // The worker shares the job instead of pointing into it. The work
+        // reads its flag until it returns; the watcher's slot holds the other
+        // share and lets go of it once the result is reported. QFuture orders
+        // the two inside QtCore, where ThreadSanitizer cannot see it; the
+        // share's count shows it the same order (#482).
+        auto future
+            = QtConcurrent::run( [ work = std::move( work ), state = job ]() mutable -> Result {
+                  // Released before the result is reported, so what the work
+                  // holds (the log data) never outlives the owner's wait.
+                  const auto owned = std::move( work );
+                  return owned( state->cancelled );
+              } );
         job->future = future;
         watcher->setFuture( future );
     }

@@ -410,6 +410,14 @@ void QuickFind::startSearch( QFDirection direction, const FilePosition& start_po
 {
     interruptRequested_.set();
     operationWatcher_.waitForFinished();
+    // The previous search's future is dropped below, and with it the state its
+    // worker reported the result into under the future's lock. The wait above
+    // orders the two inside QtCore, which ThreadSanitizer cannot see. Reading
+    // the result takes that lock in Qt's inline code, which TSan does see, so
+    // the free that follows is ordered for it too (#482).
+    if ( operationFuture_.isResultReadyAt( 0 ) ) {
+        [[maybe_unused]] const auto& previous = operationFuture_.resultAt( 0 );
+    }
     // Cleared here, before the worker starts, so a stopSearch() that comes
     // before the worker has begun still interrupts it.
     interruptRequested_.clear();

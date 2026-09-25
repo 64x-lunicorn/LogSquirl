@@ -656,6 +656,15 @@ set(CMAKE_CXX_STANDARD 17)
 if(WIN32)
   set(BUILD_SHARED_LIBS ON)
 endif()
+# A ThreadSanitizer build builds oneTBB with it too (its own TBB_SANITIZE):
+# the flow graphs of indexing and Search run LogSquirl's code on TBB's worker
+# threads, and TBB's scheduler hands the work over through atomics TSan cannot
+# see in an uninstrumented TBB. It then reports every node LogSquirl destroys
+# after wait_for_all() as a race with the worker that ran it (#482).
+set(_LOGSQUIRL_TBB_SANITIZE "")
+if(ENABLE_SANITIZER_THREAD)
+  set(_LOGSQUIRL_TBB_SANITIZE "thread")
+endif()
 cpmaddpackage(
   NAME
   tbb
@@ -669,6 +678,7 @@ cpmaddpackage(
   "TBB_TEST OFF"
   "TBB_EXAMPLES OFF"
   "TBB_STRICT OFF"
+  "TBB_SANITIZE ${_LOGSQUIRL_TBB_SANITIZE}"
 )
 
 if(WIN32)

@@ -152,6 +152,12 @@ if(_tool_libraries)
   file(COPY ${_tool_libraries} DESTINATION "${_tool_dir}")
 endif()
 
+# A ThreadSanitizer build sorts the reports of what this starts the way the
+# ctest runner does for every test case (#482); ignored by any other build.
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/TsanReportFilter.cmake")
+set(_tsan_dir "${WORK_DIR}/tsan")
+logsquirl_tsan_prepare("${_tsan_dir}")
+
 execute_process(
   COMMAND "${_tool_dir}/${_tool_name}" --version
   WORKING_DIRECTORY "${WORK_DIR}"
@@ -160,6 +166,10 @@ execute_process(
   RESULT_VARIABLE _result
   TIMEOUT 60
 )
+logsquirl_tsan_check("${_tsan_dir}" _tsan_failures _tsan_output)
+if(NOT _tsan_failures EQUAL 0)
+  message(FATAL_ERROR "ThreadSanitizer: ${_tsan_failures} finding(s) in ${_tool_name} --version:\n${_tsan_output}")
+endif()
 string(REPLACE "\r\n" "\n" _stdout "${_stdout}")
 if(NOT _result STREQUAL "0")
   message(FATAL_ERROR "${_tool_name} --version exited with ${_result}\n"

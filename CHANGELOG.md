@@ -246,14 +246,25 @@
 
 ## Internal
 
-- **ThreadSanitizer runs in CI**: a `Sanitizers / tsan` job builds the tests with
-  `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the ASan/UBSan job, to
-  find a data race in the oneTBB indexing and search flow graphs. It uses
-  `cmake/tsan.supp`; a new suppression needs no change to the job. It runs on
-  every push to master and by hand, not on pull requests, and does not fail
-  the run yet: its first run over the whole suite reported 912 races and
-  turned 78 of about 740 test cases red, mostly in oneTBB and Qt internals and
-  in Search code that predate it; they are triaged in #482 (#439).
+- **ThreadSanitizer runs in CI and blocks**: a `Sanitizers / tsan` job builds
+  the tests with `-DENABLE_SANITIZER_THREAD=ON` and runs them next to the
+  ASan/UBSan job, for every pull request and push to master, and fails the run
+  like it (#439, #482). Its first runs reported about 1000 races and turned 80
+  of about 780 test cases red. Nearly all were Qt, GLib and glibc racing with
+  themselves: they are not built with TSan, so it cannot see their locks. The
+  ctest runner now leaves out a report only when both racing accesses were made
+  inside such a library (listed in `cmake/tsan.supp`, each with its reason);
+  every report with an access in LogSquirl's code fails the case. oneTBB is
+  built with TSan in a TSan build, and the suppression file lost its `race:`
+  entries, which hid about 2200 reports from the Search and indexing flow
+  graphs. Fixed in the code: a runnable queued to a pool thread now publishes
+  its captures, which TSan could not see QThreadPool hand over (42 reports in
+  the Search worker), a time lookup's worker shares the job whose cancel flag
+  it reads, and the Team Folder no longer starts a Git that is not there, the
+  path on which Qt's wait for the child hung under TSan. One race inside the
+  oneTBB fork, fixed upstream, is suppressed by its own frame. No test case is
+  excluded, and the TSan tests run in about 7 minutes instead of 19. See ADR
+  0007.
 - **Coverage is measured, and the modules without tests got them**: `cmake
   --build <dir> --target coverage` in a build made with `-DENABLE_COVERAGE=ON`
   runs the tests and prints the line coverage of each module, from
