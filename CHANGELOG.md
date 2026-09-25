@@ -298,7 +298,8 @@
   path on which Qt's wait for the child hung under TSan. One race inside the
   oneTBB fork, fixed upstream, is suppressed by its own frame. No test case is
   excluded, and the TSan tests run in about 7 minutes instead of 19. See ADR
-  0007.
+  0007. A canary test, `tsan_canary`, races on purpose in LogSquirl's code and
+  checks on every TSan run that the ctest runner fails the case for it.
 - **Coverage is measured, and the modules without tests got them**: `cmake
   --build <dir> --target coverage` in a build made with `-DENABLE_COVERAGE=ON`
   runs the tests and prints the line coverage of each module, from
