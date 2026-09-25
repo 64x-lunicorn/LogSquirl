@@ -190,13 +190,14 @@ public:
                 // Destroying the pool would wait for the job without a limit,
                 // and detaching the reader would close the Log File under it.
                 background_run_detail::reportShutdownTimeout( name_ );
-                static_cast<void>( pool_.release() );
+                // Leaked on purpose: the job still runs on the pool.
+                static_cast<void>( pool_.release() ); // NOLINT(bugprone-unused-return-value)
                 return;
             }
             for ( ; undelivered_ > 0; --undelivered_ ) {
                 detachReader();
             }
-        } catch ( ... ) {
+        } catch ( ... ) { // NOLINT(bugprone-empty-catch)
             // A destructor: nothing to report to, and nothing left to undo.
         }
     }
