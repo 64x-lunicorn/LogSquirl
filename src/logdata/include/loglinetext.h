@@ -56,7 +56,7 @@ inline void trimToLogLineText( QString& decodedLine )
 
 // The same, for a Log Line in UTF-8 (without its line feed): only the view
 // changes, nothing is copied.
-constexpr std::string_view trimToLogLineText( std::string_view utf8Line )
+[[nodiscard]] constexpr std::string_view trimToLogLineText( std::string_view utf8Line )
 {
     constexpr std::string_view Utf8ByteOrderMark = "\xEF\xBB\xBF";
     if ( !utf8Line.empty() && utf8Line.back() == '\r' ) {

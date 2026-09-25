@@ -77,8 +77,8 @@ QString asQString( std::string_view warning )
     return QString::fromLatin1( warning.data(), static_cast<qsizetype>( warning.size() ) );
 }
 
-// A Log Line as getLineString() returns it, from its text.
-QString asText( QString&& lineText )
+// A Log Line as getLineString() returns it: its text, as it is.
+QString unchanged( QString&& lineText )
 {
     return std::move( lineText );
 }
@@ -420,7 +420,7 @@ QString LogData::doGetExpandedLineString( LineNumber line ) const
 // indexingFinished).
 logsquirl::vector<QString> LogData::doGetLines( LineNumber first_line, LinesCount number ) const
 {
-    return getLinesFromFile( first_line, number, asText );
+    return getLinesFromFile( first_line, number, unchanged );
 }
 
 logsquirl::vector<QString> LogData::doGetExpandedLines( LineNumber first_line,
@@ -568,7 +568,7 @@ logsquirl::vector<QString> LogData::getLinesFromFile( LineNumber firstLine, Line
 
 logsquirl::vector<QString> LogData::getLinesSparse( std::span<const LineNumber> lines ) const
 {
-    return getSparseLinesFromFile( lines, asText );
+    return getSparseLinesFromFile( lines, unchanged );
 }
 
 logsquirl::vector<QString>

@@ -80,7 +80,7 @@ std::vector<std::string> utf8Lines( const RawLines& rawLines )
 // How a Search saw the block before #291: the whole block decoded to a QString,
 // its ANSI color sequences removed, converted to UTF-8 and split at each line
 // feed -- and each Log Line then trimmed to its text, without the carriage
-// return that ends it or a byte order mark that starts it (#522).
+// return that ends it or the byte order marks that start it (#522).
 std::vector<std::string> decodedThenConvertedLines( const std::vector<QByteArray>& lines,
                                                     const char* encoding,
                                                     bool hideAnsiColorSequences )
@@ -100,7 +100,7 @@ std::vector<std::string> decodedThenConvertedLines( const std::vector<QByteArray
         if ( line.ends_with( '\r' ) ) {
             line.remove_suffix( 1 );
         }
-        if ( line.starts_with( "\xEF\xBB\xBF" ) ) {
+        while ( line.starts_with( "\xEF\xBB\xBF" ) ) {
             line.remove_prefix( 3 );
         }
         return std::string( line );

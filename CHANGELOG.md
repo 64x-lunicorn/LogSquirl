@@ -182,6 +182,13 @@
   new one started, the Table View shows that Search's Marks and Matches instead
   of those of the Search before it, and closing a tab no longer leaves the
   Table View or the tab's Search behind in memory (#518).
+- **A Search matches a Log Line as it is displayed**: in a Log File with CRLF
+  line ends, `foo$` now finds `foo` at the end of a Log Line, and `^alpha`
+  finds the first Log Line of a UTF-8 Log File that starts with a byte order
+  mark, in the application and in `logsquirl_grep`, in every Encoding. The
+  display, the Search and `logsquirl_grep` read a Log Line as the same text:
+  without its line feed, the carriage return that ends it or byte order marks
+  that start it (#522).
 - **Uninstalling on Windows leaves nothing behind**: the uninstaller left
   empty `platforms` and `styles` folders, and so the `logsquirl` folder
   itself, under Program Files, and the installing user's *Send to* shortcut.

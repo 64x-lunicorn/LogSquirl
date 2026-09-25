@@ -1567,6 +1567,15 @@ SCENARIO( "A Search matches a Log Line as it is displayed", "[logdata][search][e
             REQUIRE( QStringList( lines.begin(), lines.end() ) == texts );
         }
 
+        THEN( "a sparse read, and one as UTF-8 as the grep CLI prints, reads the same text" )
+        {
+            const std::vector<LineNumber> all{ 0_lnum, 1_lnum, 2_lnum, 3_lnum };
+            const auto sparse = logData.getLinesSparse( all );
+            REQUIRE( QStringList( sparse.begin(), sparse.end() ) == texts );
+            REQUIRE( QString::fromStdString( logData.getUtf8LinesSparse( all ) )
+                     == texts.join( '\n' ) + '\n' );
+        }
+
         const auto [ pattern, matchingLines ]
             = GENERATE( std::pair{ "foo$", std::vector<LineNumber>{ 0_lnum, 2_lnum } },
                         std::pair{ "^alpha", std::vector<LineNumber>{ 0_lnum, 3_lnum } } );
