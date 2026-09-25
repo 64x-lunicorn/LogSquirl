@@ -108,6 +108,19 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tsan_report_filter.cmake
 )
 
+# And the other way round, on every ThreadSanitizer run: a race in LogSquirl's
+# own code, run through the ctest runner, fails its case (#439). The canary is
+# built in a TSan build only.
+if(ENABLE_SANITIZER_THREAD)
+  add_test(
+      NAME tsan_canary
+      COMMAND ${CMAKE_COMMAND}
+              -DCANARY=$<TARGET_FILE:logsquirl_tsan_canary>
+              -DRUNNER=${CMAKE_SOURCE_DIR}/cmake/CatchTestDiscoveryRunTest.cmake
+              -P ${CMAKE_CURRENT_SOURCE_DIR}/tsan_canary.cmake
+  )
+endif()
+
 # The releases are optimized fully and keep their debug information (#280).
 add_test(
     NAME full_optimization_flags

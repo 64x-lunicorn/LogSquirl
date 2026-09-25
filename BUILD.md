@@ -392,8 +392,16 @@ cmake -DTEST_BINARY=$(pwd)/build_root/output/logsquirl_tests \
 same configuration as above in the Noble container and runs every test case under `ctest`, for every pull
 request and every push to master. It blocks like `Sanitizers / asan-ubsan`, and no case is excluded from
 it. It needs no `TSAN_OPTIONS` of its own: the runner sets them, and a change to `cmake/tsan.supp` reaches
-it from there. Runtime: about 16 minutes, an 8-minute build and 7 to 8 minutes of tests (the tests took 19 minutes before oneTBB was built with TSan). To see the job go red, add a plain `int` incremented from two
-`std::thread`s to any test case: TSan reports it, and the case fails.
+it from there. Runtime: about 16 minutes, an 8-minute build and 7 to 8 minutes of tests (the tests took
+19 minutes before oneTBB was built with TSan).
+
+That a race in LogSquirl's code turns the job red is checked on every TSan run, not assumed: in a TSan
+build `tests/helpers/tsan_canary.cpp` increments a plain `int` from two `std::thread`s and exits 0, and
+the `tsan_canary` test (`tests/tsan_canary.cmake`) runs it through the ctest runner. It passes only when the
+runner failed the case because TSan's report of that race was kept, not because the canary crashed or
+exited non-zero. If the runner, the filter or `cmake/tsan.supp` ever let such a race through, that test
+goes red. The same race put into an ordinary unit test case (`OffsetInFile basic operations`) turned the
+job red once in CI, run 36147083238, job 108110847495.
 
 ## CI/CD Pipeline
 
