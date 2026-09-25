@@ -153,7 +153,9 @@ QString updateCommand( InstallSource source )
     case InstallSource::Homebrew:
         return QStringLiteral( "brew upgrade --cask logsquirl" );
     case InstallSource::Apt:
-        return QStringLiteral( "sudo apt upgrade" );
+        // apt upgrade alone installs only what the package lists already know,
+        // and they may predate the release the update check just found.
+        return QStringLiteral( "sudo apt update && sudo apt upgrade" );
     case InstallSource::Dnf:
         return QStringLiteral( "sudo dnf upgrade" );
     case InstallSource::Unknown:
@@ -179,7 +181,7 @@ QString updateNoticeHtml( const QString& version, const QString& url, const QStr
                       "UpdateNotice",
                       "<p> A new version of logsquirl (%1) is available. Update it with your "
                       "package manager: </p><p><code>%2</code></p>" )
-                      .arg( version, command );
+                      .arg( version, command.toHtmlEscaped() );
     }
 
     if ( !changes.empty() ) {

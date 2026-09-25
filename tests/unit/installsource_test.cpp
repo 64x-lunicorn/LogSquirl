@@ -290,7 +290,7 @@ SCENARIO( "The update notice names the package manager only for a known install 
         };
         for ( const auto& [ source, command ] :
               { Case{ InstallSource::Homebrew, "brew upgrade --cask logsquirl" },
-                Case{ InstallSource::Apt, "sudo apt upgrade" },
+                Case{ InstallSource::Apt, "sudo apt update && sudo apt upgrade" },
                 Case{ InstallSource::Dnf, "sudo dnf upgrade" } } ) {
             const auto html = updateNoticeHtml( "26.10.0", url, changes, source );
 
@@ -298,7 +298,8 @@ SCENARIO( "The update notice names the package manager only for a known install 
                       .arg( command )
                       .toStdString() )
             {
-                CHECK( html.contains( command ) );
+                // Rich text: the && of the apt command is escaped.
+                CHECK( html.contains( QString( command ).toHtmlEscaped() ) );
                 CHECK_FALSE( html.contains( "href=" ) );
                 CHECK( html.contains( "26.10.0" ) );
                 CHECK( html.contains( "<li>26.10.0: Notes</li>" ) );

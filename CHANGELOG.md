@@ -5,10 +5,10 @@
 - **The update notice sends package manager installs to their package manager**:
   When a newer release is found, an install from the Homebrew cask, the
   LogSquirl APT repository or the LogSquirl DNF repository is told to run
-  `brew upgrade --cask logsquirl`, `sudo apt upgrade` or `sudo dnf upgrade`
-  instead of following a link to the release page. The app checks on the
-  machine how it was installed; a dragged DMG, an AppImage, the Windows builds
-  and a package installed by hand keep the link (#382).
+  `brew upgrade --cask logsquirl`, `sudo apt update && sudo apt upgrade` or
+  `sudo dnf upgrade` instead of following a link to the release page. The app
+  checks on the machine how it was installed; a dragged DMG, an AppImage, the
+  Windows builds and a package installed by hand keep the link (#382).
 - **Elapsed time in the Table View**: a log format with a timestamp field gets
   a **Δt** column after the timestamp, with the time since the previous line
   that has a timestamp (`+0.004s`, `+12.3s`, `+5m02s`). Stack traces are
