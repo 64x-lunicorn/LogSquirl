@@ -167,6 +167,12 @@
 
 ## Bug fixes
 
+- **A merged view on Windows keeps lines written right after the merge**:
+  lines written to a source in the moment its merge began (within the same
+  ~15 ms modification time tick) now appear in the merged view. Windows only
+  reports a change when the modification time moves, so they could stay out
+  until the next write; the merge now checks each source's size and
+  modification time once more shortly after it starts watching it (#500).
 - **The Command Palette opens**: `Ctrl+Shift+P` (`Cmd+Shift+P` on macOS) and
   the new `Tools->Command Palette...` entry open it. Nothing was bound to the
   shortcut before, although the shortcut settings listed it. Rebinding it in
