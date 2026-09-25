@@ -39,8 +39,8 @@ jobs:
     runs-on: ubuntu-24.04
     # Slowest successful run 6 min before the scan and the attested push build
     # were added (#216); those roughly double a cold build, hence the margin
-    # (#218).
-    timeout-minutes: 30
+    # (#218). The TSan image builds Qt from source and sets its own (#510).
+    timeout-minutes: ${{ matrix.timeout_minutes || 30 }}
     permissions:
       contents: read
       packages: write
@@ -59,6 +59,13 @@ jobs:
             image_name: ubuntu-jammy
           - container_root: docker/fedora44
             image_name: fedora44
+          # Qt built with ThreadSanitizer for the Sanitizers / tsan job (#510).
+          # Qt takes about an hour; the scan build and the push build share it
+          # through the builder's cache.
+          - container_root: docker/ubuntu24.04-tsan
+            image_name: ubuntu-noble-tsan
+            timeout_minutes: 150
+            tsan: true
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,6 +94,13 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # Qt's tools are built with TSan and run while Qt is built; GCC's libtsan
+      # cannot lay out its shadow memory with the runner's vm.mmap_rnd_bits=32,
+      # and the build's containers share the runner's kernel (#510).
+      - name: Lower ASLR entropy for the sanitizer runtime
+        if: matrix.tsan && steps.image.outputs.exists != 'true'
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
 
       # The default docker driver cannot store SBOM or provenance attestations;
       # a docker-container builder can, and it keeps the build cache between

@@ -1,4 +1,4 @@
-# ThreadSanitizer suppression list for LogSquirl (#347, #482).
+# ThreadSanitizer suppression list for LogSquirl (#347, #482, #510).
 #
 # Applied to every ctest run (cmake/CatchTestDiscoveryRunTest.cmake) and
 # documented for standalone binary runs in BUILD.md. See
@@ -14,13 +14,12 @@
 # oneTBB entries this file held (`tbb::detail::`, `tbb::flow::`) did exactly
 # that: without them, ~2200 reports came out of the Search and indexing code
 # that runs in TBB's flow graph nodes (#482). oneTBB is now built with TSan
-# instead (3rdparty/CMakeLists.txt), which leaves none of them. The Qt entries
-# (`QThreadPoolThread::run`, `QThreadPool::start`) could not match: the Qt of
-# the CI container has no symbols for them.
+# instead (3rdparty/CMakeLists.txt), which leaves none of them, and so is Qt in
+# the CI image of the TSan job (#510).
 #
 # A `race_top:` entry matches only the frame that made a racing access, not its
-# callers. One is allowed for a function that calls no code of LogSquirl's,
-# with its reason next to it.
+# callers. One is allowed for a function that calls no code of LogSquirl's
+# (in oneTBB or Qt), with its reason next to it and how it goes away.
 #
 # oneTBB: threading_control::set_active_num_workers() calls
 # get_threading_control() without the lock every other caller holds, so it
@@ -30,14 +29,14 @@
 # when a tbb::global_control is destroyed (the TBB-worker test, main() at exit).
 race_top:tbb::detail::r1::threading_control::get_threading_control
 #
-# --- Libraries that are not built with ThreadSanitizer (#482) ---------------
+# --- Libraries that are not built with ThreadSanitizer (#482, #510) ---------
 #
-# Qt, GLib and glibc come prebuilt, without -fsanitize=thread. TSan does not see
-# their code, only the calls it makes into TSan's interceptors: operator
-# new/delete, malloc/free, memcpy/memmove, strdup, the pthread objects, file
-# descriptors. What orders those calls (QMutex, QAtomic reference counts, GMutex,
-# glibc's own locks) is invisible to it, so it reports them as data races
-# between the library and itself.
+# Qt is built with TSan in the CI image of the TSan job
+# (docker/ubuntu24.04-tsan, #510), and oneTBB with LogSquirl. glibc comes
+# prebuilt, without -fsanitize=thread. TSan does not see its code, only the
+# calls it makes into TSan's interceptors (malloc/free, strdup, the pthread
+# objects). What orders those calls (glibc's own locks) is invisible to it, so
+# it reports them as data races between glibc and itself.
 #
 # TSan offers no rule for "the racing access was made inside this library":
 # `race:` matches callers too (see above), `called_from_lib:` also switches off
@@ -48,37 +47,14 @@ race_top:tbb::detail::r1::threading_control::get_threading_control
 # only when BOTH racing accesses were made by one of the libraries listed below.
 # An access counts as the library's when, after TSan's interceptor frame and the
 # frames of inlined Qt and C++ standard library headers, the next frame is in
-# that library. A race with one access in LogSquirl's code still fails the case.
-#
-# One kind of access inlined into LogSquirl's binaries counts as Qt's as well:
-# an atomic operation on the reference count of a QString, QByteArray or QList
-# payload (QArrayData::ref/deref, Qt's implicit sharing). The thread that drops
-# the last reference frees the payload inside QtCore, after an atomic decrement
-# TSan does not see there.
-#
-# And one pair with an access in LogSquirl's code is left out: a slot Qt calls
-# for a queued signal (QObject::event in QtCore below it) reading an argument
-# QtCore copied for that call on the emitting thread (QMetaType::create in
-# QtCore allocating it). Qt hands the copy over through its event queue, and
-# nothing else holds it. The same read against any other block still fails.
+# that library. A race with one access in LogSquirl's code or in Qt still fails
+# the case.
 #
 # The lines starting with "#@uninstrumented" are read by that filter, not by
-# TSan, for which they are comments. Each needs its reason next to it.
+# TSan, for which they are comments. Each needs its reason next to it. A TSan
+# build against a Qt that is not built with TSan (a developer's prebuilt Qt)
+# reports Qt's own hand-overs as races; the ADR says how to read those.
 #
-# QtCore: Qt allocates an event, a slot's argument array, a result or a shared
-# string payload on one thread and frees or copies it on another, after
-# handing it over through its event queue, QThreadPool or an atomic reference
-# count, all inside QtCore.
-#@uninstrumented libQt6Core.so.6
-# QtGui: its font, image and platform caches are built on one thread and
-# released on another, under QtCore's locks.
-#@uninstrumented libQt6Gui.so.6
-# QtNetwork: the host lookup behind the update check hands its result from its
-# lookup thread to the main thread the same way.
-#@uninstrumented libQt6Network.so.6
-# GLib, Qt's event dispatcher on Linux: the eventfd a GMainContext wakes up
-# through is made on one thread and written to from another, under a GMutex.
-#@uninstrumented libglib-2.0.so.0
 # glibc: mktime() and localtime() keep the parsed TZ under glibc's own lock and
 # replace it (strdup, free) from whichever thread converts a time first.
 #@uninstrumented libc.so.6

@@ -1,4 +1,4 @@
-# Sorts the ThreadSanitizer output of one test case (#482).
+# Sorts the ThreadSanitizer output of one test case (#482, #510).
 #
 #   logsquirl_tsan_filter(SUPPRESSIONS <tsan.supp> LOGS <log file>...
 #                         OUTPUT_FILE <file> FAILURES <var> LEFT_OUT <var>)
@@ -7,7 +7,8 @@
 # and hands them here. A data race report is left out when both racing
 # accesses were made inside a library listed in the suppression file with a
 # "#@uninstrumented <library>" line: a library not built with TSan, whose own
-# synchronization TSan cannot see (see cmake/tsan.supp for the libraries and
+# synchronization TSan cannot see (see cmake/tsan.supp for the libraries, only
+# glibc since Qt is built with TSan, and
 # docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md for
 # why this is not a `race:` suppression). Everything else counts:
 #
@@ -21,60 +22,33 @@
 #
 # Who made an access: TSan's own interceptor frame (operator new, free, memcpy
 # ...) and the frames of inlined Qt and C++ standard library headers are passed
-# over; the next frame names the module that made it. An atomic operation on
-# the reference count of a Qt payload (QArrayData::ref/deref, inlined anywhere)
-# is QtCore's: the payload is freed inside QtCore after a decrement TSan does
-# not see there. An access whose frames say nothing counts as LogSquirl's.
+# over; the next frame names the module that made it. An access whose frames
+# say nothing counts as LogSquirl's.
 #
-# One race with an access in LogSquirl's code is left out as well: a slot that
-# Qt calls for a queued signal (QObject::event in QtCore below it) reading an
-# argument QtCore copied for that call (QMetaType::create in QtCore allocating
-# it on the emitting thread). Qt hands the copy over through its event queue,
-# and nothing else holds it.
+# Until Qt was built with TSan (#510), two more kinds of report were left out
+# here: an inlined QArrayData::ref/deref counted as QtCore's, and a queued slot
+# reading an argument QMetaType::create had copied. Both hid what an
+# instrumented Qt now shows.
 
-# Who made the access these frames (innermost first) describe:
-#   out_var            the library, or "" when it was not one of them
-#   out_var_ARGUMENT   TRUE when it is QtCore allocating a queued argument
-#   out_var_IN_EVENT   TRUE when it runs in a slot QtCore called for an event
-function(_logsquirl_tsan_access_owner out_var atomic libraries)
+# Who made the access these frames (innermost first) describe: the library, or
+# "" when it was not one of them.
+function(_logsquirl_tsan_access_owner out_var libraries)
   set(_owner "")
-  set(_reference_count FALSE)
-  set(_argument FALSE)
-  set(_in_event FALSE)
-  set(_first TRUE)
-  set(_decided FALSE)
   foreach(_frame IN LISTS ARGN)
-    if(_frame MATCHES "QObject::event\\(QEvent\\*\\) .*\\(libQt6Core\\.so\\.6\\+0x")
-      set(_in_event TRUE)
-    endif()
-    if(_decided OR _frame MATCHES "\\(libtsan\\.so")
+    if(_frame MATCHES "\\(libtsan\\.so")
       continue()
     endif()
-    if(_first AND _frame MATCHES "QMetaType::create\\(.*\\(libQt6Core\\.so\\.6\\+0x"
-       AND "libQt6Core.so.6" IN_LIST libraries)
-      set(_argument TRUE)
-    endif()
-    set(_first FALSE)
     if(_frame MATCHES "/include/Qt[A-Za-z0-9]*/" OR _frame MATCHES "/include/c\\+\\+/")
-      if(atomic AND _frame MATCHES "QArrayData::(ref|deref)\\(")
-        set(_reference_count TRUE)
-      endif()
       continue()
     endif()
-    if(_reference_count)
-      if("libQt6Core.so.6" IN_LIST libraries)
-        set(_owner "libQt6Core.so.6")
-      endif()
-    elseif(_frame MATCHES "\\(([^ ()]+)\\+0x[0-9a-f]+\\)")
+    if(_frame MATCHES "\\(([^ ()]+)\\+0x[0-9a-f]+\\)")
       if(CMAKE_MATCH_1 IN_LIST libraries)
         set(_owner "${CMAKE_MATCH_1}")
       endif()
     endif()
-    set(_decided TRUE)
+    break()
   endforeach()
   set(${out_var} "${_owner}" PARENT_SCOPE)
-  set(${out_var}_ARGUMENT "${_argument}" PARENT_SCOPE)
-  set(${out_var}_IN_EVENT "${_in_event}" PARENT_SCOPE)
 endfunction()
 
 # Whether a report (its lines between the two "=====" lines) is left out;
@@ -93,37 +67,27 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
   set(_accesses 0)
   set(_in_access FALSE)
   set(_frames "")
-  set(_atomic FALSE)
   foreach(_line IN LISTS ARGN)
     if(_in_access AND _line MATCHES "^    #[0-9]+ ")
       list(APPEND _frames "${_line}")
       continue()
     endif()
     if(_in_access)
-      _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
+      _logsquirl_tsan_access_owner(_owner_${_accesses} "${libraries}" ${_frames})
       set(_in_access FALSE)
     endif()
     if(_accesses LESS 2 AND _line MATCHES "^  (Previous )?([Aa]tomic )?([Ww]rite|[Rr]ead) of size [0-9]+ at ")
       math(EXPR _accesses "${_accesses} + 1")
       set(_in_access TRUE)
       set(_frames "")
-      if(_line MATCHES "[Aa]tomic ")
-        set(_atomic TRUE)
-      else()
-        set(_atomic FALSE)
-      endif()
     endif()
   endforeach()
   if(_in_access)
-    _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
+    _logsquirl_tsan_access_owner(_owner_${_accesses} "${libraries}" ${_frames})
   endif()
 
-  if(_accesses EQUAL 2)
-    if(NOT _owner_1 STREQUAL "" AND NOT _owner_2 STREQUAL "")
-      set(_result "${_owner_1} and ${_owner_2}")
-    elseif((_owner_1_ARGUMENT AND _owner_2_IN_EVENT) OR (_owner_2_ARGUMENT AND _owner_1_IN_EVENT))
-      set(_result "a queued call's argument copied by libQt6Core.so.6 and its slot")
-    endif()
+  if(_accesses EQUAL 2 AND NOT _owner_1 STREQUAL "" AND NOT _owner_2 STREQUAL "")
+    set(_result "${_owner_1} and ${_owner_2}")
   endif()
   set(${out_var} "${_result}" PARENT_SCOPE)
 endfunction()

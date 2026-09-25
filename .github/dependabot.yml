@@ -30,8 +30,12 @@ updates:
 
   # Keeps the digest-pinned FROM lines current (#215); a bump changes the
   # image inputs hash, so CI builds it on the PR and publishes it on merge.
+  # The TSan image (#510) starts from the same Ubuntu image; one entry keeps
+  # both FROM lines on one digest, in one pull request.
   - package-ecosystem: "docker"
-    directory: "/docker/ubuntu24.04"
+    directories:
+      - "/docker/ubuntu24.04"
+      - "/docker/ubuntu24.04-tsan"
     schedule:
       interval: "weekly"
     cooldown:
