@@ -148,15 +148,16 @@ endif()
 
 # A Search matches a Log Line as it is displayed, without the carriage return
 # that ends it: "foo$" finds the same Log Lines whether they end in CRLF or LF
-# (#522).
-foreach(_line_end "\r\n" "\n")
+# (#522). file(WRITE) writes in text mode, which on Windows turns every line
+# feed into CR LF; file(CONFIGURE) with a NEWLINE_STYLE writes the line ends
+# asked for, byte for byte, everywhere (#526).
+foreach(_line_end CRLF LF)
   set(_line_end_file "${WORK_DIR}/grep-line-end.log")
-  file(WRITE "${_line_end_file}" "alpha foo${_line_end}beta bar${_line_end}gamma foo${_line_end}")
+  file(CONFIGURE OUTPUT "${_line_end_file}" CONTENT "alpha foo\nbeta bar\ngamma foo\n"
+       @ONLY NEWLINE_STYLE ${_line_end})
   run_grep("${_line_end_file}" -e "foo$")
   if(NOT (_stdout STREQUAL "alpha foo\ngamma foo\n"))
-    string(REPLACE "\r" "CR" _shown_line_end "${_line_end}")
-    string(REPLACE "\n" "LF" _shown_line_end "${_shown_line_end}")
-    fail("a Search for 'foo$' finds foo at the end of Log Lines ending in ${_shown_line_end}")
+    fail("a Search for 'foo$' finds foo at the end of Log Lines ending in ${_line_end}")
   endif()
 endforeach()
 
