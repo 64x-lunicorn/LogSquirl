@@ -739,6 +739,17 @@ cpmaddpackage(
   "MI_BUILD_OBJECT OFF"
   "MI_OVERRIDE ${LOGSQUIRL_MIMALLOC_OVERRIDE}"
 )
+if(mimalloc_ADDED AND ENABLE_SANITIZER_THREAD)
+  # A ThreadSanitizer build builds mimalloc with it too, as it does oneTBB:
+  # a block one thread frees goes back to another through mimalloc's atomic
+  # free lists, which TSan cannot see in an uninstrumented mimalloc, so it
+  # reported a vector a TBB worker built as racing with a Search thread's read
+  # of the vector that had held the same memory before (#510). mimalloc's own
+  # MI_DEBUG_TSAN does the same but only for clang; MI_TSAN=1 is what it sets
+  # besides the flags.
+  target_compile_options(mimalloc-static PRIVATE -fsanitize=thread)
+  target_compile_definitions(mimalloc-static PRIVATE MI_TSAN=1)
+endif()
 if(mimalloc_ADDED)
   message("Adding alias for mimalloc")
   add_library(logsquirl_mimalloc_wrapper INTERFACE)

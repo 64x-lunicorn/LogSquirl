@@ -125,10 +125,12 @@ at the line with `// NOLINT(<check>)` and say why. The build enables `-Wall -Wex
 warnings as errors (`WARNINGS_AS_ERRORS`, `cmake/CompilerWarnings.cmake`), so a pull request
 that adds a compiler warning does not build in CI. Static analysis (CodeQL) runs on every
 pull request, and CI builds the test suites with AddressSanitizer and UndefinedBehaviorSanitizer,
-and with ThreadSanitizer. Findings of these tools are fixed rather than suppressed. The one
-exception is TSan's view of libraries CI cannot build with it (Qt, GLib, glibc): a report whose
-two racing accesses are both inside such a library is left out, and every entry says why
-(`cmake/tsan.supp`, ADR 0007).
+and with ThreadSanitizer. Findings of these tools are fixed rather than suppressed. The
+exceptions are TSan's view of a library CI cannot build with it (glibc; Qt is built with TSan for
+that job): a report whose two racing accesses are both inside such a library is left out; and a
+finding inside oneTBB, mimalloc or Qt themselves that calls no code of LogSquirl's, suppressed by its own
+frame (`race_top:`, `deadlock:`). Every entry says why and how it goes away (`cmake/tsan.supp`,
+ADR 0007).
 
 ## Changelog entry
 

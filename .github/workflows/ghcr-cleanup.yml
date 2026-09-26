@@ -56,6 +56,7 @@ jobs:
           python3 .github/scripts/ghcr-cleanup.py --owner "$OWNER" \
             --image logsquirl-oracle10=docker/oracle10 \
             --image logsquirl-ubuntu-noble=docker/ubuntu24.04 \
+            --image logsquirl-ubuntu-noble-tsan=docker/ubuntu24.04-tsan \
             --image logsquirl-ubuntu-jammy=docker/ubuntu22.04 \
             --image logsquirl-fedora44=docker/fedora44 \
             "${args[@]}"

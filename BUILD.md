@@ -365,20 +365,30 @@ cmake --build .
 ctest --build-config RelWithDebInfo --verbose
 ```
 
-**ThreadSanitizer and the libraries it cannot see (#347, #482).** A TSan build builds oneTBB with TSan
-too (`TBB_SANITIZE` in `3rdparty/CMakeLists.txt`). Qt, GLib and glibc come prebuilt without it, so TSan
-does not see their locks and reports what they do on two threads as data races between the library and
-itself. `ctest` sorts those out: `cmake/CatchTestDiscoveryRunTest.cmake` has TSan write its reports to
-files in the case's directory, and `cmake/TsanReportFilter.cmake` leaves out a data race only when both
-racing accesses were made inside a library `cmake/tsan.supp` lists on an `#@uninstrumented` line, each
-with its reason (plus two narrow Qt patterns, a shared payload's reference count and a queued call's
-argument, described there). Any other report, one access in LogSquirl's code being enough, fails the
-case, printed in full; the case's output ends with lines counting what was left out. `cmake/tsan.supp`
-holds no `race:` entry: TSan matches one against callers too, so it would hide races in LogSquirl's code
-running on top of Qt's event loop, its thread pool or oneTBB's flow graph. See
+**ThreadSanitizer and the libraries it cannot see (#347, #482, #510).** A TSan build builds oneTBB with
+TSan too (`TBB_SANITIZE` in `3rdparty/CMakeLists.txt`). glibc comes prebuilt without it, so TSan does not
+see its locks and reports what it does on two threads as data races between glibc and itself. `ctest`
+sorts those out: `cmake/CatchTestDiscoveryRunTest.cmake` has TSan write its reports to files in the
+case's directory, and `cmake/TsanReportFilter.cmake` leaves out a data race only when both racing
+accesses were made inside a library `cmake/tsan.supp` lists on an `#@uninstrumented` line, each with its
+reason. Any other report, one access in LogSquirl's code or in Qt being enough, fails the case, printed
+in full; the case's output ends with lines counting what was left out. `cmake/tsan.supp` holds no `race:`
+entry: TSan matches one against callers too, so it would hide races in LogSquirl's code running on top of
+Qt's event loop, its thread pool or oneTBB's flow graph. See
 `docs/adr/0007-tsan-suppresses-onetbb-and-uninstrumented-qt-internals.md` for how every finding of the
 CI job was sorted, what was fixed in the code, and why neither `called_from_lib` nor
 `ignore_noninstrumented_modules` does this job.
+
+Qt must be built with TSan as well; the CI job's image has one (`docker/ubuntu24.04-tsan`). Against a
+prebuilt Qt, TSan does not see Qt's own locks either, and the cases fail with races between Qt and
+itself. To run the TSan suite locally as CI does, build inside that image (it needs
+`vm.mmap_rnd_bits=28` on the host, like any GCC TSan binary):
+
+```bash
+docker run --rm -v "$PWD":/src -w /src ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble-tsan:latest bash -c \
+  "cmake -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLOGSQUIRL_USE_LTO=OFF \
+     -DENABLE_SANITIZER_THREAD=ON -DLOGSQUIRL_USE_SENTRY=OFF && cmake --build build-tsan && ctest --test-dir build-tsan"
+```
 
 Running a TSan binary directly, outside `ctest`, prints every report, the libraries' own included. To
 sort them the same way, run the case through the runner:
@@ -388,9 +398,11 @@ cmake -DTEST_BINARY=$(pwd)/build_root/output/logsquirl_tests \
       -P cmake/CatchTestDiscoveryRunTest.cmake -- "<test case name>" -platform offscreen
 ```
 
-**TSan in CI (#439, #482).** The `Sanitizers / tsan` job in `.github/workflows/ci-build.yml` builds the
-same configuration as above in the Noble container and runs every test case under `ctest`, for every pull
-request and every push to master. It blocks like `Sanitizers / asan-ubsan`, and no case is excluded from
+**TSan in CI (#439, #482, #510).** The `Sanitizers / tsan` job in `.github/workflows/ci-build.yml` builds
+the same configuration as above in the `logsquirl-ubuntu-noble-tsan` image, whose Qt is built with TSan,
+and runs every test case under `ctest`, for every pull request and every push to master. When the
+image's hash is not on GHCR yet, the job builds the image first, Qt included (about an hour; its time
+limit is 150 minutes for that). It blocks like `Sanitizers / asan-ubsan`, and no case is excluded from
 it. It needs no `TSAN_OPTIONS` of its own: the runner sets them, and a change to `cmake/tsan.supp` reaches
 it from there. Runtime: about 16 minutes, an 8-minute build and 7 to 8 minutes of tests (the tests took
 19 minutes before oneTBB was built with TSan).
@@ -437,8 +449,9 @@ Linux builds use pre-built Docker images hosted on GHCR:
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble` | Ubuntu 24.04 | Qt 6, GCC, DEB |
 | `ghcr.io/64x-lunicorn/logsquirl-ubuntu-jammy` | Ubuntu 22.04 | Qt 6, GCC 12, AppImage |
 | `ghcr.io/64x-lunicorn/logsquirl-fedora44` | Fedora 44 | Qt 6, GCC, RPM |
+| `ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble-tsan` | Ubuntu 24.04 | Qt 6 built from source with ThreadSanitizer, GCC; the `Sanitizers / tsan` job only |
 
-Every image is built with `docker/` as its build context, so all four install sccache
+Every image is built with `docker/` as its build context, so all of them install sccache
 from the one script `docker/shared/install-sccache.sh`; bumping sccache is an edit to that file only.
 Images are content-addressed. `docker/image-hash.sh` hashes an image's own directory and `docker/shared`;
 the **Docker Images** workflow pushes each image under that hash as its tag (plus `:latest`, for humans only)
