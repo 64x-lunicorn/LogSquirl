@@ -37,8 +37,9 @@
 # allocates a QCallableObject and copies the functor into it on the calling
 # thread (QMetaObject::invokeMethodCallableHelper<F> below that write), and
 # QtCore calls or destroys that same QCallableObject<F> on the receiving thread
-# (QObject::event or ~QQueuedMetaCallEvent in QtCore below it). Both sides must
-# name the same functor type F; a race against any other code still fails.
+# (QObject::event or ~QQueuedMetaCallEvent in QtCore right below its impl).
+# Where the receiving side names its functor type, it must be F; a race
+# against any other code still fails.
 
 # Who made the access these frames (innermost first) describe:
 #   out_var            the library, or "" when it was not one of them
@@ -87,32 +88,47 @@ endfunction()
 
 # Whether a write (write_frames, innermost first) was made while Qt built a
 # queued call of a functor, and the other access (other_frames) is QtCore
-# delivering or destroying that call of the same functor type (#517).
+# delivering or destroying such a call (#517): QObject::event or
+# ~QQueuedMetaCallEvent in QtCore right below the QCallableObject's impl. TSan
+# names inlined frames in two forms, "QMetaObject::invokeMethodCallableHelper<F>
+# (QtPrivate::ContextTypeForFunctor<...>)" / "QtPrivate::QCallableObject<F,
+# ...>::impl(...)" or just "invokeMethodCallableHelper<F>" / "impl"; where the
+# receiving side names its functor type, it must be F.
 function(_logsquirl_tsan_queued_functor out_var libraries write_frames other_frames)
   set(${out_var} FALSE PARENT_SCOPE)
   if(NOT "libQt6Core.so.6" IN_LIST libraries)
     return()
   endif()
-  set(_helper "QMetaObject::invokeMethodCallableHelper<")
-  string(FIND "${write_frames}" "${_helper}" _at)
-  if(_at EQUAL -1)
+  set(_functor "")
+  foreach(_frame IN LISTS write_frames)
+    if(_frame MATCHES "invokeMethodCallableHelper<(.*)>\\(QtPrivate::ContextTypeForFunctor<")
+      set(_functor "${CMAKE_MATCH_1}")
+      break()
+    elseif(_frame MATCHES "invokeMethodCallableHelper<(.*[^ ]) ?> /")
+      set(_functor "${CMAKE_MATCH_1}")
+      break()
+    endif()
+  endforeach()
+  if(_functor STREQUAL "")
     return()
   endif()
-  string(LENGTH "${_helper}" _length)
-  math(EXPR _at "${_at} + ${_length}")
-  string(SUBSTRING "${write_frames}" ${_at} -1 _functor)
-  string(FIND "${_functor}" ">(QtPrivate::ContextTypeForFunctor<" _end)
-  if(_end LESS 1)
+  set(_impl "")
+  foreach(_frame IN LISTS other_frames)
+    if(_frame MATCHES "(QObject::event\\(QEvent\\*\\)|QQueuedMetaCallEvent::~QQueuedMetaCallEvent\\(\\)) .*\\(libQt6Core\\.so\\.6\\+0x")
+      break()
+    endif()
+    set(_impl "${_frame}")
+  endforeach()
+  if(NOT _impl MATCHES "^    #[0-9]+ (QtPrivate::QCallableObject<.*>::)?impl[( ].*/include/QtCore/qobjectdefs_impl\\.h:")
     return()
   endif()
-  string(SUBSTRING "${_functor}" 0 ${_end} _functor)
-  string(FIND "${other_frames}" "QtPrivate::QCallableObject<${_functor}, QtPrivate::List<" _call)
-  if(_call EQUAL -1)
-    return()
+  if(_impl MATCHES "QtPrivate::QCallableObject<")
+    string(FIND "${_impl}" "QtPrivate::QCallableObject<${_functor}, QtPrivate::List<" _call)
+    if(_call EQUAL -1)
+      return()
+    endif()
   endif()
-  if(other_frames MATCHES "(QObject::event\\(QEvent\\*\\)|QQueuedMetaCallEvent::~QQueuedMetaCallEvent\\(\\)) [^;]*\\(libQt6Core\\.so\\.6\\+0x")
-    set(${out_var} TRUE PARENT_SCOPE)
-  endif()
+  set(${out_var} TRUE PARENT_SCOPE)
 endfunction()
 
 # Whether a report (its lines between the two "=====" lines) is left out;
