@@ -172,12 +172,16 @@ SCENARIO( "A Background Run runs a job and reports it finished once", "[backgrou
 SCENARIO( "A Background Run returns from start once the run has started", "[backgroundrun]" )
 {
     Fixture fixture;
+    // Declared before the Background Run, whose destructor waits for the job
+    // that writes them: interrupt() only supersedes it (#525).
+    std::atomic<bool> firstStarted{ false };
+    std::atomic<bool> firstEnded{ false };
+    std::atomic<bool> secondStarted{ false };
+    std::atomic<bool> secondEnded{ false };
     auto run = fixture.makeRun();
 
     GIVEN( "a run in flight" )
     {
-        std::atomic<bool> firstStarted{ false };
-        std::atomic<bool> firstEnded{ false };
         const auto first = run->start( runUntilSuperseded( firstStarted, firstEnded ) );
         REQUIRE( QTest::qWaitFor( [ &firstStarted ] { return firstStarted.load(); }, 10000 ) );
 
@@ -188,8 +192,6 @@ SCENARIO( "A Background Run returns from start once the run has started", "[back
 
         WHEN( "another run is started" )
         {
-            std::atomic<bool> secondStarted{ false };
-            std::atomic<bool> secondEnded{ false };
             const auto second = run->start( runUntilSuperseded( secondStarted, secondEnded ) );
 
             THEN( "start has returned only once the run before it ended" )
@@ -208,12 +210,13 @@ SCENARIO( "A Background Run returns from start once the run has started", "[back
 SCENARIO( "A newer run supersedes the run in flight", "[backgroundrun]" )
 {
     Fixture fixture;
+    // Declared before the Background Run, which outlives the job writing them.
+    std::atomic<bool> firstStarted{ false };
+    std::atomic<bool> firstEnded{ false };
     auto run = fixture.makeRun();
 
     GIVEN( "a run in flight" )
     {
-        std::atomic<bool> firstStarted{ false };
-        std::atomic<bool> firstEnded{ false };
         const auto first = run->start( runUntilSuperseded( firstStarted, firstEnded ) );
 
         WHEN( "another run is started" )
