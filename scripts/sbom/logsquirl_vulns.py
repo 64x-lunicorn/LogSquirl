@@ -328,7 +328,11 @@ Version = tuple[int, ...]
 
 
 def _version(text: str) -> Version:
-    return tuple(int(part) for part in text.split("."))
+    """A version as three numbers; a two-part version such as Qt's "5.10" is
+    its release's first patch, 5.10.0, which the range forms only accept
+    where that is exact (#513)."""
+    parts = tuple(int(part) for part in text.split("."))
+    return parts + (0,) * (3 - len(parts))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -352,11 +356,14 @@ class VersionRange:
 
 
 _V = r"(\d+\.\d+\.\d+)"
+# A two-part version is exact only where it starts a range or ends one
+# without being part of it: "to 6.9" could mean 6.9.0 or every 6.9 patch.
+_V2 = r"(\d+\.\d+(?:\.\d+)?)"
 _RANGE_FORMS = [
-    (re.compile(rf"(?:from )?{_V} (?:to|through) {_V}"), lambda a, b: VersionRange(_version(a), _version(b), True)),
-    (re.compile(rf"(?:from )?{_V} before {_V}"), lambda a, b: VersionRange(_version(a), _version(b), False)),
+    (re.compile(rf"(?:from )?{_V2} (?:to|through) {_V}"), lambda a, b: VersionRange(_version(a), _version(b), True)),
+    (re.compile(rf"(?:from )?{_V2} before {_V2}"), lambda a, b: VersionRange(_version(a), _version(b), False)),
     (re.compile(rf"through {_V}"), lambda b: VersionRange(None, _version(b), True)),
-    (re.compile(rf"before {_V}"), lambda b: VersionRange(None, _version(b), False)),
+    (re.compile(rf"before {_V2}"), lambda b: VersionRange(None, _version(b), False)),
     (re.compile(_V), lambda a: VersionRange(_version(a), _version(a), True)),
 ]
 
@@ -365,12 +372,16 @@ def parse_affected_versions(text: str) -> tuple[VersionRange, ...]:
     """The version ranges of an "Affected versions:" text on Qt's advisory
     page, which is written by hand: "From Qt 6.0.0 to 6.8.9, from 6.9.0 before
     6.11.1", "All version of Qt up to and including 5.15.18, ... and 6.9.0",
-    "Qt 6.9.0". "to", "through" and "up to" include the version they name,
-    "before" excludes it. Anything else in the text makes it unreadable as a
-    whole: a partly read text could leave out the range LogSquirl's Qt is in."""
+    "Qt 6.9.0", "From Qt 5.10 to Qt 6.8.8". "to", "through" and "up to"
+    include the version they name, "before" excludes it. A two-part version
+    such as 5.10 reads as 5.10.0 where it starts a range or follows
+    "before"; as an included upper bound or on its own it leaves open which
+    patch releases are meant. That, and anything else in the text, makes it
+    unreadable as a whole: a partly read text could leave out the range
+    LogSquirl's Qt is in."""
     t = " ".join(text.lower().split())
     # A statement about versions outside the ranges adds none.
-    t = re.sub(rf"\bversions? before {_V} (?:are|is) known to be unaffected\.?", "", t)
+    t = re.sub(rf"\bversions? before {_V2} (?:are|is) known to be unaffected\.?", "", t)
     t = t.replace("up to and including", "through").replace("up to", "through")
     t = re.sub(r"\b(?:all|versions?|of|qt)\b", " ", t)
     t = " ".join(t.strip(" :.").split())

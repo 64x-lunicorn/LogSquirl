@@ -54,7 +54,7 @@ ENV PATH=/opt/bin:$PATH
 # event loop out of QtCore; GLib is not built with TSan, and its wake-up
 # eventfd was reported as a race between GLib and itself (#482). Debug info
 # gives TSan's reports Qt's function names and lines.
-ENV QT_VERSION=6.11.2
+ENV QT_VERSION=6.11.3
 COPY shared/aqtinstall-requirements.txt /tmp/
 RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
         --target /tmp/aqtinstall -r /tmp/aqtinstall-requirements.txt && \
