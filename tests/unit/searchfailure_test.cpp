@@ -17,6 +17,7 @@
  * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "fake_run_control.h"
 #include "in_memory_block_source.h"
 #include "logfiltereddataworker.h"
 #include "regularexpression.h"
@@ -24,14 +25,16 @@
 
 #include <QObject>
 #include <QString>
+#include <QTest>
 
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <stdexcept>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
 
 namespace {
 
@@ -58,7 +61,7 @@ struct FinishedSearch {
 
 } // namespace
 
-SCENARIO( "A Search that fails reports the failure as how it finished", "[search]" )
+SCENARIO( "A Search that fails drops what it found and lets the failure go on", "[search]" )
 {
     const auto policies = testSettingsPolicies();
     InMemoryBlockSource blockSource;
@@ -67,35 +70,59 @@ SCENARIO( "A Search that fails reports the failure as how it finished", "[search
         RegularExpressionPattern( "match" ), policies.search.regexpEngine );
 
     std::atomic<uint64_t> activeSearchId{ 7 };
-    FailingSearchOperation operation{ blockSource, SearchId( 7 ),   activeSearchId, expression,
-                                      0_lnum,      LineNumber( 5 ), policies.search };
-
-    std::optional<FinishedSearch> finished;
-    QObject::connect(
-        &operation, &SearchOperation::searchFinished,
-        [ &finished ]( SearchId searchId, LineNumber, bool interrupted, const QString& failure ) {
-            finished = FinishedSearch{ searchId, interrupted, failure };
-        } );
+    const FakeRunControl run{ SearchId( 7 ), activeSearchId };
+    FailingSearchOperation operation{ blockSource,    run, expression, 0_lnum, LineNumber( 5 ),
+                                      policies.search };
 
     SearchData searchData;
 
     WHEN( "it runs" )
     {
-        REQUIRE_NOTHROW( operation.run( searchData ) );
-
-        THEN( "it finishes, not interrupted, with a description of the failure" )
-        {
-            REQUIRE( finished.has_value() );
-            REQUIRE( finished->searchId == SearchId( 7 ) );
-            REQUIRE_FALSE( finished->interrupted );
-            REQUIRE( finished->failure.contains( "the Log File could not be read" ) );
-        }
+        REQUIRE_THROWS_WITH( operation.run( searchData ), "the Log File could not be read" );
 
         THEN( "what it found before failing is not kept" )
         {
             const auto results = searchData.takeCurrentResults();
             REQUIRE( results.newMatches.isEmpty() );
             REQUIRE( results.processedLines == 0_lcount );
+        }
+    }
+}
+
+SCENARIO( "A Search that fails reports the failure as how it finished", "[search]" )
+{
+    const auto policies = testSettingsPolicies();
+    InMemoryBlockSource blockSource( QStringList{ "match 0", "other 1", "match 2" } );
+    blockSource.failReading( "the Log File could not be read" );
+
+    const auto expression = std::make_shared<const RegularExpression>(
+        RegularExpressionPattern( "match" ), policies.search.regexpEngine );
+
+    LogFilteredDataWorker worker( blockSource, policies.search );
+    std::vector<FinishedSearch> finished;
+    QObject::connect( &worker, &LogFilteredDataWorker::searchFinished,
+                      [ &finished ]( SearchId searchId, bool interrupted, const QString& failure ) {
+                          finished.push_back( FinishedSearch{ searchId, interrupted, failure } );
+                      } );
+
+    WHEN( "it runs" )
+    {
+        const auto id = worker.search( expression, 0_lnum, LineNumber( 3 ) );
+        REQUIRE( QTest::qWaitFor( [ &finished ] { return !finished.empty(); }, 10000 ) );
+        QTest::qWait( 50 );
+
+        THEN( "it finishes once, not interrupted, with a description of the failure" )
+        {
+            REQUIRE( finished.size() == 1 );
+            REQUIRE( finished.front().searchId == id );
+            REQUIRE_FALSE( finished.front().interrupted );
+            REQUIRE( finished.front().failure.contains( "the Log File could not be read" ) );
+        }
+
+        THEN( "its reader is detached again, and nothing it found is kept" )
+        {
+            REQUIRE( blockSource.attachedReaders() == 0 );
+            REQUIRE( worker.getSearchResults().newMatches.isEmpty() );
         }
     }
 }

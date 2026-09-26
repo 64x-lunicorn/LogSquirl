@@ -52,11 +52,6 @@ public:
                  Overview* overview, OverviewWidget* overview_widget, bool initialTextWrap,
                  QWidget* parent = nullptr );
 
-    // Configure the view to use the passed filtered list for its Marks and
-    // line types (used for coloured bullets). Builds the view a new mapping.
-    // Should be NULL or the empty LFD if no filtering is used
-    void useNewFiltering( LogFilteredData* filteredData );
-
     // LogPresentation
     QString selectedText() const override;
     OptionalLineNumber logLineAt( const QPoint& pos ) const override;
@@ -75,11 +70,12 @@ public:
     void setColorLabels( const std::vector<QStringList>& labels ) override;
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     void setSearchPattern( const RegularExpressionPattern& pattern ) override;
+    // Builds the view a new mapping, whose line types color the bullets.
+    void setCurrentSearch( const LogFilteredData* search ) override;
     void saveSelectedTo( const QString& filename ) override;
 
 private:
     const LogData* logFile_;
-    LogFilteredData* filteredData_;
 };
 
 #endif

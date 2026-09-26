@@ -123,8 +123,9 @@ void OpenLogFile::reload()
 
     const auto decision = loadRule_.reload();
     if ( decision.dropSearch ) {
-        constexpr auto DropCache = true;
-        filteredData_->request( DropCache );
+        // The cached results go once the Log File is indexed again, which
+        // tells every Search that its Log Lines changed.
+        filteredData_->request();
     }
     if ( decision.clearMarks ) {
         filteredData_->clearMarks();
@@ -390,10 +391,11 @@ void OpenLogFile::handleFileChanged( MonitoredFileStatus status, const QString& 
         filteredData_->clearMarks();
     }
     if ( decision.dropSearch ) {
-        // The Search's results and its cache no longer describe the Log File;
-        // whether it continues or starts again stays with the auto-refresh.
-        constexpr auto DropCache = true;
-        filteredData_->request( DropCache );
+        // The Search's results no longer describe the Log File; whether it
+        // continues or starts again stays with the auto-refresh. Its cached
+        // results go once the Log File is indexed again, which tells every
+        // Search that its Log Lines changed.
+        filteredData_->request();
         autoRefresh_.truncateFile();
     }
     if ( decision.forgetLogFormat ) {
