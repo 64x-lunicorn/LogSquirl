@@ -255,6 +255,13 @@
 
 ## Build and packaging
 
+- **Qt 6.11.3**: All packages are built with Qt 6.11.3 instead of 6.11.2, and
+  the Windows, macOS and AppImage packages bundle it; the release SBOM names
+  it. It fixes CVE-2026-79680, an authentication bypass in the password check
+  of the Qt VNC Server platform plugin. LogSquirl never used that plugin, and
+  no package carries it: the AppImage bundles only the xcb platform plugin, and
+  its build now fails if any other platform plugin, VNC above all, ends up in
+  it (#514).
 - **The Windows programs and the installer are called LogSquirl**: The version
   resource of `logsquirl.exe`, `logsquirl_portable.exe` and
   `logsquirl_grep.exe` gives LogSquirl as the product name instead of

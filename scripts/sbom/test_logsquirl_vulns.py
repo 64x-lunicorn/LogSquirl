@@ -402,6 +402,13 @@ def test_cli_tooling_errors_fail_even_when_not_gating(scan_inputs, capsys):
     # the second sentence narrows nothing the first does not already say
     ("From 6.8.0 up to 6.8.3. Versions before 6.6.0 are known to be unaffected.", ["6.8.0 to 6.8.3"]),
     ("before 5.15.17", ["before 5.15.17"]),
+    # a two-part version is its release's first patch where that is exact:
+    # as a lower bound and as an excluded upper bound (#513)
+    ("From Qt 5.10 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.11.1", ["5.10.0 to 6.8.8", "6.9.0 to 6.11.1"]),
+    ("from 6.8 through 6.9.2", ["6.8.0 to 6.9.2"]),
+    ("From Qt 6.7 before 6.9", ["6.7.0 before 6.9.0"]),
+    ("before 6.2", ["before 6.2.0"]),
+    ("From 6.8.0 up to 6.8.3. Versions before 6.6 are known to be unaffected.", ["6.8.0 to 6.8.3"]),
 ])
 def test_affected_version_texts_are_read_as_ranges(text, ranges):
     assert [str(r) for r in vs.parse_affected_versions(text)] == ranges
@@ -411,7 +418,11 @@ def test_affected_version_texts_are_read_as_ranges(text, ranges):
     "This issue affects only the Schannel functionality on Windows if it is turned on in Qt 5.15 and from Qt 6.2 "
     "when it is the default.",
     "",
-    "From Qt 6.8 to 6.9",  # two-part versions leave open which patch releases are meant
+    "From Qt 6.8 to 6.9",  # an included two-part version leaves open which patch releases are meant
+    "from 6.0.0 through 6.9",
+    "up to and including 5.15",
+    "Qt 6.9",
+    "From Qt 6 to 6.9",
     "From 6.0.0 to 6.8.9 on Windows",
     "6.9.x",
 ])
@@ -426,6 +437,9 @@ def test_affected_version_texts_that_say_something_else_are_unreadable(text):
     ("From Qt 6.7.0 before 6.8.8, from 6.9.0 before 6.11.1", ["6.7.0", "6.8.7", "6.10.3"],
      ["6.6.9", "6.8.8", "6.8.9", "6.11.1"]),
     ("Up to 5.15.18, 6.9.0", ["0.1.0", "5.15.18", "6.9.0"], ["5.15.19", "6.0.0", "6.9.1"]),
+    # CVE-2026-79616 and CVE-2026-78253, both fixed in 6.11.2 (#513)
+    ("From Qt 5.10 to Qt 6.8.8, from Qt 6.9.0 to Qt 6.11.1", ["5.10.0", "6.8.8", "6.9.0", "6.11.1"],
+     ["5.9.9", "6.8.9", "6.11.2", "6.12.0"]),
 ])
 def test_a_version_is_affected_when_any_range_holds_it(text, inside, outside):
     ranges = vs.parse_affected_versions(text)

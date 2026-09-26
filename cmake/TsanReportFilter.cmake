@@ -31,6 +31,15 @@
 # argument QtCore copied for that call (QMetaType::create in QtCore allocating
 # it on the emitting thread). Qt hands the copy over through its event queue,
 # and nothing else holds it.
+#
+# And so is its twin for a functor handed to QMetaObject::invokeMethod with a
+# queued connection (#517): Qt's header code, inlined into LogSquirl's binary,
+# allocates a QCallableObject and copies the functor into it on the calling
+# thread (QMetaObject::invokeMethodCallableHelper<F> below that write), and
+# QtCore calls or destroys that same QCallableObject<F> on the receiving thread
+# (QObject::event or ~QQueuedMetaCallEvent in QtCore right below its impl).
+# Where the receiving side names its functor type, it must be F; a race
+# against any other code still fails.
 
 # Who made the access these frames (innermost first) describe:
 #   out_var            the library, or "" when it was not one of them
@@ -77,6 +86,51 @@ function(_logsquirl_tsan_access_owner out_var atomic libraries)
   set(${out_var}_IN_EVENT "${_in_event}" PARENT_SCOPE)
 endfunction()
 
+# Whether a write (write_frames, innermost first) was made while Qt built a
+# queued call of a functor, and the other access (other_frames) is QtCore
+# delivering or destroying such a call (#517): QObject::event or
+# ~QQueuedMetaCallEvent in QtCore right below the QCallableObject's impl. TSan
+# names inlined frames in two forms, "QMetaObject::invokeMethodCallableHelper<F>
+# (QtPrivate::ContextTypeForFunctor<...>)" / "QtPrivate::QCallableObject<F,
+# ...>::impl(...)" or just "invokeMethodCallableHelper<F>" / "impl"; where the
+# receiving side names its functor type, it must be F.
+function(_logsquirl_tsan_queued_functor out_var libraries write_frames other_frames)
+  set(${out_var} FALSE PARENT_SCOPE)
+  if(NOT "libQt6Core.so.6" IN_LIST libraries)
+    return()
+  endif()
+  set(_functor "")
+  foreach(_frame IN LISTS write_frames)
+    if(_frame MATCHES "invokeMethodCallableHelper<(.*)>\\(QtPrivate::ContextTypeForFunctor<")
+      set(_functor "${CMAKE_MATCH_1}")
+      break()
+    elseif(_frame MATCHES "invokeMethodCallableHelper<(.*[^ ]) ?> /")
+      set(_functor "${CMAKE_MATCH_1}")
+      break()
+    endif()
+  endforeach()
+  if(_functor STREQUAL "")
+    return()
+  endif()
+  set(_impl "")
+  foreach(_frame IN LISTS other_frames)
+    if(_frame MATCHES "(QObject::event\\(QEvent\\*\\)|QQueuedMetaCallEvent::~QQueuedMetaCallEvent\\(\\)) .*\\(libQt6Core\\.so\\.6\\+0x")
+      break()
+    endif()
+    set(_impl "${_frame}")
+  endforeach()
+  if(NOT _impl MATCHES "^    #[0-9]+ (QtPrivate::QCallableObject<.*>::)?impl[( ].*/include/QtCore/qobjectdefs_impl\\.h:")
+    return()
+  endif()
+  if(_impl MATCHES "QtPrivate::QCallableObject<")
+    string(FIND "${_impl}" "QtPrivate::QCallableObject<${_functor}, QtPrivate::List<" _call)
+    if(_call EQUAL -1)
+      return()
+    endif()
+  endif()
+  set(${out_var} TRUE PARENT_SCOPE)
+endfunction()
+
 # Whether a report (its lines between the two "=====" lines) is left out;
 # out_var then says why, and is empty otherwise.
 function(_logsquirl_tsan_report_left_out out_var libraries)
@@ -101,6 +155,7 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
     endif()
     if(_in_access)
       _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
+      set(_frames_${_accesses} "${_frames}")
       set(_in_access FALSE)
     endif()
     if(_accesses LESS 2 AND _line MATCHES "^  (Previous )?([Aa]tomic )?([Ww]rite|[Rr]ead) of size [0-9]+ at ")
@@ -112,10 +167,16 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
       else()
         set(_atomic FALSE)
       endif()
+      if(_line MATCHES "^  (Previous )?([Aa]tomic )?[Ww]rite ")
+        set(_write_${_accesses} TRUE)
+      else()
+        set(_write_${_accesses} FALSE)
+      endif()
     endif()
   endforeach()
   if(_in_access)
     _logsquirl_tsan_access_owner(_owner_${_accesses} "${_atomic}" "${libraries}" ${_frames})
+    set(_frames_${_accesses} "${_frames}")
   endif()
 
   if(_accesses EQUAL 2)
@@ -123,6 +184,17 @@ function(_logsquirl_tsan_report_left_out out_var libraries)
       set(_result "${_owner_1} and ${_owner_2}")
     elseif((_owner_1_ARGUMENT AND _owner_2_IN_EVENT) OR (_owner_2_ARGUMENT AND _owner_1_IN_EVENT))
       set(_result "a queued call's argument copied by libQt6Core.so.6 and its slot")
+    else()
+      set(_functor FALSE)
+      if(_write_1)
+        _logsquirl_tsan_queued_functor(_functor "${libraries}" "${_frames_1}" "${_frames_2}")
+      endif()
+      if(NOT _functor AND _write_2)
+        _logsquirl_tsan_queued_functor(_functor "${libraries}" "${_frames_2}" "${_frames_1}")
+      endif()
+      if(_functor)
+        set(_result "a queued call's functor copied by Qt and its call in libQt6Core.so.6")
+      endif()
     endif()
   endif()
   set(${out_var} "${_result}" PARENT_SCOPE)
