@@ -158,7 +158,7 @@ SCENARIO( "Next and previous Mark move the same way in the main view and the Fil
     GIVEN( "the main view" )
     {
         LogMainView view( &logFile.logData, &quickFindPattern, nullptr, nullptr, false );
-        view.useNewFiltering( logFile.filteredData.get() );
+        view.setCurrentSearch( logFile.filteredData.get() );
         view.resize( 400, 200 );
         view.show();
         view.registerShortcuts();
