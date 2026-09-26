@@ -160,7 +160,7 @@
     },
     {
       // Qt is one version everywhere: the Mac/Windows CI matrices, CodeQL,
-      // the four build images and BUILD.md. No comment per occurrence, so a
+      // the build images and BUILD.md. No comment per occurrence, so a
       // new matrix entry or image is picked up as it is written.
       customType: "regex",
       description: "Qt version",

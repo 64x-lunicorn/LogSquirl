@@ -24,6 +24,7 @@
 #include <QtConcurrent>
 
 #include <configuration.h>
+#include <filewatcher.h>
 #include <highlighterset.h>
 #include <persistentinfo.h>
 
@@ -107,5 +108,9 @@ int main( int argc, char* argv[] )
     TestRunner* runner = new TestRunner( argc, argv );
 
     runner->process();
+
+    // No event loop ran exec(), so nothing sent aboutToQuit: the watcher's
+    // poll thread is ended here, before QApplication is destroyed (#510).
+    FileWatcher::getFileWatcher().stopPolling();
     return runner->result();
 }

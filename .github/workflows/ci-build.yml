@@ -389,15 +389,22 @@ jobs:
         # CPM dependency, so it is not instrumented).
         #
         # TSan (#439) finds data races, the fault class ASan cannot see, and
-        # blocks like asan-ubsan, pull requests included (#482). oneTBB is
-        # built with TSan here too; Qt, GLib and glibc come prebuilt without
-        # it, so TSan cannot see their own locks and reports what they do on
-        # two threads as races. The ctest runner
+        # blocks like asan-ubsan, pull requests included (#482). It runs in
+        # its own image, whose Qt is built from source with TSan (#510), and
+        # oneTBB and mimalloc are built with TSan here too. A library that
+        # still comes prebuilt without it hides its own locks from TSan, which
+        # reports what it does on two threads as races. The ctest runner
         # (cmake/CatchTestDiscoveryRunTest.cmake) leaves out a report only
-        # when both racing accesses were made inside one of those libraries,
-        # as listed in cmake/tsan.supp; any other report fails the case (ADR
+        # when both racing accesses were made inside such a library, as
+        # listed in cmake/tsan.supp; any other report fails the case (ADR
         # 0007). A change to that list or to the suppression file needs no
         # change here.
+        #
+        # When the image's inputs hash is not on GHCR yet (a pull request that
+        # changes docker/, a Qt bump, the monthly refresh, or master before
+        # the Docker Images workflow has pushed it), the job builds the image
+        # itself, Qt included, which takes about an hour; its time limit
+        # leaves room for that. Every other run pulls it.
         config:
           - arch: x64
             artifacts_id: asan-ubsan
@@ -408,14 +415,16 @@ jobs:
           - arch: x64
             artifacts_id: tsan
             sanitizers: TSan
-            container_root: docker/ubuntu24.04
-            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble
+            container_root: docker/ubuntu24.04-tsan
+            image: ghcr.io/64x-lunicorn/logsquirl-ubuntu-noble-tsan
+            timeout_minutes: 150
             cmake_opts: -DENABLE_SANITIZER_THREAD=ON -DLOGSQUIRL_USE_SENTRY=OFF -DLOGSQUIRL_USE_LTO=OFF
 
     runs-on: ubuntu-24.04
     # Slowest successful run 25 min, before #217 started one process per test
-    # case (~40% longer tests, more under ASan) (#218).
-    timeout-minutes: 75
+    # case (~40% longer tests, more under ASan) (#218). TSan sets its own, to
+    # build its image when needed (#510).
+    timeout-minutes: ${{ matrix.config.timeout_minutes || 75 }}
     env:
       # halt_on_error: the first report aborts the test binary, so ctest goes red.
       # detect_leaks=0: Qt's offscreen platform plugin and its global statics
@@ -434,12 +443,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lower ASLR entropy for the sanitizer runtime
+        # Kernels with vm.mmap_rnd_bits=32 (GitHub's Ubuntu runners) break the
+        # shadow-memory layout of GCC's libasan and libtsan; containers share the host
+        # kernel, so this must be set on the runner. Before the image is built:
+        # the TSan image's Qt tools are built with TSan and run in that build (#510).
+        run: sudo sysctl -w vm.mmap_rnd_bits=28
+
       - uses: ./.github/actions/docker-pull-or-build
         with:
           image: ${{ matrix.config.image }}
           container_root: ${{ matrix.config.container_root }}
 
-      # Same container and package list as the noble job, minus Sentry, so the
+      # Same package list as the noble job, minus Sentry, so the
       # noble job's CPM cache already holds everything this build downloads;
       # restoring it instead of saving a ~290 MB copy of our own keeps the
       # Actions cache under its limit (#219).
@@ -450,12 +466,6 @@ jobs:
           key: cpm-Linux-noble-${{ hashFiles('3rdparty/CMakeLists.txt', 'cmake/CPM.cmake') }}
           restore-keys: |
             cpm-Linux-noble-
-
-      - name: Lower ASLR entropy for the sanitizer runtime
-        # Kernels with vm.mmap_rnd_bits=32 (GitHub's Ubuntu runners) break the
-        # shadow-memory layout of GCC's libasan and libtsan; containers share the host
-        # kernel, so this must be set on the runner.
-        run: sudo sysctl -w vm.mmap_rnd_bits=28
 
       - uses: ./.github/actions/logsquirl-version
       - uses: ./.github/actions/prepare-workspace-env

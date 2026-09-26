@@ -28,6 +28,7 @@
 
 #include <vector>
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFileInfo>
 #include <QTimer>
@@ -442,13 +443,25 @@ FileWatcher::FileWatcher()
     connect( this, &FileWatcher::pollingPolicyChanged, pollWorker_,
              &FileWatcherPollWorker::setPolling, Qt::QueuedConnection );
     pollThread_->start();
+
+    // The poll thread must end before the application object is destroyed
+    // (#510); a process without a running event loop calls stopPolling()
+    // itself.
+    if ( const auto* app = QCoreApplication::instance() ) {
+        connect( app, &QCoreApplication::aboutToQuit, this, &FileWatcher::stopPolling );
+    }
 }
 
 FileWatcher::~FileWatcher()
 {
+    stopPolling();
+    delete pollThread_;
+}
+
+void FileWatcher::stopPolling()
+{
     pollThread_->quit();
     pollThread_->wait();
-    delete pollThread_;
 }
 
 FileWatcher& FileWatcher::getFileWatcher()
