@@ -48,14 +48,25 @@ void ViewSet::addFilteredView( FilteredView* view )
     seed( view );
 }
 
-void ViewSet::makeFilteredViewCurrent( FilteredView* view )
+void ViewSet::makeSearchCurrent( FilteredView* view, const LogFilteredData* search )
 {
     currentFilteredView_ = view;
+    currentSearch_ = search;
+
+    for ( auto* presentation : presentations_ ) {
+        presentation->setCurrentSearch( search );
+    }
+    if ( overview_ != nullptr ) {
+        overview_->setFilteredData( search );
+    }
 }
 
 void ViewSet::setOverview( Overview* overview )
 {
     overview_ = overview;
+    if ( overview_ != nullptr && currentSearch_ != nullptr ) {
+        overview_->setFilteredData( currentSearch_ );
+    }
 }
 
 void ViewSet::setDecorationPolicy( const DecorationPolicy& policy )
@@ -207,6 +218,9 @@ void ViewSet::seed( LogPresentation* presentation ) const
     }
     if ( searchPattern_ ) {
         presentation->setSearchPattern( *searchPattern_ );
+    }
+    if ( currentSearch_ != nullptr ) {
+        presentation->setCurrentSearch( currentSearch_ );
     }
 }
 

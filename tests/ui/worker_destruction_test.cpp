@@ -20,6 +20,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <atomic>
+#include <memory>
+
 #include <QSignalSpy>
 #include <QTemporaryFile>
 #include <QTest>
@@ -29,6 +32,7 @@
 #include "test_utils.h"
 
 #include "logdata.h"
+#include "logdataworker.h"
 #include "logfiltereddata.h"
 
 namespace {
@@ -218,6 +222,129 @@ SCENARIO( "Repeated LogData create-search-destroy cycles are stable", "[logdata]
             }
 
             THEN( "All cycles completed without crash or deadlock" )
+            {
+                REQUIRE( true );
+            }
+        }
+    }
+}
+
+namespace {
+
+// A reader that counts how often it is attached and detached, as the Log
+// File held open for an index run would be.
+struct CountingReader {
+    std::shared_ptr<std::atomic<int>> attached = std::make_shared<std::atomic<int>>( 0 );
+    std::shared_ptr<std::atomic<int>> detached = std::make_shared<std::atomic<int>>( 0 );
+
+    LogDataWorker::Reader reader() const
+    {
+        return { [ count = attached ] { ++*count; }, [ count = detached ] { ++*count; } };
+    }
+};
+
+} // namespace
+
+SCENARIO( "An index run keeps the reader attached for as long as it lasts",
+          "[logdata][destruction]" )
+{
+    GIVEN( "an index worker with a reader" )
+    {
+        QTemporaryFile file{ "index_reader_test_XXXXXX" };
+        REQUIRE( generateTestFile( file, 500 ) );
+
+        CountingReader counts;
+        LogDataWorker worker{ std::make_shared<IndexingData>(), testSettingsPolicies().indexing,
+                              counts.reader() };
+
+        WHEN( "a Log File is attached, then checked for changes" )
+        {
+            SafeQSignalSpy indexed{ &worker, &LogDataWorker::indexingFinished };
+            worker.run( AttachJob{ file.fileName() } );
+            REQUIRE( indexed.safeWait() );
+            const auto attachedWhileIndexed = counts.attached->load();
+            const auto detachedWhenIndexed = counts.detached->load();
+
+            SafeQSignalSpy checked{ &worker, &LogDataWorker::checkFileChangesFinished };
+            worker.run( CheckForChangesJob{} );
+            REQUIRE( checked.safeWait() );
+
+            THEN( "each run attached the reader once, and detached it by the time it was "
+                  "reported finished" )
+            {
+                REQUIRE( attachedWhileIndexed == 1 );
+                REQUIRE( detachedWhenIndexed == 1 );
+                REQUIRE( counts.attached->load() == 2 );
+                REQUIRE( counts.detached->load() == 2 );
+            }
+
+            THEN( "the index run was reported Successful, and the check found nothing changed" )
+            {
+                REQUIRE( qvariant_cast<LoadingStatus>( indexed.first().at( 0 ) )
+                         == LoadingStatus::Successful );
+                REQUIRE( qvariant_cast<MonitoredFileStatus>( checked.first().at( 0 ) )
+                         == MonitoredFileStatus::Unchanged );
+            }
+        }
+    }
+}
+
+SCENARIO( "Destroying the index worker while it indexes waits for the run and reports nothing",
+          "[logdata][destruction]" )
+{
+    GIVEN( "an index worker indexing a Log File large enough to still be indexing" )
+    {
+        QTemporaryFile file{ "index_destruction_test_XXXXXX" };
+        REQUIRE( generateTestFile( file, 200000 ) );
+
+        auto policies = testSettingsPolicies();
+        policies.indexing.useIndexCache = false;
+
+        CountingReader counts;
+        auto worker = std::make_unique<LogDataWorker>( std::make_shared<IndexingData>(),
+                                                       policies.indexing, counts.reader() );
+        SafeQSignalSpy indexed{ worker.get(), &LogDataWorker::indexingFinished };
+        worker->run( AttachJob{ file.fileName() } );
+
+        WHEN( "the worker is destroyed before the run is reported finished" )
+        {
+            worker.reset();
+            QTest::qWait( 50 );
+
+            THEN( "no finish is reported, and the reader is detached again" )
+            {
+                REQUIRE( indexed.count() == 0 );
+                REQUIRE( counts.attached->load() == 1 );
+                REQUIRE( counts.detached->load() == 1 );
+            }
+        }
+    }
+}
+
+SCENARIO( "LogData destruction during indexing does not deadlock", "[logdata][destruction]" )
+{
+    GIVEN( "A temporary log file large enough to keep indexing busy" )
+    {
+        QTemporaryFile file{ "destruction_indexing_test_XXXXXX" };
+        REQUIRE( generateTestFile( file, 200000 ) );
+
+        auto policies = testSettingsPolicies();
+        policies.indexing.useIndexCache = false;
+        const auto keepFileClosed = GENERATE( false, true );
+        policies.fileAccess.keepFileClosed = keepFileClosed;
+
+        WHEN( "the Log File is attached and LogData is destroyed while it is indexed" )
+        {
+            {
+                LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                                 policies.decoding };
+                logData.attachFile( file.fileName() );
+                QTest::qWait( 5 );
+                // logData destroyed here -- must not deadlock or crash
+            }
+            QTest::qWait( 20 );
+
+            THEN( "No crash or deadlock occurred" )
             {
                 REQUIRE( true );
             }

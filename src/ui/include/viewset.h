@@ -34,6 +34,7 @@
 #include <vector>
 
 class FilteredView;
+class LogFilteredData;
 class LogPresentation;
 
 // Every view of one Log File: its Presentations and its Filtered Views, those
@@ -46,7 +47,9 @@ class LogPresentation;
 // Each view keeps its own Decoration setup: a kept Search's Filtered View
 // colors a Search pattern of its own, which is not the View Set's. The
 // search pattern the View Set is handed is the current Search's: it reaches
-// the Presentations and the current Search's Filtered View only.
+// the Presentations and the current Search's Filtered View only. Which Search
+// is current reaches the Presentations and the Overview through the View Set
+// too, handed over by the Kept Searches, which own the Searches.
 //
 // The Presentations are held through the plain Presentation interface (ADR
 // 0003). No view is owned: a Presentation outlives the View Set, and a
@@ -59,19 +62,23 @@ public:
     // shortcut, as many as ColorLabelsManager holds.
     static constexpr std::size_t ColorLabelCount = 9;
 
-    // Add a view, and hand it everything held so far. A Filtered View added
-    // is the current Search's: a kept Search's new view is the new Search's.
+    // Add a view, and hand it everything held so far, the current Search
+    // included. A Filtered View added is the current Search's: a kept
+    // Search's new view is the new Search's, made current with it next.
     void addPresentation( LogPresentation* presentation );
     void addFilteredView( FilteredView* view );
 
-    // The Filtered View of the current Search, one already added: the one
-    // the search pattern and new Matches and Marks reach. Nothing is handed
-    // to it now; the pattern a kept Search ran with stays its own until it
-    // is searched again.
-    void makeFilteredViewCurrent( FilteredView* view );
+    // Make search current, shown in view, one already added: every
+    // Presentation and the Overview show its Marks and Matches from now on,
+    // and view is the one the search pattern and new Matches and Marks
+    // reach. The pattern a kept Search ran with stays its view's own until it
+    // is searched again. The Search is not owned: whoever owns the kept
+    // Searches (KeptSearches) makes another current before it lets this one
+    // go.
+    void makeSearchCurrent( FilteredView* view, const LogFilteredData* search );
 
     // The Overview the Presentations share, counted again when Matches or
-    // Marks changed. Not owned.
+    // Marks changed; it starts with the current Search. Not owned.
     void setOverview( Overview* overview );
 
     // Hold a piece of state and hand it to every view.
@@ -142,6 +149,12 @@ public:
     {
         return colorLabels_;
     }
+    // The Search the views show the Marks and Matches of; none until one was
+    // made current.
+    const LogFilteredData* currentSearch() const
+    {
+        return currentSearch_;
+    }
     // The first Log Line searched and the end of the Search Limits; none until
     // they were set.
     const std::optional<std::pair<LineNumber, LineNumber>>& searchLimits() const
@@ -161,6 +174,7 @@ private:
     std::vector<LogPresentation*> presentations_;
     std::vector<QPointer<FilteredView>> filteredViews_;
     QPointer<FilteredView> currentFilteredView_;
+    const LogFilteredData* currentSearch_ = nullptr;
     Overview* overview_ = nullptr;
 
     DecorationPolicy decorationPolicy_;

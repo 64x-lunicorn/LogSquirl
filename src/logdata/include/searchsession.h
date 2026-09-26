@@ -107,9 +107,15 @@ public:
     // already in flight keeps the one it started with.
     void setSearchPolicy( const SearchPolicy& searchPolicy );
 
-    // Drops every cached search result (e.g. the file was truncated, so
-    // previously-cached ranges no longer mean what they used to).
-    void dropCache();
+    // The Log Lines from firstChanged on may read differently now: the Log
+    // File was indexed again, cut short or appended to, or is decoded
+    // differently (another Encoding, another Decoding Policy). The cached
+    // results whose range reaches them are dropped, a run in flight is not
+    // cached when it completes, and a later request continues the run held
+    // only if no Log Line it searched changed but the last one, which a
+    // continuation searches again anyway; otherwise it starts over. The
+    // Matches held stay as they are until the Search is requested again.
+    void logLinesChanged( LineNumber firstChanged );
 
     State state() const;
     // The cumulative Matches found so far (or ever, once Complete). They
@@ -134,9 +140,8 @@ Q_SIGNALS:
     void stateChanged( SearchSession::State state );
 
 private Q_SLOTS:
-    void handleSearchProgressed( int progress, LineNumber initialLine, SearchId searchId );
-    void handleSearchFinished( SearchId searchId, LineNumber initialLine, bool interrupted,
-                               const QString& failure );
+    void handleSearchProgressed( int progress, SearchId searchId );
+    void handleSearchFinished( SearchId searchId, bool interrupted, const QString& failure );
     // Emits the state change the throttler held back, unless one has been
     // reported directly since.
     void emitThrottledStateChanged();
@@ -224,6 +229,9 @@ private:
     // incomplete when it was searched before: the last one searched then.
     // Nothing while no continuation is waiting for its verdict.
     OptionalLineNumber recheckedLine_;
+    // Log Lines the run held searched changed since (logLinesChanged()), so
+    // it cannot be continued, only started over.
+    bool logLinesChangedUnderRun_ = false;
     // matches_ were replaced rather than grown since the last state change
     // was reported.
     bool matchesReplaced_ = true;

@@ -4,6 +4,7 @@ add_executable(logsquirl_tests
     allocator_test.cpp
     applicationplugins_test.cpp
     ansicolorsequences_test.cpp
+    backgroundrun_test.cpp
     chartextraction_test.cpp
     valuecount_test.cpp
     chartpanel_test.cpp
@@ -78,6 +79,7 @@ add_executable(logsquirl_tests
     textencoding_test.cpp
     tableviewselection_test.cpp
     theme_test.cpp
+    keptsearches_test.cpp
     lookuprunner_test.cpp
     timelookup_test.cpp
     timestampreader_test.cpp

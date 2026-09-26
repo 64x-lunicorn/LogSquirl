@@ -30,6 +30,7 @@
 #include "linetypes.h"
 #include "logformatdefinition.h"
 #include "logpresentation.h"
+#include "quickfindmux.h"
 #include "regularexpressionpattern.h"
 #include "rowmapping.h"
 #include "settingspolicies.h"
@@ -42,9 +43,11 @@ class LogTableHighlightDelegate;
 class Overview;
 class OverviewWidget;
 class Portion;
+class QFNotification;
 class QMenu;
 class QuickFind;
 class QuickFindPattern;
+class Selection;
 
 // The Table View: the Presentation of a Log File as one column per field of
 // its Log Format. It owns its model, its highlight delegate, its selection
@@ -56,10 +59,18 @@ class QuickFindPattern;
 //
 // Which Log Line each Row shows is its RowMapping's to say; everything the
 // Table View hands out is a Log Line obtained through it.
-class LogTableView : public QTableView, public LogPresentation {
+//
+// Shown, it is what the window's QuickFind bar searches, as the Text View is:
+// QuickFind runs from the Log Line of the current Row and its match is shown
+// as that Log Line's Row, selected.
+class LogTableView : public QTableView, public LogPresentation, public SearchableWidgetInterface {
     Q_OBJECT
 
 public:
+    // Lets a test read what the Table View was handed.
+    template <class T>
+    struct access_by;
+
     // Each Row shows one Log Line.
     explicit LogTableView( QWidget* parent = nullptr );
     // Each Row shows the Log Line rows maps it onto.
@@ -70,9 +81,10 @@ public:
     // for a null format. The rows appear on the next updateData().
     void setLogFormat( const LogFormatDefinition* format, AbstractLogData* logData );
 
-    // Catch up with the Log File's current Log Lines. filteredData supplies
-    // Marks and Matches; with follow, the last Row is scrolled into view.
-    void updateData( LogFilteredData* filteredData, bool follow );
+    // Catch up with the Log File's current Log Lines; with follow, the last
+    // Row is scrolled into view. The Marks and Matches are the current
+    // Search's, handed over by setCurrentSearch().
+    void updateData( bool follow );
 
     // The Table View positions overviewWidget over its right edge itself, and
     // shows a clicked Log Line.
@@ -87,6 +99,8 @@ public:
 
     // LogPresentation
     void setSearchPattern( const RegularExpressionPattern& pattern ) override;
+    // Its delegate paints the Search's Marks and Matches.
+    void setCurrentSearch( const LogFilteredData* search ) override;
     // The characters selected inside a cell if there are any, otherwise the
     // selected Rows, each as its cells separated by tabs.
     QString selectedText() const override;
@@ -108,11 +122,8 @@ public:
     void setDecorationPolicy( const DecorationPolicy& policy ) override;
     // Shows the Overview as it says; the Table View has no line numbers.
     void setPresentationPolicy( const PresentationPolicy& policy ) override;
-    // Hand over the settings that say how the text the user selected is read
-    // as a QuickFind pattern. Call it when the view is built and again after
-    // a settings change: the view reads no setting of its own, and nothing is
-    // derived from this and kept, so a change takes effect at the next
-    // QuickFind.
+    // Ignored: the selected text goes to the window's QuickFind, which reads
+    // the Policy itself, as for the Text View.
     void setQuickFindPolicy( const QuickFindPolicy& policy ) override;
     // Ignored: the Table View follows only as the Text View does.
     void allowFollowMode( bool allow ) override;
@@ -120,6 +131,16 @@ public:
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
+
+    // SearchableWidgetInterface: QuickFind from the Log Line of the current
+    // Row, over every Log Line the Rows show, with the window's QuickFind
+    // pattern. Aborting an incremental search selects the Row it started from.
+    void searchForward() override;
+    void searchBackward() override;
+    void incrementallySearchForward() override;
+    void incrementallySearchBackward() override;
+    void incrementalSearchStop() override;
+    void incrementalSearchAbort() override;
 
     TableViewSelection selection() const;
     // The Log Lines of the selected Rows.
@@ -157,6 +178,15 @@ Q_SIGNALS:
     // The user asked to count the values of a Log Format field, from the
     // context menu of its column header.
     void countValuesRequested( const QString& fieldName );
+
+    // What a searchable tells the QuickFind bar, as the Text View does: a new
+    // pattern and direction ("Find next / previous" of the context menu), a
+    // search to run in the bar's direction, and QuickFind's notifications.
+    void changeQuickFind( const QString& newPattern, QuickFindMux::QFDirection newDirection );
+    void searchNext();
+    void searchPrevious();
+    void notifyQuickFind( const QFNotification& message );
+    void clearQuickFindNotification();
 
 protected:
     // The context menu for the current selection, opened at pos in viewport
@@ -204,10 +234,15 @@ private:
     // Hand the in-cell selection to the delegate and repaint.
     void showInCellSelection();
 
-    // Selects the next (or previous) Log Line after the one whose characters
-    // are selected that matches them, among the Log Lines the Rows show. The
-    // selected characters become the QuickFind pattern, as in the Text View.
+    // Makes the selected characters the QuickFind pattern and asks the
+    // QuickFind bar to search in the given direction, as the Text View does:
+    // the bar keeps the pattern and the direction for its next and previous.
     void findSelected( bool forward );
+    // Where QuickFind starts from: the Log Line of the current Row, whole.
+    Selection quickFindStart() const;
+    // Runs search from quickFindStart() with the QuickFind pattern.
+    using QuickFindSearch = void ( QuickFind::* )( Selection, QuickFindMatcher );
+    void searchUsing( QuickFindSearch search );
     // Selects the Row of the Log Line QuickFind found, and the matching
     // characters in its first cell holding them.
     void showQuickFindResult( bool hasMatch, const Portion& logLinePortion );
@@ -219,8 +254,8 @@ private:
     // Not owned: the coordinator holds the Log Format for as long as it is set
     const LogFormatDefinition* format_ = nullptr;
     AbstractLogData* logData_ = nullptr;
-    // Supplies the Marks.
-    LogFilteredData* filteredData_ = nullptr;
+    // The current Search: supplies the Marks and Matches. Not owned.
+    const LogFilteredData* filteredData_ = nullptr;
     LogFormatTableModel* model_ = nullptr;
     LogTableHighlightDelegate* delegate_ = nullptr;
 
@@ -235,12 +270,9 @@ private:
 
     TableViewSelection selection_;
 
-    // How the text the user selected is read as a QuickFind pattern, as this
-    // view's holder last handed it over.
-    QuickFindPolicy quickFindPolicy_;
-
     std::shared_ptr<QuickFindPattern> quickFindPattern_;
-    // Searches for Find next and Find previous, off the UI thread.
+    // Runs the QuickFind searches the window's QuickFind bar asks for, off the
+    // UI thread.
     std::unique_ptr<QuickFind> quickFind_;
     bool selectionDragging_ = false;
     int hoverRow_ = -1;

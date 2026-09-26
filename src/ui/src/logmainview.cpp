@@ -53,20 +53,9 @@ LogMainView::LogMainView( const LogData* newLogData, const QuickFindPattern* con
     : AbstractLogView( newLogData, std::make_unique<EveryLogLine>( newLogData ), quickFindPattern,
                        initialTextWrap, parent )
     , logFile_( newLogData )
-    , filteredData_( nullptr )
 {
     // The main data has a real (non NULL) Overview
     setOverview( overview, overview_widget );
-}
-
-// Just update our internal record.
-void LogMainView::useNewFiltering( LogFilteredData* filteredData )
-{
-    filteredData_ = filteredData;
-    setLineMapping( std::make_unique<EveryLogLine>( logFile_, filteredData_ ) );
-
-    if ( getOverview() != nullptr )
-        getOverview()->setFilteredData( filteredData_ );
 }
 
 QString LogMainView::selectedText() const
@@ -148,6 +137,13 @@ void LogMainView::setSearchLimits( LineNumber startLine, LineNumber endLine )
 void LogMainView::setSearchPattern( const RegularExpressionPattern& pattern )
 {
     AbstractLogView::setSearchPattern( pattern );
+}
+
+void LogMainView::setCurrentSearch( const LogFilteredData* search )
+{
+    // The Overview both Presentations share is handed the Search by the View
+    // Set.
+    setLineMapping( std::make_unique<EveryLogLine>( logFile_, search ) );
 }
 
 void LogMainView::saveSelectedTo( const QString& filename )

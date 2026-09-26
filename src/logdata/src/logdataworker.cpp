@@ -43,14 +43,12 @@
 #include <exception>
 #include <functional>
 #include <qglobal.h>
-#include <qthread.h>
 #include <string_view>
 #include <thread>
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QSemaphore>
 #include <tuple>
 #include <utility>
 
@@ -264,37 +262,20 @@ size_t IndexingData::allocatedSize() const
 }
 
 LogDataWorker::LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data,
-                              const IndexingPolicy& indexingPolicy )
-    : indexingPolicy_( indexingPolicy )
-    , indexing_data_( indexing_data )
+                              const IndexingPolicy& indexingPolicy, Reader reader )
+    : indexing_data_( indexing_data )
+    , run_(
+          "Index", indexingPolicy, std::move( reader ),
+          [ this ]( RunId, int percent ) { Q_EMIT indexingProgressed( percent ); },
+          [ this ]( const RunEnd<IndexOutcome>& end ) { reportFinished( end ); } )
 {
-    operationsPool_.setMaxThreadCount( 1 );
 }
 
-LogDataWorker::~LogDataWorker() noexcept
-{
-    try {
-        // Signal all running operations to stop early
-        interruptRequest_.set();
-
-        // Remove pending runnables from the pool (thread-safe, no mutex needed)
-        operationsPool_.clear();
-
-        // Wait for the active runnable to finish WITHOUT holding operationsMutex_.
-        // The pool thread needs to acquire operationsMutex_ before it can observe
-        // the interrupt flag and exit. Holding the mutex here would deadlock.
-        operationsPool_.waitForDone();
-
-        LOG_INFO << "LogDataWorker shutdown";
-    } catch ( const std::exception& e ) {
-        LOG_ERROR << "Failed to destroy LogDataWorker: " << e.what();
-    }
-}
+LogDataWorker::~LogDataWorker() = default;
 
 void LogDataWorker::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
 {
-    ScopedLock locker( operationsMutex_ );
-    indexingPolicy_ = indexingPolicy;
+    run_.setPolicy( indexingPolicy );
 }
 
 void LogDataWorker::run( const IndexJob& job )
@@ -303,7 +284,7 @@ void LogDataWorker::run( const IndexJob& job )
                     [ this ]( const AttachJob& attach ) {
                         LOG_INFO << "Attaching " << attach.fileName << ", encoding "
                                  << attach.defaultEncodingMib;
-                        attachFile( attach.fileName );
+                        fileName_ = attach.fileName;
                         if ( attach.forcedEncoding ) {
                             indexAll( attach.forcedEncoding, FullIndexRequest::Automatic );
                         }
@@ -338,101 +319,76 @@ void LogDataWorker::run( const IndexJob& job )
                 job );
 }
 
-void LogDataWorker::attachFile( const QString& fileName )
-{
-    ScopedLock locker( operationsMutex_ );
-    interruptRequest_.clear();
-    fileName_ = fileName;
-}
-
 void LogDataWorker::indexAll( const TextEncoding* forcedEncoding, FullIndexRequest request )
 {
-    ScopedLock locker( operationsMutex_ );
-    operationsPool_.waitForDone();
-    interruptRequest_.clear();
-
     LOG_INFO << "FullIndex requested, forced encoding: "
              << ( forcedEncoding != nullptr ? forcedEncoding->name().toStdString()
                                             : std::string{ "none" } );
-    QSemaphore operationStarted;
-    operationsPool_.start( createRunnable( [ this, &operationStarted, forcedEncoding, request,
-                                             fileName = fileName_,
-                                             indexingPolicy = indexingPolicy_ ] {
-        LOG_INFO << "FullIndex thread started";
-        operationStarted.release();
-        ScopedLock operationLock( operationsMutex_ );
-        auto operationRequested = std::make_unique<FullIndexOperation>(
-            fileName, indexing_data_, interruptRequest_, indexingPolicy, request, forcedEncoding );
-        return connectSignalsAndRun( operationRequested.get() );
-    } ) );
-    operationStarted.acquire();
+    start( RunKind::Index,
+           [ indexingData = indexing_data_, fileName = fileName_, forcedEncoding,
+             request ]( const RunControl& run, const IndexingPolicy& indexingPolicy ) {
+               return FullIndexOperation( fileName, indexingData, run, indexingPolicy, request,
+                                          forcedEncoding )
+                   .run();
+           } );
 }
 
 void LogDataWorker::indexAdditionalLines()
 {
-    ScopedLock locker( operationsMutex_ );
-    operationsPool_.waitForDone();
-    interruptRequest_.clear();
-
     LOG_INFO << "PartialIndex requested";
-
-    QSemaphore operationStarted;
-    operationsPool_.start( createRunnable(
-        [ this, &operationStarted, fileName = fileName_, indexingPolicy = indexingPolicy_ ] {
-            QThread::currentThread()->setObjectName( "PartialIndex" );
-            LOG_INFO << "PartialIndex thread started";
-            operationStarted.release();
-            ScopedLock operationLock( operationsMutex_ );
-            auto operationRequested = std::make_unique<PartialIndexOperation>(
-                fileName, indexing_data_, interruptRequest_, indexingPolicy );
-            return connectSignalsAndRun( operationRequested.get() );
-        } ) );
-    operationStarted.acquire();
+    start( RunKind::Index, [ indexingData = indexing_data_, fileName = fileName_ ](
+                               const RunControl& run, const IndexingPolicy& indexingPolicy ) {
+        return PartialIndexOperation( fileName, indexingData, run, indexingPolicy ).run();
+    } );
 }
 
 void LogDataWorker::checkFileChanges()
 {
-    ScopedLock locker( operationsMutex_ );
-    operationsPool_.waitForDone();
-    interruptRequest_.clear();
-
     LOG_INFO << "Check file changes requested";
-
-    QSemaphore operationStarted;
-    operationsPool_.start( createRunnable(
-        [ this, &operationStarted, fileName = fileName_, indexingPolicy = indexingPolicy_ ] {
-            operationStarted.release();
-            ScopedLock operationLock( operationsMutex_ );
-            auto operationRequested = std::make_unique<CheckFileChangesOperation>(
-                fileName, indexing_data_, interruptRequest_, indexingPolicy );
-
-            return connectSignalsAndRun( operationRequested.get() );
-        } ) );
-    operationStarted.acquire();
+    start( RunKind::Check, [ indexingData = indexing_data_, fileName = fileName_ ](
+                               const RunControl& run, const IndexingPolicy& indexingPolicy ) {
+        return CheckFileChangesOperation( fileName, indexingData, run, indexingPolicy ).run();
+    } );
 }
 
-OperationResult LogDataWorker::connectSignalsAndRun( IndexOperation* operationRequested )
+void LogDataWorker::start( RunKind kind, IndexRun::Job job )
 {
-    connect( operationRequested, &IndexOperation::indexingProgressed, this,
-             &LogDataWorker::indexingProgressed );
+    const auto id = run_.start( std::move( job ) );
+    startedRuns_.emplace( id.get(), kind );
+}
 
-    connect( operationRequested, &IndexOperation::indexingFinished, this,
-             &LogDataWorker::indexingFinished );
+void LogDataWorker::reportFinished( const RunEnd<IndexOutcome>& end )
+{
+    const auto startedRun = startedRuns_.find( end.id.get() );
+    const auto kind = startedRun != startedRuns_.end() ? startedRun->second : RunKind::Index;
+    if ( startedRun != startedRuns_.end() ) {
+        startedRuns_.erase( startedRun );
+    }
 
-    connect( operationRequested, &IndexOperation::fileCheckFinished, this,
-             &LogDataWorker::checkFileChangesFinished );
+    // The job's own outcome is how the run ended, superseded or not: an index
+    // run superseded before it was done tells Interrupted itself, and one
+    // superseded only once it was done has its Index complete. A run that
+    // failed outside its operation has no outcome of its own (the operation
+    // reports a failure inside it); it ends as a failure inside would.
+    const auto failed = !end.failure.isEmpty();
+    const auto& failure = failed ? end.failure : end.outcome.failure;
 
-    auto result = operationRequested->run();
-
-    operationRequested->disconnect( this );
-
-    return result;
+    // A signal's slot may destroy this worker: nothing here is touched after.
+    if ( kind == RunKind::Check ) {
+        const auto* status = std::get_if<MonitoredFileStatus>( &end.outcome.status );
+        Q_EMIT checkFileChangesFinished(
+            !failed && status ? *status : MonitoredFileStatus::Truncated, failure );
+    }
+    else {
+        const auto* status = std::get_if<LoadingStatus>( &end.outcome.status );
+        Q_EMIT indexingFinished( !failed && status ? *status : LoadingStatus::Failed, failure );
+    }
 }
 
 void LogDataWorker::interrupt()
 {
     LOG_INFO << "Load interrupt requested";
-    interruptRequest_.set();
+    run_.interrupt();
 }
 
 //
@@ -474,7 +430,7 @@ IndexOperation::readNextBlock( QFile& file, indexing_blocks::BlockReading& readi
     using namespace indexing_blocks;
     using clock = high_resolution_clock;
 
-    if ( interruptRequest_ || ( reading.bytesAhead == 0 && file.atEnd() ) ) {
+    if ( isSuperseded() || ( reading.bytesAhead == 0 && file.atEnd() ) ) {
         return nullptr;
     }
 
@@ -578,7 +534,7 @@ void IndexOperation::indexNextBlock( IndexingState& state,
 
     if ( progressed ) {
         LOG_DEBUG << "Indexing progress " << progress << ", indexed size " << state.pos;
-        Q_EMIT indexingProgressed( progress );
+        reportProgress( progress );
     }
 
     LOG_DEBUG << "Indexing block " << block.beginning << " done";
@@ -640,7 +596,7 @@ IndexOperation::HeaderAndTail IndexOperation::recordHeaderAndTail( QFile& file, 
     return recorded;
 }
 
-void IndexOperation::doIndex( OffsetInFile initialPosition )
+bool IndexOperation::doIndex( OffsetInFile initialPosition )
 {
     LOG_INFO << "Indexing file " << fileName_;
     QFile file( fileName_ );
@@ -656,8 +612,8 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
         scopedAccessor.setEncodingGuess( TextEncoding::forLocale() );
 
         scopedAccessor.setProgress( 100 );
-        Q_EMIT indexingProgressed( 100 );
-        return;
+        reportProgress( 100 );
+        return !isSuperseded();
     }
 
     LOG_INFO << "File size " << file.size();
@@ -816,7 +772,7 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
     IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
 
     // Check if there is a non LF terminated line at the end of the file
-    if ( !interruptRequest_ && state.file_size > state.pos ) {
+    if ( !isSuperseded() && state.file_size > state.pos ) {
         LOG_WARNING << "Non LF terminated file, adding a fake end of line";
 
         FastLinePositionArray line_position;
@@ -849,13 +805,18 @@ void IndexOperation::doIndex( OffsetInFile initialPosition )
              << " MiB/s";
     LOG_INFO << "Memory usage " << readableSize( usedMemory() );
 
-    if ( interruptRequest_ ) {
+    // Asked once: whether the run tells it was interrupted must match what
+    // it did with the Index.
+    const auto completed = !isSuperseded();
+    if ( !completed ) {
         scopedAccessor.clear( indexingPolicy_ );
     }
 
     if ( !scopedAccessor.getEncodingGuess() ) {
         scopedAccessor.setEncodingGuess( TextEncoding::forLocale() );
     }
+
+    return completed;
 }
 
 namespace {
@@ -894,7 +855,7 @@ const TextEncoding* detectedEncodingOf( const QString& fileName, qint64 fileSize
 // The digest of the Log File's bytes before `end`, as indexing them would
 // have built it. Nothing when reading fails or the run is interrupted.
 std::optional<FileDigest> digestOfPrefix( const QString& fileName, OffsetInFile end,
-                                          const AtomicFlag& interruptRequest )
+                                          const RunControl& run )
 {
     QFile file( fileName );
     if ( !file.open( QIODevice::ReadOnly ) ) {
@@ -903,7 +864,7 @@ std::optional<FileDigest> digestOfPrefix( const QString& fileName, OffsetInFile 
     FileDigest digest;
     QByteArray buffer( DigestBlockSize, Qt::Uninitialized );
     for ( qint64 remaining = end.get(); remaining > 0; ) {
-        if ( interruptRequest ) {
+        if ( run.isSuperseded() ) {
             return std::nullopt;
         }
         const auto readBytes
@@ -954,7 +915,7 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
 
     FileDigest digestBeforeResumeOffset;
     if ( !indexingPolicy_.fastModificationDetection ) {
-        auto digest = digestOfPrefix( fileName_, resumeOffset, interruptRequest_ );
+        auto digest = digestOfPrefix( fileName_, resumeOffset, run_ );
         if ( !digest ) {
             return false;
         }
@@ -978,32 +939,33 @@ bool FullIndexOperation::resumeFrom( CachedIndex& cached, qint64 fileSize )
         scopedAccessor.forceEncoding( forcedEncoding_ );
         scopedAccessor.setProgress( progress );
     }
-    Q_EMIT indexingProgressed( progress );
+    reportProgress( progress );
 
     return true;
 }
 
-OperationResult IndexOperation::run()
+IndexOutcome IndexOperation::run()
 {
+    QString failure;
     try {
         return doRun();
     } catch ( const std::exception& err ) {
-        const auto failure
-            = QString( "%1 failed: %2" ).arg( metaObject()->className(), err.what() );
-        LOG_ERROR << failure;
-        return reportFailure( failure );
+        failure = QString( "%1 failed: %2" ).arg( name(), err.what() );
+    } catch ( ... ) {
+        failure = QString( "%1 failed" ).arg( name() );
     }
+    LOG_ERROR << failure;
+    return reportFailure( failure );
 }
 
-OperationResult IndexOperation::reportFailure( const QString& failure )
+IndexOutcome IndexOperation::reportFailure( const QString& failure )
 {
     {
         IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
         scopedAccessor.clear( indexingPolicy_ );
     }
 
-    Q_EMIT indexingFinished( LoadingStatus::Failed, failure );
-    return false;
+    return { LoadingStatus::Failed, failure };
 }
 
 DigestCoverage FullIndexOperation::cachedIndexCoverage() const
@@ -1033,7 +995,7 @@ DigestCoverage FullIndexOperation::cachedIndexCoverage() const
 }
 
 // Called in the worker thread's context
-OperationResult FullIndexOperation::doRun()
+IndexOutcome FullIndexOperation::doRun()
 {
     LOG_INFO << "FullIndexOperation::run(), file " << fileName_.toStdString();
 
@@ -1066,45 +1028,41 @@ OperationResult FullIndexOperation::doRun()
             }
         }
 
-        Q_EMIT indexingProgressed( 100 );
-        Q_EMIT indexingFinished( LoadingStatus::Successful, {} );
-        return true;
+        reportProgress( 100 );
+        return { LoadingStatus::Successful, {} };
     }
 
+    bool completed = false;
     if ( cached && resumeFrom( *cached, fileSize ) ) {
         // Read into a local first: an accessor held for the duration of
         // doIndex() would keep indexing from taking its own.
         const auto resumeOffset
             = IndexingData::ConstAccessor{ indexing_data_.get() }.getIndexedSize();
-        doIndex( OffsetInFile( resumeOffset ) );
+        completed = doIndex( OffsetInFile( resumeOffset ) );
     }
-    else if ( cached && interruptRequest_ ) {
+    else if ( cached && isSuperseded() ) {
         // Checking the cached Index was interrupted, which is not a sign
         // it cannot be gone on from: stop, rather than throw away what
         // there is and start indexing the whole Log File over.
         LOG_INFO << "FullIndexOperation: interrupted while checking the cached index of "
                  << fileName_;
-        Q_EMIT indexingFinished( LoadingStatus::Interrupted, {} );
-        return false;
+        return { LoadingStatus::Interrupted, {} };
     }
     else {
-        Q_EMIT indexingProgressed( 0 );
+        reportProgress( 0 );
         {
             IndexingData::MutateAccessor scopedAccessor{ indexing_data_.get() };
             scopedAccessor.clear( indexingPolicy_ );
             scopedAccessor.forceEncoding( forcedEncoding_ );
         }
 
-        doIndex( 0_offset );
+        completed = doIndex( 0_offset );
     }
 
-    LOG_INFO << "FullIndexOperation: ... finished, interrupt = "
-             << static_cast<bool>( interruptRequest_ );
-
-    const auto result = interruptRequest_ ? false : true;
+    LOG_INFO << "FullIndexOperation: ... finished, interrupt = " << !completed;
 
     // The cache decides for itself whether it keeps this Index.
-    if ( result ) {
+    if ( completed ) {
         IndexingData::ConstAccessor accessor{ indexing_data_.get() };
         if ( const auto* linePos = accessor.getCompressedLinePosition() ) {
             const auto* codec = accessor.getEncodingGuess();
@@ -1115,11 +1073,10 @@ OperationResult FullIndexOperation::doRun()
         }
     }
 
-    Q_EMIT indexingFinished( result ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} );
-    return result;
+    return { completed ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} };
 }
 
-OperationResult PartialIndexOperation::doRun()
+IndexOutcome PartialIndexOperation::doRun()
 {
     LOG_INFO << "PartialIndexOperation::run(), file " << fileName_.toStdString();
 
@@ -1128,31 +1085,26 @@ OperationResult PartialIndexOperation::doRun()
 
     LOG_INFO << "PartialIndexOperation: Starting the count at " << initialPosition << " ...";
 
-    Q_EMIT indexingProgressed( 0 );
+    reportProgress( 0 );
 
-    doIndex( initialPosition );
+    const auto completed = doIndex( initialPosition );
 
     LOG_INFO << "PartialIndexOperation: ... finished counting.";
 
-    const auto result = interruptRequest_ ? false : true;
-    Q_EMIT indexingFinished( result ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} );
-    return result;
+    return { completed ? LoadingStatus::Successful : LoadingStatus::Interrupted, {} };
 }
 
-OperationResult CheckFileChangesOperation::doRun()
+IndexOutcome CheckFileChangesOperation::doRun()
 {
     LOG_INFO << "CheckFileChangesOperation::run(), file " << fileName_.toStdString();
-    const auto result = doCheckFileChanges();
-    Q_EMIT fileCheckFinished( result, {} );
-    return result;
+    return { doCheckFileChanges(), {} };
 }
 
 // What changed cannot be told when checking failed, so the Log File is
 // taken as truncated: it is indexed again from the start.
-OperationResult CheckFileChangesOperation::reportFailure( const QString& failure )
+IndexOutcome CheckFileChangesOperation::reportFailure( const QString& failure )
 {
-    Q_EMIT fileCheckFinished( MonitoredFileStatus::Truncated, failure );
-    return MonitoredFileStatus::Truncated;
+    return { MonitoredFileStatus::Truncated, failure };
 }
 
 MonitoredFileStatus CheckFileChangesOperation::doCheckFileChanges()

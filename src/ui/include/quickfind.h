@@ -355,6 +355,8 @@ private:
     RunningSearch runningSearch_;
 
     // Private functions
+    // Interrupts the search in flight and waits until its worker is done.
+    void interruptSearch();
     // Starts a search on the worker thread over a fresh copy of the displayed
     // lines, from start_position.
     void startSearch( QFDirection direction, const FilePosition& start_position,

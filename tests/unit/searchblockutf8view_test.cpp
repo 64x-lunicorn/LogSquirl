@@ -79,7 +79,8 @@ std::vector<std::string> utf8Lines( const RawLines& rawLines )
 
 // How a Search saw the block before #291: the whole block decoded to a QString,
 // its ANSI color sequences removed, converted to UTF-8 and split at each line
-// feed.
+// feed -- and each Log Line then trimmed to its text, without the carriage
+// return that ends it or the byte order marks that start it (#522).
 std::vector<std::string> decodedThenConvertedLines( const std::vector<QByteArray>& lines,
                                                     const char* encoding,
                                                     bool hideAnsiColorSequences )
@@ -95,15 +96,25 @@ std::vector<std::string> decodedThenConvertedLines( const std::vector<QByteArray
     }
     const auto utf8 = text.toUtf8();
 
+    const auto asText = []( std::string_view line ) {
+        if ( line.ends_with( '\r' ) ) {
+            line.remove_suffix( 1 );
+        }
+        while ( line.starts_with( "\xEF\xBB\xBF" ) ) {
+            line.remove_prefix( 3 );
+        }
+        return std::string( line );
+    };
+
     std::vector<std::string> split;
     std::string_view rest( utf8.constData(), static_cast<std::size_t>( utf8.size() ) );
     for ( auto lineFeed = rest.find( '\n' ); lineFeed != std::string_view::npos;
           lineFeed = rest.find( '\n' ) ) {
-        split.emplace_back( rest.substr( 0, lineFeed ) );
+        split.push_back( asText( rest.substr( 0, lineFeed ) ) );
         rest.remove_prefix( lineFeed + 1 );
     }
     if ( !rest.empty() ) {
-        split.emplace_back( rest );
+        split.push_back( asText( rest ) );
     }
     return split;
 }
@@ -140,12 +151,16 @@ SCENARIO( "A block's UTF-8 view has every Log Line as it is decoded", "[search][
         const auto rawLines
             = rawLinesOfBytes( encodedLines( lines, encoding ), encoding, hideAnsiColorSequences );
 
-        THEN( "each Log Line of the view is the Log Line in UTF-8, without its line feed" )
+        THEN( "each Log Line of the view is the Log Line in UTF-8, without its line feed or the "
+              "carriage return before it" )
         {
             std::vector<std::string> expected;
             for ( auto line : lines ) {
                 if ( hideAnsiColorSequences ) {
                     removeAnsiColorSequences( line );
+                }
+                if ( line.endsWith( QChar::CarriageReturn ) ) {
+                    line.chop( 1 );
                 }
                 expected.push_back( line.toUtf8().toStdString() );
             }
@@ -245,6 +260,97 @@ SCENARIO( "A block's UTF-8 view of UTF-16 Log Lines that are not valid UTF-16",
         THEN( "the first Log Line is in the view without it, as it is decoded" )
         {
             REQUIRE( utf8Lines( rawLines ) == std::vector<std::string>{ "a", "b" } );
+        }
+    }
+}
+
+namespace {
+
+// Where the Log Lines of a block carry byte order marks.
+enum class ByteOrderMarks { None, OnTheFirstLogLine, OnEveryLogLine };
+
+std::string asStd( const QString& text )
+{
+    return text.toUtf8().toStdString();
+}
+
+} // namespace
+
+// A Search matches a Log Line as the user sees it (#522): the UTF-8 view of a
+// Log Line is its displayed text before untabifying -- what the block decodes
+// it to -- without the carriage return that ends it or the byte order mark
+// that starts it, in every Encoding the view is converted in directly and in
+// the one it is decoded in as a whole block.
+SCENARIO( "A block's UTF-8 view of a Log Line is its displayed text", "[search][encoding]" )
+{
+    const auto* const encoding
+        = GENERATE( "UTF-8", "US-ASCII", "ISO-8859-1", "UTF-16LE", "UTF-16BE", "windows-1252" );
+    const auto lineEnd = GENERATE( as<std::string>{}, "\n", "\r\n" );
+    const auto byteOrderMarks = GENERATE( ByteOrderMarks::None, ByteOrderMarks::OnTheFirstLogLine,
+                                          ByteOrderMarks::OnEveryLogLine );
+    const auto hideAnsiColorSequences = GENERATE( false, true );
+
+    const auto* const codec = TextEncoding::forName( encoding );
+    REQUIRE( codec != nullptr );
+    const QString byteOrderMark( QChar::ByteOrderMark );
+    // Only a Unicode Encoding has a byte order mark.
+    const bool isUnicode = QByteArray( encoding ).startsWith( "UTF-" );
+    if ( byteOrderMarks != ByteOrderMarks::None && !isUnicode ) {
+        return;
+    }
+
+    QStringList texts{
+        QStringLiteral( "alpha foo" ),
+        QStringLiteral( "beta bar" ),
+        QStringLiteral( "\x1B[31mgamma\x1B[0m foo" ),
+        QString(),
+    };
+    const auto beyondAscii = QStringLiteral( "café foo" );
+    if ( codec->canEncode( beyondAscii ) && QByteArray( encoding ) != "US-ASCII" ) {
+        texts.insert( 2, beyondAscii );
+    }
+
+    std::vector<QByteArray> bytes;
+    for ( qsizetype index = 0; index < texts.size(); ++index ) {
+        const bool startsWithByteOrderMark
+            = byteOrderMarks == ByteOrderMarks::OnEveryLogLine
+              || ( byteOrderMarks == ByteOrderMarks::OnTheFirstLogLine && index == 0 );
+        bytes.push_back( codec->fromUnicode( ( startsWithByteOrderMark ? byteOrderMark : QString() )
+                                             + texts[ index ]
+                                             + QString::fromStdString( lineEnd ) ) );
+    }
+
+    GIVEN( std::string( "a block of " ) + encoding + " Log Lines ending in "
+           + ( lineEnd == "\n" ? "LF" : "CRLF" ) + ", "
+           + ( byteOrderMarks == ByteOrderMarks::None
+                   ? "without a byte order mark"
+                   : ( byteOrderMarks == ByteOrderMarks::OnTheFirstLogLine
+                           ? "a byte order mark on the first"
+                           : "a byte order mark on each" ) )
+           + ", " + ( hideAnsiColorSequences ? "hiding" : "showing" ) + " ANSI color sequences" )
+    {
+        const auto rawLines = rawLinesOfBytes( bytes, encoding, hideAnsiColorSequences );
+
+        std::vector<std::string> expected;
+        for ( auto text : texts ) {
+            if ( hideAnsiColorSequences ) {
+                removeAnsiColorSequences( text );
+            }
+            expected.push_back( asStd( text ) );
+        }
+
+        THEN( "the block displays each Log Line as its text" )
+        {
+            std::vector<std::string> displayed;
+            for ( const auto& line : rawLines.decodeLines() ) {
+                displayed.push_back( asStd( line ) );
+            }
+            REQUIRE( displayed == expected );
+        }
+
+        THEN( "each Log Line of the view is its displayed text" )
+        {
+            REQUIRE( utf8Lines( rawLines ) == expected );
         }
     }
 }

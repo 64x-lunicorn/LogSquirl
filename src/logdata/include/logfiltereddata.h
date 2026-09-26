@@ -88,8 +88,9 @@ public:
                   LineNumber endLine );
     // Shortcut for request() on the whole file.
     void request( const RegularExpressionPattern& regExp );
-    // Go idle: clears the pattern, the results and (optionally) the cache.
-    void request( bool dropCache = false );
+    // Go idle: clears the pattern and the results. The cached results stay:
+    // they go when the Log Lines they were found in change (logLinesChanged()).
+    void request();
     // Stops the in-flight run, if any, keeping whatever has been found so
     // far. A no-op if nothing is running.
     void stop();
@@ -127,8 +128,11 @@ public:
     void clearMarks();
     // The Log Lines of the Log File from firstChanged on may read differently
     // now: it was indexed again, cut short or appended to, or is decoded
-    // differently. The lengths remembered for the Marks among them are read
-    // again; a Mark past the last Log Line is as wide as nothing.
+    // differently. The Search Session forgets the results it cached and the
+    // point it would continue from where they no longer hold, so the same
+    // Search repeated finds the Matches of the new reading. The lengths
+    // remembered for the Marks among them are read again; a Mark past the
+    // last Log Line is as wide as nothing.
     void logLinesChanged( LineNumber firstChanged = 0_lnum );
     // Get all marked lines
     QList<LineNumber> getMarks() const;

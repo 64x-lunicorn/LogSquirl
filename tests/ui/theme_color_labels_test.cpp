@@ -160,7 +160,7 @@ struct TableViewWithLabelledWord {
     {
         view.resize( 600, 200 );
         view.setLogFormat( &format, &logData );
-        view.updateData( nullptr, false );
+        view.updateData( false );
         view.setActive( true );
         view.show();
         QTest::qWait( 20 );

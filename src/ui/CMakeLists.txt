@@ -29,6 +29,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecountmodel.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/valuecounttab.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/viewset.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/keptsearches.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindow.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/mainwindowtext.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/menu.h
@@ -111,6 +112,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecountmodel.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/valuecounttab.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewset.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/keptsearches.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/viewstatecodec.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/presentationmenu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/mainwindow.cpp

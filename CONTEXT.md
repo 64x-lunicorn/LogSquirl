@@ -16,7 +16,9 @@ plugin — once opened, all of these behave identically.
 _Avoid_: document, source, input
 
 **Log Line**:
-One line of a Log File, addressed by its number in the file.
+One line of a Log File, addressed by its number in the file. Its text — what is displayed,
+what a Search matches and what the grep CLI prints — is the line decoded, without its line
+feed, a carriage return that ends it or a byte order mark that starts it.
 _Avoid_: record, entry, row (row belongs to the Table View)
 
 **Index**:
@@ -88,9 +90,10 @@ _Avoid_: screen, canvas, page
 Every view of one Log File: its Presentations and its Filtered Views, those of kept
 Searches included. Whatever all of them must show alike — the Policies, the font, the Color
 Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
-view added later starts with all of it. The pattern of the current Search reaches the
-Presentations and the current Search's Filtered View through it too; a kept Search's Filtered
-View keeps coloring the pattern it ran with.
+view added later starts with all of it. Which Search is current reaches every Presentation,
+the Overview and that Search's Filtered View through it too, as the Kept Searches make one
+current, and so does the pattern of the current Search; a kept Search's Filtered View keeps
+coloring the pattern it ran with.
 _Avoid_: views, panes, tabs
 
 **Visual Line**:
@@ -109,11 +112,35 @@ _Avoid_: first line, top line, anchor
 A pattern applied to a whole Log File, producing the set of lines shown in the Filtered View.
 _Avoid_: query, grep
 
+**Background Run**:
+The one way a Search or an index job runs off the UI thread: one run at a time on a
+thread of its own. Starting a run supersedes the one in flight; each run gets a copy of
+the Policy taken as it starts, keeps the Log File's reader attached for as long as it
+lasts, and is reported finished exactly once — returned, superseded or failed. Shutting
+it down stops the run in flight and reports nothing more. The job it runs is plain code;
+which run supersedes which is still up to whoever starts them (the Search Session for a
+Search; for index jobs the job rule, which starts the next one only once the one before
+is reported finished).
+_Avoid_: background task, async job
+
 **Search Session**:
 The owner of everything whose correctness depends on the ordering of a Search: the current
 pattern, the run in flight, its results, its progress and its cached results. A new request
-supersedes the one in flight rather than waiting for it.
+supersedes the one in flight rather than waiting for it. Told that the Log Lines changed from
+one on — indexed again, cut short, or read in another Encoding or Decoding Policy — it drops
+the cached results and the continuation point they no longer describe, so the same Search
+repeated finds the Matches of the new reading; every Search of the Log File is told, kept or
+current.
 _Avoid_: search manager, search controller, search engine
+
+**Kept Searches**:
+The owner of every Search of one Log File, each shown in a Filtered View of its own: the
+current Search, which runs, follows the Log File and takes the Marks, and those whose results
+the user kept to start another. A Search is added, made current and dropped there alone.
+Making one current tells the Open Log File and hands it to the View Set, so no view is left
+showing the Marks and Matches of another; only the current Search's progress is reported. A
+Search dropped goes with its Filtered View, and a Log File always keeps one.
+_Avoid_: search tabs, filtered views data
 
 **Filtered View**:
 The lower pane, showing only the Log Lines a Search selected. Its selection, Marks and
@@ -127,7 +154,9 @@ _Avoid_: search bar, search box
 
 **QuickFind**:
 Interactive incremental search within the currently displayed lines. Distinct from Search:
-it navigates, it does not filter.
+it navigates, it does not filter. The window's QuickFind bar searches the Filtered View when
+that has or had the focus, else the Presentation shown — the Text View or the Table View,
+which shows a match as its Row, selected; the Presentation not shown is never searched.
 _Avoid_: find, incremental search
 
 **Predefined Filter**:

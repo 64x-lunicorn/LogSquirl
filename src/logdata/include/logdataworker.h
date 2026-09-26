@@ -46,8 +46,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <optional>
-#include <qthreadpool.h>
 #include <utility>
 #include <variant>
 
@@ -66,7 +66,7 @@ class IndexingBlockPool;
 // logdataworker.cpp, and TBB is a private dependency of the log data
 // library (#168).
 
-#include "atomicflag.h"
+#include "backgroundrun.h"
 #include "filedigest.h"
 #include "settingspolicies.h"
 #include "synchronization.h"
@@ -366,7 +366,14 @@ struct IndexingState {
     std::optional<IndexedBytesDigests> digests;
 };
 
-using OperationResult = std::variant<bool, MonitoredFileStatus>;
+// How an index run ended, as its operation tells it: an Attach, a Full or a
+// Partial with a LoadingStatus, a Check with a MonitoredFileStatus.
+struct IndexOutcome {
+    std::variant<LoadingStatus, MonitoredFileStatus> status = LoadingStatus::Successful;
+    // What went wrong: indexing is then Failed, and a Check Truncated, so the
+    // Log File is indexed again from the start. Empty otherwise.
+    QString failure;
+};
 
 struct CachedIndex;
 
@@ -396,32 +403,40 @@ struct IndexingBlockPlan {
     std::function<void( qint64 )> blockBuffersAllocated;
 };
 
-class IndexOperation : public QObject {
-    Q_OBJECT
+// One index run: a plain job the worker's Background Run executes. Whether it
+// has been superseded, and how far it is, go through the run it is part of;
+// how it ended is what run() returns, which that run's finish report carries.
+class IndexOperation {
 public:
-    // The Indexing Policy is copied in, once, when the operation is built:
-    // everything this run reads about indexing is fixed for its duration,
-    // so the options dialog writing a setting from the UI thread while the
-    // pass over the Log File is in flight cannot be observed by it. A
-    // changed setting takes effect on the next run. The block plan is fixed
+    // The Indexing Policy is the copy the Background Run took when the run
+    // started: everything this run reads about indexing is fixed for its
+    // duration, so the options dialog writing a setting from the UI thread
+    // while the pass over the Log File is in flight cannot be observed by it.
+    // A changed setting takes effect on the next run. The block plan is fixed
     // the same way, and defaulted: the application never plans another one.
     IndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
-                    AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy,
+                    const RunControl& run, IndexingPolicy indexingPolicy,
                     IndexingBlockPlan blockPlan = {} )
         : fileName_( fileName )
         , indexing_data_( indexingData )
-        , interruptRequest_( interruptRequest )
+        , run_( run )
         , indexingPolicy_( indexingPolicy )
         , blockPlan_( std::move( blockPlan ) )
     {
     }
+    virtual ~IndexOperation() = default;
 
-    // Run the indexing operation, returns true if it has been done
-    // and false if it has been cancelled (results not copied). An exception
-    // escaping the run is a failure of the engine: it is reported through
-    // the operation's finishing signal as a failed status with a
-    // description, never by opening a dialog, and never thrown further.
-    OperationResult run();
+    IndexOperation( const IndexOperation& ) = delete;
+    IndexOperation& operator=( const IndexOperation& ) = delete;
+    IndexOperation( IndexOperation&& ) = delete;
+    IndexOperation& operator=( IndexOperation&& ) = delete;
+
+    // Runs the operation and tells how it ended: Interrupted when the run was
+    // superseded before it was done (what it indexed is then dropped). An
+    // exception escaping the run is a failure of the engine: it is told as a
+    // failed outcome with a description, never by opening a dialog, and
+    // never thrown further.
+    IndexOutcome run();
 
     // How many bytes of the Log File this operation has read to index them.
     qint64 bytesIndexed() const
@@ -429,31 +444,38 @@ public:
         return bytesIndexed_.load();
     }
 
-Q_SIGNALS:
-    void indexingProgressed( int );
-    // failure describes what went wrong when status is Failed, and is empty
-    // otherwise.
-    void indexingFinished( LoadingStatus status, const QString& failure );
-    // failure is not empty when checking the Log File failed; the status is
-    // then Truncated, so the Log File is indexed again from the start.
-    void fileCheckFinished( MonitoredFileStatus status, const QString& failure );
-
 protected:
-    // The run itself, which run() reports the failure of.
-    virtual OperationResult doRun() = 0;
+    // The run itself, whose failure run() reports.
+    virtual IndexOutcome doRun() = 0;
 
     // Reports that the run failed as described, and returns what run()
     // returns then. By default the Index is dropped and indexing reported
     // Failed.
-    virtual OperationResult reportFailure( const QString& failure );
+    virtual IndexOutcome reportFailure( const QString& failure );
 
-    // Returns the total size indexed
-    // Modify the passed linePosition and maxLength
-    void doIndex( OffsetInFile initialPosition );
+    // What the run is called in its failure.
+    virtual const char* name() const = 0;
+
+    // True once another run has become the active one, or the run was
+    // interrupted: whatever it still does is no longer wanted.
+    bool isSuperseded() const
+    {
+        return run_.isSuperseded();
+    }
+
+    void reportProgress( int percent ) const
+    {
+        run_.reportProgress( percent );
+    }
+
+    // Indexes the Log File from initialPosition on into the indexing data.
+    // Returns false when the run was superseded before it was done: what it
+    // indexed is then dropped.
+    bool doIndex( OffsetInFile initialPosition );
 
     QString fileName_;
     std::shared_ptr<IndexingData> indexing_data_;
-    AtomicFlag& interruptRequest_;
+    const RunControl& run_;
     const IndexingPolicy indexingPolicy_;
 
 private:
@@ -536,22 +558,24 @@ using IndexJob = std::variant<std::monostate, AttachJob, FullReindexJob, Partial
                               CheckForChangesJob>;
 
 class FullIndexOperation : public IndexOperation {
-    Q_OBJECT
 public:
     FullIndexOperation( const QString& fileName, const std::shared_ptr<IndexingData>& indexingData,
-                        AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy,
+                        const RunControl& run, IndexingPolicy indexingPolicy,
                         FullIndexRequest request = FullIndexRequest::Automatic,
                         const TextEncoding* forcedEncoding = nullptr,
                         IndexingBlockPlan blockPlan = {} )
-        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy,
-                          std::move( blockPlan ) )
+        : IndexOperation( fileName, indexingData, run, indexingPolicy, std::move( blockPlan ) )
         , request_( request )
         , forcedEncoding_( forcedEncoding )
     {
     }
 
 protected:
-    OperationResult doRun() override;
+    IndexOutcome doRun() override;
+    const char* name() const override
+    {
+        return "FullIndexOperation";
+    }
 
 private:
     // Sets up the indexing data to go on from a cached Index built when the
@@ -568,65 +592,87 @@ private:
 };
 
 class PartialIndexOperation : public IndexOperation {
-    Q_OBJECT
 public:
     PartialIndexOperation( const QString& fileName,
-                           const std::shared_ptr<IndexingData>& indexingData,
-                           AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy )
-        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy )
+                           const std::shared_ptr<IndexingData>& indexingData, const RunControl& run,
+                           IndexingPolicy indexingPolicy )
+        : IndexOperation( fileName, indexingData, run, indexingPolicy )
     {
     }
 
 protected:
-    OperationResult doRun() override;
+    IndexOutcome doRun() override;
+    const char* name() const override
+    {
+        return "PartialIndexOperation";
+    }
 };
 
+// Checking the Log File for changes is not interrupted: what it finds is
+// told even when its run was superseded meanwhile.
 class CheckFileChangesOperation : public IndexOperation {
-    Q_OBJECT
 public:
     CheckFileChangesOperation( const QString& fileName,
                                const std::shared_ptr<IndexingData>& indexingData,
-                               AtomicFlag& interruptRequest, IndexingPolicy indexingPolicy )
-        : IndexOperation( fileName, indexingData, interruptRequest, indexingPolicy )
+                               const RunControl& run, IndexingPolicy indexingPolicy )
+        : IndexOperation( fileName, indexingData, run, indexingPolicy )
     {
     }
 
 protected:
-    OperationResult doRun() override;
-    OperationResult reportFailure( const QString& failure ) override;
+    IndexOutcome doRun() override;
+    IndexOutcome reportFailure( const QString& failure ) override;
+    const char* name() const override
+    {
+        return "CheckFileChangesOperation";
+    }
 
 private:
     MonitoredFileStatus doCheckFileChanges();
 };
 
+// Runs the index jobs of one Log File through a Background Run, one at a
+// time, which keeps the Log File's reader attached for exactly as long as each
+// run lasts and reports each run finished once. Which index job runs next is
+// the job rule's, and up to whoever hands the jobs in (the log data).
 class LogDataWorker : public QObject {
     Q_OBJECT
 
 public:
+    using IndexRun = BackgroundRun<IndexingPolicy, IndexOutcome>;
+    // What stays open while an index run reads the Log File.
+    using Reader = IndexRun::Reader;
+
     // Pass a pointer to the IndexingData (initially empty)
     // This object will change it when indexing (IndexingData must be thread safe!)
     // The Indexing Policy is what this worker knows about the settings: it
     // reads none itself.
     LogDataWorker( const std::shared_ptr<IndexingData>& indexing_data,
-                   const IndexingPolicy& indexingPolicy );
-    ~LogDataWorker() noexcept override;
+                   const IndexingPolicy& indexingPolicy, Reader reader = {} );
+    // Shuts the Background Run down: the run in flight is interrupted and
+    // waited for as a Search is, and nothing is reported any more.
+    ~LogDataWorker() override;
 
     LogDataWorker( const LogDataWorker& ) = delete;
-    LogDataWorker& operator=( const LogDataWorker&& ) = delete;
+    LogDataWorker& operator=( const LogDataWorker& ) = delete;
 
     LogDataWorker( LogDataWorker&& ) = delete;
     LogDataWorker& operator=( LogDataWorker&& ) = delete;
 
-    // Starts running the index job on the worker's thread, once the one
-    // before it is done, and returns. Its progress and its end are sent as
-    // the signals below. Nothing runs for no job.
+    // Starts running the index job on the worker's thread and returns once it
+    // has started. A run still in flight is superseded by it: whoever hands
+    // the jobs in (the job rule) starts one only once the one before is
+    // reported finished. Its
+    // progress and its end are sent as the signals below, on the thread this
+    // worker lives on. Nothing runs for no job.
     void run( const IndexJob& job );
 
     // Replaces the Indexing Policy used by the runs requested from now on.
     // A run already in flight keeps the Policy it was started with.
     void setIndexingPolicy( const IndexingPolicy& indexingPolicy );
 
-    // Interrupts the indexing if one is in progress
+    // Interrupts the index run in flight, if any. Does not wait for it: it is
+    // reported finished, Interrupted, once it has stopped.
     void interrupt();
 
 Q_SIGNALS:
@@ -642,9 +688,10 @@ Q_SIGNALS:
     void checkFileChangesFinished( MonitoredFileStatus status, const QString& failure );
 
 private:
-    // Attaches to a file on disk. Attaching to a non existant file
-    // will work, it will just appear as an empty file.
-    void attachFile( const QString& fileName );
+    // Whether a run indexes the Log File or checks it for changes, which
+    // decides how its end is reported.
+    enum class RunKind { Index, Check };
+
     // Starts a new full indexing of the file. What asked for it decides how
     // closely a cached Index is checked against the Log File (#337).
     void indexAll( const TextEncoding* forcedEncoding, FullIndexRequest request );
@@ -652,22 +699,26 @@ private:
     void indexAdditionalLines();
     void checkFileChanges();
 
-    OperationResult connectSignalsAndRun( IndexOperation* operationRequested );
+    // Starts job as a run of the given kind.
+    void start( RunKind kind, IndexRun::Job job );
 
-    // Mutex to wait for operations
-    QThreadPool operationsPool_;
-    Mutex operationsMutex_;
-    AtomicFlag interruptRequest_;
+    // Reports how a run ended, as the signal its kind has.
+    void reportFinished( const RunEnd<IndexOutcome>& end );
 
+    // The Log File attached, taken by every run as it is started. Only on the
+    // thread this worker lives on, like everything below but the run itself.
     QString fileName_;
-
-    // Read and written under operationsMutex_, and copied into every
-    // operation as it is requested, so that a run never reads it from the
-    // pool thread while the UI thread is replacing it.
-    IndexingPolicy indexingPolicy_;
 
     // Pointer to the owner's indexing data (we modify it)
     std::shared_ptr<IndexingData> indexing_data_;
+
+    // The runs started and not reported finished yet, by id: a run that
+    // failed has no outcome that tells its kind.
+    std::map<RunId::UnderlyingType, RunKind> startedRuns_;
+
+    // Declared last, so it shuts down -- and no run touches the indexing data
+    // any more -- before anything else here is destroyed.
+    IndexRun run_;
 };
 
 #endif
