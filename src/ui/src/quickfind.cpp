@@ -301,8 +301,23 @@ Selection QuickFind::incrementalSearchAbort()
 void QuickFind::stopSearch()
 {
     LOG_INFO << "Stop search for quickfind " << this;
+    interruptSearch();
+}
+
+void QuickFind::interruptSearch()
+{
     interruptRequested_.set();
     operationWatcher_.waitForFinished();
+    // What the search's worker touched -- the state it reported the result
+    // into under the future's lock, the Log File it read -- is let go of once
+    // this returns: the future dropped by the next search or by the
+    // destructor, the view and its Log File closed. The wait above orders the
+    // two inside QtCore, which ThreadSanitizer cannot see. Reading the result
+    // takes that lock in Qt's inline code, which TSan does see, so what
+    // follows is ordered for it too (#482, #527).
+    if ( operationFuture_.isResultReadyAt( 0 ) ) {
+        [[maybe_unused]] const auto& previous = operationFuture_.resultAt( 0 );
+    }
 }
 
 void QuickFind::onSearchFutureReady()
@@ -408,16 +423,8 @@ void QuickFind::searchBackward( Selection selection, QuickFindMatcher matcher )
 void QuickFind::startSearch( QFDirection direction, const FilePosition& start_position,
                              const Selection& selection, const QuickFindMatcher& matcher )
 {
-    interruptRequested_.set();
-    operationWatcher_.waitForFinished();
-    // The previous search's future is dropped below, and with it the state its
-    // worker reported the result into under the future's lock. The wait above
-    // orders the two inside QtCore, which ThreadSanitizer cannot see. Reading
-    // the result takes that lock in Qt's inline code, which TSan does see, so
-    // the free that follows is ordered for it too (#482).
-    if ( operationFuture_.isResultReadyAt( 0 ) ) {
-        [[maybe_unused]] const auto& previous = operationFuture_.resultAt( 0 );
-    }
+    // The previous search's future is dropped below.
+    interruptSearch();
     // Cleared here, before the worker starts, so a stopSearch() that comes
     // before the worker has begun still interrupts it.
     interruptRequested_.clear();
