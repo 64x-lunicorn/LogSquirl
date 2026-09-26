@@ -48,7 +48,7 @@ jobs:
             config:
               os: linux
               arch: x64
-              qt_version: 6.11.2
+              qt_version: 6.11.3
               qt_arch: linux_gcc_64
               qt_modules: qt5compat
 

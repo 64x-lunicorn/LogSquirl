@@ -41,7 +41,7 @@ ENV CXX=g++-12
 # wheels only, and go to a throwaway directory instead of the system
 # site-packages: nothing of them stays in the image (#317). --target also
 # bypasses the PEP 668 externally-managed check without overriding it.
-ENV QT_VERSION=6.11.2
+ENV QT_VERSION=6.11.3
 COPY shared/aqtinstall-requirements.txt /tmp/
 RUN pip3 install --no-cache-dir --require-hashes --only-binary :all: \
         --target /tmp/aqtinstall -r /tmp/aqtinstall-requirements.txt && \

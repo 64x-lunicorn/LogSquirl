@@ -11,7 +11,7 @@
 #    Qt; when the distribution's Qt is older, it must refuse because of Qt, and
 #    only because of Qt. Users of such a distribution take the AppImage.
 #
-# Usage: QT_VERSION=6.11.2 check-package.sh <package.deb|package.rpm>
+# Usage: QT_VERSION=6.11.3 check-package.sh <package.deb|package.rpm>
 set -euo pipefail
 
 package=${1:?usage: QT_VERSION=<version> $0 <package.deb|package.rpm>}
