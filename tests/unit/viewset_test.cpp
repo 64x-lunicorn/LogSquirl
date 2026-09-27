@@ -76,7 +76,7 @@ struct AbstractLogView::access_by<ViewSetTest> {
     }
     static const std::vector<QStringList>& colorLabels( const AbstractLogView& view )
     {
-        return view.quickHighlighters_;
+        return view.colorLabelWords_;
     }
     static std::pair<LineNumber, LineNumber> searchLimits( const AbstractLogView& view )
     {

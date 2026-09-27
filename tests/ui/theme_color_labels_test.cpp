@@ -118,7 +118,7 @@ struct ViewWithLabelledWord {
         view.setPresentationPolicy( testSettingsPolicies().presentation );
         view.updateData();
 
-        std::vector<AbstractLogView::QuickHighlighters> words( ColorLabelCount );
+        std::vector<QStringList> words( ColorLabelCount );
         words[ 0 ] = QStringList{ "ERROR" };
         view.setColorLabels( words );
         QCoreApplication::processEvents();

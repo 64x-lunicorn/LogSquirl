@@ -285,7 +285,7 @@ void LogTableView::setSearchLimits( LineNumber startLine, LineNumber endLine )
     repaintIfActive();
 }
 
-void LogTableView::setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels )
+void LogTableView::setColorLabels( const std::vector<QStringList>& labels )
 {
     state_.colorLabelWords = labels;
     repaintIfActive();

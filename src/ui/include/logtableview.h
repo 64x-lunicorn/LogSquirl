@@ -135,7 +135,7 @@ public:
     // Ignored: the Table View never engages follow itself, and leaves it
     // however follow was engaged.
     void allowFollowMode( bool allow ) override;
-    void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels ) override;
+    void setColorLabels( const std::vector<QStringList>& labels ) override;
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
