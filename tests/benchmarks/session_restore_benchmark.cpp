@@ -111,7 +111,7 @@ public:
             paths_.push_back( path );
 
             openFiles.emplace_back(
-                path, 0,
+                path,
                 QStringLiteral( "S0:1:IC0:AR0:LC1:LTS0:CNT0:SP[400,100]:FV0:FT0:ENC0:MRK[]" ) );
             if ( i % 4 != 0 ) {
                 tabNames.setTabName( path, QStringLiteral( "Service %1" ).arg( i ) );
@@ -219,7 +219,7 @@ public:
             logdatabenchmark::writeGeneratedLogFile(
                 path, logdatabenchmark::LogFileShape::ShortLines, bytes, written );
             REQUIRE( written );
-            openFiles.emplace_back( path, 0, QString{} );
+            openFiles.emplace_back( path, QString{} );
         }
         fileCount_ = static_cast<int>( count );
 

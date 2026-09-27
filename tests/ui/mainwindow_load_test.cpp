@@ -19,7 +19,8 @@
 
 // The main window and the loads of its Log Files: what a tab brought to the
 // front says about its load (#540), a Filters-panel click that runs one
-// Search (#538), and the tab a restored Session opens on (#542). Unlike
+// Search (#538), the tab a restored Session opens on (#542) and where its Log
+// Files stand (#559). Unlike
 // mainwindow_test.cpp these run on every platform.
 
 #include <catch2/catch_test_macros.hpp>
@@ -42,6 +43,7 @@
 #include "filterspanel.h"
 #include "logfiltereddata.h"
 #include "logformatcatalog.h"
+#include "logmainview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "openlogfile.h"
@@ -52,6 +54,7 @@
 #include "test_policies.h"
 #include "test_utils.h"
 #include "textencoding.h"
+#include "viewstatecodec.h"
 
 struct MainWindowLoadAccess;
 
@@ -66,6 +69,12 @@ struct CrawlerWidget::access_by<MainWindowLoadAccess> {
     static QComboBox& searchLine( CrawlerWidget& crawler )
     {
         return *crawler.searchLineEdit_;
+    }
+
+    // The text view of the Log File.
+    static const AbstractLogView& textView( const CrawlerWidget& crawler )
+    {
+        return *crawler.logMainView_;
     }
 };
 
@@ -322,8 +331,8 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
     auto& stored = SessionInfo::get();
     stored.add( windowId );
     stored.setOpenFiles( windowId,
-                         { { QFileInfo( firstFile ).absoluteFilePath(), 0, QString{} },
-                           { QFileInfo( secondFile ).absoluteFilePath(), 0, QString{} } },
+                         { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
+                           { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
                          0 );
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
@@ -347,6 +356,74 @@ SCENARIO( "A restored window shows the tab that was in front", "[ui][session]" )
             // The Log Files' tabs are the last two, in the order they were
             // saved; a dashboard tab, if any, comes before them.
             REQUIRE( tabArea->currentIndex() == tabArea->count() - 2 );
+        }
+    }
+
+    mainWindow.reset();
+    // Leave the in-memory Session info as the settings store has it.
+    SessionInfo::getSynced();
+}
+
+// A restored Log File shows the Log Line that was at the top of its Viewport
+// when the Session was saved, once its first load is done; one still waiting
+// for its turn keeps that Scroll Position for the next save (#559).
+SCENARIO( "A restored Log File stands where it stood", "[ui][session]" )
+{
+    const auto windowId = QStringLiteral( "mainwindow_load_test_window_559" );
+
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_position_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_position_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        for ( auto line = 0; line < 3000; ++line ) {
+            file->write( QByteArray( "Log Line " ) + QByteArray::number( line ) + '\n' );
+        }
+        file->flush();
+    }
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    // Stored after the Session was built, which reads the settings store.
+    auto& stored = SessionInfo::get();
+    stored.add( windowId );
+    stored.setOpenFiles(
+        windowId,
+        { { QFileInfo( firstFile ).absoluteFilePath(), R"({"S":[400,100],"SP":1200})" },
+          { QFileInfo( secondFile ).absoluteFilePath(), R"({"S":[400,100],"SP":900})" } },
+        0 );
+    WindowSession windowSession{ appSession, windowId, 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    WHEN( "the window's Session is restored" )
+    {
+        mainWindow->reloadSession();
+        auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabArea != nullptr );
+        const auto logFileTabs = tabArea->logFileTabs();
+        REQUIRE( logFileTabs.size() == 2 );
+        const auto* first = qobject_cast<CrawlerWidget*>( tabArea->widget( logFileTabs.front() ) );
+        const auto* second = qobject_cast<CrawlerWidget*>( tabArea->widget( logFileTabs.back() ) );
+        REQUIRE( first != nullptr );
+        REQUIRE( second != nullptr );
+
+        THEN( "the text view of the tab in front stands on the saved Log Line once loaded" )
+        {
+            const auto& textView = LoadAccess::textView( *first );
+            REQUIRE( waitUiState( [ & ] { return textView.getTopLine() == 1200_lnum; }, 10000 ) );
+        }
+
+        AND_THEN( "the tab behind it saves the Scroll Position it was restored with, loaded or "
+                  "not" )
+        {
+            const auto saved = decodeViewState( second->context()->toString(), QuickFindPolicy{} );
+            REQUIRE( saved.scrollPosition == 900 );
         }
     }
 
@@ -397,8 +474,8 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
     auto& stored = SessionInfo::get();
     stored.add( windowId );
     stored.setOpenFiles( windowId,
-                         { { QFileInfo( firstFile ).absoluteFilePath(), 0, QString{} },
-                           { QFileInfo( secondFile ).absoluteFilePath(), 0, QString{} } },
+                         { { QFileInfo( firstFile ).absoluteFilePath(), QString{} },
+                           { QFileInfo( secondFile ).absoluteFilePath(), QString{} } },
                          0 );
     WindowSession windowSession{ appSession, windowId, 0 };
     const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();

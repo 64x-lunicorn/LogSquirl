@@ -2773,7 +2773,7 @@ struct RestoredWindow {
     {
         std::vector<SessionInfo::OpenFile> saved;
         for ( const auto& [ fileName, viewContext ] : openFiles ) {
-            saved.emplace_back( fileName, 0, viewContext );
+            saved.emplace_back( fileName, viewContext );
         }
         auto& readAtStartup = SessionInfo::get();
         readAtStartup.add( windowId );

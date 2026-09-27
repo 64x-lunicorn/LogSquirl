@@ -184,16 +184,16 @@ void PersistentInfo::UpdateSettings()
         if ( geometry.isValid() ) {
             const auto id = generateIdFromUuid();
             sessionSettings_->beginGroup( "OpenFiles" );
-            std::vector<std::tuple<QString, uint64_t, QString>> openFiles;
+            // The top line stored beside each is left behind (#559).
+            std::vector<std::pair<QString, QString>> openFiles;
             int size = sessionSettings_->beginReadArray( "openFiles" );
             LOG_INFO << "OpenFiles" << size;
 
             for ( int i = 0; i < size; ++i ) {
                 sessionSettings_->setArrayIndex( i );
                 QString fileName = sessionSettings_->value( "fileName" ).toString();
-                uint64_t topLine = sessionSettings_->value( "topLine" ).toULongLong();
                 QString viewContext = sessionSettings_->value( "viewContext" ).toString();
-                openFiles.emplace_back( fileName, topLine, viewContext );
+                openFiles.emplace_back( fileName, viewContext );
             }
             sessionSettings_->endArray();
             sessionSettings_->endGroup(); // OpenFiles
@@ -212,9 +212,8 @@ void PersistentInfo::UpdateSettings()
             for ( unsigned i = 0; i < openFiles.size(); ++i ) {
                 sessionSettings_->setArrayIndex( static_cast<int>( i ) );
 
-                sessionSettings_->setValue( "fileName", std::get<0>( openFiles.at( i ) ) );
-                sessionSettings_->setValue( "topLine", qint64( std::get<1>( openFiles.at( i ) ) ) );
-                sessionSettings_->setValue( "viewContext", std::get<2>( openFiles.at( i ) ) );
+                sessionSettings_->setValue( "fileName", openFiles.at( i ).first );
+                sessionSettings_->setValue( "viewContext", openFiles.at( i ).second );
             }
             sessionSettings_->endArray(); // openfiles
             sessionSettings_->endGroup(); // OpenFiles

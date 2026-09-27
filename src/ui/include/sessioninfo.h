@@ -57,18 +57,17 @@ public:
     }
 
     struct OpenFile {
-        OpenFile( const QString& file, uint64_t top, const QString& context )
+        OpenFile( const QString& file, const QString& context )
             : fileName{ file }
-            , topLine{ top }
             , viewContext{ context }
         {
         }
 
         QString fileName;
-        uint64_t topLine;
 
         // The view context contains parameter specific to the view's
-        // implementation (such as geometry...)
+        // implementation (such as geometry...), and where the Log File
+        // stands: its Scroll Position (#559).
         QString viewContext;
     };
 

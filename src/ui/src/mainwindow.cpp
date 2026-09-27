@@ -3296,13 +3296,11 @@ void MainWindow::showInfoLabels( bool show )
 void MainWindow::writeSettings()
 {
     // Save the session
-    // Generate the ordered list of widgets and their topLine
-    std::vector<
-        std::tuple<const ViewInterface*, uint64_t, std::shared_ptr<const ViewContextInterface>>>
-        widget_list;
+    // Generate the ordered list of widgets and their view state
+    std::vector<SaveFileInfo> widget_list;
     for ( const auto i : mainTabWidget_.logFileTabs() ) {
         const auto* view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
-        widget_list.emplace_back( view, 0UL, view->context() );
+        widget_list.emplace_back( view, view->context() );
     }
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
         sidebarWidth_ = sidebarDock_->width();

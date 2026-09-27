@@ -442,21 +442,16 @@ std::vector<WindowSession> Session::windowSessions()
     return windows;
 }
 
-void WindowSession::save(
-    const std::vector<std::tuple<const ViewInterface*, uint64_t,
-                                 std::shared_ptr<const ViewContextInterface>>>& view_list,
-    const ViewInterface* currentView, const QByteArray& geometry, int sidebarWidth )
+void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
+                          const ViewInterface* currentView, const QByteArray& geometry,
+                          int sidebarWidth )
 {
     LOG_DEBUG << "Session::save";
 
     std::vector<SessionInfo::OpenFile> session_files;
     auto currentFile = -1;
     for ( const auto& view : view_list ) {
-        const ViewInterface* view_object;
-        uint64_t top_line;
-        std::shared_ptr<const ViewContextInterface> view_context;
-
-        std::tie( view_object, top_line, view_context ) = view;
+        const auto& [ view_object, view_context ] = view;
 
         const Session::OpenFile* file = appSession_->findOpenFileFromView( view_object );
         if ( !file ) {
@@ -468,7 +463,7 @@ void WindowSession::save(
         if ( view_object == currentView ) {
             currentFile = logsquirl::isize( session_files );
         }
-        session_files.emplace_back( file->fileName, top_line, view_context->toString() );
+        session_files.emplace_back( file->fileName, view_context->toString() );
     }
 
     auto& session = SessionInfo::getSynced();

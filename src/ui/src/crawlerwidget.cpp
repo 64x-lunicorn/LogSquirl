@@ -49,6 +49,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <utility>
 
 #include <QAction>
 #include <QActionGroup>
@@ -711,6 +712,12 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
                     []( const auto& l ) { return LineNumber( l ); } );
     openLogFile_->restoreMarks( savedMarkedLines );
 
+    // Where the text view stood; it can stand there once the Log File has
+    // loaded. The top needs nothing.
+    if ( context.scrollPosition != 0 ) {
+        scrollPositionToRestore_ = LineNumber( context.scrollPosition );
+    }
+
     // Restore chart series and visibility
     const auto& chartJson = context.chartSeries;
     if ( !chartJson.isEmpty() ) {
@@ -743,6 +750,8 @@ std::shared_ptr<const ViewContextInterface> CrawlerWidget::doGetViewContext() co
         state.chartSeries.append( def.toJson() );
     }
     state.chartVisible = chartPanel_->isVisible();
+    // A Log File not loaded yet stands where it was restored to.
+    state.scrollPosition = scrollPositionToRestore_.value_or( logMainView_->getTopLine() ).get();
 
     return std::make_shared<const ViewStateContext>( std::move( state ) );
 }
@@ -1109,9 +1118,15 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // overview have probably changed.
     overview_.updateData( openLogFile_->logData()->getNbLine() );
 
-    // FIXME, handle topLine
-    // logMainView_->updateData( logData_, topLine );
     logMainView_->updateData( load.onlyAppended ? LinesChange::Appended : LinesChange::Any );
+
+    // A restored Log File stands where it stood once its first load is done,
+    // unless it follows the end of the Log File.
+    if ( const auto restored = std::exchange( scrollPositionToRestore_, {} );
+         restored.has_value() && load.status == LoadingStatus::Successful
+         && !logMainView_->isFollowEnabled() ) {
+        logMainView_->showAtTop( *restored );
+    }
 
     // The Open Log File has refreshed the Search already; one it started
     // again over the truncated Log File is shown like any new Search.

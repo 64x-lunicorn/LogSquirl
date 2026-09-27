@@ -552,6 +552,11 @@ private:
     QString lastLoadFailure_;
     int loadingProgress_ = 0;
 
+    // The Scroll Position of the text view restored with the Session, until
+    // the first load of the Log File is done and it can stand there; saved
+    // as it was restored until then (#559).
+    OptionalLineNumber scrollPositionToRestore_;
+
     QString encodingText_;
 
     ColorLabelsManager colorLabelsManager_;
