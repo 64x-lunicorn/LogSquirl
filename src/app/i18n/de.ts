@@ -2176,6 +2176,11 @@ Ohne Datum wird %1 verwendet.</translation>
         <translation>Dashboard beim Start anzeigen</translation>
     </message>
     <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <source>Applies to windows opened from now on</source>
+        <translation>Gilt für Fenster, die ab jetzt geöffnet werden</translation>
+    </message>
+    <message>
         <location filename="../../ui/include/optionsdialog.ui" line="230"/>
         <source>Version checking options</source>
         <translation>Optionen für Versionsprüfung</translation>

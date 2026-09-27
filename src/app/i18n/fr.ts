@@ -2176,6 +2176,11 @@ Sans date, %1 est utilisé.</translation>
         <translation>Afficher le tableau de bord au lancement</translation>
     </message>
     <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <source>Applies to windows opened from now on</source>
+        <translation>S&apos;applique aux fenêtres ouvertes à partir de maintenant</translation>
+    </message>
+    <message>
         <location filename="../../ui/include/optionsdialog.ui" line="230"/>
         <source>Version checking options</source>
         <translation>Options de vérification de version</translation>

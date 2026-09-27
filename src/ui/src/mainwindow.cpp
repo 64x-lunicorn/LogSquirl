@@ -109,6 +109,7 @@
 #include "logsquirl_version.h"
 #include "mainwindowtext.h"
 #include "menu.h"
+#include "mergecontroller.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
 #include "plugindialog.h"
@@ -1025,7 +1026,7 @@ void MainWindow::updateShortcuts()
 // Check whether the given tab index points to the pinned welcome dashboard.
 bool isDashboardTab( const TabbedCrawlerWidget& tabs, int index )
 {
-    return index == 0 && qobject_cast<WelcomeDashboard*>( tabs.widget( 0 ) ) != nullptr;
+    return qobject_cast<WelcomeDashboard*>( tabs.widget( index ) ) != nullptr;
 }
 
 // Refresh the welcome dashboard content.
@@ -1424,17 +1425,22 @@ void MainWindow::closeTab( ActionInitiator initiator )
     else {
         // The dashboard tab is the only/current tab — closing it should close
         // the window if there is nothing else open, otherwise it is a no-op.
-        if ( mainTabWidget_.count() <= 1 ) {
+        if ( mainTabWidget_.logFileTabs().isEmpty() ) {
             this->close();
         }
     }
 }
 
-// Close all tabs (except the pinned dashboard)
+// Close every tab that holds a Log File, from the left; the dashboard stays.
+// A tab the user chose to keep stays as well.
 void MainWindow::closeAll( ActionInitiator initiator )
 {
-    while ( mainTabWidget_.count() > 1 ) {
-        closeTab( 1, initiator );
+    std::vector<QWidget*> logFiles;
+    for ( const auto index : mainTabWidget_.logFileTabs() ) {
+        logFiles.push_back( mainTabWidget_.widget( index ) );
+    }
+    for ( auto* logFile : logFiles ) {
+        closeTab( mainTabWidget_.indexOf( logFile ), initiator );
     }
 }
 
@@ -2016,7 +2022,10 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
         return;
     }
 
-    auto controller = std::make_unique<MergeController>( this );
+    // The merge controller belongs to the merged tab: closing the tab ends
+    // the rebuild and removes the temporary file. The window holds it only
+    // until the tab is there.
+    auto* controller = new MergeController( this );
     const auto mergedPath = controller->merge( filePaths, dedup );
 
     // Open the merged temp file as a regular tab
@@ -2024,21 +2033,20 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     mainTabWidget_.setTransientTabName( mergedPath, direction );
     loadFile( mergedPath );
 
-    // Connect live updates: when the merged file is rebuilt, reload the LogData
-    connect( controller.get(), &MergeController::mergedFileUpdated, this, [ this, mergedPath ] {
-        // The loadFile + reload mechanism handles re-reading
-        for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-            if ( mainTabWidget_.tabToolTip( i ) == QDir::toNativeSeparators( mergedPath ) ) {
-                auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
-                if ( crawler ) {
-                    crawler->reload();
-                }
-                break;
-            }
+    // A file asked for before the plugins have loaded opens once they have,
+    // so the tab is looked for after that.
+    plugins_->whenLoaded( this, [ this, controller, mergedPath ] {
+        auto* crawler = qobject_cast<CrawlerWidget*>(
+            mainTabWidget_.widget( mainTabWidget_.tabOfPath( mergedPath ) ) );
+        if ( crawler == nullptr ) {
+            LOG_WARNING << "No tab holds the merged file " << mergedPath;
+            delete controller;
+            return;
         }
+        controller->setParent( crawler );
+        // When the merged file is rebuilt, its tab reads it again
+        connect( controller, &MergeController::mergedFileUpdated, crawler, &CrawlerWidget::reload );
     } );
-
-    mergeControllers_.push_back( std::move( controller ) );
 }
 
 void MainWindow::toggleSidebar()
@@ -2330,8 +2338,8 @@ void MainWindow::applyQuickFindPolicy()
 
 void MainWindow::closeTab( int index, ActionInitiator initiator )
 {
-    // Never close the pinned dashboard tab
-    if ( isDashboardTab( mainTabWidget_, index ) ) {
+    // Never close a tab that holds no Log File: the pinned dashboard
+    if ( !mainTabWidget_.holdsLogFile( index ) ) {
         return;
     }
 

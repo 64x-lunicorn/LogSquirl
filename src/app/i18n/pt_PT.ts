@@ -2176,6 +2176,11 @@ Sem data, é usado %1.</translation>
         <translation>Mostrar painel inicial ao iniciar</translation>
     </message>
     <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <source>Applies to windows opened from now on</source>
+        <translation>Aplica-se às janelas abertas a partir de agora</translation>
+    </message>
+    <message>
         <location filename="../../ui/include/optionsdialog.ui" line="230"/>
         <source>Version checking options</source>
         <translation>Opções de verificação de versão</translation>
