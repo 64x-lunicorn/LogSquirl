@@ -61,6 +61,7 @@
 #include "quickfindpattern.h"
 #include "shortcuts.h"
 #include "textviewscrolling.h"
+#include "viewstatecodec.h"
 
 #include "theme.h"
 #include "theme_lists.h"
@@ -125,6 +126,11 @@ struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
     {
         return view.quickFind_;
     }
+    // The Search Limits the view subdues the Log Lines outside of.
+    static std::pair<LineNumber, LineNumber> searchLimits( const AbstractLogView& view )
+    {
+        return { view.searchStart_, view.searchEnd_ };
+    }
 };
 
 template <>
@@ -160,6 +166,17 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
     bool isLoadingFinished()
     {
         return crawler->lastLoadStatus_.has_value();
+    }
+
+    // How the last load of the Log File ended, if one has.
+    std::optional<LoadingStatus> lastLoadStatus() const
+    {
+        return crawler->lastLoadStatus_;
+    }
+
+    OpenLogFile& openLogFile()
+    {
+        return *crawler->openLogFile_;
     }
 
     LinesCount getLogNbLines()
@@ -2502,6 +2519,45 @@ SCENARIO( "Color Labels and Search Limits reach every Filtered View of the Log F
     }
 }
 
+// The Search Limits belong to the Open Log File, which tells the View Set as
+// a load settles them and as they are set; the View Set hands them to every
+// view of the Log File, with no sync by the widget (#556).
+SCENARIO( "The views of a Log File follow the Search Limits of its Open Log File", "[ui][limits]" )
+{
+    QTemporaryFile file{ "crawler_limits_follow_XXXXXX" };
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+    CrawlerWidgetVisitor crawlerVisitor;
+    openCrawler( session, file, crawlerVisitor );
+    QCoreApplication::processEvents();
+
+    using ViewAccess = AbstractLogView::access_by<CrawlerWidgetPrivate>;
+    const auto viewsHave = [ & ]( LineNumber startLine, LineNumber endLine ) {
+        const auto limits = std::make_pair( startLine, endLine );
+        REQUIRE( crawlerVisitor.searchLimits() == limits );
+        REQUIRE( ViewAccess::searchLimits( *crawlerVisitor.textView() ) == limits );
+        REQUIRE( ViewAccess::searchLimits( *crawlerVisitor.filteredView() ) == limits );
+    };
+
+    GIVEN( "a Log File that has loaded" )
+    {
+        THEN( "every view has the Search Limits the load settled: the whole Log File" )
+        {
+            viewsHave( 0_lnum, LineNumber( SL_NB_LINES ) );
+        }
+
+        WHEN( "Search Limits are set on the Open Log File" )
+        {
+            crawlerVisitor.openLogFile().setSearchLimits( 10_lnum, 20_lnum );
+            QCoreApplication::processEvents();
+
+            THEN( "every view has them" )
+            {
+                viewsHave( 10_lnum, 20_lnum );
+            }
+        }
+    }
+}
+
 namespace {
 
 // What the application does once a Highlighter Set, or the color of a Color
@@ -3763,6 +3819,68 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
 // The window hears only the tab in front, so a tab replays the status of its
 // last load when it is brought to the front: a load still under way is
 // replayed as loading, never as loaded (#540).
+// A restored Log File stands on the Scroll Position it was saved with once
+// its first successful load is done. A load interrupted before that keeps the
+// Scroll Position: for the next load, and for a save in between (#559).
+SCENARIO( "A restored Log File whose first load is interrupted stands where it stood once loaded",
+          "[ui][session]" )
+{
+    const auto windowId = QStringLiteral( "crawlerwidget_test_window_559" );
+    // Big enough that a load interrupted at once has not finished yet.
+    constexpr auto nbLines = 50000;
+    QTemporaryFile big{ "crawler_test_interrupted_XXXXXX" };
+    REQUIRE( big.open() );
+    for ( auto line = 0; line < nbLines; ++line ) {
+        big.write( QByteArray( "Log Line of a Log File big enough to take a while, number " )
+                   + QByteArray::number( line ) + '\n' );
+    }
+    big.flush();
+
+    QTemporaryFile current{ "crawler_test_current_XXXXXX" };
+    REQUIRE( generateDataFiles( current ) );
+
+    // The big Log File in a tab that is not the current one: its load waits
+    // for its tab to be activated.
+    RestoredWindow restored{ windowId,
+                             { { big.fileName(), R"({"S":[400,100],"SP":1200})" },
+                               { current.fileName(), {} } } };
+    CrawlerWidgetVisitor tab;
+    tab.crawler = std::move( restored.tabs.front() );
+
+    GIVEN( "its first load interrupted as soon as it started" )
+    {
+        restored.window->startLoading( tab.crawler.get() );
+        tab.crawler->stopLoading();
+        REQUIRE( waitUiState( [ & ] { return tab.isLoadingFinished(); }, 10000 ) );
+        tab.showSized();
+        REQUIRE( tab.lastLoadStatus() == LoadingStatus::Interrupted );
+
+        THEN( "a save writes the Scroll Position it was restored with" )
+        {
+            const auto saved
+                = decodeViewState( tab.crawler->context()->toString(), QuickFindPolicy{} );
+            REQUIRE( saved.scrollPosition == 1200 );
+        }
+
+        WHEN( "it is loaded again, to the end" )
+        {
+            tab.crawler->reload();
+            REQUIRE( waitUiState(
+                [ & ] {
+                    return tab.lastLoadStatus() == LoadingStatus::Successful
+                           && tab.getLogNbLines().get() == nbLines;
+                },
+                30000 ) );
+
+            THEN( "its text view stands on the saved Log Line" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] { return tab.textView()->getTopLine() == 1200_lnum; }, 10000 ) );
+            }
+        }
+    }
+}
+
 SCENARIO( "A Log File replays the status of its last load to the window", "[ui][loading]" )
 {
     QTemporaryFile file{ "crawler_replay_test_XXXXXX" };
