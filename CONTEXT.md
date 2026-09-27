@@ -142,8 +142,9 @@ The owner of every Search of one Log File, each shown in a Filtered View of its 
 current Search, which runs, follows the Log File and takes the Marks, and those whose results
 the user kept to start another. A Search is added, made current and dropped there alone.
 Making one current tells the Open Log File and hands it to the View Set, so no view is left
-showing the Marks and Matches of another; only the current Search's progress is reported. A
-Search dropped goes with its Filtered View, and a Log File always keeps one.
+showing the Marks and Matches of another; only the current Search's progress is reported —
+the Open Log File reports it, and the Kept Searches pass it on. A Search dropped goes with its
+Filtered View, and a Log File always keeps one.
 _Avoid_: search tabs, filtered views data
 
 **Filtered View**:

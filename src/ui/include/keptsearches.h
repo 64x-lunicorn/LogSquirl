@@ -21,7 +21,6 @@
 
 #include "searchsession.h"
 
-#include <QMetaObject>
 #include <QObject>
 #include <QPointer>
 
@@ -91,17 +90,16 @@ public:
     std::size_t count() const;
 
 Q_SIGNALS:
-    // The current Search's state changed: progress, completion, a failure.
-    // Told queued, once the change was made, and only while that Search is
-    // still current: what a Search told before another was made current is
-    // dropped.
+    // The current Search's state changed: progress, completion, a failure,
+    // as the Open Log File reports it. Told queued, once the change was made,
+    // and only while that Search is still current: what a Search told before
+    // another was made current is dropped.
     void currentSearchUpdated( SearchSession::State state );
 
 private:
     struct Kept {
         QPointer<FilteredView> view;
         std::shared_ptr<LogFilteredData> search;
-        QMetaObject::Connection updates;
     };
 
     FilteredView* add( std::shared_ptr<LogFilteredData> search );
@@ -113,4 +111,7 @@ private:
     // In the order they were added.
     std::vector<Kept> searches_;
     QPointer<FilteredView> current_;
+    // How many times a Search was made current: what was told before the
+    // last time is not told.
+    unsigned currentChanges_ = 0;
 };
