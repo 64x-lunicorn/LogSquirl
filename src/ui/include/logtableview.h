@@ -247,6 +247,8 @@ private:
 
     // Pixel X in a cell to the character position there.
     int charAtX( const QModelIndex& index, int pixelX ) const;
+    // Pixel X in a cell to the character painted there.
+    int characterAtX( const QModelIndex& index, int pixelX ) const;
     void selectWordAt( const QModelIndex& index, int charPos );
     // Repaint the in-cell selection.
     void showInCellSelection();

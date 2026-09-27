@@ -863,10 +863,6 @@ void doubleClickCharacter( LogTableView& view, int row, const QString& text, int
     FAIL( "no cell holding " << text.toStdString() );
 }
 
-} // namespace
-
-namespace {
-
 // A Log Format of two fields, a and b, each a run of characters other than a
 // space, apart by spaces or tabs. Its columns show them after the timestamp, the elapsed time and
 // the level, which stay empty.
@@ -935,6 +931,7 @@ SCENARIO( "A QuickFind in the Table View starts from the selected characters and
     {
         doubleClickCharacter( view, 0, "needle", 0 );
         REQUIRE( view.selectedText() == "needle" );
+        REQUIRE( view.selection().inCell().has_value() );
         REQUIRE( view.selection().inCell()->column == columnA );
 
         WHEN( "Find next is chosen" )
@@ -1002,6 +999,7 @@ SCENARIO( "A QuickFind in the Table View starts from the selected characters and
             {
                 REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
                 REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 3_lnum } );
+                REQUIRE( view.selection().inCell().has_value() );
                 REQUIRE( view.selection().inCell()->column == columnB );
                 REQUIRE( view.selectedText() == "needle" );
             }
@@ -1039,6 +1037,18 @@ SCENARIO( "A double-click in the Table View selects a word as the Text View does
         THEN( "no character is selected" )
         {
             REQUIRE_FALSE( view.selection().hasInCellSelection() );
+        }
+    }
+
+    // The Text View takes a click right of a Log Line's text for its last
+    // character.
+    WHEN( "the cell is double-clicked right of its text" )
+    {
+        doubleClickCharacter( view, 0, "needle one", 10 );
+
+        THEN( "the last word is selected, as the Text View selects it" )
+        {
+            REQUIRE( view.selectedText() == "one" );
         }
     }
 }

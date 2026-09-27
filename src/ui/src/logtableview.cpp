@@ -572,10 +572,7 @@ void LogTableView::mouseDoubleClickEvent( QMouseEvent* event )
     if ( handlesMouse() && event->button() == Qt::LeftButton ) {
         const auto index = indexAt( event->pos() );
         if ( index.isValid() ) {
-            selectWordAt( index,
-                          LogTableHighlightDelegate::characterAtX(
-                              index.data( Qt::DisplayRole ).toString(), QFontMetrics( font() ),
-                              visualRect( index ).left(), event->pos().x() ) );
+            selectWordAt( index, characterAtX( index, event->pos().x() ) );
             // Consumed, to prevent default editing
             return;
         }
@@ -679,6 +676,13 @@ void LogTableView::updateRow( int row )
 int LogTableView::charAtX( const QModelIndex& index, int pixelX ) const
 {
     return LogTableHighlightDelegate::charIndexAtX( index.data( Qt::DisplayRole ).toString(),
+                                                    QFontMetrics( font() ),
+                                                    visualRect( index ).left(), pixelX );
+}
+
+int LogTableView::characterAtX( const QModelIndex& index, int pixelX ) const
+{
+    return LogTableHighlightDelegate::characterAtX( index.data( Qt::DisplayRole ).toString(),
                                                     QFontMetrics( font() ),
                                                     visualRect( index ).left(), pixelX );
 }
