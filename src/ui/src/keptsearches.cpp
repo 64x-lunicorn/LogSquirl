@@ -61,7 +61,11 @@ FilteredView* KeptSearches::showCurrentSearch()
 
 FilteredView* KeptSearches::startAnother()
 {
-    return add( openLogFile_->startAnotherSearch() );
+    auto search = openLogFile_->startAnotherSearch();
+    // Reports the Search that was current sent until now are stale; showing
+    // the current Search changes nothing and keeps its queued reports.
+    ++currentChanges_;
+    return add( std::move( search ) );
 }
 
 FilteredView* KeptSearches::add( std::shared_ptr<LogFilteredData> search )
@@ -70,7 +74,6 @@ FilteredView* KeptSearches::add( std::shared_ptr<LogFilteredData> search )
 
     searches_.push_back( Kept{ view, search } );
     current_ = view;
-    ++currentChanges_;
 
     // A view added is the current Search's.
     viewSet_.addFilteredView( view );
