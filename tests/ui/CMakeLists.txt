@@ -1,11 +1,7 @@
 set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/qtests_main.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filewatcher_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/indexing_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/indexingblocks_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/logview_font_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/logdata_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/logfiltereddata_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewscrolling_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewquickfind_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/filteredviewsave_test.cpp
@@ -14,7 +10,6 @@ set(UI_TEST_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/overview_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/crawlerwidget_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/crawlerwidget_formatrecognition_test.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/worker_destruction_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/policy_change_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/session_test.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tabbedcrawlerwidget_test.cpp
@@ -50,12 +45,11 @@ list(APPEND UI_TEST_SOURCES
 
 add_executable(logsquirl_itests ${UI_TEST_SOURCES} ${BACKWARD_ENABLE})
 
-# indexing_test and logfiltereddata_test pin TBB's concurrency (#168), so the
-# dependency stays here. The TBB library itself and logsquirl_utils already
-# arrive through logsquirl_ui, and naming them here as well put both archives
-# on the link line twice (#450); logsquirl_tbb_headers carries TBB's include
-# directory and compile definitions without its library.
-target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_filewatch logsquirl_tbb_headers Catch2::Catch2 Qt6::Test test_utils)
+# The TBB library and logsquirl_utils arrive through logsquirl_ui; naming
+# them here as well put both archives on the link line twice (#450). The
+# engine's tests that pin TBB's concurrency have a binary of their own
+# (tests/logdata, #554).
+target_link_libraries(logsquirl_itests logsquirl_ui logsquirl_filewatch Catch2::Catch2 Qt6::Test test_utils)
 set_target_properties(logsquirl_itests PROPERTIES AUTOMOC ON AUTORCC ON)
 # theme_switch_test opens dialogs whose headers include uic-generated headers.
 target_include_directories(logsquirl_itests PRIVATE
