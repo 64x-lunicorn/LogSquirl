@@ -460,7 +460,8 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
         REQUIRE( waitUiState(
             [ & ] { return tabArea->logFileTabs().size() == 2 && showsLoaded( secondName ); },
             10000 ) );
-        auto* first = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().front() ) );
+        auto* first
+            = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().front() ) );
         REQUIRE( first != nullptr );
         REQUIRE( tabArea->currentWidget() != first );
         QTest::qWait( 100 );
