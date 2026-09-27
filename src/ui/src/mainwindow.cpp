@@ -282,12 +282,13 @@ MainWindow::MainWindow( WindowSession session,
         }
     } );
 
-    // Route filter panel selections to the active crawler widget and auto-search
+    // Route filter panel selections to the active crawler widget. Its Search
+    // line decides whether the Search runs now, as for adding a word to it:
+    // starting it here as well ran every Search twice (#538).
     connect( &filtersPanel_, &FiltersPanel::filtersChanged, this,
              [ this ]( const QList<PredefinedFilter>& filters ) {
                  if ( auto crawler = currentCrawlerWidget() ) {
                      crawler->setSearchPatternFromPredefinedFilters( filters );
-                     crawler->startNewSearch();
                  }
              } );
 

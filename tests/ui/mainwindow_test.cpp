@@ -18,6 +18,7 @@
  */
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <QSignalSpy>
 #include <QTemporaryFile>
@@ -44,7 +45,9 @@
 #include "configuration.h"
 #include "crawlerwidget.h"
 #include "filteredview.h"
+#include "filterspanel.h"
 #include "log.h"
+#include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "logmainview.h"
 #include "mainwindow.h"
@@ -437,6 +440,12 @@ struct CrawlerWidget::access_by<MainWindowLoadAccess> {
     {
         return *crawler.openLogFile_;
     }
+
+    // The Search line, whose drop-down list shows the Search history.
+    static QComboBox& searchLine( CrawlerWidget& crawler )
+    {
+        return *crawler.searchLineEdit_;
+    }
 };
 
 namespace {
@@ -565,6 +574,95 @@ SCENARIO( "A Log File that failed to load in a background tab says so when its t
     }
 
     questionDriver.stop();
+    mainWindow.reset();
+}
+
+// Choosing Predefined Filters in the Filters panel edits the Search line's
+// pattern, and the Search line answers whether the Search runs now, as it does
+// for adding a word, excluding one or replacing the pattern: the window does
+// not start the Search again itself (#538).
+SCENARIO( "One Filters-panel click runs one Search", "[ui][search]" )
+{
+    const auto autoRun = GENERATE( true, false );
+
+    auto policies = testSettingsPolicies();
+    policies.quickFind.autoRunSearchOnPatternChange = autoRun;
+    auto appSession = std::make_shared<Session>( policies, std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    QTemporaryFile file{ QDir::temp().filePath( "mainwindow_filters_XXXXXX" ) };
+    REQUIRE( file.open() );
+    file.write( "alpha Log Line\nbeta Log Line\n" );
+    file.flush();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    auto* filtersPanel = mainWindow->findChild<FiltersPanel*>();
+    REQUIRE( filtersPanel != nullptr );
+
+    mainWindow->loadFileNonInteractive( file.fileName() );
+    CrawlerWidget* crawler = nullptr;
+    REQUIRE( waitUiState(
+        [ & ] {
+            crawler = qobject_cast<CrawlerWidget*>( tabArea->currentWidget() );
+            return crawler != nullptr
+                   && LoadAccess::openLogFile( *crawler ).logData()->getNbLine().get() == 2;
+        },
+        10000 ) );
+    QTest::qWait( 100 );
+
+    // Every Search started clears the one before, and shows the Search
+    // history it saved in the Search line's drop-down list.
+    int searchesStarted = 0;
+    QObject context;
+    QObject::connect( LoadAccess::openLogFile( *crawler ).filteredData().get(),
+                      &LogFilteredData::searchStateChanged, &context,
+                      [ &searchesStarted ]( const SearchSession::State& state ) {
+                          if ( state.phase == SearchSession::Phase::Idle ) {
+                              ++searchesStarted;
+                          }
+                      } );
+    auto& searchLine = LoadAccess::searchLine( *crawler );
+    QSignalSpy historyShown( searchLine.model(), &QAbstractItemModel::rowsInserted );
+
+    GIVEN( ( autoRun ? "a Search line that runs the Search as its pattern changes"
+                     : "a Search line that waits for Enter as its pattern changes" ) )
+    {
+        WHEN( "a Predefined Filter is chosen in the Filters panel" )
+        {
+            Q_EMIT filtersPanel->filtersChanged( { { "beta", "beta", false } } );
+            QTest::qWait( 300 );
+
+            THEN( "the Search line shows its pattern" )
+            {
+                REQUIRE( searchLine.currentText() == "beta" );
+            }
+
+            if ( autoRun ) {
+                THEN( "exactly one Search is started, and the Search history saved once" )
+                {
+                    REQUIRE( searchesStarted == 1 );
+                    REQUIRE( historyShown.count() == 1 );
+                }
+            }
+            else {
+                THEN( "no Search is started" )
+                {
+                    REQUIRE( searchesStarted == 0 );
+                    REQUIRE( historyShown.isEmpty() );
+                }
+            }
+        }
+    }
+
     mainWindow.reset();
 }
 

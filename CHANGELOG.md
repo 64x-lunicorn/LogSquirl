@@ -261,6 +261,11 @@
   remembers which tab of a window was in front, and restoring it shows that
   tab and loads its Log File first, instead of the last tab. A Session saved
   by an earlier version still opens on its last tab (#542).
+- **One click in the Filters panel runs one Search**: Choosing filters in the
+  Filters panel ran the Search twice, the first one thrown away. It now runs
+  once, and only when *Run search on add or replace pattern* is on, as for
+  adding a word to the Search; otherwise the pattern waits in the Search line
+  for Enter (#538).
 
 ## Build and packaging
 
