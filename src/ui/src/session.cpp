@@ -25,8 +25,6 @@
 #include <cassert>
 
 #include "configuration.h"
-#include "logdata.h"
-#include "logfiltereddata.h"
 #include "logformatcatalog.h"
 #include "openlogfile.h"
 #include "policyfilewatchport.h"
@@ -241,10 +239,10 @@ void Session::getFileInfo( const ViewInterface* view, uint64_t* fileSize, uint64
         return;
     }
 
-    const auto& logData = file->openLogFile->logData();
-    *fileSize = static_cast<uint64_t>( logData->getFileSize() );
-    *fileNbLine = logData->getNbLine().get();
-    *lastModified = logData->getLastModifiedDate();
+    const auto& openLogFile = *file->openLogFile;
+    *fileSize = static_cast<uint64_t>( openLogFile.fileSize() );
+    *fileNbLine = openLogFile.lineCount().get();
+    *lastModified = openLogFile.lastModified();
 }
 
 Session::OpenFile* Session::findOpenFileFromView( const ViewInterface* view )
@@ -384,21 +382,20 @@ void Session::applyPolicies( const SettingsPolicies& policies, ViewChange change
         }
 
         if ( indexingChanged ) {
-            openFile.openLogFile->logData()->setIndexingPolicy( policies_.indexing );
+            openFile.openLogFile->setIndexingPolicy( policies_.indexing );
         }
 
         if ( searchChanged ) {
-            // The Log File hands it on to every LogFilteredData built from
-            // it, which is more than the one this Session holds: a tab that
-            // kept an earlier Search has its own.
-            openFile.openLogFile->logData()->setSearchPolicy( policies_.search );
+            // The Open Log File hands it on to every Search it has, the
+            // kept ones included.
+            openFile.openLogFile->setSearchPolicy( policies_.search );
         }
 
         if ( decodingChanged ) {
             // Log Lines read from now on are decoded under it, and the Log
             // File tells its views to read what they show again. Search
             // results already found stay as they were.
-            openFile.openLogFile->logData()->setDecodingPolicy( policies_.decoding );
+            openFile.openLogFile->setDecodingPolicy( policies_.decoding );
         }
 
         if ( !change.isEmpty() ) {
@@ -442,21 +439,16 @@ std::vector<WindowSession> Session::windowSessions()
     return windows;
 }
 
-void WindowSession::save(
-    const std::vector<std::tuple<const ViewInterface*, uint64_t,
-                                 std::shared_ptr<const ViewContextInterface>>>& view_list,
-    const ViewInterface* currentView, const QByteArray& geometry, int sidebarWidth )
+void WindowSession::save( const std::vector<SaveFileInfo>& view_list,
+                          const ViewInterface* currentView, const QByteArray& geometry,
+                          int sidebarWidth )
 {
     LOG_DEBUG << "Session::save";
 
     std::vector<SessionInfo::OpenFile> session_files;
     auto currentFile = -1;
     for ( const auto& view : view_list ) {
-        const ViewInterface* view_object;
-        uint64_t top_line;
-        std::shared_ptr<const ViewContextInterface> view_context;
-
-        std::tie( view_object, top_line, view_context ) = view;
+        const auto& [ view_object, view_context ] = view;
 
         const Session::OpenFile* file = appSession_->findOpenFileFromView( view_object );
         if ( !file ) {
@@ -468,7 +460,7 @@ void WindowSession::save(
         if ( view_object == currentView ) {
             currentFile = logsquirl::isize( session_files );
         }
-        session_files.emplace_back( file->fileName, top_line, view_context->toString() );
+        session_files.emplace_back( file->fileName, view_context->toString() );
     }
 
     auto& session = SessionInfo::getSynced();

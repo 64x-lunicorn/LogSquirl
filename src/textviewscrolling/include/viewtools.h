@@ -63,7 +63,6 @@ public:
         allowHook_ = allow;
         if ( !allow ) {
             hooked_ = false;
-            Q_EMIT hooked( false );
         }
     }
 
@@ -85,10 +84,10 @@ protected:
     void timerEvent( QTimerEvent* event ) override;
 
 Q_SIGNALS:
-    // Sent when the length has changed
+    // Sent when the length has changed. Whether a move hooked or unhooked is
+    // read from isHooked(): it says whether to engage or leave follow, which
+    // the text view scrolled hears from the answer to the move alone (#558).
     void lengthChanged();
-    // Sent when the hooked status has changed
-    void hooked( bool is_hooked );
 
 private:
     void decreasePosition();

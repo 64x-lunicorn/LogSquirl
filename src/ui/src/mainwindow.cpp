@@ -176,7 +176,7 @@ MainWindow::MainWindow( WindowSession session,
     // "current" crawlerwidget
 
     // Send actions to the crawlerwidget
-    signalMux_.connect( this, SIGNAL( followSet( bool ) ), SIGNAL( followSet( bool ) ) );
+    signalMux_.connect( this, SIGNAL( followSet( bool ) ), SLOT( followSet( bool ) ) );
     signalMux_.connect( this, SIGNAL( textWrapSet( bool ) ), SIGNAL( textWrapSet( bool ) ) );
     signalMux_.connect( this, SIGNAL( enteringQuickFind() ), SLOT( enteringQuickFind() ) );
     signalMux_.connect( &quickFindWidget_, SIGNAL( close() ), SLOT( exitingQuickFind() ) );
@@ -300,7 +300,9 @@ MainWindow::MainWindow( WindowSession session,
     connect( &mainTabWidget_, &TabbedCrawlerWidget::tabCloseRequested, this,
              [ this ]( int index ) { this->closeTab( index, ActionInitiator::User ); } );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::bulkTabCloseRequested, this,
-             &MainWindow::closeTabs );
+             [ this ]( const QList<int>& indices ) {
+                 this->closeTabs( indices, ActionInitiator::User );
+             } );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::currentChanged, this,
              &MainWindow::currentTabChanged );
     connect( &mainTabWidget_, &TabbedCrawlerWidget::mergeRequested, this,
@@ -1435,17 +1437,10 @@ void MainWindow::closeTab( ActionInitiator initiator )
     }
 }
 
-// Close every tab that holds a Log File, from the left; the dashboard stays.
-// A tab the user chose to keep stays as well.
+// Close every tab that holds a Log File; the dashboard stays.
 void MainWindow::closeAll( ActionInitiator initiator )
 {
-    std::vector<QWidget*> logFiles;
-    for ( const auto index : mainTabWidget_.logFileTabs() ) {
-        logFiles.push_back( mainTabWidget_.widget( index ) );
-    }
-    for ( auto* logFile : logFiles ) {
-        closeTab( mainTabWidget_.indexOf( logFile ), initiator );
-    }
+    closeTabs( mainTabWidget_.logFileTabs(), initiator );
 }
 
 // Select all the text in the currently selected view
@@ -2357,72 +2352,45 @@ void MainWindow::applyQuickFindPolicy()
 
 void MainWindow::closeTab( int index, ActionInitiator initiator )
 {
-    // Never close a tab that holds no Log File: the pinned dashboard
-    if ( !mainTabWidget_.holdsLogFile( index ) ) {
-        return;
-    }
-
-    auto widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
-
-    if ( !widget ) {
-        LOG_WARNING << "closeTab: widget at index " << index << " is not a CrawlerWidget";
-        return;
-    }
-
-    // Show confirmation dialog for user-initiated tab close if enabled
-    if ( initiator == ActionInitiator::User ) {
-        const auto& config = Configuration::get();
-        if ( config.confirmTabClose() ) {
-            const auto fileName = session_.getFilename( widget );
-            const auto displayName = QFileInfo( fileName ).fileName();
-
-            QMessageBox msgBox( this );
-            msgBox.setIcon( QMessageBox::Question );
-            msgBox.setWindowTitle( tr( "Close Tab" ) );
-            msgBox.setText( tr( "Close tab \"%1\"?" ).arg( displayName ) );
-            msgBox.setStandardButtons( QMessageBox::Yes | QMessageBox::No );
-            msgBox.setDefaultButton( QMessageBox::No );
-
-            auto* dontAskCheckBox = new QCheckBox( tr( "Don't ask again" ), &msgBox );
-            msgBox.setCheckBox( dontAskCheckBox );
-
-            if ( msgBox.exec() != QMessageBox::Yes ) {
-                return;
-            }
-
-            if ( dontAskCheckBox->isChecked() ) {
-                Configuration::get().setConfirmTabClose( false );
-                Configuration::get().save();
-            }
-        }
-    }
-
-    widget->stopLoading();
-    mainTabWidget_.removeCrawler( index );
-
-    if ( initiator == ActionInitiator::User ) {
-        addRecentFile( session_.getFilename( widget ) );
-    }
-
-    session_.close( widget );
-
-    updateOpenedFilesMenu();
-
-    widget->deleteLater();
+    closeTabs( { index }, initiator );
 }
 
-void MainWindow::closeTabs( QList<int> indices )
+void MainWindow::closeTabs( const QList<int>& indices, ActionInitiator initiator )
 {
-    if ( indices.isEmpty() ) {
+    // Never close a tab that holds no Log File: the pinned dashboard. The
+    // widgets are held rather than the indices: an index moves as the tabs
+    // before it close, and a tab may close while the question is asked.
+    std::vector<QPointer<CrawlerWidget>> crawlers;
+    for ( const auto index : indices ) {
+        if ( !mainTabWidget_.holdsLogFile( index ) ) {
+            continue;
+        }
+        auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
+        if ( crawler != nullptr
+             && std::ranges::find( crawlers, crawler, &QPointer<CrawlerWidget>::data )
+                    == crawlers.end() ) {
+            crawlers.emplace_back( crawler );
+        }
+    }
+    if ( crawlers.empty() ) {
         return;
     }
 
-    const auto& config = Configuration::get();
-    if ( config.confirmTabClose() ) {
+    // The user is asked once for the whole set, if the settings say so; a
+    // close the application asks for is never questioned.
+    if ( initiator == ActionInitiator::User && Configuration::get().confirmTabClose() ) {
         QMessageBox msgBox( this );
         msgBox.setIcon( QMessageBox::Question );
-        msgBox.setWindowTitle( tr( "Close Tabs" ) );
-        msgBox.setText( tr( "Close %n tab(s)?", "", static_cast<int>( indices.size() ) ) );
+        if ( crawlers.size() == 1 ) {
+            const auto displayName
+                = QFileInfo( session_.getFilename( crawlers.front() ) ).fileName();
+            msgBox.setWindowTitle( tr( "Close Tab" ) );
+            msgBox.setText( tr( "Close tab \"%1\"?" ).arg( displayName ) );
+        }
+        else {
+            msgBox.setWindowTitle( tr( "Close Tabs" ) );
+            msgBox.setText( tr( "Close %n tab(s)?", "", static_cast<int>( crawlers.size() ) ) );
+        }
         msgBox.setStandardButtons( QMessageBox::Yes | QMessageBox::No );
         msgBox.setDefaultButton( QMessageBox::No );
 
@@ -2439,18 +2407,21 @@ void MainWindow::closeTabs( QList<int> indices )
         }
     }
 
-    // Sort descending so removal doesn't shift indices
-    std::sort( indices.begin(), indices.end(), std::greater<int>() );
-    for ( const auto index : indices ) {
-        auto* widget = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
-        if ( !widget ) {
+    for ( const auto& crawler : crawlers ) {
+        const auto index = crawler ? mainTabWidget_.indexOf( crawler ) : -1;
+        if ( index < 0 ) {
             continue;
         }
-        widget->stopLoading();
+
+        // Only a Log File the user closed becomes a recent file.
+        if ( initiator == ActionInitiator::User ) {
+            addRecentFile( session_.getFilename( crawler ) );
+        }
+
+        crawler->stopLoading();
         mainTabWidget_.removeCrawler( index );
-        addRecentFile( session_.getFilename( widget ) );
-        session_.close( widget );
-        widget->deleteLater();
+        session_.close( crawler );
+        crawler->deleteLater();
     }
 
     updateOpenedFilesMenu();
@@ -2992,6 +2963,7 @@ void MainWindow::updateMenuBarFromDocument( const CrawlerWidget* crawler )
         ( *encodingItem )->setChecked( true );
     }
 
+    // The action mirrors the Log File's follow; the View Set holds it.
     followAction->setChecked( crawler->isFollowEnabled() );
     textWrapAction->setChecked( crawler->isTextWrapEnabled() );
     updateGoToTimestampAction( crawler );
@@ -3296,13 +3268,11 @@ void MainWindow::showInfoLabels( bool show )
 void MainWindow::writeSettings()
 {
     // Save the session
-    // Generate the ordered list of widgets and their topLine
-    std::vector<
-        std::tuple<const ViewInterface*, uint64_t, std::shared_ptr<const ViewContextInterface>>>
-        widget_list;
+    // Generate the ordered list of widgets and their view state
+    std::vector<SaveFileInfo> widget_list;
     for ( const auto i : mainTabWidget_.logFileTabs() ) {
         const auto* view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
-        widget_list.emplace_back( view, 0UL, view->context() );
+        widget_list.emplace_back( view, view->context() );
     }
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
         sidebarWidth_ = sidebarDock_->width();

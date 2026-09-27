@@ -346,8 +346,8 @@ private:
 };
 
 using OpenedFilesList = std::vector<std::pair<QString, ViewInterface*>>;
-using SaveFileInfo
-    = std::tuple<const ViewInterface*, uint64_t, std::shared_ptr<const ViewContextInterface>>;
+// A view and its view state, which holds where it stands (#559).
+using SaveFileInfo = std::tuple<const ViewInterface*, std::shared_ptr<const ViewContextInterface>>;
 
 class WindowSession {
 public:
@@ -481,7 +481,7 @@ public:
     int sidebarWidth() const;
 
     // Save the session to persistent storage. An ordered list of
-    // (view, topline, ViewContextInterface) is passed, this is because only
+    // (view, ViewContextInterface) is passed, this is because only
     // the main window know the order in which the views are presented to
     // the user (it might have changed since file were opened).
     // The views of the tab in front are saved as the current ones, so that a

@@ -48,6 +48,11 @@ public:
     // Whether follow may be engaged at all. The Table View never engages
     // follow itself, and so ignores it.
     virtual void allowFollowMode( bool allow ) = 0;
+    // Whether the Log File is followed, as the View Set, its owner, says: on,
+    // the view goes to the bottom and stays there as the Log File grows. A
+    // view that leaves or engages follow asks the View Set, and is handed the
+    // outcome here, as every view of the Log File is (#558).
+    virtual void followSet( bool follow ) = 0;
     // The font Log Lines are drawn in.
     virtual void updateFont( const QFont& font ) = 0;
     // The words of each Color Label, one list per color slot.

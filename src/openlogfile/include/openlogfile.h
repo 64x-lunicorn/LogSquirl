@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "abstractlogdata.h"
 #include "linetypes.h"
 #include "loadingstatus.h"
 #include "loadrule.h"
@@ -28,6 +29,7 @@
 #include "searchsession.h"
 #include "settingspolicies.h"
 
+#include <QDateTime>
 #include <QList>
 #include <QMetaObject>
 #include <QMetaType>
@@ -36,6 +38,7 @@
 
 #include <memory>
 #include <optional>
+#include <utility>
 
 class FileWatchPort;
 class TextEncoding;
@@ -69,6 +72,11 @@ class LogFormatCatalog;
 //
 // It decides the Encoding its Log File is read in: the one chosen, else the
 // one detected, else the locale's (#393).
+//
+// It is the way in to its Log File: it takes every Policy, puts the Marks on
+// the current Search, owns the Search Limits and answers what is known of the
+// Log File. Its users reach past it -- to logData() and filteredData() -- only
+// to read Log Lines (#556).
 class OpenLogFile : public QObject {
     Q_OBJECT
 
@@ -119,6 +127,14 @@ public:
     // first load has finished. Hand them over before that.
     void restoreMarks( const logsquirl::vector<LineNumber>& marks );
 
+    // The Marks go to the current Search, which shows them with its Matches.
+    void addMark( LineNumber line );
+    void toggleMark( LineNumber line );
+    void clearMarks();
+    // Whether line is a Match, a Mark or a Context Line of the current
+    // Search, or none of them.
+    AbstractLogData::LineType lineType( LineNumber line ) const;
+
     // The Marks of the Log File, as saving the Session keeps them: until the
     // first load has finished, the Marks saved with the Session, so that a
     // Log File that has not loaded yet -- a restored tab waiting for its turn
@@ -137,12 +153,26 @@ public:
     // Stops the Search in flight and the load in progress, if any.
     void stopLoading();
 
-    // The log data, for as long as this object lives.
+    // The log data, for as long as this object lives: to read its Log Lines.
     const std::shared_ptr<LogData>& logData() const;
 
     // The current Search: the one requestSearch() runs, auto-refresh follows
-    // and Marks go to.
+    // and Marks go to. To read the Log Lines it displays.
     const std::shared_ptr<LogFilteredData>& filteredData() const;
+
+    // What is known of the Log File as last loaded: its Log Lines, its size
+    // in bytes and when it was last written, null when it is not on disk.
+    LinesCount lineCount() const;
+    qint64 fileSize() const;
+    QDateTime lastModified() const;
+
+    // The Policies of the log data, replaced while the Log File is open. The
+    // Search Policy reaches every Search, the kept ones included. The
+    // Indexing Policy takes effect at the next load; the Decoding Policy at
+    // once, and decodingPolicyChanged() tells it.
+    void setIndexingPolicy( const IndexingPolicy& policy );
+    void setSearchPolicy( const SearchPolicy& policy );
+    void setDecodingPolicy( const DecodingPolicy& policy );
 
     // Keeps the current Search with its results, and makes a new one, with no
     // pattern yet, current. Returns it.
@@ -161,6 +191,11 @@ public:
     // invalid one is told through searchUpdated(). A load that does not
     // succeed drops it. Until then the returned state is Running.
     SearchSession::State requestSearch( const RegularExpressionPattern& pattern );
+    // The current Search's state, and what it found: its Matches, and the Log
+    // Lines it displays -- the Matches, the Marks and the Context Lines.
+    SearchSession::State searchState() const;
+    LinesCount matchCount() const;
+    LinesCount displayedLineCount() const;
     // No Search is active any longer: the current Search goes idle.
     void clearSearch();
     // Stops the current Search, keeping what it found; auto-refresh is
@@ -179,7 +214,8 @@ public:
     // narrowed Limits stay as set, cut back to its new end, and bound a
     // Search that continues or starts again; only when nothing of them is
     // left do they become the whole Log File. Limits that are the whole Log
-    // File follow its end.
+    // File follow its end. searchLimitsChanged() tells them whenever they are
+    // other than last told, set or settled by a load.
     void setSearchLimits( LineNumber startLine, LineNumber endLine );
     LineNumber searchStartLine() const;
     LineNumber searchEndLine() const;
@@ -230,6 +266,12 @@ Q_SIGNALS:
     void truncated( const QString& failure );
     // The current Search's state changed: progress, completion, a failure.
     void searchUpdated( SearchSession::State state );
+    // The Search Limits are others than last told: set, or settled by a load
+    // -- the first one tells them.
+    void searchLimitsChanged( LineNumber startLine, LineNumber endLine );
+    // The Decoding Policy was replaced: every Log Line, in the Searches kept
+    // too, may read differently.
+    void decodingPolicyChanged();
     // The Log File is read in another Encoding now: every Log Line, in the
     // Searches kept too, may read differently. Told after loadingFinished()
     // when a load settled it.
@@ -248,6 +290,8 @@ private:
     // Has the log data read in the Encoding the rule settles on. Returns
     // whether that is another one than before.
     bool settleEncoding();
+    // Tells the Search Limits when they are others than last told.
+    void tellSearchLimits();
 
     // Held for as long as the Log File may be watched: the destructor stops
     // watching it through this port before anything else goes.
@@ -268,6 +312,8 @@ private:
     RegularExpressionPattern searchPattern_;
     LineNumber searchStartLine_;
     LineNumber searchEndLine_;
+    // The Search Limits last told, once they were.
+    std::optional<std::pair<LineNumber, LineNumber>> toldSearchLimits_;
     // The Log Lines the last finished load brought: Search Limits that end
     // there are the whole Log File.
     LinesCount loadedLineCount_;

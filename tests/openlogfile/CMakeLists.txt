@@ -3,6 +3,7 @@
 add_executable(logsquirl_openlogfile_tests
     openlogfile_tests_main.cpp
     openlogfile_test.cpp
+    openlogfile_policies_test.cpp
     loadrule_test.cpp
 )
 

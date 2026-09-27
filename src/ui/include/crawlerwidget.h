@@ -124,7 +124,8 @@ public:
     // suitable to display to the user.
     QString encodingText() const;
 
-    // Returns whether follow is enabled in this crawler
+    // Whether the Log File is followed, as its View Set, the owner of follow,
+    // says (#558).
     bool isFollowEnabled() const;
 
     // Why "Go to timestamp" is not available for this Log File, empty when it
@@ -156,6 +157,11 @@ public Q_SLOTS:
     void reload();
     // Set the encoding
     void setEncoding( std::optional<int> mib );
+    // Follow the Log File, or leave it: the window's action, a Log File opened
+    // to be followed, or any view of it asking. The View Set holds the
+    // outcome and hands it to every view; followModeChanged() says it when it
+    // is not what was asked or changed.
+    void followSet( bool follow );
 
     void focusSearchEdit();
     void goToLine();
@@ -211,11 +217,10 @@ Q_SIGNALS:
     // again, as are the progress of a load under way, when the tab is
     // brought to the front (#540).
     void loadingFinished( LoadingStatus status, QString failure );
-    // Sent when follow mode is enabled/disabled
-    void followSet( bool checked );
     // Sent when text wrap mode is enabled/disabled
     void textWrapSet( bool checked );
-    // Sent up to the MainWindow to enable/disable the follow mode
+    // Sent up when the Log File is now followed or not, as the View Set
+    // holds it; the window's action mirrors it (#558).
     void followModeChanged( bool follow );
     // Sent up when the current line number is updated
     void newSelection( LineNumber startLine, LinesCount nLines, LineColumn startCol,
@@ -551,6 +556,11 @@ private:
     std::optional<LoadingStatus> lastLoadStatus_;
     QString lastLoadFailure_;
     int loadingProgress_ = 0;
+
+    // The Scroll Position of the text view restored with the Session, until
+    // the first load of the Log File is done and it can stand there; saved
+    // as it was restored until then (#559).
+    OptionalLineNumber scrollPositionToRestore_;
 
     QString encodingText_;
 

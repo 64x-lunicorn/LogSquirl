@@ -399,7 +399,7 @@ ScrollAnswer TextViewScrolling::scrollByVisualLines( std::int64_t visualLines )
 ScrollAnswer TextViewScrolling::stepVisualLines( std::int64_t visualLines )
 {
     ScrollAnswer result;
-    if ( visualLines < 0 && follow_ ) {
+    if ( visualLines < 0 && text_.follows() ) {
         merge( result, leaveFollow() );
     }
     merge( result, scrollByVisualLines( visualLines ) );
@@ -425,7 +425,7 @@ ScrollAnswer TextViewScrolling::turnWheel( const WheelTurn& turn )
 
     // Follow is on, but the view may have been moved by the scrollbar: it is
     // taken back to the bottom.
-    if ( follow_ ) {
+    if ( text_.follows() ) {
         merge( result, jumpToBottom() );
     }
 
@@ -440,9 +440,15 @@ ScrollAnswer TextViewScrolling::turnWheel( const WheelTurn& turn )
                 elasticHook_.release();
             }
 
-            // Pulling may engage or leave follow, whose holder can hand it
-            // back at once: nothing read before this is relied on after it.
+            // Pulling may hook or unhook the elastic, which asks to engage or
+            // leave follow. It is said in the answer, not handed to the owner
+            // in the middle of the turn.
+            const bool wasHooked = elasticHook_.isHooked();
             elasticHook_.move( -yDelta );
+            if ( elasticHook_.isHooked() != wasHooked ) {
+                result.followChange
+                    = elasticHook_.isHooked() ? FollowChange::Engage : FollowChange::Leave;
+            }
         }
     }
 
@@ -461,7 +467,6 @@ ScrollAnswer TextViewScrolling::turnWheel( const WheelTurn& turn )
     }
 
     if ( result.scrolled ) {
-        // Where it stands now, whatever a change of follow did meanwhile.
         const auto now = answer( true );
         result.position = now.position;
         result.scrollBarValue = now.scrollBarValue;
@@ -508,7 +513,7 @@ ScrollAnswer TextViewScrolling::jumpToBottom()
 
 ScrollAnswer TextViewScrolling::jumpToBottomIfFollowing( bool orAtBottom )
 {
-    if ( follow_ || orAtBottom ) {
+    if ( text_.follows() || orAtBottom ) {
         return jumpToBottom();
     }
     return ScrollAnswer{};
@@ -531,7 +536,6 @@ ScrollAnswer TextViewScrolling::keepAboveBottom()
 
 ScrollAnswer TextViewScrolling::followSet( bool checked )
 {
-    follow_ = checked;
     elasticHook_.hook( checked );
 
     ScrollAnswer result;
@@ -544,7 +548,7 @@ ScrollAnswer TextViewScrolling::followSet( bool checked )
 
 ScrollAnswer TextViewScrolling::leaveFollow()
 {
-    elasticHook_.hook( false );
+    // The owner unhooks the elastic as it hands follow back.
     ScrollAnswer result;
     result.followChange = FollowChange::Leave;
     return result;
@@ -552,7 +556,8 @@ ScrollAnswer TextViewScrolling::leaveFollow()
 
 ScrollAnswer TextViewScrolling::engageFollow()
 {
-    elasticHook_.hook( true );
+    // The owner hooks the elastic as it hands follow back, unless follow is
+    // not allowed.
     ScrollAnswer result;
     result.followChange = FollowChange::Engage;
     return result;
@@ -603,7 +608,7 @@ ScrollAnswer TextViewScrolling::scrollBarActionTriggered( bool steppedUp, int sl
                                                           int value )
 {
     ScrollAnswer result;
-    if ( follow_ && steppedUp ) {
+    if ( steppedUp && text_.follows() ) {
         merge( result, leaveFollow() );
     }
     merge( result, landAtBottomOnMaximum( sliderPosition, value ) );

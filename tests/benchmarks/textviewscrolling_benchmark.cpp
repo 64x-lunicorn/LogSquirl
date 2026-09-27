@@ -58,6 +58,10 @@ public:
     {
         return viewport_;
     }
+    bool follows() const override
+    {
+        return false;
+    }
 
     uint64_t appended = 0;
     ScrollingViewport viewport_{ .charWidthPx = CharWidthPx,

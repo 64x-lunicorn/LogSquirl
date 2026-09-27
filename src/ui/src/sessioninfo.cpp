@@ -50,9 +50,10 @@ void SessionInfo::retrieveFromStorage( QSettings& settings )
                     for ( int i = 0; i < size; ++i ) {
                         settings.setArrayIndex( i );
                         QString file_name = settings.value( "fileName" ).toString();
-                        uint64_t top_line = settings.value( "topLine" ).toULongLong();
+                        // A Session stored before #559 holds a top line
+                        // too, always zero: it is not read.
                         QString view_context = settings.value( "viewContext" ).toString();
-                        window.openFiles.emplace_back( file_name, top_line, view_context );
+                        window.openFiles.emplace_back( file_name, view_context );
                     }
                     settings.endArray();
                     // Absent from a Session stored before it was saved (#542).
@@ -101,7 +102,6 @@ void SessionInfo::saveToStorage( QSettings& settings ) const
             settings.setArrayIndex( static_cast<int>( i ) );
             const OpenFile* open_file = &( window.openFiles.at( i ) );
             settings.setValue( "fileName", open_file->fileName );
-            settings.setValue( "topLine", qint64( open_file->topLine ) );
             settings.setValue( "viewContext", open_file->viewContext );
         }
         settings.endArray();

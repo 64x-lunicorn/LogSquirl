@@ -14,3 +14,7 @@ Until #485 a Timestamp was "the clock time as if it were UTC": `TimestampReader`
 - A Timestamp is now a UTC instant where the Log File says which. Times a user types (`14:02`) are still clock times without a zone, so on a Log File written with offsets they mean the UTC clock of that instant, not the local one of the writer. A setting for the zone is deliberately not part of this.
 - The modification date is that of the moment the Log File was loaded. A Log File copied or touched later than it was written gives the wrong year for lines more than a year old; that is the price of not reading neighbours, and the same as syslog's own rule.
 - The Table View's elapsed-time column (#462) reads the same Timestamps, so it is right in the same places: across New Year, and across zones.
+
+## Note (2026-09-27, #560): a chart's time axis reads the same Timestamps
+
+A chart series whose X is the Log Format's timestamp field (its X pattern is one of the Log Format's patterns, its X group the timestamp field) reads it with the Timestamp reader, bound to the Log File's modification date, instead of Qt's date parser: a year-less chart runs across New Year, and `+02:00` and `Z` plot equal instants at the same X. A hand-typed Qt format keeps Qt's parser, but reads a value without a zone as written, as if it were UTC, like a Timestamp without one; the axis shows its times in UTC for both. A value a series cannot read leaves its point out, instead of plotting its line number among the times.

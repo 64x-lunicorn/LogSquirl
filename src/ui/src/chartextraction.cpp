@@ -27,19 +27,61 @@
 #include <QFutureWatcher>
 #include <QHash>
 #include <QRegularExpression>
+#include <QTimeZone>
 #include <QtConcurrent>
 
 #include "abstractlogdata.h"
+#include "logformatdefinition.h"
+#include "timestampreader.h"
 
 // ---------------------------------------------------------------------------
 // Extraction
 // ---------------------------------------------------------------------------
 
-std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData,
-                                                  const QVector<ChartSeriesDefinition>& series,
-                                                  LineNumber first, LinesCount count,
-                                                  const std::atomic<bool>& cancel,
-                                                  std::atomic<uint64_t>& linesDone )
+namespace {
+
+// Whether the series reads its X from the Log Format's timestamp field: its X
+// pattern is one of the Log Format's patterns, and its X group the timestamp
+// field in it.
+bool readsTimestampField( const ChartSeriesDefinition& series, const LogFormatDefinition& format )
+{
+    const auto& field = format.timestampField();
+    if ( field.isEmpty() || !series.isTimestampXAxis() ) {
+        return false;
+    }
+    const auto& patterns = format.regexPatterns();
+    if ( std::find( patterns.cbegin(), patterns.cend(), series.xPattern ) == patterns.cend() ) {
+        return false;
+    }
+    const auto groups = series.compiledXRegex.namedCaptureGroups();
+    return series.xCaptureGroup > 0 && series.xCaptureGroup < groups.size()
+           && groups[ series.xCaptureGroup ] == field;
+}
+
+// The X of a hand-typed Qt timestamp format, in milliseconds since the epoch.
+// A value without a zone is read as written, as if it were UTC, as a
+// Timestamp without one is; one without a year takes the current year.
+std::optional<double> qtTimestampOf( const QString& text, const QString& qtFormat, int currentYear )
+{
+    auto dt = QDateTime::fromString( text, qtFormat );
+    if ( !dt.isValid() ) {
+        return std::nullopt;
+    }
+    if ( dt.timeSpec() == Qt::LocalTime ) {
+        dt = QDateTime( dt.date(), dt.time(), QTimeZone::UTC );
+    }
+    if ( dt.date().year() < 1970 ) {
+        dt.setDate( QDate( currentYear, dt.date().month(), dt.date().day() ) );
+    }
+    return static_cast<double>( dt.toMSecsSinceEpoch() );
+}
+
+} // namespace
+
+std::optional<ChartRawPoints>
+extractChartPoints( const AbstractLogData& logData, const QVector<ChartSeriesDefinition>& series,
+                    LineNumber first, LinesCount count, const std::atomic<bool>& cancel,
+                    std::atomic<uint64_t>& linesDone, const ChartTimestamps& timestamps )
 {
     ChartRawPoints result( series.size() );
 
@@ -100,6 +142,27 @@ std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData
         if ( s.hasCustomXAxis() && s.xPattern == s.pattern ) {
             reuseYForX[ si ] = true;
         }
+    }
+
+    // The series that read the Log Format's timestamp field share one reader,
+    // bound to the modification date as the lookup and the Table View are.
+    QVector<bool> readsField( series.size(), false );
+    std::optional<TimestampReader> fieldReader;
+    if ( timestamps.format ) {
+        for ( int si = 0; si < series.size(); ++si ) {
+            readsField[ si ] = readsTimestampField( series[ si ], *timestamps.format );
+        }
+        if ( readsField.contains( true ) ) {
+            fieldReader.emplace( *timestamps.format, 0, timestamps.modificationDate );
+        }
+    }
+
+    // What the text of a timestamp is read with: the timestamp field, or a Qt
+    // format. The same text read the same way gives the same X.
+    QVector<QString> timestampKeys( series.size() );
+    for ( int si = 0; si < series.size(); ++si ) {
+        timestampKeys[ si ] = readsField[ si ] ? QString( QChar( 0x1f ) )
+                                               : series[ si ].xTimestampFormat + QChar( 0x1f );
     }
 
     // Cache QDate::currentDate() outside the hot loop.
@@ -166,8 +229,9 @@ std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData
                     }
                 }
 
-                // Extract X value.
-                double xVal = static_cast<double>( lineNum.get() );
+                // Extract X value: the line number, unless the series has an
+                // X pattern.
+                std::optional<double> xVal;
                 QString xLabel;
 
                 if ( s.hasCustomXAxis() ) {
@@ -190,22 +254,27 @@ std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData
 
                         if ( s.isTimestampXAxis() ) {
                             // Check per-line timestamp cache.
-                            auto tsIt = tsCache.constFind( captured );
+                            const auto key = timestampKeys[ si ] + captured;
+                            auto tsIt = tsCache.constFind( key );
                             if ( tsIt != tsCache.cend() ) {
                                 xVal = tsIt.value();
-                                xLabel = captured;
                             }
                             else {
-                                auto dt = QDateTime::fromString( captured, s.xTimestampFormat );
-                                if ( dt.isValid() ) {
-                                    if ( dt.date().year() < 1970 ) {
-                                        dt.setDate( QDate( currentYear, dt.date().month(),
-                                                           dt.date().day() ) );
+                                if ( readsField[ si ] && fieldReader.has_value() ) {
+                                    if ( const auto ts = fieldReader->parseField( captured ) ) {
+                                        xVal = static_cast<double>( ts->toMSecsSinceEpoch() );
                                     }
-                                    xVal = static_cast<double>( dt.toMSecsSinceEpoch() );
-                                    xLabel = captured;
-                                    tsCache.insert( captured, xVal );
                                 }
+                                else {
+                                    xVal = qtTimestampOf( captured, s.xTimestampFormat,
+                                                          currentYear );
+                                }
+                                if ( xVal ) {
+                                    tsCache.insert( key, *xVal );
+                                }
+                            }
+                            if ( xVal ) {
+                                xLabel = captured;
                             }
                         }
                         else {
@@ -216,9 +285,17 @@ std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData
                             }
                         }
                     }
+                    // A Log Line whose X cannot be read has no point: its line
+                    // number would be mixed in among the X values.
+                    if ( !xVal ) {
+                        continue;
+                    }
+                }
+                else {
+                    xVal = static_cast<double>( lineNum.get() );
                 }
 
-                result[ si ].append( { lineNum, xVal, yVal, xLabel } );
+                result[ si ].append( { lineNum, *xVal, yVal, xLabel } );
             }
         }
 
@@ -256,7 +333,9 @@ QVector<qsizetype> appendBuckets( const QVector<ChartPoint>& raw, qint64 bucketS
     const auto bucket = static_cast<double>( bucketSizeMs );
     const auto appendBucket = [ & ]( double bucketStart, double sum, LineNumber line ) {
         const double mid = bucketStart + bucket / 2.0;
-        const auto dt = QDateTime::fromMSecsSinceEpoch( static_cast<qint64>( mid ) );
+        // X is a UTC instant, or a clock time as written, as if it were UTC.
+        const auto dt
+            = QDateTime::fromMSecsSinceEpoch( static_cast<qint64>( mid ), QTimeZone::UTC );
         buckets.append( { line, mid, sum, dt.toString( "HH:mm:ss" ) } );
     };
 
@@ -363,6 +442,17 @@ void ChartExtraction::setLogData( std::shared_ptr<const AbstractLogData> logData
     logData_ = std::move( logData );
     clearPoints();
     extractFromStart_ = true;
+}
+
+void ChartExtraction::setLogFormat( std::shared_ptr<const LogFormatDefinition> format )
+{
+    timestamps_.format = std::move( format );
+    restart();
+}
+
+void ChartExtraction::setModificationDate( const QDate& date )
+{
+    timestamps_.modificationDate = date;
 }
 
 void ChartExtraction::setUpdateDelay( std::chrono::milliseconds delay )
@@ -477,13 +567,13 @@ void ChartExtraction::startExtraction()
              } );
 
     job->future
-        = QtConcurrent::run( [ logData = logData_, series = series_,
+        = QtConcurrent::run( [ logData = logData_, series = series_, timestamps = timestamps_,
                                state = job.get() ]() mutable -> std::optional<ChartRawPoints> {
               // Released here, before the result is reported: the owner, which
               // waits for that on destruction, keeps the last reference.
               const auto data = std::move( logData );
               return extractChartPoints( *data, series, state->first, state->count,
-                                         state->cancelled, state->linesDone );
+                                         state->cancelled, state->linesDone, timestamps );
           } );
     watcher->setFuture( job->future );
 

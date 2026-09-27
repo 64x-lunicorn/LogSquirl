@@ -20,12 +20,15 @@
 #include "applicationplugins.h"
 #include "crawlerwidget.h"
 #include "fake_file_watch.h"
+#include "filteredview.h"
 #include "logformatcatalog.h"
 #include "logformatdefinition.h"
+#include "logmainview.h"
 #include "logtableview.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
 #include "session.h"
+#include "tabbedcrawlerwidget.h"
 #include "test_policies.h"
 #include "test_utils.h"
 
@@ -39,14 +42,15 @@
 #include <QWheelEvent>
 
 #include <memory>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 
-// Follow is the window's action. The Table View leaves it when the user
-// scrolls away from the bottom, as the Text View does, so that the next growth
-// of the Log File does not snap it back; it never engages follow itself
-// (#543). MainWindow builds offscreen on every platform, so this runs on
-// macOS too.
+// Follow is owned by the Log File's View Set, and the window's action mirrors
+// it (#558). The Table View leaves it when the user scrolls away from the
+// bottom, as the Text View does, so that the next growth of the Log File does
+// not snap it back; it never engages follow itself (#543). MainWindow builds
+// offscreen on every platform, so this runs on macOS too.
 
 struct TableViewFollowTest {};
 
@@ -71,6 +75,38 @@ struct CrawlerWidget::access_by<TableViewFollowTest> {
         crawler.tableViewToggle_->setChecked( true );
         return crawler.logTableView_;
     }
+
+    static LogMainView* textView( CrawlerWidget& crawler )
+    {
+        return crawler.logMainView_;
+    }
+
+    // Searches for pattern, the current Search's results kept in their tab
+    // first when keep says so.
+    static void search( CrawlerWidget& crawler, const QString& pattern, bool keep )
+    {
+        crawler.keepSearchResultsButton_->setChecked( keep );
+        crawler.searchLineEdit_->setEditText( pattern );
+        crawler.startNewSearch();
+    }
+
+    static std::vector<FilteredView*> filteredViews( CrawlerWidget& crawler )
+    {
+        std::vector<FilteredView*> views;
+        for ( int tab = 0; tab < crawler.tabbedFilteredView_->count(); ++tab ) {
+            views.push_back(
+                qobject_cast<FilteredView*>( crawler.tabbedFilteredView_->widget( tab ) ) );
+        }
+        return views;
+    }
+};
+
+template <>
+struct LogTableView::access_by<TableViewFollowTest> {
+    static bool follows( const LogTableView& view )
+    {
+        return view.follow_;
+    }
 };
 
 namespace {
@@ -90,6 +126,30 @@ bool isAtBottom( const LogTableView& view )
 {
     const auto* scrollBar = view.verticalScrollBar();
     return scrollBar->maximum() > 0 && scrollBar->value() == scrollBar->maximum();
+}
+
+// Every view of the Log File the user can scroll.
+struct LogFileViews {
+    LogMainView* text = nullptr;
+    LogTableView* table = nullptr;
+    std::vector<FilteredView*> filtered;
+
+    // Whether every view follows as expected, and the Crawler Widget says so.
+    bool allFollow( const CrawlerWidget& crawler, bool expected ) const
+    {
+        bool agree = crawler.isFollowEnabled() == expected && text->isFollowEnabled() == expected
+                     && LogTableView::access_by<TableViewFollowTest>::follows( *table ) == expected;
+        for ( const auto* view : filtered ) {
+            agree = agree && view->isFollowEnabled() == expected;
+        }
+        return agree;
+    }
+};
+
+// A page up by the view's scrollbar: a move away from the bottom.
+void pageUp( QAbstractScrollArea* view )
+{
+    view->verticalScrollBar()->triggerAction( QAbstractSlider::SliderPageStepSub );
 }
 
 QAction* followActionOf( const MainWindow& window )
@@ -219,6 +279,167 @@ SCENARIO( "The Table View leaves follow when the user scrolls away from the bott
                 REQUIRE( table->selectionModel()->isRowSelected( row ) );
                 REQUIRE( waitUiState( [ & ] { return !followAction->isChecked(); } ) );
                 REQUIRE_FALSE( crawler->isFollowEnabled() );
+            }
+        }
+    }
+
+    mainWindow.reset();
+}
+
+SCENARIO( "Follow has one owner per Log File", "[ui][follow][viewset]" )
+{
+    const QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "followed.log" );
+    const auto otherPath = directory.filePath( "other.log" );
+    for ( const auto& file : { path, otherPath } ) {
+        QFile log( file );
+        REQUIRE( log.open( QIODevice::WriteOnly ) );
+        REQUIRE( log.write( logLines( 0, 200 ) ) > 0 );
+    }
+
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    const auto appSession = std::make_shared<Session>(
+        testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch );
+    auto mainWindow = std::make_unique<MainWindow>(
+        WindowSession{ appSession, QUuid::createUuid().toString( QUuid::WithoutBraces ), 0 },
+        std::make_shared<logsquirl::plugins::ApplicationPlugins>() );
+    mainWindow->resize( 1000, 700 );
+    mainWindow->show();
+    mainWindow->loadFileNonInteractive( path );
+
+    CrawlerWidget* crawler = nullptr;
+    REQUIRE( waitUiState( [ & ] {
+        crawler = mainWindow->findChild<CrawlerWidget*>();
+        return crawler != nullptr && fileWatch->isWatched( path );
+    } ) );
+    auto* followAction = followActionOf( *mainWindow );
+    REQUIRE( followAction != nullptr );
+
+    using Access = CrawlerWidget::access_by<TableViewFollowTest>;
+    LogFileViews views;
+    views.text = Access::textView( *crawler );
+    views.table = Access::showTableView( *crawler );
+    REQUIRE( waitUiState( [ & ] {
+        return views.table->model() != nullptr && views.table->model()->rowCount() == 200;
+    } ) );
+    // Two Searches, the first kept in its tab: two Filtered Views.
+    Access::search( *crawler, "line 0000", false );
+    Access::search( *crawler, "line 0001", true );
+    REQUIRE( waitUiState( [ & ] { return Access::filteredViews( *crawler ).size() == 2; } ) );
+    views.filtered = Access::filteredViews( *crawler );
+
+    GIVEN( "the Log File followed from the window's action" )
+    {
+        followAction->setChecked( true );
+        REQUIRE( views.allFollow( *crawler, true ) );
+
+        WHEN( "the user leaves follow from the Text View" )
+        {
+            pageUp( views.text );
+
+            THEN( "no view of the Log File follows, and the action says so" )
+            {
+                REQUIRE( views.allFollow( *crawler, false ) );
+                REQUIRE_FALSE( followAction->isChecked() );
+            }
+        }
+
+        WHEN( "the user leaves follow from the Table View" )
+        {
+            pageUp( views.table );
+
+            THEN( "no view of the Log File follows, and the action says so" )
+            {
+                REQUIRE( views.allFollow( *crawler, false ) );
+                REQUIRE_FALSE( followAction->isChecked() );
+            }
+        }
+
+        WHEN( "the user leaves follow from the kept Search's Filtered View" )
+        {
+            pageUp( views.filtered.front() );
+
+            THEN( "no view of the Log File follows, and the action says so" )
+            {
+                REQUIRE( views.allFollow( *crawler, false ) );
+                REQUIRE_FALSE( followAction->isChecked() );
+            }
+        }
+
+        WHEN( "the user leaves follow from the current Search's Filtered View" )
+        {
+            pageUp( views.filtered.back() );
+
+            THEN( "no view of the Log File follows, and the action says so" )
+            {
+                REQUIRE( views.allFollow( *crawler, false ) );
+                REQUIRE_FALSE( followAction->isChecked() );
+            }
+        }
+
+        WHEN( "another Log File is opened in a tab of its own" )
+        {
+            mainWindow->loadFileNonInteractive( otherPath );
+            CrawlerWidget* other = nullptr;
+            REQUIRE( waitUiState( [ & ] {
+                for ( auto* candidate : mainWindow->findChildren<CrawlerWidget*>() ) {
+                    if ( candidate != crawler ) {
+                        other = candidate;
+                    }
+                }
+                return other != nullptr && fileWatch->isWatched( otherPath );
+            } ) );
+            auto* tabs = mainWindow->findChild<TabbedCrawlerWidget*>();
+            REQUIRE( tabs->currentWidget() == other );
+
+            THEN( "the action says the other Log File is not followed, and every view of the "
+                  "first still follows" )
+            {
+                REQUIRE_FALSE( followAction->isChecked() );
+                REQUIRE_FALSE( other->isFollowEnabled() );
+                REQUIRE( views.allFollow( *crawler, true ) );
+            }
+
+            AND_WHEN( "follow is left from a view of the first Log File, its tab not current" )
+            {
+                pageUp( views.filtered.front() );
+
+                THEN( "no view of it follows, and its tab made current, the action says so" )
+                {
+                    REQUIRE( views.allFollow( *crawler, false ) );
+                    tabs->setCurrentWidget( crawler );
+                    REQUIRE_FALSE( followAction->isChecked() );
+                    REQUIRE( views.allFollow( *crawler, false ) );
+                }
+            }
+
+            AND_WHEN( "the first Log File's tab is made current again" )
+            {
+                tabs->setCurrentWidget( crawler );
+
+                THEN( "the action says it is followed, as every view of it does" )
+                {
+                    REQUIRE( followAction->isChecked() );
+                    REQUIRE( views.allFollow( *crawler, true ) );
+                    REQUIRE_FALSE( other->isFollowEnabled() );
+                }
+
+                THEN( "leaving follow from any of its views leaves it in every one, and the "
+                      "action says so" )
+                {
+                    for ( auto* view :
+                          { static_cast<QAbstractScrollArea*>( views.text ),
+                            static_cast<QAbstractScrollArea*>( views.table ),
+                            static_cast<QAbstractScrollArea*>( views.filtered.front() ),
+                            static_cast<QAbstractScrollArea*>( views.filtered.back() ) } ) {
+                        followAction->setChecked( true );
+                        REQUIRE( views.allFollow( *crawler, true ) );
+                        pageUp( view );
+                        REQUIRE( views.allFollow( *crawler, false ) );
+                        REQUIRE_FALSE( followAction->isChecked() );
+                    }
+                }
             }
         }
     }

@@ -155,11 +155,11 @@ public:
     logsquirl::vector<LineNumber> selectedLogLines() const;
 
 public Q_SLOTS:
-    // Follow was turned on or off, as the window's action says. Turned on,
-    // the last Row is scrolled into view; while it is on, updateData() is
-    // told to follow, and the Table View leaves it when the user scrolls away
+    // The View Set, the owner of follow, turned it on or off. Turned on, the
+    // last Row is scrolled into view; while it is on, updateData() is told to
+    // follow, and the Table View asks to leave it when the user scrolls away
     // from the bottom. It never turns follow on itself.
-    void followSet( bool checked );
+    void followSet( bool checked ) override;
     void highlightOverviewLine( LineNumber line );
     void removeOverviewHighlight();
 
@@ -171,7 +171,8 @@ Q_SIGNALS:
     // not in the set.
 
     // Sent, with false, when the user scrolls away from the bottom while
-    // follow is on (#543); never with true.
+    // follow is on (#543); never with true. It asks the owner of follow, and
+    // the Table View follows until it is handed the outcome (#558).
     void followModeChanged( bool follow );
 
     // Sent when a new Row is selected: the Log Line of the first selected Row.
@@ -323,7 +324,7 @@ private:
     // UI thread.
     std::unique_ptr<QuickFind> quickFind_;
     bool selectionDragging_ = false;
-    // Whether follow is on, as followSet() said last.
+    // Whether follow is on, as the owner handed it last through followSet().
     bool follow_ = false;
 
     bool active_ = false;

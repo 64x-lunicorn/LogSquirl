@@ -91,6 +91,19 @@ void ViewSet::setFollowAllowed( bool allowed )
 {
     followAllowed_ = allowed;
     forEachView( [ & ]( const HeldView& held ) { held.view->allowFollowMode( allowed ); } );
+    if ( !allowed ) {
+        setFollow( false );
+    }
+}
+
+void ViewSet::setFollow( bool follow )
+{
+    follow = follow && followAllowed_;
+    if ( follow == follow_ ) {
+        return;
+    }
+    follow_ = follow;
+    forEachView( [ & ]( const HeldView& held ) { held.view->followSet( follow ); } );
 }
 
 void ViewSet::setFont( const QFont& font )
@@ -171,6 +184,9 @@ void ViewSet::seed( LogFileView& view ) const
     view.setPresentationPolicy( presentationPolicy_ );
     view.setDecorationPolicy( decorationPolicy_ );
     view.allowFollowMode( followAllowed_ );
+    if ( follow_ ) {
+        view.followSet( true );
+    }
     if ( font_ ) {
         view.updateFont( *font_ );
     }

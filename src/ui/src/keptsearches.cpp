@@ -34,6 +34,22 @@ KeptSearches::KeptSearches( std::shared_ptr<OpenLogFile> openLogFile, ViewSet& v
     , viewSet_( viewSet )
     , buildView_( std::move( buildView ) )
 {
+    // Only the current Search's progress is reported, by the Open Log File,
+    // which follows the current Search. It is told on queued, so that what a
+    // Search tells while it is requested reaches the listener once the
+    // request is done; what was told before another Search was made current
+    // is dropped then.
+    connect( openLogFile_.get(), &OpenLogFile::searchUpdated, this,
+             [ this ]( const SearchSession::State& state ) {
+                 QMetaObject::invokeMethod(
+                     this,
+                     [ this, state, toldOf = currentChanges_ ] {
+                         if ( toldOf == currentChanges_ ) {
+                             Q_EMIT currentSearchUpdated( state );
+                         }
+                     },
+                     Qt::QueuedConnection );
+             } );
 }
 
 KeptSearches::~KeptSearches() = default;
@@ -45,28 +61,18 @@ FilteredView* KeptSearches::showCurrentSearch()
 
 FilteredView* KeptSearches::startAnother()
 {
-    return add( openLogFile_->startAnotherSearch() );
+    auto search = openLogFile_->startAnotherSearch();
+    // Reports the Search that was current sent until now are stale; showing
+    // the current Search changes nothing and keeps its queued reports.
+    ++currentChanges_;
+    return add( std::move( search ) );
 }
 
 FilteredView* KeptSearches::add( std::shared_ptr<LogFilteredData> search )
 {
     auto* view = buildView_( search.get() );
 
-    // Queued, so that what a Search tells while it is requested reaches the
-    // listener once the request is done; the Search it came from is asked
-    // for when it arrives, since another may have been made current since.
-    auto updates = connect(
-        search.get(), &LogFilteredData::searchStateChanged, this,
-        [ this, told = std::weak_ptr<const LogFilteredData>( search ) ](
-            const SearchSession::State& state ) {
-            const auto teller = told.lock();
-            if ( teller != nullptr && teller == openLogFile_->filteredData() ) {
-                Q_EMIT currentSearchUpdated( state );
-            }
-        },
-        Qt::QueuedConnection );
-
-    searches_.push_back( Kept{ view, search, updates } );
+    searches_.push_back( Kept{ view, search } );
     current_ = view;
 
     // A view added is the current Search's.
@@ -87,6 +93,7 @@ void KeptSearches::makeCurrent( FilteredView* view )
 
     current_ = view;
     openLogFile_->makeSearchCurrent( found->search );
+    ++currentChanges_;
     viewSet_.makeSearchCurrent( view, found->search.get() );
 }
 
@@ -107,7 +114,6 @@ bool KeptSearches::drop( FilteredView* view )
         makeCurrent( next->view );
     }
 
-    disconnect( found->updates );
     auto search = std::move( found->search );
     searches_.erase( found );
 

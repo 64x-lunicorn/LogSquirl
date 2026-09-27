@@ -135,6 +135,27 @@ LineLength ViewportLayout::visibleColumns() const
     return LineLength{ static_cast<LineLength::UnderlyingType>( std::max<int64_t>( columns, 1 ) ) };
 }
 
+std::optional<ShownLines> ViewportLayout::shownLines() const
+{
+    std::optional<ShownLines> shown;
+    for ( size_t index = 0; index < visualLines_.size(); ++index ) {
+        const auto top = input_.drawingTopOffsetPx + static_cast<int>( index ) * charHeight();
+        if ( top + charHeight() <= 0 ) {
+            // Wholly above the top edge, as when the view is pulled up.
+            continue;
+        }
+        if ( top >= input_.viewportHeightPx ) {
+            break;
+        }
+        const auto line = visualLines_[ index ].lineNumber;
+        if ( !shown.has_value() ) {
+            shown = ShownLines{ line, line };
+        }
+        shown->last = line;
+    }
+    return shown;
+}
+
 std::optional<size_t> ViewportLayout::visualLineAtPoint( int yPos ) const
 {
     const auto offset = std::abs( ( yPos - input_.drawingTopOffsetPx ) / charHeight() );

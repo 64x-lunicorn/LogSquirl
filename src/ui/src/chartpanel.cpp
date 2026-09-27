@@ -208,6 +208,10 @@ void ChartPanel::closeValueCountTab( int index )
 void ChartPanel::setLogFormat( const LogFormatDefinition* format )
 {
     format_ = format;
+    // The extraction reads the timestamp field with a copy of the Log Format
+    // on its worker thread.
+    extraction_.setLogFormat( format_ ? std::make_shared<const LogFormatDefinition>( *format_ )
+                                      : nullptr );
     wizardAction_->setVisible( format_ != nullptr );
     rebuildTemplatesMenu();
 }
@@ -218,6 +222,9 @@ void ChartPanel::extractData()
         return;
     }
 
+    // A Timestamp without a year takes the year of when the Log File was last
+    // written, as the lookup and the Table View read it (ADR 0010).
+    extraction_.setModificationDate( logData_->getLastModifiedDate().date() );
     extraction_.update();
 }
 

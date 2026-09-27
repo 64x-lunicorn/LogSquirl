@@ -112,7 +112,8 @@ public:
         paced_ = false;
     }
 
-    // Update the current position in the file (to draw the view line)
+    // Update the current position in the file (to draw the view line):
+    // firstLine is the first line shown, lastLine the one after the last.
     void updateCurrentPosition( LineNumber firstLine, LineNumber lastLine )
     {
         topLine_ = firstLine;

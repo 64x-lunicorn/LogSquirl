@@ -51,7 +51,6 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <numeric>
 #include <optional>
 #include <qchar.h>
 #include <qcolor.h>
@@ -440,10 +439,9 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
     connect( quickFind_, &QuickFind::searchDone, this, &AbstractLogView::setQuickFindResult,
              Qt::DirectConnection );
 
+    // Whether a pull hooked the elastic is said in the wheel turn's answer.
     connect( &scrolling_.elasticHook(), &ElasticHook::lengthChanged, this,
              qOverload<>( &AbstractLogView::repaint ) );
-    connect( &scrolling_.elasticHook(), &ElasticHook::hooked, this,
-             &AbstractLogView::followModeChanged );
 
     // A step or a page up by the scrollbar leaves follow. Moving it to the
     // maximum it is already at changes no value, so scrollContentsBy() never
@@ -488,6 +486,11 @@ ScrollingViewport AbstractLogView::ScrolledLines::viewport() const
                               .heightPx = area->height(),
                               .lineNumbersVisible = view_.lineNumbersVisible_,
                               .largestDisplayLineNumber = view_.lines_->logLineCount().get() };
+}
+
+bool AbstractLogView::ScrolledLines::follows() const
+{
+    return view_.follow_;
 }
 
 AbstractLogView::~AbstractLogView()
@@ -1012,12 +1015,7 @@ void AbstractLogView::applyScroll( const ScrollAnswer& answer )
 
 void AbstractLogView::scrollPositionMoved()
 {
-    // Update the overview if we have one
-    if ( overview_ != nullptr ) {
-        const auto scrollPosition = scrolling_.position();
-        overview_->updateCurrentPosition( scrollPosition.lineNumber,
-                                          scrollPosition.lineNumber + getNbVisibleLines() );
-    }
+    updateOverviewPosition();
 
     // Are we hovering over a new line?
     const auto mousePos = mapFromGlobal( QCursor::pos( activeScreen( this ) ) );
@@ -1025,6 +1023,24 @@ void AbstractLogView::scrollPositionMoved()
 
     // Redraw
     update();
+}
+
+void AbstractLogView::updateOverviewPosition()
+{
+    if ( overview_ == nullptr ) {
+        return;
+    }
+    // The lines the Viewport shows, as its layout has them: under text
+    // wrapping, fewer than it has rows.
+    const auto shown = viewportLayout().shownLines();
+    if ( shown.has_value() ) {
+        // The overview takes the line after the last one shown.
+        overview_->updateCurrentPosition( shown->first, shown->last + 1_lcount );
+    }
+    else {
+        overview_->updateCurrentPosition( scrolling_.position().lineNumber,
+                                          scrolling_.position().lineNumber );
+    }
 }
 
 void AbstractLogView::paintEvent( QPaintEvent* paintEvent )
@@ -1135,20 +1151,14 @@ OptionalLineNumber AbstractLogView::getViewPosition() const
         return selectedLine;
     }
 
-    // Middle of the view
-    const auto middle
-        = scrolling_.position().lineNumber + LinesCount( getNbVisibleLines().get() / 2 );
-    const auto line = lines_->logLineAt( middle );
-    if ( line.has_value() ) {
-        return line;
+    // The middle of the lines the Viewport shows: under text wrapping a long
+    // Log Line fills rows that would otherwise hold the Log Lines below it.
+    const auto shown = viewportLayout().shownLines();
+    if ( !shown.has_value() ) {
+        return std::nullopt;
     }
-
-    // Below the last Log Line shown: the Log Line after it.
-    const auto last = lastShownLogLine();
-    if ( last.has_value() ) {
-        return *last + 1_lcount;
-    }
-    return std::nullopt;
+    const auto middle = shown->first + LinesCount( ( shown->last.get() - shown->first.get() ) / 2 );
+    return lines_->logLineAt( middle );
 }
 
 void AbstractLogView::selectMark( bool after )
@@ -1279,6 +1289,7 @@ void AbstractLogView::setPresentationPolicy( const PresentationPolicy& policy )
 
 void AbstractLogView::followSet( bool checked )
 {
+    follow_ = checked;
     applyScroll( scrolling_.followSet( checked ) );
 }
 
@@ -1513,13 +1524,15 @@ void AbstractLogView::updateData( LinesChange change )
 {
     LOG_DEBUG << "AbstractLogView::updateData";
 
-    const auto lastLineNumber = LineNumber( logData_->getNbLine().get() );
-
     // Past the Log Lines there are now, the view goes back to the top.
     if ( scrolling_.dataChanged( change ) ) {
         verticalScrollBar()->setValue( 0 );
         horizontalScrollBar()->setValue( 0 );
     }
+
+    // Not rereadLogLines(): scrolling was told already what changed. Before
+    // anything below asks for the Viewport, so it reads its Log Lines once.
+    refresh( ViewportChange::Text );
 
     // Crop selection if it become out of range: it holds Log Lines, so it is
     // cropped to the Log File's.
@@ -1534,17 +1547,7 @@ void AbstractLogView::updateData( LinesChange change )
 
     applyScroll( scrolling_.jumpToBottomIfFollowing() );
 
-    // Update the overview if we have one
-    if ( overview_ != nullptr ) {
-        // Calculate the index of the last line shown
-        const auto scrollPosition = scrolling_.position();
-        const LineNumber lastLine
-            = qMin( lastLineNumber, scrollPosition.lineNumber + getNbVisibleLines() );
-        overview_->updateCurrentPosition( scrollPosition.lineNumber, lastLine );
-    }
-
-    // Not rereadLogLines(): scrolling was told already what changed.
-    refresh( ViewportChange::Text );
+    updateOverviewPosition();
 }
 
 void AbstractLogView::updateFont( const QFont& font )
@@ -1660,6 +1663,11 @@ void AbstractLogView::jumpToLine( LineNumber logLine )
     // Its first Visual Line in the middle if possible, counted in Visual
     // Lines: a long Log Line above it would otherwise push it off (#544).
     applyScroll( scrolling_.centre( lines_->nearestPositionOf( logLine ) ) );
+}
+
+void AbstractLogView::showAtTop( LineNumber logLine )
+{
+    applyScroll( scrolling_.scrollTo( ScrollPosition{ lines_->nearestPositionOf( logLine ), 0 } ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
@@ -2034,18 +2042,14 @@ void AbstractLogView::jumpToEndOfLine()
 // Make the end of the lines on the screen visible
 void AbstractLogView::jumpToRightOfScreen()
 {
-    const auto nbVisibleLines = getNbVisibleLines();
-
-    logsquirl::vector<LineNumber::UnderlyingType> visibleLinesNumbers( nbVisibleLines.get() );
-    std::iota( visibleLinesNumbers.begin(), visibleLinesNumbers.end(),
-               scrolling_.position().lineNumber.get() );
-
     logsquirl::vector<LineNumber> visibleLines;
-    visibleLines.reserve( nbVisibleLines.get() );
-    for ( const auto number : visibleLinesNumbers ) {
-        const auto logLine = lines_->logLineAt( LineNumber{ number } );
-        if ( logLine.has_value() ) {
-            visibleLines.push_back( *logLine );
+    if ( const auto shown = viewportLayout().shownLines(); shown.has_value() ) {
+        visibleLines.reserve( shown->last.get() - shown->first.get() + 1 );
+        for ( auto position = shown->first; position <= shown->last; ++position ) {
+            const auto logLine = lines_->logLineAt( position );
+            if ( logLine.has_value() ) {
+                visibleLines.push_back( *logLine );
+            }
         }
     }
     horizontalScrollBar()->setValue( type_safe::narrow_cast<int>(

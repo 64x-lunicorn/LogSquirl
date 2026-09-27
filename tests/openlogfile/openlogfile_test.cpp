@@ -29,6 +29,7 @@
 #include "textencoding.h"
 #include <QCoreApplication>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QList>
 #include <QMetaType>
@@ -36,6 +37,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
@@ -109,6 +111,10 @@ struct Observer {
         QObject::connect(
             &openLogFile, &OpenLogFile::searchUpdated,
             [ this ]( const SearchSession::State& state ) { searchStates.push_back( state ); } );
+        QObject::connect( &openLogFile, &OpenLogFile::searchLimitsChanged,
+                          [ this ]( LineNumber startLine, LineNumber endLine ) {
+                              searchLimits.emplace_back( startLine, endLine );
+                          } );
     }
 
     bool waitLoads( size_t count )
@@ -119,6 +125,7 @@ struct Observer {
     std::vector<OpenLogFile::LoadFinished> loads;
     int truncations = 0;
     std::vector<SearchSession::State> searchStates;
+    std::vector<std::pair<LineNumber, LineNumber>> searchLimits;
 };
 
 struct OpenedLogFile {
@@ -833,6 +840,148 @@ SCENARIO( "An Open Log File keeps Searches and follows the current one", "[openl
                 }
             }
         }
+    }
+}
+
+SCENARIO( "Marks are put on a Log File through its Open Log File", "[openlogfile][marks]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "marks.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+    using LineTypeFlags = AbstractLogData::LineTypeFlags;
+
+    THEN( "no Log Line is marked at first" )
+    {
+        REQUIRE( logFile.openLogFile.marks().isEmpty() );
+        REQUIRE_FALSE( logFile.openLogFile.lineType( 3_lnum ).testFlag( LineTypeFlags::Mark ) );
+    }
+
+    WHEN( "a Mark is added" )
+    {
+        logFile.openLogFile.addMark( 3_lnum );
+
+        THEN( "the Log Line is marked" )
+        {
+            REQUIRE( logFile.openLogFile.marks() == QList<LineNumber>{ 3_lnum } );
+            REQUIRE( logFile.openLogFile.lineType( 3_lnum ).testFlag( LineTypeFlags::Mark ) );
+        }
+
+        AND_WHEN( "it is toggled, and another Log Line too" )
+        {
+            logFile.openLogFile.toggleMark( 3_lnum );
+            logFile.openLogFile.toggleMark( 7_lnum );
+
+            THEN( "the first is no longer marked, the other is" )
+            {
+                REQUIRE( logFile.openLogFile.marks() == QList<LineNumber>{ 7_lnum } );
+                REQUIRE_FALSE(
+                    logFile.openLogFile.lineType( 3_lnum ).testFlag( LineTypeFlags::Mark ) );
+            }
+        }
+
+        AND_WHEN( "the Marks are cleared" )
+        {
+            logFile.openLogFile.clearMarks();
+
+            THEN( "no Log Line is marked" )
+            {
+                REQUIRE( logFile.openLogFile.marks().isEmpty() );
+            }
+        }
+    }
+
+    WHEN( "a Search found its Matches" )
+    {
+        logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+
+        THEN( "the line type tells a Match from a Log Line that did not match" )
+        {
+            REQUIRE( logFile.openLogFile.lineType( 3_lnum ).testFlag( LineTypeFlags::Match ) );
+            REQUIRE_FALSE(
+                logFile.openLogFile.lineType( 4_lnum ).testFlag( LineTypeFlags::Match ) );
+            REQUIRE( logFile.openLogFile.matchCount() == fizzCount( FirstLineCount ) );
+            REQUIRE( logFile.openLogFile.displayedLineCount() == fizzCount( FirstLineCount ) );
+        }
+    }
+}
+
+SCENARIO( "An Open Log File tells when its Search Limits change", "[openlogfile][limits]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "limits.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+    using Limits = std::pair<LineNumber, LineNumber>;
+
+    THEN( "the first load tells them as the whole Log File" )
+    {
+        REQUIRE( logFile.observer.searchLimits
+                 == std::vector{ Limits{ 0_lnum, LineNumber( FirstLineCount ) } } );
+    }
+
+    WHEN( "they are narrowed, and set the same once more" )
+    {
+        logFile.openLogFile.setSearchLimits( 5_lnum, 20_lnum );
+        logFile.openLogFile.setSearchLimits( 5_lnum, 20_lnum );
+
+        THEN( "the narrowed Limits are told once" )
+        {
+            REQUIRE( logFile.observer.searchLimits
+                     == std::vector{ Limits{ 0_lnum, LineNumber( FirstLineCount ) },
+                                     Limits{ 5_lnum, 20_lnum } } );
+        }
+
+        AND_WHEN( "Log Lines are added to the Log File" )
+        {
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+
+            THEN( "nothing more is told: they stay as set" )
+            {
+                REQUIRE( logFile.observer.searchLimits.size() == 2 );
+            }
+        }
+    }
+
+    WHEN( "Log Lines are added to the Log File while the Limits are the whole of it" )
+    {
+        REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+        REQUIRE( logFile.observer.waitLoads( 2 ) );
+
+        THEN( "the Limits that follow its end are told" )
+        {
+            REQUIRE( logFile.observer.searchLimits.back()
+                     == Limits{ 0_lnum, LineNumber( 2 * FirstLineCount ) } );
+        }
+    }
+}
+
+SCENARIO( "An Open Log File tells the facts of its Log File", "[openlogfile]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "facts.log" );
+    REQUIRE( writeLogFile( path, FirstLineCount ) );
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+
+    THEN( "its Log Lines, its size and when it was last written" )
+    {
+        const QFileInfo info( path );
+        REQUIRE( logFile.openLogFile.lineCount() == LinesCount( FirstLineCount ) );
+        REQUIRE( logFile.openLogFile.fileSize() == info.size() );
+        REQUIRE( logFile.openLogFile.lastModified() == info.lastModified() );
     }
 }
 

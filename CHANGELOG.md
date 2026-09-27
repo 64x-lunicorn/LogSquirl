@@ -2,6 +2,21 @@
 
 ## Changes
 
+- **A restored Log File stands where it stood**: when LogSquirl restores its
+  Session, each Log File opens on the Log Line that was at the top of its view
+  when it was saved, once it has loaded, instead of at the start. A tab that
+  follows the end of its Log File still follows it; Sessions saved by earlier
+  versions open at the top as before (#559).
+- **Closing tabs asks once and remembers only what you closed**: Close all
+  asks one question for all its tabs instead of one per tab. Only Log Files
+  you close yourself are added to the recent files; tabs the application
+  closes, for example when the window closes, no longer are. Closing one tab
+  asks as before, naming its Log File (#536).
+- **Every view of a Log File agrees on follow**: leaving follow in the Text
+  View, the Table View or any Filtered View leaves it in all of them, also when
+  the Log File's tab is not in front, and the Follow action shows the state of
+  the Log File in front after a tab switch. A Filtered View opened while the
+  Log File is followed follows too (#558).
 - **The Windows installer shows the privacy policy and can turn the update
   check off**: A page before the components shows the privacy policy, and the
   new component *Check for updates automatically*, ticked by default, turns the
@@ -180,6 +195,17 @@
 
 ## Bug fixes
 
+- **A chart's time axis reads Timestamps the way the Log File does**: a series
+  over the Log Format's timestamp field reads it like Go to timestamp and the
+  Table View, so a year-less syslog chart no longer jumps back a year at New
+  Year, and Log Lines written with `+02:00` and with `Z` plot the same instant
+  at the same place. A hand-typed timestamp format keeps Qt's parser; a value
+  a series cannot read is left out instead of being plotted at its line
+  number, and the axis shows its times in UTC (#560).
+- **The overview and Mark navigation follow what a wrapped view shows**: with
+  text wrapping on, the overview's current-position marker covers only the Log
+  Lines actually on screen, and next/previous Mark without a selection starts
+  from a Log Line that is on screen (#545).
 - **A click on the overview shows the Log Line clicked, with text wrapping on**:
   The Log Line lands in the middle of the view, its first Visual Line shown,
   also when a long wrapped Log Line sits just above it; before, that Log Line
@@ -358,6 +384,16 @@
 
 ## Internal
 
+- **The Open Log File is the one way into a Log File**: Marks, the Search
+  Limits and every Policy reach a Log File through its Open Log File; the views
+  follow the Search Limits it announces, and the Kept Searches pass on its
+  report of the current Search instead of filtering reports themselves. The
+  Crawler Widget reaches past it only to read Log Lines (#556, #557).
+- **The index job queue is tested on its own**: the queue takes the index
+  worker through a port, so a unit test drives it with a fake runner, without
+  files, threads or polling waits (#550).
+- **Loading progress follows the tab in front** is now pinned by a window test
+  (#541; the behaviour came with #540).
 - **An unknown default Encoding is resolved in one place**: a default
   Encoding in the settings that this build does not know (for example
   `encodingMib=2013`) is taken as the locale's where the Policies are derived,

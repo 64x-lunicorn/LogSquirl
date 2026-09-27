@@ -115,7 +115,7 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     connect( worker.get(), &LogDataWorker::checkFileChangesFinished, this,
              &LogData::checkFileChangesFinished );
 
-    operationQueue_.setWorker( std::move( worker ) );
+    operationQueue_.setRunner( std::move( worker ) );
 
     if ( fileAccessPolicy_.keepFileClosed ) {
         LOG_INFO << "Keep file closed option is set";

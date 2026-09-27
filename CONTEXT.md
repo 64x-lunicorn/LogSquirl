@@ -42,6 +42,10 @@ Marks saved with the Session are handed to it when the Log File is opened and ap
 after the first load; saving them stays with the user interface. A Search requested before
 the Log File has first loaded waits for that load and then runs over the whole Log File.
 It hears of changes on disk through the File Watch Port handed to it when it is built.
+It is the way in to its Log File: it takes every Policy, adds, toggles and clears the Marks,
+owns the Search Limits and tells the View Set when they change, and answers what is known of
+the Log File — its Log Lines, its size, when it was last written; nothing reaches past it
+but to read Log Lines.
 The desktop application and the command line tool follow a Log File the same way because
 both use it.
 _Avoid_: document, loaded file, file session
@@ -90,10 +94,12 @@ _Avoid_: screen, canvas, page
 Every view of one Log File: its Presentations and its Filtered Views, those of kept
 Searches included. Whatever all of them must show alike — the Policies, the font, the Color
 Labels, the Search Limits — is handed to the View Set, which hands it to every view, and a
-view added later starts with all of it. Which Search is current reaches every Presentation,
-the Overview and that Search's Filtered View through it too, as the Kept Searches make one
-current, and so does the pattern of the current Search; a kept Search's Filtered View keeps
-coloring the pattern it ran with.
+view added later starts with all of it. It owns whether the Log File is followed: a view
+that leaves or engages follow asks the View Set, which hands the outcome to every view, and
+the window's follow action shows what it holds. Which Search is current reaches every
+Presentation, the Overview and that Search's Filtered View through it too, as the Kept
+Searches make one current, and so does the pattern of the current Search; a kept Search's
+Filtered View keeps coloring the pattern it ran with.
 _Avoid_: views, panes, tabs
 
 **Visual Line**:
@@ -138,8 +144,9 @@ The owner of every Search of one Log File, each shown in a Filtered View of its 
 current Search, which runs, follows the Log File and takes the Marks, and those whose results
 the user kept to start another. A Search is added, made current and dropped there alone.
 Making one current tells the Open Log File and hands it to the View Set, so no view is left
-showing the Marks and Matches of another; only the current Search's progress is reported. A
-Search dropped goes with its Filtered View, and a Log File always keeps one.
+showing the Marks and Matches of another; only the current Search's progress is reported —
+the Open Log File reports it, and the Kept Searches pass it on. A Search dropped goes with its
+Filtered View, and a Log File always keeps one.
 _Avoid_: search tabs, filtered views data
 
 **Filtered View**:
@@ -202,7 +209,8 @@ Line with a Timestamp at or after the start time, the end the first at or after 
 time), and from then on they are ordinary line Limits. They do not follow the Log File as it
 grows or is reloaded: narrowed Limits stay as set, cut back to its end when it shrinks, and
 become the whole Log File only when nothing of them is left; Limits that are the whole Log
-File follow its end. Times are not converted a second time.
+File follow its end. Times are not converted a second time. They belong to the Open Log
+File, which tells the View Set whenever they change.
 _Avoid_: search range, scope
 
 **Match**:
@@ -474,7 +482,8 @@ _Avoid_: category, group, domain
 
 **Session**:
 The set of Log Files currently open, their tabs, and the position and view state restored
-for each on the next start.
+for each on the next start. The position is part of the view state: the Log Line of the text
+view's Scroll Position, where the Log File stands again once its first load is done.
 It builds the views of every Log File it opens in one call, from one value: the Open Log
 File, the QuickFind pattern, the Policies, the saved Searches and the view state to restore,
 if any — opening a Log File by hand and restoring it on start take the same path. After that
