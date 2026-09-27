@@ -19,8 +19,9 @@
 
 // The main window and the loads of its Log Files: what a tab brought to the
 // front says about its load (#540), a Filters-panel click that runs one
-// Search (#538), and the tab a restored Session opens on (#542). Unlike
-// mainwindow_test.cpp these run on every platform.
+// Search (#538), the tab a restored Session opens on (#542), and the loading
+// progress of the tab in front (#541). Unlike mainwindow_test.cpp these run
+// on every platform.
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -487,4 +488,105 @@ SCENARIO( "A Log File still loading in a background tab shows as loading when it
     mainWindow.reset();
     // Leave the in-memory Session info as the settings store has it.
     SessionInfo::getSynced();
+}
+
+// The window shows the loading progress of the tab in front only. A tab keeps
+// the progress of its load and shows it at once when it is brought to the
+// front; a tab that has loaded takes the gauge away (#541).
+SCENARIO( "Loading progress follows the tab in front", "[ui][loading]" )
+{
+    QTemporaryFile firstFile{ QDir::temp().filePath( "mainwindow_progress_first_XXXXXX" ) };
+    QTemporaryFile secondFile{ QDir::temp().filePath( "mainwindow_progress_second_XXXXXX" ) };
+    for ( auto* file : { &firstFile, &secondFile } ) {
+        REQUIRE( file->open() );
+        file->write( "first Log Line\nsecond Log Line\n" );
+        file->flush();
+    }
+    const auto firstName = QFileInfo( firstFile ).fileName();
+    const auto secondName = QFileInfo( secondFile ).fileName();
+
+    auto appSession
+        = std::make_shared<Session>( testSettingsPolicies(), std::make_shared<LogFormatCatalog>() );
+    WindowSession windowSession{ appSession, "Main", 0 };
+    const auto plugins = std::make_shared<logsquirl::plugins::ApplicationPlugins>();
+
+    std::unique_ptr<MainWindow> mainWindow;
+    QTimer::singleShot( 0,
+                        [ & ] { mainWindow.reset( new MainWindow( windowSession, plugins ) ); } );
+    QTest::qWait( 100 );
+    REQUIRE( mainWindow != nullptr );
+    mainWindow->show();
+
+    auto* tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+    REQUIRE( tabArea != nullptr );
+    auto* toolBar = mainWindow->findChild<QToolBar*>();
+    REQUIRE( toolBar != nullptr );
+    auto* infoLine = toolBar->findChild<PathLine*>();
+    REQUIRE( infoLine != nullptr );
+    auto* reloadAction = windowAction( *mainWindow, logsquirl::mainwindow::action::reloadText );
+    REQUIRE( reloadAction != nullptr );
+
+    // The gauge is the gradient behind the info line's text.
+    const auto showsGauge = [ & ] {
+        return infoLine->palette().brush( infoLine->backgroundRole() ).gradient() != nullptr;
+    };
+    const auto showsLoaded = [ & ]( const QString& name ) {
+        return infoLine->text().contains( name ) && reloadAction->isEnabled() && !showsGauge();
+    };
+
+    GIVEN( "two loaded Log Files, the second in front" )
+    {
+        mainWindow->loadFileNonInteractive( firstFile.fileName() );
+        mainWindow->loadFileNonInteractive( secondFile.fileName() );
+        REQUIRE( waitUiState(
+            [ & ] { return tabArea->logFileTabs().size() == 2 && showsLoaded( secondName ); },
+            10000 ) );
+        auto* first
+            = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().front() ) );
+        auto* second
+            = qobject_cast<CrawlerWidget*>( tabArea->widget( tabArea->logFileTabs().back() ) );
+        REQUIRE( first != nullptr );
+        REQUIRE( second != nullptr );
+        REQUIRE( tabArea->currentWidget() == second );
+        QTest::qWait( 100 );
+
+        WHEN( "the Log File in the background tells that its load has progressed" )
+        {
+            // As a load under way tells it; these Log Files are too small to
+            // be caught between two ticks of a real load.
+            Q_EMIT LoadAccess::openLogFile( *first ).loadingProgressed( 42 );
+            QTest::qWait( 50 );
+
+            THEN( "the window still shows the Log File in front, loaded, with no gauge" )
+            {
+                REQUIRE( showsLoaded( secondName ) );
+                REQUIRE_FALSE( infoLine->text().contains( "42 %" ) );
+            }
+
+            AND_WHEN( "its tab is brought to the front" )
+            {
+                tabArea->setCurrentWidget( first );
+
+                THEN( "the window shows its progress at once" )
+                {
+                    REQUIRE( infoLine->text().contains( firstName ) );
+                    REQUIRE( infoLine->text().contains( "(42 %)" ) );
+                    REQUIRE( showsGauge() );
+                    REQUIRE_FALSE( reloadAction->isEnabled() );
+
+                    AND_WHEN( "the loaded tab is brought back to the front" )
+                    {
+                        tabArea->setCurrentWidget( second );
+
+                        THEN( "the gauge is gone" )
+                        {
+                            REQUIRE( showsLoaded( secondName ) );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    mainWindow.reset();
 }
