@@ -185,6 +185,16 @@ QList<int> TabbedCrawlerWidget::logFileTabs() const
     return tabs;
 }
 
+int TabbedCrawlerWidget::tabOfPath( const QString& path ) const
+{
+    for ( int i = 0; i < count(); ++i ) {
+        if ( tabPathAt( i ) == path ) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 void TabbedCrawlerWidget::mouseReleaseEvent( QMouseEvent* event )
 {
     LOG_DEBUG << "TabbedCrawlerWidget::mouseReleaseEvent";

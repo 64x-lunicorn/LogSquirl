@@ -61,7 +61,6 @@
 #include "downloader.h"
 #include "filterspanel.h"
 #include "iconloader.h"
-#include "mergecontroller.h"
 #include "pathline.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
@@ -459,9 +458,6 @@ private:
 
     // Separator between plugin actions (top) and management actions (bottom).
     QAction* pluginMenuSeparator_ = nullptr;
-
-    // Active merge controllers (one per merged tab).
-    std::vector<std::unique_ptr<MergeController>> mergeControllers_;
 
     // Command palette (Ctrl+Shift+P / Cmd+Shift+P)
     CommandPalette* commandPalette_ = nullptr;

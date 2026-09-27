@@ -87,6 +87,10 @@ public:
     // tabs to close or merge Log Files asks this.
     QList<int> logFileTabs() const;
 
+    // The tab that holds the file at `path`, found by the path it was added
+    // under; -1 when none does.
+    int tabOfPath( const QString& path ) const;
+
     // Names the tab of `path`, when it is opened next, until the window
     // closes. Unlike a renamed tab it is not saved; a rename by the user wins.
     void setTransientTabName( const QString& path, const QString& name );

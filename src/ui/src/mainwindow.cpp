@@ -109,6 +109,7 @@
 #include "logsquirl_version.h"
 #include "mainwindowtext.h"
 #include "menu.h"
+#include "mergecontroller.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
 #include "plugindialog.h"
@@ -2021,7 +2022,10 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
         return;
     }
 
-    auto controller = std::make_unique<MergeController>( this );
+    // The merge controller belongs to the merged tab: closing the tab ends
+    // the rebuild and removes the temporary file. The window holds it only
+    // until the tab is there.
+    auto* controller = new MergeController( this );
     const auto mergedPath = controller->merge( filePaths, dedup );
 
     // Open the merged temp file as a regular tab
@@ -2029,21 +2033,20 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     mainTabWidget_.setTransientTabName( mergedPath, direction );
     loadFile( mergedPath );
 
-    // Connect live updates: when the merged file is rebuilt, reload the LogData
-    connect( controller.get(), &MergeController::mergedFileUpdated, this, [ this, mergedPath ] {
-        // The loadFile + reload mechanism handles re-reading
-        for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-            if ( mainTabWidget_.tabToolTip( i ) == QDir::toNativeSeparators( mergedPath ) ) {
-                auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
-                if ( crawler ) {
-                    crawler->reload();
-                }
-                break;
-            }
+    // A file asked for before the plugins have loaded opens once they have,
+    // so the tab is looked for after that.
+    plugins_->whenLoaded( this, [ this, controller, mergedPath ] {
+        auto* crawler = qobject_cast<CrawlerWidget*>(
+            mainTabWidget_.widget( mainTabWidget_.tabOfPath( mergedPath ) ) );
+        if ( crawler == nullptr ) {
+            LOG_WARNING << "No tab holds the merged file " << mergedPath;
+            delete controller;
+            return;
         }
+        controller->setParent( crawler );
+        // When the merged file is rebuilt, its tab reads it again
+        connect( controller, &MergeController::mergedFileUpdated, crawler, &CrawlerWidget::reload );
     } );
-
-    mergeControllers_.push_back( std::move( controller ) );
 }
 
 void MainWindow::toggleSidebar()

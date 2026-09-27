@@ -18,7 +18,8 @@
  */
 
 // The main window's tabs: which of them hold a Log File, whether or not the
-// window shows the Dashboard (#535).
+// window shows the Dashboard (#535), and the merged Log File whose rebuild
+// ends with its tab (#537).
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -43,12 +44,28 @@
 #include "logformatcatalog.h"
 #include "mainwindow.h"
 #include "mainwindowtext.h"
+#include "mergecontroller.h"
+#include "openlogfile.h"
 #include "session.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
 #include "test_policies.h"
 #include "test_utils.h"
 #include "welcomedashboard.h"
+
+// What the merge scenario reads from a Crawler Widget beyond its public face:
+// how many Log Lines its Log File holds.
+struct MainWindowTabsAccess {};
+
+template <>
+struct CrawlerWidget::access_by<MainWindowTabsAccess> {
+    CrawlerWidget& crawler;
+
+    LinesCount nbLines() const
+    {
+        return crawler.openLogFile_->logData()->getNbLine();
+    }
+};
 
 namespace {
 
@@ -349,6 +366,90 @@ SCENARIO( "Every bulk close reaches the first Log File whether or not the window
             THEN( "every Log File is handed to the Session's close" )
             {
                 REQUIRE( window.noneOpenInSession( paths ) );
+            }
+        }
+    }
+}
+
+// The merge controller belongs to the merged tab: closing the tab ends the
+// rebuild, and the temporary file goes with it (#537).
+SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
+{
+    ThreeLogFiles files;
+    TabsWindow window( true );
+    const auto sources = window.open( { files.paths[ 0 ], files.paths[ 1 ] } );
+
+    GIVEN( "the two Log Files merged into a tab of their own" )
+    {
+        Q_EMIT window.tabArea->mergeRequested( sources, false );
+
+        CrawlerWidget* merged = nullptr;
+        QString mergedPath;
+        REQUIRE( waitUiState(
+            [ & ] {
+                for ( int i = 0; i < window.tabArea->count(); ++i ) {
+                    const auto path = QDir::fromNativeSeparators( window.tabArea->tabToolTip( i ) );
+                    auto* crawler = qobject_cast<CrawlerWidget*>( window.tabArea->widget( i ) );
+                    if ( crawler != nullptr && path.contains( "logsquirl_merged_" )
+                         && CrawlerWidget::access_by<MainWindowTabsAccess>{ *crawler }
+                                    .nbLines()
+                                    .get()
+                                == 4 ) {
+                        merged = crawler;
+                        mergedPath = path;
+                        return true;
+                    }
+                }
+                return false;
+            },
+            UiTimeoutMs ) );
+        REQUIRE( QFile::exists( mergedPath ) );
+
+        THEN( "the merged tab holds its merge controller, and the window keeps none" )
+        {
+            REQUIRE( merged->findChild<MergeController*>() != nullptr );
+            REQUIRE( window.mainWindow->findChildren<MergeController*>( Qt::FindDirectChildrenOnly )
+                         .isEmpty() );
+        }
+
+        WHEN( "a Log Line is appended to a source" )
+        {
+            REQUIRE( writeLines( sources[ 0 ], "an appended Log Line\n", QIODevice::Append ) );
+
+            THEN( "the merged tab is rebuilt with it" )
+            {
+                REQUIRE( waitUiState(
+                    [ & ] {
+                        return CrawlerWidget::access_by<MainWindowTabsAccess>{ *merged }
+                                   .nbLines()
+                                   .get()
+                               == 5;
+                    },
+                    UiTimeoutMs ) );
+            }
+        }
+
+        WHEN( "the merged tab is closed" )
+        {
+            Q_EMIT window.tabArea->tabCloseRequested( window.tabArea->indexOf( merged ) );
+
+            THEN( "the temporary file is gone" )
+            {
+                REQUIRE(
+                    waitUiState( [ & ] { return !QFile::exists( mergedPath ); }, UiTimeoutMs ) );
+
+                AND_WHEN( "a Log Line is appended to a source" )
+                {
+                    REQUIRE(
+                        writeLines( sources[ 0 ], "an appended Log Line\n", QIODevice::Append ) );
+
+                    THEN( "no rebuild writes the temporary file again" )
+                    {
+                        // Longer than the rebuild's debounce and its recheck.
+                        QTest::qWait( 1500 );
+                        REQUIRE_FALSE( QFile::exists( mergedPath ) );
+                    }
+                }
             }
         }
     }
