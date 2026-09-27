@@ -28,6 +28,7 @@
 
 #include "textencoding.h"
 
+#include <algorithm>
 #include <mutex>
 #include <utility>
 
@@ -333,21 +334,25 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     // is known only now.
     const auto encodingSettledAnew = settleEncoding();
 
-    // Search Limits the user narrowed stay as set while Log Lines are only
-    // added; Limits that were the whole Log File follow its end. Any other
-    // load brings Log Lines the Limits did not describe: they become the
-    // whole Log File again.
+    // Search Limits the user narrowed stay as set, whatever the load brought
+    // -- added Log Lines, a reload, a truncation, the Log File read anew in
+    // another Encoding -- cut back to the Log File's end; only when nothing
+    // of them is left do they become the whole Log File. Limits that were the
+    // whole Log File follow its end.
     const auto limitsWereWholeFile
         = searchStartLine_ == 0_lnum && searchEndLine_ >= LineNumber( loadedLineCount_.get() );
-    if ( !decision.onlyAppended || limitsWereWholeFile ) {
+    if ( limitsWereWholeFile || searchStartLine_ >= nbLines ) {
         searchStartLine_ = 0_lnum;
         searchEndLine_ = nbLines;
+    }
+    else {
+        searchEndLine_ = std::min( searchEndLine_, nbLines );
     }
     loadedLineCount_ = lineCount;
 
     // The Search follows the Log Lines loaded: it continues over the ones
     // added within the Search Limits, or starts again over a Log File
-    // truncated under it.
+    // truncated under it, within the Limits as they are now.
     switch ( decision.searchRefresh ) {
     case LoadRule::SearchRefresh::None:
         break;

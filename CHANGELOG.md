@@ -181,11 +181,14 @@
   The Log Line lands in the middle of the view, its first Visual Line shown,
   also when a long wrapped Log Line sits just above it; before, that Log Line
   could push the one clicked out of the view (#544).
-- **Search Limits stay as set when the Log File grows**: Limits narrowed by
+- **Search Limits stay as set when the Log File changes**: Limits narrowed by
   hand, by a time range or around the current line no longer turn into the
-  whole Log File after the next load: the Log Lines outside them stay subdued
-  and an auto-refreshed Search keeps to them. Limits that are the whole Log
-  File still reach its new end (#555).
+  whole Log File after the next load -- when the Log File grows, is reloaded,
+  is read anew in another Encoding or is truncated. The Log Lines outside them
+  stay subdued and an auto-refreshed Search keeps to them; a truncation cuts
+  them back to the new end, and only when nothing of them is left are they the
+  whole Log File. Limits that are the whole Log File still reach its new end
+  (#555).
 - **Scrolling up in the Table View leaves follow**: with follow on, moving
   the Table View away from its last Row -- with the wheel, by dragging the
   scrollbar, with Page Up or Ctrl+Home -- turns follow off, as it does in the
