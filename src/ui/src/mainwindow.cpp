@@ -1025,7 +1025,7 @@ void MainWindow::updateShortcuts()
 // Check whether the given tab index points to the pinned welcome dashboard.
 bool isDashboardTab( const TabbedCrawlerWidget& tabs, int index )
 {
-    return index == 0 && qobject_cast<WelcomeDashboard*>( tabs.widget( 0 ) ) != nullptr;
+    return qobject_cast<WelcomeDashboard*>( tabs.widget( index ) ) != nullptr;
 }
 
 // Refresh the welcome dashboard content.
@@ -1424,17 +1424,22 @@ void MainWindow::closeTab( ActionInitiator initiator )
     else {
         // The dashboard tab is the only/current tab — closing it should close
         // the window if there is nothing else open, otherwise it is a no-op.
-        if ( mainTabWidget_.count() <= 1 ) {
+        if ( mainTabWidget_.logFileTabs().isEmpty() ) {
             this->close();
         }
     }
 }
 
-// Close all tabs (except the pinned dashboard)
+// Close every tab that holds a Log File, from the left; the dashboard stays.
+// A tab the user chose to keep stays as well.
 void MainWindow::closeAll( ActionInitiator initiator )
 {
-    while ( mainTabWidget_.count() > 1 ) {
-        closeTab( 1, initiator );
+    std::vector<QWidget*> logFiles;
+    for ( const auto index : mainTabWidget_.logFileTabs() ) {
+        logFiles.push_back( mainTabWidget_.widget( index ) );
+    }
+    for ( auto* logFile : logFiles ) {
+        closeTab( mainTabWidget_.indexOf( logFile ), initiator );
     }
 }
 
@@ -2330,8 +2335,8 @@ void MainWindow::applyQuickFindPolicy()
 
 void MainWindow::closeTab( int index, ActionInitiator initiator )
 {
-    // Never close the pinned dashboard tab
-    if ( isDashboardTab( mainTabWidget_, index ) ) {
+    // Never close a tab that holds no Log File: the pinned dashboard
+    if ( !mainTabWidget_.holdsLogFile( index ) ) {
         return;
     }
 

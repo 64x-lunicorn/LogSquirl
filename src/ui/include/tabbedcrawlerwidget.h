@@ -78,6 +78,15 @@ public:
 
     void removeCrawler( int index );
 
+    // Whether the tab at `index` holds a Log File. The Dashboard, when the
+    // window shows one, is a tab that does not; nothing is assumed about
+    // where it sits.
+    bool holdsLogFile( int index ) const;
+
+    // The tabs that hold a Log File, in tab order. Every path that walks the
+    // tabs to close or merge Log Files asks this.
+    QList<int> logFileTabs() const;
+
     // Names the tab of `path`, when it is opened next, until the window
     // closes. Unlike a renamed tab it is not saved; a rename by the user wins.
     void setTransientTabName( const QString& path, const QString& name );

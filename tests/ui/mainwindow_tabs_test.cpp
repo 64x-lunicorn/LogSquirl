@@ -1,0 +1,355 @@
+/*
+ * Copyright (C) 2026 LogSquirl Contributors
+ *
+ * This file is part of LogSquirl.
+ *
+ * LogSquirl is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * LogSquirl is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with LogSquirl.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// The main window's tabs: which of them hold a Log File, whether or not the
+// window shows the Dashboard (#535).
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
+
+#include <QAction>
+#include <QApplication>
+#include <QColor>
+#include <QDir>
+#include <QFile>
+#include <QMenu>
+#include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QTest>
+#include <QTimer>
+
+#include <algorithm>
+#include <optional>
+
+#include "applicationplugins.h"
+#include "configuration.h"
+#include "crawlerwidget.h"
+#include "logformatcatalog.h"
+#include "mainwindow.h"
+#include "mainwindowtext.h"
+#include "session.h"
+#include "tabbedcrawlerwidget.h"
+#include "tabgroupinfo.h"
+#include "test_policies.h"
+#include "test_utils.h"
+#include "welcomedashboard.h"
+
+namespace {
+
+constexpr int UiTimeoutMs = 10'000;
+
+bool writeLines( const QString& path, const QByteArray& lines, QIODevice::OpenMode mode )
+{
+    QFile file( path );
+    if ( !file.open( QIODevice::WriteOnly | mode ) ) {
+        return false;
+    }
+    return file.write( lines ) == lines.size();
+}
+
+// A main window over a Session of its own, shown and active. It is built with
+// the Dashboard on or off in the settings when one is given, else as the
+// settings have it.
+struct TabsWindow {
+    explicit TabsWindow( std::optional<bool> showDashboard = {} )
+        : previousShowDashboard( Configuration::get().showDashboard() )
+        , session( std::make_shared<Session>( testSettingsPolicies(),
+                                              std::make_shared<LogFormatCatalog>() ) )
+        , plugins( std::make_shared<logsquirl::plugins::ApplicationPlugins>() )
+    {
+        if ( showDashboard.has_value() ) {
+            Configuration::get().setShowDashboard( *showDashboard );
+        }
+        mainWindow = std::make_unique<MainWindow>( WindowSession{ session, "Main", 0 }, plugins );
+        mainWindow->show();
+        mainWindow->activateWindow();
+        REQUIRE( QTest::qWaitForWindowActive( mainWindow.get(), 5000 ) );
+        tabArea = mainWindow->findChild<TabbedCrawlerWidget*>();
+        REQUIRE( tabArea != nullptr );
+    }
+
+    ~TabsWindow()
+    {
+        mainWindow.reset();
+        Configuration::get().setShowDashboard( previousShowDashboard );
+        QTest::qWait( 50 );
+    }
+
+    TabsWindow( const TabsWindow& ) = delete;
+    TabsWindow& operator=( const TabsWindow& ) = delete;
+
+    // Opens these files, each in its tab, and returns the paths the tabs
+    // hold them under, in tab order.
+    QStringList open( const QStringList& files )
+    {
+        for ( const auto& file : files ) {
+            mainWindow->loadFileNonInteractive( file );
+        }
+        REQUIRE( waitUiState( [ & ] { return logFileTabPaths().size() == files.size(); },
+                              UiTimeoutMs ) );
+        return logFileTabPaths();
+    }
+
+    // The paths of the tabs that hold a Log File, in tab order.
+    QStringList logFileTabPaths() const
+    {
+        QStringList paths;
+        for ( int i = 0; i < tabArea->count(); ++i ) {
+            if ( qobject_cast<CrawlerWidget*>( tabArea->widget( i ) ) != nullptr ) {
+                paths.append( QDir::fromNativeSeparators( tabArea->tabToolTip( i ) ) );
+            }
+        }
+        return paths;
+    }
+
+    bool showsDashboard() const
+    {
+        for ( int i = 0; i < tabArea->count(); ++i ) {
+            if ( qobject_cast<WelcomeDashboard*>( tabArea->widget( i ) ) != nullptr ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Whether the Session lists none of these Log Files as open.
+    bool noneOpenInSession( const QStringList& paths ) const
+    {
+        return std::ranges::none_of(
+            paths, [ this ]( const QString& path ) { return session->getViewIfOpen( path ); } );
+    }
+
+    // Chooses the entry with this text from the context menu of a tab, the
+    // way a right click on the tab opens it. Returns whether the menu showed
+    // and had the entry.
+    bool chooseFromTabMenu( int tab, const char* text )
+    {
+        auto* tabBar = qobject_cast<CrawlerTabBar*>( tabArea->tabBar() );
+        REQUIRE( tabBar != nullptr );
+
+        const auto entry = QApplication::translate( "TabbedCrawlerWidget", text );
+        bool chosen = false;
+        // The menu is modal: it is driven from inside its own event loop.
+        QTimer::singleShot( 0, tabArea, [ &chosen, &entry ] {
+            auto* menu = qobject_cast<QMenu*>( QApplication::activePopupWidget() );
+            if ( menu == nullptr ) {
+                return;
+            }
+            // The entries of the submenus are the menu's children too.
+            for ( auto* action : menu->findChildren<QAction*>() ) {
+                if ( action->text() == entry && action->isEnabled() ) {
+                    action->trigger();
+                    chosen = true;
+                    break;
+                }
+            }
+            menu->close();
+        } );
+        Q_EMIT tabBar->showTabContextMenu( tab,
+                                           tabBar->mapToGlobal( tabBar->tabRect( tab ).center() ) );
+        QTest::qWait( 50 );
+        return chosen;
+    }
+
+    bool previousShowDashboard;
+    std::shared_ptr<Session> session;
+    std::shared_ptr<logsquirl::plugins::ApplicationPlugins> plugins;
+    std::unique_ptr<MainWindow> mainWindow;
+    TabbedCrawlerWidget* tabArea = nullptr;
+};
+
+QAction* fileMenuAction( const MainWindow& window, const char* text )
+{
+    const auto translated = QApplication::translate( "logsquirl::mainwindow::action", text );
+    for ( auto* action : window.findChildren<QAction*>() ) {
+        if ( action->text() == translated ) {
+            return action;
+        }
+    }
+    return nullptr;
+}
+
+// Three small Log Files in a directory of their own.
+struct ThreeLogFiles {
+    ThreeLogFiles()
+    {
+        REQUIRE( dir.isValid() );
+        for ( const auto* name : { "first.log", "second.log", "third.log" } ) {
+            const auto path = dir.filePath( QString::fromLatin1( name ) );
+            REQUIRE( writeLines( path, "one Log Line\nanother Log Line\n", QIODevice::Truncate ) );
+            paths.append( path );
+        }
+    }
+
+    QTemporaryDir dir;
+    QStringList paths;
+};
+
+} // namespace
+
+// With the Dashboard off the first tab holds a Log File, and every path that
+// closes tabs in bulk reaches it; with the Dashboard on, none closes the
+// Dashboard (#535).
+SCENARIO( "Every bulk close reaches the first Log File whether or not the window shows the "
+          "Dashboard",
+          "[ui][tabs]" )
+{
+    const bool showDashboard = GENERATE( true, false );
+    CAPTURE( showDashboard );
+
+    ThreeLogFiles files;
+    TabsWindow window( showDashboard );
+    REQUIRE( window.showsDashboard() == showDashboard );
+    const auto dashboardTabs = showDashboard ? 1 : 0;
+
+    GIVEN( "three Log Files open in their tabs" )
+    {
+        const auto paths = window.open( files.paths );
+        REQUIRE( window.tabArea->count() == dashboardTabs + 3 );
+        const auto firstLogFileTab = dashboardTabs;
+        const auto lastLogFileTab = dashboardTabs + 2;
+
+        WHEN( "Close all is chosen from the File menu" )
+        {
+            auto* closeAll
+                = fileMenuAction( *window.mainWindow, logsquirl::mainwindow::action::closeAllText );
+            REQUIRE( closeAll != nullptr );
+            closeAll->trigger();
+
+            THEN( "no Log File is left, in the window or in the Session" )
+            {
+                REQUIRE( window.logFileTabPaths().isEmpty() );
+                REQUIRE( window.tabArea->count() == dashboardTabs );
+                REQUIRE( window.showsDashboard() == showDashboard );
+                REQUIRE( window.noneOpenInSession( paths ) );
+            }
+        }
+
+        WHEN( "Close all is chosen from the menu of a Log File's tab" )
+        {
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close all" ) );
+
+            THEN( "no Log File is left, in the window or in the Session" )
+            {
+                REQUIRE( window.logFileTabPaths().isEmpty() );
+                REQUIRE( window.tabArea->count() == dashboardTabs );
+                REQUIRE( window.noneOpenInSession( paths ) );
+            }
+        }
+
+        WHEN( "Close others is chosen from the menu of the last Log File's tab" )
+        {
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close others" ) );
+
+            THEN( "only the last Log File is left" )
+            {
+                REQUIRE( window.logFileTabPaths() == QStringList{ paths[ 2 ] } );
+                REQUIRE( window.tabArea->count() == dashboardTabs + 1 );
+                REQUIRE( window.noneOpenInSession( { paths[ 0 ], paths[ 1 ] } ) );
+            }
+        }
+
+        WHEN( "Close to the left is chosen from the menu of the last Log File's tab" )
+        {
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Close to the left" ) );
+
+            THEN( "only the last Log File is left" )
+            {
+                REQUIRE( window.logFileTabPaths() == QStringList{ paths[ 2 ] } );
+                REQUIRE( window.tabArea->count() == dashboardTabs + 1 );
+                REQUIRE( window.noneOpenInSession( { paths[ 0 ], paths[ 1 ] } ) );
+            }
+        }
+
+        WHEN( "Close to the left is chosen from the menu of the first Log File's tab" )
+        {
+            THEN( "the menu does not offer it: no Log File is left of that tab" )
+            {
+                REQUIRE_FALSE( window.chooseFromTabMenu( firstLogFileTab, "Close to the left" ) );
+                REQUIRE( window.logFileTabPaths() == paths );
+            }
+        }
+
+        WHEN( "Close All in Group is chosen for a group holding every Log File" )
+        {
+            auto& groups = TabGroupInfo::getSynced();
+            const auto groupId = groups.addGroup( QStringLiteral( "Group 535" ), Qt::darkGreen );
+            for ( const auto& path : paths ) {
+                groups.addTabToGroup( groupId, path );
+            }
+            groups.save();
+
+            const auto chosen = window.chooseFromTabMenu( lastLogFileTab, "Close All in Group" );
+            QTest::qWait( 50 );
+
+            TabGroupInfo::getSynced().removeGroup( groupId ).save();
+
+            THEN( "no Log File is left, in the window or in the Session" )
+            {
+                REQUIRE( chosen );
+                REQUIRE( waitUiState( [ & ] { return window.logFileTabPaths().isEmpty(); },
+                                      UiTimeoutMs ) );
+                REQUIRE( window.tabArea->count() == dashboardTabs );
+                REQUIRE( window.noneOpenInSession( paths ) );
+            }
+        }
+
+        WHEN( "Merge All Left is chosen from the menu of the last Log File's tab" )
+        {
+            QSignalSpy mergeRequested( window.tabArea, &TabbedCrawlerWidget::mergeRequested );
+            REQUIRE( window.chooseFromTabMenu( lastLogFileTab, "Merge All Left" ) );
+
+            THEN( "the two Log Files left of it are merged, the first one among them" )
+            {
+                REQUIRE( mergeRequested.size() == 1 );
+                REQUIRE( mergeRequested.at( 0 ).at( 0 ).toStringList()
+                         == QStringList{ paths[ 0 ], paths[ 1 ] } );
+            }
+        }
+
+        WHEN( "the first tab is clicked with the middle button" )
+        {
+            auto* tabBar = window.tabArea->tabBar();
+            QTest::mouseClick( tabBar, Qt::MiddleButton, {}, tabBar->tabRect( 0 ).center() );
+            QTest::qWait( 50 );
+
+            THEN( "it is closed when it holds a Log File, and stays when it is the Dashboard" )
+            {
+                if ( showDashboard ) {
+                    REQUIRE( window.showsDashboard() );
+                    REQUIRE( window.logFileTabPaths() == paths );
+                }
+                else {
+                    REQUIRE( window.logFileTabPaths() == QStringList{ paths[ 1 ], paths[ 2 ] } );
+                    REQUIRE( window.noneOpenInSession( { paths[ 0 ] } ) );
+                }
+            }
+        }
+
+        WHEN( "the window is closed" )
+        {
+            window.mainWindow->close();
+
+            THEN( "every Log File is handed to the Session's close" )
+            {
+                REQUIRE( window.noneOpenInSession( paths ) );
+            }
+        }
+    }
+}

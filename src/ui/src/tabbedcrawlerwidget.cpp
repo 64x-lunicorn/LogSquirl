@@ -19,6 +19,9 @@
 
 #include "tabbedcrawlerwidget.h"
 
+#include <algorithm>
+#include <iterator>
+
 #include <QApplication>
 #include <QClipboard>
 #include <QColorDialog>
@@ -159,10 +162,27 @@ void TabbedCrawlerWidget::removeCrawler( int index )
 {
     QTabWidget::removeTab( index );
 
-    // Keep the tab bar visible when only the pinned dashboard tab remains
-    if ( count() <= 1 ) {
+    // Keep the tab bar visible while a tab that holds no Log File remains:
+    // the Dashboard
+    if ( logFileTabs().size() < count() ) {
         myTabBar_.show();
     }
+}
+
+bool TabbedCrawlerWidget::holdsLogFile( int index ) const
+{
+    return qobject_cast<const CrawlerWidget*>( widget( index ) ) != nullptr;
+}
+
+QList<int> TabbedCrawlerWidget::logFileTabs() const
+{
+    QList<int> tabs;
+    for ( int i = 0; i < count(); ++i ) {
+        if ( holdsLogFile( i ) ) {
+            tabs.append( i );
+        }
+    }
+    return tabs;
 }
 
 void TabbedCrawlerWidget::mouseReleaseEvent( QMouseEvent* event )
@@ -170,8 +190,8 @@ void TabbedCrawlerWidget::mouseReleaseEvent( QMouseEvent* event )
     LOG_DEBUG << "TabbedCrawlerWidget::mouseReleaseEvent";
 
     if ( event->button() == Qt::MiddleButton ) {
-        int tab = this->myTabBar_.tabAt( event->pos() );
-        if ( tab > 0 ) {
+        const int tab = myTabBar_.tabAt( myTabBar_.mapFrom( this, event->position().toPoint() ) );
+        if ( holdsLogFile( tab ) ) {
             Q_EMIT tabCloseRequested( tab );
             event->accept();
         }
@@ -200,10 +220,19 @@ void CrawlerTabBar::mouseReleaseEvent( QMouseEvent* mouseEvent )
 
 void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 {
-    // No context menu for the pinned dashboard tab
-    if ( tab == 0 && !qobject_cast<CrawlerWidget*>( widget( 0 ) ) ) {
+    // No context menu for a tab that holds no Log File: the Dashboard
+    if ( !holdsLogFile( tab ) ) {
         return;
     }
+
+    const auto logFiles = logFileTabs();
+    const auto logFilesWhere = [ &logFiles ]( auto&& predicate ) {
+        QList<int> tabs;
+        std::ranges::copy_if( logFiles, std::back_inserter( tabs ), predicate );
+        return tabs;
+    };
+    const auto leftOfTab = logFilesWhere( [ tab ]( int i ) { return i < tab; } );
+    const auto rightOfTab = logFilesWhere( [ tab ]( int i ) { return i > tab; } );
 
     QMenu menu( this );
     auto closeThis = menu.addAction( tr( "Close this" ) );
@@ -220,46 +249,21 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 
     connect( closeThis, &QAction::triggered, [ tab, this ] { Q_EMIT tabCloseRequested( tab ); } );
 
-    connect( closeOthers, &QAction::triggered, [ tab, this ] {
-        QList<int> indices;
-        for ( int i = 1; i < count(); ++i ) {
-            if ( i != tab ) {
-                indices.append( i );
-            }
-        }
-        Q_EMIT bulkTabCloseRequested( indices );
+    connect( closeOthers, &QAction::triggered, [ this, others = leftOfTab + rightOfTab ] {
+        Q_EMIT bulkTabCloseRequested( others );
     } );
 
-    connect( closeLeft, &QAction::triggered, [ tab, this ] {
-        QList<int> indices;
-        for ( int i = 1; i < tab; ++i ) {
-            indices.append( i );
-        }
-        Q_EMIT bulkTabCloseRequested( indices );
-    } );
+    connect( closeLeft, &QAction::triggered,
+             [ this, leftOfTab ] { Q_EMIT bulkTabCloseRequested( leftOfTab ); } );
 
-    connect( closeRight, &QAction::triggered, [ tab, this ] {
-        QList<int> indices;
-        for ( int i = tab + 1; i < count(); ++i ) {
-            indices.append( i );
-        }
-        Q_EMIT bulkTabCloseRequested( indices );
-    } );
+    connect( closeRight, &QAction::triggered,
+             [ this, rightOfTab ] { Q_EMIT bulkTabCloseRequested( rightOfTab ); } );
 
-    connect( closeAll, &QAction::triggered, [ this ] {
-        QList<int> indices;
-        for ( int i = 1; i < count(); ++i ) {
-            indices.append( i );
-        }
-        Q_EMIT bulkTabCloseRequested( indices );
-    } );
+    connect( closeAll, &QAction::triggered,
+             [ this, logFiles ] { Q_EMIT bulkTabCloseRequested( logFiles ); } );
 
-    if ( tab <= 1 ) {
-        closeLeft->setDisabled( true );
-    }
-    else if ( tab == count() - 1 ) {
-        closeRight->setDisabled( true );
-    }
+    closeLeft->setDisabled( leftOfTab.isEmpty() );
+    closeRight->setDisabled( rightOfTab.isEmpty() );
 
     connect( copyFullPath, &QAction::triggered, this,
              [ this, tab ] { sendTextToClipboard( tabToolTip( tab ) ); } );
@@ -374,9 +378,10 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
             }
             // Collect tab indices first, then close in reverse order
             const auto paths = it->tabPaths;
-            for ( int i = count() - 1; i >= 1; --i ) {
-                if ( paths.contains( tabPathAt( i ) ) ) {
-                    Q_EMIT tabCloseRequested( i );
+            const auto logFileTabsNow = logFileTabs();
+            for ( auto i = logFileTabsNow.crbegin(); i != logFileTabsNow.crend(); ++i ) {
+                if ( paths.contains( tabPathAt( *i ) ) ) {
+                    Q_EMIT tabCloseRequested( *i );
                 }
             }
         } );
@@ -389,47 +394,40 @@ void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
     }
 
     // --- Merge operations ---
-    if ( count() > 2 ) {
+    if ( logFiles.size() > 1 ) {
         menu.addSeparator();
 
-        if ( tab > 1 ) {
+        const auto pathsOf = [ this ]( const QList<int>& tabs ) {
+            QStringList paths;
+            for ( const auto i : tabs ) {
+                paths.append( tabPathAt( i ) );
+            }
+            return paths;
+        };
+
+        if ( !leftOfTab.isEmpty() ) {
             auto* mergeLeft = menu.addAction( tr( "Merge All Left" ) );
-            connect( mergeLeft, &QAction::triggered, this, [ this, tab ] {
-                QStringList paths;
-                for ( int i = 1; i < tab; ++i ) {
-                    paths.append( tabPathAt( i ) );
-                }
+            connect( mergeLeft, &QAction::triggered, this, [ this, paths = pathsOf( leftOfTab ) ] {
                 Q_EMIT mergeRequested( paths, false );
             } );
 
             auto* mergeLeftDedup = menu.addAction( tr( "Merge All Left (dedup)" ) );
-            connect( mergeLeftDedup, &QAction::triggered, this, [ this, tab ] {
-                QStringList paths;
-                for ( int i = 1; i < tab; ++i ) {
-                    paths.append( tabPathAt( i ) );
-                }
-                Q_EMIT mergeRequested( paths, true );
-            } );
+            connect(
+                mergeLeftDedup, &QAction::triggered, this,
+                [ this, paths = pathsOf( leftOfTab ) ] { Q_EMIT mergeRequested( paths, true ); } );
         }
 
-        if ( tab < count() - 1 ) {
+        if ( !rightOfTab.isEmpty() ) {
             auto* mergeRight = menu.addAction( tr( "Merge All Right" ) );
-            connect( mergeRight, &QAction::triggered, this, [ this, tab ] {
-                QStringList paths;
-                for ( int i = tab + 1; i < count(); ++i ) {
-                    paths.append( tabPathAt( i ) );
-                }
-                Q_EMIT mergeRequested( paths, false );
-            } );
+            connect( mergeRight, &QAction::triggered, this,
+                     [ this, paths = pathsOf( rightOfTab ) ] {
+                         Q_EMIT mergeRequested( paths, false );
+                     } );
 
             auto* mergeRightDedup = menu.addAction( tr( "Merge All Right (dedup)" ) );
-            connect( mergeRightDedup, &QAction::triggered, this, [ this, tab ] {
-                QStringList paths;
-                for ( int i = tab + 1; i < count(); ++i ) {
-                    paths.append( tabPathAt( i ) );
-                }
-                Q_EMIT mergeRequested( paths, true );
-            } );
+            connect(
+                mergeRightDedup, &QAction::triggered, this,
+                [ this, paths = pathsOf( rightOfTab ) ] { Q_EMIT mergeRequested( paths, true ); } );
         }
     }
 
