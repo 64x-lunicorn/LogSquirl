@@ -260,7 +260,7 @@ extractChartPoints( const AbstractLogData& logData, const QVector<ChartSeriesDef
                                 xVal = tsIt.value();
                             }
                             else {
-                                if ( readsField[ si ] ) {
+                                if ( readsField[ si ] && fieldReader.has_value() ) {
                                     if ( const auto ts = fieldReader->parseField( captured ) ) {
                                         xVal = static_cast<double>( ts->toMSecsSinceEpoch() );
                                     }
