@@ -78,13 +78,14 @@ public:
 
     void removeCrawler( int index );
 
-    // Whether the tab at `index` holds a Log File. The Dashboard, when the
+    // Whether the tab at `index` holds a Log File. The dashboard, when the
     // window shows one, is a tab that does not; nothing is assumed about
     // where it sits.
     bool holdsLogFile( int index ) const;
 
     // The tabs that hold a Log File, in tab order. Every path that walks the
-    // tabs to close or merge Log Files asks this.
+    // tabs for their Log Files -- to close, merge, save or find them -- asks
+    // this.
     QList<int> logFileTabs() const;
 
     // The tab that holds the file at `path`, found by the path it was added

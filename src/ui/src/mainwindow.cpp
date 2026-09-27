@@ -444,7 +444,7 @@ void MainWindow::reloadSession()
     restoringSession_ = false;
 
     if ( currentFileIndex >= 0 && static_cast<size_t>( currentFileIndex ) < crawlers.size() ) {
-        // By widget: the Dashboard tab, if any, comes before the Log Files.
+        // By widget: the dashboard tab, if any, comes before the Log Files.
         mainTabWidget_.setCurrentWidget( crawlers[ static_cast<size_t>( currentFileIndex ) ] );
 
         if ( followFileOnLoad ) {
@@ -1025,7 +1025,9 @@ void MainWindow::updateShortcuts()
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
 }
 
-// Check whether the given tab index points to the pinned welcome dashboard.
+// Whether the tab at `index` is the welcome dashboard itself, for what only
+// the dashboard gets -- its title, a refresh when shown. Whether a tab holds a
+// Log File is the tab widget's to answer (#535).
 bool isDashboardTab( const TabbedCrawlerWidget& tabs, int index )
 {
     return qobject_cast<WelcomeDashboard*>( tabs.widget( index ) ) != nullptr;
@@ -1418,7 +1420,7 @@ void MainWindow::closeTab( ActionInitiator initiator )
 {
     int currentIndex = mainTabWidget_.currentIndex();
 
-    if ( currentIndex >= 0 && !isDashboardTab( mainTabWidget_, currentIndex ) ) {
+    if ( currentIndex >= 0 && mainTabWidget_.holdsLogFile( currentIndex ) ) {
         closeTab( currentIndex, initiator );
     }
     else if ( currentIndex < 0 ) {
@@ -2256,8 +2258,10 @@ void MainWindow::updateLoadingProgress( int progress )
     QString current_file = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     // We ignore 0% and 100% to avoid a flash when the file (or update)
-    // is very short.
-    if ( progress > 0 && progress < 100 ) {
+    // is very short. A load under way replayed by the tab brought to the
+    // front is shown whatever its progress: the info line still describes
+    // the tab shown before (#540).
+    if ( replayingFrontTab_ || ( progress > 0 && progress < 100 ) ) {
         infoLine->setText( current_file + tr( " - Indexing lines... (%1 %)" ).arg( progress ) );
         infoLine->displayGauge( progress );
 
@@ -2335,7 +2339,7 @@ void MainWindow::showStatusMessage( QString message )
 void MainWindow::handleFilteredViewChanged()
 {
     int currentIndex = mainTabWidget_.currentIndex();
-    if ( currentIndex >= 0 && !isDashboardTab( mainTabWidget_, currentIndex ) ) {
+    if ( currentIndex >= 0 && mainTabWidget_.holdsLogFile( currentIndex ) ) {
         auto* crawler_widget
             = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
         if ( crawler_widget ) {
@@ -2456,7 +2460,7 @@ void MainWindow::currentTabChanged( int index )
 {
     LOG_DEBUG << "currentTabChanged";
 
-    if ( index >= 0 && !isDashboardTab( mainTabWidget_, index ) ) {
+    if ( index >= 0 && mainTabWidget_.holdsLogFile( index ) ) {
         auto* crawler_widget = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
         if ( !crawler_widget ) {
             return;
@@ -2467,7 +2471,9 @@ void MainWindow::currentTabChanged( int index )
             session_.startLoading( crawler_widget );
         }
 
+        replayingFrontTab_ = true;
         signalMux_.setCurrentDocument( crawler_widget );
+        replayingFrontTab_ = false;
         quickFindMux_.registerSelector( crawler_widget );
 
         // No configuration is applied here: a settings change has already
@@ -2484,7 +2490,8 @@ void MainWindow::currentTabChanged( int index )
         plugins_->host().notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
     }
     else {
-        // Dashboard tab or no tab — clear the document state
+        // No tab, or one that holds no Log File, such as the dashboard -- clear
+        // the document state
         signalMux_.setCurrentDocument( nullptr );
         quickFindMux_.registerSelector( nullptr );
 
@@ -2798,7 +2805,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             if ( !crawlerWindow ) {
                 continue;
             }
-            for ( int i = 0; i < crawlerWindow->mainTabWidget_.count(); ++i ) {
+            for ( const auto i : crawlerWindow->mainTabWidget_.logFileTabs() ) {
                 auto* crawler
                     = qobject_cast<CrawlerWidget*>( crawlerWindow->mainTabWidget_.widget( i ) );
                 if ( crawler && static_cast<const ViewInterface*>( crawler ) == existingView ) {
@@ -3293,11 +3300,8 @@ void MainWindow::writeSettings()
     std::vector<
         std::tuple<const ViewInterface*, uint64_t, std::shared_ptr<const ViewContextInterface>>>
         widget_list;
-    for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-        auto view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
-        if ( !view ) {
-            continue; // skip the pinned dashboard tab
-        }
+    for ( const auto i : mainTabWidget_.logFileTabs() ) {
+        const auto* view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
         widget_list.emplace_back( view, 0UL, view->context() );
     }
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {

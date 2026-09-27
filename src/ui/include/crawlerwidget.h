@@ -560,7 +560,8 @@ private:
 
     // Every view of this Log File, and what all of them show alike: the
     // Decoration and Presentation Policies, the follow allowance,
-    // the font, the Color Labels and the Search Limits.
+    // the font, the Color Labels, the Search Limits and the current Search's
+    // pattern.
     ViewSet viewSet_;
 
     // Every Search of this Log File, each shown in a tab of its own; which

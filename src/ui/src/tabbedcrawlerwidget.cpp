@@ -163,7 +163,7 @@ void TabbedCrawlerWidget::removeCrawler( int index )
     QTabWidget::removeTab( index );
 
     // Keep the tab bar visible while a tab that holds no Log File remains:
-    // the Dashboard
+    // the dashboard
     if ( logFileTabs().size() < count() ) {
         myTabBar_.show();
     }
@@ -230,7 +230,7 @@ void CrawlerTabBar::mouseReleaseEvent( QMouseEvent* mouseEvent )
 
 void TabbedCrawlerWidget::showContextMenu( int tab, QPoint globalPoint )
 {
-    // No context menu for a tab that holds no Log File: the Dashboard
+    // No context menu for a tab that holds no Log File: the dashboard
     if ( !holdsLogFile( tab ) ) {
         return;
     }
