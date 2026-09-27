@@ -287,7 +287,7 @@ void LogTableView::setSearchLimits( LineNumber startLine, LineNumber endLine )
 
 void LogTableView::setColorLabels( const std::vector<QStringList>& labels )
 {
-    state_.colorLabelWords = labels;
+    state_.setColorLabelWords( labels );
     repaintIfActive();
 }
 
@@ -754,7 +754,7 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
                            return !rows_->lineType( state_.currentSearch, line )
                                        .testFlag( AbstractLogData::LineTypeFlags::Mark );
                        } );
-    report.colorLabels = state_.colorLabelWords;
+    report.colorLabels = state_.colorLabelWords();
 
     PresentationMenu::Entries entries;
     entries.highlightersChange = [ this ]() { Q_EMIT highlightersChange(); };

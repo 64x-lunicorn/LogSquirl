@@ -32,6 +32,7 @@
 #include <QStyledItemDelegate>
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -55,8 +56,10 @@ public:
     // agree, so both read this single constant.
     static constexpr int HorizontalTextPadding = 4;
 
-    // Paints from state, which the Table View holds and changes, and which
-    // must outlive the delegate; each Row shows the Log Line rows maps it onto.
+    // Paints from state, which the Table View holds and changes. The
+    // delegate reads it only while a cell is painted, which happens only
+    // while the Table View lives: as the Table View's child, the delegate
+    // goes just after it. Each Row shows the Log Line rows maps it onto.
     LogTableHighlightDelegate( const TableViewState& state, std::shared_ptr<const RowMapping> rows,
                                QObject* parent = nullptr )
         : QStyledItemDelegate( parent )
@@ -376,7 +379,8 @@ private:
 
     // The Color Labels as the Table View's state and the Theme have them now.
     // The Decoration Setup rebuilds its Highlighters when handed them, so it
-    // is handed them only when they changed.
+    // is handed them only when the words were set again or the Theme's
+    // colors changed.
     void takeColorLabels() const
     {
         auto colors = colorLabelColors();
@@ -385,12 +389,12 @@ private:
             []( const HighlightColor& lhs, const HighlightColor& rhs ) {
                 return lhs.foreColor == rhs.foreColor && lhs.backColor == rhs.backColor;
             } );
-        if ( sameColors && state_.colorLabelWords == colorLabelWords_ ) {
+        if ( sameColors && colorLabelsGeneration_ == state_.colorLabelsGeneration() ) {
             return;
         }
-        colorLabelWords_ = state_.colorLabelWords;
+        colorLabelsGeneration_ = state_.colorLabelsGeneration();
         colorLabelColors_ = std::move( colors );
-        decorationSetup_.setColorLabels( colorLabelWords_, colorLabelColors_ );
+        decorationSetup_.setColorLabels( state_.colorLabelWords(), colorLabelColors_ );
     }
 
     // The portion (in-cell text) selection decorate() should overlay on
@@ -470,8 +474,9 @@ private:
     // caches the Highlighters built from them. Brought up to date with the
     // state when a paint pass begins.
     mutable DecorationSetup decorationSetup_;
-    // The Color Labels the Decoration Setup was last handed.
-    mutable std::vector<QStringList> colorLabelWords_;
+    // Which words of the Color Labels, and which of the Theme's colors for
+    // them, the Decoration Setup was last handed.
+    mutable std::uint64_t colorLabelsGeneration_ = 0;
     mutable std::vector<HighlightColor> colorLabelColors_;
 
     // The paint pass open, if any.
