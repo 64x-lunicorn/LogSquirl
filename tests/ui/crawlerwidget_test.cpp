@@ -3841,9 +3841,9 @@ SCENARIO( "A restored Log File whose first load is interrupted stands where it s
 
     // The big Log File in a tab that is not the current one: its load waits
     // for its tab to be activated.
-    RestoredWindow restored{ windowId,
-                             { { big.fileName(), R"({"S":[400,100],"SP":1200})" },
-                               { current.fileName(), {} } } };
+    RestoredWindow restored{
+        windowId, { { big.fileName(), R"({"S":[400,100],"SP":1200})" }, { current.fileName(), {} } }
+    };
     CrawlerWidgetVisitor tab;
     tab.crawler = std::move( restored.tabs.front() );
 
@@ -3874,8 +3874,8 @@ SCENARIO( "A restored Log File whose first load is interrupted stands where it s
 
             THEN( "its text view stands on the saved Log Line" )
             {
-                REQUIRE( waitUiState(
-                    [ & ] { return tab.textView()->getTopLine() == 1200_lnum; }, 10000 ) );
+                REQUIRE( waitUiState( [ & ] { return tab.textView()->getTopLine() == 1200_lnum; },
+                                      10000 ) );
             }
         }
     }

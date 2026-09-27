@@ -50,22 +50,21 @@ std::string describe( const IndexJob& job )
         return encoding ? " in " + encoding->name().toStdString() : std::string{};
     };
 
-    return std::visit(
-        makeOverloadVisitor(
-            []( std::monostate ) { return std::string{ "nothing" }; },
-            [ & ]( const AttachJob& attach ) {
-                return "Attach " + attach.fileName.toStdString()
-                       + encodingName( attach.forcedEncoding );
-            },
-            [ & ]( const FullReindexJob& full ) {
-                return std::string{ full.request == FullIndexRequest::ExplicitReload
-                                        ? "Full (explicit reload)"
-                                        : "Full (automatic)" }
-                       + encodingName( full.forcedEncoding );
-            },
-            []( const PartialReindexJob& ) { return std::string{ "Partial" }; },
-            []( const CheckForChangesJob& ) { return std::string{ "Check" }; } ),
-        job );
+    return std::visit( makeOverloadVisitor(
+                           []( std::monostate ) { return std::string{ "nothing" }; },
+                           [ & ]( const AttachJob& attach ) {
+                               return "Attach " + attach.fileName.toStdString()
+                                      + encodingName( attach.forcedEncoding );
+                           },
+                           [ & ]( const FullReindexJob& full ) {
+                               return std::string{ full.request == FullIndexRequest::ExplicitReload
+                                                       ? "Full (explicit reload)"
+                                                       : "Full (automatic)" }
+                                      + encodingName( full.forcedEncoding );
+                           },
+                           []( const PartialReindexJob& ) { return std::string{ "Partial" }; },
+                           []( const CheckForChangesJob& ) { return std::string{ "Check" }; } ),
+                       job );
 }
 
 // Records every request of the queue in the test's journal, which outlives it.
