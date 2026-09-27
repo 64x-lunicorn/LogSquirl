@@ -23,14 +23,19 @@
 #include <climits>
 #include <optional>
 
+#include "abstractlogdata.h"
 #include "linetypes.h"
+
+class LogFilteredData;
 
 // Which Log Line each Row of the Table View shows. The one place a Row
 // becomes a Log Line and a Log Line its Row: the Table View, its model and
 // its delegate all ask the same mapping, so a Row index is never taken for a
-// Log Line.
+// Log Line. The Table View's counterpart of the text view's LineMapping.
 class RowMapping {
 public:
+    using LineType = AbstractLogData::LineType;
+
     virtual ~RowMapping() = default;
 
     // How many Rows there are while the Log File has logLines Log Lines.
@@ -39,6 +44,10 @@ public:
     virtual LineNumber logLineAt( int row ) const = 0;
     // The Row showing the Log Line, if any Row does.
     virtual std::optional<int> rowOf( LineNumber logLine ) const = 0;
+
+    // Whether a Log Line is a Match, a Mark or a Context Line of the current
+    // Search; plain without one.
+    LineType lineType( const LogFilteredData* currentSearch, LineNumber logLine ) const;
 };
 
 // Every Log Line in a Row of its own, in order: Row n shows Log Line n.

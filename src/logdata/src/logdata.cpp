@@ -62,6 +62,7 @@
 
 #include "logdata.h"
 #include "logdatametatypes.h"
+#include "logdataworker.h"
 
 namespace {
 
@@ -95,7 +96,6 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
                   const FileAccessPolicy& fileAccessPolicy, const DecodingPolicy& decodingPolicy )
     : AbstractLogData()
     , indexing_data_( std::make_shared<IndexingData>() )
-    , indexingPolicy_( indexingPolicy )
     , searchPolicy_( searchPolicy )
     , fileAccessPolicy_( fileAccessPolicy )
     , codec_( TextEncoding::forName( "ISO-8859-1" ) )
@@ -106,7 +106,7 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
     // The worker's Background Run keeps the Log File open for as long as an
     // index run reads it.
     auto worker = std::make_unique<LogDataWorker>(
-        indexing_data_, indexingPolicy_,
+        indexing_data_, indexingPolicy,
         LogDataWorker::Reader{ [ this ] { doAttachReader(); }, [ this ] { doDetachReader(); } } );
 
     // Reported on this object's thread, by the worker's Background Run.
@@ -121,14 +121,14 @@ LogData::LogData( const IndexingPolicy& indexingPolicy, const SearchPolicy& sear
         LOG_INFO << "Keep file closed option is set";
     }
 
+    // The Policy forces an Encoding this build knows, or none (#552). One it
+    // does not know is none forced, as the index worker takes it too.
     if ( fileAccessPolicy_.defaultEncodingMib >= 0 ) {
         const auto* defaultEncoding = TextEncoding::forMib( fileAccessPolicy_.defaultEncodingMib );
-        if ( !defaultEncoding ) {
-            LOG_WARNING << "Unknown default encoding " << fileAccessPolicy_.defaultEncodingMib
-                        << ", using the one of the locale";
-            defaultEncoding = TextEncoding::forLocale();
+        Q_ASSERT( defaultEncoding != nullptr );
+        if ( defaultEncoding ) {
+            codec_.setCodec( defaultEncoding );
         }
-        codec_.setCodec( defaultEncoding );
     }
 }
 
@@ -141,7 +141,6 @@ LogData::~LogData()
 
 void LogData::setIndexingPolicy( const IndexingPolicy& indexingPolicy )
 {
-    indexingPolicy_ = indexingPolicy;
     operationQueue_.setIndexingPolicy( indexingPolicy );
 }
 
@@ -363,10 +362,10 @@ LineLength LogData::doGetLineLength( LineNumber line ) const
     return getUntabifiedLength( doGetLineString( line ) );
 }
 
-void LogData::doSetDisplayEncoding( const char* encoding )
+void LogData::setDisplayEncoding( const TextEncoding& encoding )
 {
-    LOG_DEBUG << "AbstractLogData::setDisplayEncoding: " << encoding;
-    codec_.setCodec( TextEncoding::forName( encoding ) );
+    LOG_DEBUG << "LogData::setDisplayEncoding: " << encoding.name().constData();
+    codec_.setCodec( &encoding );
     auto needReload = false;
     auto useGuessedCodec = false;
 

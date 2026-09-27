@@ -56,7 +56,6 @@
 #include "highlighterset.h"
 #include "infoline.h"
 #include "logformatdefinition.h"
-#include "logtablehighlightdelegate.h"
 #include "logtableview.h"
 #include "quickfindmux.h"
 #include "quickfindpattern.h"
@@ -129,30 +128,17 @@ struct AbstractLogView::access_by<CrawlerWidgetPrivate> {
 };
 
 template <>
-struct LogTableHighlightDelegate::access_by<CrawlerWidgetPrivate> {
-    static const LogFilteredData* search( const LogTableHighlightDelegate& delegate )
-    {
-        return delegate.filteredData_;
-    }
-};
-
-template <>
 struct LogTableView::access_by<CrawlerWidgetPrivate> {
-    // The Search whose Marks and Matches the Table View shows, and the one
-    // its delegate paints them from.
+    // The Search whose Marks and Matches the Table View shows: its delegate
+    // paints them from the one the view holds.
     static const LogFilteredData* search( const LogTableView& view )
     {
-        return view.filteredData_;
-    }
-    static const LogFilteredData* delegateSearch( const LogTableView& view )
-    {
-        return LogTableHighlightDelegate::access_by<CrawlerWidgetPrivate>::search(
-            *view.delegate_ );
+        return view.state_.currentSearch;
     }
     // What dragging over characters inside a cell does: they are selected.
     static void selectInCell( LogTableView& view, int row, int column, int startChar, int endChar )
     {
-        view.selection_.selectInCell( row, column, startChar, endChar );
+        view.state_.selection.selectInCell( row, column, startChar, endChar );
         view.showInCellSelection();
     }
     // What runs the view's QuickFind searches.
@@ -173,7 +159,7 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
 
     bool isLoadingFinished()
     {
-        return !crawler->loadingInProgress_;
+        return crawler->lastLoadStatus_.has_value();
     }
 
     LinesCount getLogNbLines()
@@ -434,16 +420,10 @@ struct CrawlerWidget::access_by<CrawlerWidgetPrivate> {
         return crawler->openLogFile_->filteredData();
     }
 
-    // The Search the Table View shows the Marks and Matches of, and the one
-    // its delegate paints them from.
+    // The Search the Table View shows the Marks and Matches of.
     const LogFilteredData* tableViewSearch() const
     {
         return LogTableView::access_by<CrawlerWidgetPrivate>::search( *crawler->logTableView_ );
-    }
-    const LogFilteredData* tableViewDelegateSearch() const
-    {
-        return LogTableView::access_by<CrawlerWidgetPrivate>::delegateSearch(
-            *crawler->logTableView_ );
     }
 
     // What the close button of a Filtered View's tab does.
@@ -842,6 +822,74 @@ SCENARIO( "A Log File growing under an unchanged Encoding keeps what scrolling c
               "decoded differently" )
         {
             REQUIRE( crawlerVisitor.mainViewKeepsBottomLines() );
+        }
+    }
+}
+
+SCENARIO( "Search Limits set on a Log File stay as it grows", "[ui][limits]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "growing.log" );
+    QByteArray content;
+    for ( int i = 0; i < SL_NB_LINES; i++ ) {
+        content += QString( "LOGDATA is a part of logsquirl, this is line %1\n" )
+                       .arg( i, 6, 10, QChar( '0' ) )
+                       .toUtf8();
+    }
+    {
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly ) );
+        REQUIRE( file.write( content ) == content.size() );
+    }
+
+    const auto fileWatch = std::make_shared<FakeFileWatch>();
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>(), fileWatch };
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        path, []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    REQUIRE( waitUiState( [ & ]() {
+        return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES
+               && crawlerVisitor.isLoadingFinished();
+    } ) );
+
+    const auto grow = [ & ] {
+        REQUIRE( fileWatch->grow( path, "one more Log Line\nand another\n" ) );
+        REQUIRE( waitUiState( [ & ]() {
+            return crawlerVisitor.getLogNbLines().get() == SL_NB_LINES + 2
+                   && crawlerVisitor.isLoadingFinished();
+        } ) );
+        QCoreApplication::processEvents();
+    };
+
+    GIVEN( "Search Limits narrowed to Log Lines 10 to 20" )
+    {
+        crawlerVisitor.setSearchLimits( 10_lnum, 20_lnum );
+
+        WHEN( "Log Lines are appended to the Log File" )
+        {
+            grow();
+
+            THEN( "every view still subdues the Log Lines outside them" )
+            {
+                REQUIRE( crawlerVisitor.searchLimits() == std::make_pair( 10_lnum, 20_lnum ) );
+            }
+        }
+    }
+
+    GIVEN( "Search Limits that are the whole Log File" )
+    {
+        crawlerVisitor.clearSearchLimits();
+
+        WHEN( "Log Lines are appended to the Log File" )
+        {
+            grow();
+
+            THEN( "they reach its new end, and no Log Line is subdued" )
+            {
+                REQUIRE( crawlerVisitor.searchLimits()
+                         == std::make_pair( 0_lnum, LineNumber( SL_NB_LINES + 2 ) ) );
+            }
         }
     }
 }
@@ -3429,9 +3477,8 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
             THEN( "the Table View shows the Matches of the new Search" )
             {
                 REQUIRE( crawlerVisitor.tableViewSearch() == another.lock().get() );
-                REQUIRE( crawlerVisitor.tableViewDelegateSearch() == another.lock().get() );
-                REQUIRE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 7_lnum ) );
-                REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 3_lnum ) );
+                REQUIRE( isMatch( crawlerVisitor.tableViewSearch(), 7_lnum ) );
+                REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewSearch(), 3_lnum ) );
             }
 
             AND_WHEN( "the kept Search's tab is made current" )
@@ -3442,9 +3489,8 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                 {
                     REQUIRE( crawlerVisitor.currentSearch().lock() == kept.lock() );
                     REQUIRE( crawlerVisitor.tableViewSearch() == kept.lock().get() );
-                    REQUIRE( crawlerVisitor.tableViewDelegateSearch() == kept.lock().get() );
-                    REQUIRE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 3_lnum ) );
-                    REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 7_lnum ) );
+                    REQUIRE( isMatch( crawlerVisitor.tableViewSearch(), 3_lnum ) );
+                    REQUIRE_FALSE( isMatch( crawlerVisitor.tableViewSearch(), 7_lnum ) );
                 }
 
                 AND_WHEN( "the tab of the other Search is closed" )
@@ -3460,7 +3506,6 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                         REQUIRE( another.expired() );
                         REQUIRE( crawlerVisitor.filteredViewTabCount() == 1 );
                         REQUIRE( crawlerVisitor.tableViewSearch() == kept.lock().get() );
-                        REQUIRE( crawlerVisitor.tableViewDelegateSearch() == kept.lock().get() );
                     }
                 }
             }
@@ -3478,7 +3523,6 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                     REQUIRE( kept.expired() );
                     REQUIRE( crawlerVisitor.currentSearch().lock() == another.lock() );
                     REQUIRE( crawlerVisitor.tableViewSearch() == another.lock().get() );
-                    REQUIRE( crawlerVisitor.tableViewDelegateSearch() == another.lock().get() );
                 }
             }
 
@@ -3494,8 +3538,7 @@ SCENARIO( "Making a kept Search current reaches every view, the Table View inclu
                     REQUIRE( crawlerVisitor.currentSearch().lock() == kept.lock() );
                     REQUIRE( crawlerVisitor.currentFilteredViewTab() == 0 );
                     REQUIRE( crawlerVisitor.tableViewSearch() == kept.lock().get() );
-                    REQUIRE( crawlerVisitor.tableViewDelegateSearch() == kept.lock().get() );
-                    REQUIRE( isMatch( crawlerVisitor.tableViewDelegateSearch(), 3_lnum ) );
+                    REQUIRE( isMatch( crawlerVisitor.tableViewSearch(), 3_lnum ) );
                 }
             }
         }
@@ -3712,6 +3755,68 @@ SCENARIO( "QuickFind searches the Presentation shown, never the hidden one",
                 REQUIRE( waitUiState(
                     [ & ]() { return lastSearchResult( textSearches ) == 13_lnum; } ) );
                 REQUIRE( tableSearches.isEmpty() );
+            }
+        }
+    }
+}
+
+// The window hears only the tab in front, so a tab replays the status of its
+// last load when it is brought to the front: a load still under way is
+// replayed as loading, never as loaded (#540).
+SCENARIO( "A Log File replays the status of its last load to the window", "[ui][loading]" )
+{
+    QTemporaryFile file{ "crawler_replay_test_XXXXXX" };
+    REQUIRE( generateDataFiles( file ) );
+
+    Session session{ testSettingsPolicies(), std::make_shared<LogFormatCatalog>() };
+
+    CrawlerWidgetVisitor crawlerVisitor;
+    crawlerVisitor.crawler.reset( static_cast<CrawlerWidget*>( session.open(
+        file.fileName(), []( const ViewBuild& build ) { return new CrawlerWidget( build ); } ) ) );
+    auto& crawler = *crawlerVisitor.crawler;
+
+    REQUIRE( waitUiState( [ & ]() { return crawlerVisitor.isLoadingFinished(); }, 10000 ) );
+
+    QSignalSpy finished( &crawler, &CrawlerWidget::loadingFinished );
+    QSignalSpy progressed( &crawler, &CrawlerWidget::loadingProgressed );
+
+    GIVEN( "a Log File that has loaded" )
+    {
+        WHEN( "its state is replayed" )
+        {
+            crawler.sendAllStateSignals();
+
+            THEN( "it replays a successful load" )
+            {
+                REQUIRE( finished.count() == 1 );
+                REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
+                         == LoadingStatus::Successful );
+            }
+        }
+
+        WHEN( "it is reloaded and its state is replayed while the load is under way" )
+        {
+            crawler.reload();
+            crawler.sendAllStateSignals();
+
+            THEN( "it replays loading, not loaded" )
+            {
+                REQUIRE( finished.isEmpty() );
+                REQUIRE( progressed.count() == 1 );
+            }
+
+            AND_WHEN( "the load has finished and its state is replayed" )
+            {
+                REQUIRE( finished.wait( 10000 ) );
+                finished.clear();
+                crawler.sendAllStateSignals();
+
+                THEN( "it replays a successful load" )
+                {
+                    REQUIRE( finished.count() == 1 );
+                    REQUIRE( finished.first().at( 0 ).value<LoadingStatus>()
+                             == LoadingStatus::Successful );
+                }
             }
         }
     }

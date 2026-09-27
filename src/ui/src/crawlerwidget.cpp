@@ -154,7 +154,7 @@ CrawlerWidget::CrawlerWidget( const ViewBuild& build, QWidget* parent )
     // Every view built below starts with these; a view built later, too (#242).
     viewSet_.setDecorationPolicy( build.policies.decoration );
     viewSet_.setPresentationPolicy( build.policies.presentation );
-    viewSet_.setQuickFindPolicy( build.policies.quickFind );
+    quickFindPolicy_ = build.policies.quickFind;
     applyWatchPolicy( build.policies.watch );
 
     setup();
@@ -173,12 +173,6 @@ CrawlerWidget::~CrawlerWidget()
         disconnect( tabbedFilteredView_, nullptr, this, nullptr );
         delete tabbedFilteredView_;
     }
-}
-
-// The top line is first one on the main display
-LineNumber CrawlerWidget::getTopLine() const
-{
-    return logMainView_->getTopLine();
 }
 
 QString CrawlerWidget::getSelectedText() const
@@ -251,8 +245,15 @@ std::vector<QObject*> CrawlerWidget::doGetAllSearchables() const
 void CrawlerWidget::doSendAllStateSignals()
 {
     Q_EMIT newSelection( currentLineNumber_, 0_lcount, 0_lcol, 0_length );
-    if ( !loadingInProgress_ )
-        Q_EMIT loadingFinished( LoadingStatus::Successful );
+    // The window heard nothing of this Log File while its tab was not in
+    // front: the last load is replayed as it ended, failed included, and a
+    // load under way as loading (#540).
+    if ( lastLoadStatus_ ) {
+        Q_EMIT loadingFinished( *lastLoadStatus_, lastLoadFailure_ );
+    }
+    else {
+        Q_EMIT loadingProgressed( loadingProgress_ );
+    }
 }
 
 //
@@ -270,6 +271,10 @@ void CrawlerWidget::reload()
     // Log Format again once it has loaded. A reload is loaded from its start
     // like the first load, so the "new data" icon is not triggered.
     cancelTimeLookup();
+    // Loading until the reload has finished, also to a window that shows this
+    // tab later (#540).
+    lastLoadStatus_.reset();
+    loadingProgress_ = 0;
     openLogFile_->reload();
     viewSet_.refreshMatchesAndMarks( openLogFile_->logData()->getNbLine() );
     printSearchInfoMessage();
@@ -627,9 +632,10 @@ void CrawlerWidget::doApplyChange( const ViewChange& change )
     }
     if ( change.quickFind ) {
         // The QuickFind bar and the mux that dispatches to this Log File
-        // belong to the window, which takes this Policy from its session:
-        // nothing is handed on from here.
-        viewSet_.setQuickFindPolicy( *change.quickFind );
+        // belong to the window, which takes this Policy from its session;
+        // the Search line is handed it from here, which says whether an
+        // edited pattern runs the Search at once.
+        quickFindPolicy_ = *change.quickFind;
         searchLine_.setQuickFindPolicy( *change.quickFind );
     }
     if ( change.watch ) {
@@ -669,7 +675,7 @@ const PresentationPolicy& CrawlerWidget::presentationPolicy() const
 
 const QuickFindPolicy& CrawlerWidget::quickFindPolicy() const
 {
-    return viewSet_.quickFindPolicy();
+    return quickFindPolicy_;
 }
 
 const WatchPolicy& CrawlerWidget::watchPolicy() const
@@ -681,7 +687,7 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
 {
     LOG_DEBUG << "CrawlerWidget::restoreViewContext: " << viewContext.toLocal8Bit().data();
 
-    const auto context = decodeViewState( viewContext, viewSet_.quickFindPolicy() );
+    const auto context = decodeViewState( viewContext, quickFindPolicy_ );
 
     setSizes( context.sizes );
     searchLine_.setFlags( { .matchCase = !context.ignoreCase,
@@ -693,7 +699,9 @@ void CrawlerWidget::restoreViewContext( const QString& viewContext )
     // Manually call the handler as it is not called when changing the state programmatically
     searchRefreshChangedHandler( context.autoRefresh );
 
-    logMainView_->followSet( context.followFile && watchPolicy_.anyWatchEnabled() );
+    const bool follow = context.followFile && watchPolicy_.anyWatchEnabled();
+    logMainView_->followSet( follow );
+    logTableView_->followSet( follow );
 
     // Saving and restoring Marks with the Session is the user interface's;
     // when they are applied is the Open Log File's.
@@ -1097,10 +1105,6 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
 {
     LOG_INFO << "file loading finished, status " << static_cast<int>( load.status );
 
-    if ( load.status == LoadingStatus::Failed ) {
-        offerIssueReport( load.failure );
-    }
-
     // We need to refresh the main window because the view lines on the
     // overview have probably changed.
     overview_.updateData( openLogFile_->logData()->getNbLine() );
@@ -1119,7 +1123,7 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
     // The Open Log File has settled the Encoding.
     updateEncodingText();
 
-    // The Search Limits are the whole Log File again; every view shows it.
+    // The Search Limits as the load settled them; every view shows them.
     viewSet_.setSearchLimits( openLogFile_->searchStartLine(), openLogFile_->searchEndLine() );
 
     // A lookup over the old lines has nothing to say about a Log File that
@@ -1136,17 +1140,19 @@ void CrawlerWidget::loadingFinishedHandler( const OpenLogFile::LoadFinished& loa
         logMainView_->setFocus();
     }
 
-    loadingInProgress_ = false;
+    lastLoadStatus_ = load.status;
+    lastLoadFailure_ = load.failure;
 
     if ( load.formatRecognized ) {
         showRecognizedFormat();
     }
     else {
         // File was updated — refresh table model contents
-        logTableView_->updateData( isFollowEnabled() );
+        logTableView_->updateData( isFollowEnabled(),
+                                   openLogFile_->logData()->getLastModifiedDate().date() );
     }
 
-    Q_EMIT loadingFinished( load.status );
+    Q_EMIT loadingFinished( load.status, load.failure );
 }
 
 void CrawlerWidget::truncatedHandler( const QString& failure )
@@ -1194,20 +1200,6 @@ QWidget* CrawlerWidget::shownPresentation() const
         return logTableView_;
     else
         return logMainView_;
-}
-
-void CrawlerWidget::searchForward()
-{
-    LOG_DEBUG << "CrawlerWidget::searchForward";
-
-    doGetActiveSearchable()->searchForward();
-}
-
-void CrawlerWidget::searchBackward()
-{
-    LOG_DEBUG << "CrawlerWidget::searchBackward";
-
-    doGetActiveSearchable()->searchBackward();
 }
 
 void CrawlerWidget::resetStateOnSearchPatternChanges()
@@ -1655,15 +1647,19 @@ void CrawlerWidget::setup()
     connect( logTableView_, &LogTableView::countValuesRequested, this,
              &CrawlerWidget::countFieldValues );
 
-    // What only the Text View lets the user do: leave following by moving
-    // away from the bottom, or start it at the bottom, and zoom with the
-    // wheel. The Table View has neither, and so no such signals.
+    // Leaving following by moving away from the bottom, which both
+    // Presentations let the user do (#543). What only the Text View lets the
+    // user do: start following at the bottom, and zoom with the wheel.
     connect( logMainView_, &LogMainView::followModeChanged, this,
+             &CrawlerWidget::followModeChanged );
+    connect( logTableView_, &LogTableView::followModeChanged, this,
              &CrawlerWidget::followModeChanged );
     connect( logMainView_, &LogMainView::changeFontSize, this, &CrawlerWidget::changeFontSize );
 
-    // Follow option (down): the Text View follows
+    // Follow option (down): the Text View follows, and the Table View knows
+    // to leave it
     connect( this, &CrawlerWidget::followSet, logMainView_, &LogMainView::followSet );
+    connect( this, &CrawlerWidget::followSet, logTableView_, &LogTableView::followSet );
 
     connect( this, &CrawlerWidget::textWrapSet, logMainView_, &LogMainView::textWrapSet );
 
@@ -1674,8 +1670,11 @@ void CrawlerWidget::setup()
              &CrawlerWidget::closeFilteredView );
 
     // Sent load file update to MainWindow (for status update)
-    connect( openLogFile_.get(), &OpenLogFile::loadingProgressed, this,
-             &CrawlerWidget::loadingProgressed );
+    connect( openLogFile_.get(), &OpenLogFile::loadingProgressed, this, [ this ]( int progress ) {
+        lastLoadStatus_.reset();
+        loadingProgress_ = progress;
+        Q_EMIT loadingProgressed( progress );
+    } );
     connect( openLogFile_.get(), &OpenLogFile::loadingFinished, this,
              &CrawlerWidget::loadingFinishedHandler );
     connect( openLogFile_.get(), &OpenLogFile::truncated, this, &CrawlerWidget::truncatedHandler );
@@ -1710,12 +1709,6 @@ void CrawlerWidget::setup()
         flags.inverse = inverse;
         searchLine_.setFlags( flags );
     } );
-
-    // Advise the parent the checkboxes have been changed
-    // (for maintaining default config)
-    connect( searchRefreshButton_, &QPushButton::toggled, this,
-             &CrawlerWidget::searchRefreshChanged );
-    connect( matchCaseButton_, &QPushButton::toggled, this, &CrawlerWidget::matchCaseChanged );
 
     connectAllFilteredViewSlots( firstFilteredView );
 
@@ -2432,8 +2425,10 @@ void CrawlerWidget::toggleTableView()
 
     if ( showTable ) {
         // Defer model population so the view switch renders immediately
-        QTimer::singleShot( 0, this,
-                            [ this ]() { logTableView_->updateData( isFollowEnabled() ); } );
+        QTimer::singleShot( 0, this, [ this ]() {
+            logTableView_->updateData( isFollowEnabled(),
+                                       openLogFile_->logData()->getLastModifiedDate().date() );
+        } );
     }
 }
 
@@ -2471,7 +2466,8 @@ void CrawlerWidget::showRecognizedFormat()
     if ( recognized == recognizedFormat_ ) {
         // Still the very same Log Format: nothing to switch, only the Table
         // View to bring up to date with what was loaded.
-        logTableView_->updateData( isFollowEnabled() );
+        logTableView_->updateData( isFollowEnabled(),
+                                   openLogFile_->logData()->getLastModifiedDate().date() );
         return;
     }
 
@@ -2489,7 +2485,8 @@ void CrawlerWidget::showRecognizedFormat()
 
     // A reload that recognized a different Log Format while the Table View
     // was shown keeps it shown, with the new columns.
-    logTableView_->updateData( isFollowEnabled() );
+    logTableView_->updateData( isFollowEnabled(),
+                               openLogFile_->logData()->getLastModifiedDate().date() );
     if ( viewSet_.presentationPolicy().autoShowTableView && !tableViewToggle_->isChecked() ) {
         // Automatically activate table view if the user opted in
         tableViewToggle_->setChecked( true );

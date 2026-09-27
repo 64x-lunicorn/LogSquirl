@@ -31,7 +31,7 @@
 #include <QStringDecoder>
 #include <QStringEncoder>
 
-#include "encodingdetector.h"
+#include "configuration.h"
 #include "encodings.h"
 #include "logdata.h"
 #include "test_policies.h"
@@ -335,19 +335,23 @@ SCENARIO( "The converters of iconv say what they cannot convert", "[encoding][te
 SCENARIO( "An Encoding setting nothing here knows does not bring LogData down",
           "[encoding][textencoding]" )
 {
-    GIVEN( "a MIB of an Encoding this build has no converter for" )
+    GIVEN( "a Configuration whose default Encoding MIB this build has no converter for" )
     {
-        auto policies = testSettingsPolicies();
-        policies.fileAccess.defaultEncodingMib = 2013;
+        Configuration config;
+        config.setDefaultEncodingMib( 2013 );
         REQUIRE( TextEncoding::forMib( 2013 ) == nullptr );
 
-        THEN( "the LogData reads with the Encoding of the locale" )
+        THEN( "the LogData built with the Policies derived from it reads with the Encoding of the "
+              "locale" )
         {
-            LogData logData{ policies.indexing, policies.search, policies.fileAccess,
-                             policies.decoding };
-            TextCodecHolder holder{ TextEncoding::forName( "ISO-8859-1" ) };
-            holder.setCodec( TextEncoding::forMib( 2013 ) );
-            REQUIRE( holder.mibEnum() == TextEncoding::forLocale()->mibEnum() );
+            // The derivation is the one place that resolves such a MIB
+            // (#552); the log data is only ever handed one this build knows.
+            const auto policies = deriveSettingsPolicies( config );
+            const LogData logData{ policies.indexing, policies.search, policies.fileAccess,
+                                   policies.decoding };
+            REQUIRE( logData.getDisplayEncoding() != nullptr );
+            REQUIRE( logData.getDisplayEncoding()->mibEnum()
+                     == TextEncoding::forLocale()->mibEnum() );
         }
     }
 }

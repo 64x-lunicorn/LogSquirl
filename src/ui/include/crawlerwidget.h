@@ -109,16 +109,10 @@ public:
     explicit CrawlerWidget( const ViewBuild& build, QWidget* parent = nullptr );
     ~CrawlerWidget() override;
 
-    // Get the line number of the first line displayed.
-    LineNumber getTopLine() const;
-
     // Get the selected text as a string (from the main window)
     QString getSelectedText() const;
     // True for partial selection
     bool isPartialSelection() const;
-
-    // Display the QFB at the bottom, remembering where the focus was
-    void displayQuickFindBar( QuickFindMux::QFDirection direction );
 
     // Instructs the widget to select all the text in the window the user
     // is interacting with
@@ -136,17 +130,14 @@ public:
     // Why "Go to timestamp" is not available for this Log File, empty when it
     // is: it needs a recognized Log Format with a timestamp field.
     QString goToTimestampUnavailableReason() const;
-    // Said in the status bar when a time lookup landed among Timestamps that
-    // are not in time order.
-    static QString notInTimeOrderNotice();
     // The same for the Search Limits given as a time.
     QString searchLimitsByTimeUnavailableReason() const;
 
     bool isTextWrapEnabled() const;
 
     // The Policies this Log File's views show and search under, as last
-    // handed down by the Session. They are held -- the Watch Policy here,
-    // the others by the View Set -- so that a widget can be given what it
+    // handed down by the Session. They are held -- the Watch and QuickFind
+    // Policies here, the others by the View Set -- so that a widget can be given what it
     // needs instead of reaching for the settings itself: every view is
     // handed what it needs from these (#184, #242), and this widget's own
     // settings follow (#185).
@@ -216,8 +207,10 @@ Q_SIGNALS:
     // passing the completion percentage.
     void loadingProgressed( int progress );
     // Sent to the client when the loading has finished
-    // whether successful or not.
-    void loadingFinished( LoadingStatus status );
+    // whether successful or not, with the failure of a Failed load. Sent
+    // again, as are the progress of a load under way, when the tab is
+    // brought to the front (#540).
+    void loadingFinished( LoadingStatus status, QString failure );
     // Sent when follow mode is enabled/disabled
     void followSet( bool checked );
     // Sent when text wrap mode is enabled/disabled
@@ -232,11 +225,6 @@ Q_SIGNALS:
 
     void sendToScratchpad( QString );
     void replaceDataInScratchpad( QString );
-
-    // "auto-refresh" check has been changed
-    void searchRefreshChanged( bool isRefreshing );
-    // "ignore case" check has been changed
-    void matchCaseChanged( bool matchCase );
 
     // Sent when the data status (whether new not seen data are
     // available) has changed
@@ -278,14 +266,11 @@ private Q_SLOTS:
     void markLinesFromMain( const logsquirl::vector<LineNumber>& lines );
 
     // Shows what a finished load brought, as the Open Log File followed it.
-    // A Failed load is offered to be reported.
+    // A Failed load is reported to the window, which offers to report it.
     void loadingFinishedHandler( const OpenLogFile::LoadFinished& load );
     // Shows that the Log File was truncated on disk. A failure to check the
     // file is offered to be reported.
     void truncatedHandler( const QString& failure );
-
-    void searchForward();
-    void searchBackward();
 
     // Called when the checkbox for search auto-refresh is changed
     void searchRefreshChangedHandler( bool isRefreshing );
@@ -348,6 +333,9 @@ private:
     // Looks up the Timestamp near the current line, then calls then with it.
     void lookUpNearbyTimestamp( std::function<void( std::optional<QDateTime> )> then );
     void showTimeLookupResult( const timelookup::Result& result );
+    // Said in the status bar when a time lookup landed among Timestamps that
+    // are not in time order.
+    static QString notInTimeOrderNotice();
 private Q_SLOTS:
 
     void addColorLabelToSelection( size_t label );
@@ -557,9 +545,12 @@ private:
     // Current number of matches
     LinesCount nbMatches_;
 
-    // Until we have received confirmation loading is finished, we
-    // should consider we are loading something.
-    bool loadingInProgress_ = true;
+    // The status of the last load, which the window hears again when this
+    // tab is brought to the front (#540): none while a load is under way,
+    // whose progress is kept instead, and the failure of a Failed one.
+    std::optional<LoadingStatus> lastLoadStatus_;
+    QString lastLoadFailure_;
+    int loadingProgress_ = 0;
 
     QString encodingText_;
 
@@ -568,8 +559,9 @@ private:
     ChartPanel* chartPanel_ = nullptr;
 
     // Every view of this Log File, and what all of them show alike: the
-    // Decoration, Presentation and QuickFind Policies, the follow allowance,
-    // the font, the Color Labels and the Search Limits.
+    // Decoration and Presentation Policies, the follow allowance,
+    // the font, the Color Labels, the Search Limits and the current Search's
+    // pattern.
     ViewSet viewSet_;
 
     // Every Search of this Log File, each shown in a tab of its own; which
@@ -579,6 +571,10 @@ private:
 
     // Whether this Log File may be followed.
     WatchPolicy watchPolicy_;
+    // How the Search line reads a pattern, and a saved view context's
+    // regexp flag. No view reads it: the window's QuickFind takes it from
+    // the Session (#563).
+    QuickFindPolicy quickFindPolicy_;
 
     // Whom a change the views write themselves is told to: the Session.
     std::function<void( Changed )> changeReport_;

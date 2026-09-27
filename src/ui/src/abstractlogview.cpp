@@ -97,6 +97,7 @@
 #include "regularexpressionpattern.h"
 #include "shortcuts.h"
 #include "theme.h"
+#include "wordrule.h"
 #include "wrappedstring.h"
 
 #ifdef Q_OS_WIN
@@ -421,7 +422,7 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
         // The Color Labels follow the Theme, and their colors were read when
         // the words were set, so they are read again here and every line is
         // decorated again with them (ADR-0006).
-        decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
+        decorationSetup_.setColorLabels( colorLabelWords_, colorLabelColors() );
         pullToFollowCache_.nb_columns_ = 0_length;
         updateDecorations();
         viewport()->update();
@@ -1253,14 +1254,13 @@ void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern 
     updateDecorations();
 }
 
-void AbstractLogView::setQuickHighlighters(
-    const std::vector<QuickHighlighters>& quickHighlighters )
+void AbstractLogView::setColorLabels( const std::vector<QStringList>& labels )
 {
-    quickHighlighters_ = quickHighlighters;
+    colorLabelWords_ = labels;
     // The colors are read here, with the words: a repaint builds no
     // Highlighter, so a later change to them arrives by setting the words
     // again.
-    decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
+    decorationSetup_.setColorLabels( colorLabelWords_, colorLabelColors() );
     updateDecorations();
 }
 
@@ -1657,11 +1657,9 @@ void AbstractLogView::selectPortionAndDisplayLine( LineNumber logLine, LinesCoun
 // subtle: this one always jump, even if the line passed is visible.
 void AbstractLogView::jumpToLine( LineNumber logLine )
 {
-    // Put the selected line in the middle if possible
-    const auto newScrollPosition = ScrollPosition{
-        lines_->nearestPositionOf( logLine ) - LinesCount( getNbVisibleLines().get() / 2 ), 0
-    };
-    applyScroll( scrolling_.scrollTo( newScrollPosition ) );
+    // Its first Visual Line in the middle if possible, counted in Visual
+    // Lines: a long Log Line above it would otherwise push it off (#544).
+    applyScroll( scrolling_.centre( lines_->nearestPositionOf( logLine ) ) );
 }
 
 void AbstractLogView::setLineNumbersVisible( bool lineNumbersVisible )
@@ -2067,24 +2065,15 @@ void AbstractLogView::selectWordAtPosition( const FilePosition& pos )
 
     const int clickPos = type_safe::narrow_cast<int>( pos.column().get() );
 
-    const auto isWordSeparator = []( QChar c ) {
-        return !c.isLetterOrNumber() && c.category() != QChar::Punctuation_Connector;
-    };
-
-    if ( line.isEmpty() || isWordSeparator( line[ clickPos ] ) ) {
+    const auto word = wordAt( line, clickPos );
+    if ( !word ) {
         return;
     }
 
-    const auto wordStart
-        = std::find_if( line.rbegin() + line.size() - clickPos, line.rend(), isWordSeparator );
-    const auto selectionStart = LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-        std::distance( line.begin(), wordStart.base() ) ) };
-
-    const auto wordEnd = std::find_if( line.begin() + clickPos, line.end(), isWordSeparator );
-    const auto selectionEnd = LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>(
-        std::distance( line.begin(), wordEnd ) - 1 ) };
-
-    selection_.selectPortion( pos.line(), selectionStart, selectionEnd );
+    const auto [ wordStart, wordEnd ] = *word;
+    selection_.selectPortion(
+        pos.line(), LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>( wordStart ) },
+        LineColumn{ type_safe::narrow_cast<LineColumn::UnderlyingType>( wordEnd - 1 ) } );
     updateGlobalSelection();
     updateDecorations();
 }
@@ -2133,7 +2122,7 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     report.hasUnmarkedLogLines = std::any_of( lines.begin(), lines.end(), [ this ]( auto line ) {
         return !lines_->lineType( line ).testFlag( AbstractLogData::LineTypeFlags::Mark );
     } );
-    report.colorLabels = quickHighlighters_;
+    report.colorLabels = colorLabelWords_;
     report.selectionStartSet = selectionStart_.has_value();
     report.drawnLikeTextView = true;
 

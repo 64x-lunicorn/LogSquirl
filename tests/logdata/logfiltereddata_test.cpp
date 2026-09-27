@@ -1555,7 +1555,7 @@ SCENARIO( "A Search matches a Log Line as it is displayed", "[logdata][search][e
         logData.reload( encoding );
         REQUIRE( loadEndSpy.safeWait( 10000 ) );
     }
-    logData.setDisplayEncoding( encodingName );
+    logData.setDisplayEncoding( *encoding );
     REQUIRE( logData.getNbLine() == 4_lcount );
 
     GIVEN( std::string( "a Log File in " ) + encodingName + " with CRLF line ends"

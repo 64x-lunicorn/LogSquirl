@@ -399,9 +399,61 @@ SCENARIO( "An Open Log File follows a Log File that grows", "[openlogfile]" )
                 REQUIRE( logFile.openLogFile.logFormat() != nullptr );
             }
 
-            THEN( "the Search Limits are the whole Log File again" )
+            THEN( "the Search Limits, which were the whole Log File, follow its end" )
             {
+                REQUIRE( logFile.openLogFile.searchStartLine() == 0_lnum );
                 REQUIRE( logFile.openLogFile.searchEndLine() == LineNumber( 2 * FirstLineCount ) );
+            }
+        }
+    }
+
+    GIVEN( "narrowed Search Limits and an auto-refreshed Search over them" )
+    {
+        const auto LimitsStart = LineNumber( 5 );
+        const auto LimitsEnd = LineNumber( 20 );
+        logFile.openLogFile.setSearchLimits( LimitsStart, LimitsEnd );
+        logFile.openLogFile.setAutoRefresh( true );
+        const auto requested
+            = logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( requested.phase != Phase::InvalidPattern );
+        REQUIRE( logFile.waitSearchSettled() );
+        // Lines 6, 9, 12, 15 and 18 say "fizz".
+        const auto MatchesWithinLimits = LinesCount( 5 );
+        REQUIRE( logFile.searchState().matchCount == MatchesWithinLimits );
+
+        WHEN( "Log Lines are added to the Log File" )
+        {
+            REQUIRE( logFile.fileWatch->grow( path, logLines( FirstLineCount, FirstLineCount ) ) );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE( logFile.nbLines() == LinesCount( 2 * FirstLineCount ) );
+            REQUIRE( logFile.waitSearchSettled() );
+
+            THEN( "the Search Limits stay as they were set" )
+            {
+                REQUIRE( logFile.openLogFile.searchStartLine() == LimitsStart );
+                REQUIRE( logFile.openLogFile.searchEndLine() == LimitsEnd );
+            }
+
+            THEN( "the Search stays bounded by them" )
+            {
+                const auto state = logFile.searchState();
+                REQUIRE( state.startLine == LimitsStart );
+                REQUIRE( state.endLine == LimitsEnd );
+                REQUIRE( state.matchCount == MatchesWithinLimits );
+            }
+
+            AND_WHEN( "a Search is requested again" )
+            {
+                logFile.openLogFile.requestSearch( RegularExpressionPattern( "buzz" ) );
+                REQUIRE( logFile.waitSearchSettled() );
+
+                THEN( "it runs over the Search Limits only" )
+                {
+                    const auto state = logFile.searchState();
+                    REQUIRE( state.startLine == LimitsStart );
+                    REQUIRE( state.endLine == LimitsEnd );
+                    REQUIRE( state.matchCount == LinesCount( 10 ) );
+                }
             }
         }
     }
@@ -534,6 +586,73 @@ SCENARIO( "An Open Log File follows a Log File that is truncated", "[openlogfile
             }
         }
     }
+
+    // Narrowed Search Limits and an auto-refreshed Search over them; the Log
+    // File is then truncated to TruncatedLineCount Log Lines.
+    constexpr auto TruncatedLineCount = 10;
+    const auto truncateUnderLimits = [ & ]( LineNumber limitsStart ) {
+        logFile.openLogFile.setSearchLimits( limitsStart, LineNumber( 20 ) );
+        logFile.openLogFile.setAutoRefresh( true );
+        logFile.openLogFile.requestSearch( RegularExpressionPattern( "fizz" ) );
+        REQUIRE( logFile.waitSearchSettled() );
+
+        REQUIRE( logFile.fileWatch->truncate( path, logLines( TruncatedLineCount ) ) );
+        REQUIRE( waitUiState(
+            [ & ] {
+                return !logFile.observer.loads.empty()
+                       && logFile.observer.loads.back().searchRestarted;
+            },
+            30000 ) );
+        REQUIRE( logFile.nbLines() == LinesCount( TruncatedLineCount ) );
+        REQUIRE( logFile.waitSearchSettled() );
+    };
+
+    GIVEN( "narrowed Search Limits that start before the Log File's new end" )
+    {
+        const auto LimitsStart = LineNumber( 5 );
+
+        WHEN( "the Log File is truncated below their end" )
+        {
+            truncateUnderLimits( LimitsStart );
+
+            THEN( "they keep their start and end at the Log File's new end" )
+            {
+                REQUIRE( logFile.openLogFile.searchStartLine() == LimitsStart );
+                REQUIRE( logFile.openLogFile.searchEndLine() == LineNumber( TruncatedLineCount ) );
+            }
+
+            THEN( "the Search started again over them" )
+            {
+                const auto state = logFile.searchState();
+                REQUIRE( state.startLine == LimitsStart );
+                REQUIRE( state.endLine == LineNumber( TruncatedLineCount ) );
+                // Lines 6 and 9 say "fizz".
+                REQUIRE( state.matchCount == LinesCount( 2 ) );
+            }
+        }
+    }
+
+    GIVEN( "narrowed Search Limits that start at or after the Log File's new end" )
+    {
+        WHEN( "the Log File is truncated below their start" )
+        {
+            truncateUnderLimits( LineNumber( 15 ) );
+
+            THEN( "nothing of them is left: they are the whole Log File" )
+            {
+                REQUIRE( logFile.openLogFile.searchStartLine() == 0_lnum );
+                REQUIRE( logFile.openLogFile.searchEndLine() == LineNumber( TruncatedLineCount ) );
+            }
+
+            THEN( "the Search started again over the whole Log File" )
+            {
+                const auto state = logFile.searchState();
+                REQUIRE( state.startLine == 0_lnum );
+                REQUIRE( state.endLine == LineNumber( TruncatedLineCount ) );
+                REQUIRE( state.matchCount == fizzCount( TruncatedLineCount ) );
+            }
+        }
+    }
 }
 
 SCENARIO( "An Open Log File reloaded by hand starts over", "[openlogfile]" )
@@ -584,6 +703,25 @@ SCENARIO( "An Open Log File reloaded by hand starts over", "[openlogfile]" )
                     REQUIRE( logFile.searchState().phase == Phase::Idle );
                     REQUIRE( logFile.marks().isEmpty() );
                 }
+            }
+        }
+    }
+
+    GIVEN( "narrowed Search Limits" )
+    {
+        const auto LimitsStart = LineNumber( 5 );
+        const auto LimitsEnd = LineNumber( 20 );
+        logFile.openLogFile.setSearchLimits( LimitsStart, LimitsEnd );
+
+        WHEN( "the Log File is reloaded and has loaded" )
+        {
+            logFile.openLogFile.reload();
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+
+            THEN( "the Search Limits stay as they were set" )
+            {
+                REQUIRE( logFile.openLogFile.searchStartLine() == LimitsStart );
+                REQUIRE( logFile.openLogFile.searchEndLine() == LimitsEnd );
             }
         }
     }
@@ -1045,6 +1183,27 @@ SCENARIO( "An Open Log File reads its Log File in the Encoding detected unless o
             REQUIRE( openLogFile.chosenEncoding() == mibOf( "ISO-8859-1" ) );
         }
 
+        WHEN( "a Search is requested before the Log File has loaded" )
+        {
+            // "Grü" as it reads in ISO-8859-1; read as UTF-8, no Log Line has it.
+            const auto pattern = "^hit: " + QString::fromLatin1( QString( "Grü" ).toUtf8() );
+            openLogFile.requestSearch( RegularExpressionPattern( pattern ) );
+            REQUIRE( observer.waitLoads( 1 ) );
+
+            THEN( "it is reported once the Log File has loaded, over its Log Lines as they read in "
+                  "the Encoding forced" )
+            {
+                REQUIRE( waitUiState( [ & ] {
+                    return !observer.searchStates.empty()
+                           && observer.searchStates.back().phase == Phase::Complete;
+                } ) );
+                const auto& state = observer.searchStates.back();
+                REQUIRE( state.startLine == 0_lnum );
+                REQUIRE( state.endLine == LineNumber( EncodedLineCount ) );
+                REQUIRE( state.matchCount == LinesCount( EncodedLineCount / 2 ) );
+            }
+        }
+
         WHEN( "the Log File has loaded" )
         {
             REQUIRE( observer.waitLoads( 1 ) );
@@ -1155,6 +1314,50 @@ SCENARIO( "After another Encoding is chosen, the same Search finds the Matches o
         {
             REQUIRE( requested.fromCache );
             REQUIRE( logFile.searchState().matchCount == LinesCount( EncodedLineCount ) );
+        }
+    }
+}
+
+SCENARIO( "Search Limits stay as set when another Encoding has the Log File loaded anew",
+          "[openlogfile][encoding]" )
+{
+    QTemporaryDir directory;
+    REQUIRE( directory.isValid() );
+    const auto path = directory.filePath( "utf16.log" );
+    {
+        // Written as UTF-16LE with a byte order mark: read as UTF-8, its Log
+        // Lines end elsewhere, so choosing UTF-8 loads it anew.
+        QFile file( path );
+        REQUIRE( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) );
+        const auto text = QString::fromUtf8( logLines( FirstLineCount ) );
+        auto bytes = QByteArray( "\xFF\xFE", 2 );
+        bytes += QByteArray( reinterpret_cast<const char*>( text.utf16() ),
+                             text.size() * static_cast<qsizetype>( sizeof( char16_t ) ) );
+        REQUIRE( file.write( bytes ) == bytes.size() );
+    }
+
+    OpenedLogFile logFile( path );
+    REQUIRE( logFile.observer.waitLoads( 1 ) );
+    REQUIRE( logFile.openLogFile.encoding()->mibEnum() == TextEncoding::Utf16LEMib );
+    REQUIRE( logFile.nbLines() == LinesCount( FirstLineCount ) );
+
+    GIVEN( "narrowed Search Limits" )
+    {
+        const auto LimitsStart = LineNumber( 5 );
+        const auto LimitsEnd = LineNumber( 20 );
+        logFile.openLogFile.setSearchLimits( LimitsStart, LimitsEnd );
+
+        WHEN( "an Encoding that splits the Log File into Log Lines differently is chosen" )
+        {
+            logFile.openLogFile.setEncoding( TextEncoding::Utf8Mib );
+            REQUIRE( logFile.observer.waitLoads( 2 ) );
+            REQUIRE_FALSE( logFile.observer.loads.back().onlyAppended );
+
+            THEN( "the Search Limits stay as they were set" )
+            {
+                REQUIRE( logFile.openLogFile.searchStartLine() == LimitsStart );
+                REQUIRE( logFile.openLogFile.searchEndLine() == LimitsEnd );
+            }
         }
     }
 }

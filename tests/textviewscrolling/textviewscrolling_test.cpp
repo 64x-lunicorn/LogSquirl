@@ -349,6 +349,102 @@ SCENARIO( "Scrolling moves a text view by Visual Lines", "[textviewscrolling][sc
     }
 }
 
+// A click on the Overview centres the Log Line clicked (#544).
+SCENARIO( "Centring a Log Line shows its first Visual Line whole", "[textviewscrolling][centre]" )
+{
+    // Log Line 5 wraps into 30 Visual Lines one column wide; the others are
+    // one Visual Line each.
+    constexpr int CentringRows = 10;
+    QStringList lines;
+    for ( int line = 0; line < 50; ++line ) {
+        lines << ( line == 5 ? QString( 30, QLatin1Char( 'x' ) ) : QStringLiteral( "b" ) );
+    }
+
+    // The row the first Visual Line of line is drawn on, counted from the top
+    // one; line is not above the Scroll Position.
+    const auto rowOf = []( const View& view, LineNumber line ) {
+        const auto position = view.scrolling.position();
+        REQUIRE( position.lineNumber <= line );
+        size_t row = 0;
+        for ( auto above = position.lineNumber; above < line; above = above + 1_lcount ) {
+            row += view.visualLines( above );
+        }
+        return row - position.visualLineIndex;
+    };
+
+    GIVEN( "a wrapped view of 10 rows" )
+    {
+        View view{ lines };
+        view.text.viewport_.heightPx = CentringRows * CharHeightPx;
+        view.changeViewport( OneColumnWidePx );
+        REQUIRE( view.visualLines( 5_lnum ) == 30 );
+
+        WHEN( "Log Line 6, below the long one, is centred" )
+        {
+            view.apply( view.scrolling.centre( 6_lnum ) );
+
+            THEN( "its first Visual Line is shown whole, in the middle of the Viewport" )
+            {
+                const auto row = rowOf( view, 6_lnum );
+                REQUIRE( row < static_cast<size_t>( CentringRows ) );
+                REQUIRE( row == static_cast<size_t>( ( CentringRows + 1 ) / 2 ) );
+            }
+        }
+
+        WHEN( "the long Log Line itself is centred" )
+        {
+            view.apply( view.scrolling.centre( 5_lnum ) );
+
+            THEN( "its first Visual Line is shown in the middle of the Viewport" )
+            {
+                REQUIRE( rowOf( view, 5_lnum ) == static_cast<size_t>( ( CentringRows + 1 ) / 2 ) );
+            }
+        }
+
+        WHEN( "a Log Line near the top is centred" )
+        {
+            view.moveTo( ScrollPosition{ 20_lnum, 0 } );
+            view.apply( view.scrolling.centre( 2_lnum ) );
+
+            THEN( "the view goes to the top of the Log File" )
+            {
+                REQUIRE( view.scrolling.position() == ScrollPosition{} );
+            }
+        }
+
+        WHEN( "the last Log Line is centred" )
+        {
+            view.apply( view.scrolling.centre( 49_lnum ) );
+
+            THEN( "the view goes to the bottom Scroll Position" )
+            {
+                REQUIRE( view.scrolling.position() == view.scrolling.bottomScrollPosition() );
+            }
+        }
+    }
+
+    GIVEN( "the same view without text wrapping" )
+    {
+        View view{ lines, false };
+        view.text.viewport_.heightPx = CentringRows * CharHeightPx;
+        view.changeViewport( OneColumnWidePx );
+
+        THEN( "a Log Line centred lands on the row it did before text wrapping counted" )
+        {
+            // Half of the Log Lines the Viewport shows, its partly shown last
+            // one included, above it.
+            view.apply( view.scrolling.centre( 20_lnum ) );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 15_lnum, 0 } );
+            view.apply( view.scrolling.centre( 6_lnum ) );
+            REQUIRE( view.scrolling.position() == ScrollPosition{ 1_lnum, 0 } );
+            view.apply( view.scrolling.centre( 2_lnum ) );
+            REQUIRE( view.scrolling.position() == ScrollPosition{} );
+            view.apply( view.scrolling.centre( 49_lnum ) );
+            REQUIRE( view.scrolling.position() == view.scrolling.bottomScrollPosition() );
+        }
+    }
+}
+
 SCENARIO( "The vertical scrollbar counts whole Log Lines", "[textviewscrolling][scrollbar]" )
 {
     View view{ tallLogLines() };
@@ -884,6 +980,15 @@ SCENARIO( "No scrolling step reads more than the Viewport and what it passes ove
             view.text.linesRead = 0;
             view.setLines( view.text.lines_ );
             REQUIRE( view.text.linesRead > 0 );
+            REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
+        }
+
+        THEN( "a Log Line centred reads no more Log Lines than the Viewport has rows" )
+        {
+            view.setScrollBarValue( 20000 );
+            view.text.linesRead = 0;
+            view.apply( view.scrolling.centre( 50000_lnum ) );
+            REQUIRE( view.scrolling.position().lineNumber < 50000_lnum );
             REQUIRE( view.text.linesRead <= static_cast<uint64_t>( Rows ) );
         }
 

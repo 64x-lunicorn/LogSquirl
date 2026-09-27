@@ -24,6 +24,7 @@
 
 #include "filteredview.h"
 #include "logdata.h"
+#include "logfileview.h"
 #include "logfiltereddata.h"
 #include "logpresentation.h"
 #include "overview.h"
@@ -75,7 +76,7 @@ struct AbstractLogView::access_by<ViewSetTest> {
     }
     static const std::vector<QStringList>& colorLabels( const AbstractLogView& view )
     {
-        return view.quickHighlighters_;
+        return view.colorLabelWords_;
     }
     static std::pair<LineNumber, LineNumber> searchLimits( const AbstractLogView& view )
     {
@@ -96,8 +97,8 @@ namespace {
 
 using ViewAccess = AbstractLogView::access_by<ViewSetTest>;
 
-// A Presentation that keeps what it was handed last.
-class RecordingPresentation final : public LogPresentation {
+// A Presentation that keeps what it was handed last, told as every view is.
+class RecordingPresentation final : public LogFileView, public LogPresentation {
 public:
     QString selectedText() const override
     {
@@ -129,10 +130,6 @@ public:
     {
         presentationPolicy = policy;
     }
-    void setQuickFindPolicy( const QuickFindPolicy& policy ) override
-    {
-        quickFindPolicy = policy;
-    }
     void allowFollowMode( bool allow ) override
     {
         followAllowed = allow;
@@ -161,7 +158,6 @@ public:
 
     std::optional<DecorationPolicy> decorationPolicy;
     std::optional<PresentationPolicy> presentationPolicy;
-    std::optional<QuickFindPolicy> quickFindPolicy;
     std::optional<bool> followAllowed;
     std::optional<QFont> font;
     std::optional<std::vector<QStringList>> colorLabels;
@@ -192,14 +188,6 @@ PresentationPolicy handedPresentationPolicy()
     return policy;
 }
 
-QuickFindPolicy handedQuickFindPolicy()
-{
-    auto policy = testSettingsPolicies().quickFind;
-    policy.quickFindRegexpType = SearchRegexpType::ExtendedRegexp;
-    policy.incremental = !policy.incremental;
-    return policy;
-}
-
 QFont handedFont()
 {
     auto font = QFontDatabase::systemFont( QFontDatabase::FixedFont );
@@ -222,7 +210,6 @@ void handEverything( ViewSet& viewSet )
 {
     viewSet.setDecorationPolicy( handedDecorationPolicy() );
     viewSet.setPresentationPolicy( handedPresentationPolicy() );
-    viewSet.setQuickFindPolicy( handedQuickFindPolicy() );
     viewSet.setFollowAllowed( false );
     viewSet.setFont( handedFont() );
     viewSet.setColorLabels( handedColorLabels() );
@@ -357,7 +344,6 @@ SCENARIO( "A Presentation added to the View Set starts with everything it holds"
             {
                 REQUIRE( presentation.decorationPolicy == handedDecorationPolicy() );
                 REQUIRE( presentation.presentationPolicy == handedPresentationPolicy() );
-                REQUIRE( presentation.quickFindPolicy == handedQuickFindPolicy() );
                 REQUIRE( presentation.followAllowed == false );
                 REQUIRE( presentation.font == handedFont() );
                 REQUIRE( presentation.colorLabels == handedColorLabels() );
@@ -408,7 +394,6 @@ SCENARIO( "What the View Set is handed reaches every view in it", "[viewset]" )
                 for ( const auto* presentation : { &textView, &tableView } ) {
                     REQUIRE( presentation->decorationPolicy == handedDecorationPolicy() );
                     REQUIRE( presentation->presentationPolicy == handedPresentationPolicy() );
-                    REQUIRE( presentation->quickFindPolicy == handedQuickFindPolicy() );
                     REQUIRE( presentation->followAllowed == false );
                     REQUIRE( presentation->font == handedFont() );
                     REQUIRE( presentation->colorLabels == handedColorLabels() );

@@ -84,6 +84,9 @@ public:
         // The width the user left the sidebar at, 0 while none was saved.
         int sidebarWidth = 0;
         std::vector<OpenFile> openFiles;
+        // The index in openFiles of the Log File whose tab was in front, -1
+        // when none was saved: a Session stored before it was (#542).
+        int currentFile = -1;
     };
 
     void add( const QString& windowId )
@@ -153,11 +156,23 @@ public:
         return window ? window->openFiles : std::vector<OpenFile>{};
     }
 
-    void setOpenFiles( const QString& windowId, const std::vector<OpenFile>& loaded_files )
+    // The index in openFiles() of the Log File whose tab was in front, -1
+    // when none was saved.
+    int currentFile( const QString& windowId ) const
+    {
+        auto window = findWindow( windowId );
+        return window ? window->currentFile : -1;
+    }
+
+    // Stores the Log Files of a window in tab order, and which of them was
+    // in front: -1 for none.
+    void setOpenFiles( const QString& windowId, const std::vector<OpenFile>& loaded_files,
+                       int currentFile = -1 )
     {
         auto window = findWindow( windowId );
         if ( window ) {
             window->openFiles = loaded_files;
+            window->currentFile = currentFile;
         }
     }
 

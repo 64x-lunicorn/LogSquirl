@@ -802,9 +802,9 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
             WHEN( "the Color Labels change" )
             {
-                auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+                auto colorLabels = std::vector<QStringList>( 9 );
                 colorLabels[ 0 ] << QStringLiteral( "idle" );
-                view.setQuickHighlighters( colorLabels );
+                view.setColorLabels( colorLabels );
                 grabViewport( view );
 
                 THEN( "they are painted from the Log Lines already read" )
@@ -1001,9 +1001,9 @@ void decorateEverything( AbstractLogView& view, QuickFindPattern& quickFindPatte
 {
     quickFindPattern.changeSearchPattern( QStringLiteral( "retry|idle" ),
                                           /* useExtendedRegexp */ true );
-    auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+    auto colorLabels = std::vector<QStringList>( 9 );
     colorLabels[ 1 ] << QStringLiteral( "INFO" );
-    view.setQuickHighlighters( colorLabels );
+    view.setColorLabels( colorLabels );
 
     clickLogLine( view, 8_lnum, Qt::NoModifier );
     clickLogLine( view, 10_lnum, Qt::ShiftModifier );
@@ -1363,9 +1363,9 @@ void highlightWithoutSelecting( AbstractLogView& view, QuickFindPattern& quickFi
 {
     quickFindPattern.changeSearchPattern( QStringLiteral( "retry|idle" ),
                                           /* useExtendedRegexp */ true );
-    auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+    auto colorLabels = std::vector<QStringList>( 9 );
     colorLabels[ 1 ] << QStringLiteral( "INFO" );
-    view.setQuickHighlighters( colorLabels );
+    view.setColorLabels( colorLabels );
 }
 
 } // namespace

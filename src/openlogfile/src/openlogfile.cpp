@@ -28,8 +28,23 @@
 
 #include "textencoding.h"
 
+#include <algorithm>
 #include <mutex>
 #include <utility>
+
+namespace {
+
+// The Encoding chosen by its MIB: only one this build knows (#552). The
+// callers make sure of it; a MIB it does not know is no choice, which is how
+// the log data and its index worker take such a default Encoding too.
+std::optional<int> knownEncoding( std::optional<int> mib )
+{
+    const auto known = !mib || TextEncoding::forMib( *mib ) != nullptr;
+    Q_ASSERT( known );
+    return known ? mib : std::nullopt;
+}
+
+} // namespace
 
 OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPolicy& searchPolicy,
                           const FileAccessPolicy& fileAccessPolicy,
@@ -46,7 +61,7 @@ OpenLogFile::OpenLogFile( const IndexingPolicy& indexingPolicy, const SearchPoli
     , logFormatCatalog_( std::move( logFormatCatalog ) )
 {
     if ( fileAccessPolicy.defaultEncodingMib >= 0 ) {
-        chosenEncoding_ = fileAccessPolicy.defaultEncodingMib;
+        chosenEncoding_ = knownEncoding( fileAccessPolicy.defaultEncodingMib );
     }
 
     // The log data registers the types it signals with itself; this is the
@@ -264,7 +279,7 @@ int OpenLogFile::formatRecognitionCount() const
 
 void OpenLogFile::setEncoding( std::optional<int> mib )
 {
-    chosenEncoding_ = mib;
+    chosenEncoding_ = knownEncoding( mib );
     if ( settleEncoding() ) {
         Q_EMIT encodingChanged();
     }
@@ -277,9 +292,13 @@ std::optional<int> OpenLogFile::chosenEncoding() const
 
 const TextEncoding* OpenLogFile::encoding() const
 {
-    const TextEncoding* codec = chosenEncoding_ ? TextEncoding::forMib( *chosenEncoding_ )
-                                                : logData_->getDetectedEncoding();
-    return codec ? codec : TextEncoding::forLocale();
+    // Only an Encoding this build knows is chosen (knownEncoding()), so this
+    // is never null.
+    if ( chosenEncoding_ ) {
+        return TextEncoding::forMib( *chosenEncoding_ );
+    }
+    const auto* detected = logData_->getDetectedEncoding();
+    return detected ? detected : TextEncoding::forLocale();
 }
 
 bool OpenLogFile::settleEncoding()
@@ -300,7 +319,7 @@ bool OpenLogFile::settleEncoding()
     // no use. Otherwise the Log Lines only decode differently, which it tells
     // every Search.
     logData_->interruptLoading();
-    logData_->setDisplayEncoding( codec->name().constData() );
+    logData_->setDisplayEncoding( *codec );
     return true;
 }
 
@@ -329,28 +348,43 @@ void OpenLogFile::handleLoadingFinished( LoadingStatus status, const QString& fa
     // is known only now.
     const auto encodingSettledAnew = settleEncoding();
 
+    // Search Limits the user narrowed stay as set, whatever the load brought
+    // -- added Log Lines, a reload, a truncation, the Log File read anew in
+    // another Encoding -- cut back to the Log File's end; only when nothing
+    // of them is left do they become the whole Log File. Limits that were the
+    // whole Log File follow its end.
+    const auto limitsWereWholeFile
+        = searchStartLine_ == 0_lnum && searchEndLine_ >= LineNumber( loadedLineCount_.get() );
+    if ( limitsWereWholeFile || searchStartLine_ >= nbLines ) {
+        searchStartLine_ = 0_lnum;
+        searchEndLine_ = nbLines;
+    }
+    else {
+        searchEndLine_ = std::min( searchEndLine_, nbLines );
+    }
+    loadedLineCount_ = lineCount;
+
     // The Search follows the Log Lines loaded: it continues over the ones
-    // added, or starts again over a Log File truncated under it.
+    // added within the Search Limits, or starts again over a Log File
+    // truncated under it, within the Limits as they are now.
     switch ( decision.searchRefresh ) {
     case LoadRule::SearchRefresh::None:
         break;
-    case LoadRule::SearchRefresh::Continue:
-        searchEndLine_ = nbLines;
+    case LoadRule::SearchRefresh::Continue: {
         // Same pattern and start, a larger end: the Search Session continues
-        // the run rather than starting over.
-        filteredData_->request( filteredData_->searchState().pattern, searchStartLine_,
-                                searchEndLine_ );
+        // the run rather than starting over. A Search that already ran over
+        // narrowed Limits has no Log Line added to them to run over.
+        const auto searched = filteredData_->searchState();
+        if ( searched.startLine != searchStartLine_ || searched.endLine != searchEndLine_ ) {
+            filteredData_->request( searched.pattern, searchStartLine_, searchEndLine_ );
+        }
         break;
+    }
     case LoadRule::SearchRefresh::Restart:
-        searchEndLine_ = nbLines;
         restartSearch();
         load.searchRestarted = true;
         break;
     }
-
-    // A finished load makes the Search Limits the whole Log File again.
-    searchStartLine_ = 0_lnum;
-    searchEndLine_ = nbLines;
 
     for ( const auto& mark : decision.savedMarksToApply ) {
         filteredData_->addMark( mark );

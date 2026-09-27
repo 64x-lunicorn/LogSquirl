@@ -20,6 +20,7 @@
 #pragma once
 
 #include "linetypes.h"
+#include "logfileview.h"
 #include "overview.h"
 #include "regularexpressionpattern.h"
 #include "settingspolicies.h"
@@ -28,6 +29,7 @@
 #include <QPointer>
 #include <QStringList>
 
+#include <concepts>
 #include <cstddef>
 #include <optional>
 #include <utility>
@@ -51,8 +53,10 @@ class LogPresentation;
 // is current reaches the Presentations and the Overview through the View Set
 // too, handed over by the Kept Searches, which own the Searches.
 //
-// The Presentations are held through the plain Presentation interface (ADR
-// 0003). No view is owned: a Presentation outlives the View Set, and a
+// Every view is told what it shows alike through LogFileView, a Presentation
+// and a Filtered View the same way; what only the Presentations are told --
+// which Search is current -- goes through the plain Presentation interface
+// (ADR 0003). No view is owned: a Presentation outlives the View Set, and a
 // Filtered View destroyed -- its tab closed -- is no longer reached.
 class ViewSet {
 public:
@@ -65,7 +69,13 @@ public:
     // Add a view, and hand it everything held so far, the current Search
     // included. A Filtered View added is the current Search's: a kept
     // Search's new view is the new Search's, made current with it next.
-    void addPresentation( LogPresentation* presentation );
+    template <class Presentation>
+        requires std::derived_from<Presentation, LogPresentation>
+                 && std::derived_from<Presentation, LogFileView>
+    void addPresentation( Presentation* presentation )
+    {
+        addPresentation( presentation, presentation );
+    }
     void addFilteredView( FilteredView* view );
 
     // Make search current, shown in view, one already added: every
@@ -86,8 +96,6 @@ public:
     // Each view shows the line numbers the Policy says for its kind, and the
     // Presentations show the Overview as it says.
     void setPresentationPolicy( const PresentationPolicy& policy );
-    // Only the Table View reads it.
-    void setQuickFindPolicy( const QuickFindPolicy& policy );
     // Whether follow may be engaged at all. Until told otherwise it may.
     void setFollowAllowed( bool allowed );
     // The font Log Lines are drawn in. Until one is set, a view keeps its own.
@@ -132,10 +140,6 @@ public:
     {
         return presentationPolicy_;
     }
-    const QuickFindPolicy& quickFindPolicy() const
-    {
-        return quickFindPolicy_;
-    }
     bool isFollowAllowed() const
     {
         return followAllowed_;
@@ -163,23 +167,43 @@ public:
     }
 
 private:
+    // A view the View Set tells what every view shows alike.
+    struct HeldView {
+        LogFileView* view = nullptr;
+        // The Filtered View it is, which goes when its tab closes; none for a
+        // Presentation.
+        std::optional<QPointer<FilteredView>> filteredView;
+
+        bool isPresentation() const
+        {
+            return !filteredView.has_value();
+        }
+
+        bool isGone() const
+        {
+            return filteredView.has_value() && filteredView->isNull();
+        }
+    };
+
+    // presentation and view are the same widget.
+    void addPresentation( LogPresentation* presentation, LogFileView* view );
+
     // Hand everything held to one view.
-    void seed( LogPresentation* presentation ) const;
-    void seed( FilteredView* view ) const;
+    void seed( LogFileView& view ) const;
 
-    // Call fn with each Filtered View not destroyed.
+    // Call fn with each view not destroyed.
     template <class Fn>
-    void forEachFilteredView( Fn&& fn ) const;
+    void forEachView( Fn&& fn ) const;
 
+    // The Presentations among the views, for what only they are told.
     std::vector<LogPresentation*> presentations_;
-    std::vector<QPointer<FilteredView>> filteredViews_;
+    std::vector<HeldView> views_;
     QPointer<FilteredView> currentFilteredView_;
     const LogFilteredData* currentSearch_ = nullptr;
     Overview* overview_ = nullptr;
 
     DecorationPolicy decorationPolicy_;
     PresentationPolicy presentationPolicy_;
-    QuickFindPolicy quickFindPolicy_;
     bool followAllowed_ = true;
     std::optional<QFont> font_;
     ColorLabels colorLabels_ = ColorLabels( ColorLabelCount );

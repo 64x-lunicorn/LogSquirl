@@ -65,7 +65,8 @@ namespace {
 // Helper to create a model, delegate, and paint into an off-screen pixmap.
 struct PaintFixture {
     QStandardItemModel model;
-    LogTableHighlightDelegate delegate;
+    TableViewState state;
+    LogTableHighlightDelegate delegate{ state, std::make_shared<OneRowPerLogLine>() };
     QPixmap pixmap{ 400, 30 };
     QPainter painter;
     QStyleOptionViewItem option;
@@ -324,8 +325,10 @@ bool isRowSubdued( LineNumber logLine, LineNumber searchStart, LineNumber search
     QStandardItemModel model( row + 1, 1 );
     model.setData( model.index( row, 0 ), "MMMMMMMM" );
 
-    LogTableHighlightDelegate delegate;
-    delegate.setSearchLimits( searchStart, searchEnd );
+    TableViewState state;
+    state.searchStart = searchStart;
+    state.searchEnd = searchEnd;
+    LogTableHighlightDelegate delegate{ state, std::make_shared<OneRowPerLogLine>() };
 
     const QRect cellRect( 0, 0, 120, 24 );
     QImage image( cellRect.size(), QImage::Format_ARGB32 );
@@ -508,10 +511,10 @@ QImage paintRow( const QString& cellText, bool selectedAsWhole )
     QStandardItemModel model( 1, 1 );
     model.setData( model.index( 0, 0 ), cellText );
 
-    LogTableHighlightDelegate delegate;
-    auto quickFindPattern = std::make_shared<QuickFindPattern>();
-    quickFindPattern->changeSearchPattern( "World", false, false );
-    delegate.setQuickFindPattern( quickFindPattern );
+    TableViewState state;
+    state.quickFindPattern = std::make_shared<QuickFindPattern>();
+    state.quickFindPattern->changeSearchPattern( "World", false, false );
+    LogTableHighlightDelegate delegate{ state, std::make_shared<OneRowPerLogLine>() };
     DecorationPolicy policy;
     policy.quickFindBackColor = PaintedQuickFindColor;
     delegate.setDecorationPolicy( policy );
@@ -618,8 +621,9 @@ std::optional<PaintedCharacter> paintCharacter( const QString& cellText, int cha
     QStandardItemModel model( 1, 1 );
     model.setData( model.index( 0, 0 ), cellText );
 
-    LogTableHighlightDelegate delegate;
-    delegate.setPortionSelection( 0, 0, character, character + 1 );
+    TableViewState state;
+    state.selection.selectInCell( 0, 0, character, character + 1 );
+    LogTableHighlightDelegate delegate{ state, std::make_shared<OneRowPerLogLine>() };
 
     QImage image( cellRect.right() + 1, cellRect.bottom() + 1, QImage::Format_ARGB32 );
     image.fill( Qt::white );
@@ -885,12 +889,12 @@ QStyleOptionViewItem cellOption( const QFont& font, int row, int column )
     return option;
 }
 
-// The delegate as LogTableView sets it up: Row 2 under the mouse cursor and
+// The state as LogTableView holds it: Row 2 under the mouse cursor and
 // characters selected in the last cell of Row 0.
-void setUpDelegate( LogTableHighlightDelegate& delegate )
+void setUpState( TableViewState& state )
 {
-    delegate.setHoverRow( 2 );
-    delegate.setPortionSelection( 0, 2, 2, 9 );
+    state.hoverRow = 2;
+    state.selection.selectInCell( 0, 2, 2, 9 );
 }
 
 QImage emptyTableImage()
@@ -923,8 +927,10 @@ SCENARIO( "A paint pass paints the Table View exactly as painting each cell on i
             painter.setFont( font );
             for ( int row = 0; row < TableRows; ++row ) {
                 for ( int column = 0; column < TableColumns; ++column ) {
-                    LogTableHighlightDelegate delegate;
-                    setUpDelegate( delegate );
+                    TableViewState state;
+                    setUpState( state );
+                    LogTableHighlightDelegate delegate{ state,
+                                                        std::make_shared<OneRowPerLogLine>() };
                     delegate.paint( &painter, cellOption( font, row, column ),
                                     model.index( row, column ) );
                 }
@@ -933,8 +939,9 @@ SCENARIO( "A paint pass paints the Table View exactly as painting each cell on i
 
         WHEN( "every cell is painted in one paint pass" )
         {
-            LogTableHighlightDelegate delegate;
-            setUpDelegate( delegate );
+            TableViewState state;
+            setUpState( state );
+            LogTableHighlightDelegate delegate{ state, std::make_shared<OneRowPerLogLine>() };
             auto inOnePass = emptyTableImage();
             {
                 QPainter painter( &inOnePass );
@@ -968,7 +975,8 @@ SCENARIO( "A paint pass decides each Row's Line Verdict once, not once per cell"
         fillTable( model );
         model.rawLineReads.clear();
 
-        LogTableHighlightDelegate delegate;
+        TableViewState state;
+        LogTableHighlightDelegate delegate{ state, std::make_shared<OneRowPerLogLine>() };
         auto image = emptyTableImage();
         QPainter painter( &image );
 

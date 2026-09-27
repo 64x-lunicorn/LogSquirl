@@ -74,6 +74,7 @@ class IndexingBlockPool;
 #include "encodingdetector.h"
 #include "headerandtaildigests.h"
 #include "indexedhash.h"
+#include "indexjob.h"
 #include "linepositionarray.h"
 #include "loadingstatus.h"
 
@@ -509,53 +510,6 @@ private:
     std::atomic<qint64> bytesIndexed_{ 0 };
     const IndexingBlockPlan blockPlan_;
 };
-
-// What asked for a Log File to be indexed in full, which decides how closely
-// an Index the Index Cache hands out is checked against it (#337).
-enum class FullIndexRequest {
-    // A Log File is opened, or one being followed changed in the bytes it was
-    // indexed from. A cached Index is checked by its header and tail, which
-    // costs the same however large the Log File is.
-    Automatic,
-    // The user asked for the Log File to be read again. A cached Index is
-    // then checked by the digest of every byte it was built from, so that a
-    // Log File rewritten in place with the same size is noticed even where
-    // its modification time is coarse or written late (#337).
-    ExplicitReload,
-};
-
-// The index jobs the log data hands its worker, as values. Which one waits
-// while another runs is the job rule's (waitingIndexJob(), logdataoperation.h).
-
-// Attaching a Log File: its name is taken and it is indexed in full.
-struct AttachJob {
-    QString fileName;
-    // From the File Access Policy the log data was built with; negative
-    // means "detect it rather than force one".
-    int defaultEncodingMib = -1;
-    // Handed over by a reload that arrived while the Attach was waiting, and
-    // indexed under instead of the default Encoding.
-    const TextEncoding* forcedEncoding = nullptr;
-};
-
-// Indexing the Log File again in full. What asked for it is carried through
-// to the run, which checks a cached Index the more closely the more the user
-// asked for the Log File to be read again (#337).
-struct FullReindexJob {
-    FullIndexRequest request = FullIndexRequest::Automatic;
-    const TextEncoding* forcedEncoding = nullptr;
-};
-
-// Indexing the Log Lines added since the end of the Log File as indexed.
-struct PartialReindexJob {};
-
-// Checking the Log File for changes on disk: growth, truncation or
-// replacement.
-struct CheckForChangesJob {};
-
-// An index job, or nothing.
-using IndexJob = std::variant<std::monostate, AttachJob, FullReindexJob, PartialReindexJob,
-                              CheckForChangesJob>;
 
 class FullIndexOperation : public IndexOperation {
 public:

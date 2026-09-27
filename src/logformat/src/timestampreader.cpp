@@ -24,6 +24,7 @@
 #include "logfmtlogline.h"
 
 #include <QDate>
+#include <QStringList>
 #include <QTime>
 #include <QTimeZone>
 
@@ -452,6 +453,40 @@ struct TimestampReader::Impl {
     double divisor = 1.0;
 };
 
+namespace {
+
+// The year a format without one takes: that of the modification date, when
+// known, else the reference year, else the current one.
+int yearWithout( int referenceYear, const QDate& modificationDate )
+{
+    if ( modificationDate.isValid() ) {
+        return modificationDate.year();
+    }
+    return referenceYear > 0 ? referenceYear : QDate::currentDate().year();
+}
+
+// The declared timestamp formats, or the common ones when none is declared.
+std::vector<Pattern> compileAll( const QStringList& declaredFormats )
+{
+    std::vector<Pattern> patterns;
+    for ( const auto& declared : declaredFormats ) {
+        if ( auto pattern = compile( declared ) ) {
+            patterns.push_back( std::move( *pattern ) );
+        }
+    }
+    if ( declaredFormats.isEmpty() ) {
+        for ( const auto* fallback : FallbackFormats ) {
+            // The fallbacks are known to compile; one that did not is skipped.
+            if ( auto pattern = compile( QLatin1String( fallback ) ) ) {
+                patterns.push_back( std::move( *pattern ) );
+            }
+        }
+    }
+    return patterns;
+}
+
+} // namespace
+
 TimestampReader::TimestampReader( const LogFormatDefinition& format, int referenceYear,
                                   const QDate& modificationDate )
     : impl_( std::make_unique<Impl>() )
@@ -461,29 +496,23 @@ TimestampReader::TimestampReader( const LogFormatDefinition& format, int referen
     impl_->format = std::make_shared<const LogFormatDefinition>( format );
     impl_->extractor = std::make_unique<LogFieldExtractor>( *impl_->format );
     impl_->modificationDate = modificationDate;
-    if ( modificationDate.isValid() ) {
-        impl_->referenceYear = modificationDate.year();
-    }
-    else {
-        impl_->referenceYear = referenceYear > 0 ? referenceYear : QDate::currentDate().year();
-    }
+    impl_->referenceYear = yearWithout( referenceYear, modificationDate );
     impl_->divisor = format.timestampDivisor() > 0.0 ? format.timestampDivisor() : 1.0;
-
     impl_->available = isAvailableFor( format );
+    impl_->patterns = compileAll( format.timestampFormats() );
+}
 
-    for ( const auto& declared : format.timestampFormats() ) {
-        if ( auto pattern = compile( declared ) ) {
-            impl_->patterns.push_back( std::move( *pattern ) );
-        }
-    }
-    if ( format.timestampFormats().isEmpty() ) {
-        for ( const auto* fallback : FallbackFormats ) {
-            // The fallbacks are known to compile; one that did not is skipped.
-            if ( auto pattern = compile( QLatin1String( fallback ) ) ) {
-                impl_->patterns.push_back( std::move( *pattern ) );
-            }
-        }
-    }
+TimestampReader::TimestampReader( const QString& timestampFormat, double divisor, int referenceYear,
+                                  const QDate& modificationDate )
+    : impl_( std::make_unique<Impl>() )
+{
+    // No Log Format: there is no field to find in a Log Line, only the text
+    // of one to read.
+    impl_->modificationDate = modificationDate;
+    impl_->referenceYear = yearWithout( referenceYear, modificationDate );
+    impl_->divisor = divisor > 0.0 ? divisor : 1.0;
+    impl_->patterns
+        = compileAll( timestampFormat.isEmpty() ? QStringList() : QStringList{ timestampFormat } );
 }
 
 TimestampReader::~TimestampReader() = default;

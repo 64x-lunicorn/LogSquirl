@@ -214,6 +214,34 @@ if(NOT (_stdout STREQUAL "hit: Größe und München, ärger mit Türen\nhit: sch
   fail("a Search prints the Log Lines of a Latin-1 Log File as UTF-8 text")
 endif()
 
+# A default Encoding pinned in the settings that this build does not know is
+# the locale's: the tool reads the Log File in it rather than failing, and
+# does not detect another one (#552). The Latin-1 Log File above tells them
+# apart where the locale is UTF-8 -- every Unix, where Qt 6 takes it to be --
+# as its umlauts are no UTF-8 and print as replacement characters. Windows
+# takes the locale's Encoding from its ANSI code page, which reads the Log
+# File as Latin-1 would, so there it only has to be matched.
+file(WRITE "${_tool_dir}/logsquirl.conf" "[General]\ndefaultView.encodingMib=2013\n")
+run_grep("${_latin1_file}" -e "^hit")
+if(NOT _result STREQUAL "0")
+  fail("a Search with an unknown default Encoding in the settings exits with 0")
+endif()
+if(CMAKE_HOST_WIN32)
+  string(REGEX MATCHALL "hit: [^\n]*\n" _unknown_mib_hits "${_stdout}")
+  list(LENGTH _unknown_mib_hits _unknown_mib_hit_count)
+  if(NOT _unknown_mib_hit_count EQUAL 2)
+    fail("a Search with an unknown default Encoding prints the Log Lines it matched")
+  endif()
+else()
+  string(ASCII 239 191 189 _replacement)
+  set(_r "${_replacement}")
+  if(NOT (_stdout STREQUAL
+          "hit: Gr${_r}${_r}e und M${_r}nchen, ${_r}rger mit T${_r}ren\nhit: sch${_r}ne gr${_r}${_r}e, ${_r}u${_r}ere W${_r}rme\n"))
+    fail("a Search with an unknown default Encoding reads the Log File in the locale's Encoding")
+  endif()
+endif()
+file(WRITE "${_tool_dir}/logsquirl.conf" "[General]\ndefaultView.encodingMib=-1\n")
+
 # A Log File without a trailing line feed is warned about, and the warning is
 # a diagnostic: it goes to stderr, so stdout carries the matching Log Lines
 # and nothing else and can be piped into another tool (#327).

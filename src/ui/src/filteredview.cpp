@@ -69,3 +69,9 @@ FilteredView::Visibility FilteredView::visibility() const
 
     return logFilteredData_->visibility();
 }
+
+void FilteredView::setPresentationPolicy( const PresentationPolicy& policy )
+{
+    AbstractLogView::setPresentationPolicy( policy );
+    setLineNumbersVisible( policy.filteredLineNumbersVisible );
+}

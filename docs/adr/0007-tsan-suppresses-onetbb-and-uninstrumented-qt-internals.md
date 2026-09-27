@@ -138,3 +138,7 @@ The first run against it (actions run 36185998382) printed 17 reports in 6 of 80
 - `cmake/tsan.supp` may hold a `race_top:` entry for a function of oneTBB, mimalloc or Qt that calls no code of LogSquirl's, and a `deadlock:` entry for a cycle between two mutexes of Qt's own, each with its reason and how it goes away. No `race:` entry.
 - The TSan job builds against its own image. A change to that image, a Qt bump or the monthly refresh costs a pull request's TSan run about 40 minutes more, once per run until master has the image.
 
+
+## Note (2026-09-27, #554): the cases named `logsquirl_itests` above run elsewhere now
+
+The engine's tests moved from `logsquirl_itests` into a test binary of their own, `logsquirl_logdata_tests` (#554). The search, deadlock-on-destruction and TBB-worker-exhaustion cases of the cluster measured above, and the three cases on growing or rewritten Log Files under "The cases that timed out", run there now, under the same TSan job. The ctest numbers quoted are those of their time. Nothing above is otherwise changed.

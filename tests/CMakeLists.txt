@@ -4,14 +4,14 @@ include(CatchTestDiscovery)
 
 add_subdirectory(helpers)
 add_subdirectory(unit)
+add_subdirectory(logdata)
 add_subdirectory(openlogfile)
 add_subdirectory(textviewscrolling)
 add_subdirectory(searchline)
 add_subdirectory(ui)
 add_subdirectory(benchmarks)
 
-add_dependencies(logsquirl_itests file_write_helper)
-add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_tableview_scroll_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_timelookup_benchmark logsquirl_versioncheck_tests)
+add_dependencies(ci_build logsquirl_grep logsquirl_tests logsquirl_compression_tests logsquirl_plugin_catalog_tests logsquirl_logdata_tests logsquirl_openlogfile_tests logsquirl_textviewscrolling_tests logsquirl_searchline_tests logsquirl_itests logsquirl_decoration_benchmark logsquirl_textviewscrolling_benchmark logsquirl_textview_scroll_benchmark logsquirl_logdata_benchmark logsquirl_logdata_read_benchmark logsquirl_session_restore_benchmark logsquirl_regex_matcher_benchmark logsquirl_tableview_paint_benchmark logsquirl_tableview_scroll_benchmark logsquirl_displayedlines_benchmark logsquirl_filteredview_read_benchmark logsquirl_chart_follow_benchmark logsquirl_chart_paint_benchmark logsquirl_overview_selection_benchmark logsquirl_timelookup_benchmark logsquirl_versioncheck_tests)
 
 # TBB is a private dependency of the log data library: no public header of
 # it may include a TBB header (#168).
@@ -77,6 +77,18 @@ add_test(
             "-DWIDGETS_INCLUDE_DIRS=$<JOIN:$<TARGET_PROPERTY:Qt6::Widgets,INTERFACE_INCLUDE_DIRECTORIES>,|>"
             "-DLINK_LIBRARIES=$<JOIN:$<TARGET_PROPERTY:logsquirl_searchline,LINK_LIBRARIES>,|>"
             -P ${CMAKE_CURRENT_SOURCE_DIR}/searchline_no_qt_widgets.cmake
+)
+
+# The index worker stays in the engine: no file of any library outside the log
+# data -- the widget library, the application, the Open Log File, the Log
+# Formats, the plugins and the rest -- includes its header, directly or
+# through the log data's (#549).
+add_test(
+    NAME index_worker_stays_in_the_engine
+    COMMAND ${CMAKE_COMMAND}
+            -DENGINE_DIRS=logdata
+            -DHEADERS_ROOT=${CMAKE_SOURCE_DIR}/src
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/index_worker_stays_in_the_engine.cmake
 )
 
 # The UI half of the Settings Policy seam: the widget layer legitimately links

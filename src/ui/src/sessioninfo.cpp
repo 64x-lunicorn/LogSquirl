@@ -55,6 +55,8 @@ void SessionInfo::retrieveFromStorage( QSettings& settings )
                         window.openFiles.emplace_back( file_name, top_line, view_context );
                     }
                     settings.endArray();
+                    // Absent from a Session stored before it was saved (#542).
+                    window.currentFile = settings.value( "currentFile", -1 ).toInt();
                 }
                 else {
                     LOG_ERROR << "Unknown version of OpenFiles, ignoring it...";
@@ -103,6 +105,7 @@ void SessionInfo::saveToStorage( QSettings& settings ) const
             settings.setValue( "viewContext", open_file->viewContext );
         }
         settings.endArray();
+        settings.setValue( "currentFile", window.currentFile );
         settings.endGroup(); // OpenFiles
     }
     settings.endArray();

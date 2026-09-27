@@ -56,13 +56,14 @@
 #include <vector>
 
 #include "abstractlogdata.h"
+#include "encodingdetector.h"
 #include "fileholder.h"
 #include "loadingstatus.h"
 #include "logdataoperation.h"
-#include "logdataworker.h"
 #include "searchblocksource.h"
 #include "settingspolicies.h"
 
+class IndexingData;
 class LogData;
 class LogFilteredData;
 
@@ -130,6 +131,12 @@ public:
 
     // Get the auto-detected encoding for the indexed text.
     const TextEncoding* getDetectedEncoding() const;
+
+    // Reads the Log File in the Encoding given from now on. When it splits
+    // the Log File into Log Lines differently than the Encoding it was
+    // indexed in, the Log File is loaded again; otherwise its Log Lines only
+    // decode differently, which every LogFilteredData built from it is told.
+    void setDisplayEncoding( const TextEncoding& encoding );
 
     // Replaces the Decoding Policy: every Log Line read from now on, for a
     // view or for a Search, is decoded under it, and decodingPolicyChanged()
@@ -225,7 +232,6 @@ private:
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
     LineLength doGetLineLength( LineNumber line ) const override;
-    void doSetDisplayEncoding( const char* encoding ) override;
     const TextEncoding* doGetDisplayEncoding() const override;
     void doAttachReader() const override;
     void doDetachReader() const override;
@@ -276,7 +282,6 @@ private:
     // mutable std::unique_ptr<QFile> attached_file_;
     // mutable FileId attached_file_id_;
 
-    IndexingPolicy indexingPolicy_;
     SearchPolicy searchPolicy_;
     // Both of its fields are read when an object is built and never again:
     // keeping a file closed is fixed when the FileHolder is created, and

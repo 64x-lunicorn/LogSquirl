@@ -61,7 +61,6 @@
 #include "downloader.h"
 #include "filterspanel.h"
 #include "iconloader.h"
-#include "mergecontroller.h"
 #include "pathline.h"
 #include "pluginuiadapter.h"
 #include "quickfindmux.h"
@@ -216,8 +215,9 @@ private Q_SLOTS:
     void updateLoadingProgress( int progress );
     // Instructs the widget to display the 'normal' status bar,
     // without the progress gauge and with file info
-    // or an error recovery when loading is finished
-    void handleLoadingFinished( LoadingStatus status );
+    // or an error recovery when loading is finished: a failed load closes
+    // its tab, and a Failed one is offered to be reported.
+    void handleLoadingFinished( LoadingStatus status, const QString& failure );
 
     // Update quick find searchable
     void handleFilteredViewChanged();
@@ -304,6 +304,9 @@ private:
     // While the Session's tabs are added: each becomes current in turn, and
     // none of them is to start loading for that (#300).
     bool restoringSession_ = false;
+    // While the tab brought to the front replays the state of its Log File:
+    // a load under way is shown whatever its progress (#540).
+    bool replayingFrontTab_ = false;
 
     std::array<QAction*, MAX_RECENT_FILES> recentFileActions;
     QActionGroup* recentFilesGroup;
@@ -459,9 +462,6 @@ private:
 
     // Separator between plugin actions (top) and management actions (bottom).
     QAction* pluginMenuSeparator_ = nullptr;
-
-    // Active merge controllers (one per merged tab).
-    std::vector<std::unique_ptr<MergeController>> mergeControllers_;
 
     // Command palette (Ctrl+Shift+P / Cmd+Shift+P)
     CommandPalette* commandPalette_ = nullptr;

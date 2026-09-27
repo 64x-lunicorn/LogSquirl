@@ -458,7 +458,8 @@ public:
     // Open all the files listed in the stored session
     // (see ::open)
     // returns a vector of pairs (file_name, view) and the index of the
-    // current file (or -1 if none).
+    // current file (or -1 if none): the one whose tab was in front when the
+    // Session was saved, else the last one (#542).
     //
     // Only the current file starts loading; the others are queued and load
     // one after another once it has loaded, unless startLoading() is called
@@ -483,10 +484,12 @@ public:
     // (view, topline, ViewContextInterface) is passed, this is because only
     // the main window know the order in which the views are presented to
     // the user (it might have changed since file were opened).
+    // The views of the tab in front are saved as the current ones, so that a
+    // restore opens on that tab (#542); null when no Log File's tab is.
     // Also, the geometry information is passed as an opaque string, and the
     // width of the sidebar beside it (0 when there is none to keep).
-    void save( const std::vector<SaveFileInfo>& view_list, const QByteArray& geometry,
-               int sidebarWidth );
+    void save( const std::vector<SaveFileInfo>& view_list, const ViewInterface* currentView,
+               const QByteArray& geometry, int sidebarWidth );
 
     // returns true if caller needs to save settings
     bool close();

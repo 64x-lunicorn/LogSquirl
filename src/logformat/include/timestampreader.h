@@ -31,7 +31,9 @@
 
 // Reads the Timestamp of a Log Line: the point in time it carries in its Log
 // Format's timestamp field. Built once per Log Format, which compiles the
-// Log Format's patterns and timestamp formats then, not per Log Line.
+// Log Format's patterns and timestamp formats then, not per Log Line. It can
+// also be built from one timestamp format alone, for what has the text of a
+// timestamp field without a Log Format around it (a capture group).
 //
 // The Timestamp is read with the timestamp-format alternatives the Log Format
 // declares (strftime directives: %Y %y %m %d %e %H %M %S %L %f %b %B %a %A
@@ -56,6 +58,13 @@ public:
     // year.
     explicit TimestampReader( const LogFormatDefinition& format, int referenceYear = 0,
                               const QDate& modificationDate = QDate() );
+    // A reader of one timestamp format (strftime directives, as a Log Format
+    // declares them; empty tries the common formats) with its divisor for
+    // epoch values; the reference year and the modification date as above.
+    // It has no Log Format, so it is not available for whole Log Lines: only
+    // parseField() reads.
+    TimestampReader( const QString& timestampFormat, double divisor, int referenceYear = 0,
+                     const QDate& modificationDate = QDate() );
     ~TimestampReader();
     TimestampReader( TimestampReader&& ) noexcept;
     TimestampReader& operator=( TimestampReader&& ) noexcept;

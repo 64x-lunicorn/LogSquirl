@@ -58,6 +58,9 @@ public:
     void setVisibility( Visibility visi );
     Visibility visibility() const;
 
+    // Also shows the Filtered View's line numbers as it says.
+    void setPresentationPolicy( const PresentationPolicy& policy ) override;
+
 private:
     LogFilteredData* logFilteredData_;
 };

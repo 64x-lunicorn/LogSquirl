@@ -240,3 +240,51 @@ TEST_CASE( "The Timestamp reader is unavailable without a timestamp field in the
     CHECK( !reader.isAvailable() );
     CHECK( !reader.timestampOf( "INFO hello" ).has_value() );
 }
+
+TEST_CASE( "The Timestamp reader reads a timestamp field from its format alone",
+           "[logformat][timestamp]" )
+{
+    SECTION( "a format without a year takes it from the modification date" )
+    {
+        const TimestampReader reader( QStringLiteral( "%b %e %H:%M:%S" ), 1.0, 0,
+                                      QDate( 2027, 1, 5 ) );
+
+        CHECK( reader.parseField( u"Dec 31 23:59:59" ) == asWritten( 2026, 12, 31, 23, 59, 59 ) );
+        CHECK( reader.parseField( u"Jan  1 00:00:01" ) == asWritten( 2027, 1, 1, 0, 0, 1 ) );
+    }
+
+    SECTION( "a format without a year takes the reference year when there is no modification "
+             "date" )
+    {
+        const TimestampReader reader( QStringLiteral( "%b %e %H:%M:%S" ), 1.0, 2024 );
+
+        CHECK( reader.parseField( u"Feb 29 12:00:00" ) == asWritten( 2024, 2, 29, 12, 0, 0 ) );
+    }
+
+    SECTION( "a written offset names the UTC instant" )
+    {
+        const TimestampReader reader( QStringLiteral( "%Y-%m-%dT%H:%M:%S%z" ), 1.0, 0,
+                                      QDate( 2026, 9, 24 ) );
+
+        CHECK( reader.parseField( u"2026-09-24T10:00:00+02:00" )
+               == asWritten( 2026, 9, 24, 8, 0, 0 ) );
+        CHECK( reader.parseField( u"2026-09-24T10:00:00+02:00" )
+               == reader.parseField( u"2026-09-24T08:00:00Z" ) );
+    }
+
+    SECTION( "an epoch value is divided by the divisor" )
+    {
+        const TimestampReader reader( QStringLiteral( "%s" ), 1000.0 );
+
+        CHECK( reader.parseField( u"1700000000123" )
+               == QDateTime::fromMSecsSinceEpoch( 1700000000123, QTimeZone::UTC ) );
+    }
+
+    SECTION( "without a Log Format there is no Log Line to read" )
+    {
+        const TimestampReader reader( QStringLiteral( "%Y-%m-%d" ), 1.0 );
+
+        CHECK( !reader.isAvailable() );
+        CHECK( !reader.timestampOf( QStringLiteral( "2026-09-24 hello" ) ).has_value() );
+    }
+}

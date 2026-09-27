@@ -22,6 +22,30 @@
 #include <QDir>
 
 #include "configuration.h"
+#include "log.h"
+#include "textencoding.h"
+
+namespace {
+
+// The default Encoding a File Access Policy carries: none, or one this build
+// knows. One it does not -- a MIB another build or version wrote -- is the
+// locale's, decided here and nowhere else, so everything that reads a Log
+// File under the Policy takes the MIB as it is (#552). The desktop resets
+// such a setting to Auto as soon as it is loaded (#488); the grep CLI, which
+// never writes the settings, reads in the locale's Encoding.
+int knownDefaultEncodingMib( int mib )
+{
+    if ( mib < 0 || TextEncoding::forMib( mib ) != nullptr ) {
+        return mib;
+    }
+
+    const auto* locale = TextEncoding::forLocale();
+    LOG_WARNING << "Unknown default encoding MIB " << mib << " in the settings, reading in "
+                << locale->name().constData();
+    return locale->mibEnum();
+}
+
+} // namespace
 
 SettingsPolicies deriveSettingsPolicies( const Configuration& config )
 {
@@ -49,10 +73,11 @@ SettingsPolicies deriveSettingsPolicies( const Configuration& config )
                    .pollingEnabled = config.pollingEnabled(),
                    .pollIntervalMs = config.pollIntervalMs() },
 
-        .fileAccess = { .keepFileClosed = config.keepFileClosed(),
-                        .defaultEncodingMib = config.defaultEncodingMib(),
-                        .extractArchives = config.extractArchives(),
-                        .extractArchivesAlways = config.extractArchivesAlways() },
+        .fileAccess
+        = { .keepFileClosed = config.keepFileClosed(),
+            .defaultEncodingMib = knownDefaultEncodingMib( config.defaultEncodingMib() ),
+            .extractArchives = config.extractArchives(),
+            .extractArchivesAlways = config.extractArchivesAlways() },
 
         .recognition = { .enabled = config.autoDetectLogFormats() },
 

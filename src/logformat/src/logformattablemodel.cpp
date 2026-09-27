@@ -297,6 +297,37 @@ const LogFormatTableModel::CachedRow& LogFormatTableModel::cachedRow( int row ) 
     return rowCacheList_.front().second;
 }
 
+std::optional<std::vector<std::optional<LogFormatTableModel::TextSpan>>>
+LogFormatTableModel::columnSpans( int row ) const
+{
+    if ( format_.kind() != LogFormatKind::Regex || row < 0 || row >= lineCount_
+         || columnNames_.isEmpty() ) {
+        return std::nullopt;
+    }
+
+    const auto& line = cachedRow( row ).rawLine;
+    std::vector<std::optional<TextSpan>> spans( static_cast<size_t>( columnCount() ) );
+    const auto fieldSpans = extractor_.fieldSpans( line );
+    if ( !fieldSpans ) {
+        // As extractRow() shows it: the whole Log Line in the last column
+        const auto lastField = static_cast<int>( columnNames_.size() ) - 1;
+        if ( !line.isEmpty() ) {
+            spans[ static_cast<size_t>( modelColumn( lastField ) ) ]
+                = TextSpan{ 0, static_cast<int>( line.size() ) };
+        }
+        return spans;
+    }
+
+    for ( int field = 0; field < columnNames_.size(); ++field ) {
+        const auto span = fieldSpans->constFind( columnNames_[ field ] );
+        if ( span != fieldSpans->constEnd() ) {
+            spans[ static_cast<size_t>( modelColumn( field ) ) ]
+                = TextSpan{ span->first, span->second };
+        }
+    }
+    return spans;
+}
+
 QVector<QString> LogFormatTableModel::extractRow( const QString& line, bool& matched ) const
 {
     auto fields = extractor_.extractFields( line );

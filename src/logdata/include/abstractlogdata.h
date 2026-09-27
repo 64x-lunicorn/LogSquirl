@@ -78,8 +78,6 @@ public:
     // Tabs are expanded
     LineLength getLineLength( LineNumber line ) const;
 
-    // Set the view to use the passed encoding for display
-    void setDisplayEncoding( const char* encoding_name );
     // Configure how the view shall interpret newline characters
     // this should be non zero for encodings where \n is encoded
     // in multiple bytes (e.g. UTF-16)
@@ -124,8 +122,6 @@ protected:
     virtual LineLength doGetMaxLength() const = 0;
     // Internal function called to get the line length
     virtual LineLength doGetLineLength( LineNumber line ) const = 0;
-    // Internal function called to set the encoding
-    virtual void doSetDisplayEncoding( const char* encoding ) = 0;
     virtual const TextEncoding* doGetDisplayEncoding() const = 0;
 
     virtual void doAttachReader() const = 0;

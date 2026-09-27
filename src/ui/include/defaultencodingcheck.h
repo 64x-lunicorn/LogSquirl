@@ -24,10 +24,12 @@
 #include "log.h"
 #include "textencoding.h"
 
-// The settings library does not know which encodings exist (that lives in
-// logdata), so the check runs here, right after the Configuration is loaded
-// (#488). An unknown default Encoding MIB is rewritten to -1 ("Auto"), saved,
-// and reported once in the log. Returns true when it was reset.
+// Runs right after the desktop has loaded the Configuration (#488): an
+// unknown default Encoding MIB is rewritten to -1 ("Auto"), saved, and
+// reported once in the log, so the Options Dialog and the Encoding menu show
+// Auto. Deriving the Policies reads an unknown MIB as the locale's on its own
+// (#552), which is all the grep CLI, which saves no settings, relies on.
+// Returns true when it was reset.
 inline bool resetUnknownDefaultEncoding( Configuration& config )
 {
     const auto mib = config.defaultEncodingMib();

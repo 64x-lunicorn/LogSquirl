@@ -174,9 +174,47 @@
   report and issue report dialogs included. Traditional Chinese, offered but
   never built, now works; Simplified Chinese, half English until now, is
   complete too (#448).
+- **The dashboard setting says when it applies**: The Options Dialog now
+  says beside the dashboard checkbox that turning it on or off applies to
+  windows opened from now on; the windows already open keep theirs (#562).
 
 ## Bug fixes
 
+- **A click on the overview shows the Log Line clicked, with text wrapping on**:
+  The Log Line lands in the middle of the view, its first Visual Line shown,
+  also when a long wrapped Log Line sits just above it; before, that Log Line
+  could push the one clicked out of the view (#544).
+- **Search Limits stay as set when the Log File changes**: Limits narrowed by
+  hand, by a time range or around the current line no longer turn into the
+  whole Log File after the next load -- when the Log File grows, is reloaded,
+  is read anew in another Encoding or is truncated. The Log Lines outside them
+  stay subdued and an auto-refreshed Search keeps to them; a truncation cuts
+  them back to the new end, and only when nothing of them is left are they the
+  whole Log File. Limits that are the whole Log File still reach its new end
+  (#555).
+- **Scrolling up in the Table View leaves follow**: with follow on, moving
+  the Table View away from its last Row -- with the wheel, by dragging the
+  scrollbar, with Page Up or Ctrl+Home -- turns follow off, as it does in the
+  Text View, so the next lines written to the Log File no longer snap the
+  table back to the bottom. Turning follow on while the Table View is shown
+  scrolls it to the last Row, and while following it stays there when it is
+  made shorter or its font grows; a key that moves nothing, such as Shift,
+  leaves follow on (#543).
+- **QuickFind no longer crashes when its view closes during a search**: a
+  QuickFind message still on its way -- the search's progress, or that it was
+  interrupted -- is dropped when the view it belongs to is closed first,
+  instead of reaching the closed view and crashing the app (#565).
+- **QuickFind in the Table View goes on from the selected characters**: Find
+  next and previous start from the characters selected in a cell, as they
+  start from the selection in the Text View, so a second match in another
+  column of the same Row is no longer skipped, and a match is shown selected
+  in the cell that holds it rather than in the first cell the pattern
+  matches. A match that runs across two columns, or lies in text no column
+  shows, selects its Row (#547).
+- **A double-click selects the same word in the Table View as in the Text
+  View**: a word is letters, numbers and connector punctuation in both, so
+  `foo‿bar` is one word in the Table View too, and a double-click on a space
+  or another separator selects nothing instead of that one character (#546).
 - **The Table View shows the Marks and Matches of the Search in front**: After
   another Filtered View tab is brought to the front, or a Search is kept and a
   new one started, the Table View shows that Search's Marks and Matches instead
@@ -252,6 +290,31 @@
   the Windows build. The Themes draw check marks, arrows and close buttons
   from SVG files, and the Windows packages lacked Qt's SVG support; the
   installer and the portable zip now ship `Qt6Svg.dll` and its plugins (#427).
+- **A Log File that failed to load in a background tab says so**: When a Log
+  File failed to load while another tab was in front, showing its tab showed
+  an empty Log File as loaded. It now offers to report the failure and closes
+  the tab, as a failure in the tab in front does; a tab still loading shows
+  as loading, not as loaded (#540).
+- **A restored Session opens on the tab that was in front**: The Session now
+  remembers which tab of a window was in front, and restoring it shows that
+  tab and loads its Log File first, instead of the last tab. A Session saved
+  by an earlier version still opens on its last tab (#542).
+- **One click in the Filters panel runs one Search**: Choosing filters in the
+  Filters panel ran the Search twice, the first one thrown away. It now runs
+  once, and only when *Run search on add or replace pattern* is on, as for
+  adding a word to the Search; otherwise the pattern waits in the Search line
+  for Enter (#538).
+- **Closing every tab reaches the first Log File when the dashboard is off**:
+  With the dashboard turned off the first tab holds a Log File, and Close
+  all, Close others, Close to the left, Close all in group, Merge All Left,
+  a middle click on the first tab and closing the window all skipped it: it
+  stayed open, and a Session with several windows still listed it as open
+  after its window had closed. Every one of them now reaches it; with the
+  dashboard on, none closes the dashboard (#535).
+- **A closed merged tab stops its rebuild**: A merged Log File is rebuilt
+  when one of its sources changes. Closing its tab now stops watching the
+  sources and removes the merged temporary file, which before stayed on disk
+  and kept being rewritten until the window closed (#537).
 
 ## Build and packaging
 
@@ -295,6 +358,14 @@
 
 ## Internal
 
+- **An unknown default Encoding is resolved in one place**: a default
+  Encoding in the settings that this build does not know (for example
+  `encodingMib=2013`) is taken as the locale's where the Policies are derived,
+  instead of by the log data, the index worker and the Open Log File each on
+  their own. `logsquirl_grep` reads such a Log File in the locale's Encoding
+  and exits with 0 as before, now pinned by a test. The text Encodings moved
+  into a library of their own, so the settings no longer link the engine
+  (#552).
 - **A performance regression turns a run red**: a weekly `Performance`
   workflow builds master as it ships (RelWithDebInfo with LTO) on a
   GitHub-hosted runner and runs the whole e2e performance suite, the 10, 50

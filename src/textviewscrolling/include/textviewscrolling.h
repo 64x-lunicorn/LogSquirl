@@ -241,6 +241,11 @@ public:
     // Moves to position, brought into the Log File and no further than the
     // bottom. Moving between Visual Lines of one line leaves the scrollbar.
     ScrollAnswer scrollTo( ScrollPosition position );
+    // Moves so that the first Visual Line of line sits in the middle of the
+    // Viewport, or as near it as the top of the Log File and the bottom
+    // Scroll Position allow. Wraps backwards from line no more Visual Lines
+    // than half the Viewport's rows (docs/adr/0001).
+    ScrollAnswer centre( LineNumber line );
     // A step by a key or selection autoscroll, visualLines down (up when
     // negative). As the scrollbar's own steps do, a step up leaves follow.
     ScrollAnswer stepVisualLines( std::int64_t visualLines );

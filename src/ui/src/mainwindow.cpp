@@ -83,6 +83,7 @@
 #include <QStringListModel>
 #include <QTemporaryFile>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
 #include <QToolTip>
@@ -109,6 +110,7 @@
 #include "logsquirl_version.h"
 #include "mainwindowtext.h"
 #include "menu.h"
+#include "mergecontroller.h"
 #include "openfilehelper.h"
 #include "optionsdialog.h"
 #include "plugindialog.h"
@@ -197,8 +199,8 @@ MainWindow::MainWindow( WindowSession session,
     // Register for progress status bar
     signalMux_.connect( SIGNAL( loadingProgressed( int ) ), this,
                         SLOT( updateLoadingProgress( int ) ) );
-    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus ) ), this,
-                        SLOT( handleLoadingFinished( LoadingStatus ) ) );
+    signalMux_.connect( SIGNAL( loadingFinished( LoadingStatus, QString ) ), this,
+                        SLOT( handleLoadingFinished( LoadingStatus, QString ) ) );
 
     signalMux_.connect( SIGNAL( statusMessage( QString ) ), this,
                         SLOT( showStatusMessage( QString ) ) );
@@ -281,12 +283,13 @@ MainWindow::MainWindow( WindowSession session,
         }
     } );
 
-    // Route filter panel selections to the active crawler widget and auto-search
+    // Route filter panel selections to the active crawler widget. Its Search
+    // line decides whether the Search runs now, as for adding a word to it:
+    // starting it here as well ran every Search twice (#538).
     connect( &filtersPanel_, &FiltersPanel::filtersChanged, this,
              [ this ]( const QList<PredefinedFilter>& filters ) {
                  if ( auto crawler = currentCrawlerWidget() ) {
                      crawler->setSearchPatternFromPredefinedFilters( filters );
-                     crawler->startNewSearch();
                  }
              } );
 
@@ -441,7 +444,7 @@ void MainWindow::reloadSession()
     restoringSession_ = false;
 
     if ( currentFileIndex >= 0 && static_cast<size_t>( currentFileIndex ) < crawlers.size() ) {
-        // By widget: the Dashboard tab, if any, comes before the Log Files.
+        // By widget: the dashboard tab, if any, comes before the Log Files.
         mainTabWidget_.setCurrentWidget( crawlers[ static_cast<size_t>( currentFileIndex ) ] );
 
         if ( followFileOnLoad ) {
@@ -1022,10 +1025,12 @@ void MainWindow::updateShortcuts()
     setShortcuts( optionsAction, ShortcutAction::MainWindowPreference );
 }
 
-// Check whether the given tab index points to the pinned welcome dashboard.
+// Whether the tab at `index` is the welcome dashboard itself, for what only
+// the dashboard gets -- its title, a refresh when shown. Whether a tab holds a
+// Log File is the tab widget's to answer (#535).
 bool isDashboardTab( const TabbedCrawlerWidget& tabs, int index )
 {
-    return index == 0 && qobject_cast<WelcomeDashboard*>( tabs.widget( 0 ) ) != nullptr;
+    return qobject_cast<WelcomeDashboard*>( tabs.widget( index ) ) != nullptr;
 }
 
 // Refresh the welcome dashboard content.
@@ -1415,7 +1420,7 @@ void MainWindow::closeTab( ActionInitiator initiator )
 {
     int currentIndex = mainTabWidget_.currentIndex();
 
-    if ( currentIndex >= 0 && !isDashboardTab( mainTabWidget_, currentIndex ) ) {
+    if ( currentIndex >= 0 && mainTabWidget_.holdsLogFile( currentIndex ) ) {
         closeTab( currentIndex, initiator );
     }
     else if ( currentIndex < 0 ) {
@@ -1424,17 +1429,22 @@ void MainWindow::closeTab( ActionInitiator initiator )
     else {
         // The dashboard tab is the only/current tab — closing it should close
         // the window if there is nothing else open, otherwise it is a no-op.
-        if ( mainTabWidget_.count() <= 1 ) {
+        if ( mainTabWidget_.logFileTabs().isEmpty() ) {
             this->close();
         }
     }
 }
 
-// Close all tabs (except the pinned dashboard)
+// Close every tab that holds a Log File, from the left; the dashboard stays.
+// A tab the user chose to keep stays as well.
 void MainWindow::closeAll( ActionInitiator initiator )
 {
-    while ( mainTabWidget_.count() > 1 ) {
-        closeTab( 1, initiator );
+    std::vector<QWidget*> logFiles;
+    for ( const auto index : mainTabWidget_.logFileTabs() ) {
+        logFiles.push_back( mainTabWidget_.widget( index ) );
+    }
+    for ( auto* logFile : logFiles ) {
+        closeTab( mainTabWidget_.indexOf( logFile ), initiator );
     }
 }
 
@@ -2016,7 +2026,10 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
         return;
     }
 
-    auto controller = std::make_unique<MergeController>( this );
+    // The merge controller belongs to the merged tab: closing the tab ends
+    // the rebuild and removes the temporary file. The window holds it only
+    // until the tab is there.
+    auto* controller = new MergeController( this );
     const auto mergedPath = controller->merge( filePaths, dedup );
 
     // Open the merged temp file as a regular tab
@@ -2024,21 +2037,20 @@ void MainWindow::openMergedFiles( QStringList filePaths, bool dedup )
     mainTabWidget_.setTransientTabName( mergedPath, direction );
     loadFile( mergedPath );
 
-    // Connect live updates: when the merged file is rebuilt, reload the LogData
-    connect( controller.get(), &MergeController::mergedFileUpdated, this, [ this, mergedPath ] {
-        // The loadFile + reload mechanism handles re-reading
-        for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-            if ( mainTabWidget_.tabToolTip( i ) == QDir::toNativeSeparators( mergedPath ) ) {
-                auto* crawler = qobject_cast<CrawlerWidget*>( mainTabWidget_.widget( i ) );
-                if ( crawler ) {
-                    crawler->reload();
-                }
-                break;
-            }
+    // A file asked for before the plugins have loaded opens once they have,
+    // so the tab is looked for after that.
+    plugins_->whenLoaded( this, [ this, controller, mergedPath ] {
+        auto* crawler = qobject_cast<CrawlerWidget*>(
+            mainTabWidget_.widget( mainTabWidget_.tabOfPath( mergedPath ) ) );
+        if ( crawler == nullptr ) {
+            LOG_WARNING << "No tab holds the merged file " << mergedPath;
+            delete controller;
+            return;
         }
+        controller->setParent( crawler );
+        // When the merged file is rebuilt, its tab reads it again
+        connect( controller, &MergeController::mergedFileUpdated, crawler, &CrawlerWidget::reload );
     } );
-
-    mergeControllers_.push_back( std::move( controller ) );
 }
 
 void MainWindow::toggleSidebar()
@@ -2246,8 +2258,10 @@ void MainWindow::updateLoadingProgress( int progress )
     QString current_file = QDir::toNativeSeparators( session_.getFilename( crawler ) );
 
     // We ignore 0% and 100% to avoid a flash when the file (or update)
-    // is very short.
-    if ( progress > 0 && progress < 100 ) {
+    // is very short. A load under way replayed by the tab brought to the
+    // front is shown whatever its progress: the info line still describes
+    // the tab shown before (#540).
+    if ( replayingFrontTab_ || ( progress > 0 && progress < 100 ) ) {
         infoLine->setText( current_file + tr( " - Indexing lines... (%1 %)" ).arg( progress ) );
         infoLine->displayGauge( progress );
 
@@ -2258,7 +2272,7 @@ void MainWindow::updateLoadingProgress( int progress )
     }
 }
 
-void MainWindow::handleLoadingFinished( LoadingStatus status )
+void MainWindow::handleLoadingFinished( LoadingStatus status, const QString& failure )
 {
     LOG_DEBUG << "handleLoadingFinished success=" << ( status == LoadingStatus::Successful );
 
@@ -2298,7 +2312,20 @@ void MainWindow::handleLoadingFinished( LoadingStatus status )
             alertBox.exec();
         }
 
-        closeTab( mainTabWidget_.currentIndex(), ActionInitiator::App );
+        // Heard as the load ended, or replayed as its tab is brought to the
+        // front after it failed there (#540): the tab is closed once the
+        // tab switch is done, and a Failed load is offered to be reported.
+        QTimer::singleShot(
+            0, this, [ this, failed = QPointer<CrawlerWidget>( crawler ), status, failure ] {
+                const auto index = failed ? mainTabWidget_.indexOf( failed ) : -1;
+                if ( index < 0 ) {
+                    return;
+                }
+                closeTab( index, ActionInitiator::App );
+                if ( status == LoadingStatus::Failed ) {
+                    IssueReporter::askUserAndReportIssue( IssueTemplate::Exception, failure );
+                }
+            } );
     }
 
     // mainTabWidget_.setEnabled( true );
@@ -2312,7 +2339,7 @@ void MainWindow::showStatusMessage( QString message )
 void MainWindow::handleFilteredViewChanged()
 {
     int currentIndex = mainTabWidget_.currentIndex();
-    if ( currentIndex >= 0 && !isDashboardTab( mainTabWidget_, currentIndex ) ) {
+    if ( currentIndex >= 0 && mainTabWidget_.holdsLogFile( currentIndex ) ) {
         auto* crawler_widget
             = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( currentIndex ) );
         if ( crawler_widget ) {
@@ -2330,8 +2357,8 @@ void MainWindow::applyQuickFindPolicy()
 
 void MainWindow::closeTab( int index, ActionInitiator initiator )
 {
-    // Never close the pinned dashboard tab
-    if ( isDashboardTab( mainTabWidget_, index ) ) {
+    // Never close a tab that holds no Log File: the pinned dashboard
+    if ( !mainTabWidget_.holdsLogFile( index ) ) {
         return;
     }
 
@@ -2433,7 +2460,7 @@ void MainWindow::currentTabChanged( int index )
 {
     LOG_DEBUG << "currentTabChanged";
 
-    if ( index >= 0 && !isDashboardTab( mainTabWidget_, index ) ) {
+    if ( index >= 0 && mainTabWidget_.holdsLogFile( index ) ) {
         auto* crawler_widget = dynamic_cast<CrawlerWidget*>( mainTabWidget_.widget( index ) );
         if ( !crawler_widget ) {
             return;
@@ -2444,7 +2471,9 @@ void MainWindow::currentTabChanged( int index )
             session_.startLoading( crawler_widget );
         }
 
+        replayingFrontTab_ = true;
         signalMux_.setCurrentDocument( crawler_widget );
+        replayingFrontTab_ = false;
         quickFindMux_.registerSelector( crawler_widget );
 
         // No configuration is applied here: a settings change has already
@@ -2461,7 +2490,8 @@ void MainWindow::currentTabChanged( int index )
         plugins_->host().notifyActiveFileChanged( session_.getFilename( crawler_widget ) );
     }
     else {
-        // Dashboard tab or no tab — clear the document state
+        // No tab, or one that holds no Log File, such as the dashboard -- clear
+        // the document state
         signalMux_.setCurrentDocument( nullptr );
         quickFindMux_.registerSelector( nullptr );
 
@@ -2775,7 +2805,7 @@ bool MainWindow::loadFile( const QString& fileName, bool followFile )
             if ( !crawlerWindow ) {
                 continue;
             }
-            for ( int i = 0; i < crawlerWindow->mainTabWidget_.count(); ++i ) {
+            for ( const auto i : crawlerWindow->mainTabWidget_.logFileTabs() ) {
                 auto* crawler
                     = qobject_cast<CrawlerWidget*>( crawlerWindow->mainTabWidget_.widget( i ) );
                 if ( crawler && static_cast<const ViewInterface*>( crawler ) == existingView ) {
@@ -3270,17 +3300,14 @@ void MainWindow::writeSettings()
     std::vector<
         std::tuple<const ViewInterface*, uint64_t, std::shared_ptr<const ViewContextInterface>>>
         widget_list;
-    for ( int i = 0; i < mainTabWidget_.count(); ++i ) {
-        auto view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
-        if ( !view ) {
-            continue; // skip the pinned dashboard tab
-        }
+    for ( const auto i : mainTabWidget_.logFileTabs() ) {
+        const auto* view = qobject_cast<const CrawlerWidget*>( mainTabWidget_.widget( i ) );
         widget_list.emplace_back( view, 0UL, view->context() );
     }
     if ( sidebarWidthApplied_ && sidebarDock_->isVisible() && !sidebarDock_->isFloating() ) {
         sidebarWidth_ = sidebarDock_->width();
     }
-    session_.save( widget_list, saveGeometry(), sidebarWidth_ );
+    session_.save( widget_list, currentCrawlerWidget(), saveGeometry(), sidebarWidth_ );
 }
 
 // Read settings from permanent storage

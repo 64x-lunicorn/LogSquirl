@@ -109,7 +109,9 @@ struct WatchPolicy {
 // What opening and reading a Log File needs, and nothing else.
 struct FileAccessPolicy {
     bool keepFileClosed{};
-    // Negative means "detect the Encoding rather than force one".
+    // Negative means "detect the Encoding rather than force one"; otherwise
+    // the MIB of an Encoding this build knows, which deriveSettingsPolicies()
+    // makes sure of (#552).
     int defaultEncodingMib{};
     bool extractArchives{};
     bool extractArchivesAlways{};
