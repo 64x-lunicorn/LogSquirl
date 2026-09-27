@@ -26,6 +26,7 @@
 #include <optional>
 #include <vector>
 
+#include <QDate>
 #include <QObject>
 #include <QTimer>
 #include <QVector>
@@ -34,19 +35,35 @@
 #include "linetypes.h"
 
 class AbstractLogData;
+class LogFormatDefinition;
 
 // The points extracted for each series of a chart, in the order of the series,
 // each in Log Line order and not yet bucketed.
 using ChartRawPoints = QVector<QVector<ChartPoint>>;
 
+// How a chart reads the Timestamps of its Log File: the Log Format recognized
+// for it, if any, and the Log File's modification date, which gives a
+// Timestamp without a year its year (ADR 0010).
+struct ChartTimestamps {
+    std::shared_ptr<const LogFormatDefinition> format;
+    QDate modificationDate;
+};
+
 // Extracts the points of every series from the Log Lines [first, first + count)
 // of logData. Returns nothing when cancel was set before it was done.
 // linesDone counts the Log Lines read so far. Safe off the UI thread.
-std::optional<ChartRawPoints> extractChartPoints( const AbstractLogData& logData,
-                                                  const QVector<ChartSeriesDefinition>& series,
-                                                  LineNumber first, LinesCount count,
-                                                  const std::atomic<bool>& cancel,
-                                                  std::atomic<uint64_t>& linesDone );
+//
+// A series whose X is the Log Format's timestamp field (its X pattern is one
+// of the Log Format's patterns and its X group the timestamp field) reads it
+// with the Timestamp reader, as the lookup and the Table View do: a written
+// offset counts, and a missing year comes from the modification date. Any
+// other timestamp X is read with its Qt format, a value without a zone as
+// written, as if it were UTC. A series with an X pattern has no point on a
+// Log Line whose X it cannot read: its line number is not an X value.
+std::optional<ChartRawPoints>
+extractChartPoints( const AbstractLogData& logData, const QVector<ChartSeriesDefinition>& series,
+                    LineNumber first, LinesCount count, const std::atomic<bool>& cancel,
+                    std::atomic<uint64_t>& linesDone, const ChartTimestamps& timestamps = {} );
 
 // The points one series of a chart shows, kept so that the points of Log Lines
 // appended later can be merged in without extracting from the first Log Line.
@@ -99,6 +116,17 @@ public:
     // The Log File extracted from. Set it before the first update().
     void setLogData( std::shared_ptr<const AbstractLogData> logData );
 
+    // The Log Format recognized for the Log File, or none. A series whose X
+    // is its timestamp field reads it with the Timestamp reader: the next
+    // extraction starts from the first Log Line, and the points extracted so
+    // far stay until then.
+    void setLogFormat( std::shared_ptr<const LogFormatDefinition> format );
+
+    // The Log File's modification date, which gives a Timestamp without a
+    // year its year (ADR 0010). Set it before each update(): it applies to
+    // the Log Lines extracted from then on.
+    void setModificationDate( const QDate& date );
+
     // How long update() waits before extracting appended Log Lines.
     void setUpdateDelay( std::chrono::milliseconds delay );
 
@@ -146,6 +174,7 @@ private:
 
     std::shared_ptr<const AbstractLogData> logData_;
     QVector<ChartSeriesDefinition> series_;
+    ChartTimestamps timestamps_;
     std::vector<ChartSeriesPoints> points_;
     // The Log Lines the points were extracted from, from the first one on.
     LinesCount linesExtracted_;

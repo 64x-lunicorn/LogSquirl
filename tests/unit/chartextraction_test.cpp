@@ -29,11 +29,15 @@
 #include <QSignalSpy>
 #include <QStringList>
 #include <QThreadPool>
+#include <QTimeZone>
 
 #include "abstractlogdata.h"
 #include "chartextraction.h"
 #include "chartseries.h"
+#include "charttemplategenerator.h"
 #include "growinglogdata.h"
+#include "logformatdefinition.h"
+#include "logformatparser.h"
 
 using namespace std::chrono_literals;
 
@@ -379,4 +383,185 @@ SCENARIO( "Series for the same pattern differing in case count apart", "[chartex
     REQUIRE( points.has_value() );
     REQUIRE( points->at( 0 ).size() == 1 );
     REQUIRE( points->at( 1 ).size() == 3 );
+}
+
+namespace {
+
+LogFormatDefinition formatOf( const char* json )
+{
+    auto formats = LogFormatParser::parseJsonString( json );
+    REQUIRE( formats.size() == 1 );
+    return formats[ 0 ];
+}
+
+// A series counting every Log Line of the Log Format over its timestamp
+// field, as the chart templates make it.
+ChartSeriesDefinition timestampFieldSeries( const LogFormatDefinition& format )
+{
+    auto templates = ChartTemplateGenerator::messageRateTemplates( format, 0 );
+    REQUIRE( templates.size() == 1 );
+    REQUIRE( templates[ 0 ].isTimestampXAxis() );
+    return templates[ 0 ];
+}
+
+std::optional<ChartRawPoints> extractAll( const QStringList& lines,
+                                          const QVector<ChartSeriesDefinition>& series,
+                                          const ChartTimestamps& timestamps = {} )
+{
+    GrowingLogData logData{ lines };
+    std::atomic<bool> cancel{ false };
+    std::atomic<uint64_t> linesDone{ 0 };
+    return extractChartPoints( logData, series, LineNumber( 0 ),
+                               LinesCount( static_cast<uint64_t>( lines.size() ) ), cancel,
+                               linesDone, timestamps );
+}
+
+double epochMs( int year, int month, int day, int hour, int minute, int second )
+{
+    return static_cast<double>(
+        QDateTime( QDate( year, month, day ), QTime( hour, minute, second ), QTimeZone::UTC )
+            .toMSecsSinceEpoch() );
+}
+
+const char* const YearlessJson = R"({
+    "yearless_log": {
+        "title": "Year-less",
+        "regex": { "std": { "pattern": "^(?<timestamp>\\w{3} \\d{2} \\d{2}:\\d{2}:\\d{2}) (?<body>.*)$" } },
+        "timestamp-field": "timestamp",
+        "timestamp-format": [ "%b %d %H:%M:%S" ],
+        "sample": [ { "line": "Dec 31 23:59:58 hello" } ]
+    }
+})";
+
+const char* const OffsetJson = R"({
+    "offset_log": {
+        "title": "With offsets",
+        "regex": { "std": { "pattern": "^(?<timestamp>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})) (?<body>.*)$" } },
+        "timestamp-field": "timestamp",
+        "timestamp-format": [ "%Y-%m-%dT%H:%M:%S%z" ],
+        "sample": [ { "line": "2026-09-24T08:00:00Z hello" } ]
+    }
+})";
+
+} // namespace
+
+// A year-less Timestamp takes its year from the Log File's modification date,
+// as the lookup and the Table View read it (ADR 0010, #560).
+SCENARIO( "A chart over a year-less Log File runs across New Year", "[chartextraction]" )
+{
+    const auto format = std::make_shared<const LogFormatDefinition>( formatOf( YearlessJson ) );
+    const QStringList lines{ "Dec 31 23:59:58 last of the year",
+                             "Jan 01 00:00:01 first of the next" };
+
+    const auto points = extractAll( lines, { timestampFieldSeries( *format ) },
+                                    ChartTimestamps{ format, QDate( 2027, 1, 1 ) } );
+
+    REQUIRE( points.has_value() );
+    const auto& series = points->at( 0 );
+    REQUIRE( series.size() == 2 );
+    CHECK( series[ 0 ].xValue == epochMs( 2026, 12, 31, 23, 59, 58 ) );
+    CHECK( series[ 1 ].xValue == epochMs( 2027, 1, 1, 0, 0, 1 ) );
+    CHECK( series[ 0 ].xValue < series[ 1 ].xValue );
+}
+
+SCENARIO( "A chart following its Log File reads Timestamps with its Log Format",
+          "[chartextraction]" )
+{
+    GIVEN( "A chart over a year-less Log File, extracted without a Log Format" )
+    {
+        const auto format = std::make_shared<const LogFormatDefinition>( formatOf( YearlessJson ) );
+        QStringList lines{ "Dec 31 23:59:58 last of the year" };
+        auto logData = std::make_shared<GrowingLogData>( lines );
+
+        ChartExtraction extraction;
+        extraction.setUpdateDelay( 0ms );
+        extraction.setLogData( logData );
+        extraction.setSeries( { timestampFieldSeries( *format ) } );
+        extraction.update();
+        REQUIRE( waitForExtraction( extraction ) );
+
+        WHEN( "Its Log Format is recognized and it grows across New Year" )
+        {
+            extraction.setLogFormat( format );
+            extraction.setModificationDate( QDate( 2026, 12, 31 ) );
+            extraction.update();
+            REQUIRE( waitForExtraction( extraction ) );
+
+            lines.append( "Jan 01 00:00:01 first of the next" );
+            logData->setLines( lines );
+            extraction.setModificationDate( QDate( 2027, 1, 1 ) );
+            extraction.update();
+            REQUIRE( waitForExtraction( extraction ) );
+
+            THEN( "Every point is read with the Log Format, in time order" )
+            {
+                const auto& points = extraction.points( 0 );
+                REQUIRE( points.size() == 2 );
+                CHECK( points[ 0 ].xValue == epochMs( 2026, 12, 31, 23, 59, 58 ) );
+                CHECK( points[ 1 ].xValue == epochMs( 2027, 1, 1, 0, 0, 1 ) );
+            }
+        }
+    }
+}
+
+// A written offset counts: equal instants plot at the same X (ADR 0010, #560).
+SCENARIO( "A chart over a Log File mixing offsets plots equal instants alike", "[chartextraction]" )
+{
+    const auto format = std::make_shared<const LogFormatDefinition>( formatOf( OffsetJson ) );
+    const QStringList lines{ "2026-09-24T10:00:00+02:00 local", "2026-09-24T08:00:00Z utc" };
+
+    const auto points = extractAll( lines, { timestampFieldSeries( *format ) },
+                                    ChartTimestamps{ format, QDate( 2026, 9, 24 ) } );
+
+    REQUIRE( points.has_value() );
+    const auto& series = points->at( 0 );
+    REQUIRE( series.size() == 2 );
+    CHECK( series[ 0 ].xValue == epochMs( 2026, 9, 24, 8, 0, 0 ) );
+    CHECK( series[ 1 ].xValue == series[ 0 ].xValue );
+}
+
+// A hand-typed Qt format keeps Qt's parser; what it does not match is left
+// out, not plotted at its line number among the times (#560).
+SCENARIO( "A value the hand-typed timestamp format does not match gives no point",
+          "[chartextraction]" )
+{
+    ChartSeriesDefinition def;
+    def.pattern = "request";
+    def.captureGroup = 0;
+    def.xPattern = R"(^(\S+))";
+    def.xCaptureGroup = 1;
+    def.xTimestampFormat = "yyyy-MM-dd'T'HH:mm:ss";
+    def.compilePattern();
+
+    const QStringList lines{ "2026-09-24T10:00:00 request", "not-a-time request",
+                             "2026-09-24T10:00:02 request" };
+
+    const auto points = extractAll( lines, { def } );
+
+    REQUIRE( points.has_value() );
+    const auto& series = points->at( 0 );
+    REQUIRE( series.size() == 2 );
+    CHECK( series[ 0 ].line == 0_lnum );
+    CHECK( series[ 1 ].line == 2_lnum );
+    // Read as written, as if it were UTC, like a Timestamp without a zone.
+    CHECK( series[ 0 ].xValue == epochMs( 2026, 9, 24, 10, 0, 0 ) );
+    CHECK( series[ 1 ].xValue == epochMs( 2026, 9, 24, 10, 0, 2 ) );
+}
+
+// A numeric X that does not parse is left out too: line numbers are not
+// mixed into the values of the X axis.
+SCENARIO( "A numeric X value that does not parse gives no point", "[chartextraction]" )
+{
+    ChartSeriesDefinition def;
+    def.pattern = "request";
+    def.captureGroup = 0;
+    def.xPattern = R"(^(\S+))";
+    def.xCaptureGroup = 1;
+    def.compilePattern();
+
+    const auto points = extractAll( { "12.5 request", "n/a request" }, { def } );
+
+    REQUIRE( points.has_value() );
+    REQUIRE( points->at( 0 ).size() == 1 );
+    CHECK( points->at( 0 ).at( 0 ).xValue == 12.5 );
 }
