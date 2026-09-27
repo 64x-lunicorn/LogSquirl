@@ -36,6 +36,7 @@
 #include "fake_log_data.h"
 #include "log_view_scrolling.h"
 #include "logdata.h"
+#include "overview.h"
 #include "qfnotifications.h"
 #include "quickfindpattern.h"
 #include "test_policies.h"
@@ -55,7 +56,9 @@ public:
     {
     }
 
+    using AbstractLogView::getViewPosition;
     using AbstractLogView::linesToSave;
+    using AbstractLogView::setOverview;
 };
 
 } // namespace
@@ -473,6 +476,43 @@ SCENARIO( "A jump moves a wrapped text view only when its target is off screen",
     }
 }
 
+SCENARIO( "A wrapped text view counts the Log Lines it shows from its Visual Lines",
+          "[abstractlogview][scrollposition][shown]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern qfp;
+
+    GIVEN( "a view standing two Log Lines above a Log Line taller than the Viewport" )
+    {
+        const FakeLogData logData{ tallLogLines() };
+        TestLogView view( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        Overview overview;
+        view.setOverview( &overview, nullptr );
+        showOneColumnWide( view );
+
+        // Log Lines 8 and 9 on the top two rows, the tall Log Line 10 on all
+        // the others.
+        const auto above = TallLine - 2_lcount;
+        moveTo( view, ScrollPosition{ above, 0 } );
+
+        THEN( "the overview marks those three Log Lines, not as many as the Viewport has rows" )
+        {
+            // One overview pixel per Log Line.
+            const auto lines = static_cast<int>( logData.getNbLine().get() );
+            overview.updateData( logData.getNbLine() );
+            overview.updateView( static_cast<unsigned>( lines ) );
+            const auto top = static_cast<int>( above.get() );
+            REQUIRE( overview.getViewLines() == std::make_pair( top, top + 3 ) );
+        }
+
+        THEN( "with no Log Line selected, Mark navigation starts from the middle one of them" )
+        {
+            REQUIRE( view.getViewPosition() == OptionalLineNumber{ TallLine - 1_lcount } );
+        }
+    }
+}
+
 namespace {
 
 // A FakeLogData that counts the Log Lines read from it.
@@ -540,6 +580,40 @@ SCENARIO( "Updating the scroll bars reads no more than one Viewport height of Lo
             {
                 REQUIRE( logData.linesRead == 1 );
             }
+        }
+    }
+}
+
+SCENARIO( "Telling the overview which Log Lines a text view shows reads them no second time",
+          "[abstractlogview][scrollposition][shown]" )
+{
+    using namespace logviewscrolling;
+
+    QuickFindPattern qfp;
+
+    GIVEN( "two wrapped views of the same Log File, one of them with an overview" )
+    {
+        const CountingLogData logData{ tallLogLines() };
+        TestLogView plainView( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        showOneColumnWide( plainView );
+        TestLogView overviewView( &logData, &qfp, nullptr, /* initialTextWrap */ true );
+        Overview overview;
+        overviewView.setOverview( &overview, nullptr );
+        showOneColumnWide( overviewView );
+
+        // The Log Lines a change of the Log File and the paint after it read.
+        const auto linesReadByAChange = [ &logData ]( TestLogView& view ) {
+            logData.linesRead = 0;
+            view.updateData();
+            view.repaint();
+            return logData.linesRead;
+        };
+
+        THEN( "the view with the overview reads as many Log Lines as the one without" )
+        {
+            const auto withoutOverview = linesReadByAChange( plainView );
+            REQUIRE( withoutOverview > 0 );
+            REQUIRE( linesReadByAChange( overviewView ) == withoutOverview );
         }
     }
 }

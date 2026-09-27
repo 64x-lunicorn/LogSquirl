@@ -728,6 +728,8 @@ private:
     // What follows any move of the Scroll Position: the overview, the
     // hovered line and a repaint.
     void scrollPositionMoved();
+    // Tells the overview which lines the Viewport shows.
+    void updateOverviewPosition();
 
     // Paints the rows of the text area from firstRow up to, not including,
     // endRow -- all of them by default -- and leaves the others as they are.
