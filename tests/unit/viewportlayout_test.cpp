@@ -414,6 +414,85 @@ SCENARIO( "Whether a Visual Line is wholly in the Viewport", "[viewportlayout][j
     }
 }
 
+SCENARIO( "The Viewport says which Log Lines it shows", "[viewportlayout][shown]" )
+{
+    GIVEN( "Text wrapping off, a 50 px Viewport of 20 px Visual Lines from Log Line 10" )
+    {
+        auto input = fixedWidthInput();
+        input.viewportHeightPx = 50;
+        input.scrollPosition = ScrollPosition{ 10_lnum, 0 };
+        const ViewportLayout layout{ input, unwrappedVisualLines( 10_lnum, 3, 10_length ) };
+
+        THEN( "it shows Log Lines 10 to 12, the partly visible last one included" )
+        {
+            REQUIRE( layout.shownLines() == ShownLines{ 10_lnum, 12_lnum } );
+        }
+    }
+
+    GIVEN( "Text wrapping on, Log Line 5 wrapped into more Visual Lines than the Viewport has "
+           "rows" )
+    {
+        auto input = fixedWidthInput();
+        input.textWrap = true;
+        input.viewportHeightPx = 50;
+        input.scrollPosition = ScrollPosition{ 5_lnum, 3 };
+        VisualLines visualLines;
+        visualLines.push_back( VisualLine{ 5_lnum, 3, 30_lcol, 10_length, 60_length } );
+        visualLines.push_back( VisualLine{ 5_lnum, 4, 40_lcol, 10_length, 60_length } );
+        visualLines.push_back( VisualLine{ 5_lnum, 5, 50_lcol, 10_length, 60_length } );
+        const ViewportLayout layout{ input, visualLines };
+
+        THEN( "it shows only Log Line 5, not the Log Lines below it" )
+        {
+            REQUIRE( layout.shownLines() == ShownLines{ 5_lnum, 5_lnum } );
+        }
+    }
+
+    GIVEN( "Text wrapping on, two Log Lines of two Visual Lines each, then a short one" )
+    {
+        auto input = fixedWidthInput();
+        input.textWrap = true;
+        input.viewportHeightPx = 90;
+        input.scrollPosition = ScrollPosition{ 7_lnum, 0 };
+        VisualLines visualLines;
+        visualLines.push_back( VisualLine{ 7_lnum, 0, 0_lcol, 10_length, 20_length } );
+        visualLines.push_back( VisualLine{ 7_lnum, 1, 10_lcol, 10_length, 20_length } );
+        visualLines.push_back( VisualLine{ 8_lnum, 0, 0_lcol, 10_length, 20_length } );
+        visualLines.push_back( VisualLine{ 8_lnum, 1, 10_lcol, 10_length, 20_length } );
+        visualLines.push_back( VisualLine{ 9_lnum, 0, 0_lcol, 5_length, 5_length } );
+        const ViewportLayout layout{ input, visualLines };
+
+        THEN( "it shows Log Lines 7 to 9, fewer than the Viewport has rows" )
+        {
+            REQUIRE( layout.shownLines() == ShownLines{ 7_lnum, 9_lnum } );
+        }
+    }
+
+    GIVEN( "The Visual Lines drawn 20 px higher, as at the bottom of the Log File" )
+    {
+        auto input = fixedWidthInput();
+        input.viewportHeightPx = 40;
+        input.drawingTopOffsetPx = -20;
+        input.scrollPosition = ScrollPosition{ 10_lnum, 0 };
+        const ViewportLayout layout{ input, unwrappedVisualLines( 10_lnum, 3, 10_length ) };
+
+        THEN( "the Log Line wholly above the top edge is not shown" )
+        {
+            REQUIRE( layout.shownLines() == ShownLines{ 11_lnum, 12_lnum } );
+        }
+    }
+
+    GIVEN( "No Visual Lines, as for an empty Log File" )
+    {
+        const ViewportLayout layout{ fixedWidthInput() };
+
+        THEN( "it shows no Log Line" )
+        {
+            REQUIRE_FALSE( layout.shownLines().has_value() );
+        }
+    }
+}
+
 SCENARIO( "Viewport layout scroll ranges", "[viewportlayout]" )
 {
     GIVEN( "A Log File whose bottom Scroll Position is its top" )

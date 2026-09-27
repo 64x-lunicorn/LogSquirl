@@ -106,6 +106,17 @@ struct VisualLine {
 
 using VisualLines = logsquirl::vector<VisualLine>;
 
+// The first and the last line a Viewport shows, both included: every line with
+// any part of a Visual Line inside the Viewport. Lines are named by their
+// position in the view, as ScrollPosition names them: Log Lines in the main
+// view, places among the Displayed Lines in the Filtered View.
+struct ShownLines {
+    LineNumber first{ 0 };
+    LineNumber last{ 0 };
+
+    bool operator==( const ShownLines& ) const = default;
+};
+
 // A rectangle in viewport pixels. Deliberately not a QRect: the layout has no
 // Qt in its interface.
 struct ViewportRect {
@@ -248,6 +259,12 @@ public:
     // Rows of the Viewport a Visual Line can be drawn on: its height in Visual
     // Lines, a partly visible last row included, and at least one.
     LinesCount viewportRows() const;
+
+    // The lines of the Visual Lines this layout holds that are at least
+    // partly inside the Viewport, or nothing when none is. Under text wrapping
+    // that is fewer lines than the Viewport has rows: they are counted from
+    // the Visual Lines laid out, never as the Scroll Position plus the rows.
+    std::optional<ShownLines> shownLines() const;
 
     // --- the bottom of the Log File ------------------------------------
 
