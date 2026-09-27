@@ -381,9 +381,9 @@ SCENARIO( "A QuickFind notification queued before its QuickFind is destroyed rea
           "[quickfind]" )
 {
     const FakeLogData logFile{ logLineTexts( 10 ) };
-    auto quickFind = std::make_unique<QuickFind>(
-        [ & ]() { return QuickFindLines::everyLogLine( logFile ); },
-        []( LineNumber ) { return true; } );
+    auto quickFind
+        = std::make_unique<QuickFind>( [ & ]() { return QuickFindLines::everyLogLine( logFile ); },
+                                       []( LineNumber ) { return true; } );
 
     QuickFindPattern quickFindPattern;
     quickFindPattern.changeSearchPattern( QStringLiteral( "no such text" ),
