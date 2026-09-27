@@ -246,6 +246,70 @@ SCENARIO( "Only the current Search's progress is told", "[keptsearches]" )
     }
 }
 
+// Making another Search current stops the one that was current. A running one
+// reports that it was interrupted while it is stopped, synchronously; that
+// report is the Search's that was current, and never reaches the views as
+// the new current Search's (#557).
+SCENARIO( "A Search stopped as another is made current does not tell of its interruption",
+          "[keptsearches]" )
+{
+    LogFile logFile;
+    auto* first = logFile.keptSearches.showCurrentSearch();
+    auto* another = logFile.keptSearches.startAnother();
+    logFile.keptSearches.makeCurrent( first );
+    QTest::qWait( 100 );
+
+    std::vector<SearchSession::State> told;
+    QObject::connect( &logFile.keptSearches, &KeptSearches::currentSearchUpdated,
+                      [ &told ]( const SearchSession::State& state ) { told.push_back( state ); } );
+
+    GIVEN( "the current Search running" )
+    {
+        logFile.openLogFile->requestSearch( RegularExpressionPattern( "line 00001" ) );
+        REQUIRE( logFile.currentSearch().lock()->searchState().phase
+                 == SearchSession::Phase::Running );
+
+        WHEN( "another kept Search is made current before the run ended" )
+        {
+            logFile.keptSearches.makeCurrent( another );
+            QTest::qWait( 300 );
+
+            THEN( "nothing is told: neither its progress nor its interruption" )
+            {
+                REQUIRE( told.empty() );
+            }
+        }
+    }
+}
+
+// Showing the current Search makes no other Search current: what the Open Log
+// File told of it before is still told (#557).
+SCENARIO( "Showing the current Search keeps what it told before", "[keptsearches]" )
+{
+    LogFile logFile;
+
+    std::vector<SearchSession::State> told;
+    QObject::connect( &logFile.keptSearches, &KeptSearches::currentSearchUpdated,
+                      [ &told ]( const SearchSession::State& state ) { told.push_back( state ); } );
+
+    GIVEN( "a Search requested with an invalid pattern before it is shown" )
+    {
+        // Told at once and once only: nothing runs.
+        logFile.openLogFile->requestSearch( RegularExpressionPattern( "(" ) );
+
+        WHEN( "the current Search is shown" )
+        {
+            logFile.keptSearches.showCurrentSearch();
+
+            THEN( "that the pattern is invalid is told" )
+            {
+                REQUIRE( waitUiState( [ &told ] { return !told.empty(); }, 5000 ) );
+                REQUIRE( told.back().phase == SearchSession::Phase::InvalidPattern );
+            }
+        }
+    }
+}
+
 SCENARIO(
     "A kept Search repeated after the Decoding Policy changed finds the new reading's Matches",
     "[keptsearches]" )
