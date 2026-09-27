@@ -2165,6 +2165,11 @@ Without a date, %1 is used.</source>
         <translation>啟動時顯示儀表板</translation>
     </message>
     <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <source>Applies to windows opened from now on</source>
+        <translation>適用於此後開啟的視窗</translation>
+    </message>
+    <message>
         <location filename="../../ui/include/optionsdialog.ui" line="230"/>
         <source>Version checking options</source>
         <translation>版本檢查選項</translation>

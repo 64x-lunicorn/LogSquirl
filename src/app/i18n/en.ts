@@ -2176,6 +2176,11 @@ Without a date, %1 is used.</translation>
         <translation>Show dashboard on startup</translation>
     </message>
     <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <source>Applies to windows opened from now on</source>
+        <translation>Applies to windows opened from now on</translation>
+    </message>
+    <message>
         <location filename="../../ui/include/optionsdialog.ui" line="230"/>
         <source>Version checking options</source>
         <translation>Version checking options</translation>

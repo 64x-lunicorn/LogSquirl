@@ -2177,6 +2177,11 @@ Without a date, %1 is used.</source>
         <translation>Показувати стартову сторінку під час запуску</translation>
     </message>
     <message>
+        <location filename="../../ui/include/optionsdialog.ui" line="227"/>
+        <source>Applies to windows opened from now on</source>
+        <translation>Застосовується до вікон, відкритих відтепер</translation>
+    </message>
+    <message>
         <location filename="../../ui/include/optionsdialog.ui" line="230"/>
         <source>Version checking options</source>
         <translation>Параметри перевірки версії</translation>

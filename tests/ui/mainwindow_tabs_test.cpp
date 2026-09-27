@@ -18,8 +18,9 @@
  */
 
 // The main window's tabs: which of them hold a Log File, whether or not the
-// window shows the Dashboard (#535), and the merged Log File whose rebuild
-// ends with its tab (#537).
+// window shows the Dashboard (#535), the merged Log File whose rebuild ends
+// with its tab (#537), and the Dashboard setting, which reaches the windows
+// opened after it changes (#562).
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -27,9 +28,13 @@
 #include <QAction>
 #include <QApplication>
 #include <QColor>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QFile>
+#include <QGridLayout>
+#include <QLabel>
 #include <QMenu>
+#include <QPushButton>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -46,6 +51,7 @@
 #include "mainwindowtext.h"
 #include "mergecontroller.h"
 #include "openlogfile.h"
+#include "optionsdialog.h"
 #include "session.h"
 #include "tabbedcrawlerwidget.h"
 #include "tabgroupinfo.h"
@@ -453,4 +459,56 @@ SCENARIO( "A merged Log File's rebuild ends with its tab", "[ui][tabs][merge]" )
             }
         }
     }
+}
+
+// The Dashboard setting is read when a window is built, so the Options Dialog
+// says it applies to the windows opened from then on (#562).
+SCENARIO( "The Dashboard setting reaches the windows opened after it changes", "[ui][tabs]" )
+{
+    const bool showDashboard = GENERATE( true, false );
+    CAPTURE( showDashboard );
+
+    auto& config = Configuration::get();
+    const auto previousShowDashboard = config.showDashboard();
+    config.setShowDashboard( !showDashboard );
+
+    GIVEN( "the Options Dialog" )
+    {
+        auto catalog = LogFormatCatalog{};
+        OptionsDialog dialog( catalog );
+        dialog.show();
+
+        THEN( "a hint beside the Dashboard checkbox says it applies to new windows" )
+        {
+            REQUIRE( dialog.showDashboardHintLabel->isVisible() );
+            REQUIRE_FALSE( dialog.showDashboardHintLabel->text().isEmpty() );
+
+            auto* grid = qobject_cast<QGridLayout*>( dialog.sessionBox->layout() );
+            REQUIRE( grid != nullptr );
+            int checkBoxRow = -1;
+            int hintRow = -2;
+            int unused = 0;
+            grid->getItemPosition( grid->indexOf( dialog.showDashboardCheckBox ), &checkBoxRow,
+                                   &unused, &unused, &unused );
+            grid->getItemPosition( grid->indexOf( dialog.showDashboardHintLabel ), &hintRow,
+                                   &unused, &unused, &unused );
+            REQUIRE( hintRow == checkBoxRow );
+        }
+
+        WHEN( "the Dashboard is turned on or off there and the dialog is confirmed" )
+        {
+            dialog.showDashboardCheckBox->setChecked( showDashboard );
+            dialog.buttonBox->button( QDialogButtonBox::Ok )->click();
+
+            THEN( "a window opened afterwards shows the Dashboard or not, as set" )
+            {
+                REQUIRE( Configuration::get().showDashboard() == showDashboard );
+                TabsWindow window;
+                REQUIRE( window.showsDashboard() == showDashboard );
+            }
+        }
+    }
+
+    config.setShowDashboard( previousShowDashboard );
+    config.save();
 }
