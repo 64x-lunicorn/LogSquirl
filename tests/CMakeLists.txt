@@ -79,6 +79,17 @@ add_test(
             -P ${CMAKE_CURRENT_SOURCE_DIR}/searchline_no_qt_widgets.cmake
 )
 
+# The index worker stays in the engine: no file of the widget library, the
+# application or the Open Log File includes its header, directly or through
+# the log data's (#549).
+add_test(
+    NAME index_worker_stays_in_the_engine
+    COMMAND ${CMAKE_COMMAND}
+            "-DSOURCES_DIRS=${CMAKE_SOURCE_DIR}/src/ui|${CMAKE_SOURCE_DIR}/src/app|${CMAKE_SOURCE_DIR}/src/openlogfile"
+            -DHEADERS_ROOT=${CMAKE_SOURCE_DIR}/src
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/index_worker_stays_in_the_engine.cmake
+)
+
 # The UI half of the Settings Policy seam: the widget layer legitimately links
 # logsquirl_settings, so an undeclared setting cannot be a link error there.
 # Only the allowlisted files may name the settings store (#187).

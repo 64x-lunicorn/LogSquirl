@@ -201,7 +201,6 @@ private:
     LineLength doGetMaxLength() const override;
     LineLength doGetLineLength( LineNumber line ) const override;
 
-    void doSetDisplayEncoding( const char* encoding ) override;
     const TextEncoding* doGetDisplayEncoding() const override;
 
     void doAttachReader() const override;

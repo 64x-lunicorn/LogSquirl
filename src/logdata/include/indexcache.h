@@ -27,7 +27,6 @@
 #include "compressedlinestorage.h"
 #include "indexedhash.h"
 #include "linepositionarray.h"
-#include "logdataworker.h"
 
 /// Result of loading an index from the disk cache.
 struct CachedIndex {

@@ -363,11 +363,6 @@ LineLength LogFilteredData::doGetLineLength( LineNumber lineNum ) const
     return sourceLogData_->getLineLength( line );
 }
 
-void LogFilteredData::doSetDisplayEncoding( const char* encoding )
-{
-    LOG_DEBUG << "AbstractLogData::setDisplayEncoding: " << encoding;
-}
-
 const TextEncoding* LogFilteredData::doGetDisplayEncoding() const
 {
     return sourceLogData_->getDisplayEncoding();

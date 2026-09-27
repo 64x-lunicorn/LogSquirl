@@ -20,7 +20,6 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
-#include <utility>
 
 #include <mimalloc.h>
 
@@ -123,31 +122,17 @@ int main( int argc, char* argv[] )
         }
     };
 
-    // The Search is requested once the Log File has loaded, and not before:
-    // only then is its Encoding known. The Open Log File settles it before it
-    // tells the load, the way it does for the desktop application (#326,
-    // #393): the Encoding the settings force, else the one detected, else the
-    // locale's. So the Search matches the Log Lines as a user reads them, and
-    // the matches print as they are in the Log File.
-    bool searchRequested = false;
-
+    // A load that fails is the tool's failure. One that succeeds says nothing
+    // here: the Search requested below waits for it.
     QObject::connect( &openLogFile, &OpenLogFile::loadingFinished,
                       [ & ]( const OpenLogFile::LoadFinished& load ) {
-                          if ( finished ) {
+                          if ( finished || load.status == LoadingStatus::Successful ) {
                               return;
                           }
-                          if ( load.status != LoadingStatus::Successful ) {
-                              printFailure( load.failure.isEmpty()
-                                                ? QString( "loading the Log File did not finish" )
-                                                : load.failure );
-                              finish( EXIT_FAILURE );
-                              return;
-                          }
-                          if ( std::exchange( searchRequested, true ) ) {
-                              return;
-                          }
-                          openLogFile.requestSearch(
-                              RegularExpressionPattern( parameters.pattern ) );
+                          printFailure( load.failure.isEmpty()
+                                            ? QString( "loading the Log File did not finish" )
+                                            : load.failure );
+                          finish( EXIT_FAILURE );
                       } );
 
     QObject::connect( &openLogFile, &OpenLogFile::searchUpdated,
@@ -170,6 +155,14 @@ int main( int argc, char* argv[] )
                           }
                       } );
 
+    // Requested before the Log File is opened: the Open Log File runs a Search
+    // requested before its first load once that load has finished, over the
+    // whole Log File, and settles the Encoding before it runs it (#396, #548)
+    // -- the Encoding the settings force, else the one detected, else the
+    // locale's, as for the desktop application (#326, #393). So the Search
+    // matches the Log Lines as a user reads them, and the matches print as
+    // they are in the Log File. An invalid pattern is told once it has loaded.
+    openLogFile.requestSearch( RegularExpressionPattern( parameters.pattern ) );
     openLogFile.open( parameters.filenames.front() );
 
     return app.exec();

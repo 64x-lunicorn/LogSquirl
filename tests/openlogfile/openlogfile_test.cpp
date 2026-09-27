@@ -1097,6 +1097,27 @@ SCENARIO( "An Open Log File reads its Log File in the Encoding detected unless o
             REQUIRE( openLogFile.chosenEncoding() == mibOf( "ISO-8859-1" ) );
         }
 
+        WHEN( "a Search is requested before the Log File has loaded" )
+        {
+            // "Grü" as it reads in ISO-8859-1; read as UTF-8, no Log Line has it.
+            const auto pattern = "^hit: " + QString::fromLatin1( QString( "Grü" ).toUtf8() );
+            openLogFile.requestSearch( RegularExpressionPattern( pattern ) );
+            REQUIRE( observer.waitLoads( 1 ) );
+
+            THEN( "it is reported once the Log File has loaded, over its Log Lines as they read in "
+                  "the Encoding forced" )
+            {
+                REQUIRE( waitUiState( [ & ] {
+                    return !observer.searchStates.empty()
+                           && observer.searchStates.back().phase == Phase::Complete;
+                } ) );
+                const auto& state = observer.searchStates.back();
+                REQUIRE( state.startLine == 0_lnum );
+                REQUIRE( state.endLine == LineNumber( EncodedLineCount ) );
+                REQUIRE( state.matchCount == LinesCount( EncodedLineCount / 2 ) );
+            }
+        }
+
         WHEN( "the Log File has loaded" )
         {
             REQUIRE( observer.waitLoads( 1 ) );

@@ -11,6 +11,7 @@ add_library(
   ${CMAKE_CURRENT_SOURCE_DIR}/include/loadingstatus.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdata.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdatametatypes.h
+  ${CMAKE_CURRENT_SOURCE_DIR}/include/indexjob.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataoperation.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logdataworker.h
   ${CMAKE_CURRENT_SOURCE_DIR}/include/logfiltereddata.h

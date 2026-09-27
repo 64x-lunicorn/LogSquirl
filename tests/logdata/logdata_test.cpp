@@ -554,7 +554,7 @@ SCENARIO( "A sparse set of Log Lines reads as each of them does on its own",
             // File another one; as UTF-8, 16 and 25 end in the middle of a
             // character and 17 and 35 start with a byte order mark. All of
             // them are read in one run.
-            logData.setDisplayEncoding( "UTF-8" );
+            logData.setDisplayEncoding( *TextEncoding::forName( "UTF-8" ) );
             const std::vector<LineNumber> lines{ 16_lnum, 17_lnum, 25_lnum, 35_lnum };
             const auto text = readSparse( lines );
             REQUIRE( text == linesOneByOne( logData, lines, expanded ) );
@@ -799,7 +799,7 @@ SCENARIO( "A sparse set of Log Lines reads as UTF-8 byte for byte as their text 
 
     const std::string encoding = GENERATE( "", "UTF-8", "ISO-8859-1" );
     if ( !encoding.empty() ) {
-        logData.setDisplayEncoding( encoding.c_str() );
+        logData.setDisplayEncoding( *TextEncoding::forName( encoding.c_str() ) );
     }
 
     CAPTURE( hideAnsiColorSequences, encoding );

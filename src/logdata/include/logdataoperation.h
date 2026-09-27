@@ -41,9 +41,13 @@
 
 #include <memory>
 
-#include "logdataworker.h"
-
+#include "indexjob.h"
+#include "settingspolicies.h"
 #include "synchronization.h"
+
+// Known only where the queue is built and destroyed: whoever holds a queue
+// does not compile the worker (#549).
+class LogDataWorker;
 
 // The job rule: of the index job waiting to run and one that arrives while
 // another runs, the one that waits from now on. Only one waits, and the
@@ -68,6 +72,14 @@ IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving );
 // starts once the one before is reported finished.
 class OperationQueue {
 public:
+    OperationQueue();
+    ~OperationQueue();
+
+    OperationQueue( const OperationQueue& ) = delete;
+    OperationQueue& operator=( const OperationQueue& ) = delete;
+    OperationQueue( OperationQueue&& ) = delete;
+    OperationQueue& operator=( OperationQueue&& ) = delete;
+
     void setWorker( std::unique_ptr<LogDataWorker>&& worker );
 
     // Hands a changed Indexing Policy to the worker, if there is one.

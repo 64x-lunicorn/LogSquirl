@@ -39,6 +39,7 @@
 #include "logdataoperation.h"
 
 #include "log.h"
+#include "logdataworker.h"
 #include "overload_visitor.h"
 #include "synchronization.h"
 
@@ -96,6 +97,10 @@ IndexJob waitingIndexJob( IndexJob waiting, IndexJob arriving )
 
     return std::move( winner );
 }
+
+OperationQueue::OperationQueue() = default;
+
+OperationQueue::~OperationQueue() = default;
 
 void OperationQueue::setWorker( std::unique_ptr<LogDataWorker>&& worker )
 {
