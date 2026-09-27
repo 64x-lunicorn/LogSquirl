@@ -137,6 +137,15 @@ LogTableView::LogTableView( std::shared_ptr<const RowMapping> rows, QWidget* par
     // leaves the bottom.
     connect( verticalScrollBar(), &QAbstractSlider::actionTriggered, this,
              [ this ]() { leaveFollowAwayFromBottom( verticalScrollBar()->sliderPosition() ); } );
+    // Following, the last Row stays in sight as the Text View's last line
+    // does: a shorter viewport, a larger font or Rows added while hidden move
+    // the bottom, not the user.
+    connect( verticalScrollBar(), &QAbstractSlider::rangeChanged, this,
+             [ this ]( int, int maximum ) {
+                 if ( follow_ ) {
+                     verticalScrollBar()->setValue( maximum );
+                 }
+             } );
 }
 
 LogTableView::~LogTableView()
@@ -276,9 +285,9 @@ void LogTableView::setSearchLimits( LineNumber startLine, LineNumber endLine )
     repaintIfActive();
 }
 
-void LogTableView::setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels )
+void LogTableView::setColorLabels( const std::vector<QStringList>& labels )
 {
-    state_.colorLabelWords = labels;
+    state_.setColorLabelWords( labels );
     repaintIfActive();
 }
 
@@ -563,10 +572,7 @@ void LogTableView::mouseDoubleClickEvent( QMouseEvent* event )
     if ( handlesMouse() && event->button() == Qt::LeftButton ) {
         const auto index = indexAt( event->pos() );
         if ( index.isValid() ) {
-            selectWordAt( index,
-                          LogTableHighlightDelegate::characterAtX(
-                              index.data( Qt::DisplayRole ).toString(), QFontMetrics( font() ),
-                              visualRect( index ).left(), event->pos().x() ) );
+            selectWordAt( index, characterAtX( index, event->pos().x() ) );
             // Consumed, to prevent default editing
             return;
         }
@@ -642,9 +648,13 @@ void LogTableView::keyPressEvent( QKeyEvent* event )
         }
     }
 
+    // Page Up, the arrow keys and Home may move the Rows; a key that moves
+    // nothing, Shift alone among them, leaves follow as it is.
+    const int before = verticalScrollBar()->value();
     QTableView::keyPressEvent( event );
-    // Page Up, the arrow keys and Home may have moved the Rows.
-    leaveFollowAwayFromBottom( verticalScrollBar()->value() );
+    if ( verticalScrollBar()->value() != before ) {
+        leaveFollowAwayFromBottom( verticalScrollBar()->value() );
+    }
 }
 
 void LogTableView::paintEvent( QPaintEvent* event )
@@ -666,6 +676,13 @@ void LogTableView::updateRow( int row )
 int LogTableView::charAtX( const QModelIndex& index, int pixelX ) const
 {
     return LogTableHighlightDelegate::charIndexAtX( index.data( Qt::DisplayRole ).toString(),
+                                                    QFontMetrics( font() ),
+                                                    visualRect( index ).left(), pixelX );
+}
+
+int LogTableView::characterAtX( const QModelIndex& index, int pixelX ) const
+{
+    return LogTableHighlightDelegate::characterAtX( index.data( Qt::DisplayRole ).toString(),
                                                     QFontMetrics( font() ),
                                                     visualRect( index ).left(), pixelX );
 }
@@ -737,7 +754,7 @@ std::unique_ptr<QMenu> LogTableView::createContextMenu( const QPoint& pos )
                            return !rows_->lineType( state_.currentSearch, line )
                                        .testFlag( AbstractLogData::LineTypeFlags::Mark );
                        } );
-    report.colorLabels = state_.colorLabelWords;
+    report.colorLabels = state_.colorLabelWords();
 
     PresentationMenu::Entries entries;
     entries.highlightersChange = [ this ]() { Q_EMIT highlightersChange(); };

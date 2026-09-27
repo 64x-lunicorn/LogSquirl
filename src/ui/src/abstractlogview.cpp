@@ -422,7 +422,7 @@ AbstractLogView::AbstractLogView( const AbstractLogData* newLogData,
         // The Color Labels follow the Theme, and their colors were read when
         // the words were set, so they are read again here and every line is
         // decorated again with them (ADR-0006).
-        decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
+        decorationSetup_.setColorLabels( colorLabelWords_, colorLabelColors() );
         pullToFollowCache_.nb_columns_ = 0_length;
         updateDecorations();
         viewport()->update();
@@ -1254,13 +1254,13 @@ void AbstractLogView::setSearchPattern( const RegularExpressionPattern& pattern 
     updateDecorations();
 }
 
-void AbstractLogView::setColorLabels( const std::vector<QuickHighlighters>& quickHighlighters )
+void AbstractLogView::setColorLabels( const std::vector<QStringList>& labels )
 {
-    quickHighlighters_ = quickHighlighters;
+    colorLabelWords_ = labels;
     // The colors are read here, with the words: a repaint builds no
     // Highlighter, so a later change to them arrives by setting the words
     // again.
-    decorationSetup_.setColorLabels( quickHighlighters_, colorLabelColors() );
+    decorationSetup_.setColorLabels( colorLabelWords_, colorLabelColors() );
     updateDecorations();
 }
 
@@ -2122,7 +2122,7 @@ std::unique_ptr<QMenu> AbstractLogView::createContextMenu( const QPoint& pos )
     report.hasUnmarkedLogLines = std::any_of( lines.begin(), lines.end(), [ this ]( auto line ) {
         return !lines_->lineType( line ).testFlag( AbstractLogData::LineTypeFlags::Mark );
     } );
-    report.colorLabels = quickHighlighters_;
+    report.colorLabels = colorLabelWords_;
     report.selectionStartSet = selectionStart_.has_value();
     report.drawnLikeTextView = true;
 

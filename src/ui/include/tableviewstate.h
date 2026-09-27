@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -45,7 +46,21 @@ struct TableViewState {
 
     // The words of the Color Labels, one list per Color Label. Their colors
     // are the Theme's, read when a Row is painted.
-    std::vector<QStringList> colorLabelWords;
+    const std::vector<QStringList>& colorLabelWords() const
+    {
+        return colorLabelWords_;
+    }
+    void setColorLabelWords( const std::vector<QStringList>& words )
+    {
+        colorLabelWords_ = words;
+        ++colorLabelsGeneration_;
+    }
+    // Changes whenever the words are set, so whoever builds something from
+    // them learns that they changed without keeping a copy to compare.
+    std::uint64_t colorLabelsGeneration() const
+    {
+        return colorLabelsGeneration_;
+    }
 
     // The window's QuickFind pattern, whose matches are painted.
     std::shared_ptr<QuickFindPattern> quickFindPattern;
@@ -62,4 +77,8 @@ struct TableViewState {
     {
         return searchEnd ? SearchLimits{ searchStart, *searchEnd } : SearchLimits{};
     }
+
+private:
+    std::vector<QStringList> colorLabelWords_;
+    std::uint64_t colorLabelsGeneration_ = 0;
 };

@@ -174,6 +174,11 @@ private:
         // Presentation.
         std::optional<QPointer<FilteredView>> filteredView;
 
+        bool isPresentation() const
+        {
+            return !filteredView.has_value();
+        }
+
         bool isGone() const
         {
             return filteredView.has_value() && filteredView->isNull();

@@ -135,7 +135,7 @@ public:
     // Ignored: the Table View never engages follow itself, and leaves it
     // however follow was engaged.
     void allowFollowMode( bool allow ) override;
-    void setColorLabels( const ColorLabelsManager::QuickHighlightersCollection& labels ) override;
+    void setColorLabels( const std::vector<QStringList>& labels ) override;
     void setSearchLimits( LineNumber startLine, LineNumber endLine ) override;
     // Saves the Log Lines of the selected Rows, in Log Line order.
     void saveSelectedTo( const QString& filename ) override;
@@ -247,6 +247,8 @@ private:
 
     // Pixel X in a cell to the character position there.
     int charAtX( const QModelIndex& index, int pixelX ) const;
+    // Pixel X in a cell to the character painted there.
+    int characterAtX( const QModelIndex& index, int pixelX ) const;
     void selectWordAt( const QModelIndex& index, int charPos );
     // Repaint the in-cell selection.
     void showInCellSelection();

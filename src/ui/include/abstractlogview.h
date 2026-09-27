@@ -195,8 +195,7 @@ public:
 
     void setSearchPattern( const RegularExpressionPattern& pattern ) override;
 
-    using QuickHighlighters = QStringList;
-    void setColorLabels( const std::vector<QuickHighlighters>& wordHighlighters ) override;
+    void setColorLabels( const std::vector<QStringList>& labels ) override;
 
     // Hand over the settings that color Log Lines. Call it after a settings
     // change: painting reads no setting of its own, so this is the only way
@@ -435,7 +434,8 @@ private:
     SelectedTextLength selectedTextLength_;
     RegularExpressionPattern searchPattern_;
 
-    std::vector<QuickHighlighters> quickHighlighters_ = std::vector<QuickHighlighters>{ 9 };
+    // The words of each Color Label, one list per color slot.
+    std::vector<QStringList> colorLabelWords_ = std::vector<QStringList>{ 9 };
 
     // The one module that builds the Line Decorator's Context, shared with
     // the Table View: it holds the Decoration Policy, the main search

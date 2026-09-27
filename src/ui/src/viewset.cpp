@@ -118,7 +118,7 @@ void ViewSet::setSearchPattern( const RegularExpressionPattern& pattern )
 
     // A kept Search's Filtered View colors the pattern it ran with.
     forEachView( [ & ]( const HeldView& held ) {
-        if ( !held.filteredView.has_value() || *held.filteredView == currentFilteredView_ ) {
+        if ( held.isPresentation() || *held.filteredView == currentFilteredView_ ) {
             held.view->setSearchPattern( pattern );
         }
     } );
@@ -136,7 +136,7 @@ void ViewSet::refreshMatchesAndMarks( LinesCount logFileLines, Overview::UpdateP
 
     // The Presentations draw a bullet for each Match and Mark.
     forEachView( []( const HeldView& held ) {
-        if ( !held.filteredView.has_value() ) {
+        if ( held.isPresentation() ) {
             held.view->updateDecorations();
         }
     } );

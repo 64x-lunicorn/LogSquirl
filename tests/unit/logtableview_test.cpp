@@ -39,6 +39,7 @@
 #include <QFile>
 #include <QHeaderView>
 #include <QMenu>
+#include <QScrollBar>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -862,10 +863,6 @@ void doubleClickCharacter( LogTableView& view, int row, const QString& text, int
     FAIL( "no cell holding " << text.toStdString() );
 }
 
-} // namespace
-
-namespace {
-
 // A Log Format of two fields, a and b, each a run of characters other than a
 // space, apart by spaces or tabs. Its columns show them after the timestamp, the elapsed time and
 // the level, which stay empty.
@@ -934,6 +931,7 @@ SCENARIO( "A QuickFind in the Table View starts from the selected characters and
     {
         doubleClickCharacter( view, 0, "needle", 0 );
         REQUIRE( view.selectedText() == "needle" );
+        REQUIRE( view.selection().inCell().has_value() );
         REQUIRE( view.selection().inCell()->column == columnA );
 
         WHEN( "Find next is chosen" )
@@ -1001,6 +999,7 @@ SCENARIO( "A QuickFind in the Table View starts from the selected characters and
             {
                 REQUIRE( ( !newSelection.isEmpty() || newSelection.wait( 10000 ) ) );
                 REQUIRE( view.selectedLogLines() == logsquirl::vector<LineNumber>{ 3_lnum } );
+                REQUIRE( view.selection().inCell().has_value() );
                 REQUIRE( view.selection().inCell()->column == columnB );
                 REQUIRE( view.selectedText() == "needle" );
             }
@@ -1038,6 +1037,18 @@ SCENARIO( "A double-click in the Table View selects a word as the Text View does
         THEN( "no character is selected" )
         {
             REQUIRE_FALSE( view.selection().hasInCellSelection() );
+        }
+    }
+
+    // The Text View takes a click right of a Log Line's text for its last
+    // character.
+    WHEN( "the cell is double-clicked right of its text" )
+    {
+        doubleClickCharacter( view, 0, "needle one", 10 );
+
+        THEN( "the last word is selected, as the Text View selects it" )
+        {
+            REQUIRE( view.selectedText() == "one" );
         }
     }
 }
@@ -1318,6 +1329,95 @@ SCENARIO( "Selecting a Row of the Table View tells the accessibility clients not
         {
             REQUIRE( view.selectionModel()->isRowSelected( 1 ) );
             REQUIRE( events.received().empty() );
+        }
+    }
+}
+
+namespace {
+
+QStringList manyLines( int count )
+{
+    QStringList lines;
+    for ( int line = 0; line < count; ++line ) {
+        lines.append( QString( "Jan  1 12:00:00 host%1 message %1" ).arg( line ) );
+    }
+    return lines;
+}
+
+bool isAtBottom( const LogTableView& view )
+{
+    const auto* scrollBar = view.verticalScrollBar();
+    return scrollBar->maximum() > 0 && scrollBar->value() == scrollBar->maximum();
+}
+
+} // namespace
+
+// Following, the Table View stays on its last Row as the Text View does when
+// its viewport changes, and leaves follow only when the user moves the Rows
+// away from the bottom (#543).
+SCENARIO( "A followed Table View stays at the bottom when its viewport shrinks",
+          "[logtableview][follow]" )
+{
+    const auto format = makeFormat();
+    FakeLogData logData( manyLines( 200 ) );
+    LogTableView view;
+    open( view, format, logData );
+    view.setActive( true );
+    view.show();
+    REQUIRE( QTest::qWaitForWindowExposed( &view ) );
+    view.followSet( true );
+    QCoreApplication::processEvents();
+    REQUIRE( isAtBottom( view ) );
+    QSignalSpy followChanged( &view, &LogTableView::followModeChanged );
+
+    WHEN( "the Table View is made shorter" )
+    {
+        view.resize( view.width(), view.height() / 2 );
+        QCoreApplication::processEvents();
+
+        THEN( "it is still at the bottom" )
+        {
+            REQUIRE( isAtBottom( view ) );
+        }
+
+        AND_WHEN( "Shift is pressed" )
+        {
+            view.setFocus();
+            QTest::keyClick( &view, Qt::Key_Shift );
+
+            THEN( "follow stays on" )
+            {
+                REQUIRE( followChanged.isEmpty() );
+            }
+        }
+    }
+
+    WHEN( "the font grows" )
+    {
+        auto font = view.font();
+        font.setPointSize( font.pointSize() * 2 );
+        view.updateFont( font );
+        QCoreApplication::processEvents();
+
+        THEN( "it is still at the bottom, and follow stays on" )
+        {
+            REQUIRE( isAtBottom( view ) );
+            REQUIRE( followChanged.isEmpty() );
+        }
+    }
+
+    WHEN( "Page Up is pressed on the last Row" )
+    {
+        view.selectionModel()->setCurrentIndex( view.model()->index( 199, 0 ),
+                                                QItemSelectionModel::NoUpdate );
+        view.setFocus();
+        QTest::keyClick( &view, Qt::Key_PageUp );
+
+        THEN( "follow is off" )
+        {
+            REQUIRE_FALSE( isAtBottom( view ) );
+            REQUIRE( followChanged.count() == 1 );
+            REQUIRE( followChanged.front().front().toBool() == false );
         }
     }
 }

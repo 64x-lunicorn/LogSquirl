@@ -28,7 +28,7 @@
 
 class ColorLabelsManager {
 public:
-    using QuickHighlightersCollection = std::vector<AbstractLogView::QuickHighlighters>;
+    using QuickHighlightersCollection = std::vector<QStringList>;
 
     QuickHighlightersCollection colorLabels() const;
 

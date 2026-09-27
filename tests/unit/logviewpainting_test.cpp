@@ -802,7 +802,7 @@ SCENARIO( "The log view repaints a changed Decoration without reading the Log Li
 
             WHEN( "the Color Labels change" )
             {
-                auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+                auto colorLabels = std::vector<QStringList>( 9 );
                 colorLabels[ 0 ] << QStringLiteral( "idle" );
                 view.setColorLabels( colorLabels );
                 grabViewport( view );
@@ -1001,7 +1001,7 @@ void decorateEverything( AbstractLogView& view, QuickFindPattern& quickFindPatte
 {
     quickFindPattern.changeSearchPattern( QStringLiteral( "retry|idle" ),
                                           /* useExtendedRegexp */ true );
-    auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+    auto colorLabels = std::vector<QStringList>( 9 );
     colorLabels[ 1 ] << QStringLiteral( "INFO" );
     view.setColorLabels( colorLabels );
 
@@ -1363,7 +1363,7 @@ void highlightWithoutSelecting( AbstractLogView& view, QuickFindPattern& quickFi
 {
     quickFindPattern.changeSearchPattern( QStringLiteral( "retry|idle" ),
                                           /* useExtendedRegexp */ true );
-    auto colorLabels = std::vector<AbstractLogView::QuickHighlighters>( 9 );
+    auto colorLabels = std::vector<QStringList>( 9 );
     colorLabels[ 1 ] << QStringLiteral( "INFO" );
     view.setColorLabels( colorLabels );
 }

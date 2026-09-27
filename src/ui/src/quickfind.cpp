@@ -624,5 +624,8 @@ void QuickFind::resetLimits()
 
 void QuickFind::sendNotification( QFNotification notification )
 {
-    dispatchToMainThread( [ this, notification ]() { notify( notification ); } );
+    // Queued to this QuickFind, which lives on the UI thread: Qt drops the
+    // call if it is destroyed first, as when its view closes while a search
+    // interrupted or a progress report is still queued (#565).
+    dispatchToObject( [ this, notification ]() { notify( notification ); }, this );
 }
