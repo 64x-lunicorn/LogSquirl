@@ -89,7 +89,7 @@ public:
 
         // A single-byte Encoding is not told from its bytes: the Log File is
         // read in it as a user who picks it reads it.
-        logData_->setDisplayEncoding( encoding );
+        logData_->setDisplayEncoding( *codec );
         REQUIRE( logData_->getDisplayEncoding()->mibEnum() == codec->mibEnum() );
         REQUIRE( logData_->getLineString( 1_lnum ) == QString::fromUtf8( logLine( 1 ) ).trimmed() );
     }

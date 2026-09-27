@@ -132,6 +132,12 @@ public:
     // Get the auto-detected encoding for the indexed text.
     const TextEncoding* getDetectedEncoding() const;
 
+    // Reads the Log File in the Encoding given from now on. When it splits
+    // the Log File into Log Lines differently than the Encoding it was
+    // indexed in, the Log File is loaded again; otherwise its Log Lines only
+    // decode differently, which every LogFilteredData built from it is told.
+    void setDisplayEncoding( const TextEncoding& encoding );
+
     // Replaces the Decoding Policy: every Log Line read from now on, for a
     // view or for a Search, is decoded under it, and decodingPolicyChanged()
     // tells the views to read what they show again. Search results already
@@ -226,7 +232,6 @@ private:
     LinesCount doGetNbLine() const override;
     LineLength doGetMaxLength() const override;
     LineLength doGetLineLength( LineNumber line ) const override;
-    void doSetDisplayEncoding( const char* encoding ) override;
     const TextEncoding* doGetDisplayEncoding() const override;
     void doAttachReader() const override;
     void doDetachReader() const override;

@@ -208,7 +208,6 @@ protected:
         return LineLength( static_cast<LineLength::UnderlyingType>(
             scrollingbenchmark::generatedLogLine( line.get() ).size() ) );
     }
-    void doSetDisplayEncoding( const char* ) override {}
     const TextEncoding* doGetDisplayEncoding() const override
     {
         return nullptr;

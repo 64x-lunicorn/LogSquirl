@@ -362,10 +362,10 @@ LineLength LogData::doGetLineLength( LineNumber line ) const
     return getUntabifiedLength( doGetLineString( line ) );
 }
 
-void LogData::doSetDisplayEncoding( const char* encoding )
+void LogData::setDisplayEncoding( const TextEncoding& encoding )
 {
-    LOG_DEBUG << "AbstractLogData::setDisplayEncoding: " << encoding;
-    codec_.setCodec( TextEncoding::forName( encoding ) );
+    LOG_DEBUG << "LogData::setDisplayEncoding: " << encoding.name().constData();
+    codec_.setCodec( &encoding );
     auto needReload = false;
     auto useGuessedCodec = false;
 

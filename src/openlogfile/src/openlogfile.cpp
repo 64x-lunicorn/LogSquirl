@@ -300,7 +300,7 @@ bool OpenLogFile::settleEncoding()
     // no use. Otherwise the Log Lines only decode differently, which it tells
     // every Search.
     logData_->interruptLoading();
-    logData_->setDisplayEncoding( codec->name().constData() );
+    logData_->setDisplayEncoding( *codec );
     return true;
 }
 
