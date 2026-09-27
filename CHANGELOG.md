@@ -338,6 +338,14 @@
 
 ## Internal
 
+- **An unknown default Encoding is resolved in one place**: a default
+  Encoding in the settings that this build does not know (for example
+  `encodingMib=2013`) is taken as the locale's where the Policies are derived,
+  instead of by the log data, the index worker and the Open Log File each on
+  their own. `logsquirl_grep` reads such a Log File in the locale's Encoding
+  and exits with 0 as before, now pinned by a test. The text Encodings moved
+  into a library of their own, so the settings no longer link the engine
+  (#552).
 - **A performance regression turns a run red**: a weekly `Performance`
   workflow builds master as it ships (RelWithDebInfo with LTO) on a
   GitHub-hosted runner and runs the whole e2e performance suite, the 10, 50
